@@ -41,7 +41,10 @@ int main( ) {
           IsKeyFrame = false;
           FirstKeyFrame = false;
         }
-        TimeStamp = (DTSCStream.getPacket(0).getContent("time").NumValue() * 27000 );
+        TimeStamp = ((DTSCStream.getPacket(0).getContent("time").NumValue() + 700) * 27000 );
+        if( IsKeyFrame ) {
+          fprintf( stderr, "Keyframe, timeStamp: %u\n", TimeStamp );
+        }
         int TSType;
         bool FirstPic = true;
         while( DTMIData.size() ) {
@@ -129,8 +132,9 @@ int main( ) {
             AudioCounter ++;
             if( WritePesHeader ) {
               PackData.UnitStart( 1 );
-              PackData.RandomAccess( 1 );
+              //PackData.RandomAccess( 1 );
               PackData.AddStuffing( 184 - (14 + ToPack.size()) );
+              PackData.RandomAccess( 1 );
               PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
               WritePesHeader = false;
             } else {

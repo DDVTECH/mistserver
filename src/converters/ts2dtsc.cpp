@@ -31,6 +31,7 @@ int main( ) {
   int PMT_PID = -1;
   int VideoPID = -1;
   int AudioPID = -1;
+  int VideoTime_Offset = -1;
   DTSC::DTMI Meta;
   DTSC::DTMI VideoOut;
   DTSC::DTMI AudioOut;
@@ -85,11 +86,16 @@ int main( ) {
           NAL_Unit Transformer;
           int i = 0;
           while( Transformer.ReadData( AnnexBData ) ) {
-            if( Transformer.Type() < 6 || Transformer.Type() > 9 ) { //Extract SPS/PPS/SEI/Separator Data
+            if( Transformer.Type() <= 6 || Transformer.Type() >= 10 ) { //Extract SPS/PPS/Separator Data
               NewData += Transformer.SizePrepended( );
             }
           }
           VideoOut.addContent( DTSC::DTMI( "data", NewData ) );
+          if( VideoTime_Offset == -1 ) { 
+            VideoTime_Offset = VideoOut.getContent("time").NumValue();
+          }
+          int VideoTime = VideoOut.getContent("time").NumValue();
+          VideoOut.addContent( DTSC::DTMI( "time", VideoTime - VideoTime_Offset ) );
           std::cout << VideoOut.Pack(true);
           VideoOut = DTSC::DTMI();
         }
@@ -109,10 +115,16 @@ int main( ) {
             }
           }
           VideoOut.addContent( DTSC::DTMI( "data", NewData ) );
+          if( VideoTime_Offset == -1 ) { 
+            VideoTime_Offset = VideoOut.getContent("time").NumValue();
+          }
+          int VideoTime = VideoOut.getContent("time").NumValue();
+          VideoOut.addContent( DTSC::DTMI( "time", VideoTime - VideoTime_Offset ) );
           std::cout << VideoOut.Pack(true);
           VideoOut = DTSC::DTMI();
         }
         if( TSData.UnitStart( ) && PrevType == "Audio" ) {
+          
           fprintf( stderr, "\tNew AudioPacket, Writing old\n" );
           std::string AudioData = AudioOut.getContent("data").StrValue();
           AudioData.erase(0,7);//remove the header

@@ -88,11 +88,11 @@ int TS::Packet::AdaptationField( ) {
 /// Sets the PCR (Program Clock Reference) of a TS::Packet.
 /// \param NewVal The new PCR Value.
 void TS::Packet::PCR( int64_t NewVal ) {
-  NewVal += (0xF618 * 300);
   AdaptationField( 3 );
   Buffer[4] = 7;
   Buffer[5] = (Buffer[5] | 0x10 );
   int64_t TmpVal = NewVal / 300;
+  fprintf( stderr, "\tSetting PCR_Base: %d\n", TmpVal );
   Buffer[6] = (((TmpVal>>1)>>24) & 0xFF);
   Buffer[7] = (((TmpVal>>1)>>16) & 0xFF);
   Buffer[8] = (((TmpVal>>1)>>8) & 0xFF);
@@ -227,7 +227,7 @@ std::string TS::Packet::ToString( ) {
 /// Starts at the first Free byte.
 /// \param NewLen The length of this video frame.
 void TS::Packet::PESVideoLeadIn( int NewLen ) {
-  static int PTS = 27000000;
+  static int PTS = 126000;
   NewLen += 14;
   int Offset = ( 188 - Free );
   Buffer[Offset] = 0x00;//PacketStartCodePrefix

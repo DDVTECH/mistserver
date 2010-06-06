@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <cstdio>
 
-#define BUFLEN 3000000
+#define BUFLEN 1000000
 
 bool machineEndianness() {
   int i = 1;
@@ -20,14 +20,16 @@ bool machineEndianness() {
 int main() {
   char buffer[BUFLEN];
   char input[BUFLEN];
+  char header[BUFLEN];
   int inp_amount;
+  int cur_header_pos;
   int position_current = 0;
   int position_startframe = 0;
   int frame_bodylength = 0;
   SWUnixSocket listener;
   SWUnixSocket *mySocket;
   SWBaseSocket::SWBaseError BError;
-  char header[13] = {'F','L','V',0x01,0x05,0x00,0x00,0x00,0x09,0x00,0x00,0x00,0x00};
+  cur_header_pos = fread(&header,1,13,stdin);
 
   listener.bind("../socketfile");
   listener.listen();
@@ -36,34 +38,32 @@ int main() {
   while(true) {
     inp_amount = fread(&input,1,11,stdin);
     if (input[0] == 9) {
+      std::cout << "9!!\n";
       if (!mySocket) {
         mySocket = (SWUnixSocket *)listener.accept(&BError);
-        mySocket->send(&header[0],13);
+        if (mySocket) {
+          mySocket->send(&header[0],cur_header_pos);
+        }
       }
     }
-    std::cout << "Blaah\n";
     position_current = 0;
     position_startframe = position_current;
     for(int i = 0; i < 11; i++) { buffer[position_current] = input[i]; position_current ++; }
     frame_bodylength = 0;
-    if (machineEndianness() ) {
-      frame_bodylength += input[1];
-      frame_bodylength += (input[2] << 8);
-      frame_bodylength += (input[3] << 16);
-    } else {
-      frame_bodylength += input[3];
-      frame_bodylength += (input[2] << 8);
-      frame_bodylength += (input[1] << 16);
-    }
+    frame_bodylength += input[3];
+    frame_bodylength += (input[2] << 8);
+    frame_bodylength += (input[1] << 16);
+
     std::cout << frame_bodylength << "\n";
     for (int i = 0; i < frame_bodylength + 4; i++) {
       inp_amount = fread(&input,1,1,stdin);
-      buffer[position_current] = input[0]; position_current ++;
-      std::cout << " " << position_current << "\n";
+      buffer[position_current] = input[0];
+      position_current ++;
     }
     std::cout << "Total message read!\n";
-    exit(0);
-    mySocket->send(&buffer[0], position_current-1, &BError);
+    if (mySocket) {
+      mySocket->send(&buffer[0], position_current, &BError);
+    }
   }
 
   // disconnect and clean up

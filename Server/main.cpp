@@ -27,11 +27,11 @@ int main() {
   int position_startframe = 0;
   int frame_bodylength = 0;
   SWUnixSocket listener;
-  SWUnixSocket *mySocket;
+  SWUnixSocket *mySocket = NULL;
   SWBaseSocket::SWBaseError BError;
   cur_header_pos = fread(&header,1,13,stdin);
 
-  listener.bind("../socketfile");
+  listener.bind("/tmp/socketfile");
   listener.listen();
   listener.set_timeout(1,0);
 
@@ -42,7 +42,7 @@ int main() {
       if (!mySocket) {
         mySocket = (SWUnixSocket *)listener.accept(&BError);
         if (mySocket) {
-          mySocket->send(&header[0],cur_header_pos);
+          mySocket->send(&header[0],13);
         }
       }
     }
@@ -63,6 +63,9 @@ int main() {
     std::cout << "Total message read!\n";
     if (mySocket) {
       mySocket->send(&buffer[0], position_current, &BError);
+      if ( BError != SWBaseSocket::ok ) {
+        mySocket = 0;
+      }
     }
   }
 

@@ -66,7 +66,7 @@ int main( int argc, char * argv[] ) {
     std::cout << "Total message read!\n";
     if (mySocket) {
       std::cout << "  mySocket: " << mySocket << "\n";
-      if ( mySocket->fsend(&all_buffers[current_buffer][0], position_current) == -1) {
+      if ( mySocket->fsend(&all_buffers[current_buffer][0], position_current, &BError) == -1) {
         mySocket->disconnect();
         mySocket->close_fd();
         std::cout << "Disconnected, closed..." << "\n";

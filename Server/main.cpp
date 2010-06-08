@@ -7,18 +7,20 @@
 
 #define BUFLEN 1000000
 
-bool machineEndianness() {
-  int i = 1;
-  char *p = (char *) &i;
-  if (p[0] == 1) {
-    return false;//little-endian
-  } else {
-    return true;
+int main( int argc, char * argv[] ) {
+  if (argc != 3) { std::cout << "Not the right amount of arguments!\n"; exit(1);}
+  int buffers = atoi(argv[1]);
+  int total_buffersize = atoi(argv[2]);
+  int size_per_buffer = total_buffersize/buffers;
+  std::cout << "Size per buffer: " << size_per_buffer << "\n";
+  char ** all_buffers = (char**) calloc(buffers,sizeof(char*));
+  for (int i = 0; i < buffers; i ++ ) {
+    all_buffers[i] = (char*) malloc (size_per_buffer);
+    all_buffers[i][0] = i+'a';
   }
-}
-
-int main() {
-  char buffer[BUFLEN];
+  for (int i = 0; i < buffers; i ++ ) {
+    std::cout << "Buffer[" << i << "][0]: " << all_buffers[i][0] << "\n";
+  }
   char input[BUFLEN];
   char header[BUFLEN];
   int inp_amount;
@@ -26,6 +28,7 @@ int main() {
   int position_current = 0;
   int position_startframe = 0;
   int frame_bodylength = 0;
+  int current_buffer = 0;
   SWUnixSocket listener;
   SWUnixSocket *mySocket = NULL;
   SWBaseSocket::SWBaseError BError;
@@ -48,7 +51,7 @@ int main() {
     }
     position_current = 0;
     position_startframe = position_current;
-    for(int i = 0; i < 11; i++) { buffer[position_current] = input[i]; position_current ++; }
+    for(int i = 0; i < 11; i++) { all_buffers[current_buffer][position_current] = input[i]; position_current ++; }
     frame_bodylength = 0;
     frame_bodylength += input[3];
     frame_bodylength += (input[2] << 8);
@@ -57,19 +60,24 @@ int main() {
     std::cout << frame_bodylength << "\n";
     for (int i = 0; i < frame_bodylength + 4; i++) {
       inp_amount = fread(&input,1,1,stdin);
-      buffer[position_current] = input[0];
+      all_buffers[current_buffer][position_current] = input[0];
       position_current ++;
     }
     std::cout << "Total message read!\n";
     if (mySocket) {
-      mySocket->send(&buffer[0], position_current, &BError);
-      if ( BError != SWBaseSocket::ok ) {
+      std::cout << "  mySocket: " << mySocket << "\n";
+      if ( mySocket->fsend(&all_buffers[current_buffer][0], position_current) == -1) {
+        mySocket->disconnect();
+        mySocket->close_fd();
+        std::cout << "Disconnected, closed..." << "\n";
         mySocket = 0;
       }
     }
+    current_buffer++;
+    current_buffer = current_buffer % buffers;
   }
 
   // disconnect and clean up
-  mySocket->disconnect();
+  listener.disconnect();
   return 0;
 }

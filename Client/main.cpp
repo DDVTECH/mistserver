@@ -3,6 +3,9 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <cstdio>
+#include <unistd.h>
+#include <fcntl.h>
 
 int main() {
   SWUnixSocket mySocket;

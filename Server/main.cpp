@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdlib>
 #include <cstdio>
+#include "buffer.h"
 
 #define BUFLEN 1000000
 
@@ -13,13 +14,14 @@ int main( int argc, char * argv[] ) {
   int total_buffersize = atoi(argv[2]);
   int size_per_buffer = total_buffersize/buffers;
   std::cout << "Size per buffer: " << size_per_buffer << "\n";
-  char ** all_buffers = (char**) calloc(buffers,sizeof(char*));
+  buffer ** ringbuf = (buffer**) calloc (buffers,sizeof(buffer*));
   for (int i = 0; i < buffers; i ++ ) {
-    all_buffers[i] = (char*) malloc (size_per_buffer);
-    all_buffers[i][0] = i+'a';
+    ringbuf[i] = new buffer;
+    ringbuf[i]->data = (char*) malloc(size_per_buffer);
+    ringbuf[i]->data[0] = i+'a';
   }
   for (int i = 0; i < buffers; i ++ ) {
-    std::cout << "Buffer[" << i << "][0]: " << all_buffers[i][0] << "\n";
+    std::cout << "Buffer[" << i << "][0]: " << ringbuf[i]->data[0] << "\n";
   }
   char input[BUFLEN];
   char header[BUFLEN];
@@ -51,7 +53,7 @@ int main( int argc, char * argv[] ) {
     }
     position_current = 0;
     position_startframe = position_current;
-    for(int i = 0; i < 11; i++) { all_buffers[current_buffer][position_current] = input[i]; position_current ++; }
+    for(int i = 0; i < 11; i++) { ringbuf[current_buffer]->data[position_current] = input[i]; position_current ++; }
     frame_bodylength = 0;
     frame_bodylength += input[3];
     frame_bodylength += (input[2] << 8);
@@ -60,13 +62,13 @@ int main( int argc, char * argv[] ) {
     std::cout << frame_bodylength << "\n";
     for (int i = 0; i < frame_bodylength + 4; i++) {
       inp_amount = fread(&input,1,1,stdin);
-      all_buffers[current_buffer][position_current] = input[0];
+      ringbuf[current_buffer]->data[position_current] = input[0];
       position_current ++;
     }
     std::cout << "Total message read!\n";
     if (mySocket) {
       std::cout << "  mySocket: " << mySocket << "\n";
-      if ( mySocket->fsend(&all_buffers[current_buffer][0], position_current, &BError) == -1) {
+      if ( mySocket->fsend(&ringbuf[current_buffer]->data[0], position_current, &BError) == -1) {
         mySocket->disconnect();
         mySocket->close_fd();
         std::cout << "Disconnected, closed..." << "\n";

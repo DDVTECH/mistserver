@@ -5,11 +5,19 @@
 #include <cstdlib>
 #include <cstdio>
 #include "buffer.h"
+#include "user.h"
 
 #define BUFLEN 1000000
 
+int get_empty( user ** list, int amount ) {
+  for (int i = 0; i < amount; i++ ){
+    if (!list[i]->is_connected()) { return i; }
+  }
+  return -1;
+}
+
 int main( int argc, char * argv[] ) {
-  if (argc != 3) { std::cout << "Not the right amount of arguments!\n"; exit(1);}
+  if (argc != 4) { std::cout << "Not the right amount of arguments!\n"; exit(1);}
   int buffers = atoi(argv[1]);
   int total_buffersize = atoi(argv[2]);
   int size_per_buffer = total_buffersize/buffers;
@@ -20,9 +28,10 @@ int main( int argc, char * argv[] ) {
     ringbuf[i]->data = (char*) malloc(size_per_buffer);
     ringbuf[i]->data[0] = i+'a';
   }
-  for (int i = 0; i < buffers; i ++ ) {
-    std::cout << "Buffer[" << i << "][0]: " << ringbuf[i]->data[0] << "\n";
-  }
+  for (int i = 0; i < buffers; i ++ ) { std::cout << "Buffer[" << i << "][0]: " << ringbuf[i]->data[0] << "\n"; }
+  int connections = atoi(argv[3]);
+  user ** connectionList = (user**) calloc (connections,sizeof(user*));
+  for (int i = 0; i < connections; i++) { connectionList[i] = new user; }
   char input[BUFLEN];
   char header[BUFLEN];
   int inp_amount;
@@ -31,6 +40,8 @@ int main( int argc, char * argv[] ) {
   int position_startframe = 0;
   int frame_bodylength = 0;
   int current_buffer = 0;
+  int open_connection = -1;
+  unsigned int loopcount = 0;
   SWUnixSocket listener;
   SWUnixSocket *mySocket = NULL;
   SWBaseSocket::SWBaseError BError;
@@ -38,16 +49,19 @@ int main( int argc, char * argv[] ) {
 
   listener.bind("/tmp/socketfile");
   listener.listen();
-  listener.set_timeout(1,0);
+  listener.set_timeout(0,50000);
 
   while(true) {
+    loopcount ++;
+    std::cout << "#" << loopcount << "\n";
     inp_amount = fread(&input,1,11,stdin);
     if (input[0] == 9) {
       std::cout << "9!!\n";
-      if (!mySocket) {
-        mySocket = (SWUnixSocket *)listener.accept(&BError);
-        if (mySocket) {
-          mySocket->send(&header[0],13);
+      open_connection = get_empty(connectionList,connections);
+      if (open_connection != -1) {
+        connectionList[open_connection]->connect( (SWUnixSocket *)listener.accept(&BError) );
+        if (connectionList[open_connection]->is_connected()) {
+          connectionList[open_connection]->send_msg(&header[0],13,NULL);
         }
       }
     }
@@ -58,21 +72,21 @@ int main( int argc, char * argv[] ) {
     frame_bodylength += input[3];
     frame_bodylength += (input[2] << 8);
     frame_bodylength += (input[1] << 16);
-
-    std::cout << frame_bodylength << "\n";
     for (int i = 0; i < frame_bodylength + 4; i++) {
       inp_amount = fread(&input,1,1,stdin);
       ringbuf[current_buffer]->data[position_current] = input[0];
       position_current ++;
     }
+    ringbuf[current_buffer]->size = position_current;
     std::cout << "Total message read!\n";
-    if (mySocket) {
-      std::cout << "  mySocket: " << mySocket << "\n";
-      if ( mySocket->fsend(&ringbuf[current_buffer]->data[0], position_current, &BError) == -1) {
-        mySocket->disconnect();
-        mySocket->close_fd();
-        std::cout << "Disconnected, closed..." << "\n";
-        mySocket = 0;
+    for (int i = 0; i < connections; i++) {
+      std::cout << "Checking connection " << i << "\n";
+      if (connectionList[i]->is_connected()) {
+        std::cout << "Connected...\n";
+        if ( connectionList[i]->myConnection->send(&ringbuf[current_buffer]->data[0], ringbuf[current_buffer]->size, &BError) == -1) {
+          std::cout << " -1 :(\n";
+          connectionList[i]->disconnect();
+        }
       }
     }
     current_buffer++;

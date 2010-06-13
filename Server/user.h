@@ -1,53 +1,22 @@
+#pragma once
 #include "buffer.h"
 #include "sockets/SocketW.h"
+#include <iostream>
 
 class user{
+  public:
     user();
     ~user();
     void set_buffer(buffer * newBuffer);
     int get_number();
     bool complete_send();
     void disconnect();
-    void connect(SWBaseSocket * newConnection);
-  private:
+    void connect(SWUnixSocket * newConnection);
+    bool is_connected();
+    int send_msg(char * message, int length, SWBaseSocket::SWBaseError * BError);
     int sent;
     buffer * myBuffer;
-    SWBaseSocket * myConnection;
+    SWUnixSocket * myConnection;
+  private:
 };//user
 
-user::user() { }
-
-user::~user() {
-  myConnection->disconnect();
-  myConnection = NULL;
-}
-
-void user::set_buffer(buffer * newBuffer) {
-  myBuffer = newBuffer;
-  sent = 0;
-}
-
-int user::get_number() {
-  return myBuffer->number;
-}
-
-bool user::complete_send() {
-  if (sent == myBuffer->size) { return true; }
-  return false;
-}
-
-void user::disconnect() {
-  if (myConnection) {
-    myConnection->disconnect();
-    myConnection = NULL;
-  }
-}
-
-void user::connect(SWBaseSocket * newConnection) {
-  myConnection = newConnection;
-}
-
-bool user::is_connected( ) {
-  if (myConnection) { return true; }
-  return false;
-}

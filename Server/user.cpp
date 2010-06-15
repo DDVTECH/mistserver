@@ -15,9 +15,7 @@ void user::set_buffer(buffer * newBuffer) {
   sent = 0;
 }
 
-int user::get_number() {
-  return myBuffer->number;
-}
+int user::get_number() { return myBuffer->number; }
 
 bool user::complete_send() {
   if (sent == myBuffer->size) { return true; }
@@ -31,17 +29,8 @@ void user::disconnect() {
   }
 }
 
-void user::connect(SWUnixSocket * newConnection) {
-  myConnection = newConnection;
-}
+void user::connect(SWUnixSocket * newConnection) { myConnection = newConnection; }
 
-bool user::is_connected( ) {
-std::cout << "  -  Checking...:";
-  if (myConnection) { std::cout << " true\n"; return true; }
-  std::cout << " false\n";
-  return false;
-}
+bool user::is_connected( ) { return myConnection; }
 
-int user::send_msg(char * message, int length, SWBaseSocket::SWBaseError * BError) {
-  return myConnection->send(message,length,BError);
-}
+int user::send_msg(char * message, int length, SWBaseSocket::SWBaseError * BError) { return myConnection->send(message,length,BError); }

@@ -26,7 +26,6 @@ int main( int argc, char * argv[] ) {
   for (int i = 0; i < buffers; i ++ ) {
     ringbuf[i] = new buffer;
     ringbuf[i]->data = (char*) malloc(size_per_buffer);
-    ringbuf[i]->data[0] = i+'a';
   }
   for (int i = 0; i < buffers; i ++ ) { std::cout << "Buffer[" << i << "][0]: " << ringbuf[i]->data[0] << "\n"; }
   int connections = atoi(argv[3]);
@@ -53,14 +52,14 @@ int main( int argc, char * argv[] ) {
 
   while(true) {
     loopcount ++;
-    std::cout << "#" << loopcount << "\n";
     inp_amount = fread(&input,1,11,stdin);
     if (input[0] == 9) {
-      std::cout << "9!!\n";
       open_connection = get_empty(connectionList,connections);
       if (open_connection != -1) {
         connectionList[open_connection]->connect( (SWUnixSocket *)listener.accept(&BError) );
         if (connectionList[open_connection]->is_connected()) {
+          std::cout << "#" << loopcount << ": ";
+          std::cout << "!!Client " << open_connection << " connected.!!\n";
           connectionList[open_connection]->send_msg(&header[0],13,NULL);
         }
       }
@@ -78,14 +77,14 @@ int main( int argc, char * argv[] ) {
       position_current ++;
     }
     ringbuf[current_buffer]->size = position_current;
-    std::cout << "Total message read!\n";
+//    std::cout << "Total message read!\n";
     for (int i = 0; i < connections; i++) {
-      std::cout << "Checking connection " << i << "\n";
       if (connectionList[i]->is_connected()) {
-        std::cout << "Connected...\n";
+//        std::cout << "Client " << i << " connected, sending..\n";
         if ( connectionList[i]->myConnection->send(&ringbuf[current_buffer]->data[0], ringbuf[current_buffer]->size, &BError) == -1) {
-          std::cout << " -1 :(\n";
           connectionList[i]->disconnect();
+          std::cout << "#" << loopcount << ": ";
+          std::cout << "!!Client " << i << " disconnected.!!\n";
         }
       }
     }

@@ -1,6 +1,6 @@
 SRC = main.cpp user.cpp sockets/sw_base.cpp sockets/sw_inet.cpp sockets/sw_unix.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = Socket
+OUT = Server_PLS
 INCLUDES = 
 CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++

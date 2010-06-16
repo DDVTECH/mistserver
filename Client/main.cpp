@@ -12,7 +12,9 @@ int main() {
   mySocket.connect("/tmp/socketfile");
   char buffer[500000];
   int msg;
+  std::string input;
   // do something with mySocket...
+  while( std::cin >> input && input != "") {}
   std::cout << "HTTP/1.1 200 OK\nConnection: close\nContent-Type: video/x-flv\n\n";
   while(true) {
     msg = mySocket.recv(&buffer[0],10000);

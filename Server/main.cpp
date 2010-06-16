@@ -17,7 +17,7 @@ int get_empty( user ** list, int amount ) {
 }
 
 int main( int argc, char * argv[] ) {
-  if (argc != 4) { std::cout << "Not the right amount of arguments!\n"; exit(1);}
+  if (argc < 3) { std::cout << "Not the right amount of arguments!\n"; exit(1);}
   int buffers = atoi(argv[1]);
   int total_buffersize = atoi(argv[2]);
   int size_per_buffer = total_buffersize/buffers;
@@ -28,7 +28,7 @@ int main( int argc, char * argv[] ) {
     ringbuf[i]->data = (char*) malloc(size_per_buffer);
   }
   for (int i = 0; i < buffers; i ++ ) { std::cout << "Buffer[" << i << "][0]: " << ringbuf[i]->data[0] << "\n"; }
-  int connections = atoi(argv[3]);
+  int connections = 2;
   user ** connectionList = (user**) calloc (connections,sizeof(user*));
   for (int i = 0; i < connections; i++) { connectionList[i] = new user; }
   char input[BUFLEN];

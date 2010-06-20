@@ -6,93 +6,104 @@
 #include <cstdio>
 #include "buffer.h"
 #include "user.h"
+#include "string.h"
 
 #define BUFLEN 1000000
 
 int get_empty( user ** list, int amount ) {
   for (int i = 0; i < amount; i++ ){
-    if (!list[i]->is_connected()) { return i; }
+    if (!list[i]->is_connected){return i;}
   }
   return -1;
 }
 
 int main( int argc, char * argv[] ) {
-  if (argc < 3) { std::cout << "Not the right amount of arguments!\n"; exit(1);}
+  if (argc < 4) {
+    std::cout << "usage: " << argv[0] << " buffers_count total_buffersize max_clients" << std::endl;
+    return 1;
+  }
   int buffers = atoi(argv[1]);
   int total_buffersize = atoi(argv[2]);
+  int connections = atoi(argv[3]);
   int size_per_buffer = total_buffersize/buffers;
-  std::cout << "Size per buffer: " << size_per_buffer << "\n";
+  std::cout << "Size per buffer: " << size_per_buffer << std::endl;
   buffer ** ringbuf = (buffer**) calloc (buffers,sizeof(buffer*));
   for (int i = 0; i < buffers; i ++ ) {
     ringbuf[i] = new buffer;
     ringbuf[i]->data = (char*) malloc(size_per_buffer);
   }
-  for (int i = 0; i < buffers; i ++ ) { std::cout << "Buffer[" << i << "][0]: " << ringbuf[i]->data[0] << "\n"; }
-  int connections = 2;
+  std::cout << "Successfully allocated " << total_buffersize << " bytes total buffer." << std::endl;
   user ** connectionList = (user**) calloc (connections,sizeof(user*));
   for (int i = 0; i < connections; i++) { connectionList[i] = new user; }
-  char input[BUFLEN];
-  char header[BUFLEN];
-  int inp_amount;
-  int cur_header_pos;
-  int position_current = 0;
-  int position_startframe = 0;
+  char header[13];//FLV header is always 13 bytes
+  int ret = 0;
   int frame_bodylength = 0;
   int current_buffer = 0;
   int open_connection = -1;
+  int lastproper = 0;//last properly finished buffer number
   unsigned int loopcount = 0;
   SWUnixSocket listener;
-  SWUnixSocket *mySocket = NULL;
+  SWBaseSocket * incoming = 0;
   SWBaseSocket::SWBaseError BError;
-  cur_header_pos = fread(&header,1,13,stdin);
+  //read FLV header - 13 bytes
+  ret = fread(&header,1,13,stdin);
+  //TODO: check ret?
 
   listener.bind("/tmp/socketfile");
   listener.listen();
   listener.set_timeout(0,50000);
-
+  
+  //TODO: not while true, but while running - set running to false when kill signal is received!
   while(true) {
     loopcount ++;
-    inp_amount = fread(&input,1,11,stdin);
-    if (input[0] == 9) {
-      open_connection = get_empty(connectionList,connections);
-      if (open_connection != -1) {
-        connectionList[open_connection]->connect( (SWUnixSocket *)listener.accept(&BError) );
-        if (connectionList[open_connection]->is_connected()) {
-          std::cout << "#" << loopcount << ": ";
-          std::cout << "!!Client " << open_connection << " connected.!!\n";
-          connectionList[open_connection]->send_msg(&header[0],13,NULL);
+    //invalidate the current buffer
+    ringbuf[current_buffer]->size = 0;
+    ringbuf[current_buffer]->number = -1;
+    //read FLV frame header - 11 bytes
+    ret = fread(ringbuf[current_buffer]->data,1,11,stdin);
+    //TODO: Check ret?
+    //if video frame? (id 9) check for incoming connections
+    if (ringbuf[current_buffer]->data[0] == 9) {
+      incoming = listener.accept(&BError);
+      if (incoming){
+        open_connection = get_empty(connectionList,connections);
+        if (open_connection != -1) {
+          connectionList[open_connection]->connect(incoming);
+          //send the FLV header
+          std::cout << "Client " << open_connection << " connected." << std::endl;
+          connectionList[open_connection]->MyBuffer = lastproper;
+          connectionList[open_connection]->MyBuffer_num = ringbuf[lastproper]->number;
+          //TODO: Do this more nicely?
+          if (connectionList[open_connection]->Conn->send(&header[0],13,NULL) != 13){
+            connectionList[open_connection]->disconnect();
+            std::cout << "Client " << open_connection << " failed to receive the header!" << std::endl;
+          }
+          std::cout << "Client " << open_connection << " received header!" << std::endl;
+        }else{
+          std::cout << "New client not connected: no more connections!" << std::endl;
         }
       }
     }
-    position_current = 0;
-    position_startframe = position_current;
-    for(int i = 0; i < 11; i++) { ringbuf[current_buffer]->data[position_current] = input[i]; position_current ++; }
-    frame_bodylength = 0;
-    frame_bodylength += input[3];
-    frame_bodylength += (input[2] << 8);
-    frame_bodylength += (input[1] << 16);
-    for (int i = 0; i < frame_bodylength + 4; i++) {
-      inp_amount = fread(&input,1,1,stdin);
-      ringbuf[current_buffer]->data[position_current] = input[0];
-      position_current ++;
-    }
-    ringbuf[current_buffer]->size = position_current;
-//    std::cout << "Total message read!\n";
-    for (int i = 0; i < connections; i++) {
-      if (connectionList[i]->is_connected()) {
-//        std::cout << "Client " << i << " connected, sending..\n";
-        if ( connectionList[i]->myConnection->send(&ringbuf[current_buffer]->data[0], ringbuf[current_buffer]->size, &BError) == -1) {
-          connectionList[i]->disconnect();
-          std::cout << "#" << loopcount << ": ";
-          std::cout << "!!Client " << i << " disconnected.!!\n";
-        }
-      }
-    }
+    //calculate body length of frame
+    frame_bodylength = 4;
+    frame_bodylength += ringbuf[current_buffer]->data[3];
+    frame_bodylength += (ringbuf[current_buffer]->data[2] << 8);
+    frame_bodylength += (ringbuf[current_buffer]->data[1] << 16);
+    //read the rest of the frame
+    ret = fread(&ringbuf[current_buffer]->data[11],1,frame_bodylength,stdin);
+    //TODO: Check ret?
+    ringbuf[current_buffer]->size = frame_bodylength + 11;
+    ringbuf[current_buffer]->number = loopcount;
+    //send all connections what they need, if and when they need it
+    for (int i = 0; i < connections; i++) {connectionList[i]->Send(ringbuf, buffers);}
+    //keep track of buffers
+    lastproper = current_buffer;
     current_buffer++;
-    current_buffer = current_buffer % buffers;
+    current_buffer %= buffers;
   }
 
-  // disconnect and clean up
+  // disconnect listener
   listener.disconnect();
+  //TODO: cleanup
   return 0;
 }

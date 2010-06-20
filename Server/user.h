@@ -7,16 +7,12 @@ class user{
   public:
     user();
     ~user();
-    void set_buffer(buffer * newBuffer);
-    int get_number();
-    bool complete_send();
     void disconnect();
-    void connect(SWUnixSocket * newConnection);
-    bool is_connected();
-    int send_msg(char * message, int length, SWBaseSocket::SWBaseError * BError);
-    int sent;
-    buffer * myBuffer;
-    SWUnixSocket * myConnection;
-  private:
+    void connect(SWBaseSocket * newConnection);
+    void Send(buffer ** ringbuf, int buffers);
+    bool is_connected;
+    SWUnixSocket * Conn;
+    int MyBuffer;
+    int MyBuffer_num;
 };//user
 

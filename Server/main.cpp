@@ -36,6 +36,7 @@ int main( int argc, char * argv[] ) {
   user ** connectionList = (user**) calloc (connections,sizeof(user*));
   for (int i = 0; i < connections; i++) { connectionList[i] = new user; }
   char header[13];//FLV header is always 13 bytes
+  char metadata[BUFLEN];
   int ret = 0;
   int frame_bodylength = 0;
   int current_buffer = 0;
@@ -60,8 +61,16 @@ int main( int argc, char * argv[] ) {
     ringbuf[current_buffer]->size = 0;
     ringbuf[current_buffer]->number = -1;
     if (std::cin.peek() == 'F') {
-      //new FLV file, read the file head again.
+      //new FLV file, read the file header again.
       ret = fread(&header,1,13,stdin);
+    } else if( (int)std::cin.peek() == 12) {
+      //metadata encountered, let's filter it
+      ret = fread(&metadata,1,11,stdin);
+      frame_bodylength = 4;
+      frame_bodylength += metadata[3];
+      frame_bodylength += (metadata[2] << 8);
+      frame_bodylength += (metadata[1] << 16);
+      ret = fread(&metadata,1,frame_bodylength,stdin);
     } else {
       //read FLV frame header - 11 bytes
       ret = fread(ringbuf[current_buffer]->data,1,11,stdin);

@@ -59,47 +59,52 @@ int main( int argc, char * argv[] ) {
     //invalidate the current buffer
     ringbuf[current_buffer]->size = 0;
     ringbuf[current_buffer]->number = -1;
-    //read FLV frame header - 11 bytes
-    ret = fread(ringbuf[current_buffer]->data,1,11,stdin);
-    //TODO: Check ret?
-    //if video frame? (id 9) check for incoming connections
-    if (ringbuf[current_buffer]->data[0] == 9) {
-      incoming = listener.accept(&BError);
-      if (incoming){
-        open_connection = get_empty(connectionList,connections);
-        if (open_connection != -1) {
-          connectionList[open_connection]->connect(incoming);
-          //send the FLV header
-          std::cout << "Client " << open_connection << " connected." << std::endl;
-          connectionList[open_connection]->MyBuffer = lastproper;
-          connectionList[open_connection]->MyBuffer_num = ringbuf[lastproper]->number;
-          //TODO: Do this more nicely?
-          if (connectionList[open_connection]->Conn->send(&header[0],13,NULL) != 13){
-            connectionList[open_connection]->disconnect();
-            std::cout << "Client " << open_connection << " failed to receive the header!" << std::endl;
+    if (std::cin.peek() == 'F') {
+      //new FLV file, read the file head again.
+      ret = fread(&header,1,13,stdin);
+    } else {
+      //read FLV frame header - 11 bytes
+      ret = fread(ringbuf[current_buffer]->data,1,11,stdin);
+      //TODO: Check ret?
+      //if video frame? (id 9) check for incoming connections
+      if (ringbuf[current_buffer]->data[0] == 9) {
+        incoming = listener.accept(&BError);
+        if (incoming){
+          open_connection = get_empty(connectionList,connections);
+          if (open_connection != -1) {
+            connectionList[open_connection]->connect(incoming);
+            //send the FLV header
+            std::cout << "Client " << open_connection << " connected." << std::endl;
+            connectionList[open_connection]->MyBuffer = lastproper;
+            connectionList[open_connection]->MyBuffer_num = ringbuf[lastproper]->number;
+            //TODO: Do this more nicely?
+            if (connectionList[open_connection]->Conn->send(&header[0],13,NULL) != 13){
+              connectionList[open_connection]->disconnect();
+              std::cout << "Client " << open_connection << " failed to receive the header!" << std::endl;
+            }
+            std::cout << "Client " << open_connection << " received header!" << std::endl;
+          }else{
+            std::cout << "New client not connected: no more connections!" << std::endl;
           }
-          std::cout << "Client " << open_connection << " received header!" << std::endl;
-        }else{
-          std::cout << "New client not connected: no more connections!" << std::endl;
         }
       }
+      //calculate body length of frame
+      frame_bodylength = 4;
+      frame_bodylength += ringbuf[current_buffer]->data[3];
+      frame_bodylength += (ringbuf[current_buffer]->data[2] << 8);
+      frame_bodylength += (ringbuf[current_buffer]->data[1] << 16);
+      //read the rest of the frame
+      ret = fread(&ringbuf[current_buffer]->data[11],1,frame_bodylength,stdin);
+      //TODO: Check ret?
+      ringbuf[current_buffer]->size = frame_bodylength + 11;
+      ringbuf[current_buffer]->number = loopcount;
+      //send all connections what they need, if and when they need it
+      for (int i = 0; i < connections; i++) {connectionList[i]->Send(ringbuf, buffers);}
+      //keep track of buffers
+      lastproper = current_buffer;
+      current_buffer++;
+      current_buffer %= buffers;
     }
-    //calculate body length of frame
-    frame_bodylength = 4;
-    frame_bodylength += ringbuf[current_buffer]->data[3];
-    frame_bodylength += (ringbuf[current_buffer]->data[2] << 8);
-    frame_bodylength += (ringbuf[current_buffer]->data[1] << 16);
-    //read the rest of the frame
-    ret = fread(&ringbuf[current_buffer]->data[11],1,frame_bodylength,stdin);
-    //TODO: Check ret?
-    ringbuf[current_buffer]->size = frame_bodylength + 11;
-    ringbuf[current_buffer]->number = loopcount;
-    //send all connections what they need, if and when they need it
-    for (int i = 0; i < connections; i++) {connectionList[i]->Send(ringbuf, buffers);}
-    //keep track of buffers
-    lastproper = current_buffer;
-    current_buffer++;
-    current_buffer %= buffers;
   }
 
   // disconnect listener

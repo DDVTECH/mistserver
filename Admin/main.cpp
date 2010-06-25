@@ -15,14 +15,24 @@ int getparam (std::string input) {
   return result;
 }
 
-void readpreset( unsigned int values[] ) {
+std::string getstringparam(std::string input) {
+  std::string result;
+  for (int i = 3; i < input.size(); i++) {
+    result.push_back(input[i]);
+  }
+  return result;
+}
+
+void readpreset( unsigned int values[], std::string & filename ) {
   std::ifstream presetfile ("preset");
+  presetfile >> filename;
   for (int i = 0; i < 9; i++ ) { presetfile >> values[i]; }
   presetfile.close();
 }
 
-void writepreset( unsigned int values[] ) {
+void writepreset( unsigned int values[], std::string filename ) {
   std::ofstream presetfile ("preset");
+  presetfile << filename;
   for (int i = 0; i < 9; i++ ) {
     presetfile << values[i];
     presetfile << "\n";
@@ -30,16 +40,16 @@ void writepreset( unsigned int values[] ) {
   presetfile.close();
 }
 
-void writesh( unsigned int values[] ) {
+void writesh( unsigned int values[], std::string filename ) {
   std::ofstream shfile ("run.sh");
-  shfile << "ffmpeg -i ../ts.mov -f flv -sameq -re ";
+  shfile << "ffmpeg -i " << filename << " -f flv -re ";
   if (values[0] != 0 && values[1] != 0) { shfile << "-s " << values[0] << "x" << values[1] << " "; }
   if (values[2] != 0) { shfile << "-b " <<   values[2] << " "; }
   if (values[3] != 0) { shfile << "-gop " << values[3] << " "; }
   if (values[4] != 0) { shfile << "-r " <<   values[4] << " "; }
   if (values[5] != 0) { shfile << "-ab " <<  values[5] << " "; }
   if (values[6] != 0) { shfile << "-ar " <<  values[6] << " "; }
-  shfile << "out.flv";
+  shfile << "rtmp://projectlivestream.com/oflaDemo/test";
   shfile.close();
 }
 
@@ -48,7 +58,8 @@ int main() {
   std::string inputcommand = "";
   bool connection = true;
   int tempresult;
-  readpreset(values);
+  std::string filename = "";
+  readpreset(values, filename);
   while (connection) {
     std::cin >> inputcommand;
     switch (inputcommand[0]) {
@@ -80,6 +91,12 @@ int main() {
             switch(inputcommand[2]) {
               case 'F': std::cout << "OK" << values[7] << "\n"; break;
               case 'P': std::cout << "OK" << values[8] << "\n"; break;
+              default: std::cout << "ER\n"; break;
+            }
+            break;
+          case 'F':
+            switch(inputcommand[2]) {
+              case 'N': std::cout << "OK" << filename << "\n"; break;
               default: std::cout << "ER\n"; break;
             }
             break;
@@ -145,6 +162,14 @@ int main() {
               default: std::cout << "ER\n"; break;
             }
             break;
+          case 'F':
+            switch(inputcommand[2]) {
+              case 'N':
+                filename = getstringparam(inputcommand); std::cout << "OK\n";
+                break;
+              default: std::cout << "ER\n"; break;
+            }
+            break;
           default: std::cout << "ER\n"; break;
         }
         break;
@@ -158,9 +183,9 @@ int main() {
             break;
           case 'S':
             switch (inputcommand[2]) {
-              case 'R': std::cout << "OK\n"; readpreset(values); break;
-              case 'S': std::cout << "OK\n"; writepreset(values); break;
-              case 'A': std::cout << "OK\n"; writesh(values); break;
+              case 'R': std::cout << "OK\n"; readpreset(values, filename); break;
+              case 'S': std::cout << "OK\n"; writepreset(values, filename); break;
+              case 'A': std::cout << "OK\n"; writesh(values, filename); break;
               default: std::cout << "ER\n"; break;
             }
             break;
@@ -172,3 +197,4 @@ int main() {
   }
   return 0;
 }
+

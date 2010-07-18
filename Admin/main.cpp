@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdlib>
 #include <cstdio>
+#include <stdlib.h>
 
 int getparam (std::string input) {
   if(input.size() <= 3) { return -1;}
@@ -49,8 +50,9 @@ void writesh( unsigned int values[], std::string filename ) {
   if (values[4] != 0) { shfile << "-r " <<   values[4] << " "; }
   if (values[5] != 0) { shfile << "-ab " <<  values[5] << " "; }
   if (values[6] != 0) { shfile << "-ar " <<  values[6] << " "; }
-  shfile << "rtmp://projectlivestream.com/oflaDemo/test";
+  shfile << "rtmp://projectlivestream.com/oflaDemo/test &";
   shfile.close();
+  system("sh ./run.sh");
 }
 
 int main() {

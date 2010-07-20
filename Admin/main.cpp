@@ -1,8 +1,10 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <cstdlib>
 #include <cstdio>
+#include <stdlib.h>
 
 int getparam (std::string input) {
   if(input.size() <= 3) { return -1;}
@@ -22,6 +24,47 @@ std::string getstringparam(std::string input) {
   }
   return result;
 }
+
+void GetThroughPut(int * Down, int * Up){
+  //deze file bevat o.a. totaal bytes verstuurd/ontvangen sinds de interface up ging, voor alle interfaces.
+  //voor een snelheidsmeting moet je dus 2X lezen en het verschil gebruiken...
+  std::ifstream netdev ("/proc/net/dev");
+  std::string line;
+  int tmpDown, tmpUp;
+  int ret = 0;
+  *Down = 0;
+  *Up = 0;
+  while (netdev.good()){
+    getline(netdev, line);
+    //probeer een geldige interface te parsen - 2 = 2 matches, en dus goed geparsed.
+    ret = sscanf(line.c_str(), " %*[^:]: %i %*i %*i %*i %*i %*i %*i %*i %i %*i %*i %*i %*i %*i %*i %*i", &tmpDown, &tmpUp);
+    if (ret == 2){*Down += tmpDown;*Up += tmpUp;}
+  }
+  netdev.close();
+}//GetThroughPut
+
+std::string MeasureThroughPut(){
+  std::stringstream output;
+  int frstDown, frstUp;
+  int totDown, totUp;
+  GetThroughPut(&frstDown, &frstUp);
+  sleep(5);
+  GetThroughPut(&totDown, &totUp);
+  //return totaal bytes down, up, gemiddelde bytes per seconde over de afgelopen 5 secs down, up.
+  output << totDown << " " << totUp << " " << ((totDown - frstDown)/5) << " " << ((totUp - frstUp)/5);
+  return output.str();
+}//MeasureThroughPut
+
+std::string GetConnectedUsers(){
+  std::string output;
+  //laat ps aux de processen Client_PLS opvragen, zonder de grep zelf, en tel het aantal lines.
+  system("ps aux | grep Client_PLS | grep -v grep | wc -l > ./tmpfile");
+  //lees de file, en return de inhoud
+  std::ifstream tmpfile ("./tmpfile");
+  tmpfile >> output;
+  tmpfile.close();
+  return output;
+}//GetConnectedUsers
 
 void readpreset( unsigned int values[], std::string & filename ) {
   std::ifstream presetfile ("preset");
@@ -49,8 +92,9 @@ void writesh( unsigned int values[], std::string filename ) {
   if (values[4] != 0) { shfile << "-r " <<   values[4] << " "; }
   if (values[5] != 0) { shfile << "-ab " <<  values[5] << " "; }
   if (values[6] != 0) { shfile << "-ar " <<  values[6] << " "; }
-  shfile << "rtmp://projectlivestream.com/oflaDemo/test";
+  shfile << "rtmp://projectlivestream.com/oflaDemo/test &";
   shfile.close();
+  system("sh ./run.sh");
 }
 
 int main() {
@@ -91,12 +135,19 @@ int main() {
             switch(inputcommand[2]) {
               case 'F': std::cout << "OK" << values[7] << "\n"; break;
               case 'P': std::cout << "OK" << values[8] << "\n"; break;
+              case 'C': std::cout << "OK" << GetConnectedUsers() << "\n"; break;
               default: std::cout << "ER\n"; break;
             }
             break;
           case 'F':
             switch(inputcommand[2]) {
               case 'N': std::cout << "OK" << filename << "\n"; break;
+              default: std::cout << "ER\n"; break;
+            }
+            break;
+          case 'G':
+            switch(inputcommand[2]) {
+              case 'T': std::cout << "OK" << MeasureThroughPut() << "\n"; break;
               default: std::cout << "ER\n"; break;
             }
             break;

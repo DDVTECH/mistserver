@@ -1,0 +1,7 @@
+#ignore object files and nonsense like that
+*.[oa]
+Client_PLS
+Server_PLS
+Connector_RTMP
+*~
+

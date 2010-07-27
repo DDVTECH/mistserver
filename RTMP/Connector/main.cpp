@@ -86,9 +86,10 @@ int main( ) {
 
   /** Handshake done, continue with connect command **/
 
-  next = std::cin.peek():
-  if ((int)next > 63 || (int)next == 2) { exit(1); }//Connect command has a 11 byte header, ALWAYS, maximum value of first byte is then 63
-  if ((int)next <= 63 && >= 3) {//1 byte chunkstream ID
+  int chunkIDlength = 0;
+  next = std::cin.peek();
+  if (next > 63 || next == 2) { exit(1); }//Connect command has a 11 byte header, ALWAYS, maximum value of first byte is then 63
+  if (next <= 63 && next >= 3) {//1 byte chunkstream ID
     fread ( chunk_header, 1, 12, stdin );
     chunkIDlength = 1;
   } else if ((int) next == 0 ) {//2 bytes chunkstream ID
@@ -102,10 +103,10 @@ int main( ) {
     case 1: chunkstream_id = (int)chunk_header[0]; break;
     case 2: chunkstream_id = (int)chunk_header[1] + 64; break;
     case 3: chunkstream_id = ((int)chunk_header[2] * 256) + (int)chunk_header[1] + 64; break;
-    default; exit(1); break;//Something went wrong
+    default: exit(1); break;//Something went wrong
   }
 
-  if ( chunk_header[chunkIdlength] == 0xFF && chunk_header[chunkIdlength+1] == 0xFF && chunk_header[chunkIdlength+2] == 0xFF ) {
+  if ( chunk_header[chunkIDlength] == 0xFF && chunk_header[chunkIDlength+1] == 0xFF && chunk_header[chunkIDlength+2] == 0xFF ) {
     fread ( extended_timestamp, 1, 4, stdin); //read extended timestamp if 3-byte timestamp equals 0xFFFFFF
   } else {//set extended timestamp to 0
     extended_timestamp[0] = 0; extended_timestamp[1] = 0; extended_timestamp[2] = 0; extended_timestamp[3] = 0;

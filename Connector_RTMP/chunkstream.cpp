@@ -1,6 +1,17 @@
 #include <map>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/time.h>
+#include <arpa/inet.h>
+
+unsigned int chunk_rec_max = 128;
+unsigned int chunk_snd_max = 128;
+unsigned int rec_window_size = 1024*500;
+unsigned int snd_window_size = 1024*500;
+unsigned int rec_window_at = 0;
+unsigned int snd_window_at = 0;
+unsigned int rec_cnt = 0;
+unsigned int snd_cnt = 0;
 
 struct chunkpack {
   unsigned char chunktype;
@@ -14,14 +25,155 @@ struct chunkpack {
   unsigned char * data;
 };//chunkpack
 
-unsigned int chunk_rec_max = 128;
-
 //clean a chunk so that it may be re-used without memory leaks
 void scrubChunk(struct chunkpack c){
   if (c.data){free(c.data);}
   c.data = 0;
   c.real_len = 0;
 }//scrubChunk
+
+//sends the chunk over the network
+void SendChunk(chunkpack ch){
+  unsigned char tmp;
+  unsigned int tmpi;
+  if (ch.cs_id <= 63){
+    tmp = ch.cs_id; fwrite(&tmp, 1, 1, stdout);
+  }else{
+    if (ch.cs_id <= 255+64){
+      tmp = 0; fwrite(&tmp, 1, 1, stdout);
+      tmp = ch.cs_id - 64; fwrite(&tmp, 1, 1, stdout);
+    }else{
+      tmp = 1; fwrite(&tmp, 1, 1, stdout);
+      tmpi = ch.cs_id - 64;
+      tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+    }
+  }
+  //timestamp
+  //TODO: support for > 0x00ffffff timestamps!
+  tmpi = ch.timestamp;
+  tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
+  tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+  tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+  //len
+  tmpi = ch.len;
+  tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
+  tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+  tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+  //msg type id
+  tmp = ch.msg_type_id; fwrite(&tmp, 1, 1, stdout);
+  //msg stream id
+  tmp = ch.msg_stream_id / (256*256*256); fwrite(&tmp, 1, 1, stdout);
+  tmp = ch.msg_stream_id / (256*256); fwrite(&tmp, 1, 1, stdout);
+  tmp = ch.msg_stream_id / 256; fwrite(&tmp, 1, 1, stdout);
+  tmp = ch.msg_stream_id % 256; fwrite(&tmp, 1, 1, stdout);
+  ch.len_left = 0;
+  while (ch.len_left < ch.len){
+    tmpi = ch.len - ch.len_left;
+    if (tmpi > chunk_snd_max){tmpi = chunk_snd_max;}
+    fwrite((ch.data + ch.len_left), 1, tmpi, stdout);
+    ch.len_left += tmpi;
+    if (ch.len_left < ch.len){
+      if (ch.cs_id <= 63){
+        tmp = 0xC + ch.cs_id; fwrite(&tmp, 1, 1, stdout);
+      }else{
+        if (ch.cs_id <= 255+64){
+          tmp = 0xC0; fwrite(&tmp, 1, 1, stdout);
+          tmp = ch.cs_id - 64; fwrite(&tmp, 1, 1, stdout);
+        }else{
+          tmp = 0xC1; fwrite(&tmp, 1, 1, stdout);
+          tmpi = ch.cs_id - 64;
+          tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+          tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+        }
+      }
+    }
+  }
+  fflush(stdout);
+}//SendChunk
+
+//sends a control message
+void SendCTL(unsigned char type, unsigned int data){
+  chunkpack ch;
+  timeval t;
+  gettimeofday(&t, 0);
+  ch.cs_id = 2;
+  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.len = 4;
+  ch.real_len = 4;
+  ch.len_left = 0;
+  ch.msg_type_id = type;
+  ch.msg_stream_id = 0;
+  ch.data = (unsigned char*)malloc(4);
+  data = htonl(data);
+  memcpy(ch.data, &data, 4);
+  SendChunk(ch);
+  free(ch.data);
+}//SendCTL
+
+//sends a control message
+void SendCTL(unsigned char type, unsigned int data, unsigned char data2){
+  chunkpack ch;
+  timeval t;
+  gettimeofday(&t, 0);
+  ch.cs_id = 2;
+  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.len = 5;
+  ch.real_len = 5;
+  ch.len_left = 0;
+  ch.msg_type_id = type;
+  ch.msg_stream_id = 0;
+  ch.data = (unsigned char*)malloc(5);
+  data = htonl(data);
+  memcpy(ch.data, &data, 4);
+  ch.data[4] = data2;
+  SendChunk(ch);
+  free(ch.data);
+}//SendCTL
+
+//sends a usr control message
+void SendUSR(unsigned char type, unsigned int data){
+  chunkpack ch;
+  timeval t;
+  gettimeofday(&t, 0);
+  ch.cs_id = 2;
+  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.len = 6;
+  ch.real_len = 6;
+  ch.len_left = 0;
+  ch.msg_type_id = 4;
+  ch.msg_stream_id = 0;
+  ch.data = (unsigned char*)malloc(6);
+  data = htonl(data);
+  memcpy(ch.data+2, &data, 4);
+  ch.data[0] = 0;
+  ch.data[1] = type;
+  SendChunk(ch);
+  free(ch.data);
+}//SendUSR
+
+//sends a usr control message
+void SendUSR(unsigned char type, unsigned int data, unsigned int data2){
+  chunkpack ch;
+  timeval t;
+  gettimeofday(&t, 0);
+  ch.cs_id = 2;
+  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.len = 10;
+  ch.real_len = 10;
+  ch.len_left = 0;
+  ch.msg_type_id = 4;
+  ch.msg_stream_id = 0;
+  ch.data = (unsigned char*)malloc(10);
+  data = htonl(data);
+  data2 = htonl(data2);
+  memcpy(ch.data+2, &data, 4);
+  memcpy(ch.data+6, &data2, 4);
+  ch.data[0] = 0;
+  ch.data[1] = type;
+  SendChunk(ch);
+  free(ch.data);
+}//SendUSR
 
 //get a chunk from standard input
 struct chunkpack getChunk(struct chunkpack prev){
@@ -158,25 +310,16 @@ chunkpack * AddChunkPart(chunkpack newchunk){
     *p = newchunk;
     p->data = (unsigned char*)malloc(p->real_len);
     memcpy(p->data, newchunk.data, p->real_len);
-    if (p->len_left == 0){
-      fprintf(stderr, "New chunk of size %i / %i is whole - returning it\n", newchunk.real_len, newchunk.len);
-      return p;
-    }
-    fprintf(stderr, "New chunk of size %i / %i\n", newchunk.real_len, newchunk.len);
+    if (p->len_left == 0){return p;}
     ch_lst[newchunk.cs_id] = p;
   }else{
     p = it->second;
-    fprintf(stderr, "Appending chunk of size %i to chunk of size %i / %i...\n", newchunk.real_len, p->real_len, p->len);
-    fprintf(stderr, "Reallocating %i bytes\n", p->real_len + newchunk.real_len);
     tmpdata = (unsigned char*)realloc(p->data, p->real_len + newchunk.real_len);
     if (tmpdata == 0){fprintf(stderr, "Error allocating memory!\n");return 0;}
     p->data = tmpdata;
-    fprintf(stderr, "Reallocated %i bytes\n", p->real_len + newchunk.real_len);
     memcpy(p->data+p->real_len, newchunk.data, newchunk.real_len);
-    fprintf(stderr, "Copied contents over\n");
     p->real_len += newchunk.real_len;
     p->len_left -= newchunk.real_len;
-    fprintf(stderr, "New size: %i / %i\n", p->real_len, p->len);
     if (p->len_left <= 0){
       ch_lst.erase(it);
       return p;
@@ -198,7 +341,6 @@ chunkpack getWholeChunk(){
     gwc_next = getChunk(gwc_prev);
     scrubChunk(gwc_prev);
     gwc_prev = gwc_next;
-    fprintf(stderr, "Processing chunk...\n");
     ret = AddChunkPart(gwc_next);
     if (ret){
       gwc_complete = *ret;

@@ -16,8 +16,8 @@ class AMFType {
 //scans the vector for the indice, returns the next AMFType from it or null
 AMFType * getAMF(std::vector<AMFType> * vect, std::string indice){
   std::vector<AMFType>::iterator it;
-  for (it=vect.begin(); it < vect.end(); it++){
-    if ((*it)->StrValue() == indice){it++; return *it;}
+  for (it=vect->begin(); it < vect->end(); it++){
+    if ((*it).StrValue() == indice){it++; return &(*it);}
   }
   return 0;
 }//getAMF

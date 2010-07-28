@@ -4,16 +4,15 @@
 #include <cmath>
 #include "handshake.cpp" //handshaking
 #include "chunkstream.cpp" //chunkstream decoding
+#include "amf.cpp" //simple AMF0 parsing
 
 int main(){
-  chunkpack prev, next;
   doHandshake();
-  std::cerr << "Handshake completed" << std::endl;
 
-  prev.len = 0;
-  prev.data = 0;
+  chunkpack next;
+  std::vector<AMFType> * amfdata = 0;
   while (!feof(stdin)){
-    next = getChunk(prev);
+    next = getWholeChunk();
     if (next.cs_id == 2 && next.msg_stream_id == 0){
       fprintf(stderr, "Received protocol message. (cs_id 2, stream id 0)\nContents:\n");
       fwrite(next.data, 1, next.real_len, stderr);
@@ -61,6 +60,9 @@ int main(){
         break;
       case 20:
         fprintf(stderr, "Received AFM0 command message\n");
+        if (amfdata != 0){delete amfdata;}
+        amfdata = parseAMF(next.data, next.real_len);
+        
         break;
       case 22:
         fprintf(stderr, "Received aggregate message\n");
@@ -69,8 +71,6 @@ int main(){
         fprintf(stderr, "Unknown chunk received!\n");
         break;
     }
-    scrubChunk(prev);
-    prev = next;
   }
 
   

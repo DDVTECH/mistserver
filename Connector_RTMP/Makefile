@@ -12,7 +12,7 @@ LIBS =
 default: $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
-$(OUT): $(OBJ) handshake.cpp chunkstream.cpp
+$(OUT): $(OBJ) handshake.cpp chunkstream.cpp amf.cpp
 	$(CC) $(LIBS) -o $(OUT) $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~

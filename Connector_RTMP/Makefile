@@ -19,6 +19,6 @@ clean:
 run-test: $(OUT)
 	rm -rf ./meh
 	mkfifo ./meh
-	nc -o test -l -p 1935 -e './Connector_RTMP 2>./meh'
+	nc -l -p 1935 -e './Connector_RTMP 2>./meh'
 run-cat:
 	cat < ./meh

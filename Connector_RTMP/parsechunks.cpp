@@ -5,8 +5,8 @@
 //gets and parses one chunk
 void parseChunk(){
   static chunkpack next;
-  static std::vector<AMFType> * amfdata = 0;
-  static AMFType * amfelem = 0;
+  static AMFType amfdata("empty", (unsigned char)0xFF);
+  static AMFType amfelem("empty", (unsigned char)0xFF);
   static int tmpint;
   next = getWholeChunk();
   if (next.cs_id == 2 && next.msg_stream_id == 0){
@@ -67,14 +67,14 @@ void parseChunk(){
       fprintf(stderr, "Received AFM0 shared object\n");
       break;
     case 20:
-      if (amfdata != 0){delete amfdata;}
       amfdata = parseAMF(next.data, next.real_len);
-      fprintf(stderr, "Received AFM0 command message: %s\n", (*amfdata)[0].StrValue().c_str());
-      if ((*amfdata)[0].StrValue() == "connect"){
-        tmpint = getAMF(amfdata, "videoCodecs")->NumValue();
+      amfdata.Print();
+      fprintf(stderr, "Received AFM0 command message: %s\n", amfdata.getContentP(0)->Str());
+      if (amfdata.getContentP(0)->StrValue() == "connect"){
+        tmpint = amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
         if (tmpint & 0x04){fprintf(stderr, "Sorensen video support detected\n");}
         if (tmpint & 0x80){fprintf(stderr, "H264 video support detected\n");}
-        tmpint = getAMF(amfdata, "audioCodecs")->NumValue();
+        tmpint = amfdata.getContentP(2)->getContentP("audioCodecs")->NumValue();
         if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
         if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
         SendCTL(5, snd_window_size);//send window acknowledgement size (msg 5)
@@ -84,7 +84,7 @@ void parseChunk(){
       }else{
         //call, close, createStream
         //TODO: play (&& play2?)
-        fprintf(stderr, "Ignored AFM0 command.\n");
+        //fprintf(stderr, "Ignored AFM0 command.\n");
       }
       break;
     case 22:

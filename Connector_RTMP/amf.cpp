@@ -84,7 +84,7 @@ class AMFType {
         }
       }
       return *this;
-    };
+    };//= operator
     AMFType(const AMFType &a){
       myIndice = a.myIndice;
       myType = a.myType;
@@ -96,7 +96,7 @@ class AMFType {
           contents->push_back(*it);
         }
       }else{contents = 0;}
-    };
+    };//copy constructor
     void Print(std::string indent = ""){
       std::cerr << indent;
       switch (myType){
@@ -119,7 +119,54 @@ class AMFType {
       if (contents){
         for (std::vector<AMFType>::iterator it = contents->begin(); it != contents->end(); it++){it->Print(indent+"  ");}
       }
-    };
+    };//print
+    std::string Pack(){
+      std::string r = "";
+      if ((myType == 0x02) && (strval.size() > 0xFFFF)){myType = 0x0C;}
+      if (myType != 0xFF){r += myType;}
+      switch (myType){
+        case 0x00://number
+          r += *(((char*)&numval)+7); r += *(((char*)&numval)+6);
+          r += *(((char*)&numval)+5); r += *(((char*)&numval)+4);
+          r += *(((char*)&numval)+3); r += *(((char*)&numval)+2);
+          r += *(((char*)&numval)+1); r += *(((char*)&numval));
+          break;
+        case 0x01://bool
+          r += (char)numval;
+          break;
+        case 0x02://short string
+          r += strval.size() / 256;
+          r += strval.size() % 256;
+          r += strval;
+          break;
+        case 0x0C://long string
+          r += strval.size() / (256*256*256);
+          r += strval.size() / (256*256);
+          r += strval.size() / 256;
+          r += strval.size() % 256;
+          r += strval;
+          break;
+        case 0x03://object
+          if (contents){
+            for (std::vector<AMFType>::iterator it = contents->begin(); it != contents->end(); it++){
+              r += it->Indice().size() / 256;
+              r += it->Indice().size() % 256;
+              r += it->Indice();
+              r += it->Pack();
+            }
+          }
+          r += (char)0; r += (char)0; r += (char)9;
+          break;
+        case 0xFF://container - our own type - do not send, only send contents
+          if (contents){
+            for (std::vector<AMFType>::iterator it = contents->begin(); it != contents->end(); it++){
+              r += it->Pack();
+            }
+          }
+          break;
+      }
+      return r;
+    };//pack
   protected:
     std::string myIndice;
     unsigned char myType;
@@ -128,7 +175,7 @@ class AMFType {
     std::vector<AMFType> * contents;
 };//AMFType
 
-AMFType parseOneAMF(unsigned char *& data, unsigned int &len, unsigned int &i, std::string name){
+AMFType parseOneAMF(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name){
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
@@ -143,16 +190,13 @@ AMFType parseOneAMF(unsigned char *& data, unsigned int &len, unsigned int &i, s
       tmpdbl[1] = data[i+7];
       tmpdbl[0] = data[i+8];
       i+=9;
-      fprintf(stderr, "AMF: Number %f\n", *(double*)tmpdbl);
       return AMFType(name, *(double*)tmpdbl, 0x00);
       break;
     case 0x01://bool
       i+=2;
       if (data[i-1] == 0){
-        fprintf(stderr, "AMF: Bool false\n");
         return AMFType(name, (double)0, 0x01);
       }else{
-        fprintf(stderr, "AMF: Bool true\n");
         return AMFType(name, (double)1, 0x01);
       }
       break;
@@ -160,20 +204,17 @@ AMFType parseOneAMF(unsigned char *& data, unsigned int &len, unsigned int &i, s
       tmpi = data[i+1]*256*256*256+data[i+2]*256*256+data[i+3]*256+data[i+4];
       tmpstr = (char*)(data+i+5);
       i += tmpi + 5;
-      fprintf(stderr, "AMF: String %s\n", tmpstr.c_str());
       return AMFType(name, tmpstr, 0x0C);
       break;
     case 0x02://string
       tmpi = data[i+1]*256+data[i+2];
       tmpstr = (char*)(data+i+3);
       i += tmpi + 3;
-      fprintf(stderr, "AMF: String %s\n", tmpstr.c_str());
       return AMFType(name, tmpstr, 0x02);
       break;
     case 0x05://null
     case 0x06://undefined
     case 0x0D://unsupported
-      fprintf(stderr, "AMF: Null\n");
       ++i;
       return AMFType(name, (double)0, data[i-1]);
       break;
@@ -184,29 +225,20 @@ AMFType parseOneAMF(unsigned char *& data, unsigned int &len, unsigned int &i, s
         tmpi = data[i]*256+data[i+1];
         tmpstr = (char*)(data+i+2);
         i += tmpi + 2;
-        fprintf(stderr, "AMF: Indice %s\n", tmpstr.c_str());
         ret.addContent(parseOneAMF(data, len, i, tmpstr));
       }
       i += 3;
       return ret;
       } break;
-    case 0x07://reference
-    case 0x08://array
-    case 0x0A://strict array
-    case 0x0B://date
-    case 0x0F://XML
-    case 0x10://typed object
-    case 0x11://AMF+
-    default:
-      fprintf(stderr, "Error: Unimplemented AMF type %hhx - returning.\n", data[i]);
-      return AMFType("error", (unsigned char)0xFF);
-      break;
   }
+  fprintf(stderr, "Error: Unimplemented AMF type %hhx - returning.\n", data[i]);
+  return AMFType("error", (unsigned char)0xFF);
 }//parseOneAMF
 
-AMFType parseAMF(unsigned char * data, unsigned int len){
+AMFType parseAMF(const unsigned char * data, unsigned int len){
   AMFType ret("returned", (unsigned char)0xFF);//container type
   unsigned int i = 0;
   while (i < len){ret.addContent(parseOneAMF(data, len, i, ""));}
   return ret;
 }//parseAMF
+AMFType parseAMF(std::string data){return parseAMF((const unsigned char*)data.c_str(), data.size());}

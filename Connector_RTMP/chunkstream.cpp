@@ -13,6 +13,15 @@ unsigned int snd_window_at = 0;
 unsigned int rec_cnt = 0;
 unsigned int snd_cnt = 0;
 
+struct chunkinfo {
+  unsigned int timestamp;
+  unsigned int len;
+  unsigned int real_len;
+  unsigned int len_left;
+  unsigned char msg_type_id;
+  unsigned int msg_stream_id;
+};//chunkinfo
+
 struct chunkpack {
   unsigned char chunktype;
   unsigned int cs_id;
@@ -90,6 +99,24 @@ void SendChunk(chunkpack ch){
     }
   }
   fflush(stdout);
+}//SendChunk
+
+//sends a chunk
+void SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data){
+  chunkpack ch;
+  timeval t;
+  gettimeofday(&t, 0);
+  ch.cs_id = cs_id;
+  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.len = data.size();
+  ch.real_len = data.size();
+  ch.len_left = 0;
+  ch.msg_type_id = msg_type_id;
+  ch.msg_stream_id = msg_stream_id;
+  ch.data = (unsigned char*)malloc(data.size());
+  memcpy(ch.data, data.c_str(), data.size());
+  SendChunk(ch);
+  free(ch.data);
 }//SendChunk
 
 //sends a control message
@@ -175,8 +202,26 @@ void SendUSR(unsigned char type, unsigned int data, unsigned int data2){
   free(ch.data);
 }//SendUSR
 
+//ugly global, but who cares...
+std::map<unsigned int, chunkinfo> prevmap;
+
+//return previous packet of this cs_id
+chunkinfo GetPrev(unsigned int cs_id){
+  return prevmap[cs_id];
+}//GetPrev
+
+//store packet information of last packet of this cs_id
+void PutPrev(chunkpack prev){
+  prevmap[prev.cs_id].timestamp = prev.timestamp;
+  prevmap[prev.cs_id].len = prev.len;
+  prevmap[prev.cs_id].real_len = prev.real_len;
+  prevmap[prev.cs_id].len_left = prev.len_left;
+  prevmap[prev.cs_id].msg_type_id = prev.msg_type_id;
+  prevmap[prev.cs_id].msg_stream_id = prev.msg_stream_id;
+}//PutPrev
+
 //get a chunk from standard input
-struct chunkpack getChunk(struct chunkpack prev){
+struct chunkpack getChunk(){
   struct chunkpack ret;
   unsigned char temp;
   fread(&(ret.chunktype), 1, 1, stdin);
@@ -196,9 +241,10 @@ struct chunkpack getChunk(struct chunkpack prev){
       ret.cs_id = ret.chunktype & 0x3F;
       break;
   }
+  chunkinfo prev = GetPrev(ret.cs_id);
   //process the rest of the header, for each chunk type
   switch (ret.chunktype & 0xC0){
-    case 0:
+    case 0x00:
       fread(&temp, 1, 1, stdin);
       ret.timestamp = temp*256*256;
       fread(&temp, 1, 1, stdin);
@@ -223,7 +269,7 @@ struct chunkpack getChunk(struct chunkpack prev){
       fread(&temp, 1, 1, stdin);
       ret.msg_stream_id += temp;
       break;
-    case 1:
+    case 0x40:
       fread(&temp, 1, 1, stdin);
       ret.timestamp = temp*256*256;
       fread(&temp, 1, 1, stdin);
@@ -242,7 +288,7 @@ struct chunkpack getChunk(struct chunkpack prev){
       ret.msg_type_id = temp;
       ret.msg_stream_id = prev.msg_stream_id;
       break;
-    case 2:
+    case 0x80:
       fread(&temp, 1, 1, stdin);
       ret.timestamp = temp*256*256;
       fread(&temp, 1, 1, stdin);
@@ -255,7 +301,7 @@ struct chunkpack getChunk(struct chunkpack prev){
       ret.msg_type_id = prev.msg_type_id;
       ret.msg_stream_id = prev.msg_stream_id;
       break;
-    case 3:
+    case 0xC0:
       ret.timestamp = prev.timestamp;
       ret.len = prev.len;
       ret.len_left = prev.len_left;
@@ -292,6 +338,7 @@ struct chunkpack getChunk(struct chunkpack prev){
   }else{
     ret.data = 0;
   }
+  PutPrev(ret);
   return ret;
 }//getChunk
 
@@ -332,16 +379,15 @@ chunkpack * AddChunkPart(chunkpack newchunk){
 
 //grabs chunks until a whole one comes in, then returns that
 chunkpack getWholeChunk(){
-  static chunkpack gwc_next, gwc_complete, gwc_prev;
+  static chunkpack gwc_next, gwc_complete;
   static bool clean = false;
-  if (!clean){gwc_prev.data = 0; clean = true;}//prevent brain damage
+  if (!clean){gwc_complete.data = 0; clean = true;}//prevent brain damage
   chunkpack * ret = 0;
   scrubChunk(gwc_complete);
   while (true){
-    gwc_next = getChunk(gwc_prev);
-    scrubChunk(gwc_prev);
-    gwc_prev = gwc_next;
+    gwc_next = getChunk();
     ret = AddChunkPart(gwc_next);
+    scrubChunk(gwc_next);
     if (ret){
       gwc_complete = *ret;
       free(ret);//cleanup returned chunk

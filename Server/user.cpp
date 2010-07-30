@@ -1,4 +1,20 @@
-#include "user.h"
+#include "buffer.h"
+#include "../sockets/SocketW.h"
+#include <iostream>
+
+class user{
+  public:
+    user();
+    ~user();
+    void disconnect();
+    void connect(SWBaseSocket * newConnection);
+    void Send(buffer ** ringbuf, int buffers);
+    bool is_connected;
+    SWUnixSocket * Conn;
+    int MyBuffer;
+    int MyBuffer_num;
+};//user
+
 
 user::user() {
   Conn = NULL;
@@ -37,12 +53,12 @@ void user::Send(buffer ** ringbuf, int buffers){
     return;
   }
   SWBaseSocket::SWBaseError err;
-  int ret = Conn->fsend(ringbuf[MyBuffer]->data, ringbuf[MyBuffer]->size, &err);
+  int ret = Conn->fsend(ringbuf[MyBuffer]->FLV->data, ringbuf[MyBuffer]->FLV->len, &err);
   if ((err != SWBaseSocket::ok) && (err != SWBaseSocket::notReady)){
     disconnect();
     return;
   }
-  if (ret == ringbuf[MyBuffer]->size){
+  if (ret == ringbuf[MyBuffer]->FLV->len){
     //completed a send - switch to next buffer
     MyBuffer++;
     MyBuffer %= buffers;

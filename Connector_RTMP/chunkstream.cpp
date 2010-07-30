@@ -119,6 +119,25 @@ void SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_s
   free(ch.data);
 }//SendChunk
 
+//sends a media chunk
+void SendMedia(unsigned char msg_type_id, unsigned char * data, int len){
+  if ((msg_type_id != 8) && (msg_type_id != 9)) return;//only parse audio and video
+  chunkpack ch;
+  timeval t;
+  gettimeofday(&t, 0);
+  ch.cs_id = msg_type_id;
+  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.len = len;
+  ch.real_len = len;
+  ch.len_left = 0;
+  ch.msg_type_id = msg_type_id;
+  ch.msg_stream_id = 10;
+  ch.data = (unsigned char*)malloc(len);
+  memcpy(ch.data, data, len);
+  SendChunk(ch);
+  free(ch.data);
+}//SendMedia
+
 //sends a control message
 void SendCTL(unsigned char type, unsigned int data){
   chunkpack ch;

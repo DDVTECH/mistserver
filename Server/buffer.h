@@ -2,6 +2,5 @@
 
 struct buffer{
   int number;
-  int size;
-  char * data;
+  FLV_Pack * FLV;
 };//buffer

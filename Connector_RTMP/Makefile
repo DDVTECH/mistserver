@@ -1,4 +1,4 @@
-SRC = main.cpp
+SRC = main.cpp ../sockets/sw_base.cpp ../sockets/sw_inet.cpp ../sockets/sw_unix.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Connector_RTMP
 INCLUDES = 
@@ -12,7 +12,7 @@ LIBS =
 default: $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
-$(OUT): $(OBJ) handshake.cpp chunkstream.cpp amf.cpp
+$(OUT): $(OBJ)
 	$(CC) $(LIBS) -o $(OUT) $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~

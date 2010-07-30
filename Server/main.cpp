@@ -31,7 +31,7 @@ int main( int argc, char * argv[] ) {
   int open_connection = -1;
   int lastproper = 0;//last properly finished buffer number
   unsigned int loopcount = 0;
-  SWUnixSocket listener;
+  SWUnixSocket listener(SWBaseSocket::nonblocking);
   SWBaseSocket * incoming = 0;
   SWBaseSocket::SWBaseError BError;
 

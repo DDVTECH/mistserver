@@ -34,6 +34,8 @@ void parseChunk(){
     case 5://window size of other end
       fprintf(stderr, "CTRL: Window size\n");
       rec_window_size = ntohl(*(int*)next.data);
+      rec_window_at = rec_cnt;
+      SendCTL(3, rec_cnt);//send ack (msg 3)
       break;
     case 6:
       fprintf(stderr, "CTRL: Set peer bandwidth\n");
@@ -73,19 +75,30 @@ void parseChunk(){
         tmpint = amfdata.getContentP(2)->getContentP("audioCodecs")->NumValue();
         if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
         if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
+        SendCTL(6, rec_window_size, 0);//send peer bandwidth (msg 6)
+        //SendCTL(5, snd_window_size);//send window acknowledgement size (msg 5)
+        SendUSR(0, 0);//send UCM StreamBegin (0), stream 0
         //send a _result reply
         AMFType amfreply("container", (unsigned char)0xFF);
         amfreply.addContent(AMFType("", "_result"));//result success
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
-        amfreply.addContent(AMFType("", (double)0, 0x05));//null - properties (none?)
+//        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        amfreply.addContent(AMFType(""));//server properties
+        amfreply.getContentP(2)->addContent(AMFType("fmsVer", "FMS/3,0,1,123"));//stolen from examples
+        amfreply.getContentP(2)->addContent(AMFType("capabilities", (double)31));//stolen from examples
         amfreply.addContent(AMFType(""));//info
         amfreply.getContentP(3)->addContent(AMFType("level", "status"));
         amfreply.getContentP(3)->addContent(AMFType("code", "NetConnection.Connect.Sucess"));
         amfreply.getContentP(3)->addContent(AMFType("description", "Connection succeeded."));
+        amfreply.getContentP(3)->addContent(AMFType("capabilities", (double)33));//from red5 server
+        amfreply.getContentP(3)->addContent(AMFType("fmsVer", "RED5/1,0,0,0"));//from red5 server
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
-        SendCTL(5, snd_window_size);//send window acknowledgement size (msg 5)
-        SendCTL(5, rec_window_size, 1);//send peer bandwidth (msg 6)
-        SendUSR(0, 10);//send UCM StreamBegin (0), stream 10 (we use this number)
+        //send onBWDone packet
+        //amfreply = AMFType("container", (unsigned char)0xFF);
+        //amfreply.addContent(AMFType("", "onBWDone"));//result success
+        //amfreply.addContent(AMFType("", (double)0));//zero
+        //amfreply.addContent(AMFType("", (double)0, 0x05));//null
+        //SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
       }//connect
       if (amfdata.getContentP(0)->StrValue() == "createStream"){
         //send a _result reply
@@ -96,12 +109,36 @@ void parseChunk(){
         amfreply.addContent(AMFType("", (double)10));//stream ID - we use 10
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
       }//createStream
+      if (amfdata.getContentP(0)->StrValue() == "getMovLen"){
+        //send a _result reply
+        AMFType amfreply("container", (unsigned char)0xFF);
+        amfreply.addContent(AMFType("", "_result"));//result success
+        amfreply.addContent(amfdata.getContent(1));//same transaction ID
+        amfreply.addContent(AMFType("", (double)6000));//null - command info
+        SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
+      }//createStream
       if ((amfdata.getContentP(0)->StrValue() == "play") || (amfdata.getContentP(0)->StrValue() == "play2")){
         //send a status reply
         AMFType amfreply("container", (unsigned char)0xFF);
         amfreply.addContent(AMFType("", "onStatus"));//status reply
-        amfreply.addContent(AMFType("", "NetStream.Play.Start"));//result success
+        amfreply.addContent(amfdata.getContent(1));//same transaction ID
+        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        amfreply.addContent(AMFType(""));//info
+        amfreply.getContentP(3)->addContent(AMFType("level", "status"));
+        amfreply.getContentP(3)->addContent(AMFType("code", "NetStream.Play.Reset"));
+        amfreply.getContentP(3)->addContent(AMFType("description", "Playing and resetting..."));
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
+        amfreply = AMFType("container", (unsigned char)0xFF);
+        amfreply.addContent(AMFType("", "onStatus"));//status reply
+        amfreply.addContent(amfdata.getContent(1));//same transaction ID
+        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        amfreply.addContent(AMFType(""));//info
+        amfreply.getContentP(3)->addContent(AMFType("level", "status"));
+        amfreply.getContentP(3)->addContent(AMFType("code", "NetStream.Play.Start"));
+        amfreply.getContentP(3)->addContent(AMFType("description", "Playing!"));
+        SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
+        chunk_snd_max = 1024*1024;
+        SendCTL(1, chunk_snd_max);//send chunk size max (msg 1)
         ready4data = true;//start sending video data!
       }//createStream
     } break;

@@ -17,18 +17,6 @@ void Magic_Read(char * buf, int len, int file){
 
 //reads a FLV header and checks for correctness
 //returns true if everything is alright, false otherwise
-bool FLV_Readheader(int file){
-  Magic_Read(FLVHeader,13,file);
-  if (FLVHeader[0] != 'F') return false;
-  if (FLVHeader[1] != 'L') return false;
-  if (FLVHeader[2] != 'V') return false;
-  if (FLVHeader[8] != 0x09) return false;
-  if (FLVHeader[9] != 0) return false;
-  if (FLVHeader[10] != 0) return false;
-  if (FLVHeader[11] != 0) return false;
-  if (FLVHeader[12] != 0) return false;
-  return true;
-}//FLV_Readheader
 bool FLV_Readheader(){
   fread(FLVHeader,1,13,stdin);
   if (FLVHeader[0] != 'F') return false;
@@ -46,17 +34,6 @@ bool FLV_Readheader(){
 //will assign pointer if null
 //resizes FLV_Pack data field bigger if data doesn't fit
 // (does not auto-shrink for speed!)
-void FLV_GetPacket(FLV_Pack *& p, int file){
-  if (!p){p = (FLV_Pack*)calloc(1, sizeof(FLV_Pack));}
-  if (p->buf < 15){p->data = (char*)realloc(p->data, 15); p->buf = 15;}
-  Magic_Read(p->data,11,file);
-  p->len = p->data[3] + 15;
-  p->len += (p->data[2] << 8);
-  p->len += (p->data[1] << 16);
-  if (p->buf < p->len){p->data = (char*)realloc(p->data, p->len);}
-  Magic_Read(p->data+11,p->len-11,file);
-}//FLV_GetPacket
-
 void FLV_GetPacket(FLV_Pack *& p){
   if (!p){p = (FLV_Pack*)calloc(1, sizeof(FLV_Pack));}
   if (p->buf < 15){p->data = (char*)realloc(p->data, 15); p->buf = 15;}
@@ -64,6 +41,6 @@ void FLV_GetPacket(FLV_Pack *& p){
   p->len = p->data[3] + 15;
   p->len += (p->data[2] << 8);
   p->len += (p->data[1] << 16);
-  if (p->buf < p->len){p->data = (char*)realloc(p->data, p->len);}
+  if (p->buf < p->len){p->data = (char*)realloc(p->data, p->len);p->buf = p->len;}
   fread(p->data+11,1,p->len-11,stdin);
 }//FLV_GetPacket

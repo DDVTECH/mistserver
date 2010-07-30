@@ -6,7 +6,7 @@
 
 unsigned int chunk_rec_max = 128;
 unsigned int chunk_snd_max = 128;
-unsigned int rec_window_size = 1024*500;
+unsigned int rec_window_size = 0xFA00;
 unsigned int snd_window_size = 1024*500;
 unsigned int rec_window_at = 0;
 unsigned int snd_window_at = 0;
@@ -14,6 +14,7 @@ unsigned int rec_cnt = 0;
 unsigned int snd_cnt = 0;
 
 struct chunkinfo {
+  unsigned int cs_id;
   unsigned int timestamp;
   unsigned int len;
   unsigned int real_len;
@@ -41,64 +42,150 @@ void scrubChunk(struct chunkpack c){
   c.real_len = 0;
 }//scrubChunk
 
+
+//ugly global, but who cares...
+std::map<unsigned int, chunkinfo> prevmap;
+//return previous packet of this cs_id
+chunkinfo GetPrev(unsigned int cs_id){
+  return prevmap[cs_id];
+}//GetPrev
+//store packet information of last packet of this cs_id
+void PutPrev(chunkpack prev){
+  prevmap[prev.cs_id].timestamp = prev.timestamp;
+  prevmap[prev.cs_id].len = prev.len;
+  prevmap[prev.cs_id].real_len = prev.real_len;
+  prevmap[prev.cs_id].len_left = prev.len_left;
+  prevmap[prev.cs_id].msg_type_id = prev.msg_type_id;
+  prevmap[prev.cs_id].msg_stream_id = prev.msg_stream_id;
+}//PutPrev
+
+//ugly global, but who cares...
+std::map<unsigned int, chunkinfo> sndprevmap;
+//return previous packet of this cs_id
+chunkinfo GetSndPrev(unsigned int cs_id){
+  return sndprevmap[cs_id];
+}//GetPrev
+//store packet information of last packet of this cs_id
+void PutSndPrev(chunkpack prev){
+  sndprevmap[prev.cs_id].cs_id = prev.cs_id;
+  sndprevmap[prev.cs_id].timestamp = prev.timestamp;
+  sndprevmap[prev.cs_id].len = prev.len;
+  sndprevmap[prev.cs_id].real_len = prev.real_len;
+  sndprevmap[prev.cs_id].len_left = prev.len_left;
+  sndprevmap[prev.cs_id].msg_type_id = prev.msg_type_id;
+  sndprevmap[prev.cs_id].msg_stream_id = prev.msg_stream_id;
+}//PutPrev
+
+
+
 //sends the chunk over the network
 void SendChunk(chunkpack ch){
   unsigned char tmp;
   unsigned int tmpi;
+  unsigned char chtype = 0x00;
+  chunkinfo prev = GetSndPrev(ch.cs_id);
+  if (prev.cs_id == ch.cs_id){
+    if (ch.msg_stream_id == prev.msg_stream_id){
+      chtype = 0x40;//do not send msg_stream_id
+      if (ch.len == prev.len){
+        if (ch.msg_type_id == prev.msg_type_id){
+          chtype = 0x80;//do not send len and msg_type_id
+          if (ch.timestamp == prev.timestamp){
+            chtype = 0xC0;//do not send timestamp
+          }
+        }
+      }
+    }
+  }
   if (ch.cs_id <= 63){
-    tmp = ch.cs_id; fwrite(&tmp, 1, 1, stdout);
+    tmp = chtype | ch.cs_id; fwrite(&tmp, 1, 1, stdout);
+    snd_cnt+=1;
   }else{
     if (ch.cs_id <= 255+64){
-      tmp = 0; fwrite(&tmp, 1, 1, stdout);
+      tmp = chtype | 0; fwrite(&tmp, 1, 1, stdout);
       tmp = ch.cs_id - 64; fwrite(&tmp, 1, 1, stdout);
+      snd_cnt+=2;
     }else{
-      tmp = 1; fwrite(&tmp, 1, 1, stdout);
+      tmp = chtype | 1; fwrite(&tmp, 1, 1, stdout);
       tmpi = ch.cs_id - 64;
       tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
       tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+      snd_cnt+=3;
     }
   }
-  //timestamp
-  //TODO: support for > 0x00ffffff timestamps!
-  tmpi = ch.timestamp;
-  tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
-  tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
-  tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
-  //len
-  tmpi = ch.len;
-  tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
-  tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
-  tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
-  //msg type id
-  tmp = ch.msg_type_id; fwrite(&tmp, 1, 1, stdout);
-  //msg stream id
-  tmp = ch.msg_stream_id / (256*256*256); fwrite(&tmp, 1, 1, stdout);
-  tmp = ch.msg_stream_id / (256*256); fwrite(&tmp, 1, 1, stdout);
-  tmp = ch.msg_stream_id / 256; fwrite(&tmp, 1, 1, stdout);
-  tmp = ch.msg_stream_id % 256; fwrite(&tmp, 1, 1, stdout);
+  unsigned int ntime = 0;
+  if (chtype != 0xC0){
+    //timestamp or timestamp diff
+    if (chtype == 0x00){
+      tmpi = ch.timestamp;
+      if (tmpi >= 0x00ffffff){ntime = tmpi; tmpi = 0x00ffffff;}
+      tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+      snd_cnt+=3;
+    }else{
+      tmpi = ch.timestamp - prev.timestamp;
+      if (tmpi >= 0x00ffffff){ntime = tmpi; tmpi = 0x00ffffff;}
+      tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+      snd_cnt+=3;
+    }
+    if (chtype != 0x80){
+      //len
+      tmpi = ch.len;
+      tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+      snd_cnt+=3;
+      //msg type id
+      tmp = ch.msg_type_id; fwrite(&tmp, 1, 1, stdout);
+      snd_cnt+=1;
+      if (chtype != 0x40){
+        //msg stream id
+        tmp = ch.msg_stream_id / (256*256*256); fwrite(&tmp, 1, 1, stdout);
+        tmp = ch.msg_stream_id / (256*256); fwrite(&tmp, 1, 1, stdout);
+        tmp = ch.msg_stream_id / 256; fwrite(&tmp, 1, 1, stdout);
+        tmp = ch.msg_stream_id % 256; fwrite(&tmp, 1, 1, stdout);
+        snd_cnt+=4;
+      }
+    }
+  }
+  //support for 0x00ffffff timestamps
+  if (ntime){
+    tmp = ntime / (256*256*256); fwrite(&tmp, 1, 1, stdout);
+    tmp = ntime / (256*256); fwrite(&tmp, 1, 1, stdout);
+    tmp = ntime / 256; fwrite(&tmp, 1, 1, stdout);
+    tmp = ntime % 256; fwrite(&tmp, 1, 1, stdout);
+    snd_cnt+=4;
+  }
   ch.len_left = 0;
   while (ch.len_left < ch.len){
     tmpi = ch.len - ch.len_left;
     if (tmpi > chunk_snd_max){tmpi = chunk_snd_max;}
     fwrite((ch.data + ch.len_left), 1, tmpi, stdout);
+    snd_cnt+=tmpi;
     ch.len_left += tmpi;
     if (ch.len_left < ch.len){
       if (ch.cs_id <= 63){
-        tmp = 0xC + ch.cs_id; fwrite(&tmp, 1, 1, stdout);
+        tmp = 0xC0 + ch.cs_id; fwrite(&tmp, 1, 1, stdout);
+        snd_cnt+=1;
       }else{
         if (ch.cs_id <= 255+64){
           tmp = 0xC0; fwrite(&tmp, 1, 1, stdout);
           tmp = ch.cs_id - 64; fwrite(&tmp, 1, 1, stdout);
+          snd_cnt+=2;
         }else{
           tmp = 0xC1; fwrite(&tmp, 1, 1, stdout);
           tmpi = ch.cs_id - 64;
           tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
           tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+          snd_cnt+=4;
         }
       }
     }
   }
-  fflush(stdout);
+  PutSndPrev(ch);
 }//SendChunk
 
 //sends a chunk
@@ -107,7 +194,7 @@ void SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_s
   timeval t;
   gettimeofday(&t, 0);
   ch.cs_id = cs_id;
-  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.timestamp = t.tv_sec;
   ch.len = data.size();
   ch.real_len = data.size();
   ch.len_left = 0;
@@ -126,7 +213,7 @@ void SendMedia(unsigned char msg_type_id, unsigned char * data, int len){
   timeval t;
   gettimeofday(&t, 0);
   ch.cs_id = msg_type_id;
-  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.timestamp = t.tv_sec;
   ch.len = len;
   ch.real_len = len;
   ch.len_left = 0;
@@ -144,7 +231,7 @@ void SendCTL(unsigned char type, unsigned int data){
   timeval t;
   gettimeofday(&t, 0);
   ch.cs_id = 2;
-  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.timestamp = t.tv_sec;
   ch.len = 4;
   ch.real_len = 4;
   ch.len_left = 0;
@@ -163,7 +250,7 @@ void SendCTL(unsigned char type, unsigned int data, unsigned char data2){
   timeval t;
   gettimeofday(&t, 0);
   ch.cs_id = 2;
-  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.timestamp = t.tv_sec;
   ch.len = 5;
   ch.real_len = 5;
   ch.len_left = 0;
@@ -183,7 +270,7 @@ void SendUSR(unsigned char type, unsigned int data){
   timeval t;
   gettimeofday(&t, 0);
   ch.cs_id = 2;
-  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.timestamp = t.tv_sec;
   ch.len = 6;
   ch.real_len = 6;
   ch.len_left = 0;
@@ -204,7 +291,7 @@ void SendUSR(unsigned char type, unsigned int data, unsigned int data2){
   timeval t;
   gettimeofday(&t, 0);
   ch.cs_id = 2;
-  ch.timestamp = t.tv_sec * 10 + t.tv_usec / 1000000;
+  ch.timestamp = t.tv_sec;
   ch.len = 10;
   ch.real_len = 10;
   ch.len_left = 0;
@@ -221,33 +308,18 @@ void SendUSR(unsigned char type, unsigned int data, unsigned int data2){
   free(ch.data);
 }//SendUSR
 
-//ugly global, but who cares...
-std::map<unsigned int, chunkinfo> prevmap;
-
-//return previous packet of this cs_id
-chunkinfo GetPrev(unsigned int cs_id){
-  return prevmap[cs_id];
-}//GetPrev
-
-//store packet information of last packet of this cs_id
-void PutPrev(chunkpack prev){
-  prevmap[prev.cs_id].timestamp = prev.timestamp;
-  prevmap[prev.cs_id].len = prev.len;
-  prevmap[prev.cs_id].real_len = prev.real_len;
-  prevmap[prev.cs_id].len_left = prev.len_left;
-  prevmap[prev.cs_id].msg_type_id = prev.msg_type_id;
-  prevmap[prev.cs_id].msg_stream_id = prev.msg_stream_id;
-}//PutPrev
-
 //get a chunk from standard input
 struct chunkpack getChunk(){
+  gettimeofday(&lastrec, 0);
   struct chunkpack ret;
   unsigned char temp;
   fread(&(ret.chunktype), 1, 1, stdin);
+  rec_cnt++;
   //read the chunkstream ID properly
   switch (ret.chunktype & 0x3F){
     case 0:
       fread(&temp, 1, 1, stdin);
+      rec_cnt++;
       ret.cs_id = temp + 64;
       break;
     case 1:
@@ -255,6 +327,7 @@ struct chunkpack getChunk(){
       ret.cs_id = temp + 64;
       fread(&temp, 1, 1, stdin);
       ret.cs_id += temp * 256;
+      rec_cnt+=2;
       break;
     default:
       ret.cs_id = ret.chunktype & 0x3F;
@@ -287,6 +360,7 @@ struct chunkpack getChunk(){
       ret.msg_stream_id += temp*256;
       fread(&temp, 1, 1, stdin);
       ret.msg_stream_id += temp;
+      rec_cnt+=11;
       break;
     case 0x40:
       fread(&temp, 1, 1, stdin);
@@ -306,6 +380,7 @@ struct chunkpack getChunk(){
       fread(&temp, 1, 1, stdin);
       ret.msg_type_id = temp;
       ret.msg_stream_id = prev.msg_stream_id;
+      rec_cnt+=7;
       break;
     case 0x80:
       fread(&temp, 1, 1, stdin);
@@ -319,6 +394,7 @@ struct chunkpack getChunk(){
       ret.len_left = prev.len_left;
       ret.msg_type_id = prev.msg_type_id;
       ret.msg_stream_id = prev.msg_stream_id;
+      rec_cnt+=3;
       break;
     case 0xC0:
       ret.timestamp = prev.timestamp;
@@ -349,11 +425,13 @@ struct chunkpack getChunk(){
     ret.timestamp += temp*256;
     fread(&temp, 1, 1, stdin);
     ret.timestamp += temp;
+    rec_cnt+=4;
   }
   //read data if length > 0, and allocate it
   if (ret.real_len > 0){
     ret.data = (unsigned char*)malloc(ret.real_len);
     fread(ret.data, 1, ret.real_len, stdin);
+    rec_cnt+=ret.real_len;
   }else{
     ret.data = 0;
   }

@@ -10,12 +10,18 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+//for connection to server
+#include "../sockets/SocketW.h"
 bool ready4data = false;//set to true when streaming starts
-
+bool inited = false;
+#include "../util/flv.cpp" //FLV format parser
 #include "handshake.cpp" //handshaking
 #include "parsechunks.cpp" //chunkstream parsing
 
 int main(){
+  SWUnixSocket ss;
+  FLV_Pack * FLV = 0;
+  int ssfd = 0;
   fd_set pollset;
   struct timeval timeout;
   //0 timeout - return immediately after select call
@@ -26,14 +32,26 @@ int main(){
   doHandshake();
   while (!feof(stdin)){
     select(1, &pollset, 0, 0, &timeout);
-    if (FD_ISSET(0, &pollset)){
-      //only try to parse a new chunk when one is available :-)
-      std::cerr << "Parsing..." << std::endl;
-      parseChunk();
-    }
+    //only parse input from stdin if available
+    if (FD_ISSET(0, &pollset)){parseChunk();}
     if (ready4data){
-      //check for packets, send them if needed
-      std::cerr << "Sending crap..." << std::endl;
+      if (!inited){
+        //we are ready, connect the socket!
+        ss.connect("../shared_socket");
+        ssfd = ss.get_fd(0);
+        if (ssfd > 0){FD_SET(ssfd, &pollset);}else{return 1;}
+        FLV_Readheader(ssfd);//read the header, we don't want it
+        fprintf(stderr, "Header read\n");
+        inited = true;
+      }
+      //only deal with FLV packets if we have any to receive
+      if (FD_ISSET(ssfd, &pollset)){
+        fprintf(stderr, "Getting packet...\n");
+        FLV_GetPacket(FLV, ssfd);//read a full packet
+        fprintf(stderr, "Sending a type %hhx packet...\n", (unsigned char)FLV->data[0]);
+        SendMedia((unsigned char)FLV->data[0], (unsigned char *)FLV->data+11, FLV->len-15);
+        fprintf(stderr, "Packet sent.\n");
+      }
     }
   }
   return 0;

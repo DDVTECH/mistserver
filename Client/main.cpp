@@ -1,5 +1,5 @@
 #include <iostream>
-#include "sockets/SocketW.h"
+#include "../sockets/SocketW.h"
 #include <string>
 #include <vector>
 #include <cstdlib>
@@ -9,7 +9,7 @@
 
 int main() {
   SWUnixSocket mySocket;
-  mySocket.connect("/tmp/socketfile");
+  mySocket.connect("../shared_socket");
   char buffer[500000];
   int msg;
   std::string input;

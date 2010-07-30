@@ -94,7 +94,7 @@ public:
 	// noWait      - operations block but only once
 	//               useful with blocking w. select()
 	// nonblocking - don't block (you should use select())
-	enum block_type{blocking, noWait, nonblocking};
+	enum block_type{nonblocking, noWait, blocking};
 	
 	
 	// Connection methods

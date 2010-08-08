@@ -105,6 +105,7 @@ class AMFType {
         case 0x02://short string
         case 0x0C: std::cerr << "String"; break;
         case 0x03: std::cerr << "Object"; break;
+        case 0x08: std::cerr << "ECMA Array"; break;
         case 0x05: std::cerr << "Null"; break;
         case 0x06: std::cerr << "Undefined"; break;
         case 0x0D: std::cerr << "Unsupported"; break;
@@ -157,6 +158,22 @@ class AMFType {
           }
           r += (char)0; r += (char)0; r += (char)9;
           break;
+        case 0x08:{//array
+          int arrlen = 0;
+          if (contents){
+            arrlen = getContentP("length")->NumValue();
+            r += arrlen / (256*256*256); r += arrlen / (256*256); r += arrlen / 256; r += arrlen % 256;
+            for (std::vector<AMFType>::iterator it = contents->begin(); it != contents->end(); it++){
+              r += it->Indice().size() / 256;
+              r += it->Indice().size() % 256;
+              r += it->Indice();
+              r += it->Pack();
+            }
+          }else{
+            r += (char)0; r += (char)0; r += (char)0; r += (char)0;
+          }
+          r += (char)0; r += (char)0; r += (char)9;
+          } break;
         case 0xFF://container - our own type - do not send, only send contents
           if (contents){
             for (std::vector<AMFType>::iterator it = contents->begin(); it != contents->end(); it++){
@@ -176,6 +193,7 @@ class AMFType {
 };//AMFType
 
 AMFType parseOneAMF(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name){
+  char * helperchar = 0;
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
@@ -202,13 +220,21 @@ AMFType parseOneAMF(const unsigned char *& data, unsigned int &len, unsigned int
       break;
     case 0x0C://long string
       tmpi = data[i+1]*256*256*256+data[i+2]*256*256+data[i+3]*256+data[i+4];
-      tmpstr = (char*)(data+i+5);
+      helperchar = (char*)malloc(tmpi+1);
+      memcpy(helperchar, data+i+5, tmpi);
+      helperchar[tmpi] = 0;
+      tmpstr = helperchar;
+      free(helperchar);
       i += tmpi + 5;
       return AMFType(name, tmpstr, 0x0C);
       break;
     case 0x02://string
       tmpi = data[i+1]*256+data[i+2];
-      tmpstr = (char*)(data+i+3);
+      helperchar = (char*)malloc(tmpi+1);
+      memcpy(helperchar, data+i+3, tmpi);
+      helperchar[tmpi] = 0;
+      tmpstr = helperchar;
+      free(helperchar);
       i += tmpi + 3;
       return AMFType(name, tmpstr, 0x02);
       break;
@@ -230,8 +256,23 @@ AMFType parseOneAMF(const unsigned char *& data, unsigned int &len, unsigned int
       i += 3;
       return ret;
       } break;
+    case 0x08:{//ECMA array
+      ++i;
+      AMFType ret = AMFType(name, data[i-1]);
+      i += 4;
+      while (data[i] + data[i+1] != 0){
+        tmpi = data[i]*256+data[i+1];
+        tmpstr = (char*)(data+i+2);
+        i += tmpi + 2;
+        ret.addContent(parseOneAMF(data, len, i, tmpstr));
+      }
+      i += 3;
+      return ret;
+    } break;
   }
+  #ifdef DEBUG
   fprintf(stderr, "Error: Unimplemented AMF type %hhx - returning.\n", data[i]);
+  #endif
   return AMFType("error", (unsigned char)0xFF);
 }//parseOneAMF
 

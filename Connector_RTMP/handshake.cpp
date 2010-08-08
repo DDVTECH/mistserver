@@ -4,7 +4,7 @@ struct Handshake {
   char Random[1528];
 };//Handshake
 
-char * versionstring = "PLSRTMPServer";
+char versionstring[] = "PLSRTMPServer";
 
 void doHandshake(){
   srand(time(NULL));

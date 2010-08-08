@@ -4,6 +4,13 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 
+unsigned int getNowMS(){
+  timeval t;
+  gettimeofday(&t, 0);
+  return t.tv_sec + t.tv_usec/1000;
+}
+
+
 unsigned int chunk_rec_max = 128;
 unsigned int chunk_snd_max = 128;
 unsigned int rec_window_size = 0xFA00;
@@ -12,6 +19,8 @@ unsigned int rec_window_at = 0;
 unsigned int snd_window_at = 0;
 unsigned int rec_cnt = 0;
 unsigned int snd_cnt = 0;
+
+unsigned int firsttime;
 
 struct chunkinfo {
   unsigned int cs_id;
@@ -84,6 +93,7 @@ void SendChunk(chunkpack ch){
   unsigned int tmpi;
   unsigned char chtype = 0x00;
   chunkinfo prev = GetSndPrev(ch.cs_id);
+  ch.timestamp -= firsttime;
   if (prev.cs_id == ch.cs_id){
     if (ch.msg_stream_id == prev.msg_stream_id){
       chtype = 0x40;//do not send msg_stream_id
@@ -143,10 +153,10 @@ void SendChunk(chunkpack ch){
       snd_cnt+=1;
       if (chtype != 0x40){
         //msg stream id
-        tmp = ch.msg_stream_id / (256*256*256); fwrite(&tmp, 1, 1, stdout);
-        tmp = ch.msg_stream_id / (256*256); fwrite(&tmp, 1, 1, stdout);
-        tmp = ch.msg_stream_id / 256; fwrite(&tmp, 1, 1, stdout);
         tmp = ch.msg_stream_id % 256; fwrite(&tmp, 1, 1, stdout);
+        tmp = ch.msg_stream_id / 256; fwrite(&tmp, 1, 1, stdout);
+        tmp = ch.msg_stream_id / (256*256); fwrite(&tmp, 1, 1, stdout);
+        tmp = ch.msg_stream_id / (256*256*256); fwrite(&tmp, 1, 1, stdout);
         snd_cnt+=4;
       }
     }
@@ -191,10 +201,8 @@ void SendChunk(chunkpack ch){
 //sends a chunk
 void SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data){
   chunkpack ch;
-  timeval t;
-  gettimeofday(&t, 0);
   ch.cs_id = cs_id;
-  ch.timestamp = t.tv_sec;
+  ch.timestamp = getNowMS();
   ch.len = data.size();
   ch.real_len = data.size();
   ch.len_left = 0;
@@ -207,18 +215,15 @@ void SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_s
 }//SendChunk
 
 //sends a media chunk
-void SendMedia(unsigned char msg_type_id, unsigned char * data, int len){
-  if ((msg_type_id != 8) && (msg_type_id != 9)) return;//only parse audio and video
+void SendMedia(unsigned char msg_type_id, unsigned char * data, int len, unsigned int ts){
   chunkpack ch;
-  timeval t;
-  gettimeofday(&t, 0);
   ch.cs_id = msg_type_id;
-  ch.timestamp = t.tv_sec;
+  ch.timestamp = ts;
   ch.len = len;
   ch.real_len = len;
   ch.len_left = 0;
   ch.msg_type_id = msg_type_id;
-  ch.msg_stream_id = 10;
+  ch.msg_stream_id = 1;
   ch.data = (unsigned char*)malloc(len);
   memcpy(ch.data, data, len);
   SendChunk(ch);
@@ -228,10 +233,8 @@ void SendMedia(unsigned char msg_type_id, unsigned char * data, int len){
 //sends a control message
 void SendCTL(unsigned char type, unsigned int data){
   chunkpack ch;
-  timeval t;
-  gettimeofday(&t, 0);
   ch.cs_id = 2;
-  ch.timestamp = t.tv_sec;
+  ch.timestamp = getNowMS();
   ch.len = 4;
   ch.real_len = 4;
   ch.len_left = 0;
@@ -247,10 +250,8 @@ void SendCTL(unsigned char type, unsigned int data){
 //sends a control message
 void SendCTL(unsigned char type, unsigned int data, unsigned char data2){
   chunkpack ch;
-  timeval t;
-  gettimeofday(&t, 0);
   ch.cs_id = 2;
-  ch.timestamp = t.tv_sec;
+  ch.timestamp = getNowMS();
   ch.len = 5;
   ch.real_len = 5;
   ch.len_left = 0;
@@ -267,10 +268,8 @@ void SendCTL(unsigned char type, unsigned int data, unsigned char data2){
 //sends a usr control message
 void SendUSR(unsigned char type, unsigned int data){
   chunkpack ch;
-  timeval t;
-  gettimeofday(&t, 0);
   ch.cs_id = 2;
-  ch.timestamp = t.tv_sec;
+  ch.timestamp = getNowMS();
   ch.len = 6;
   ch.real_len = 6;
   ch.len_left = 0;
@@ -288,10 +287,8 @@ void SendUSR(unsigned char type, unsigned int data){
 //sends a usr control message
 void SendUSR(unsigned char type, unsigned int data, unsigned int data2){
   chunkpack ch;
-  timeval t;
-  gettimeofday(&t, 0);
   ch.cs_id = 2;
-  ch.timestamp = t.tv_sec;
+  ch.timestamp = getNowMS();
   ch.len = 10;
   ch.real_len = 10;
   ch.len_left = 0;
@@ -353,13 +350,13 @@ struct chunkpack getChunk(){
       fread(&temp, 1, 1, stdin);
       ret.msg_type_id = temp;
       fread(&temp, 1, 1, stdin);
-      ret.msg_stream_id = temp*256*256*256;
-      fread(&temp, 1, 1, stdin);
-      ret.msg_stream_id += temp*256*256;
+      ret.msg_stream_id = temp;
       fread(&temp, 1, 1, stdin);
       ret.msg_stream_id += temp*256;
       fread(&temp, 1, 1, stdin);
-      ret.msg_stream_id += temp;
+      ret.msg_stream_id += temp*256*256;
+      fread(&temp, 1, 1, stdin);
+      ret.msg_stream_id += temp*256*256*256;
       rec_cnt+=11;
       break;
     case 0x40:
@@ -459,7 +456,12 @@ chunkpack * AddChunkPart(chunkpack newchunk){
   }else{
     p = it->second;
     tmpdata = (unsigned char*)realloc(p->data, p->real_len + newchunk.real_len);
-    if (tmpdata == 0){fprintf(stderr, "Error allocating memory!\n");return 0;}
+    if (tmpdata == 0){
+      #ifdef DEBUG
+      fprintf(stderr, "Error allocating memory!\n");
+      #endif
+      return 0;
+    }
     p->data = tmpdata;
     memcpy(p->data+p->real_len, newchunk.data, newchunk.real_len);
     p->real_len += newchunk.real_len;

@@ -21,6 +21,8 @@ int main( int argc, char * argv[] ) {
     std::cout << "usage: " << argv[0] << " buffers_count max_clients" << std::endl;
     return 1;
   }
+  int metabuflen = 0;
+  char * metabuffer = 0;
   int buffers = atoi(argv[1]);
   int connections = atoi(argv[2]);
   buffer ** ringbuf = (buffer**) calloc (buffers,sizeof(buffer*));
@@ -50,25 +52,33 @@ int main( int argc, char * argv[] ) {
     } else {
       FLV_GetPacket(ringbuf[current_buffer]->FLV);
       //if video frame? (id 9) check for incoming connections
-      if (ringbuf[current_buffer]->FLV->data[0] == 9) {
-        incoming = listener.accept(&BError);
-        if (incoming){
-          open_connection = get_empty(connectionList,connections);
-          if (open_connection != -1) {
-            connectionList[open_connection]->connect(incoming);
-            //send the FLV header
-            std::cout << "Client " << open_connection << " connected." << std::endl;
-            connectionList[open_connection]->MyBuffer = lastproper;
-            connectionList[open_connection]->MyBuffer_num = ringbuf[lastproper]->number;
-            //TODO: Do this more nicely?
-            if (connectionList[open_connection]->Conn->send(FLVHeader,13,0) != 13){
-              connectionList[open_connection]->disconnect();
-              std::cout << "Client " << open_connection << " failed to receive the header!" << std::endl;
-            }
-            std::cout << "Client " << open_connection << " received header!" << std::endl;
-          }else{
-            std::cout << "New client not connected: no more connections!" << std::endl;
+      if (ringbuf[current_buffer]->FLV->data[0] == 0x12){
+        metabuflen = ringbuf[current_buffer]->FLV->len;
+        metabuffer = (char*)realloc(metabuffer, metabuflen);
+        memcpy(metabuffer, ringbuf[current_buffer]->FLV->data, metabuflen);
+      }
+      incoming = listener.accept(&BError);
+      if (incoming){
+        open_connection = get_empty(connectionList,connections);
+        if (open_connection != -1) {
+          connectionList[open_connection]->connect(incoming);
+          //send the FLV header
+          std::cout << "Client " << open_connection << " connected." << std::endl;
+          connectionList[open_connection]->MyBuffer = lastproper;
+          connectionList[open_connection]->MyBuffer_num = ringbuf[lastproper]->number;
+          //TODO: Do this more nicely?
+          if (connectionList[open_connection]->Conn->send(FLVHeader,13,0) != 13){
+            connectionList[open_connection]->disconnect();
+            std::cout << "Client " << open_connection << " failed to receive the header!" << std::endl;
           }
+          if (connectionList[open_connection]->Conn->send(metabuffer,metabuflen,0) != metabuflen){
+            connectionList[open_connection]->disconnect();
+            std::cout << "Client " << open_connection << " failed to receive metadata!" << std::endl;
+          }
+          std::cout << "Client " << open_connection << " received metadata and header!" << std::endl;
+        }else{
+          std::cout << "New client not connected: no more connections!" << std::endl;
+          incoming->disconnect();
         }
       }
       ringbuf[current_buffer]->number = loopcount;
@@ -83,6 +93,6 @@ int main( int argc, char * argv[] ) {
 
   // disconnect listener
   std::cout << "Reached EOF of input" << std::endl;
-  listener.disconnect();
+  listener.disconnect(&BError);
   return 0;
 }

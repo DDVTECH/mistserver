@@ -73,7 +73,7 @@ int main( int argc, char * argv[] ) {
       ringbuf[current_buffer]->number = loopcount;
       //send all connections what they need, if and when they need it
       for (connIt = connectionList.begin(); connIt != connectionList.end(); connIt++){
-        if (!(*connIt).is_connected){connectionList.erase(connIt);}
+        if (!(*connIt).is_connected){connectionList.erase(connIt);break;}
         (*connIt).Send(ringbuf, buffers);
       }
       //keep track of buffers

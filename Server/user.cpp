@@ -5,7 +5,6 @@
 class user{
   public:
     user(SWBaseSocket * newConn);
-    ~user();
     void disconnect(std::string reason);
     void Send(buffer ** ringbuf, int buffers);
     bool is_connected;
@@ -19,8 +18,6 @@ user::user(SWBaseSocket * newConn) {
   Conn = (SWUnixSocket*)newConn;
   is_connected = (Conn != 0);
 }
-
-user::~user(){disconnect("Destroying object");}
 
 void user::disconnect(std::string reason) {
   if (Conn) {

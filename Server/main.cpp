@@ -17,20 +17,18 @@ int get_empty( user ** list, int amount ) {
 }
 
 int main( int argc, char * argv[] ) {
-  if (argc < 3) {
-    std::cout << "usage: " << argv[0] << " buffers_count max_clients" << std::endl;
+  if (argc < 2) {
+    std::cout << "usage: " << argv[0] << " buffers_count" << std::endl;
     return 1;
   }
   int metabuflen = 0;
   char * metabuffer = 0;
   int buffers = atoi(argv[1]);
-  int connections = atoi(argv[2]);
   buffer ** ringbuf = (buffer**) calloc (buffers,sizeof(buffer*));
-  user ** connectionList = (user**) calloc (connections,sizeof(user*));
+  std::vector<user> connectionList;
+  std::vector<user>::iterator connIt;
   for (int i = 0; i < buffers; ++i) ringbuf[i] = new buffer;
-  for (int i = 0; i < connections; ++i) connectionList[i] = new user;
   int current_buffer = 0;
-  int open_connection = -1;
   int lastproper = 0;//last properly finished buffer number
   unsigned int loopcount = 0;
   SWUnixSocket listener(SWBaseSocket::nonblocking);
@@ -59,31 +57,25 @@ int main( int argc, char * argv[] ) {
       }
       incoming = listener.accept(&BError);
       if (incoming){
-        open_connection = get_empty(connectionList,connections);
-        if (open_connection != -1) {
-          connectionList[open_connection]->connect(incoming);
-          //send the FLV header
-          std::cout << "Client " << open_connection << " connected." << std::endl;
-          connectionList[open_connection]->MyBuffer = lastproper;
-          connectionList[open_connection]->MyBuffer_num = ringbuf[lastproper]->number;
-          //TODO: Do this more nicely?
-          if (connectionList[open_connection]->Conn->send(FLVHeader,13,0) != 13){
-            connectionList[open_connection]->disconnect();
-            std::cout << "Client " << open_connection << " failed to receive the header!" << std::endl;
-          }
-          if (connectionList[open_connection]->Conn->send(metabuffer,metabuflen,0) != metabuflen){
-            connectionList[open_connection]->disconnect();
-            std::cout << "Client " << open_connection << " failed to receive metadata!" << std::endl;
-          }
-          std::cout << "Client " << open_connection << " received metadata and header!" << std::endl;
-        }else{
-          std::cout << "New client not connected: no more connections!" << std::endl;
-          incoming->disconnect();
+        connectionList.push_back(user(incoming));
+        //send the FLV header
+        std::cout << "Client connected." << std::endl;
+        connectionList.back().MyBuffer = lastproper;
+        connectionList.back().MyBuffer_num = ringbuf[lastproper]->number;
+        //TODO: Do this more nicely?
+        if (connectionList.back().Conn->send(FLVHeader,13,0) != 13){
+          connectionList.back().disconnect("failed to receive the header!");
+        }
+        if (connectionList.back().Conn->send(metabuffer,metabuflen,0) != metabuflen){
+          connectionList.back().disconnect("failed to receive metadata!");
         }
       }
       ringbuf[current_buffer]->number = loopcount;
       //send all connections what they need, if and when they need it
-      for (int i = 0; i < connections; i++) {connectionList[i]->Send(ringbuf, buffers);}
+      for (connIt = connectionList.begin(); connIt != connectionList.end(); connIt++){
+        if (!(*connIt).is_connected){connectionList.erase(connIt);}
+        (*connIt).Send(ringbuf, buffers);
+      }
       //keep track of buffers
       lastproper = current_buffer;
       current_buffer++;

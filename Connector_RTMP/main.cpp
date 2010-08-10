@@ -1,4 +1,4 @@
-#define DEBUG
+#undef DEBUG
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
@@ -50,7 +50,7 @@ int main(){
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!
-        if (!ss.connect("../shared_socket")){
+        if (!ss.connect("/tmp/shared_socket")){
           #ifdef DEBUG
           fprintf(stderr, "Could not connect to server!\n");
           #endif
@@ -77,6 +77,9 @@ int main(){
           FLVbuffer[6] = ts % 256;
           ts += ftst;
           SendMedia((unsigned char)FLVbuffer[0], (unsigned char *)FLVbuffer+11, FLV_len-15, ts);
+          //if (FLVbuffer[0] == 9){
+          //  fprintf(stderr, "first 2 bytes: 0x%hhx 0x%hhx\n", FLVbuffer[11], FLVbuffer[12]);
+          //}
         }
       }
     }

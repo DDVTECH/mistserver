@@ -9,7 +9,7 @@
 
 int main() {
   SWUnixSocket mySocket;
-  mySocket.connect("../shared_socket");
+  mySocket.connect("/tmp/shared_socket");
   char buffer[500000];
   int msg;
   std::string input;

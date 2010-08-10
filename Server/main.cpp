@@ -37,8 +37,8 @@ int main( int argc, char * argv[] ) {
   SWBaseSocket * incoming = 0;
   SWBaseSocket::SWBaseError BError;
 
-  unlink("../shared_socket");
-  listener.bind("../shared_socket");
+  unlink("/tmp/shared_socket");
+  listener.bind("/tmp/shared_socket");
   listener.listen();
   listener.set_timeout(0,50000);
 

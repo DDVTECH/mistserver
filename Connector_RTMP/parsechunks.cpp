@@ -28,7 +28,7 @@ void parseChunk(){
       fprintf(stderr, "CTRL: Acknowledgement\n");
       #endif
       snd_window_at = ntohl(*(int*)next.data);
-      //maybe better? snd_window_at = snd_cnt;
+      snd_window_at = snd_cnt;
       break;
     case 4:{
       #ifdef DEBUG
@@ -205,6 +205,11 @@ void parseChunk(){
         amfreply.getContentP(3)->addContent(AMFType("details", "PLS"));
         amfreply.getContentP(3)->addContent(AMFType("clientid", (double)1));
         SendChunk(4, 20, 1, amfreply.Pack());
+        amfreply = AMFType("container", (unsigned char)0xFF);
+        amfreply.addContent(AMFType("", "|RtmpSampleAccess"));//status reply
+        amfreply.addContent(AMFType("", (double)1, 0x01));//bool true - audioaccess
+        amfreply.addContent(AMFType("", (double)1, 0x01));//bool true - videoaccess
+        SendChunk(4, 20, next.msg_stream_id, amfreply.Pack());
         chunk_snd_max = 1024*1024;
         SendCTL(1, chunk_snd_max);//send chunk size max (msg 1)
         ready4data = true;//start sending video data!
@@ -226,8 +231,9 @@ void parseChunk(){
       break;
     default:
       #ifdef DEBUG
-      fprintf(stderr, "Unknown chunk received!\n");
+      fprintf(stderr, "Unknown chunk received! Probably protocol corruption, stopping parsing of incoming data.\n", next.msg_type_id);
       #endif
+      stopparsing = true;
       break;
   }
 }//parseChunk

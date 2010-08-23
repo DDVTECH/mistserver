@@ -3,6 +3,7 @@
 struct FLV_Pack {
   int len;
   int buf;
+  bool isKeyframe;
   char * data;
 };//FLV_Pack
 
@@ -43,4 +44,6 @@ void FLV_GetPacket(FLV_Pack *& p){
   p->len += (p->data[1] << 16);
   if (p->buf < p->len){p->data = (char*)realloc(p->data, p->len);p->buf = p->len;}
   fread(p->data+11,1,p->len-11,stdin);
+  p->isKeyframe = false;
+  if ((p->data[0] == 0x09) && (((p->data[11] & 0xf0) >> 4) == 1)){p->isKeyframe = true;}
 }//FLV_GetPacket

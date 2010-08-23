@@ -37,9 +37,11 @@ int main( int argc, char * argv[] ) {
 
   unlink("/tmp/shared_socket");
   listener.bind("/tmp/shared_socket");
-  listener.listen();
+  listener.listen(50);
   listener.set_timeout(0,50000);
-
+  unsigned char packtype;
+  bool gotVideoInfo = false;
+  bool gotAudioInfo = false;
   while(std::cin.good()) {
     loopcount ++;
     //invalidate the current buffer
@@ -49,25 +51,62 @@ int main( int argc, char * argv[] ) {
       FLV_Readheader();
     } else {
       FLV_GetPacket(ringbuf[current_buffer]->FLV);
-      //if video frame? (id 9) check for incoming connections
-      if (ringbuf[current_buffer]->FLV->data[0] == 0x12){
+      packtype = ringbuf[current_buffer]->FLV->data[0];
+      //store metadata, if available
+      if (packtype == 0x12){
         metabuflen = ringbuf[current_buffer]->FLV->len;
         metabuffer = (char*)realloc(metabuffer, metabuflen);
         memcpy(metabuffer, ringbuf[current_buffer]->FLV->data, metabuflen);
+        std::cout << "Received metadata!" << std::endl;
+        gotVideoInfo = false;
+        gotAudioInfo = false;
+      }
+      if (!gotVideoInfo && ringbuf[current_buffer]->FLV->isKeyframe){
+        if ((ringbuf[current_buffer]->FLV->data[11] & 0x0f) == 7){//avc packet
+          if (ringbuf[current_buffer]->FLV->data[12] == 0){
+            ringbuf[current_buffer]->FLV->data[4] = 0;//timestamp to zero
+            ringbuf[current_buffer]->FLV->data[5] = 0;//timestamp to zero
+            ringbuf[current_buffer]->FLV->data[6] = 0;//timestamp to zero
+            metabuffer = (char*)realloc(metabuffer, metabuflen + ringbuf[current_buffer]->FLV->len);
+            memcpy(metabuffer+metabuflen, ringbuf[current_buffer]->FLV->data, ringbuf[current_buffer]->FLV->len);
+            metabuflen += ringbuf[current_buffer]->FLV->len;
+            gotVideoInfo = true;
+            std::cout << "Received video configuration!" << std::endl;
+          }
+        }else{gotVideoInfo = true;}//non-avc = no config...
+      }
+      if (!gotAudioInfo && (packtype == 0x08)){
+        if (((ringbuf[current_buffer]->FLV->data[11] & 0xf0) >> 4) == 10){//aac packet
+          ringbuf[current_buffer]->FLV->data[4] = 0;//timestamp to zero
+          ringbuf[current_buffer]->FLV->data[5] = 0;//timestamp to zero
+          ringbuf[current_buffer]->FLV->data[6] = 0;//timestamp to zero
+          metabuffer = (char*)realloc(metabuffer, metabuflen + ringbuf[current_buffer]->FLV->len);
+          memcpy(metabuffer+metabuflen, ringbuf[current_buffer]->FLV->data, ringbuf[current_buffer]->FLV->len);
+          metabuflen += ringbuf[current_buffer]->FLV->len;
+          gotAudioInfo = true;
+          std::cout << "Received audio configuration!" << std::endl;
+        }else{gotAudioInfo = true;}//no aac = no config...
+      }
+      //on keyframe set start point
+      if (packtype == 0x09){
+        if (((ringbuf[current_buffer]->FLV->data[11] & 0xf0) >> 4) == 1){lastproper = current_buffer;}
       }
       incoming = listener.accept(&BError);
       if (incoming){
         connectionList.push_back(user(incoming));
         //send the FLV header
-        std::cout << "Client connected." << std::endl;
         connectionList.back().MyBuffer = lastproper;
-        connectionList.back().MyBuffer_num = ringbuf[lastproper]->number;
+        connectionList.back().MyBuffer_num = -1;
         //TODO: Do this more nicely?
-        if (connectionList.back().Conn->send(FLVHeader,13,0) != 13){
+        if (connectionList.back().Conn->send(FLVHeader,13,&BError) != 13){
           connectionList.back().disconnect("failed to receive the header!");
+        }else{
+          if (connectionList.back().Conn->send(metabuffer,metabuflen,&BError) != metabuflen){
+            connectionList.back().disconnect("failed to receive metadata!");
+          }
         }
-        if (connectionList.back().Conn->send(metabuffer,metabuflen,0) != metabuflen){
-          connectionList.back().disconnect("failed to receive metadata!");
+        if (BError != SWBaseSocket::ok){
+          connectionList.back().disconnect("Socket error: " + BError.get_error());
         }
       }
       ringbuf[current_buffer]->number = loopcount;
@@ -77,7 +116,6 @@ int main( int argc, char * argv[] ) {
         (*connIt).Send(ringbuf, buffers);
       }
       //keep track of buffers
-      lastproper = current_buffer;
       current_buffer++;
       current_buffer %= buffers;
     }

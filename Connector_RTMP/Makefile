@@ -6,7 +6,7 @@ CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
-LIBS = 
+LIBS = -lssl -lcrypto
 .SUFFIXES: .cpp 
 .PHONY: clean default
 default: $(OUT)

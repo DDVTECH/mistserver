@@ -40,7 +40,16 @@ int main(){
   #ifdef DEBUG
   fprintf(stderr, "Doing handshake...\n");
   #endif
-  doHandshake();
+  if (doHandshake()){
+    #ifdef DEBUG
+    fprintf(stderr, "Handshake succcess!\n");
+    #endif
+  }else{
+    #ifdef DEBUG
+    fprintf(stderr, "Handshake fail!\n");
+    #endif
+    return 0;
+  }
   #ifdef DEBUG
   fprintf(stderr, "Starting processing...\n");
   #endif

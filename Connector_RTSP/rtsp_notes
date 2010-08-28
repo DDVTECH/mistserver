@@ -1,0 +1,79 @@
+Port 554 TCP
+
+RTSP/1.0 xxx reason
+         100 Continue
+         200 OK
+         300 Multiple Choices
+         301 Moved Permanently
+         303 See Other
+         400 Bad Request
+         500 Internal Server Error
+         501 Not Implemented
+
+
+Need to support:
+  Connection: keep-alive
+  Content-Length: 0 (default)
+  Content-Type: ran/dom
+  Content-Language: en
+  Content-Encoding: leave out!
+  Transport: RTP/AVP;unicast;client_port=4588-4589;server_port=6256-6257
+  Public: SETUP, TEARDOWN, OPTIONS, DESCRIBE, PLAY
+  RTP-Info: url=rtmp://localhost/blaat
+  Unsupported: random (reply with same as require header!)
+
+  Session: ignore!
+  Transport: RTP/AVP;unicast;client_port=4588-4589
+  Require: random
+
+
+
+SETUP:
+  SETUP rtsp://localhost/blaat RTSP/1.0
+  Transport: RTP/AVP;unicast;client_port=4588-4589
+
+  RTSP/1.0 200 OK
+  Transport: RTP/AVP;unicast;client_port=4588-4589;server_port=6256-6257
+
+TEARDOWN:
+  TEARDOWN rtsp://localhost/blaat RTSP/1.0
+
+  RTSP/1.0 200 OK
+
+OPTIONS:
+  OPTIONS * RTSP/1.0
+  Require: koekjes
+
+  RTSP/1.0 200 OK
+  Unsupported: koekjes
+  Public: SETUP, TEARDOWN, OPTIONS, DESCRIBE, PLAY
+
+DESCRIBE:
+  DESCRIBE rtsp://server.example.com/fizzle/foo RTSP/1.0
+  Accept: application/sdp, application/rtsl, application/mheg
+
+  RTSP/1.0 200 OK
+  Content-Type: application/sdp
+  Content-Length: xxx
+
+  v=0
+  o=- 0 0 IN IP4 ddvtech.com
+  s=PLSServer
+  c=IN IP4 0.0.0.0
+  a=recvonly
+  t=0 0
+  m=video 0 RTP/AVP 98
+  a=rtpmap:98 H264/90000
+  m=audio 0 RTP/AVP 99
+  a=rtpmap:99 MPEG4-GENERIC/11025/1
+
+PLAY:
+  PLAY rtsp://audio.example.com/meeting.en RTSP/1.0
+  Range: clock=19961108T142300Z-19961108T143520Z
+
+  RTSP/1.0 200 OK
+
+
+jRTPlib docs: http://research.edm.uhasselt.be/jori/jrtplib/documentation/index.html
+
+

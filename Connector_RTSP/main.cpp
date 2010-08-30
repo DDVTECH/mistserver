@@ -13,6 +13,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <sys/time.h>
+#include <arpa/inet.h>
+
+unsigned int getNowMS(){
+  timeval t;
+  gettimeofday(&t, 0);
+  return t.tv_sec + t.tv_usec/1000;
+}
+
 //for connection to server
 #include "../sockets/SocketW.h"
 bool ready4data = false;//set to true when streaming starts
@@ -21,6 +30,7 @@ bool stopparsing = false;
 timeval lastrec;
 
 #include "../util/flv_sock.cpp" //FLV parsing with SocketW
+#include "rtsp.cpp"
 
 int main(){
   unsigned int ts;
@@ -34,18 +44,13 @@ int main(){
   FD_ZERO(&pollset);//clear the polling set
   FD_SET(0, &pollset);//add stdin to polling set
 
-  //first timestamp set
-  firsttime = getNowMS();
-
   DEBUG("Starting processing...\n");
-  while (!feof(stdin)){
+  while (!feof(stdin) && !stopparsing){
     //select(1, &pollset, 0, 0, &timeout);
     //only parse input from stdin if available or not yet init'ed
     //FD_ISSET(0, &pollset) || //NOTE: Polling does not work? WHY?!? WHY DAMN IT?!?
-    if (!ready4data && !stopparsing){
-      //JARON: verwerk rtsp data
-    }
-    if (ready4data){
+    if (!ready4data && !stopparsing){ParseRTSPPacket();}
+    if (ready4data && !stopparsing){
       if (!inited){
         //we are ready, connect the socket!
         if (!ss.connect("/tmp/shared_socket")){
@@ -55,7 +60,8 @@ int main(){
         FLV_Readheader(ss);//read the header, we don't want it
         DEBUG("Header read, starting to send video data...\n");
         
-        //ERIK: Connect de RTP lib hier. De poorten weet je nog niet, dus doe dit later pas, als mijn deel af is.
+        //ERIK: Connect de RTP lib hier.
+        //Poorten vind je in clientport en serverport, die worden gevuld door mijn deel.
         
         inited = true;
       }

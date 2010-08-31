@@ -31,6 +31,7 @@ timeval lastrec;
 
 #include "../util/flv_sock.cpp" //FLV parsing with SocketW
 #include "rtsp.cpp"
+#include "rtp.h"
 
 int main(){
   unsigned int ts;
@@ -39,10 +40,15 @@ int main(){
   SWUnixSocket ss;
   fd_set pollset;
   struct timeval timeout;
+  RTPSession rtp_connection;
+  RTPSessionParams sessionparams;
+  RTPUDPv4TransmissionParams transparams;
+
   //0 timeout - return immediately after select call
   timeout.tv_sec = 1; timeout.tv_usec = 0;
   FD_ZERO(&pollset);//clear the polling set
   FD_SET(0, &pollset);//add stdin to polling set
+  
 
   DEBUG("Starting processing...\n");
   while (!feof(stdin) && !stopparsing){
@@ -59,10 +65,15 @@ int main(){
         }
         FLV_Readheader(ss);//read the header, we don't want it
         DEBUG("Header read, starting to send video data...\n");
-        
-        //ERIK: Connect de RTP lib hier.
-        //Poorten vind je in clientport en serverport, die worden gevuld door mijn deel.
-        
+
+        sessionparams.SetOwnTimestampUnit(1.0/8000.0);//EDIT: hoeveel samples/second?
+        transparams.SetPortbase(serverport);
+        rtpconnection.Create(sessionparams,&transparams);
+
+        uint8_t clientip[]={127,0,0,1};
+        //Waar haal ik deze vandaan, moeten we toch als daemon gaan draaien?
+        RTPIPv4Address addr(clientip,clientport);
+
         inited = true;
       }
       if (FLV_GetPacket(ss)){//able to read a full packet?
@@ -86,11 +97,19 @@ int main(){
           FLVbuffer[5] = ftst / 256;
           FLVbuffer[6] = ftst % 256;
         }
-        
+
         //ERIK: verstuur de packet hier!
         //FLV data incl. video tag header staat in FLVbuffer
         //lengte van deze data staat in FLV_len
-        
+
+        //TODO: Parse flv_header (audio/video frame? 0x12 = metadata = gooi weg)
+        //TODO: Setpayloadtype
+        //TODO: Settimeinterval
+        //TODO: create packet[data-headerlength] (differs for video & audio)
+        //TODO: dump/send packet?
+
+        //Kan nu even niet verder, phone leeg dus kan mail niet bereiken voor benodigde info
+
         FLV_Dump();//dump packet and get ready for next
       }
       if ((SWBerr != SWBaseSocket::ok) && (SWBerr != SWBaseSocket::notReady)){

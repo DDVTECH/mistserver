@@ -1,12 +1,12 @@
 SRC = main.cpp ../sockets/sw_base.cpp ../sockets/sw_inet.cpp ../sockets/sw_unix.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Connector_RTSP
-INCLUDES = 
+INCLUDES =
 CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
-LIBS = 
+LIBS = -ljthread -lpthread -ljrtp
 .SUFFIXES: .cpp 
 .PHONY: clean default
 default: $(OUT)

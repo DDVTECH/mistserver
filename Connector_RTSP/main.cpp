@@ -68,7 +68,7 @@ int main(){
 
         sessionparams.SetOwnTimestampUnit(1.0/8000.0);//EDIT: hoeveel samples/second?
         transparams.SetPortbase(serverport);
-        rtpconnection.Create(sessionparams,&transparams);
+        rtp_connection.Create(sessionparams,&transparams);
 
         uint8_t clientip[]={127,0,0,1};
         //Waar haal ik deze vandaan, moeten we toch als daemon gaan draaien?
@@ -101,6 +101,8 @@ int main(){
         //ERIK: verstuur de packet hier!
         //FLV data incl. video tag header staat in FLVbuffer
         //lengte van deze data staat in FLV_len
+	
+	if( FLVbuffer[0] == 0x12 ) { std::cout << "blah"; exit (0); }
 
         //TODO: Parse flv_header (audio/video frame? 0x12 = metadata = gooi weg)
         //TODO: Setpayloadtype

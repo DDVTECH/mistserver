@@ -70,8 +70,8 @@ int main(){
         transparams.SetPortbase(serverport);
         rtp_connection.Create(sessionparams,&transparams);
 
-        uint8_t clientip[]={127,0,0,1};
-        //Waar haal ik deze vandaan, moeten we toch als daemon gaan draaien?
+	//TODO: clientip ophalen uit stdin-socket: zie http://www.mail-arc hive.c om/plug@lists.q-linux.c om/msg16482.html
+	uint8_t clientip[]={127,0,0,1};
         RTPIPv4Address addr(clientip,clientport);
 
         inited = true;
@@ -102,13 +102,17 @@ int main(){
         //FLV data incl. video tag header staat in FLVbuffer
         //lengte van deze data staat in FLV_len
 	
-	if( FLVbuffer[0] == 0x12 ) { std::cout << "blah"; exit (0); }
+	if( FLVbuffer[0] != 0x12 ) {
+          if( FLVbuffer[0] == 0x08 ) { //Audio Packet
+	    rtp_connection.SetTimestampUnit(1.0/11025);
+	    // RTPSession::SendPacket( void * data   , length      , payload_type , marker , timestampincrement );
+	    rtp_connection.SendPacket( &FLVbuffer[13], FLV_len - 17, 99           , false  , 1                  );
+	  } else if ( FLVbuffer[0] == 0x09 ) { //Video Packet
+	    rtp_connection.SetTimestampUnit(1.0/90000);
+	    rtp_connection.SendPacket( &FLVbuffer[16], FLV_len - 19, 98           , false  , 1                  );
+	  }	  
+	}//Datatype 0x12 = metadata, zouden we voor nu weggooien
 
-        //TODO: Parse flv_header (audio/video frame? 0x12 = metadata = gooi weg)
-        //TODO: Setpayloadtype
-        //TODO: Settimeinterval
-        //TODO: create packet[data-headerlength] (differs for video & audio)
-        //TODO: dump/send packet?
 
         //Kan nu even niet verder, phone leeg dus kan mail niet bereiken voor benodigde info
 

@@ -1,7 +1,7 @@
 SRC = main.cpp ../sockets/sw_base.cpp ../sockets/sw_inet.cpp ../sockets/sw_unix.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Connector_RTSP
-INCLUDES =
+INCLUDES = -I/usr/local/include/jthread/ 
 CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++
 LD = $(CROSS)ld

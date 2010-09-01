@@ -66,11 +66,11 @@ int main(){
         FLV_Readheader(ss);//read the header, we don't want it
         DEBUG("Header read, starting to send video data...\n");
 
-        sessionparams.SetOwnTimestampUnit(1.0/8000.0);//EDIT: hoeveel samples/second?
+        sessionparams.SetOwnTimestampUnit(1.0);//1sample/second, dummydata, wordt toch elke keer per packet ingesteld.
         transparams.SetPortbase(serverport);
         rtp_connection.Create(sessionparams,&transparams);
 
-	//TODO: clientip ophalen uit stdin-socket: zie http://www.mail-arc hive.c om/plug@lists.q-linux.c om/msg16482.html
+	//TODO: clientip ophalen uit stdin-socket: zie http://www.mail-archive.com/plug@lists.q-linux.com/msg16482.html
 	uint8_t clientip[]={127,0,0,1};
         RTPIPv4Address addr(clientip,clientport);
 
@@ -98,25 +98,21 @@ int main(){
           FLVbuffer[6] = ftst % 256;
         }
 
-        //ERIK: verstuur de packet hier!
-        //FLV data incl. video tag header staat in FLVbuffer
-        //lengte van deze data staat in FLV_len
-	
-	if( FLVbuffer[0] != 0x12 ) {
+	if( FLVbuffer[0] != 0x12 ) {//Metadata direct filteren.
           if( FLVbuffer[0] == 0x08 ) { //Audio Packet
-	    rtp_connection.SetTimestampUnit(1.0/11025);
+	    rtp_connection.SetTimestampUnit(1.0/11025);//11025 samples/second
 	    // RTPSession::SendPacket( void * data   , length      , payload_type , marker , timestampincrement );
+	    //Audiodata heeft na de flv-tag nog 2 UI8 aan beschrijvingen die NIET bij de AAC-data horen
+	    //NOTE:Same als hieronder, wat moeten we doen met init-data van aac? die info wordt nu omitted.
 	    rtp_connection.SendPacket( &FLVbuffer[13], FLV_len - 17, 99           , false  , 1                  );
 	  } else if ( FLVbuffer[0] == 0x09 ) { //Video Packet
-	    rtp_connection.SetTimestampUnit(1.0/90000);
+	    rtp_connection.SetTimestampUnit(1.0/90000);//90000 samples/second
+	    //Videodata heeft na de flv-tag nog 2 UI8 en een SI24 aan beschrijvingen die niet bij de NALU horen
+	    //NOTE:Moeten we eigenlijk wat adobe genereert als sequence headers/endings ook gwoon doorsturen? gebeurt nu wel
 	    rtp_connection.SendPacket( &FLVbuffer[16], FLV_len - 19, 98           , false  , 1                  );
 	  }	  
 	}//Datatype 0x12 = metadata, zouden we voor nu weggooien
 
-
-        //Kan nu even niet verder, phone leeg dus kan mail niet bereiken voor benodigde info
-
-        FLV_Dump();//dump packet and get ready for next
       }
       if ((SWBerr != SWBaseSocket::ok) && (SWBerr != SWBaseSocket::notReady)){
         DEBUG("No more data! :-(  (%s)\n", SWBerr.get_error().c_str());

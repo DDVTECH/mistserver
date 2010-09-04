@@ -102,7 +102,7 @@ void ParseRTSPPacket(){
   //parse DESCRIBE request
   if (q.params["request"] == "DESCRIBE"){
     a.params["Content-Type"] = "application/sdp";
-    a.data = "v=0\r\no=- 0 0 IN IP4 ddvtech.com\r\ns=PLSServer\r\nc=IN IP4 0.0.0.0\r\na=recvonly\r\nt=0 0\r\nm=video 0 RTP/AVP 98\r\na=rtpmap:98 H264/90000\r\nm=audio 0 RTP/AVP 99\r\na=rtpmap:99 MPEG4-GENERIC/11025/1\r\n";
+    a.data = "v=0\r\no=- 0 0 IN IP4 ddvtech.com\r\ns=PLSServer\r\nc=IN IP4 0.0.0.0\r\na=recvonly\r\nt=0 0\r\nm=video 0 RTP/AVP 98\r\na=rtpmap:98 H264/90000\r\na=fmtp:98 packetization-mode=1\r\nm=audio 0 RTP/AVP 99\r\na=rtpmap:99 MPEG4-GENERIC/11025/1\r\na=ftmp:99 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexltalength=3; config=1210\r\n";
     RTSPReply(q, a, "200 OK");
     DEBUG("Sent DESCRIBE reply\n");
   }

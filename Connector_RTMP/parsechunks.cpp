@@ -148,6 +148,7 @@ void parseChunk(){
         amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
         amfreply.addContent(AMFType("", (double)1));//stream ID - we use 1
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
+        SendUSR(0, 0);//send UCM StreamBegin (0), stream 0
         #ifdef DEBUG
         fprintf(stderr, "AMF0 command: createStream result\n");
         #endif

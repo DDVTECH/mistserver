@@ -1,10 +1,11 @@
-//#define DEBUG(args...) //debugging disabled
-#define DEBUG(args...) fprintf(stderr, args) //debugging enabled
+#define DEBUG(args...) //debugging disabled
+//#define DEBUG(args...) fprintf(stderr, args) //debugging enabled
 
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
+#include <ctype.h>
 
 //needed for select
 #include <stdio.h>
@@ -20,6 +21,58 @@ unsigned int getNowMS(){
   timeval t;
   gettimeofday(&t, 0);
   return t.tv_sec + t.tv_usec/1000;
+}
+void hexdump(void *pAddressIn, long  lSize)
+{
+ char szBuf[100];
+ long lIndent = 1;
+ long lOutLen, lIndex, lIndex2, lOutLen2;
+ long lRelPos;
+ struct { char *pData; unsigned long lSize; } buf;
+ unsigned char *pTmp,ucTmp;
+ unsigned char *pAddress = (unsigned char *)pAddressIn;
+
+   buf.pData   = (char *)pAddress;
+   buf.lSize   = lSize;
+
+   while (buf.lSize > 0)
+   {
+      pTmp     = (unsigned char *)buf.pData;
+      lOutLen  = (int)buf.lSize;
+      if (lOutLen > 16)
+          lOutLen = 16;
+
+      // create a 64-character formatted output line:
+      sprintf(szBuf, " >                            "
+                     "                      "
+                     "    %08lX", pTmp-pAddress);
+      lOutLen2 = lOutLen;
+
+      for(lIndex = 1+lIndent, lIndex2 = 53-15+lIndent, lRelPos = 0;
+          lOutLen2;
+          lOutLen2--, lIndex += 2, lIndex2++
+         )
+      {
+         ucTmp = *pTmp++;
+
+         sprintf(szBuf + lIndex, "%02X ", (unsigned short)ucTmp);
+         if(!isprint(ucTmp))  ucTmp = '.'; // nonprintable char
+         szBuf[lIndex2] = ucTmp;
+
+         if (!(++lRelPos & 3))     // extra blank after 4 bytes
+         {  lIndex++; szBuf[lIndex+2] = ' '; }
+      }
+
+      if (!(lRelPos & 3)) lIndex--;
+
+      szBuf[lIndex  ]   = '<';
+      szBuf[lIndex+1]   = ' ';
+
+      DEBUG("%s\n", szBuf);
+
+      buf.pData   += lOutLen;
+      buf.lSize   -= lOutLen;
+   }
 }
 
 //for connection to server
@@ -132,18 +185,18 @@ int main(){
 
         if( FLVbuffer[0] != 0x12 ) {//Metadata direct filteren.
           if( FLVbuffer[0] == 0x08 ) { //Audio Packet
-            DEBUG("Audio Packet\n");
+//            DEBUG("Audio Packet\n");
             rtp_connection.SetTimestampUnit(1.0/11025);//11025 samples/second
-            // RTPSession::SendPacket( void * data   , length      , payload_type , marker , timestampincrement );
             //Audiodata heeft na de flv-tag nog 2 UI8 aan beschrijvingen die NIET bij de AAC-data horen
             //NOTE:Same als hieronder, wat moeten we doen met init-data van aac? die info wordt nu omitted.
             rtp_connection.SendPacket( &FLVbuffer[13], FLV_len - 17, 99, false, 1);
           } else if ( FLVbuffer[0] == 0x09 ) { //Video Packet
-            DEBUG("Video Packet\n");
+//            DEBUG("Video Packet:      %i\n", (FLVbuffer[16] & 0x1F) );
             rtp_connection.SetTimestampUnit(1.0/90000);//90000 samples/second
             //Videodata heeft na de flv-tag nog 2 UI8 en een SI24 aan beschrijvingen die niet bij de NALU horen
             //NOTE:Moeten we eigenlijk wat adobe genereert als sequence headers/endings ook gwoon doorsturen? gebeurt nu wel
             rtp_connection.SendPacket( &FLVbuffer[16], FLV_len - 19, 98, false, 1);
+//	    hexdump(&FLVbuffer[16], FLV_len-19 );
           }
         } else {//Datatype 0x12 = metadata, zouden we voor nu weggooien
           DEBUG("Metadata, throwing away\n");

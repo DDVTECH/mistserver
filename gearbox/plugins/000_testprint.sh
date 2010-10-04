@@ -15,10 +15,10 @@ function PrintServer (){
     echo_red "    is currently OFFLINE!"
   fi
   echo_red "    Handles the following streams:"
-  local countn="streams_$2_count"
-  local count=${!countn}
-  for ((i=0; i < count; i++)); do
-    local var="streams_$2[$i]"
+  temp=streams_$2
+  temp=( ${!temp} )
+  for ((i=0; i<${#temp[@]}; i++)); do
+    local var="temp[$i]"
     PrintConfig $2 ${!var}
   done
   echo_red "    Of which currently enabled:"

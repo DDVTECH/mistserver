@@ -1,9 +1,9 @@
 #!/bin/bash
 get_empty() {
-  allstreams=streams_${unique_groups[i]}
+  allstreams=streams_${unique_groups[$1]}
   allstreams=( ${!allstreams} )
   for ((j=(${#allstreams[@]}-1); j>=0; j--)); do
-    temp=server_group_${groups[i]}
+    temp=server_group_${unique_groups[$1]}
     temp=( ${!temp} )
     for ((k=0; k<${#temp[@]}; k++)); do
       currentstreams=server_${temp[k]}
@@ -16,7 +16,7 @@ get_empty() {
       done
     done
   done
-  allservers=server_group_${unique_groups[i]}
+  allservers=server_group_${unique_groups[$1]}
   allservers=( ${!allservers} )
   for ((j=${#allservers[@]}-1; j>=0; j--)); do
     currentserver=server_${allservers[j]}
@@ -46,7 +46,7 @@ for ((i=0; i<${#servers[@]}; i++)); do
 done
 
 for ((i=0; i<${#unique_groups[@]}; i++)); do
-  get_empty
+  get_empty $i
   if [[ ${#allservers[@]} -ne 0 ]]; then 
     for ((j=0; j<${#allservers[@]}; j++)); do
       result=""
@@ -55,13 +55,13 @@ for ((i=0; i<${#unique_groups[@]}; i++)); do
       target=server_${allservers[j]}
       eval $target=\"$result\"
     done
-    get_empty
+    get_empty $i
     allservers=server_group_${unique_groups[i]}
     allservers=${!allservers}
     allservers=( ${allservers} )
     for ((j=0; j<${#allstreams[@]}; j++)); do
       result=""
-      tempindex=j%${#allservers[@]}
+      tempindex=$((${j} % ${#allservers[@]}))
       target=server_${allservers[${tempindex}]}
       result="${!target} ${allstreams[j]}"
       eval $target=\"$result\"

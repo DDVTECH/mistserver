@@ -1,1 +1,0 @@
-./000_testprint.sh

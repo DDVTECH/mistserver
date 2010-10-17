@@ -90,7 +90,6 @@ balance( ) {
     local ${!capacity}
     local temp=`get_proc ${servers[i]} ${groups[i]}`
     if [[ $temp -ge 100 ]]; then
-      echo "Blahh"
       local streams=server_${servers[i]}
       local streams=( ${!streams} )
       local maxbitrate=0

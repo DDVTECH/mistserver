@@ -1,5 +1,5 @@
 #!/bin/bash
-config_server1_alpha="ROUTER_SOURCE=Meh"
+config_server1_alpha="INPUT=bla ROUTER_SOURCE=meh ROUTER_USEDBY=0"
 config_server1_beta=""
 config_server1_gamma=""
 config_server1_delta=""
@@ -35,15 +35,28 @@ update( ) {
   local var=$2
   local value=$3
   local string=${!target}
-  local assignmentloc=`expr index "$string" =`
-  echo ${assignmentloc}
+  local length=${#var}
+  local loopstring=${string:i:length}
+  for ((i=0; i<${#string}; i++ )); do
+    local loopstring=${string:i:length}
+    if [ "$loopstring" == "$var" ]; then
+      break;
+    fi
+  done
+  if [ "$loopstring" != "$var" ]; then
+    eval $target="\"${!target} ${var}=${value}\""
+  else
+    local varstring=${string:i}
+    local limit=`expr index "$varstring" ' '`
+    local newstring="${var}=${value}"
+    eval $target="\"${string/${varstring:0:(limit-1)}/$newstring}\""
+  fi
+  local string=${!target}
+  echo $string
 }
 
 check_servers( ) {
   local i=0
-  for ((i=0; i<${#servers[@]}; i++ )); do
-    echo "Meh"  
-  done
   for ((i=0; i<${#servers[@]}; i++ )); do
     echo "Checking server ${servers[i]}"
     local isup="server_${servers[i]}_isup"

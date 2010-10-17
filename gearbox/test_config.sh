@@ -106,3 +106,4 @@ status_c_meh_server8="USERS=14 BITRATE=15"
 status_c_meh_server9="USERS=14 BITRATE=15"
 status_d_bla_server10="USERS=5 BITRATE=1750"
 status_d_koekjes_server10="USERS=0 BITRATE=0"
+

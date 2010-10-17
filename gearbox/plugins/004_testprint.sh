@@ -1,1 +1,0 @@
-/home/immortal/werk/pls/gearbox/plugins/000_testprint.sh

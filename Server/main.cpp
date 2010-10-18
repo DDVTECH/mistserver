@@ -18,7 +18,7 @@ int get_empty( user ** list, int amount ) {
 
 int main( int argc, char * argv[] ) {
   if (argc < 2) {
-    std::cout << "usage: " << argv[0] << " buffers_count" << std::endl;
+    std::cout << "usage: " << argv[0] << " buffers_count [streamname]" << std::endl;
     return 1;
   }
   int metabuflen = 0;
@@ -35,8 +35,13 @@ int main( int argc, char * argv[] ) {
   SWBaseSocket * incoming = 0;
   SWBaseSocket::SWBaseError BError;
 
-  unlink("/tmp/shared_socket");
-  listener.bind("/tmp/shared_socket");
+  std::string shared_socket = "/tmp/shared_socket";
+  if (argc > 2){
+    shared_socket = argv[2];
+    shared_socket = "/tmp/shared_socket_" + shared_socket;
+  }
+  unlink(shared_socket.c_str());
+  listener.bind(shared_socket.c_str());
   listener.listen(50);
   listener.set_timeout(0,50000);
   unsigned char packtype;

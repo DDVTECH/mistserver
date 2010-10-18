@@ -1,6 +1,6 @@
 #include "chunkstream.cpp" //chunkstream decoding
 #include "amf.cpp" //simple AMF0 parsing
-
+std::string streamname = "/tmp/shared_socket";
 
 //gets and parses one chunk
 void parseChunk(){
@@ -182,6 +182,11 @@ void parseChunk(){
       }//checkBandwidth
       if ((amfdata.getContentP(0)->StrValue() == "play") || (amfdata.getContentP(0)->StrValue() == "play2")){
         //send streambegin
+        streamname = amfdata.getContentP(3)->StrValue();
+        for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+          if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
+        }
+        streamname = "/tmp/" + streamname;
         SendUSR(0, 1);//send UCM StreamBegin (0), stream 1
         //send a status reply
         AMFType amfreply("container", (unsigned char)0xFF);
@@ -216,7 +221,7 @@ void parseChunk(){
         SendCTL(1, chunk_snd_max);//send chunk size max (msg 1)
         ready4data = true;//start sending video data!
         #ifdef DEBUG
-        fprintf(stderr, "AMF0 command: play result\n");
+        fprintf(stderr, "AMF0 command: play result (%s)\n", streamname.c_str());
         #endif
         parsed = true;
       }//createStream

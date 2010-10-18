@@ -61,7 +61,7 @@ int main(){
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!
-        if (!ss.connect("/tmp/shared_socket")){
+        if (!ss.connect(streamname.c_str())){
           #ifdef DEBUG
           fprintf(stderr, "Could not connect to server!\n");
           #endif

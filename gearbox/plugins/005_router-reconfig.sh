@@ -1,7 +1,5 @@
 #!/bin/bash
 
-###TODO: If no direct slots free: check server per server for free slots, if there are, set
-###      ROUTER_SOURCE of current stream to server with free slot
 
 plugsett_router="BRANCHING=2"
 
@@ -54,11 +52,35 @@ reconfig() {
         local sourceval=`get_source $target`
         if [ "$sourceval" == "" ]; then
           if [ "`get_usedby "config_direct_${streams[j]}"`" -lt "`get_branching`" ]; then
-            echo "${servers[i]} - ${streams[j]}: No source specified, but direct slot free"
             update $target "ROUTER_SOURCE" "direct"
             update $target "INPUT" "direct"
             local oldval=`get_usedby "config_direct_${streams[j]}"`
             update "config_direct_${streams[j]}" "ROUTER_USEDBY" "$(($oldval + 1))"
+          else
+            local assigned="0"
+            local k=0
+            for (( k=0; k<${#servers[@]}; k++ )); do
+              local tempisup="${servers[k]}_isup"
+              local tempisup=${!tempisup}
+              if [ "$tempisup" == "1" ]; then
+                local l=0
+                local thisstreams="server_${servers[k]}"
+                local thisstreams=( ${!thisstreams} )
+                for (( l=0; l<${#thisstreams[@]}; l++ )); do
+                  if [ "$assigned" == "0" ]; then
+                    local source="config_${servers[k]}_${thisstreams[l]}"
+                    thisused=`get_usedby $source`
+                    if [ "`get_usedby $source`" -lt "`get_branching`" ]; then
+                      local oldval=`get_usedby $source`
+                      update $source "ROUTER_USEDBY" "$(($oldval + 1))"
+                      update "config_${servers[i]}_${streams[j]}" "ROUTER_SOURCE" "${servers[k]}"
+                      update "config_${servers[i]}_${streams[j]}" "INPUT" "${servers[k]}"
+                      local assigned="1"
+                    fi
+                  fi
+                done
+              fi
+            done
           fi
         fi
       done
@@ -66,7 +88,5 @@ reconfig() {
   done
 }
 
-print_conf
 check_direct
 reconfig
-print_conf

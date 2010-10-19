@@ -1,47 +1,4 @@
 #!/bin/bash
-config_direct_alpha=""
-config_direct_beta=""
-config_direct_gamma=""
-config_direct_delta=""
-config_direct_epsilon=""
-config_direct_omega=""
-config_direct_theta=""
-config_direct_pi=""
-config_direct_meh=""
-config_direct_bla=""
-config_direct_koekjes=""
-
-config_server1_alpha=""
-config_server1_beta=""
-config_server1_gamma=""
-config_server1_delta=""
-config_server2_alpha=""
-config_server2_beta=""
-config_server2_gamma=""
-config_server2_delta=""
-config_server3_gamma=""
-config_server3_alpha=""
-config_server3_beta=""
-config_server3_delta=""
-config_server4_alpha=""
-config_server4_beta=""
-config_server4_gamma=""
-config_server4_delta=""
-config_server5_epsilon=""
-config_server5_omega=""
-config_server6_epsilon=""
-config_server6_omega=""
-config_server7_epsilon=""
-config_server7_omega=""
-config_server8_theta=""
-config_server8_pi=""
-config_server8_meh=""
-config_server9_theta=""
-config_server9_pi=""
-config_server9_meh=""
-config_server10_bla=""
-config_server10_koekjes=""
-
 server1_isup="0"
 
 update( ) {
@@ -74,8 +31,7 @@ update( ) {
 }
 
 get_source( ) {
-  local conf="config_$1_$2"
-  local ${!conf}
+  local ${!1}
   echo $ROUTER_SOURCE
 }
 
@@ -94,7 +50,8 @@ check_servers( ) {
       local streams="server_${servers[i]}"
       local streams=( ${!streams} )
       for ((j=0; j<${#streams[@]}; j++)); do
-        local sourceval=`get_source ${servers[i]} ${streams[j]}`
+        local target="config_${servers[i]}_${streams[j]}"
+        local sourceval=`get_source $target`
         if [ "$sourceval" != "" ]; then
           local target="config_${sourceval}_${streams[j]}"
           local usage=`get_usedby $target`
@@ -111,12 +68,12 @@ check_servers( ) {
       local streams="server_${servers[i]}"
       local streams=( ${!streams} )
       for ((j=0; j<${#streams[@]}; j++)); do
-        local sourceval=`get_source ${servers[i]} ${streams[j]}`
+        local target="config_${servers[i]}_${streams[j]}"
+        local sourceval=`get_source $target`
         if [ "$sourceval" != "" ]; then
           local sourceup="${sourceval}_isup"
           local sourceup=${!sourceup}
           if [ "$sourceup" == "0" ]; then
-            local target="config_${servers[i]}_${streams[j]}"
             update $target "ROUTER_SOURCE" ""
             update $target "INPUT" ""
           fi
@@ -128,6 +85,16 @@ check_servers( ) {
 
 print_conf( ) {
   local i=0
+  local allstreams=""
+  for (( i=0; i < ${#unique_groups[@]}; i++ )); do
+    local add="streams_${unique_groups[i]}"
+    local allstreams="${allstreams} ${!add}"
+  done
+  local allstreams=( $allstreams )
+  for ((i=0; i < ${#allstreams[@]}; i++ )); do
+    local target="config_direct_${allstreams[i]}"
+    echo "${target}: ${!target}"
+  done
   for ((i=0; i<${#servers[@]}; i++ )); do
     local streams="server_${servers[i]}"
     local streams=( ${!streams} )
@@ -139,6 +106,4 @@ print_conf( ) {
   done
 }
 
-print_conf
 check_servers
-print_conf

@@ -186,7 +186,7 @@ void parseChunk(){
         for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
           if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
         }
-        streamname = "/tmp/" + streamname;
+        streamname = "/tmp/shared_socket_" + streamname;
         SendUSR(0, 1);//send UCM StreamBegin (0), stream 1
         //send a status reply
         AMFType amfreply("container", (unsigned char)0xFF);

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-yum -y install gettext-devel expat-devel curl-devel zlib-devel openssl-devel gcc-c++
+yum -y install gettext-devel expat-devel curl-devel zlib-devel openssl-devel gcc-c++ xinetd
 yum -y install gcc
 wget http://kernel.org/pub/software/scm/git/git-1.6.1.tar.gz
 tar xvfz git-1.6.1.tar.gz

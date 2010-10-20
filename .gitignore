@@ -1,9 +1,9 @@
 #ignore object files and nonsense like that
 *.[oa]
 Admin/main
-Client/Client_PLS
-Server/Server_PLS
+Connector_HTTP/Connector_HTTP
+Buffer/Buffer
 Connector_RTMP/Connector_RTMP
 Connector_RTSP/Connector_RTSP
 *~
-
+bin/*

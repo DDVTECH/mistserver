@@ -16,6 +16,8 @@ client-install: client
 	cp -f ./Connector_RTMP/Connector_RTMP /usr/bin/
 	#cp -f ./Connector_RTSP/Connector_RTSP /usr/bin/
 	cp -f ./Buffer/Buffer /usr/bin/
+	cp -f ./PLS /etc/xinetd.d/
+	service xinetd restart
 client-local-install: client
 	mkdir -p ./bin
 	cp -f ./Connector_HTTP/Connector_HTTP ./bin/

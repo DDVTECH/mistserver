@@ -1,0 +1,23 @@
+service ddvtechhttp
+{
+        disable             = no
+        type                = UNLISTED
+        protocol            = tcp
+        socket_type         = stream
+        user                = root
+        server              = /usr/bin/Connector_HTTP
+        port                = 7337
+        wait                = no
+}
+
+service ddvtechrtmp
+{
+        disable             = no
+        type                = UNLISTED
+        protocol            = tcp
+        socket_type         = stream
+        user                = root
+        server              = /usr/bin/Connector_RTMP
+        port                = 1935
+        wait                = no
+}

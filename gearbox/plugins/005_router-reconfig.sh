@@ -1,8 +1,5 @@
 #!/bin/bash
 
-
-plugsett_router="BRANCHING=2"
-
 get_branching( ) {
   local $plugsett_router
   echo $BRANCHING

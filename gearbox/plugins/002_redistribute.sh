@@ -55,10 +55,12 @@ for ((i=0; i<${#unique_groups[@]}; i++)); do
       target=server_${allservers[j]}
       eval $target=\"$result\"
     done
-    get_empty $i
-    allservers=server_group_${unique_groups[i]}
-    allservers=${!allservers}
-    allservers=( ${allservers} )
+  fi
+  get_empty $i
+  allservers=server_group_${unique_groups[i]}
+  allservers=${!allservers}
+  allservers=( ${allservers} )
+  if [[ ${#allservers[@]} -ne 0 ]]; then 
     for ((j=0; j<${#allstreams[@]}; j++)); do
       result=""
       tempindex=$((${j} % ${#allservers[@]}))
@@ -66,5 +68,15 @@ for ((i=0; i<${#unique_groups[@]}; i++)); do
       result="${!target} ${allstreams[j]}"
       eval $target=\"$result\"
     done
+  fi
+done
+
+for ((i=0; i<${#unique_groups[@]}; i++)); do
+  get_empty $i
+  if [ "${#allstreams[@]}" != "0" ]; then
+    add_alert "Warning" "Not all streams of group '${unique_groups[i]}' could be assigned to a server."
+  fi
+  if [ "${#allservers[@]}" != "0" ]; then
+    add_alert "Warning" "Not all servers of group '${unique_groups[i]}' could be assigned a stream."
   fi
 done

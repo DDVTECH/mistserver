@@ -149,3 +149,6 @@ config_server9_pi=""
 config_server9_meh=""
 config_server10_bla=""
 config_server10_koekjes=""
+
+plugsett_router="BRANCHING=2"
+plugsett_alerter="EMAIL=erik.zandvliet@ddvtech.com PREFERENCES=\"Warning Balance\""

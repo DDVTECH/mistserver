@@ -90,6 +90,7 @@ balance( ) {
     local ${!capacity}
     local temp=`get_proc ${servers[i]} ${groups[i]}`
     if [[ $temp -ge 100 ]]; then
+      add_alert "Balancing" "Server '${servers[i]}' reached it's maximum capacity, starting to balance."
       local streams=server_${servers[i]}
       local streams=( ${!streams} )
       local maxbitrate=0
@@ -118,6 +119,7 @@ balance( ) {
       currentval=${!target}
       newval="${currentval} ${streams[maxstream]}"
       eval $target=\"${newval}\"
+      add_alert "Balancing" "  Stream '${streams[maxstream]}' added on server '${servers[leastserver]}'"
     fi
   done
 }

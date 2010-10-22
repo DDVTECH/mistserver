@@ -1,7 +1,7 @@
 #!/bin/bash
 servers=( server1 server2 server3 server4 server5 server6 server7 server8 server9 server10 )
 
-serverinfo_server1=( HOST=127.0.0.1 PORT=22 )
+serverinfo_server1=( HOST=octo.ddvtech.com PORT=6666 )
 serverinfo_server2=( HOST=127.0.0.1 PORT=23 )
 serverinfo_server3=( HOST=127.0.0.1 PORT=24 )
 serverinfo_server4=( HOST=127.0.0.1 PORT=25 )
@@ -151,4 +151,4 @@ config_server10_bla=""
 config_server10_koekjes=""
 
 plugsett_router="BRANCHING=2"
-plugsett_alerter="EMAIL=erik.zandvliet@ddvtech.com PREFERENCES=\"Warning Balance\""
+plugsett_alerter="EMAIL=erik.zandvliet@ddvtech.com Warning Balancing Critical"

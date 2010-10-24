@@ -14,7 +14,7 @@ ssh -p $PORT $PARAMS $HOST "sh ./${ITYPE}_prepare.sh"
 echo "Transferring keyfile for DDVSS install"
 scp -P $PORT $PARAMS ./gearbox/gear_key $HOST:
 echo "Making keyfile default keyfile"
-ssh -p $PORT $PARAMS $HOST "echo \"IdentityFile ~/gear_key\" > ~/.ssh/config"
+ssh -p $PORT $PARAMS $HOST "chmod 600 ~/gear_key; echo \"IdentityFile ~/gear_key\" > ~/.ssh/config"
 echo "Cloning the git repository"
 ssh -p $PORT $PARAMS $HOST "rm -rf pls; git clone gitosis@projectlivestream.com:pls"
 echo "Installing DDVSS"

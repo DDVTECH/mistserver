@@ -5,6 +5,7 @@ HAS_GCC=`rpm -qa | grep c++`
 HAS_FFM=`rpm -qa | grep ffmpeg`
 HAS_SSL=`rpm -qa | grep openssl | grep devel`
 HAS_XIN=`rpm -qa | grep xinetd`
+HAS_MAK=`rpm -qs | grep make`
 HAS_GIT=`rpm -qa | grep git`
 
 if [ -z "$HAS_GCC" ]; then
@@ -20,6 +21,9 @@ if [ -z "$HAS_XIN" ]; then
 	DODOWN=1
 fi
 if [ -z "$HAS_GIT" ]; then
+	DODOWN=1
+fi
+if [ -z "$HAS_MAK" ]; then
 	DODOWN=1
 fi
 

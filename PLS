@@ -21,3 +21,16 @@ service ddvtechrtmp
         port                = 1935
         wait                = no
 }
+
+service ddvtechraw
+{
+	disable             = no
+	type                = UNLISTED
+        protocol            = tcp
+	socket_type         = stream
+	user                = root
+	server              = /usr/bin/Connector_RAW
+	port                = 3773
+	wait                = no
+}
+

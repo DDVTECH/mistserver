@@ -47,7 +47,7 @@ int main( int argc, char * argv[] ) {
   unsigned char packtype;
   bool gotVideoInfo = false;
   bool gotAudioInfo = false;
-  while(std::cin.good()) {
+  while(std::cin.good() && std::cout.good()) {
     loopcount ++;
     //invalidate the current buffer
     ringbuf[current_buffer]->number = -1;

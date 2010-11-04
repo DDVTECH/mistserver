@@ -12,7 +12,7 @@ LIBS = -lssl -lcrypto
 default: $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
-$(OUT): $(OBJ)
+$(OUT): $(OBJ) chunkstream.cpp parsechunks.cpp handshake.cpp crypto.cpp amf.cpp
 	$(CC) $(LIBS) -o $(OUT) $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~

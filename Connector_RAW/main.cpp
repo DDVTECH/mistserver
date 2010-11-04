@@ -15,9 +15,8 @@ int main() {
   mySocket.connect(input);
   char buffer[500000];
   int msg;
-  while(true) {
+  while(std::cout.good()) {
     msg = mySocket.recv(&buffer[0],10000);
-    if (!std::cout.good()) {exit(0);}
     std::cout.write(buffer,msg);
   }
   // disconnect

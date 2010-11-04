@@ -16,9 +16,8 @@ int main() {
   // do something with mySocket...
   while( std::cin >> input && input != "") {}
   std::cout << "HTTP/1.1 200 OK\nConnection: close\nContent-Type: video/x-flv\n\n";
-  while(true) {
+  while(std::cout.good()) {
     msg = mySocket.recv(&buffer[0],10000);
-    if (!std::cout.good()) { exit(0); }
     std::cout.write(buffer,msg);
   }
   // disconnect

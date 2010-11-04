@@ -492,7 +492,7 @@ chunkpack getWholeChunk(){
       free(ret);//cleanup returned chunk
       return gwc_complete;
     }
-    if (!std::cin.good()){
+    if (feof(stdin)){
       gwc_complete.msg_type_id = 0;
       return gwc_complete;
     }

@@ -480,10 +480,11 @@ chunkpack * AddChunkPart(chunkpack newchunk){
 chunkpack getWholeChunk(){
   static chunkpack gwc_next, gwc_complete;
   static bool clean = false;
+  int counter = 0;
   if (!clean){gwc_complete.data = 0; clean = true;}//prevent brain damage
   chunkpack * ret = 0;
   scrubChunk(gwc_complete);
-  while (true){
+  while (counter < 10000){
     gwc_next = getChunk();
     ret = AddChunkPart(gwc_next);
     scrubChunk(gwc_next);
@@ -492,9 +493,9 @@ chunkpack getWholeChunk(){
       free(ret);//cleanup returned chunk
       return gwc_complete;
     }
-    if (feof(stdin)){
-      gwc_complete.msg_type_id = 0;
-      return gwc_complete;
-    }
+    if (feof(stdin) != 0){break;}
+    counter++;
   }
+  gwc_complete.msg_type_id = 0;
+  return gwc_complete;
 }//getWholeChunk

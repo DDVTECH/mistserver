@@ -53,7 +53,7 @@ int main(){
   #ifdef DEBUG
   fprintf(stderr, "Starting processing...\n");
   #endif
-  while (!feof(stdin) && std::cout.good()){
+  while (std::cin.good() && std::cout.good()){
     //select(1, &pollset, 0, 0, &timeout);
     //only parse input from stdin if available or not yet init'ed
     //FD_ISSET(0, &pollset) || //NOTE: Polling does not work? WHY?!? WHY DAMN IT?!?

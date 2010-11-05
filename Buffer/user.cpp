@@ -64,10 +64,16 @@ void user::Send(buffer ** ringbuf, int buffers){
     //completed a send - switch to next buffer
     if ((ringbuf[MyBuffer]->number != MyBuffer_num)){
       std::cout << "Warning: User " << MyNum << " was send corrupt video data and send to the next keyframe!" << std::endl;
+      int nocrashcount = 0;
       do{
         MyBuffer++;
+        nocrashcount++;
         MyBuffer %= buffers;
-      }while(!ringbuf[MyBuffer]->FLV->isKeyframe);
+      }while(!ringbuf[MyBuffer]->FLV->isKeyframe && (nocrashcount < buffers));
+      if (nocrashcount >= buffers){
+        std::cout << "Warning: No keyframe found in buffers! Skipping search for now..." << std::endl;
+        return;
+      }
     }else{
       MyBuffer++;
       MyBuffer %= buffers;

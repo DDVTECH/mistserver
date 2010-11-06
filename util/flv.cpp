@@ -35,15 +35,16 @@ bool FLV_Readheader(){
 //will assign pointer if null
 //resizes FLV_Pack data field bigger if data doesn't fit
 // (does not auto-shrink for speed!)
-void FLV_GetPacket(FLV_Pack *& p){
+bool FLV_GetPacket(FLV_Pack *& p){
   if (!p){p = (FLV_Pack*)calloc(1, sizeof(FLV_Pack));}
   if (p->buf < 15){p->data = (char*)realloc(p->data, 15); p->buf = 15;}
-  fread(p->data,1,11,stdin);
+  if (fread(p->data,1,11,stdin) != 11){return false;}
   p->len = p->data[3] + 15;
   p->len += (p->data[2] << 8);
   p->len += (p->data[1] << 16);
   if (p->buf < p->len){p->data = (char*)realloc(p->data, p->len);p->buf = p->len;}
-  fread(p->data+11,1,p->len-11,stdin);
+  if (fread(p->data+11,1,p->len-11,stdin) != (unsigned int)(p->len-11)){return false;}
   p->isKeyframe = false;
   if ((p->data[0] == 0x09) && (((p->data[11] & 0xf0) >> 4) == 1)){p->isKeyframe = true;}
+  return true;
 }//FLV_GetPacket

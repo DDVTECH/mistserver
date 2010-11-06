@@ -13,7 +13,7 @@ client-clean:
 	#cd Connector_RTSP; $(MAKE) clean
 	cd Buffer; $(MAKE) clean
 clean: client-clean
-client-install: client	
+client-install: client-clean client
 	cp -f ./Connector_HTTP/Connector_HTTP /usr/bin/
 	cp -f ./Connector_RTMP/Connector_RTMP /usr/bin/
 	cp -f ./Connector_RAW/Connector_RAW /usr/bin/

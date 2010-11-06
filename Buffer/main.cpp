@@ -55,7 +55,9 @@ int main( int argc, char * argv[] ) {
       //new FLV file, read the file header again.
       FLV_Readheader();
     } else {
-      FLV_GetPacket(ringbuf[current_buffer]->FLV);
+      if (!FLV_GetPacket(ringbuf[current_buffer]->FLV)){
+        break;//wrong packet? something bust be broken. End program!
+      }
       packtype = ringbuf[current_buffer]->FLV->data[0];
       //store metadata, if available
       if (packtype == 0x12){

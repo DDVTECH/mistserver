@@ -17,10 +17,10 @@ bool stopparsing = false;
 timeval lastrec;
 
 int CONN_fd = 0;
-#include "parsechunks.cpp" //chunkstream parsing
-#include "handshake.cpp" //handshaking
 #include "../util/flv_sock.cpp" //FLV parsing with SocketW
 #include "../util/ddv_socket.cpp" //DDVTech Socket wrapper
+#include "parsechunks.cpp" //chunkstream parsing
+#include "handshake.cpp" //handshaking
 
 int main(){
 

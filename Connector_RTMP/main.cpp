@@ -5,7 +5,8 @@
 #include <cmath>
 #include <unistd.h>
 #include <signal.h>
-
+#include <sys/types.h>
+#include <sys/wait.h>
 
 //for connection to server
 #include "../sockets/SocketW.h"
@@ -22,12 +23,10 @@ FILE * CONN = 0;
 
 int main(){
 
-  //automatic child reaping
-  struct sigaction sa = {sa_handler = SIG_IGN};
-  sigaction(SIGCHLD, &sa, NULL);
-  
   int server_socket = DDV_Listen(1935);
+  int status;
   while (server_socket > 0){
+    waitpid((pid_t)-1, &status, WNOHANG);
     CONN = DDV_Accept(server_socket);
     pid_t myid = fork();
     if (myid == 0){

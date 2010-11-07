@@ -16,6 +16,7 @@ bool inited = false;
 bool stopparsing = false;
 timeval lastrec;
 
+int CONN_fd = 0;
 FILE * CONN = 0;
 #include "parsechunks.cpp" //chunkstream parsing
 #include "handshake.cpp" //handshaking
@@ -28,7 +29,8 @@ int main(){
   int status;
   while (server_socket > 0){
     waitpid((pid_t)-1, &status, WNOHANG);
-    CONN = DDV_Accept(server_socket);
+    CONN_fd = DDV_Accept(server_socket);
+    CONN = fdopen(CONN_fd, "r+");
     pid_t myid = fork();
     if (myid == 0){
       break;
@@ -72,8 +74,8 @@ int main(){
   int poller = epoll_create(1);
   struct epoll_event ev;
   ev.events = EPOLLIN;
-  ev.data.fd = fileno(CONN);
-  epoll_ctl(poller, EPOLL_CTL_ADD, fileno(CONN), &ev);
+  ev.data.fd = CONN_fd;
+  epoll_ctl(poller, EPOLL_CTL_ADD, CONN_fd, &ev);
   struct epoll_event events[1];
 
   

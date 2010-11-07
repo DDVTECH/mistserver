@@ -55,7 +55,7 @@ int main( int argc, char * argv[] ) {
   flags |= O_NONBLOCK;
   fcntl(0, F_SETFL, flags);
   
-  while(!feof(stdin) && !ferror(stdin) && !All_Hell_Broke_Loose){
+  while(!feof(stdin) && !All_Hell_Broke_Loose){
     //invalidate the current buffer
     ringbuf[current_buffer]->number = -1;
     if (FLV_GetPacket(ringbuf[current_buffer]->FLV)){

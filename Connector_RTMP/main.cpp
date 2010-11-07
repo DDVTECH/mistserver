@@ -131,6 +131,9 @@ int main(){
             FLVbuffer[6] = ftst % 256;
           }
           SendMedia((unsigned char)FLVbuffer[0], (unsigned char *)FLVbuffer+11, FLV_len-15, ts);
+          #ifdef DEBUG
+          fprintf(stderr, "Sent a tag.\n");
+          #endif
           FLV_Dump();//dump packet and get ready for next
         }
         if ((SWBerr != SWBaseSocket::ok) && (SWBerr != SWBaseSocket::notReady)){

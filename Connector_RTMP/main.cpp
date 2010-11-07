@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/epoll.h>
 
 //for connection to server
 #include "../sockets/SocketW.h"
@@ -65,10 +66,25 @@ int main(){
   #ifdef DEBUG
   fprintf(stderr, "Starting processing...\n");
   #endif
+
+
+  int retval;
+  int poller = epoll_create(1);
+  struct epoll_event ev;
+  ev.events = EPOLLIN | EPOLLOUT;
+  ev.data.fd = fileno(CONN);
+  epoll_ctl(poller, EPOLL_CTL_ADD, fileno(CONN), &ev);
+  struct epoll_event events[1];
+
+  
+    
+  
   while (!ferror(CONN)){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && !stopparsing){
+    retval = epoll_wait(poller, events, 1, 1000);
+    if (retval){
+      fprintf(stderr, "Socket %i is now state %i, in is %i, out is %i\n", events[0].data.fd, events[0].events, EPOLLIN, EPOLLOUT);
       parseChunk();
       fflush(CONN);
     }

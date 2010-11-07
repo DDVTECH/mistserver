@@ -88,7 +88,8 @@ int main(){
     //rightnow = getNowMS();
     retval = epoll_wait(poller, events, 1, 100);
     now = getNowMS();
-    if ((retval > 0) || ((now - lastcheck > 1000) && (!ready4data || (snd_cnt - snd_window_at >= snd_window_size)))){
+    if ((retval > 0) || ((now - lastcheck > 1) && (!ready4data || (snd_cnt - snd_window_at >= snd_window_size)))){
+      lastcheck = now;
       parseChunk();
       fflush(CONN);
     }

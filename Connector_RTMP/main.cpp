@@ -44,9 +44,7 @@ int main(){
   while (!ferror(stdin) && !ferror(stdout)){
     //only parse input from stdin if available or not yet init'ed
     //rightnow = getNowMS();
-    teller++;
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && (teller > 15)){
-      teller = 0;
+    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && !stopparsing){
       parseChunk();
       fflush(stdout);
     }

@@ -59,10 +59,6 @@ int main(){
   #endif
   int infile = fileno(stdin);
   while (std::cin.good() && std::cout.good()){
-    timeout.tv_sec = 1; timeout.tv_usec = 0;
-    FD_ZERO(&pollset);//clear the polling set
-    FD_SET(infile, &pollset);//add stdin to polling set
-    select(1, &pollset, 0, 0, &timeout);
     //only parse input from stdin if available or not yet init'ed
     if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && poll(cinfd, 1, (signed int)500)){parseChunk();fflush(stdout);}
     if (ready4data){

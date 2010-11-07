@@ -14,11 +14,11 @@ bool doHandshake(){
   Handshake Client;
   Handshake Server;
   /** Read C0 **/
-  fread(&(Version), 1, 1, stdin);
+  fread(&(Version), 1, 1, CONN);
   /** Read C1 **/
-  fread(Client.Time, 1, 4, stdin);
-  fread(Client.Zero, 1, 4, stdin);
-  fread(Client.Random, 1, 1528, stdin);
+  fread(Client.Time, 1, 4, CONN);
+  fread(Client.Zero, 1, 4, CONN);
+  fread(Client.Random, 1, 1528, CONN);
   rec_cnt+=1537;
   /** Build S1 Packet **/
   Server.Time[0] = 0; Server.Time[1] = 0; Server.Time[2] = 0; Server.Time[3] = 0;
@@ -27,25 +27,25 @@ bool doHandshake(){
     Server.Random[i] = versionstring[i%13];
   }
   /** Send S0 **/
-  fwrite(&(Version), 1, 1, stdout);
+  fwrite(&(Version), 1, 1, CONN);
   /** Send S1 **/
-  fwrite(Server.Time, 1, 4, stdout);
-  fwrite(Server.Zero, 1, 4, stdout);
-  fwrite(Server.Random, 1, 1528, stdout);
+  fwrite(Server.Time, 1, 4, CONN);
+  fwrite(Server.Zero, 1, 4, CONN);
+  fwrite(Server.Random, 1, 1528, CONN);
   /** Flush output, just for certainty **/
-  fflush(stdout);
+  fflush(CONN);
   snd_cnt+=1537;
   /** Send S2 **/
-  fwrite(Client.Time, 1, 4, stdout);
-  fwrite(Client.Time, 1, 4, stdout);
-  fwrite(Client.Random, 1, 1528, stdout);
+  fwrite(Client.Time, 1, 4, CONN);
+  fwrite(Client.Time, 1, 4, CONN);
+  fwrite(Client.Random, 1, 1528, CONN);
   snd_cnt+=1536;
   /** Flush, necessary in order to work **/
-  fflush(stdout);
+  fflush(CONN);
   /** Read and discard C2 **/
-  fread(Client.Time, 1, 4, stdin);
-  fread(Client.Zero, 1, 4, stdin);
-  fread(Client.Random, 1, 1528, stdin);
+  fread(Client.Time, 1, 4, CONN);
+  fread(Client.Zero, 1, 4, CONN);
+  fread(Client.Random, 1, 1528, CONN);
   rec_cnt+=1536;
   return true;
 }//doHandshake
@@ -57,10 +57,10 @@ bool doHandshake(){
 bool doHandshake(){
   char Version;
   /** Read C0 **/
-  fread(&Version, 1, 1, stdin);
+  fread(&Version, 1, 1, CONN);
   uint8_t Client[1536];
   uint8_t Server[3072];
-  fread(&Client, 1, 1536, stdin);
+  fread(&Client, 1, 1536, CONN);
   rec_cnt+=1537;
   
   /** Build S1 Packet **/
@@ -123,13 +123,13 @@ bool doHandshake(){
   delete[] pLastHash;
   //***** DONE BUILDING THE RESPONSE ***//
   /** Send response **/
-  fwrite(&Version, 1, 1, stdout);
-  fwrite(&Server, 1, 3072, stdout);
+  fwrite(&Version, 1, 1, CONN);
+  fwrite(&Server, 1, 3072, CONN);
   snd_cnt+=3073;
   /** Flush, necessary in order to work **/
-  fflush(stdout);
+  fflush(CONN);
   /** Read and discard C2 **/
-  fread(Client, 1, 1536, stdin);
+  fread(Client, 1, 1536, CONN);
   rec_cnt+=1536;
   return true;
 }

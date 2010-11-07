@@ -25,7 +25,7 @@ client-local-install: client
 	mkdir -p ./bin
 	cp -f ./Connector_HTTP/Connector_HTTP ./bin/
 	cp -f ./Connector_RTMP/Connector_RTMP ./bin/
-	cp -f ./Connector_RTMP/Connector_RAW ./bin/
+	cp -f ./Connector_RAW/Connector_RAW ./bin/
 	#cp -f ./Connector_RTSP/Connector_RTSP ./bin/
 	cp -f ./Buffer/Buffer ./bin/
 

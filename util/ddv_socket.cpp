@@ -31,11 +31,6 @@ int DDV_Listen(int port){
   }
 }
 
-FILE * DDV_Accept(int sock){
-  int r = accept(sock, 0, 0);
-  if (r != -1){
-    return fdopen(r, "r+");
-  }else{
-    return (FILE*)0;
-  }
+int DDV_Accept(int sock){
+  return accept(sock, 0, 0);
 }

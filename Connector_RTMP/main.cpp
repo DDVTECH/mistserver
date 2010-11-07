@@ -57,7 +57,7 @@ int main(){
     //select(1, &pollset, 0, 0, &timeout);
     //only parse input from stdin if available or not yet init'ed
     //FD_ISSET(0, &pollset) || //NOTE: Polling does not work? WHY?!? WHY DAMN IT?!?
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && !stopparsing){parseChunk();fflush(stdout);}
+    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && !stopparsing){fflush(stdout);parseChunk();fflush(stdout);}
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!

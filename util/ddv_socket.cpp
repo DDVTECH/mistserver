@@ -14,9 +14,9 @@ int DDV_Listen(int port){
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);//port 8888
   inet_pton(AF_INET, "0.0.0.0", &addr.sin_addr);//listen on all interfaces
-  ret = bind(sock, (sockaddr*)&addr, sizeof(addr));//bind to all interfaces, chosen port
+  int ret = bind(s, (sockaddr*)&addr, sizeof(addr));//bind to all interfaces, chosen port
   if (ret == 0){
-    ret = listen(sock, 100);//start listening, backlog of 100 allowed
+    ret = listen(s, 100);//start listening, backlog of 100 allowed
     if (ret == 0){
       return s;
     }else{
@@ -31,11 +31,11 @@ int DDV_Listen(int port){
   }
 }
 
-int DDV_Accept(int sock){
+FILE * DDV_Accept(int sock){
   int r = accept(sock, 0, 0);
   if (r != -1){
     return fdopen(r, "r+");
   }else{
-    return -1;
+    return (FILE*)0;
   }
 }

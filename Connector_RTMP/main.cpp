@@ -4,9 +4,6 @@
 #include <cstdio>
 #include <cmath>
 
-//needed for epoll
-#include <sys/epoll.h>
-
 //for connection to server
 #include "../sockets/SocketW.h"
 bool ready4data = false;//set to true when streaming starts
@@ -24,15 +21,10 @@ int main(){
   unsigned int ftst;
   SWUnixSocket ss;
 
-  int poller = epoll_create(1);
-  struct epoll_event ev;
-  ev.events = EPOLLIN | EPOLLPRI | EPOLLERR | EPOLLHUP;
-  ev.data.fd = fileno(stdin);
-  epoll_ctl(poller, EPOLL_CTL_ADD, fileno(stdin), &ev);
-  struct epoll_event events[1];
-  
   //first timestamp set
   firsttime = getNowMS();
+  int lastcheck = getNowMS();
+  int rightnow = 0;
 
   #ifdef DEBUG
   fprintf(stderr, "Doing handshake...\n");
@@ -52,7 +44,12 @@ int main(){
   #endif
   while (!ferror(stdin) && !ferror(stdout)){
     //only parse input from stdin if available or not yet init'ed
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && (epoll_wait(poller, events, 1, 100) > 0)){parseChunk();fflush(stdout);}
+    rightnow = getNowMS();
+    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && (rightnow - lastcheck > 100)){
+      lastcheck = rightnow;
+      parseChunk();
+      fflush(stdout);
+    }
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!

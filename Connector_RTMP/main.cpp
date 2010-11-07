@@ -1,4 +1,4 @@
-#undef DEBUG
+#define DEBUG
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
@@ -65,8 +65,8 @@ int main(){
   #ifdef DEBUG
   fprintf(stderr, "Starting processing...\n");
   #endif
-  while (!ferror(stdin) && !ferror(stdout)){
-    //only parse input from stdin if available or not yet init'ed
+  while (!ferror(CONN)){
+    //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
     if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && !stopparsing){
       parseChunk();

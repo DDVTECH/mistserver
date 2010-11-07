@@ -31,9 +31,6 @@ int main(){
   unsigned int ftst;
   SWUnixSocket ss;
 
-  fd_set pollset;
-  struct timeval timeout;
-
   pollfd cinfd[1];
   cinfd[0].fd = fileno(stdin);
   cinfd[0].events = POLLIN;
@@ -58,9 +55,9 @@ int main(){
   fprintf(stderr, "Starting processing...\n");
   #endif
   int infile = fileno(stdin);
-  while (std::cin.good() && std::cout.good()){
+  while (!ferror(stdin) && !ferror(stdout)){
     //only parse input from stdin if available or not yet init'ed
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && poll(cinfd, 1, (signed int)500)){parseChunk();fflush(stdout);}
+    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && poll(cinfd, 1, 100)){parseChunk();fflush(stdout);}
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!

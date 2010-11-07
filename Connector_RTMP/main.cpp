@@ -34,7 +34,7 @@ int main(){
     if (myid == 0){
       break;
     }else{
-      printf("Spawned new process %i for incoming client\n", (int)myid);
+      printf("Spawned new process %i for handling socket %i\n", (int)myid, CONN_fd);
     }
   }
   if (server_socket <= 0){
@@ -127,7 +127,7 @@ int main(){
           }
           SendMedia((unsigned char)FLVbuffer[0], (unsigned char *)FLVbuffer+11, FLV_len-15, ts);
           #ifdef DEBUG
-          fprintf(stderr, "Sent a tag.\n");
+          fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
           #endif
           FLV_Dump();//dump packet and get ready for next
         }

@@ -51,6 +51,8 @@ int main(){
 
   //first timestamp set
   firsttime = getNowMS();
+  int now = getNowMS();
+  int lastcheck = now;
 
   #ifdef DEBUG
   fprintf(stderr, "Doing handshake...\n");
@@ -85,7 +87,8 @@ int main(){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
     retval = epoll_wait(poller, events, 1, 100);
-    if (retval > 0){
+    now = getNowMS();
+    if ((retval > 0) || ((now - lastcheck > 1000) && (!ready4data || (snd_cnt - snd_window_at >= snd_window_size)))){
       parseChunk();
       fflush(CONN);
     }

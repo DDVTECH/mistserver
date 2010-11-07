@@ -23,7 +23,7 @@ FILE * CONN = 0;
 int main(){
 
   //automatic child reaping
-  struct sigaction sa = {.sa_handler = SIG_IGN};
+  struct sigaction sa = {sa_handler = SIG_IGN};
   sigaction(SIGCHLD, &sa, NULL);
   
   int server_socket = DDV_Listen(1935);

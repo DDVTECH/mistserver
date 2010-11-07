@@ -12,7 +12,7 @@ bool inited = false;
 bool stopparsing = false;
 timeval lastrec;
 
-int CONN = 0;
+FILE * CONN = 0;
 #include "parsechunks.cpp" //chunkstream parsing
 #include "handshake.cpp" //handshaking
 #include "../util/flv_sock.cpp" //FLV parsing with SocketW
@@ -43,7 +43,6 @@ int main(){
 
   //first timestamp set
   firsttime = getNowMS();
-  int teller = 0;
 
   #ifdef DEBUG
   fprintf(stderr, "Doing handshake...\n");

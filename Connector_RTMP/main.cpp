@@ -4,15 +4,8 @@
 #include <cstdio>
 #include <cmath>
 
-//needed for select
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-//needed for poll
-#include <poll.h>
+//needed for epoll
+#include <sys/epoll.h>
 
 //for connection to server
 #include "../sockets/SocketW.h"
@@ -31,10 +24,13 @@ int main(){
   unsigned int ftst;
   SWUnixSocket ss;
 
-  pollfd cinfd[1];
-  cinfd[0].fd = fileno(stdin);
-  cinfd[0].events = POLLIN;
-
+  int poller = epoll_create(1);
+  struct epoll_event ev;
+  ev.events = EPOLLIN | EPOLLPRI | EPOLLERR | EPOLLHUP;
+  ev.data.fd = fileno(stdin);
+  epoll_ctl(poller, EPOLL_CTL_ADD, fileno(stdin), &ev);
+  struct epoll_event events[1];
+  
   //first timestamp set
   firsttime = getNowMS();
 
@@ -54,10 +50,9 @@ int main(){
   #ifdef DEBUG
   fprintf(stderr, "Starting processing...\n");
   #endif
-  int infile = fileno(stdin);
   while (!ferror(stdin) && !ferror(stdout)){
     //only parse input from stdin if available or not yet init'ed
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && poll(cinfd, 1, 100)){parseChunk();fflush(stdout);}
+    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && (epoll_wait(poller, events, 1, 100) > 0)){parseChunk();fflush(stdout);}
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!

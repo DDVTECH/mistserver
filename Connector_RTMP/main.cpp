@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 //needed for poll
-#include <poll.h>
+//#include <poll.h>
 
 //for connection to server
 #include "../sockets/SocketW.h"
@@ -30,16 +30,15 @@ int main(){
   unsigned int fts = 0;
   unsigned int ftst;
   SWUnixSocket ss;
-  //fd_set pollset;
-  //struct timeval timeout;
-  //0 timeout - return immediately after select call
-  //timeout.tv_sec = 1; timeout.tv_usec = 0;
-  //FD_ZERO(&pollset);//clear the polling set
-  //FD_SET(0, &pollset);//add stdin to polling set
 
-  pollfd cinfd[1];
-  cinfd[0].fd = fileno(stdin);
-  cinfd[0].events = POLLIN;
+  fd_set pollset;
+  struct timeval timeout;
+  //0 timeout - return immediately after select call
+  timeout.tv_sec = 1; timeout.tv_usec = 0;
+
+  //pollfd cinfd[1];
+  //cinfd[0].fd = fileno(stdin);
+  //cinfd[0].events = POLLIN;
 
   //first timestamp set
   firsttime = getNowMS();
@@ -61,11 +60,11 @@ int main(){
   fprintf(stderr, "Starting processing...\n");
   #endif
   while (std::cin.good() && std::cout.good()){
-    //select(1, &pollset, 0, 0, &timeout);
+    FD_ZERO(&pollset);//clear the polling set
+    FD_SET(fileno(stdin), &pollset);//add stdin to polling set
+    select(1, &pollset, 0, 0, &timeout);
     //only parse input from stdin if available or not yet init'ed
-    //FD_ISSET(0, &pollset) || //NOTE: Polling does not work? WHY?!? WHY DAMN IT?!?
-    //if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && !stopparsing){fflush(stdout);parseChunk();fflush(stdout);}
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && poll(cinfd, 1, 100)){parseChunk();fflush(stdout);}
+    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && FD_ISSET(0, &pollset)){parseChunk();fflush(stdout);}
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!

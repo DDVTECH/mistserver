@@ -23,8 +23,7 @@ int main(){
 
   //first timestamp set
   firsttime = getNowMS();
-  int lastcheck = getNowMS();
-  int rightnow = 0;
+  int teller = 0;
 
   #ifdef DEBUG
   fprintf(stderr, "Doing handshake...\n");
@@ -44,9 +43,10 @@ int main(){
   #endif
   while (!ferror(stdin) && !ferror(stdout)){
     //only parse input from stdin if available or not yet init'ed
-    rightnow = getNowMS();
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && (rightnow - lastcheck > 100)){
-      lastcheck = rightnow;
+    //rightnow = getNowMS();
+    teller++;
+    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && (teller > 15)){
+      teller = 0;
       parseChunk();
       fflush(stdout);
     }

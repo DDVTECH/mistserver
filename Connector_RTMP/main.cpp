@@ -30,7 +30,6 @@ int main(){
   while (server_socket > 0){
     waitpid((pid_t)-1, &status, WNOHANG);
     CONN_fd = DDV_Accept(server_socket);
-    CONN = fdopen(CONN_fd, "r+");
     pid_t myid = fork();
     if (myid == 0){
       break;
@@ -42,6 +41,7 @@ int main(){
     return 0;
   }
 
+  CONN = fdopen(CONN_fd, "r+");
 
   
   unsigned int ts;
@@ -51,8 +51,6 @@ int main(){
 
   //first timestamp set
   firsttime = getNowMS();
-  int now = getNowMS();
-  int lastcheck = now;
 
   #ifdef DEBUG
   fprintf(stderr, "Doing handshake...\n");
@@ -86,12 +84,9 @@ int main(){
   while (!ferror(CONN) && !feof(CONN)){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
-    retval = epoll_wait(poller, events, 1, 100);
-    now = getNowMS();
-    if ((retval > 0) || ((now - lastcheck > 1) && (!ready4data || (snd_cnt - snd_window_at >= snd_window_size)))){
-      lastcheck = now;
+    retval = epoll_wait(poller, events, 1, 0);
+    if ((retval > 0) || (!ready4data || (snd_cnt - snd_window_at >= snd_window_size))){
       parseChunk();
-      fflush(CONN);
     }
     if (ready4data){
       if (!inited){

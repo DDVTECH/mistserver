@@ -34,3 +34,11 @@ int DDV_Listen(int port){
 int DDV_Accept(int sock){
   return accept(sock, 0, 0);
 }
+
+bool DDV_write(char * buffer, int width, int count, int sock){
+  return (send(sock, buffer, width*count, 0) == width*count);
+}
+
+bool DDV_read(char * buffer, int width, int count, int sock){
+  return (recv(sock, buffer, width*count, 0) == width*count);
+}

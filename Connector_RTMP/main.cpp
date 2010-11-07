@@ -33,8 +33,6 @@ int main(){
 
   fd_set pollset;
   struct timeval timeout;
-  //0 timeout - return immediately after select call
-  timeout.tv_sec = 1; timeout.tv_usec = 0;
 
   //pollfd cinfd[1];
   //cinfd[0].fd = fileno(stdin);
@@ -62,6 +60,7 @@ int main(){
   while (std::cin.good() && std::cout.good()){
     FD_ZERO(&pollset);//clear the polling set
     FD_SET(fileno(stdin), &pollset);//add stdin to polling set
+    timeout.tv_sec = 1; timeout.tv_usec = 0;
     select(1, &pollset, 0, 0, &timeout);
     //only parse input from stdin if available or not yet init'ed
     if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && FD_ISSET(0, &pollset)){parseChunk();fflush(stdout);}

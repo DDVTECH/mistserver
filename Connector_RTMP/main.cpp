@@ -64,7 +64,7 @@ int main(){
     FD_SET(infile, &pollset);//add stdin to polling set
     select(1, &pollset, 0, 0, &timeout);
     //only parse input from stdin if available or not yet init'ed
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && poll(cinfd, 1, 500)){parseChunk();fflush(stdout);}
+    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && poll(cinfd, 1, (signed int)500)){parseChunk();fflush(stdout);}
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!

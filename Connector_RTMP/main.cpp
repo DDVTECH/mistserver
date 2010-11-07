@@ -17,7 +17,6 @@ bool stopparsing = false;
 timeval lastrec;
 
 int CONN_fd = 0;
-FILE * CONN = 0;
 #include "parsechunks.cpp" //chunkstream parsing
 #include "handshake.cpp" //handshaking
 #include "../util/flv_sock.cpp" //FLV parsing with SocketW
@@ -41,9 +40,6 @@ int main(){
     return 0;
   }
 
-  CONN = fdopen(CONN_fd, "r+");
-
-  
   unsigned int ts;
   unsigned int fts = 0;
   unsigned int ftst;

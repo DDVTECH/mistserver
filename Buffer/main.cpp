@@ -11,6 +11,8 @@
 #include "../util/flv.cpp" //FLV format parser
 #include "user.cpp"
 
+#include <sys/epoll.h>
+
 int get_empty( user ** list, int amount ) {
   for (int i = 0; i < amount; i++ ){
     if (!list[i]->is_connected){return i;}
@@ -51,14 +53,23 @@ int main( int argc, char * argv[] ) {
   bool gotAudioInfo = false;
 
   //set stdin to be nonblocking
-  int flags = fcntl(0, F_GETFL, 0);
-  flags |= O_NONBLOCK;
-  fcntl(0, F_SETFL, flags);
+  //int flags = fcntl(0, F_GETFL, 0);
+  //flags |= O_NONBLOCK;
+  //fcntl(0, F_SETFL, flags);
+
+  int infile = fileno(stdin);
+  int poller = epoll_create(1);
+  struct epoll_event ev;
+  ev.events = EPOLLIN | EPOLLPRI | EPOLLERR | EPOLLHUP;
+  ev.data.fd = infile;
+  epoll_ctl(poller, EPOLL_CTL_ADD, infile, &ev);
+  struct epoll_event events[1];
+  
   
   while(!feof(stdin) && !All_Hell_Broke_Loose){
     //invalidate the current buffer
     ringbuf[current_buffer]->number = -1;
-    if (FLV_GetPacket(ringbuf[current_buffer]->FLV)){
+    if ((epoll_wait(poller, events, 1, 100) > 0) && FLV_GetPacket(ringbuf[current_buffer]->FLV)){
       loopcount ++;
       packtype = ringbuf[current_buffer]->FLV->data[0];
       //store metadata, if available

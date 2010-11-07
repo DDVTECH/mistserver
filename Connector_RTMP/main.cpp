@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cmath>
 #include <unistd.h>
+#include <signal.h>
+
 
 //for connection to server
 #include "../sockets/SocketW.h"
@@ -20,6 +22,10 @@ FILE * CONN = 0;
 
 int main(){
 
+  //automatic child reaping
+  struct sigaction sa = {.sa_handler = SIG_IGN};
+  sigaction(SIGCHLD, &sa, NULL);
+  
   int server_socket = DDV_Listen(1935);
   while (server_socket > 0){
     CONN = DDV_Accept(server_socket);
@@ -65,7 +71,7 @@ int main(){
     //rightnow = getNowMS();
     if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && !stopparsing){
       parseChunk();
-      fflush(stdout);
+      fflush(CONN);
     }
     if (ready4data){
       if (!inited){

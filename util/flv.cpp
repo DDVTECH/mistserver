@@ -79,6 +79,7 @@ bool FLV_GetPacket(FLV_Pack *& p){
       p->isKeyframe = false;
       if ((p->data[0] == 0x09) && (((p->data[11] & 0xf0) >> 4) == 1)){p->isKeyframe = true;}
       done = true;
+      sofar = 0;
       return true;
     }
   }

@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
+#include <unistd.h>
 
 //for connection to server
 #include "../sockets/SocketW.h"
@@ -11,11 +12,30 @@ bool inited = false;
 bool stopparsing = false;
 timeval lastrec;
 
+int CONN = 0;
 #include "parsechunks.cpp" //chunkstream parsing
 #include "handshake.cpp" //handshaking
 #include "../util/flv_sock.cpp" //FLV parsing with SocketW
+#include "../util/ddv_socket.cpp" //DDVTech Socket wrapper
 
 int main(){
+
+  int server_socket = DDV_Listen(1935);
+  while (server_socket > 0){
+    CONN = DDV_Accept(server_socket);
+    pid_t myid = fork();
+    if (myid == 0){
+      break;
+    }else{
+      printf("Spawned new process %i for incoming client\n", (int)myid);
+    }
+  }
+  if (server_socket <= 0){
+    return 0;
+  }
+
+
+  
   unsigned int ts;
   unsigned int fts = 0;
   unsigned int ftst;

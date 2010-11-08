@@ -79,6 +79,7 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
         p->len = p->data[3] + 15;
         p->len += (p->data[2] << 8);
         p->len += (p->data[1] << 16);
+        fprintf(stderr, "Tag of len %i\n", p->len);
         if (p->buf < p->len){p->data = (char*)realloc(p->data, p->len);p->buf = p->len;}
         done = false;
       }

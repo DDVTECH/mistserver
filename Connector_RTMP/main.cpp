@@ -48,7 +48,7 @@ int main(int argc, char ** argv){
   int status;
   while (server_socket > 0){
     waitpid((pid_t)-1, &status, WNOHANG);
-    CONN_fd = DDV_Accept(server_socket);
+    CONN_fd = DDV_Accept(server_socket, true);
     if (CONN_fd > 0){
       pid_t myid = fork();
       if (myid == 0){

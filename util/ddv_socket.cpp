@@ -66,7 +66,6 @@ bool DDV_write(void * buffer, int todo, int sock){
     if (r <= 0){
       switch (errno){
         case EWOULDBLOCK: printf("Would block\n"); break;
-        case EAGAIN: printf("Again\n"); break;
         default:
           socketError = true;
           printf("Could not write! %s\n", strerror(errno));
@@ -86,7 +85,6 @@ bool DDV_read(void * buffer, int todo, int sock){
     if (r <= 0){
       switch (errno){
         case EWOULDBLOCK: printf("Read: Would block\n"); break;
-        case EAGAIN: printf("Read: Again\n"); break;
         default:
           socketError = true;
           printf("Could not read! %s\n", strerror(errno));

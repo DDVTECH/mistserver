@@ -13,10 +13,10 @@ bool socketBlocking = false;
 
 int DDV_OpenUnix(const char adres[], bool nonblock = false){
   int s = socket(AF_UNIX, SOCK_STREAM, 0);
-  sockaddr_un addr;
+  struct sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strcpy(addr.sun_path, adres);
-  int r = connect(s, (sockaddr*)&addr, sizeof(addr));
+  int r = connect(s, (sockaddr*)&addr, sizeof(struct sockaddr_un));
   if (r == 0){
     if (nonblock){
       int flags = fcntl(s, F_GETFL, 0);

@@ -36,13 +36,13 @@ int DDV_Accept(int sock){
   return accept(sock, 0, 0);
 }
 
-bool DDV_write(char * buffer, int width, int count, int sock){
+bool DDV_write(void * buffer, int width, int count, int sock){
   bool r = (send(sock, buffer, width*count, 0) == width*count);
   if (!r){socketError = true}
   return r;
 }
 
-bool DDV_read(char * buffer, int width, int count, int sock){
+bool DDV_read(void * buffer, int width, int count, int sock){
   bool r = (recv(sock, buffer, width*count, 0) == width*count);
   if (!r){socketError = true}
   return r;

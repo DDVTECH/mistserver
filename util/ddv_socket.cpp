@@ -105,8 +105,14 @@ bool DDV_write(void * buffer, int width, int count, int sock){return DDV_write(b
 int DDV_iwrite(void * buffer, int todo, int sock){
   int r = send(sock, buffer, todo, 0);
   if (r < 0){
-    socketError = true;
-    printf("Could not iwrite! %s\n", strerror(errno));
+    switch (errno){
+      case EWOULDBLOCK: printf("Write: Would block\n"); break;
+      default:
+        socketError = true;
+        printf("Could not write! %s\n", strerror(errno));
+        return false;
+        break;
+    }
   }
   return r;
 }
@@ -114,8 +120,14 @@ int DDV_iwrite(void * buffer, int todo, int sock){
 int DDV_iread(void * buffer, int todo, int sock){
   int r = recv(sock, buffer, todo, 0);
   if (r < 0){
-    socketError = true;
-    printf("Could not iread! %s\n", strerror(errno));
+    switch (errno){
+      case EWOULDBLOCK: printf("Read: Would block\n"); break;
+      default:
+        socketError = true;
+        printf("Could not read! %s\n", strerror(errno));
+        return false;
+        break;
+    }
   }
   return r;
 }

@@ -94,6 +94,9 @@ bool DDV_ready(int sock){
   fcntl(sock, F_SETFL, postflags);
   int r = recv(sock, &tmp, 1, MSG_PEEK);
   fcntl(sock, F_SETFL, preflags);
+  if (r != 1){
+    fprintf(stderr, "Er ging iets mis... %i\n", r);
+  }
   return (r == 1);
 }
 

@@ -17,7 +17,7 @@ int DDV_OpenUnix(const char adres[], bool nonblock = false){
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strcpy(addr.sun_path, adres);
-  int r = connect(s, (sockaddr*)&adres, sizeof(addr));
+  int r = connect(s, (sockaddr*)&addr, sizeof(addr));
   if (r == 0){
     if (nonblock){
       int flags = fcntl(s, F_GETFL, 0);

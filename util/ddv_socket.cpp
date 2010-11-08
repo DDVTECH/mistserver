@@ -24,7 +24,6 @@ int DDV_OpenUnix(std::string adres, bool nonblock = false){
       flags |= O_NONBLOCK;
       fcntl(s, F_SETFL, flags);
     }
-    fprintf(stderr, "Connected to %s\n", addr.sun_path);
     return s;
   }else{
     close(s);

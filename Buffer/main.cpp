@@ -78,6 +78,10 @@ int main( int argc, char * argv[] ) {
         metabuffer = (char*)realloc(metabuffer, metabuflen);
         memcpy(metabuffer, ringbuf[current_buffer]->FLV->data, metabuflen);
         std::cout << "Received metadata!" << std::endl;
+        if (gotVideoInfo && gotAudioInfo){
+          All_Hell_Broke_Loose = true;
+          std::cout << "... after proper video and audio? Cancelling broadcast!" << std::endl;
+        }
         gotVideoInfo = false;
         gotAudioInfo = false;
       }

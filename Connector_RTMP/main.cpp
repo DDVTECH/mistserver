@@ -156,7 +156,7 @@ int main(int argc, char ** argv){
             tag[1]->data[5] = ftst / 256;
             tag[1]->data[6] = ftst % 256;
           }
-          SendMedia((unsigned char)tag[1]->data[0], (unsigned char *)tag[1]->data+11, tag->len-15, ts);
+          SendMedia((unsigned char)tag[1]->data[0], (unsigned char *)tag[1]->data+11, tag[1]->len-15, ts);
           #ifdef DEBUG
           fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
           #endif

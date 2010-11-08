@@ -1,4 +1,4 @@
-default: client-local-install
+default: client-install
 
 client:
 	cd Connector_HTTP; $(MAKE)
@@ -14,18 +14,11 @@ client-clean:
 	cd Buffer; $(MAKE) clean
 clean: client-clean
 client-install: client-clean client
+	service xinetd stop
 	cp -f ./Connector_HTTP/Connector_HTTP /usr/bin/
-	cp -f ./Connector_RTMP/Connector_RTMP /usr/bin/
+	cd Connector_RTMP; $(MAKE) install
 	cp -f ./Connector_RAW/Connector_RAW /usr/bin/
 	#cp -f ./Connector_RTSP/Connector_RTSP /usr/bin/
 	cp -f ./Buffer/Buffer /usr/bin/
 	cp -f ./PLS /etc/xinetd.d/
-	service xinetd restart
-client-local-install: client
-	mkdir -p ./bin
-	cp -f ./Connector_HTTP/Connector_HTTP ./bin/
-	cp -f ./Connector_RTMP/Connector_RTMP ./bin/
-	cp -f ./Connector_RAW/Connector_RAW ./bin/
-	#cp -f ./Connector_RTSP/Connector_RTSP ./bin/
-	cp -f ./Buffer/Buffer ./bin/
-
+	service xinetd start

@@ -22,18 +22,39 @@ int CONN_fd = 0;
 #include "parsechunks.cpp" //chunkstream parsing
 #include "handshake.cpp" //handshaking
 
-int main(){
 
-  int server_socket = DDV_Listen(1935);
+
+int server_socket = 0;
+
+void termination_handler (int signum){
+  if (server_socket == 0) return;
+  close(server_socket);
+  server_socket = 0;
+}
+
+int main(){
+  //setup signal handler
+  struct sigaction new_action;
+  new_action.sa_handler = termination_handler;
+  sigemptyset (&new_action.sa_mask);
+  new_action.sa_flags = 0;
+  sigaction (SIGINT, &new_action, NULL);
+  sigaction (SIGHUP, &new_action, NULL);
+  sigaction (SIGTERM, &new_action, NULL);
+  
+  server_socket = DDV_Listen(1935);
+  if (server_socket > 0){daemon(1, 0);}else{return 1;}
   int status;
   while (server_socket > 0){
     waitpid((pid_t)-1, &status, WNOHANG);
     CONN_fd = DDV_Accept(server_socket);
-    pid_t myid = fork();
-    if (myid == 0){
-      break;
-    }else{
-      printf("Spawned new process %i for handling socket %i\n", (int)myid, CONN_fd);
+    if (CONN_fd > 0){
+      pid_t myid = fork();
+      if (myid == 0){
+        break;
+      }else{
+        printf("Spawned new process %i for handling socket %i\n", (int)myid, CONN_fd);
+      }
     }
   }
   if (server_socket <= 0){

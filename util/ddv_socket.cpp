@@ -41,7 +41,7 @@ bool DDV_write(void * buffer, int width, int count, int sock){
   int todo = width*count;
   while (sofar != todo){
     int r = send(sock, (char*)buffer + sofar, todo-sofar, 0);
-    if (r < 0){
+    if (r <= 0){
       socketError = true;
       printf("Could not write! %s\n", strerror(errno));
       return false;
@@ -56,7 +56,7 @@ bool DDV_read(void * buffer, int width, int count, int sock){
   int todo = width*count;
   while (sofar != todo){
     int r = recv(sock, (char*)buffer + sofar, todo-sofar, 0);
-    if (r < 0){
+    if (r <= 0){
       socketError = true;
       printf("Could not read! %s\n", strerror(errno));
       return false;

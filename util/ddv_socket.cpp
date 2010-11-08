@@ -38,12 +38,18 @@ int DDV_Accept(int sock){
 
 bool DDV_write(void * buffer, int width, int count, int sock){
   bool r = (send(sock, buffer, width*count, 0) == width*count);
-  if (!r){socketError = true;}
+  if (!r){
+    socketError = true;
+    printf("Could not write! %s\n", strerror(errno));
+  }
   return r;
 }
 
 bool DDV_read(void * buffer, int width, int count, int sock){
   bool r = (recv(sock, buffer, width*count, 0) == width*count);
-  if (!r){socketError = true;}
+  if (!r){
+    socketError = true;
+    printf("Could not read! %s\n", strerror(errno));
+  }
   return r;
 }

@@ -12,6 +12,8 @@ bool socketError = false;
 
 int DDV_OpenUnix(const char adres[], bool nonblock = false){
   int s = socket(AF_UNIX, SOCK_STREAM, 0);
+  int on = 1;
+  setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strcpy(addr.sun_path, adres);

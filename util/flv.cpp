@@ -1,4 +1,5 @@
 #include <unistd.h> //for read()
+#include <fcntl.h>
 
 struct FLV_Pack {
   int len;
@@ -47,6 +48,9 @@ bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar){
 //resizes FLV_Pack data field bigger if data doesn't fit
 // (does not auto-shrink for speed!)
 bool FLV_GetPacket(FLV_Pack *& p){
+  int preflags = fcntl(fileno(stdin), F_GETFL, 0);
+  int postflags = preflags | O_NONBLOCK;
+  fcntl(fileno(stdin), F_SETFL, postflags);
   static bool done = true;
   static unsigned int sofar = 0;
   if (!p){p = (FLV_Pack*)calloc(1, sizeof(FLV_Pack));}
@@ -80,9 +84,11 @@ bool FLV_GetPacket(FLV_Pack *& p){
       if ((p->data[0] == 0x09) && (((p->data[11] & 0xf0) >> 4) == 1)){p->isKeyframe = true;}
       done = true;
       sofar = 0;
+      fcntl(fileno(stdin), F_SETFL, preflags);
       return true;
     }
   }
+  fcntl(fileno(stdin), F_SETFL, preflags);
   return false;
 }//FLV_GetPacket
 

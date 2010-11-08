@@ -108,18 +108,18 @@ void SendChunk(chunkpack ch){
     }
   }
   if (ch.cs_id <= 63){
-    tmp = chtype | ch.cs_id; fwrite(&tmp, 1, 1, stdout);
+    tmp = chtype | ch.cs_id; DDV_write(&tmp, 1, 1, CONN_fd);
     snd_cnt+=1;
   }else{
     if (ch.cs_id <= 255+64){
-      tmp = chtype | 0; fwrite(&tmp, 1, 1, stdout);
-      tmp = ch.cs_id - 64; fwrite(&tmp, 1, 1, stdout);
+      tmp = chtype | 0; DDV_write(&tmp, 1, 1, CONN_fd);
+      tmp = ch.cs_id - 64; DDV_write(&tmp, 1, 1, CONN_fd);
       snd_cnt+=2;
     }else{
-      tmp = chtype | 1; fwrite(&tmp, 1, 1, stdout);
+      tmp = chtype | 1; DDV_write(&tmp, 1, 1, CONN_fd);
       tmpi = ch.cs_id - 64;
-      tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
-      tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi % 256; DDV_write(&tmp, 1, 1, CONN_fd);
+      tmp = tmpi / 256; DDV_write(&tmp, 1, 1, CONN_fd);
       snd_cnt+=3;
     }
   }
@@ -129,67 +129,67 @@ void SendChunk(chunkpack ch){
     if (chtype == 0x00){
       tmpi = ch.timestamp;
       if (tmpi >= 0x00ffffff){ntime = tmpi; tmpi = 0x00ffffff;}
-      tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
-      tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
-      tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi / (256*256); DDV_write(&tmp, 1, 1, CONN_fd);
+      tmp = tmpi / 256; DDV_write(&tmp, 1, 1, CONN_fd);
+      tmp = tmpi % 256; DDV_write(&tmp, 1, 1, CONN_fd);
       snd_cnt+=3;
     }else{
       tmpi = ch.timestamp - prev.timestamp;
       if (tmpi >= 0x00ffffff){ntime = tmpi; tmpi = 0x00ffffff;}
-      tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
-      tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
-      tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi / (256*256); DDV_write(&tmp, 1, 1, CONN_fd);
+      tmp = tmpi / 256; DDV_write(&tmp, 1, 1, CONN_fd);
+      tmp = tmpi % 256; DDV_write(&tmp, 1, 1, CONN_fd);
       snd_cnt+=3;
     }
     if (chtype != 0x80){
       //len
       tmpi = ch.len;
-      tmp = tmpi / (256*256); fwrite(&tmp, 1, 1, stdout);
-      tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
-      tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
+      tmp = tmpi / (256*256); DDV_write(&tmp, 1, 1, CONN_fd);
+      tmp = tmpi / 256; DDV_write(&tmp, 1, 1, CONN_fd);
+      tmp = tmpi % 256; DDV_write(&tmp, 1, 1, CONN_fd);
       snd_cnt+=3;
       //msg type id
-      tmp = ch.msg_type_id; fwrite(&tmp, 1, 1, stdout);
+      tmp = ch.msg_type_id; DDV_write(&tmp, 1, 1, CONN_fd);
       snd_cnt+=1;
       if (chtype != 0x40){
         //msg stream id
-        tmp = ch.msg_stream_id % 256; fwrite(&tmp, 1, 1, stdout);
-        tmp = ch.msg_stream_id / 256; fwrite(&tmp, 1, 1, stdout);
-        tmp = ch.msg_stream_id / (256*256); fwrite(&tmp, 1, 1, stdout);
-        tmp = ch.msg_stream_id / (256*256*256); fwrite(&tmp, 1, 1, stdout);
+        tmp = ch.msg_stream_id % 256; DDV_write(&tmp, 1, 1, CONN_fd);
+        tmp = ch.msg_stream_id / 256; DDV_write(&tmp, 1, 1, CONN_fd);
+        tmp = ch.msg_stream_id / (256*256); DDV_write(&tmp, 1, 1, CONN_fd);
+        tmp = ch.msg_stream_id / (256*256*256); DDV_write(&tmp, 1, 1, CONN_fd);
         snd_cnt+=4;
       }
     }
   }
   //support for 0x00ffffff timestamps
   if (ntime){
-    tmp = ntime / (256*256*256); fwrite(&tmp, 1, 1, stdout);
-    tmp = ntime / (256*256); fwrite(&tmp, 1, 1, stdout);
-    tmp = ntime / 256; fwrite(&tmp, 1, 1, stdout);
-    tmp = ntime % 256; fwrite(&tmp, 1, 1, stdout);
+    tmp = ntime / (256*256*256); DDV_write(&tmp, 1, 1, CONN_fd);
+    tmp = ntime / (256*256); DDV_write(&tmp, 1, 1, CONN_fd);
+    tmp = ntime / 256; DDV_write(&tmp, 1, 1, CONN_fd);
+    tmp = ntime % 256; DDV_write(&tmp, 1, 1, CONN_fd);
     snd_cnt+=4;
   }
   ch.len_left = 0;
   while (ch.len_left < ch.len){
     tmpi = ch.len - ch.len_left;
     if (tmpi > chunk_snd_max){tmpi = chunk_snd_max;}
-    fwrite((ch.data + ch.len_left), 1, tmpi, stdout);
+    DDV_write((ch.data + ch.len_left), 1, tmpi, CONN_fd);
     snd_cnt+=tmpi;
     ch.len_left += tmpi;
     if (ch.len_left < ch.len){
       if (ch.cs_id <= 63){
-        tmp = 0xC0 + ch.cs_id; fwrite(&tmp, 1, 1, stdout);
+        tmp = 0xC0 + ch.cs_id; DDV_write(&tmp, 1, 1, CONN_fd);
         snd_cnt+=1;
       }else{
         if (ch.cs_id <= 255+64){
-          tmp = 0xC0; fwrite(&tmp, 1, 1, stdout);
-          tmp = ch.cs_id - 64; fwrite(&tmp, 1, 1, stdout);
+          tmp = 0xC0; DDV_write(&tmp, 1, 1, CONN_fd);
+          tmp = ch.cs_id - 64; DDV_write(&tmp, 1, 1, CONN_fd);
           snd_cnt+=2;
         }else{
-          tmp = 0xC1; fwrite(&tmp, 1, 1, stdout);
+          tmp = 0xC1; DDV_write(&tmp, 1, 1, CONN_fd);
           tmpi = ch.cs_id - 64;
-          tmp = tmpi % 256; fwrite(&tmp, 1, 1, stdout);
-          tmp = tmpi / 256; fwrite(&tmp, 1, 1, stdout);
+          tmp = tmpi % 256; DDV_write(&tmp, 1, 1, CONN_fd);
+          tmp = tmpi / 256; DDV_write(&tmp, 1, 1, CONN_fd);
           snd_cnt+=4;
         }
       }
@@ -310,19 +310,19 @@ struct chunkpack getChunk(){
   gettimeofday(&lastrec, 0);
   struct chunkpack ret;
   unsigned char temp;
-  fread(&(ret.chunktype), 1, 1, stdin);
+  DDV_read(&(ret.chunktype), 1, 1, CONN_fd);
   rec_cnt++;
   //read the chunkstream ID properly
   switch (ret.chunktype & 0x3F){
     case 0:
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       rec_cnt++;
       ret.cs_id = temp + 64;
       break;
     case 1:
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.cs_id = temp + 64;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.cs_id += temp * 256;
       rec_cnt+=2;
       break;
@@ -334,57 +334,57 @@ struct chunkpack getChunk(){
   //process the rest of the header, for each chunk type
   switch (ret.chunktype & 0xC0){
     case 0x00:
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp = temp*256*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp += temp*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp += temp;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.len = temp*256*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.len += temp*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.len += temp;
       ret.len_left = 0;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.msg_type_id = temp;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.msg_stream_id = temp;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.msg_stream_id += temp*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.msg_stream_id += temp*256*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.msg_stream_id += temp*256*256*256;
       rec_cnt+=11;
       break;
     case 0x40:
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp = temp*256*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp += temp*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp += temp;
       ret.timestamp += prev.timestamp;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.len = temp*256*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.len += temp*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.len += temp;
       ret.len_left = 0;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.msg_type_id = temp;
       ret.msg_stream_id = prev.msg_stream_id;
       rec_cnt+=7;
       break;
     case 0x80:
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp = temp*256*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp += temp*256;
-      fread(&temp, 1, 1, stdin);
+      DDV_read(&temp, 1, 1, CONN_fd);
       ret.timestamp += temp;
       ret.timestamp += prev.timestamp;
       ret.len = prev.len;
@@ -414,20 +414,20 @@ struct chunkpack getChunk(){
   }
   //read extended timestamp, if neccesary
   if (ret.timestamp == 0x00ffffff){
-    fread(&temp, 1, 1, stdin);
+    DDV_read(&temp, 1, 1, CONN_fd);
     ret.timestamp = temp*256*256*256;
-    fread(&temp, 1, 1, stdin);
+    DDV_read(&temp, 1, 1, CONN_fd);
     ret.timestamp += temp*256*256;
-    fread(&temp, 1, 1, stdin);
+    DDV_read(&temp, 1, 1, CONN_fd);
     ret.timestamp += temp*256;
-    fread(&temp, 1, 1, stdin);
+    DDV_read(&temp, 1, 1, CONN_fd);
     ret.timestamp += temp;
     rec_cnt+=4;
   }
   //read data if length > 0, and allocate it
   if (ret.real_len > 0){
     ret.data = (unsigned char*)malloc(ret.real_len);
-    fread(ret.data, 1, ret.real_len, stdin);
+    DDV_read(ret.data, 1, ret.real_len, CONN_fd);
     rec_cnt+=ret.real_len;
   }else{
     ret.data = 0;
@@ -484,7 +484,7 @@ chunkpack getWholeChunk(){
   if (!clean){gwc_complete.data = 0; clean = true;}//prevent brain damage
   chunkpack * ret = 0;
   scrubChunk(gwc_complete);
-  while (counter < 10000){
+  while (counter < 1000){
     gwc_next = getChunk();
     ret = AddChunkPart(gwc_next);
     scrubChunk(gwc_next);
@@ -493,7 +493,7 @@ chunkpack getWholeChunk(){
       free(ret);//cleanup returned chunk
       return gwc_complete;
     }
-    if (feof(stdin) != 0){break;}
+    if (socketError || socketBlocking){break;}
     counter++;
   }
   gwc_complete.msg_type_id = 0;

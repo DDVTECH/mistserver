@@ -36,8 +36,10 @@ bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar, int sock
   int r = 0;
   r = DDV_iread(buffer + sofar,count-sofar,sock);
   if (r < 0){
-    All_Hell_Broke_Loose = true;
-    fprintf(stderr, "ReadUntil fail: %s. All Hell Broke Loose!\n", strerror(errno));
+    if (errno != EWOULDBLOCK){
+      All_Hell_Broke_Loose = true;
+      fprintf(stderr, "ReadUntil fail: %s. All Hell Broke Loose!\n", strerror(errno));
+    }
     return false;
   }
   sofar += r;

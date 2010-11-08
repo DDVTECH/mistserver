@@ -125,7 +125,7 @@ int main(int argc, char ** argv){
         inited = true;
       }
       //only send data if previous data has been ACK'ed...
-      if (snd_cnt - snd_window_at < snd_window_size){
+      //if (snd_cnt - snd_window_at < snd_window_size){
         if (FLV_GetPacket(tag, ss)){//able to read a full packet?
           ts = tag->data[7] * 256*256*256;
           ts += tag->data[4] * 256*256;
@@ -151,7 +151,7 @@ int main(int argc, char ** argv){
           fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
           #endif
         }
-      }
+      //}
     }
     //send ACK if we received a whole window
     if (rec_cnt - rec_window_at > rec_window_size){

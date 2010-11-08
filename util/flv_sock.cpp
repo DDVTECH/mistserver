@@ -96,6 +96,10 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
       //calculate keyframeness, next time read header again, return true
       p->isKeyframe = false;
       if ((p->data[0] == 0x09) && (((p->data[11] & 0xf0) >> 4) == 1)){p->isKeyframe = true;}
+      int testlen = p->data[p->len-1] + 15;
+      testlen += (p->data[p->len-2] << 8);
+      testlen += (p->data[p->len-3] << 16);
+      fprintf(stderr, "Len: %i, testlen: %i\n", p->len, testlen);
       done = true;
       sofar = 0;
       return true;

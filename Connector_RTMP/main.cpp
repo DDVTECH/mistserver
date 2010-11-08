@@ -112,7 +112,7 @@ int main(int argc, char ** argv){
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!
-        ss = DDV_OpenUnix(streamname.c_str());
+        ss = DDV_OpenUnix(streamname);
         if (ss <= 0){
           #ifdef DEBUG
           fprintf(stderr, "Could not connect to server!\n");

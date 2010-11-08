@@ -60,7 +60,7 @@ int main( int argc, char * argv[] ) {
   int infile = fileno(stdin);
   int poller = epoll_create(1);
   struct epoll_event ev;
-  ev.events = EPOLLIN | EPOLLPRI | EPOLLERR | EPOLLHUP;
+  ev.events = EPOLLIN;
   ev.data.fd = infile;
   epoll_ctl(poller, EPOLL_CTL_ADD, infile, &ev);
   struct epoll_event events[1];

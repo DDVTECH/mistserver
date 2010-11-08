@@ -20,7 +20,7 @@ timeval lastrec;
 
 #include "parsechunks.cpp" //chunkstream parsing
 #include "handshake.cpp" //handshaking
-#include "../util/flv_sock.cpp" //FLV parsing with SocketW
+#include "flv_sock.cpp" //FLV parsing with SocketW
 
 int main(){
   unsigned int ts;

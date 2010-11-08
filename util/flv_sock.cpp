@@ -35,7 +35,11 @@ bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar, int sock
   if (sofar >= count){return true;}
   int r = 0;
   r = DDV_iread(buffer + sofar,count-sofar,sock);
-  if (r < 0){All_Hell_Broke_Loose = true; return false;}
+  if (r < 0){
+    All_Hell_Broke_Loose = true;
+    fprintf(stderr, "ReadUntil fail: %s. All Hell Broke Loose!\n", strerror(errno));
+    return false;
+  }
   sofar += r;
   if (sofar >= count){return true;}
   return false;
@@ -63,7 +67,10 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
           if (FLV_Checkheader(p->data)){
             sofar = 0;
             memcpy(FLVHeader, p->data, 13);
-          }else{All_Hell_Broke_Loose = true;}
+          }else{
+            All_Hell_Broke_Loose = true;
+            fprintf(stderr, "Invalid FLV header. All Hell Broke Loose!\n");
+          }
         }
       }else{
         //if a tag header, calculate length and read tag body

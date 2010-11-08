@@ -1,4 +1,4 @@
-#define DEBUG
+#undef DEBUG
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>

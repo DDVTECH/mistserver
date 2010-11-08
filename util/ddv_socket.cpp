@@ -98,7 +98,7 @@ bool DDV_ready(int sock){
 }
 
 int DDV_readycount(int sock){
-  static tmp[1048576];
+  static char tmp[1048576];
   int preflags = fcntl(sock, F_GETFL, 0);
   int postflags = preflags | O_NONBLOCK;
   fcntl(sock, F_SETFL, postflags);

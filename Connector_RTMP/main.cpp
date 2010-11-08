@@ -77,7 +77,7 @@ int main(){
   
     
   
-  while (!ferror(CONN) && !feof(CONN)){
+  while (!socketError){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
     retval = epoll_wait(poller, events, 1, 0);

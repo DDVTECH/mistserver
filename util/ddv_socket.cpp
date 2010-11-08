@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <string.h>
 
+bool socketError = false;
 
 int DDV_Listen(int port){
   int s = socket(AF_INET, SOCK_STREAM, 0);
@@ -36,9 +37,13 @@ int DDV_Accept(int sock){
 }
 
 bool DDV_write(char * buffer, int width, int count, int sock){
-  return (send(sock, buffer, width*count, 0) == width*count);
+  bool r = (send(sock, buffer, width*count, 0) == width*count);
+  if (!r){socketError = true}
+  return r;
 }
 
 bool DDV_read(char * buffer, int width, int count, int sock){
-  return (recv(sock, buffer, width*count, 0) == width*count);
+  bool r = (recv(sock, buffer, width*count, 0) == width*count);
+  if (!r){socketError = true}
+  return r;
 }

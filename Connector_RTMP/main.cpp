@@ -104,7 +104,7 @@ int main(int argc, char ** argv){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
     retval = epoll_wait(poller, events, 1, 0);
-    if ((retval > 0) || (!ready4data || (snd_cnt - snd_window_at >= snd_window_size))){
+    if (!ready4data || (snd_cnt - snd_window_at >= snd_window_size)){
       parseChunk();
     }
     if (ready4data){

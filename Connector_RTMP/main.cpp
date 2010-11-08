@@ -66,8 +66,10 @@ int main(int argc, char ** argv){
   unsigned int fts = 0;
   unsigned int ftst;
   int ss;
-  FLV_Pack * tag = 0;
-
+  FLV_Pack * tag[2];
+  tag[0] = 0;
+  tag[1] = 0;
+  
   //first timestamp set
   firsttime = getNowMS();
 
@@ -131,27 +133,30 @@ int main(int argc, char ** argv){
 
       retval = epoll_wait(poller, events, 1, 50);
       if (DDV_ready(ss)){
-        if (FLV_GetPacket(tag, ss)){//able to read a full packet?
-          ts = tag->data[7] * 256*256*256;
-          ts += tag->data[4] * 256*256;
-          ts += tag->data[5] * 256;
-          ts += tag->data[6];
+        if (FLV_GetPacket(tag[0], ss)){//able to read a full packet?
+          FLV_Pack * tmptag = tag[0];
+          tag[0] = tag[1];
+          tag[1] = tmptag;
+          ts = tag[1]->data[7] * 256*256*256;
+          ts += tag[1]->data[4] * 256*256;
+          ts += tag[1]->data[5] * 256;
+          ts += tag[1]->data[6];
           if (ts != 0){
             if (fts == 0){fts = ts;ftst = getNowMS();}
             ts -= fts;
-            tag->data[7] = ts / (256*256*256);
-            tag->data[4] = ts / (256*256);
-            tag->data[5] = ts / 256;
-            tag->data[6] = ts % 256;
+            tag[1]->data[7] = ts / (256*256*256);
+            tag[1]->data[4] = ts / (256*256);
+            tag[1]->data[5] = ts / 256;
+            tag[1]->data[6] = ts % 256;
             ts += ftst;
           }else{
             ftst = getNowMS();
-            tag->data[7] = ftst / (256*256*256);
-            tag->data[4] = ftst / (256*256);
-            tag->data[5] = ftst / 256;
-            tag->data[6] = ftst % 256;
+            tag[1]->data[7] = ftst / (256*256*256);
+            tag[1]->data[4] = ftst / (256*256);
+            tag[1]->data[5] = ftst / 256;
+            tag[1]->data[6] = ftst % 256;
           }
-          SendMedia((unsigned char)tag->data[0], (unsigned char *)tag->data+11, tag->len-15, ts);
+          SendMedia((unsigned char)tag[1]->data[0], (unsigned char *)tag[1]->data+11, tag->len-15, ts);
           #ifdef DEBUG
           fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
           #endif

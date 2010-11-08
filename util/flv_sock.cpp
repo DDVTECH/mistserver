@@ -48,7 +48,11 @@ bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar, int sock
     return false;
   }
   sofar += r;
-  if (sofar >= count){return true;}
+  if (sofar == count){return true;}
+  if (sofar > count){
+    All_Hell_Broke_Loose = true;
+    fprintf(stderr, "ReadUntil fail: %s. Read too much. All Hell Broke Loose!\n", strerror(errno));
+  }
   return false;
 }
 

@@ -1,4 +1,4 @@
-#define DEBUG
+#undef DEBUG
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
@@ -141,8 +141,8 @@ int main(){
       SendCTL(3, rec_cnt);//send ack (msg 3)
     }
   }
-  #ifdef DEBUG
-  fprintf(stderr, "User disconnected.\n");
-  #endif
+  //#ifdef DEBUG
+  fprintf(stderr, "User %i disconnected.\n", CONN_fd);
+  //#endif
   return 0;
 }//main

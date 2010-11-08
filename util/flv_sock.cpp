@@ -32,19 +32,22 @@ bool FLV_Isheader(char * header){
 }//FLV_Isheader
 
 bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar, int sock){
-  if (sofar >= count){return true;}
-  fprintf(stderr, "Reading %i/%i\n", sofar, count);
-  if (DDV_readycount(sock) >= count-sofar){
-    bool r = DDV_read(buffer + sofar,count-sofar,sock);
-    sofar = count;
-    if (!r){
+  if (sofar == count){return true;}
+  int r = DDV_iread(buffer + sofar,count-sofar,sock);
+  if (r < 0){
+    if (errno != EWOULDBLOCK){
       All_Hell_Broke_Loose = true;
       fprintf(stderr, "ReadUntil fail: %s. All Hell Broke Loose!\n", strerror(errno));
     }
-    return r;
-  }else{
     return false;
   }
+  sofar += r;
+  if (sofar == count){return true;}
+  if (sofar > count){
+    All_Hell_Broke_Loose = true;
+    fprintf(stderr, "ReadUntil fail: %s. Read too much. All Hell Broke Loose!\n", strerror(errno));
+  }
+  return false;
 }
 
 //gets a packet, storing in given FLV_Pack pointer.
@@ -55,7 +58,7 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
   static bool done = true;
   static unsigned int sofar = 0;
   if (!p){p = (FLV_Pack*)calloc(1, sizeof(FLV_Pack));}
-  if (p->buf < 15){p->data = (char*)realloc(p->data, 5000); p->buf = 5000;}
+  if (p->buf < 15){p->data = (char*)realloc(p->data, 15); p->buf = 15;}
 
   if (done){
     //read a header

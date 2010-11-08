@@ -160,6 +160,8 @@ int main(int argc, char ** argv){
     }
   }
   //#ifdef DEBUG
+  if (socketError){fprintf(stderr, "socketError\n");}
+  if (All_Hell_Broke_Loose){fprintf(stderr, "All Hell Broke Loose\n");}
   fprintf(stderr, "User %i disconnected.\n", CONN_fd);
   //#endif
   return 0;

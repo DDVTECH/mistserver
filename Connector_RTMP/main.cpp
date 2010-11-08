@@ -31,7 +31,7 @@ void termination_handler (int signum){
   server_socket = 0;
 }
 
-int main(){
+int main(int argc, char ** argv){
   //setup signal handler
   struct sigaction new_action;
   new_action.sa_handler = termination_handler;
@@ -42,7 +42,9 @@ int main(){
   sigaction (SIGTERM, &new_action, NULL);
   
   server_socket = DDV_Listen(1935);
-  if (server_socket > 0){daemon(1, 0);}else{return 1;}
+  if ((argc < 2) || (argv[1] == "nd")){
+    if (server_socket > 0){daemon(1, 0);}else{return 1;}
+  }
   int status;
   while (server_socket > 0){
     waitpid((pid_t)-1, &status, WNOHANG);

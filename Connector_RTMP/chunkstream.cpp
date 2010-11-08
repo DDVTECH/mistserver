@@ -493,7 +493,7 @@ chunkpack getWholeChunk(){
       free(ret);//cleanup returned chunk
       return gwc_complete;
     }
-    if (feof(CONN_fd) != 0){break;}
+    if (socketError){break;}
     counter++;
   }
   gwc_complete.msg_type_id = 0;

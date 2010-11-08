@@ -73,7 +73,7 @@ bool DDV_write(void * buffer, int todo, int sock){
     int r = send(sock, (char*)buffer + sofar, todo-sofar, 0);
     if (r <= 0){
       switch (errno){
-        case EWOULDBLOCK: printf("Would block\n"); socketBlocking = true; break;
+        case EWOULDBLOCK: socketBlocking = true; return false; break;
         default:
           socketError = true;
           printf("Could not write! %s\n", strerror(errno));
@@ -93,7 +93,7 @@ bool DDV_read(void * buffer, int todo, int sock){
     int r = recv(sock, (char*)buffer + sofar, todo-sofar, 0);
     if (r <= 0){
       switch (errno){
-        case EWOULDBLOCK: printf("Read: Would block\n"); socketBlocking = true; break;
+        case EWOULDBLOCK: socketBlocking = true; return false; break;
         default:
           socketError = true;
           printf("Could not read! %s\n", strerror(errno));
@@ -115,7 +115,7 @@ int DDV_iwrite(void * buffer, int todo, int sock){
   int r = send(sock, buffer, todo, 0);
   if (r < 0){
     switch (errno){
-      case EWOULDBLOCK: printf("Write: Would block\n"); break;
+      case EWOULDBLOCK: break;
       default:
         socketError = true;
         printf("Could not write! %s\n", strerror(errno));
@@ -130,7 +130,7 @@ int DDV_iread(void * buffer, int todo, int sock){
   int r = recv(sock, buffer, todo, 0);
   if (r < 0){
     switch (errno){
-      case EWOULDBLOCK: printf("Read: Would block\n"); break;
+      case EWOULDBLOCK: break;
       default:
         socketError = true;
         printf("Could not read! %s\n", strerror(errno));

@@ -41,7 +41,7 @@ int main(int argc, char ** argv){
   sigaction (SIGHUP, &new_action, NULL);
   sigaction (SIGTERM, &new_action, NULL);
   
-  server_socket = DDV_Listen(1935);
+  server_socket = DDV_Listen(1936);
   if ((argc < 2) || (argv[1] == "nd")){
     if (server_socket > 0){daemon(1, 0);}else{return 1;}
   }

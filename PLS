@@ -26,3 +26,17 @@ service ddvtechraw
         cps                 = 100 5
 }
 
+service ddvtechrtmp
+{
+        disable             = no
+        type                = UNLISTED
+        protocol            = tcp
+        socket_type         = stream
+        user                = root
+        server              = /usr/bin/Connector_RTMPf
+        port                = 1935
+        wait                = no
+        per_source          = 10
+        cps                 = 100 5
+}
+

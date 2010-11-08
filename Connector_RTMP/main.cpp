@@ -130,7 +130,7 @@ int main(int argc, char ** argv){
       }
 
       retval = epoll_wait(poller, events, 1, 50);
-      if ((retval > 0) && (DDV_ready(ss))){
+      if (DDV_ready(ss)){
         if (FLV_GetPacket(tag, ss)){//able to read a full packet?
           ts = tag->data[7] * 256*256*256;
           ts += tag->data[4] * 256*256;

@@ -13,8 +13,6 @@ bool socketBlocking = false;
 
 int DDV_OpenUnix(const char adres[], bool nonblock = false){
   int s = socket(AF_UNIX, SOCK_STREAM, 0);
-  int on = 1;
-  setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strcpy(addr.sun_path, adres);
@@ -35,6 +33,8 @@ int DDV_OpenUnix(const char adres[], bool nonblock = false){
 int DDV_Listen(int port){
   int s = socket(AF_INET, SOCK_STREAM, 0);
 
+  int on = 1;
+  setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   struct sockaddr_in addr;
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);//port 8888

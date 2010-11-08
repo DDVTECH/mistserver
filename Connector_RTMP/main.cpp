@@ -66,7 +66,7 @@ int main(int argc, char ** argv){
   unsigned int fts = 0;
   unsigned int ftst;
   int ss;
-  FLV_Pack * tag;
+  FLV_Pack * tag = 0;
 
   //first timestamp set
   firsttime = getNowMS();

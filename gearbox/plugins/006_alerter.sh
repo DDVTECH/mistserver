@@ -1,6 +1,4 @@
 print_alerts() {
-  EMAILMESSAGE="/tmp/alerter.txt"
-  echo "Gearbox has encountered the following problems:" > $EMAILMESSAGE
   local preferences=( $plugsett_alerter )
   local $plugsett_alerter
   local i=0

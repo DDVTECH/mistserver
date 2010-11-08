@@ -55,8 +55,14 @@ int DDV_Listen(int port){
   }
 }
 
-int DDV_Accept(int sock){
-  return accept(sock, 0, 0);
+int DDV_Accept(int sock, bool nonblock = false){
+  int r = accept(sock, 0, 0);
+  if ((r > 0) && nonblock){
+    int flags = fcntl(r, F_GETFL, 0);
+    flags |= O_NONBLOCK;
+    fcntl(r, F_SETFL, flags);
+  }
+  return r;
 }
 
 bool DDV_write(void * buffer, int todo, int sock){

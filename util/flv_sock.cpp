@@ -32,6 +32,11 @@ bool FLV_Isheader(char * header){
 }//FLV_Isheader
 
 bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar, int sock){
+  if (count > 500000){
+    All_Hell_Broke_Loose = true;
+    fprintf(stderr, "ReadUntil fail: > 500kb tag? All Hell Broke Loose!\n", strerror(errno));
+    return false;
+  }
   if (sofar >= count){return true;}
   int r = 0;
   r = DDV_iread(buffer + sofar,count-sofar,sock);

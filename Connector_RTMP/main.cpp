@@ -91,6 +91,7 @@ int main(int argc, char ** argv){
 
   int retval;
   int poller = epoll_create(1);
+  int sspoller = epoll_create(1);
   struct epoll_event ev;
   ev.events = EPOLLIN;
   ev.data.fd = CONN_fd;
@@ -119,14 +120,17 @@ int main(int argc, char ** argv){
           #endif
           return 0;
         }
+        ev.events = EPOLLIN;
+        ev.data.fd = ss;
+        epoll_ctl(sspoller, EPOLL_CTL_ADD, ss, &ev);
         #ifdef DEBUG
         fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
         inited = true;
       }
-      //only send data if previous data has been ACK'ed...
-      //if (snd_cnt - snd_window_at < snd_window_size){
-      if (DDV_ready(ss)){
+
+      retval = epoll_wait(poller, events, 1, 50);
+      if ((retval > 0) && (DDV_ready(ss))){
         if (FLV_GetPacket(tag, ss)){//able to read a full packet?
           ts = tag->data[7] * 256*256*256;
           ts += tag->data[4] * 256*256;
@@ -153,7 +157,6 @@ int main(int argc, char ** argv){
           #endif
         }
       }
-      //}
     }
     //send ACK if we received a whole window
     if (rec_cnt - rec_window_at > rec_window_size){

@@ -105,7 +105,9 @@ int main(int argc, char ** argv){
     //rightnow = getNowMS();
     retval = epoll_wait(poller, events, 1, 0);
     if (!ready4data || (snd_cnt - snd_window_at >= snd_window_size)){
-      parseChunk();
+      if (DDV_ready(CONN_fd)){
+        parseChunk();
+      }
     }
     if (ready4data){
       if (!inited){

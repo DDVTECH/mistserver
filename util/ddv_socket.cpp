@@ -97,20 +97,6 @@ bool DDV_ready(int sock){
   return (r == 1);
 }
 
-int DDV_readycount(int sock){
-  static char tmp[1048576];
-  int preflags = fcntl(sock, F_GETFL, 0);
-  int postflags = preflags | O_NONBLOCK;
-  fcntl(sock, F_SETFL, postflags);
-  int r = recv(sock, tmp, 1048576, MSG_PEEK);
-  fcntl(sock, F_SETFL, preflags);
-  if (r > 0){
-    return r;
-  }else{
-    return 0;
-  }
-}
-
 bool DDV_read(void * buffer, int todo, int sock){
   int sofar = 0;
   socketBlocking = false;

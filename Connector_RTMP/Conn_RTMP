@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# chkconfig: 345 92 8
+# description: DDVTech RTMP Connector
+#
+# processname: Connector_RTMP
+
+. /etc/rc.d/init.d/functions
+
+prog="Connector_RTMP"
+fullprog="/usr/bin/Connector_RTMP"
+RETVAL=0
+
+start() {
+        gprintf "Starting %s: " $prog
+        daemon --user=root $fullprog
+        RETVAL=$?
+        echo
+        [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$prog
+        return $RETVAL
+}
+
+stop() {
+        gprintf "Stopping %s: " $prog
+        killproc $fullprog
+        RETVAL=$?
+        echo
+        [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$prog
+        return $RETVAL
+}
+
+case "$1" in
+        start)
+                start
+                ;;
+        stop)
+                stop
+                ;;
+        restart)
+                stop
+                start
+                ;;
+        condrestart)
+                if [ -f /var/lock/subsys/$prog ]; then
+                        stop
+                        start
+                fi
+                ;;
+        status)
+                status $fullprog
+                RETVAL=$?
+                ;;
+        *)
+                gprintf "Usage: %s {start|stop|restart|status}" $0
+                RETVAL=1
+esac
+
+exit $RETVAL

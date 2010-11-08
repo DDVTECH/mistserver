@@ -16,8 +16,8 @@ $(OUT): $(OBJ) chunkstream.cpp parsechunks.cpp handshake.cpp crypto.cpp amf.cpp
 	$(CC) $(LIBS) -o $(OUT) $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
-run-test: $(OUT)
-	rm -rf ./meh
-	mkfifo ./meh
-	cat ./meh &
-	nc -l -p 1935 -e './Connector_RTMP 2>./meh'
+install: $(OUT)
+	-service Conn_RTMP stop
+	cp -f ./$(OUT) /usr/bin/
+	cp -f ./Conn_RTMP /etc/init.d/
+	service Conn_RTMP start

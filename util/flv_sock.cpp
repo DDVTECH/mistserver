@@ -52,9 +52,6 @@ bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar, int sock
 //resizes FLV_Pack data field bigger if data doesn't fit
 // (does not auto-shrink for speed!)
 bool FLV_GetPacket(FLV_Pack *& p, int sock){
-  int preflags = fcntl(sock, F_GETFL, 0);
-  int postflags = preflags | O_NONBLOCK;
-  fcntl(sock, F_SETFL, postflags);
   static bool done = true;
   static unsigned int sofar = 0;
   if (!p){p = (FLV_Pack*)calloc(1, sizeof(FLV_Pack));}
@@ -79,7 +76,7 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
         p->len = p->data[3] + 15;
         p->len += (p->data[2] << 8);
         p->len += (p->data[1] << 16);
-        fprintf(stderr, "Tag of len %i\n", p->len);
+        //fprintf(stderr, "Tag of len %i\n", p->len);
         if (p->buf < p->len){p->data = (char*)realloc(p->data, p->len);p->buf = p->len;}
         done = false;
       }
@@ -92,11 +89,9 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
       if ((p->data[0] == 0x09) && (((p->data[11] & 0xf0) >> 4) == 1)){p->isKeyframe = true;}
       done = true;
       sofar = 0;
-      fcntl(sock, F_SETFL, preflags);
       return true;
     }
   }
-  fcntl(sock, F_SETFL, preflags);
   return false;
 }//FLV_GetPacket
 

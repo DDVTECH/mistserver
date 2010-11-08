@@ -97,9 +97,9 @@ int main(int argc, char ** argv){
   epoll_ctl(poller, EPOLL_CTL_ADD, CONN_fd, &ev);
   struct epoll_event events[1];
 
-  
-    
-  
+
+
+
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
@@ -126,6 +126,7 @@ int main(int argc, char ** argv){
       }
       //only send data if previous data has been ACK'ed...
       //if (snd_cnt - snd_window_at < snd_window_size){
+      if (DDV_ready(ss)){
         if (FLV_GetPacket(tag, ss)){//able to read a full packet?
           ts = tag->data[7] * 256*256*256;
           ts += tag->data[4] * 256*256;
@@ -151,6 +152,7 @@ int main(int argc, char ** argv){
           fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
           #endif
         }
+      }
       //}
     }
     //send ACK if we received a whole window

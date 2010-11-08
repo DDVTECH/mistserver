@@ -64,9 +64,15 @@ bool DDV_write(void * buffer, int todo, int sock){
   while (sofar != todo){
     int r = send(sock, (char*)buffer + sofar, todo-sofar, 0);
     if (r <= 0){
-      socketError = true;
-      printf("Could not write! %s\n", strerror(errno));
-      return false;
+      switch (errno){
+        case EWOULDBLOCK: printf("Would block\n"); break;
+        case EAGAIN: printf("Again\n"); break;
+        default:
+          socketError = true;
+          printf("Could not write! %s\n", strerror(errno));
+          return false;
+          break;
+      }
     }
     sofar += r;
   }
@@ -78,9 +84,15 @@ bool DDV_read(void * buffer, int todo, int sock){
   while (sofar != todo){
     int r = recv(sock, (char*)buffer + sofar, todo-sofar, 0);
     if (r <= 0){
-      socketError = true;
-      printf("Could not read! %s\n", strerror(errno));
-      return false;
+      switch (errno){
+        case EWOULDBLOCK: printf("Read: Would block\n"); break;
+        case EAGAIN: printf("Read: Again\n"); break;
+        default:
+          socketError = true;
+          printf("Could not read! %s\n", strerror(errno));
+          return false;
+          break;
+      }
     }
     sofar += r;
   }
@@ -96,7 +108,7 @@ int DDV_iwrite(void * buffer, int todo, int sock){
   int r = send(sock, buffer, todo, 0);
   if (r < 0){
     socketError = true;
-    printf("Could not write! %s\n", strerror(errno));
+    printf("Could not iwrite! %s\n", strerror(errno));
   }
   return r;
 }
@@ -105,7 +117,7 @@ int DDV_iread(void * buffer, int todo, int sock){
   int r = recv(sock, buffer, todo, 0);
   if (r < 0){
     socketError = true;
-    printf("Could not write! %s\n", strerror(errno));
+    printf("Could not iread! %s\n", strerror(errno));
   }
   return r;
 }

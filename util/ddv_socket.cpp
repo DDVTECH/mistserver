@@ -13,7 +13,7 @@ bool socketError = false;
 bool socketBlocking = false;
 
 int DDV_OpenUnix(std::string adres, bool nonblock = false){
-  int s = socket(AF_UNIX, SOCK_STREAM, 0);
+  int s = socket(PF_UNIX, SOCK_STREAM, 0);
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, adres.c_str(), adres.size()+1);
@@ -24,6 +24,7 @@ int DDV_OpenUnix(std::string adres, bool nonblock = false){
       flags |= O_NONBLOCK;
       fcntl(s, F_SETFL, flags);
     }
+    fprintf(stderr, "Connected to %s\n", addr.sun_path);
     return s;
   }else{
     close(s);

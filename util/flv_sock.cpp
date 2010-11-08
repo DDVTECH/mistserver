@@ -60,7 +60,7 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
   static bool done = true;
   static unsigned int sofar = 0;
   if (!p){p = (FLV_Pack*)calloc(1, sizeof(FLV_Pack));}
-  if (p->buf < 15){p->data = (char*)realloc(p->data, 15); p->buf = 15;}
+  if (p->buf < 15){p->data = (char*)realloc(p->data, 5000); p->buf = 5000;}
 
   if (done){
     //read a header

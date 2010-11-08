@@ -32,11 +32,6 @@ bool FLV_Isheader(char * header){
 }//FLV_Isheader
 
 bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar, int sock){
-  if (count > 500000){
-    All_Hell_Broke_Loose = true;
-    fprintf(stderr, "ReadUntil fail: > 500kb tag? All Hell Broke Loose!\n", strerror(errno));
-    return false;
-  }
   if (sofar >= count){return true;}
   int r = 0;
   r = DDV_iread(buffer + sofar,count-sofar,sock);
@@ -96,11 +91,18 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
       //calculate keyframeness, next time read header again, return true
       p->isKeyframe = false;
       if ((p->data[0] == 0x09) && (((p->data[11] & 0xf0) >> 4) == 1)){p->isKeyframe = true;}
-      int testlen = p->data[p->len-1] + 3;
+      int testlen = p->data[p->len-1] + 4;
       testlen += (p->data[p->len-2] << 8);
       testlen += (p->data[p->len-3] << 16);
       testlen += (p->data[p->len-4] << 24);
-      fprintf(stderr, "Len: %i, testlen: %i\n", p->len, testlen);
+      if (p->len == testlen){
+        fprintf(stderr, "Correct length tag...\n");
+      }else{
+        fprintf(stderr, "Len: %i, testlen: %i\n", p->len, testlen);
+        All_Hell_Broke_Loose = true;
+        fprintf(stderr, "ReadUntil fail: > 500kb tag? All Hell Broke Loose!\n", strerror(errno));
+        return false;
+      }
       done = true;
       sofar = 0;
       return true;

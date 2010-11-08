@@ -484,7 +484,7 @@ chunkpack getWholeChunk(){
   if (!clean){gwc_complete.data = 0; clean = true;}//prevent brain damage
   chunkpack * ret = 0;
   scrubChunk(gwc_complete);
-  while (counter < 10000){
+  while (counter < 1000){
     gwc_next = getChunk();
     ret = AddChunkPart(gwc_next);
     scrubChunk(gwc_next);
@@ -493,7 +493,7 @@ chunkpack getWholeChunk(){
       free(ret);//cleanup returned chunk
       return gwc_complete;
     }
-    if (socketError){break;}
+    if (socketError || socketBlocking){break;}
     counter++;
   }
   gwc_complete.msg_type_id = 0;

@@ -1,3 +1,4 @@
+#include <string>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -11,12 +12,12 @@
 bool socketError = false;
 bool socketBlocking = false;
 
-int DDV_OpenUnix(const char adres[], bool nonblock = false){
+int DDV_OpenUnix(std::string adres, bool nonblock = false){
   int s = socket(AF_UNIX, SOCK_STREAM, 0);
-  struct sockaddr_un addr;
+  sockaddr_un addr;
   addr.sun_family = AF_UNIX;
-  strcpy(addr.sun_path, adres);
-  int r = connect(s, (sockaddr*)&addr, sizeof(struct sockaddr_un));
+  strncpy(addr.sun_path, adres.c_str(), adres.size()+1);
+  int r = connect(s, (sockaddr*)&addr, sizeof(addr));
   if (r == 0){
     if (nonblock){
       int flags = fcntl(s, F_GETFL, 0);

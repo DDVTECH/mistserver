@@ -88,7 +88,11 @@ bool DDV_write(void * buffer, int todo, int sock){
 
 bool DDV_ready(int sock){
   char tmp;
+  int preflags = fcntl(sock, F_GETFL, 0);
+  int postflags = preflags | O_NONBLOCK;
+  fcntl(sock, F_SETFL, postflags);
   int r = recv(sock, &tmp, 1, MSG_PEEK);
+  fcntl(sock, F_SETFL, preflags);
   return (r == 1);
 }
 

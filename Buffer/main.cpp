@@ -1,3 +1,5 @@
+#include <unistd.h>
+#include <fcntl.h>
 #include <iostream>
 #include "../sockets/SocketW.h"
 #include <string>
@@ -8,6 +10,8 @@
 #include <unistd.h>
 #include "../util/flv.cpp" //FLV format parser
 #include "user.cpp"
+
+#include <sys/epoll.h>
 
 int get_empty( user ** list, int amount ) {
   for (int i = 0; i < amount; i++ ){
@@ -47,15 +51,26 @@ int main( int argc, char * argv[] ) {
   unsigned char packtype;
   bool gotVideoInfo = false;
   bool gotAudioInfo = false;
-  while(std::cin.good() && std::cout.good()) {
-    loopcount ++;
+
+  //set stdin to be nonblocking
+  //int flags = fcntl(0, F_GETFL, 0);
+  //flags |= O_NONBLOCK;
+  //fcntl(0, F_SETFL, flags);
+
+  int infile = fileno(stdin);
+  int poller = epoll_create(1);
+  struct epoll_event ev;
+  ev.events = EPOLLIN;
+  ev.data.fd = infile;
+  epoll_ctl(poller, EPOLL_CTL_ADD, infile, &ev);
+  struct epoll_event events[1];
+  
+  
+  while(!feof(stdin) && !All_Hell_Broke_Loose){
     //invalidate the current buffer
     ringbuf[current_buffer]->number = -1;
-    if (std::cin.peek() == 'F') {
-      //new FLV file, read the file header again.
-      FLV_Readheader();
-    } else {
-      FLV_GetPacket(ringbuf[current_buffer]->FLV);
+    if ((epoll_wait(poller, events, 1, 100) > 0) && FLV_GetPacket(ringbuf[current_buffer]->FLV)){
+      loopcount ++;
       packtype = ringbuf[current_buffer]->FLV->data[0];
       //store metadata, if available
       if (packtype == 0x12){
@@ -63,6 +78,10 @@ int main( int argc, char * argv[] ) {
         metabuffer = (char*)realloc(metabuffer, metabuflen);
         memcpy(metabuffer, ringbuf[current_buffer]->FLV->data, metabuflen);
         std::cout << "Received metadata!" << std::endl;
+        if (gotVideoInfo && gotAudioInfo){
+          All_Hell_Broke_Loose = true;
+          std::cout << "... after proper video and audio? Cancelling broadcast!" << std::endl;
+        }
         gotVideoInfo = false;
         gotAudioInfo = false;
       }
@@ -96,35 +115,39 @@ int main( int argc, char * argv[] ) {
       if (packtype == 0x09){
         if (((ringbuf[current_buffer]->FLV->data[11] & 0xf0) >> 4) == 1){lastproper = current_buffer;}
       }
-      incoming = listener.accept(&BError);
-      if (incoming){
-        connectionList.push_back(user(incoming));
-        //send the FLV header
-        connectionList.back().MyBuffer = lastproper;
-        connectionList.back().MyBuffer_num = -1;
-        //TODO: Do this more nicely?
-        if (connectionList.back().Conn->send(FLVHeader,13,&BError) != 13){
-          connectionList.back().disconnect("failed to receive the header!");
-        }else{
-          if (connectionList.back().Conn->send(metabuffer,metabuflen,&BError) != metabuflen){
-            connectionList.back().disconnect("failed to receive metadata!");
-          }
-        }
-        if (BError != SWBaseSocket::ok){
-          connectionList.back().disconnect("Socket error: " + BError.get_error());
+      //keep track of buffers
+      current_buffer++;
+      current_buffer %= buffers;
+      ringbuf[current_buffer]->number = loopcount;
+    }
+    
+    //check for new connections, accept them if there are any
+    incoming = listener.accept(&BError);
+    if (incoming){
+      connectionList.push_back(user(incoming));
+      //send the FLV header
+      connectionList.back().MyBuffer = lastproper;
+      connectionList.back().MyBuffer_num = -1;
+      //TODO: Do this more nicely?
+      if (connectionList.back().Conn->send(FLVHeader,13,&BError) != 13){
+        connectionList.back().disconnect("failed to receive the header!");
+      }else{
+        if (connectionList.back().Conn->send(metabuffer,metabuflen,&BError) != metabuflen){
+          connectionList.back().disconnect("failed to receive metadata!");
         }
       }
-      ringbuf[current_buffer]->number = loopcount;
-      //send all connections what they need, if and when they need it
+      if (BError != SWBaseSocket::ok){
+        connectionList.back().disconnect("Socket error: " + BError.get_error());
+      }
+    }
+    //send all connections what they need, if and when they need it
+    if (connectionList.size() > 0){
       for (connIt = connectionList.begin(); connIt != connectionList.end(); connIt++){
         if (!(*connIt).is_connected){connectionList.erase(connIt);break;}
         (*connIt).Send(ringbuf, buffers);
       }
-      //keep track of buffers
-      current_buffer++;
-      current_buffer %= buffers;
     }
-  }
+  }//main loop
 
   // disconnect listener
   std::cout << "Reached EOF of input" << std::endl;

@@ -1,38 +1,72 @@
-#undef DEBUG
+#define DEBUG
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
-
-//needed for select
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/time.h>
-#include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/epoll.h>
 
 //for connection to server
-#include "../sockets/SocketW.h"
 bool ready4data = false;//set to true when streaming starts
 bool inited = false;
 bool stopparsing = false;
 timeval lastrec;
 
+int CONN_fd = 0;
+#include "../util/ddv_socket.cpp" //DDVTech Socket wrapper
+#include "../util/flv_sock.cpp" //FLV parsing with SocketW
 #include "parsechunks.cpp" //chunkstream parsing
 #include "handshake.cpp" //handshaking
-#include "../util/flv_sock.cpp" //FLV parsing with SocketW
 
-int main(){
+
+
+int server_socket = 0;
+
+void termination_handler (int signum){
+  if (server_socket == 0) return;
+  close(server_socket);
+  server_socket = 0;
+}
+
+int main(int argc, char ** argv){
+  //setup signal handler
+  struct sigaction new_action;
+  new_action.sa_handler = termination_handler;
+  sigemptyset (&new_action.sa_mask);
+  new_action.sa_flags = 0;
+  sigaction (SIGINT, &new_action, NULL);
+  sigaction (SIGHUP, &new_action, NULL);
+  sigaction (SIGTERM, &new_action, NULL);
+  
+  server_socket = DDV_Listen(1935);
+  if ((argc < 2) || (argv[1] == "nd")){
+    if (server_socket > 0){daemon(1, 0);}else{return 1;}
+  }
+  int status;
+  while (server_socket > 0){
+    waitpid((pid_t)-1, &status, WNOHANG);
+    CONN_fd = DDV_Accept(server_socket);
+    if (CONN_fd > 0){
+      pid_t myid = fork();
+      if (myid == 0){
+        break;
+      }else{
+        printf("Spawned new process %i for handling socket %i\n", (int)myid, CONN_fd);
+      }
+    }
+  }
+  if (server_socket <= 0){
+    return 0;
+  }
+
   unsigned int ts;
   unsigned int fts = 0;
   unsigned int ftst;
-  SWUnixSocket ss;
-  fd_set pollset;
-  struct timeval timeout;
-  //0 timeout - return immediately after select call
-  timeout.tv_sec = 1; timeout.tv_usec = 0;
-  FD_ZERO(&pollset);//clear the polling set
-  FD_SET(0, &pollset);//add stdin to polling set
+  int ss;
+  FLV_Pack * tag;
 
   //first timestamp set
   firsttime = getNowMS();
@@ -53,58 +87,71 @@ int main(){
   #ifdef DEBUG
   fprintf(stderr, "Starting processing...\n");
   #endif
-  while (std::cin.good() && std::cout.good()){
-    //select(1, &pollset, 0, 0, &timeout);
-    //only parse input from stdin if available or not yet init'ed
-    //FD_ISSET(0, &pollset) || //NOTE: Polling does not work? WHY?!? WHY DAMN IT?!?
-    if ((!ready4data || (snd_cnt - snd_window_at >= snd_window_size)) && !stopparsing){parseChunk();fflush(stdout);}
+
+
+  int retval;
+  int poller = epoll_create(1);
+  struct epoll_event ev;
+  ev.events = EPOLLIN;
+  ev.data.fd = CONN_fd;
+  epoll_ctl(poller, EPOLL_CTL_ADD, CONN_fd, &ev);
+  struct epoll_event events[1];
+
+  
+    
+  
+  while (!socketError && !All_Hell_Broke_Loose){
+    //only parse input if available or not yet init'ed
+    //rightnow = getNowMS();
+    retval = epoll_wait(poller, events, 1, 0);
+    if (!ready4data || (snd_cnt - snd_window_at >= snd_window_size)){
+      if (DDV_ready(CONN_fd)){
+        parseChunk();
+      }
+    }
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!
-        if (!ss.connect(streamname.c_str())){
+        ss = DDV_OpenUnix(streamname.c_str());
+        if (ss <= 0){
           #ifdef DEBUG
           fprintf(stderr, "Could not connect to server!\n");
           #endif
           return 0;
         }
-        FLV_Readheader(ss);//read the header, we don't want it
         #ifdef DEBUG
-        fprintf(stderr, "Header read, starting to send video data...\n");
+        fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
         inited = true;
       }
       //only send data if previous data has been ACK'ed...
-      if (snd_cnt - snd_window_at < snd_window_size){
-        if (FLV_GetPacket(ss)){//able to read a full packet?
-          ts = FLVbuffer[7] * 256*256*256;
-          ts += FLVbuffer[4] * 256*256;
-          ts += FLVbuffer[5] * 256;
-          ts += FLVbuffer[6];
+      //if (snd_cnt - snd_window_at < snd_window_size){
+        if (FLV_GetPacket(tag, ss)){//able to read a full packet?
+          ts = tag->data[7] * 256*256*256;
+          ts += tag->data[4] * 256*256;
+          ts += tag->data[5] * 256;
+          ts += tag->data[6];
           if (ts != 0){
             if (fts == 0){fts = ts;ftst = getNowMS();}
             ts -= fts;
-            FLVbuffer[7] = ts / (256*256*256);
-            FLVbuffer[4] = ts / (256*256);
-            FLVbuffer[5] = ts / 256;
-            FLVbuffer[6] = ts % 256;
+            tag->data[7] = ts / (256*256*256);
+            tag->data[4] = ts / (256*256);
+            tag->data[5] = ts / 256;
+            tag->data[6] = ts % 256;
             ts += ftst;
           }else{
             ftst = getNowMS();
-            FLVbuffer[7] = ftst / (256*256*256);
-            FLVbuffer[4] = ftst / (256*256);
-            FLVbuffer[5] = ftst / 256;
-            FLVbuffer[6] = ftst % 256;
+            tag->data[7] = ftst / (256*256*256);
+            tag->data[4] = ftst / (256*256);
+            tag->data[5] = ftst / 256;
+            tag->data[6] = ftst % 256;
           }
-          SendMedia((unsigned char)FLVbuffer[0], (unsigned char *)FLVbuffer+11, FLV_len-15, ts);
-          FLV_Dump();//dump packet and get ready for next
-        }
-        if ((SWBerr != SWBaseSocket::ok) && (SWBerr != SWBaseSocket::notReady)){
+          SendMedia((unsigned char)tag->data[0], (unsigned char *)tag->data+11, tag->len-15, ts);
           #ifdef DEBUG
-          fprintf(stderr, "No more data! :-(  (%s)\n", SWBerr.get_error().c_str());
+          fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
           #endif
-          return 0;//no more input possible! Fail immediately.
         }
-      }
+      //}
     }
     //send ACK if we received a whole window
     if (rec_cnt - rec_window_at > rec_window_size){
@@ -112,8 +159,8 @@ int main(){
       SendCTL(3, rec_cnt);//send ack (msg 3)
     }
   }
-  #ifdef DEBUG
-  fprintf(stderr, "User disconnected.\n");
-  #endif
+  //#ifdef DEBUG
+  fprintf(stderr, "User %i disconnected.\n", CONN_fd);
+  //#endif
   return 0;
 }//main

@@ -3,10 +3,9 @@
 function DownloadConfig (){
   var=serverinfo_$1[*]
   local ${!var}
-  ssh -n -o PasswordAuthentication=no -o ConnectTimeout=3 $HOST -p $PORT "cat ~/config.sh" > ./server_info/config_$1.sh
+  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT root@$HOST:config.sh ./server_info/config_$1.sh &> /dev/null
   if [ $? -ne 0 ]; then
-    echo_red "WARNING: Could not download server config for $1 from $HOST:$PORT!"
-    add_alert "Critical" "Server '$1' is down"
+    add_alert "Critical" "Could not access server configuration file at $HOST:$PORT. Assuming $1 is down."
     eval $1_isup=0
   else
     . ./server_info/config_$1.sh
@@ -14,6 +13,7 @@ function DownloadConfig (){
   fi
 }
 
+echo_green "Downloading server configurations..."
 count=${#servers[@]}
 for ((j=0; j < count; j++)); do
   DownloadConfig ${servers[$j]}

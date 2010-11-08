@@ -8,6 +8,7 @@ print_alerts() {
     for ((j=0; j<${#preferences[@]}; j++));do
      if [ "${preferences[j]}" == "$TYPE" ]; then
        temp="$( echo $MESSAGE | tr _ ' ')"
+       echo_red "Sending $EMAIL a $TYPE alert."
        `echo "" | /bin/mail -s "$temp" -r "gearbox@ddvtech.com" "$EMAIL"`
      fi
     done

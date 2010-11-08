@@ -151,4 +151,4 @@ config_server10_bla=""
 config_server10_koekjes=""
 
 plugsett_router="BRANCHING=2"
-plugsett_alerter="EMAIL=erik.zandvliet@ddvtech.com Warning Balancing Critical"
+plugsett_alerter="EMAIL=erik.zandvliet@ddvtech.com"

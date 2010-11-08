@@ -34,6 +34,7 @@ bool FLV_Isheader(char * header){
 bool ReadUntil(char * buffer, unsigned int count, unsigned int & sofar, int sock){
   if (sofar >= count){return true;}
   bool r = DDV_read(buffer + sofar,count-sofar,sock);
+  sofar = count;
   fprintf(stderr, "Reading %i/%i\n", sofar, count);
   if (!r){
     All_Hell_Broke_Loose = true;

@@ -31,5 +31,8 @@ for ((j=0; j < count; j++)); do
   eval "isup=\$${servers[$j]}_isup"
   if [ "$isup" -eq "1" ]; then
     UploadConfig ${servers[$j]}
+    wget -qO /dev/null "http://ddvtech.com/gearbox_report.php?serveron=${servers[$j]}"
+  else
+    wget -qO /dev/null "http://ddvtech.com/gearbox_report.php?serveroff=${servers[$j]}"
   fi
 done

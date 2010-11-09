@@ -4,13 +4,11 @@ print_alerts() {
   for ((i=0; i<${#alerts[@]}; i++)); do
     local ${alerts[i]}
     temp="$( echo $MESSAGE | tr _ ' ')"
-    local receivers="alerter_$TYPE"
-    local receivers=( ${!receivers} );
+    exec "local receivers=( \$alerter_$TYPE )"
     for ((j=0; j<${#receivers[@]}; j++));do
       local EMAIL=${receivers[j]};
       echo_red "Sending $EMAIL a $TYPE alert."
       `echo "" | /bin/mail -s "$temp" -r "gearbox@ddvtech.com" "$EMAIL"`
-     fi
     done
   done
 }

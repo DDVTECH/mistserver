@@ -27,7 +27,6 @@ function UploadConfig (){
 
 echo_green "Uploading server configurations..."
 count=${#servers[@]}
-TIMECODE=`date +%s`
 
 for ((j=0; j < count; j++)); do
   UploadConfig ${servers[$j]}

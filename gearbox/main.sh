@@ -16,6 +16,9 @@ function add_alert (){
 alerts=( )
 
 #download and read config file
+TIMECODE=`date +%s`
+echo_green "Starting run for timecode $TIMECODE"
+
 wget -O ./gearbox_config.sh http://ddvtech.com/get_gearbox_settings.php
 . ./gearbox_config.sh
 

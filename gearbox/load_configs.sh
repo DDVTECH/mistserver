@@ -1,7 +1,5 @@
 #!/bin/bash
 
-TIMECODE=`date +%s`
-
 function DownloadConfig (){
   var=serverinfo_$1[*]
   local ${!var}

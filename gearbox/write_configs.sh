@@ -28,9 +28,13 @@ function UploadConfig (){
 echo_green "Uploading server configurations..."
 count=${#servers[@]}
 TIMECODE=`date +%s`
+
+for ((j=0; j < count; j++)); do
+  UploadConfig ${servers[$j]}
+done
+
 for ((j=0; j < count; j++)); do
   eval "isup=\$${servers[$j]}_isup"
-  UploadConfig ${servers[$j]}
   if [ "$isup" -eq "1" ]; then
     wget -qO /dev/null "http://ddvtech.com/gearbox_report.php?serveron=${servers[$j]}\&time=$TIMECODE"
   else

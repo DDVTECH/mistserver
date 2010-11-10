@@ -4,7 +4,8 @@ print_alerts() {
   for ((i=0; i<${#alerts[@]}; i++)); do
     local ${alerts[i]}
     temp="$( echo $MESSAGE | tr _ ' ')"
-    exec "local receivers=( \$alerter_$TYPE )"
+    local receivers="alerter_$TYPE"
+    local receivers=( ${!receivers} )
     for ((j=0; j<${#receivers[@]}; j++));do
       local EMAIL=${receivers[j]};
       echo_red "Sending $EMAIL a $TYPE alert."

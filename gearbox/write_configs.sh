@@ -34,9 +34,11 @@ done
 
 for ((j=0; j < count; j++)); do
   eval "isup=\$${servers[$j]}_isup"
+  local meh=${servers[$j]}_status
+  eval "local $meh"
   if [ "$isup" -eq "1" ]; then
-    wget -qO /dev/null "http://ddvtech.com/gearbox_report.php?serveron=${servers[$j]}\&time=$TIMECODE"
+    wget --post-data="serveron=${servers[$j]}\&time=$TIMECODE\&users=$USERS\&bytes=$BYTES\&bytes_d=$BYTES_D\&streams=$STREAMS" -qO /dev/null "http://ddvtech.com/gearbox_report.php"
   else
-    wget -qO /dev/null "http://ddvtech.com/gearbox_report.php?serveroff=${servers[$j]}\&time=$TIMECODE"
+    wget --post-data="serveroff=${servers[$j]}\&time=$TIMECODE\&users=$USERS\&bytes=$BYTES\&bytes_d=$BYTES_D\&streams=$STREAMS" -qO /dev/null "http://ddvtech.com/gearbox_report.php"
   fi
 done

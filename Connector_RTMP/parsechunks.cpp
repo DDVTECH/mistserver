@@ -13,25 +13,25 @@ void parseChunk(){
       break;//happens when connection breaks unexpectedly
     case 1://set chunk size
       chunk_rec_max = ntohl(*(int*)next.data);
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "CTRL: Set chunk size: %i\n", chunk_rec_max);
       #endif
       break;
     case 2://abort message - we ignore this one
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "CTRL: Abort message\n");
       #endif
       //4 bytes of stream id to drop
       break;
     case 3://ack
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "CTRL: Acknowledgement\n");
       #endif
       snd_window_at = ntohl(*(int*)next.data);
       snd_window_at = snd_cnt;
       break;
     case 4:{
-      #ifdef DEBUG
+      #if DEBUG >= 4
       short int ucmtype = ntohs(*(short int*)next.data);
       fprintf(stderr, "CTRL: User control message %hi\n", ucmtype);
       #endif
@@ -47,7 +47,7 @@ void parseChunk(){
       //we don't need to process this
       } break;
     case 5://window size of other end
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "CTRL: Window size\n");
       #endif
       rec_window_size = ntohl(*(int*)next.data);
@@ -55,7 +55,7 @@ void parseChunk(){
       SendCTL(3, rec_cnt);//send ack (msg 3)
       break;
     case 6:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "CTRL: Set peer bandwidth\n");
       #endif
       //4 bytes window size, 1 byte limit type (ignored)
@@ -63,49 +63,45 @@ void parseChunk(){
       SendCTL(5, snd_window_size);//send window acknowledgement size (msg 5)
       break;
     case 8:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "Received audio data\n");
       #endif
       break;
     case 9:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "Received video data\n");
       #endif
       break;
     case 15:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "Received AFM3 data message\n");
       #endif
       break;
     case 16:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "Received AFM3 shared object\n");
       #endif
       break;
     case 17:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "Received AFM3 command message\n");
       #endif
       break;
     case 18:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "Received AFM0 data message\n");
       #endif
       break;
     case 19:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "Received AFM0 shared object\n");
       #endif
       break;
     case 20:{//AMF0 command message
       bool parsed = false;
       amfdata = parseAMF(next.data, next.real_len);
-      #ifdef DEBUG
-      fprintf(stderr, "Received AFM0 command message:\n");
-      amfdata.Print();
-      #endif
       if (amfdata.getContentP(0)->StrValue() == "connect"){
-        #ifdef DEBUG
+        #if DEBUG >= 4
         int tmpint;
         tmpint = amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
         if (tmpint & 0x04){fprintf(stderr, "Sorensen video support detected\n");}
@@ -149,9 +145,6 @@ void parseChunk(){
         amfreply.addContent(AMFType("", (double)1));//stream ID - we use 1
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
         SendUSR(0, 0);//send UCM StreamBegin (0), stream 0
-        #ifdef DEBUG
-        fprintf(stderr, "AMF0 command: createStream result\n");
-        #endif
         parsed = true;
       }//createStream
       if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){
@@ -162,9 +155,6 @@ void parseChunk(){
         amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
         amfreply.addContent(AMFType("", (double)0));//zero length
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
-        #ifdef DEBUG
-        fprintf(stderr, "AMF0 command: getStreamLength result\n");
-        #endif
         parsed = true;
       }//getStreamLength
       if (amfdata.getContentP(0)->StrValue() == "checkBandwidth"){
@@ -175,9 +165,6 @@ void parseChunk(){
         amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
         amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
         SendChunk(3, 20, 1, amfreply.Pack());
-        #ifdef DEBUG
-        fprintf(stderr, "AMF0 command: checkBandwidth result\n");
-        #endif
         parsed = true;
       }//checkBandwidth
       if ((amfdata.getContentP(0)->StrValue() == "play") || (amfdata.getContentP(0)->StrValue() == "play2")){
@@ -220,24 +207,24 @@ void parseChunk(){
         chunk_snd_max = 1024*1024;
         SendCTL(1, chunk_snd_max);//send chunk size max (msg 1)
         ready4data = true;//start sending video data!
-        #ifdef DEBUG
-        fprintf(stderr, "AMF0 command: play result (%s)\n", streamname.c_str());
-        #endif
         parsed = true;
       }//createStream
+      #if DEBUG >= 3
+      fprintf(stderr, "AMF0 command: %s\n", amfdata.getContentP(0)->StrValue().c_str());
+      #endif
       if (!parsed){
-        #ifdef DEBUG
+        #if DEBUG >= 2
         fprintf(stderr, "AMF0 command not processed! :(\n");
         #endif
       }
     } break;
     case 22:
-      #ifdef DEBUG
+      #if DEBUG >= 4
       fprintf(stderr, "Received aggregate message\n");
       #endif
       break;
     default:
-      #ifdef DEBUG
+      #if DEBUG >= 1
       fprintf(stderr, "Unknown chunk received! Probably protocol corruption, stopping parsing of incoming data.\n");
       #endif
       stopparsing = true;

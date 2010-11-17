@@ -70,7 +70,7 @@ int main( int argc, char * argv[] ) {
     //invalidate the current buffer
     ringbuf[current_buffer]->number = -1;
     if ((epoll_wait(poller, events, 1, 100) > 0) && FLV_GetPacket(ringbuf[current_buffer]->FLV)){
-      loopcount ++;
+      loopcount++;
       packtype = ringbuf[current_buffer]->FLV->data[0];
       //store metadata, if available
       if (packtype == 0x12){
@@ -113,12 +113,14 @@ int main( int argc, char * argv[] ) {
       }
       //on keyframe set start point
       if (packtype == 0x09){
-        if (((ringbuf[current_buffer]->FLV->data[11] & 0xf0) >> 4) == 1){lastproper = current_buffer;}
+        if (((ringbuf[current_buffer]->FLV->data[11] & 0xf0) >> 4) == 1){
+          lastproper = current_buffer;
+        }
       }
       //keep track of buffers
+      ringbuf[current_buffer]->number = loopcount;
       current_buffer++;
       current_buffer %= buffers;
-      ringbuf[current_buffer]->number = loopcount;
     }
     
     //check for new connections, accept them if there are any

@@ -69,14 +69,14 @@ bool doHandshake(){
   for (int i = 8; i < 3072; ++i){Server[i] = versionstring[i%13];}//"random" data
 
   bool encrypted = (Version == 6);
-  #ifdef DEBUG
+  #if DEBUG >= 4
   fprintf(stderr, "Handshake version is %hhi\n", Version);
   #endif
   uint8_t _validationScheme = 5;
   if (ValidateClientScheme(Client, 0)) _validationScheme = 0;
   if (ValidateClientScheme(Client, 1)) _validationScheme = 1;
 
-  #ifdef DEBUG
+  #if DEBUG >= 4
   fprintf(stderr, "Handshake type is %hhi, encryption is %s\n", _validationScheme, encrypted?"on":"off");
   #endif
 

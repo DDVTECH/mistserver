@@ -497,7 +497,7 @@ bool ValidateClientScheme(uint8_t * pBuffer, uint8_t scheme) {
   uint8_t *pTempHash = new uint8_t[512];
   HMACsha256(pTempBuffer, 1536 - 32, genuineFPKey, 30, pTempHash);
   bool result = (memcmp(pBuffer+clientDigestOffset, pTempHash, 32) == 0);
-  #ifdef DEBUG
+  #if DEBUG >= 4
   fprintf(stderr, "Client scheme validation %hhi %s\n", scheme, result?"success":"failed");
   #endif
   delete[] pTempBuffer;

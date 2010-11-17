@@ -46,12 +46,12 @@ int DDV_Listen(int port){
     if (ret == 0){
       return s;
     }else{
-      printf("Listen failed! Error: %s\n", strerror(errno));
+      fprintf(stderr, "Listen failed! Error: %s\n", strerror(errno));
       close(s);
       return 0;
     }
   }else{
-    printf("Binding failed! Error: %s\n", strerror(errno));
+    fprintf(stderr, "Binding failed! Error: %s\n", strerror(errno));
     close(s);
     return 0;
   }
@@ -77,7 +77,7 @@ bool DDV_write(void * buffer, int todo, int sock){
         case EWOULDBLOCK: socketBlocking = true; break;
         default:
           socketError = true;
-          printf("Could not write! %s\n", strerror(errno));
+          fprintf(stderr, "Could not write! %s\n", strerror(errno));
           return false;
           break;
       }
@@ -87,14 +87,14 @@ bool DDV_write(void * buffer, int todo, int sock){
   return true;
 }
 
-bool DDV_ready(int sock){
+signed int DDV_ready(int sock){
   char tmp;
   int preflags = fcntl(sock, F_GETFL, 0);
   int postflags = preflags | O_NONBLOCK;
   fcntl(sock, F_SETFL, postflags);
   int r = recv(sock, &tmp, 1, MSG_PEEK);
   fcntl(sock, F_SETFL, preflags);
-  return (r == 1);
+  return r;
 }
 
 bool DDV_read(void * buffer, int todo, int sock){
@@ -107,7 +107,7 @@ bool DDV_read(void * buffer, int todo, int sock){
         case EWOULDBLOCK: socketBlocking = true; break;
         default:
           socketError = true;
-          printf("Could not read! %s\n", strerror(errno));
+          fprintf(stderr, "Could not read! %s\n", strerror(errno));
           return false;
           break;
       }
@@ -129,7 +129,7 @@ int DDV_iwrite(void * buffer, int todo, int sock){
       case EWOULDBLOCK: break;
       default:
         socketError = true;
-        printf("Could not write! %s\n", strerror(errno));
+        fprintf(stderr, "Could not write! %s\n", strerror(errno));
         return false;
         break;
     }
@@ -144,7 +144,7 @@ int DDV_iread(void * buffer, int todo, int sock){
       case EWOULDBLOCK: break;
       default:
         socketError = true;
-        printf("Could not read! %s\n", strerror(errno));
+        fprintf(stderr, "Could not read! %s\n", strerror(errno));
         return false;
         break;
     }

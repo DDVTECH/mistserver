@@ -8,7 +8,7 @@ function DownloadConfig (){
     add_alert "Critical" "Could not access server configuration file at $HOST:$PORT. Assuming $1 is down."
     eval $1_isup=0
   else
-    local tmpvals=`ssh -o PasswordAuthentication=no -o ConnectTimeout=6 -p $PORT root@$HOST /root/pls/client_scripts/data_collect.sh`
+    local tmpvals=`ssh -o PasswordAuthentication=no -o ConnectTimeout=6 -p $PORT root@$HOST "/root/pls/client_scripts/data_collect.sh 2> /dev/null"`
     . ./server_info/config_$1.sh
     eval $1_isup=1
     eval $1_status="$tmpvals"

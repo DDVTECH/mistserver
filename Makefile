@@ -14,7 +14,7 @@ client-clean:
 	cd Buffer; $(MAKE) clean
 clean: client-clean
 client-install: client-clean client
-	mkdir /tmp/cores
+	mkdir -p /tmp/cores
 	chmod 777 /tmp/cores
 	echo "/tmp/cores/%e.%s.%p" > /proc/sys/kernel/core_pattern
 	service xinetd stop

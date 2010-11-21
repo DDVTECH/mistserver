@@ -1,6 +1,6 @@
 #undef OLDHANDSHAKE //change to #define for old handshake method
 
-char versionstring[] = "PLSRTMPServer";
+char versionstring[] = "WWW.DDVTECH.COM ";
 
 #ifdef OLDHANDSHAKE
 struct Handshake {

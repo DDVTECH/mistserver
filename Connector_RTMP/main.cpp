@@ -117,6 +117,7 @@ int main(int argc, char ** argv){
   FLV_Pack * tag = 0;
 
   //first timestamp set
+  int lastcheck = getNowMS();
   firsttime = getNowMS();
 
   if (doHandshake()){
@@ -155,7 +156,10 @@ int main(int argc, char ** argv){
           #endif
           break;
         case -1: break;//not ready yet
-        default: parseChunk(); break;
+        default:
+          parseChunk();
+          lastcheck = getNowMS();
+          break;
       }
     }
     if (ready4data){
@@ -209,6 +213,7 @@ int main(int argc, char ** argv){
               tag->data[6] = ftst % 256;
             }
             SendMedia((unsigned char)tag->data[0], (unsigned char *)tag->data+11, tag->len-15, ts);
+            lastcheck = getNowMS();
             #if DEBUG >= 4
             fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
             #endif
@@ -217,7 +222,7 @@ int main(int argc, char ** argv){
       }
     }
     //send ACK if we received a whole window
-    if (rec_cnt - rec_window_at > rec_window_size){
+    if ((rec_cnt - rec_window_at > rec_window_size) || (getNowMS() - lastcheck > 1)){
       rec_window_at = rec_cnt;
       SendCTL(3, rec_cnt);//send ack (msg 3)
     }

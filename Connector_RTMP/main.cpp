@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/epoll.h>
+#include <getopt.h>
 
 //for connection to server
 bool ready4data = false;//set to true when streaming starts
@@ -49,20 +50,48 @@ int main(int argc, char ** argv){
   new_action.sa_handler = termination_handler;
   sigemptyset (&new_action.sa_mask);
   new_action.sa_flags = 0;
-  sigaction (SIGINT, &new_action, NULL);
-  sigaction (SIGHUP, &new_action, NULL);
-  sigaction (SIGTERM, &new_action, NULL);
+  sigaction(SIGINT, &new_action, NULL);
+  sigaction(SIGHUP, &new_action, NULL);
+  sigaction(SIGTERM, &new_action, NULL);
+  sigaction(SIGPIPE, &new_action, NULL);
+
+  int listen_port = 1935;
+  bool daemon_mode = true;
+
+  int opt = 0;
+  static const char *optString = "np:h?";
+  static const struct option longOpts[] = {
+    {"help",0,0,'h'},
+    {"port",1,0,'p'},
+    {"no-daemon",0,0,'n'}
+  };
+  while ((opt = getopt_long(argc, argv, optString, longOpts, 0)) != -1){
+    switch (opt){
+      case 'p':
+        listen_port = atoi(optarg);
+        break;
+      case 'n':
+        daemon_mode = false;
+        break;
+      case 'h':
+      case '?':
+        printf("Options: -h[elp], -?, -n[o-daemon], -p[ort] #\n");
+        return 1;
+        break;
+    }
+  }
   
-  server_socket = DDV_Listen(1935);
-  fprintf(stderr, "Made a listening socket on port 1936...");
-  if ((argc < 2) || (strcmp(argv[1], "nd") != 0)){
-    if (server_socket > 0){
+  
+  server_socket = DDV_Listen(listen_port);
+  fprintf(stderr, "Made a listening socket on port %i...\n", listen_port);
+  if (server_socket > 0){
+    if (daemon_mode){
       daemon(1, 0);
       fprintf(stderr, "Going into background mode...");
-    }else{
-      fprintf(stderr, "Error: could not make listening socket");
-      return 1;
     }
+  }else{
+    fprintf(stderr, "Error: could not make listening socket");
+    return 1;
   }
   int status;
   while (server_socket > 0){

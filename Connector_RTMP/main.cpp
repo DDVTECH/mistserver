@@ -225,12 +225,23 @@ int main(int argc, char ** argv){
     if ((rec_cnt - rec_window_at > rec_window_size) || (getNowMS() - lastcheck > 1)){
       rec_window_at = rec_cnt;
       SendCTL(3, rec_cnt);//send ack (msg 3)
+      lastcheck = getNowMS();
     }
   }
   close(CONN_fd);
+  if (inited) close(ss);
   #if DEBUG >= 1
   if (All_Hell_Broke_Loose){fprintf(stderr, "All Hell Broke Loose\n");}
   fprintf(stderr, "User %i disconnected.\n", CONN_fd);
+  if (inited){
+    fprintf(stderr, "Status was: inited\n");
+  }else{
+    if (ready4data){
+      fprintf(stderr, "Status was: ready4data\n");
+    }else{
+      fprintf(stderr, "Status was: connected\n");
+    }
+  }
   #endif
   return 0;
 }//main

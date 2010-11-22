@@ -13,7 +13,10 @@
 #include <sys/epoll.h>
 
 void termination_handler (int signum){
-  return;
+  switch (signum){
+    case SIGPIPE: return; break;
+    default: return; break;
+  }
 }
 
 

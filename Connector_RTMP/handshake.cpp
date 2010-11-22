@@ -24,7 +24,7 @@ bool doHandshake(){
   Server.Time[0] = 0; Server.Time[1] = 0; Server.Time[2] = 0; Server.Time[3] = 0;
   Server.Zero[0] = 0; Server.Zero[1] = 0; Server.Zero[2] = 0; Server.Zero[3] = 0;
   for (int i = 0; i < 1528; i++){
-    Server.Random[i] = versionstring[i%13];
+    Server.Random[i] = versionstring[i%sizeof(versionstring)];
   }
   /** Send S0 **/
   DDV_write(&(Version), 1, 1, CONN_fd);

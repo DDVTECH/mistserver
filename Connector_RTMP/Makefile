@@ -1,4 +1,4 @@
-SRC = main.cpp ../sockets/sw_base.cpp ../sockets/sw_inet.cpp ../sockets/sw_unix.cpp
+SRC = main.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Connector_RTMP
 INCLUDES = 
@@ -11,7 +11,7 @@ LIBS = -lssl -lcrypto
 .PHONY: clean default
 default: $(OUT)
 .cpp.o:
-	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
+	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@
 $(OUT): $(OBJ) chunkstream.cpp parsechunks.cpp handshake.cpp crypto.cpp amf.cpp
 	$(CC) $(LIBS) -o $(OUT) $(OBJ)
 clean:

@@ -457,7 +457,7 @@ chunkpack * AddChunkPart(chunkpack newchunk){
     p = it->second;
     tmpdata = (unsigned char*)realloc(p->data, p->real_len + newchunk.real_len);
     if (tmpdata == 0){
-      #ifdef DEBUG
+      #if DEBUG >= 1
       fprintf(stderr, "Error allocating memory!\n");
       #endif
       return 0;

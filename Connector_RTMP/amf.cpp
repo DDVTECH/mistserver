@@ -270,7 +270,7 @@ AMFType parseOneAMF(const unsigned char *& data, unsigned int &len, unsigned int
       return ret;
     } break;
   }
-  #ifdef DEBUG
+  #if DEBUG >= 2
   fprintf(stderr, "Error: Unimplemented AMF type %hhx - returning.\n", data[i]);
   #endif
   return AMFType("error", (unsigned char)0xFF);

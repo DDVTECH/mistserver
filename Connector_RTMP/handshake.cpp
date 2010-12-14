@@ -1,6 +1,6 @@
 #undef OLDHANDSHAKE //change to #define for old handshake method
 
-char versionstring[] = "PLSRTMPServer";
+char versionstring[] = "WWW.DDVTECH.COM ";
 
 #ifdef OLDHANDSHAKE
 struct Handshake {
@@ -24,7 +24,7 @@ bool doHandshake(){
   Server.Time[0] = 0; Server.Time[1] = 0; Server.Time[2] = 0; Server.Time[3] = 0;
   Server.Zero[0] = 0; Server.Zero[1] = 0; Server.Zero[2] = 0; Server.Zero[3] = 0;
   for (int i = 0; i < 1528; i++){
-    Server.Random[i] = versionstring[i%13];
+    Server.Random[i] = versionstring[i%sizeof(versionstring)];
   }
   /** Send S0 **/
   DDV_write(&(Version), 1, 1, CONN_fd);
@@ -69,14 +69,14 @@ bool doHandshake(){
   for (int i = 8; i < 3072; ++i){Server[i] = versionstring[i%13];}//"random" data
 
   bool encrypted = (Version == 6);
-  #ifdef DEBUG
+  #if DEBUG >= 4
   fprintf(stderr, "Handshake version is %hhi\n", Version);
   #endif
   uint8_t _validationScheme = 5;
   if (ValidateClientScheme(Client, 0)) _validationScheme = 0;
   if (ValidateClientScheme(Client, 1)) _validationScheme = 1;
 
-  #ifdef DEBUG
+  #if DEBUG >= 4
   fprintf(stderr, "Handshake type is %hhi, encryption is %s\n", _validationScheme, encrypted?"on":"off");
   #endif
 

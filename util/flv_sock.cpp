@@ -69,6 +69,7 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
           if (FLV_Checkheader(p->data)){
             sofar = 0;
             memcpy(FLVHeader, p->data, 13);
+            //fwrite(p->data, 13, 1, stdout);//output raw stream
           }else{
             All_Hell_Broke_Loose = true;
             fprintf(stderr, "Invalid FLV header. All Hell Broke Loose!\n");
@@ -94,12 +95,11 @@ bool FLV_GetPacket(FLV_Pack *& p, int sock){
       testlen += (p->data[p->len-2] << 8);
       testlen += (p->data[p->len-3] << 16);
       testlen += (p->data[p->len-4] << 24);
-      if (p->len == testlen){
-        fprintf(stderr, "Correct length tag...\n");
-      }else{
+      //fwrite(p->data, p->len, 1, stdout);//output raw stream
+      if (p->len != testlen){
         fprintf(stderr, "Len: %i, testlen: %i\n", p->len, testlen);
         All_Hell_Broke_Loose = true;
-        fprintf(stderr, "ReadUntil fail: > 500kb tag? All Hell Broke Loose!\n", strerror(errno));
+        fprintf(stderr, "ReadUntil fail: Wrong size tag? All Hell Broke Loose!\n");
         return false;
       }
       done = true;

@@ -1,15 +1,19 @@
 #include <iostream>
-#include "box_ftyp.h"
+#include "box_h264.h"
+#include "box_stsd.h"
+#include <string>
 
 int main() {
-  Box_ftyp * FileType = new Box_ftyp();
-  printf("Boxtype: %x\n", FileType->GetBox()->GetBoxType());
-  uint8_t * TestPayload = FileType->GetBox()->GetPayload();
-  uint32_t TestPayloadSize = FileType->GetBox()->GetPayloadSize();
-  printf("PayloadSize: %d\n", TestPayloadSize);
-  for(uint32_t i = 0; i < TestPayloadSize; i++) {
-    printf("Payload[%d]: %x\n", i, TestPayload[i]);
-  }
-  delete FileType;
+  Box_h264 * Testing = new Box_h264();
+  Testing->SetCompressorName( "Test123" );
+  std::cout << "H264::Size: " << Testing->GetBox()->GetHeader().TotalSize << "\n";
+  Box_stsd * Testsample = new Box_stsd();
+  std::cout << "STSD::Before Content: " << Testsample->GetBox()->GetHeader().TotalSize << "\n";
+  Testsample->AddContent( Testing->GetBox() );
+  std::cout << "STSD::After 1 Content: " << Testsample->GetBox()->GetHeader().TotalSize << "\n";
+  Testsample->AddContent( Testing->GetBox(), 1 );
+  std::cout << "STSD::After 2 Content: " << Testsample->GetBox()->GetHeader().TotalSize << "\n";
+  delete Testsample;
+  delete Testing;
   return 0;
 }

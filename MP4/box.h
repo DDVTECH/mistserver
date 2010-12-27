@@ -1,7 +1,9 @@
+#pragma once
 #include "boxheader.h"
 #include <cstdio>
 #include <cstring>
-
+#include <cmath>
+#include <algorithm>
 
 class Box {
   public:
@@ -18,6 +20,9 @@ class Box {
     uint8_t * GetPayload(uint32_t Index, uint32_t & Size);
 
     static uint8_t * uint32_to_uint8( uint32_t data );
+    static uint8_t * uint16_to_uint8( uint16_t data );
+    BoxHeader GetHeader( );
+    void ResetPayload( );
   private:
     BoxHeader header;
     uint8_t * Payload;

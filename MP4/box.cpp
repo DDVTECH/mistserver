@@ -73,3 +73,23 @@ uint8_t * Box::uint32_to_uint8( uint32_t data ) {
   temp[3] = (data ) & 0x000000FF;
   return temp;
 }
+
+uint8_t * Box::uint16_to_uint8( uint16_t data ) {
+  uint8_t * temp = new uint8_t[2];
+  temp[0] = (data >> 8) & 0x00FF;
+  temp[1] = (data  ) & 0x00FF;
+  return temp;
+}
+
+BoxHeader Box::GetHeader( ) {
+  return header;
+}
+
+void Box::ResetPayload( ) {
+  header.TotalSize -= PayloadSize;
+  PayloadSize = 0;
+  if(Payload) {
+    delete Payload;
+    Payload = NULL;
+  }
+}

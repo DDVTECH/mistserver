@@ -1,4 +1,4 @@
-SRC = main.cpp box.cpp box_ftyp.cpp
+SRC = main.cpp box.cpp box_h264.cpp box_stsd.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Boxtest
 INCLUDES = 

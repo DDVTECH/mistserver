@@ -1,7 +1,7 @@
 #include "box_minf.h"
 
 Box_minf::Box_minf( ) {
-  Container = new Box( 0x7374626C );
+  Container = new Box( 0x6D696E66 );
 }
 
 Box_minf::~Box_minf() {

@@ -33,15 +33,11 @@ void Box_stsd::WriteContent( ) {
   Container->ResetPayload( );
   SetDefaults( );
   Box * current;
-  BoxHeader currentheader;
   std::string serializedbox = "";
   for( uint32_t i = 0; i < Content.size(); i++ ) {
     current=Content[i];
     if( current ) {
-      currentheader = current->GetHeader();
-      serializedbox.append((char*)Box::uint32_to_uint8(currentheader.TotalSize),4);
-      serializedbox.append((char*)Box::uint32_to_uint8(currentheader.BoxType),4);
-      serializedbox.append((char*)current->GetPayload(),current->GetPayloadSize());
+      serializedbox.append((char*)current->GetBoxedData(),current->GetBoxedDataSize());
     }
   }
   Container->SetPayload((uint32_t)serializedbox.size(),(uint8_t*)serializedbox.c_str(),8);

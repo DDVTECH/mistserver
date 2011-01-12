@@ -9,8 +9,8 @@ struct stts_record {
 
 class Box_stts {
   public:
-    Box_stsc( );
-    ~Box_stsc();
+    Box_stts( );
+    ~Box_stts();
     Box * GetBox();
     void SetReserved( );
     void AddEntry( uint32_t SampleCount, uint32_t SampleDelta, uint32_t Offset = 0 );

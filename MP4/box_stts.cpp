@@ -5,7 +5,7 @@ Box_stts::Box_stts( ) {
   SetReserved();
 }
 
-Box_stts::~Box_stsc() {
+Box_stts::~Box_stts() {
   delete Container;
 }
 
@@ -17,7 +17,7 @@ void Box_stts::SetReserved( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0));
 }
 
-void Box_stts::AddEntry( uint32_t SampleCount, uint32_t SamplesDelta, uint32_t Offset = 0 ) {
+void Box_stts::AddEntry( uint32_t SampleCount, uint32_t SampleDelta, uint32_t Offset ) {
   if(Offset >= Entries.size()) {
     Entries.resize(Offset+1);
   }
@@ -30,11 +30,11 @@ void Box_stts::AddEntry( uint32_t SampleCount, uint32_t SamplesDelta, uint32_t O
 void Box_stts::WriteEntries( ) {
   Container->ResetPayload();
   SetReserved( );
-  if(!Offsets.empty()) {
-    for(int32_t i = Offsets.size() -1; i >= 0; i--) {
+  if(!Entries.empty()) {
+    for(int32_t i = Entries.size() -1; i >= 0; i--) {
       Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Entries[i].SampleDelta),(i*8)+12);
       Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Entries[i].SampleCount),(i*8)+8);
     }
   }
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Offsets.size()),4);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Entries.size()),4);
 }

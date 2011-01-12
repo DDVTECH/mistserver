@@ -65,6 +65,19 @@ uint8_t * Box::GetPayload(uint32_t Index, uint32_t & Size) {
   return temp;
 }
 
+uint32_t Box::GetBoxedDataSize() {
+  return header.TotalSize;
+}
+
+uint8_t * Box::GetBoxedData( ) {
+  uint8_t * temp = new uint8_t[header.TotalSize];
+  memcpy( temp, uint32_to_uint8(header.TotalSize), 4 );
+  memcpy( &temp[4], uint32_to_uint8(header.BoxType), 4 );
+  memcpy( &temp[8], Payload, PayloadSize );
+  return temp;
+}
+
+
 uint8_t * Box::uint32_to_uint8( uint32_t data ) {
   uint8_t * temp = new uint8_t[4];
   temp[0] = (data >> 24) & 0x000000FF;

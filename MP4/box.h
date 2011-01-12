@@ -19,6 +19,9 @@ class Box {
     uint8_t * GetPayload();
     uint8_t * GetPayload(uint32_t Index, uint32_t & Size);
 
+    uint32_t GetBoxedDataSize();
+    uint8_t * GetBoxedData( );
+
     static uint8_t * uint32_to_uint8( uint32_t data );
     static uint8_t * uint16_to_uint8( uint16_t data );
     BoxHeader GetHeader( );

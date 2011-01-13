@@ -1,4 +1,5 @@
 #include "box.h"
+#include <string>
 
 class Box_hdlr {
   public:
@@ -10,5 +11,6 @@ class Box_hdlr {
   private:
     Box * Container;
     void SetReserved( );
+    uint32_t CurrentHandlerType;
 };//Box_ftyp Class
 

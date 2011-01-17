@@ -39,7 +39,6 @@ int mainHandler(int connection){
   FLV_Pack * tag = 0;
 
   //first timestamp set
-  int lastcheck = getNowMS();
   firsttime = getNowMS();
 
   if (doHandshake()){
@@ -82,7 +81,6 @@ int mainHandler(int connection){
         case -1: break;//not ready yet
         default:
           parseChunk();
-          lastcheck = getNowMS();
           break;
       }
     }
@@ -146,7 +144,6 @@ int mainHandler(int connection){
             }
             fwrite(tag->data, tag->len, 1, tmpfile);
             #endif
-            lastcheck = getNowMS();
             #if DEBUG >= 4
             fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
             #endif
@@ -155,10 +152,9 @@ int mainHandler(int connection){
       }
     }
     //send ACK if we received a whole window
-    if ((rec_cnt - rec_window_at > rec_window_size) || (getNowMS() - lastcheck > 1)){
+    if ((rec_cnt - rec_window_at > rec_window_size)){
       rec_window_at = rec_cnt;
       SendCTL(3, rec_cnt);//send ack (msg 3)
-      lastcheck = getNowMS();
     }
   }
   close(CONN_fd);

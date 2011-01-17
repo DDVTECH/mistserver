@@ -38,12 +38,14 @@ class user{
     int MyBuffer_len;
     int MyNum;
     int currsend;
+    bool gotproperaudio;
     void * lastpointer;
     static int UserCount;
     int s;
     user(int fd){
       s = fd;
       MyNum = UserCount++;
+      gotproperaudio = false;
       std::cout << "User " << MyNum << " connected" << std::endl;
     }//constructor
     void Disconnect(std::string reason) {
@@ -64,6 +66,7 @@ class user{
       return (currsend == todo);
     }
     void Send(buffer ** ringbuf, int buffers){
+      //TODO: Bij MP3: gotproperaudio - if false, stuur alleen als eerste byte is 0xFF en set op true
       //not connected? cancel
       if (s < 0){return;}
       //still waiting for next buffer? check it

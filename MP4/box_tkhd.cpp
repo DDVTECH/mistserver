@@ -2,6 +2,8 @@
 
 Box_tkhd::Box_tkhd( ) {
   Container = new Box( 0x6D646864 );
+  CurrentVersion = 0;
+  CurrentFlags = 0;
 }
 
 Box_tkhd::~Box_tkhd() {
@@ -53,7 +55,36 @@ void Box_tkhd::SetReserved() {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),12);
 }
 
-/*
-void Box_tkhd::SetDefaults() {
+void Box_tkhd::SetVersion( uint32_t Version ) {
+  if ( Version >= 2 ) { return; }
+  CurrentVersion = Version;
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8((CurrentVersion<<24)&(CurrentFlags)));
 }
-*/
+
+void Box_tkhd::SetFlags( bool Bit0, bool Bit1, bool Bit2 ) {
+  CurrentFlags = (( Bit0 ? 0x80 : 0 ) + ( Bit1 ? 0x40 : 0 ) + ( Bit2 ? 0x20 : 0 )) << 16 ;
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8((CurrentVersion<<24)&(CurrentFlags)));
+}
+
+void Box_tkhd::SetTrackID( uint32_t TrackID ) {
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(TrackID),12);
+}
+
+void Box_tkhd::SetWidth( uint32_t Width ) {
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Width),72);
+}
+
+void Box_tkhd::SetHeight( uint32_t Height ) {
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Width),76);
+}
+
+void Box_tkhd::SetDefaults() {
+  SetHeight();
+  SetWidth();
+  SetCreationTime();
+  SetModificationTime();
+  SetDurationTime();
+  SetFlags();
+  SetVersion();
+  SetTrackID();
+}

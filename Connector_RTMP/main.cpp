@@ -104,6 +104,7 @@ int mainHandler(int connection){
         inited = true;
         sprintf(tmpstr, "./tmpfile_socket_%i.flv", CONN_fd);
         tmpfile = fopen(tmpstr, "w");
+        fwrite(FLVHeader, 13, 1, tmpfile);
       }
 
       retval = epoll_wait(sspoller, events, 1, 1);

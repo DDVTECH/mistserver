@@ -102,9 +102,6 @@ int mainHandler(int connection){
         fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
         inited = true;
-        sprintf(tmpstr, "./tmpfile_socket_%i.flv", CONN_fd);
-        tmpfile = fopen(tmpstr, "w");
-        fwrite(FLVHeader, 13, 1, tmpfile);
       }
 
       retval = epoll_wait(sspoller, events, 1, 1);
@@ -139,6 +136,11 @@ int mainHandler(int connection){
             }
             SendMedia((unsigned char)tag->data[0], (unsigned char *)tag->data+11, tag->len-15, ts);
 
+            if (tmpfile == 0){
+              sprintf(tmpstr, "./tmpfile_socket_%i.flv", CONN_fd);
+              tmpfile = fopen(tmpstr, "w");
+              fwrite(FLVHeader, 13, 1, tmpfile);
+            }
             fwrite(tag->data, tag->len, 1, tmpfile);
             
             

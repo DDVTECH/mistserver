@@ -12,7 +12,7 @@ Box * Box_tkhd::GetBox() {
   return Container;
 }
 
-void Box_mdhd::SetCreationTime( uint32_t TimeStamp ) {
+void Box_tkhd::SetCreationTime( uint32_t TimeStamp ) {
   uint32_t CreationTime;
   if(!TimeStamp) {
     CreationTime = time(NULL) + SECONDS_DIFFERENCE;
@@ -22,7 +22,7 @@ void Box_mdhd::SetCreationTime( uint32_t TimeStamp ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(CreationTime),4);
 }
 
-void Box_mdhd::SetModificationTime( uint32_t TimeStamp ) {
+void Box_tkhd::SetModificationTime( uint32_t TimeStamp ) {
   uint32_t ModificationTime;
   if(!TimeStamp) {
     ModificationTime = time(NULL) + SECONDS_DIFFERENCE;
@@ -32,11 +32,11 @@ void Box_mdhd::SetModificationTime( uint32_t TimeStamp ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(ModificationTime),8);
 }
 
-void Box_mdhd::SetDurationTime( uint32_t TimeUnits ) {
+void Box_tkhd::SetDurationTime( uint32_t TimeUnits ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(TimeUnits),16);
 }
 
-void Box_mdhd::SetReserved() {
+void Box_tkhd::SetReserved() {
   Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0x40000000),68);
   Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),64);
   Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),60);
@@ -54,6 +54,6 @@ void Box_mdhd::SetReserved() {
 }
 
 /*
-void Box_mdhd::SetDefaults() {
+void Box_tkhd::SetDefaults() {
 }
 */

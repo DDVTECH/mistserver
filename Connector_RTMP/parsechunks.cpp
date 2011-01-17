@@ -101,6 +101,9 @@ void parseChunk(){
     case 20:{//AMF0 command message
       bool parsed = false;
       amfdata = parseAMF(next.data, next.real_len);
+      #if DEBUG >= 4
+      amfdata.Print();
+      #endif
       if (amfdata.getContentP(0)->StrValue() == "connect"){
         #if DEBUG >= 4
         int tmpint;
@@ -128,6 +131,9 @@ void parseChunk(){
         amfreply.getContentP(3)->addContent(AMFType("description", "Connection succeeded."));
         amfreply.getContentP(3)->addContent(AMFType("capabilities", (double)33));//from red5 server
         amfreply.getContentP(3)->addContent(AMFType("fmsVer", "PLS/1,0,0,0"));//from red5 server
+        #if DEBUG >= 4
+        amfreply.Print();
+        #endif
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
         //send onBWDone packet
         //amfreply = AMFType("container", (unsigned char)0xFF);
@@ -144,6 +150,9 @@ void parseChunk(){
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
         amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
         amfreply.addContent(AMFType("", (double)1));//stream ID - we use 1
+        #if DEBUG >= 4
+        amfreply.Print();
+        #endif
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
         SendUSR(0, 0);//send UCM StreamBegin (0), stream 0
         parsed = true;
@@ -155,6 +164,9 @@ void parseChunk(){
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
         amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
         amfreply.addContent(AMFType("", (double)0));//zero length
+        #if DEBUG >= 4
+        amfreply.Print();
+        #endif
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
         parsed = true;
       }//getStreamLength
@@ -165,6 +177,9 @@ void parseChunk(){
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
         amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
         amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        #if DEBUG >= 4
+        amfreply.Print();
+        #endif
         SendChunk(3, 20, 1, amfreply.Pack());
         parsed = true;
       }//checkBandwidth
@@ -187,6 +202,9 @@ void parseChunk(){
         amfreply.getContentP(3)->addContent(AMFType("description", "Playing and resetting..."));
         amfreply.getContentP(3)->addContent(AMFType("details", "PLS"));
         amfreply.getContentP(3)->addContent(AMFType("clientid", (double)1));
+        #if DEBUG >= 4
+        amfreply.Print();
+        #endif
         SendChunk(4, 20, next.msg_stream_id, amfreply.Pack());
         amfreply = AMFType("container", (unsigned char)0xFF);
         amfreply.addContent(AMFType("", "onStatus"));//status reply
@@ -198,6 +216,9 @@ void parseChunk(){
         amfreply.getContentP(3)->addContent(AMFType("description", "Playing!"));
         amfreply.getContentP(3)->addContent(AMFType("details", "PLS"));
         amfreply.getContentP(3)->addContent(AMFType("clientid", (double)1));
+        #if DEBUG >= 4
+        amfreply.Print();
+        #endif
         SendChunk(4, 20, 1, amfreply.Pack());
 //No clue what this does. Most real servers send it, though...
 //        amfreply = AMFType("container", (unsigned char)0xFF);

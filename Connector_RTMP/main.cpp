@@ -3,7 +3,8 @@
 //debugging level 2 = errors
 //debugging level 3 = status information
 //debugging level 4 = extremely verbose status information
-#define DEBUG 3
+//debugging level 5 = save all streams to FLV files
+#define DEBUG 4
 
 #include <iostream>
 #include <cstdlib>
@@ -38,7 +39,6 @@ int mainHandler(int connection){
   FLV_Pack * tag = 0;
 
   //first timestamp set
-  int lastcheck = getNowMS();
   firsttime = getNowMS();
 
   if (doHandshake()){
@@ -60,11 +60,12 @@ int mainHandler(int connection){
   ev.data.fd = CONN_fd;
   epoll_ctl(poller, EPOLL_CTL_ADD, CONN_fd, &ev);
   struct epoll_event events[1];
-
-
+  #if DEBUG >= 5
+  //for writing whole stream to a file
   FILE * tmpfile = 0;
   char tmpstr[200];
-
+  #endif
+  
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
@@ -80,7 +81,6 @@ int mainHandler(int connection){
         case -1: break;//not ready yet
         default:
           parseChunk();
-          lastcheck = getNowMS();
           break;
       }
     }
@@ -135,16 +135,15 @@ int mainHandler(int connection){
               tag->data[6] = ftst % 256;
             }
             SendMedia((unsigned char)tag->data[0], (unsigned char *)tag->data+11, tag->len-15, ts);
-
+            #if DEBUG >= 5
+            //write whole stream to a file
             if (tmpfile == 0){
               sprintf(tmpstr, "./tmpfile_socket_%i.flv", CONN_fd);
               tmpfile = fopen(tmpstr, "w");
               fwrite(FLVHeader, 13, 1, tmpfile);
             }
             fwrite(tag->data, tag->len, 1, tmpfile);
-            
-            
-            lastcheck = getNowMS();
+            #endif
             #if DEBUG >= 4
             fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
             #endif
@@ -153,14 +152,15 @@ int mainHandler(int connection){
       }
     }
     //send ACK if we received a whole window
-    if ((rec_cnt - rec_window_at > rec_window_size) || (getNowMS() - lastcheck > 1)){
+    if ((rec_cnt - rec_window_at > rec_window_size)){
       rec_window_at = rec_cnt;
       SendCTL(3, rec_cnt);//send ack (msg 3)
-      lastcheck = getNowMS();
     }
   }
   close(CONN_fd);
+  #if DEBUG >= 5
   fclose(tmpfile);
+  #endif
   if (inited) close(ss);
   #if DEBUG >= 1
   if (All_Hell_Broke_Loose){fprintf(stderr, "All Hell Broke Loose\n");}

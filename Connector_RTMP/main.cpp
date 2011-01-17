@@ -162,7 +162,9 @@ int mainHandler(int connection){
     }
   }
   close(CONN_fd);
+  #if DEBUG >= 5
   fclose(tmpfile);
+  #endif
   if (inited) close(ss);
   #if DEBUG >= 1
   if (All_Hell_Broke_Loose){fprintf(stderr, "All Hell Broke Loose\n");}

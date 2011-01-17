@@ -116,7 +116,7 @@ void parseChunk(){
         #endif
         SendCTL(6, rec_window_size, 0);//send peer bandwidth (msg 6)
         SendCTL(5, snd_window_size);//send window acknowledgement size (msg 5)
-        SendUSR(0, 0);//send UCM StreamBegin (0), stream 0
+        SendUSR(0, 1);//send UCM StreamBegin (0), stream 1
         //send a _result reply
         AMFType amfreply("container", (unsigned char)0xFF);
         amfreply.addContent(AMFType("", "_result"));//result success
@@ -154,7 +154,7 @@ void parseChunk(){
         amfreply.Print();
         #endif
         SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
-        SendUSR(0, 0);//send UCM StreamBegin (0), stream 0
+        SendUSR(0, 1);//send UCM StreamBegin (0), stream 1
         parsed = true;
       }//createStream
       if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){

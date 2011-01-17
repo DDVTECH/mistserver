@@ -22,94 +22,15 @@ bool inited = false;
 bool stopparsing = false;
 timeval lastrec;
 
+#define DEFAULT_PORT 1935
+#include "../util/server_setup.cpp"
+
 int CONN_fd = 0;
-#include "../util/ddv_socket.cpp" //DDVTech Socket wrapper
-#include "../util/flv_sock.cpp" //FLV parsing with SocketW
 #include "parsechunks.cpp" //chunkstream parsing
 #include "handshake.cpp" //handshaking
 
-
-
-int server_socket = 0;
-
-void termination_handler (int signum){
-  if (server_socket == 0) return;
-  switch (signum){
-    case SIGINT: break;
-    case SIGHUP: break;
-    case SIGTERM: break;
-    default: return; break;
-  }
-  close(server_socket);
-  server_socket = 0;
-}
-
-int main(int argc, char ** argv){
-  //setup signal handler
-  struct sigaction new_action;
-  new_action.sa_handler = termination_handler;
-  sigemptyset (&new_action.sa_mask);
-  new_action.sa_flags = 0;
-  sigaction(SIGINT, &new_action, NULL);
-  sigaction(SIGHUP, &new_action, NULL);
-  sigaction(SIGTERM, &new_action, NULL);
-  sigaction(SIGPIPE, &new_action, NULL);
-
-  int listen_port = 1935;
-  bool daemon_mode = true;
-
-  int opt = 0;
-  static const char *optString = "np:h?";
-  static const struct option longOpts[] = {
-    {"help",0,0,'h'},
-    {"port",1,0,'p'},
-    {"no-daemon",0,0,'n'}
-  };
-  while ((opt = getopt_long(argc, argv, optString, longOpts, 0)) != -1){
-    switch (opt){
-      case 'p':
-        listen_port = atoi(optarg);
-        break;
-      case 'n':
-        daemon_mode = false;
-        break;
-      case 'h':
-      case '?':
-        printf("Options: -h[elp], -?, -n[o-daemon], -p[ort] #\n");
-        return 1;
-        break;
-    }
-  }
-  
-  
-  server_socket = DDV_Listen(listen_port);
-  fprintf(stderr, "Made a listening socket on port %i...\n", listen_port);
-  if (server_socket > 0){
-    if (daemon_mode){
-      daemon(1, 0);
-      fprintf(stderr, "Going into background mode...");
-    }
-  }else{
-    fprintf(stderr, "Error: could not make listening socket");
-    return 1;
-  }
-  int status;
-  while (server_socket > 0){
-    waitpid((pid_t)-1, &status, WNOHANG);
-    CONN_fd = DDV_Accept(server_socket);
-    if (CONN_fd > 0){
-      pid_t myid = fork();
-      if (myid == 0){
-        break;
-      }else{
-        fprintf(stderr, "Spawned new process %i for handling socket %i\n", (int)myid, CONN_fd);
-      }
-    }
-  }
-  if (server_socket <= 0){
-    return 0;
-  }
-
+int mainHandler(int connection){
+  CONN_fd = connection;
   unsigned int ts;
   unsigned int fts = 0;
   unsigned int ftst;
@@ -141,7 +62,8 @@ int main(int argc, char ** argv){
   struct epoll_event events[1];
 
 
-
+  FILE * tmpfile = 0;
+  char tmpstr[200];
 
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
@@ -180,9 +102,11 @@ int main(int argc, char ** argv){
         fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
         inited = true;
+        sprintf(tmpstr, "./tmpfile_socket_%i.flv", CONN_fd);
+        tmpfile = fopen(tmpstr, "w");
       }
 
-      retval = epoll_wait(poller, events, 1, 1);
+      retval = epoll_wait(sspoller, events, 1, 1);
       switch (DDV_ready(ss)){
         case 0:
           socketError = true;
@@ -213,6 +137,10 @@ int main(int argc, char ** argv){
               tag->data[6] = ftst % 256;
             }
             SendMedia((unsigned char)tag->data[0], (unsigned char *)tag->data+11, tag->len-15, ts);
+
+            fwrite(tag->data, tag->len, 1, tmpfile);
+            
+            
             lastcheck = getNowMS();
             #if DEBUG >= 4
             fprintf(stderr, "Sent a tag to %i\n", CONN_fd);
@@ -229,6 +157,7 @@ int main(int argc, char ** argv){
     }
   }
   close(CONN_fd);
+  fclose(tmpfile);
   if (inited) close(ss);
   #if DEBUG >= 1
   if (All_Hell_Broke_Loose){fprintf(stderr, "All Hell Broke Loose\n");}
@@ -244,4 +173,4 @@ int main(int argc, char ** argv){
   }
   #endif
   return 0;
-}//main
+}//mainHandler

@@ -1,7 +1,7 @@
 #include "box_tkhd.h"
 
 Box_tkhd::Box_tkhd( ) {
-  Container = new Box( 0x6D646864 );
+  Container = new Box( 0x746B6864 );
   CurrentVersion = 0;
   CurrentFlags = 0;
 }

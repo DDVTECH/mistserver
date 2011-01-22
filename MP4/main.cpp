@@ -1,10 +1,10 @@
 #include <iostream>
-#include "box_h264.h"
+#include "box_avcC.h"
 #include "box_stsd.h"
 #include <string>
 
 int main() {
-  Box_h264 * Testing = new Box_h264();
+  Box_avcC * Testing = new Box_avcC();
   Testing->SetCompressorName( "Test123" );
   std::cout << "H264::Size: " << Testing->GetBox()->GetHeader().TotalSize << "\n";
   Box_stsd * Testsample = new Box_stsd();

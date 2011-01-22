@@ -12,7 +12,7 @@ Box * Box_dinf::GetBox() {
   return Container;
 }
 
-void Box_dinf::AddContent( Box * newcontent, uint32_t offset ) {
+void Box_dinf::AddContent( Box * newcontent ) {
   if(Content) {
     delete Content;
     Content = NULL;

@@ -1,19 +1,11 @@
 #include <iostream>
-#include "box_avcC.h"
-#include "box_stsd.h"
-#include <string>
+#include "interface.h"
 
-int main() {
-  Box_avcC * Testing = new Box_avcC();
-  Testing->SetCompressorName( "Test123" );
-  std::cout << "H264::Size: " << Testing->GetBox()->GetHeader().TotalSize << "\n";
-  Box_stsd * Testsample = new Box_stsd();
-  std::cout << "STSD::Before Content: " << Testsample->GetBox()->GetHeader().TotalSize << "\n";
-  Testsample->AddContent( Testing->GetBox() );
-  std::cout << "STSD::After 1 Content: " << Testsample->GetBox()->GetHeader().TotalSize << "\n";
-  Testsample->AddContent( Testing->GetBox(), 1 );
-  std::cout << "STSD::After 2 Content: " << Testsample->GetBox()->GetHeader().TotalSize << "\n";
-  delete Testsample;
-  delete Testing;
+int main( ) {
+  std::cout << "Creating Interface\n";
+  Interface * file = new Interface();
+  std::cout << "Interface created, deleting it again\n";
+  delete file;
+  std::cout << "Interface deleted\n";
   return 0;
 }

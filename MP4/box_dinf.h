@@ -7,7 +7,7 @@ class Box_dinf {
     Box_dinf();
     ~Box_dinf();
     Box * GetBox();
-    void AddContent( Box * newcontent, uint32_t offset = 0 );
+    void AddContent( Box * newcontent );
   private:
     Box * Container;
 

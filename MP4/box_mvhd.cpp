@@ -2,6 +2,8 @@
 
 Box_mvhd::Box_mvhd( ) {
   Container = new Box( 0x6D766864 );
+  SetDefaults();
+  SetReserved();
 }
 
 Box_mvhd::~Box_mvhd() {

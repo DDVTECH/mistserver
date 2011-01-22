@@ -39,15 +39,15 @@ void Box_tkhd::SetDurationTime( uint32_t TimeUnits ) {
 }
 
 void Box_tkhd::SetReserved() {
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0x40000000),68);
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),64);
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),60);
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),56);
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0x10000),52);
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),48);
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),44);
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),40);
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0x10000),36);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0x40000000),68);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),64);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),60);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),56);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0x10000),52);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),48);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),44);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),40);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0x10000),36);
   Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(0),34);
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),28);
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),24);
@@ -75,7 +75,7 @@ void Box_tkhd::SetWidth( uint32_t Width ) {
 }
 
 void Box_tkhd::SetHeight( uint32_t Height ) {
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Width),76);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Height),76);
 }
 
 void Box_tkhd::SetDefaults() {

@@ -47,7 +47,7 @@ void Box_mvhd::SetRate( uint32_t Rate ) {
 }
 
 void Box_mvhd::SetVolume( uint16_t Volume ) {
-  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(Rate),24);
+  Container->SetPayload((uint32_t)4,Box::uint16_to_uint8(Volume),24);
 }
 
 void Box_mvhd::SetNextTrackID( uint32_t TrackID ) {

@@ -1,10 +1,10 @@
 #include "box.h"
 #include <string>
 
-class Box_h264 {
+class Box_avcC {
   public:
-    Box_h264( );
-    ~Box_h264();
+    Box_avcC( );
+    ~Box_avcC();
     Box * GetBox();
     void SetReserved( );
     void SetDataReferenceIndex( uint16_t DataReferenceIndex );

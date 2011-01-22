@@ -1,9 +1,7 @@
 #include "box_ftyp.h"
 
-Box_ftyp::Box_ftyp( uint32_t MajorBrand, uint32_t MinorBrand ) {
+Box_ftyp::Box_ftyp( ) {
   Container = new Box( 0x66747970 );
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(MajorBrand));
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(MinorBrand),4);
 }
 
 Box_ftyp::~Box_ftyp() {
@@ -20,4 +18,9 @@ void Box_ftyp::SetMajorBrand( uint32_t MajorBrand ) {
 
 void Box_ftyp::SetMinorBrand( uint32_t MinorBrand ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(MinorBrand),4);
+}
+
+void Box_ftyp::SetDefaults( ) {
+  SetMinorBrand( );
+  SetMajorBrand( );
 }

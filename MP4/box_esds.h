@@ -1,10 +1,10 @@
 #include "box.h"
 #include <string>
 
-class Box_mp4a {
+class Box_esds {
   public:
-    Box_mp4a( );
-    ~Box_mp4a();
+    Box_esds( );
+    ~Box_esds();
     Box * GetBox();
     void SetDataReferenceIndex( uint16_t DataReferenceIndex = 0);
     void SetChannelCount( uint16_t Count = 2 );

@@ -55,7 +55,7 @@ void Box_avcC::SetReserved( ) {
 }
 
 void Box_avcC::SetDefaults( ) {
-  SetResolution ( );
-  SetFrameCount ( );
   SetDepth ( );
+  SetFrameCount ( );
+  SetResolution ( );
 }

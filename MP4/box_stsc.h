@@ -14,7 +14,7 @@ class Box_stsc {
     ~Box_stsc();
     Box * GetBox();
     void SetReserved( );
-    void AddEntry( uint32_t FirstChunk, uint32_t SamplesPerChunk, uint32_t SampleDescIndex, uint32_t Offset = 0 );
+    void AddEntry( uint32_t FirstChunk = 0, uint32_t SamplesPerChunk = 0, uint32_t SampleDescIndex = 0, uint32_t Offset = 0 );
   private:
     Box * Container;
 

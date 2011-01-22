@@ -37,3 +37,8 @@ void Box_hdlr::SetName ( std::string Name ) {
   SetHandlerType(0);
   Container->SetPayload((uint32_t)strlen(tmp)+1,(uint8_t*)tmp,24);
 }
+
+void Box_hdlr::SetDefaults( ) {
+  SetName( );
+  SetHandlerType( );
+}

@@ -24,11 +24,10 @@ void Box_stsc::AddEntry( uint32_t FirstChunk, uint32_t SamplesPerChunk, uint32_t
   Entries[Offset].FirstChunk = FirstChunk;
   Entries[Offset].SamplesPerChunk = SamplesPerChunk;
   Entries[Offset].SampleDescIndex = SampleDescIndex;
-  WriteEntries( );
 }
 
 
-void Box_stsc::WriteEntries( ) {
+void Box_stsc::WriteContent( ) {
   Container->ResetPayload();
   SetReserved( );
   if(!Entries.empty()) {

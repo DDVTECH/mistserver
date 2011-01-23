@@ -125,3 +125,30 @@ uint8_t * Interface::GetContents( ) {
   memcpy(&Result[ftyp->GetBox( )->GetBoxedDataSize( )],moov->GetBox( )->GetBoxedData( ),moov->GetBox( )->GetBoxedDataSize( ));
   return Result;
 }
+
+
+void Interface::UpdateContents( ) {
+  stsd_vide->WriteContent( );
+  stco_vide->WriteContent( );
+  stsc_vide->WriteContent( );
+  stts_vide->WriteContent( );
+  stbl_vide->WriteContent( );
+  dref_vide->WriteContent( );
+  dinf_vide->WriteContent( );
+  minf_vide->WriteContent( );
+  mdia_vide->WriteContent( );
+
+  stsd_soun->WriteContent( );
+  stco_soun->WriteContent( );
+  stsc_soun->WriteContent( );
+  stts_soun->WriteContent( );
+  stbl_soun->WriteContent( );
+  dref_soun->WriteContent( );
+  dinf_soun->WriteContent( );
+  minf_soun->WriteContent( );
+  mdia_soun->WriteContent( );
+
+  trak_vide->WriteContent( );
+
+  moov->WriteContent( );
+}

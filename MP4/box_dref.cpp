@@ -21,7 +21,6 @@ void Box_dref::AddContent( Box * newcontent, uint32_t offset ) {
     delete Content[offset];
   }
   Content[offset] = newcontent;
-  WriteContent();
 }
 
 void Box_dref::WriteContent( ) {

@@ -15,10 +15,10 @@ class Box_stsc {
     Box * GetBox();
     void SetReserved( );
     void AddEntry( uint32_t FirstChunk = 0, uint32_t SamplesPerChunk = 0, uint32_t SampleDescIndex = 0, uint32_t Offset = 0 );
+    void WriteContent( );
   private:
     Box * Container;
 
-    void WriteEntries( );
     std::vector<stsc_record> Entries;
 };//Box_ftyp Class
 

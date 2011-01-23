@@ -20,7 +20,6 @@ void Box_stbl::AddContent( Box * newcontent, uint32_t offset ) {
     delete Content[offset];
   }
   Content[offset] = newcontent;
-  WriteContent();
 }
 
 void Box_stbl::WriteContent( ) {

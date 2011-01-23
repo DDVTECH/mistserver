@@ -18,7 +18,6 @@ void Box_dinf::AddContent( Box * newcontent ) {
     Content = NULL;
   }
   Content = newcontent;
-  WriteContent();
 }
 
 void Box_dinf::WriteContent( ) {

@@ -7,3 +7,4 @@ Connector_RTMP/Connector_RTMP
 Connector_RTSP/Connector_RTSP
 *~
 bin/*
+gearbox/plugins/001_putserversup.sh

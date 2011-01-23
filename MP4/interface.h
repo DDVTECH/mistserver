@@ -13,14 +13,17 @@ class Interface {
     void SetDurationTime( uint32_t NewDuration );
     void SetTimeScale( uint32_t NewUnitsPerSecond );
     void AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta );
+    void EmptySTTS( );
   private:
     void SetStaticDefaults();
     void UpdateContents();
+    void WriteSTTS( );
     bool AllBoxesExist();
     uint16_t Width;
     uint16_t Height;
     uint32_t Duration;
     uint32_t UnitsPerSecond;
+    std::vector<stts_record> stts;
     Box_ftyp * ftyp;
     Box_moov * moov;
     Box_mvhd * mvhd;

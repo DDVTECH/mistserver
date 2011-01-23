@@ -114,3 +114,14 @@ void Interface::link( ) {
   moov->AddContent(trak_vide->GetBox(),1);
   moov->AddContent(mvhd->GetBox());
 }
+
+uint32_t Interface::GetContentSize( ) {
+  return ftyp->GetBoxedDataSize( ) + moov->GetBoxedDataSize( );
+}
+
+uint8_t * Interface::GetContents( ) {
+  uint8_t * Result = new uint8_t[GetContentSize( )];
+  memcpy(Result,ftyp->GetBoxedData( ),ftyp->GetBoxedDataSize( ));
+  memcpy(&Result[ftyp->GetBoxedDataSize( )],moov->GetBoxedData( ),moov->GetBoxedDataSize( ));
+  return Result;
+}

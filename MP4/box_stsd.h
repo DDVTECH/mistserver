@@ -11,7 +11,7 @@ class Box_stsd {
   private:
     Box * Container;
 
-    void SetDefaults();
+    void SetReserved();
     void WriteContent();
     std::vector<Box *> Content;
 };//Box_ftyp Class

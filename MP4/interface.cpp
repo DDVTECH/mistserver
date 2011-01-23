@@ -71,3 +71,44 @@ Interface::~Interface() {
   if( moov ) { delete moov; moov = NULL; }
   if( ftyp ) { delete ftyp; ftyp = NULL; }
 }
+
+void Interface::link( ) {
+  //Linking Video Track
+  stsd_vide->AddContent(avcC_vide->GetBox());
+  stbl_vide->AddContent(stsd_vide->GetBox(),3);
+  stbl_vide->AddContent(stco_vide->GetBox(),2);
+  stbl_vide->AddContent(stsc_vide->GetBox(),1);
+  stbl_vide->AddContent(stts_vide->GetBox());
+  dref_vide->AddContent(url_vide->GetBox());
+  dinf_vide->AddContent(dref_vide->GetBox());
+  minf_vide->AddContent(stbl_vide->GetBox(),2);
+  minf_vide->AddContent(dinf_vide->GetBox(),1);
+  minf_vide->AddContent(vmhd_vide->GetBox());
+  mdia_vide->AddContent(minf_vide->GetBox(),2);
+  mdia_vide->AddContent(hdlr_vide->GetBox(),1);
+  mdia_vide->AddContent(mdhd_vide->GetBox());
+  trak_vide->AddContent(mdia_vide->GetBox(),1);
+  trak_vide->AddContent(tkhd_vide->GetBox());
+
+  //Linking Sound Track
+  stsd_soun->AddContent(esds_soun->GetBox());
+  stbl_soun->AddContent(stsd_soun->GetBox(),3);
+  stbl_soun->AddContent(stco_soun->GetBox(),2);
+  stbl_soun->AddContent(stsc_soun->GetBox(),1);
+  stbl_soun->AddContent(stts_soun->GetBox());
+  dref_soun->AddContent(url_soun->GetBox());
+  dinf_soun->AddContent(dref_soun->GetBox());
+  minf_soun->AddContent(stbl_soun->GetBox(),2);
+  minf_soun->AddContent(dinf_soun->GetBox(),1);
+  minf_soun->AddContent(smhd_soun->GetBox());
+  mdia_soun->AddContent(minf_soun->GetBox(),2);
+  mdia_soun->AddContent(hdlr_soun->GetBox(),1);
+  mdia_soun->AddContent(mdhd_soun->GetBox());
+  trak_soun->AddContent(mdia_soun->GetBox(),1);
+  trak_soun->AddContent(tkhd_soun->GetBox());
+
+  //Linking total file
+  moov->AddContent(trak_soun->GetBox(),2);
+  moov->AddContent(trak_vide->GetBox(),1);
+  moov->AddContent(mvhd->GetBox());
+}

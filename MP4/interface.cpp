@@ -136,10 +136,15 @@ uint8_t * Interface::GetContents( ) {
 }
 
 void Interface::UpdateContents( ) {
-  if( !Width ) { std::cerr << "WARNING: Width not set!\n"; }
-  if( !Height ) { std::cerr << "WARNING: Height not set!\n"; }
-  if( !Duration ) { std::cerr << "WARNING: Duration not set!\n"; }
-  if( !UnitsPerSecond ) { std::cerr << "WARNING: Timescale not set!\n"; }
+  if( !Width ) { fprintf(stderr,"WARNING: Width not set!\n"); }
+  if( !Height ) { fprintf(stderr,"WARNING: Height not set!\n"); }
+  if( !Duration ) { fprintf(stderr,"WARNING: Duration not set!\n"); }
+  if( !UnitsPerSecond ) { fprintf(stderr,"WARNING: Timescale not set!\n"); }
+  if( stts.size() == 0 ) {
+    fprintf(stderr,"WARNING: No stts available!\n");
+  } else {
+    WriteSTTS();
+  }
   stsd_vide->WriteContent( );
   stco_vide->WriteContent( );
   stsc_vide->WriteContent( );
@@ -218,5 +223,19 @@ void Interface::SetStaticDefaults() {
 }
 
 void Interface::AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta ) {
+  stts_record temp;
+  temp.SampleCount = SampleCount;
+  temp.SampleDelta = SampleDelta;
+  stts.push_back(temp);
+}
 
+void Interface::EmptySTTS() {
+  stts.clear();
+}
+
+void Interface::WriteSTTS( ) {
+  for( int i = stts.size() -1; i > 0; i -- ) {
+    stts_vide->AddEntry(stts[i].SampleCount,stts[i].SampleDelta,i);
+    stts_soun->AddEntry(stts[i].SampleCount,stts[i].SampleDelta,i);
+  }
 }

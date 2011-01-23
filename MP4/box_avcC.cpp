@@ -58,7 +58,8 @@ void Box_avcC::SetReserved( ) {
 }
 
 void Box_avcC::SetDefaults( ) {
-  SetDimensions( );
+  SetWidth( );
+  SetHeight( );
   SetDepth ( );
   SetFrameCount ( );
   SetResolution ( );

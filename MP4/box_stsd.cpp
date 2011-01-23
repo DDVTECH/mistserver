@@ -2,7 +2,7 @@
 
 Box_stsd::Box_stsd( ) {
   Container = new Box( 0x73747364 );
-  SetDefaults();
+  SetReserved();
 }
 
 Box_stsd::~Box_stsd() {
@@ -10,6 +10,7 @@ Box_stsd::~Box_stsd() {
 }
 
 Box * Box_stsd::GetBox() {
+  WriteContent();
   return Container;
 }
 
@@ -21,17 +22,16 @@ void Box_stsd::AddContent( Box * newcontent, uint32_t offset ) {
     delete Content[offset];
   }
   Content[offset] = newcontent;
-  WriteContent();
 }
 
-void Box_stsd::SetDefaults( ) {
+void Box_stsd::SetReserved( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8( 1 ),4);
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8( 0 ),0);
 }
 
 void Box_stsd::WriteContent( ) {
   Container->ResetPayload( );
-  SetDefaults( );
+  SetReserved( );
   Box * current;
   std::string serializedbox = "";
   for( uint32_t i = 0; i < Content.size(); i++ ) {

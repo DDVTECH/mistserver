@@ -10,6 +10,7 @@ Interface::Interface() {
   mdhd_vide = new Box_mdhd();
   hdlr_vide = new Box_hdlr();
   minf_vide = new Box_minf();
+  vmhd_vide = new Box_vmhd();
   dinf_vide = new Box_dinf();
   dref_vide = new Box_dref();
   url_vide = new Box_url();
@@ -25,6 +26,7 @@ Interface::Interface() {
   mdhd_soun = new Box_mdhd();
   hdlr_soun = new Box_hdlr();
   minf_soun = new Box_minf();
+  smhd_soun = new Box_smhd();
   dinf_soun = new Box_dinf();
   dref_soun = new Box_dref();
   url_soun = new Box_url();

@@ -116,12 +116,12 @@ void Interface::link( ) {
 }
 
 uint32_t Interface::GetContentSize( ) {
-  return ftyp->GetBoxedDataSize( ) + moov->GetBoxedDataSize( );
+  return ftyp->GetBox( )->GetBoxedDataSize( ) + moov->GetBox( )->GetBoxedDataSize( );
 }
 
 uint8_t * Interface::GetContents( ) {
   uint8_t * Result = new uint8_t[GetContentSize( )];
-  memcpy(Result,ftyp->GetBoxedData( ),ftyp->GetBoxedDataSize( ));
-  memcpy(&Result[ftyp->GetBoxedDataSize( )],moov->GetBoxedData( ),moov->GetBoxedDataSize( ));
+  memcpy(Result,ftyp->GetBox( )->GetBoxedData( ),ftyp->GetBox( )->GetBoxedDataSize( ));
+  memcpy(&Result[ftyp->GetBox( )->GetBoxedDataSize( )],moov->GetBox( )->GetBoxedData( ),moov->GetBox( )->GetBoxedDataSize( ));
   return Result;
 }

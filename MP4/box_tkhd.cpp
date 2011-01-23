@@ -70,12 +70,14 @@ void Box_tkhd::SetTrackID( uint32_t TrackID ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(TrackID),12);
 }
 
-void Box_tkhd::SetWidth( uint32_t Width ) {
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Width),72);
+void Box_tkhd::SetWidth( uint16_t Width ) {
+  uint32_t ResultWidth = ( Width << 16 );
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(ResultWidth),72);
 }
 
-void Box_tkhd::SetHeight( uint32_t Height ) {
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Height),76);
+void Box_tkhd::SetHeight( uint16_t Height ) {
+  uint32_t ResultHeight = ( Height << 16 );
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(ResultHeight),76);
 }
 
 void Box_tkhd::SetDefaults() {

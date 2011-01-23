@@ -1,6 +1,10 @@
 #include "interface.h"
 
 Interface::Interface() {
+  //Initializing local data
+  Width = 0;
+  Height = 0;
+  //Creating the boxes
   ftyp = new Box_ftyp();
   moov = new Box_moov();
   mvhd = new Box_mvhd();
@@ -36,9 +40,12 @@ Interface::Interface() {
   stco_soun = new Box_stco();
   stsd_soun = new Box_stsd();
   esds_soun = new Box_esds();
+  //Set some values we already know won't change once the boxes have been created
+  SetStaticDefaults();
 }
 
 Interface::~Interface() {
+  //Deleting the boxes if they still exist.
   if( esds_soun ) { delete esds_soun; esds_soun = NULL; }
   if( stsd_soun ) { delete stsd_soun; stsd_soun = NULL; }
   if( stco_soun ) { delete stco_soun; stco_soun = NULL; }
@@ -126,8 +133,9 @@ uint8_t * Interface::GetContents( ) {
   return Result;
 }
 
-
 void Interface::UpdateContents( ) {
+  if( !Width ) { std::cerr << "WARNING: Width not set!\n"; }
+  if( !Height ) { std::cerr << "WARNING: Height not set!\n"; }
   stsd_vide->WriteContent( );
   stco_vide->WriteContent( );
   stsc_vide->WriteContent( );
@@ -151,4 +159,31 @@ void Interface::UpdateContents( ) {
   trak_vide->WriteContent( );
 
   moov->WriteContent( );
+}
+
+bool Interface::AllBoxesExist() {
+  return ( ftyp && moov && mvhd && trak_vide && tkhd_vide && mdia_vide && mdhd_vide && hdlr_vide &&
+  minf_vide && vmhd_vide && dinf_vide && dref_vide && url_vide && stbl_vide && stts_vide && stsc_vide &&
+  stco_vide && stsd_vide && avcC_vide && trak_soun && tkhd_soun && mdia_soun && mdhd_soun && hdlr_soun &&
+  minf_soun && smhd_soun && dinf_soun && dref_soun && url_soun && stbl_soun && stts_soun && stsc_soun &&
+  stco_soun && stsd_soun && esds_soun );
+}
+
+void Interface::SetWidth( uint16_t NewWidth ) {
+  Width = NewWidth;
+  avcC_vide->SetWidth( Width );
+  tkhd_vide->SetWidth( Width );
+}
+
+void Interface::SetHeight( uint16_t NewHeight ) {
+  Height = NewHeight;
+  avcC_vide->SetHeight( Height );
+  tkhd_vide->SetHeight( Height );
+}
+
+void Interface::SetStaticDefaults() {
+//  'vide' = 0x76696465
+  hdlr_vide->SetHandlerType( 0x76696465 );
+//  'soun' = 0x736F756E
+  hdlr_soun->SetHandlerType( 0x736F756E );
 }

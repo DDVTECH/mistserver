@@ -10,12 +10,17 @@ class Interface {
 
     void SetWidth( uint16_t NewWidth );
     void SetHeight( uint16_t NewHeight );
+    void SetDurationTime( uint32_t NewDuration );
+    void SetTimeScale( uint32_t NewUnitsPerSecond );
+    void AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta );
   private:
     void SetStaticDefaults();
     void UpdateContents();
     bool AllBoxesExist();
     uint16_t Width;
     uint16_t Height;
+    uint32_t Duration;
+    uint32_t UnitsPerSecond;
     Box_ftyp * ftyp;
     Box_moov * moov;
     Box_mvhd * mvhd;

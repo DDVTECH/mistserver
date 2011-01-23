@@ -4,6 +4,8 @@ Interface::Interface() {
   //Initializing local data
   Width = 0;
   Height = 0;
+  Duration = 0;
+  UnitsPerSecond = 0;
   //Creating the boxes
   ftyp = new Box_ftyp();
   moov = new Box_moov();
@@ -136,6 +138,8 @@ uint8_t * Interface::GetContents( ) {
 void Interface::UpdateContents( ) {
   if( !Width ) { std::cerr << "WARNING: Width not set!\n"; }
   if( !Height ) { std::cerr << "WARNING: Height not set!\n"; }
+  if( !Duration ) { std::cerr << "WARNING: Duration not set!\n"; }
+  if( !UnitsPerSecond ) { std::cerr << "WARNING: Timescale not set!\n"; }
   stsd_vide->WriteContent( );
   stco_vide->WriteContent( );
   stsc_vide->WriteContent( );
@@ -170,20 +174,49 @@ bool Interface::AllBoxesExist() {
 }
 
 void Interface::SetWidth( uint16_t NewWidth ) {
-  Width = NewWidth;
-  avcC_vide->SetWidth( Width );
-  tkhd_vide->SetWidth( Width );
+  if( Width != NewWidth ) {
+    Width = NewWidth;
+    avcC_vide->SetWidth( Width );
+    tkhd_vide->SetWidth( Width );
+  }
 }
 
 void Interface::SetHeight( uint16_t NewHeight ) {
-  Height = NewHeight;
-  avcC_vide->SetHeight( Height );
-  tkhd_vide->SetHeight( Height );
+  if( Height != NewHeight ) {
+    Height = NewHeight;
+    avcC_vide->SetHeight( Height );
+    tkhd_vide->SetHeight( Height );
+  }
+}
+
+void Interface::SetDurationTime( uint32_t NewDuration ) {
+  if( Duration != NewDuration ) {
+    Duration = NewDuration;
+    mvhd->SetDurationTime( Duration );
+    mdhd_vide->SetDurationTime( Duration );
+    tkhd_vide->SetDurationTime( Duration );
+    mdhd_soun->SetDurationTime( Duration );
+    tkhd_soun->SetDurationTime( Duration );
+  }
+}
+void Interface::SetTimeScale( uint32_t NewUnitsPerSecond ) {
+  if( UnitsPerSecond != NewUnitsPerSecond ) {
+    UnitsPerSecond = NewUnitsPerSecond;
+    mvhd->SetTimeScale( UnitsPerSecond );
+    mdhd_vide->SetTimeScale( UnitsPerSecond );
+    mdhd_soun->SetTimeScale( UnitsPerSecond );
+  }
 }
 
 void Interface::SetStaticDefaults() {
 //  'vide' = 0x76696465
   hdlr_vide->SetHandlerType( 0x76696465 );
+  hdlr_vide->SetName( "Video Track" );
 //  'soun' = 0x736F756E
   hdlr_soun->SetHandlerType( 0x736F756E );
+  hdlr_vide->SetName( "Audio Track" );
+}
+
+void Interface::AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta ) {
+
 }

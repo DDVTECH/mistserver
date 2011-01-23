@@ -18,9 +18,12 @@ void Box_avcC::SetDataReferenceIndex( uint16_t DataReferenceIndex ) {
   Container->SetPayload((uint32_t)2,Box::uint16_to_uint8( DataReferenceIndex ),6);
 }
 
-void Box_avcC::SetDimensions ( uint16_t Width, uint16_t Height ) {
-  Container->SetPayload((uint32_t)2,Box::uint16_to_uint8( Height ),26);
+void Box_avcC::SetWidth( uint16_t Width ) {
   Container->SetPayload((uint32_t)2,Box::uint16_to_uint8( Width ),24);
+}
+
+void Box_avcC::SetHeight( uint16_t Height ) {
+  Container->SetPayload((uint32_t)2,Box::uint16_to_uint8( Height ),26);
 }
 
 void Box_avcC::SetResolution ( uint32_t Horizontal, uint32_t Vertical ) {
@@ -55,6 +58,7 @@ void Box_avcC::SetReserved( ) {
 }
 
 void Box_avcC::SetDefaults( ) {
+  SetDimensions( );
   SetDepth ( );
   SetFrameCount ( );
   SetResolution ( );

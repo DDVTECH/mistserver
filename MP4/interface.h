@@ -7,8 +7,15 @@ class Interface {
     void link();
     uint32_t GetContentSize();
     uint8_t * GetContents();
+
+    void SetWidth( uint16_t NewWidth );
+    void SetHeight( uint16_t NewHeight );
   private:
+    void SetStaticDefaults();
     void UpdateContents();
+    bool AllBoxesExist();
+    uint16_t Width;
+    uint16_t Height;
     Box_ftyp * ftyp;
     Box_moov * moov;
     Box_mvhd * mvhd;

@@ -14,7 +14,7 @@ class Box_mvhd {
     void SetDurationTime( uint32_t TimeUnits = 0 );
     void SetRate( uint32_t Rate = 0x00010000 );
     void SetVolume( uint16_t Volume = 0x0100 );
-    void SetNextTrackID( uint32_t TrackID = 0 );
+    void SetNextTrackID( uint32_t TrackID = 0xFFFFFFFF );
   private:
     void SetReserved();
     void SetDefaults();

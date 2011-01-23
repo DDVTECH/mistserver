@@ -5,11 +5,13 @@ class Interface {
     Interface();
     ~Interface();
     void link();
+    uint32_t GetContentSize();
+    uint8_t * GetContents();
   private:
+    void UpdateContents();
     Box_ftyp * ftyp;
     Box_moov * moov;
     Box_mvhd * mvhd;
-
     Box_trak * trak_vide;
     Box_tkhd * tkhd_vide;
     Box_mdia * mdia_vide;
@@ -26,7 +28,6 @@ class Interface {
     Box_stco * stco_vide;
     Box_stsd * stsd_vide;
     Box_avcC * avcC_vide;
-
     Box_trak * trak_soun;
     Box_tkhd * tkhd_soun;
     Box_mdia * mdia_soun;

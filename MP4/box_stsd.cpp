@@ -10,7 +10,6 @@ Box_stsd::~Box_stsd() {
 }
 
 Box * Box_stsd::GetBox() {
-  WriteContent();
   return Container;
 }
 

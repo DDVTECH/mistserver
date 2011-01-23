@@ -25,7 +25,7 @@ void Box_stco::AddOffset( uint32_t DataOffset, uint32_t Offset ) {
 }
 
 
-void Box_stco::WriteOffsets( ) {
+void Box_stco::WriteContent( ) {
   Container->ResetPayload();
   SetReserved( );
   if(!Offsets.empty()) {

@@ -14,10 +14,10 @@ class Box_stts {
     Box * GetBox();
     void SetReserved( );
     void AddEntry( uint32_t SampleCount, uint32_t SampleDelta, uint32_t Offset = 0 );
+    void WriteContent( );
   private:
     Box * Container;
 
-    void WriteEntries( );
     std::vector<stts_record> Entries;
 };//Box_ftyp Class
 

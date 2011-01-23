@@ -23,11 +23,10 @@ void Box_stts::AddEntry( uint32_t SampleCount, uint32_t SampleDelta, uint32_t Of
   }
   Entries[Offset].SampleCount = SampleCount;
   Entries[Offset].SampleDelta = SampleDelta;
-  WriteEntries( );
 }
 
 
-void Box_stts::WriteEntries( ) {
+void Box_stts::WriteContent( ) {
   Container->ResetPayload();
   SetReserved( );
   if(!Entries.empty()) {

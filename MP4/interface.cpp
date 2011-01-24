@@ -4,8 +4,6 @@ Interface::Interface() {
   //Initializing local data
   Width = 0;
   Height = 0;
-  Duration = 0;
-  UnitsPerSecond = 0;
   //Creating the boxes
   ftyp = new Box_ftyp();
   moov = new Box_moov();
@@ -138,13 +136,20 @@ uint8_t * Interface::GetContents( ) {
 void Interface::UpdateContents( ) {
   if( !Width ) { fprintf(stderr,"WARNING: Width not set!\n"); }
   if( !Height ) { fprintf(stderr,"WARNING: Height not set!\n"); }
-  if( !Duration ) { fprintf(stderr,"WARNING: Duration not set!\n"); }
-  if( !UnitsPerSecond ) { fprintf(stderr,"WARNING: Timescale not set!\n"); }
-  if( stts.size() == 0 ) {
-    fprintf(stderr,"WARNING: No stts available!\n");
-  } else {
-    WriteSTTS();
-  }
+  if( !Duration.size() ) { fprintf(stderr,"WARNING: Duration not set!\n"); }
+  if( !UnitsPerSecond.size() ) { fprintf(stderr,"WARNING: Timescale not set!\n"); }
+  if( sttsvide.size() == 0 ) {
+    fprintf(stderr,"WARNING: No video stts available!\n");
+  } else { WriteSTTS( 1 ); }
+  if( sttssoun.size() == 0 ) {
+    fprintf(stderr,"WARNING: No sound stts available!\n");
+  } else { WriteSTTS( 2 ); }
+  if( stscvide.size() == 0 ) {
+    fprintf(stderr,"WARNING: No video stsc available!\n");
+  } else { WriteSTSC( 1 ); }
+  if( stscsoun.size() == 0 ) {
+    fprintf(stderr,"WARNING: No sound stsc available!\n");
+  } else { WriteSTSC( 2 ); }
   stsd_vide->WriteContent( );
   stco_vide->WriteContent( );
   stsc_vide->WriteContent( );
@@ -356,7 +361,7 @@ void Interface::SetOffsets( std::vector<uint32_t> NewOffsets, uint32_t Track ) {
     case 2:
       stco_soun->SetOffsets( NewOffsets );
       break;
-    default;
+    default:
       fprintf( stderr, "WARNING: Track %d does not exist, Offsets not written\n", Track );
       break;
   }

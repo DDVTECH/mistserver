@@ -21,3 +21,4 @@
 #include "box_trak.h"
 #include "box_url.h"
 #include "box_vmhd.h"
+#include "box_mdat.h"

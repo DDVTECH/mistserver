@@ -6,7 +6,7 @@ class Box_avcC {
     Box_avcC( );
     ~Box_avcC();
     Box * GetBox();
-    void SetDataReferenceIndex( uint16_t DataReferenceIndex = 0 );
+    void SetDataReferenceIndex( uint16_t DataReferenceIndex = 1 );
     void SetWidth( uint16_t Width = 0 );
     void SetHeight( uint16_t Height = 0 );
     void SetResolution ( uint32_t Horizontal = 0x00480000, uint32_t Vertical = 0x00480000 );

@@ -6,7 +6,7 @@ class Box_esds {
     Box_esds( );
     ~Box_esds();
     Box * GetBox();
-    void SetDataReferenceIndex( uint16_t DataReferenceIndex = 0);
+    void SetDataReferenceIndex( uint16_t DataReferenceIndex = 1);
     void SetChannelCount( uint16_t Count = 2 );
     void SetSampleSize( uint16_t Size = 16 );
   private:

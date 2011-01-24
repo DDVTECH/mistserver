@@ -244,6 +244,9 @@ void Interface::SetStaticDefaults() {
 //  'soun' = 0x736F756E
   hdlr_soun->SetHandlerType( 0x736F756E );
   hdlr_vide->SetName( "Audio Track" );
+//  Set Track ID's
+  tkhd_vide->SetTrackID( 1 );
+  tkhd_soun->SetTrackID( 2 );
 }
 
 void Interface::AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta, uint32_t Track ) {
@@ -341,6 +344,20 @@ void Interface::WriteSTSC( uint32_t Track ) {
       break;
     default:
       fprintf( stderr, "WARNING: Track %d does not exist, STSC not written\n", Track );
+      break;
+  }
+}
+
+void Interface::SetOffsets( std::vector<uint32_t> NewOffsets, uint32_t Track ) {
+  switch( Track ) {
+    case 1:
+      stco_vide->SetOffsets( NewOffsets );
+      break;
+    case 2:
+      stco_soun->SetOffsets( NewOffsets );
+      break;
+    default;
+      fprintf( stderr, "WARNING: Track %d does not exist, Offsets not written\n", Track );
       break;
   }
 }

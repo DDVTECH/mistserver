@@ -35,3 +35,7 @@ void Box_stco::WriteContent( ) {
   }
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Offsets.size()),4);
 }
+
+void Box_stco::SetOffsets( std::vector<uint32_t> NewOffsets ) {
+  Offsets = NewOffsets;
+}

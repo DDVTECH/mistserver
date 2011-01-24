@@ -45,7 +45,6 @@ void parseChunk(){
       //6 = pingrequest, 4 bytes data
       //7 = pingresponse, 4 bytes data
       //we don't need to process this
-      SendCTL(3, rec_cnt);//send ack (msg 3)
     } break;
     case 5://window size of other end
       #if DEBUG >= 4

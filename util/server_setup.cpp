@@ -63,12 +63,12 @@ int main(int argc, char ** argv){
     if (daemon_mode){
       daemon(1, 0);
       #if DEBUG >= 3
-      fprintf(stderr, "Going into background mode...");
+      fprintf(stderr, "Going into background mode...\n");
       #endif
     }
   }else{
     #if DEBUG >= 1
-    fprintf(stderr, "Error: could not make listening socket");
+    fprintf(stderr, "Error: could not make listening socket\n");
     #endif
     return 1;
   }

@@ -16,6 +16,8 @@ class Interface {
     void EmptySTTS( uint32_t Track );
     void AddSTSCEntry( uint32_t FirstChunk, uint32_t SamplesPerChunk, uint32_t Track );
     void EmptySTSC( uint32_t Track );
+    void SetOffsets( std::vector<uint32_t> NewOffsets, uint32_t Track );
+    void SetData( uint8_t * Data, uint32_t DataSize );
   private:
     void SetStaticDefaults();
     void UpdateContents();

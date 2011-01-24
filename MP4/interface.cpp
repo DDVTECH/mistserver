@@ -294,3 +294,53 @@ void Interface::WriteSTTS( uint32_t Track ) {
       break;
   }
 }
+
+void Interface::AddSTSCEntry( uint32_t FirstChunk, uint32_t SamplesPerChunk, uint32_t Track ) {
+  stsc_record temp;
+  temp.FirstChunk = FirstChunk;
+  temp.SamplesPerChunk = SamplesPerChunk;
+  temp.SampleDescIndex = 1;
+  switch(Track) {
+    case 1:
+      stscvide.push_back(temp);
+      break;
+    case 2:
+      stscsoun.push_back(temp);
+      break;
+    default:
+      fprintf( stderr, "WARNING: Track %d does not exist, STSC not added\n", Track );
+      break;
+  }
+}
+
+void Interface::EmptySTSC( uint32_t Track ) {
+  switch(Track) {
+    case 1:
+      stscvide.clear();
+      break;
+    case 2:
+      stscsoun.clear();
+      break;
+    default:
+      fprintf( stderr, "WARNING: Track %d does not exist, STSC not cleared\n", Track );
+      break;
+  }
+}
+
+void Interface::WriteSTSC( uint32_t Track ) {
+  switch( Track ) {
+    case 1:
+      for( int i = stscvide.size() -1; i > 0; i -- ) {
+        stsc_vide->AddEntry(stscvide[i].FirstChunk,stscvide[i].SamplesPerChunk,1,i);
+      }
+      break;
+    case 2:
+      for( int i = stscsoun.size() -1; i > 0; i -- ) {
+        stsc_soun->AddEntry(stscsoun[i].FirstChunk,stscsoun[i].SamplesPerChunk,1,i);
+      }
+      break;
+    default:
+      fprintf( stderr, "WARNING: Track %d does not exist, STSC not written\n", Track );
+      break;
+  }
+}

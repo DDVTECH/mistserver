@@ -246,20 +246,51 @@ void Interface::SetStaticDefaults() {
   hdlr_vide->SetName( "Audio Track" );
 }
 
-void Interface::AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta ) {
+void Interface::AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta, uint32_t Track ) {
   stts_record temp;
   temp.SampleCount = SampleCount;
   temp.SampleDelta = SampleDelta;
-  stts.push_back(temp);
+  switch(Track) {
+    case 1:
+      sttsvide.push_back(temp);
+      break;
+    case 2:
+      sttssoun.push_back(temp);
+      break;
+    default:
+      fprintf( stderr, "WARNING: Track %d does not exist, STTS not added\n", Track );
+      break;
+  }
 }
 
-void Interface::EmptySTTS() {
-  stts.clear();
+void Interface::EmptySTTS( uint32_t Track ) {
+  switch(Track) {
+    case 1:
+      sttsvide.clear();
+      break;
+    case 2:
+      sttssoun.clear();
+      break;
+    default:
+      fprintf( stderr, "WARNING: Track %d does not exist, STTS not cleared\n", Track );
+      break;
+  }
 }
 
-void Interface::WriteSTTS( ) {
-  for( int i = stts.size() -1; i > 0; i -- ) {
-    stts_vide->AddEntry(stts[i].SampleCount,stts[i].SampleDelta,i);
-    stts_soun->AddEntry(stts[i].SampleCount,stts[i].SampleDelta,i);
+void Interface::WriteSTTS( uint32_t Track ) {
+  switch( Track ) {
+    case 1:
+      for( int i = sttsvide.size() -1; i > 0; i -- ) {
+        stts_vide->AddEntry(sttsvide[i].SampleCount,sttsvide[i].SampleDelta,i);
+      }
+      break;
+    case 2:
+      for( int i = sttssoun.size() -1; i > 0; i -- ) {
+        stts_soun->AddEntry(sttssoun[i].SampleCount,sttssoun[i].SampleDelta,i);
+      }
+      break;
+    default:
+      fprintf( stderr, "WARNING: Track %d does not exist, STTS not written\n", Track );
+      break;
   }
 }

@@ -26,7 +26,10 @@ class Interface {
     uint16_t Height;
     std::vector<uint32_t> Duration;
     std::vector<uint32_t> UnitsPerSecond;
-    std::vector<stts_record> stts;
+    std::vector<stts_record> sttsvide;
+    std::vector<stts_record> sttssoun;
+    std::vector<stsc_record> stscvide;
+    std::vector<stsc_record> stscsoun;
     Box_ftyp * ftyp;
     Box_moov * moov;
     Box_mvhd * mvhd;

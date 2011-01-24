@@ -10,19 +10,22 @@ class Interface {
 
     void SetWidth( uint16_t NewWidth );
     void SetHeight( uint16_t NewHeight );
-    void SetDurationTime( uint32_t NewDuration );
-    void SetTimeScale( uint32_t NewUnitsPerSecond );
-    void AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta );
-    void EmptySTTS( );
+    void SetDurationTime( uint32_t NewDuration, uint32_t Track );
+    void SetTimeScale( uint32_t NewUnitsPerSecond, uint32_t Track );
+    void AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta, uint32_t Track );
+    void EmptySTTS( uint32_t Track );
+    void AddSTSCEntry( uint32_t FirstChunk, uint32_t SamplesPerChunk, uint32_t Track );
+    void EmptySTSC( uint32_t Track );
   private:
     void SetStaticDefaults();
     void UpdateContents();
-    void WriteSTTS( );
+    void WriteSTTS( uint32_t Track );
+    void WriteSTSC( uint32_t Track );
     bool AllBoxesExist();
     uint16_t Width;
     uint16_t Height;
-    uint32_t Duration;
-    uint32_t UnitsPerSecond;
+    std::vector<uint32_t> Duration;
+    std::vector<uint32_t> UnitsPerSecond;
     std::vector<stts_record> stts;
     Box_ftyp * ftyp;
     Box_moov * moov;

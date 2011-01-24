@@ -194,22 +194,46 @@ void Interface::SetHeight( uint16_t NewHeight ) {
   }
 }
 
-void Interface::SetDurationTime( uint32_t NewDuration ) {
-  if( Duration != NewDuration ) {
-    Duration = NewDuration;
-    mvhd->SetDurationTime( Duration );
-    mdhd_vide->SetDurationTime( Duration );
-    tkhd_vide->SetDurationTime( Duration );
-    mdhd_soun->SetDurationTime( Duration );
-    tkhd_soun->SetDurationTime( Duration );
+void Interface::SetDurationTime( uint32_t NewDuration, uint32_t Track ) {
+  if( Duration.size() < Track ) { Duration.resize(Track+1); }
+  if( Duration[Track] != NewDuration ) {
+    Duration[Track] = NewDuration;
+    switch( Track ) {
+      case 0:
+        mvhd->SetDurationTime( Duration[Track] );
+        break;
+      case 1:
+        mdhd_vide->SetDurationTime( Duration[Track] );
+        tkhd_vide->SetDurationTime( Duration[Track] );
+        break;
+      case 2:
+        mdhd_soun->SetDurationTime( Duration[Track] );
+        tkhd_soun->SetDurationTime( Duration[Track] );
+        break;
+      default:
+        fprintf( stderr, "WARNING, Setting Duration for track %d does have any effect\n", Track );
+        break;
+    }
   }
 }
-void Interface::SetTimeScale( uint32_t NewUnitsPerSecond ) {
-  if( UnitsPerSecond != NewUnitsPerSecond ) {
-    UnitsPerSecond = NewUnitsPerSecond;
-    mvhd->SetTimeScale( UnitsPerSecond );
-    mdhd_vide->SetTimeScale( UnitsPerSecond );
-    mdhd_soun->SetTimeScale( UnitsPerSecond );
+void Interface::SetTimeScale( uint32_t NewUnitsPerSecond, uint32_t Track ) {
+  if( UnitsPerSecond.size() < Track ) { UnitsPerSecond.resize(Track+1); }
+  if( UnitsPerSecond[Track] != NewUnitsPerSecond ) {
+    UnitsPerSecond[Track] = NewUnitsPerSecond;
+    switch(Track) {
+      case 0:
+        mvhd->SetTimeScale( UnitsPerSecond[Track] );
+        break;
+      case 1:
+        mdhd_vide->SetTimeScale( UnitsPerSecond[Track] );
+        break;
+      case 2:
+        mdhd_soun->SetTimeScale( UnitsPerSecond[Track] );
+        break;
+      default:
+        fprintf( stderr, "WARNING, Setting Timescale for track %d does have any effect\n", Track );
+        break;
+    }
   }
 }
 

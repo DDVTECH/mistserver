@@ -67,5 +67,6 @@ class Interface {
     Box_stco * stco_soun;
     Box_stsd * stsd_soun;
     Box_esds * esds_soun;
+    Box_rtmp * rtmp;
 };//Interface class
 

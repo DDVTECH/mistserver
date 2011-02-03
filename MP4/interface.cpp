@@ -40,12 +40,14 @@ Interface::Interface() {
   stco_soun = new Box_stco();
   stsd_soun = new Box_stsd();
   esds_soun = new Box_esds();
+  rtmp = new Box_rtmp();
   //Set some values we already know won't change once the boxes have been created
   SetStaticDefaults();
 }
 
 Interface::~Interface() {
   //Deleting the boxes if they still exist.
+  if( rtmp ) { delete rtmp; rtmp = NULL; }
   if( esds_soun ) { delete esds_soun; esds_soun = NULL; }
   if( stsd_soun ) { delete stsd_soun; stsd_soun = NULL; }
   if( stco_soun ) { delete stco_soun; stco_soun = NULL; }

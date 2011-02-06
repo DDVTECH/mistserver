@@ -126,7 +126,12 @@ void Interface::link( ) {
   trak_soun->AddContent(mdia_soun->GetBox(),1);
   trak_soun->AddContent(tkhd_soun->GetBox());
 
+  //Linking mvex
+  mvex->AddContent(trex_soun->GetBox(),2);
+  mvex->AddContent(trex_vide->GetBox(),1);
+
   //Linking total file
+  moov->AddContent(mvex->GetBox(),3);
   moov->AddContent(trak_soun->GetBox(),2);
   moov->AddContent(trak_vide->GetBox(),1);
   moov->AddContent(mvhd->GetBox());
@@ -135,13 +140,17 @@ void Interface::link( ) {
 }
 
 uint32_t Interface::GetContentSize( ) {
-  return ftyp->GetBox( )->GetBoxedDataSize( ) + moov->GetBox( )->GetBoxedDataSize( );
+  return ftyp->GetBox( )->GetBoxedDataSize( ) + moov->GetBox( )->GetBoxedDataSize( ) + rtmp->GetBox( )->GetBoxedDataSize( );
 }
 
 uint8_t * Interface::GetContents( ) {
   uint8_t * Result = new uint8_t[GetContentSize( )];
-  memcpy(Result,ftyp->GetBox( )->GetBoxedData( ),ftyp->GetBox( )->GetBoxedDataSize( ));
-  memcpy(&Result[ftyp->GetBox( )->GetBoxedDataSize( )],moov->GetBox( )->GetBoxedData( ),moov->GetBox( )->GetBoxedDataSize( ));
+  uint32_t Ftyp_Size = ftyp->GetBox( )->GetBoxedDataSize( );
+  uint32_t Moov_Size = moov->GetBox( )->GetBoxedDataSize( );
+  uint32_t Rtmp_Size = rtmp->GetBox( )->GetBoxedDataSize( );
+  memcpy(Result,ftyp->GetBox( )->GetBoxedData( ),Ftyp_Size( ));
+  memcpy(&Result[Ftyp_Size],moov->GetBox( )->GetBoxedData( ),Moov_Size);
+  memcpy(&Result[Ftyp_Size+Moov_Size],rtmp->GetBox( )->GetBoxedData( ),Rtmp_Size);
   return Result;
 }
 
@@ -184,6 +193,7 @@ void Interface::UpdateContents( ) {
 
   trak_vide->WriteContent( );
 
+  mvex->WriteContent( );
   moov->WriteContent( );
 
   amhp->WriteContent( );
@@ -267,6 +277,8 @@ void Interface::SetStaticDefaults() {
 //  Set Track ID's
   tkhd_vide->SetTrackID( 1 );
   tkhd_soun->SetTrackID( 2 );
+  trex_vide->SetTrackID( 1 );
+  trex_soun->SetTrackID( 2 );
 //  Set amhp entry
   amhp->AddEntry( 1, 0, 0 );
 }

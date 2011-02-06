@@ -14,7 +14,7 @@ class Box_amhp {
     ~Box_amhp();
     Box * GetBox();
     void SetReserved( );
-    void AddEntry( uint8_t NewHintTrackMode, uint8_t NewSettings, uint8_t NewTrailerDefaultSize, uint32_t Offset = 0 );
+    void AddEntry( uint8_t HintTrackMode, uint8_t Settings, uint8_t TrailerDefaultSize, uint32_t Offset = 0 );
     void WriteContent( );
   private:
     Box * Container;

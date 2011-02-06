@@ -41,12 +41,16 @@ Interface::Interface() {
   stsd_soun = new Box_stsd();
   esds_soun = new Box_esds();
   rtmp = new Box_rtmp();
+  amhp = new Box_amhp();
+  mvex = new Box_mvex();
   //Set some values we already know won't change once the boxes have been created
   SetStaticDefaults();
 }
 
 Interface::~Interface() {
   //Deleting the boxes if they still exist.
+  if( mvex ) { delete mvex; mvex = NULL; }
+  if( amhp ) { delete amhp; amhp = NULL; }
   if( rtmp ) { delete rtmp; rtmp = NULL; }
   if( esds_soun ) { delete esds_soun; esds_soun = NULL; }
   if( stsd_soun ) { delete stsd_soun; stsd_soun = NULL; }
@@ -122,6 +126,8 @@ void Interface::link( ) {
   moov->AddContent(trak_soun->GetBox(),2);
   moov->AddContent(trak_vide->GetBox(),1);
   moov->AddContent(mvhd->GetBox());
+
+  rtmp->AddContent(amhp->GetBox());
 }
 
 uint32_t Interface::GetContentSize( ) {
@@ -175,6 +181,9 @@ void Interface::UpdateContents( ) {
   trak_vide->WriteContent( );
 
   moov->WriteContent( );
+
+  amhp->WriteContent( );
+  rtmp->WriteContent( );
 }
 
 bool Interface::AllBoxesExist() {
@@ -182,7 +191,7 @@ bool Interface::AllBoxesExist() {
   minf_vide && vmhd_vide && dinf_vide && dref_vide && url_vide && stbl_vide && stts_vide && stsc_vide &&
   stco_vide && stsd_vide && avcC_vide && trak_soun && tkhd_soun && mdia_soun && mdhd_soun && hdlr_soun &&
   minf_soun && smhd_soun && dinf_soun && dref_soun && url_soun && stbl_soun && stts_soun && stsc_soun &&
-  stco_soun && stsd_soun && esds_soun );
+  stco_soun && stsd_soun && esds_soun && rtmp && amhp );
 }
 
 void Interface::SetWidth( uint16_t NewWidth ) {
@@ -254,6 +263,8 @@ void Interface::SetStaticDefaults() {
 //  Set Track ID's
   tkhd_vide->SetTrackID( 1 );
   tkhd_soun->SetTrackID( 2 );
+//  Set amhp entry
+  amhp->AddEntry( 1, 0, 0 );
 }
 
 void Interface::AddSTTSEntry( uint32_t SampleCount, uint32_t SampleDelta, uint32_t Track ) {

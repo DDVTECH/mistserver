@@ -17,7 +17,7 @@ void Box_amhp::SetReserved( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0));
 }
 
-void Box_amhp::AddEntry( uint8_t HintTrackMode, uint8_t Settings, uint8_t TrailerDefaultSize, uint32_t Offset = 0 ) {
+void Box_amhp::AddEntry( uint8_t HintTrackMode, uint8_t Settings, uint8_t TrailerDefaultSize, uint32_t Offset ) {
   if(Offset >= Entries.size()) {
     Entries.resize(Offset+1);
   }

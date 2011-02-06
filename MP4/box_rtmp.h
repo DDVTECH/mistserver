@@ -15,6 +15,10 @@ class Box_rtmp {
   private:
     void SetReserved( );
     void SetDefaults( );
+    uint16_t CurrentReferenceIndex;
+    uint16_t CurrentHintTrackVersion;
+    uint16_t CurrentHighestCompatibleVersion;
+    uint16_t CurrentMaxPacketSize;
 
     Box * Container;
     Box * Content;

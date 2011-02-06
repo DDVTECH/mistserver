@@ -23,3 +23,5 @@
 #include "box_vmhd.h"
 #include "box_mdat.h"
 #include "box_rtmp.h"
+#include "box_amhp.h"
+#include "box_mvex.h"

@@ -68,5 +68,7 @@ class Interface {
     Box_stsd * stsd_soun;
     Box_esds * esds_soun;
     Box_rtmp * rtmp;
+    Box_amhp * amhp;
+    Box_mvex * mvex;
 };//Interface class
 

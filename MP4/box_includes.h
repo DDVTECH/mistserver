@@ -25,3 +25,4 @@
 #include "box_rtmp.h"
 #include "box_amhp.h"
 #include "box_mvex.h"
+#include "box_trex.h"

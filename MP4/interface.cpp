@@ -43,12 +43,16 @@ Interface::Interface() {
   rtmp = new Box_rtmp();
   amhp = new Box_amhp();
   mvex = new Box_mvex();
+  trex_vide = new Box_trex();
+  trex_soun = new Box_trex();
   //Set some values we already know won't change once the boxes have been created
   SetStaticDefaults();
 }
 
 Interface::~Interface() {
   //Deleting the boxes if they still exist.
+  if( trex_vide ) { delete trex_vide; trex_vide = NULL; }
+  if( trex_soun ) { delete trex_soun; trex_soun = NULL; }
   if( mvex ) { delete mvex; mvex = NULL; }
   if( amhp ) { delete amhp; amhp = NULL; }
   if( rtmp ) { delete rtmp; rtmp = NULL; }
@@ -191,7 +195,7 @@ bool Interface::AllBoxesExist() {
   minf_vide && vmhd_vide && dinf_vide && dref_vide && url_vide && stbl_vide && stts_vide && stsc_vide &&
   stco_vide && stsd_vide && avcC_vide && trak_soun && tkhd_soun && mdia_soun && mdhd_soun && hdlr_soun &&
   minf_soun && smhd_soun && dinf_soun && dref_soun && url_soun && stbl_soun && stts_soun && stsc_soun &&
-  stco_soun && stsd_soun && esds_soun && rtmp && amhp );
+  stco_soun && stsd_soun && esds_soun && rtmp && amhp && mvex && trex_vide && trex_soun );
 }
 
 void Interface::SetWidth( uint16_t NewWidth ) {

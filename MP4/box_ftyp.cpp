@@ -2,6 +2,7 @@
 
 Box_ftyp::Box_ftyp( ) {
   Container = new Box( 0x66747970 );
+  SetDefaults( );
 }
 
 Box_ftyp::~Box_ftyp() {

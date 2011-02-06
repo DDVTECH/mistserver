@@ -70,5 +70,7 @@ class Interface {
     Box_rtmp * rtmp;
     Box_amhp * amhp;
     Box_mvex * mvex;
+    Box_trex * trex_vide;
+    Box_trex * trex_soun;
 };//Interface class
 

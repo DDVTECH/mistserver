@@ -15,7 +15,19 @@ class Box_abst {
     Box_abst( );
     ~Box_abst();
     Box * GetBox();
-
+    void SetProfile( uint8_t Profile = 0 );
+    void SetLive( bool Live = true );
+    void SetUpdate( bool Update = false );
+    void SetTimeScale( uint32_t Scale = 1000 );
+    void SetMediaTime( uint32_t Time = 0 );
+    void SetSMPTE( uint32_t Smpte = 0 );
+    void SetMovieIdentfier( std::string Identifier = "" );
+    void SetDRM( std::string Drm = "" );
+    void SetMetaData( std::string MetaData = "" );
+    void AddServerEntry( std::string Url = "", uint32_t Offset = 0 );
+    void AddQualityEntry( std::string Quality = "", uint32_t Offset = 0 );
+    void AddSegmentRunTable( Box * newSegment, uint32_t Offset = 0 );
+    void AddFragmentRunTable( Box * newFragment, uint32_t Offset = 0 );
   private:
     uint8_t curProfile;
     bool isLive;

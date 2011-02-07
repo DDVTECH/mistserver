@@ -30,13 +30,21 @@ void Box_afra::SetTimeScale( uint32_t Scale ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Scale),5);
 }
 
+void Box_afra::AddEntry( uint32_t Time, uint32_t SampleOffset, uint32_t Offset ) {
+  if(Offset >= Entries.size()) {
+    Entries.resize(Offset+1);
+  }
+  Entries[Offset].Time = Time;
+  Entries[Offset].Offset = SampleOffset;
+}
+
 void Box_afra::WriteContent( ) {
   Container->ResetPayload();
   SetReserved( );
   if(!Entries.empty()) {
     for(int32_t i = Entries.size() -1; i >= 0; i--) {
-      Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Entries[i].SampleDelta),(i*12)+21);
-      Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Entries[i].SampleCount),(i*12)+17);
+      Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Entries[i].Offset),(i*12)+21);
+      Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Entries[i].Time),(i*12)+17);
       Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),(i*12)+13);
     }
   }

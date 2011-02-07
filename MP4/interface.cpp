@@ -45,12 +45,14 @@ Interface::Interface() {
   mvex = new Box_mvex();
   trex_vide = new Box_trex();
   trex_soun = new Box_trex();
+  afra = new Box_afra();
   //Set some values we already know won't change once the boxes have been created
   SetStaticDefaults();
 }
 
 Interface::~Interface() {
   //Deleting the boxes if they still exist.
+  if( afra ) { delete afra; afra = NULL; }
   if( trex_vide ) { delete trex_vide; trex_vide = NULL; }
   if( trex_soun ) { delete trex_soun; trex_soun = NULL; }
   if( mvex ) { delete mvex; mvex = NULL; }
@@ -148,7 +150,7 @@ uint8_t * Interface::GetContents( ) {
   uint32_t Ftyp_Size = ftyp->GetBox( )->GetBoxedDataSize( );
   uint32_t Moov_Size = moov->GetBox( )->GetBoxedDataSize( );
   uint32_t Rtmp_Size = rtmp->GetBox( )->GetBoxedDataSize( );
-  memcpy(Result,ftyp->GetBox( )->GetBoxedData( ),Ftyp_Size( ));
+  memcpy(Result,ftyp->GetBox( )->GetBoxedData( ),Ftyp_Size);
   memcpy(&Result[Ftyp_Size],moov->GetBox( )->GetBoxedData( ),Moov_Size);
   memcpy(&Result[Ftyp_Size+Moov_Size],rtmp->GetBox( )->GetBoxedData( ),Rtmp_Size);
   return Result;

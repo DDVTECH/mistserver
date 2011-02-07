@@ -104,11 +104,24 @@ void SetReserved( ) {
 }
 
 void Box_abst::WriteContent( ) {
+  Box * current;
+  std::string serializedServers = "";
+  std::string serializedQualities = "";
+  std::string serializedSegments = "";
+  std::string serializedFragments = "";
+  int SegmentAmount = 0;
+  int FragmentAmount = 0;
+  uint8_t * temp = new uint8_t[1];
+
   Container->ResetPayload( );
   SetReserved( );
-  Box * current;
-  std::string serializedSegments = "";
-  int SegmentAmount = 0;
+
+  for( uint32_t i = 0; i < Servers.size(); i++ ) {
+    serializedServers.append(Servers[i].ServerBaseUrl.c_str());
+  }
+  for( uint32_t i = 0; i < Qualities.size(); i++ ) {
+    serializedQualities.append(Qualities[i].QualityModifier.c_str());
+  }
   for( uint32_t i = 0; i < SegmentRunTables.size(); i++ ) {
     current=SegmentRunTables[i];
     if( current ) {
@@ -116,8 +129,6 @@ void Box_abst::WriteContent( ) {
       serializedSegments.append((char*)current->GetBoxedata(),current->GetBoxedDataSize());
     }
   }
-  std::string serializedFragments = "";
-  int FragmentAmount = 0;
   for( uint32_t i = 0; i < FragmentRunTables.size(); i++ ) {
     current=FragmentRunTables[i];
     if( current ) {
@@ -125,8 +136,10 @@ void Box_abst::WriteContent( ) {
       serializedFragments.append((char*)current->GetBoxedata(),current->GetBoxedDataSize());
     }
   }
-  //NO_OFFSET
-  uint8_t * temp = new uint8_t[1];
+  uint32_t OffsetServerEntryCount = 29 + curMovieIdentifier.size();
+  uint32_t OffsetQualityEntryCount = OffsetServerEntryCount + 4 + SerializedServers.size();
+  uint32_t OffsetDrmData = OffsetQualityEntryCount + 4 + SerializedServers.size();
+
   temp[0] = 0 & ( curProfile << 6 ) & ( (uint8_t)isLive << 7 ) & ( (uint8_t)isUpdate << 7 );
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curBootstrapInfoVersion),4);
   Container->SetPayload((uint32_t)1,temp,8);
@@ -136,7 +149,7 @@ void Box_abst::WriteContent( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),21);
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curSMPTE),25);
   Container->SetPayload((uint32_t)curMovieIdentifier.size(),(uint8_t*)curMovieIdentifier.c_str(),29);
-  
+
   //CalcOffsets
   Container->SetPayload((uint32_t)serializedSegments.size(),(uint8_t*)serializedSegments.c_str());
   Container->SetPayload((uint32_t)serializedFragments.size(),(uint8_t*)serializedFragments.c_str());

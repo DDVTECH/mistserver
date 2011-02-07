@@ -15,6 +15,7 @@ class Box_abst {
     Box_abst( );
     ~Box_abst();
     Box * GetBox();
+    void SetBootstrapVersion( uint32_t Version = 1 );
     void SetProfile( uint8_t Profile = 0 );
     void SetLive( bool Live = true );
     void SetUpdate( bool Update = false );
@@ -29,6 +30,9 @@ class Box_abst {
     void AddSegmentRunTable( Box * newSegment, uint32_t Offset = 0 );
     void AddFragmentRunTable( Box * newFragment, uint32_t Offset = 0 );
   private:
+    void SetDefaults( );
+    void SetReserved( );
+    uint32_t curBootstrapInfoVersion;
     uint8_t curProfile;
     bool isLive;
     bool isUpdate;

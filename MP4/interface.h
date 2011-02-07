@@ -72,5 +72,6 @@ class Interface {
     Box_mvex * mvex;
     Box_trex * trex_vide;
     Box_trex * trex_soun;
+    Box_afra * afra;
 };//Interface class
 

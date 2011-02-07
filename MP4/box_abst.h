@@ -5,6 +5,10 @@ class Box_abst {
     Box_abst( );
     ~Box_abst();
     Box * GetBox();
+    
   private:
+    uint8_t curProfile;
+    bool isLive;
+    bool isUpdate;
     Box * Container;
 };//Box_ftyp Class

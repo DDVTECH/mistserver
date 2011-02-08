@@ -3,7 +3,7 @@
 Box_mfhd::Box_mfhd( ) {
   Container = new Box( 0x6D666864 );
   SetDefaults( );
-  SetReserved( )
+  SetReserved( );
 }
 
 Box_mfhd::~Box_mfhd() {
@@ -18,10 +18,10 @@ void Box_mfhd::SetDefaults( ) {
   SetSequenceNumber( );
 }
 
-void Box_mfhd::SetDefaults( ) {
+void Box_mfhd::SetReserved( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0));
 }
 
-void SetSequenceNumber( uint32_t SequenceNumber );
+void Box_mfhd::SetSequenceNumber( uint32_t SequenceNumber ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(SequenceNumber),4);
 }

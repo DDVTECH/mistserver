@@ -44,7 +44,7 @@ void Box_asrt::WriteContent( ) {
     serializedQualities += '\0';
   }
 
-  uint32_t OffsetSegmentRunEntryCount = 8 + serializedQualities.size();
+  uint32_t OffsetSegmentRunEntryCount = 5 + serializedQualities.size();
   
   for( uint32_t i = 0; i < SegmentRunEntryTable.size(); i ++ ) {
     Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(SegmentRunEntryTable[i].FragmentsPerSegment),(8*i)+OffsetSegmentRunEntryCount+8);

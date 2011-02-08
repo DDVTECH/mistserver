@@ -13,19 +13,19 @@ Box * Box_tfhd::GetBox() {
   return Container;
 }
 
-void Box_tfhd::SetTrackID( uint32_t TrackID = 0 ) {
-  curTrackID = TrackID
+void Box_tfhd::SetTrackID( uint32_t TrackID ) {
+  curTrackID = TrackID;
 }
 
-void Box_tfhd::SetBaseDataOffset( uint32_t Offset = 0 ) {
+void Box_tfhd::SetBaseDataOffset( uint32_t Offset ) {
   curBaseDataOffset = Offset;
 }
 
-void Box_tfhd::SetSampleDescriptionIndex( uint32_t Index = 0 ) {
-  curSampleDescriptionIndex = Index );
+void Box_tfhd::SetSampleDescriptionIndex( uint32_t Index ) {
+  curSampleDescriptionIndex = Index;
 }
 
-void Box_tfhd::SetDefaultSampleDuration( uint32_t Duration = 0 ) {
+void Box_tfhd::SetDefaultSampleDuration( uint32_t Duration ) {
   curDefaultSampleDuration = Duration;
 }
 
@@ -35,9 +35,9 @@ void Box_tfhd::SetDefaultSampleSize( uint32_t Size ) {
 
 void Box_tfhd::WriteContent( ) {
   uint32_t curoffset;
-  uint32_t flags = 0 & ( curBaseDataOffset ? 0x1 : 0 ) & ( curSampleDesciptionIndex ? 0x2 : 0 ) & ( curDefaultSampleDuration ? 0x8 : 0 ) & ( curDefaultSampleSize ? 0x10 : 0 );
+  uint32_t flags = 0 & ( curBaseDataOffset ? 0x1 : 0 ) & ( curSampleDescriptionIndex ? 0x2 : 0 ) & ( curDefaultSampleDuration ? 0x8 : 0 ) & ( curDefaultSampleSize ? 0x10 : 0 );
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(flags));
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curTrackId),4);
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curTrackID),4);
   curoffset = 8;
   if( curBaseDataOffset ) {
     Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),curoffset);
@@ -55,7 +55,7 @@ void Box_tfhd::WriteContent( ) {
   if( curDefaultSampleSize ) {
     Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curDefaultSampleSize),curoffset);
     curoffset += 8;
-  ]
+  }
 }
 
 void Box_tfhd::SetDefaults( ) {

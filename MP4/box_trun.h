@@ -4,12 +4,12 @@
 struct trun_sampleinformationstructure {
   uint32_t SampleDuration;
   uint32_t SampleSize;
-}
+};
 
-class Box_tfhd {
+class Box_trun {
   public:
-    Box_tfhd( );
-    ~Box_tfhd();
+    Box_trun( );
+    ~Box_trun();
     Box * GetBox();
     void SetDataOffset( uint32_t Offset = 0 );
     void AddSampleInformation( uint32_t SampleDuration = 0, uint32_t SampleSize = 0, uint32_t Offset = 0 );

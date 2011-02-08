@@ -29,6 +29,7 @@ class Box_abst {
     void AddQualityEntry( std::string Quality = "", uint32_t Offset = 0 );
     void AddSegmentRunTable( Box * newSegment, uint32_t Offset = 0 );
     void AddFragmentRunTable( Box * newFragment, uint32_t Offset = 0 );
+    void WriteContent( );
   private:
     void SetDefaults( );
     void SetReserved( );

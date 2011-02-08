@@ -39,8 +39,8 @@ void Box_asrt::WriteContent( ) {
   std::string serializedQualities = "";
   Container->ResetPayload( );
 
-  for( uint32_t i = 0; i < Qualities.size(); i++ ) {
-    serializedQualities.append(Qualities[i].QualityModifier.c_str());
+  for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
+    serializedQualities.append(QualitySegmentUrlModifiers[i].c_str());
     serializedQualities += '\0';
   }
 

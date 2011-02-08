@@ -24,6 +24,7 @@ class Box {
 
     static uint8_t * uint32_to_uint8( uint32_t data );
     static uint8_t * uint16_to_uint8( uint16_t data );
+    static uint8_t * uint8_to_uint8( uint8_t data );
     BoxHeader GetHeader( );
     void ResetPayload( );
   private:

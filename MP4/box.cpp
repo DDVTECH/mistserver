@@ -94,6 +94,12 @@ uint8_t * Box::uint16_to_uint8( uint16_t data ) {
   return temp;
 }
 
+uint8_t * Box::uint8_to_uint8( uint8_t data ) {
+   uint8_t * temp = new uint8_t[1];
+   temp[0] = data;
+   return temp;
+}
+
 BoxHeader Box::GetHeader( ) {
   return header;
 }

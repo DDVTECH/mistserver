@@ -40,8 +40,8 @@ void Box_tfhd::WriteContent( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curTrackId),4);
   curoffset = 8;
   if( curBaseDataOffset ) {
-    Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curTrackId),curoffset);
-    Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curTrackId),curoffset+4);
+    Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),curoffset);
+    Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curBaseDataOffset),curoffset+4);
     curoffset += 8;
   }
   if( curSampleDescriptionIndex ) {

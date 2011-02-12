@@ -2,11 +2,11 @@
 
 conn_users=`ps aux | grep Connector | grep -v grep | wc -l`
 streamcount=`ps aux | grep Buffer | grep -v grep | wc -l`
-total_rcv=`cat /proc/net/dev | grep ":" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 1 | awk '{s+=$0} END {print s}'`
-total_snd=`cat /proc/net/dev | grep ":" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 9 | awk '{s+=$0} END {print s}'`
+total_rcv=`cat /proc/net/dev | grep ":" | grep -v "lo" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 1 | awk '{s+=$0} END {printf("%d", s)}'`
+total_snd=`cat /proc/net/dev | grep ":" | grep -v "lo" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 9 | awk '{s+=$0} END {printf("%d", s)}'`
 sleep 5
-total_rcv_b=`cat /proc/net/dev | grep ":" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 1 | awk '{s+=$0} END {print s}'`
-total_snd_b=`cat /proc/net/dev | grep ":" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 9 | awk '{s+=$0} END {print s}'`
+total_rcv_b=`cat /proc/net/dev | grep ":" | grep -v "lo" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 1 | awk '{s+=$0} END {printf("%d", s)}'`
+total_snd_b=`cat /proc/net/dev | grep ":" | grep -v "lo" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 9 | awk '{s+=$0} END {printf("%d", s)}'`
 ((total=$total_rcv + $total_snd))
 ((total_b=$total_rcv_b + $total_snd_b))
 ((total_d=($total_b - $total) / 5))

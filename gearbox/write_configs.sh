@@ -22,6 +22,7 @@ function UploadConfig (){
   var=serverinfo_$1[*]
   local ${!var}
   scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT $FILE root@$HOST:config.sh &> /dev/null &
+  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT ../client_scripts/data_collect.sh root@$HOST:data_collect.sh &> /dev/null &
 
 }
 

@@ -21,7 +21,7 @@ function UploadConfig (){
 
   var=serverinfo_$1[*]
   local ${!var}
-  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT $FILE root@$HOST:config.sh &> /dev/null
+  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT $FILE root@$HOST:config.sh &> /dev/null &
 
 }
 
@@ -34,11 +34,11 @@ done
 
 for ((j=0; j < count; j++)); do
   eval "isup=\$${servers[$j]}_isup"
-  local meh=${servers[$j]}_status
-  eval "local $meh"
+  eval "meh=\$${servers[$j]}_status"
+  eval $meh
   if [ "$isup" -eq "1" ]; then
-    wget --post-data="serveron=${servers[$j]}\&time=$TIMECODE\&users=$USERS\&bytes=$BYTES\&bytes_d=$BYTES_D\&streams=$STREAMS" -qO /dev/null "http://ddvtech.com/gearbox_report.php"
+    wget --post-data="serveron=${servers[$j]}\&time=$TIMECODE\&users=$USERS\&bytes=$BYTES\&bytes_d=$BYTES_D\&streams=$STREAMS" -qO /dev/null "http://ddvtech.com/gearbox_report.php" &
   else
-    wget --post-data="serveroff=${servers[$j]}\&time=$TIMECODE\&users=$USERS\&bytes=$BYTES\&bytes_d=$BYTES_D\&streams=$STREAMS" -qO /dev/null "http://ddvtech.com/gearbox_report.php"
+    wget --post-data="serveroff=${servers[$j]}\&time=$TIMECODE\&users=$USERS\&bytes=$BYTES\&bytes_d=$BYTES_D\&streams=$STREAMS" -qO /dev/null "http://ddvtech.com/gearbox_report.php" &
   fi
 done

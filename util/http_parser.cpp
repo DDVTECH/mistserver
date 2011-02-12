@@ -136,6 +136,7 @@ bool HTTPReader::parse(){
       if (f == std::string::npos) return false;
       tmpA = HTTPbuffer.substr(0, f);
       HTTPbuffer.erase(0, f+1);
+      while (tmpA.find('\r') != std::string::npos){tmpA.erase(tmpA.find('\r'));}
       if (!seenReq){
         seenReq = true;
         f = tmpA.find(' ');
@@ -146,7 +147,7 @@ bool HTTPReader::parse(){
         if (f != std::string::npos){protocol = tmpA.substr(0, f); tmpA.erase(0, f+1);}
         //TODO: GET variable parsing
       }else{
-        if (tmpA[0] == '\n'){
+        if (tmpA.size() == 0){
           seenHeaders = true;
           if (GetHeader("Content-Length") != ""){length = atoi(GetHeader("Content-Length").c_str());}
         }else{

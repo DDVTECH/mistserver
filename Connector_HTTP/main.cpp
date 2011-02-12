@@ -41,6 +41,7 @@ int mainHandler(int CONN_fd){
     retval = epoll_wait(poller, events, 1, 1);
     if ((retval > 0) || !ready4data){
       if (HTTP_R.ReadSocket(CONN_fd)){
+        printf("Puddingbroodjes!\n");
         //ERIK: we hebben nu een hele HTTP request geparsed - verwerken mag hier, door aanroepen naar
         //ERIK: bijvoorbeeld HTTP_R.GetHeader("headernaam") (voor headers) of HTTP_R.GetVar("varnaam") (voor GET/POST vars)
         //ERIK: of HTTP_R.method of HTTP_R.url of HTTP_R.protocol....

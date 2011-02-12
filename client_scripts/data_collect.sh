@@ -1,6 +1,6 @@
 #!/bin/bash
 
-conn_users=`ps aux | grep Connector | grep -v grep | wc -l`
+conn_users=`netstat | grep shared_socket | wc -l`
 streamcount=`ps aux | grep Buffer | grep -v grep | wc -l`
 total_rcv=`cat /proc/net/dev | grep ":" | grep -v "lo" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 1 | awk '{s+=$0} END {printf("%d", s)}'`
 total_snd=`cat /proc/net/dev | grep ":" | grep -v "lo" | cut -d ":" -f 2 | tr -s " " " " | sed 's/^[ \t]*//' | cut -d " " -f 9 | awk '{s+=$0} END {printf("%d", s)}'`

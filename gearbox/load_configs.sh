@@ -18,7 +18,7 @@ for ((j=0; j < count; j++)); do
   DownloadConfig ${servers[$j]}
 done
 
-sleep 10
+wait
 
 echo_green "Gathering results..."
 for ((j=0; j < count; j++)); do

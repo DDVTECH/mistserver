@@ -42,3 +42,8 @@ for ((j=0; j < count; j++)); do
     wget --post-data="serveroff=${servers[$j]}\&time=$TIMECODE\&users=$USERS\&bytes=$BYTES\&bytes_d=$BYTES_D\&streams=$STREAMS" -qO /dev/null "http://ddvtech.com/gearbox_report.php" &
   fi
 done
+
+wait
+
+echo_green "All operations completed: shutting down."
+

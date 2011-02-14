@@ -1,0 +1,38 @@
+#!/bin/sh
+#
+# description: DDVTech HTTP Connector
+# processname: Connector_HTTP
+
+prog="Connector_HTTP"
+fullprog="/usr/bin/Connector_HTTP"
+RETVAL=0
+
+start() {
+        echo "Starting $prog"
+        $fullprog
+        return $?
+}
+
+stop() {
+        echo "Stopping $prog"
+        killall $prog
+        return $?
+}
+
+case "$1" in
+        start)
+                start
+                ;;
+        stop)
+                stop
+                ;;
+        restart)
+                stop
+                start
+                ;;
+        *)
+                echo "Usage: $0 {start|stop|restart}"
+                RETVAL=1
+esac
+
+exit $RETVAL

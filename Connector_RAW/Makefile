@@ -16,3 +16,6 @@ $(OUT): $(OBJ)
 	$(CC) $(LIBS) -o $(OUT) $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
+install: $(OUT)
+	cp -f ./$(OUT) /usr/bin/
+

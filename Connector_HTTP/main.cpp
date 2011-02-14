@@ -15,17 +15,21 @@
 #include <sys/epoll.h>
 #include <getopt.h>
 
+enum {HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO};
+
 #define DEFAULT_PORT 80
 #include "../util/server_setup.cpp"
 #include "../util/http_parser.cpp"
 
 int mainHandler(int CONN_fd){
+  int handler = HANDLER_PROGRESSIVE;
   bool ready4data = false;//set to true when streaming starts
   bool inited = false;
+  bool progressive_has_sent_header = false;
   int ss;
-  char streamname[200];
+  std::string streamname;
   FLV_Pack * tag = 0;
-  HTTPReader HTTP_R;
+  HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
   int retval;
   int poller = epoll_create(1);
@@ -41,11 +45,23 @@ int mainHandler(int CONN_fd){
     retval = epoll_wait(poller, events, 1, 1);
     if ((retval > 0) || !ready4data){
       if (HTTP_R.ReadSocket(CONN_fd)){
-        printf("Puddingbroodjes!\n");
         //ERIK: we hebben nu een hele HTTP request geparsed - verwerken mag hier, door aanroepen naar
         //ERIK: bijvoorbeeld HTTP_R.GetHeader("headernaam") (voor headers) of HTTP_R.GetVar("varnaam") (voor GET/POST vars)
         //ERIK: of HTTP_R.method of HTTP_R.url of HTTP_R.protocol....
         //ERIK: zie ook ../util/http_parser.cpp - de class definitie bovenaan zou genoeg moeten zijn voor je
+        //ERIK: Ik heb een handler variabele gemaakt die moet setten naar bijv HANDLER_FLASH in jouw geval.
+        //ERIK: Als de handler niet is geset, is hij by default PROGRESSIVE, en daarvoor heb ik de verwerking al gecode.
+        //ERIK: Je eigen handler instellen voorkomt dus dat mijn code hem handled alsof hij progressive is.
+        if (handler == HANDLER_PROGRESSIVE){
+          //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
+          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
+          for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+            if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
+          }
+          streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
+          //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
+          ready4data = true;
+        }//PROGRESSIVE handler
         HTTP_R.Clean(); //maak schoon na verwerken voor eventuele volgende requests...
       }
     }
@@ -82,9 +98,20 @@ int mainHandler(int CONN_fd){
           if (FLV_GetPacket(tag, ss)){//able to read a full packet?
             //ERIK: "tag" bevat nu een FLV tag (video, audio, of metadata), de header hebben we al weggelezen, np.
             //ERIK: Dit is het punt waarop je eventueel data mag/kan gaan sturen en/of parsen. Leef je uit.
-            //ERIK: je kan een HTTPReader aanmaken en gebruiken om je HTTP request op te bouwen (via SetBody, SetHeader, etc)
+            //ERIK: je kan een HTTP_S gebruiken om je HTTP request op te bouwen (via SetBody, SetHeader, etc)
             //ERIK: en dan met de .BuildResponse("200", "OK"); call een std::string met de hele response maken, klaar voor versturen
             //ERIK: Note: hergebruik echter NIET de HTTP_R die ik al heb gemaakt hierboven, want er kunnen meerdere requests binnenkomen!
+            if (handler == HANDLER_PROGRESSIVE){
+              if (!progressive_has_sent_header){
+                HTTP_S.Clean();//troep opruimen die misschien aanwezig is...
+                HTTP_S.SetHeader("Content-Type", "video/x-flv");//FLV files hebben altijd dit content-type.
+                std::string tmpresp = HTTP_S.BuildResponse("200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+                DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
+                DDV_write(FLVHeader, 13, CONN_fd);//schrijf de FLV header, altijd 13 chars lang
+                progressive_has_sent_header = true;
+              }
+              DDV_write(tag->data, tag->len, CONN_fd);//schrijf deze FLV tag onbewerkt weg
+            }//PROGRESSIVE handler
           }
           break;
       }

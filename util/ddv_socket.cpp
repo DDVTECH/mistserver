@@ -94,7 +94,7 @@ int DDV_Accept(int sock, bool nonblock = false){
   return r;
 }
 
-bool DDV_write(void * buffer, int todo, int sock){
+bool DDV_write(const void * buffer, int todo, int sock){
   int sofar = 0;
   socketBlocking = false;
   while (sofar != todo){

@@ -36,16 +36,34 @@ int mainHandler(int CONN_fd){
   epoll_ctl(poller, EPOLL_CTL_ADD, CONN_fd, &ev);
   struct epoll_event events[1];
 
+  std::string Movie = "";
+  std::string Quality = "";
+  int Segment = -1;
+  int Fragment = -1;
+  int temp;
+
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
     retval = epoll_wait(poller, events, 1, 1);
     if ((retval > 0) || !ready4data){
       if (HTTP_R.ReadSocket(CONN_fd)){
-        printf("Puddingbroodjes!\n");
+        Movie = HTTP_R.url.substr(1);
+        Movie = Movie.substr(0,Movie.find("/"));
+        Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
+        Quality = Quality.substr(0, Quality.find("Seg"));
+        temp = HTTP_R.url.find("Seg") + 3;
+        Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
+        temp = HTTP_R.url.find("Frag") + 4;
+        Fragment = atoi( HTTP_R.url.substr(temp).c_str() );
         //ERIK: we hebben nu een hele HTTP request geparsed - verwerken mag hier, door aanroepen naar
         //ERIK: bijvoorbeeld HTTP_R.GetHeader("headernaam") (voor headers) of HTTP_R.GetVar("varnaam") (voor GET/POST vars)
         //ERIK: of HTTP_R.method of HTTP_R.url of HTTP_R.protocol....
         //ERIK: zie ook ../util/http_parser.cpp - de class definitie bovenaan zou genoeg moeten zijn voor je
+        printf( "URL: %s\n", HTTP_R.url.c_str());
+        printf( "Movie Identifier: %s\n", Movie.c_str() );
+        printf( "Quality Modifier: %s\n", Quality.c_str() );
+        printf( "Segment: %d\n", Segment );
+        printf( "Fragment: %d\n", Fragment );
         HTTP_R.Clean(); //maak schoon na verwerken voor eventuele volgende requests...
       }
     }

@@ -51,18 +51,35 @@ int mainHandler(int CONN_fd){
     retval = epoll_wait(poller, events, 1, 1);
     if ((retval > 0) || !ready4data){
       if (HTTP_R.ReadSocket(CONN_fd)){
-        Movie = HTTP_R.url.substr(1);
-        Movie = Movie.substr(0,Movie.find("/"));
-        Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
-        Quality = Quality.substr(0, Quality.find("Seg"));
-        temp = HTTP_R.url.find("Seg") + 3;
-        Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
-        temp = HTTP_R.url.find("Frag") + 4;
-        Fragment = atoi( HTTP_R.url.substr(temp).c_str() );
+        if( (HTTP_R.url.find("Seg") != std::string::npos) &&
+            (HTTP_R.url.find("Frag") != std::string::npos) ) {
+          handler = HANDLER_FLASH;
+        }
+        if(handler == HANDLER_FLASH) {
+          Movie = HTTP_R.url.substr(1);
+          Movie = Movie.substr(0,Movie.find("/"));
+          Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
+          Quality = Quality.substr(0, Quality.find("Seg"));
+          temp = HTTP_R.url.find("Seg") + 3;
+          Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
+          temp = HTTP_R.url.find("Frag") + 4;
+          Fragment = atoi( HTTP_R.url.substr(temp).c_str() );
+
+          printf( "URL: %s\n", HTTP_R.url.c_str());
+          printf( "Movie Identifier: %s\n", Movie.c_str() );
+          printf( "Quality Modifier: %s\n", Quality.c_str() );
+          printf( "Segment: %d\n", Segment );
+          printf( "Fragment: %d\n", Fragment );
+          streamname = "/tmp/shared_socket_";
+          streamname += Movie.c_str();
+
+          ready4data = true;
+        }//FLASH handler
         //ERIK: we hebben nu een hele HTTP request geparsed - verwerken mag hier, door aanroepen naar
         //ERIK: bijvoorbeeld HTTP_R.GetHeader("headernaam") (voor headers) of HTTP_R.GetVar("varnaam") (voor GET/POST vars)
         //ERIK: of HTTP_R.method of HTTP_R.url of HTTP_R.protocol....
         //ERIK: zie ook ../util/http_parser.cpp - de class definitie bovenaan zou genoeg moeten zijn voor je
+
         //ERIK: Ik heb een handler variabele gemaakt die moet setten naar bijv HANDLER_FLASH in jouw geval.
         //ERIK: Als de handler niet is geset, is hij by default PROGRESSIVE, en daarvoor heb ik de verwerking al gecode.
         //ERIK: Je eigen handler instellen voorkomt dus dat mijn code hem handled alsof hij progressive is.
@@ -76,11 +93,6 @@ int mainHandler(int CONN_fd){
           //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
           ready4data = true;
         }//PROGRESSIVE handler
-        printf( "URL: %s\n", HTTP_R.url.c_str());
-        printf( "Movie Identifier: %s\n", Movie.c_str() );
-        printf( "Quality Modifier: %s\n", Quality.c_str() );
-        printf( "Segment: %d\n", Segment );
-        printf( "Fragment: %d\n", Fragment );
         HTTP_R.Clean(); //maak schoon na verwerken voor eventuele volgende requests...
       }
     }

@@ -55,6 +55,7 @@ int mainHandler(int CONN_fd){
             (HTTP_R.url.find("Frag") != std::string::npos) ) {
           handler = HANDLER_FLASH;
         }
+        printf( "Handler: %d\n", handler );
         if(handler == HANDLER_FLASH) {
           Movie = HTTP_R.url.substr(1);
           Movie = Movie.substr(0,Movie.find("/"));
@@ -91,6 +92,7 @@ int mainHandler(int CONN_fd){
           }
           streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
           //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
+  printf( "Streamname: %s\n", streamname.c_str() );
           ready4data = true;
         }//PROGRESSIVE handler
         HTTP_R.Clean(); //maak schoon na verwerken voor eventuele volgende requests...

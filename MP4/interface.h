@@ -73,5 +73,16 @@ class Interface {
     Box_trex * trex_vide;
     Box_trex * trex_soun;
     Box_afra * afra;
+    Box_abst * abst;
+    Box_asrt * asrt;
+    Box_afrt * afrt;
+    Box_moof * moof;
+    Box_mfhd * mfhd;
+    Box_traf * traf_vide;
+    Box_tfhd * tfhd_vide;
+    Box_trun * trun_vide;
+    Box_traf * traf_soun;
+    Box_tfhd * tfhd_soun;
+    Box_trun * trun_soun;
 };//Interface class
 

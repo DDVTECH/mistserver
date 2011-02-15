@@ -17,7 +17,7 @@ $(OUT): $(OBJ) chunkstream.cpp parsechunks.cpp handshake.cpp crypto.cpp amf.cpp
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 install: $(OUT)
-	-service Conn_RTMP stop
+	-service RTMP_Conn stop
 	cp -f ./$(OUT) /usr/bin/
-	cp -f ./Conn_RTMP /etc/init.d/
-	service Conn_RTMP start
+	cp -f ./RTMP_Conn /etc/init.d/
+	service RTMP_Conn start

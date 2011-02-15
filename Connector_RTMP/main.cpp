@@ -4,7 +4,7 @@
 //debugging level 3 = status information
 //debugging level 4 = extremely verbose status information
 //debugging level 5 = save all streams to FLV files
-#define DEBUG 4
+#define DEBUG 3
 
 #include <iostream>
 #include <cstdlib>

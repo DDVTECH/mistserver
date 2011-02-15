@@ -18,10 +18,11 @@ client-install: client-clean client
 	chmod 777 /tmp/cores
 	echo "/tmp/cores/%e.%s.%p" > /proc/sys/kernel/core_pattern
 	service xinetd stop
-	cp -f ./Connector_HTTP/Connector_HTTP /usr/bin/
 	cd Connector_RTMP; $(MAKE) install
-	cp -f ./Connector_RAW/Connector_RAW /usr/bin/
+	cd Connector_HTTP; $(MAKE) install
+	cd Connector_RAW; $(MAKE) install
 	#cp -f ./Connector_RTSP/Connector_RTSP /usr/bin/
 	cp -f ./Buffer/Buffer /usr/bin/
-	cp -f ./PLS /etc/xinetd.d/
+	rn -rf /etc/xinetd.d/PLS
 	service xinetd start
+

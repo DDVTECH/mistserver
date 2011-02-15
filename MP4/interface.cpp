@@ -46,12 +46,34 @@ Interface::Interface() {
   trex_vide = new Box_trex();
   trex_soun = new Box_trex();
   afra = new Box_afra();
+  abst = new Box_abst();
+  asrt = new Box_asrt();
+  afrt = new Box_afrt();
+  moof = new Box_moof();
+  mfhd = new Box_mfhd();
+  traf_vide = new Box_traf();
+  tfhd_vide = new Box_tfhd();
+  trun_vide = new Box_trun();
+  traf_soun = new Box_traf();
+  tfhd_soun = new Box_tfhd();
+  trun_soun = new Box_trun();
   //Set some values we already know won't change once the boxes have been created
   SetStaticDefaults();
 }
 
 Interface::~Interface() {
   //Deleting the boxes if they still exist.
+  if( trun_soun ) { delete trun_soun; trun_soun = NULL; }
+  if( tfhd_soun ) { delete tfhd_soun; tfhd_soun = NULL; }
+  if( traf_soun ) { delete traf_soun; traf_soun = NULL; }
+  if( trun_vide ) { delete trun_vide; trun_vide = NULL; }
+  if( tfhd_vide ) { delete tfhd_vide; tfhd_vide = NULL; }
+  if( traf_vide ) { delete traf_vide; traf_vide = NULL; }
+  if( mfhd ) { delete mfhd; mfhd = NULL; }
+  if( moof ) { delete moof; moof = NULL; }
+  if( afrt ) { delete afrt; afrt = NULL; }
+  if( asrt ) { delete asrt; asrt = NULL; }
+  if( abst ) { delete abst; abst = NULL; }
   if( afra ) { delete afra; afra = NULL; }
   if( trex_vide ) { delete trex_vide; trex_vide = NULL; }
   if( trex_soun ) { delete trex_soun; trex_soun = NULL; }
@@ -139,6 +161,23 @@ void Interface::link( ) {
   moov->AddContent(mvhd->GetBox());
 
   rtmp->AddContent(amhp->GetBox());
+
+  //Linking ABST
+  abst->AddFragmentRunTable(afrt->GetBox());
+  abst->AddSegmentRunTable(asrt->GetBox());
+
+  //Linking TRAF_SOUN
+  traf_soun->AddContent( trun_soun->GetBox(),1);
+  traf_soun->AddContent( tfhd_soun->GetBox() );
+
+  //Linking TRAF_vide
+  traf_vide->AddContent( trun_vide->GetBox(),1);
+  traf_vide->AddContent( tfhd_vide->GetBox() );
+
+  //Linking MOOF
+  moof->AddContent(traf_soun->GetBox(),2);
+  moof->AddContent(traf_vide->GetBox(),1);
+  moof->AddContent(mfhd->GetBox());
 }
 
 uint32_t Interface::GetContentSize( ) {
@@ -194,12 +233,25 @@ void Interface::UpdateContents( ) {
   mdia_soun->WriteContent( );
 
   trak_vide->WriteContent( );
+  trak_soun->WriteContent( );
 
   mvex->WriteContent( );
   moov->WriteContent( );
 
   amhp->WriteContent( );
   rtmp->WriteContent( );
+
+  afrt->WriteContent( );
+  asrt->WriteContent( );
+  abst->WriteContent( );
+
+  trun_soun->WriteContent( );
+  traf_soun->WriteContent( );
+
+  trun_vide->WriteContent( );
+  traf_vide->WriteContent( );
+
+  moof->WriteContent( );
 }
 
 bool Interface::AllBoxesExist() {
@@ -207,7 +259,8 @@ bool Interface::AllBoxesExist() {
   minf_vide && vmhd_vide && dinf_vide && dref_vide && url_vide && stbl_vide && stts_vide && stsc_vide &&
   stco_vide && stsd_vide && avcC_vide && trak_soun && tkhd_soun && mdia_soun && mdhd_soun && hdlr_soun &&
   minf_soun && smhd_soun && dinf_soun && dref_soun && url_soun && stbl_soun && stts_soun && stsc_soun &&
-  stco_soun && stsd_soun && esds_soun && rtmp && amhp && mvex && trex_vide && trex_soun );
+  stco_soun && stsd_soun && esds_soun && rtmp && amhp && mvex && trex_vide && trex_soun && afrt && asrt
+  && abst && moof && mfhd && traf_vide && tfhd_vide && trun_vide && traf_soun && tfhd_soun && trun_soun );
 }
 
 void Interface::SetWidth( uint16_t NewWidth ) {

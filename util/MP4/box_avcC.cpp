@@ -1,5 +1,6 @@
 #include "box.cpp"
 #include <string>
+#include <algorithm>
 
 class Box_avcC {
   public:
@@ -57,7 +58,7 @@ void Box_avcC::SetFrameCount ( uint16_t FrameCount ) {
 
 void Box_avcC::SetCompressorName ( std::string CompressorName ) {
   uint8_t * Printable = new uint8_t[1];
-  Printable[0] = std::min( (unsigned int)31, CompressorName.size() );
+  Printable[0] = std::min( (unsigned int)31, (unsigned int)CompressorName.size() );
   Container->SetPayload((uint32_t)Printable[0],(uint8_t*)CompressorName.c_str(),43);
   Container->SetPayload((uint32_t)1, Printable ,42);
 }

@@ -97,6 +97,7 @@ int mainHandler(int CONN_fd){
   int ReqFragment = -1;
   int temp;
   int CurrentFragment = -1;
+  Interface * Flash_Interface = new Interface;
 
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
@@ -207,6 +208,9 @@ int mainHandler(int CONN_fd){
             if (handler == HANDLER_FLASH){
               if(tag->data[0] != 0x12 ) {
                 FlashBuf.append(tag->data,tag->len);
+                //JARON:er is een Interface * Flash_Interface aangemaakt, met de functie Setmdat( std::string )
+                //JARON:kun je data setten( de hele string in 1 keer ) en met Getmdat krijg je de boxed 
+                //JARON:versie als string terug.
               } else {
                 FlashMeta = "";
                 FlashMeta.append(tag->data,tag->len);

@@ -3,7 +3,7 @@
 //debugging level 2 = errors
 //debugging level 3 = status information
 //debugging level 4 = extremely verbose status information
-#define DEBUG 3
+#define DEBUG 4
 
 #include <iostream>
 #include <cstdlib>
@@ -15,12 +15,33 @@
 #include <sys/epoll.h>
 #include <getopt.h>
 
-enum {HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO};
+enum {HANDLER_NONE, HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO};
 
 #define DEFAULT_PORT 80
 #include "../util/server_setup.cpp"
 #include "../util/http_parser.cpp"
 #include "../MP4/interface.h"
+
+static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+std::string base64_encode(std::string const input) {
+  std::string ret;
+  unsigned int in_len = input.size();
+  char quad[4], triple[3];
+  int i, x, n = 3;
+  for (x = 0; x < in_len; x = x + 3){
+    if ((in_len - x) / 3 == 0){n = (in_len - x) % 3;}
+    for (i=0; i < 3; i++){triple[i] = '0';}
+    for (i=0; i < n; i++){triple[i] = input[x + i];}
+    quad[0] = base64_chars[(triple[0] & 0xFC) >> 2]; // FC = 11111100
+    quad[1] = base64_chars[((triple[0] & 0x03) << 4) | ((triple[1] & 0xF0) >> 4)]; // 03 = 11
+    quad[2] = base64_chars[((triple[1] & 0x0F) << 2) | ((triple[2] & 0xC0) >> 6)]; // 0F = 1111, C0=11110
+    quad[3] = base64_chars[triple[2] & 0x3F]; // 3F = 111111
+    if (n < 3){quad[3] = '=';}
+    if (n < 2){quad[2] = '=';}
+    for(i=0; i < 4; i++){ret += quad[i];}
+  }
+  return ret;
+}//base64_encode
 
 int FlvToFragNum( FLV_Pack * tag ) {
   int Timestamp = (tag->data[7] << 24 ) + (tag->data[4] << 16 ) + (tag->data[5] << 8 ) + (tag->data[6] );
@@ -34,15 +55,13 @@ std::string BuildManifest( std::string MetaData, std::string MovieId, int Curren
   Result += "  <streamType>live</streamType>\n";
   Result += "  <deliveryType>streaming</deliveryType>\n";
   Result += "  <bootstrapInfo profile=\"named\" id=\"bootstrap1\">\n";
-  //JARON: Encode BASE64
-  Result += temp->GenerateLiveBootstrap( CurrentMediaTime );
+  Result += base64_encode(temp->GenerateLiveBootstrap(CurrentMediaTime));
   Result += "  </bootstrapInfo>\n";
   Result += "  <media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"";
   Result += MovieId;
   Result += "/\">";
   Result += "    <metadata>\n";
-  //JARON: Encode BASE64
-  Result += MetaData;
+  Result += base64_encode(MetaData);
   Result += "    </metadata>\n";
   Result += "  </media>\n";
   Result += "</manifest>\n";
@@ -84,26 +103,47 @@ int mainHandler(int CONN_fd){
     retval = epoll_wait(poller, events, 1, 1);
     if ((retval > 0) || !ready4data){
       if (HTTP_R.ReadSocket(CONN_fd)){
-        if( (HTTP_R.url.find("Seg") != std::string::npos) &&
-            (HTTP_R.url.find("Frag") != std::string::npos) ) {
-          handler = HANDLER_FLASH;
+        handler = HANDLER_PROGRESSIVE;
+        if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
+        if (HTTP_R.url.find("f4m") != std::string:npos){handler = HANDLER_FLASH;}
+        if (HTTP_R.url == "/crossdomain.xml"){
+          handler = HANDLER_NONE;
+          HTTP_S.Clean();
+          HTTP_S.SetHeader("Content-Type", "text/xml");
+          HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
+          std::string tmpresp = HTTP_S.BuildResponse("200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+          DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
+          #if DEBUG >= 3
+          printf("Sending crossdomain.xml file\n");
+          #endif
         }
-        printf( "Handler: %d\n", handler );
-        if(handler == HANDLER_FLASH) {
-          Movie = HTTP_R.url.substr(1);
-          Movie = Movie.substr(0,Movie.find("/"));
-          Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
-          Quality = Quality.substr(0, Quality.find("Seg"));
-          temp = HTTP_R.url.find("Seg") + 3;
-          Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
-          temp = HTTP_R.url.find("Frag") + 4;
-          ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
-
-          printf( "URL: %s\n", HTTP_R.url.c_str());
-          printf( "Movie Identifier: %s\n", Movie.c_str() );
-          printf( "Quality Modifier: %s\n", Quality.c_str() );
-          printf( "Segment: %d\n", Segment );
-          printf( "Fragment: %d\n", ReqFragment );
+        if(handler == HANDLER_FLASH){
+          if (HTTP_R.url.find("f4m") == std::string:npos){
+            Movie = HTTP_R.url.substr(1);
+            Movie = Movie.substr(0,Movie.find("/"));
+            Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
+            Quality = Quality.substr(0, Quality.find("Seg"));
+            temp = HTTP_R.url.find("Seg") + 3;
+            Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
+            temp = HTTP_R.url.find("Frag") + 4;
+            ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
+            #if DEBUG >= 4
+            printf( "URL: %s\n", HTTP_R.url.c_str());
+            printf( "Movie Identifier: %s\n", Movie.c_str() );
+            printf( "Quality Modifier: %s\n", Quality.c_str() );
+            printf( "Segment: %d\n", Segment );
+            printf( "Fragment: %d\n", ReqFragment );
+            #endif
+            HTTP_S.Clean();
+            HTTP_S.SetHeader("Content-Type","video/mp4");
+            //ERIK: Help, plox?
+            //HTTP_S.SetBody();//Wrap de FlashBuf?
+            std::string tmpresp = HTTP_S.BuildResponse("200", "OK");
+            DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
+          }else{
+            Movie = HTTP_R.url.substr(1);
+            Movie = Movie.substr(0,Movie.find("/"));
+          }
           streamname = "/tmp/shared_socket_";
           for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
             if (!isalpha(*i) && !isdigit(*i)){
@@ -113,17 +153,8 @@ int mainHandler(int CONN_fd){
             }//strip nonalphanumeric
           }
           streamname += Movie;
-
           ready4data = true;
         }//FLASH handler
-        //ERIK: we hebben nu een hele HTTP request geparsed - verwerken mag hier, door aanroepen naar
-        //ERIK: bijvoorbeeld HTTP_R.GetHeader("headernaam") (voor headers) of HTTP_R.GetVar("varnaam") (voor GET/POST vars)
-        //ERIK: of HTTP_R.method of HTTP_R.url of HTTP_R.protocol....
-        //ERIK: zie ook ../util/http_parser.cpp - de class definitie bovenaan zou genoeg moeten zijn voor je
-
-        //ERIK: Ik heb een handler variabele gemaakt die moet setten naar bijv HANDLER_FLASH in jouw geval.
-        //ERIK: Als de handler niet is geset, is hij by default PROGRESSIVE, en daarvoor heb ik de verwerking al gecode.
-        //ERIK: Je eigen handler instellen voorkomt dus dat mijn code hem handled alsof hij progressive is.
         if (handler == HANDLER_PROGRESSIVE){
           //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
           streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
@@ -132,7 +163,7 @@ int mainHandler(int CONN_fd){
           }
           streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
           //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
-  printf( "Streamname: %s\n", streamname.c_str() );
+          printf("Streamname: %s\n", streamname.c_str());
           ready4data = true;
         }//PROGRESSIVE handler
         HTTP_R.Clean(); //maak schoon na verwerken voor eventuele volgende requests...
@@ -183,7 +214,9 @@ int mainHandler(int CONN_fd){
                   HTTP_S.Clean();
                   HTTP_S.SetHeader("Content-Type","text/xml");
                   HTTP_S.SetHeader("Cache-Control","no-cache");
-//                  HTTP_S.SetBody
+                  HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, 0));
+                  std::string tmpresp = HTTP_S.BuildResponse("200", "OK");
+                  DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
                 }
               }
             }

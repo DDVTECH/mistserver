@@ -23,6 +23,6 @@ client-install: client-clean client
 	cd Connector_RAW; $(MAKE) install
 	#cp -f ./Connector_RTSP/Connector_RTSP /usr/bin/
 	cp -f ./Buffer/Buffer /usr/bin/
-	rn -rf /etc/xinetd.d/PLS
+	rm -rf /etc/xinetd.d/PLS
 	service xinetd start
 

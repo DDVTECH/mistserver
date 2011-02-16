@@ -148,6 +148,8 @@ Interface::Interface() {
   trun_soun = new Box_trun();
   //Set some values we already know won't change once the boxes have been created
   SetStaticDefaults();
+  //Linking all boxes
+  link( );
 }
 
 Interface::~Interface() {

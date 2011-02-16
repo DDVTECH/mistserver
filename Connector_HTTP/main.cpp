@@ -20,14 +20,14 @@ enum {HANDLER_NONE, HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_M
 #define DEFAULT_PORT 80
 #include "../util/server_setup.cpp"
 #include "../util/http_parser.cpp"
-#include "../MP4/interface.h"
+#include "../util/MP4/interface.cpp"
 
 static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 std::string base64_encode(std::string const input) {
   std::string ret;
   unsigned int in_len = input.size();
   char quad[4], triple[3];
-  int i, x, n = 3;
+  unsigned int i, x, n = 3;
   for (x = 0; x < in_len; x = x + 3){
     if ((in_len - x) / 3 == 0){n = (in_len - x) % 3;}
     for (i=0; i < 3; i++){triple[i] = '0';}
@@ -96,8 +96,7 @@ int mainHandler(int CONN_fd){
   int Segment = -1;
   int ReqFragment = -1;
   int temp;
-  int CurrentFragment = -1;
-  Interface * Flash_Interface = new Interface;
+  //int CurrentFragment = -1; later herbruiken?
 
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
@@ -106,7 +105,7 @@ int mainHandler(int CONN_fd){
       if (HTTP_R.ReadSocket(CONN_fd)){
         handler = HANDLER_PROGRESSIVE;
         if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
-        if (HTTP_R.url.find("f4m") != std::string:npos){handler = HANDLER_FLASH;}
+        if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
         if (HTTP_R.url == "/crossdomain.xml"){
           handler = HANDLER_NONE;
           HTTP_S.Clean();
@@ -119,7 +118,7 @@ int mainHandler(int CONN_fd){
           #endif
         }
         if(handler == HANDLER_FLASH){
-          if (HTTP_R.url.find("f4m") == std::string:npos){
+          if (HTTP_R.url.find("f4m") == std::string::npos){
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
             Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
@@ -137,8 +136,8 @@ int mainHandler(int CONN_fd){
             #endif
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type","video/mp4");
-            //ERIK: Help, plox?
-            //HTTP_S.SetBody();//Wrap de FlashBuf?
+            HTTP_S.SetBody(Interface::mdatFold(FlashBuf));
+            FlashBuf = "";
             std::string tmpresp = HTTP_S.BuildResponse("200", "OK");
             DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
           }else{
@@ -200,17 +199,9 @@ int mainHandler(int CONN_fd){
         case -1: break;//not ready yet
         default:
           if (FLV_GetPacket(tag, ss)){//able to read a full packet?
-            //ERIK: "tag" bevat nu een FLV tag (video, audio, of metadata), de header hebben we al weggelezen, np.
-            //ERIK: Dit is het punt waarop je eventueel data mag/kan gaan sturen en/of parsen. Leef je uit.
-            //ERIK: je kan een HTTP_S gebruiken om je HTTP request op te bouwen (via SetBody, SetHeader, etc)
-            //ERIK: en dan met de .BuildResponse("200", "OK"); call een std::string met de hele response maken, klaar voor versturen
-            //ERIK: Note: hergebruik echter NIET de HTTP_R die ik al heb gemaakt hierboven, want er kunnen meerdere requests binnenkomen!
             if (handler == HANDLER_FLASH){
               if(tag->data[0] != 0x12 ) {
                 FlashBuf.append(tag->data,tag->len);
-                //JARON:er is een Interface * Flash_Interface aangemaakt, met de functie Setmdat( std::string )
-                //JARON:kun je data setten( de hele string in 1 keer ) en met Getmdat krijg je de boxed 
-                //JARON:versie als string terug.
               } else {
                 FlashMeta = "";
                 FlashMeta.append(tag->data,tag->len);

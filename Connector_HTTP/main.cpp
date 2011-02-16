@@ -50,7 +50,7 @@ int FlvToFragNum( FLV_Pack * tag ) {
 
 std::string BuildManifest( std::string MetaData, std::string MovieId, int CurrentMediaTime ) {
   Interface * temp = new Interface;
-  sstd::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n";
+  std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n";
   Result += "<id>";
   Result += MovieId;
   Result += "</id>\n<mimeType>video/mp4</mimeType>\n";

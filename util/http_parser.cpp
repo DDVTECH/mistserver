@@ -35,7 +35,7 @@ void HTTPReader::Clean(){
   seenReq = false;
   method = "GET";
   url = "/";
-  protocol = "HTTP/1.0";
+  protocol = "HTTP/1.1";
   length = 0;
   HTTPbuffer = "";
   headers.erase(headers.begin(), headers.end());

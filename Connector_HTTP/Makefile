@@ -17,7 +17,7 @@ $(OUT): $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 install: $(OUT)
-	-service RTMP_Conn stop
+	-service HTTP_Conn stop
 	cp -f ./$(OUT) /usr/bin/
 	cp -f ./HTTP_Conn /etc/init.d/
 	service HTTP_Conn start

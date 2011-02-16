@@ -22,7 +22,7 @@ class Box_abst {
     void SetTimeScale( uint32_t Scale = 1000 );
     void SetMediaTime( uint32_t Time = 0 );
     void SetSMPTE( uint32_t Smpte = 0 );
-    void SetMovieIdentfier( std::string Identifier = "" );
+    void SetMovieIdentifier( std::string Identifier = "" );
     void SetDRM( std::string Drm = "" );
     void SetMetaData( std::string MetaData = "" );
     void AddServerEntry( std::string Url = "", uint32_t Offset = 0 );

@@ -18,6 +18,8 @@ class Interface {
     void EmptySTSC( uint32_t Track );
     void SetOffsets( std::vector<uint32_t> NewOffsets, uint32_t Track );
     void SetData( uint8_t * Data, uint32_t DataSize );
+
+    std::string GenerateLiveBootstrap( uint32_t CurMediaTime );
   private:
     void SetStaticDefaults();
     void UpdateContents();

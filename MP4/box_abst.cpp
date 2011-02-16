@@ -40,7 +40,7 @@ void Box_abst::SetSMPTE( uint32_t Smpte ) {
   curSMPTE = Smpte;
 }
 
-void Box_abst::SetMovieIdentfier( std::string Identifier ) {
+void Box_abst::SetMovieIdentifier( std::string Identifier ) {
   curMovieIdentifier = Identifier;
 }
 
@@ -94,7 +94,7 @@ void Box_abst::SetDefaults( ) {
   SetTimeScale( );
   SetMediaTime( );
   SetSMPTE( );
-  SetMovieIdentfier( );
+  SetMovieIdentifier( );
   SetDRM( );
   SetMetaData( );
 }

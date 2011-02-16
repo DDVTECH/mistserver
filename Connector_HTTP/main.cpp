@@ -20,6 +20,35 @@ enum {HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO};
 #define DEFAULT_PORT 80
 #include "../util/server_setup.cpp"
 #include "../util/http_parser.cpp"
+#include "../MP4/interface.h"
+
+int FlvToFragNum( FLV_Pack * tag ) {
+  int Timestamp = (tag->data[7] << 24 ) + (tag->data[4] << 16 ) + (tag->data[5] << 8 ) + (tag->data[6] );
+  return (Timestamp / 10000) + 1;
+}
+
+std::string BuildManifest( std::string MetaData, std::string MovieId, int CurrentMediaTime ) {
+  Interface * temp = new Interface;
+  std::string Result="<manifest>\n";
+  Result += "  <mimeType>video/mp4</mimeType>\n";
+  Result += "  <streamType>live</streamType>\n";
+  Result += "  <deliveryType>streaming</deliveryType>\n";
+  Result += "  <bootstrapInfo profile=\"named\" id=\"bootstrap1\">\n";
+  //JARON: Encode BASE64
+  Result += temp->GenerateLiveBootstrap( CurrentMediaTime );
+  Result += "  </bootstrapInfo>\n";
+  Result += "  <media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"";
+  Result += MovieId;
+  Result += "/\">";
+  Result += "    <metadata>\n";
+  //JARON: Encode BASE64
+  Result += MetaData;
+  Result += "    </metadata>\n";
+  Result += "  </media>\n";
+  Result += "</manifest>\n";
+  delete temp;
+  return Result;
+}
 
 int mainHandler(int CONN_fd){
   int handler = HANDLER_PROGRESSIVE;
@@ -28,6 +57,9 @@ int mainHandler(int CONN_fd){
   bool progressive_has_sent_header = false;
   int ss;
   std::string streamname;
+  std::string FlashBuf;
+  std::string FlashMeta;
+  bool Flash_ManifestSent = false;
   FLV_Pack * tag = 0;
   HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
@@ -43,8 +75,9 @@ int mainHandler(int CONN_fd){
   std::string Movie = "";
   std::string Quality = "";
   int Segment = -1;
-  int Fragment = -1;
+  int ReqFragment = -1;
   int temp;
+  int CurrentFragment = -1;
 
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
@@ -64,15 +97,22 @@ int mainHandler(int CONN_fd){
           temp = HTTP_R.url.find("Seg") + 3;
           Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
           temp = HTTP_R.url.find("Frag") + 4;
-          Fragment = atoi( HTTP_R.url.substr(temp).c_str() );
+          ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
 
           printf( "URL: %s\n", HTTP_R.url.c_str());
           printf( "Movie Identifier: %s\n", Movie.c_str() );
           printf( "Quality Modifier: %s\n", Quality.c_str() );
           printf( "Segment: %d\n", Segment );
-          printf( "Fragment: %d\n", Fragment );
+          printf( "Fragment: %d\n", ReqFragment );
           streamname = "/tmp/shared_socket_";
-          streamname += Movie.c_str();
+          for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
+            if (!isalpha(*i) && !isdigit(*i)){
+              Movie.erase(i);
+            }else{
+              *i=tolower(*i);
+            }//strip nonalphanumeric
+          }
+          streamname += Movie;
 
           ready4data = true;
         }//FLASH handler
@@ -117,7 +157,6 @@ int mainHandler(int CONN_fd){
         #endif
         inited = true;
       }
-    
       retval = epoll_wait(sspoller, events, 1, 1);
       switch (DDV_ready(ss)){
         case 0:
@@ -134,6 +173,20 @@ int mainHandler(int CONN_fd){
             //ERIK: je kan een HTTP_S gebruiken om je HTTP request op te bouwen (via SetBody, SetHeader, etc)
             //ERIK: en dan met de .BuildResponse("200", "OK"); call een std::string met de hele response maken, klaar voor versturen
             //ERIK: Note: hergebruik echter NIET de HTTP_R die ik al heb gemaakt hierboven, want er kunnen meerdere requests binnenkomen!
+            if (handler == HANDLER_FLASH){
+              if(tag->data[0] != 0x12 ) {
+                FlashBuf.append(tag->data,tag->len);
+              } else {
+                FlashMeta = "";
+                FlashMeta.append(tag->data,tag->len);
+                if( !Flash_ManifestSent ) {
+                  HTTP_S.Clean();
+                  HTTP_S.SetHeader("Content-Type","text/xml");
+                  HTTP_S.SetHeader("Cache-Control","no-cache");
+//                  HTTP_S.SetBody
+                }
+              }
+            }
             if (handler == HANDLER_PROGRESSIVE){
               if (!progressive_has_sent_header){
                 HTTP_S.Clean();//troep opruimen die misschien aanwezig is...

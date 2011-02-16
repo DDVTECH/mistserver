@@ -450,3 +450,37 @@ void Interface::SetOffsets( std::vector<uint32_t> NewOffsets, uint32_t Track ) {
       break;
   }
 }
+
+std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
+  //SetUpAFRT
+  afrt->SetUpdate(false);
+  afrt->SetTimeScale( 1000 );
+  afrt->AddQualityEntry( "" );
+  afrt->AddFragmentRunEntry( 1, 0, 0, 2 );
+  afrt->WriteContent( );
+
+  //SetUpASRT
+  asrt->SetUpdate(false);
+  asrt->AddQualityEntry( "" );
+  asrt->AddSegmentRunEntry( 1, 0 );
+  asrt->WriteContent( );
+
+  //SetUpABST
+  abst->SetBootstrapVersion( 1 );
+  abst->SetProfile( 0 );
+  abst->SetLive( true );
+  abst->SetUpdate( false );
+  abst->SetTimeScale( 1000 );
+  abst->SetMediaTime( CurMediaTime );
+  abst->SetSMPTE( 0 );
+  abst->SetMovieIdentifier( "" );
+  abst->SetDRM( "" );
+  abst->SetMetaData( "" );
+  abst->AddServerEntry( "" );
+  abst->AddQualityEntry( "" );
+  abst->WriteContent( );
+
+  std::string Result;
+  Result.append( (char*)abst->GetBox( )->GetBoxedData( ), (int)abst->GetBox( )->GetBoxedDataSize( ) );
+  return Result;
+}

@@ -50,20 +50,22 @@ int FlvToFragNum( FLV_Pack * tag ) {
 
 std::string BuildManifest( std::string MetaData, std::string MovieId, int CurrentMediaTime ) {
   Interface * temp = new Interface;
-  std::string Result="<manifest>\n";
-  Result += "  <mimeType>video/mp4</mimeType>\n";
-  Result += "  <streamType>live</streamType>\n";
-  Result += "  <deliveryType>streaming</deliveryType>\n";
-  Result += "  <bootstrapInfo profile=\"named\" id=\"bootstrap1\">\n";
-  Result += base64_encode(temp->GenerateLiveBootstrap(CurrentMediaTime));
-  Result += "  </bootstrapInfo>\n";
-  Result += "  <media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"";
+  std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n";
+  Result += "<id>";
   Result += MovieId;
-  Result += "/\">";
-  Result += "    <metadata>\n";
+  Result += "</id>\n<mimeType>video/mp4</mimeType>\n";
+  Result += "<streamType>live</streamType>\n";
+  Result += "<deliveryType>streaming</deliveryType>\n";
+  Result += "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">";
+  Result += base64_encode(temp->GenerateLiveBootstrap(CurrentMediaTime));
+  Result += "</bootstrapInfo>\n";
+  Result += "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"";
+  Result += MovieId;
+  Result += "/\">\n";
+  Result += "<metadata>";
   Result += base64_encode(MetaData);
-  Result += "    </metadata>\n";
-  Result += "  </media>\n";
+  Result += "</metadata>\n";
+  Result += "</media>\n";
   Result += "</manifest>\n";
   delete temp;
   return Result;

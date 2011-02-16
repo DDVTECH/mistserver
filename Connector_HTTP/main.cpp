@@ -17,7 +17,7 @@
 
 enum {HANDLER_NONE, HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO};
 
-#define DEFAULT_PORT 80
+#define DEFAULT_PORT 8080
 #include "../util/server_setup.cpp"
 #include "../util/http_parser.cpp"
 #include "../util/MP4/interface.cpp"

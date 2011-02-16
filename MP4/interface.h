@@ -1,5 +1,7 @@
 #include "box_includes.h"
 
+#include <string>
+
 class Interface {
   public:
     Interface();
@@ -17,7 +19,7 @@ class Interface {
     void AddSTSCEntry( uint32_t FirstChunk, uint32_t SamplesPerChunk, uint32_t Track );
     void EmptySTSC( uint32_t Track );
     void SetOffsets( std::vector<uint32_t> NewOffsets, uint32_t Track );
-    void SetData( uint8_t * Data, uint32_t DataSize );
+    void SetData( std::string data );
 
     std::string GenerateLiveBootstrap( uint32_t CurMediaTime );
   private:

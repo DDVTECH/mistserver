@@ -484,3 +484,13 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   Result.append( (char*)abst->GetBox( )->GetBoxedData( ), (int)abst->GetBox( )->GetBoxedDataSize( ) );
   return Result;
 }
+
+void Interface::Setmdat( std::string data ) {
+  mdat->SetContent( data.c_str(), data.size( ) );
+}
+
+std::string Interface::Getmdat( ) {
+  std::string Result;
+  Result.append( (char*)mdat->GetBox( )->GetBoxedData( ), (int)mdat->GetBox( )->GetBoxedDataSize( ) );
+  return Result;
+}

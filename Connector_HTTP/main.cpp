@@ -206,7 +206,7 @@ int mainHandler(int CONN_fd){
                 FlashBuf.append(tag->data,tag->len);
               } else {
                 FlashMeta = "";
-                FlashMeta.append(tag->data,tag->len);
+                FlashMeta.append(tag->data+11,tag->len-15);
                 if( !Flash_ManifestSent ) {
                   HTTP_S.Clean();
                   HTTP_S.SetHeader("Content-Type","text/xml");

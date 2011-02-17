@@ -553,7 +553,7 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   //SetUpASRT
   asrt->SetUpdate(false);
   asrt->AddQualityEntry( "" );
-  asrt->AddSegmentRunEntry( 1, 0 );
+  asrt->AddSegmentRunEntry( 1, 0xFFFFFFFF );
   asrt->WriteContent( );
 
   //SetUpABST

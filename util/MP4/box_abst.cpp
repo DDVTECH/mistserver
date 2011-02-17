@@ -189,24 +189,24 @@ void Box_abst::WriteContent( ) {
     }
   }
   uint32_t OffsetServerEntryCount = 29 + curMovieIdentifier.size() + 1;
-  uint32_t OffsetQualityEntryCount = OffsetServerEntryCount + 4 + serializedServers.size();
-  uint32_t OffsetDrmData = OffsetQualityEntryCount + 4 + serializedQualities.size();
+  uint32_t OffsetQualityEntryCount = OffsetServerEntryCount + 1 + serializedServers.size();
+  uint32_t OffsetDrmData = OffsetQualityEntryCount + 1 + serializedQualities.size();
   uint32_t OffsetMetaData = OffsetDrmData + curDRM.size() + 1;
   uint32_t OffsetSegmentRuntableCount = OffsetMetaData + curMetaData.size() + 1;
-  uint32_t OffsetFragmentRuntableCount = OffsetSegmentRuntableCount + 4 + serializedSegments.size();
+  uint32_t OffsetFragmentRuntableCount = OffsetSegmentRuntableCount + 1 + serializedSegments.size();
 
   temp[0] = 0 + ( curProfile << 6 ) + ( (uint8_t)isLive << 7 ) + ( (uint8_t)isUpdate << 7 );
 
-  Container->SetPayload((uint32_t)serializedFragments.size(),(uint8_t*)serializedFragments.c_str(),OffsetFragmentRuntableCount+4);
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(FragmentAmount),OffsetFragmentRuntableCount);
-  Container->SetPayload((uint32_t)serializedSegments.size(),(uint8_t*)serializedSegments.c_str(),OffsetSegmentRuntableCount+4);
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(SegmentAmount),OffsetSegmentRuntableCount);
+  Container->SetPayload((uint32_t)serializedFragments.size(),(uint8_t*)serializedFragments.c_str(),OffsetFragmentRuntableCount+1);
+  Container->SetPayload((uint32_t)1,Box::uint8_to_uint8(FragmentAmount),OffsetFragmentRuntableCount);
+  Container->SetPayload((uint32_t)serializedSegments.size(),(uint8_t*)serializedSegments.c_str(),OffsetSegmentRuntableCount+1);
+  Container->SetPayload((uint32_t)1,Box::uint8_to_uint8(SegmentAmount),OffsetSegmentRuntableCount);
   Container->SetPayload((uint32_t)curMetaData.size()+1,(uint8_t*)curMetaData.c_str(),OffsetMetaData);
   Container->SetPayload((uint32_t)curDRM.size()+1,(uint8_t*)curDRM.c_str(),OffsetDrmData);
-  Container->SetPayload((uint32_t)serializedQualities.size(),(uint8_t*)serializedQualities.c_str(),OffsetQualityEntryCount+4);
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Qualities.size()),OffsetQualityEntryCount);
-  Container->SetPayload((uint32_t)serializedServers.size(),(uint8_t*)serializedServers.c_str(),OffsetServerEntryCount+4);
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(Servers.size()),OffsetServerEntryCount);
+  Container->SetPayload((uint32_t)serializedQualities.size(),(uint8_t*)serializedQualities.c_str(),OffsetQualityEntryCount+1);
+  Container->SetPayload((uint32_t)1,Box::uint8_to_uint8(Qualities.size()),OffsetQualityEntryCount);
+  Container->SetPayload((uint32_t)serializedServers.size(),(uint8_t*)serializedServers.c_str(),OffsetServerEntryCount+1);
+  Container->SetPayload((uint32_t)1,Box::uint8_to_uint8(Servers.size()),OffsetServerEntryCount);
   Container->SetPayload((uint32_t)curMovieIdentifier.size()+1,(uint8_t*)curMovieIdentifier.c_str(),29);//+1 for \0-terminated string...
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curSMPTE),25);
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0),21);

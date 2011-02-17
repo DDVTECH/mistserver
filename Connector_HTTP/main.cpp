@@ -48,7 +48,7 @@ int FlvToFragNum( FLV_Pack * tag ) {
   return (Timestamp / 10000) + 1;
 }
 
-int FlvGetTimestamp( Flv_Pack * tag ) {
+int FlvGetTimestamp( FLV_Pack * tag ) {
   return ( (tag->data[7] << 24 ) + (tag->data[4] << 16 ) + (tag->data[5] << 8 ) + (tag->data[6] ) );
 }
 

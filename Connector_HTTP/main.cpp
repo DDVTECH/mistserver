@@ -48,6 +48,10 @@ int FlvToFragNum( FLV_Pack * tag ) {
   return (Timestamp / 10000) + 1;
 }
 
+int FlvGetTimestamp( Flv_Pack * tag ) {
+  return ( (tag->data[7] << 24 ) + (tag->data[4] << 16 ) + (tag->data[5] << 8 ) + (tag->data[6] ) );
+}
+
 std::string BuildManifest( std::string MetaData, std::string MovieId, int CurrentMediaTime ) {
   Interface * temp = new Interface;
   std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n";
@@ -209,7 +213,7 @@ int mainHandler(int CONN_fd){
                   HTTP_S.Clean();
                   HTTP_S.SetHeader("Content-Type","text/xml");
                   HTTP_S.SetHeader("Cache-Control","no-cache");
-                  HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, 0));
+                  HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, FlvGetTimestamp(tag)));
                   HTTP_S.SendResponse(CONN_fd, "200", "OK");
                 }
               }

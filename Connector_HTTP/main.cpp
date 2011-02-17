@@ -113,8 +113,7 @@ int mainHandler(int CONN_fd){
           HTTP_S.Clean();
           HTTP_S.SetHeader("Content-Type", "text/xml");
           HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
-          std::string tmpresp = HTTP_S.BuildResponse("200", "OK");//geen SetBody = unknown length! Dat willen we hier.
-          DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
+          HTTP_S.SendResponse(CONN_fd, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
           #if DEBUG >= 3
           printf("Sending crossdomain.xml file\n");
           #endif
@@ -220,11 +219,14 @@ int mainHandler(int CONN_fd){
                 HTTP_S.Clean();//troep opruimen die misschien aanwezig is...
                 HTTP_S.SetHeader("Content-Type", "video/x-flv");//FLV files hebben altijd dit content-type.
                 HTTP_S.SetHeader("Transfer-Encoding", "chunked");
+                HTTP_S.protocol = "HTTP/1.0";
                 HTTP_S.SendResponse(CONN_fd, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
-                HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
+                //HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
+                DDV_write(FLVHeader, 13, CONN_fd);
                 progressive_has_sent_header = true;
               }
-              HTTP_S.SendBodyPart(CONN_fd, tag->data, tag->len);//schrijf deze FLV tag onbewerkt weg
+              //HTTP_S.SendBodyPart(CONN_fd, tag->data, tag->len);//schrijf deze FLV tag onbewerkt weg
+              DDV_write(tag->data, tag->len, CONN_fd);
             }//PROGRESSIVE handler
           }
           break;

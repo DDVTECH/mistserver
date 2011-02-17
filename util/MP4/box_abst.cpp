@@ -195,7 +195,7 @@ void Box_abst::WriteContent( ) {
   uint32_t OffsetSegmentRuntableCount = OffsetMetaData + curMetaData.size() + 1;
   uint32_t OffsetFragmentRuntableCount = OffsetSegmentRuntableCount + 4 + serializedSegments.size();
 
-  temp[0] = 0 & ( curProfile << 6 ) & ( (uint8_t)isLive << 7 ) & ( (uint8_t)isUpdate << 7 );
+  temp[0] = 0 + ( curProfile << 6 ) + ( (uint8_t)isLive << 7 ) + ( (uint8_t)isUpdate << 7 );
 
   Container->SetPayload((uint32_t)serializedFragments.size(),(uint8_t*)serializedFragments.c_str(),OffsetFragmentRuntableCount+4);
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(FragmentAmount),OffsetFragmentRuntableCount);

@@ -218,7 +218,7 @@ int mainHandler(int CONN_fd){
               if (!progressive_has_sent_header){
                 HTTP_S.Clean();//troep opruimen die misschien aanwezig is...
                 HTTP_S.SetHeader("Content-Type", "video/x-flv");//FLV files hebben altijd dit content-type.
-                HTTP_S.SetHeader("Transfer-Encoding", "chunked");
+                //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
                 HTTP_S.protocol = "HTTP/1.0";
                 HTTP_S.SendResponse(CONN_fd, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
                 //HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header

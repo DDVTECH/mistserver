@@ -140,8 +140,7 @@ int mainHandler(int CONN_fd){
             HTTP_S.SetHeader("Content-Type","video/mp4");
             HTTP_S.SetBody(Interface::mdatFold(FlashBuf));
             FlashBuf = "";
-            std::string tmpresp = HTTP_S.BuildResponse("200", "OK");
-            DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
+            HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
           }else{
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
@@ -212,8 +211,7 @@ int mainHandler(int CONN_fd){
                   HTTP_S.SetHeader("Content-Type","text/xml");
                   HTTP_S.SetHeader("Cache-Control","no-cache");
                   HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, 0));
-                  std::string tmpresp = HTTP_S.BuildResponse("200", "OK");
-                  DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
+                  HTTP_S.SendResponse(CONN_fd, "200", "OK");
                 }
               }
             }
@@ -221,12 +219,12 @@ int mainHandler(int CONN_fd){
               if (!progressive_has_sent_header){
                 HTTP_S.Clean();//troep opruimen die misschien aanwezig is...
                 HTTP_S.SetHeader("Content-Type", "video/x-flv");//FLV files hebben altijd dit content-type.
-                std::string tmpresp = HTTP_S.BuildResponse("200", "OK");//geen SetBody = unknown length! Dat willen we hier.
-                DDV_write(tmpresp.c_str(), tmpresp.size(), CONN_fd);//schrijf de HTTP response header
-                DDV_write(FLVHeader, 13, CONN_fd);//schrijf de FLV header, altijd 13 chars lang
+                HTTP_S.SetHeader("Transfer-Encoding", "chunked");
+                HTTP_S.SendResponse(CONN_fd, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+                HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
                 progressive_has_sent_header = true;
               }
-              DDV_write(tag->data, tag->len, CONN_fd);//schrijf deze FLV tag onbewerkt weg
+              HTTP_S.SendBodyPart(CONN_fd, tag->data, tag->len);//schrijf deze FLV tag onbewerkt weg
             }//PROGRESSIVE handler
           }
           break;

@@ -14,6 +14,9 @@ class HTTPReader{
     void SetBody(char * buffer, int len);
     std::string BuildRequest();
     std::string BuildResponse(std::string code, std::string message);
+    void SendResponse(int conn, std::string code, std::string message);
+    void SendBodyPart(int conn, char * buffer, int len);
+    void SendBodyPart(int conn, std::string bodypart);
     void Clean();
     std::string method;
     std::string url;
@@ -171,4 +174,23 @@ bool HTTPReader::parse(){
   return false; //we should never get here...
 }//HTTPReader::parse
 
+void HTTPReader::SendResponse(int conn, std::string code, std::string message){
+  std::string tmp = BuildResponse(code, message);
+  DDV_write(tmp.c_str(), tmp.size(), conn);
+}
+
+void HTTPReader::SendBodyPart(int conn, char * buffer, int len){
+  std::string tmp;
+  tmp.append(buffer, len);
+  SendBodyPart(conn, tmp);
+}
+
+void HTTPReader::SendBodyPart(int conn, std::string bodypart){
+  static char len[10];
+  int sizelen;
+  sizelen = snprintf(len, 10, "%x\r\n", (unsigned int)bodypart.size());
+  DDV_write(len, sizelen, conn);
+  DDV_write(bodypart.c_str(), bodypart.size(), conn);
+  DDV_write(len+sizelen-2, 2, conn);
+}
 

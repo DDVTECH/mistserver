@@ -11,8 +11,8 @@ unsigned int getNowMS(){
 }
 
 
-unsigned int chunk_rec_max = 102400;
-unsigned int chunk_snd_max = 102400;
+unsigned int chunk_rec_max = 128;
+unsigned int chunk_snd_max = 128;
 unsigned int rec_window_size = 0xFA00;
 unsigned int snd_window_size = 1024*500;
 unsigned int rec_window_at = 0;

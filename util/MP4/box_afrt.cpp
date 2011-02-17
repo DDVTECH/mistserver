@@ -95,6 +95,6 @@ void Box_afrt::WriteContent( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(FragmentRunEntryTable.size()),OffsetFragmentRunEntryCount);
   Container->SetPayload((uint32_t)serializedQualities.size(),(uint8_t*)serializedQualities.c_str(),9);
   Container->SetPayload((uint32_t)1,Box::uint8_to_uint8(QualitySegmentUrlModifiers.size()),8);
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curTimeScale));
+  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(curTimeScale),4);
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
 }

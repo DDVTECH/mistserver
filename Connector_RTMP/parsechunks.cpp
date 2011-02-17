@@ -122,14 +122,14 @@ void parseChunk(){
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
 //        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
         amfreply.addContent(AMFType(""));//server properties
-        amfreply.getContentP(2)->addContent(AMFType("fmsVer", "FMS/3,0,1,123"));//stolen from examples
+        amfreply.getContentP(2)->addContent(AMFType("fmsVer", "FMS/3,5,2,654"));//stolen from examples
         amfreply.getContentP(2)->addContent(AMFType("capabilities", (double)31));//stolen from examples
+        amfreply.getContentP(2)->addContent(AMFType("mode", (double)1));//stolen from examples
+        amfreply.getContentP(2)->addContent(AMFType("objectEncoding", (double)0));
         amfreply.addContent(AMFType(""));//info
         amfreply.getContentP(3)->addContent(AMFType("level", "status"));
         amfreply.getContentP(3)->addContent(AMFType("code", "NetConnection.Connect.Success"));
         amfreply.getContentP(3)->addContent(AMFType("description", "Connection succeeded."));
-        amfreply.getContentP(3)->addContent(AMFType("capabilities", (double)33));//from red5 server
-        amfreply.getContentP(3)->addContent(AMFType("fmsVer", "PLS/1,0,0,0"));//from red5 server
         #if DEBUG >= 4
         amfreply.Print();
         #endif

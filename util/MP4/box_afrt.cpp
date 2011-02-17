@@ -80,12 +80,12 @@ void Box_afrt::WriteContent( ) {
     serializedQualities += '\0';
   }
   for( uint32_t i = 0; i < FragmentRunEntryTable.size(); i ++ ) {
-    serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FirstFragment));
-    serializedFragmentEntries.append((char*)Box::uint32_to_uint8(0));
-    serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FirstFragmentTimestamp));
-    serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FragmentDuration));
+    serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FirstFragment),4);
+    serializedFragmentEntries.append((char*)Box::uint32_to_uint8(0),4);
+    serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FirstFragmentTimestamp),4);
+    serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FragmentDuration)),4;
     if(FragmentRunEntryTable[i].FragmentDuration == 0) {
-    serializedFragmentEntries.append((char*)Box::uint8_to_uint8(FragmentRunEntryTable[i].DiscontinuityIndicator));
+    serializedFragmentEntries.append((char*)Box::uint8_to_uint8(FragmentRunEntryTable[i].DiscontinuityIndicator),1);
     }
   }
 

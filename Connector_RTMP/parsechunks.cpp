@@ -5,8 +5,8 @@ std::string streamname = "/tmp/shared_socket";
 //gets and parses one chunk
 void parseChunk(){
   static chunkpack next;
-  static AMFType amfdata("empty", (unsigned char)0xFF);
-  static AMFType amfelem("empty", (unsigned char)0xFF);
+  static AMFType amfdata("empty", (unsigned char)AMF0_DDV_CONTAINER);
+  static AMFType amfelem("empty", (unsigned char)AMF0_DDV_CONTAINER);
   next = getWholeChunk();
   switch (next.msg_type_id){
     case 0://does not exist
@@ -117,7 +117,7 @@ void parseChunk(){
         SendCTL(5, snd_window_size);//send window acknowledgement size (msg 5)
         SendUSR(0, 1);//send UCM StreamBegin (0), stream 1
         //send a _result reply
-        AMFType amfreply("container", (unsigned char)0xFF);
+        AMFType amfreply("container", (unsigned char)AMF0_DDV_CONTAINER);
         amfreply.addContent(AMFType("", "_result"));//result success
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
 //        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
@@ -144,10 +144,10 @@ void parseChunk(){
       }//connect
       if (amfdata.getContentP(0)->StrValue() == "createStream"){
         //send a _result reply
-        AMFType amfreply("container", (unsigned char)0xFF);
+        AMFType amfreply("container", (unsigned char)AMF0_DDV_CONTAINER);
         amfreply.addContent(AMFType("", "_result"));//result success
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
-        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        amfreply.addContent(AMFType("", (double)0, AMF0_NULL));//null - command info
         amfreply.addContent(AMFType("", (double)1));//stream ID - we use 1
         #if DEBUG >= 4
         amfreply.Print();
@@ -158,10 +158,10 @@ void parseChunk(){
       }//createStream
       if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){
         //send a _result reply
-        AMFType amfreply("container", (unsigned char)0xFF);
+        AMFType amfreply("container", (unsigned char)AMF0_DDV_CONTAINER);
         amfreply.addContent(AMFType("", "_result"));//result success
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
-        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        amfreply.addContent(AMFType("", (double)0, AMF0_NULL));//null - command info
         amfreply.addContent(AMFType("", (double)0));//zero length
         #if DEBUG >= 4
         amfreply.Print();
@@ -171,11 +171,11 @@ void parseChunk(){
       }//getStreamLength
       if (amfdata.getContentP(0)->StrValue() == "checkBandwidth"){
         //send a _result reply
-        AMFType amfreply("container", (unsigned char)0xFF);
+        AMFType amfreply("container", (unsigned char)AMF0_DDV_CONTAINER);
         amfreply.addContent(AMFType("", "_result"));//result success
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
-        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
-        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        amfreply.addContent(AMFType("", (double)0, AMF0_NULL));//null - command info
+        amfreply.addContent(AMFType("", (double)0, AMF0_NULL));//null - command info
         #if DEBUG >= 4
         amfreply.Print();
         #endif
@@ -191,10 +191,10 @@ void parseChunk(){
         streamname = "/tmp/shared_socket_" + streamname;
         SendUSR(0, 1);//send UCM StreamBegin (0), stream 1
         //send a status reply
-        AMFType amfreply("container", (unsigned char)0xFF);
+        AMFType amfreply("container", (unsigned char)AMF0_DDV_CONTAINER);
         amfreply.addContent(AMFType("", "onStatus"));//status reply
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
-        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        amfreply.addContent(AMFType("", (double)0, AMF0_NULL));//null - command info
         amfreply.addContent(AMFType(""));//info
         amfreply.getContentP(3)->addContent(AMFType("level", "status"));
         amfreply.getContentP(3)->addContent(AMFType("code", "NetStream.Play.Reset"));
@@ -205,10 +205,10 @@ void parseChunk(){
         amfreply.Print();
         #endif
         SendChunk(4, 20, next.msg_stream_id, amfreply.Pack());
-        amfreply = AMFType("container", (unsigned char)0xFF);
+        amfreply = AMFType("container", (unsigned char)AMF0_DDV_CONTAINER);
         amfreply.addContent(AMFType("", "onStatus"));//status reply
         amfreply.addContent(amfdata.getContent(1));//same transaction ID
-        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
+        amfreply.addContent(AMFType("", (double)0, AMF0_NULL));//null - command info
         amfreply.addContent(AMFType(""));//info
         amfreply.getContentP(3)->addContent(AMFType("level", "status"));
         amfreply.getContentP(3)->addContent(AMFType("code", "NetStream.Play.Start"));

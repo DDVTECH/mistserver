@@ -13,7 +13,7 @@ int main( int argc, char * argv[] ) {
     temp += ifs.get();
   }
   static AMFType amfdata("empty", (unsigned char)0xFF);
-  amfdata = parseAMF( temp );
+  amfdata = parseAMF( (const unsigned char*)temp.c_str(), temp.length()-1 );
   amfdata.Print( );
   return 0;
 }

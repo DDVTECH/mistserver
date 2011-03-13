@@ -59,7 +59,7 @@ std::string GetMetaData( ) {
   amfreply.addContent(AMFType("",(unsigned char)AMF0_ECMA_ARRAY));
   amfreply.getContentP(1)->addContent(AMFType("trackinfo", (unsigned char)AMF0_STRICT_ARRAY));
   amfreply.getContentP(1)->getContentP(0)->addContent(AMFType("arrVal"));
-  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("timescale",(double)100000));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("timescale",(double)1000));
 //  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("length",(double)59641700));
   amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("language","eng"));
   amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("sampledescription", (unsigned char)AMF0_STRICT_ARRAY));

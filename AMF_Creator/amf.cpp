@@ -1,1 +1,1 @@
-/home/immortal/werk/pls/util/amf.cpp
+../util/amf.cpp

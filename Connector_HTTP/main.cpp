@@ -21,6 +21,7 @@ enum {HANDLER_NONE, HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_M
 #include "../util/server_setup.cpp"
 #include "../util/http_parser.cpp"
 #include "../util/MP4/interface.cpp"
+#include "amf.cpp"
 
 static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 std::string base64_encode(std::string const input) {
@@ -52,6 +53,44 @@ int FlvGetTimestamp( FLV_Pack * tag ) {
   return ( (tag->data[7] << 24 ) + (tag->data[4] << 16 ) + (tag->data[5] << 8 ) + (tag->data[6] ) );
 }
 
+std::string GetMetaData( ) {
+  AMFType amfreply("container", (unsigned char)AMF0_DDV_CONTAINER);
+  amfreply.addContent(AMFType("onMetaData",(unsigned char)AMF0_STRING));
+  amfreply.addContent(AMFType("",(unsigned char)AMF0_ECMA_ARRAY));
+  amfreply.getContentP(1)->addContent(AMFType("trackinfo", (unsigned char)AMF0_STRICT_ARRAY));
+  amfreply.getContentP(1)->getContentP(0)->addContent(AMFType("arrVal"));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("timescale",(double)100000));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("length",(double)59641700));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("language","eng"));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("sampledescription", (unsigned char)AMF0_STRICT_ARRAY));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->getContentP(3)->addContent(AMFType("arrVal"));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(0)->getContentP(3)->getContentP(0)->addContent(AMFType("sampletype","avc1"));
+  amfreply.getContentP(1)->getContentP(0)->addContent(AMFType("arrVal"));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMFType("timescale",(double)48000));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMFType("length",(double)28630000));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMFType("language","eng"));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMFType("sampledescription", (unsigned char)AMF0_STRICT_ARRAY));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(3)->addContent(AMFType("arrVal"));
+  amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(3)->getContentP(0)->addContent(AMFType("sampletype","mp4a"));
+  amfreply.getContentP(1)->addContent(AMFType("audiochannels",(double)2));
+  amfreply.getContentP(1)->addContent(AMFType("audiosamplerate",(double)48000));
+  amfreply.getContentP(1)->addContent(AMFType("videoframerate",(double)23.9981));
+  amfreply.getContentP(1)->addContent(AMFType("aacaot",(double)2));
+  amfreply.getContentP(1)->addContent(AMFType("avclevel",(double)12));
+  amfreply.getContentP(1)->addContent(AMFType("avcprofile",(double)77));
+  amfreply.getContentP(1)->addContent(AMFType("audiocodecid","mp4a"));
+  amfreply.getContentP(1)->addContent(AMFType("videocodecid","avc1"));
+  amfreply.getContentP(1)->addContent(AMFType("width",(double)320));
+  amfreply.getContentP(1)->addContent(AMFType("height",(double)180));
+  amfreply.getContentP(1)->addContent(AMFType("frameWidth",(double)320));
+  amfreply.getContentP(1)->addContent(AMFType("frameHeight",(double)180));
+  amfreply.getContentP(1)->addContent(AMFType("displayWidth",(double)320));
+  amfreply.getContentP(1)->addContent(AMFType("displayHeight",(double)180));
+  amfreply.getContentP(1)->addContent(AMFType("moovposition",(double)35506700));
+  amfreply.getContentP(1)->addContent(AMFType("duration",(double)596.458));
+  return amfreply.Pack( );
+}
+
 std::string BuildManifest( std::string MetaData, std::string MovieId, int CurrentMediaTime ) {
   Interface * temp = new Interface;
   std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n";
@@ -67,7 +106,7 @@ std::string BuildManifest( std::string MetaData, std::string MovieId, int Curren
   Result += MovieId;
   Result += "/\">\n";
   Result += "<metadata>";
-  Result += base64_encode(MetaData);
+  Result += base64_encode(GetMetaData());
   Result += "</metadata>\n";
   Result += "</media>\n";
   Result += "</manifest>\n";
@@ -76,6 +115,7 @@ std::string BuildManifest( std::string MetaData, std::string MovieId, int Curren
 }
 
 int mainHandler(int CONN_fd){
+//  GetMetaData( ); return 0;
   int handler = HANDLER_PROGRESSIVE;
   bool ready4data = false;//set to true when streaming starts
   bool inited = false;

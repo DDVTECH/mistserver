@@ -8,3 +8,5 @@ Connector_RTSP/Connector_RTSP
 *~
 bin/*
 gearbox/plugins/001_putserversup.sh
+AMF_Tester/AMFtest
+AMF_Creator/AMFtest

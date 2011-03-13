@@ -74,7 +74,7 @@ std::string GetMetaData( ) {
   amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(1)->getContentP(0)->addContent(AMFType("sampletype","mp4a"));
   amfreply.getContentP(1)->addContent(AMFType("audiochannels",(double)2));
   amfreply.getContentP(1)->addContent(AMFType("audiosamplerate",(double)44100));
-  amfreply.getContentP(1)->addContent(AMFType("videoframerate",(double)251));
+  amfreply.getContentP(1)->addContent(AMFType("videoframerate",(double)25));
   amfreply.getContentP(1)->addContent(AMFType("aacaot",(double)2));
   amfreply.getContentP(1)->addContent(AMFType("avclevel",(double)12));
   amfreply.getContentP(1)->addContent(AMFType("avcprofile",(double)77));

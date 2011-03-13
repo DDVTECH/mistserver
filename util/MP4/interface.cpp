@@ -559,7 +559,7 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   //SetUpABST
   abst->SetBootstrapVersion( 1 );
   abst->SetProfile( 0 );
-  abst->SetLive( true );
+//  abst->SetLive( true );
   abst->SetUpdate( false );
   abst->SetTimeScale( 1000 );
   abst->SetMediaTime( CurMediaTime );

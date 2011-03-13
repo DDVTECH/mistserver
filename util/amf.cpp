@@ -215,7 +215,7 @@ class AMFType {
         case AMF0_ECMA_ARRAY:{
           int arrlen = 0;
           if (contents){
-            arrlen = getContentP("length")->NumValue();
+            arrlen = contents->size();
             r += arrlen / (256*256*256); r += arrlen / (256*256); r += arrlen / 256; r += arrlen % 256;
             for (std::vector<AMFType>::iterator it = contents->begin(); it != contents->end(); it++){
               r += it->Indice().size() / 256;
@@ -231,7 +231,7 @@ class AMFType {
         case AMF0_STRICT_ARRAY:{
           int arrlen = 0;
           if (contents){
-            arrlen = getContentP("length")->NumValue();
+            arrlen = contents->size();
             r += arrlen / (256*256*256); r += arrlen / (256*256); r += arrlen / 256; r += arrlen % 256;
             for (std::vector<AMFType>::iterator it = contents->begin(); it != contents->end(); it++){
               r += it->Pack();

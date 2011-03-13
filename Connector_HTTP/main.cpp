@@ -86,8 +86,8 @@ std::string GetMetaData( ) {
   amfreply.getContentP(1)->addContent(AMFType("frameHeight",(double)180));
   amfreply.getContentP(1)->addContent(AMFType("displayWidth",(double)320));
   amfreply.getContentP(1)->addContent(AMFType("displayHeight",(double)180));
-  amfreply.getContentP(1)->addContent(AMFType("moovposition",(double)35506700));
-  amfreply.getContentP(1)->addContent(AMFType("duration",(double)596.458));
+//  amfreply.getContentP(1)->addContent(AMFType("moovposition",(double)35506700));
+//  amfreply.getContentP(1)->addContent(AMFType("duration",(double)596.458));
   return amfreply.Pack( );
 }
 

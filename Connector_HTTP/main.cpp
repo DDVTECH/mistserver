@@ -80,12 +80,12 @@ std::string GetMetaData( ) {
   amfreply.getContentP(1)->addContent(AMFType("avcprofile",(double)77));
   amfreply.getContentP(1)->addContent(AMFType("audiocodecid","mp4a"));
   amfreply.getContentP(1)->addContent(AMFType("videocodecid","avc1"));
-  amfreply.getContentP(1)->addContent(AMFType("width",(double)320));
-  amfreply.getContentP(1)->addContent(AMFType("height",(double)180));
-  amfreply.getContentP(1)->addContent(AMFType("frameWidth",(double)320));
-  amfreply.getContentP(1)->addContent(AMFType("frameHeight",(double)180));
-  amfreply.getContentP(1)->addContent(AMFType("displayWidth",(double)320));
-  amfreply.getContentP(1)->addContent(AMFType("displayHeight",(double)180));
+  amfreply.getContentP(1)->addContent(AMFType("width",(double)1280));
+  amfreply.getContentP(1)->addContent(AMFType("height",(double)720));
+  amfreply.getContentP(1)->addContent(AMFType("frameWidth",(double)1280));
+  amfreply.getContentP(1)->addContent(AMFType("frameHeight",(double)720));
+  amfreply.getContentP(1)->addContent(AMFType("displayWidth",(double)1280));
+  amfreply.getContentP(1)->addContent(AMFType("displayHeight",(double)720));
 //  amfreply.getContentP(1)->addContent(AMFType("moovposition",(double)35506700));
 //  amfreply.getContentP(1)->addContent(AMFType("duration",(double)596.458));
   return amfreply.Pack( );

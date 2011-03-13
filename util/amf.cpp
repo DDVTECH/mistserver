@@ -262,6 +262,9 @@ AMFType parseOneAMF(const unsigned char *& data, unsigned int &len, unsigned int
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
+  #if DEBUG >= 10
+  fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
+  #endif
   switch (data[i]){
     case AMF0_NUMBER:
       tmpdbl[7] = data[i+1];
@@ -397,3 +400,4 @@ AMFType parseAMF(const unsigned char * data, unsigned int len){
   return ret;
 }//parseAMF
 AMFType parseAMF(std::string data){return parseAMF((const unsigned char*)data.c_str(), data.size());}
+

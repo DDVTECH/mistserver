@@ -29,6 +29,7 @@ class Box_abst {
     void AddQualityEntry( std::string Quality = "", uint32_t Offset = 0 );
     void AddSegmentRunTable( Box * newSegment, uint32_t Offset = 0 );
     void AddFragmentRunTable( Box * newFragment, uint32_t Offset = 0 );
+    void SetVersion( bool NewVersion = 0 );
     void WriteContent( );
   private:
     void SetDefaults( );
@@ -37,6 +38,7 @@ class Box_abst {
     uint8_t curProfile;
     bool isLive;
     bool isUpdate;
+    bool Version;
     uint32_t curTimeScale;
     uint32_t curMediatime;//write as uint64_t
     uint32_t curSMPTE;//write as uint64_t
@@ -52,6 +54,7 @@ class Box_abst {
 
 Box_abst::Box_abst( ) {
   Container = new Box( 0x61627374 );
+  SetDefaults( );
 }
 
 Box_abst::~Box_abst() {
@@ -136,7 +139,6 @@ void Box_abst::AddFragmentRunTable( Box * newFragment, uint32_t Offset ) {
   FragmentRunTables[Offset] = newFragment;
 }
 
-
 void Box_abst::SetDefaults( ) {
   SetProfile( );
   SetLive( );
@@ -147,7 +149,13 @@ void Box_abst::SetDefaults( ) {
   SetMovieIdentifier( );
   SetDRM( );
   SetMetaData( );
+  SetVersion( );
 }
+
+void SetVersion( bool NewVersion) {
+  Version = NewVersion;
+}
+
 
 void Box_abst::SetReserved( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0));

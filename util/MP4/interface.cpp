@@ -547,22 +547,25 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   afrt->SetUpdate(false);
   afrt->SetTimeScale( 1000 );
   afrt->AddQualityEntry( "" );
-  afrt->AddFragmentRunEntry( 1, CurMediaTime, 4000 );
+  for(int i = 0; i < 198 ; i++ ) {
+    afrt->AddFragmentRunEntry( i+1, (195*(i+1)) , 195, i );
+  }
+  afrt->AddFragmentRunEntry( 199, 590083 , 163, 198 );
   afrt->WriteContent( );
 
   //SetUpASRT
   asrt->SetUpdate(false);
   asrt->AddQualityEntry( "" );
-  asrt->AddSegmentRunEntry( 1, 0xFFFFFFFF );
+  asrt->AddSegmentRunEntry( 1, 199 );
   asrt->WriteContent( );
 
   //SetUpABST
   abst->SetBootstrapVersion( 1 );
   abst->SetProfile( 0 );
-//  abst->SetLive( true );
+  abst->SetLive( false );
   abst->SetUpdate( false );
   abst->SetTimeScale( 1000 );
-  abst->SetMediaTime( CurMediaTime );
+  abst->SetMediaTime( 596458 );
   abst->SetSMPTE( 0 );
   abst->SetMovieIdentifier( "" );
   abst->SetDRM( "" );

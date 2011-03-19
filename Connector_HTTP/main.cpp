@@ -126,6 +126,7 @@ int mainHandler(int CONN_fd){
   std::string FlashBuf;
   std::string FlashMeta;
   bool Flash_ManifestSent = false;
+  bool Flash_RequestPending = false;
   FLV_Pack * tag = 0;
   HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
@@ -180,11 +181,7 @@ int mainHandler(int CONN_fd){
             printf( "Segment: %d\n", Segment );
             printf( "Fragment: %d\n", ReqFragment );
             #endif
-            HTTP_S.Clean();
-            HTTP_S.SetHeader("Content-Type","video/mp4");
-            HTTP_S.SetBody(Interface::mdatFold(FlashBuf));
-            FlashBuf = "";
-            HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
+	    Flash_RequestPending = true;
           }else{
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
@@ -246,6 +243,15 @@ int mainHandler(int CONN_fd){
           if (FLV_GetPacket(tag, ss)){//able to read a full packet?
             if (handler == HANDLER_FLASH){
               if(tag->data[0] != 0x12 ) {
+		if (tag->isKeyframe){
+                  if (Flash_RequestPending){
+                    HTTP_S.Clean();
+                    HTTP_S.SetHeader("Content-Type","video/mp4");
+                    HTTP_S.SetBody(Interface::mdatFold(FlashBuf));
+                    FlashBuf = "";
+                    HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
+		  }
+		}
                 FlashBuf.append(tag->data,tag->len);
               } else {
                 FlashMeta = "";

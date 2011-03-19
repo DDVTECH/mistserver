@@ -1,6 +1,6 @@
 SRC = main.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = Blah
+OUT = Box_Parser
 INCLUDES = 
 CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++

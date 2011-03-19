@@ -2,12 +2,14 @@
 #include <string>
 #include <vector>
 
+/*
 struct afrt_fragmentrunentry {
   uint32_t FirstFragment;
   uint32_t FirstFragmentTimestamp; //write as uint64_t
   uint32_t FragmentDuration;
   uint8_t DiscontinuityIndicator;//if FragmentDuration == 0
 };//afrt_fragmentrunentry
+*/
 
 class Box_afrt {
   public:

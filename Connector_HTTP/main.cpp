@@ -6,6 +6,7 @@
 #define DEBUG 4
 
 #include <iostream>
+#include <queue>
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
@@ -127,6 +128,7 @@ int mainHandler(int CONN_fd){
   std::string FlashMeta;
   bool Flash_ManifestSent = false;
   bool Flash_RequestPending = false;
+  std::queue<std::string> Flash_FragBuffer;
   FLV_Pack * tag = 0;
   HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
@@ -244,12 +246,17 @@ int mainHandler(int CONN_fd){
             if (handler == HANDLER_FLASH){
               if(tag->data[0] != 0x12 ) {
 		if (tag->isKeyframe){
+		  Flash_FragBuffer.push(FlashBuf);
+		  FlashBuf = "";
                   if (Flash_RequestPending){
                     HTTP_S.Clean();
                     HTTP_S.SetHeader("Content-Type","video/mp4");
-                    HTTP_S.SetBody(Interface::mdatFold(FlashBuf));
-                    FlashBuf = "";
+                    HTTP_S.SetBody(Interface::mdatFold(Flash_FragBuffer.front()));
+                    Flash_FragBuffer.pop();
                     HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
+                    #if DEBUG >= 4
+		    fprintf(stderr, "Sending a video fragment. %i left in buffer.\n", (int)Flash_FragBuffer.size());
+                    #endif
 		  }
 		}
                 FlashBuf.append(tag->data,tag->len);

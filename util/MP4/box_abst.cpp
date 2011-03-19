@@ -152,7 +152,7 @@ void Box_abst::SetDefaults( ) {
   SetVersion( );
 }
 
-void SetVersion( bool NewVersion) {
+void Box_abst::SetVersion( bool NewVersion) {
   Version = NewVersion;
 }
 

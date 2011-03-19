@@ -236,7 +236,7 @@ int mainHandler(int CONN_fd){
         Flash_FragBuffer.pop();
         HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
         Flash_RequestPending--;
-        #if DEBUG >= 4
+        #if DEBUG >= 3
         fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
         #endif
       }
@@ -255,6 +255,9 @@ int mainHandler(int CONN_fd){
               if(tag->data[0] != 0x12 ) {
 		if (tag->isKeyframe){
 		  Flash_FragBuffer.push(FlashBuf);
+                  #if DEBUG >= 4
+		  fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+                  #endif
 		  FlashBuf = "";
 		}
                 FlashBuf.append(tag->data,tag->len);

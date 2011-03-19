@@ -254,10 +254,12 @@ int mainHandler(int CONN_fd){
             if (handler == HANDLER_FLASH){
               if(tag->data[0] != 0x12 ) {
 		if (tag->isKeyframe){
-		  Flash_FragBuffer.push(FlashBuf);
-                  #if DEBUG >= 4
-		  fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
-                  #endif
+		  if (FlashBuf != ""){
+		    Flash_FragBuffer.push(FlashBuf);
+                    #if DEBUG >= 4
+		    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+                    #endif
+		  }
 		  FlashBuf = "";
 		}
                 FlashBuf.append(tag->data,tag->len);

@@ -9,6 +9,14 @@
 #include <string>
 #include <vector>
 
+struct afrt_fragmentrunentry {
+  uint32_t FirstFragment;
+  uint32_t FirstFragmentTimestamp_Upperhalf; //write as uint64_t
+  uint32_t FirstFragmentTimestamp; //write as uint64_t
+  uint32_t FragmentDuration;
+  uint8_t DiscontinuityIndicator;//if FragmentDuration == 0
+};//afrt_fragmentrunentry
+
 struct BoxHeader {
   uint32_t TotalSize;
   uint32_t BoxType;
@@ -294,8 +302,8 @@ void Box::Parse( std::string PrintOffset ) {
       QualitySegmentUrlModifiers.push_back(temp);
       CurrentOffset++;
     }
-    SegmentRunEntryCount = Payload[CurrentOffset];
-    CurrentOffset ++;
+    SegmentRunEntryCount = (Payload[CurrentOffset] << 24) + (Payload[CurrentOffset+1] << 16) + (Payload[CurrentOffset+2]) + (Payload[CurrentOffset+3]);
+    CurrentOffset +=4;
     for( uint8_t i = 0; i < SegmentRunEntryCount; i++ ) {
       TempPair.first = (Payload[CurrentOffset] << 24) + (Payload[CurrentOffset+1] << 16) + (Payload[CurrentOffset+2] << 8) + (Payload[CurrentOffset+3]);
       CurrentOffset+=4;
@@ -312,12 +320,70 @@ void Box::Parse( std::string PrintOffset ) {
     for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size( ); i++ ) {
       std::cerr << PrintOffset << "    " << i+1 << ": " << QualitySegmentUrlModifiers[i] << "\n";
     }
-    std::cerr << PrintOffset << "  SegmentRunEntryCount: " << (int)QualityEntryCount << "\n";
+    std::cerr << PrintOffset << "  SegmentRunEntryCount: " << (int)SegmentRunEntryCount << "\n";
     std::cerr << PrintOffset << "  SegmentRunEntryTable:\n";
     for( uint32_t i = 0; i < SegmentRunEntryTable.size( ); i++ ) {
       std::cerr << PrintOffset << "    " << i+1 << ":\n";
       std::cerr << PrintOffset << "      FirstSegment: " << SegmentRunEntryTable[i].first << "\n";
       std::cerr << PrintOffset << "      FragmentsPerSegment: " << SegmentRunEntryTable[i].second << "\n";
+    }
+  } else if ( header.BoxType == 0x61667274 ) {
+    uint8_t Version = Payload[0];
+    uint32_t Flags = (Payload[1] << 16) + (Payload[2] << 8) + (Payload[3]); //uint24_t
+    uint32_t TimeScale = (Payload[4] << 24) + (Payload[5] << 16) + (Payload[6] << 8) + (Payload[7]);
+    uint8_t QualityEntryCount;
+    std::vector<std::string> QualitySegmentUrlModifiers;
+    uint32_t FragmentRunEntryCount;
+    std::vector<afrt_fragmentrunentry> FragmentRunEntryTable;
+
+    uint32_t CurrentOffset = 8;
+    std::string temp;
+    afrt_fragmentrunentry TempEntry;
+    QualityEntryCount = Payload[CurrentOffset];
+    CurrentOffset ++;
+    for( uint8_t i = 0; i < QualityEntryCount; i++ ) {
+      temp = "";
+      while( Payload[CurrentOffset] != '\0' ) { temp += Payload[CurrentOffset]; CurrentOffset ++; }
+      QualitySegmentUrlModifiers.push_back(temp);
+      CurrentOffset++;
+    }
+    FragmentRunEntryCount = (Payload[CurrentOffset] << 24) + (Payload[CurrentOffset+1] << 16) + (Payload[CurrentOffset+2]) + (Payload[CurrentOffset+3]);
+    CurrentOffset +=4;
+    for( uint8_t i = 0; i < FragmentRunEntryCount; i ++ ) {
+      TempEntry.FirstFragment = (Payload[CurrentOffset] << 24) + (Payload[CurrentOffset+1] << 16) + (Payload[CurrentOffset+2]) + (Payload[CurrentOffset+3]);
+      CurrentOffset +=4;
+      TempEntry.FirstFragmentTimestamp_Upperhalf = (Payload[CurrentOffset] << 24) + (Payload[CurrentOffset+1] << 16) + (Payload[CurrentOffset+2]) + (Payload[CurrentOffset+3]);
+      CurrentOffset +=4;
+      TempEntry.FirstFragmentTimestamp = (Payload[CurrentOffset] << 24) + (Payload[CurrentOffset+1] << 16) + (Payload[CurrentOffset+2]) + (Payload[CurrentOffset+3]);
+      CurrentOffset +=4;
+      TempEntry.FragmentDuration = (Payload[CurrentOffset] << 24) + (Payload[CurrentOffset+1] << 16) + (Payload[CurrentOffset+2]) + (Payload[CurrentOffset+3]);
+      CurrentOffset +=4;
+      if( TempEntry.FragmentDuration == 0 ) {
+        TempEntry.DiscontinuityIndicator = Payload[CurrentOffset];
+        CurrentOffset++;
+      }
+      FragmentRunEntryTable.push_back(TempEntry);
+    }
+
+    std::cerr << "Box_AFRT:\n";
+    std::cerr << PrintOffset << "  Version: " << (int)Version << "\n";
+    std::cerr << PrintOffset << "  Flags: " << (int)Flags << "\n";
+    std::cerr << PrintOffset << "  Timescale: " << (int)TimeScale << "\n";
+    std::cerr << PrintOffset << "  QualityEntryCount: " << (int)QualityEntryCount << "\n";
+    std::cerr << PrintOffset << "  QualitySegmentUrlModifiers:\n";
+    for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size( ); i++ ) {
+      std::cerr << PrintOffset << "    " << i+1 << ": " << QualitySegmentUrlModifiers[i] << "\n";
+    }
+    std::cerr << PrintOffset << "  FragmentRunEntryCount: " << (int)FragmentRunEntryCount << "\n";
+    std::cerr << PrintOffset << "  FragmentRunEntryTable:\n";
+    for( uint32_t i = 0; i < FragmentRunEntryTable.size( ); i++ ) {
+      std::cerr << PrintOffset << "    " << i+1 << ":\n";
+      std::cerr << PrintOffset << "      FirstFragment: " << FragmentRunEntryTable[i].FirstFragment << "\n";
+      std::cerr << PrintOffset << "      FirstFragmentTimestamp: " << FragmentRunEntryTable[i].FirstFragmentTimestamp_Upperhalf << FragmentRunEntryTable[i].FirstFragmentTimestamp << "\n";
+      std::cerr << PrintOffset << "      FragmentDuration: " << FragmentRunEntryTable[i].FragmentDuration << "\n";
+      if( FragmentRunEntryTable[i].FragmentDuration == 0 ) {
+        std::cerr << PrintOffset << "      DiscontinuityIndicator: " << (int)FragmentRunEntryTable[i].DiscontinuityIndicator << "\n";
+      }
     }
   } else {
     std::cerr << "BoxType '"

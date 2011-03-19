@@ -6,6 +6,7 @@
 #define DEBUG 4
 
 #include <iostream>
+#include <queue>
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
@@ -126,6 +127,8 @@ int mainHandler(int CONN_fd){
   std::string FlashBuf;
   std::string FlashMeta;
   bool Flash_ManifestSent = false;
+  int Flash_RequestPending = 0;
+  std::queue<std::string> Flash_FragBuffer;
   FLV_Pack * tag = 0;
   HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
@@ -175,16 +178,9 @@ int mainHandler(int CONN_fd){
             ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
             #if DEBUG >= 4
             printf( "URL: %s\n", HTTP_R.url.c_str());
-            printf( "Movie Identifier: %s\n", Movie.c_str() );
-            printf( "Quality Modifier: %s\n", Quality.c_str() );
-            printf( "Segment: %d\n", Segment );
-            printf( "Fragment: %d\n", ReqFragment );
+            printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
             #endif
-            HTTP_S.Clean();
-            HTTP_S.SetHeader("Content-Type","video/mp4");
-            HTTP_S.SetBody(Interface::mdatFold(FlashBuf));
-            FlashBuf = "";
-            HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
+	    Flash_RequestPending++;
           }else{
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
@@ -233,6 +229,17 @@ int mainHandler(int CONN_fd){
         #endif
         inited = true;
       }
+      if ((Flash_RequestPending > 0) && !Flash_FragBuffer.empty()){
+        HTTP_S.Clean();
+        HTTP_S.SetHeader("Content-Type","video/mp4");
+        HTTP_S.SetBody(Interface::mdatFold(Flash_FragBuffer.front()));
+        Flash_FragBuffer.pop();
+        HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
+        Flash_RequestPending--;
+        #if DEBUG >= 3
+        fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
+        #endif
+      }
       retval = epoll_wait(sspoller, events, 1, 1);
       switch (DDV_ready(ss)){
         case 0:
@@ -246,6 +253,15 @@ int mainHandler(int CONN_fd){
           if (FLV_GetPacket(tag, ss)){//able to read a full packet?
             if (handler == HANDLER_FLASH){
               if(tag->data[0] != 0x12 ) {
+		if (tag->isKeyframe){
+		  if (FlashBuf != ""){
+		    Flash_FragBuffer.push(FlashBuf);
+                    #if DEBUG >= 4
+		    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+                    #endif
+		  }
+		  FlashBuf = "";
+		}
                 FlashBuf.append(tag->data,tag->len);
               } else {
                 FlashMeta = "";

@@ -264,7 +264,7 @@ int mainHandler(int CONN_fd){
         char timebuffer [80];
         time ( &rawtime );
         timeinfo = localtime ( &rawtime );
-        strftime (timebuffer,80,"%I:%M.",timeinfo);
+        strftime (timebuffer,80,"%H:%M.%S.",timeinfo);
         fprintf(stderr, "< %s >\t", timebuffer );
 		    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
                     #endif

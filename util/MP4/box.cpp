@@ -46,8 +46,6 @@ class Box {
     uint8_t * Payload;
     BoxHeader header;
     uint32_t PayloadSize;
-  private:
-    BoxHeader header;
 };//Box Class
 
 Box::Box() {
@@ -177,7 +175,6 @@ void Box::ResetPayload( ) {
     Payload = NULL;
   }
 }
-<<<<<<< HEAD
 
 void Box::Parse( std::string PrintOffset ) {
   if( header.BoxType == 0x61627374 ) {
@@ -399,5 +396,4 @@ void Box::Parse( std::string PrintOffset ) {
               << "' not yet implemented!\n";
   }
 }
-=======
->>>>>>> 7520f5799f3da3c1a89a28fd4d62358b0028d8d2
+

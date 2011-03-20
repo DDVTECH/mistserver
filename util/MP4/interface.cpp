@@ -559,11 +559,10 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   //SetUpABST
   abst->SetBootstrapVersion( 1 );
   abst->SetProfile( 0 );
-//  abst->SetLive( false );
   abst->SetLive( true );
   abst->SetUpdate( false );
   abst->SetTimeScale( 1000 );
-  abst->SetMediaTime( 1 );
+  abst->SetMediaTime( 596458 );
   abst->SetSMPTE( 0 );
   abst->SetMovieIdentifier( "" );
   abst->SetDRM( "" );

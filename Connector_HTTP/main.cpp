@@ -178,6 +178,14 @@ int mainHandler(int CONN_fd){
             temp = HTTP_R.url.find("Frag") + 4;
             ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
             #if DEBUG >= 4
+        /* strftime example */
+        time_t rawtime;
+        struct tm * timeinfo;
+        char timebuffer [80];
+        time ( &rawtime );
+        timeinfo = localtime ( &rawtime );
+        strftime (timebuffer,80,"%H:%M.%S.",timeinfo);
+        fprintf(stderr, "< %s >\t", timebuffer );
             printf( "URL: %s\n", HTTP_R.url.c_str());
             printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
             #endif
@@ -238,6 +246,14 @@ int mainHandler(int CONN_fd){
         HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
         Flash_RequestPending--;
         #if DEBUG >= 3
+        /* strftime example */
+        time_t rawtime;
+        struct tm * timeinfo;
+        char timebuffer [80];
+        time ( &rawtime );
+        timeinfo = localtime ( &rawtime );
+        strftime (timebuffer,80,"%H:%M.%S.",timeinfo);
+        fprintf(stderr, "< %s >\t", timebuffer );
         fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
         #endif
       }
@@ -258,7 +274,6 @@ int mainHandler(int CONN_fd){
 		  if (FlashBuf != ""){
 		    Flash_FragBuffer.push(FlashBuf);
                     #if DEBUG >= 4
-        /* strftime example */
         time_t rawtime;
         struct tm * timeinfo;
         char timebuffer [80];

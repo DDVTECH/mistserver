@@ -130,6 +130,10 @@ int mainHandler(int CONN_fd){
   int Flash_RequestPending = 0;
   std::queue<std::string> Flash_FragBuffer;
   FLV_Pack * tag = 0;
+  char * Video_Init_Data = 0;
+  int Video_Init_Len = 0;
+  char * Audio_Init_Data = 0;
+  int Audio_Init_Len = 0;
   HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
   int retval;
@@ -250,18 +254,40 @@ int mainHandler(int CONN_fd){
           break;
         case -1: break;//not ready yet
         default:
-          if (FLV_GetPacket(tag, ss)){//able to read a full packet?
+          if (FLV_GetPacket(tag, ss)){//able to read a full packet?f
             if (handler == HANDLER_FLASH){
               if(tag->data[0] != 0x12 ) {
-		if (tag->isKeyframe){
-		  if (FlashBuf != ""){
-		    Flash_FragBuffer.push(FlashBuf);
+                if ((tag->isKeyframe) && (Video_Init_Data == 0)){
+                  if (((tag->data[11] & 0x0f) == 7) && (tag->data[12] == 0)){
+                    tag->data[4] = 0;//timestamp to zero
+                    tag->data[5] = 0;//timestamp to zero
+                    tag->data[6] = 0;//timestamp to zero
+                    Video_Init_Data = (char*)malloc(tag->len);
+                    Video_Init_Len = tag->len;
+                    memcpy(Video_Init_Data, tag->data, tag->len);
+                  }
+                }
+                if ((tag->data[0] == 0x08) && (Audio_Init_Data == 0)){
+                  if (((tag->data[11] & 0xf0) >> 4) == 10){//aac packet
+                    tag->data[4] = 0;//timestamp to zero
+                    tag->data[5] = 0;//timestamp to zero
+                    tag->data[6] = 0;//timestamp to zero
+                    Audio_Init_Data = (char*)malloc(tag->len);
+                    Audio_Init_Len = tag->len;
+                    memcpy(Audio_Init_Data, tag->data, tag->len);
+                  }
+                }
+                if (tag->isKeyframe){
+                  if (FlashBuf != ""){
+                    Flash_FragBuffer.push(FlashBuf);
                     #if DEBUG >= 4
-		    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+                    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
                     #endif
-		  }
-		  FlashBuf = "";
-		}
+                  }
+                  FlashBuf.clear();
+                  if (Video_Init_Len > 0) FlashBuf.append(Video_Init_Data, Video_Init_Len);
+                  if (Audio_Init_Len > 0) FlashBuf.append(Audio_Init_Data, Audio_Init_Len);
+                }
                 FlashBuf.append(tag->data,tag->len);
               } else {
                 FlashMeta = "";
@@ -295,6 +321,8 @@ int mainHandler(int CONN_fd){
     }
   }
   close(CONN_fd);
+  if (Video_Init_Data){free(Video_Init_Data);}
+  if (Audio_Init_Data){free(Audio_Init_Data);}
   if (inited) close(ss);
   #if DEBUG >= 1
   if (All_Hell_Broke_Loose){fprintf(stderr, "All Hell Broke Loose\n");}

@@ -42,10 +42,10 @@ class Box {
     BoxHeader GetHeader( );
     void ResetPayload( );
     void Parse( std::string PrintOffset = "" );
-  private:
-    BoxHeader header;
     uint8_t * Payload;
     uint32_t PayloadSize;
+  private:
+    BoxHeader header;
 };//Box Class
 
 Box::Box() {
@@ -385,6 +385,8 @@ void Box::Parse( std::string PrintOffset ) {
         std::cerr << PrintOffset << "      DiscontinuityIndicator: " << (int)FragmentRunEntryTable[i].DiscontinuityIndicator << "\n";
       }
     }
+  } else if ( header.BoxType == 0x6D646174 ) {
+    std::cerr << "mdat box containing " << PayloadSize << " bytes of payload" << std::endl;
   } else {
     std::cerr << "BoxType '"
               << (char)(header.BoxType >> 24)

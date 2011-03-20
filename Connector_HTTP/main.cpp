@@ -298,18 +298,7 @@ int mainHandler(int CONN_fd){
                   if (FlashBuf != ""){
                     Flash_FragBuffer.push(FlashBuf);
                     #if DEBUG >= 4
-<<<<<<< HEAD
                     fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
-=======
-        time_t rawtime;
-        struct tm * timeinfo;
-        char timebuffer [80];
-        time ( &rawtime );
-        timeinfo = localtime ( &rawtime );
-        strftime (timebuffer,80,"%H:%M.%S.",timeinfo);
-        fprintf(stderr, "< %s >\t", timebuffer );
-		    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
->>>>>>> 7520f5799f3da3c1a89a28fd4d62358b0028d8d2
                     #endif
                   }
                   FlashBuf.clear();

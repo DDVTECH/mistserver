@@ -16,9 +16,11 @@ class Box_asrt {
     void AddQualityEntry( std::string Quality = "", uint32_t Offset = 0 );
     void AddSegmentRunEntry( uint32_t FirstSegment = 0, uint32_t FragmentsPerSegment = 100, uint32_t Offset = 0 );
     void WriteContent( );
+    void SetVersion( bool NewVersion = 0 );
   private:
     void SetDefaults( );
     bool isUpdate;
+    bool Version;
     std::vector<std::string> QualitySegmentUrlModifiers;
     std::vector<asrt_segmentrunentry> SegmentRunEntryTable;
     Box * Container;
@@ -53,6 +55,10 @@ void Box_asrt::AddSegmentRunEntry( uint32_t FirstSegment, uint32_t FragmentsPerS
   }
   SegmentRunEntryTable[Offset].FirstSegment = FirstSegment;
   SegmentRunEntryTable[Offset].FragmentsPerSegment = FragmentsPerSegment;
+}
+
+void Box_asrt::SetVersion( bool NewVersion ) {
+  Version = NewVersion;
 }
 
 void Box_asrt::SetDefaults( ) {

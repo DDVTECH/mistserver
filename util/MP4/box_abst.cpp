@@ -1,6 +1,8 @@
+#pragma once
 #include "box.cpp"
 #include <string>
 #include <vector>
+
 
 struct abst_serverentry {
   std::string ServerBaseUrl;
@@ -155,7 +157,6 @@ void Box_abst::SetDefaults( ) {
 void Box_abst::SetVersion( bool NewVersion) {
   Version = NewVersion;
 }
-
 
 void Box_abst::SetReserved( ) {
   Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0));

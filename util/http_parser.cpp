@@ -178,7 +178,7 @@ bool HTTPReader::parse(){
         if (f != std::string::npos){url = tmpA.substr(0, f); tmpA.erase(0, f+1);}
         f = tmpA.find(' ');
         if (f != std::string::npos){protocol = tmpA.substr(0, f); tmpA.erase(0, f+1);}
-        //TODO: GET variable parsing
+        //TODO: GET variable parsing?
       }else{
         if (tmpA.size() == 0){
           seenHeaders = true;
@@ -194,7 +194,7 @@ bool HTTPReader::parse(){
     }
     if (seenHeaders){
       if (length > 0){
-        //TODO: POST variable parsing
+        //TODO: POST variable parsing?
         if (HTTPbuffer.length() >= length){
           body = HTTPbuffer.substr(0, length);
           HTTPbuffer.erase(0, length);

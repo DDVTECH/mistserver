@@ -220,7 +220,7 @@ int mainHandler(int CONN_fd){
           printf("Streamname: %s\n", streamname.c_str());
           ready4data = true;
         }//PROGRESSIVE handler
-        HTTP_R.Clean(); //maak schoon na verwerken voor eventuele volgende requests...
+        HTTP_R.CleanForNext(); //maak schoon na verwerken voor eventuele volgende requests...
       }
     }
     if (ready4data){

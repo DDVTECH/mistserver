@@ -15,6 +15,7 @@
 #include <sys/wait.h>
 #include <sys/epoll.h>
 #include <getopt.h>
+#include <ctime>
 
 enum {HANDLER_NONE, HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO};
 
@@ -257,6 +258,14 @@ int mainHandler(int CONN_fd){
 		  if (FlashBuf != ""){
 		    Flash_FragBuffer.push(FlashBuf);
                     #if DEBUG >= 4
+        /* strftime example */
+        time_t rawtime;
+        struct tm * timeinfo;
+        char timebuffer [80];
+        time ( &rawtime );
+        timeinfo = localtime ( &rawtime );
+        strftime (timebuffer,80,"%I:%M.",timeinfo);
+        fprintf(stderr, "< %s >\t", timebuffer );
 		    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
                     #endif
 		  }

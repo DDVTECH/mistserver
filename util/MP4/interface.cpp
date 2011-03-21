@@ -547,7 +547,7 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   afrt->SetUpdate(false);
   afrt->SetTimeScale( 1000 );
   afrt->AddQualityEntry( "" );
-  afrt->AddFragmentRunEntry( 1, 596458 , 4000 );
+  afrt->AddFragmentRunEntry( 1, 1 , 4000 );
   afrt->WriteContent( );
 
   //SetUpASRT
@@ -562,9 +562,9 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   abst->SetLive( true );
   abst->SetUpdate( false );
   abst->SetTimeScale( 1000 );
-  abst->SetMediaTime( 596458 );
+  abst->SetMediaTime( CurMediaTime );
   abst->SetSMPTE( 0 );
-  abst->SetMovieIdentifier( "" );
+  abst->SetMovieIdentifier( "fifa" );
   abst->SetDRM( "" );
   abst->SetMetaData( "" );
   abst->AddServerEntry( "" );

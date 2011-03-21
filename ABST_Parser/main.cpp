@@ -183,7 +183,7 @@ void Parse( Box * source ,std::string PrintOffset ) {
       CurrentOffset +=4;
       TempEntry.FirstFragmentTimestamp = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2]) + (source->Payload[CurrentOffset+3]);
       CurrentOffset +=4;
-      TempEntry.FragmentDuration = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2]) + (source->Payload[CurrentOffset+3]);
+      TempEntry.FragmentDuration = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2] << 8) + (source->Payload[CurrentOffset+3]);
       CurrentOffset +=4;
       if( TempEntry.FragmentDuration == 0 ) {
         TempEntry.DiscontinuityIndicator = source->Payload[CurrentOffset];

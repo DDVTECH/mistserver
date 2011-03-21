@@ -581,9 +581,9 @@ std::string Interface::mdatFold(std::string data){
   std::string Result;
   unsigned int t_int;
   t_int = htonl(data.size()+8);
-  Result.append(t_int, 4);
+  Result.append((char*)&t_int, 4);
   t_int = htonl(0x6D646174);
-  Result.append(t_int, 4);
+  Result.append((char*)&t_int, 4);
   Result.append(data);
   return Result;
 }

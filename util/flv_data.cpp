@@ -1,12 +1,6 @@
 #include <unistd.h> //for read()
 #include <fcntl.h>
-
-struct FLV_Pack {
-  int len;
-  int buf;
-  bool isKeyframe;
-  char * data;
-};//FLV_Pack
+#include "flv_pack.cpp"
 
 char FLVHeader[13];
 bool All_Hell_Broke_Loose = false;

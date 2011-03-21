@@ -547,7 +547,7 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   afrt->SetUpdate(false);
   afrt->SetTimeScale( 1000 );
   afrt->AddQualityEntry( "" );
-  afrt->AddFragmentRunEntry( 1, 596458 , 4000 );
+  afrt->AddFragmentRunEntry( 1, 1 , 4000 );
   afrt->WriteContent( );
 
   //SetUpASRT

@@ -563,7 +563,7 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   abst->SetLive( true );
   abst->SetUpdate( false );
   abst->SetTimeScale( 1000 );
-  abst->SetMediaTime( CurMediaTime );
+  abst->SetMediaTime( 40000 );
   abst->SetSMPTE( 0 );
   abst->SetMovieIdentifier( "fifa" );
   abst->SetDRM( "" );

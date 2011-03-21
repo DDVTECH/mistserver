@@ -46,15 +46,6 @@ std::string base64_encode(std::string const input) {
   return ret;
 }//base64_encode
 
-int FlvToFragNum( FLV_Pack * tag ) {
-  int Timestamp = (tag->data[7] << 24 ) + (tag->data[4] << 16 ) + (tag->data[5] << 8 ) + (tag->data[6] );
-  return (Timestamp / 10000) + 1;
-}
-
-int FlvGetTimestamp( FLV_Pack * tag ) {
-  return ( (tag->data[7] << 24 ) + (tag->data[4] << 16 ) + (tag->data[5] << 8 ) + (tag->data[6] ) );
-}
-
 std::string GetMetaData( ) {
   AMFType amfreply("container", (unsigned char)AMF0_DDV_CONTAINER);
   amfreply.addContent(AMFType("onMetaData",(unsigned char)AMF0_STRING));
@@ -128,12 +119,13 @@ int mainHandler(int CONN_fd){
   std::string FlashMeta;
   bool Flash_ManifestSent = false;
   int Flash_RequestPending = 0;
+  unsigned int Flash_StartTime;
   std::queue<std::string> Flash_FragBuffer;
   FLV_Pack * tag = 0;
-  char * Video_Init_Data = 0;
-  int Video_Init_Len = 0;
-  char * Audio_Init_Data = 0;
-  int Audio_Init_Len = 0;
+  FLV_Pack Audio_Init;
+  FLV_Pack Video_Init;
+  bool FlashFirstVideo = false;
+  bool FlashFirstAudio = false;
   HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
   int retval;
@@ -253,25 +245,23 @@ int mainHandler(int CONN_fd){
         default:
           if (FLV_GetPacket(tag, ss)){//able to read a full packet?f
             if (handler == HANDLER_FLASH){
-              if(tag->data[0] != 0x12 ) {
-                if ((tag->isKeyframe) && (Video_Init_Data == 0)){
+              if (tag->tagTime() > 0){
+                if (Flash_StartTime == 0){
+                  Flash_StartTime = tag->tagTime();
+                }
+                tag->tagTime(tag->tagTime() - Flash_StartTime);
+              }
+              if (tag->data[0] != 0x12 ) {
+                if ((tag->isKeyframe) && (Video_Init.len == 0)){
                   if (((tag->data[11] & 0x0f) == 7) && (tag->data[12] == 0)){
-                    tag->data[4] = 0;//timestamp to zero
-                    tag->data[5] = 0;//timestamp to zero
-                    tag->data[6] = 0;//timestamp to zero
-                    Video_Init_Data = (char*)malloc(tag->len);
-                    Video_Init_Len = tag->len;
-                    memcpy(Video_Init_Data, tag->data, tag->len);
+                    tag->tagTime(0);//timestamp to zero
+                    Video_Init = *tag;
                   }
                 }
-                if ((tag->data[0] == 0x08) && (Audio_Init_Data == 0)){
+                if ((tag->data[0] == 0x08) && (Audio_Init.len == 0)){
                   if (((tag->data[11] & 0xf0) >> 4) == 10){//aac packet
-                    tag->data[4] = 0;//timestamp to zero
-                    tag->data[5] = 0;//timestamp to zero
-                    tag->data[6] = 0;//timestamp to zero
-                    Audio_Init_Data = (char*)malloc(tag->len);
-                    Audio_Init_Len = tag->len;
-                    memcpy(Audio_Init_Data, tag->data, tag->len);
+                    tag->tagTime(0);//timestamp to zero
+                    Audio_Init = *tag;
                   }
                 }
                 if (tag->isKeyframe){
@@ -282,8 +272,18 @@ int mainHandler(int CONN_fd){
                     #endif
                   }
                   FlashBuf.clear();
-                  if (Video_Init_Len > 0) FlashBuf.append(Video_Init_Data, Video_Init_Len);
-                  if (Audio_Init_Len > 0) FlashBuf.append(Audio_Init_Data, Audio_Init_Len);
+                  FlashFirstVideo = true;
+                  FlashFirstAudio = true;
+                }
+                if (FlashFirstVideo && (tag->data[0] == 0x09) && (Video_Init.len > 0)){
+                  Video_Init.tagTime(tag->tagTime());
+                  FlashBuf.append(Video_Init.data, Video_Init.len);
+                  FlashFirstVideo = false;
+                }
+                if (FlashFirstAudio && (tag->data[0] == 0x08) && (Audio_Init.len > 0)){
+                  Audio_Init.tagTime(tag->tagTime());
+                  FlashBuf.append(Audio_Init.data, Audio_Init.len);
+                  FlashFirstAudio = false;
                 }
                 FlashBuf.append(tag->data,tag->len);
               } else {
@@ -293,7 +293,7 @@ int mainHandler(int CONN_fd){
                   HTTP_S.Clean();
                   HTTP_S.SetHeader("Content-Type","text/xml");
                   HTTP_S.SetHeader("Cache-Control","no-cache");
-                  HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, FlvGetTimestamp(tag)));
+                  HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, tag->tagTime()));
                   HTTP_S.SendResponse(CONN_fd, "200", "OK");
                 }
               }
@@ -318,8 +318,6 @@ int mainHandler(int CONN_fd){
     }
   }
   close(CONN_fd);
-  if (Video_Init_Data){free(Video_Init_Data);}
-  if (Audio_Init_Data){free(Audio_Init_Data);}
   if (inited) close(ss);
   #if DEBUG >= 1
   if (All_Hell_Broke_Loose){fprintf(stderr, "All Hell Broke Loose\n");}

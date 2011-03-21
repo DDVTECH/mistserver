@@ -545,9 +545,10 @@ void Interface::SetOffsets( std::vector<uint32_t> NewOffsets, uint32_t Track ) {
 std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   //SetUpAFRT
   afrt->SetUpdate(false);
-  afrt->SetTimeScale( 1000 );
+  afrt->SetTimeScale( 1 );
   afrt->AddQualityEntry( "" );
-  afrt->AddFragmentRunEntry( 1, 1 , 4000 ); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+  std::cerr << "Setting RunEntry on 4000 ms\n";
+  afrt->AddFragmentRunEntry( 1, 1 , 4 ); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
   afrt->WriteContent( );
 
   //SetUpASRT

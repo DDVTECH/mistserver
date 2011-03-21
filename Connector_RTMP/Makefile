@@ -1,7 +1,8 @@
 SRC = main.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Connector_RTMP
-INCLUDES = 
+INCLUDES =
+STATIC =
 CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++
 LD = $(CROSS)ld
@@ -13,7 +14,7 @@ default: $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@
 $(OUT): $(OBJ) chunkstream.cpp parsechunks.cpp handshake.cpp crypto.cpp amf.cpp
-	$(CC) $(LIBS) -o $(OUT) $(OBJ)
+	$(CC) -o $(OUT) $(OBJ) $(STATIC) $(LIBS)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 install: $(OUT)
@@ -21,3 +22,4 @@ install: $(OUT)
 	cp -f ./$(OUT) /usr/bin/
 	cp -f ./RTMP_Conn /etc/init.d/
 	service RTMP_Conn start
+

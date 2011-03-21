@@ -578,9 +578,12 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
 }
 
 std::string Interface::mdatFold(std::string data){
-  static Box * mdat = new Box(0x6D646174);
   std::string Result;
-  mdat->SetPayload(data.size(), (uint8_t*)data.c_str());
-  Result.append((char*)mdat->GetBoxedData(), (int)mdat->GetBoxedDataSize());
+  unsigned int t_int;
+  t_int = htonl(data.size()+8);
+  Result.append(t_int, 4);
+  t_int = htonl(0x6D646174);
+  Result.append(t_int, 4);
+  Result.append(data);
   return Result;
 }

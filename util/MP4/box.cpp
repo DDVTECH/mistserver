@@ -9,11 +9,6 @@
 #include <string>
 #include <vector>
 
-struct BoxHeader {
-  uint32_t TotalSize;
-  uint32_t BoxType;
-};//BoxHeader struct
-
 class Box {
   public:
     Box();
@@ -31,73 +26,48 @@ class Box {
     static uint8_t * uint32_to_uint8( uint32_t data );
     static uint8_t * uint16_to_uint8( uint16_t data );
     static uint8_t * uint8_to_uint8( uint8_t data );
-    BoxHeader GetHeader( );
     void ResetPayload( );
+  private:
     uint8_t * Payload;
-    BoxHeader header;
     uint32_t PayloadSize;
 };//Box Class
 
 Box::Box() {
-  Payload = NULL;
+  Payload = (uint8_t *)malloc(8);
   PayloadSize = 0;
 }
 
 Box::Box(uint32_t BoxType) {
-  header.BoxType = BoxType;
-  Payload = NULL;
+  Payload = (uint8_t *)malloc(8);
+  SetBoxType(BoxType);
   PayloadSize = 0;
 }
 
 Box::Box(uint8_t * Content, uint32_t length) {
-  header.TotalSize = (Content[0] << 24) + (Content[1] << 16) + (Content[2] << 8) + (Content[3]);
-  if(header.TotalSize != length) { std::cerr << "Warning: length sizes differ\n"; }
-  header.BoxType = (Content[4] << 24) + (Content[5] << 16) + (Content[6] << 8) + (Content[7]);
-  std::cerr << "Created new box with type \""
-            << (char)(header.BoxType >> 24)
-            << (char)((header.BoxType << 8) >> 24)
-            << (char)((header.BoxType << 16) >> 24)
-            << (char)((header.BoxType << 24) >> 24)
-            << "\"\n";
   PayloadSize = length-8;
-  Payload = new uint8_t[PayloadSize];
-  memcpy( Payload, &Content[8], PayloadSize );
+  Payload = (uint8_t *)malloc(length);
+  memcpy(Payload, Content, length);
 }
 
 Box::~Box() {
+  if (Payload) free(Payload);
 }
 
 void Box::SetBoxType(uint32_t BoxType) {
-  header.BoxType = BoxType;
+  ((unsigned int*)Payload)[1] = htonl(BoxType);
 }
 
 uint32_t Box::GetBoxType() {
-  return header.BoxType;
+  return ntohl(((unsigned int*)Payload)[1]);
 }
 
 void Box::SetPayload(uint32_t Size, uint8_t * Data, uint32_t Index) {
-  uint8_t * tempchar = NULL;
   if ( Index + Size > PayloadSize ) {
-    if ( Payload ) {
-      tempchar = new uint8_t[PayloadSize];
-      memcpy( tempchar, Payload, PayloadSize );
-      delete Payload;
-    }
     PayloadSize = Index + Size;
-    Payload = new uint8_t[PayloadSize];
-    if( tempchar ) {
-      memcpy( Payload, tempchar, Index );
-    } else {
-      for(uint32_t i = 0; i < Index; i++) { Payload[i] = 0; }
-    }
-    memcpy( &Payload[Index], Data, Size );
-    header.TotalSize = PayloadSize + 8;
-    if( tempchar ) {
-      delete tempchar;
-    }
-  } else {
-    memcpy( &Payload[Index], Data, Size );
+    ((unsigned int*)Payload)[0] = htonl(PayloadSize+8);
+    Payload = (uint8_t *)realloc(Payload, PayloadSize + 8);
   }
+  memcpy(Payload + 8 + Index, Data, Size);
 }
 
 uint32_t Box::GetPayloadSize() {
@@ -105,29 +75,21 @@ uint32_t Box::GetPayloadSize() {
 }
 
 uint8_t * Box::GetPayload() {
-  uint8_t * temp = new uint8_t[PayloadSize];
-  memcpy( temp, Payload, PayloadSize );
-  return temp;
+  return Payload+8;
 }
 
 uint8_t * Box::GetPayload(uint32_t Index, uint32_t & Size) {
-  if(Index > PayloadSize) { return NULL; }
+  if(Index > PayloadSize) {Size = 0;}
   if(Index + Size > PayloadSize) { Size = PayloadSize - Index; }
-  uint8_t * temp = new uint8_t[Size - Index];
-  memcpy( temp, &Payload[Index], Size - Index );
-  return temp;
+  return Payload + 8 + Index;
 }
 
 uint32_t Box::GetBoxedDataSize() {
-  return header.TotalSize;
+  return ntohl(((unsigned int*)Payload)[0]);
 }
 
 uint8_t * Box::GetBoxedData( ) {
-  uint8_t * temp = new uint8_t[header.TotalSize];
-  memcpy( temp, uint32_to_uint8(header.TotalSize), 4 );
-  memcpy( &temp[4], uint32_to_uint8(header.BoxType), 4 );
-  memcpy( &temp[8], Payload, PayloadSize );
-  return temp;
+  return Payload;
 }
 
 
@@ -153,15 +115,8 @@ uint8_t * Box::uint8_to_uint8( uint8_t data ) {
    return temp;
 }
 
-BoxHeader Box::GetHeader( ) {
-  return header;
-}
-
 void Box::ResetPayload( ) {
-  header.TotalSize -= PayloadSize;
   PayloadSize = 0;
-  if(Payload) {
-    delete Payload;
-    Payload = NULL;
-  }
+  Payload = (uint8_t *)realloc(Payload, PayloadSize + 8);
+  ((unsigned int*)Payload)[0] = htonl(0);
 }

@@ -1,10 +1,14 @@
+#pragma once
+#include "ddv_socket.cpp"
 #include <map>
 #include <stdlib.h>
+#include <stdio.h>
 
 class HTTPReader{
   public:
     HTTPReader();
     bool ReadSocket(int CONN_fd);
+    bool ReadSocket(FILE * F);
     std::string GetHeader(std::string i);
     std::string GetVar(std::string i);
     void SetHeader(std::string i, std::string v);
@@ -18,6 +22,8 @@ class HTTPReader{
     void SendBodyPart(int conn, char * buffer, int len);
     void SendBodyPart(int conn, std::string bodypart);
     void Clean();
+    bool CleanForNext();
+    std::string body;
     std::string method;
     std::string url;
     std::string protocol;
@@ -39,10 +45,24 @@ void HTTPReader::Clean(){
   method = "GET";
   url = "/";
   protocol = "HTTP/1.1";
+  body = "";
   length = 0;
   HTTPbuffer = "";
   headers.erase(headers.begin(), headers.end());
   vars.erase(vars.begin(), vars.end());
+}
+
+bool HTTPReader::CleanForNext(){
+  seenHeaders = false;
+  seenReq = false;
+  method = "GET";
+  url = "/";
+  protocol = "HTTP/1.1";
+  body = "";
+  length = 0;
+  headers.erase(headers.begin(), headers.end());
+  vars.erase(vars.begin(), vars.end());
+  return parse();
 }
 
 std::string HTTPReader::BuildRequest(){
@@ -129,6 +149,16 @@ bool HTTPReader::ReadSocket(int CONN_fd){
   return false;
 }//HTTPReader::ReadSocket
 
+bool HTTPReader::ReadSocket(FILE * F){
+  //returned true als hele http packet gelezen is
+  int b = 1;
+  char buffer[500];
+  while (b > 0){
+    b = fread(buffer, 1, 500, F);
+    HTTPbuffer.append(buffer, b);
+  }
+  return false;
+}//HTTPReader::ReadSocket
 
 bool HTTPReader::parse(){
   size_t f;
@@ -148,7 +178,7 @@ bool HTTPReader::parse(){
         if (f != std::string::npos){url = tmpA.substr(0, f); tmpA.erase(0, f+1);}
         f = tmpA.find(' ');
         if (f != std::string::npos){protocol = tmpA.substr(0, f); tmpA.erase(0, f+1);}
-        //TODO: GET variable parsing
+        //TODO: GET variable parsing?
       }else{
         if (tmpA.size() == 0){
           seenHeaders = true;
@@ -164,8 +194,14 @@ bool HTTPReader::parse(){
     }
     if (seenHeaders){
       if (length > 0){
-        //TODO: POST variable parsing
-        return (HTTPbuffer.length() >= length);
+        //TODO: POST variable parsing?
+        if (HTTPbuffer.length() >= length){
+          body = HTTPbuffer.substr(0, length);
+          HTTPbuffer.erase(0, length);
+          return true;
+        }else{
+          return false;
+        }
       }else{
         return true;
       }

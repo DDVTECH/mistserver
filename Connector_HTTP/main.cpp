@@ -155,73 +155,62 @@ int mainHandler(int CONN_fd){
 
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
-    retval = epoll_wait(poller, events, 1, 1);
-    if ((retval > 0) || !ready4data){
-      if (HTTP_R.ReadSocket(CONN_fd)){
-        handler = HANDLER_PROGRESSIVE;
-        if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
-        if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
-        if (HTTP_R.url == "/crossdomain.xml"){
-          handler = HANDLER_NONE;
-          HTTP_S.Clean();
-          HTTP_S.SetHeader("Content-Type", "text/xml");
-          HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
-          HTTP_S.SendResponse(CONN_fd, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
-          #if DEBUG >= 3
-          printf("Sending crossdomain.xml file\n");
-          #endif
-        }
-        if(handler == HANDLER_FLASH){
-          if (HTTP_R.url.find("f4m") == std::string::npos){
-            Movie = HTTP_R.url.substr(1);
-            Movie = Movie.substr(0,Movie.find("/"));
-            Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
-            Quality = Quality.substr(0, Quality.find("Seg"));
-            temp = HTTP_R.url.find("Seg") + 3;
-            Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
-            temp = HTTP_R.url.find("Frag") + 4;
-            ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
-            #if DEBUG >= 4
-        /* strftime example */
-        time_t rawtime;
-        struct tm * timeinfo;
-        char timebuffer [80];
-        time ( &rawtime );
-        timeinfo = localtime ( &rawtime );
-        strftime (timebuffer,80,"%H:%M.%S.",timeinfo);
-        fprintf(stderr, "< %s >\t", timebuffer );
-            printf( "URL: %s\n", HTTP_R.url.c_str());
-            printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
-            #endif
-	    Flash_RequestPending++;
-          }else{
-            Movie = HTTP_R.url.substr(1);
-            Movie = Movie.substr(0,Movie.find("/"));
-          }
-          streamname = "/tmp/shared_socket_";
-          for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i)){
-              Movie.erase(i);
-            }else{
-              *i=tolower(*i);
-            }//strip nonalphanumeric
-          }
-          streamname += Movie;
-          ready4data = true;
-        }//FLASH handler
-        if (handler == HANDLER_PROGRESSIVE){
-          //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
-          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
-          for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
-          }
-          streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
-          //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
-          printf("Streamname: %s\n", streamname.c_str());
-          ready4data = true;
-        }//PROGRESSIVE handler
-        HTTP_R.CleanForNext(); //maak schoon na verwerken voor eventuele volgende requests...
+    if (HTTP_R.ReadSocket(CONN_fd)){
+      handler = HANDLER_PROGRESSIVE;
+      if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
+      if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
+      if (HTTP_R.url == "/crossdomain.xml"){
+        handler = HANDLER_NONE;
+        HTTP_S.Clean();
+        HTTP_S.SetHeader("Content-Type", "text/xml");
+        HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
+        HTTP_S.SendResponse(CONN_fd, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+        #if DEBUG >= 3
+        printf("Sending crossdomain.xml file\n");
+        #endif
       }
+      if(handler == HANDLER_FLASH){
+        if (HTTP_R.url.find("f4m") == std::string::npos){
+          Movie = HTTP_R.url.substr(1);
+          Movie = Movie.substr(0,Movie.find("/"));
+          Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
+          Quality = Quality.substr(0, Quality.find("Seg"));
+          temp = HTTP_R.url.find("Seg") + 3;
+          Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
+          temp = HTTP_R.url.find("Frag") + 4;
+          ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
+          #if DEBUG >= 4
+          printf( "URL: %s\n", HTTP_R.url.c_str());
+          printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
+          #endif
+          Flash_RequestPending++;
+        }else{
+          Movie = HTTP_R.url.substr(1);
+          Movie = Movie.substr(0,Movie.find("/"));
+        }
+        streamname = "/tmp/shared_socket_";
+        for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
+          if (!isalpha(*i) && !isdigit(*i)){
+            Movie.erase(i);
+          }else{
+            *i=tolower(*i);
+          }//strip nonalphanumeric
+        }
+        streamname += Movie;
+        ready4data = true;
+      }//FLASH handler
+      if (handler == HANDLER_PROGRESSIVE){
+        //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
+        streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
+        for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+          if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
+        }
+        streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
+        //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
+        printf("Streamname: %s\n", streamname.c_str());
+        ready4data = true;
+      }//PROGRESSIVE handler
+      HTTP_R.CleanForNext(); //maak schoon na verwerken voor eventuele volgende requests...
     }
     if (ready4data){
       if (!inited){

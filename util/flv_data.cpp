@@ -65,6 +65,9 @@ bool FLV_GetPacket(FLV_Pack *& p, char * D, unsigned int S, unsigned int & P){
         p->len += (p->data[2] << 8);
         p->len += (p->data[1] << 16);
         //if (p->buf < p->len){p->data = (char*)realloc(p->data, p->len);p->buf = p->len;}
+        if (p->data[0] > 0x12){
+          printf("Invalid data: %2hhx %2hhx %2hhx %2hhx %2hhx %2hhx %2hhx\n", p->data[0], p->data[1], p->data[2], p->data[3], p->data[4], p->data[5], p->data[6]);
+        }
         done = false;
       }
     }

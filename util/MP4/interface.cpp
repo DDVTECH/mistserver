@@ -545,10 +545,10 @@ void Interface::SetOffsets( std::vector<uint32_t> NewOffsets, uint32_t Track ) {
 std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   //SetUpAFRT
   afrt->SetUpdate(false);
-  afrt->SetTimeScale( 1 );
+  afrt->SetTimeScale( 1000 );
   afrt->AddQualityEntry( "" );
   std::cerr << "Setting RunEntry on 4000 ms\n";
-  afrt->AddFragmentRunEntry( 1, 1 , 4 ); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+  afrt->AddFragmentRunEntry( 1, 1 , 400 ); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
   afrt->WriteContent( );
 
   //SetUpASRT
@@ -562,7 +562,7 @@ std::string Interface::GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   abst->SetProfile( 0 );
   abst->SetLive( true );
   abst->SetUpdate( false );
-  abst->SetTimeScale( 1 );
+  abst->SetTimeScale( 1000 );
   abst->SetMediaTime( 0xFFFFFFFF );
   abst->SetSMPTE( 0 );
   abst->SetMovieIdentifier( "fifa" );

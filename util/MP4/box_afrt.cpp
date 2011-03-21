@@ -2,14 +2,14 @@
 #include <string>
 #include <vector>
 
-/*
+
 struct afrt_fragmentrunentry {
   uint32_t FirstFragment;
   uint32_t FirstFragmentTimestamp; //write as uint64_t
   uint32_t FragmentDuration;
   uint8_t DiscontinuityIndicator;//if FragmentDuration == 0
 };//afrt_fragmentrunentry
-*/
+
 
 class Box_afrt {
   public:
@@ -60,7 +60,9 @@ void Box_afrt::AddFragmentRunEntry( uint32_t FirstFragment, uint32_t FirstFragme
   FragmentRunEntryTable[Offset].FirstFragment = FirstFragment;
   FragmentRunEntryTable[Offset].FirstFragmentTimestamp = FirstFragmentTimestamp;
   FragmentRunEntryTable[Offset].FragmentDuration = FragmentsDuration;
-  FragmentRunEntryTable[Offset].DiscontinuityIndicator = Discontinuity;
+  if( FragmentsDuration == 0) {
+    FragmentRunEntryTable[Offset].DiscontinuityIndicator = Discontinuity;
+  }
 }
 
 void Box_afrt::SetDefaults( ) {
@@ -87,7 +89,7 @@ void Box_afrt::WriteContent( ) {
     serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FirstFragmentTimestamp),4);
     serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FragmentDuration),4);
     if(FragmentRunEntryTable[i].FragmentDuration == 0) {
-    serializedFragmentEntries.append((char*)Box::uint8_to_uint8(FragmentRunEntryTable[i].DiscontinuityIndicator),1);
+      serializedFragmentEntries.append((char*)Box::uint8_to_uint8(FragmentRunEntryTable[i].DiscontinuityIndicator),1);
     }
   }
 

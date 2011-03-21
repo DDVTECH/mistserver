@@ -582,5 +582,6 @@ std::string Interface::mdatFold(std::string data){
   std::string Result;
   mdat->SetContent((uint8_t*)data.c_str(), data.size());
   Result.append((char*)mdat->GetBox()->GetBoxedData(), (int)mdat->GetBox()->GetBoxedDataSize());
+  delete mdat;
   return Result;
 }

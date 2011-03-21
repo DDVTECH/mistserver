@@ -129,7 +129,7 @@ void Parse( Box * source ,std::string PrintOffset ) {
       QualitySegmentUrlModifiers.push_back(temp);
       CurrentOffset++;
     }
-    SegmentRunEntryCount = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2]) + (source->Payload[CurrentOffset+3]);
+    SegmentRunEntryCount = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2] << 8) + (source->Payload[CurrentOffset+3]);
     CurrentOffset +=4;
     for( uint8_t i = 0; i < SegmentRunEntryCount; i++ ) {
       TempPair.first = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2] << 8) + (source->Payload[CurrentOffset+3]);
@@ -174,14 +174,13 @@ void Parse( Box * source ,std::string PrintOffset ) {
       QualitySegmentUrlModifiers.push_back(temp);
       CurrentOffset++;
     }
-    FragmentRunEntryCount = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2]) + (source->Payload[CurrentOffset+3]);
+    FragmentRunEntryCount = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2] << 8) + (source->Payload[CurrentOffset+3]);
     CurrentOffset +=4;
     for( uint8_t i = 0; i < FragmentRunEntryCount; i ++ ) {
-      TempEntry.FirstFragment = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2]) + (source->Payload[CurrentOffset+3]);
+      TempEntry.FirstFragment = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2] << 8) + (source->Payload[CurrentOffset+3]);
       CurrentOffset +=4;
-      TempEntry.FirstFragmentTimestamp_Upperhalf = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2]) + (source->Payload[CurrentOffset+3]);
       CurrentOffset +=4;
-      TempEntry.FirstFragmentTimestamp = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2]) + (source->Payload[CurrentOffset+3]);
+      TempEntry.FirstFragmentTimestamp = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2] << 8) + (source->Payload[CurrentOffset+3]);
       CurrentOffset +=4;
       TempEntry.FragmentDuration = (source->Payload[CurrentOffset] << 24) + (source->Payload[CurrentOffset+1] << 16) + (source->Payload[CurrentOffset+2] << 8) + (source->Payload[CurrentOffset+3]);
       CurrentOffset +=4;
@@ -206,7 +205,7 @@ void Parse( Box * source ,std::string PrintOffset ) {
     for( uint32_t i = 0; i < FragmentRunEntryTable.size( ); i++ ) {
       std::cerr << PrintOffset << "    " << i+1 << ":\n";
       std::cerr << PrintOffset << "      FirstFragment: " << FragmentRunEntryTable[i].FirstFragment << "\n";
-      std::cerr << PrintOffset << "      FirstFragmentTimestamp: " << FragmentRunEntryTable[i].FirstFragmentTimestamp_Upperhalf << FragmentRunEntryTable[i].FirstFragmentTimestamp << "\n";
+      std::cerr << PrintOffset << "      FirstFragmentTimestamp: " << FragmentRunEntryTable[i].FirstFragmentTimestamp << "\n";
       std::cerr << PrintOffset << "      FragmentDuration: " << FragmentRunEntryTable[i].FragmentDuration << "\n";
       if( FragmentRunEntryTable[i].FragmentDuration == 0 ) {
         std::cerr << PrintOffset << "      DiscontinuityIndicator: " << (int)FragmentRunEntryTable[i].DiscontinuityIndicator << "\n";

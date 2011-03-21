@@ -285,7 +285,7 @@ int mainHandler(int CONN_fd){
                   FlashBuf.append(Audio_Init.data, Audio_Init.len);
                   FlashFirstAudio = false;
                 }
-                #if DEBUG >= 4
+                #if DEBUG >= 5
                 fprintf(stderr, "Received a tag of type %2hhu and length %i\n", tag->data[0], tag->len);
                 #endif
                 FlashBuf.append(tag->data,tag->len);

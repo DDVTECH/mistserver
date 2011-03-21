@@ -103,7 +103,6 @@ std::string BuildManifest( std::string MetaData, std::string MovieId, int Curren
   Result += "<deliveryType>streaming</deliveryType>\n";
   Result += "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">";
   Result += base64_encode(temp->GenerateLiveBootstrap(1));
-//  Result += "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";
   Result += "</bootstrapInfo>\n";
   Result += "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"";
   Result += MovieId;
@@ -131,6 +130,10 @@ int mainHandler(int CONN_fd){
   int Flash_RequestPending = 0;
   std::queue<std::string> Flash_FragBuffer;
   FLV_Pack * tag = 0;
+  char * Video_Init_Data = 0;
+  int Video_Init_Len = 0;
+  char * Audio_Init_Data = 0;
+  int Audio_Init_Len = 0;
   HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
   int retval;
@@ -151,73 +154,62 @@ int mainHandler(int CONN_fd){
 
   while (!socketError && !All_Hell_Broke_Loose){
     //only parse input if available or not yet init'ed
-    retval = epoll_wait(poller, events, 1, 1);
-    if ((retval > 0) || !ready4data){
-      if (HTTP_R.ReadSocket(CONN_fd)){
-        handler = HANDLER_PROGRESSIVE;
-        if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
-        if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
-        if (HTTP_R.url == "/crossdomain.xml"){
-          handler = HANDLER_NONE;
-          HTTP_S.Clean();
-          HTTP_S.SetHeader("Content-Type", "text/xml");
-          HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
-          HTTP_S.SendResponse(CONN_fd, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
-          #if DEBUG >= 3
-          printf("Sending crossdomain.xml file\n");
-          #endif
-        }
-        if(handler == HANDLER_FLASH){
-          if (HTTP_R.url.find("f4m") == std::string::npos){
-            Movie = HTTP_R.url.substr(1);
-            Movie = Movie.substr(0,Movie.find("/"));
-            Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
-            Quality = Quality.substr(0, Quality.find("Seg"));
-            temp = HTTP_R.url.find("Seg") + 3;
-            Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
-            temp = HTTP_R.url.find("Frag") + 4;
-            ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
-            #if DEBUG >= 4
-        /* strftime example */
-        time_t rawtime;
-        struct tm * timeinfo;
-        char timebuffer [80];
-        time ( &rawtime );
-        timeinfo = localtime ( &rawtime );
-        strftime (timebuffer,80,"%H:%M.%S.",timeinfo);
-        fprintf(stderr, "< %s >\t", timebuffer );
-            printf( "URL: %s\n", HTTP_R.url.c_str());
-            printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
-            #endif
-	    Flash_RequestPending++;
-          }else{
-            Movie = HTTP_R.url.substr(1);
-            Movie = Movie.substr(0,Movie.find("/"));
-          }
-          streamname = "/tmp/shared_socket_";
-          for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i)){
-              Movie.erase(i);
-            }else{
-              *i=tolower(*i);
-            }//strip nonalphanumeric
-          }
-          streamname += Movie;
-          ready4data = true;
-        }//FLASH handler
-        if (handler == HANDLER_PROGRESSIVE){
-          //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
-          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
-          for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
-          }
-          streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
-          //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
-          printf("Streamname: %s\n", streamname.c_str());
-          ready4data = true;
-        }//PROGRESSIVE handler
-        HTTP_R.Clean(); //maak schoon na verwerken voor eventuele volgende requests...
+    if (HTTP_R.ReadSocket(CONN_fd)){
+      handler = HANDLER_PROGRESSIVE;
+      if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
+      if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
+      if (HTTP_R.url == "/crossdomain.xml"){
+        handler = HANDLER_NONE;
+        HTTP_S.Clean();
+        HTTP_S.SetHeader("Content-Type", "text/xml");
+        HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
+        HTTP_S.SendResponse(CONN_fd, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+        #if DEBUG >= 3
+        printf("Sending crossdomain.xml file\n");
+        #endif
       }
+      if(handler == HANDLER_FLASH){
+        if (HTTP_R.url.find("f4m") == std::string::npos){
+          Movie = HTTP_R.url.substr(1);
+          Movie = Movie.substr(0,Movie.find("/"));
+          Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
+          Quality = Quality.substr(0, Quality.find("Seg"));
+          temp = HTTP_R.url.find("Seg") + 3;
+          Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
+          temp = HTTP_R.url.find("Frag") + 4;
+          ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
+          #if DEBUG >= 4
+          printf( "URL: %s\n", HTTP_R.url.c_str());
+          printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
+          #endif
+          Flash_RequestPending++;
+        }else{
+          Movie = HTTP_R.url.substr(1);
+          Movie = Movie.substr(0,Movie.find("/"));
+        }
+        streamname = "/tmp/shared_socket_";
+        for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
+          if (!isalpha(*i) && !isdigit(*i)){
+            Movie.erase(i);
+          }else{
+            *i=tolower(*i);
+          }//strip nonalphanumeric
+        }
+        streamname += Movie;
+        ready4data = true;
+      }//FLASH handler
+      if (handler == HANDLER_PROGRESSIVE){
+        //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
+        streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
+        for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+          if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
+        }
+        streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
+        //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
+        printf("Streamname: %s\n", streamname.c_str());
+        ready4data = true;
+      }//PROGRESSIVE handler
+      HTTP_R.CleanForNext(); //maak schoon na verwerken voor eventuele volgende requests...
     }
     if (ready4data){
       if (!inited){
@@ -246,14 +238,6 @@ int mainHandler(int CONN_fd){
         HTTP_S.SendResponse(CONN_fd, "200", "OK");//schrijf de HTTP response header
         Flash_RequestPending--;
         #if DEBUG >= 3
-        /* strftime example */
-        time_t rawtime;
-        struct tm * timeinfo;
-        char timebuffer [80];
-        time ( &rawtime );
-        timeinfo = localtime ( &rawtime );
-        strftime (timebuffer,80,"%H:%M.%S.",timeinfo);
-        fprintf(stderr, "< %s >\t", timebuffer );
         fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
         #endif
       }
@@ -267,25 +251,40 @@ int mainHandler(int CONN_fd){
           break;
         case -1: break;//not ready yet
         default:
-          if (FLV_GetPacket(tag, ss)){//able to read a full packet?
+          if (FLV_GetPacket(tag, ss)){//able to read a full packet?f
             if (handler == HANDLER_FLASH){
               if(tag->data[0] != 0x12 ) {
-		if (tag->isKeyframe){
-		  if (FlashBuf != ""){
-		    Flash_FragBuffer.push(FlashBuf);
+                if ((tag->isKeyframe) && (Video_Init_Data == 0)){
+                  if (((tag->data[11] & 0x0f) == 7) && (tag->data[12] == 0)){
+                    tag->data[4] = 0;//timestamp to zero
+                    tag->data[5] = 0;//timestamp to zero
+                    tag->data[6] = 0;//timestamp to zero
+                    Video_Init_Data = (char*)malloc(tag->len);
+                    Video_Init_Len = tag->len;
+                    memcpy(Video_Init_Data, tag->data, tag->len);
+                  }
+                }
+                if ((tag->data[0] == 0x08) && (Audio_Init_Data == 0)){
+                  if (((tag->data[11] & 0xf0) >> 4) == 10){//aac packet
+                    tag->data[4] = 0;//timestamp to zero
+                    tag->data[5] = 0;//timestamp to zero
+                    tag->data[6] = 0;//timestamp to zero
+                    Audio_Init_Data = (char*)malloc(tag->len);
+                    Audio_Init_Len = tag->len;
+                    memcpy(Audio_Init_Data, tag->data, tag->len);
+                  }
+                }
+                if (tag->isKeyframe){
+                  if (FlashBuf != ""){
+                    Flash_FragBuffer.push(FlashBuf);
                     #if DEBUG >= 4
-        time_t rawtime;
-        struct tm * timeinfo;
-        char timebuffer [80];
-        time ( &rawtime );
-        timeinfo = localtime ( &rawtime );
-        strftime (timebuffer,80,"%H:%M.%S.",timeinfo);
-        fprintf(stderr, "< %s >\t", timebuffer );
-		    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+                    fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
                     #endif
-		  }
-		  FlashBuf = "";
-		}
+                  }
+                  FlashBuf.clear();
+                  if (Video_Init_Len > 0) FlashBuf.append(Video_Init_Data, Video_Init_Len);
+                  if (Audio_Init_Len > 0) FlashBuf.append(Audio_Init_Data, Audio_Init_Len);
+                }
                 FlashBuf.append(tag->data,tag->len);
               } else {
                 FlashMeta = "";
@@ -319,6 +318,8 @@ int mainHandler(int CONN_fd){
     }
   }
   close(CONN_fd);
+  if (Video_Init_Data){free(Video_Init_Data);}
+  if (Audio_Init_Data){free(Audio_Init_Data);}
   if (inited) close(ss);
   #if DEBUG >= 1
   if (All_Hell_Broke_Loose){fprintf(stderr, "All Hell Broke Loose\n");}

@@ -94,7 +94,7 @@ function start() {
       fi
     fi
     tmpcommand="${tmpcommand} Buffer 500 $NAME"
-    echo "ffmpeg -re -async 2 -i $INPUT -acodec libfaac -vcodec copy -f flv - | Buffer 500 $NAME" > $FILE
+    echo "$tmpcommand" > $FILE
     `chmod a+x $FILE`
     `screen -d -m $FILE`
   done

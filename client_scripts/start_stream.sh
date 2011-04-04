@@ -79,9 +79,9 @@ function start() {
     else
       tmpcommand="${tmpcommand}"
     fi
-    if [[ "${INPUT:0:5}" == "raw:/" ]]; then
-      local rawseparator=`expr index "${INPUT:5}" /`
-      local rawserv=${INPUT:5:$rawseparator-1}
+    if [[ "${INPUT:0:6}" == "raw://" ]]; then
+      local rawseparator=`expr index "${INPUT:6}" /`
+      local rawserv=${INPUT:6:$rawseparator-1}
       local rawstream=${INPUT:$rawseparator}
       tmpcommand="${tmpcommand}ssh $rawserv \"echo $rawstream\" |"
     else

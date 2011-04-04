@@ -72,8 +72,29 @@ function start() {
   for i in ${start_streams[@]}; do
     local var="config_${myname}_$i[*]"
     local ${!var}
-    local FILE="./run_${start_streams[@]}.sh"
-    echo "ffmpeg -re -async 2 -i $INPUT -acodec libfaac -vcodec copy -f flv - | Buffer 500 ${start_streams[@]}" > $FILE
+    local FILE="./run_$NAME.sh"
+    local tmpcommand=""
+    if [[ "$PRESET" == "raw" ]]; then
+      tmpcommand="${tmpcommand}wget $INPUT |"
+    else
+      tmpcommand="${tmpcommand}"
+    fi
+    if [[ "${INPUT:0:5}" == "raw:/" ]]; then
+      local rawseparator=`expr index "${INPUT:5}" /`
+      local rawserv=${INPUT:5:$rawseparator-1}
+      local rawstream=${INPUT:$rawseparator}
+      tmpcommand="${tmpcommand}ssh $rawserv \"echo $rawstream\" |"
+    else
+      if [[ "$PRESET" == "copy" ]]; then
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec copy -vcodec copy -f flv - |"
+      elif [[ "$PRESET" == "h264-high" ]]; then
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec libfaac -vpre libx264-fast -f flv - |"
+      else
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec libfaac -vpre libx264-slow -f flv - |"
+      fi
+    fi
+    tmpcommand="${tmpcommand} Buffer 500 $NAME"
+    echo "ffmpeg -re -async 2 -i $INPUT -acodec libfaac -vcodec copy -f flv - | Buffer 500 $NAME" > $FILE
     `chmod a+x $FILE`
     `screen -d -m $FILE`
   done

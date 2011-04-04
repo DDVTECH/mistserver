@@ -24,6 +24,7 @@ function UploadConfig (){
   local ${!var}
   scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT $FILE root@$HOST:config.sh &> /dev/null &
   scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT ../client_scripts/data_collect.sh root@$HOST:data_collect.sh &> /dev/null &
+  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT ../client_scripts/start_stream.sh root@$HOST:start_stream.sh &> /dev/null &
 }
 
 function UploadStats (){
@@ -37,12 +38,24 @@ function UploadStats (){
   fi
 }
 
+function StartStreams (){
+  local isup=0
+  eval "isup=\$$1_isup"
+  eval "local \$$1_status"
+  if [ "$isup" -eq "1" ]; then
+    var=serverinfo_$1[*]
+    local ${!var}
+    `ssh -o PasswordAuthentication=no -o ConnectTimeout=6 -p $PORT root@$HOST "./start_stream.sh 2> /dev/null"`
+  fi
+}
+
 echo_green "Uploading server configurations and stats..."
 count=${#servers[@]}
 
 for ((j=0; j < count; j++)); do
   UploadConfig ${servers[$j]} ${groups[$j]}
   UploadStats ${servers[$j]} ${groups[$j]}
+  StartStreams ${servers[$j]} ${groups[$j]}
 done
 
 wait

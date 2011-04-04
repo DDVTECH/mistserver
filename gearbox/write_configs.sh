@@ -9,6 +9,7 @@ function UploadConfig (){
   echo "myname=$1" >> $FILE
   eval "tmp=\${server_$1[@]}"
   echo "server_$1=\"$tmp\"" >> $FILE
+  
   eval "tmp=\${limits_$1[@]}"
   echo "limits_$1=\"$tmp\"" >> $FILE
   eval "tmpB=(\${server_$1[@]})"
@@ -16,6 +17,8 @@ function UploadConfig (){
   for ((j=0; j < count; j++)); do
     eval "tmp=\${limits_$1_${tmpB[$j]}[@]}"
     echo "limits_$1_${tmpB[$j]}=($tmp)" >> $FILE
+    eval "tmp=\${config_$2_${tmpB[$j]}[@]}"
+    echo "config_$1_${tmpB[$j]}=($tmp)" >> $FILE
   done
   var=serverinfo_$1[*]
   local ${!var}
@@ -38,8 +41,8 @@ echo_green "Uploading server configurations and stats..."
 count=${#servers[@]}
 
 for ((j=0; j < count; j++)); do
-  UploadConfig ${servers[$j]}
-  UploadStats ${servers[$j]}
+  UploadConfig ${servers[$j]} ${groups[$j]}
+  UploadStats ${servers[$j]} ${groups[$j]}
 done
 
 wait

@@ -50,7 +50,11 @@ for ((i=0; i<${#unique_groups[@]}; i++)); do
   if [[ ${#allservers[@]} -ne 0 ]]; then 
     for ((j=0; j<${#allservers[@]}; j++)); do
       result=""
-      tempindex=j%${#allstreams[@]}
+      if [[ "${#allstreams[@]}" -ne "0" ]]; then
+        tempindex=j%${#allstreams[@]}
+      else
+        tempindex=0
+      fi
       result="${allstreams[$tempindex]}"
       target=server_${allservers[j]}
       eval $target=\"$result\"

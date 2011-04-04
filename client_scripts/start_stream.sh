@@ -72,31 +72,36 @@ function start() {
   for i in ${start_streams[@]}; do
     local var="config_${myname}_$i[*]"
     local ${!var}
-    local FILE="./run_$NAME.sh"
     local tmpcommand=""
-    if [[ "${INPUT:0:6}" == "raw://" ]]; then
+    if [[ "${INPUT:0:7}" == "file://" ]]; then
+      INPUT=${INPUT:7}
+      if [[ "$PRESET" == "raw" ]]; then
+        tmpcommand="${tmpcommand}cat $INPUT |"
+      elif [[ "$PRESET" == "copy" ]]; then
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec copy -vcodec copy -f flv - |"
+      elif [[ "$PRESET" == "h264-high" ]]; then
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -b 1500000 -acodec libfaac -vpre libx264-fast -f flv - |"
+      else
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -b 700000 -acodec libfaac -vpre libx264-fast -f flv - |"
+      fi
+    elif [[ "${INPUT:0:6}" == "raw://" ]]; then
       local rawseparator=`expr index "${INPUT:6}" /`
       local rawserv=${INPUT:6:$rawseparator-1}
       local rawstream=${INPUT:$rawseparator}
       tmpcommand="${tmpcommand}ssh $rawserv \"echo $rawstream\" |"
-    elif [[ "$PRESET" == "raw" ]]; then
-      tmpcommand="${tmpcommand}wget $INPUT |"
-    fi
-    if [[ "${INPUT:0:6}" == "raw://" ]]; then    
-      tmpcommand="${tmpcommand}"
     else
-      if [[ "$PRESET" == "copy" ]]; then
+      if [[ "$PRESET" == "raw" ]]; then
+        tmpcommand="${tmpcommand}wget $INPUT |"
+      elif [[ "$PRESET" == "copy" ]]; then
         tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec copy -vcodec copy -f flv - |"
       elif [[ "$PRESET" == "h264-high" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -b 1500000-acodec libfaac -vpre libx264-fast -f flv - |"
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -b 1500000 -acodec libfaac -vpre libx264-fast -f flv - |"
       else
-        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -b 700000-acodec libfaac -vpre libx264-fast -f flv - |"
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -b 700000 -acodec libfaac -vpre libx264-fast -f flv - |"
       fi
     fi
     tmpcommand="${tmpcommand} Buffer 500 $NAME"
-    echo "$tmpcommand" > $FILE
-    `chmod a+x $FILE`
-    `screen -d -m $FILE`
+    eval "${tmpcommand} &"
   done
 }
 

@@ -91,7 +91,7 @@ function start() {
       tmpcommand="${tmpcommand}ssh $rawserv \"echo $rawstream\" |"
     else
       if [[ "$PRESET" == "raw" ]]; then
-        tmpcommand="${tmpcommand}wget $INPUT |"
+        tmpcommand="${tmpcommand}wget -q -O - $INPUT |"
       elif [[ "$PRESET" == "copy" ]]; then
         tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec copy -vcodec copy -f flv - |"
       elif [[ "$PRESET" == "h264-high" ]]; then
@@ -101,7 +101,7 @@ function start() {
       fi
     fi
     tmpcommand="${tmpcommand} Buffer 500 $NAME"
-    eval "${tmpcommand} &"
+    eval "${tmpcommand} 2> /dev/null &"
   done
 }
 

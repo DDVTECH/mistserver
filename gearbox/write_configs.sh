@@ -22,9 +22,9 @@ function UploadConfig (){
   done
   var=serverinfo_$1[*]
   local ${!var}
-  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT $FILE root@$HOST:config.sh &> /dev/null &
-  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT ../client_scripts/data_collect.sh root@$HOST:data_collect.sh &> /dev/null &
-  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT ../client_scripts/start_stream.sh root@$HOST:start_stream.sh &> /dev/null &
+  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT $FILE $HOST:config.sh &> /dev/null &
+  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT ../client_scripts/data_collect.sh $HOST:data_collect.sh &> /dev/null &
+  scp -o PasswordAuthentication=no -o ConnectTimeout=3 -P $PORT ../client_scripts/start_stream.sh $HOST:start_stream.sh &> /dev/null &
 }
 
 function UploadStats (){
@@ -45,7 +45,7 @@ function StartStreams (){
   if [ "$isup" -eq "1" ]; then
     var=serverinfo_$1[*]
     local ${!var}
-    `ssh -o PasswordAuthentication=no -o ConnectTimeout=6 -p $PORT root@$HOST "./start_stream.sh 2> /dev/null"`
+    `ssh -o PasswordAuthentication=no -o ConnectTimeout=6 -p $PORT $HOST "./start_stream.sh 2> /dev/null"`
   fi
 }
 

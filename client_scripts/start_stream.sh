@@ -101,7 +101,7 @@ function start() {
       fi
     fi
     tmpcommand="${tmpcommand} Buffer 500 $NAME"
-    eval "${tmpcommand} 2> /dev/null &"
+    eval "${tmpcommand} 2> ./tmpfileffmpegoutput_$i &"
   done
 }
 

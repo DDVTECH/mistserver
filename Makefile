@@ -1,4 +1,5 @@
 default: client-install
+.PHONY: client client-clean clean client-install docs
 
 client:
 	cd Connector_HTTP; $(MAKE)
@@ -16,4 +17,6 @@ client-install: client-clean client
 	cd Connector_HTTP; $(MAKE) install
 	cd Connector_RAW; $(MAKE) install
 	cd Buffer; $(MAKE) install
+docs:
+	doxygen ./Doxyfile
 

@@ -1,4 +1,4 @@
-SRC = main.cpp
+SRC = main.cpp ../util/ddv_socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Connector_HTTP
 INCLUDES = 

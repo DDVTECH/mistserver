@@ -1,42 +1,5 @@
-#pragma once
-#include "ddv_socket.cpp"
-#include <map>
-#include <stdlib.h>
-#include <stdio.h>
-
-class HTTPReader{
-  public:
-    HTTPReader();
-    bool ReadSocket(int CONN_fd);
-    bool ReadSocket(FILE * F);
-    std::string GetHeader(std::string i);
-    std::string GetVar(std::string i);
-    void SetHeader(std::string i, std::string v);
-    void SetHeader(std::string i, int v);
-    void SetVar(std::string i, std::string v);
-    void SetBody(std::string s);
-    void SetBody(char * buffer, int len);
-    std::string BuildRequest();
-    std::string BuildResponse(std::string code, std::string message);
-    void SendResponse(int conn, std::string code, std::string message);
-    void SendBodyPart(int conn, char * buffer, int len);
-    void SendBodyPart(int conn, std::string bodypart);
-    void Clean();
-    bool CleanForNext();
-    std::string body;
-    std::string method;
-    std::string url;
-    std::string protocol;
-    unsigned int length;
-  private:
-    bool seenHeaders;
-    bool seenReq;
-    bool parse();
-    std::string HTTPbuffer;
-    std::map<std::string, std::string> headers;
-    std::map<std::string, std::string> vars;
-    void Trim(std::string & s);
-};//HTTPReader
+#include "http_parser.h"
+#include "ddv_socket.h"
 
 HTTPReader::HTTPReader(){Clean();}
 void HTTPReader::Clean(){
@@ -127,29 +90,28 @@ void HTTPReader::SetVar(std::string i, std::string v){
   vars[i] = v;
 }
 
-bool HTTPReader::ReadSocket(int CONN_fd){
+bool HTTPReader::Read(DDV::Socket & sock){
   //returned true als hele http packet gelezen is
   int r = 0;
   int b = 0;
   char buffer[500];
   while (true){
-    r = DDV_ready(CONN_fd);
+    r = sock.ready();
     if (r < 1){
-      if (r == 0){
-        socketError = true;
+      if (r == -1){
         #if DEBUG >= 1
         fprintf(stderr, "User socket is disconnected.\n");
         #endif
       }
       return parse();
     }
-    b = DDV_iread(buffer, 500, CONN_fd);
+    b = sock.iread(buffer, 500);
     HTTPbuffer.append(buffer, b);
   }
   return false;
 }//HTTPReader::ReadSocket
 
-bool HTTPReader::ReadSocket(FILE * F){
+bool HTTPReader::Read(FILE * F){
   //returned true als hele http packet gelezen is
   int b = 1;
   char buffer[500];
@@ -210,23 +172,23 @@ bool HTTPReader::parse(){
   return false; //we should never get here...
 }//HTTPReader::parse
 
-void HTTPReader::SendResponse(int conn, std::string code, std::string message){
+void HTTPReader::SendResponse(DDV::Socket & conn, std::string code, std::string message){
   std::string tmp = BuildResponse(code, message);
-  DDV_write(tmp.c_str(), tmp.size(), conn);
+  conn.write(tmp);
 }
 
-void HTTPReader::SendBodyPart(int conn, char * buffer, int len){
+void HTTPReader::SendBodyPart(DDV::Socket & conn, char * buffer, int len){
   std::string tmp;
   tmp.append(buffer, len);
   SendBodyPart(conn, tmp);
 }
 
-void HTTPReader::SendBodyPart(int conn, std::string bodypart){
+void HTTPReader::SendBodyPart(DDV::Socket & conn, std::string bodypart){
   static char len[10];
   int sizelen;
   sizelen = snprintf(len, 10, "%x\r\n", (unsigned int)bodypart.size());
-  DDV_write(len, sizelen, conn);
-  DDV_write(bodypart.c_str(), bodypart.size(), conn);
-  DDV_write(len+sizelen-2, 2, conn);
+  conn.write(len, sizelen);
+  conn.write(bodypart);
+  conn.write(len+sizelen-2, 2);
 }
 

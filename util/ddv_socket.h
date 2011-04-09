@@ -19,6 +19,7 @@ namespace DDV{
     private:
       int sock; ///< Internally saved socket number.
     public:
+      Socket(); ///< Create a new disconnected base socket.
       Socket(int sockNo); ///< Create a new base socket.
       Socket(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
       bool Error; ///< Set to true if a socket error happened.

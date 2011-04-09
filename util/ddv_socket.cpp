@@ -8,6 +8,14 @@ DDV::Socket::Socket(int sockNo){
   Blocking = false;
 }//DDV::Socket basic constructor
 
+/// Create a new disconnected base socket. This is a basic constructor for placeholder purposes.
+/// A socket created like this is always disconnected and should/could be overwritten at some point.
+DDV::Socket::Socket(){
+  sock = -1;
+  Error = false;
+  Blocking = false;
+}//DDV::Socket basic constructor
+
 /// Close connection. The internal socket is closed and then set to -1.
 void DDV::Socket::close(){
   #if DEBUG >= 3

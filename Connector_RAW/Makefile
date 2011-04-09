@@ -1,6 +1,6 @@
-SRC = main.cpp ../sockets/sw_base.cpp ../sockets/sw_inet.cpp ../sockets/sw_unix.cpp
+SRC = main.cpp ../util/ddv_socket.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = Connector_RAW
+OUT = DDV_Conn_RAW
 INCLUDES = 
 CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++

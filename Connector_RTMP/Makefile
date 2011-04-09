@@ -1,6 +1,6 @@
-SRC = main.cpp
+SRC = main.cpp ../util/ddv_socket.cpp ../util/flv_tag.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = Connector_RTMP
+OUT = DDV_Conn_RTMP
 INCLUDES =
 STATIC =
 CCFLAGS = -Wall -Wextra -funsigned-char -g

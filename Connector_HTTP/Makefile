@@ -1,6 +1,6 @@
 SRC = main.cpp ../util/ddv_socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = Connector_HTTP
+OUT = DDV_Conn_HTTP
 INCLUDES = 
 CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++

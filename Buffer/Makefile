@@ -1,6 +1,6 @@
-SRC = main.cpp
+SRC = main.cpp ../util/ddv_socket.cpp ../util/flv_tag.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = Buffer
+OUT = DDV_Buffer
 INCLUDES = 
 CCFLAGS = -Wall -Wextra -funsigned-char -g
 CC = $(CROSS)g++

@@ -309,6 +309,8 @@ DDV::ServerSocket::ServerSocket(std::string address, bool nonblock){
 DDV::Socket DDV::ServerSocket::accept(bool nonblock){
   if (sock < 0){return DDV::Socket(-1);}
   int r = ::accept(sock, 0, 0);
+  //set the socket to be nonblocking, if requested.
+  //we could do this through accept4 with a flag, but that call is non-standard...
   if ((r >= 0) && nonblock){
     int flags = fcntl(r, F_GETFL, 0);
     flags |= O_NONBLOCK;

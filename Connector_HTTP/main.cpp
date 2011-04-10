@@ -21,7 +21,7 @@
 #include "../util/http_parser.h"
 #include "../util/flv_tag.h"
 #include "../util/MP4/interface.cpp"
-#include "amf.cpp"
+#include "../util/amf.h"
 
 /// Holds everything unique to HTTP Connector.
 namespace Connector_HTTP{
@@ -57,40 +57,40 @@ namespace Connector_HTTP{
 
   /// Returns AMF-format metadata for Adobe HTTP Dynamic Streaming.
   std::string GetMetaData( ) {
-    AMFType amfreply("container", (unsigned char)AMF0_DDV_CONTAINER);
-    amfreply.addContent(AMFType("onMetaData",(unsigned char)AMF0_STRING));
-    amfreply.addContent(AMFType("",(unsigned char)AMF0_ECMA_ARRAY));
-    amfreply.getContentP(1)->addContent(AMFType("trackinfo", (unsigned char)AMF0_STRICT_ARRAY));
-    amfreply.getContentP(1)->getContentP(0)->addContent(AMFType("arrVal"));
-    //amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("timescale",(double)1000));
-    //amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("length",(double)59641700));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("language","eng"));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMFType("sampledescription", (unsigned char)AMF0_STRICT_ARRAY));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->getContentP(1)->addContent(AMFType("arrVal"));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->getContentP(1)->getContentP(0)->addContent(AMFType("sampletype","avc1"));
-    amfreply.getContentP(1)->getContentP(0)->addContent(AMFType("arrVal"));
-    //amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMFType("timescale",(double)44100));
-    //amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMFType("length",(double)28630000));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMFType("language","eng"));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMFType("sampledescription", (unsigned char)AMF0_STRICT_ARRAY));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(1)->addContent(AMFType("arrVal"));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(1)->getContentP(0)->addContent(AMFType("sampletype","mp4a"));
-    amfreply.getContentP(1)->addContent(AMFType("audiochannels",(double)2));
-    amfreply.getContentP(1)->addContent(AMFType("audiosamplerate",(double)44100));
-    amfreply.getContentP(1)->addContent(AMFType("videoframerate",(double)25));
-    amfreply.getContentP(1)->addContent(AMFType("aacaot",(double)2));
-    amfreply.getContentP(1)->addContent(AMFType("avclevel",(double)12));
-    amfreply.getContentP(1)->addContent(AMFType("avcprofile",(double)77));
-    amfreply.getContentP(1)->addContent(AMFType("audiocodecid","mp4a"));
-    amfreply.getContentP(1)->addContent(AMFType("videocodecid","avc1"));
-    amfreply.getContentP(1)->addContent(AMFType("width",(double)1280));
-    amfreply.getContentP(1)->addContent(AMFType("height",(double)720));
-    amfreply.getContentP(1)->addContent(AMFType("frameWidth",(double)1280));
-    amfreply.getContentP(1)->addContent(AMFType("frameHeight",(double)720));
-    amfreply.getContentP(1)->addContent(AMFType("displayWidth",(double)1280));
-    amfreply.getContentP(1)->addContent(AMFType("displayHeight",(double)720));
-    //amfreply.getContentP(1)->addContent(AMFType("moovposition",(double)35506700));
-    //amfreply.getContentP(1)->addContent(AMFType("duration",(double)596.458));
+    AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+    amfreply.addContent(AMF::Object("onMetaData",AMF::AMF0_STRING));
+    amfreply.addContent(AMF::Object("",AMF::AMF0_ECMA_ARRAY));
+    amfreply.getContentP(1)->addContent(AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY));
+    amfreply.getContentP(1)->getContentP(0)->addContent(AMF::Object("arrVal"));
+    //amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMF::Object("timescale",(double)1000));
+    //amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMF::Object("length",(double)59641700));
+    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMF::Object("language","eng"));
+    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
+    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->getContentP(1)->addContent(AMF::Object("arrVal"));
+    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->getContentP(1)->getContentP(0)->addContent(AMF::Object("sampletype","avc1"));
+    amfreply.getContentP(1)->getContentP(0)->addContent(AMF::Object("arrVal"));
+    //amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMF::Object("timescale",(double)44100));
+    //amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMF::Object("length",(double)28630000));
+    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMF::Object("language","eng"));
+    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
+    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(1)->addContent(AMF::Object("arrVal"));
+    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(1)->getContentP(0)->addContent(AMF::Object("sampletype","mp4a"));
+    amfreply.getContentP(1)->addContent(AMF::Object("audiochannels",(double)2));
+    amfreply.getContentP(1)->addContent(AMF::Object("audiosamplerate",(double)44100));
+    amfreply.getContentP(1)->addContent(AMF::Object("videoframerate",(double)25));
+    amfreply.getContentP(1)->addContent(AMF::Object("aacaot",(double)2));
+    amfreply.getContentP(1)->addContent(AMF::Object("avclevel",(double)12));
+    amfreply.getContentP(1)->addContent(AMF::Object("avcprofile",(double)77));
+    amfreply.getContentP(1)->addContent(AMF::Object("audiocodecid","mp4a"));
+    amfreply.getContentP(1)->addContent(AMF::Object("videocodecid","avc1"));
+    amfreply.getContentP(1)->addContent(AMF::Object("width",(double)1280));
+    amfreply.getContentP(1)->addContent(AMF::Object("height",(double)720));
+    amfreply.getContentP(1)->addContent(AMF::Object("frameWidth",(double)1280));
+    amfreply.getContentP(1)->addContent(AMF::Object("frameHeight",(double)720));
+    amfreply.getContentP(1)->addContent(AMF::Object("displayWidth",(double)1280));
+    amfreply.getContentP(1)->addContent(AMF::Object("displayHeight",(double)720));
+    //amfreply.getContentP(1)->addContent(AMF::Object("moovposition",(double)35506700));
+    //amfreply.getContentP(1)->addContent(AMF::Object("duration",(double)596.458));
     return amfreply.Pack( );
   }//getMetaData
 

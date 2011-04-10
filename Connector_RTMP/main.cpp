@@ -171,4 +171,5 @@ namespace Connector_RTMP{
 // Load main server setup file, default port 1935, handler is Connector_RTMP::Connector_RTMP
 #define DEFAULT_PORT 1935
 #define MAINHANDLER Connector_RTMP::Connector_RTMP
+#define CONFIGSECT RTMP
 #include "../util/server_setup.cpp"

@@ -354,4 +354,5 @@ namespace Connector_HTTP{
 // Load main server setup file, default port 8080, handler is Connector_HTTP::Connector_HTTP
 #define DEFAULT_PORT 8080
 #define MAINHANDLER Connector_HTTP::Connector_HTTP
+#define CONFIGSECT HTTP
 #include "../util/server_setup.cpp"

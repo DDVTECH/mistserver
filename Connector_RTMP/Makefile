@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/ddv_socket.cpp ../util/flv_tag.cpp ../util/amf.cpp
+SRC = main.cpp ../util/ddv_socket.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/rtmpchunks.cpp ../util/crypto.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_RTMP
 INCLUDES =
@@ -13,7 +13,7 @@ LIBS = -lssl -lcrypto
 default: $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@
-$(OUT): $(OBJ) chunkstream.cpp parsechunks.cpp handshake.cpp crypto.cpp
+$(OUT): $(OBJ)
 	$(CC) -o $(OUT) $(OBJ) $(STATIC) $(LIBS)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~

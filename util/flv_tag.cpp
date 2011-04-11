@@ -1,3 +1,6 @@
+/// \file flv_tag.cpp
+/// Holds all code for the FLV namespace.
+
 #include "flv_tag.h"
 #include <stdio.h> //for Tag::FileLoader
 #include <unistd.h> //for Tag::FileLoader
@@ -8,6 +11,7 @@
 
 char FLV::Header[13]; ///< Holds the last FLV header parsed.
 bool FLV::Parse_Error = false; ///< This variable is set to true if a problem is encountered while parsing the FLV.
+std::string FLV::Error_Str = "";
 
 /// Checks a FLV Header for validness. Returns true if the header is valid, false
 /// if the header is not. Not valid can mean:
@@ -219,7 +223,7 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
           if (FLV::check_header(data)){
             sofar = 0;
             memcpy(FLV::Header, data, 13);
-          }else{FLV::Parse_Error = true; return false;}
+          }else{FLV::Parse_Error = true; Error_Str = "Invalid header received."; return false;}
         }
       }else{
         //if a tag header, calculate length and read tag body
@@ -227,7 +231,7 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
         len += (data[2] << 8);
         len += (data[1] << 16);
         if (buf < len){data = (char*)realloc(data, len); buf = len;}
-        if (data[0] > 0x12){FLV::Parse_Error = true; return false;}
+        if (data[0] > 0x12){FLV::Parse_Error = true; Error_Str = "Invalid Tag received."; return false;}
         done = false;
       }
     }
@@ -259,7 +263,7 @@ bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & s
   if (r < 0){
     if (errno != EWOULDBLOCK){
       FLV::Parse_Error = true;
-      fprintf(stderr, "ReadUntil fail: %s. All Hell Broke Loose!\n", strerror(errno));
+      Error_Str = "Error reading from socket.";
     }
     return false;
   }
@@ -267,7 +271,7 @@ bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & s
   if (sofar == count){return true;}
   if (sofar > count){
     FLV::Parse_Error = true;
-    fprintf(stderr, "ReadUntil fail: %s. Read too much. All Hell Broke Loose!\n", strerror(errno));
+    Error_Str = "Socket buffer overflow.";
   }
   return false;
 }//Tag::SockReadUntil
@@ -289,7 +293,7 @@ bool FLV::Tag::SockLoader(DDV::Socket sock){
           if (FLV::check_header(data)){
             sofar = 0;
             memcpy(FLV::Header, data, 13);
-          }else{FLV::Parse_Error = true; return false;}
+          }else{FLV::Parse_Error = true; Error_Str = "Invalid header received."; return false;}
         }
       }else{
         //if a tag header, calculate length and read tag body
@@ -297,7 +301,7 @@ bool FLV::Tag::SockLoader(DDV::Socket sock){
         len += (data[2] << 8);
         len += (data[1] << 16);
         if (buf < len){data = (char*)realloc(data, len); buf = len;}
-        if (data[0] > 0x12){FLV::Parse_Error = true; return false;}
+        if (data[0] > 0x12){FLV::Parse_Error = true; Error_Str = "Invalid Tag received."; return false;}
         done = false;
       }
     }
@@ -335,7 +339,7 @@ bool FLV::Tag::FileReadUntil(char * buffer, unsigned int count, unsigned int & s
   if (sofar >= count){return true;}
   int r = 0;
   r = fread(buffer + sofar,1,count-sofar,f);
-  if (r < 0){FLV::Parse_Error = true; return false;}
+  if (r < 0){FLV::Parse_Error = true; Error_Str = "File reading error."; return false;}
   sofar += r;
   if (sofar >= count){return true;}
   return false;
@@ -363,7 +367,7 @@ bool FLV::Tag::FileLoader(FILE * f){
           if (FLV::check_header(data)){
             sofar = 0;
             memcpy(FLV::Header, data, 13);
-          }else{FLV::Parse_Error = true;}
+          }else{FLV::Parse_Error = true; Error_Str = "Invalid header received."; return false;}
         }
       }else{
         //if a tag header, calculate length and read tag body
@@ -371,7 +375,7 @@ bool FLV::Tag::FileLoader(FILE * f){
         len += (data[2] << 8);
         len += (data[1] << 16);
         if (buf < len){data = (char*)realloc(data, len); buf = len;}
-        if (data[0] > 0x12){FLV::Parse_Error = true;}
+        if (data[0] > 0x12){FLV::Parse_Error = true; Error_Str = "Invalid Tag received."; return false;}
         done = false;
       }
     }

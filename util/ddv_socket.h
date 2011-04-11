@@ -1,3 +1,6 @@
+/// \file ddv_socket.h
+/// Holds all headers for the DDV namespace.
+
 #pragma once
 #include <string>
 #include <sys/types.h>
@@ -33,6 +36,7 @@ namespace DDV{
       bool write(const std::string data); ///< Write call that is compatible with std::string.
       int iwrite(void * buffer, int len); ///< Incremental write call.
       int iread(void * buffer, int len); ///< Incremental read call.
+      bool read(std::string & buffer); ///< Read call that is compatible with std::string.
       void close(); ///< Close connection.
       int getSocket(); ///< Returns internal socket number.
   };

@@ -1,3 +1,6 @@
+/// \file crypto.cpp
+/// Holds all code needed for RTMP cryptography.
+
 #define STR(x) (((std::string)(x)).c_str())
 
 #include "crypto.h"

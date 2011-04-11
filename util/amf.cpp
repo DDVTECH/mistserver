@@ -1,3 +1,6 @@
+/// \file amf.cpp
+/// Holds all code for the AMF namespace.
+
 #include "amf.h"
 
 /// Returns the std::string Indice for the current object, if available.

@@ -21,7 +21,7 @@
 /// Then it will take the payload of this box, print the first four bytes, and attempt to parse the whole payload as FLV data.
 /// The parsed FLV data is then pretty-printed, containing information about the codec parameters and types of tags it encounters.
 int main(){
-  HTTPReader H;
+  HTTP::Parser H;
   FLV::Tag F;
   unsigned int P = 0;
   char * Payload = 0;

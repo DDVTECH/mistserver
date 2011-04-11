@@ -140,7 +140,7 @@ namespace Connector_HTTP{
     FLV::Tag Video_Init;///< Video initialization data, if available.
     bool FlashFirstVideo = false;
     bool FlashFirstAudio = false;
-    HTTPReader HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
+    HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
     int retval;
     int poller = epoll_create(1);

@@ -1,10 +1,10 @@
 #!/bin/sh
 #
-# description: DDVTech HTTP Connector
-# processname: DDV_Conn_HTTP
+# description: DDVTech RTMP Connector
+# processname: DDV_Conn_RTMP
 
-prog="DDV_Conn_HTTP"
-fullprog="/usr/bin/DDV_Conn_HTTP"
+prog="DDV_Conn_RTMP"
+fullprog="/usr/bin/DDV_Conn_RTMP"
 RETVAL=0
 
 start() {

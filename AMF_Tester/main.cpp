@@ -1,3 +1,7 @@
+/// \file AMF_Tester/main.cpp
+/// Debugging tool for AMF data.
+/// Expects AMF data through stdin, outputs human-readable information to stderr.
+
 #define DEBUG 10 //maximum debugging level
 #include <cstdlib>
 #include <iostream>
@@ -5,6 +9,8 @@
 #include <string>
 #include "../util/amf.h"
 
+/// Debugging tool for AMF data.
+/// Expects AMF data through stdin, outputs human-readable information to stderr.
 int main() {
   std::string temp;
   while (std::cin.good()){temp += std::cin.get();}//read all of std::cin to temp

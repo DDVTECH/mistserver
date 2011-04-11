@@ -1,3 +1,6 @@
+/// \file ddv_socket.cpp
+/// Holds all code for the DDV namespace.
+
 #include "ddv_socket.h"
 
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a DDV::Socket.
@@ -206,6 +209,21 @@ int DDV::Socket::iread(void * buffer, int len){
   }
   return r;
 }//DDV::Socket::iread
+
+/// Read call that is compatible with std::string.
+/// Data is read using iread (which is nonblocking if the DDV::Socket itself is),
+/// then appended to end of buffer.
+/// \param buffer std::string to append data to.
+/// \return True if new data arrived, false otherwise.
+bool DDV::Socket::read(std::string & buffer){
+  char cbuffer[5000];
+  int num = iread(cbuffer, 5000);
+  if (num > 0){
+    buffer.append(cbuffer, num);
+    return true;
+  }
+  return false;
+}//read
 
 /// Create a new base ServerSocket. The socket is never connected, and a placeholder for later connections.
 DDV::ServerSocket::ServerSocket(){

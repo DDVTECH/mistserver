@@ -18,5 +18,5 @@ client-install: client-clean client
 	cd Connector_RAW; $(MAKE) install
 	cd Buffer; $(MAKE) install
 docs:
-	doxygen ./Doxyfile
+	doxygen ./Doxyfile > /dev/null
 

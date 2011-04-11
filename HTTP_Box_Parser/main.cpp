@@ -1,3 +1,11 @@
+/// \file HTTP_Box_Parser/main.cpp
+/// Debugging tool for F4M HTTP streaming data.
+/// Expects raw TCP data through stdin, outputs human-readable information to stderr.
+/// This will attempt to read either HTTP requests or responses from stdin, and if the body is more than
+/// 10,000 bytes long will attempt to parse the data as a MP4 box. (Other cases show a message about the fragment being too small)
+/// Then it will take the payload of this box, print the first four bytes, and attempt to parse the whole payload as FLV data.
+/// The parsed FLV data is then pretty-printed, containing information about the codec parameters and types of tags it encounters.
+
 #include <stdint.h>
 #include <iostream>
 #include <string>
@@ -6,6 +14,12 @@
 #include "../util/MP4/box_includes.h"
 #include "../util/flv_tag.h"
 
+/// Debugging tool for F4M HTTP streaming data.
+/// Expects raw TCP data through stdin, outputs human-readable information to stderr.
+/// This will attempt to read either HTTP requests or responses from stdin, and if the body is more than
+/// 10,000 bytes long will attempt to parse the data as a MP4 box. (Other cases show a message about the fragment being too small)
+/// Then it will take the payload of this box, print the first four bytes, and attempt to parse the whole payload as FLV data.
+/// The parsed FLV data is then pretty-printed, containing information about the codec parameters and types of tags it encounters.
 int main(){
   HTTPReader H;
   FLV::Tag F;
@@ -28,4 +42,4 @@ int main(){
       std::cout << "Skipped too small fragment of size " << H.body.size() << std::endl;
     }
   }
-}
+}//main

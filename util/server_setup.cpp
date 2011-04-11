@@ -1,12 +1,34 @@
-#include <signal.h>
+/// \file server_setup.cpp
+/// Contains generic functions for setting up a DDVTECH Connector.
+
+#ifndef MAINHANDLER
+  /// Handler that is called for accepted incoming connections.
+  #define MAINHANDLER NoHandler
+  #error "No handler was set!"
+#endif
+
+
+#ifndef DEFAULT_PORT
+  /// Default port for this server.
+  #define DEFAULT_PORT 0
+  #error "No default port was set!"
+#endif
+
+
+#ifndef CONFIGSECT
+  /// Configuration file section for this server.
+  #define CONFIGSECT None
+  #error "No configuration file section was set!"
+#endif
+
 #include "ddv_socket.h" //DDVTech Socket wrapper
-#include "flv_tag.h" //FLV parsing with DDVTech Socket wrapper
+#include <signal.h>
 #include <sys/types.h>
 #include <pwd.h>
 #include <fstream>
-#define defstr(x) #x //converts a define name to string
-#define defstrh(x) "[" defstr(x) "]" //converts define name to [string]
-DDV::ServerSocket server_socket(-1);
+#define defstr(x) #x ///< converts a define name to string
+#define defstrh(x) "[" defstr(x) "]" ///< converts define name to [string]
+DDV::ServerSocket server_socket(-1); ///< Placeholder for the server socket
 
 /// Basic signal handler. Disconnects the server_socket if it receives
 /// a SIGINT, SIGHUP or SIGTERM signal, but does nothing for SIGPIPE.
@@ -26,10 +48,10 @@ void signal_handler (int signum){
 /// Generic main entry point and loop for DDV Connectors.
 /// This sets up the proper termination handler, checks commandline options,
 /// parses config files and opens a listening socket on the requested port.
-/// Any incoming connections will be accepted and start up the function MAINHANDLER,
-/// which should be #defined before including server_setup.cpp.
-/// The default port is set by #define DEFAULT_PORT.
-/// The configuration file section is set by #define CONFIGSECT.
+/// Any incoming connections will be accepted and start up the function #MAINHANDLER,
+/// which should be defined before including server_setup.cpp.
+/// The default port is set by define #DEFAULT_PORT.
+/// The configuration file section is set by define #CONFIGSECT.
 int main(int argc, char ** argv){
   DDV::Socket S;//placeholder for incoming connections
 

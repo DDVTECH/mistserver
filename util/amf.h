@@ -1,3 +1,6 @@
+/// \file amf.h
+/// Holds all headers for the AMF namespace.
+
 #pragma once
 #include <vector>
 #include <iostream>

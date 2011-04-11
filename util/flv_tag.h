@@ -1,3 +1,6 @@
+/// \file flv_tag.h
+/// Holds all headers for the FLV namespace.
+
 #pragma once
 #include "ddv_socket.h"
 #include <string>
@@ -7,7 +10,8 @@ namespace FLV {
   //variables
   extern char Header[13]; ///< Holds the last FLV header parsed.
   extern bool Parse_Error; ///< This variable is set to true if a problem is encountered while parsing the FLV.
-
+  extern std::string Error_Str; ///< This variable is set if a problem is encountered while parsing the FLV.
+  
   //functions
   bool check_header(char * header); ///< Checks a FLV Header for validness.
   bool is_header(char * header); ///< Checks the first 3 bytes for the string "FLV".

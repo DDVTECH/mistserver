@@ -76,13 +76,13 @@ function start() {
     if [[ "${INPUT:0:7}" == "file://" ]]; then
       INPUT=${INPUT:7}
       if [[ "$PRESET" == "raw" ]]; then
-        tmpcommand="${tmpcommand}cat $INPUT |"
+        tmpcommand="${tmpcommand}cat \"$INPUT\" |"
       elif [[ "$PRESET" == "copy" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec copy -vcodec copy -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i \"$INPUT\" -acodec copy -vcodec copy -f flv - 2> /dev/null |"
       elif [[ "$PRESET" == "h264-high" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -i "$INPUT" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -i \"$INPUT\" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
       else
-        tmpcommand="${tmpcommand} ffmpeg -i "$INPUT" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -i \"$INPUT\" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
       fi
     elif [[ "${INPUT:0:6}" == "raw://" ]]; then
       local rawseparator=`expr index "${INPUT:6}" /`
@@ -91,13 +91,13 @@ function start() {
       tmpcommand="${tmpcommand}ssh $rawserv \"echo $rawstream\" |"
     else
       if [[ "$PRESET" == "raw" ]]; then
-        tmpcommand="${tmpcommand}wget -q -O - $INPUT |"
+        tmpcommand="${tmpcommand}wget -q -O - \"$INPUT\" |"
       elif [[ "$PRESET" == "copy" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec copy -vcodec copy -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i \"$INPUT\" -acodec copy -vcodec copy -f flv - 2> /dev/null |"
       elif [[ "$PRESET" == "h264-high" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -i "$INPUT" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -i \"$INPUT\" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
       else
-        tmpcommand="${tmpcommand} ffmpeg -i "$INPUT" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -i \"$INPUT\" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
       fi
     fi
     tmpcommand="${tmpcommand} Buffer 500 $NAME"

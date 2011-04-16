@@ -143,7 +143,7 @@ void FLV::Tag::tagTime(unsigned int T){
 /// The buffer length is initialized to 0, and later automatically
 /// increased if neccesary.
 FLV::Tag::Tag(){
-  len = 0; buf = 0; data = 0; isKeyframe = false;
+  len = 0; buf = 0; data = 0; isKeyframe = false; done = true; sofar = 0;
 }//empty constructor
 
 /// Copy constructor, copies the contents of an existing tag.
@@ -151,6 +151,8 @@ FLV::Tag::Tag(){
 /// that is being copied, and later automaticallt increased if
 /// neccesary.
 FLV::Tag::Tag(const Tag& O){
+  done = true;
+  sofar = 0;
   buf = O.len;
   len = buf;
   if (len > 0){
@@ -166,14 +168,18 @@ FLV::Tag::Tag(const Tag& O){
 /// This operator checks for self-assignment.
 FLV::Tag & FLV::Tag::operator= (const FLV::Tag& O){
   if (this != &O){//no self-assignment
-    if (data != 0){free(data);}
-    buf = O.len;
-    len = buf;
+    len = O.len;
     if (len > 0){
-      data = (char*)malloc(len);
+      if (!data){
+        data = (char*)malloc(len);
+        buf = len;
+      }else{
+        if (buf < len){
+          data = (char*)realloc(data, len);
+          buf = len;
+        }
+      }
       memcpy(data, O.data, len);
-    }else{
-      data = 0;
     }
     isKeyframe = O.isKeyframe;
   }
@@ -211,8 +217,6 @@ bool FLV::Tag::MemReadUntil(char * buffer, unsigned int count, unsigned int & so
 /// \param P The current position in the data buffer. Will be updated to reflect new position.
 /// \return True if a whole tag is succesfully read, false otherwise.
 bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
-  static bool done = true;
-  static unsigned int sofar = 0;
   if (buf < 15){data = (char*)realloc(data, 15); buf = 15;}
   if (done){
     //read a header
@@ -259,15 +263,14 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
 /// \return True if count bytes are read succesfully, false otherwise.
 bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, DDV::Socket & sock){
   if (sofar == count){return true;}
-  int r = sock.read(buffer + sofar,count-sofar);
-  if (r < 0){
+  if (!sock.read(buffer + sofar,count-sofar)){
     if (errno != EWOULDBLOCK){
       FLV::Parse_Error = true;
       Error_Str = "Error reading from socket.";
     }
     return false;
   }
-  sofar += r;
+  sofar += count-sofar;
   if (sofar == count){return true;}
   if (sofar > count){
     FLV::Parse_Error = true;
@@ -282,8 +285,6 @@ bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & s
 /// \param sock The socket to read from.
 /// \return True if a whole tag is succesfully read, false otherwise.
 bool FLV::Tag::SockLoader(DDV::Socket sock){
-  static bool done = true;
-  static unsigned int sofar = 0;
   if (buf < 15){data = (char*)realloc(data, 15); buf = 15;}
   if (done){
     if (SockReadUntil(data, 11, sofar, sock)){
@@ -354,8 +355,6 @@ bool FLV::Tag::FileLoader(FILE * f){
   int preflags = fcntl(fileno(f), F_GETFL, 0);
   int postflags = preflags | O_NONBLOCK;
   fcntl(fileno(f), F_SETFL, postflags);
-  static bool done = true;
-  static unsigned int sofar = 0;
   if (buf < 15){data = (char*)realloc(data, 15); buf = 15;}
   
   if (done){

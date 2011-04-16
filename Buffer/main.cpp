@@ -230,16 +230,16 @@ namespace Buffer{
         users.back().MyBuffer = lastproper;
         users.back().MyBuffer_num = -1;
         /// \todo Do this more nicely?
-        if (!incoming.write(FLV::Header, 13)){
+        if (!users.back().S.write(FLV::Header, 13)){
           users.back().Disconnect("failed to receive the header!");
         }else{
-          if (!incoming.write(metadata.data, metadata.len)){
+          if (!users.back().S.write(metadata.data, metadata.len)){
             users.back().Disconnect("failed to receive metadata!");
           }
-          if (!incoming.write(video_init.data, video_init.len)){
+          if (!users.back().S.write(video_init.data, video_init.len)){
             users.back().Disconnect("failed to receive video init!");
           }
-          if (!incoming.write(audio_init.data, audio_init.len)){
+          if (!users.back().S.write(audio_init.data, audio_init.len)){
             users.back().Disconnect("failed to receive audio init!");
           }
         }

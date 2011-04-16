@@ -18,8 +18,8 @@ unsigned int RTMPStream::getNowMS(){
 
 unsigned int RTMPStream::chunk_rec_max = 128;
 unsigned int RTMPStream::chunk_snd_max = 128;
-unsigned int RTMPStream::rec_window_size = 0xFA00;
-unsigned int RTMPStream::snd_window_size = 1024*500;
+unsigned int RTMPStream::rec_window_size = 2500000;
+unsigned int RTMPStream::snd_window_size = 2500000;
 unsigned int RTMPStream::rec_window_at = 0;
 unsigned int RTMPStream::snd_window_at = 0;
 unsigned int RTMPStream::rec_cnt = 0;
@@ -243,6 +243,9 @@ std::string RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned 
 /// Parses the argument string into the current chunk.
 /// Tries to read a whole chunk, if successful it will remove
 /// the corresponding data from the input string.
+/// If only part of a chunk is read, it will remove the part and call itself again.
+/// This has the effect of only causing a "true" reponse in the case a *whole* chunk
+/// is read, not just part of a chunk.
 /// \param indata The input string to parse and update.
 /// \warning This function will destroy the current data in this chunk!
 /// \returns True if a whole chunk could be read, false otherwise.
@@ -368,7 +371,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
 
 /// Does the handshake. Expects handshake_in to be filled, and fills handshake_out.
 /// After calling this function, don't forget to read and ignore 1536 extra bytes,
-/// this is the handshake response and not interesting for us because we don't do client
+/// these are the handshake response and not interesting for us because we don't do client
 /// verification.
 bool RTMPStream::doHandshake(){
   char Version;

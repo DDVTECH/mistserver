@@ -163,7 +163,6 @@ void Connector_RTMP::parseChunk(){
   static AMF::Object amfelem("empty", AMF::AMF0_DDV_CONTAINER);
   if (!Connector_RTMP::Socket.read(inbuffer)){return;} //try to get more data
 
-  fprintf(stderr, "Current buffer is %i long.\n", inbuffer.size());
   while (next.Parse(inbuffer)){
 
     //send ACK if we received a whole window
@@ -280,7 +279,6 @@ void Connector_RTMP::parseChunk(){
           if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
           if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
           #endif
-          Socket.write(RTMPStream::SendCTL(6, RTMPStream::rec_window_size, 0));//send peer bandwidth (msg 6)
           Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
           Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
           //send a _result reply
@@ -289,24 +287,26 @@ void Connector_RTMP::parseChunk(){
           amfreply.addContent(amfdata.getContent(1));//same transaction ID
   //        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
           amfreply.addContent(AMF::Object(""));//server properties
-          amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,5,2,654"));//stolen from examples
-          amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)31));//stolen from examples
-          amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));//stolen from examples
-          amfreply.getContentP(2)->addContent(AMF::Object("objectEncoding", (double)0));
+          amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,5,4,1004"));
+          amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)127));
+          amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
           amfreply.addContent(AMF::Object(""));//info
           amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
           amfreply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));
           amfreply.getContentP(3)->addContent(AMF::Object("description", "Connection succeeded."));
+          amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", (double)0));
+          amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
+          amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
           #if DEBUG >= 4
           amfreply.Print();
           #endif
           Socket.write(RTMPStream::SendChunk(3, 20, next.msg_stream_id, amfreply.Pack()));
-          //send onBWDone packet
-          //amfreply = AMFType("container", (unsigned char)0xFF);
-          //amfreply.addContent(AMFType("", "onBWDone"));//result success
-          //amfreply.addContent(AMFType("", (double)0));//zero
-          //amfreply.addContent(AMFType("", (double)0, 0x05));//null
-          //SendChunk(3, 20, next.msg_stream_id, amfreply.Pack());
+          //send onBWDone packet - no clue what it is, but real server sends it...
+          amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+          amfreply.addContent(AMFType("", "onBWDone"));//result
+          amfreply.addContent(AMFType("", (double)0));//zero
+          amfreply.addContent(AMFType("", (double)0, AMF::AMF0_NULL));//null
+          Socket.write(RTMPStream::SendChunk(3, 20, next.msg_stream_id, amfreply.Pack()));
           parsed = true;
         }//connect
         if (amfdata.getContentP(0)->StrValue() == "createStream"){

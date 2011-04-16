@@ -272,6 +272,10 @@ void Connector_RTMP::parseChunk(){
         if (amfdata.getContentP(0)->StrValue() == "connect"){
           #if DEBUG >= 4
           int tmpint;
+          double objencoding = 0;
+          if (amfdata.getContentP(2)->getContentP("objectencoding")){
+            objencoding = amfdata.getContentP(2)->getContentP("objectencoding")->NumValue();
+          }
           tmpint = amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
           if (tmpint & 0x04){fprintf(stderr, "Sorensen video support detected\n");}
           if (tmpint & 0x80){fprintf(stderr, "H264 video support detected\n");}
@@ -294,7 +298,7 @@ void Connector_RTMP::parseChunk(){
           amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
           amfreply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));
           amfreply.getContentP(3)->addContent(AMF::Object("description", "Connection succeeded."));
-          amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", (double)0));
+          amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", objencoding);
           amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
           amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
           #if DEBUG >= 4

@@ -274,7 +274,7 @@ void Connector_RTMP::parseChunk(){
           int tmpint;
           double objencoding = 0;
           if (amfdata.getContentP(2)->getContentP("objectencoding")){
-            objencoding = amfdata.getContentP(2)->getContentP("objectencoding")->NumValue();
+            objencoding = amfdata.getContentP(2)->getContentP("objectEncoding")->NumValue();
           }
           tmpint = amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
           if (tmpint & 0x04){fprintf(stderr, "Sorensen video support detected\n");}

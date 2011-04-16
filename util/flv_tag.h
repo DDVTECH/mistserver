@@ -35,6 +35,8 @@ namespace FLV {
       bool FileLoader(FILE * f);
     protected:
       int buf; ///< Maximum length of buffer space.
+      bool done; ///< Body reading done?
+      unsigned int sofar; ///< How many bytes are read sofar?
       //loader helper functions
       bool MemReadUntil(char * buffer, unsigned int count, unsigned int & sofar, char * D, unsigned int S, unsigned int & P);
       bool SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, DDV::Socket & sock);

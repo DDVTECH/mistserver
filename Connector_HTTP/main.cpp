@@ -337,7 +337,7 @@ namespace Connector_HTTP{
     conn.close();
     if (inited) ss.close();
     #if DEBUG >= 1
-    if (FLV::Parse_Error){fprintf(stderr, "FLV Parser Error\n");}
+    if (FLV::Parse_Error){fprintf(stderr, "FLV Parser Error: %s\n", FLV::Error_Str.c_str());}
     fprintf(stderr, "User %i disconnected.\n", conn.getSocket());
     if (inited){
       fprintf(stderr, "Status was: inited\n");

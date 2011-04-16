@@ -121,8 +121,9 @@ bool DDV::Socket::write(const void * buffer, int len){
           return false;
           break;
       }
+    }else{
+      sofar += r;
     }
-    sofar += r;
   }
   return true;
 }//DDv::Socket::write
@@ -151,8 +152,9 @@ bool DDV::Socket::read(void * buffer, int len){
           return false;
           break;
       }
+    }else{
+      sofar += r;
     }
-    sofar += r;
   }
   return true;
 }//DDV::Socket::read

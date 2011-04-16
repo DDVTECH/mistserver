@@ -303,9 +303,9 @@ void Connector_RTMP::parseChunk(){
           Socket.write(RTMPStream::SendChunk(3, 20, next.msg_stream_id, amfreply.Pack()));
           //send onBWDone packet - no clue what it is, but real server sends it...
           amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
-          amfreply.addContent(AMFType("", "onBWDone"));//result
-          amfreply.addContent(AMFType("", (double)0));//zero
-          amfreply.addContent(AMFType("", (double)0, AMF::AMF0_NULL));//null
+          amfreply.addContent(AMF::Object("", "onBWDone"));//result
+          amfreply.addContent(AMF::Object("", (double)0));//zero
+          amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null
           Socket.write(RTMPStream::SendChunk(3, 20, next.msg_stream_id, amfreply.Pack()));
           parsed = true;
         }//connect

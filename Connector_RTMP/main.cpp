@@ -53,6 +53,7 @@ int Connector_RTMP::Connector_RTMP(DDV::Socket conn){
   while (RTMPStream::handshake_in.size() < 1537){
     Socket.read(RTMPStream::handshake_in);
   }
+  RTMPStream::rec_cnt += 1537;
   if (RTMPStream::doHandshake()){
     Socket.write(RTMPStream::handshake_out);
     Socket.read((char*)RTMPStream::handshake_in.c_str(), 1536);
@@ -161,7 +162,8 @@ void Connector_RTMP::parseChunk(){
   static AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
   static AMF::Object amfelem("empty", AMF::AMF0_DDV_CONTAINER);
   if (!Connector_RTMP::Socket.read(inbuffer)){return;} //try to get more data
-  
+
+  fprintf(stderr, "Current buffer is %i long.\n", inbuffer.size());
   while (next.Parse(inbuffer)){
 
     //send ACK if we received a whole window
@@ -172,6 +174,9 @@ void Connector_RTMP::parseChunk(){
       
     switch (next.msg_type_id){
       case 0://does not exist
+        #if DEBUG >= 2
+        fprintf(stderr, "UNKN: Received a zero-type message. This is an error.\n");
+        #endif
         break;//happens when connection breaks unexpectedly
       case 1://set chunk size
         RTMPStream::chunk_rec_max = ntohl(*(int*)next.data.c_str());
@@ -387,7 +392,7 @@ void Connector_RTMP::parseChunk(){
   //        amfreply.addContent(AMFType("", (double)1, 0x01));//bool true - audioaccess
   //        amfreply.addContent(AMFType("", (double)1, 0x01));//bool true - videoaccess
   //        SendChunk(4, 20, next.msg_stream_id, amfreply.Pack());
-          RTMPStream::chunk_snd_max = 1024*1024;
+          RTMPStream::chunk_snd_max = 65536;//1024*1024;
           Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
           Connector_RTMP::ready4data = true;//start sending video data!
           parsed = true;

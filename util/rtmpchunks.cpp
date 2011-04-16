@@ -249,15 +249,17 @@ std::string RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned 
 bool RTMPStream::Chunk::Parse(std::string & indata){
   gettimeofday(&RTMPStream::lastrec, 0);
   unsigned int i = 0;
-  if (indata.size() < 3) return false;//need at least 3 bytes to continue
+  if (indata.size() < 1) return false;//need at least a byte
 
   unsigned char chunktype = indata[i++];
   //read the chunkstream ID properly
   switch (chunktype & 0x3F){
     case 0:
+      if (indata.size() < 2) return false;//need at least 2 bytes to continue
       cs_id = indata[i++] + 64;
       break;
     case 1:
+      if (indata.size() < 3) return false;//need at least 3 bytes to continue
       cs_id = indata[i++] + 64;
       cs_id += indata[i++] * 256;
       break;
@@ -265,7 +267,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       cs_id = chunktype & 0x3F;
       break;
   }
-
+  
   RTMPStream::Chunk prev = lastrecv[cs_id];
 
   //process the rest of the header, for each chunk type
@@ -336,7 +338,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
     timestamp += indata[i++]*256;
     timestamp += indata[i++];
   }
-
+  
   //read data if length > 0, and allocate it
   if (real_len > 0){
     if (prev.len_left > 0){
@@ -352,7 +354,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
     if (len_left == 0){
       return true;
     }else{
-      return false;
+      return Parse(indata);
     }
   }else{
     data = "";

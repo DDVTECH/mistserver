@@ -248,11 +248,6 @@ void Connector_RTMP::parseChunk(){
         fprintf(stderr, "Received AFM3 shared object\n");
         #endif
         break;
-      case 17:
-        #if DEBUG >= 4
-        fprintf(stderr, "Received AFM3 command message\n");
-        #endif
-        break;
       case 18:
         #if DEBUG >= 4
         fprintf(stderr, "Received AFM0 data message\n");
@@ -263,6 +258,10 @@ void Connector_RTMP::parseChunk(){
         fprintf(stderr, "Received AFM0 shared object\n");
         #endif
         break;
+      case 17:
+        #if DEBUG >= 4
+        fprintf(stderr, "Received AFM3 command message - parsing as AMF0!\n");
+        #endif
       case 20:{//AMF0 command message
         bool parsed = false;
         amfdata = AMF::parse(next.data);

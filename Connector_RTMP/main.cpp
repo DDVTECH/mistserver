@@ -298,7 +298,7 @@ void Connector_RTMP::parseChunk(){
           amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
           amfreply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));
           amfreply.getContentP(3)->addContent(AMF::Object("description", "Connection succeeded."));
-          amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", objencoding);
+          amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", objencoding));
           amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
           amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
           #if DEBUG >= 4

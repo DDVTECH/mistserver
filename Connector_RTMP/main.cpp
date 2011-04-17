@@ -161,6 +161,8 @@ void Connector_RTMP::parseChunk(){
   static std::string inbuffer;
   static AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
   static AMF::Object amfelem("empty", AMF::AMF0_DDV_CONTAINER);
+  static AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);
+  static AMF::Object3 amf3elem("empty", AMF::AMF3_DDV_CONTAINER);
   if (!Connector_RTMP::Socket.read(inbuffer)){return;} //try to get more data
 
   while (next.Parse(inbuffer)){
@@ -248,9 +250,18 @@ void Connector_RTMP::parseChunk(){
         fprintf(stderr, "Received AFM3 shared object\n");
         #endif
         break;
+      case 17:
+        #if DEBUG >= 4
+        fprintf(stderr, "Received AFM3 command message\n");
+        #endif
+        amf3data = AMF::parse3(next.data);
+        #if DEBUG >= 4
+        amf3data.Print();
+        #endif
+        break;
       case 18:
         #if DEBUG >= 4
-        fprintf(stderr, "Received AFM0 data message\n");
+        fprintf(stderr, "Received AFM0 data message (metadata)\n");
         #endif
         break;
       case 19:
@@ -258,10 +269,6 @@ void Connector_RTMP::parseChunk(){
         fprintf(stderr, "Received AFM0 shared object\n");
         #endif
         break;
-      case 17:
-        #if DEBUG >= 4
-        fprintf(stderr, "Received AFM3 command message - parsing as AMF0!\n");
-        #endif
       case 20:{//AMF0 command message
         bool parsed = false;
         amfdata = AMF::parse(next.data);

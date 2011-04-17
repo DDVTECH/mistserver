@@ -279,7 +279,7 @@ void Connector_RTMP::parseChunk(){
           #if DEBUG >= 4
           int tmpint;
           double objencoding = 0;
-          if (amfdata.getContentP(2)->getContentP("objectencoding")){
+          if (amfdata.getContentP(2)->getContentP("objectEncoding")){
             objencoding = amfdata.getContentP(2)->getContentP("objectEncoding")->NumValue();
           }
           tmpint = amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();

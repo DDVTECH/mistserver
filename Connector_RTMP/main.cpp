@@ -250,15 +250,162 @@ void Connector_RTMP::parseChunk(){
         fprintf(stderr, "Received AFM3 shared object\n");
         #endif
         break;
-      case 17:
+      case 17:{
+        bool parsed3 = false;
         #if DEBUG >= 4
         fprintf(stderr, "Received AFM3 command message\n");
         #endif
-        amf3data = AMF::parse3(next.data);
-        #if DEBUG >= 4
-        amf3data.Print();
-        #endif
-        break;
+        if (next.data[0] != 0){
+          next.data = next.data.substr(1);
+          amf3data = AMF::parse3(next.data);
+          #if DEBUG >= 4
+          amf3data.Print();
+          #endif
+        }else{
+          #if DEBUG >= 4
+          fprintf(stderr, "Received AFM3-0 command message\n");
+          #endif
+          next.data = next.data.substr(1);
+          amfdata = AMF::parse(next.data);
+          #if DEBUG >= 4
+          amfdata.Print();
+          #endif
+          if (amfdata.getContentP(0)->StrValue() == "connect"){
+            double objencoding = 0;
+            if (amfdata.getContentP(2)->getContentP("objectEncoding")){
+              objencoding = amfdata.getContentP(2)->getContentP("objectEncoding")->NumValue();
+            }
+            fprintf(stderr, "Object encoding set to %e\n", objencoding);
+            #if DEBUG >= 4
+            int tmpint;
+            tmpint = (int)amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
+            if (tmpint & 0x04){fprintf(stderr, "Sorensen video support detected\n");}
+            if (tmpint & 0x80){fprintf(stderr, "H264 video support detected\n");}
+            tmpint = (int)amfdata.getContentP(2)->getContentP("audioCodecs")->NumValue();
+            if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
+            if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
+            #endif
+            Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
+            Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+            //send a _result reply
+            AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "_result"));//result success
+            amfreply.addContent(amfdata.getContent(1));//same transaction ID
+            amfreply.addContent(AMF::Object(""));//server properties
+            amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,5,4,1004"));
+            amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)127));
+            amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
+            amfreply.addContent(AMF::Object(""));//info
+            amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+            amfreply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));
+            amfreply.getContentP(3)->addContent(AMF::Object("description", "Connection succeeded."));
+            amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", objencoding));
+            amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
+            amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
+            #if DEBUG >= 4
+            amfreply.Print();
+            #endif
+            Socket.write(RTMPStream::SendChunk(3, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
+            //send onBWDone packet - no clue what it is, but real server sends it...
+            amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "onBWDone"));//result
+            amfreply.addContent(AMF::Object("", (double)0));//zero
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null
+            Socket.write(RTMPStream::SendChunk(3, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
+            parsed3 = true;
+          }//connect
+          if (amfdata.getContentP(0)->StrValue() == "createStream"){
+            //send a _result reply
+            AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "_result"));//result success
+            amfreply.addContent(amfdata.getContent(1));//same transaction ID
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+            amfreply.addContent(AMF::Object("", (double)1));//stream ID - we use 1
+            #if DEBUG >= 4
+            amfreply.Print();
+            #endif
+            Socket.write(RTMPStream::SendChunk(3, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
+            Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+            parsed3 = true;
+          }//createStream
+          if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){
+            //send a _result reply
+            AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "_result"));//result success
+            amfreply.addContent(amfdata.getContent(1));//same transaction ID
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+            amfreply.addContent(AMF::Object("", (double)0));//zero length
+            #if DEBUG >= 4
+            amfreply.Print();
+            #endif
+            Socket.write(RTMPStream::SendChunk(3, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
+            parsed3 = true;
+          }//getStreamLength
+          if (amfdata.getContentP(0)->StrValue() == "checkBandwidth"){
+            //send a _result reply
+            AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "_result"));//result success
+            amfreply.addContent(amfdata.getContent(1));//same transaction ID
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+            #if DEBUG >= 4
+            amfreply.Print();
+            #endif
+            Socket.write(RTMPStream::SendChunk(3, 17, 1, (char)0+amfreply.Pack()));
+            parsed3 = true;
+          }//checkBandwidth
+          if ((amfdata.getContentP(0)->StrValue() == "play") || (amfdata.getContentP(0)->StrValue() == "play2")){
+            //send streambegin
+            streamname = amfdata.getContentP(3)->StrValue();
+            for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+              if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
+            }
+            streamname = "/tmp/shared_socket_" + streamname;
+            Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+            //send a status reply
+            AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "onStatus"));//status reply
+            amfreply.addContent(amfdata.getContent(1));//same transaction ID
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+            amfreply.addContent(AMF::Object(""));//info
+            amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+            amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Reset"));
+            amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing and resetting..."));
+            amfreply.getContentP(3)->addContent(AMF::Object("details", "PLS"));
+            amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1));
+            #if DEBUG >= 4
+            amfreply.Print();
+            #endif
+            Socket.write(RTMPStream::SendChunk(4, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
+            amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "onStatus"));//status reply
+            amfreply.addContent(amfdata.getContent(1));//same transaction ID
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+            amfreply.addContent(AMF::Object(""));//info
+            amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+            amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Start"));
+            amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
+            amfreply.getContentP(3)->addContent(AMF::Object("details", "PLS"));
+            amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1));
+            #if DEBUG >= 4
+            amfreply.Print();
+            #endif
+            Socket.write(RTMPStream::SendChunk(4, 17, 1, (char)0+amfreply.Pack()));
+            RTMPStream::chunk_snd_max = 65536;//1024*1024;
+            Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
+            Connector_RTMP::ready4data = true;//start sending video data!
+            parsed3 = true;
+          }//createStream
+          #if DEBUG >= 3
+          fprintf(stderr, "AMF0 command: %s\n", amfdata.getContentP(0)->StrValue().c_str());
+          #endif
+          if (!parsed3){
+            #if DEBUG >= 2
+            fprintf(stderr, "AMF0 command not processed! :(\n");
+            #endif
+          }
+        }//parsing AMF0-style
+        } break;
       case 18:
         #if DEBUG >= 4
         fprintf(stderr, "Received AFM0 data message (metadata)\n");
@@ -276,16 +423,17 @@ void Connector_RTMP::parseChunk(){
         amfdata.Print();
         #endif
         if (amfdata.getContentP(0)->StrValue() == "connect"){
-          #if DEBUG >= 4
-          int tmpint;
           double objencoding = 0;
           if (amfdata.getContentP(2)->getContentP("objectEncoding")){
             objencoding = amfdata.getContentP(2)->getContentP("objectEncoding")->NumValue();
           }
-          tmpint = amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
+          fprintf(stderr, "Object encoding set to %e\n", objencoding);
+          #if DEBUG >= 4
+          int tmpint;
+          tmpint = (int)amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
           if (tmpint & 0x04){fprintf(stderr, "Sorensen video support detected\n");}
           if (tmpint & 0x80){fprintf(stderr, "H264 video support detected\n");}
-          tmpint = amfdata.getContentP(2)->getContentP("audioCodecs")->NumValue();
+          tmpint = (int)amfdata.getContentP(2)->getContentP("audioCodecs")->NumValue();
           if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
           if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
           #endif

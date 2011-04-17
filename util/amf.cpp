@@ -606,7 +606,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
   unsigned int arrsize = 0;
   unsigned char tmpdbl[8];
   #if DEBUG >= 10
-  fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
+  fprintf(stderr, "Note: AMF3 type %hhx found. %i bytes left\n", data[i], len-i);
   #endif
   switch (data[i]){
     case AMF::AMF3_UNDEFINED:
@@ -759,11 +759,11 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
           }else{
             tmpi = (tmpi | (data[i+3] & 0x7F)) << 8;//strip the upper bit, shift 7 up.
             tmpi |= data[i+4];
+            tmpi = (tmpi << 3) >> 3;//fix sign bit
             i+=5;
           }
         }
       }
-      tmpi = (tmpi << 3) >> 3;//fix sign bit
       if ((tmpi & 1) == 0){
         return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_BYTES);//reference type
       }

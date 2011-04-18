@@ -128,12 +128,11 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 }
 
 /// Attempt to read a whole HTTP request or response from DDV::Socket sock.
+/// \param sock The socket to use.
+/// \param nonblock When true, will not block even if the socket is blocking.
 /// \return True of a whole request or response was read, false otherwise.
-bool HTTP::Parser::Read(DDV::Socket & sock){
-  //returned true als hele http packet gelezen is
-  int r = 0;
-  int b = 0;
-  char buffer[500];
+bool HTTP::Parser::Read(DDV::Socket & sock, bool nonblock){
+  if (nonblock && (sock.ready() < 1)){return parse();}
   sock.read(HTTPbuffer);
   return parse();
 }//HTTPReader::ReadSocket

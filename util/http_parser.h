@@ -14,7 +14,7 @@ namespace HTTP{
   class Parser{
     public:
       Parser();
-      bool Read(DDV::Socket & sock);
+      bool Read(DDV::Socket & sock, bool nonblock = true);
       bool Read(FILE * F);
       std::string GetHeader(std::string i);
       std::string GetVar(std::string i);

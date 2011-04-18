@@ -134,20 +134,8 @@ bool HTTP::Parser::Read(DDV::Socket & sock){
   int r = 0;
   int b = 0;
   char buffer[500];
-  while (true){
-    r = sock.ready();
-    if (r < 1){
-      if (r == -1){
-        #if DEBUG >= 1
-        fprintf(stderr, "User socket is disconnected.\n");
-        #endif
-      }
-      return parse();
-    }
-    b = sock.iread(buffer, 500);
-    HTTPbuffer.append(buffer, b);
-  }
-  return false;
+  sock.read(HTTPbuffer);
+  return parse();
 }//HTTPReader::ReadSocket
 
 /// Reads a full set of HTTP responses/requests from file F.

@@ -106,21 +106,16 @@ bool DDV::Socket::connected(){
 /// \returns True if the whole write was succesfull, false otherwise.
 bool DDV::Socket::write(const void * buffer, int len){
   int sofar = 0;
-  Blocking = false;
+  if (sock < 0){return false;}
   while (sofar != len){
     int r = send(sock, (char*)buffer + sofar, len-sofar, 0);
     if (r <= 0){
-      switch (errno){
-        case EWOULDBLOCK: Blocking = true; break;
-        default:
-          Error = true;
-          #if DEBUG >= 2
-          fprintf(stderr, "Could not write data! Error: %s\n", strerror(errno));
-          #endif
-          close();
-          return false;
-          break;
-      }
+      Error = true;
+      #if DEBUG >= 2
+      fprintf(stderr, "Could not write data! Error: %s\n", strerror(errno));
+      #endif
+      close();
+      return false;
     }else{
       sofar += r;
     }
@@ -137,21 +132,16 @@ bool DDV::Socket::write(const void * buffer, int len){
 /// \returns True if the whole read was succesfull, false otherwise.
 bool DDV::Socket::read(void * buffer, int len){
   int sofar = 0;
-  Blocking = false;
+  if (sock < 0){return false;}
   while (sofar != len){
     int r = recv(sock, (char*)buffer + sofar, len-sofar, 0);
     if (r <= 0){
-      switch (errno){
-        case EWOULDBLOCK: Blocking = true; break;
-        default:
-          Error = true;
-          #if DEBUG >= 2
-          fprintf(stderr, "Could not read data! Error: %s\n", strerror(errno));
-          #endif
-          close();
-          return false;
-          break;
-      }
+      Error = true;
+      #if DEBUG >= 2
+      fprintf(stderr, "Could not read data! Error: %s\n", strerror(errno));
+      #endif
+      close();
+      return false;
     }else{
       sofar += r;
     }

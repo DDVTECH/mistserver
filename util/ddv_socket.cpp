@@ -211,12 +211,14 @@ int DDV::Socket::iread(void * buffer, int len){
 /// \return True if new data arrived, false otherwise.
 bool DDV::Socket::read(std::string & buffer){
   char cbuffer[5000];
-  int num = iread(cbuffer, 5000);
+  if (!read(cbuffer, 1)){return false;}
+  int num = iread(cbuffer+1, 4999);
   if (num > 0){
-    buffer.append(cbuffer, num);
-    return true;
+    buffer.append(cbuffer, num+1);
+  }else{
+    buffer.append(cbuffer, 1);
   }
-  return false;
+  return true;
 }//read
 
 /// Create a new base ServerSocket. The socket is never connected, and a placeholder for later connections.

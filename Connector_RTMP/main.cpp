@@ -50,7 +50,7 @@ int Connector_RTMP::Connector_RTMP(DDV::Socket conn){
   //first timestamp set
   RTMPStream::firsttime = RTMPStream::getNowMS();
 
-  while (RTMPStream::handshake_in.size() < 1537){
+  while (Socket.connected() && (RTMPStream::handshake_in.size() < 1537)){
     Socket.read(RTMPStream::handshake_in);
   }
   RTMPStream::rec_cnt += 1537;

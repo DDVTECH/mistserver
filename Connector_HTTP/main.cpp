@@ -160,7 +160,7 @@ namespace Connector_HTTP{
 
     while (conn.connected() && !FLV::Parse_Error){
       //only parse input if available or not yet init'ed
-      if (HTTP_R.Read(conn)){
+      if (HTTP_R.Read(conn, ready4data)){
         handler = HANDLER_PROGRESSIVE;
         if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
         if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
@@ -174,7 +174,7 @@ namespace Connector_HTTP{
           printf("Sending crossdomain.xml file\n");
           #endif
         }
-        if(handler == HANDLER_FLASH){
+        if (handler == HANDLER_FLASH){
           if (HTTP_R.url.find("f4m") == std::string::npos){
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));

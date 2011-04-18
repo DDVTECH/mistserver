@@ -8,7 +8,6 @@
 #include <sys/time.h>
 #include <string>
 #include <arpa/inet.h>
-#define DEBUG 4
 
 /// Contains all functions and classes needed for RTMP connections.
 namespace RTMPStream{

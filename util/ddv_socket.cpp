@@ -176,6 +176,7 @@ int DDV::Socket::iwrite(void * buffer, int len){
         break;
     }
   }
+  if (r == 0){close();}
   return r;
 }//DDV::Socket::iwrite
 
@@ -199,6 +200,7 @@ int DDV::Socket::iread(void * buffer, int len){
         break;
     }
   }
+  if (r == 0){close();}
   return r;
 }//DDV::Socket::iread
 

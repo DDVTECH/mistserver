@@ -12,6 +12,12 @@ client-clean:
 	cd Connector_RAW; $(MAKE) clean
 	cd Buffer; $(MAKE) clean
 clean: client-clean
+client-release: client-clean
+	cd Connector_HTTP; $(MAKE) DEBUG=0 OPTIMIZE=-O2
+	cd Connector_RTMP; $(MAKE) DEBUG=0 OPTIMIZE=-O2
+	cd Connector_RAW; $(MAKE) DEBUG=0 OPTIMIZE=-O2
+	cd Buffer; $(MAKE) DEBUG=0 OPTIMIZE=-O2
+release: client-release
 client-install: client-clean client
 	cd Connector_RTMP; $(MAKE) install
 	cd Connector_HTTP; $(MAKE) install

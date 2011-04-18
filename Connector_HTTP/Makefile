@@ -2,7 +2,9 @@ SRC = main.cpp ../util/ddv_socket.cpp ../util/http_parser.cpp ../util/flv_tag.cp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_HTTP
 INCLUDES = 
-CCFLAGS = -Wall -Wextra -funsigned-char -g
+DEBUG = 4
+OPTIMIZE = -g
+CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar

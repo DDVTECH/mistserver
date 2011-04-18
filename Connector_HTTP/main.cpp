@@ -1,14 +1,6 @@
 /// \file Connector_HTTP/main.cpp
 /// Contains the main code for the HTTP Connector
 
-/// Sets the global debugging level.
-// debugging level 0 = nothing
-// debugging level 1 = critical errors
-// debugging level 2 = errors
-// debugging level 3 = status information
-// debugging level 4 = extremely verbose status information
-#define DEBUG 4
-
 #include <iostream>
 #include <queue>
 #include <cstdlib>

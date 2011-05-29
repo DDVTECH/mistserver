@@ -6,16 +6,17 @@
 #include <cstdio>
 #include <stdlib.h>
 #include <string>
+#include <vector>
 
 class GB_Client {
   public:
-    GB_Client(  )
-    ~GB_Client( )
+    GB_Client( );
+    ~GB_Client( );
     void Parse_Config( );
   private:
-    char * ReadConfig( FILE * File, int & BufSize );
+    std::string ReadConfig( FILE * File );
+    void Parse( );
     std::string MyName;
-    char * ConfigFile;
-    int ConfigFileSize;
+    std::string ConfigFile;
 };//GB_Client
 

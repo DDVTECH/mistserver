@@ -1,4 +1,4 @@
-SRC = main.cpp
+SRC = main.cpp gb_client.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Gearbox_Client
 INCLUDES = 

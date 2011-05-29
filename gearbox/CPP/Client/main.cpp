@@ -8,6 +8,9 @@
 ///\param File the file to read from
 ///\param BufSize An integer to store the buffersize in 
 
+#include "gb_client.h"
+
 int main( ) {
+  GB_Client bla;
   return 0;
 }

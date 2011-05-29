@@ -14,6 +14,12 @@ void GB_Client::Parse_Config( ) {
     fclose( TempFile );
     Parse( );
     printf( "MyName = %s\n", MyName.c_str( ) );
+    for( unsigned int i = 0; i < StreamNames.size( ); i++ ) {
+      printf( "Stream %d: %s\n", i, StreamNames[i].c_str() );
+      printf( "\tName: %s\n", Streams[i].Name.c_str() );
+      printf( "\tInput: %s\n", Streams[i].Input.c_str() );
+      printf( "\tPreset: %s\n", Streams[i].Preset.c_str() );
+    }
   }
 }
 
@@ -44,14 +50,35 @@ void GB_Client::Parse( ) {
   TempPos2 = ConfigFile.find( "\"\n", TempPos1 );
   Length = TempPos2 - TempPos1;
   TempStr = ConfigFile.substr(TempPos1,Length);
-  printf( "Server_MyName = %s\n", TempStr.c_str() );
-  int i=0;
+  unsigned int i=0;
   while( TempStr.find( ' ', i) != std::string::npos ) {
     StreamNames.push_back( TempStr.substr( i, TempStr.find( ' ', i ) - i ) );
     i = TempStr.find( ' ' ) + 1;
   }
   StreamNames.push_back( TempStr.substr( i ) );
-  for( int i = 0; i < StreamNames.size( ); i++ ) {
-    printf( "Stream %d: %s\n", i+1, StreamNames[i].c_str( ) );
+  for( i = 0; i < StreamNames.size( ); i++ ) {
+    Streams.push_back( ParseStreamConfig( StreamNames[i] ) );
   }
+}
+
+
+Stream GB_Client::ParseStreamConfig( std::string StreamName ) {
+  Stream Result;
+  int TempPos1 = ConfigFile.find( "(", ConfigFile.find( "config_" + MyName + "_" + StreamName ) ) + 1;
+  int TempPos2 = ConfigFile.find( ")", TempPos1 );
+  int Length = TempPos2 - TempPos1;
+  std::string TempStr = ConfigFile.substr( TempPos1, Length ) + "\n";
+  TempPos1 = TempStr.find( '=', TempStr.find( "NAME" ) ) + 1;
+  TempPos2 = TempStr.find_first_of( " \n", TempPos1 );
+  Length = TempPos2 - TempPos1;
+  Result.Name = TempStr.substr(TempPos1, Length);
+  TempPos1 = TempStr.find( '=', TempStr.find( "INPUT" ) ) + 1;
+  TempPos2 = TempStr.find_first_of( " \n", TempPos1 );
+  Length = TempPos2 - TempPos1;
+  Result.Input = TempStr.substr(TempPos1, Length);
+  TempPos1 = TempStr.find( '=', TempStr.find( "PRESET" ) ) + 1;
+  TempPos2 = TempStr.find_first_of( " \n", TempPos1 );
+  Length = TempPos2 - TempPos1;
+  Result.Preset = TempStr.substr(TempPos1, Length);
+  return Result;
 }

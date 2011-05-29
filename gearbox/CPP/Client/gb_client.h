@@ -17,6 +17,7 @@ class GB_Client {
     void Parse_Config( );
   private:
     std::string ReadConfig( FILE * File );
+    Stream ParseStreamConfig( std::string StreamName );
     void Parse( );
     std::string MyName;
     std::vector<std::string> StreamNames;

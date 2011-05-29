@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "stream.h"
+
 class GB_Client {
   public:
     GB_Client( );
@@ -17,6 +19,7 @@ class GB_Client {
     std::string ReadConfig( FILE * File );
     void Parse( );
     std::string MyName;
+    std::vector<Stream> Streams;
     std::string ConfigFile;
 };//GB_Client
 

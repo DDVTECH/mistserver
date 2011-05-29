@@ -35,8 +35,23 @@ void GB_Client::Parse( ) {
   int TempPos1;
   int TempPos2;
   int Length;
+  std::string TempStr;
   TempPos1 = ConfigFile.find( '=' , ConfigFile.find( "myname" ) ) + 1;
   TempPos2 = ConfigFile.find( '\n', TempPos1 );
   Length = TempPos2 - TempPos1;
   MyName = ConfigFile.substr(TempPos1,Length);
+  TempPos1 = ConfigFile.find( '\"' , ConfigFile.find( "server_" + MyName ) ) + 1;
+  TempPos2 = ConfigFile.find( "\"\n", TempPos1 );
+  Length = TempPos2 - TempPos1;
+  TempStr = ConfigFile.substr(TempPos1,Length);
+  printf( "Server_MyName = %s\n", TempStr.c_str() );
+  int i=0;
+  while( TempStr.find( ' ', i) != std::string::npos ) {
+    StreamNames.push_back( TempStr.substr( i, TempStr.find( ' ', i ) - i ) );
+    i = TempStr.find( ' ' ) + 1;
+  }
+  StreamNames.push_back( TempStr.substr( i ) );
+  for( int i = 0; i < StreamNames.size( ); i++ ) {
+    printf( "Stream %d: %s\n", i+1, StreamNames[i].c_str( ) );
+  }
 }

@@ -98,8 +98,23 @@ void GB_Client::Run( ) {
   for( int i = 0; i < To_Stop.size(); i++ ) {
     printf( "\t%s\n", To_Stop[i].c_str() );
   }
+  Calculate_Start( );
+  printf( "Starting Streams:\n" );
+  for( int i = 0; i < To_Start.size(); i++ ) {
+    printf( "\t%s\n", To_Start[i].c_str() );
+  }
+  Stop_Streams( );
 }
 
+
+void GB_Client::Calculate_Start( ) {
+  To_Start = StreamNames;
+  for( std::vector<std::string>::iterator i = To_Start.end()-1; i >= To_Start.begin(); --i ) {
+    for( std::vector< std::pair<int,std::string> >::iterator it = Running_Streams.begin(); it != Running_Streams.end(); ++it ) {
+      if( (*i) == (*it).second ) { To_Start.erase( i ); break; }
+    }
+  }
+}
 
 void GB_Client::Calculate_Stop( ) {
   std::vector<std::string>::iterator it;
@@ -109,6 +124,20 @@ void GB_Client::Calculate_Stop( ) {
   for( std::vector<std::string>::iterator i = To_Stop.end()-1; i >= To_Stop.begin(); --i ) {
     it = std::find( StreamNames.begin(), StreamNames.end(), (*i) );
     if( it != StreamNames.end() ) { To_Stop.erase( i ); }
+  }
+}
+
+void GB_Client::Stop_Streams( ) {
+  for( unsigned int i = 0; i < To_Stop.size(); i++ ) {
+    Stop_Single_Stream( To_Stop[i] );
+  }
+}
+
+void GB_Client::Stop_Single_Stream( std::string Subject ) {
+  for( unsigned int i = 0; i < Running_Streams.size( ); i++ ) {
+    if( Running_Streams[i].second == Subject ) {
+      system( "kill -9 " + Running_Streams[i].first );
+    }
   }
 }
 

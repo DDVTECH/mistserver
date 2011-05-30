@@ -24,6 +24,9 @@ class GB_Client {
     void Parse( );
     void Calculate_Running( );
     void Calculate_Stop( );
+    void Calculate_Start( );
+    void Stop_Streams( );
+    void Stop_Single_Stream( std::string Subject );
 
     std::string GetSubstring( std::string Subject, std::string Target, std::string FirstDelim = "=", std::string SecondDelim = "\n" );
     Limit ParseLimit( std::string Subject );

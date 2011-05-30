@@ -7,24 +7,26 @@ GB_Client::GB_Client( ) {
 GB_Client::~GB_Client( ) {
 }
 
+void GB_Client::PrintConfig( ) {
+  printf( "MyName = %s\n", MyName.c_str( ) );
+  printf( "Limits:\n" );
+  printf( "\tMax_Users: %d\n", GlobalLimit.Max_Users );
+  printf( "\tMax_Bw: %d\n", GlobalLimit.Max_Bw );
+  for( unsigned int i = 0; i < StreamNames.size( ); i++ ) {
+    printf( "Stream %d: %s\n", i, StreamNames[i].c_str() );
+    printf( "\tName: %s\n", Streams[i].Name.c_str() );
+    printf( "\tInput: %s\n", Streams[i].Input.c_str() );
+    printf( "\tPreset: %s\n", Streams[i].Preset.c_str() );
+    printf( "\tMax_Users: %d\n", StreamLimits[i].Max_Users );
+    printf( "\tMax_Bw: %d\n", StreamLimits[i].Max_Bw );
+  }
+}
 void GB_Client::Parse_Config( ) {
   FILE * TempFile = fopen( "./config.sh", "r");
   if( TempFile ) {
     ConfigFile = ReadConfig( TempFile );
     fclose( TempFile );
     Parse( );
-    printf( "MyName = %s\n", MyName.c_str( ) );
-    printf( "Limits:\n" );
-    printf( "\tMax_Users: %d\n", GlobalLimit.Max_Users );
-    printf( "\tMax_Bw: %d\n", GlobalLimit.Max_Bw );
-    for( unsigned int i = 0; i < StreamNames.size( ); i++ ) {
-      printf( "Stream %d: %s\n", i, StreamNames[i].c_str() );
-      printf( "\tName: %s\n", Streams[i].Name.c_str() );
-      printf( "\tInput: %s\n", Streams[i].Input.c_str() );
-      printf( "\tPreset: %s\n", Streams[i].Preset.c_str() );
-      printf( "\tMax_Users: %d\n", StreamLimits[i].Max_Users );
-      printf( "\tMax_Bw: %d\n", StreamLimits[i].Max_Bw );
-    }
   }
 }
 
@@ -85,5 +87,56 @@ Stream GB_Client::ParseStreamConfig( std::string StreamName ) {
   Result.Name = GetSubstring( TempStr, "NAME", "=", " \n" );
   Result.Input = GetSubstring( TempStr, "INPUT", "=", " \n" );
   Result.Preset = GetSubstring( TempStr, "PRESET", "=", " \n" );
+  return Result;
+}
+
+
+void GB_Client::Run( ) {
+  Calculate_Running( );
+  Calculate_Stop( );
+  printf( "Stopping Streams:\n" );
+  for( int i = 0; i < To_Stop.size(); i++ ) {
+    printf( "\t%s\n", To_Stop[i].c_str() );
+  }
+}
+
+
+void GB_Client::Calculate_Stop( ) {
+  std::vector<std::string>::iterator it;
+  for( unsigned int i = 0; i < Running_Streams.size(); i++ ) {
+    To_Stop.push_back( Running_Streams[i].second );
+  }
+  for( std::vector<std::string>::iterator i = To_Stop.end()-1; i >= To_Stop.begin(); --i ) {
+    it = std::find( StreamNames.begin(), StreamNames.end(), (*i) );
+    if( it != StreamNames.end() ) { To_Stop.erase( i ); }
+  }
+}
+
+void GB_Client::Calculate_Running( ) {
+  system( "pidof DDV_Buffer > ./.tmpfile" );
+  system( "for i in `cat ./.tmpfile`; do echo -n \"${i}:\"; ps -p $i h -o args; done > ./.tmpfile2" );
+  std::string Result = FileToString( "./.tmpfile2" );
+  std::string TempStr;
+  std::pair<int,std::string> TempPair;
+  int i = 0;
+  while( Result.find( '\n', i) != std::string::npos ) {
+    TempStr = Result.substr( i, ( Result.find( '\n', i ) - i ) );
+    TempPair.first = atoi( TempStr.substr( 0, TempStr.find( ':' ) ).c_str() );
+    TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
+    if( TempPair.first != 0 ) { Running_Streams.push_back( TempPair ); }
+    i = Result.find( '\n', i) + 1;
+  }
+  TempStr = Result.substr( i );
+  TempPair.first = atoi( TempStr.substr( 0, TempStr.find( ':' ) ).c_str() );
+  TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
+  if( TempPair.first != 0 ) { Running_Streams.push_back( TempPair ); }
+}
+
+std::string GB_Client::FileToString( std::string FileName ) {
+  std::ifstream Input;
+  std::string Result;
+  Input.open( FileName.c_str() );
+  while( Input.good() ) { Result += Input.get(); }
+  Input.close( );
   return Result;
 }

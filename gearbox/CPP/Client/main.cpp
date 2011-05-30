@@ -12,5 +12,7 @@
 
 int main( ) {
   GB_Client bla;
+  bla.PrintConfig( );
+  bla.Run( );
   return 0;
 }

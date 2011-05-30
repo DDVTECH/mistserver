@@ -93,26 +93,19 @@ Stream GB_Client::ParseStreamConfig( std::string StreamName ) {
 
 void GB_Client::Run( ) {
   Calculate_Running( );
-  printf( "Runing calced\n" );
   Calculate_Stop( );
-  printf( "Stopping Streams:\n" );
-  for( int i = 0; i < To_Stop.size(); i++ ) {
-    printf( "\t%s\n", To_Stop[i].c_str() );
-  }
   Calculate_Start( );
-  printf( "Starting Streams:\n" );
-  for( int i = 0; i < To_Start.size(); i++ ) {
-    printf( "\t%s\n", To_Start[i].c_str() );
-  }
   Stop_Streams( );
 }
 
 
 void GB_Client::Calculate_Start( ) {
   To_Start = StreamNames;
-  for( std::vector<std::string>::iterator i = To_Start.end()-1; i >= To_Start.begin(); --i ) {
-    for( std::vector< std::pair<std::string,std::string> >::iterator it = Running_Streams.begin(); it != Running_Streams.end(); ++it ) {
-      if( (*i) == (*it).second ) { To_Start.erase( i ); break; }
+  if( To_Start.end() != To_Start.begin() ) {
+    for( std::vector<std::string>::iterator i = To_Start.end()-1; i >= To_Start.begin(); --i ) {
+      for( std::vector< std::pair<std::string,std::string> >::iterator it = Running_Streams.begin(); it != Running_Streams.end(); ++it ) {
+        if( (*i) == (*it).second ) { To_Start.erase( i ); break; }
+      }
     }
   }
 }
@@ -122,9 +115,11 @@ void GB_Client::Calculate_Stop( ) {
   for( unsigned int i = 0; i < Running_Streams.size(); i++ ) {
     To_Stop.push_back( Running_Streams[i].second );
   }
-  for( std::vector<std::string>::iterator i = To_Stop.end()-1; i >= To_Stop.begin(); --i ) {
-    it = std::find( StreamNames.begin(), StreamNames.end(), (*i) );
-    if( it != StreamNames.end() ) { To_Stop.erase( i ); }
+  if( To_Stop.end() != To_Stop.begin() ) {
+    for( std::vector<std::string>::iterator i = To_Stop.end()-1; i >= To_Stop.begin(); --i ) {
+      it = std::find( StreamNames.begin(), StreamNames.end(), (*i) );
+      if( it != StreamNames.end() ) { To_Stop.erase( i ); }
+    }
   }
 }
 
@@ -137,7 +132,6 @@ void GB_Client::Stop_Streams( ) {
 void GB_Client::Stop_Single_Stream( std::string Subject ) {
   for( unsigned int i = 0; i < Running_Streams.size( ); i++ ) {
     if( Running_Streams[i].second == Subject ) {
-      printf( "Running Command: kill -9 %s\n", Running_Streams[i].first.c_str() );
       system( ("kill -9 " + Running_Streams[i].first).c_str() );
     }
   }
@@ -151,26 +145,19 @@ void GB_Client::Calculate_Running( ) {
   std::string TempStr;
   std::pair<std::string,std::string> TempPair;
   int i = 0;
-  printf( "Before while\n" );
-  printf( "\t\t%s\n", Result.c_str( ) );
-  printf( "%d\n", Result.find( '\n', i ) == std::string::npos );
   while( Result.find( '\n', i) != std::string::npos ) {
     TempStr = Result.substr( i, ( Result.find( '\n', i ) - i ) );
     TempPair.first = TempStr.substr( 0, TempStr.find( ':' ) );
     TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
-    printf( "<%s,%s>\n", TempPair.first.c_str(), TempPair.second.c_str() );
     if( atoi( TempPair.first.c_str() ) != 0 ) { Running_Streams.push_back( TempPair ); }
     i = Result.find( '\n', i) + 1;
   }
-  printf( "After while\n" );
   TempStr = Result.substr( i );
   TempPair.first = TempStr.substr( 0, TempStr.find( ':' ) );
   if ( TempPair.first != "" ) {
     TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
     Running_Streams.push_back( TempPair );
   }
-  printf( "After bla\n" );
-  
 }
 
 std::string GB_Client::FileToString( std::string FileName ) {

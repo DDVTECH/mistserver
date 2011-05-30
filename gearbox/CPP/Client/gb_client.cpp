@@ -98,6 +98,29 @@ void GB_Client::Run( ) {
   Stop_Streams( );
 }
 
+void GB_Client::Start_Streams( ) {
+  std::string TempCommand;
+  std::string Input;
+  Stream Config;
+  for( std::vector<std::string>::iterator it = To_Start.begin(), it != To_Start.end(); ++it ) {
+    for( int i = 0; i < StreamNames.size(); i++ ) {
+      if( (*it) == StreamNames[i] ) { Config = Streams[i]; }
+    }
+    TempCommand = "";
+    if( Config.Input.substr(0,7) == "file://" ) {
+      Input = Config.Input.substr(7);
+      if( Config.Preset == "raw" ) {
+        TempCommand += "cat " + Input + " | ";
+      } else if ( Config.Preset == "copy" ) {
+        TempCommand += "ffmpeg -re -async 2 -i " + Input + " -acodec copy -vcodec copy -f flv - 2> /dev/null | ";
+      } else if ( Config.Preset == "h264high" ) {
+        TempCommand += "ffmpeg -i " + Input + " -re -acodec libfaac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null | "
+      } else {
+        TempCommand += "ffmpeg -i " + Input + " -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null | "
+      }
+    }
+  }
+}
 
 void GB_Client::Calculate_Start( ) {
   To_Start = StreamNames;

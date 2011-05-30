@@ -93,6 +93,7 @@ Stream GB_Client::ParseStreamConfig( std::string StreamName ) {
 
 void GB_Client::Run( ) {
   Calculate_Running( );
+  printf( "Runing calced\n" );
   Calculate_Stop( );
   printf( "Stopping Streams:\n" );
   for( int i = 0; i < To_Stop.size(); i++ ) {
@@ -146,20 +147,30 @@ void GB_Client::Calculate_Running( ) {
   system( "pidof DDV_Buffer > ./.tmpfile" );
   system( "for i in `cat ./.tmpfile`; do echo -n \"${i}:\"; ps -p $i h -o args; done > ./.tmpfile2" );
   std::string Result = FileToString( "./.tmpfile2" );
+  Result = Result.substr( 0, Result.size()-1 );
   std::string TempStr;
   std::pair<std::string,std::string> TempPair;
   int i = 0;
+  printf( "Before while\n" );
+  printf( "\t\t%s\n", Result.c_str( ) );
+  printf( "%d\n", Result.find( '\n', i ) == std::string::npos );
   while( Result.find( '\n', i) != std::string::npos ) {
     TempStr = Result.substr( i, ( Result.find( '\n', i ) - i ) );
     TempPair.first = TempStr.substr( 0, TempStr.find( ':' ) );
     TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
+    printf( "<%s,%s>\n", TempPair.first.c_str(), TempPair.second.c_str() );
     if( atoi( TempPair.first.c_str() ) != 0 ) { Running_Streams.push_back( TempPair ); }
     i = Result.find( '\n', i) + 1;
   }
+  printf( "After while\n" );
   TempStr = Result.substr( i );
   TempPair.first = TempStr.substr( 0, TempStr.find( ':' ) );
-  TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
-  if( atoi( TempPair.first.c_str() ) != 0 ) { Running_Streams.push_back( TempPair ); }
+  if ( TempPair.first != "" ) {
+    TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
+    Running_Streams.push_back( TempPair );
+  }
+  printf( "After bla\n" );
+  
 }
 
 std::string GB_Client::FileToString( std::string FileName ) {

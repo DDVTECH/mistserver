@@ -110,7 +110,7 @@ void GB_Client::Run( ) {
 void GB_Client::Calculate_Start( ) {
   To_Start = StreamNames;
   for( std::vector<std::string>::iterator i = To_Start.end()-1; i >= To_Start.begin(); --i ) {
-    for( std::vector< std::pair<int,std::string> >::iterator it = Running_Streams.begin(); it != Running_Streams.end(); ++it ) {
+    for( std::vector< std::pair<std::string,std::string> >::iterator it = Running_Streams.begin(); it != Running_Streams.end(); ++it ) {
       if( (*i) == (*it).second ) { To_Start.erase( i ); break; }
     }
   }
@@ -136,7 +136,8 @@ void GB_Client::Stop_Streams( ) {
 void GB_Client::Stop_Single_Stream( std::string Subject ) {
   for( unsigned int i = 0; i < Running_Streams.size( ); i++ ) {
     if( Running_Streams[i].second == Subject ) {
-      system( "kill -9 " + Running_Streams[i].first );
+      printf( "Running Command: kill -9 %s\n", Running_Streams[i].first.c_str() );
+      system( ("kill -9 " + Running_Streams[i].first).c_str() );
     }
   }
 }
@@ -146,19 +147,19 @@ void GB_Client::Calculate_Running( ) {
   system( "for i in `cat ./.tmpfile`; do echo -n \"${i}:\"; ps -p $i h -o args; done > ./.tmpfile2" );
   std::string Result = FileToString( "./.tmpfile2" );
   std::string TempStr;
-  std::pair<int,std::string> TempPair;
+  std::pair<std::string,std::string> TempPair;
   int i = 0;
   while( Result.find( '\n', i) != std::string::npos ) {
     TempStr = Result.substr( i, ( Result.find( '\n', i ) - i ) );
-    TempPair.first = atoi( TempStr.substr( 0, TempStr.find( ':' ) ).c_str() );
+    TempPair.first = TempStr.substr( 0, TempStr.find( ':' ) );
     TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
-    if( TempPair.first != 0 ) { Running_Streams.push_back( TempPair ); }
+    if( atoi( TempPair.first.c_str() ) != 0 ) { Running_Streams.push_back( TempPair ); }
     i = Result.find( '\n', i) + 1;
   }
   TempStr = Result.substr( i );
-  TempPair.first = atoi( TempStr.substr( 0, TempStr.find( ':' ) ).c_str() );
+  TempPair.first = TempStr.substr( 0, TempStr.find( ':' ) );
   TempPair.second = TempStr.substr( TempStr.rfind( ' ' ) + 1 );
-  if( TempPair.first != 0 ) { Running_Streams.push_back( TempPair ); }
+  if( atoi( TempPair.first.c_str() ) != 0 ) { Running_Streams.push_back( TempPair ); }
 }
 
 std::string GB_Client::FileToString( std::string FileName ) {

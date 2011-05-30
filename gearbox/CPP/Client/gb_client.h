@@ -41,7 +41,7 @@ class GB_Client {
     std::vector<Limit> StreamLimits;
     std::string ConfigFile;
 ///Run Variables
-    std::vector< std::pair<int,std::string> > Running_Streams;
+    std::vector< std::pair<std::string,std::string> > Running_Streams;
     std::vector<std::string> To_Stop;
     std::vector<std::string> To_Start;
 };//GB_Client

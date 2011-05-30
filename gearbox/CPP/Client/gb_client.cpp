@@ -118,7 +118,21 @@ void GB_Client::Start_Streams( ) {
       } else {
         TempCommand += "ffmpeg -i " + Input + " -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null | "
       }
+    } else if( Config.Input.substr(0,6) == "raw://" ) {
+      printf( "Not yet implemented\n" );
+    } else {
+      if( Config.Preset == "raw" ) {
+        TempCommand += "wget -q -O - " + Input + " | ";
+      } else if( Config.Preset == "copy" ) {
+        TempCommand += "ffmpeg -re -async 2 -i " + Input + " -acodec copy -vcodec copy -f flv - 2> /dev/null | ";
+      } else if( Config.Preset == "h264high" ) {
+        TempCommand += "ffmpeg -i " + Input + " -re -acodec libfaac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null | ";
+      } else {
+        TempCommand += "ffmpeg -i " + Input + " -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null | ";
+      }
     }
+    TempCommand += "DDV_Buffer 500 " + Config.Name + " 2> /dev/null";
+    system( TempCommand.c_str() );
   }
 }
 

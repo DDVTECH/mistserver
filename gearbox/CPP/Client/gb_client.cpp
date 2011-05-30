@@ -14,11 +14,16 @@ void GB_Client::Parse_Config( ) {
     fclose( TempFile );
     Parse( );
     printf( "MyName = %s\n", MyName.c_str( ) );
+    printf( "Limits:\n" );
+    printf( "\tMax_Users: %d\n", GlobalLimit.Max_Users );
+    printf( "\tMax_Bw: %d\n", GlobalLimit.Max_Bw );
     for( unsigned int i = 0; i < StreamNames.size( ); i++ ) {
       printf( "Stream %d: %s\n", i, StreamNames[i].c_str() );
       printf( "\tName: %s\n", Streams[i].Name.c_str() );
       printf( "\tInput: %s\n", Streams[i].Input.c_str() );
       printf( "\tPreset: %s\n", Streams[i].Preset.c_str() );
+      printf( "\tMax_Users: %d\n", StreamLimits[i].Max_Users );
+      printf( "\tMax_Bw: %d\n", StreamLimits[i].Max_Bw );
     }
   }
 }
@@ -37,19 +42,18 @@ std::string GB_Client::ReadConfig( FILE * File ) {
   return Result;
 }
 
+std::string GB_Client::GetSubstring( std::string Subject, std::string Target, std::string FirstDelim, std::string SecondDelim ) {
+  int Pos1,Pos2;
+  Pos1 = Subject.find( FirstDelim, Subject.find( Target ) ) + FirstDelim.length( );
+  Pos2 = Subject.find_first_of( SecondDelim, Pos1 );
+  return Subject.substr(Pos1, (Pos2-Pos1) );
+}
+
 void GB_Client::Parse( ) {
-  int TempPos1;
-  int TempPos2;
-  int Length;
   std::string TempStr;
-  TempPos1 = ConfigFile.find( '=' , ConfigFile.find( "myname" ) ) + 1;
-  TempPos2 = ConfigFile.find( '\n', TempPos1 );
-  Length = TempPos2 - TempPos1;
-  MyName = ConfigFile.substr(TempPos1,Length);
-  TempPos1 = ConfigFile.find( '\"' , ConfigFile.find( "server_" + MyName ) ) + 1;
-  TempPos2 = ConfigFile.find( "\"\n", TempPos1 );
-  Length = TempPos2 - TempPos1;
-  TempStr = ConfigFile.substr(TempPos1,Length);
+
+  MyName = GetSubstring( ConfigFile, "myname" );
+  TempStr = GetSubstring( ConfigFile, "server_" + MyName, "\"", "\"" );
   unsigned int i=0;
   while( TempStr.find( ' ', i) != std::string::npos ) {
     StreamNames.push_back( TempStr.substr( i, TempStr.find( ' ', i ) - i ) );
@@ -59,26 +63,27 @@ void GB_Client::Parse( ) {
   for( i = 0; i < StreamNames.size( ); i++ ) {
     Streams.push_back( ParseStreamConfig( StreamNames[i] ) );
   }
+  TempStr = GetSubstring( ConfigFile, "limits_" + MyName + "=", "\"", "\"" ) + "\n";
+  GlobalLimit = ParseLimit( TempStr );
+  for( i = 0; i < StreamNames.size( ); i++ ) {
+    TempStr = GetSubstring( ConfigFile, "limits_" + MyName + "_" + StreamNames[i] + "=", "\"", "\"" ) + "\n";
+    StreamLimits.push_back( ParseLimit( TempStr ) );
+  }
 }
 
 
+Limit GB_Client::ParseLimit( std::string Subject ) {
+  Limit Result;
+  Result.Max_Users = atoi( GetSubstring( Subject, "MAX_USERS", "=", " \n" ).c_str() );
+  Result.Max_Bw = atoi( GetSubstring( Subject, "MAX_BW", "=", " \n" ).c_str() );
+  return Result;
+}
+
 Stream GB_Client::ParseStreamConfig( std::string StreamName ) {
   Stream Result;
-  int TempPos1 = ConfigFile.find( "(", ConfigFile.find( "config_" + MyName + "_" + StreamName ) ) + 1;
-  int TempPos2 = ConfigFile.find( ")", TempPos1 );
-  int Length = TempPos2 - TempPos1;
-  std::string TempStr = ConfigFile.substr( TempPos1, Length ) + "\n";
-  TempPos1 = TempStr.find( '=', TempStr.find( "NAME" ) ) + 1;
-  TempPos2 = TempStr.find_first_of( " \n", TempPos1 );
-  Length = TempPos2 - TempPos1;
-  Result.Name = TempStr.substr(TempPos1, Length);
-  TempPos1 = TempStr.find( '=', TempStr.find( "INPUT" ) ) + 1;
-  TempPos2 = TempStr.find_first_of( " \n", TempPos1 );
-  Length = TempPos2 - TempPos1;
-  Result.Input = TempStr.substr(TempPos1, Length);
-  TempPos1 = TempStr.find( '=', TempStr.find( "PRESET" ) ) + 1;
-  TempPos2 = TempStr.find_first_of( " \n", TempPos1 );
-  Length = TempPos2 - TempPos1;
-  Result.Preset = TempStr.substr(TempPos1, Length);
+  std::string TempStr = GetSubstring( ConfigFile, "config_" + MyName + "_" + StreamName, "(", ")" ) + "\n";
+  Result.Name = GetSubstring( TempStr, "NAME", "=", " \n" );
+  Result.Input = GetSubstring( TempStr, "INPUT", "=", " \n" );
+  Result.Preset = GetSubstring( TempStr, "PRESET", "=", " \n" );
   return Result;
 }

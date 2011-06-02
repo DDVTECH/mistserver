@@ -71,11 +71,17 @@ std::string Gearbox_Server::ParseCommand( std::string Input ) {
   }
   if( exists_selector ) {
     switch( CommandMap[Input.substr(0,5).c_str()] ) {
-      case CM_OSG_U:
-        Result = "OK";
+      case CM_OSGU:
+        if( !LogIn ) { Result = "ER_NotLoggedIn"; break; }
+        Params = ParseArguments( Input.substr(5) );
+        if( Params.size > 1 ) { Result = "ER_InvalidArguments"; break; }
+        Result = "OK0";
         break;
-      case CM_OSG_T:
-        Result = "OK";
+      case CM_OSGT:
+        if( !LogIn ) { Result = "ER_NotLoggedIn"; break; }
+        Params = ParseArguments( Input.substr(5) );
+        if( Params.size > 1 ) { Result = "ER_InvalidArguments"; break; }
+        Result = "OK0";
         break;
       default:
         Result = "ER_InvalidCommand";

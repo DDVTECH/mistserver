@@ -10,6 +10,7 @@ enum Commands{
 #include <string>
 #include <vector>
 #include <map>
+#include <cstdlib>
 
 class Gearbox_Server {
   public:

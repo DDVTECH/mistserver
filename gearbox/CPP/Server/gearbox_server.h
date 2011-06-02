@@ -15,7 +15,8 @@ class Gearbox_Server {
     std::string ParseCommand( std::string Input );
   private:
     void InitializeMap( );
-    void Disconnect( );
+    bool Connect( std::string Username, std::string Password );
+    bool Disconnect( );
     std::vector<std::string> ParseArguments( std::string Params );
 
     std::map<std::string,Commands> CommandMap;

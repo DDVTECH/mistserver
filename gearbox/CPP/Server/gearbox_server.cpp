@@ -37,14 +37,14 @@ std::string Gearbox_Server::ParseCommand( std::string Input ) {
       if( LogIn ) { Result = "ER_AlreadyLoggedIn"; break; }
       Params = ParseArguments( Input.substr(3) );
       if( Params.size() != 2 ) { Result = "ER_InvalidArguments"; break; }
-      LogIn = true;
+      if( !Connect( Params[0],Params[1] ) ) { Result = "ER_InvalidCredentials"; break; }
       Result = "OK";
       break;
     case CM_OCD:
       if( !LogIn ) { Result = "ER_NotLoggedIn"; break; }
       Params = ParseArguments( Input.substr(3) );
       if( Params.size() != 0 ) { Result = "ER_InvalidArguments"; break; }
-      Disconnect( );
+      if( !Disconnect( ) ) { Result = "ER"; break; }
       Result = "OK";
       break;
     default:
@@ -54,6 +54,12 @@ std::string Gearbox_Server::ParseCommand( std::string Input ) {
   return Result;
 }
 
-void Gearbox_Server::Disconnect( ) {
+bool Gearbox_Server::Disconnect( ) {
   LogIn = false;
+  return true;
+}
+
+bool Gearbox_Server::Connect( std::string Username, std::string Password ) {
+  LogIn = true;
+  return true;
 }

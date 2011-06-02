@@ -26,6 +26,19 @@ void InitializeMap( ) {
   CommandMap["OCD"] = CM_OCD;
 }
 
+std::vector<std::string> ParseArguments( std::string Params ) {
+  std::vector<std::string> Result;
+  int i = 0;
+  int end;
+  while( Params.find( ':' , i ) != std::string::npos ) {
+    end = Params.find( ':', i );
+    Result.push_back( Params.substr( i, end - i );
+    i = end + 1;
+  }
+  Result.push_back( Params.substr( i );
+  return Result;
+}
+
 std::string ParseCommand( std::string Input ) {
   std::string Result;
   switch( CommandMap[Input.substr(0,3).c_str()] ) {

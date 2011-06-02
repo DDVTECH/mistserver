@@ -19,6 +19,9 @@ class Gearbox_Server {
     bool Disconnect( );
     std::vector<std::string> ParseArguments( std::string Params );
 
+    bool ParamIsString( std::string Input );
+    bool ParamIsInt( std::string Input );
+
     std::map<std::string,Commands> CommandMap;
     bool LogIn;
     int UserID;

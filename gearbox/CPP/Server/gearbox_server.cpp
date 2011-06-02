@@ -13,6 +13,16 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["OCD"] = CM_OCD;
 }
 
+bool Gearbox_Server::ParamIsString( std::string Input ) {
+  if( atoi( Input.c_str() ) != 0 ) { return false; }
+  return true;
+}
+
+bool Gearbox_Server::ParamIsInt( std::string Input ) {
+  if( atoi( Input.c_str() ) == 0 ) { return false; }
+  return true;
+}
+
 std::vector<std::string> Gearbox_Server::ParseArguments( std::string Params ) {
   for( std::string::iterator it = Params.end()-1; it >= Params.begin(); it--) {
     if((*it)=='\r') { Params.erase(it); }

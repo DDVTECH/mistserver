@@ -1,4 +1,4 @@
-SRC = main.cpp ../../../util/ddv_socket.cpp
+SRC = main.cpp gearbox_server.cpp ../../../util/ddv_socket.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Gearbox_Test
 INCLUDES = 

@@ -1,7 +1,10 @@
 enum Commands{
-  CM_ERR,
-  CM_OCC,
-  CM_OCD
+  CM_ERR,///<Empty Constructor for map
+  CM_OCC,///<Overall Connection Connect
+  CM_OCD,///<Overall Connection Disconnect
+  CM_OSG,///<Selector for OSG functionality
+  CM_OSGU,///<Overall Statistics Get : Users
+  CM_OSGT///<Overall Statistisc Get : Throughput
 };
 
 #include <string>

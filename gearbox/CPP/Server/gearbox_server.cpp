@@ -11,6 +11,9 @@ Gearbox_Server::~Gearbox_Server( ) {}
 void Gearbox_Server::InitializeMap( ) {
   CommandMap["OCC"] = CM_OCC;
   CommandMap["OCD"] = CM_OCD;
+  CommandMap["OSG"] = CM_OSG;
+  CommandMap["OSG_U"] = CM_OSGU;
+  CommandMap["OSG_T"] = CM_OSGT;
 }
 
 bool Gearbox_Server::ParamIsString( std::string Input ) {
@@ -42,11 +45,13 @@ std::vector<std::string> Gearbox_Server::ParseArguments( std::string Params ) {
 std::string Gearbox_Server::ParseCommand( std::string Input ) {
   std::string Result;
   std::vector<std::string> Params;
+  bool exists_selector = false;
   switch( CommandMap[Input.substr(0,3).c_str()] ) {
     case CM_OCC:
       if( LogIn ) { Result = "ER_AlreadyLoggedIn"; break; }
       Params = ParseArguments( Input.substr(3) );
       if( Params.size() != 2 ) { Result = "ER_InvalidArguments"; break; }
+      if( !ParamIsString( Params[0] ) || !ParamIsString( Params[1] ) ) { Result = "ER_InvalidData"; break; }
       if( !Connect( Params[0],Params[1] ) ) { Result = "ER_InvalidCredentials"; break; }
       Result = "OK";
       break;
@@ -57,9 +62,25 @@ std::string Gearbox_Server::ParseCommand( std::string Input ) {
       if( !Disconnect( ) ) { Result = "ER"; break; }
       Result = "OK";
       break;
+    case CM_OSG:
+      exists_selector = true;
+      break;
     default:
       Result = "ER_InvalidCommand";
       break;
+  }
+  if( exists_selector ) {
+    switch( CommandMap[Input.substr(0,5).c_str()] ) {
+      case CM_OSG_U:
+        Result = "OK";
+        break;
+      case CM_OSG_T:
+        Result = "OK";
+        break;
+      default:
+        Result = "ER_InvalidCommand";
+        break;
+    }
   }
   return Result;
 }

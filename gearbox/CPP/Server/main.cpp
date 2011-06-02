@@ -44,14 +44,14 @@ std::string ParseCommand( std::string Input ) {
 
 int MainHandler(DDV::Socket conn) {
   InitializeMap();
-  std::string CurrentCommand;
+  std::string CurCmd;
   while( conn.ready( ) != -1 ) {
     if( conn.ready( ) ) {
-      conn.read( CurrentCommand );
-      if( CurrentCommand.find("\n") != std::string::npos ) {
-        conn.write( ParseCommand( CurrentCommand ) + "\n" );
-        while( CurrentCommand[0] != '\n' ) { CurrentCommand.erase( CurrentCommand.begin() );}
-        CurrentCommand.erase(CurrentCommand.begin());
+      conn.read( CurCmd );
+      if( CurCmd.find('\n') != std::string::npos ) {
+        conn.write( ParseCommand( CurCmd.substr(0, CurCmd.find('\n') ) + "\n" );
+        while( CurCmd[0] != '\n' ) { CurCmd.erase( CurCmd.begin() );}
+        CurCmd.erase(CurCmd.begin());
       }
     }
   }

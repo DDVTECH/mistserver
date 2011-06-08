@@ -1,4 +1,4 @@
-SRC = main.cpp
+SRC = main.cpp ../util/flv_tag.cpp ../util/http_parser.cpp ../util/ddv_socket.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Box_Parser
 INCLUDES = 

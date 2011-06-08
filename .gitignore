@@ -1,12 +1,15 @@
 #ignore object files and nonsense like that
 *.[oa]
 Admin/main
-Connector_HTTP/Connector_HTTP
-Buffer/Buffer
-Connector_RTMP/Connector_RTMP
+Connector_HTTP/DDV_Conn_HTTP
+Buffer/DDV_Buffer
+Connector_RTMP/DDV_Conn_RTMP
+Connector_RTSP/DDV_Conn_RTSP
 Connector_RTSP/Connector_RTSP
+Connector_RAW/DDV_Conn_RAW
 *~
 bin/*
+docs
 gearbox/plugins/001_putserversup.sh
 AMF_Tester/AMFtest
 AMF_Creator/AMFtest

@@ -1,10 +1,10 @@
 #!/bin/sh
 #
 # description: DDVTech HTTP Connector
-# processname: Connector_HTTP
+# processname: DDV_Conn_HTTP
 
-prog="Connector_HTTP"
-fullprog="/usr/bin/Connector_HTTP"
+prog="DDV_Conn_HTTP"
+fullprog="/usr/bin/DDV_Conn_HTTP"
 RETVAL=0
 
 start() {

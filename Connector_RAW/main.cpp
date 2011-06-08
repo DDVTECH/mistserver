@@ -1,25 +1,29 @@
-#include <iostream>
-#include "../sockets/SocketW.h"
-#include <string>
-#include <vector>
-#include <cstdlib>
-#include <cstdio>
-#include <unistd.h>
-#include <fcntl.h>
+/// \file Connector_RAW/main.cpp
+/// Contains the main code for the RAW connector.
 
-int main() {
-  SWUnixSocket mySocket;
-  std::string input;
-  std::cin >> input;
-  input = "/tmp/shared_socket_"+input;
-  mySocket.connect(input);
-  char buffer[500000];
-  int msg;
-  while(std::cout.good()) {
-    msg = mySocket.recv(&buffer[0],10000);
-    std::cout.write(buffer,msg);
+#include <iostream>
+#include "../util/ddv_socket.h"
+
+/// Contains the main code for the RAW connector.
+/// Expects a single commandline argument telling it which stream to connect to,
+/// then outputs the raw stream to stdout.
+int main(int argc, char  ** argv) {
+  if (argc < 2){
+    std::cout << "Usage: " << argv[0] << " stream_name" << std::endl;
+    return 1;
   }
-  // disconnect
-  mySocket.disconnect();
+  std::string input = "/tmp/shared_socket_";
+  input += argv[1];
+  //connect to the proper stream
+  DDV::Socket S(input);
+  if (!S.connected()){
+    std::cout << "Could not open stream " << argv[1] << std::endl;
+    return 1;
+  }
+  //transport ~50kb at a time
+  //this is a nice tradeoff between CPU usage and speed
+  char buffer[50000];
+  while(std::cout.good() && S.read(buffer,50000)){std::cout.write(buffer,50000);}
+  S.close();
   return 0;
 }

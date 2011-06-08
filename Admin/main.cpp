@@ -1,3 +1,8 @@
+/// \file Admin/main.cpp
+/// Attempted administration tool for DDVTECH Clients.
+/// Never finished - perhaps now obsolete...?
+/// \todo This could serve as a basis for a new, more robust, control method for gearbox / the API.
+
 #include <iostream>
 #include <fstream>
 #include <sstream>

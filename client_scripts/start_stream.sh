@@ -76,9 +76,9 @@ function start() {
     if [[ "${INPUT:0:7}" == "file://" ]]; then
       INPUT=${INPUT:7}
       if [[ "$PRESET" == "raw" ]]; then
-        tmpcommand="${tmpcommand}cat $INPUT |"
+        tmpcommand="${tmpcommand}cat \"$INPUT\" |"
       elif [[ "$PRESET" == "copy" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec copy -vcodec copy -f flv - |"
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i \"$INPUT\" -acodec copy -vcodec copy -f flv - 2> /dev/null |"
       elif [[ "$PRESET" == "h264-high" ]]; then
         tmpcommand="${tmpcommand} ffmpeg -re -i "$INPUT" -acodec aac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - |" ffmpeg -re 
       else
@@ -91,9 +91,9 @@ function start() {
       tmpcommand="${tmpcommand}ssh $rawserv \"echo $rawstream\" |"
     else
       if [[ "$PRESET" == "raw" ]]; then
-        tmpcommand="${tmpcommand}wget $INPUT |"
+        tmpcommand="${tmpcommand}wget -q -O - \"$INPUT\" |"
       elif [[ "$PRESET" == "copy" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i $INPUT -acodec copy -vcodec copy -f flv - |"
+        tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i \"$INPUT\" -acodec copy -vcodec copy -f flv - 2> /dev/null |"
       elif [[ "$PRESET" == "h264-high" ]]; then
         tmpcommand="${tmpcommand} ffmpeg -re -i "$INPUT" -acodec aac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - |" ffmpeg -re 
       else
@@ -101,7 +101,7 @@ function start() {
       fi
     fi
     tmpcommand="${tmpcommand} Buffer 500 $NAME"
-    eval "${tmpcommand} &"
+    eval "${tmpcommand} 2> /dev/null &"
   done
 }
 

@@ -1,3 +1,8 @@
+/// \file ABST_Parser/main.cpp
+/// Debugging tool for ABST boxes.
+/// Expects ABST data through stdin, outputs human-readable information to stderr.
+/// \todo Erik, update, delete or properly document this file.
+
 #include <stdint.h>
 #include <iostream>
 #include <string>

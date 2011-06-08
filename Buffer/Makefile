@@ -1,8 +1,10 @@
-SRC = main.cpp
+SRC = main.cpp ../util/ddv_socket.cpp ../util/flv_tag.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = Buffer
+OUT = DDV_Buffer
 INCLUDES = 
-CCFLAGS = -Wall -Wextra -funsigned-char -g
+DEBUG = 4
+OPTIMIZE = -g
+CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar

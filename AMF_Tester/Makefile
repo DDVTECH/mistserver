@@ -1,4 +1,4 @@
-SRC = main.cpp
+SRC = main.cpp ../util/amf.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = AMFtest
 INCLUDES = 
@@ -12,7 +12,7 @@ LIBS = -lssl -lcrypto
 default: $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@
-$(OUT): $(OBJ) amf.cpp
+$(OUT): $(OBJ)
 	$(CC) $(LIBS) -o $(OUT) $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~

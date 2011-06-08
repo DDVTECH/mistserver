@@ -1,10 +1,10 @@
 #!/bin/sh
 #
 # description: DDVTech RTMP Connector
-# processname: Connector_RTMP
+# processname: DDV_Conn_RTMP
 
-prog="Connector_RTMP"
-fullprog="/usr/bin/Connector_RTMP"
+prog="DDV_Conn_RTMP"
+fullprog="/usr/bin/DDV_Conn_RTMP"
 RETVAL=0
 
 start() {

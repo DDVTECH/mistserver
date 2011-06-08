@@ -1,45 +1,14 @@
-#pragma once
-#include "ddv_socket.cpp"
-#include <map>
-#include <stdlib.h>
-#include <stdio.h>
+/// \file http_parser.cpp
+/// Holds all code for the HTTP namespace.
 
-class HTTPReader{
-  public:
-    HTTPReader();
-    bool ReadSocket(int CONN_fd);
-    bool ReadSocket(FILE * F);
-    std::string GetHeader(std::string i);
-    std::string GetVar(std::string i);
-    void SetHeader(std::string i, std::string v);
-    void SetHeader(std::string i, int v);
-    void SetVar(std::string i, std::string v);
-    void SetBody(std::string s);
-    void SetBody(char * buffer, int len);
-    std::string BuildRequest();
-    std::string BuildResponse(std::string code, std::string message);
-    void SendResponse(int conn, std::string code, std::string message);
-    void SendBodyPart(int conn, char * buffer, int len);
-    void SendBodyPart(int conn, std::string bodypart);
-    void Clean();
-    bool CleanForNext();
-    std::string body;
-    std::string method;
-    std::string url;
-    std::string protocol;
-    unsigned int length;
-  private:
-    bool seenHeaders;
-    bool seenReq;
-    bool parse();
-    std::string HTTPbuffer;
-    std::map<std::string, std::string> headers;
-    std::map<std::string, std::string> vars;
-    void Trim(std::string & s);
-};//HTTPReader
+#include "http_parser.h"
 
-HTTPReader::HTTPReader(){Clean();}
-void HTTPReader::Clean(){
+/// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
+/// All this constructor does is call HTTP::Parser::Clean().
+HTTP::Parser::Parser(){Clean();}
+
+/// Completely re-initializes the HTTP::Parser, leaving it ready for either reading or writing usage.
+void HTTP::Parser::Clean(){
   seenHeaders = false;
   seenReq = false;
   method = "GET";
@@ -48,11 +17,14 @@ void HTTPReader::Clean(){
   body = "";
   length = 0;
   HTTPbuffer = "";
-  headers.erase(headers.begin(), headers.end());
-  vars.erase(vars.begin(), vars.end());
+  headers.clear();
+  vars.clear();
 }
 
-bool HTTPReader::CleanForNext(){
+/// Re-initializes the HTTP::Parser, leaving the internal data buffer alone, then tries to parse a new request or response.
+/// First does the same as HTTP::Parser::Clean(), but does not clear the internal data buffer.
+/// This function then calls the HTTP::Parser::parse() function, and returns that functions return value.
+bool HTTP::Parser::CleanForNext(){
   seenHeaders = false;
   seenReq = false;
   method = "GET";
@@ -60,12 +32,19 @@ bool HTTPReader::CleanForNext(){
   protocol = "HTTP/1.1";
   body = "";
   length = 0;
-  headers.erase(headers.begin(), headers.end());
-  vars.erase(vars.begin(), vars.end());
+  headers.clear();
+  vars.clear();
   return parse();
 }
 
-std::string HTTPReader::BuildRequest(){
+/// Returns a string containing a valid HTTP 1.0 or 1.1 request, ready for sending.
+/// The request is build from internal variables set before this call is made.
+/// To be precise, method, url, protocol, headers and the internal data buffer are used,
+/// where the internal data buffer is used as the body of the request.
+/// This means you cannot mix receiving and sending, because the body would get corrupted.
+/// \return A string containing a valid HTTP 1.0 or 1.1 request, ready for sending.
+std::string HTTP::Parser::BuildRequest(){
+  /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
   std::string tmp = method+" "+url+" "+protocol+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
@@ -76,7 +55,16 @@ std::string HTTPReader::BuildRequest(){
   return tmp;
 }
 
-std::string HTTPReader::BuildResponse(std::string code, std::string message){
+/// Returns a string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
+/// The response is partly build from internal variables set before this call is made.
+/// To be precise, protocol, headers and the internal data buffer are used,
+/// where the internal data buffer is used as the body of the response.
+/// This means you cannot mix receiving and sending, because the body would get corrupted.
+/// \param code The HTTP response code. Usually you want 200.
+/// \param message The HTTP response message. Usually you want "OK".
+/// \return A string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
+std::string HTTP::Parser::BuildResponse(std::string code, std::string message){
+  /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
   std::string tmp = protocol+" "+code+" "+message+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
@@ -87,69 +75,71 @@ std::string HTTPReader::BuildResponse(std::string code, std::string message){
   return tmp;
 }
 
-void HTTPReader::Trim(std::string & s){
+/// Trims any whitespace at the front or back of the string.
+/// Used when getting/setting headers.
+/// \param s The string to trim. The string itself will be changed, not returned.
+void HTTP::Parser::Trim(std::string & s){
   size_t startpos = s.find_first_not_of(" \t");
   size_t endpos = s.find_last_not_of(" \t");
   if ((std::string::npos == startpos) || (std::string::npos == endpos)){s = "";}else{s = s.substr(startpos, endpos-startpos+1);}
 }
 
-void HTTPReader::SetBody(std::string s){
+/// Function that sets the body of a response or request, along with the correct Content-Length header.
+/// \param s The string to set the body to.
+void HTTP::Parser::SetBody(std::string s){
   HTTPbuffer = s;
   SetHeader("Content-Length", s.length());
 }
 
-void HTTPReader::SetBody(char * buffer, int len){
+/// Function that sets the body of a response or request, along with the correct Content-Length header.
+/// \param buffer The buffer data to set the body to.
+/// \param len Length of the buffer data.
+void HTTP::Parser::SetBody(char * buffer, int len){
   HTTPbuffer = "";
   HTTPbuffer.append(buffer, len);
   SetHeader("Content-Length", len);
 }
 
+/// Returns header i, if set.
+std::string HTTP::Parser::GetHeader(std::string i){return headers[i];}
+/// Returns POST variable i, if set.
+std::string HTTP::Parser::GetVar(std::string i){return vars[i];}
 
-std::string HTTPReader::GetHeader(std::string i){return headers[i];}
-std::string HTTPReader::GetVar(std::string i){return vars[i];}
-
-void HTTPReader::SetHeader(std::string i, std::string v){
+/// Sets header i to string value v.
+void HTTP::Parser::SetHeader(std::string i, std::string v){
   Trim(i);
   Trim(v);
   headers[i] = v;
 }
 
-void HTTPReader::SetHeader(std::string i, int v){
+/// Sets header i to integer value v.
+void HTTP::Parser::SetHeader(std::string i, int v){
   Trim(i);
   char val[128];
   sprintf(val, "%i", v);
   headers[i] = val;
 }
 
-void HTTPReader::SetVar(std::string i, std::string v){
+/// Sets POST variable i to string value v.
+void HTTP::Parser::SetVar(std::string i, std::string v){
   Trim(i);
   Trim(v);
   vars[i] = v;
 }
 
-bool HTTPReader::ReadSocket(int CONN_fd){
-  //returned true als hele http packet gelezen is
-  int r = 0;
-  int b = 0;
-  char buffer[500];
-  while (true){
-    r = DDV_ready(CONN_fd);
-    if (r < 1){
-      if (r == 0){
-        socketError = true;
-        #if DEBUG >= 1
-        fprintf(stderr, "User socket is disconnected.\n");
-        #endif
-      }
-      return parse();
-    }
-    b = DDV_iread(buffer, 500, CONN_fd);
-    HTTPbuffer.append(buffer, b);
-  }
-  return false;
+/// Attempt to read a whole HTTP request or response from DDV::Socket sock.
+/// \param sock The socket to use.
+/// \param nonblock When true, will not block even if the socket is blocking.
+/// \return True of a whole request or response was read, false otherwise.
+bool HTTP::Parser::Read(DDV::Socket & sock, bool nonblock){
+  if (nonblock && (sock.ready() < 1)){return parse();}
+  sock.read(HTTPbuffer);
+  return parse();
 }//HTTPReader::ReadSocket
 
-bool HTTPReader::ReadSocket(FILE * F){
+/// Reads a full set of HTTP responses/requests from file F.
+/// \return Always false. Use HTTP::Parser::CleanForNext() to parse the contents of the file.
+bool HTTP::Parser::Read(FILE * F){
   //returned true als hele http packet gelezen is
   int b = 1;
   char buffer[500];
@@ -160,7 +150,11 @@ bool HTTPReader::ReadSocket(FILE * F){
   return false;
 }//HTTPReader::ReadSocket
 
-bool HTTPReader::parse(){
+/// Attempt to read a whole HTTP response or request from the internal data buffer.
+/// If succesful, fills its own fields with the proper data and removes the response/request
+/// from the internal data buffer.
+/// \return True on success, false otherwise.
+bool HTTP::Parser::parse(){
   size_t f;
   std::string tmpA, tmpB, tmpC;
   while (HTTPbuffer != ""){
@@ -178,7 +172,7 @@ bool HTTPReader::parse(){
         if (f != std::string::npos){url = tmpA.substr(0, f); tmpA.erase(0, f+1);}
         f = tmpA.find(' ');
         if (f != std::string::npos){protocol = tmpA.substr(0, f); tmpA.erase(0, f+1);}
-        //TODO: GET variable parsing?
+        /// \todo Include GET variable parsing?
       }else{
         if (tmpA.size() == 0){
           seenHeaders = true;
@@ -194,7 +188,7 @@ bool HTTPReader::parse(){
     }
     if (seenHeaders){
       if (length > 0){
-        //TODO: POST variable parsing?
+        /// \todo Include POST variable parsing?
         if (HTTPbuffer.length() >= length){
           body = HTTPbuffer.substr(0, length);
           HTTPbuffer.erase(0, length);
@@ -210,23 +204,40 @@ bool HTTPReader::parse(){
   return false; //we should never get here...
 }//HTTPReader::parse
 
-void HTTPReader::SendResponse(int conn, std::string code, std::string message){
+/// Sends data as response to conn.
+/// The response is automatically first build using HTTP::Parser::BuildResponse().
+/// \param conn The DDV::Socket to send the response over.
+/// \param code The HTTP response code. Usually you want 200.
+/// \param message The HTTP response message. Usually you want "OK".
+void HTTP::Parser::SendResponse(DDV::Socket & conn, std::string code, std::string message){
   std::string tmp = BuildResponse(code, message);
-  DDV_write(tmp.c_str(), tmp.size(), conn);
+  conn.write(tmp);
 }
 
-void HTTPReader::SendBodyPart(int conn, char * buffer, int len){
+/// Sends data as HTTP/1.1 bodypart to conn.
+/// HTTP/1.1 chunked encoding is automatically applied if needed.
+/// \param conn The DDV::Socket to send the part over.
+/// \param buffer The buffer to send.
+/// \param len The length of the buffer.
+void HTTP::Parser::SendBodyPart(DDV::Socket & conn, char * buffer, int len){
   std::string tmp;
   tmp.append(buffer, len);
   SendBodyPart(conn, tmp);
 }
 
-void HTTPReader::SendBodyPart(int conn, std::string bodypart){
-  static char len[10];
-  int sizelen;
-  sizelen = snprintf(len, 10, "%x\r\n", (unsigned int)bodypart.size());
-  DDV_write(len, sizelen, conn);
-  DDV_write(bodypart.c_str(), bodypart.size(), conn);
-  DDV_write(len+sizelen-2, 2, conn);
+/// Sends data as HTTP/1.1 bodypart to conn.
+/// HTTP/1.1 chunked encoding is automatically applied if needed.
+/// \param conn The DDV::Socket to send the part over.
+/// \param bodypart The data to send.
+void HTTP::Parser::SendBodyPart(DDV::Socket & conn, std::string bodypart){
+  if (protocol == "HTTP/1.1"){
+    static char len[10];
+    int sizelen;
+    sizelen = snprintf(len, 10, "%x\r\n", (unsigned int)bodypart.size());
+    conn.write(len, sizelen);
+    conn.write(bodypart);
+    conn.write(len+sizelen-2, 2);
+  }else{
+    conn.write(bodypart);
+  }
 }
-

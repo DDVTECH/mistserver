@@ -80,9 +80,9 @@ function start() {
       elif [[ "$PRESET" == "copy" ]]; then
         tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i \"$INPUT\" -acodec copy -vcodec copy -f flv - 2> /dev/null |"
       elif [[ "$PRESET" == "h264-high" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -i \"$INPUT\" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -re -i "$INPUT" -acodec aac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - |" ffmpeg -re 
       else
-        tmpcommand="${tmpcommand} ffmpeg -i \"$INPUT\" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -re -i "$INPUT" -acodec aac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - |" ffmpeg -re 
       fi
     elif [[ "${INPUT:0:6}" == "raw://" ]]; then
       local rawseparator=`expr index "${INPUT:6}" /`
@@ -95,9 +95,9 @@ function start() {
       elif [[ "$PRESET" == "copy" ]]; then
         tmpcommand="${tmpcommand} ffmpeg -re -async 2 -i \"$INPUT\" -acodec copy -vcodec copy -f flv - 2> /dev/null |"
       elif [[ "$PRESET" == "h264-high" ]]; then
-        tmpcommand="${tmpcommand} ffmpeg -i \"$INPUT\" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -re -i "$INPUT" -acodec aac -ar 11025 -vcodec libx264 -b 1500k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - |" ffmpeg -re 
       else
-        tmpcommand="${tmpcommand} ffmpeg -i \"$INPUT\" -re -acodec libfaac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null |"
+        tmpcommand="${tmpcommand} ffmpeg -re -i "$INPUT" -acodec aac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - |" ffmpeg -re 
       fi
     fi
     tmpcommand="${tmpcommand} Buffer 500 $NAME"

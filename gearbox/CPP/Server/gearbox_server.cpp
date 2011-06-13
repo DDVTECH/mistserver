@@ -74,13 +74,13 @@ std::string Gearbox_Server::ParseCommand( std::string Input ) {
       case CM_OSGU:
         if( !LogIn ) { Result = "ER_NotLoggedIn"; break; }
         Params = ParseArguments( Input.substr(5) );
-        if( Params.size > 1 ) { Result = "ER_InvalidArguments"; break; }
+        if( Params.size() > 1 ) { Result = "ER_InvalidArguments"; break; }
         Result = "OK0";
         break;
       case CM_OSGT:
         if( !LogIn ) { Result = "ER_NotLoggedIn"; break; }
         Params = ParseArguments( Input.substr(5) );
-        if( Params.size > 1 ) { Result = "ER_InvalidArguments"; break; }
+        if( Params.size() > 1 ) { Result = "ER_InvalidArguments"; break; }
         Result = "OK0";
         break;
       default:

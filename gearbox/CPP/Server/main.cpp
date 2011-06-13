@@ -13,10 +13,23 @@
 #include <map>
 #include "../../../util/ddv_socket.h"
 #include "gearbox_server.h"
+#include "../../../util/md5.h"
+
+std::string GenerateRandomString( int charamount ) {
+  std::string Result;
+  for( int i = 0; i < charamount; i++ ) {
+    Result += (char)((rand() % 93)+33);
+  }
+  return Result;
+}
 
 int MainHandler(DDV::Socket conn) {
+  srand( time( NULL ) );
   Gearbox_Server ServerConnection;
   std::string CurCmd;
+  std::string RandomConnect = GenerateRandomString( 8 );
+  while( conn.ready( ) == -1 ) {}
+  conn.write( "WELCOME" + RandomConnect + "\n");
   while( conn.ready( ) != -1 ) {
     if( conn.ready( ) ) {
       conn.read( CurCmd );
@@ -31,7 +44,7 @@ int MainHandler(DDV::Socket conn) {
 }
 
 
-// Load main server setup file, default port 8080, handler is Connector_HTTP::Connector_HTTP
+// Load main server setup file, default port 7337, handler is MainHandler
 #define DEFAULT_PORT 7337
 #define MAINHANDLER MainHandler
 #define CONFIGSECT GBTEST

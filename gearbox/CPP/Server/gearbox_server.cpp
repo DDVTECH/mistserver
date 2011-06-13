@@ -1,9 +1,10 @@
 #include "gearbox_server.h"
 
-Gearbox_Server::Gearbox_Server( ) {
-  InitializeMap( );
-  UserID = -1;
-  LogIn = false;
+Gearbox_Server::Gearbox_Server( DDV::Socket Connection ) {
+  srand( time( NULL ) );
+  conn = Connection;
+  RandomConnect = GenerateRandomString( 8 );
+  RandomAuth = GenerateRandomString( 8 );
 }
 
 Gearbox_Server::~Gearbox_Server( ) {}
@@ -11,98 +12,86 @@ Gearbox_Server::~Gearbox_Server( ) {}
 void Gearbox_Server::InitializeMap( ) {
   CommandMap["OCC"] = CM_OCC;
   CommandMap["OCD"] = CM_OCD;
-  CommandMap["OSG"] = CM_OSG;
-  CommandMap["OSG_U"] = CM_OSGU;
-  CommandMap["OSG_T"] = CM_OSGT;
 }
 
-bool Gearbox_Server::ParamIsString( std::string Input ) {
-  if( atoi( Input.c_str() ) != 0 ) { return false; }
-  return true;
-}
 
-bool Gearbox_Server::ParamIsInt( std::string Input ) {
-  if( atoi( Input.c_str() ) == 0 ) { return false; }
-  return true;
-}
-
-std::vector<std::string> Gearbox_Server::ParseArguments( std::string Params ) {
-  for( std::string::iterator it = Params.end()-1; it >= Params.begin(); it--) {
-    if((*it)=='\r') { Params.erase(it); }
+std::string Gearbox_Server::GenerateRandomString( int charamount ) {
+  std::string Result;
+  for( int i = 0; i < charamount; i++ ) {
+    Result += (char)((rand() % 93)+33);
   }
-  std::vector<std::string> Result;
-  int i = 0;
-  int end;
-  while( Params.find( ':' , i ) != std::string::npos ) {
-    end = Params.find( ':', i );
-    if( Params.substr(i, end - i) != "" ) { Result.push_back( Params.substr( i, end - i ) ); }
-    i = end + 1;
-  }
-  if( Params.substr(i,end - i) != "" ) { Result.push_back( Params.substr( i ) ); }
   return Result;
 }
 
-std::string Gearbox_Server::ParseCommand( std::string Input ) {
-  std::string Result;
-  std::vector<std::string> Params;
-  bool exists_selector = false;
-  switch( CommandMap[Input.substr(0,3).c_str()] ) {
-    case CM_OCC:
-      if( LogIn ) { Result = "ER_AlreadyLoggedIn"; break; }
-      Params = ParseArguments( Input.substr(3) );
-      if( Params.size() != 2 ) { Result = "ER_InvalidArguments"; break; }
-      if( !ParamIsString( Params[0] ) || !ParamIsString( Params[1] ) ) { Result = "ER_InvalidData"; break; }
-      if( !Connect( Params[0],Params[1] ) ) { Result = "ER_InvalidCredentials"; break; }
-      Result = "OK";
-      break;
-    case CM_OCD:
-      if( !LogIn ) { Result = "ER_NotLoggedIn"; break; }
-      Params = ParseArguments( Input.substr(3) );
-      if( Params.size() != 0 ) { Result = "ER_InvalidArguments"; break; }
-      if( !Disconnect( ) ) { Result = "ER"; break; }
-      Result = "OK";
-      break;
-    case CM_OSG:
-      exists_selector = true;
-      break;
-    default:
-      Result = "ER_InvalidCommand";
-      break;
-  }
-  if( exists_selector ) {
-    switch( CommandMap[Input.substr(0,5).c_str()] ) {
-      case CM_OSGU:
-        if( !LogIn ) { Result = "ER_NotLoggedIn"; break; }
-        Params = ParseArguments( Input.substr(5) );
-        if( Params.size() > 1 ) { Result = "ER_InvalidArguments"; break; }
-        Result = "OK0";
-        break;
-      case CM_OSGT:
-        if( !LogIn ) { Result = "ER_NotLoggedIn"; break; }
-        Params = ParseArguments( Input.substr(5) );
-        if( Params.size() > 1 ) { Result = "ER_InvalidArguments"; break; }
-        Result = "OK0";
-        break;
-      default:
-        Result = "ER_InvalidCommand";
-        break;
+std::string Gearbox_Server::GetSingleCommand( ) {
+  static std::string CurCmd;
+  std::string Result = "";
+  if( conn.ready( ) ) {
+    conn.read( CurCmd );
+    if( CurCmd.find('\n') != std::string::npos ) {
+      Result = CurCmd.substr(0, CurCmd.find('\n') );
+      while( CurCmd[0] != '\n' ) { CurCmd.erase( CurCmd.begin( ) ); }
+      CurCmd.erase( CurCmd.begin( ) );
     }
   }
   return Result;
 }
 
-bool Gearbox_Server::Disconnect( ) {
-  LogIn = false;
-  return true;
+void Gearbox_Server::WriteReturn( ) {
+  while( !conn.ready( ) ) {}
+  conn.write( RetVal + "\n" );
 }
 
-bool Gearbox_Server::Connect( std::string Username, std::string Password ) {
-  LogIn = true;
-  UserID = UserName;
-  UserString = "DDVTECH";
-  return true;
+void Gearbox_Server::Handshake( ) {
+  std::deque<std::string> ConnectionParams;
+  RetVal = "WELCOME" + RandomConnect;
+  WriteReturn( );
+  std::string Cmd;
+  while( Cmd == "" ) { Cmd = GetSingleCommand( ); }
+  if( Cmd.substr(0,3) != "OCC" ) {
+    RetVal = "ERR";
+    WriteReturn( );
+    exit( 1 );
+  }
+  ConnectionParams = GetParameters( Cmd.substr(4) );
+  if( ConnectionParams.size( ) != 2 ) {
+    RetVal = "ERR_ParamAmount";
+    WriteReturn( );
+    exit( 1 );
+  }
+  if( ConnectionParams[0] != TESTUSER_ID ) {
+    RetVal = "ERR_Credentials";
+    WriteReturn( );
+    exit( 1 );
+  }
+  if( ConnectionParams[1] == md5( RandomConnect + TESTUSER_STRING + RandomConnect ) ) {
+    IsSrv = true;
+    RetVal = "OCC" + RandomAuth;
+    WriteReturn( );
+    XorPath = md5( RandomAuth + TESTUSER_STRING + RandomAuth );
+  } else if ( ConnectionParams[1] ==  md5( RandomConnect + TESTUSER_PASS + RandomConnect ) ) {
+    IsSrv = false;
+    RetVal = "OCC" + RandomAuth;
+    WriteReturn( );
+    XorPath = md5( RandomAuth + TESTUSER_PASS + RandomAuth );
+  } else {
+    RetVal = "ERR_Credentials";
+    WriteReturn( );
+    exit( 1 );
+  }
 }
 
-bool Gearbox_Server::IsConnected( ) {
-  return Login;
+std::deque<std::string> GetParameters( std::string Cmd ) {
+  for( std::string::iterator it = Cmd.end( ) - 1; it >= Cmd.begin( ); it -- ) { if( (*it) == '\r' ) { Cmd.erase( it ); } }
+  std::string temp;
+  std::deque<std::string> Result;
+  for( std::string::iterator it = Cmd.begin( ); it != Cmd.end( ); it ++ ) {
+    if( (*it) == ':' ) {
+      if( temp != "" ) { Result.push_back( temp ); temp = ""; }
+    } else {
+      temp += (*it);
+    }
+  }
+  if( temp != "" ) { Result.push_back( temp ); }
+  return Result;
 }

@@ -23,6 +23,20 @@ std::string GenerateRandomString( int charamount ) {
   return Result;
 }
 
+std::string GetSingleCommand( DDV::Socket conn ) {
+  static std::string CurCmd;
+  std::string Result = "";
+  if( conn.ready( ) ) {
+    conn.read( CurCmd );
+    if( CurCmd.find('\n') != std::string::npos ) {
+      Result = CurCmd.substr(0, CurCmd.find('\n') );
+      while( CurCmd[0] != '\n' ) { CurCmd.erase( CurCmd.begin( ) ); }
+      CurCmd.erase( CurCmd.begin( ) );
+    }
+  }
+  return Result;
+}
+
 int MainHandler(DDV::Socket conn) {
   srand( time( NULL ) );
   Gearbox_Server ServerConnection;
@@ -30,14 +44,14 @@ int MainHandler(DDV::Socket conn) {
   std::string RandomConnect = GenerateRandomString( 8 );
   while( conn.ready( ) == -1 ) {}
   conn.write( "WELCOME" + RandomConnect + "\n");
+  while( CurCmd == "" ) { CurCmd = GetSingleCommand( conn ); }
+  if( CurCmd.substr(0,3) != "OCC" ) { conn.write( "ERR\n" ); conn.close( ); exit(1); }
+  conn.write( ServerConnection.ParseCommand( CurCmd ) + "\n" );
+  if( !ServerConnection.IsConnected( ) ) { conn.close( ); exit(1); }
   while( conn.ready( ) != -1 ) {
-    if( conn.ready( ) ) {
-      conn.read( CurCmd );
-      if( CurCmd.find('\n') != std::string::npos ) {
-        conn.write( ServerConnection.ParseCommand( CurCmd.substr(0, CurCmd.find('\n') ) ) + "\n" );
-        while( CurCmd[0] != '\n' ) { CurCmd.erase( CurCmd.begin() );}
-        CurCmd.erase(CurCmd.begin());
-      }
+    CurCmd = GetSingleCommand( conn );
+    if( CurCmd != "" ) {
+      conn.write( ServerConnection.ParseCommand( CurCmd ) + "\n" );
     }
   }
   return 0;

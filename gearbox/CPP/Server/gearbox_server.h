@@ -17,6 +17,7 @@ class Gearbox_Server {
     Gearbox_Server( );
     ~Gearbox_Server( );
     std::string ParseCommand( std::string Input );
+    bool IsConnected( )
   private:
     void InitializeMap( );
     bool Connect( std::string Username, std::string Password );
@@ -28,5 +29,6 @@ class Gearbox_Server {
 
     std::map<std::string,Commands> CommandMap;
     bool LogIn;
-    int UserID;
+    std::string UserID;
+    std::string UserString;
 };//Gearbox Server Class

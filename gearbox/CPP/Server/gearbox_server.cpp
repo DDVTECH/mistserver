@@ -98,5 +98,11 @@ bool Gearbox_Server::Disconnect( ) {
 
 bool Gearbox_Server::Connect( std::string Username, std::string Password ) {
   LogIn = true;
+  UserID = UserName;
+  UserString = "DDVTECH";
   return true;
+}
+
+bool Gearbox_Server::IsConnected( ) {
+  return Login;
 }

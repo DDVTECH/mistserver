@@ -6,10 +6,12 @@ enum Commands{
 
 
 #include <string>
-#include <vector>
+#include <deque>
 #include <map>
 #include <cstdlib>
+#include <cstdio>
 #include "../../../util/ddv_socket.h"
+#include "../../../util/md5.h"
 
 #define TESTUSER_ID "5"
 #define TESTUSER_PASS "Chocokoekjes"
@@ -21,16 +23,21 @@ class Gearbox_Server {
     ~Gearbox_Server( );
 
     void Handshake( );
+    void HandleConnection( );
 
   private:
     void InitializeMap( );
 
     void WriteReturn( );
+    std::string Encode( std::string input );
+    std::string Decode( std::string input );
 
     std::string GenerateRandomString( int charamount );
     std::string GetSingleCommand( );
+    std::deque<std::string> GetParameters( std::string Cmd );
 
     bool IsSrv;
+    std::string RetVal;
     std::string RandomConnect;
     std::string RandomAuth;
     std::string XorPath;

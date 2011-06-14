@@ -1,6 +1,6 @@
-SRC = main.cpp gearbox_server.cpp ../../../util/ddv_socket.cpp ../../../util/md5.cpp
+SRC = main.cpp ../../../util/ddv_socket.cpp ../../../util/md5.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = Gearbox_Test
+OUT = TestClient
 INCLUDES = 
 DEBUG = 4
 OPTIMIZE = -g

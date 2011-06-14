@@ -5,6 +5,7 @@ Gearbox_Server::Gearbox_Server( DDV::Socket Connection ) {
   conn = Connection;
   RandomConnect = GenerateRandomString( 8 );
   RandomAuth = GenerateRandomString( 8 );
+  XorPath = "";
 }
 
 Gearbox_Server::~Gearbox_Server( ) {}
@@ -25,21 +26,62 @@ std::string Gearbox_Server::GenerateRandomString( int charamount ) {
 
 std::string Gearbox_Server::GetSingleCommand( ) {
   static std::string CurCmd;
+  std::string DecCmd;
   std::string Result = "";
   if( conn.ready( ) ) {
+std::cout << "Connection Ready\n";
     conn.read( CurCmd );
+    if( XorPath != "" ) {
+      DecCmd = CurCmd;
+      CurCmd = Decode( DecCmd );
+    }
     if( CurCmd.find('\n') != std::string::npos ) {
       Result = CurCmd.substr(0, CurCmd.find('\n') );
-      while( CurCmd[0] != '\n' ) { CurCmd.erase( CurCmd.begin( ) ); }
+      while( CurCmd[0] != '\n' ) {
+        CurCmd.erase( CurCmd.begin( ) );
+        if( DecCmd != "" ) {
+          DecCmd.erase( DecCmd.begin( ) );
+        }
+      }
       CurCmd.erase( CurCmd.begin( ) );
+      if( DecCmd != "" ) {
+        DecCmd.erase( DecCmd.begin( ) );
+      }
+    }
+    if( XorPath != "" ) {
+      CurCmd = DecCmd;
     }
   }
   return Result;
 }
 
+std::string Gearbox_Server::Encode( std::string input ) {
+  static int counter = 0;
+  std::string Result;
+  for( unsigned int i = 0; i < input.size( ); i ++) {
+    Result.push_back( (char)( input[i] ^ XorPath[counter] ) );
+    counter = (counter + 1) % XorPath.size( );
+  }
+  return Result;
+}
+
+std::string Gearbox_Server::Decode( std::string input ) {
+std::cout << "decoding\n";
+  static int counter = 0;
+  std::string Result;
+  for( unsigned int i = 0; i < input.size( ); i ++) {
+    Result.push_back( (char)( input[i] ^ XorPath[counter] ) );
+    counter = (counter + 1) % XorPath.size( );
+  }
+  return Result;
+}
+
 void Gearbox_Server::WriteReturn( ) {
-  while( !conn.ready( ) ) {}
-  conn.write( RetVal + "\n" );
+  if( XorPath == "" ) {
+    conn.write( RetVal + "\n" );
+  } else {
+    conn.write(  Encode( RetVal + "\n" ) );
+  }
 }
 
 void Gearbox_Server::Handshake( ) {
@@ -53,7 +95,7 @@ void Gearbox_Server::Handshake( ) {
     WriteReturn( );
     exit( 1 );
   }
-  ConnectionParams = GetParameters( Cmd.substr(4) );
+  ConnectionParams = GetParameters( Cmd.substr(3) );
   if( ConnectionParams.size( ) != 2 ) {
     RetVal = "ERR_ParamAmount";
     WriteReturn( );
@@ -79,9 +121,11 @@ void Gearbox_Server::Handshake( ) {
     WriteReturn( );
     exit( 1 );
   }
+  std::cout << ( IsSrv ? "Server Connected\n" : "Customer Connected\n" );
+  std::cout << "\tCalculated xorpath: " << XorPath << "\n";
 }
 
-std::deque<std::string> GetParameters( std::string Cmd ) {
+std::deque<std::string> Gearbox_Server::GetParameters( std::string Cmd ) {
   for( std::string::iterator it = Cmd.end( ) - 1; it >= Cmd.begin( ); it -- ) { if( (*it) == '\r' ) { Cmd.erase( it ); } }
   std::string temp;
   std::deque<std::string> Result;
@@ -94,4 +138,14 @@ std::deque<std::string> GetParameters( std::string Cmd ) {
   }
   if( temp != "" ) { Result.push_back( temp ); }
   return Result;
+}
+
+void Gearbox_Server::HandleConnection( ) {
+  std::string Cmd = GetSingleCommand( );
+  if( Cmd == "" ) { return; }
+  switch( CommandMap[ Cmd.substr(0,3) ] ) {
+    default:
+      RetVal = "ERR_InvalidCommand:" + Cmd;
+  }
+  WriteReturn( );
 }

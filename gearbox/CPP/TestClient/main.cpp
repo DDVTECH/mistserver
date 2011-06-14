@@ -32,6 +32,16 @@ std::string Decode( std::string input, std::string XorPath ) {
   return Result;
 }
 
+std::string Encode( std::string input, std::string XorPath ) {
+  static int counter = 0;
+  std::string Result;
+  for( unsigned int i = 0; i < input.size( ); i ++) {
+    Result.push_back( (char)( input[i] ^ XorPath[counter] ) );
+    counter = ( counter + 1 ) % XorPath.size( );
+  }
+  return Result;
+}
+
 int main( ) {
   std::string temp;
   std::string random;
@@ -72,10 +82,12 @@ int main( ) {
   while( Sock.connected( ) ) {
     std::cout << "SND::";
     std::cin >> temp;
-    Sock.write( temp + "\n" );
+    Sock.write( Encode( temp + "\n", xorpath ) );
     temp = "";
-    Sock.read( temp );
-    std::cout << "REC::" << Decode(temp,xorpath) << "\n";
+    if( Sock.connected( ) && Sock.ready( ) ) {
+      Sock.read( temp );
+      std::cout << "REC::" << Decode(temp,xorpath) << "\n";
+    }
   }
   Sock.close( );
   return 0;

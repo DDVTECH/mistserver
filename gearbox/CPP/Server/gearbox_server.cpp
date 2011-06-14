@@ -1,6 +1,7 @@
 #include "gearbox_server.h"
 
 Gearbox_Server::Gearbox_Server( DDV::Socket Connection ) {
+  InitializeMap( );
   srand( time( NULL ) );
   conn = Connection;
   RandomConnect = GenerateRandomString( 8 );
@@ -29,7 +30,6 @@ std::string Gearbox_Server::GetSingleCommand( ) {
   std::string DecCmd;
   std::string Result = "";
   if( conn.ready( ) ) {
-std::cout << "Connection Ready\n";
     conn.read( CurCmd );
     if( XorPath != "" ) {
       DecCmd = CurCmd;
@@ -66,7 +66,6 @@ std::string Gearbox_Server::Encode( std::string input ) {
 }
 
 std::string Gearbox_Server::Decode( std::string input ) {
-std::cout << "decoding\n";
   static int counter = 0;
   std::string Result;
   for( unsigned int i = 0; i < input.size( ); i ++) {
@@ -144,8 +143,12 @@ void Gearbox_Server::HandleConnection( ) {
   std::string Cmd = GetSingleCommand( );
   if( Cmd == "" ) { return; }
   switch( CommandMap[ Cmd.substr(0,3) ] ) {
+    case CM_OCD:
+      RetVal = "OCD";
+      break;
     default:
       RetVal = "ERR_InvalidCommand:" + Cmd;
   }
   WriteReturn( );
+  if( RetVal == "OCD" ) { conn.close( ); }
 }

@@ -20,7 +20,7 @@ int MainHandler(DDV::Socket conn) {
   Gearbox_Server gbconn( conn );
   std::cout << "Starting Handshake\n";
   gbconn.Handshake( );
-  while( conn.connected( ) ) {
+  while( conn.connected( ) && (conn.ready( ) != -1) ) {
     gbconn.HandleConnection( );
   }
   return 0;

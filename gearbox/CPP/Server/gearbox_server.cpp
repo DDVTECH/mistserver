@@ -16,6 +16,19 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["OCD"] = CM_OCD;
   CommandMap["SCA"] = CM_SCA;
   CommandMap["SCR"] = CM_SCR;
+  CommandMap["SCS"] = CM_SCS;
+  CommandMap["SCG"] = CM_SCG;
+
+  CommandMap["SCS_N"] = CM_SCS_N;
+  CommandMap["SCS_A"] = CM_SCS_A;
+  CommandMap["SCS_S"] = CM_SCS_S;
+  CommandMap["SCS_H"] = CM_SCS_H;
+  CommandMap["SCS_R"] = CM_SCS_R;
+  CommandMap["SCG_N"] = CM_SCG_N;
+  CommandMap["SCG_A"] = CM_SCG_A;
+  CommandMap["SCG_S"] = CM_SCG_S;
+  CommandMap["SCG_H"] = CM_SCG_H;
+  CommandMap["SCG_R"] = CM_SCG_R;
 }
 
 
@@ -142,33 +155,82 @@ std::deque<std::string> Gearbox_Server::GetParameters( std::string Cmd ) {
 }
 
 void Gearbox_Server::HandleConnection( ) {
+  bool Selector = false;
+  std::map<int,Server>::iterator ServerIT;
   std::deque<std::string> Parameters;
   std::string Cmd = GetSingleCommand( );
   std::stringstream ss;
   int temp;
   if( Cmd == "" ) { return; }
+  Parameters = GetParameters( Cmd.substr(3) );
   switch( CommandMap[ Cmd.substr(0,3) ] ) {
     case CM_OCD:
-      Parameters = GetParameters( Cmd.substr(3) );
       RetVal = "OCD";
       if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; }
       break;
     case CM_SCA:
-      Parameters = GetParameters( Cmd.substr(3) );
       temp = ServerConfigAdd( );
       ss << temp;
       RetVal = "SCA" + ss.str();
       if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; }
       break;
     case CM_SCR:
-      Parameters = GetParameters( Cmd.substr(3) );
       RetVal = "SCR";
-      if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; }
+      if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
       if( !ServerConfigRemove( Parameters[0] ) ) { RetVal = "ERR_InvalidID"; }
+      break;
+    case CM_SCS:
+    case CM_SCG:
+      Selector = true;
       break;
     default:
       RetVal = "ERR_InvalidCommand:" + Cmd;
   }
+
+  if( Selector ) {
+    Parameters = GetParameters( Cmd.substr(5) );
+    switch( CommandMap[ Cmd.substr(0,5) ] ) {
+      case CM_SCS_N:
+        RetVal = "SCS_N";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( RetrieveServer( Parameters[1] ) != ServerConfigs.end( ) ) { RetVal = "ERR_InvalidName"; break; }
+        if( !ServerConfigSetName( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCG_N:
+        RetVal = "SCG_N";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( RetrieveServer( Parameters[0] ) != ServerConfigs.end( ) ) { RetVal = "ERR_InvalidName"; break; }
+        if( !ServerConfigSetName( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCS_A:
+        RetVal = "SCS_A";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+//        if( RetrieveServer( Parameters[1] ) != ServerConfigs.end( ) ) { RetVal = "ERR_InvalidAddress"; break; }
+        if( !ServerConfigSetAddress( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCS_S:
+        RetVal = "SCS_S";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( !atoi( Parameters[1] ) ) { RetVal = "ERR_InvalidPort"; break; }
+        if( !ServerConfigSetSSH( Parameters[0], atoi( Parameters[1] ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCS_H:
+        RetVal = "SCS_H";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( !atoi( Parameters[1] ) ) { RetVal = "ERR_InvalidPort"; break; }
+        if( !ServerConfigSetHTTP( Parameters[0], atoi( Parameters[1] ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCS_R:
+        RetVal = "SCS_R";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( !atoi( Parameters[1] ) ) { RetVal = "ERR_InvalidPort"; break; }
+        if( !ServerConfigSetRTMP( Parameters[0], atoi( Parameters[1] ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      default:
+        RetVal = "ERR_InvalidCommand:" + Cmd;
+    }
+  }
+
   WriteReturn( );
   if( RetVal == "OCD" ) { conn.close( ); }
 }
@@ -186,6 +248,60 @@ int Gearbox_Server::ServerConfigAdd( ) {
 }
 
 bool Gearbox_Server::ServerConfigRemove( std::string Index ) {
+  std::map<int,Server>::iterator it = RetrieveServer( Index );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  ServerConfigs.erase( it );
+  return true;
+}
+
+bool Gearbox_Server::ServerConfigSetName( std::string SrvId, std::string SrvName ) {
+  std::map<int,Server>::iterator it = RetrieveServer( SrvID );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  (*it).SrvName = SrvName;
+  return true;
+}
+
+bool Gearbox_Server::ServerConfigSetAddress( std::string SrvId, std::string SrvAddress ) {
+  std::map<int,Server>::iterator it = RetrieveServer( SrvID );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  (*it).SrvAddress = SrvAddress;
+  return true;
+}
+
+bool Gearbox_Server::ServerConfigSetSSH( std::string SrvId, int SrvSSH ) {
+  std::map<int,Server>::iterator it = RetrieveServer( SrvID );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  (*it).SrvSSH = SrvSSH;
+  return true;
+}
+
+bool Gearbox_Server::ServerConfigSetHTTP( std::string SrvId, int SrvHTTP ) {
+  std::map<int,Server>::iterator it = RetrieveServer( SrvID );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  (*it).SrvHTTP = SrvHTTP;
+  return true;
+}
+
+bool Gearbox_Server::ServerConfigSetRTMP( std::string SrvId, int SrvRTMP ) {
+  std::map<int,Server>::iterator it = RetrieveServer( SrvID );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  (*it).SrvRTMP = SrvRTMP;
+  return true;
+}
+
+std::map<int,Server>::iterator Gearbox_Server::RetrieveServer( std::string Index ) {
   int Ind;
   if( atoi( Index.c_str( ) ) ) {
     Ind = atoi( Index.c_str( ) );
@@ -196,13 +312,7 @@ bool Gearbox_Server::ServerConfigRemove( std::string Index ) {
         Ind = (*it).first;
       }
     }
-    if( Ind == -1 ) { return false; }
+    if( Ind == -1 ) { return ServerConfigs.end(); }
   }
-  if( ServerConfigs.find( Ind ) != ServerConfigs.end( ) ) {
-    ServerConfigs.erase( ServerConfigs.find( Ind ) );
-    return true;
-  } else {
-    return false;
-  }
-  return true;
+  return ServerConfigs.find( Ind );
 }

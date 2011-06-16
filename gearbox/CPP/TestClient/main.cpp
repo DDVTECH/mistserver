@@ -84,10 +84,12 @@ int main( ) {
     std::cin >> temp;
     Sock.write( Encode( temp + "\n", xorpath ) );
     temp = "";
-    if( Sock.connected( ) && Sock.ready( ) ) {
-      Sock.read( temp );
-      std::cout << "REC::" << Decode(temp,xorpath) << "\n";
-    }
+    do{
+      if( Sock.connected( ) && Sock.ready( ) ) {
+        Sock.read( temp );
+      }
+    } while( temp == "" );
+    std::cout << "REC::" << Decode(temp,xorpath) << "\n";
   }
   Sock.close( );
   return 0;

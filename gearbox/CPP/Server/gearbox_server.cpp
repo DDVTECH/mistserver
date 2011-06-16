@@ -14,6 +14,8 @@ Gearbox_Server::~Gearbox_Server( ) {}
 void Gearbox_Server::InitializeMap( ) {
   CommandMap["OCC"] = CM_OCC;
   CommandMap["OCD"] = CM_OCD;
+  CommandMap["SCA"] = CM_SCA;
+  CommandMap["SCR"] = CM_SCR;
 }
 
 
@@ -140,15 +142,67 @@ std::deque<std::string> Gearbox_Server::GetParameters( std::string Cmd ) {
 }
 
 void Gearbox_Server::HandleConnection( ) {
+  std::deque<std::string> Parameters;
   std::string Cmd = GetSingleCommand( );
+  std::stringstream ss;
+  int temp;
   if( Cmd == "" ) { return; }
   switch( CommandMap[ Cmd.substr(0,3) ] ) {
     case CM_OCD:
+      Parameters = GetParameters( Cmd.substr(3) );
       RetVal = "OCD";
+      if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; }
+      break;
+    case CM_SCA:
+      Parameters = GetParameters( Cmd.substr(3) );
+      temp = ServerConfigAdd( );
+      ss << temp;
+      RetVal = "SCA" + ss.str();
+      if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; }
+      break;
+    case CM_SCR:
+      Parameters = GetParameters( Cmd.substr(3) );
+      RetVal = "SCR";
+      if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; }
+      if( !ServerConfigRemove( Parameters[0] ) ) { RetVal = "ERR_InvalidID"; }
       break;
     default:
       RetVal = "ERR_InvalidCommand:" + Cmd;
   }
   WriteReturn( );
   if( RetVal == "OCD" ) { conn.close( ); }
+}
+
+int Gearbox_Server::ServerConfigAdd( ) {
+  std::map<int,Server>::iterator it;
+  if( ! ServerConfigs.empty( ) ) {
+    it = ServerConfigs.end( );
+    it --;
+  }
+  int lastid = ( ServerConfigs.empty() ? 0 : (*it).first ) + 1;
+  ServerConfigs.insert( std::pair<int,Server>(lastid,(Server){lastid,"","",22,80,1935}) );
+  ServerNames.insert( std::pair<int,std::string>(lastid,"") );
+  return lastid;
+}
+
+bool Gearbox_Server::ServerConfigRemove( std::string Index ) {
+  int Ind;
+  if( atoi( Index.c_str( ) ) ) {
+    Ind = atoi( Index.c_str( ) );
+  } else {
+    Ind = -1;
+    for( std::map<int,std::string>::iterator it = ServerNames.begin(); it != ServerNames.end( ); it++ ) {
+      if( (*it).second == Index ) {
+        Ind = (*it).first;
+      }
+    }
+    if( Ind == -1 ) { return false; }
+  }
+  if( ServerConfigs.find( Ind ) != ServerConfigs.end( ) ) {
+    ServerConfigs.erase( ServerConfigs.find( Ind ) );
+    return true;
+  } else {
+    return false;
+  }
+  return true;
 }

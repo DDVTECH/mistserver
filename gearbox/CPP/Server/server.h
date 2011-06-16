@@ -1,3 +1,4 @@
+#pragma once
 #include<string>
 
 struct Server {
@@ -5,6 +6,6 @@ struct Server {
   std::string SrvName;
   std::string SrvAddr;
   int SrvSSH;
-  int SrvHTTP:
+  int SrvHTTP;
   int SrvRTMP;
-}
+};//Server struct

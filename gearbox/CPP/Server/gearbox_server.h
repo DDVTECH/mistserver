@@ -8,18 +8,18 @@ enum Commands{
 //  CM_OSG_T,///<Overall Statistics Get Throughput
 
   CM_SCA,///<Servers Config Add
-  CM_SCR///<Servers Config Remove
-  CM_SCS///<Servers Config Set SELECTOR
-  CM_SCS_N///<Servers Config Set Name
-  CM_SCS_A///<Servers Config Set Name
-  CM_SCS_S///<Servers Config Set Name
-  CM_SCS_H///<Servers Config Set Name
-  CM_SCS_R///<Servers Config Set Name
-  CM_SCG///<Servers Config Get SELECTOR
-  CM_SCG_N///<Servers Config Get Name
-  CM_SCG_A///<Servers Config Get Name
-  CM_SCG_S///<Servers Config Get Name
-  CM_SCG_H///<Servers Config Get Name
+  CM_SCR,///<Servers Config Remove
+  CM_SCS,///<Servers Config Set SELECTOR
+  CM_SCS_N,///<Servers Config Set Name
+  CM_SCS_A,///<Servers Config Set Name
+  CM_SCS_S,///<Servers Config Set Name
+  CM_SCS_H,///<Servers Config Set Name
+  CM_SCS_R,///<Servers Config Set Name
+  CM_SCG,///<Servers Config Get SELECTOR
+  CM_SCG_N,///<Servers Config Get Name
+  CM_SCG_A,///<Servers Config Get Name
+  CM_SCG_S,///<Servers Config Get Name
+  CM_SCG_H,///<Servers Config Get Name
   CM_SCG_R///<Servers Config Get Name
 };
 
@@ -61,6 +61,12 @@ class Gearbox_Server {
 
     int ServerConfigAdd( );
     bool ServerConfigRemove( std::string Index );
+    bool ServerConfigSetName( std::string SrvId, std::string SrvName );
+    bool ServerConfigSetAddress( std::string SrvId, std::string SrvAddress );
+    bool ServerConfigSetSSH( std::string SrvId, int SrvSSH );
+    bool ServerConfigSetHTTP( std::string SrvId, int SrvHTTP );
+    bool ServerConfigSetRTMP( std::string SrvId, int SrvRTMP );
+
 
     std::map<int,Server>::iterator RetrieveServer( std::string Index );
 

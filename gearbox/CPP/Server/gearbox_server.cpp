@@ -199,32 +199,63 @@ void Gearbox_Server::HandleConnection( ) {
       case CM_SCG_N:
         RetVal = "SCG_N";
         if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
-        if( RetrieveServer( Parameters[0] ) != ServerConfigs.end( ) ) { RetVal = "ERR_InvalidName"; break; }
-        if( !ServerConfigSetName( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; break; }
+        ServerIT = RetrieveServer( Parameters[0] );
+        if( ServerIT == ServerConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        RetVal += (*ServerIT).second.SrvName;
         break;
       case CM_SCS_A:
         RetVal = "SCS_A";
         if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
-//        if( RetrieveServer( Parameters[1] ) != ServerConfigs.end( ) ) { RetVal = "ERR_InvalidAddress"; break; }
         if( !ServerConfigSetAddress( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCG_A:
+        RetVal = "SCG_A";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        ServerIT = RetrieveServer( Parameters[0] );
+        if( ServerIT == ServerConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        RetVal += (*ServerIT).second.SrvAddr;
         break;
       case CM_SCS_S:
         RetVal = "SCS_S";
         if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
-        if( !atoi( Parameters[1] ) ) { RetVal = "ERR_InvalidPort"; break; }
-        if( !ServerConfigSetSSH( Parameters[0], atoi( Parameters[1] ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        if( !atoi( Parameters[1].c_str() ) ) { RetVal = "ERR_InvalidPort"; break; }
+        if( !ServerConfigSetSSH( Parameters[0], atoi( Parameters[1].c_str() ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCG_S:
+        RetVal = "SCG_S";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        ServerIT = RetrieveServer( Parameters[0] );
+        if( ServerIT == ServerConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        ss << (*ServerIT).second.SrvSSH;
+        RetVal += ss.str();
         break;
       case CM_SCS_H:
         RetVal = "SCS_H";
         if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
-        if( !atoi( Parameters[1] ) ) { RetVal = "ERR_InvalidPort"; break; }
-        if( !ServerConfigSetHTTP( Parameters[0], atoi( Parameters[1] ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        if( !atoi( Parameters[1].c_str() ) ) { RetVal = "ERR_InvalidPort"; break; }
+        if( !ServerConfigSetHTTP( Parameters[0], atoi( Parameters[1].c_str() ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCG_H:
+        RetVal = "SCG_H";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        ServerIT = RetrieveServer( Parameters[0] );
+        if( ServerIT == ServerConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        ss << (*ServerIT).second.SrvHTTP;
+        RetVal += ss.str();
         break;
       case CM_SCS_R:
         RetVal = "SCS_R";
         if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
-        if( !atoi( Parameters[1] ) ) { RetVal = "ERR_InvalidPort"; break; }
-        if( !ServerConfigSetRTMP( Parameters[0], atoi( Parameters[1] ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        if( !atoi( Parameters[1].c_str() ) ) { RetVal = "ERR_InvalidPort"; break; }
+        if( !ServerConfigSetRTMP( Parameters[0], atoi( Parameters[1].c_str() ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SCG_R:
+        RetVal = "SCG_R";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        ServerIT = RetrieveServer( Parameters[0] );
+        if( ServerIT == ServerConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        ss << (*ServerIT).second.SrvRTMP;
+        RetVal += ss.str();
         break;
       default:
         RetVal = "ERR_InvalidCommand:" + Cmd;
@@ -256,48 +287,48 @@ bool Gearbox_Server::ServerConfigRemove( std::string Index ) {
   return true;
 }
 
-bool Gearbox_Server::ServerConfigSetName( std::string SrvId, std::string SrvName ) {
+bool Gearbox_Server::ServerConfigSetName( std::string SrvID, std::string SrvName ) {
   std::map<int,Server>::iterator it = RetrieveServer( SrvID );
   if( it == ServerConfigs.end( ) ) {
     return false;
   }
-  (*it).SrvName = SrvName;
+  (*it).second.SrvName = SrvName;
   return true;
 }
 
-bool Gearbox_Server::ServerConfigSetAddress( std::string SrvId, std::string SrvAddress ) {
+bool Gearbox_Server::ServerConfigSetAddress( std::string SrvID, std::string SrvAddress ) {
   std::map<int,Server>::iterator it = RetrieveServer( SrvID );
   if( it == ServerConfigs.end( ) ) {
     return false;
   }
-  (*it).SrvAddress = SrvAddress;
+  (*it).second.SrvAddr = SrvAddress;
   return true;
 }
 
-bool Gearbox_Server::ServerConfigSetSSH( std::string SrvId, int SrvSSH ) {
+bool Gearbox_Server::ServerConfigSetSSH( std::string SrvID, int SrvSSH ) {
   std::map<int,Server>::iterator it = RetrieveServer( SrvID );
   if( it == ServerConfigs.end( ) ) {
     return false;
   }
-  (*it).SrvSSH = SrvSSH;
+  (*it).second.SrvSSH = SrvSSH;
   return true;
 }
 
-bool Gearbox_Server::ServerConfigSetHTTP( std::string SrvId, int SrvHTTP ) {
+bool Gearbox_Server::ServerConfigSetHTTP( std::string SrvID, int SrvHTTP ) {
   std::map<int,Server>::iterator it = RetrieveServer( SrvID );
   if( it == ServerConfigs.end( ) ) {
     return false;
   }
-  (*it).SrvHTTP = SrvHTTP;
+  (*it).second.SrvHTTP = SrvHTTP;
   return true;
 }
 
-bool Gearbox_Server::ServerConfigSetRTMP( std::string SrvId, int SrvRTMP ) {
+bool Gearbox_Server::ServerConfigSetRTMP( std::string SrvID, int SrvRTMP ) {
   std::map<int,Server>::iterator it = RetrieveServer( SrvID );
   if( it == ServerConfigs.end( ) ) {
     return false;
   }
-  (*it).SrvRTMP = SrvRTMP;
+  (*it).second.SrvRTMP = SrvRTMP;
   return true;
 }
 

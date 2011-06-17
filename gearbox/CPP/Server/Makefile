@@ -4,7 +4,7 @@ OUT = Gearbox_Test
 INCLUDES = 
 DEBUG = 4
 OPTIMIZE = -g
-CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)
+CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG) -std=c++0x
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar

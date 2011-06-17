@@ -3,9 +3,6 @@ enum Commands{
 
   CM_OCC,///<Overall Connection Connect
   CM_OCD,///<Overall Connection Disconnect
-//  CM_OSG,///<Overall Statistics Get SELECTOR
-//  CM_OSG_U,///<Overall Statistics Get Users
-//  CM_OSG_T,///<Overall Statistics Get Throughput
 
   CM_SCA,///<Servers Config Add
   CM_SCR,///<Servers Config Remove
@@ -30,6 +27,15 @@ enum Commands{
   CM_SLG_B,///<Servers Limit Get Bandwith
   CM_SLG_U,///<Servers Limit Get Users
   CM_SLG_L,///<Servers Limit Get Limits
+
+  CM_CCA,
+  CM_CCR,
+  CM_CCS,
+  CM_CCG,
+  CM_CCS_N,
+  CM_CCS_S,
+  CM_CCG_N,
+  CM_CCG_S,
 };
 
 
@@ -44,6 +50,7 @@ enum Commands{
 #include "../../../util/ddv_socket.h"
 #include "../../../util/md5.h"
 #include "server.h"
+#include "channel.h"
 
 #define TESTUSER_ID "5"
 #define TESTUSER_PASS "Chocokoekjes"
@@ -69,7 +76,7 @@ class Gearbox_Server {
     std::deque<std::string> GetParameters( std::string Cmd );
 
     int ServerConfigAdd( );
-    bool ServerConfigRemove( std::string Index );
+    bool ServerConfigRemove( std::string SrvID );
     bool ServerConfigSetName( std::string SrvId, std::string SrvName );
     bool ServerConfigSetAddress( std::string SrvId, std::string SrvAddress );
     bool ServerConfigSetSSH( std::string SrvId, int SrvSSH );
@@ -78,8 +85,13 @@ class Gearbox_Server {
     bool ServerLimitSetBW( std::string SrvId, int SrvLimitBW );
     bool ServerLimitSetUsers( std::string SrvId, int SrvLimitUsers );
 
+    int ChannelConfigAdd( );
+    bool ChannelConfigRemove( std::string ChID );
+    bool ChannelConfigSetName( std::string ChID, std::string ChName );
+    bool ChannelConfigSetSource( std::string ChID, std::string ChSrc );
 
     std::map<int,Server>::iterator RetrieveServer( std::string Index );
+    std::map<int,Channel>::iterator RetrieveChannel( std::string Index );
 
     bool IsSrv;
     std::string RetVal;
@@ -90,4 +102,6 @@ class Gearbox_Server {
     std::map<std::string,Commands> CommandMap;
     std::map<int,Server> ServerConfigs;
     std::map<int,std::string> ServerNames;
+    std::map<int,Channel> ChannelConfigs;
+    std::map<int,std::string> ChannelNames;
 };//Gearbox Server Class

@@ -20,6 +20,10 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["SCG"] = CM_SCG;
   CommandMap["SLS"] = CM_SLS;
   CommandMap["SLG"] = CM_SLG;
+  CommandMap["CCA"] = CM_CCA;
+  CommandMap["CCR"] = CM_CCR;
+  CommandMap["CCS"] = CM_CCS;
+  CommandMap["CCG"] = CM_CCG;
 
   CommandMap["SCS_N"] = CM_SCS_N;
   CommandMap["SCS_A"] = CM_SCS_A;
@@ -31,13 +35,15 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["SCG_S"] = CM_SCG_S;
   CommandMap["SCG_H"] = CM_SCG_H;
   CommandMap["SCG_R"] = CM_SCG_R;
-
   CommandMap["SLS_B"] = CM_SLS_B;
   CommandMap["SLS_U"] = CM_SLS_U;
-
   CommandMap["SLG_B"] = CM_SLG_B;
   CommandMap["SLG_U"] = CM_SLG_U;
   CommandMap["SLG_L"] = CM_SLG_L;
+  CommandMap["CCS_N"] = CM_CCS_N;
+  CommandMap["CCS_S"] = CM_CCS_S;
+  CommandMap["CCG_N"] = CM_CCG_N;
+  CommandMap["CCG_S"] = CM_CCG_S;
 }
 
 
@@ -178,20 +184,34 @@ void Gearbox_Server::HandleConnection( ) {
       if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; }
       break;
     case CM_SCA:
+      if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; break; }
       temp = ServerConfigAdd( );
       ss << temp;
       RetVal = "SCA" + ss.str();
-      if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; }
       break;
     case CM_SCR:
       RetVal = "SCR";
       if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
       if( !ServerConfigRemove( Parameters[0] ) ) { RetVal = "ERR_InvalidID"; }
       break;
+    case CM_CCA:
+      if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; break; }
+      temp = ChannelConfigAdd( );
+      ss << temp;
+      RetVal = "CCA" + ss.str();
+      break;
+    case CM_CCR:
+      RetVal = "CCR";
+      if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+      if( !ChannelConfigRemove( Parameters[0] ) ) { RetVal = "ERR_InvalidID"; }
+      break;
+      break;
     case CM_SCS:
     case CM_SCG:
     case CM_SLS:
     case CM_SLG:
+    case CM_CCS:
+    case CM_CCG:
       Selector = true;
       break;
     default:
@@ -332,6 +352,7 @@ bool Gearbox_Server::ServerConfigSetName( std::string SrvID, std::string SrvName
     return false;
   }
   (*it).second.SrvName = SrvName;
+  ServerNames[(*it).first] = SrvName;
   return true;
 }
 
@@ -403,4 +424,61 @@ std::map<int,Server>::iterator Gearbox_Server::RetrieveServer( std::string Index
     if( Ind == -1 ) { return ServerConfigs.end(); }
   }
   return ServerConfigs.find( Ind );
+}
+
+int Gearbox_Server::ChannelConfigAdd( ) {
+  std::map<int,Channel>::iterator it;
+  if( ! ChannelConfigs.empty( ) ) {
+    it = ChannelConfigs.end( );
+    it --;
+  }
+  int lastid = ( ChannelConfigs.empty() ? 0 : (*it).first ) + 1;
+  ChannelConfigs.insert( std::pair<int,Channel>(lastid,(Channel){lastid,"","",{} }) );
+  ServerNames.insert( std::pair<int,std::string>(lastid,"") );
+  return lastid;
+}
+
+bool Gearbox_Server::ChannelConfigRemove( std::string ChID ) {
+  std::map<int,Channel>::iterator it = RetrieveChannel( ChID );
+  if( it == ChannelConfigs.end( ) ) {
+    return false;
+  }
+  ChannelConfigs.erase( it );
+  return true;
+}
+
+bool Gearbox_Server::ChannelConfigSetName( std::string ChID, std::string ChName ) {
+  std::map<int,Channel>::iterator it = RetrieveChannel( ChID );
+  if( it == ChannelConfigs.end( ) ) {
+    return false;
+  }
+  (*it).second.ChName = ChName;
+  ChannelNames[(*it).first] = ChName;
+  return true;
+}
+
+bool Gearbox_Server::ChannelConfigSetSource( std::string ChID, std::string ChSrc ) {
+  std::map<int,Channel>::iterator it = RetrieveChannel( ChID );
+  if( it == ChannelConfigs.end( ) ) {
+    return false;
+  }
+  (*it).second.ChSrc = ChSrc;
+  ChannelNames[(*it).first] = ChSrc;
+  return true;
+}
+
+std::map<int,Channel>::iterator Gearbox_Server::RetrieveChannel( std::string Index ) {
+  int Ind;
+  if( atoi( Index.c_str( ) ) ) {
+    Ind = atoi( Index.c_str( ) );
+  } else {
+    Ind = -1;
+    for( std::map<int,std::string>::iterator it = ChannelNames.begin(); it != ChannelNames.end( ); it++ ) {
+      if( (*it).second == Index ) {
+        Ind = (*it).first;
+      }
+    }
+    if( Ind == -1 ) { return ChannelConfigs.end(); }
+  }
+  return ChannelConfigs.find( Ind );
 }

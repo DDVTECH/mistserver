@@ -1,9 +1,9 @@
-#include <vector>
+#include <map>
 #include <string>
 
 struct Channel{
   int ChID;
   std::string ChName;
   std::string ChSrc;
-  std::vector<int> Presets;
+  std::map<std::string,bool> Presets;
 };//Channel

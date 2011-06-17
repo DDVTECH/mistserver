@@ -7,6 +7,10 @@ Gearbox_Server::Gearbox_Server( DDV::Socket Connection ) {
   RandomConnect = GenerateRandomString( 8 );
   RandomAuth = GenerateRandomString( 8 );
   XorPath = "";
+  Presets.push_back( "raw" );
+  Presets.push_back( "copy" );
+  Presets.push_back( "h264-low" );
+  Presets.push_back( "h264-high" );
 }
 
 Gearbox_Server::~Gearbox_Server( ) {}
@@ -24,6 +28,8 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["CCR"] = CM_CCR;
   CommandMap["CCS"] = CM_CCS;
   CommandMap["CCG"] = CM_CCG;
+  CommandMap["CPA"] = CM_CPA;
+  CommandMap["CPR"] = CM_CPR;
 
   CommandMap["SCS_N"] = CM_SCS_N;
   CommandMap["SCS_A"] = CM_SCS_A;
@@ -171,7 +177,9 @@ std::deque<std::string> Gearbox_Server::GetParameters( std::string Cmd ) {
 
 void Gearbox_Server::HandleConnection( ) {
   bool Selector = false;
+  bool found = false;
   std::map<int,Server>::iterator ServerIT;
+  std::map<int,Channel>::iterator ChannelIT;
   std::deque<std::string> Parameters;
   std::string Cmd = GetSingleCommand( );
   std::stringstream ss;
@@ -205,6 +213,19 @@ void Gearbox_Server::HandleConnection( ) {
       if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
       if( !ChannelConfigRemove( Parameters[0] ) ) { RetVal = "ERR_InvalidID"; }
       break;
+    case CM_CPA:
+      RetVal = "CPA";
+      if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+      for( int i = 0; i < Presets.size( ); i++ ) { if ( Presets[i] == Parameters[1] ) { found = true; } }
+      if( found ) { RetVal = "ERR_InvalidPreset"; break; }
+      if( !ChannelPresetAdd( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; }
+      break;
+    case CM_CPR:
+      RetVal = "CPR";
+      if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+      for( int i = 0; i < Presets.size( ); i++ ) { if ( Presets[i] == Parameters[1] ) { found = true; } }
+      if( found ) { RetVal = "ERR_InvalidPreset"; break; }
+      if( !ChannelPresetRemove( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; }
       break;
     case CM_SCS:
     case CM_SCG:
@@ -316,8 +337,33 @@ void Gearbox_Server::HandleConnection( ) {
         ss << (*ServerIT).second.SrvLimitUsers;
         RetVal += ss.str();
         break;
+      case CM_CCS_N:
+        RetVal = "CCS_N";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( !ChannelConfigSetName( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_CCG_N:
+        RetVal = "CCG_N";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        ChannelIT = RetrieveChannel( Parameters[0] );
+        if( ChannelIT == ChannelConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        RetVal += (*ChannelIT).second.ChName;
+        break;
+      case CM_CCS_S:
+        RetVal = "CCS_S";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( !ChannelConfigSetSource( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_CCG_S:
+        RetVal = "CCG_S";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        ChannelIT = RetrieveChannel( Parameters[0] );
+        if( ChannelIT == ChannelConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        RetVal += (*ChannelIT).second.ChSrc;
+        break;
       default:
         RetVal = "ERR_InvalidCommand:" + Cmd;
+        break;
     }
   }
 
@@ -464,6 +510,24 @@ bool Gearbox_Server::ChannelConfigSetSource( std::string ChID, std::string ChSrc
   }
   (*it).second.ChSrc = ChSrc;
   ChannelNames[(*it).first] = ChSrc;
+  return true;
+}
+
+bool Gearbox_Server::ChannelPresetAdd( std::string ChID, std::string PrsName ) {
+  std::map<int,Channel>::iterator it = RetrieveChannel( ChID );
+  if( it == ChannelConfigs.end( ) ) {
+    return false;
+  }
+  (*it).second.Presets[ PrsName ] = true;
+  return true;
+}
+
+bool Gearbox_Server::ChannelPresetRemove( std::string ChID, std::string PrsName ) {
+  std::map<int,Channel>::iterator it = RetrieveChannel( ChID );
+  if( it == ChannelConfigs.end( ) ) {
+    return false;
+  }
+  (*it).second.Presets[ PrsName ] = false;
   return true;
 }
 

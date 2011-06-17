@@ -1,9 +1,7 @@
 enum Commands{
   CM_ERR,///<Empty Constructor for map
-
   CM_OCC,///<Overall Connection Connect
   CM_OCD,///<Overall Connection Disconnect
-
   CM_SCA,///<Servers Config Add
   CM_SCR,///<Servers Config Remove
   CM_SCS,///<Servers Config Set SELECTOR
@@ -18,16 +16,13 @@ enum Commands{
   CM_SCG_S,///<Servers Config Get Name
   CM_SCG_H,///<Servers Config Get Name
   CM_SCG_R,///<Servers Config Get Name
-
   CM_SLS,///<Severs Limit Set SELECTOR
   CM_SLS_B,///<Servers Limit Set Bandwidth
   CM_SLS_U,///<Servers Limit Set Users
-
   CM_SLG,///<Severs Limit Get SELECTOR
   CM_SLG_B,///<Servers Limit Get Bandwith
   CM_SLG_U,///<Servers Limit Get Users
   CM_SLG_L,///<Servers Limit Get Limits
-
   CM_CCA,
   CM_CCR,
   CM_CCS,
@@ -36,6 +31,8 @@ enum Commands{
   CM_CCS_S,
   CM_CCG_N,
   CM_CCG_S,
+  CM_CPA,
+  CM_CPR,
 };
 
 
@@ -90,6 +87,9 @@ class Gearbox_Server {
     bool ChannelConfigSetName( std::string ChID, std::string ChName );
     bool ChannelConfigSetSource( std::string ChID, std::string ChSrc );
 
+    bool ChannelPresetAdd( std::string ChID, std::string PrsName );
+    bool ChannelPresetRemove( std::string ChID, std::string PrsName );
+
     std::map<int,Server>::iterator RetrieveServer( std::string Index );
     std::map<int,Channel>::iterator RetrieveChannel( std::string Index );
 
@@ -104,4 +104,6 @@ class Gearbox_Server {
     std::map<int,std::string> ServerNames;
     std::map<int,Channel> ChannelConfigs;
     std::map<int,std::string> ChannelNames;
+
+    std::vector<std::string> Presets;
 };//Gearbox Server Class

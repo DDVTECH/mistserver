@@ -8,4 +8,7 @@ struct Server {
   int SrvSSH;
   int SrvHTTP;
   int SrvRTMP;
+
+  int SrvLimitBW;
+  int SrvLimitUsers;
 };//Server struct

@@ -18,6 +18,8 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["SCR"] = CM_SCR;
   CommandMap["SCS"] = CM_SCS;
   CommandMap["SCG"] = CM_SCG;
+  CommandMap["SLS"] = CM_SLS;
+  CommandMap["SLG"] = CM_SLG;
 
   CommandMap["SCS_N"] = CM_SCS_N;
   CommandMap["SCS_A"] = CM_SCS_A;
@@ -29,6 +31,13 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["SCG_S"] = CM_SCG_S;
   CommandMap["SCG_H"] = CM_SCG_H;
   CommandMap["SCG_R"] = CM_SCG_R;
+
+  CommandMap["SLS_B"] = CM_SLS_B;
+  CommandMap["SLS_U"] = CM_SLS_U;
+
+  CommandMap["SLG_B"] = CM_SLG_B;
+  CommandMap["SLG_U"] = CM_SLG_U;
+  CommandMap["SLG_L"] = CM_SLG_L;
 }
 
 
@@ -181,6 +190,8 @@ void Gearbox_Server::HandleConnection( ) {
       break;
     case CM_SCS:
     case CM_SCG:
+    case CM_SLS:
+    case CM_SLG:
       Selector = true;
       break;
     default:
@@ -257,6 +268,34 @@ void Gearbox_Server::HandleConnection( ) {
         ss << (*ServerIT).second.SrvRTMP;
         RetVal += ss.str();
         break;
+      case CM_SLS_B:
+        RetVal = "SLS_B";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( atoi( Parameters[1].c_str() ) < 0 ) { RetVal = "ERR_InvalidLimit"; break; }
+        if( !ServerLimitSetBW( Parameters[0], atoi( Parameters[1].c_str() ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SLG_B:
+        RetVal = "SLG_B";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        ServerIT = RetrieveServer( Parameters[0] );
+        if( ServerIT == ServerConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        ss << (*ServerIT).second.SrvLimitBW;
+        RetVal += ss.str();
+        break;
+      case CM_SLS_U:
+        RetVal = "SLS_U";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( atoi( Parameters[1].c_str() ) < 0 ) { RetVal = "ERR_InvalidLimit"; break; }
+        if( !ServerLimitSetUsers( Parameters[0], atoi( Parameters[1].c_str() ) ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_SLG_U:
+        RetVal = "SLG_U";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        ServerIT = RetrieveServer( Parameters[0] );
+        if( ServerIT == ServerConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        ss << (*ServerIT).second.SrvLimitUsers;
+        RetVal += ss.str();
+        break;
       default:
         RetVal = "ERR_InvalidCommand:" + Cmd;
     }
@@ -273,7 +312,7 @@ int Gearbox_Server::ServerConfigAdd( ) {
     it --;
   }
   int lastid = ( ServerConfigs.empty() ? 0 : (*it).first ) + 1;
-  ServerConfigs.insert( std::pair<int,Server>(lastid,(Server){lastid,"","",22,80,1935}) );
+  ServerConfigs.insert( std::pair<int,Server>(lastid,(Server){lastid,"","",22,80,1935,0,0}) );
   ServerNames.insert( std::pair<int,std::string>(lastid,"") );
   return lastid;
 }
@@ -329,6 +368,24 @@ bool Gearbox_Server::ServerConfigSetRTMP( std::string SrvID, int SrvRTMP ) {
     return false;
   }
   (*it).second.SrvRTMP = SrvRTMP;
+  return true;
+}
+
+bool Gearbox_Server::ServerLimitSetBW( std::string SrvID, int SrvLimitBW ) {
+  std::map<int,Server>::iterator it = RetrieveServer( SrvID );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  (*it).second.SrvLimitBW = SrvLimitBW;
+  return true;
+}
+
+bool Gearbox_Server::ServerLimitSetUsers( std::string SrvID, int SrvLimitUsers ) {
+  std::map<int,Server>::iterator it = RetrieveServer( SrvID );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  (*it).second.SrvLimitUsers = SrvLimitUsers;
   return true;
 }
 

@@ -20,7 +20,16 @@ enum Commands{
   CM_SCG_A,///<Servers Config Get Name
   CM_SCG_S,///<Servers Config Get Name
   CM_SCG_H,///<Servers Config Get Name
-  CM_SCG_R///<Servers Config Get Name
+  CM_SCG_R,///<Servers Config Get Name
+
+  CM_SLS,///<Severs Limit Set SELECTOR
+  CM_SLS_B,///<Servers Limit Set Bandwidth
+  CM_SLS_U,///<Servers Limit Set Users
+
+  CM_SLG,///<Severs Limit Get SELECTOR
+  CM_SLG_B,///<Servers Limit Get Bandwith
+  CM_SLG_U,///<Servers Limit Get Users
+  CM_SLG_L,///<Servers Limit Get Limits
 };
 
 
@@ -66,6 +75,8 @@ class Gearbox_Server {
     bool ServerConfigSetSSH( std::string SrvId, int SrvSSH );
     bool ServerConfigSetHTTP( std::string SrvId, int SrvHTTP );
     bool ServerConfigSetRTMP( std::string SrvId, int SrvRTMP );
+    bool ServerLimitSetBW( std::string SrvId, int SrvLimitBW );
+    bool ServerLimitSetUsers( std::string SrvId, int SrvLimitUsers );
 
 
     std::map<int,Server>::iterator RetrieveServer( std::string Index );

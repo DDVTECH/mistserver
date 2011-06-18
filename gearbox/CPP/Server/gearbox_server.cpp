@@ -30,6 +30,12 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["CCG"] = CM_CCG;
   CommandMap["CPA"] = CM_CPA;
   CommandMap["CPR"] = CM_CPR;
+  CommandMap["GCG"] = CM_GCG;
+  CommandMap["GCS"] = CM_GCS;
+  CommandMap["GCA"] = CM_GCA;
+  CommandMap["GCR"] = CM_GCR;
+  CommandMap["GSA"] = CM_GSA;
+  CommandMap["GSR"] = CM_GSR;
 
   CommandMap["SCS_N"] = CM_SCS_N;
   CommandMap["SCS_A"] = CM_SCS_A;
@@ -50,6 +56,8 @@ void Gearbox_Server::InitializeMap( ) {
   CommandMap["CCS_S"] = CM_CCS_S;
   CommandMap["CCG_N"] = CM_CCG_N;
   CommandMap["CCG_S"] = CM_CCG_S;
+  CommandMap["GCS_N"] = CM_GCS_N;
+  CommandMap["GCG_N"] = CM_GCG_N;
 }
 
 
@@ -180,6 +188,7 @@ void Gearbox_Server::HandleConnection( ) {
   bool found = false;
   std::map<int,Server>::iterator ServerIT;
   std::map<int,Channel>::iterator ChannelIT;
+  std::map<int,Group>::iterator GroupIT;
   std::deque<std::string> Parameters;
   std::string Cmd = GetSingleCommand( );
   std::stringstream ss;
@@ -227,12 +236,72 @@ void Gearbox_Server::HandleConnection( ) {
       if( found ) { RetVal = "ERR_InvalidPreset"; break; }
       if( !ChannelPresetRemove( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; }
       break;
+    case CM_GCA:
+      if( Parameters.size( ) != 0 ) { RetVal = "ERR_ParamAmount"; break; }
+      temp = GroupConfigAdd( );
+      ss << temp;
+      RetVal = "GCA" + ss.str();
+      break;
+    case CM_GCR:
+      RetVal = "GCR";
+      if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+      if( !GroupConfigRemove( Parameters[0] ) ) { RetVal = "ERR_InvalidID"; }
+      break;
+    case CM_GSA:
+      RetVal = "GSA";
+      if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+      GroupIT = RetrieveGroup( Parameters[0] );
+      if( GroupIT == GroupConfigs.end() ) { RetVal = "ERR_InvalidID"; break; }
+      ServerIT = RetrieveServer( Parameters[1] );
+      if( ServerIT == ServerConfigs.end() ) { RetVal = "ERR_InvalidServer"; break; }
+      (*GroupIT).second.GrpServers.push_back( (*ServerIT).first );
+      break;
+    case CM_GSR:
+      RetVal = "ERR_ServerNotInGroup";
+      if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+      GroupIT = RetrieveGroup( Parameters[0] );
+      if( GroupIT == GroupConfigs.end() ) { RetVal = "ERR_InvalidID"; break; }
+      ServerIT = RetrieveServer( Parameters[1] );
+      if( ServerIT == ServerConfigs.end() ) { RetVal = "ERR_InvalidServer"; break; }
+      for( std::vector<int>::iterator it = (*GroupIT).second.GrpServers.begin(); it != (*GroupIT).second.GrpServers.end(); it++ ) {
+        if( (*it) == (*ServerIT).first ) {
+          (*GroupIT).second.GrpServers.erase( it );
+          RetVal = "GSR";
+        }
+      }
+      break;
+    case CM_GTA:
+      RetVal = "GTA";
+      if( Parameters.size( ) != 3 ) { RetVal = "ERR_ParamAmount"; break; }
+      GroupIT = RetrieveGroup( Parameters[0] );
+      if( GroupIT == GroupConfigs.end() ) { RetVal = "ERR_InvalidID"; break; }
+      ChannelIT = RetrieveChannel( Parameters[1] );
+      if( ChannelIT == ChannelConfigs.end() ) { RetVal = "ERR_InvalidChannel"; break; }
+      if( !( (*ChannelIT).second.Presets[ Parameters[2] ] ) ) { RetVal = "ERR_InvalidPreset"; break; }
+      (*GroupIT).second.GrpStreams.push_back( std::pair<int,std::string>((*ChannelIT).first, Parameters[2] ) );
+      break;
+    case CM_GTR:
+      RetVal = "ERR_ChannelNotInGroup";
+      if( Parameters.size( ) != 3 ) { RetVal = "ERR_ParamAmount"; break; }
+      GroupIT = RetrieveGroup( Parameters[0] );
+      if( GroupIT == GroupConfigs.end() ) { RetVal = "ERR_InvalidID"; break; }
+      ChannelIT = RetrieveChannel( Parameters[1] );
+      if( ChannelIT == ChannelConfigs.end() ) { RetVal = "ERR_InvalidChannel"; break; }
+      for( std::vector< std::pair<int,std::string> >::iterator it = (*GroupIT).second.GrpStreams.begin(); it != (*GroupIT).second.GrpStreams.end(); it++ ) {
+        if( (*it).first == (*ChannelIT).first && Parameters[2] == (*it).second ) {
+          (*GroupIT).second.GrpStreams.erase( it );
+          RetVal = "GTR";
+        }
+      }
+      break;
     case CM_SCS:
     case CM_SCG:
     case CM_SLS:
     case CM_SLG:
     case CM_CCS:
     case CM_CCG:
+    case CM_GCS:
+    case CM_GCG:
       Selector = true;
       break;
     default:
@@ -361,6 +430,18 @@ void Gearbox_Server::HandleConnection( ) {
         if( ChannelIT == ChannelConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
         RetVal += (*ChannelIT).second.ChSrc;
         break;
+      case CM_GCS_N:
+        RetVal = "CCS_N";
+        if( Parameters.size( ) != 2 ) { RetVal = "ERR_ParamAmount"; break; }
+        if( !GroupConfigSetName( Parameters[0], Parameters[1] ) ) { RetVal = "ERR_InvalidID"; break; }
+        break;
+      case CM_GCG_N:
+        RetVal = "CCG_N";
+        if( Parameters.size( ) != 1 ) { RetVal = "ERR_ParamAmount"; break; }
+        GroupIT = RetrieveGroup( Parameters[0] );
+        if( GroupIT == GroupConfigs.end( ) ) { RetVal = "ERR_InvalidID"; break; }
+        RetVal += (*GroupIT).second.GrpName;
+        break;
       default:
         RetVal = "ERR_InvalidCommand:" + Cmd;
         break;
@@ -369,6 +450,37 @@ void Gearbox_Server::HandleConnection( ) {
 
   WriteReturn( );
   if( RetVal == "OCD" ) { conn.close( ); }
+}
+
+int Gearbox_Server::GroupConfigAdd( ) {
+  std::map<int,Group>::iterator it;
+  if( ! GroupConfigs.empty( ) ) {
+    it = GroupConfigs.end( );
+    it --;
+  }
+  int lastid = ( GroupConfigs.empty() ? 0 : (*it).first ) + 1;
+  GroupConfigs.insert( std::pair<int,Group>(lastid,(Group){lastid,"",{},{} }) );
+  GroupNames.insert( std::pair<int,std::string>(lastid,"") );
+  return lastid;
+}
+
+bool Gearbox_Server::GroupConfigRemove( std::string Index ) {
+  std::map<int,Server>::iterator it = RetrieveServer( Index );
+  if( it == ServerConfigs.end( ) ) {
+    return false;
+  }
+  ServerConfigs.erase( it );
+  return true;
+}
+
+bool Gearbox_Server::GroupConfigSetName( std::string GrpID, std::string GrpName ) {
+  std::map<int,Group>::iterator it = RetrieveGroup( GrpID );
+  if( it == GroupConfigs.end( ) ) {
+    return false;
+  }
+  (*it).second.GrpName = GrpName;
+  GroupNames[(*it).first] = GrpName;
+  return true;
 }
 
 int Gearbox_Server::ServerConfigAdd( ) {
@@ -545,4 +657,20 @@ std::map<int,Channel>::iterator Gearbox_Server::RetrieveChannel( std::string Ind
     if( Ind == -1 ) { return ChannelConfigs.end(); }
   }
   return ChannelConfigs.find( Ind );
+}
+
+std::map<int,Group>::iterator Gearbox_Server::RetrieveGroup( std::string Index ) {
+  int Ind;
+  if( atoi( Index.c_str( ) ) ) {
+    Ind = atoi( Index.c_str( ) );
+  } else {
+    Ind = -1;
+    for( std::map<int,std::string>::iterator it = GroupNames.begin(); it != GroupNames.end( ); it++ ) {
+      if( (*it).second == Index ) {
+        Ind = (*it).first;
+      }
+    }
+    if( Ind == -1 ) { return GroupConfigs.end(); }
+  }
+  return GroupConfigs.find( Ind );
 }

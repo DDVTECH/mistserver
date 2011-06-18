@@ -1,7 +1,8 @@
 #include<string>
 
 struct Group{
+  int GrpID;
   std::string GrpName;
-  std::vector<Server> GrpServers;
-  std::vector< std::pair<std::string,std::string> > GrpStreams;
+  std::vector<int> GrpServers;
+  std::vector< std::pair<int,std::string> > GrpStreams;
 };//Group

@@ -33,6 +33,16 @@ enum Commands{
   CM_CCG_S,
   CM_CPA,
   CM_CPR,
+  CM_GCA,
+  CM_GCR,
+  CM_GTA,
+  CM_GTR,
+  CM_GCS,
+  CM_GCS_N,
+  CM_GCG,
+  CM_GCG_N,
+  CM_GSA,
+  CM_GSR,
 };
 
 
@@ -48,6 +58,7 @@ enum Commands{
 #include "../../../util/md5.h"
 #include "server.h"
 #include "channel.h"
+#include "group.h"
 
 #define TESTUSER_ID "5"
 #define TESTUSER_PASS "Chocokoekjes"
@@ -86,12 +97,16 @@ class Gearbox_Server {
     bool ChannelConfigRemove( std::string ChID );
     bool ChannelConfigSetName( std::string ChID, std::string ChName );
     bool ChannelConfigSetSource( std::string ChID, std::string ChSrc );
-
     bool ChannelPresetAdd( std::string ChID, std::string PrsName );
     bool ChannelPresetRemove( std::string ChID, std::string PrsName );
 
+    int GroupConfigAdd( );
+    bool GroupConfigRemove( std::string GrpID );
+    bool GroupConfigSetName( std::string GrpID, std::string GrpName );
+
     std::map<int,Server>::iterator RetrieveServer( std::string Index );
     std::map<int,Channel>::iterator RetrieveChannel( std::string Index );
+    std::map<int,Group>::iterator RetrieveGroup( std::string Index );
 
     bool IsSrv;
     std::string RetVal;
@@ -104,6 +119,8 @@ class Gearbox_Server {
     std::map<int,std::string> ServerNames;
     std::map<int,Channel> ChannelConfigs;
     std::map<int,std::string> ChannelNames;
+    std::map<int,Group> GroupConfigs;
+    std::map<int,std::string> GroupNames;
 
     std::vector<std::string> Presets;
 };//Gearbox Server Class

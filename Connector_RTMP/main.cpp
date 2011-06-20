@@ -11,7 +11,7 @@
 #include <sys/wait.h>
 #include <sys/epoll.h>
 #include <getopt.h>
-#include "../util/ddv_socket.h"
+#include "../util/socket.h"
 #include "../util/flv_tag.h"
 #include "../util/amf.h"
 #include "../util/rtmpchunks.h"
@@ -24,20 +24,20 @@ namespace Connector_RTMP{
   bool inited = false; ///< Set to true when ready to connect to Buffer.
   bool stopparsing = false; ///< Set to true when all parsing needs to be cancelled.
   
-  DDV::Socket Socket; ///< Socket connected to user
+  Socket::Connection Socket; ///< Socket connected to user
   std::string streamname = "/tmp/shared_socket"; ///< Stream that will be opened
   void parseChunk();
-  int Connector_RTMP(DDV::Socket conn);
+  int Connector_RTMP(Socket::Connection conn);
 };//Connector_RTMP namespace;
 
 
 /// Main Connector_RTMP function
-int Connector_RTMP::Connector_RTMP(DDV::Socket conn){
+int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   Socket = conn;
   unsigned int ts;
   unsigned int fts = 0;
   unsigned int ftst;
-  DDV::Socket SS;
+  Socket::Connection SS;
   FLV::Tag tag;
 
   //first timestamp set
@@ -84,7 +84,7 @@ int Connector_RTMP::Connector_RTMP(DDV::Socket conn){
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!
-        SS = DDV::Socket(streamname);
+        SS = Socket::Connection(streamname);
         if (!SS.connected()){
           #if DEBUG >= 1
           fprintf(stderr, "Could not connect to server!\n");

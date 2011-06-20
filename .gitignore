@@ -15,3 +15,5 @@ AMF_Tester/AMFtest
 AMF_Creator/AMFtest
 ABST_Parser/Box_Parser
 HTTP_Box_Parser/Box_Parser
+gearbox/CPP/Client/Gearbox_Client
+

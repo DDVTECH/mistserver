@@ -2,7 +2,7 @@
 /// Holds all headers for the FLV namespace.
 
 #pragma once
-#include "ddv_socket.h"
+#include "socket.h"
 #include <string>
 
 /// This namespace holds all FLV-parsing related functionality.
@@ -31,7 +31,7 @@ namespace FLV {
       //loader functions
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool SockLoader(int sock);
-      bool SockLoader(DDV::Socket sock);
+      bool SockLoader(Socket::Connection sock);
       bool FileLoader(FILE * f);
     protected:
       int buf; ///< Maximum length of buffer space.
@@ -39,7 +39,7 @@ namespace FLV {
       unsigned int sofar; ///< How many bytes are read sofar?
       //loader helper functions
       bool MemReadUntil(char * buffer, unsigned int count, unsigned int & sofar, char * D, unsigned int S, unsigned int & P);
-      bool SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, DDV::Socket & sock);
+      bool SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, Socket::Connection & sock);
       bool FileReadUntil(char * buffer, unsigned int count, unsigned int & sofar, FILE * f);
   };//Tag
 

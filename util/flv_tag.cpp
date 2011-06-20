@@ -7,7 +7,6 @@
 #include <fcntl.h> //for Tag::FileLoader
 #include <stdlib.h> //malloc
 #include <string.h> //memcpy
-#include "ddv_socket.h" //socket functions
 
 char FLV::Header[13]; ///< Holds the last FLV header parsed.
 bool FLV::Parse_Error = false; ///< This variable is set to true if a problem is encountered while parsing the FLV.
@@ -261,7 +260,7 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
 /// \param sofar Current amount read.
 /// \param sock Socket to read from.
 /// \return True if count bytes are read succesfully, false otherwise.
-bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, DDV::Socket & sock){
+bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, Socket::Connection & sock){
   if (sofar == count){return true;}
   if (!sock.read(buffer + sofar,count-sofar)){
     if (errno != EWOULDBLOCK){
@@ -284,7 +283,7 @@ bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & s
 /// While this function returns false, the Tag might not contain valid data.
 /// \param sock The socket to read from.
 /// \return True if a whole tag is succesfully read, false otherwise.
-bool FLV::Tag::SockLoader(DDV::Socket sock){
+bool FLV::Tag::SockLoader(Socket::Connection sock){
   if (buf < 15){data = (char*)realloc(data, 15); buf = 15;}
   if (done){
     if (SockReadUntil(data, 11, sofar, sock)){
@@ -325,7 +324,7 @@ bool FLV::Tag::SockLoader(DDV::Socket sock){
 /// \param sock The socket to read from.
 /// \return True if a whole tag is succesfully read, false otherwise.
 bool FLV::Tag::SockLoader(int sock){
-  return SockLoader(DDV::Socket(sock));
+  return SockLoader(Socket::Connection(sock));
 }//Tag::SockLoader
 
 /// Helper function for FLV::FileLoader.

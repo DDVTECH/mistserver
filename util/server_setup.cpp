@@ -21,14 +21,14 @@
   #error "No configuration file section was set!"
 #endif
 
-#include "ddv_socket.h" //DDVTech Socket wrapper
+#include "socket.h" //Socket library
 #include <signal.h>
 #include <sys/types.h>
 #include <pwd.h>
 #include <fstream>
 #define defstr(x) #x ///< converts a define name to string
 #define defstrh(x) "[" defstr(x) "]" ///< converts define name to [string]
-DDV::ServerSocket server_socket(-1); ///< Placeholder for the server socket
+Socket::Server server_socket(-1); ///< Placeholder for the server socket
 
 /// Basic signal handler. Disconnects the server_socket if it receives
 /// a SIGINT, SIGHUP or SIGTERM signal, but does nothing for SIGPIPE.
@@ -53,7 +53,7 @@ void signal_handler (int signum){
 /// The default port is set by define #DEFAULT_PORT.
 /// The configuration file section is set by define #CONFIGSECT.
 int main(int argc, char ** argv){
-  DDV::Socket S;//placeholder for incoming connections
+  Socket::Connection S;//placeholder for incoming connections
 
   //setup signal handler
   struct sigaction new_action;
@@ -135,7 +135,7 @@ int main(int argc, char ** argv){
   }//configuration
 
   //setup a new server socket, for the correct interface and port
-  server_socket = DDV::ServerSocket(listen_port, interface);
+  server_socket = Socket::Server(listen_port, interface);
   #if DEBUG >= 3
   fprintf(stderr, "Made a listening socket on %s:%i...\n", interface.c_str(), listen_port);
   #endif

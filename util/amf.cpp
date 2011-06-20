@@ -2,6 +2,7 @@
 /// Holds all code for the AMF namespace.
 
 #include "amf.h"
+#include <cstdio> //needed for stderr only
 
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.

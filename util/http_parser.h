@@ -6,7 +6,7 @@
 #include <string>
 #include <stdlib.h>
 #include <stdio.h>
-#include "ddv_socket.h"
+#include "socket.h"
 
 /// Holds all HTTP processing related code.
 namespace HTTP{
@@ -14,7 +14,7 @@ namespace HTTP{
   class Parser{
     public:
       Parser();
-      bool Read(DDV::Socket & sock, bool nonblock = true);
+      bool Read(Socket::Connection & sock, bool nonblock = true);
       bool Read(FILE * F);
       std::string GetHeader(std::string i);
       std::string GetVar(std::string i);
@@ -25,9 +25,9 @@ namespace HTTP{
       void SetBody(char * buffer, int len);
       std::string BuildRequest();
       std::string BuildResponse(std::string code, std::string message);
-      void SendResponse(DDV::Socket & conn, std::string code, std::string message);
-      void SendBodyPart(DDV::Socket & conn, char * buffer, int len);
-      void SendBodyPart(DDV::Socket & conn, std::string bodypart);
+      void SendResponse(Socket::Connection & conn, std::string code, std::string message);
+      void SendBodyPart(Socket::Connection & conn, char * buffer, int len);
+      void SendBodyPart(Socket::Connection & conn, std::string bodypart);
       void Clean();
       bool CleanForNext();
       std::string body;

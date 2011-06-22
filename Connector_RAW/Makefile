@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/ddv_socket.cpp
+SRC = main.cpp ../util/socket.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_RAW
 INCLUDES = 

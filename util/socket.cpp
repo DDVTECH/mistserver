@@ -1,40 +1,42 @@
-/// \file ddv_socket.cpp
-/// Holds all code for the DDV namespace.
+/// \file socket.cpp
+/// A handy Socket wrapper library.
+/// Written by Jaron Vietor in 2010 for DDVTech
 
-#include "ddv_socket.h"
+#include "socket.h"
 
-/// Create a new base socket. This is a basic constructor for converting any valid socket to a DDV::Socket.
+/// Create a new base socket. This is a basic constructor for converting any valid socket to a Socket::Connection.
 /// \param sockNo Integer representing the socket to convert.
-DDV::Socket::Socket(int sockNo){
+Socket::Connection::Connection(int sockNo){
   sock = sockNo;
   Error = false;
   Blocking = false;
-}//DDV::Socket basic constructor
+}//Socket::Connection basic constructor
 
 /// Create a new disconnected base socket. This is a basic constructor for placeholder purposes.
 /// A socket created like this is always disconnected and should/could be overwritten at some point.
-DDV::Socket::Socket(){
+Socket::Connection::Connection(){
   sock = -1;
   Error = false;
   Blocking = false;
-}//DDV::Socket basic constructor
+}//Socket::Connection basic constructor
 
 /// Close connection. The internal socket is closed and then set to -1.
-void DDV::Socket::close(){
-  #if DEBUG >= 3
+void Socket::Connection::close(){
+  #if DEBUG >= 4
   fprintf(stderr, "Socket closed.\n");
   #endif
+  shutdown(sock, SHUT_RDWR);
   ::close(sock);
   sock = -1;
-}//DDV::Socket::close
+}//Socket::Connection::close
 
 /// Returns internal socket number.
-int DDV::Socket::getSocket(){return sock;}
+int Socket::Connection::getSocket(){return sock;}
 
 /// Create a new Unix Socket. This socket will (try to) connect to the given address right away.
 /// \param address String containing the location of the Unix socket to connect to.
 /// \param nonblock Whether the socket should be nonblocking. False by default.
-DDV::Socket::Socket(std::string address, bool nonblock){
+Socket::Connection::Connection(std::string address, bool nonblock){
   sock = socket(PF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
     #if DEBUG >= 1
@@ -60,11 +62,11 @@ DDV::Socket::Socket(std::string address, bool nonblock){
     #endif
     close();
   }
-}//DDV::Socket Unix Contructor
+}//Socket::Connection Unix Contructor
 
 /// Returns the ready-state for this socket.
 /// \returns 1 if data is waiting to be read, -1 if not connected, 0 otherwise.
-signed int DDV::Socket::ready(){
+signed int Socket::Connection::ready(){
   if (sock < 0) return -1;
   char tmp;
   int preflags = fcntl(sock, F_GETFL, 0);
@@ -94,7 +96,7 @@ signed int DDV::Socket::ready(){
 /// The connection status is updated after every read/write attempt, when errors occur
 /// and when the socket is closed manually.
 /// \returns True if socket is connected, false otherwise.
-bool DDV::Socket::connected(){
+bool Socket::Connection::connected(){
   return (sock >= 0);
 }
 
@@ -104,7 +106,7 @@ bool DDV::Socket::connected(){
 /// \param buffer Location of the buffer to write from.
 /// \param len Amount of bytes to write.
 /// \returns True if the whole write was succesfull, false otherwise.
-bool DDV::Socket::write(const void * buffer, int len){
+bool Socket::Connection::write(const void * buffer, int len){
   int sofar = 0;
   if (sock < 0){return false;}
   while (sofar != len){
@@ -130,38 +132,52 @@ bool DDV::Socket::write(const void * buffer, int len){
 /// \param buffer Location of the buffer to read to.
 /// \param len Amount of bytes to read.
 /// \returns True if the whole read was succesfull, false otherwise.
-bool DDV::Socket::read(void * buffer, int len){
+bool Socket::Connection::read(void * buffer, int len){
   int sofar = 0;
   if (sock < 0){return false;}
   while (sofar != len){
     int r = recv(sock, (char*)buffer + sofar, len-sofar, 0);
-    if (r <= 0){
-      Error = true;
-      #if DEBUG >= 2
-      fprintf(stderr, "Could not read data! Error: %s\n", strerror(errno));
-      #endif
-      close();
+    if (r < 0){
+      switch (errno){
+        case EWOULDBLOCK: return 0; break;
+        default:
+          Error = true;
+          #if DEBUG >= 2
+          fprintf(stderr, "Could not read data! Error %i: %s\n", r, strerror(errno));
+          #endif
+          close();
+          break;
+      }
       return false;
     }else{
+      if (r == 0){
+        Error = true;
+        #if DEBUG >= 2
+        fprintf(stderr, "Could not read data! Socket is closed.\n");
+        #endif
+        close();
+        return false;
+      }
       sofar += r;
     }
   }
   return true;
-}//DDV::Socket::read
+}//Socket::Connection::read
 
 /// Read call that is compatible with file access syntax. This function simply calls the other read function.
-bool DDV::Socket::read(void * buffer, int width, int count){return read(buffer, width*count);}
+bool Socket::Connection::read(void * buffer, int width, int count){return read(buffer, width*count);}
 /// Write call that is compatible with file access syntax. This function simply calls the other write function.
-bool DDV::Socket::write(void * buffer, int width, int count){return write(buffer, width*count);}
+bool Socket::Connection::write(void * buffer, int width, int count){return write(buffer, width*count);}
 /// Write call that is compatible with std::string. This function simply calls the other write function.
-bool DDV::Socket::write(const std::string data){return write(data.c_str(), data.size());}
+bool Socket::Connection::write(const std::string data){return write(data.c_str(), data.size());}
 
 /// Incremental write call. This function tries to write len bytes to the socket from the buffer,
 /// returning the amount of bytes it actually wrote.
 /// \param buffer Location of the buffer to write from.
 /// \param len Amount of bytes to write.
 /// \returns The amount of bytes actually written.
-int DDV::Socket::iwrite(void * buffer, int len){
+int Socket::Connection::iwrite(void * buffer, int len){
+  if (sock < 0){return 0;}
   int r = send(sock, buffer, len, 0);
   if (r < 0){
     switch (errno){
@@ -178,14 +194,15 @@ int DDV::Socket::iwrite(void * buffer, int len){
   }
   if (r == 0){close();}
   return r;
-}//DDV::Socket::iwrite
+}//Socket::Connection::iwrite
 
 /// Incremental read call. This function tries to read len bytes to the buffer from the socket,
 /// returning the amount of bytes it actually read.
 /// \param buffer Location of the buffer to read to.
 /// \param len Amount of bytes to read.
 /// \returns The amount of bytes actually read.
-int DDV::Socket::iread(void * buffer, int len){
+int Socket::Connection::iread(void * buffer, int len){
+  if (sock < 0){return 0;}
   int r = recv(sock, buffer, len, 0);
   if (r < 0){
     switch (errno){
@@ -202,14 +219,14 @@ int DDV::Socket::iread(void * buffer, int len){
   }
   if (r == 0){close();}
   return r;
-}//DDV::Socket::iread
+}//Socket::Connection::iread
 
 /// Read call that is compatible with std::string.
-/// Data is read using iread (which is nonblocking if the DDV::Socket itself is),
-/// then appended to end of buffer.
+/// Data is read using iread (which is nonblocking if the Socket::Connection itself is),
+/// then appended to end of buffer. This functions reads at least one byte before returning.
 /// \param buffer std::string to append data to.
 /// \return True if new data arrived, false otherwise.
-bool DDV::Socket::read(std::string & buffer){
+bool Socket::Connection::read(std::string & buffer){
   char cbuffer[5000];
   if (!read(cbuffer, 1)){return false;}
   int num = iread(cbuffer+1, 4999);
@@ -221,19 +238,62 @@ bool DDV::Socket::read(std::string & buffer){
   return true;
 }//read
 
-/// Create a new base ServerSocket. The socket is never connected, and a placeholder for later connections.
-DDV::ServerSocket::ServerSocket(){
+/// Read call that is compatible with std::string.
+/// Data is read using iread (which is nonblocking if the Socket::Connection itself is),
+/// then appended to end of buffer.
+/// \param buffer std::string to append data to.
+/// \return True if new data arrived, false otherwise.
+bool Socket::Connection::iread(std::string & buffer){
+  char cbuffer[5000];
+  int num = iread(cbuffer, 5000);
+  if (num < 1){return false;}
+  buffer.append(cbuffer, num);
+  return true;
+}//iread
+
+/// Incremental write call that is compatible with std::string.
+/// Data is written using iwrite (which is nonblocking if the Socket::Connection itself is),
+/// then removed from front of buffer.
+/// \param buffer std::string to remove data from.
+/// \return True if more data was sent, false otherwise.
+bool Socket::Connection::iwrite(std::string & buffer){
+  if (buffer.size() < 1){return false;}
+  int tmp = iwrite((void*)buffer.c_str(), buffer.size());
+  if (tmp < 1){return false;}
+  buffer = buffer.substr(tmp);
+  return true;
+}//iwrite
+
+/// Write call that is compatible with std::string.
+/// Data is written using write (which is always blocking),
+/// then removed from front of buffer.
+/// \param buffer std::string to remove data from.
+/// \return True if more data was sent, false otherwise.
+bool Socket::Connection::swrite(std::string & buffer){
+  if (buffer.size() < 1){return false;}
+  bool tmp = write((void*)buffer.c_str(), buffer.size());
+  if (tmp){buffer = "";}
+  return tmp;
+}//write
+
+/// Gets hostname for connection, if available.
+std::string Socket::Connection::getHost(){
+  return remotehost;
+}
+
+/// Create a new base Server. The socket is never connected, and a placeholder for later connections.
+Socket::Server::Server(){
   sock = -1;
-}//DDV::ServerSocket base Constructor
+}//Socket::Server base Constructor
   
-/// Create a new TCP ServerSocket. The socket is immediately bound and set to listen.
+/// Create a new TCP Server. The socket is immediately bound and set to listen.
 /// A maximum of 100 connections will be accepted between accept() calls.
 /// Any further connections coming in will be dropped.
 /// \param port The TCP port to listen on
 /// \param hostname (optional) The interface to bind to. The default is 0.0.0.0 (all interfaces).
 /// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
-DDV::ServerSocket::ServerSocket(int port, std::string hostname, bool nonblock){
-  sock = socket(AF_INET, SOCK_STREAM, 0);
+Socket::Server::Server(int port, std::string hostname, bool nonblock){
+  sock = socket(AF_INET6, SOCK_STREAM, 0);
   if (sock < 0){
     #if DEBUG >= 1
     fprintf(stderr, "Could not create socket! Error: %s\n", strerror(errno));
@@ -247,10 +307,14 @@ DDV::ServerSocket::ServerSocket(int port, std::string hostname, bool nonblock){
     flags |= O_NONBLOCK;
     fcntl(sock, F_SETFL, flags);
   }
-  struct sockaddr_in addr;
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons(port);//set port
-  inet_pton(AF_INET, hostname.c_str(), &addr.sin_addr);//set interface, 0.0.0.0 (default) is all
+  struct sockaddr_in6 addr;
+  addr.sin6_family = AF_INET6;
+  addr.sin6_port = htons(port);//set port
+  if (hostname == "0.0.0.0"){
+    addr.sin6_addr = in6addr_any;
+  }else{
+    inet_pton(AF_INET6, hostname.c_str(), &addr.sin6_addr);//set interface, 0.0.0.0 (default) is all
+  }
   int ret = bind(sock, (sockaddr*)&addr, sizeof(addr));//do the actual bind
   if (ret == 0){
     ret = listen(sock, 100);//start listening, backlog of 100 allowed
@@ -270,15 +334,15 @@ DDV::ServerSocket::ServerSocket(int port, std::string hostname, bool nonblock){
     close();
     return;
   }
-}//DDV::ServerSocket TCP Constructor
+}//Socket::Server TCP Constructor
 
-/// Create a new Unix ServerSocket. The socket is immediately bound and set to listen.
+/// Create a new Unix Server. The socket is immediately bound and set to listen.
 /// A maximum of 100 connections will be accepted between accept() calls.
 /// Any further connections coming in will be dropped.
 /// The address used will first be unlinked - so it succeeds if the Unix socket already existed. Watch out for this behaviour - it will delete any file located at address!
 /// \param address The location of the Unix socket to bind to.
 /// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
-DDV::ServerSocket::ServerSocket(std::string address, bool nonblock){
+Socket::Server::Server(std::string address, bool nonblock){
   unlink(address.c_str());
   sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
@@ -314,15 +378,18 @@ DDV::ServerSocket::ServerSocket(std::string address, bool nonblock){
     close();
     return;
   }
-}//DDV::ServerSocket Unix Constructor
+}//Socket::Server Unix Constructor
 
-/// Accept any waiting connections. If the DDV::ServerSocket is blocking, this function will block until there is an incoming connection.
-/// If the DDV::ServerSocket is nonblocking, it might return a DDV::Socket that is not connected, so check for this.
+/// Accept any waiting connections. If the Socket::Server is blocking, this function will block until there is an incoming connection.
+/// If the Socket::Server is nonblocking, it might return a Socket::Connection that is not connected, so check for this.
 /// \param nonblock (optional) Whether the newly connected socket should be nonblocking. Default is false (blocking).
-/// \returns A DDV::Socket, which may or may not be connected, depending on settings and circumstances.
-DDV::Socket DDV::ServerSocket::accept(bool nonblock){
-  if (sock < 0){return DDV::Socket(-1);}
-  int r = ::accept(sock, 0, 0);
+/// \returns A Socket::Connection, which may or may not be connected, depending on settings and circumstances.
+Socket::Connection Socket::Server::accept(bool nonblock){
+  if (sock < 0){return Socket::Connection(-1);}
+  struct sockaddr_in6 addrinfo;
+  socklen_t len = sizeof(addrinfo);
+  static char addrconv[INET6_ADDRSTRLEN];
+  int r = ::accept(sock, (sockaddr*)&addrinfo, &len);
   //set the socket to be nonblocking, if requested.
   //we could do this through accept4 with a flag, but that call is non-standard...
   if ((r >= 0) && nonblock){
@@ -330,26 +397,48 @@ DDV::Socket DDV::ServerSocket::accept(bool nonblock){
     flags |= O_NONBLOCK;
     fcntl(r, F_SETFL, flags);
   }
+  Socket::Connection tmp(r);
   if (r < 0){
     if (errno != EWOULDBLOCK && errno != EAGAIN){close();}
+  }else{
+    if (addrinfo.sin6_family == AF_INET6){
+      tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
+      #if DEBUG >= 4
+      printf("IPv6 addr: %s\n", tmp.remotehost.c_str());
+      #endif
+    }
+    if (addrinfo.sin6_family == AF_INET){
+      tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in*)&addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+      #if DEBUG >= 4
+      printf("IPv4 addr: %s\n", tmp.remotehost.c_str());
+      #endif
+    }
+    if (addrinfo.sin6_family == AF_UNIX){
+      #if DEBUG >= 4
+      tmp.remotehost = ((sockaddr_un*)&addrinfo)->sun_path;
+      printf("Unix addr: %s\n", tmp.remotehost.c_str());
+      #endif
+      tmp.remotehost = "UNIX_SOCKET";
+    }
   }
-  return DDV::Socket(r);
+  return tmp;
 }
 
 /// Close connection. The internal socket is closed and then set to -1.
-void DDV::ServerSocket::close(){
+void Socket::Server::close(){
+  shutdown(sock, SHUT_RDWR);
   ::close(sock);
   sock = -1;
-}//DDV::ServerSocket::close
+}//Socket::Server::close
 
 /// Returns the connected-state for this socket.
 /// Note that this function might be slightly behind the real situation.
 /// The connection status is updated after every accept attempt, when errors occur
 /// and when the socket is closed manually.
 /// \returns True if socket is connected, false otherwise.
-bool DDV::ServerSocket::connected(){
+bool Socket::Server::connected(){
   return (sock >= 0);
-}//DDV::ServerSocket::connected
+}//Socket::Server::connected
 
 /// Returns internal socket number.
-int DDV::ServerSocket::getSocket(){return sock;}
+int Socket::Server::getSocket(){return sock;}

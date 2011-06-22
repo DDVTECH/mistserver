@@ -127,11 +127,11 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
   vars[i] = v;
 }
 
-/// Attempt to read a whole HTTP request or response from DDV::Socket sock.
+/// Attempt to read a whole HTTP request or response from Socket::Connection.
 /// \param sock The socket to use.
 /// \param nonblock When true, will not block even if the socket is blocking.
 /// \return True of a whole request or response was read, false otherwise.
-bool HTTP::Parser::Read(DDV::Socket & sock, bool nonblock){
+bool HTTP::Parser::Read(Socket::Connection & sock, bool nonblock){
   if (nonblock && (sock.ready() < 1)){return parse();}
   sock.read(HTTPbuffer);
   return parse();
@@ -206,20 +206,20 @@ bool HTTP::Parser::parse(){
 
 /// Sends data as response to conn.
 /// The response is automatically first build using HTTP::Parser::BuildResponse().
-/// \param conn The DDV::Socket to send the response over.
+/// \param conn The Socket::Connection to send the response over.
 /// \param code The HTTP response code. Usually you want 200.
 /// \param message The HTTP response message. Usually you want "OK".
-void HTTP::Parser::SendResponse(DDV::Socket & conn, std::string code, std::string message){
+void HTTP::Parser::SendResponse(Socket::Connection & conn, std::string code, std::string message){
   std::string tmp = BuildResponse(code, message);
   conn.write(tmp);
 }
 
 /// Sends data as HTTP/1.1 bodypart to conn.
 /// HTTP/1.1 chunked encoding is automatically applied if needed.
-/// \param conn The DDV::Socket to send the part over.
+/// \param conn The Socket::Connection to send the part over.
 /// \param buffer The buffer to send.
 /// \param len The length of the buffer.
-void HTTP::Parser::SendBodyPart(DDV::Socket & conn, char * buffer, int len){
+void HTTP::Parser::SendBodyPart(Socket::Connection & conn, char * buffer, int len){
   std::string tmp;
   tmp.append(buffer, len);
   SendBodyPart(conn, tmp);
@@ -227,9 +227,9 @@ void HTTP::Parser::SendBodyPart(DDV::Socket & conn, char * buffer, int len){
 
 /// Sends data as HTTP/1.1 bodypart to conn.
 /// HTTP/1.1 chunked encoding is automatically applied if needed.
-/// \param conn The DDV::Socket to send the part over.
+/// \param conn The Socket::Connection to send the part over.
 /// \param bodypart The data to send.
-void HTTP::Parser::SendBodyPart(DDV::Socket & conn, std::string bodypart){
+void HTTP::Parser::SendBodyPart(Socket::Connection & conn, std::string bodypart){
   if (protocol == "HTTP/1.1"){
     static char len[10];
     int sizelen;

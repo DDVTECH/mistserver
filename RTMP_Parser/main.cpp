@@ -22,6 +22,7 @@ int main(){
   inbuffer.erase(0, 3073);//strip the handshake part
   RTMPStream::Chunk next;
   AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
+  AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);
   
 
   while (next.Parse(inbuffer)){
@@ -93,9 +94,18 @@ int main(){
       case 16:
         fprintf(stderr, "Received AFM3 shared object\n");
         break;
-      case 17:
-        fprintf(stderr, "Received AFM3 command message\n");
-        break;
+      case 17:{
+        fprintf(stderr, "Received AFM3 command message:\n");
+          char soort = next.data[0];
+          next.data = next.data.substr(1);
+          if (soort == 0){
+            amfdata = AMF::parse(next.data);
+            amfdata.Print();
+          }else{
+            amf3data = AMF::parse3(next.data);
+            amf3data.Print();
+          }
+        } break;
       case 18:{
         fprintf(stderr, "Received AFM0 data message (metadata):\n");
         amfdata = AMF::parse(next.data);

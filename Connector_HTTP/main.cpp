@@ -12,7 +12,7 @@
 #include <sys/epoll.h>
 #include <getopt.h>
 #include <ctime>
-#include "../util/ddv_socket.h"
+#include "../util/socket.h"
 #include "../util/http_parser.h"
 #include "../util/flv_tag.h"
 #include "../util/MP4/interface.cpp"
@@ -114,12 +114,12 @@ namespace Connector_HTTP{
   }//BuildManifest
 
   /// Main function for Connector_HTTP
-  int Connector_HTTP(DDV::Socket conn){
+  int Connector_HTTP(Socket::Connection conn){
     int handler = HANDLER_PROGRESSIVE;///< The handler used for processing this request.
     bool ready4data = false;///< Set to true when streaming is to begin.
     bool inited = false;
     bool progressive_has_sent_header = false;
-    DDV::Socket ss(-1);
+    Socket::Connection ss(-1);
     std::string streamname;
     std::string FlashBuf;
     std::string FlashMeta;
@@ -212,7 +212,7 @@ namespace Connector_HTTP{
       if (ready4data){
         if (!inited){
           //we are ready, connect the socket!
-          ss = DDV::Socket(streamname);
+          ss = Socket::Connection(streamname);
           if (!ss.connected()){
             #if DEBUG >= 1
             fprintf(stderr, "Could not connect to server!\n");

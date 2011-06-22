@@ -11,7 +11,7 @@
 #include <sys/wait.h>
 #include <sys/epoll.h>
 #include <getopt.h>
-#include "../util/ddv_socket.h"
+#include "../util/socket.h"
 #include "../util/flv_tag.h"
 #include "../util/amf.h"
 #include "../util/rtmpchunks.h"
@@ -24,20 +24,20 @@ namespace Connector_RTMP{
   bool inited = false; ///< Set to true when ready to connect to Buffer.
   bool stopparsing = false; ///< Set to true when all parsing needs to be cancelled.
   
-  DDV::Socket Socket; ///< Socket connected to user
+  Socket::Connection Socket; ///< Socket connected to user
   std::string streamname = "/tmp/shared_socket"; ///< Stream that will be opened
   void parseChunk();
-  int Connector_RTMP(DDV::Socket conn);
+  int Connector_RTMP(Socket::Connection conn);
 };//Connector_RTMP namespace;
 
 
 /// Main Connector_RTMP function
-int Connector_RTMP::Connector_RTMP(DDV::Socket conn){
+int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   Socket = conn;
   unsigned int ts;
   unsigned int fts = 0;
   unsigned int ftst;
-  DDV::Socket SS;
+  Socket::Connection SS;
   FLV::Tag tag;
 
   //first timestamp set
@@ -84,7 +84,7 @@ int Connector_RTMP::Connector_RTMP(DDV::Socket conn){
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!
-        SS = DDV::Socket(streamname);
+        SS = Socket::Connection(streamname);
         if (!SS.connected()){
           #if DEBUG >= 1
           fprintf(stderr, "Could not connect to server!\n");
@@ -279,22 +279,24 @@ void Connector_RTMP::parseChunk(){
             if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
             #endif
             Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
+            Socket.write(RTMPStream::SendCTL(6, RTMPStream::rec_window_size));//send window acknowledgement size (msg 5)
             Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
             //send a _result reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
             amfreply.addContent(AMF::Object("", "_result"));//result success
             amfreply.addContent(amfdata.getContent(1));//same transaction ID
             amfreply.addContent(AMF::Object(""));//server properties
-            amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,5,4,1004"));
-            amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)127));
-            amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
+            amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,0,1,123"));
+            amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)31));
+            //amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
             amfreply.addContent(AMF::Object(""));//info
             amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
             amfreply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));
             amfreply.getContentP(3)->addContent(AMF::Object("description", "Connection succeeded."));
+            amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337));
             amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", objencoding));
-            amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
-            amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
+            //amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
+            //amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
             #if DEBUG >= 4
             amfreply.Print();
             #endif
@@ -302,7 +304,7 @@ void Connector_RTMP::parseChunk(){
             //send onBWDone packet - no clue what it is, but real server sends it...
             amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
             amfreply.addContent(AMF::Object("", "onBWDone"));//result
-            amfreply.addContent(AMF::Object("", (double)0));//zero
+            amfreply.addContent(amfdata.getContent(1));//same transaction ID
             amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null
             Socket.write(RTMPStream::SendChunk(3, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
             parsed3 = true;
@@ -430,24 +432,27 @@ void Connector_RTMP::parseChunk(){
           if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
           if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
           #endif
+          RTMPStream::chunk_snd_max = 4096;
+          Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
           Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
+          Socket.write(RTMPStream::SendCTL(6, RTMPStream::rec_window_size));//send rec window acknowledgement size (msg 6)
           Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
           //send a _result reply
           AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
           amfreply.addContent(AMF::Object("", "_result"));//result success
           amfreply.addContent(amfdata.getContent(1));//same transaction ID
-  //        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
           amfreply.addContent(AMF::Object(""));//server properties
-          amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,5,4,1004"));
-          amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)127));
-          amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
+          amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,0,1,123"));
+          amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)31));
+          //amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
           amfreply.addContent(AMF::Object(""));//info
           amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
           amfreply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));
           amfreply.getContentP(3)->addContent(AMF::Object("description", "Connection succeeded."));
+          amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337));
           amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", objencoding));
-          amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
-          amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
+          //amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
+          //amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
           #if DEBUG >= 4
           amfreply.Print();
           #endif
@@ -518,7 +523,7 @@ void Connector_RTMP::parseChunk(){
           amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Reset"));
           amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing and resetting..."));
           amfreply.getContentP(3)->addContent(AMF::Object("details", "PLS"));
-          amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1));
+          amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
           #if DEBUG >= 4
           amfreply.Print();
           #endif
@@ -531,8 +536,7 @@ void Connector_RTMP::parseChunk(){
           amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
           amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Start"));
           amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
-          amfreply.getContentP(3)->addContent(AMF::Object("details", "PLS"));
-          amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1));
+          amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
           #if DEBUG >= 4
           amfreply.Print();
           #endif

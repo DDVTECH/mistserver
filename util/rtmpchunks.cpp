@@ -42,7 +42,7 @@ std::string RTMPStream::Chunk::Pack(){
   unsigned int tmpi;
   unsigned char chtype = 0x00;
   timestamp -= firsttime;
-  if (prev.cs_id == cs_id){
+  if ((prev.msg_type_id > 0) && (prev.cs_id == cs_id)){
     if (msg_stream_id == prev.msg_stream_id){
       chtype = 0x40;//do not send msg_stream_id
       if (len == prev.len){
@@ -292,6 +292,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       break;
     case 0x40:
       if (indata.size() < i+7) return false; //can't read whole header
+      if (prev.msg_type_id == 0){fprintf(stderr, "Warning: Header type 0x40 with no valid previous chunk!\n");}
       timestamp = indata[i++]*256*256;
       timestamp += indata[i++]*256;
       timestamp += indata[i++];
@@ -305,6 +306,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       break;
     case 0x80:
       if (indata.size() < i+3) return false; //can't read whole header
+      if (prev.msg_type_id == 0){fprintf(stderr, "Warning: Header type 0x80 with no valid previous chunk!\n");}
       timestamp = indata[i++]*256*256;
       timestamp += indata[i++]*256;
       timestamp += indata[i++];
@@ -315,6 +317,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       msg_stream_id = prev.msg_stream_id;
       break;
     case 0xC0:
+      if (prev.msg_type_id == 0){fprintf(stderr, "Warning: Header type 0xC0 with no valid previous chunk!\n");}
       timestamp = prev.timestamp;
       len = prev.len;
       len_left = prev.len_left;

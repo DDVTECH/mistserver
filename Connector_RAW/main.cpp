@@ -2,7 +2,7 @@
 /// Contains the main code for the RAW connector.
 
 #include <iostream>
-#include "../util/ddv_socket.h"
+#include "../util/socket.h"
 
 /// Contains the main code for the RAW connector.
 /// Expects a single commandline argument telling it which stream to connect to,
@@ -15,7 +15,7 @@ int main(int argc, char  ** argv) {
   std::string input = "/tmp/shared_socket_";
   input += argv[1];
   //connect to the proper stream
-  DDV::Socket S(input);
+  Socket::Connection S(input);
   if (!S.connected()){
     std::cout << "Could not open stream " << argv[1] << std::endl;
     return 1;

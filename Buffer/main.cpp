@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "../util/flv_tag.h" //FLV format parser
-#include "../util/ddv_socket.h" //DDV Socket lib
+#include "../util/socket.h" //Socket lib
 
 #include <sys/epoll.h>
 
@@ -44,10 +44,10 @@ namespace Buffer{
       bool gotproperaudio; ///< Whether the user received proper audio yet.
       void * lastpointer; ///< Pointer to data part of current buffer.
       static int UserCount; ///< Global user counter.
-      DDV::Socket S; ///< Connection to user
+      Socket::Connection S; ///< Connection to user
       /// Creates a new user from a newly connected socket.
       /// Also prints "User connected" text to stdout.
-      user(DDV::Socket fd){
+      user(Socket::Connection fd){
         S = fd;
         MyNum = UserCount++;
         gotproperaudio = false;
@@ -143,7 +143,7 @@ namespace Buffer{
     std::string shared_socket = "/tmp/shared_socket_";
     shared_socket += argv[2];
 
-    DDV::ServerSocket SS(shared_socket, true);
+    Socket::Server SS(shared_socket, true);
     FLV::Tag metadata;
     FLV::Tag video_init;
     FLV::Tag audio_init;
@@ -155,7 +155,7 @@ namespace Buffer{
     int current_buffer = 0;
     int lastproper = 0;//last properly finished buffer number
     unsigned int loopcount = 0;
-    DDV::Socket incoming;
+    Socket::Connection incoming;
   
     unsigned char packtype;
     bool gotVideoInfo = false;
@@ -236,11 +236,11 @@ namespace Buffer{
           if (!users.back().S.write(metadata.data, metadata.len)){
             users.back().Disconnect("failed to receive metadata!");
           }
-          if (!users.back().S.write(video_init.data, video_init.len)){
-            users.back().Disconnect("failed to receive video init!");
-          }
           if (!users.back().S.write(audio_init.data, audio_init.len)){
             users.back().Disconnect("failed to receive audio init!");
+          }
+          if (!users.back().S.write(video_init.data, video_init.len)){
+            users.back().Disconnect("failed to receive video init!");
           }
         }
       }

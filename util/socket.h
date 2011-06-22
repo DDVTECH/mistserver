@@ -1,5 +1,6 @@
-/// \file ddv_socket.h
-/// Holds all headers for the DDV namespace.
+/// \file socket.h
+/// A handy Socket wrapper library.
+/// Written by Jaron Vietor in 2010 for DDVTech
 
 #pragma once
 #include <string>
@@ -14,17 +15,18 @@
 #include <fcntl.h>
 
 
-///Holds DDV Socket tools.
-namespace DDV{
+///Holds Socket tools.
+namespace Socket{
 
   /// This class is for easy communicating through sockets, either TCP or Unix.
-  class Socket{
+  class Connection{
     private:
       int sock; ///< Internally saved socket number.
+      std::string remotehost; ///< Stores remote host address.
     public:
-      Socket(); ///< Create a new disconnected base socket.
-      Socket(int sockNo); ///< Create a new base socket.
-      Socket(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
+      Connection(); ///< Create a new disconnected base socket.
+      Connection(int sockNo); ///< Create a new base socket.
+      Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
       bool Error; ///< Set to true if a socket error happened.
       bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.
       signed int ready(); ///< Returns the ready-state for this socket.
@@ -37,19 +39,24 @@ namespace DDV{
       int iwrite(void * buffer, int len); ///< Incremental write call.
       int iread(void * buffer, int len); ///< Incremental read call.
       bool read(std::string & buffer); ///< Read call that is compatible with std::string.
+      bool swrite(std::string & buffer); ///< Read call that is compatible with std::string.
+      bool iread(std::string & buffer); ///< Incremental write call that is compatible with std::string.
+      bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
       void close(); ///< Close connection.
+      std::string getHost(); ///< Gets hostname for connection, if available.
       int getSocket(); ///< Returns internal socket number.
+      friend class Server;
   };
 
   /// This class is for easily setting up listening socket, either TCP or Unix.
-  class ServerSocket{
+  class Server{
     private:
       int sock; ///< Internally saved socket number.
     public:
-      ServerSocket(); ///< Create a new base ServerSocket.
-      ServerSocket(int port, std::string hostname = "0.0.0.0", bool nonblock = false); ///< Create a new TCP ServerSocket.
-      ServerSocket(std::string adres, bool nonblock = false); ///< Create a new Unix ServerSocket.
-      Socket accept(bool nonblock = false); ///< Accept any waiting connections.
+      Server(); ///< Create a new base Server.
+      Server(int port, std::string hostname = "0.0.0.0", bool nonblock = false); ///< Create a new TCP Server.
+      Server(std::string adres, bool nonblock = false); ///< Create a new Unix Server.
+      Connection accept(bool nonblock = false); ///< Accept any waiting connections.
       bool connected(); ///< Returns the connected-state for this socket.
       void close(); ///< Close connection.
       int getSocket(); ///< Returns internal socket number.

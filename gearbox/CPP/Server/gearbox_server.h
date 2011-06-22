@@ -45,7 +45,6 @@ enum Commands{
   CM_GSR,
 };
 
-
 #include <string>
 #include <sstream>
 #include <deque>
@@ -53,6 +52,7 @@ enum Commands{
 #include <map>
 #include <cstdlib>
 #include <cstdio>
+#include <fstream>
 #include <algorithm>
 #include "../../../util/ddv_socket.h"
 #include "../../../util/md5.h"
@@ -107,6 +107,8 @@ class Gearbox_Server {
     std::map<int,Server>::iterator RetrieveServer( std::string Index );
     std::map<int,Channel>::iterator RetrieveChannel( std::string Index );
     std::map<int,Group>::iterator RetrieveGroup( std::string Index );
+
+    void WriteConfig( );
 
     bool IsSrv;
     std::string RetVal;

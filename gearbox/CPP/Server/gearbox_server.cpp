@@ -674,3 +674,15 @@ std::map<int,Group>::iterator Gearbox_Server::RetrieveGroup( std::string Index )
   }
   return GroupConfigs.find( Ind );
 }
+
+void Gearbox_Server::WriteConfig( ) {
+  std::ofstream OutFile;
+  OutFile.open("gearbox_config_new.sh");
+  OutFile << "servers=( ";
+  for( std::map<int,Server>::iterator it = ServerConfigs.begin(); it != ServerConfigs.end(); it++ ) {
+    OutFile << it->second.SrvName << " ";
+  }
+  OutFile << ")\n";
+  
+  OutFile.close( );
+}

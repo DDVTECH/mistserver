@@ -279,7 +279,7 @@ void Connector_RTMP::parseChunk(){
             if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
             #endif
             Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
-            Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
+            Socket.write(RTMPStream::SendCTL(6, RTMPStream::rec_window_size));//send window acknowledgement size (msg 5)
             Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
             //send a _result reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
@@ -432,27 +432,27 @@ void Connector_RTMP::parseChunk(){
           if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
           if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
           #endif
-          Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
-          Socket.write(RTMPStream::SendCTL(6, RTMPStream::rec_window_size));//send window acknowledgement size (msg 5)
-          Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
           RTMPStream::chunk_snd_max = 4096;
           Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
+          Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
+          Socket.write(RTMPStream::SendCTL(6, RTMPStream::rec_window_size));//send rec window acknowledgement size (msg 6)
+          Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
           //send a _result reply
           AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
           amfreply.addContent(AMF::Object("", "_result"));//result success
           amfreply.addContent(amfdata.getContent(1));//same transaction ID
-  //        amfreply.addContent(AMFType("", (double)0, 0x05));//null - command info
           amfreply.addContent(AMF::Object(""));//server properties
-          amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,5,4,1004"));
-          amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)127));
-          amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
+          amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,0,1,123"));
+          amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)31));
+          //amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
           amfreply.addContent(AMF::Object(""));//info
           amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
           amfreply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));
           amfreply.getContentP(3)->addContent(AMF::Object("description", "Connection succeeded."));
+          amfreply.getContentP(3)->addContent(AMF::Object("clientid", 1337));
           amfreply.getContentP(3)->addContent(AMF::Object("objectEncoding", objencoding));
-          amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
-          amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
+          //amfreply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
+          //amfreply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
           #if DEBUG >= 4
           amfreply.Print();
           #endif

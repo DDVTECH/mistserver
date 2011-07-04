@@ -1,10 +1,13 @@
+--------------
+-- Servers ---
+--------------
 delimiter //
 create procedure SetServerPort( IN Owner INT, IN SrvID INT, IN cfg VARCHAR(500), IN NewConfig INT)
   BEGIN
     CASE cfg
       WHEN 'ssh' THEN  UPDATE servers s SET s.ssh = NewConfig WHERE s.ID = SrvID AND s.owner = Owner;
-      WHEN 'http' THEN UPDATE servers s SET s.http = NewConfig WHERE s.ID = SrvID AND s.owner = Owner;;
-      WHEN 'rtmp' THEN UPDATE servers s SET s.rtmp = NewConfig WHERE s.ID = SrvID AND s.owner = Owner;;
+      WHEN 'http' THEN UPDATE servers s SET s.http = NewConfig WHERE s.ID = SrvID AND s.owner = Owner;
+      WHEN 'rtmp' THEN UPDATE servers s SET s.rtmp = NewConfig WHERE s.ID = SrvID AND s.owner = Owner;
       ELSE
         BEGIN
         END;
@@ -17,9 +20,9 @@ create function GetServerPort( Owner INT, SrvID INT, cfg VARCHAR(500))
   BEGIN
     DECLARE x INT DEFAULT NULL;
     CASE cfg
-      WHEN 'ssh' THEN  SELECT ssh INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;;
-      WHEN 'http' THEN SELECT http INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;;
-      WHEN 'rtmp' THEN SELECT rtmp INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;;
+      WHEN 'ssh' THEN  SELECT ssh INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;
+      WHEN 'http' THEN SELECT http INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;
+      WHEN 'rtmp' THEN SELECT rtmp INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;
       ELSE
         BEGIN
         END;
@@ -31,7 +34,7 @@ create function GetServerPort( Owner INT, SrvID INT, cfg VARCHAR(500))
 create procedure SetServerLimit( IN Owner INT, IN SrvID INT, IN limit VARCHAR(500), IN NewLimit INT )
   BEGIN
     CASE limit
-      WHEN 'maxmbps' THEN  UPDATE servers s SET s.maxmbps = NewLimit WHERE s.ID = SrvID AND s.owner = Owner;;
+      WHEN 'maxmbps' THEN  UPDATE servers s SET s.maxmbps = NewLimit WHERE s.ID = SrvID AND s.owner = Owner;
       ELSE
         BEGIN
         END;
@@ -44,7 +47,7 @@ create function GetServerLimit( Owner INT, SrvID INT, limit VARCHAR(500))
   BEGIN
     DECLARE x INT DEFAULT NULL;
     CASE limit
-      WHEN 'maxmbps' THEN  SELECT ssh INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;;
+      WHEN 'maxmbps' THEN  SELECT ssh INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;
       ELSE
         BEGIN
         END;
@@ -128,24 +131,63 @@ create function GetChannelName( Owner INT, ChID INT )
     RETURN x;
   END
 //
-delimiter ;
 
-delimiter //
-create procedure SetServerHost( IN SrvID INT, IN SrvHost VARCHAR(500) )
+create procedure SetChannelSource( IN Owner INT, IN ChID INT, IN ChSource VARCHAR(500) )
   BEGIN
-    UPDATE servers s SET s.host = SrvHost WHERE s.ID = SrvID;
+    UPDATE channels c SET s.url = ChSrc WHERE ch.ID = ChID AND c.owner = Owner;
+  END
+//
+
+create function GetChannelSource( Owner INT, ChID INT )
+  RETURNS VARCHAR(500) DETERMINISTIC
+  BEGIN
+    DECLARE x VARCHAR(500) DEFAULT NULL;
+    SELECT url INTO x FROM channels c WHERE c.ID = ChID AND c.owner = Owner;
+    RETURN x;
   END
 //
 delimiter ;
 
+----------------
+-- Add Preset --
+----------------
 delimiter //
-create function GetServerHost( SrvID INT )
+create procedure AddChannelPreset( IN Owner INT, IN ChID INT, IN PresetName VARCHAR(500) )
+  BEGIN
+    DECLARE x VARCHAR(500);
+    SELECT presets INTO x FROM channels c WHERE c.ID = ChID AND c.owner = Owner;
+    BEGIN
+      IF ( ( SELECT ID FROM presets WHERE ID = PresetName ) IS NOT NULL ) THEN
+        IF ( LOCATE ( PresetName, x ) = 0 ) THEN
+          UPDATE channels c SET presets = CONCAT( x ,' ',PresetName) WHERE c.ID = ChID AND c.owner = Owner;
+        END IF;
+      END IF;
+    END;
+  END;
+//
+
+CREATE PROCEDURE RemoveChannelPreset( IN Owner INT, IN ChID INT, IN PresetName VARCHAR( 500 ) )
+  BEGIN
+    DECLARE x VARCHAR(500);
+    SELECT presets INTO x FROM channels c WHERE c.ID = ChID AND c.owner = Owner;
+    BEGIN
+      IF ( ( SELECT ID FROM presets WHERE ID = PresetName ) IS NOT NULL ) THEN
+        SET x = TRIM( REPLACE( REPLACE ( x , PresetName, ''), '  ', ' ' ) );
+        UPDATE channels c SET presets = x WHERE c.ID = ChID AND c.owner = Owner;
+      END IF;
+    END;
+  END;
+//
+delimiter ;
+
+delimiter //
+CREATE FUNCTION GetChannelPresets( Owner INT, ChID INT )
   RETURNS VARCHAR(500) DETERMINISTIC
   BEGIN
-    DECLARE x VARCHAR(500) DEFAULT NULL;
-    SELECT host INTO x FROM servers s WHERE s.ID = SrvID;
+    DECLARE x VARCHAR(500);
+    SELECT presets INTO x FROM channels c WHERE c.id = ChID AND c.owner = Owner;
     RETURN x;
-  END
+  END;
 //
 delimiter ;
 

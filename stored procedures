@@ -178,9 +178,7 @@ CREATE PROCEDURE RemoveChannelPreset( IN Owner INT, IN ChID INT, IN PresetName V
     END;
   END;
 //
-delimiter ;
 
-delimiter //
 CREATE FUNCTION GetChannelPresets( Owner INT, ChID INT )
   RETURNS VARCHAR(500) DETERMINISTIC
   BEGIN

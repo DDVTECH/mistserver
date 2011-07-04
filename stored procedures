@@ -189,3 +189,42 @@ CREATE FUNCTION GetChannelPresets( Owner INT, ChID INT )
 //
 delimiter ;
 
+------------
+-- Groups --
+------------
+
+delimiter //
+CREATE PROCEDURE AddGroup( IN Owner INT, OUT GrpID INT )
+  BEGIN
+    INSERT INTO groups(`owner`, `name`) VALUES ( Owner, '' );
+    SELECT max(ID) INTO GrpID FROM groups;
+  END;    
+//
+
+create procedure RemoveGroup( IN Owner INT, IN SrvID INT )
+  BEGIN
+    DELETE FROM groups WHERE ID = SrvID AND owner = Owner;
+  END;
+//
+
+create procedure SetGroupName( IN Owner INT, IN GrpID INT, IN GrpName VARCHAR(500) )
+  BEGIN
+    UPDATE groups g SET g.name = GrpName WHERE g.ID = GrpID AND g.owner = Owner;
+  END
+//
+
+create function GetGroupName( Owner INT, GrpID INT )
+  RETURNS VARCHAR(500) DETERMINISTIC
+  BEGIN
+    DECLARE x VARCHAR(500) DEFAULT NULL;
+    SELECT name INTO x FROM groups g WHERE g.ID = GrpID AND g.owner = Owner;
+    RETURN x;
+  END
+//
+delimiter ;
+
+create procedure AddServerToGroup( IN Owner INT, IN GrpID INT, IN SrvID INT )
+  BEGIN
+    
+  END;
+//

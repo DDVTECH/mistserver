@@ -1,0 +1,151 @@
+delimiter //
+create procedure SetServerPort( IN Owner INT, IN SrvID INT, IN cfg VARCHAR(500), IN NewConfig INT)
+  BEGIN
+    CASE cfg
+      WHEN 'ssh' THEN  UPDATE servers s SET s.ssh = NewConfig WHERE s.ID = SrvID AND s.owner = Owner;
+      WHEN 'http' THEN UPDATE servers s SET s.http = NewConfig WHERE s.ID = SrvID AND s.owner = Owner;;
+      WHEN 'rtmp' THEN UPDATE servers s SET s.rtmp = NewConfig WHERE s.ID = SrvID AND s.owner = Owner;;
+      ELSE
+        BEGIN
+        END;
+    END CASE;
+  END
+//
+
+create function GetServerPort( Owner INT, SrvID INT, cfg VARCHAR(500))
+  RETURNS INT DETERMINISTIC
+  BEGIN
+    DECLARE x INT DEFAULT NULL;
+    CASE cfg
+      WHEN 'ssh' THEN  SELECT ssh INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;;
+      WHEN 'http' THEN SELECT http INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;;
+      WHEN 'rtmp' THEN SELECT rtmp INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;;
+      ELSE
+        BEGIN
+        END;
+    END CASE;
+    RETURN x;
+  END
+//
+
+create procedure SetServerLimit( IN Owner INT, IN SrvID INT, IN limit VARCHAR(500), IN NewLimit INT )
+  BEGIN
+    CASE limit
+      WHEN 'maxmbps' THEN  UPDATE servers s SET s.maxmbps = NewLimit WHERE s.ID = SrvID AND s.owner = Owner;;
+      ELSE
+        BEGIN
+        END;
+    END CASE;
+  END
+//
+
+create function GetServerLimit( Owner INT, SrvID INT, limit VARCHAR(500))
+  RETURNS INT DETERMINISTIC
+  BEGIN
+    DECLARE x INT DEFAULT NULL;
+    CASE limit
+      WHEN 'maxmbps' THEN  SELECT ssh INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;;
+      ELSE
+        BEGIN
+        END;
+    END CASE;
+    RETURN x;
+  END
+//
+
+create procedure SetServerName( IN Owner INT, IN SrvID INT, IN SrvName VARCHAR(500) )
+  BEGIN
+    UPDATE servers s SET s.name = SrvName WHERE s.ID = SrvID AND s.owner = Owner;
+  END
+//
+
+create function GetServerName( Owner INT, SrvID INT )
+  RETURNS VARCHAR(500) DETERMINISTIC
+  BEGIN
+    DECLARE x VARCHAR(500) DEFAULT NULL;
+    SELECT name INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;
+    RETURN x;
+  END
+//
+
+create procedure SetServerHost( IN Owner INT, IN SrvID INT, IN SrvHost VARCHAR(500) )
+  BEGIN
+    UPDATE servers s SET s.host = SrvHost WHERE s.ID = SrvID AND s.owner = Owner;
+  END
+//
+
+create function GetServerHost( IN Owner, SrvID INT )
+  RETURNS VARCHAR(500) DETERMINISTIC
+  BEGIN
+    DECLARE x VARCHAR(500) DEFAULT NULL;
+    SELECT host INTO x FROM servers s WHERE s.ID = SrvID AND s.owner = Owner;
+    RETURN x;
+  END
+//
+
+create procedure CreateServer( IN Owner INT, OUT SrvID INT )
+  BEGIN
+    INSERT INTO servers(`name`,`host`,`owner`) VALUES ( '', '', Owner );
+    SELECT max(ID) INTO SrvID FROM servers;
+  END;
+//
+
+create procedure RemoveServer( IN Owner INT, IN SrvID INT )
+  BEGIN
+    DELETE FROM servers WHERE ID = SrvID AND owner = Owner;
+  END;
+//
+delimiter ;
+
+--------------
+-- Channels --
+--------------
+delimiter //
+create procedure CreateChannel( IN Owner INT, OUT ChID INT )
+  BEGIN
+    INSERT INTO channels(`name`, `url`, `owner`, `presets`) VALUES ( '', '', Owner, '' );
+    SELECT max(ID) INTO ChID FROM channels;
+  END;
+//
+
+create procedure RemoveChannel( IN Owner INT, IN ChID INT )
+  BEGIN
+    DELETE FROM channels WHERE ID = ChID AND owner = Owner;
+  END;
+//
+
+create procedure SetChannelName( IN Owner INT, IN ChID INT, IN ChName VARCHAR(500) )
+  BEGIN
+    UPDATE channels c SET c.name = ChName WHERE c.ID = ChID AND c.owner = Owner;
+  END
+//
+
+create function GetChannelName( Owner INT, ChID INT )
+  RETURNS VARCHAR(500) DETERMINISTIC
+  BEGIN
+    DECLARE x VARCHAR(500) DEFAULT NULL;
+    SELECT name INTO x FROM channels c WHERE c.ID = ChID AND c.owner = Owner;
+    RETURN x;
+  END
+//
+delimiter ;
+
+delimiter //
+create procedure SetServerHost( IN SrvID INT, IN SrvHost VARCHAR(500) )
+  BEGIN
+    UPDATE servers s SET s.host = SrvHost WHERE s.ID = SrvID;
+  END
+//
+delimiter ;
+
+delimiter //
+create function GetServerHost( SrvID INT )
+  RETURNS VARCHAR(500) DETERMINISTIC
+  BEGIN
+    DECLARE x VARCHAR(500) DEFAULT NULL;
+    SELECT host INTO x FROM servers s WHERE s.ID = SrvID;
+    RETURN x;
+  END
+//
+delimiter ;
+

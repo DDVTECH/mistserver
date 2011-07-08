@@ -1,0 +1,95 @@
+%%%%%%%%%%%%%%%%%%%
+%% Create Tables %%
+%%%%%%%%%%%%%%%%%%%
+
+CREATE TABLE `accounts` (
+  `ID` bigint(20) unsigned NOT NULL auto_increment,
+  `username` varchar(100) NOT NULL default '',
+  `password` varchar(100) NOT NULL default '',
+  PRIMARY KEY  (`ID`),
+  UNIQUE KEY `uniekenaam` (`username`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=latin1;
+
+CREATE TABLE `channels` (
+  `ID` bigint(20) unsigned NOT NULL auto_increment,
+  `name` varchar(500) NOT NULL default '',
+  `url` varchar(500) NOT NULL default '',
+  `owner` bigint(20) unsigned NOT NULL default '0',
+  `presets` varchar(500) NOT NULL default '',
+  PRIMARY KEY  (`ID`)
+) ENGINE=MyISAM AUTO_INCREMENT=9 DEFAULT CHARSET=latin1;
+
+CREATE TABLE `groups` (
+  `ID` bigint(20) unsigned NOT NULL auto_increment,
+  `owner` bigint(20) unsigned NOT NULL default '0',
+  `name` varchar(500) NOT NULL default '',
+  PRIMARY KEY  (`ID`)
+) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
+
+CREATE TABLE `presets` (
+  `ID` varchar(127) NOT NULL,
+  `commandline` varchar(500) NOT NULL,
+  `vcodec` varchar(127) NOT NULL,
+  `acodec` varchar(127) NOT NULL,
+  `info` text NOT NULL,
+  PRIMARY KEY  (`ID`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+CREATE TABLE `servers` (
+  `ID` bigint(20) unsigned NOT NULL auto_increment,
+  `name` varchar(500) NOT NULL default '',
+  `host` varchar(500) NOT NULL default '',
+  `remarks` text NOT NULL,
+  `group` bigint(20) unsigned NOT NULL default '0',
+  `ssh` int(11) NOT NULL default '22',
+  `http` int(11) NOT NULL default '7337',
+  `rtmp` int(11) NOT NULL default '1935',
+  `maxmbps` bigint(20) NOT NULL default '0',
+  `owner` bigint(20) unsigned NOT NULL default '0',
+  `currstat` int(10) unsigned NOT NULL default '0',
+  PRIMARY KEY  (`ID`),
+  UNIQUE KEY `hostssh` (`host`,`ssh`)
+) ENGINE=MyISAM AUTO_INCREMENT=21 DEFAULT CHARSET=latin1;
+
+CREATE TABLE `streams` (
+  `streamID` bigint(20) unsigned NOT NULL default '0',
+  `groupID` bigint(20) unsigned NOT NULL default '0',
+  `streamName` varchar(500) NOT NULL default '0',
+  `owner` bigint(20) unsigned NOT NULL default '0',
+  `preset` varchar(127) NOT NULL default '0',
+  PRIMARY KEY  (`streamID`,`groupID`,`preset`),
+  UNIQUE KEY `streamName` (`streamName`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+%%%%%%%%%%%%%%%%%%%
+%%% Fill tables %%%
+%%%%%%%%%%%%%%%%%%%
+
+INSERT INTO accounts( `username` , `password` ) VALUES( 'ddvtech','koekjes' ),( 'minoto', '38cn4t0d' );
+
+INSERT INTO channels( `name`, `url`, `owner`, `presets` ) VALUES
+  ( 'test-1', 'rtsp://wm.media51.kpnstreaming.nl/kpn=TweedeKamerL=Plenair101', '2', ''),
+  ( 'fifa', 'file:///root/fifa3.flv', '1', 'h264-high' ),
+  ( 'test-2', 'http://streams.minoto-video.com/id/T7pDNJ9JtsJF_web_hq.mp4', '2', '');
+  
+INSERT INTO groups( `owner`, `name` ) VALUES ('1','DePubliekeZaak'),('2','AMS Servers'),('2','RTD Servers');
+
+INSERT INTO presets( `ID`,`commandline`,`vcodec`,`acodec`, `info` ) VALUES
+  ( 'h264-low','h264-low','h264-low','h264-low','h264-low'),
+  ( 'h264-high','h264-high','h264-high','h264-high','h264-high'),
+  ( 'raw','raw','raw','raw','raw'),
+  ( 'copy','copy','copy','copy','copy');
+  
+INSERT INTO servers( `name`, `host`, `remarks`, `group`, `ssh`, `http`, `rtmp`, `maxmbps`, `owner`, `currstat` ) VALUES
+  ('Alpha', 'octo.ddvtech.com','Echte server','1', '6666','7337','1935','252492','1','1'),
+  ('Beta','aserv.ddvtech.com','Echte server met 5 virtuele','0','22','7337','1935','0','1','0'),
+  ('Partner1 Alpha','aserv.ddvtech.com','Virtueel','0','20001','0','0','0','1','0'),
+  ('Partner1 Beta','aserv.ddvtech.com','Virtueel','0','20002','0','0','0','1','0'),
+  ('Partner1 Gamma','aserv.ddvtech.com','Virtueel','0','20003','0','0','0','1','0'),
+  ('Partner1 Delta','aserv.ddvtech.com','Virtueel','0','20004','0','0','0','1','0'),
+  ('Partner1 Epsilon','aserv.ddvtech.com','Virtueel','0','20005','0','0','0','1','0'),
+  ('live01-ams','live01-ams.minoto-video.com','','2','22','7337','1935','9858','2','0'),
+  ('live02-ams','live02-ams.minoto-video.com','','2','22','7337','1935','9377','2','1'),
+  ('live01-rtd','live01-rtd.minoto-interactive.com','','3 ','22','7337','1935','0','2','0');
+
+INSERT INTO streams( `streamID`, `groupID`, `streamName`, `owner`, `preset` ) VALUES ('3','1','fifa_copy','1','copy');

@@ -294,7 +294,9 @@ namespace Connector_HTTP{
                   #if DEBUG >= 5
                   fprintf(stderr, "Received a tag of type %2hhu and length %i\n", tag.data[0], tag.len);
                   #endif
-                  FlashBuf.append(tag.data,tag.len);
+                  if ((Video_Init.len > 0) && (Audio_Init.len > 0)){
+                    FlashBuf.append(tag.data,tag.len);
+                  }
                 } else {
                   FlashMeta = "";
                   FlashMeta.append(tag.data+11,tag.len-15);

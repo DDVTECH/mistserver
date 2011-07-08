@@ -271,7 +271,7 @@ namespace Connector_HTTP{
                     }
                   }
                   if (tag.isKeyframe){
-                    if (FlashBuf != ""){
+                    if (FlashBuf != "" && !FlashFirstVideo && !FlashFirstAudio){
                       Flash_FragBuffer.push(FlashBuf);
                       #if DEBUG >= 4
                       fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());

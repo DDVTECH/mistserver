@@ -54,19 +54,20 @@ enum Commands{
 #include <cstdio>
 #include <fstream>
 #include <algorithm>
-#include "../../../util/ddv_socket.h"
+#include "../../../util/socket.h"
 #include "../../../util/md5.h"
 #include "server.h"
 #include "channel.h"
 #include "group.h"
+#include <mysql/mysql.h>
 
-#define TESTUSER_ID "5"
+#define TESTUSER_ID "1"
 #define TESTUSER_PASS "Chocokoekjes"
 #define TESTUSER_STRING "DDVTECH"
 
 class Gearbox_Server {
   public:
-    Gearbox_Server( DDV::Socket Connection );
+    Gearbox_Server( Socket::Connection Connection );
     ~Gearbox_Server( );
 
     void Handshake( );
@@ -115,7 +116,7 @@ class Gearbox_Server {
     std::string RandomConnect;
     std::string RandomAuth;
     std::string XorPath;
-    DDV::Socket conn;
+    Socket::Connection conn;
     std::map<std::string,Commands> CommandMap;
     std::map<int,Server> ServerConfigs;
     std::map<int,std::string> ServerNames;
@@ -125,4 +126,6 @@ class Gearbox_Server {
     std::map<int,std::string> GroupNames;
 
     std::vector<std::string> Presets;
+
+    MYSQL * MysqlConnection;
 };//Gearbox Server Class

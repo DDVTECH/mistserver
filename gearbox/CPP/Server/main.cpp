@@ -11,12 +11,12 @@
 #include <ctime>
 #include <string>
 #include <map>
-#include "../../../util/ddv_socket.h"
+#include "../../../util/socket.h"
 #include "gearbox_server.h"
 #include "../../../util/md5.h"
 
 
-int MainHandler(DDV::Socket conn) {
+int MainHandler(Socket::Connection conn) {
   Gearbox_Server gbconn( conn );
   std::cout << "Starting Handshake\n";
   gbconn.Handshake( );

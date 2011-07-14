@@ -1,4 +1,4 @@
-SRC = main.cpp gearbox_server.cpp ../../../util/ddv_socket.cpp ../../../util/md5.cpp
+SRC = main.cpp gearbox_server.cpp ../../../util/socket.cpp ../../../util/md5.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Gearbox_Test
 INCLUDES = 
@@ -8,7 +8,7 @@ CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG) -std=c++0x
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
-LIBS=
+LIBS= -lmysqlclient
 .SUFFIXES: .cpp 
 .PHONY: clean default
 default: $(OUT)

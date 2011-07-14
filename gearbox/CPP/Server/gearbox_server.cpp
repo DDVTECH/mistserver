@@ -1,6 +1,15 @@
 #include "gearbox_server.h"
 
-Gearbox_Server::Gearbox_Server( DDV::Socket Connection ) {
+Gearbox_Server::Gearbox_Server( Socket::Connection Connection ) {
+  MysqlConnection = mysql_init( NULL );
+  if( ! MysqlConnection ) {
+    std::cout << "Could not initialize connection: " << mysql_error( MysqlConnection ) << "\n";
+    exit( 1 );
+  }
+  if( ! ( mysql_real_connect( MysqlConnection, "localhost", "pls" , "bitterkoekjespudding", "pls_gearbox", 0, NULL, ( CLIENT_MULTI_STATEMENTS | CLIENT_MULTI_RESULTS ) ) ) ) {
+    std::cerr << "Could not connect to database: " << mysql_error( MysqlConnection ) << "\n";
+    exit( 1 );
+  }
   InitializeMap( );
   srand( time( NULL ) );
   conn = Connection;
@@ -484,15 +493,21 @@ bool Gearbox_Server::GroupConfigSetName( std::string GrpID, std::string GrpName 
 }
 
 int Gearbox_Server::ServerConfigAdd( ) {
-  std::map<int,Server>::iterator it;
-  if( ! ServerConfigs.empty( ) ) {
-    it = ServerConfigs.end( );
-    it --;
+  std::string Query = "INSERT INTO servers(`name`,`host`,`owner`) VALUES ( '', '', 1 ); SELECT max(ID) from servers";
+  if ( mysql_query( MysqlConnection, Query.c_str() ) ) {
+    if( mysql_errno( MysqlConnection ) == 1062 ) {
+      Query = " SELECT max(ID) from servers";
+    } else {
+      std::cerr << "Adding a server -- Query Error ( " << mysql_errno( MysqlConnection ) << "): " << mysql_error( MysqlConnection ) << "\n";
+      return -1;
+    }
   }
-  int lastid = ( ServerConfigs.empty() ? 0 : (*it).first ) + 1;
-  ServerConfigs.insert( std::pair<int,Server>(lastid,(Server){lastid,"","",22,80,1935,0,0}) );
-  ServerNames.insert( std::pair<int,std::string>(lastid,"") );
-  return lastid;
+  MYSQL_RES * Result = mysql_store_result( MysqlConnection );
+  if( !Result ) {
+    std::cerr << "Adding a server -- Result Error: " << mysql_error( MysqlConnection ) << "\n";
+  } else {
+    return 0;
+  }
 }
 
 bool Gearbox_Server::ServerConfigRemove( std::string Index ) {

@@ -13,7 +13,7 @@
 #include <string>
 #include <map>
 #include <cerrno>
-#include "../../../util/ddv_socket.h"
+#include "../../../util/socket.h"
 #include "../../../util/md5.h"
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -57,7 +57,7 @@ int main( ) {
     printf( "ERROR::Connection failed: %d\n", errno == ECONNREFUSED);
     exit( 1 );
   }
-  DDV::Socket Sock( sockno );
+  Socket::Connection Sock( sockno );
   while( temp.find('\n') == std::string::npos ) {
     Sock.read( temp );
   }

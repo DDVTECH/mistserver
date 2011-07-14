@@ -1,4 +1,4 @@
-SRC = main.cpp ../../../util/ddv_socket.cpp ../../../util/md5.cpp
+SRC = main.cpp ../../../util/socket.cpp ../../../util/md5.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = TestClient
 INCLUDES = 

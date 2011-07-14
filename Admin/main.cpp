@@ -56,7 +56,7 @@ std::string MeasureThroughPut(){
   sleep(5);
   GetThroughPut(&totDown, &totUp);
   //return totaal bytes down, up, gemiddelde bytes per seconde over de afgelopen 5 secs down, up.
-  output << totDown << " " << totUp << " " << ((totDown - frstDown)/5) << " " << ((totUp - frstUp)/5);
+  output << "BYTES=" << totDown + totUp << " BYTES_D=" << ((totDown - frstDown)/5) + ((totUp - frstUp)/5);
   return output.str();
 }//MeasureThroughPut
 
@@ -70,6 +70,17 @@ std::string GetConnectedUsers(){
   tmpfile.close();
   return output;
 }//GetConnectedUsers
+
+std::string GetStreamAmount(){
+  std::string output;
+  //laat ps aux de processen Buffer opvragen, zonder de grep zelf, en tel het aantal lines.
+  system("ps aux | grep Buffer | grep -v grep | wc -l > ./tmpfile");
+  //lees de file, en return de inhoud
+  std::ifstream tmpfile ("./tmpfile");
+  tmpfile >> output;
+  tmpfile.close();
+  return output;
+}//GetStreamAmount
 
 void readpreset( unsigned int values[], std::string & filename ) {
   std::ifstream presetfile ("preset");
@@ -102,6 +113,15 @@ void writesh( unsigned int values[], std::string filename ) {
   system("sh ./run.sh");
 }
 
+
+int main( ) {
+  std::cout << "USERS=" << GetConnectedUsers( ) << " ";
+  std::cout << MeasureThroughPut( ) << " ";
+  std::cout << "STREAMS=" << GetStreamAmount( ) << " ";
+}
+
+
+/* -- OLD Main, wss doen we hier niets meer mee --
 int main() {
   unsigned int values[9];
   std::string inputcommand = "";
@@ -253,4 +273,4 @@ int main() {
   }
   return 0;
 }
-
+*/

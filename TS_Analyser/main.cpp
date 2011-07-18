@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <string>
+#include <map>
 
 int main( ) {
   std::string File;
@@ -11,6 +12,7 @@ int main( ) {
   unsigned char Skip;
   unsigned int SkippedBytes = 0;
   unsigned int Adaptation;
+  std::map<int,int> PMTs;
   while( std::cin.good( ) && BlockNo <= 5) {
     for( int i = 0; i < 188; i++ ) {
       TempChar[i] = std::cin.get();
@@ -22,31 +24,46 @@ int main( ) {
       printf( "\tTransport Error Indicator:\t%d\n", ( ( TempChar[1] & 0x80 ) != 0 ) );
       printf( "\tPayload Unit Start Indicator:\t%d\n", ( ( TempChar[1] & 0x40 ) != 0 ) );
       printf( "\tTransport Priority:\t\t%d\n", ( ( TempChar[1] & 0x20 ) != 0 ) );
-      printf( "\tPacket ID:\t\t\t%X\n", ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) );
+      printf( "\tPID:\t\t\t\t%X\n", ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) );
       printf( "\tScrambling control:\t\t%d%d\n", ( ( TempChar[3] & 0x80 ) != 0 ), ( ( TempChar[3] & 0x40 ) != 0 ) );
       printf( "\tAdaptation Field Exists:\t%d%d\n", ( ( TempChar[3] & 0x20 ) != 0 ), ( ( TempChar[3] & 0x10 ) != 0 ) );
-      printf( "\tContinuity Counter:\t\t%d\n", ( TempChar[3] & 0x0F ) );
+      printf( "\tContinuity Counter:\t\t%X\n", ( TempChar[3] & 0x0F ) );
       
       Adaptation = ( ( TempChar[3] & 0x30 ) >> 4 );
       
+      //Adaptation Field Exists
       if( Adaptation == 2 || Adaptation == 3 ) {
-        printf( "\tAdaptation Field\n" );
+        printf( "\tAdaptation Field:\n" );
+        printf( "\t\tNOT IMPLEMENTED YET!!\n" );
       }
       
 
-      if( ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) == 0 ) {
+      if( ( ( ( TempChar[1] & 0x1F ) << 8 ) +  TempChar[2] ) == 0 ) {
         printf( "\tProgram Association Table\n" );
-        printf( "\t\ttable_id:\t\t\t%d\n", TempChar[4] );
-        printf( "\t\tsection_syntax_indicator:\t%d\n", ( ( TempChar[5] & 0x80 ) != 0 ) );
-        printf( "\t\t0:\t\t\t\t%d\n", ( ( TempChar[5] & 0x40 ) != 0 ) );
-        printf( "\t\treserved:\t\t\t%d\n", ( ( TempChar[5] & 0x30 ) >> 4 ) );
-        printf( "\t\tsection_length:\t\t\t%d\n", ( ( TempChar[5] & 0x0F ) << 8 ) + TempChar[6] );
-        printf( "\t\treserved:\t\t\t%d\n", ( ( TempChar[7] & 0xC0 ) >> 6 ) );
-        printf( "\t\tversion_number:\t\t\t%d\n", ( ( TempChar[7] & 0x3E ) >> 1 ) );
-        printf( "\t\tcurrent_next_indicator:\t\t%d\n", ( ( TempChar[7] & 0x01 ) != 0 ) );
-        printf( "\t\tsection_number:\t\t\t%d\n", TempChar[8] );
-        printf( "\t\tlast_section_number:\t\t%d\n", TempChar[9] );
-        
+        printf( "\t\tpointer_field:\t\t\t%X\n", TempChar[4] );
+        printf( "\t\ttable_id:\t\t\t%X\n", TempChar[5] );
+        printf( "\t\tsection_syntax_indicator:\t%d\n", ( ( TempChar[6] & 0x80 ) != 0 ) );
+        printf( "\t\t0:\t\t\t\t%d\n", ( ( TempChar[6] & 0x40 ) != 0 ) );
+        printf( "\t\treserved:\t\t\t%d\n", ( ( TempChar[6] & 0x30 ) >> 4 ) );
+        printf( "\t\tsection_length:\t\t\t%X\n", ( ( TempChar[6] & 0x0F ) << 8 ) + TempChar[7] );
+        printf( "\t\ttransport_stream_id\t\t%X\n", ( ( TempChar[8] << 8 ) + TempChar[9] ) );
+        printf( "\t\treserved:\t\t\t%d\n", ( ( TempChar[10] & 0xC0 ) >> 6 ) );
+        printf( "\t\tversion_number:\t\t\t%X\n", ( ( TempChar[10] & 0x3E ) >> 1 ) );
+        printf( "\t\tcurrent_next_indicator:\t\t%d\n", ( ( TempChar[10] & 0x01 ) != 0 ) );
+        printf( "\t\tsection_number:\t\t\t%X\n", TempChar[11] );
+        printf( "\t\tlast_section_number:\t\t%d\n", TempChar[12] );
+        int SectionLength = ( ( TempChar[6] & 0x0F ) << 8 ) + TempChar[7];
+        for( int i = 0; i < SectionLength - 9; i += 4 ) {
+          printf( "\t\tENTRY %d:\n", i / 4 );
+          printf( "\t\t\tProgram Number:\t%X\n", ( TempChar[13+i] << 8 ) + TempChar[14+i] );
+          printf( "\t\t\tReserved:\t%X\n", ( TempChar[15+i] & 0xE0 ) >> 5 );
+          if( ( ( TempChar[13+i] << 8 ) + TempChar[14+i] ) == 0 ) {
+            printf( "\t\t\tnetwork_PID:\t\t%X\n", ( ( TempChar[15+i] & 0x1F ) << 8 ) + TempChar[16+i] );
+          } else {
+            printf( "\t\t\tprogram_map_PID:\t\t%X\n", ( ( TempChar[15+i] & 0x1F ) << 8 ) + TempChar[16+i] );          
+          }
+        }
+        printf( "\t\tCRC_32\t\t\t\t%x\n", ( TempChar[8+SectionLength-4] << 24 ) + ( TempChar[8+SectionLength-3] << 16 ) + ( TempChar[8+SectionLength-2] << 8 ) + ( TempChar[8+SectionLength-1] ) );
       }
 
       BlockNo ++;
@@ -62,7 +79,6 @@ int main( ) {
       std::cin >> Skip;
       SkippedBytes ++;
     }
-    printf( "Empty Packet Counter:  %d\n", EmptyBlocks );
   }
   return 0;
 }

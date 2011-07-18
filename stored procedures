@@ -221,10 +221,64 @@ create function GetGroupName( Owner INT, GrpID INT )
     RETURN x;
   END
 //
-delimiter ;
 
 create procedure AddServerToGroup( IN Owner INT, IN GrpID INT, IN SrvID INT )
   BEGIN
-    
+    IF ( ( SELECT ID FROM groups g WHERE g.ID = GrpID AND g.owner = Owner ) IS NOT NULL ) THEN
+      IF ( ( SELECT ID FROM servers s WHERE s.ID = SrvID AND s.owner = Owner ) IS NOT NULL ) THEN
+        UPDATE servers s SET `group` = GrpID WHERE s.ID = SrvID AND s.owner = Owner AND s.`group` = 0;
+      END IF;
+    END IF;
   END;
 //
+
+create procedure ReleaseServerFromGroup( IN Owner INT, IN GrpID INT, IN SrvID INT )
+  BEGIN
+    IF ( ( SELECT ID FROM groups g WHERE g.ID = GrpID AND g.owner = Owner ) IS NOT NULL ) THEN
+      IF ( ( SELECT ID FROM servers s WHERE s.ID = SrvID AND s.owner = Owner ) IS NOT NULL ) THEN
+        UPDATE servers s SET `group` = 0 WHERE s.ID = SrvID AND s.owner = Owner AND s.`group` = GrpID;
+      END IF;
+    END IF;
+  END;
+//
+
+create procedure AddStreamToGroup( IN Owner INT, IN GrpID INT, IN ChID INT, IN Preset VARCHAR(500) )
+  BEGIN
+    DECLARE x VARCHAR(500);
+    IF ( ( SELECT ID FROM groups g WHERE g.ID = GrpID AND g.owner = Owner ) IS NOT NULL ) THEN
+      IF ( ( SELECT ID FROM channels c WHERE c.ID = ChID AND c.owner = Owner ) IS NOT NULL ) THEN
+        BEGIN
+          SELECT presets INTO x FROM channels c WHERE c.ID = ChID;
+          IF ( LOCATE ( Preset, x ) != 0 ) THEN
+            BEGIN
+              DECLARE Streamname VARCHAR(500);
+              SELECT name INTO Streamname FROM channels c WHERE c.ID = ChID;
+              SET Streamname = CONCAT( Streamname, '_', Preset );
+              INSERT INTO streams(`streamID`, `groupID`, `streamName`, `owner`, `preset` ) VALUES
+                ( ChID, GrpID, Streamname, Owner, Preset );
+            END;
+          END IF;
+        END;
+      END IF;
+    END IF;
+  END;
+//
+
+CREATE PROCEDURE RemoveStreamFromGroup( IN Owner INT, IN GrpID INT, IN ChID INT, IN Preset VARCHAR(500) )
+  BEGIN
+    DECLARE x VARCHAR(500);
+    IF ( ( SELECT ID FROM groups g WHERE g.ID = GrpID AND g.owner = Owner ) IS NOT NULL ) THEN
+      IF ( ( SELECT ID FROM channels c WHERE c.ID = ChID AND c.owner = Owner ) IS NOT NULL ) THEN
+        BEGIN
+          SELECT presets INTO x FROM channels c WHERE c.ID = ChID;
+          IF ( LOCATE ( Preset, x ) != 0 ) THEN
+            BEGIN
+              DELETE FROM streams WHERE streamID = ChID AND groupID = GrpID AND preset = Preset;
+            END;
+          END IF;
+        END;
+      END IF;
+    END IF;
+  END;
+//
+delimiter ;

@@ -180,6 +180,7 @@ namespace Connector_HTTP{
             printf( "URL: %s\n", HTTP_R.url.c_str());
             printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
             #endif
+            Flash_ManifestSent = true;//stop manifest from being sent multiple times
             Flash_RequestPending++;
           }else{
             Movie = HTTP_R.url.substr(1);

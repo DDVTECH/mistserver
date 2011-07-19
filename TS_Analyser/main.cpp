@@ -2,7 +2,39 @@
 #include <cstdlib>
 #include <cstdio>
 #include <string>
-#include <map>
+#include <vector>
+
+struct program_association_table_entry {
+  unsigned int Program_Num;
+  unsigned char Reserved;
+  unsigned int Program_PID;
+};
+
+struct program_association_table {
+  unsigned char Pointer_Field;
+  unsigned char Table_ID;
+  bool Section_Syntax_Indicator;
+  bool Zero;
+  unsigned char Reserved_1;
+  unsigned int Section_Length;
+  unsigned int Transport_Stream_ID;
+  unsigned char Reserved_2;
+  unsigned char Version_Number;
+  bool Current_Next_Indicator;
+  unsigned char Section_Number;
+  unsigned char Last_Section_Number;
+  std::vector<program_association_table_entry> Entries;
+  unsigned int CRC_32;
+};
+
+void print_pat( program_association_table PAT, bool Pointer_Field = false, std::string offset="\t" ) {
+  printf( "\tProgram Association Table\n" );
+  if( Pointer_Field ) {
+    printf( "%s\tPointer Field:\t\t\t%X\n", offset.c_str(), PAT.Pointer_Field );
+  }
+  printf( "%s\tTable ID:\t\t\t%X\n", offset.c_str(), PAT.Table_ID );
+  printf( "%s\tSection Syntax Indicator:\t%d\n", offset.c_str(), PAT.Section_Syntax_Indicator );
+}
 
 int main( ) {
   std::string File;
@@ -12,8 +44,7 @@ int main( ) {
   unsigned char Skip;
   unsigned int SkippedBytes = 0;
   unsigned int Adaptation;
-  std::map<int,int> PMTs;
-  while( std::cin.good( ) && BlockNo <= 5) {
+  while( std::cin.good( ) && BlockNo <= 4) {
     for( int i = 0; i < 188; i++ ) {
       TempChar[i] = std::cin.get();
     }
@@ -43,6 +74,7 @@ int main( ) {
         printf( "\t\tpointer_field:\t\t\t%X\n", TempChar[4] );
         printf( "\t\ttable_id:\t\t\t%X\n", TempChar[5] );
         printf( "\t\tsection_syntax_indicator:\t%d\n", ( ( TempChar[6] & 0x80 ) != 0 ) );
+        
         printf( "\t\t0:\t\t\t\t%d\n", ( ( TempChar[6] & 0x40 ) != 0 ) );
         printf( "\t\treserved:\t\t\t%d\n", ( ( TempChar[6] & 0x30 ) >> 4 ) );
         printf( "\t\tsection_length:\t\t\t%X\n", ( ( TempChar[6] & 0x0F ) << 8 ) + TempChar[7] );

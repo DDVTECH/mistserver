@@ -5,9 +5,9 @@
 #include <vector>
 
 struct program_association_table_entry {
-  unsigned int Program_Num;
+  unsigned int Program_Number;
   unsigned char Reserved;
-  unsigned int Program_PID;
+  unsigned int Program_Map_PID;
 };
 
 struct program_association_table {
@@ -27,13 +27,104 @@ struct program_association_table {
   unsigned int CRC_32;
 };
 
+struct program_mapping_table {
+  unsigned char Pointer_Field;
+  unsigned char Table_ID;
+  bool Section_Syntax_Indicator;
+  bool Zero;
+  unsigned char Reserved_1;
+  unsigned int Section_Length;
+  unsigned int Program_Number;
+  unsigned char Reserved_2;
+  unsigned char Version_Number;
+  bool Current_Next_Indicator;
+  unsigned char Section_Number;
+  unsigned char Last_Section_Number;
+  unsigned char Reserved_3;
+  unsigned int PCR_PID;
+  unsigned char Reserved_4;
+  unsigned int Program_Info_Length;
+  //vector Descriptors
+  //vector programPIDs
+  unsigned int CRC_32;
+};
+
 void print_pat( program_association_table PAT, bool Pointer_Field = false, std::string offset="\t" ) {
-  printf( "\tProgram Association Table\n" );
+  printf( "%sProgram Association Table\n", offset.c_str() );
   if( Pointer_Field ) {
     printf( "%s\tPointer Field:\t\t\t%X\n", offset.c_str(), PAT.Pointer_Field );
   }
   printf( "%s\tTable ID:\t\t\t%X\n", offset.c_str(), PAT.Table_ID );
   printf( "%s\tSection Syntax Indicator:\t%d\n", offset.c_str(), PAT.Section_Syntax_Indicator );
+  printf( "%s\t0:\t\t\t\t%d\n", offset.c_str(), PAT.Zero );
+  printf( "%s\tReserved:\t\t\t%d\n", offset.c_str(), PAT.Reserved_1 );
+  printf( "%s\tSection Length:\t\t\t%X\n", offset.c_str(), PAT.Section_Length );
+  printf( "%s\tTransport Stream ID\t\t%X\n", offset.c_str(), PAT.Transport_Stream_ID );
+  printf( "%s\tReserved:\t\t\t%d\n", offset.c_str(), PAT.Reserved_2 );
+  printf( "%s\tVersion Number:\t\t\t%X\n", offset.c_str(), PAT.Version_Number );
+  printf( "%s\tCurrent Next Indicator:\t\t%d\n", offset.c_str(), PAT.Current_Next_Indicator );
+  printf( "%s\tSection Number:\t\t\t%X\n", offset.c_str(), PAT.Section_Number );
+  printf( "%s\tLast Section Number:\t\t%d\n\n", offset.c_str(), PAT.Last_Section_Number );
+  for( int i = 0; i < PAT.Entries.size(); i++ ) {
+    printf( "%s\tEntry %d\n", offset.c_str(), i );
+    printf( "%s\t\tProgram Number:\t\t%X\n", offset.c_str(), PAT.Entries[i].Program_Number );
+    printf( "%s\t\tReserved:\t\t%X\n", offset.c_str(), PAT.Entries[i].Reserved );
+    printf( "%s\t\tProgram Map PID:\t%X\n", offset.c_str(), PAT.Entries[i].Program_Map_PID );
+  }
+  printf( "\n%s\tCRC_32:\t\t\t\t%X\n", offset.c_str(), PAT.CRC_32 );
+}
+
+void fill_pat( program_association_table & PAT, unsigned char * TempChar ) {
+  PAT.Pointer_Field = TempChar[4];
+  PAT.Table_ID = TempChar[5];
+  PAT.Section_Syntax_Indicator = ((TempChar[6] & 0x80 ) != 0 );
+  PAT.Zero = (( TempChar[6] & 0x40 ) != 0 );
+  PAT.Reserved_1 = (( TempChar[6] & 0x30 ) >> 4 );
+  PAT.Section_Length = (( TempChar[6] & 0x0F ) << 8 ) + TempChar[7];
+  PAT.Transport_Stream_ID = (( TempChar[8] << 8 ) + TempChar[9] );
+  PAT.Reserved_2 = (( TempChar[10] & 0xC0 ) >> 6 );
+  PAT.Version_Number = (( TempChar[10] & 0x01 ) >> 1 );
+  PAT.Current_Next_Indicator = (( TempChar[10] & 0x01 ) != 0 );
+  PAT.Section_Number = TempChar[11];
+  PAT.Last_Section_Number = TempChar[12];
+  PAT.Entries.clear( );
+  for( int i = 0; i < PAT.Section_Length - 9; i += 4 ) {
+    program_association_table_entry PAT_Entry;
+    PAT_Entry.Program_Number = ( TempChar[13+i] << 8 ) + TempChar[14+i];
+    PAT_Entry.Reserved = ( TempChar[15+i] & 0xE0 ) >> 5;
+    PAT_Entry.Program_Map_PID = (( TempChar[15+i] & 0x1F ) << 8 ) + TempChar[16+i];
+    PAT.Entries.push_back( PAT_Entry );
+  }
+  PAT.CRC_32 = ( TempChar[8+PAT.Section_Length-4] << 24 ) + ( TempChar[8+PAT.Section_Length-3] << 16 ) + ( TempChar[8+PAT.Section_Length-2] << 8 ) + ( TempChar[8+PAT.Section_Length-1] );
+}
+
+void fill_pmt( program_mapping_table & PMT, unsigned char * TempChar ) {
+  PMT.Pointer_Field = TempChar[4];
+  PMT.Table_ID = TempChar[5];
+  PMT.Section_Syntax_Indicator = (( TempChar[6] & 0x80 ) != 0 );
+  PMT.Zero = (( TempChar[6] & 0x40 ) != 0 );
+  PMT.Reserved_1 = (( TempChar[6] & 0x30 ) >> 4 );
+  PMT.Section_Length = (( TempChar[6] & 0x0F ) << 8 ) + TempChar[7];
+}
+
+void print_pmt( program_mapping_table PMT, bool Pointer_Field = false, std::string offset="\t" ) {
+  if( Pointer_Field ) {
+    printf( "%s\tPointer Field:\t\t\t%X\n", offset.c_str(), PMT.Pointer_Field );
+  }
+  printf( "%s\tTable ID:\t\t\t%X\n", offset.c_str(), PMT.Table_ID );
+  printf( "%s\tSection Syntax Indicator:\t%d\n", offset.c_str(), PMT.Section_Syntax_Indicator);
+  printf( "%s\t0:\t\t\t\t%d\n", offset.c_str(), PMT.Zero );
+  printf( "%s\tReserved:\t\t\t%d\n", offset.c_str(), PMT.Reserved_1 );
+  printf( "%s\tSection Length:\t\t\t%X\n", offset.c_str(), PMT.Section_Length );
+}
+
+int find_pid_in_pat( program_association_table PAT, unsigned int PID ) {
+  for( int i = 0; i < PAT.Entries.size(); i++ ) {
+    if( PAT.Entries[i].Program_Map_PID == PID ) {
+      return PAT.Entries[i].Program_Number;
+    }
+  }
+  return -1;
 }
 
 int main( ) {
@@ -44,9 +135,12 @@ int main( ) {
   unsigned char Skip;
   unsigned int SkippedBytes = 0;
   unsigned int Adaptation;
+  program_association_table PAT;
+  program_mapping_table PMT;
+  int ProgramNum;
   while( std::cin.good( ) && BlockNo <= 4) {
     for( int i = 0; i < 188; i++ ) {
-      TempChar[i] = std::cin.get();
+      if( std::cin.good( ) ){ TempChar[i] = std::cin.get(); }
     }
 
     if( ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) != 0x1FFF ) {    
@@ -70,38 +164,20 @@ int main( ) {
       
 
       if( ( ( ( TempChar[1] & 0x1F ) << 8 ) +  TempChar[2] ) == 0 ) {
-        printf( "\tProgram Association Table\n" );
-        printf( "\t\tpointer_field:\t\t\t%X\n", TempChar[4] );
-        printf( "\t\ttable_id:\t\t\t%X\n", TempChar[5] );
-        printf( "\t\tsection_syntax_indicator:\t%d\n", ( ( TempChar[6] & 0x80 ) != 0 ) );
-        
-        printf( "\t\t0:\t\t\t\t%d\n", ( ( TempChar[6] & 0x40 ) != 0 ) );
-        printf( "\t\treserved:\t\t\t%d\n", ( ( TempChar[6] & 0x30 ) >> 4 ) );
-        printf( "\t\tsection_length:\t\t\t%X\n", ( ( TempChar[6] & 0x0F ) << 8 ) + TempChar[7] );
-        printf( "\t\ttransport_stream_id\t\t%X\n", ( ( TempChar[8] << 8 ) + TempChar[9] ) );
-        printf( "\t\treserved:\t\t\t%d\n", ( ( TempChar[10] & 0xC0 ) >> 6 ) );
-        printf( "\t\tversion_number:\t\t\t%X\n", ( ( TempChar[10] & 0x3E ) >> 1 ) );
-        printf( "\t\tcurrent_next_indicator:\t\t%d\n", ( ( TempChar[10] & 0x01 ) != 0 ) );
-        printf( "\t\tsection_number:\t\t\t%X\n", TempChar[11] );
-        printf( "\t\tlast_section_number:\t\t%d\n", TempChar[12] );
-        int SectionLength = ( ( TempChar[6] & 0x0F ) << 8 ) + TempChar[7];
-        for( int i = 0; i < SectionLength - 9; i += 4 ) {
-          printf( "\t\tENTRY %d:\n", i / 4 );
-          printf( "\t\t\tProgram Number:\t%X\n", ( TempChar[13+i] << 8 ) + TempChar[14+i] );
-          printf( "\t\t\tReserved:\t%X\n", ( TempChar[15+i] & 0xE0 ) >> 5 );
-          if( ( ( TempChar[13+i] << 8 ) + TempChar[14+i] ) == 0 ) {
-            printf( "\t\t\tnetwork_PID:\t\t%X\n", ( ( TempChar[15+i] & 0x1F ) << 8 ) + TempChar[16+i] );
-          } else {
-            printf( "\t\t\tprogram_map_PID:\t\t%X\n", ( ( TempChar[15+i] & 0x1F ) << 8 ) + TempChar[16+i] );          
-          }
-        }
-        printf( "\t\tCRC_32\t\t\t\t%x\n", ( TempChar[8+SectionLength-4] << 24 ) + ( TempChar[8+SectionLength-3] << 16 ) + ( TempChar[8+SectionLength-2] << 8 ) + ( TempChar[8+SectionLength-1] ) );
+        fill_pat( PAT, TempChar );
+        print_pat( PAT, true );
+      }
+      
+      ProgramNum = find_pid_in_pat( PAT, ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) );
+      if( ProgramNum != -1 ) {
+        printf( "\tProgram Mapping Table for program %X\n", ProgramNum );
+        fill_pmt( PMT, TempChar );
+        print_pmt( PMT, true );
       }
 
       BlockNo ++;
       
-    }
-  else {
+    } else {
       EmptyBlocks ++;
     }
     

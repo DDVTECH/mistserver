@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <fstream>
 
 struct program_association_table_entry {
   unsigned int Program_Number;
@@ -27,6 +28,14 @@ struct program_association_table {
   unsigned int CRC_32;
 };
 
+struct program_mapping_table_entry {
+  unsigned char Stream_Type;
+  unsigned char Reserved_1;
+  unsigned int Elementary_PID;
+  unsigned char Reserved_2;
+  unsigned int ES_Info_Length;
+};
+
 struct program_mapping_table {
   unsigned char Pointer_Field;
   unsigned char Table_ID;
@@ -45,8 +54,37 @@ struct program_mapping_table {
   unsigned char Reserved_4;
   unsigned int Program_Info_Length;
   //vector Descriptors
-  //vector programPIDs
+  std::vector<program_mapping_table_entry> Entries;
   unsigned int CRC_32;
+};
+
+struct adaptation_field {
+  unsigned char Adaptation_Field_Length;
+  bool Discontinuity_Indicator;
+  bool Random_Access_Indicator;
+  bool Elementary_Stream_Priority_Indicator;
+  bool PCR_Flag;
+  bool OPCR_Flag;
+  bool Splicing_Point_Flag;
+  bool Transport_Private_Data_Flag;
+  bool Adaptation_Field_Extension_Flag;
+  
+  unsigned char Program_Clock_Reference_Base_MSB;
+  unsigned int Program_Clock_Reference_Base;
+  unsigned char PCR_Reserved;
+  unsigned int Program_Clock_Reference_Extension;
+
+  unsigned char Original_Program_Clock_Reference_Base_MSB;
+  unsigned int Original_Program_Clock_Reference_Base;
+  unsigned char OPCR_Reserved;
+  unsigned int Original_Program_Clock_Reference_Extension;
+
+  unsigned char Splice_Countdown;
+
+  unsigned char Transport_Private_Data_Length;
+  std::vector<unsigned char> Private_Data_Byte;
+  
+  unsigned char Adaptation_Field_Extension_Length;
 };
 
 void print_pat( program_association_table PAT, bool Pointer_Field = false, std::string offset="\t" ) {
@@ -99,12 +137,36 @@ void fill_pat( program_association_table & PAT, unsigned char * TempChar ) {
 }
 
 void fill_pmt( program_mapping_table & PMT, unsigned char * TempChar ) {
+  int CurrentOffset;
   PMT.Pointer_Field = TempChar[4];
   PMT.Table_ID = TempChar[5];
   PMT.Section_Syntax_Indicator = (( TempChar[6] & 0x80 ) != 0 );
   PMT.Zero = (( TempChar[6] & 0x40 ) != 0 );
   PMT.Reserved_1 = (( TempChar[6] & 0x30 ) >> 4 );
   PMT.Section_Length = (( TempChar[6] & 0x0F ) << 8 ) + TempChar[7];
+  PMT.Program_Number = (TempChar[8] << 8) + TempChar[9];
+  PMT.Reserved_2 = (( TempChar[10] & 0xC0 ) >> 6 );
+  PMT.Version_Number = (( TempChar[10] & 0x1E ) >> 1 );
+  PMT.Current_Next_Indicator = ( TempChar[10] & 0x01 );
+  PMT.Section_Number = TempChar[11];
+  PMT.Last_Section_Number = TempChar[12];
+  PMT.Reserved_3 = (( TempChar[13] & 0xE0 ) >> 5 );
+  PMT.PCR_PID = (( TempChar[13] & 0x1F ) << 8 ) + TempChar[14];
+  PMT.Reserved_4 = (( TempChar[15] & 0xF0 ) >> 4 );
+  PMT.Program_Info_Length = ((TempChar[15] & 0x0F ) << 8 ) + TempChar[16];
+  CurrentOffset = 17 + PMT.Program_Info_Length;
+  PMT.Entries.clear( );
+  while( CurrentOffset < PMT.Section_Length - 8 ) {
+    program_mapping_table_entry PMT_Entry;
+    PMT_Entry.Stream_Type = TempChar[CurrentOffset];
+    PMT_Entry.Reserved_1 = (( TempChar[CurrentOffset+1] & 0xE0 ) >> 5 );
+    PMT_Entry.Elementary_PID = (( TempChar[CurrentOffset+1] & 0x1F ) << 8 ) + TempChar[CurrentOffset+2];
+    PMT_Entry.Reserved_2 = (( TempChar[CurrentOffset+3] & 0xF0 ) >> 4 );
+    PMT_Entry.ES_Info_Length = (( TempChar[CurrentOffset+3] & 0x0F ) << 8 ) + TempChar[CurrentOffset+4];
+    PMT.Entries.push_back( PMT_Entry );
+    CurrentOffset += 4 + PMT_Entry.ES_Info_Length;
+  }
+    PMT.CRC_32 = ( TempChar[CurrentOffset] << 24 ) + ( TempChar[CurrentOffset+1] << 16 ) + ( TempChar[CurrentOffset+2] << 8 ) + ( TempChar[CurrentOffset+3] );
 }
 
 void print_pmt( program_mapping_table PMT, bool Pointer_Field = false, std::string offset="\t" ) {
@@ -116,6 +178,67 @@ void print_pmt( program_mapping_table PMT, bool Pointer_Field = false, std::stri
   printf( "%s\t0:\t\t\t\t%d\n", offset.c_str(), PMT.Zero );
   printf( "%s\tReserved:\t\t\t%d\n", offset.c_str(), PMT.Reserved_1 );
   printf( "%s\tSection Length:\t\t\t%X\n", offset.c_str(), PMT.Section_Length );
+  printf( "%s\tProgram Number:\t\t\t%X\n", offset.c_str(), PMT.Program_Number );
+  printf( "%s\tReserved:\t\t\t%d\n", offset.c_str(), PMT.Reserved_2 );
+  printf( "%s\tVersion Number:\t\t\t%d\n", offset.c_str(), PMT.Version_Number );
+  printf( "%s\tCurrent_Next_Indicator:\t\t%d\n", offset.c_str(), PMT.Current_Next_Indicator );
+  printf( "%s\tSection Number:\t\t\t%d\n", offset.c_str(), PMT.Section_Number );
+  printf( "%s\tLast Section Number:\t\t%d\n", offset.c_str(), PMT.Last_Section_Number );
+  printf( "%s\tReserved:\t\t\t%d\n", offset.c_str(), PMT.Reserved_3 );
+  printf( "%s\tPCR PID:\t\t\t%X\n", offset.c_str(), PMT.PCR_PID );
+  printf( "%s\tReserved:\t\t\t%d\n", offset.c_str(), PMT.Reserved_4 );
+  printf( "%s\tProgram Info Length:\t\t%d\n", offset.c_str(), PMT.Program_Info_Length );
+  printf( "%s\tProgram Descriptors Go Here\n\n" );
+  for( int i = 0; i < PMT.Entries.size(); i++ ) {
+    printf( "%s\tEntry %d:\n", offset.c_str(), i );
+    printf( "%s\t\tStream Type\t\t%d\n", offset.c_str(), PMT.Entries[i].Stream_Type );
+    printf( "%s\t\tReserved\t\t%d\n", offset.c_str(), PMT.Entries[i].Reserved_1 );
+    printf( "%s\t\tElementary PID\t\t%X\n", offset.c_str(), PMT.Entries[i].Elementary_PID );
+    printf( "%s\t\tReserved\t\t%d\n", offset.c_str(), PMT.Entries[i].Reserved_2 );
+    printf( "%s\t\tES Info Length\t\t%d\n", offset.c_str(), PMT.Entries[i].ES_Info_Length );
+  }
+  printf( "%s\tCRC 32\t\t%X\n", offset.c_str(), PMT.CRC_32 );
+}
+
+void fill_af( adaptation_field & AF, unsigned char * TempChar ) {
+  AF.Adaptation_Field_Length = TempChar[4];
+  AF.Discontinuity_Indicator = (( TempChar[5] & 0x80 ) >> 7 );
+  AF.Random_Access_Indicator = (( TempChar[5] & 0x40 ) >> 6 );
+  AF.Elementary_Stream_Priority_Indicator = (( TempChar[5] & 0x20 ) >> 5 );
+  AF.PCR_Flag = (( TempChar[5] & 0x10 ) >> 4 );
+  AF.OPCR_Flag = (( TempChar[5] & 0x08 ) >> 3 );
+  AF.Splicing_Point_Flag = (( TempChar[5] & 0x04 ) >> 2 );
+  AF.Transport_Private_Data_Flag = (( TempChar[5] & 0x02 ) >> 1 );
+  AF.Adaptation_Field_Extension_Flag = (( TempChar[5] & 0x01 ) );
+  int CurrentOffset = 6;
+  if( AF.PCR_Flag ) {
+    AF.Program_Clock_Reference_Base_MSB = ( ( ( TempChar[CurrentOffset] ) & 0x80 ) >> 7 );
+    AF.Program_Clock_Reference_Base = ( ( ( TempChar[CurrentOffset] ) & 0x7F ) << 25 );
+    AF.Program_Clock_Reference_Base += ( ( TempChar[CurrentOffset+1] ) << 17 );
+    AF.Program_Clock_Reference_Base += ( ( TempChar[CurrentOffset+2] ) << 9 );
+    AF.Program_Clock_Reference_Base += ( ( ( TempChar[CurrentOffset+3] ) & 0x80 ) >> 7 );
+    AF.PCR_Reserved = ( ( TempChar[CurrentOffset+3] ) & 0x7E ) >> 1;
+    AF.Program_Clock_Reference_Extension = ( ( TempChar[CurrentOffset+3] ) & 0x01 ) << 8 + TempChar[CurrentOffset+4];
+    CurrentOffset += 5;
+  } 
+}
+
+void print_af( adaptation_field AF, std::string offset="\t" ) {
+  printf( "%sAdaptation Field\n", offset.c_str() );
+  printf( "%s\tAdaptation Field Length\t\t\t%X\n", offset.c_str(), AF.Adaptation_Field_Length );
+  printf( "%s\tDiscontinuity Indicator\t\t\t%X\n", offset.c_str(), AF.Discontinuity_Indicator );
+  printf( "%s\tRandom Access Indicator\t\t\t%X\n", offset.c_str(), AF.Random_Access_Indicator );
+  printf( "%s\tElementary Stream Priority Indicator\t%X\n", offset.c_str(), AF.Elementary_Stream_Priority_Indicator );
+  printf( "%s\tPCR Flag\t\t\t\t%X\n", offset.c_str(), AF.PCR_Flag );
+  printf( "%s\tOPCR Flag\t\t\t\t%X\n", offset.c_str(), AF.OPCR_Flag );
+  printf( "%s\tSplicing Point Flag\t\t\t%X\n", offset.c_str(), AF.Splicing_Point_Flag );
+  printf( "%s\tTransport Private Data Flag\t\t%X\n", offset.c_str(), AF.Transport_Private_Data_Flag );
+  printf( "%s\tAdaptation Field Extension Flag\t\t%X\n", offset.c_str(), AF.Adaptation_Field_Extension_Flag );
+  if( AF.PCR_Flag ) {
+    printf( "\n%s\tProgram Clock Reference Base\t\t%X%X\n", offset.c_str(), AF.Program_Clock_Reference_Base_MSB, AF.Program_Clock_Reference_Base );
+    printf( "%s\tReserved\t\t\t\t%d\n", offset.c_str(), AF.PCR_Reserved );
+    printf( "%s\tProgram Clock Reference Extension\t%X\n", offset.c_str(), AF.Program_Clock_Reference_Extension );
+  }
 }
 
 int find_pid_in_pat( program_association_table PAT, unsigned int PID ) {
@@ -137,11 +260,14 @@ int main( ) {
   unsigned int Adaptation;
   program_association_table PAT;
   program_mapping_table PMT;
+  adaptation_field AF;
   int ProgramNum;
-  while( std::cin.good( ) && BlockNo <= 4) {
+  while( std::cin.good( ) && BlockNo <= 10000) {
     for( int i = 0; i < 188; i++ ) {
       if( std::cin.good( ) ){ TempChar[i] = std::cin.get(); }
     }
+
+
 
     if( ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) != 0x1FFF ) {    
       printf( "Block %d:\n", BlockNo );
@@ -150,16 +276,16 @@ int main( ) {
       printf( "\tPayload Unit Start Indicator:\t%d\n", ( ( TempChar[1] & 0x40 ) != 0 ) );
       printf( "\tTransport Priority:\t\t%d\n", ( ( TempChar[1] & 0x20 ) != 0 ) );
       printf( "\tPID:\t\t\t\t%X\n", ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) );
-      printf( "\tScrambling control:\t\t%d%d\n", ( ( TempChar[3] & 0x80 ) != 0 ), ( ( TempChar[3] & 0x40 ) != 0 ) );
-      printf( "\tAdaptation Field Exists:\t%d%d\n", ( ( TempChar[3] & 0x20 ) != 0 ), ( ( TempChar[3] & 0x10 ) != 0 ) );
+      printf( "\tScrambling control:\t\t%d\n", ( ( TempChar[3] & 0xC0 ) >> 6 ) );
+      printf( "\tAdaptation Field Exists:\t%d\n", ( ( TempChar[3] & 0x30 ) >> 4 ) );
       printf( "\tContinuity Counter:\t\t%X\n", ( TempChar[3] & 0x0F ) );
       
       Adaptation = ( ( TempChar[3] & 0x30 ) >> 4 );
       
       //Adaptation Field Exists
       if( Adaptation == 2 || Adaptation == 3 ) {
-        printf( "\tAdaptation Field:\n" );
-        printf( "\t\tNOT IMPLEMENTED YET!!\n" );
+        fill_af( AF, TempChar );
+        print_af( AF );
       }
       
 
@@ -180,7 +306,7 @@ int main( ) {
     } else {
       EmptyBlocks ++;
     }
-    
+
     //Find Next Sync Byte
     SkippedBytes = 0;
     while( (int)std::cin.peek( ) != 0x47 ) {

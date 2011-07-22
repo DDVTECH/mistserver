@@ -87,6 +87,125 @@ struct adaptation_field {
   unsigned char Adaptation_Field_Extension_Length;
 };
 
+struct pes_packet {
+  unsigned int Packet_Start_Code_Prefix;
+  unsigned char Stream_ID;
+  unsigned int PES_Packet_Length;
+  
+  unsigned char Two;
+  unsigned char PES_Scrambling_Control;
+  bool PES_Priority;
+  bool Data_Alignment_Indicator;
+  bool Copyright;
+  bool Original_Or_Copy;
+  unsigned char PTS_DTS_Flags;
+  bool ESCR_Flag;
+  bool ES_Rate_Flag;
+  bool DSM_Trick_Mode_Flag;
+  bool Additional_Copy_Info_Flag;
+  bool PES_CRC_Flag;
+  bool PES_Extension_Flag;
+  unsigned char PES_Header_Data_Length;
+  
+  unsigned char PTS_Spacer;
+  unsigned char PTS_MSB;
+  unsigned int PTS;
+  
+  unsigned char DTS_Spacer;
+  unsigned char DTS_MSB;
+  unsigned int DTS;
+  
+  std::vector<unsigned char> Header_Stuffing;
+};
+
+void fill_pes( pes_packet & PES, unsigned char * TempChar, int Offset = 4 ) {
+  PES.Packet_Start_Code_Prefix = ( TempChar[Offset] << 16 ) + ( TempChar[Offset+1] << 8 ) + TempChar[Offset+2];
+  PES.Stream_ID = TempChar[Offset+3];
+  PES.PES_Packet_Length = ( TempChar[Offset+4] << 8 ) + TempChar[Offset+5];
+  Offset += 6;
+  if( true ) { //TODO: Fill in boolean, but for Buck Bunny Always
+    PES.Two = ( TempChar[Offset] & 0xC0 ) >> 6;
+    PES.PES_Scrambling_Control = ( TempChar[Offset] & 0x30 ) >> 4;
+    PES.PES_Priority = ( TempChar[Offset] & 0x08 ) >> 3;
+    PES.Data_Alignment_Indicator = ( TempChar[Offset] & 0x04 ) >> 2;
+    PES.Copyright = ( TempChar[Offset] & 0x02 ) >> 1;
+    PES.Original_Or_Copy = ( TempChar[Offset] & 0x01 );
+    Offset ++;
+    PES.PTS_DTS_Flags = ( TempChar[Offset] & 0xC0 ) >> 6;
+    PES.ESCR_Flag = ( TempChar[Offset] & 0x20 ) >> 5;
+    PES.ES_Rate_Flag = ( TempChar[Offset] & 0x10 ) >> 4;
+    PES.DSM_Trick_Mode_Flag = ( TempChar[Offset] & 0x08 ) >> 3;
+    PES.Additional_Copy_Info_Flag = ( TempChar[Offset] & 0x04 ) >> 2;
+    PES.PES_CRC_Flag = ( TempChar[Offset] & 0x02 ) >> 1;
+    PES.PES_Extension_Flag = ( TempChar[Offset] & 0x01 );
+    Offset ++;
+    PES.PES_Header_Data_Length = TempChar[Offset];
+    Offset ++;
+    int HeaderStart = Offset;
+    if( PES.PTS_DTS_Flags >= 2 ) {
+      PES.PTS_Spacer = ( TempChar[Offset] & 0xF0 ) >> 4;
+      PES.PTS_MSB = ( TempChar[Offset] & 0x08 ) >> 3;
+      PES.PTS = ( ( TempChar[Offset] & 0x06 ) << 29 );
+      PES.PTS += ( TempChar[Offset+1] ) << 22;
+      PES.PTS += ( ( TempChar[Offset+2] ) & 0xFE ) << 14;
+      PES.PTS += ( TempChar[Offset+3] ) << 7;
+      PES.PTS += ( ( TempChar[Offset+4] & 0xFE ) >> 1 );
+      Offset += 5;
+    }
+    if( PES.PTS_DTS_Flags == 3 ) {
+      PES.DTS_Spacer = ( TempChar[Offset] & 0xF0 ) >> 4;
+      PES.DTS_MSB = ( TempChar[Offset] & 0x08 ) >> 3;
+      PES.DTS = ( ( TempChar[Offset] & 0x06 ) << 29 );
+      PES.DTS += ( TempChar[Offset+1] ) << 22;
+      PES.DTS += ( ( TempChar[Offset+2] ) & 0xFE ) << 14;
+      PES.DTS += ( TempChar[Offset+3] ) << 7;
+      PES.DTS += ( ( TempChar[Offset+4] & 0xFE ) >> 1 );
+      Offset += 5;
+    }
+    PES.Header_Stuffing.clear();
+    while( Offset < HeaderStart + PES.PES_Header_Data_Length ) {
+      PES.Header_Stuffing.push_back( TempChar[Offset] );
+      Offset ++;
+    }
+  }
+}
+
+void print_pes( pes_packet PES, std::string offset="\t" ) {
+  printf( "%sPES Header\n", offset.c_str() );
+  printf( "%s\tPacket Start Code Prefix\t%.6X\n", offset.c_str(), PES.Packet_Start_Code_Prefix );
+  printf( "%s\tStream ID\t\t\t%X\n", offset.c_str(), PES.Stream_ID );
+  printf( "%s\tPES Packet Length\t\t%X\n", offset.c_str(), PES.PES_Packet_Length );
+  if( true ) { //TODO: Fill in boolean, but for Buck Bunny Always
+    printf( "%s\tTwo:\t\t\t\t%d\n", offset.c_str(), PES.Two );
+    printf( "%s\tPES Scrambling Control:\t\t%d\n", offset.c_str(), PES.PES_Scrambling_Control );
+    printf( "%s\tPES Priority:\t\t\t%d\n", offset.c_str(), PES.PES_Priority );
+    printf( "%s\tData Alignment Indicator:\t%d\n", offset.c_str(), PES.Data_Alignment_Indicator );
+    printf( "%s\tCopyright:\t\t\t%d\n", offset.c_str(), PES.Copyright );
+    printf( "%s\tOriginal Or Copy:\t\t%d\n", offset.c_str(), PES.Original_Or_Copy );
+    printf( "%s\tPTS DTS Flags:\t\t\t%d\n", offset.c_str(), PES.PTS_DTS_Flags );
+    printf( "%s\tESCR Flag:\t\t\t%d\n", offset.c_str(), PES.ESCR_Flag );
+    printf( "%s\tES Rate Flag:\t\t\t%d\n", offset.c_str(), PES.ES_Rate_Flag );
+    printf( "%s\tDSM Trick Mode Flag:\t\t%d\n", offset.c_str(), PES.DSM_Trick_Mode_Flag );
+    printf( "%s\tAdditional Copy Info Flag:\t%d\n", offset.c_str(), PES.Additional_Copy_Info_Flag );
+    printf( "%s\tPES CRC Flag:\t\t\t%d\n", offset.c_str(), PES.PES_CRC_Flag );
+    printf( "%s\tPES Extension Flag:\t\t%d\n", offset.c_str(), PES.PES_Extension_Flag );
+    printf( "%s\tPES Header Data Length:\t\t%d\n", offset.c_str(), PES.PES_Header_Data_Length );
+    if( PES.PTS_DTS_Flags >= 2 ) {
+      printf( "%s\tPTS Spacer\t\t\t%d\n", offset.c_str(), PES.PTS_Spacer );
+      printf( "%s\tPTS\t\t\t\t%X%.8X\n", offset.c_str(), PES.PTS_MSB, PES.PTS );
+    }
+    if( PES.PTS_DTS_Flags == 3 ) {
+      printf( "%s\tDTS Spacer\t\t\t%d\n", offset.c_str(), PES.DTS_Spacer );
+      printf( "%s\tDTS\t\t\t\t%X%.8X\n", offset.c_str(), PES.DTS_MSB, PES.DTS );
+    }
+    printf( "%s\tHeader Stuffing\t\t\t", offset.c_str() );
+    for( int i = 0; i < PES.Header_Stuffing.size(); i++ ) {
+      printf( "%.2X ", PES.Header_Stuffing[i] );
+    }
+    printf( "\n" );
+  }
+}
+
 void print_pat( program_association_table PAT, bool Pointer_Field = false, std::string offset="\t" ) {
   printf( "%sProgram Association Table\n", offset.c_str() );
   if( Pointer_Field ) {
@@ -235,7 +354,7 @@ void print_af( adaptation_field AF, std::string offset="\t" ) {
   printf( "%s\tTransport Private Data Flag\t\t%X\n", offset.c_str(), AF.Transport_Private_Data_Flag );
   printf( "%s\tAdaptation Field Extension Flag\t\t%X\n", offset.c_str(), AF.Adaptation_Field_Extension_Flag );
   if( AF.PCR_Flag ) {
-    printf( "\n%s\tProgram Clock Reference Base\t\t%X%X\n", offset.c_str(), AF.Program_Clock_Reference_Base_MSB, AF.Program_Clock_Reference_Base );
+    printf( "\n%s\tProgram Clock Reference Base\t\t%X%.8X\n", offset.c_str(), AF.Program_Clock_Reference_Base_MSB, AF.Program_Clock_Reference_Base );
     printf( "%s\tReserved\t\t\t\t%d\n", offset.c_str(), AF.PCR_Reserved );
     printf( "%s\tProgram Clock Reference Extension\t%X\n", offset.c_str(), AF.Program_Clock_Reference_Extension );
   }
@@ -250,6 +369,15 @@ int find_pid_in_pat( program_association_table PAT, unsigned int PID ) {
   return -1;
 }
 
+bool is_elementary_pid( program_mapping_table PMT, unsigned int PID ) {
+  for( int i = 0; i < PMT.Entries.size(); i++ ) {
+    if( PMT.Entries[i].Elementary_PID == PID ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int main( ) {
   std::string File;
   unsigned int BlockNo = 1;
@@ -261,8 +389,9 @@ int main( ) {
   program_association_table PAT;
   program_mapping_table PMT;
   adaptation_field AF;
+  pes_packet PES;
   int ProgramNum;
-  while( std::cin.good( ) && BlockNo <= 10000) {
+  while( std::cin.good( ) ) { //&& BlockNo <= 1000 ) {
     for( int i = 0; i < 188; i++ ) {
       if( std::cin.good( ) ){ TempChar[i] = std::cin.get(); }
     }
@@ -301,6 +430,11 @@ int main( ) {
         print_pmt( PMT, true );
       }
 
+      if( ( ( TempChar[1] & 0x40 )  ) && ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) ) {
+        fill_pes( PES, TempChar );
+        print_pes( PES );
+      }
+
       BlockNo ++;
       
     } else {
@@ -316,3 +450,4 @@ int main( ) {
   }
   return 0;
 }
+

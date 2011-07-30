@@ -5,5 +5,5 @@
 
 #ffmpeg -y -i "$1" -ar 44100 -vcodec libx264 -b 1000k -g 150 -r 20 -f flv - | ./Buffer 500
 
-ffmpeg -i "$1" -re -acodec aac -ar 11025 -vcodec libx264 -b 700k -vpre ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null | ./DDV_Buffer 500 $2
+ffmpeg -i "$1" -re -strict experimental -acodec aac -ar 11025 -vcodec libx264 -b 700k -vpre libx264-lossless_ultrafast -refs 1 -bf 0 -g 150 -f flv - 2> /dev/null | ./DDV_Buffer 500 $2
 

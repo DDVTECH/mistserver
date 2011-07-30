@@ -116,6 +116,7 @@ struct pes_packet {
   unsigned int DTS;
   
   std::vector<unsigned char> Header_Stuffing;
+  std::vector<unsigned char> First_Bytes;
 };
 
 void fill_pes( pes_packet & PES, unsigned char * TempChar, int Offset = 4 ) {
@@ -167,6 +168,10 @@ void fill_pes( pes_packet & PES, unsigned char * TempChar, int Offset = 4 ) {
       PES.Header_Stuffing.push_back( TempChar[Offset] );
       Offset ++;
     }
+    PES.First_Bytes.clear();
+    for( int i = 0; i < 30; i ++ ) {
+      PES.First_Bytes.push_back( TempChar[Offset+i] );
+    }
   }
 }
 
@@ -201,6 +206,11 @@ void print_pes( pes_packet PES, std::string offset="\t" ) {
     printf( "%s\tHeader Stuffing\t\t\t", offset.c_str() );
     for( int i = 0; i < PES.Header_Stuffing.size(); i++ ) {
       printf( "%.2X ", PES.Header_Stuffing[i] );
+    }
+    printf( "\n" );
+    printf( "%s\tFirst_Bytes\t\t\t", offset.c_str() );
+    for( int i = 0; i < PES.First_Bytes.size(); i++ ) {
+      printf( "%.2X ", PES.First_Bytes[i] );
     }
     printf( "\n" );
   }
@@ -391,12 +401,10 @@ int main( ) {
   adaptation_field AF;
   pes_packet PES;
   int ProgramNum;
-  while( std::cin.good( ) ) { //&& BlockNo <= 1000 ) {
+  while( std::cin.good( ) && BlockNo <= 1000 ) {
     for( int i = 0; i < 188; i++ ) {
       if( std::cin.good( ) ){ TempChar[i] = std::cin.get(); }
     }
-
-
 
     if( ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) != 0x1FFF ) {    
       printf( "Block %d:\n", BlockNo );
@@ -417,7 +425,6 @@ int main( ) {
         print_af( AF );
       }
       
-
       if( ( ( ( TempChar[1] & 0x1F ) << 8 ) +  TempChar[2] ) == 0 ) {
         fill_pat( PAT, TempChar );
         print_pat( PAT, true );

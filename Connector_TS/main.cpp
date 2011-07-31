@@ -21,6 +21,8 @@ class Transport_Packet {
     void SetPesHeader( );
     void Write( );
     void Write( Socket::Connection conn );
+    void SetContinuityCounter( int Counter );
+    void SetMessageLength( int MsgLen );
   private:
     int PID;
     char Buffer[188];
@@ -32,6 +34,15 @@ Transport_Packet::Transport_Packet( bool NALUStart, int PID ) {
   Buffer[1] = ( NALUStart ? (char)0x40 : 0 ) + (( PID & 0xFF00 ) >> 8 );
   Buffer[2] = ( PID & 0x00FF );
   Buffer[3] = (char)0x00;
+}
+
+void Transport_Packet::SetMessageLength( int MsgLen ) {
+  Buffer[8] = ( MsgLen & 0xFF00 ) >> 8;
+  Buffer[9] = ( MsgLen & 0xFF );
+}
+
+void Transport_Packet::SetContinuityCounter( int Counter ) {
+  Buffer[3] = (char)0x00 + ( Counter & 0x0F );
 }
 
 void Transport_Packet::SetPesHeader( ) {
@@ -52,19 +63,24 @@ void Transport_Packet::SetPayload( char * Payload, int PayloadLen, int Offset ) 
 }
 
 std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
+  static int ContinuityCounter = 0;
   Transport_Packet TS;
   int PacketAmount = ( ( tag.len - (188 - 17 ) ) / 184 ) + 2;
   std::cerr << "Wrapping a tag of length " << tag.len << " into " << PacketAmount << " TS Packet(s)\n";
   std::vector<Transport_Packet> Result;
   char LeadIn[4] = { (char)0x00, (char)0x00, (char)0x00, (char)0x01 };
   TS = Transport_Packet( true );
+  TS.SetContinuityCounter( ContinuityCounter );
+  ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
   TS.SetPesHeader( );
+  TS.SetMessageLength( tag.len - 16 );
   TS.SetPayload( LeadIn, 4, 13 );
   TS.SetPayload( &tag.data[16], 171, 17 );
   Result.push_back( TS );
   for( int i = 0; i < (PacketAmount - 1); i++ ) {
-//  std::cerr << i << "<" << (PacketAmount - 1) << "?  " << ( i < ( PacketAmount - 1 ) ) << "\n";
     TS = Transport_Packet( false );
+    TS.SetContinuityCounter( ContinuityCounter );
+    ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
     TS.SetPayload( &tag.data[187+(184*i)], 184, 4 );
     Result.push_back( TS );
   }
@@ -99,6 +115,7 @@ int TS_Handler( Socket::Connection conn ) {
       #endif
       inited = true;
     }
+    
     switch (ss.ready()){
       case -1:
         conn.close();
@@ -124,7 +141,9 @@ int TS_Handler( Socket::Connection conn ) {
             }
           }
           if( tag.data[ 0 ] == 0x08 ) {
-            fprintf(stderr, "Audio Tag Read\n");
+            if( ( tag.data[ 11 ] == 0xAF ) && ( tag.data[ 12 ] == 0x01 ) ) {
+              fprintf(stderr, "Audio Contains Raw AAC\n");
+            }
           }          
         }
         break;

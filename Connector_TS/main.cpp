@@ -66,9 +66,10 @@ void Transport_Packet::SetAdaptationField( ) {
   Buffer[5] = (char)0x10;
   Buffer[6] = (char)0x00;
   Buffer[7] = (char)0x00;
-  Buffer[8] = (char)0x8C;
-  Buffer[9] = (char)0xA0;
+  Buffer[8] = (char)0x80;
+  Buffer[9] = (char)0xD9;
   Buffer[10] = (char)0x7E;
+  Buffer[11] = (char)0x00;
 }
 
 void Transport_Packet::SetPayload( char * Payload, int PayloadLen, int Offset ) {
@@ -160,7 +161,7 @@ void SendPMT( Socket::Connection conn ) {
 std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   static int ContinuityCounter = 0;
   Transport_Packet TS;
-  int PacketAmount = ( ( tag.len - (188 - 17 ) ) / 184 ) + 2;
+  int PacketAmount = ( ( tag.len - (188 - 25 ) ) / 184 ) + 2;
   std::cerr << "Wrapping a tag of length " << tag.len << " into " << PacketAmount << " TS Packet(s)\n";
   std::vector<Transport_Packet> Result;
   char LeadIn[4] = { (char)0x00, (char)0x00, (char)0x00, (char)0x01 };
@@ -168,16 +169,16 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   TS.SetContinuityCounter( ContinuityCounter );
   ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
   TS.SetAdaptationField( );
-  TS.SetPesHeader( 11 );
+  TS.SetPesHeader( 12 );
   TS.SetMessageLength( tag.len - 16 );
-  TS.SetPayload( LeadIn, 4, 13 );
-  TS.SetPayload( &tag.data[16], 171, 17 );
+  TS.SetPayload( LeadIn, 4, 21 );
+  TS.SetPayload( &tag.data[16], 169, 25 );
   Result.push_back( TS );
   for( int i = 0; i < (PacketAmount - 1); i++ ) {
     TS = Transport_Packet( false, 0x100 );
     TS.SetContinuityCounter( ContinuityCounter );
     ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
-    TS.SetPayload( &tag.data[187+(184*i)], 184, 4 );
+    TS.SetPayload( &tag.data[169+(184*i)], 184, 4 );
     Result.push_back( TS );
   }
   return Result;
@@ -226,9 +227,9 @@ int TS_Handler( Socket::Connection conn ) {
           if( tag.data[ 0 ] == 0x09 ) {
             if( ( ( tag.data[ 11 ] & 0x0F ) == 7 ) && ( tag.data[ 12 ] == 1 ) ) {
               fprintf(stderr, "Video contains NALU\n" );
-              if( firstvideo ) {
-                firstvideo = false;
-              } else {
+//              if( firstvideo ) {
+//                firstvideo = false;
+//              } else {
                 SendPAT( conn );
                 SendPMT( conn );
                 std::vector<Transport_Packet> Meh = WrapNalus( tag );
@@ -236,7 +237,7 @@ int TS_Handler( Socket::Connection conn ) {
                 for( int i = 0; i < Meh.size( ); i++ ) {
                   Meh[i].Write( conn );
                 }
-              }
+//              }
             }
           }
           if( tag.data[ 0 ] == 0x08 ) {

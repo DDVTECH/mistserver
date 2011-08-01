@@ -401,12 +401,19 @@ int main( ) {
   adaptation_field AF;
   pes_packet PES;
   int ProgramNum;
-  while( std::cin.good( ) && BlockNo <= 1000 ) {
+  std::ofstream outfile;
+  outfile.open( "out.ts" );
+  while( std::cin.good( ) ) { // && BlockNo <= 1000 ) {
     for( int i = 0; i < 188; i++ ) {
       if( std::cin.good( ) ){ TempChar[i] = std::cin.get(); }
     }
-
-    if( ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) != 0x1FFF ) {    
+ 
+    int PID = ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] );
+    if( true ) { 
+/*      for( int i = 0; i < 188; i++ ) {
+        outfile << TempChar[i];
+      } */
+      
       printf( "Block %d:\n", BlockNo );
       printf( "\tSync Byte:\t\t\t%X\n", TempChar[0] );
       printf( "\tTransport Error Indicator:\t%d\n", ( ( TempChar[1] & 0x80 ) != 0 ) );
@@ -443,7 +450,6 @@ int main( ) {
       }
 
       BlockNo ++;
-      
     } else {
       EmptyBlocks ++;
     }

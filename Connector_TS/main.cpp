@@ -66,10 +66,10 @@ void Transport_Packet::SetPayload( char * Payload, int PayloadLen, int Offset ) 
 
 
 void Transport_Packet::CreatePAT( int ContinuityCounter ) {
-  Buffer[3] = (char)0x30 + ContinuityCounter;
+  Buffer[3] = (char)0x10 + ContinuityCounter;
   Buffer[4] = (char)0x00;
   Buffer[5] = (char)0x00;
-  Buffer[6] = (char)0xB0;
+  Buffer[6] = (char)0xD0;
   Buffer[7] = (char)0x0D;
   Buffer[8] = (char)0x00;
   Buffer[9] = (char)0x01;
@@ -133,16 +133,16 @@ void SendPAT( Socket::Connection conn ) {
   TS = Transport_Packet( true, 0 );
   TS.CreatePAT( ContinuityCounter );
   TS.Write( conn );
-  CountinuityCounter = ( ContinuityCounter + 1 ) & 0x0F;
+  ContinuityCounter = ( ContinuityCounter + 1 ) & 0x0F;
 }
 
 void SendPMT( Socket::Connection conn ) {
   static int ContinuityCounter = 0;
   Transport_Packet TS;
-  TS = Transport_Packet( true, 1000 );
+  TS = Transport_Packet( true, 0x1000 );
   TS.CreatePMT( ContinuityCounter );
   TS.Write( conn );
-  CountinuityCounter = ( ContinuityCounter + 1 ) & 0x0F;  
+  ContinuityCounter = ( ContinuityCounter + 1 ) & 0x0F;  
 }
 
 std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
@@ -152,7 +152,7 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   std::cerr << "Wrapping a tag of length " << tag.len << " into " << PacketAmount << " TS Packet(s)\n";
   std::vector<Transport_Packet> Result;
   char LeadIn[4] = { (char)0x00, (char)0x00, (char)0x00, (char)0x01 };
-  TS = Transport_Packet( true, 101 );
+  TS = Transport_Packet( true, 0x100 );
   TS.SetContinuityCounter( ContinuityCounter );
   ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
   TS.SetPesHeader( );
@@ -161,7 +161,7 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   TS.SetPayload( &tag.data[16], 171, 17 );
   Result.push_back( TS );
   for( int i = 0; i < (PacketAmount - 1); i++ ) {
-    TS = Transport_Packet( false, 101 );
+    TS = Transport_Packet( false, 0x100 );
     TS.SetContinuityCounter( ContinuityCounter );
     ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
     TS.SetPayload( &tag.data[187+(184*i)], 184, 4 );
@@ -175,7 +175,8 @@ void Transport_Packet::Write( ) {
 }
 
 void Transport_Packet::Write( Socket::Connection conn ) {
-  conn.write( Buffer, 188 );
+//  conn.write( Buffer, 188 );
+  for( int i = 0; i < 188; i++ ) { std::cout << Buffer[i]; }
 }
 
 int TS_Handler( Socket::Connection conn ) {
@@ -215,6 +216,8 @@ int TS_Handler( Socket::Connection conn ) {
               if( firstvideo ) {
                 firstvideo = false;
               } else {
+                SendPAT( conn );
+                SendPMT( conn );
                 std::vector<Transport_Packet> Meh = WrapNalus( tag );
                 std::cerr << "Received " << Meh.size( ) << " Transport Packet(s)\n";
                 for( int i = 0; i < Meh.size( ); i++ ) {

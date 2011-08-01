@@ -409,11 +409,11 @@ int main( ) {
     }
  
     int PID = ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] );
-    if( PID != 100 || ( PID == 100 && ((TempChar[3] & 0x30) == 3 ) && (TempChar[4] & 0x10 )) ) { 
-      for( int i = 0; i < 188; i++ ) {
+    if( true ) { 
+/*      for( int i = 0; i < 188; i++ ) {
         outfile << TempChar[i];
-      }
-    /*
+      } */
+      
       printf( "Block %d:\n", BlockNo );
       printf( "\tSync Byte:\t\t\t%X\n", TempChar[0] );
       printf( "\tTransport Error Indicator:\t%d\n", ( ( TempChar[1] & 0x80 ) != 0 ) );
@@ -450,7 +450,6 @@ int main( ) {
       }
 
       BlockNo ++;
-    */
     } else {
       EmptyBlocks ++;
     }

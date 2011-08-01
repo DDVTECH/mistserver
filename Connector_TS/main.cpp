@@ -18,11 +18,12 @@ class Transport_Packet {
   public:
     Transport_Packet( bool NALUStart = false, int PID = 0x100 );
     void SetPayload( char * Payload, int PayloadLen, int Offset = 13 );
-    void SetPesHeader( );
+    void SetPesHeader( int Offset = 4 );
     void Write( );
     void Write( Socket::Connection conn );
     void SetContinuityCounter( int Counter );
     void SetMessageLength( int MsgLen );
+    void SetAdaptationField( );
   private:
     int PID;
     char Buffer[188];
@@ -45,16 +46,27 @@ void Transport_Packet::SetContinuityCounter( int Counter ) {
   Buffer[3] = (char)0x00 + ( Counter & 0x0F );
 }
 
-void Transport_Packet::SetPesHeader( ) {
-  Buffer[4] = (char)0x00;
-  Buffer[5] = (char)0x00;
-  Buffer[6] = (char)0x01;
-  Buffer[7] = (char)0xE0;
-  Buffer[8] = (char)0xFF;
-  Buffer[9] = (char)0xFF;
-  Buffer[10] = (char)0x80;
-  Buffer[11] = (char)0x00;
-  Buffer[12] = (char)0x00;
+void Transport_Packet::SetPesHeader( int Offset ) {
+  Buffer[Offset] = (char)0x00;
+  Buffer[Offset+1] = (char)0x00;
+  Buffer[Offset+2] = (char)0x01;
+  Buffer[Offset+3] = (char)0xE0;
+  Buffer[Offset+4] = (char)0xFF;
+  Buffer[Offset+5] = (char)0xFF;
+  Buffer[Offset+6] = (char)0x80;
+  Buffer[Offset+7] = (char)0x00;
+  Buffer[Offset+8] = (char)0x00;
+}
+
+void Transport_Packet::SetAdaptationField( ) {
+  Buffer[3] = ( Buffer[3] & 0x0F ) + 0x30;
+  Buffer[4] = (char)0x07;
+  Buffer[5] = (char)0x10;
+  Buffer[6] = (char)0x00;
+  Buffer[7] = (char)0x00;
+  Buffer[8] = (char)0x8C;
+  Buffer[9] = (char)0xA0;
+  Buffer[10] = (char)0x7E;
 }
 
 void Transport_Packet::SetPayload( char * Payload, int PayloadLen, int Offset ) {
@@ -72,7 +84,8 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   TS = Transport_Packet( true );
   TS.SetContinuityCounter( ContinuityCounter );
   ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
-  TS.SetPesHeader( );
+  TS.SetAdaptationField( );
+  TS.SetPesHeader( 11 );
   TS.SetMessageLength( tag.len - 16 );
   TS.SetPayload( LeadIn, 4, 13 );
   TS.SetPayload( &tag.data[16], 171, 17 );

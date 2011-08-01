@@ -438,7 +438,7 @@ int main( ) {
       }
 
       if( ( ( TempChar[1] & 0x40 )  ) && ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] ) ) {
-        fill_pes( PES, TempChar );
+        fill_pes( PES, TempChar, ( Adaption == 3 ? 4 + TempChar[4] : 4 ) );
         print_pes( PES );
       }
 

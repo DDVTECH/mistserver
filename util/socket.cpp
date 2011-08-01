@@ -404,19 +404,19 @@ Socket::Connection Socket::Server::accept(bool nonblock){
     if (addrinfo.sin6_family == AF_INET6){
       tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
       #if DEBUG >= 4
-      printf("IPv6 addr: %s\n", tmp.remotehost.c_str());
+      fprintf(stderr,"IPv6 addr: %s\n", tmp.remotehost.c_str());
       #endif
     }
     if (addrinfo.sin6_family == AF_INET){
       tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in*)&addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
       #if DEBUG >= 4
-      printf("IPv4 addr: %s\n", tmp.remotehost.c_str());
+      fprintf(stderr,"IPv4 addr: %s\n", tmp.remotehost.c_str());
       #endif
     }
     if (addrinfo.sin6_family == AF_UNIX){
       #if DEBUG >= 4
       tmp.remotehost = ((sockaddr_un*)&addrinfo)->sun_path;
-      printf("Unix addr: %s\n", tmp.remotehost.c_str());
+      fprintf(stderr,"Unix addr: %s\n", tmp.remotehost.c_str());
       #endif
       tmp.remotehost = "UNIX_SOCKET";
     }

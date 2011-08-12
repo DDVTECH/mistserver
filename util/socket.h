@@ -45,6 +45,7 @@ namespace Socket{
       void close(); ///< Close connection.
       std::string getHost(); ///< Gets hostname for connection, if available.
       int getSocket(); ///< Returns internal socket number.
+      std::string getError(); ///< Returns a string describing the last error that occured.
       friend class Server;
   };
 
@@ -61,5 +62,5 @@ namespace Socket{
       void close(); ///< Close connection.
       int getSocket(); ///< Returns internal socket number.
   };
-  
+
 };

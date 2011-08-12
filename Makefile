@@ -1,24 +1,30 @@
-default: client-install
-.PHONY: client client-clean clean client-install docs
+default: release-install
+.PHONY: client client-debug client-clean clean release-install debug-install docs
 
-client:
+client-debug:
 	cd Connector_HTTP; $(MAKE)
 	cd Connector_RTMP; $(MAKE)
 	cd Connector_RAW; $(MAKE)
 	cd Buffer; $(MAKE)
+client: client-debug
 client-clean:
 	cd Connector_HTTP; $(MAKE) clean
 	cd Connector_RTMP; $(MAKE) clean
 	cd Connector_RAW; $(MAKE) clean
 	cd Buffer; $(MAKE) clean
 clean: client-clean
-client-release: client-clean
+client-release:
 	cd Connector_HTTP; $(MAKE) DEBUG=0 OPTIMIZE=-O2
 	cd Connector_RTMP; $(MAKE) DEBUG=0 OPTIMIZE=-O2
 	cd Connector_RAW; $(MAKE) DEBUG=0 OPTIMIZE=-O2
 	cd Buffer; $(MAKE) DEBUG=0 OPTIMIZE=-O2
 release: client-release
-client-install: client-clean client
+release-install: client-clean client-release
+	cd Connector_RTMP; $(MAKE) install
+	cd Connector_HTTP; $(MAKE) install
+	cd Connector_RAW; $(MAKE) install
+	cd Buffer; $(MAKE) install
+debug-install: client-clean client-debug
 	cd Connector_RTMP; $(MAKE) install
 	cd Connector_HTTP; $(MAKE) install
 	cd Connector_RAW; $(MAKE) install

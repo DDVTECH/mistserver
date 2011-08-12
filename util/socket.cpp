@@ -33,6 +33,11 @@ void Socket::Connection::close(){
 /// Returns internal socket number.
 int Socket::Connection::getSocket(){return sock;}
 
+/// Returns a string describing the last error that occured.
+/// Simply calls strerror(errno) - not very reliable!
+/// \todo Improve getError at some point to be more reliable and only report socket errors.
+std::string Socket::Connection::getError(){return strerror(errno);}
+
 /// Create a new Unix Socket. This socket will (try to) connect to the given address right away.
 /// \param address String containing the location of the Unix socket to connect to.
 /// \param nonblock Whether the socket should be nonblocking. False by default.
@@ -86,7 +91,11 @@ signed int Socket::Connection::ready(){
     }
   }
   if (r == 0){
-    close(); return -1;
+    #if DEBUG >= 4
+    fprintf(stderr, "Socket ready error - socket is closed.\n");
+    #endif
+    close();
+    return -1;
   }
   return r;
 }
@@ -192,7 +201,12 @@ int Socket::Connection::iwrite(void * buffer, int len){
         break;
     }
   }
-  if (r == 0){close();}
+  if (r == 0){
+    #if DEBUG >= 4
+    fprintf(stderr, "Could not iwrite data! Socket is closed.\n");
+    #endif
+    close();
+  }
   return r;
 }//Socket::Connection::iwrite
 
@@ -217,7 +231,12 @@ int Socket::Connection::iread(void * buffer, int len){
         break;
     }
   }
-  if (r == 0){close();}
+  if (r == 0){
+    #if DEBUG >= 4
+    fprintf(stderr, "Could not iread data! Socket is closed.\n");
+    #endif
+    close();
+  }
   return r;
 }//Socket::Connection::iread
 
@@ -285,7 +304,7 @@ std::string Socket::Connection::getHost(){
 Socket::Server::Server(){
   sock = -1;
 }//Socket::Server base Constructor
-  
+
 /// Create a new TCP Server. The socket is immediately bound and set to listen.
 /// A maximum of 100 connections will be accepted between accept() calls.
 /// Any further connections coming in will be dropped.
@@ -399,7 +418,12 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   }
   Socket::Connection tmp(r);
   if (r < 0){
-    if (errno != EWOULDBLOCK && errno != EAGAIN){close();}
+    if (errno != EWOULDBLOCK && errno != EAGAIN){
+      #if DEBUG >= 1
+      fprintf(stderr, "Error during accept - closing server socket.\n");
+      #endif
+      close();
+    }
   }else{
     if (addrinfo.sin6_family == AF_INET6){
       tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
@@ -426,6 +450,9 @@ Socket::Connection Socket::Server::accept(bool nonblock){
 
 /// Close connection. The internal socket is closed and then set to -1.
 void Socket::Server::close(){
+  #if DEBUG >= 4
+  fprintf(stderr, "ServerSocket closed.\n");
+  #endif
   shutdown(sock, SHUT_RDWR);
   ::close(sock);
   sock = -1;

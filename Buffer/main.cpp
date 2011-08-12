@@ -66,8 +66,8 @@ namespace Buffer{
       bool doSend(){
         int r = S.iwrite((char*)lastpointer+currsend, MyBuffer_len-currsend);
         if (r <= 0){
-          if ((r < 0) && (errno == EWOULDBLOCK)){return false;}
-          Disconnect("Connection closed");
+          if (errno == EWOULDBLOCK){return false;}
+          Disconnect(S.getError());
           return false;
         }
         currsend += r;
@@ -79,7 +79,7 @@ namespace Buffer{
       void Send(buffer ** ringbuf, int buffers){
         /// \todo For MP3: gotproperaudio - if false, only send if first byte is 0xFF and set to true
         if (!S.connected()){return;}//cancel if not connected
-  
+
         //still waiting for next buffer? check it
         if (MyBuffer_num < 0){
           MyBuffer_num = ringbuf[MyBuffer]->number;
@@ -90,13 +90,13 @@ namespace Buffer{
             lastpointer = ringbuf[MyBuffer]->FLV.data;
           }
         }
-  
+
         //do check for buffer resizes
         if (lastpointer != ringbuf[MyBuffer]->FLV.data){
           Disconnect("Buffer resize at wrong time... had to disconnect");
           return;
         }
-  
+
         //try to complete a send
         if (doSend()){
           //switch to next buffer
@@ -156,13 +156,13 @@ namespace Buffer{
     int lastproper = 0;//last properly finished buffer number
     unsigned int loopcount = 0;
     Socket::Connection incoming;
-  
+
     unsigned char packtype;
     bool gotVideoInfo = false;
     bool gotAudioInfo = false;
-  
+
     int infile = fileno(stdin);//get file number for stdin
-  
+
     //add stdin to an epoll
     int poller = epoll_create(1);
     struct epoll_event ev;
@@ -170,8 +170,8 @@ namespace Buffer{
     ev.data.fd = infile;
     epoll_ctl(poller, EPOLL_CTL_ADD, infile, &ev);
     struct epoll_event events[1];
-  
-  
+
+
     while(!feof(stdin) && !FLV::Parse_Error){
       //invalidate the current buffer
       ringbuf[current_buffer]->number = -1;

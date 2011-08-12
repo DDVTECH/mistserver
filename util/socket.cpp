@@ -440,7 +440,7 @@ Socket::Connection Socket::Server::accept(bool nonblock){
     if (addrinfo.sin6_family == AF_UNIX){
       #if DEBUG >= 4
       tmp.remotehost = ((sockaddr_un*)&addrinfo)->sun_path;
-      fprintf(stderr,"Unix addr: %s\n", tmp.remotehost.c_str());
+      fprintf(stderr,"Unix socket, no address\n");
       #endif
       tmp.remotehost = "UNIX_SOCKET";
     }

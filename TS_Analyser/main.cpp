@@ -342,13 +342,14 @@ void fill_af( adaptation_field & AF, unsigned char * TempChar ) {
   int CurrentOffset = 6;
   if( AF.PCR_Flag ) {
     AF.Program_Clock_Reference_Base_MSB = ( ( ( TempChar[CurrentOffset] ) & 0x80 ) >> 7 );
-    AF.Program_Clock_Reference_Base = ( ( ( TempChar[CurrentOffset] ) & 0x7F ) << 25 );
+    AF.Program_Clock_Reference_Base = ( ( ( TempChar[CurrentOffset] ) & 0x7F ) << 25 ); 
     AF.Program_Clock_Reference_Base += ( ( TempChar[CurrentOffset+1] ) << 17 );
     AF.Program_Clock_Reference_Base += ( ( TempChar[CurrentOffset+2] ) << 9 );
-    AF.Program_Clock_Reference_Base += ( ( ( TempChar[CurrentOffset+3] ) & 0x80 ) >> 7 );
-    AF.PCR_Reserved = ( ( TempChar[CurrentOffset+3] ) & 0x7E ) >> 1;
-    AF.Program_Clock_Reference_Extension = ( ( TempChar[CurrentOffset+3] ) & 0x01 ) << 8 + TempChar[CurrentOffset+4];
-    CurrentOffset += 5;
+    AF.Program_Clock_Reference_Base += ( ( TempChar[CurrentOffset+3] ) << 1 );
+    AF.Program_Clock_Reference_Base += ( ( ( TempChar[CurrentOffset+4] ) & 0x80 ) >> 7 );
+    AF.PCR_Reserved = ( ( TempChar[CurrentOffset+4] ) & 0x7E ) >> 1;
+    AF.Program_Clock_Reference_Extension = ( ( TempChar[CurrentOffset+4] ) & 0x01 ) << 8 + TempChar[CurrentOffset+5];
+    CurrentOffset += 6;
   } 
 }
 
@@ -403,17 +404,13 @@ int main( ) {
   int ProgramNum;
   std::ofstream outfile;
   outfile.open( "out.ts" );
-  while( std::cin.good( ) ) { // && BlockNo <= 1000 ) {
+  while( std::cin.good( ) && BlockNo <= 10000 ) {
     for( int i = 0; i < 188; i++ ) {
       if( std::cin.good( ) ){ TempChar[i] = std::cin.get(); }
     }
  
     int PID = ( ( TempChar[1] & 0x1F ) << 8 ) + ( TempChar[2] );
     if( true ) { 
-/*      for( int i = 0; i < 188; i++ ) {
-        outfile << TempChar[i];
-      } */
-      
       printf( "Block %d:\n", BlockNo );
       printf( "\tSync Byte:\t\t\t%X\n", TempChar[0] );
       printf( "\tTransport Error Indicator:\t%d\n", ( ( TempChar[1] & 0x80 ) != 0 ) );
@@ -428,6 +425,7 @@ int main( ) {
       
       //Adaptation Field Exists
       if( Adaptation == 2 || Adaptation == 3 ) {
+        fprintf( stderr, "Block: %d -> Adaptation == %d\n", BlockNo, Adaptation );
         fill_af( AF, TempChar );
         print_af( AF );
       }

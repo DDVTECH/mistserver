@@ -17,7 +17,7 @@ std::string FLV::Error_Str = "";
 /// - Not starting with the string "FLV".
 /// - The DataOffset is not 9 bytes.
 /// - The PreviousTagSize is not 0 bytes.
-/// 
+///
 /// Note that we see PreviousTagSize as part of the FLV header, not part of the tag header!
 bool FLV::check_header(char * header){
   if (header[0] != 'F') return false;
@@ -43,6 +43,27 @@ bool FLV::is_header(char * header){
   return true;
 }//FLV::is_header
 
+/// True if current tag is init data for this media type.
+bool FLV::Tag::isInitData(){
+  switch (data[0]){
+    case 0x09:
+      switch (data[11] & 0xF0){
+        case 0x50: return true; break;
+      }
+      if ((data[11] & 0x0F) == 7){
+        switch (data[12]){
+          case 0: return true; break;
+        }
+      }
+      break;
+    case 0x08:
+      if ((data[12] == 0) && ((data[11] & 0xF0) == 0xA0)){
+        return true;
+      }
+      break;
+  }
+  return false;
+}
 
 /// Returns a std::string describing the tag in detail.
 /// The string includes information about whether the tag is
@@ -355,7 +376,7 @@ bool FLV::Tag::FileLoader(FILE * f){
   int postflags = preflags | O_NONBLOCK;
   fcntl(fileno(f), F_SETFL, postflags);
   if (buf < 15){data = (char*)realloc(data, 15); buf = 15;}
-  
+
   if (done){
     //read a header
     if (FileReadUntil(data, 11, sofar, f)){

@@ -11,7 +11,7 @@ namespace FLV {
   extern char Header[13]; ///< Holds the last FLV header parsed.
   extern bool Parse_Error; ///< This variable is set to true if a problem is encountered while parsing the FLV.
   extern std::string Error_Str; ///< This variable is set if a problem is encountered while parsing the FLV.
-  
+
   //functions
   bool check_header(char * header); ///< Checks a FLV Header for validness.
   bool is_header(char * header); ///< Checks the first 3 bytes for the string "FLV".
@@ -22,6 +22,7 @@ namespace FLV {
       int len; ///< Actual length of tag.
       bool isKeyframe; ///< True if current tag is a video keyframe.
       char * data; ///< Pointer to tag buffer.
+      bool isInitData(); ///< True if current tag is init data for this media type.
       std::string tagType(); ///< Returns a std::string describing the tag in detail.
       unsigned int tagTime(); ///< Returns the 32-bit timestamp of this tag.
       void tagTime(unsigned int T); ///< Sets the 32-bit timestamp of this tag.

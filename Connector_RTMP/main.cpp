@@ -18,12 +18,12 @@
 
 /// Holds all functions and data unique to the RTMP Connector
 namespace Connector_RTMP{
-  
+
   //for connection to server
   bool ready4data = false; ///< Set to true when streaming starts.
   bool inited = false; ///< Set to true when ready to connect to Buffer.
   bool stopparsing = false; ///< Set to true when all parsing needs to be cancelled.
-  
+
   Socket::Connection Socket; ///< Socket connected to user
   std::string streamname = "/tmp/shared_socket"; ///< Stream that will be opened
   void parseChunk();
@@ -34,11 +34,8 @@ namespace Connector_RTMP{
 /// Main Connector_RTMP function
 int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   Socket = conn;
-  unsigned int ts;
-  unsigned int fts = 0;
-  unsigned int ftst;
   Socket::Connection SS;
-  FLV::Tag tag;
+  FLV::Tag tag, viddata, auddata;
 
   //first timestamp set
   RTMPStream::firsttime = RTMPStream::getNowMS();
@@ -111,19 +108,26 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         case 0: break;//not ready yet
         default:
           if (tag.SockLoader(SS)){//able to read a full packet?
-            ts = tag.tagTime();
-            if (ts != 0){
-              if (fts == 0){fts = ts;ftst = RTMPStream::getNowMS();}
-              ts -= fts;
-              tag.tagTime(ts);
-              ts += ftst;
-            }else{
-              ftst = RTMPStream::getNowMS();
-              tag.tagTime(ftst);
+            //init data? parse and resent in correct order if all is received
+            if (((tag.data[0] == 0x09) && (viddata.len == 0)) || ((tag.data[0] == 0x08) && (auddata.len == 0))){
+              if (tag.data[0] == 0x09){viddata = tag;}else{auddata = tag;}
+              if ((auddata.len != 0) && (viddata.len != 0)){
+                Socket.write(RTMPStream::SendMedia((unsigned char)viddata.data[0], (unsigned char *)viddata.data+11, viddata.len-15, 0));
+                Socket.write(RTMPStream::SendMedia((unsigned char)auddata.data[0], (unsigned char *)auddata.data+11, auddata.len-15, 0));
+                #if DEBUG >= 8
+                fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), viddata.tagTime(), viddata.tagType().c_str());
+                fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), auddata.tagTime(), auddata.tagType().c_str());
+                #endif
+              }
+              break;
             }
-            Socket.write(RTMPStream::SendMedia((unsigned char)tag.data[0], (unsigned char *)tag.data+11, tag.len-15, ts));
-            #if DEBUG >= 4
-            fprintf(stderr, "Sent a tag to %i\n", Socket.getSocket());
+            /// \TODO Check metadata for needed init or not - we now assume init needed, which only works for AAC / H264...
+            //not gotten init yet? cancel this tag
+            if (viddata.len == 0 || auddata.len == 0){break;}
+            //send tag normally
+            Socket.write(RTMPStream::SendMedia((unsigned char)tag.data[0], (unsigned char *)tag.data+11, tag.len-15, tag.tagTime()));
+            #if DEBUG >= 8
+            fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), tag.tagTime(), tag.tagType().c_str());
             #endif
           }
           break;
@@ -165,7 +169,7 @@ void Connector_RTMP::parseChunk(){
       RTMPStream::rec_window_at = RTMPStream::rec_cnt;
       Socket.write(RTMPStream::SendCTL(3, RTMPStream::rec_cnt));//send ack (msg 3)
     }
-      
+
     switch (next.msg_type_id){
       case 0://does not exist
         #if DEBUG >= 2
@@ -276,7 +280,7 @@ void Connector_RTMP::parseChunk(){
             if (tmpint & 0x80){fprintf(stderr, "H264 video support detected\n");}
             tmpint = (int)amfdata.getContentP(2)->getContentP("audioCodecs")->NumValue();
             if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
-            if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
+            if (tmpint & 0x400){fprintf(stderr, "AAC audio support detected\n");}
             #endif
             Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
             Socket.write(RTMPStream::SendCTL(6, RTMPStream::rec_window_size));//send window acknowledgement size (msg 5)

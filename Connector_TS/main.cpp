@@ -80,7 +80,7 @@ void Transport_Packet::SetAdaptationField( double TimeStamp ) {
   Buffer[7] = ( ( Base >> 1 ) & 0x00FF0000 ) >> 16;
   Buffer[8] = ( ( Base >> 1 ) & 0x0000FF00 ) >> 8;
   Buffer[9] = ( ( Base >> 1 ) & 0x000000FF );
-  Buffer[10] = ( ( Extension & 0x0100) >> 4 ) + ( ( Base & 0x00000001 ) << 7 );
+  Buffer[10] = ( ( Extension & 0x0100) >> 4 ) + ( ( Base & 0x00000001 ) << 7 ) + (char)0x7E;
   Buffer[11] = ( Extension & 0x00FF);
 }
 
@@ -173,6 +173,7 @@ void SendPMT( Socket::Connection conn ) {
 std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   static int ContinuityCounter = 0;
   static int previous = 0;
+  static clock_t First_PCR = clock();  
   int now;
   Transport_Packet TS;
   int PacketAmount = ( ( tag.len - (188 - 35 ) ) / 184 ) + 2;
@@ -182,7 +183,7 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   TS.SetContinuityCounter( ContinuityCounter );
   ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
   now = ( (tag.data[4]) << 16) + ( (tag.data[5]) << 8) + tag.data[6] + ( (tag.data[7]) << 24 );
-  TS.SetAdaptationField( now );
+  TS.SetAdaptationField( (clock() - First_PCR) / ( CLOCKS_PER_SEC / 1000 ) );
   TS.SetPesHeader( 12, tag.len - 16 , now, previous );
   previous = now;
   TS.SetPayload( LeadIn, 12, 31 );
@@ -192,7 +193,8 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
     TS = Transport_Packet( false, 0x100 );
     TS.SetContinuityCounter( ContinuityCounter );
     ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
-    TS.SetPayload( &tag.data[16+149+(184*i)], 184, 4 );
+    TS.SetAdaptationField( (double)(clock() - First_PCR) / ( (double)CLOCKS_PER_SEC / 1000 ) );
+    TS.SetPayload( &tag.data[16+149+(157*i)], 157, 31 );
     Result.push_back( TS );
   }
   return Result;

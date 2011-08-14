@@ -36,6 +36,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   Socket = conn;
   Socket::Connection SS;
   FLV::Tag tag, viddata, auddata;
+  bool viddone = false, auddone = false;
 
   //first timestamp set
   RTMPStream::firsttime = RTMPStream::getNowMS();
@@ -107,21 +108,32 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
           break;
         case 0: break;//not ready yet
         default:
+          bool justdone = false;
           if (tag.SockLoader(SS)){//able to read a full packet?
             //init data? parse and resent in correct order if all is received
-            if (((tag.data[0] == 0x09) && (viddata.len == 0)) || ((tag.data[0] == 0x08) && (auddata.len == 0))){
-              if (tag.data[0] == 0x09){viddata = tag;}else{auddata = tag;}
-              if ((auddata.len != 0) && (viddata.len != 0)){
+            /// \TODO Check metadata for needed audio/video init or not - we now assume both video/audio are always present...
+            if (((tag.data[0] == 0x09) && !viddone) || ((tag.data[0] == 0x08) && !auddone)){
+              if (tag.needsInitData()){
+                if (tag.data[0] == 0x09){viddata = tag;}else{auddata = tag;}
+              }
+              if (tag.data[0] == 0x09){viddone = true;}else{auddone = true;}
+              justdone = true;
+            }
+            if (viddone && auddone && justdone){
+              if (viddata.len != 0){
                 Socket.write(RTMPStream::SendMedia((unsigned char)viddata.data[0], (unsigned char *)viddata.data+11, viddata.len-15, 0));
-                Socket.write(RTMPStream::SendMedia((unsigned char)auddata.data[0], (unsigned char *)auddata.data+11, auddata.len-15, 0));
                 #if DEBUG >= 8
                 fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), viddata.tagTime(), viddata.tagType().c_str());
+                #endif
+              }
+              if (auddata.len != 0){
+                Socket.write(RTMPStream::SendMedia((unsigned char)auddata.data[0], (unsigned char *)auddata.data+11, auddata.len-15, 0));
+                #if DEBUG >= 8
                 fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), auddata.tagTime(), auddata.tagType().c_str());
                 #endif
               }
               break;
             }
-            /// \TODO Check metadata for needed init or not - we now assume init needed, which only works for AAC / H264...
             //not gotten init yet? cancel this tag
             if (viddata.len == 0 || auddata.len == 0){break;}
             //send tag normally

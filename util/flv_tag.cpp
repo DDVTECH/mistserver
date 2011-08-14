@@ -43,6 +43,31 @@ bool FLV::is_header(char * header){
   return true;
 }//FLV::is_header
 
+/// True if this media type requires init data.
+/// Will always return false if the tag type is not 0x08 or 0x09.
+/// Returns true for H263, AVC (H264), AAC.
+/// \todo Check if MP3 does or does not require init data...
+bool FLV::Tag::needsInitData(){
+  switch (data[0]){
+    case 0x09:
+      switch (data[11] & 0x0F){
+        case 2: return true; break;//H263 requires init data
+        case 7: return true; break;//AVC requires init data
+        default: return false; break;//other formats do not
+      }
+      break;
+    case 0x08:
+      switch (data[11] & 0xF0){
+        case 0x20: return false; break;//MP3 does not...? Unsure.
+        case 0xA0: return true; break;//AAC requires init data
+        case 0xE0: return false; break;//MP38kHz does not...?
+        default: return false; break;//other formats do not
+      }
+      break;
+  }
+  return false;//only audio/video can require init data
+}
+
 /// True if current tag is init data for this media type.
 bool FLV::Tag::isInitData(){
   switch (data[0]){

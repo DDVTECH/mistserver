@@ -402,7 +402,7 @@ void Connector_RTMP::parseChunk(){
             amfreply.Print();
             #endif
             Socket.write(RTMPStream::SendChunk(4, 17, 1, (char)0+amfreply.Pack()));
-            RTMPStream::chunk_snd_max = 65536;//1024*1024;
+            RTMPStream::chunk_snd_max = 102400;//100KiB
             Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
             Connector_RTMP::ready4data = true;//start sending video data!
             parsed3 = true;
@@ -557,13 +557,7 @@ void Connector_RTMP::parseChunk(){
           amfreply.Print();
           #endif
           Socket.write(RTMPStream::SendChunk(4, 20, 1, amfreply.Pack()));
-  //No clue what this does. Most real servers send it, though...
-  //        amfreply = AMFType("container", (unsigned char)0xFF);
-  //        amfreply.addContent(AMFType("", "|RtmpSampleAccess"));//status reply
-  //        amfreply.addContent(AMFType("", (double)1, 0x01));//bool true - audioaccess
-  //        amfreply.addContent(AMFType("", (double)1, 0x01));//bool true - videoaccess
-  //        SendChunk(4, 20, next.msg_stream_id, amfreply.Pack());
-          RTMPStream::chunk_snd_max = 65536;//1024*1024;
+          RTMPStream::chunk_snd_max = 102400;//100KiB;
           Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
           Connector_RTMP::ready4data = true;//start sending video data!
           parsed = true;

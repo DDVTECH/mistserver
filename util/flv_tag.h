@@ -22,6 +22,7 @@ namespace FLV {
       int len; ///< Actual length of tag.
       bool isKeyframe; ///< True if current tag is a video keyframe.
       char * data; ///< Pointer to tag buffer.
+      bool needsInitData(); ///< True if this media type requires init data.
       bool isInitData(); ///< True if current tag is init data for this media type.
       std::string tagType(); ///< Returns a std::string describing the tag in detail.
       unsigned int tagTime(); ///< Returns the 32-bit timestamp of this tag.

@@ -2,30 +2,61 @@
 /// Debugging tool for RTMP data.
 /// Expects RTMP data of one side of the conversion through stdin, outputs human-readable information to stderr.
 /// Automatically skips 3073 bytes of handshake data.
+/// Optionally reconstructs an FLV file
+/// Singular argument is a bitmask indicating the following (defaulting to 0):
+/// - 0  = Info: Output chunk meanings and fulltext commands to stderr.
+/// - 1  = Reconstruct: Output valid .flv file to stdout.
+/// - 2  = Explicit: Audio/video data details.
+/// - 4  = Verbose: details about every whole chunk.
 
 #define DEBUG 10 //maximum debugging level
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <string>
+#include "../util/flv_tag.h"
 #include "../util/amf.h"
 #include "../util/rtmpchunks.h"
+
+int Detail = 0;
+#define DETAIL_RECONSTRUCT 1
+#define DETAIL_EXPLICIT 2
+#define DETAIL_VERBOSE 4
 
 /// Debugging tool for RTMP data.
 /// Expects RTMP data of one side of the conversion through stdin, outputs human-readable information to stderr.
 /// Will output FLV file to stdout, if available
 /// Automatically skips 3073 bytes of handshake data.
-int main(){
+int main(int argc, char ** argv){
+
+  if (argc > 1){
+    Detail = atoi(argv[1]);
+    fprintf(stderr, "Detail level set:\n");
+    if ((Detail & DETAIL_RECONSTRUCT) == DETAIL_RECONSTRUCT){
+      fprintf(stderr, " - Will reconstuct FLV file to stdout\n");
+      std::cout.write(FLV::Header, 13);
+    }
+    if ((Detail & DETAIL_EXPLICIT) == DETAIL_EXPLICIT){
+      fprintf(stderr, " - Will list explicit video/audio data information\n");
+    }
+    if ((Detail & DETAIL_VERBOSE) == DETAIL_VERBOSE){
+      fprintf(stderr, " - Will list verbose chunk information\n");
+    }
+  }
 
   std::string inbuffer;
   while (std::cin.good()){inbuffer += std::cin.get();}//read all of std::cin to temp
   inbuffer.erase(0, 3073);//strip the handshake part
   RTMPStream::Chunk next;
+  FLV::Tag F;//FLV holder
   AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
   AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);
-  
+
 
   while (next.Parse(inbuffer)){
+    if ((Detail & DETAIL_VERBOSE) == DETAIL_VERBOSE){
+      fprintf(stderr, "Chunk info: CS ID %u, timestamp %u, len %u, type ID %u, Stream ID %u\n", next.cs_id, next.timestamp, next.len, next.msg_type_id, next.msg_stream_id);
+    }
     switch (next.msg_type_id){
       case 0://does not exist
         fprintf(stderr, "Error chunk - %i, %i, %i, %i, %i\n", next.cs_id, next.timestamp, next.real_len, next.len_left, next.msg_stream_id);
@@ -84,9 +115,27 @@ int main(){
         break;
       case 8:
         fprintf(stderr, "Received %i bytes audio data\n", next.len);
+        if (Detail & (DETAIL_EXPLICIT | DETAIL_RECONSTRUCT)){
+          F.ChunkLoader(next);
+          if ((Detail & DETAIL_EXPLICIT) == DETAIL_EXPLICIT){
+            std::cerr << "Got a " << F.len << " bytes " << F.tagType() << " FLV tag of time " << F.tagTime() << "." << std::endl;
+          }
+          if ((Detail & DETAIL_RECONSTRUCT) == DETAIL_RECONSTRUCT){
+            std::cout.write(F.data, F.len);
+          }
+        }
         break;
       case 9:
         fprintf(stderr, "Received %i bytes video data\n", next.len);
+        if (Detail & (DETAIL_EXPLICIT | DETAIL_RECONSTRUCT)){
+          F.ChunkLoader(next);
+          if ((Detail & DETAIL_EXPLICIT) == DETAIL_EXPLICIT){
+            std::cerr << "Got a " << F.len << " bytes " << F.tagType() << " FLV tag of time " << F.tagTime() << "." << std::endl;
+          }
+          if ((Detail & DETAIL_RECONSTRUCT) == DETAIL_RECONSTRUCT){
+            std::cout.write(F.data, F.len);
+          }
+        }
         break;
       case 15:
         fprintf(stderr, "Received AFM3 data message\n");
@@ -110,6 +159,10 @@ int main(){
         fprintf(stderr, "Received AFM0 data message (metadata):\n");
         amfdata = AMF::parse(next.data);
         amfdata.Print();
+        if ((Detail & DETAIL_RECONSTRUCT) == DETAIL_RECONSTRUCT){
+          F.ChunkLoader(next);
+          std::cout.write(F.data, F.len);
+        }
         } break;
       case 19:
         fprintf(stderr, "Received AFM0 shared object\n");

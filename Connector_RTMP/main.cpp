@@ -372,7 +372,7 @@ void Connector_RTMP::parseChunk(){
               if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
             }
             streamname = "/tmp/shared_socket_" + streamname;
-            //Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+            Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
             //send a status reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
             amfreply.addContent(AMF::Object("", "onStatus"));//status reply
@@ -383,7 +383,7 @@ void Connector_RTMP::parseChunk(){
             amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Reset"));
             amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing and resetting..."));
             amfreply.getContentP(3)->addContent(AMF::Object("details", "PLS"));
-            amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1));
+            amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
             #if DEBUG >= 4
             amfreply.Print();
             #endif
@@ -397,7 +397,7 @@ void Connector_RTMP::parseChunk(){
             amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Start"));
             amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
             amfreply.getContentP(3)->addContent(AMF::Object("details", "PLS"));
-            amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1));
+            amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
             #if DEBUG >= 4
             amfreply.Print();
             #endif
@@ -528,7 +528,7 @@ void Connector_RTMP::parseChunk(){
             if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
           }
           streamname = "/tmp/shared_socket_" + streamname;
-          //Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+          Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
           //send a status reply
           AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
           amfreply.addContent(AMF::Object("", "onStatus"));//status reply

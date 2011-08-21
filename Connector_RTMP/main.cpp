@@ -121,14 +121,12 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
             }
             if (viddone && auddone && justdone){
               if (viddata.len != 0){
-                viddata.tagTime(RTMPStream::getNowMS());
                 Socket.write(RTMPStream::SendMedia(viddata));
                 #if DEBUG >= 8
                 fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), viddata.tagTime(), viddata.tagType().c_str());
                 #endif
               }
               if (auddata.len != 0){
-                auddata.tagTime(RTMPStream::getNowMS());
                 Socket.write(RTMPStream::SendMedia(auddata));
                 #if DEBUG >= 8
                 fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), auddata.tagTime(), auddata.tagType().c_str());

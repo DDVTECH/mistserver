@@ -43,7 +43,6 @@ std::string RTMPStream::Chunk::Pack(){
   unsigned int tmpi;
   unsigned char chtype = 0x00;
   //timestamp -= firsttime;
-  //if (timestamp < prev.timestamp){timestamp = prev.timestamp;}
   if ((prev.msg_type_id > 0) && (prev.cs_id == cs_id)){
     if (msg_stream_id == prev.msg_stream_id){
       chtype = 0x40;//do not send msg_stream_id
@@ -56,6 +55,8 @@ std::string RTMPStream::Chunk::Pack(){
         }
       }
     }
+    //override - we always sent type 0x00 if the timestamp has decreased since last chunk in this channel
+    if (timestamp < prev.timestamp){chtype = 0x00;}
   }
   if (cs_id <= 63){
     output += (unsigned char)(chtype | cs_id);

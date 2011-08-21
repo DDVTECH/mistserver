@@ -55,7 +55,7 @@ int main(int argc, char ** argv){
 
   while (next.Parse(inbuffer)){
     if ((Detail & DETAIL_VERBOSE) == DETAIL_VERBOSE){
-      fprintf(stderr, "Chunk info: CS ID %u, timestamp %u, len %u, type ID %u, Stream ID %u\n", next.cs_id, next.timestamp, next.len, next.msg_type_id, next.msg_stream_id);
+      fprintf(stderr, "Chunk info: [%#2X] CS ID %u, timestamp %u, len %u, type ID %u, Stream ID %u\n", next.headertype, next.cs_id, next.timestamp, next.len, next.msg_type_id, next.msg_stream_id);
     }
     switch (next.msg_type_id){
       case 0://does not exist
@@ -78,28 +78,28 @@ int main(int argc, char ** argv){
         short int ucmtype = ntohs(*(short int*)next.data.c_str());
         switch (ucmtype){
           case 0:
-            fprintf(stderr, "CTRL: User control message: stream begin %i\n", ntohl(*(int*)next.data.c_str()+2));
+            fprintf(stderr, "CTRL: User control message: stream begin %u\n", ntohl(*(unsigned int*)(next.data.c_str()+2)));
             break;
           case 1:
-            fprintf(stderr, "CTRL: User control message: stream EOF %i\n", ntohl(*(int*)next.data.c_str()+2));
+            fprintf(stderr, "CTRL: User control message: stream EOF %u\n", ntohl(*(unsigned int*)(next.data.c_str()+2)));
             break;
           case 2:
-            fprintf(stderr, "CTRL: User control message: stream dry %i\n", ntohl(*(int*)next.data.c_str()+2));
+            fprintf(stderr, "CTRL: User control message: stream dry %u\n", ntohl(*(unsigned int*)(next.data.c_str()+2)));
             break;
           case 3:
-            fprintf(stderr, "CTRL: User control message: setbufferlen %i\n", ntohl(*(int*)next.data.c_str()+2));
+            fprintf(stderr, "CTRL: User control message: setbufferlen %u\n", ntohl(*(unsigned int*)(next.data.c_str()+2)));
             break;
           case 4:
-            fprintf(stderr, "CTRL: User control message: streamisrecorded %i\n", ntohl(*(int*)next.data.c_str()+2));
+            fprintf(stderr, "CTRL: User control message: streamisrecorded %u\n", ntohl(*(unsigned int*)(next.data.c_str()+2)));
             break;
           case 6:
-            fprintf(stderr, "CTRL: User control message: pingrequest %i\n", ntohl(*(int*)next.data.c_str()+2));
+            fprintf(stderr, "CTRL: User control message: pingrequest %u\n", ntohl(*(unsigned int*)(next.data.c_str()+2)));
             break;
           case 7:
-            fprintf(stderr, "CTRL: User control message: pingresponse %i\n", ntohl(*(int*)next.data.c_str()+2));
+            fprintf(stderr, "CTRL: User control message: pingresponse %u\n", ntohl(*(unsigned int*)(next.data.c_str()+2)));
             break;
           default:
-            fprintf(stderr, "CTRL: User control message: UNKNOWN %hi - %i\n", ucmtype, ntohl(*(int*)next.data.c_str()+2));
+            fprintf(stderr, "CTRL: User control message: UNKNOWN %hu - %u\n", ucmtype, ntohl(*(unsigned int*)(next.data.c_str()+2)));
             break;
         }
       } break;

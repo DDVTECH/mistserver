@@ -30,6 +30,7 @@ namespace RTMPStream{
   /// Holds a single RTMP chunk, either send or receive direction.
   class Chunk{
     public:
+      unsigned char headertype; ///< For input chunks, the type of header. This is calculated automatically for output chunks.
       unsigned int cs_id; ///< ContentStream ID
       unsigned int timestamp; ///< Timestamp of this chunk.
       unsigned int len; ///< Length of the complete chunk.

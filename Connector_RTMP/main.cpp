@@ -121,13 +121,15 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
             }
             if (viddone && auddone && justdone){
               if (viddata.len != 0){
-                Socket.write(RTMPStream::SendMedia((unsigned char)viddata.data[0], (unsigned char *)viddata.data+11, viddata.len-15, 0));
+                viddata.tagTime(RTMPStream::getNowMS());
+                Socket.write(RTMPStream::SendMedia(viddata));
                 #if DEBUG >= 8
                 fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), viddata.tagTime(), viddata.tagType().c_str());
                 #endif
               }
               if (auddata.len != 0){
-                Socket.write(RTMPStream::SendMedia((unsigned char)auddata.data[0], (unsigned char *)auddata.data+11, auddata.len-15, 0));
+                auddata.tagTime(RTMPStream::getNowMS());
+                Socket.write(RTMPStream::SendMedia(auddata));
                 #if DEBUG >= 8
                 fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), auddata.tagTime(), auddata.tagType().c_str());
                 #endif
@@ -137,7 +139,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
             //not gotten init yet? cancel this tag
             if (viddata.len == 0 || auddata.len == 0){break;}
             //send tag normally
-            Socket.write(RTMPStream::SendMedia((unsigned char)tag.data[0], (unsigned char *)tag.data+11, tag.len-15, tag.tagTime()));
+            Socket.write(RTMPStream::SendMedia(tag));
             #if DEBUG >= 8
             fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), tag.tagTime(), tag.tagType().c_str());
             #endif

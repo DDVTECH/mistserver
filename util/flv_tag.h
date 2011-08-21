@@ -4,7 +4,11 @@
 #pragma once
 #include "socket.h"
 #include <string>
-#include "rtmpchunks.h"
+
+//forward declaration of RTMPStream::Chunk to avoid circular dependencies.
+namespace RTMPStream{
+  class Chunk;
+};
 
 /// This namespace holds all FLV-parsing related functionality.
 namespace FLV {

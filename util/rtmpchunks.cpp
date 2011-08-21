@@ -42,6 +42,7 @@ std::string RTMPStream::Chunk::Pack(){
   unsigned int tmpi;
   unsigned char chtype = 0x00;
   timestamp -= firsttime;
+  if (timestamp < prev.timestamp){timestamp = prev.timestamp;}
   if ((prev.msg_type_id > 0) && (prev.cs_id == cs_id)){
     if (msg_stream_id == prev.msg_stream_id){
       chtype = 0x40;//do not send msg_stream_id
@@ -215,7 +216,7 @@ std::string RTMPStream::SendUSR(unsigned char type, unsigned int data){
   ch.msg_type_id = 4;
   ch.msg_stream_id = 0;
   ch.data.resize(6);
-  *(unsigned int*)((char*)ch.data.c_str()+2) = htonl(data);
+  *(unsigned int*)(((char*)ch.data.c_str())+2) = htonl(data);
   ch.data[0] = 0;
   ch.data[1] = type;
   return ch.Pack();
@@ -232,8 +233,8 @@ std::string RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned 
   ch.msg_type_id = 4;
   ch.msg_stream_id = 0;
   ch.data.resize(10);
-  *(unsigned int*)((char*)ch.data.c_str()+2) = htonl(data);
-  *(unsigned int*)((char*)ch.data.c_str()+6) = htonl(data2);
+  *(unsigned int*)(((char*)ch.data.c_str())+2) = htonl(data);
+  *(unsigned int*)(((char*)ch.data.c_str())+6) = htonl(data2);
   ch.data[0] = 0;
   ch.data[1] = type;
   return ch.Pack();
@@ -274,7 +275,8 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
   RTMPStream::Chunk prev = lastrecv[cs_id];
 
   //process the rest of the header, for each chunk type
-  switch (chunktype & 0xC0){
+  headertype = chunktype & 0xC0;
+  switch (headertype){
     case 0x00:
       if (indata.size() < i+11) return false; //can't read whole header
       timestamp = indata[i++]*256*256;
@@ -296,7 +298,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       timestamp = indata[i++]*256*256;
       timestamp += indata[i++]*256;
       timestamp += indata[i++];
-      timestamp += prev.timestamp;
+      if (timestamp != 0x00ffffff){timestamp += prev.timestamp;}
       len = indata[i++]*256*256;
       len += indata[i++]*256;
       len += indata[i++];
@@ -310,7 +312,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       timestamp = indata[i++]*256*256;
       timestamp += indata[i++]*256;
       timestamp += indata[i++];
-      timestamp += prev.timestamp;
+      if (timestamp != 0x00ffffff){timestamp += prev.timestamp;}
       len = prev.len;
       len_left = prev.len_left;
       msg_type_id = prev.msg_type_id;

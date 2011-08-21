@@ -372,7 +372,7 @@ void Connector_RTMP::parseChunk(){
               if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
             }
             streamname = "/tmp/shared_socket_" + streamname;
-            Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+            //Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
             //send a status reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
             amfreply.addContent(AMF::Object("", "onStatus"));//status reply
@@ -528,7 +528,7 @@ void Connector_RTMP::parseChunk(){
             if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
           }
           streamname = "/tmp/shared_socket_" + streamname;
-          Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+          //Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
           //send a status reply
           AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
           amfreply.addContent(AMF::Object("", "onStatus"));//status reply

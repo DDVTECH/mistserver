@@ -114,10 +114,10 @@ int main(int argc, char ** argv){
         fprintf(stderr, "CTRL: Set peer bandwidth: %i\n", RTMPStream::snd_window_size);
         break;
       case 8:
-        fprintf(stderr, "Received %i bytes audio data\n", next.len);
         if (Detail & (DETAIL_EXPLICIT | DETAIL_RECONSTRUCT)){
           F.ChunkLoader(next);
           if ((Detail & DETAIL_EXPLICIT) == DETAIL_EXPLICIT){
+            fprintf(stderr, "Received %i bytes audio data\n", next.len);
             std::cerr << "Got a " << F.len << " bytes " << F.tagType() << " FLV tag of time " << F.tagTime() << "." << std::endl;
           }
           if ((Detail & DETAIL_RECONSTRUCT) == DETAIL_RECONSTRUCT){
@@ -126,10 +126,10 @@ int main(int argc, char ** argv){
         }
         break;
       case 9:
-        fprintf(stderr, "Received %i bytes video data\n", next.len);
         if (Detail & (DETAIL_EXPLICIT | DETAIL_RECONSTRUCT)){
           F.ChunkLoader(next);
           if ((Detail & DETAIL_EXPLICIT) == DETAIL_EXPLICIT){
+            fprintf(stderr, "Received %i bytes video data\n", next.len);
             std::cerr << "Got a " << F.len << " bytes " << F.tagType() << " FLV tag of time " << F.tagTime() << "." << std::endl;
           }
           if ((Detail & DETAIL_RECONSTRUCT) == DETAIL_RECONSTRUCT){

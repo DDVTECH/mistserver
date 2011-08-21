@@ -2,6 +2,7 @@
 /// Holds all code for the FLV namespace.
 
 #include "flv_tag.h"
+#include "rtmpchunks.h"
 #include <stdio.h> //for Tag::FileLoader
 #include <unistd.h> //for Tag::FileLoader
 #include <fcntl.h> //for Tag::FileLoader

@@ -2,6 +2,7 @@
 /// Holds all code for the RTMPStream namespace.
 
 #include "rtmpchunks.h"
+#include "flv_tag.h"
 #include "crypto.h"
 
 char versionstring[] = "WWW.DDVTECH.COM "; ///< String that is repeated in the RTMP handshake
@@ -41,8 +42,8 @@ std::string RTMPStream::Chunk::Pack(){
   RTMPStream::Chunk prev = lastsend[cs_id];
   unsigned int tmpi;
   unsigned char chtype = 0x00;
-  timestamp -= firsttime;
-  if (timestamp < prev.timestamp){timestamp = prev.timestamp;}
+  //timestamp -= firsttime;
+  //if (timestamp < prev.timestamp){timestamp = prev.timestamp;}
   if ((prev.msg_type_id > 0) && (prev.cs_id == cs_id)){
     if (msg_stream_id == prev.msg_stream_id){
       chtype = 0x40;//do not send msg_stream_id
@@ -77,15 +78,15 @@ std::string RTMPStream::Chunk::Pack(){
       tmpi = timestamp - prev.timestamp;
     }
     if (tmpi >= 0x00ffffff){ntime = tmpi; tmpi = 0x00ffffff;}
-    output += (unsigned char)(tmpi / (256*256));
-    output += (unsigned char)(tmpi / 256);
-    output += (unsigned char)(tmpi % 256);
+    output += (unsigned char)((tmpi >> 16) & 0xff);
+    output += (unsigned char)((tmpi >> 8) & 0xff);
+    output += (unsigned char)(tmpi & 0xff);
     if (chtype != 0x80){
       //len
       tmpi = len;
-      output += (unsigned char)(tmpi / (256*256));
-      output += (unsigned char)(tmpi / 256);
-      output += (unsigned char)(tmpi % 256);
+      output += (unsigned char)((tmpi >> 16) & 0xff);
+      output += (unsigned char)((tmpi >> 8) & 0xff);
+      output += (unsigned char)(tmpi & 0xff);
       //msg type id
       output += (unsigned char)msg_type_id;
       if (chtype != 0x40){
@@ -99,10 +100,10 @@ std::string RTMPStream::Chunk::Pack(){
   }
   //support for 0x00ffffff timestamps
   if (ntime){
-    output += (unsigned char)(ntime % 256);
-    output += (unsigned char)(ntime / 256);
-    output += (unsigned char)(ntime / (256*256));
-    output += (unsigned char)(ntime / (256*256*256));
+    output += (unsigned char)(ntime & 0xff);
+    output += (unsigned char)((ntime >> 8) & 0xff);
+    output += (unsigned char)((ntime >> 16) & 0xff);
+    output += (unsigned char)((ntime >> 24) & 0xff);
   }
   len_left = 0;
   while (len_left < len){
@@ -171,6 +172,21 @@ std::string RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char * dat
   ch.msg_type_id = msg_type_id;
   ch.msg_stream_id = 1;
   ch.data.append((char*)data, (size_t)len);
+  return ch.Pack();
+}//SendMedia
+
+/// Packs up a chunk with media contents.
+/// \param tag FLV::Tag with media to send.
+std::string RTMPStream::SendMedia(FLV::Tag & tag){
+  RTMPStream::Chunk ch;
+  ch.cs_id = ((unsigned char)tag.data[0]);
+  ch.timestamp = tag.tagTime();
+  ch.len = tag.len-15;
+  ch.real_len = tag.len-15;
+  ch.len_left = 0;
+  ch.msg_type_id = (unsigned char)tag.data[0];
+  ch.msg_stream_id = 1;
+  ch.data.append(tag.data+11, (size_t)(tag.len-15));
   return ch.Pack();
 }//SendMedia
 

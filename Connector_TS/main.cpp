@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <iostream>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
@@ -31,6 +32,12 @@ class Transport_Packet {
     char Buffer[188];
 };//Transport Packet
 
+unsigned int getNowMS() {
+  timeval t;
+  gettimeofday(&t, 0);
+  return t.tv_sec + t.tv_usec/1000;
+}
+
 Transport_Packet::Transport_Packet( bool PacketStart, int PID ) {
   (*this).PID = PID;
   Buffer[0] = (char)0x47;
@@ -49,6 +56,8 @@ void Transport_Packet::SetContinuityCounter( int Counter ) {
 }
 
 void Transport_Packet::SetPesHeader( int Offset, int MsgLen, int Current, int Previous ) {
+  Current = Current * 27000;
+  Previous = Previous * 27000;
   Buffer[Offset] = (char)0x00;
   Buffer[Offset+1] = (char)0x00;
   Buffer[Offset+2] = (char)0x01;
@@ -71,6 +80,7 @@ void Transport_Packet::SetPesHeader( int Offset, int MsgLen, int Current, int Pr
 }
 
 void Transport_Packet::SetAdaptationField( double TimeStamp ) {
+  TimeStamp = TimeStamp * 27000;
   int Extension = (int)TimeStamp % 300;
   int Base = (int)TimeStamp / 300;
   Buffer[3] = ( Buffer[3] & 0x0F ) + 0x30;
@@ -80,7 +90,7 @@ void Transport_Packet::SetAdaptationField( double TimeStamp ) {
   Buffer[7] = ( ( Base >> 1 ) & 0x00FF0000 ) >> 16;
   Buffer[8] = ( ( Base >> 1 ) & 0x0000FF00 ) >> 8;
   Buffer[9] = ( ( Base >> 1 ) & 0x000000FF );
-  Buffer[10] = ( ( Extension & 0x0100) >> 4 ) + ( ( Base & 0x00000001 ) << 7 ) + (char)0x7E;
+  Buffer[10] = ( ( Extension & 0x0100) >> 8 ) + ( ( Base & 0x00000001 ) << 7 ) + (char)0x7E;
   Buffer[11] = ( Extension & 0x00FF);
 }
 
@@ -172,29 +182,69 @@ void SendPMT( Socket::Connection conn ) {
 
 std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   static int ContinuityCounter = 0;
-  static int previous = 0;
-  static clock_t First_PCR = clock();  
-  int now;
+  static int Previous_Tag = 0;
+  static int First_PCR = getNowMS();
+  static int Previous_PCR = 0;
+  int Current_PCR;
+  int Current_Tag;
+
+  int Offset = 0;
   Transport_Packet TS;
+  int Sent = 0;
   int PacketAmount = ( ( tag.len - (188 - 35 ) ) / 184 ) + 2;
   std::vector<Transport_Packet> Result;
   char LeadIn[4] = { (char)0x00, (char)0x00, (char)0x00, (char)0x01 };
   TS = Transport_Packet( true, 0x100 );
   TS.SetContinuityCounter( ContinuityCounter );
   ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
-  now = ( (tag.data[4]) << 16) + ( (tag.data[5]) << 8) + tag.data[6] + ( (tag.data[7]) << 24 );
-  TS.SetAdaptationField( (clock() - First_PCR) / ( CLOCKS_PER_SEC / 1000 ) );
-  TS.SetPesHeader( 12, tag.len - 16 , now, previous );
-  previous = now;
-  TS.SetPayload( LeadIn, 12, 31 );
-  TS.SetPayload( &tag.data[16], 149, 35 );
+  Current_PCR = getNowMS();
+  Current_Tag = ( tag.data[7] << 24 ) + ( tag.data[4] << 16 ) + ( tag.data[5] << 8 ) + ( tag.data[6] );
+  if( true ) { //Current_PCR - Previous_PCR >= 1 ) {
+    TS.SetAdaptationField( Current_PCR - First_PCR );
+    Offset = 8;
+    Previous_PCR = Current_PCR;
+  }
+  TS.SetPesHeader( 4 + Offset, tag.len - 16 , Current_Tag, Previous_Tag );
+  Previous_Tag = Current_Tag;
+  TS.SetPayload( LeadIn, 31, 23 + Offset );
+  TS.SetPayload( &tag.data[16], 157 - Offset, 27 + Offset );
+  Sent = 157 - Offset;
   Result.push_back( TS );
-  for( int i = 0; i < (PacketAmount - 1); i++ ) {
+  while( Sent + 176 < tag.len - 16 ) {
+//  for( int i = 0; i < (PacketAmount - 1); i++ ) {
     TS = Transport_Packet( false, 0x100 );
     TS.SetContinuityCounter( ContinuityCounter );
     ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
-    TS.SetAdaptationField( (double)(clock() - First_PCR) / ( (double)CLOCKS_PER_SEC / 1000 ) );
-    TS.SetPayload( &tag.data[16+149+(157*i)], 157, 31 );
+    Current_PCR = getNowMS();
+    Offset = 0;
+    if( true ) { //Current_PCR - Previous_PCR >= 1 ) {
+      TS.SetAdaptationField( Current_PCR - First_PCR );
+      Offset = 8;
+      Previous_PCR = Current_PCR;
+    }
+    TS.SetPayload( &tag.data[16 + Sent], 184 - Offset, 4 + Offset );
+    Sent += 184 - Offset;
+    Result.push_back( TS );
+  }
+  if( Sent < ( tag.len - 16 ) ) {
+    Current_PCR = getNowMS();
+    Offset = 0;
+    if( true ) { //now - Previous_PCR >= 5 ) {
+      TS.SetAdaptationField( Current_PCR - First_PCR );
+      Offset = 8;
+      Previous_PCR = Current_PCR;
+    }
+    std::cerr << "Wrapping packet: last packet length\n";
+    std::cerr << "\tTotal:\t\t" << tag.len - 16 << "\n";
+    std::cerr << "\tSent:\t\t" << Sent << "\n";
+    int To_Send = ( tag.len - 16 ) - Sent;
+    std::cerr << "\tTo Send:\t" << To_Send << "\n";
+    std::cerr << "\tStuffing:\t" << 176 - To_Send << "\n";
+    char Stuffing = (char)0xFF;
+    for( int i = 0; i < ( 176 - To_Send ); i++ ) {
+      TS.SetPayload( &Stuffing, 1, 4 + Offset + i );
+    }
+    TS.SetPayload( &tag.data[16 + Sent],  176 - To_Send , 4 + Offset + ( 176 - To_Send ) );
     Result.push_back( TS );
   }
   return Result;
@@ -242,15 +292,19 @@ int TS_Handler( Socket::Connection conn ) {
       default:
         if (tag.SockLoader(ss)){//able to read a full packet?
           if( tag.data[ 0 ] == 0x09 ) {
-            if( ( ( tag.data[ 11 ] & 0x0F ) == 7 ) && ( tag.data[ 12 ] == 1 ) ) {
+            if( ( ( tag.data[ 11 ] & 0x0F ) == 7 ) ) { //&& ( tag.data[ 12 ] == 1 ) ) {
               fprintf(stderr, "Video contains NALU\n" );
-                SendPAT( conn );
-                SendPMT( conn );
-                std::vector<Transport_Packet> Meh = WrapNalus( tag );
-                for( int i = 0; i < Meh.size( ); i++ ) {
-                  Meh[i].Write( conn );
-                }
-                std::cerr << "Item: " << ++zet << "\n";
+               // if( firstvideo ) {
+               //   firstvideo = false;
+               // } else {
+                  SendPAT( conn );
+                  SendPMT( conn );
+                  std::vector<Transport_Packet> Meh = WrapNalus( tag );
+                  for( int i = 0; i < Meh.size( ); i++ ) {
+                    Meh[i].Write( conn );
+                  }
+                  std::cerr << "Item: " << ++zet << "\n";
+               // }
             }
           }
           if( tag.data[ 0 ] == 0x08 ) {

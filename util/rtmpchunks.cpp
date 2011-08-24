@@ -2,6 +2,7 @@
 /// Holds all code for the RTMPStream namespace.
 
 #include "rtmpchunks.h"
+#include "flv_tag.h"
 #include "crypto.h"
 
 char versionstring[] = "WWW.DDVTECH.COM "; ///< String that is repeated in the RTMP handshake
@@ -41,7 +42,7 @@ std::string RTMPStream::Chunk::Pack(){
   RTMPStream::Chunk prev = lastsend[cs_id];
   unsigned int tmpi;
   unsigned char chtype = 0x00;
-  timestamp -= firsttime;
+  //timestamp -= firsttime;
   if ((prev.msg_type_id > 0) && (prev.cs_id == cs_id)){
     if (msg_stream_id == prev.msg_stream_id){
       chtype = 0x40;//do not send msg_stream_id
@@ -54,6 +55,8 @@ std::string RTMPStream::Chunk::Pack(){
         }
       }
     }
+    //override - we always sent type 0x00 if the timestamp has decreased since last chunk in this channel
+    if (timestamp < prev.timestamp){chtype = 0x00;}
   }
   if (cs_id <= 63){
     output += (unsigned char)(chtype | cs_id);
@@ -76,15 +79,15 @@ std::string RTMPStream::Chunk::Pack(){
       tmpi = timestamp - prev.timestamp;
     }
     if (tmpi >= 0x00ffffff){ntime = tmpi; tmpi = 0x00ffffff;}
-    output += (unsigned char)(tmpi / (256*256));
-    output += (unsigned char)(tmpi / 256);
-    output += (unsigned char)(tmpi % 256);
+    output += (unsigned char)((tmpi >> 16) & 0xff);
+    output += (unsigned char)((tmpi >> 8) & 0xff);
+    output += (unsigned char)(tmpi & 0xff);
     if (chtype != 0x80){
       //len
       tmpi = len;
-      output += (unsigned char)(tmpi / (256*256));
-      output += (unsigned char)(tmpi / 256);
-      output += (unsigned char)(tmpi % 256);
+      output += (unsigned char)((tmpi >> 16) & 0xff);
+      output += (unsigned char)((tmpi >> 8) & 0xff);
+      output += (unsigned char)(tmpi & 0xff);
       //msg type id
       output += (unsigned char)msg_type_id;
       if (chtype != 0x40){
@@ -98,10 +101,10 @@ std::string RTMPStream::Chunk::Pack(){
   }
   //support for 0x00ffffff timestamps
   if (ntime){
-    output += (unsigned char)(ntime % 256);
-    output += (unsigned char)(ntime / 256);
-    output += (unsigned char)(ntime / (256*256));
-    output += (unsigned char)(ntime / (256*256*256));
+    output += (unsigned char)(ntime & 0xff);
+    output += (unsigned char)((ntime >> 8) & 0xff);
+    output += (unsigned char)((ntime >> 16) & 0xff);
+    output += (unsigned char)((ntime >> 24) & 0xff);
   }
   len_left = 0;
   while (len_left < len){
@@ -162,7 +165,7 @@ std::string RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id,
 /// \param ts Timestamp of the media data, relative to current system time.
 std::string RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char * data, int len, unsigned int ts){
   RTMPStream::Chunk ch;
-  ch.cs_id = msg_type_id;
+  ch.cs_id = msg_type_id+42;
   ch.timestamp = ts;
   ch.len = len;
   ch.real_len = len;
@@ -170,6 +173,21 @@ std::string RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char * dat
   ch.msg_type_id = msg_type_id;
   ch.msg_stream_id = 1;
   ch.data.append((char*)data, (size_t)len);
+  return ch.Pack();
+}//SendMedia
+
+/// Packs up a chunk with media contents.
+/// \param tag FLV::Tag with media to send.
+std::string RTMPStream::SendMedia(FLV::Tag & tag){
+  RTMPStream::Chunk ch;
+  ch.cs_id = ((unsigned char)tag.data[0]);
+  ch.timestamp = tag.tagTime();
+  ch.len = tag.len-15;
+  ch.real_len = tag.len-15;
+  ch.len_left = 0;
+  ch.msg_type_id = (unsigned char)tag.data[0];
+  ch.msg_stream_id = 1;
+  ch.data.append(tag.data+11, (size_t)(tag.len-15));
   return ch.Pack();
 }//SendMedia
 
@@ -199,7 +217,7 @@ std::string RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned 
   ch.msg_type_id = type;
   ch.msg_stream_id = 0;
   ch.data.resize(5);
-  *(int*)((char*)ch.data.c_str()) = htonl(data);
+  *(unsigned int*)((char*)ch.data.c_str()) = htonl(data);
   ch.data[4] = data2;
   return ch.Pack();
 }//SendCTL
@@ -215,7 +233,7 @@ std::string RTMPStream::SendUSR(unsigned char type, unsigned int data){
   ch.msg_type_id = 4;
   ch.msg_stream_id = 0;
   ch.data.resize(6);
-  *(int*)((char*)ch.data.c_str()+2) = htonl(data);
+  *(unsigned int*)(((char*)ch.data.c_str())+2) = htonl(data);
   ch.data[0] = 0;
   ch.data[1] = type;
   return ch.Pack();
@@ -232,8 +250,8 @@ std::string RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned 
   ch.msg_type_id = 4;
   ch.msg_stream_id = 0;
   ch.data.resize(10);
-  *(int*)((char*)ch.data.c_str()+2) = htonl(data);
-  *(int*)((char*)ch.data.c_str()+6) = htonl(data2);
+  *(unsigned int*)(((char*)ch.data.c_str())+2) = htonl(data);
+  *(unsigned int*)(((char*)ch.data.c_str())+6) = htonl(data2);
   ch.data[0] = 0;
   ch.data[1] = type;
   return ch.Pack();
@@ -270,11 +288,12 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       cs_id = chunktype & 0x3F;
       break;
   }
-  
+
   RTMPStream::Chunk prev = lastrecv[cs_id];
 
   //process the rest of the header, for each chunk type
-  switch (chunktype & 0xC0){
+  headertype = chunktype & 0xC0;
+  switch (headertype){
     case 0x00:
       if (indata.size() < i+11) return false; //can't read whole header
       timestamp = indata[i++]*256*256;
@@ -296,7 +315,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       timestamp = indata[i++]*256*256;
       timestamp += indata[i++]*256;
       timestamp += indata[i++];
-      timestamp += prev.timestamp;
+      if (timestamp != 0x00ffffff){timestamp += prev.timestamp;}
       len = indata[i++]*256*256;
       len += indata[i++]*256;
       len += indata[i++];
@@ -310,7 +329,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       timestamp = indata[i++]*256*256;
       timestamp += indata[i++]*256;
       timestamp += indata[i++];
-      timestamp += prev.timestamp;
+      if (timestamp != 0x00ffffff){timestamp += prev.timestamp;}
       len = prev.len;
       len_left = prev.len_left;
       msg_type_id = prev.msg_type_id;
@@ -344,7 +363,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
     timestamp += indata[i++]*256;
     timestamp += indata[i++];
   }
-  
+
   //read data if length > 0, and allocate it
   if (real_len > 0){
     if (prev.len_left > 0){
@@ -397,22 +416,22 @@ bool RTMPStream::doHandshake(){
   uint8_t _validationScheme = 5;
   if (ValidateClientScheme(Client, 0)) _validationScheme = 0;
   if (ValidateClientScheme(Client, 1)) _validationScheme = 1;
-    
+
   #if DEBUG >= 4
   fprintf(stderr, "Handshake type is %hhi, encryption is %s\n", _validationScheme, encrypted?"on":"off");
   #endif
-    
+
   //FIRST 1536 bytes from server response
   //compute DH key position
   uint32_t serverDHOffset = GetDHOffset(Server, _validationScheme);
   uint32_t clientDHOffset = GetDHOffset(Client, _validationScheme);
-    
+
   //generate DH key
   DHWrapper dhWrapper(1024);
   if (!dhWrapper.Initialize()) return false;
   if (!dhWrapper.CreateSharedKey(Client + clientDHOffset, 128)) return false;
   if (!dhWrapper.CopyPublicKey(Server + serverDHOffset, 128)) return false;
-    
+
   if (encrypted) {
     uint8_t secretKey[128];
     if (!dhWrapper.CopySharedKey(secretKey, sizeof (secretKey))) return false;
@@ -433,7 +452,7 @@ bool RTMPStream::doHandshake(){
   memcpy(Server + serverDigestOffset, pTempHash, 32);
   delete[] pTempBuffer;
   delete[] pTempHash;
-    
+
   //SECOND 1536 bytes from server response
   uint32_t keyChallengeIndex = GetDigestOffset(Client, _validationScheme);
   pTempHash = new uint8_t[512];

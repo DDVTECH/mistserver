@@ -5,6 +5,11 @@
 #include "socket.h"
 #include <string>
 
+//forward declaration of RTMPStream::Chunk to avoid circular dependencies.
+namespace RTMPStream{
+  class Chunk;
+};
+
 /// This namespace holds all FLV-parsing related functionality.
 namespace FLV {
   //variables
@@ -30,7 +35,9 @@ namespace FLV {
       Tag(); ///< Constructor for a new, empty, tag.
       Tag(const Tag& O); ///< Copy constructor, copies the contents of an existing tag.
       Tag & operator= (const Tag& O); ///< Assignment operator - works exactly like the copy constructor.
+      Tag(const RTMPStream::Chunk& O); ///<Copy constructor from a RTMP chunk.
       //loader functions
+      bool ChunkLoader(const RTMPStream::Chunk& O);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool SockLoader(int sock);
       bool SockLoader(Socket::Connection sock);

@@ -2,13 +2,17 @@
 /// Holds all code for the FLV namespace.
 
 #include "flv_tag.h"
+#include "rtmpchunks.h"
 #include <stdio.h> //for Tag::FileLoader
 #include <unistd.h> //for Tag::FileLoader
 #include <fcntl.h> //for Tag::FileLoader
 #include <stdlib.h> //malloc
 #include <string.h> //memcpy
 
-char FLV::Header[13]; ///< Holds the last FLV header parsed.
+/// Holds the last FLV header parsed.
+/// Defaults to a audio+video header on FLV version 0x01 if no header received yet.
+char FLV::Header[13] = {'F', 'L', 'V', 0x01, 0x05, 0, 0, 0, 0x09, 0, 0, 0, 0};
+
 bool FLV::Parse_Error = false; ///< This variable is set to true if a problem is encountered while parsing the FLV.
 std::string FLV::Error_Str = "";
 
@@ -209,6 +213,16 @@ FLV::Tag::Tag(const Tag& O){
   isKeyframe = O.isKeyframe;
 }//copy constructor
 
+
+/// Copy constructor from a RTMP chunk.
+/// Copies the contents of a RTMP chunk into a valid FLV tag.
+/// Exactly the same as making a chunk by through the default (empty) constructor
+/// and then calling FLV::Tag::ChunkLoader with the chunk as argument.
+FLV::Tag::Tag(const RTMPStream::Chunk& O){
+  len = 0; buf = 0; data = 0; isKeyframe = false; done = true; sofar = 0;
+  ChunkLoader(O);
+}
+
 /// Assignment operator - works exactly like the copy constructor.
 /// This operator checks for self-assignment.
 FLV::Tag & FLV::Tag::operator= (const FLV::Tag& O){
@@ -230,6 +244,32 @@ FLV::Tag & FLV::Tag::operator= (const FLV::Tag& O){
   }
   return *this;
 }//assignment operator
+
+/// FLV loader function from chunk.
+/// Copies the contents and wraps it in a FLV header.
+bool FLV::Tag::ChunkLoader(const RTMPStream::Chunk& O){
+  len = O.len + 15;
+  if (len > 0){
+    if (!data){
+      data = (char*)malloc(len);
+      buf = len;
+    }else{
+      if (buf < len){
+        data = (char*)realloc(data, len);
+        buf = len;
+      }
+    }
+    memcpy(data+11, &(O.data[0]), O.len);
+  }
+  ((unsigned int *)(data+len-4))[0] = O.len;
+  data[0] = O.msg_type_id;
+  data[3] = O.len & 0xFF;
+  data[2] = (O.len >> 8) & 0xFF;
+  data[1] = (O.len >> 16) & 0xFF;
+  tagTime(O.timestamp);
+  return true;
+}
+
 
 /// Helper function for FLV::MemLoader.
 /// This function will try to read count bytes from data buffer D into buffer.

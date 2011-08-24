@@ -1,3 +1,8 @@
+/// \file Connector_TS/main.cpp
+/// Contains the main code for the TS Connector
+/// \todo Check data to be sent for video
+/// \todo Handle audio packets
+
 #include <queue>
 #include <cmath>
 #include <ctime>
@@ -15,6 +20,7 @@
 #include "../util/socket.h"
 #include "../util/flv_tag.h"
 
+/// A simple class to create a single Transport Packet
 class Transport_Packet {
   public:
     Transport_Packet( bool PacketStart = false, int PID = 0x100 );
@@ -28,16 +34,21 @@ class Transport_Packet {
     void CreatePAT( int ContinuityCounter );
     void CreatePMT( int ContinuityCounter );
   private:
-    int PID;
-    char Buffer[188];
+    int PID;///< PID of this packet
+    char Buffer[188];///< The actual data
 };//Transport Packet
 
+/// Get the current time in milliseconds
+/// \return Current time in milliseconds
 unsigned int getNowMS() {
   timeval t;
   gettimeofday(&t, 0);
   return t.tv_sec + t.tv_usec/1000;
 }
 
+/// The constructor
+/// \param PacketStart Start of a new sequence
+/// \param PID The PID for this packet
 Transport_Packet::Transport_Packet( bool PacketStart, int PID ) {
   (*this).PID = PID;
   Buffer[0] = (char)0x47;
@@ -46,15 +57,24 @@ Transport_Packet::Transport_Packet( bool PacketStart, int PID ) {
   Buffer[3] = (char)0x10;
 }
 
+/// Sets the length of the message
+/// \param MsgLen the new length of the message
 void Transport_Packet::SetMessageLength( int MsgLen ) {
   Buffer[8] = ( MsgLen & 0xFF00 ) >> 8;
   Buffer[9] = ( MsgLen & 0xFF );
 }
 
+/// Sets the Continuity Counter of a packet
+/// \param Counter The new Continuity Counter
 void Transport_Packet::SetContinuityCounter( int Counter ) {
   Buffer[3] = ( Buffer[3] & 0xF0 ) + ( Counter & 0x0F );
 }
 
+/// Writes a PES header with length and PTS/DTS
+/// \param Offset Offset of the PES header in the packet
+/// \param MsgLen Length of the PES data
+/// \param Current The PTS of this PES packet
+/// \param Previous The DTS of this PES packet
 void Transport_Packet::SetPesHeader( int Offset, int MsgLen, int Current, int Previous ) {
   Current = Current * 27000;
   Previous = Previous * 27000;
@@ -79,6 +99,8 @@ void Transport_Packet::SetPesHeader( int Offset, int MsgLen, int Current, int Pr
   Buffer[Offset+18] = ( ( ( Previous & 0x00007FFF ) << 1 ) & 0x00FF ) + (char)0x01;
 }
 
+/// Creates an adapatation field
+/// \param TimeStamp the current PCR
 void Transport_Packet::SetAdaptationField( double TimeStamp ) {
   TimeStamp = TimeStamp * 27000;
   int Extension = (int)TimeStamp % 300;
@@ -94,12 +116,18 @@ void Transport_Packet::SetAdaptationField( double TimeStamp ) {
   Buffer[11] = ( Extension & 0x00FF);
 }
 
+/// Writes data into the payload of our packet
+/// The data to be written is of lenght min( PayLoadLen, 188 - Offset )
+/// \param Payload The data to write
+/// \param PayLoadLen The length of the data
+/// \param Offset The offset in the packet payload
 void Transport_Packet::SetPayload( char * Payload, int PayloadLen, int Offset ) {
-//  std::cerr << "\tSetPayload::Writing " << std::min( PayloadLen, 188-Offset ) << " bytes\n";
   memcpy( &Buffer[Offset], Payload, std::min( PayloadLen, 188-Offset ) );
 }
 
-
+/// Creates a default PAT packet
+/// Sets up the complete packet
+/// \param ContinuityCounter The Continuity Counter for this packet
 void Transport_Packet::CreatePAT( int ContinuityCounter ) {
   Buffer[3] = (char)0x10 + ContinuityCounter;
   Buffer[4] = (char)0x00;
@@ -125,6 +153,9 @@ void Transport_Packet::CreatePAT( int ContinuityCounter ) {
   }
 }
 
+/// Creates a default PMT packet
+/// Sets up the complete packet
+/// \param ContinuityCounter The Continuity Counter for this packet
 void Transport_Packet::CreatePMT( int ContinuityCounter ) {
   Buffer[3] = (char)0x10 + ContinuityCounter;
   Buffer[4] = (char)0x00;
@@ -161,7 +192,8 @@ void Transport_Packet::CreatePMT( int ContinuityCounter ) {
   }
 }
 
-
+/// Sends a default PAT
+/// \param conn The connection with the client
 void SendPAT( Socket::Connection conn ) {
   static int ContinuityCounter = 0;
   Transport_Packet TS;
@@ -171,6 +203,8 @@ void SendPAT( Socket::Connection conn ) {
   ContinuityCounter = ( ContinuityCounter + 1 ) & 0x0F;
 }
 
+/// Sends a default PMT
+/// \param conn The connection with the client
 void SendPMT( Socket::Connection conn ) {
   static int ContinuityCounter = 0;
   Transport_Packet TS;
@@ -180,6 +214,8 @@ void SendPMT( Socket::Connection conn ) {
   ContinuityCounter = ( ContinuityCounter + 1 ) & 0x0F;  
 }
 
+/// Wraps one or more NALU packets into transport packets
+/// \param tag The FLV Tag
 std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   static int ContinuityCounter = 0;
   static int Previous_Tag = 0;
@@ -250,15 +286,20 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
   return Result;
 }
 
+/// Writes a packet to STDOUT
 void Transport_Packet::Write( ) {
   for( int i = 0; i < 188; i++ ) { std::cout << Buffer[i]; }
 }
 
+/// Writes a packet onto a connection
+/// \param conn The connection with the client
 void Transport_Packet::Write( Socket::Connection conn ) {
 //  conn.write( Buffer, 188 );
   for( int i = 0; i < 188; i++ ) { std::cout << Buffer[i]; }
 }
 
+/// The main function of the connector
+/// \param conn A connection with the client
 int TS_Handler( Socket::Connection conn ) {
   FLV::Tag tag;///< Temporary tag buffer for incoming video data.
   bool inited = false;
@@ -323,6 +364,3 @@ int TS_Handler( Socket::Connection conn ) {
 #define MAINHANDLER TS_Handler
 #define CONFIGSECT TS
 #include "../util/server_setup.cpp"
-
-
-//TODO::TODO::TODO::Fix Timestamps

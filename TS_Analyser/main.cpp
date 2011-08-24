@@ -1,3 +1,6 @@
+/// \file TS_Analyser/main.cpp
+/// Contains the code for the TS Analyser
+
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>

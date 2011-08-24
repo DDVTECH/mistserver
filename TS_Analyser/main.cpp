@@ -5,92 +5,91 @@
 #include <vector>
 #include <fstream>
 
+/// Contains all data unique to a single entry in the PAT
 struct program_association_table_entry {
-  unsigned int Program_Number;
+  unsigned int Program_Number;///< Number of the program adressed
   unsigned char Reserved;
-  unsigned int Program_Map_PID;
+  unsigned int Program_Map_PID;///< PID of the map associated with this program
 };
 
+/// The program association table ( PAT )
 struct program_association_table {
-  unsigned char Pointer_Field;
-  unsigned char Table_ID;
-  bool Section_Syntax_Indicator;
+  unsigned char Pointer_Field;///< A single padding character
+  unsigned char Table_ID;///< ID of this table
+  bool Section_Syntax_Indicator;///< Indicates whether the payload confirms to specification, or is private
   bool Zero;
   unsigned char Reserved_1;
-  unsigned int Section_Length;
-  unsigned int Transport_Stream_ID;
+  unsigned int Section_Length;///< Length of this section of the PAT
+  unsigned int Transport_Stream_ID;///< ID of the stream
   unsigned char Reserved_2;
-  unsigned char Version_Number;
-  bool Current_Next_Indicator;
-  unsigned char Section_Number;
-  unsigned char Last_Section_Number;
+  unsigned char Version_Number;///< Version of this section
+  bool Current_Next_Indicator;///< Currently applicable
+  unsigned char Section_Number;///< Number of this section
+  unsigned char Last_Section_Number;///< Amount of sections in the complete table
   std::vector<program_association_table_entry> Entries;
   unsigned int CRC_32;
 };
 
+/// An entry of the PMT
 struct program_mapping_table_entry {
-  unsigned char Stream_Type;
+  unsigned char Stream_Type;///< Type of stream we encounter
   unsigned char Reserved_1;
-  unsigned int Elementary_PID;
+  unsigned int Elementary_PID;///< PID of the packages carying the elementary stream for this entry
   unsigned char Reserved_2;
-  unsigned int ES_Info_Length;
+  unsigned int ES_Info_Length;///< Length of extra info. Not needed for understanding the file
 };
 
+/// The program mapping table ( PMT )
 struct program_mapping_table {
-  unsigned char Pointer_Field;
-  unsigned char Table_ID;
-  bool Section_Syntax_Indicator;
+  unsigned char Pointer_Field;///< A single padding character
+  unsigned char Table_ID;///< ID of this table
+  bool Section_Syntax_Indicator;///< Indicates whether the payload confirms to specification, or is private
   bool Zero;
   unsigned char Reserved_1;
-  unsigned int Section_Length;
-  unsigned int Program_Number;
+  unsigned int Section_Length;///< Length of this section
+  unsigned int Program_Number;///< Program number in stream
   unsigned char Reserved_2;
-  unsigned char Version_Number;
-  bool Current_Next_Indicator;
-  unsigned char Section_Number;
-  unsigned char Last_Section_Number;
+  unsigned char Version_Number;///< Version of this section
+  bool Current_Next_Indicator;///< Currently applicable
+  unsigned char Section_Number;///< Number of this section
+  unsigned char Last_Section_Number;///< Amount of sections in PMT
   unsigned char Reserved_3;
-  unsigned int PCR_PID;
+  unsigned int PCR_PID;///< PID of the packets that contain Program Counter References
   unsigned char Reserved_4;
-  unsigned int Program_Info_Length;
+  unsigned int Program_Info_Length;///< Length of the program descriptors. Skip for analysis
   //vector Descriptors
   std::vector<program_mapping_table_entry> Entries;
   unsigned int CRC_32;
 };
 
+/// The adaptation field
 struct adaptation_field {
-  unsigned char Adaptation_Field_Length;
+  unsigned char Adaptation_Field_Length;///Lenght of the complete field, greater or equal to 0
   bool Discontinuity_Indicator;
   bool Random_Access_Indicator;
   bool Elementary_Stream_Priority_Indicator;
-  bool PCR_Flag;
-  bool OPCR_Flag;
+  bool PCR_Flag;///< PCR Field existent
+  bool OPCR_Flag;///< OPCR Field existent
   bool Splicing_Point_Flag;
   bool Transport_Private_Data_Flag;
   bool Adaptation_Field_Extension_Flag;
   
-  unsigned char Program_Clock_Reference_Base_MSB;
-  unsigned int Program_Clock_Reference_Base;
+  unsigned char Program_Clock_Reference_Base_MSB;///< Most significant bit for the Base value of the PCR
+  unsigned int Program_Clock_Reference_Base;///< Least significant 32 bits for the Base value of the PCR
   unsigned char PCR_Reserved;
-  unsigned int Program_Clock_Reference_Extension;
+  unsigned int Program_Clock_Reference_Extension;///< Extension of the PCR
 
-  unsigned char Original_Program_Clock_Reference_Base_MSB;
-  unsigned int Original_Program_Clock_Reference_Base;
+  unsigned char Original_Program_Clock_Reference_Base_MSB;///< Most significant bit for the Base value of the OPCR
+  unsigned int Original_Program_Clock_Reference_Base;///< Least significant 32 bits for the Base value of the OPCR
   unsigned char OPCR_Reserved;
-  unsigned int Original_Program_Clock_Reference_Extension;
-
-  unsigned char Splice_Countdown;
-
-  unsigned char Transport_Private_Data_Length;
-  std::vector<unsigned char> Private_Data_Byte;
-  
-  unsigned char Adaptation_Field_Extension_Length;
+  unsigned int Original_Program_Clock_Reference_Extension;///< Extension of the OPCR
 };
 
+/// The general structure of a PES packet
 struct pes_packet {
-  unsigned int Packet_Start_Code_Prefix;
-  unsigned char Stream_ID;
-  unsigned int PES_Packet_Length;
+  unsigned int Packet_Start_Code_Prefix;///< Prefix, should be 0x000001
+  unsigned char Stream_ID;///< ID of the current stream
+  unsigned int PES_Packet_Length;///< Length of the PES packet
   
   unsigned char Two;
   unsigned char PES_Scrambling_Control;
@@ -98,33 +97,37 @@ struct pes_packet {
   bool Data_Alignment_Indicator;
   bool Copyright;
   bool Original_Or_Copy;
-  unsigned char PTS_DTS_Flags;
+  unsigned char PTS_DTS_Flags;///Presentation Time Stamp and/or Display Time Stamp available
   bool ESCR_Flag;
   bool ES_Rate_Flag;
   bool DSM_Trick_Mode_Flag;
   bool Additional_Copy_Info_Flag;
   bool PES_CRC_Flag;
   bool PES_Extension_Flag;
-  unsigned char PES_Header_Data_Length;
+  unsigned char PES_Header_Data_Length;///< Length of the header
   
-  unsigned char PTS_Spacer;
-  unsigned char PTS_MSB;
-  unsigned int PTS;
+  unsigned char PTS_Spacer;///< Spacer, value depends on the flag
+  unsigned char PTS_MSB;///< Most significant bit of the PTS
+  unsigned int PTS;///< Least significant 32 bits of the PTS
   
-  unsigned char DTS_Spacer;
-  unsigned char DTS_MSB;
-  unsigned int DTS;
+  unsigned char DTS_Spacer;///< Spacer, value depends on the flag
+  unsigned char DTS_MSB;///< Most significant bit of the DTS
+  unsigned int DTS;///< Least significant 32 bits of the DTS
   
-  std::vector<unsigned char> Header_Stuffing;
-  std::vector<unsigned char> First_Bytes;
+  std::vector<unsigned char> Header_Stuffing;///< Header stuffing, if present
+  std::vector<unsigned char> First_Bytes;///< Storage capacity for the first few bytes
 };
 
+/// Fills a PES Packet
+/// \param PES The packet in which the data should be stored
+/// \param TempChar The current TS packet data
+/// \param Offset Offset of the PES data, changed if adaptation field exists
 void fill_pes( pes_packet & PES, unsigned char * TempChar, int Offset = 4 ) {
   PES.Packet_Start_Code_Prefix = ( TempChar[Offset] << 16 ) + ( TempChar[Offset+1] << 8 ) + TempChar[Offset+2];
   PES.Stream_ID = TempChar[Offset+3];
   PES.PES_Packet_Length = ( TempChar[Offset+4] << 8 ) + TempChar[Offset+5];
   Offset += 6;
-  if( true ) { //TODO: Fill in boolean, but for Buck Bunny Always
+  if( true ) { //Always for streams yet encountered
     PES.Two = ( TempChar[Offset] & 0xC0 ) >> 6;
     PES.PES_Scrambling_Control = ( TempChar[Offset] & 0x30 ) >> 4;
     PES.PES_Priority = ( TempChar[Offset] & 0x08 ) >> 3;
@@ -175,12 +178,15 @@ void fill_pes( pes_packet & PES, unsigned char * TempChar, int Offset = 4 ) {
   }
 }
 
+/// Prints a PES packet to STDOUT
+/// \param PES The packet to be print
+/// \param offset A string indicating the indentation of the outputed data
 void print_pes( pes_packet PES, std::string offset="\t" ) {
   printf( "%sPES Header\n", offset.c_str() );
   printf( "%s\tPacket Start Code Prefix\t%.6X\n", offset.c_str(), PES.Packet_Start_Code_Prefix );
   printf( "%s\tStream ID\t\t\t%X\n", offset.c_str(), PES.Stream_ID );
   printf( "%s\tPES Packet Length\t\t%X\n", offset.c_str(), PES.PES_Packet_Length );
-  if( true ) { //TODO: Fill in boolean, but for Buck Bunny Always
+  if( true ) { //Always for streams yet encountered
     printf( "%s\tTwo:\t\t\t\t%d\n", offset.c_str(), PES.Two );
     printf( "%s\tPES Scrambling Control:\t\t%d\n", offset.c_str(), PES.PES_Scrambling_Control );
     printf( "%s\tPES Priority:\t\t\t%d\n", offset.c_str(), PES.PES_Priority );
@@ -216,6 +222,36 @@ void print_pes( pes_packet PES, std::string offset="\t" ) {
   }
 }
 
+/// Fills a PAT structure with the right data
+/// \param PAT the structure to be filled
+/// \param TempChar The TS packet data
+void fill_pat( program_association_table & PAT, unsigned char * TempChar ) {
+  PAT.Pointer_Field = TempChar[4];
+  PAT.Table_ID = TempChar[5];
+  PAT.Section_Syntax_Indicator = ((TempChar[6] & 0x80 ) != 0 );
+  PAT.Zero = (( TempChar[6] & 0x40 ) != 0 );
+  PAT.Reserved_1 = (( TempChar[6] & 0x30 ) >> 4 );
+  PAT.Section_Length = (( TempChar[6] & 0x0F ) << 8 ) + TempChar[7];
+  PAT.Transport_Stream_ID = (( TempChar[8] << 8 ) + TempChar[9] );
+  PAT.Reserved_2 = (( TempChar[10] & 0xC0 ) >> 6 );
+  PAT.Version_Number = (( TempChar[10] & 0x01 ) >> 1 );
+  PAT.Current_Next_Indicator = (( TempChar[10] & 0x01 ) != 0 );
+  PAT.Section_Number = TempChar[11];
+  PAT.Last_Section_Number = TempChar[12];
+  PAT.Entries.clear( );
+  for( int i = 0; i < PAT.Section_Length - 9; i += 4 ) {
+    program_association_table_entry PAT_Entry;
+    PAT_Entry.Program_Number = ( TempChar[13+i] << 8 ) + TempChar[14+i];
+    PAT_Entry.Reserved = ( TempChar[15+i] & 0xE0 ) >> 5;
+    PAT_Entry.Program_Map_PID = (( TempChar[15+i] & 0x1F ) << 8 ) + TempChar[16+i];
+    PAT.Entries.push_back( PAT_Entry );
+  }
+  PAT.CRC_32 = ( TempChar[8+PAT.Section_Length-4] << 24 ) + ( TempChar[8+PAT.Section_Length-3] << 16 ) + ( TempChar[8+PAT.Section_Length-2] << 8 ) + ( TempChar[8+PAT.Section_Length-1] );
+}
+
+/// Prints a PAT to STDOUT
+/// \param PAT The table to be print
+/// \param offset A string indicating the indentation of the outputed data
 void print_pat( program_association_table PAT, bool Pointer_Field = false, std::string offset="\t" ) {
   printf( "%sProgram Association Table\n", offset.c_str() );
   if( Pointer_Field ) {
@@ -241,30 +277,9 @@ void print_pat( program_association_table PAT, bool Pointer_Field = false, std::
   printf( "\n%s\tCRC_32:\t\t\t\t%X\n", offset.c_str(), PAT.CRC_32 );
 }
 
-void fill_pat( program_association_table & PAT, unsigned char * TempChar ) {
-  PAT.Pointer_Field = TempChar[4];
-  PAT.Table_ID = TempChar[5];
-  PAT.Section_Syntax_Indicator = ((TempChar[6] & 0x80 ) != 0 );
-  PAT.Zero = (( TempChar[6] & 0x40 ) != 0 );
-  PAT.Reserved_1 = (( TempChar[6] & 0x30 ) >> 4 );
-  PAT.Section_Length = (( TempChar[6] & 0x0F ) << 8 ) + TempChar[7];
-  PAT.Transport_Stream_ID = (( TempChar[8] << 8 ) + TempChar[9] );
-  PAT.Reserved_2 = (( TempChar[10] & 0xC0 ) >> 6 );
-  PAT.Version_Number = (( TempChar[10] & 0x01 ) >> 1 );
-  PAT.Current_Next_Indicator = (( TempChar[10] & 0x01 ) != 0 );
-  PAT.Section_Number = TempChar[11];
-  PAT.Last_Section_Number = TempChar[12];
-  PAT.Entries.clear( );
-  for( int i = 0; i < PAT.Section_Length - 9; i += 4 ) {
-    program_association_table_entry PAT_Entry;
-    PAT_Entry.Program_Number = ( TempChar[13+i] << 8 ) + TempChar[14+i];
-    PAT_Entry.Reserved = ( TempChar[15+i] & 0xE0 ) >> 5;
-    PAT_Entry.Program_Map_PID = (( TempChar[15+i] & 0x1F ) << 8 ) + TempChar[16+i];
-    PAT.Entries.push_back( PAT_Entry );
-  }
-  PAT.CRC_32 = ( TempChar[8+PAT.Section_Length-4] << 24 ) + ( TempChar[8+PAT.Section_Length-3] << 16 ) + ( TempChar[8+PAT.Section_Length-2] << 8 ) + ( TempChar[8+PAT.Section_Length-1] );
-}
-
+/// Fills a PMT structure with the right data
+/// \param PMT the structure to be filled
+/// \param TempChar The TS packet data
 void fill_pmt( program_mapping_table & PMT, unsigned char * TempChar ) {
   int CurrentOffset;
   PMT.Pointer_Field = TempChar[4];
@@ -298,6 +313,9 @@ void fill_pmt( program_mapping_table & PMT, unsigned char * TempChar ) {
     PMT.CRC_32 = ( TempChar[CurrentOffset] << 24 ) + ( TempChar[CurrentOffset+1] << 16 ) + ( TempChar[CurrentOffset+2] << 8 ) + ( TempChar[CurrentOffset+3] );
 }
 
+/// Prints a PMT to STDOUT
+/// \param PMT The table to be print
+/// \param offset A string indicating the indentation of the outputed data
 void print_pmt( program_mapping_table PMT, bool Pointer_Field = false, std::string offset="\t" ) {
   if( Pointer_Field ) {
     printf( "%s\tPointer Field:\t\t\t%X\n", offset.c_str(), PMT.Pointer_Field );
@@ -329,6 +347,9 @@ void print_pmt( program_mapping_table PMT, bool Pointer_Field = false, std::stri
   printf( "%s\tCRC 32\t\t%X\n", offset.c_str(), PMT.CRC_32 );
 }
 
+/// Fills an AF structure with the right data
+/// \param AF the structure to be filled
+/// \param TempChar The TS packet data
 void fill_af( adaptation_field & AF, unsigned char * TempChar ) {
   AF.Adaptation_Field_Length = TempChar[4];
   AF.Discontinuity_Indicator = (( TempChar[5] & 0x80 ) >> 7 );
@@ -353,6 +374,9 @@ void fill_af( adaptation_field & AF, unsigned char * TempChar ) {
   } 
 }
 
+/// Prints an AF to STDOUT
+/// \param AF The Adaptation Field to be print
+/// \param offset A string indicating the indentation of the outputed data
 void print_af( adaptation_field AF, std::string offset="\t" ) {
   printf( "%sAdaptation Field\n", offset.c_str() );
   printf( "%s\tAdaptation Field Length\t\t\t%X\n", offset.c_str(), AF.Adaptation_Field_Length );
@@ -371,6 +395,10 @@ void print_af( adaptation_field AF, std::string offset="\t" ) {
   }
 }
 
+/// Locates a Packet ID in the PAT
+/// \param PAT The PAT to look in
+/// \param PID The PID to check for existense
+/// \return The program number of the PAT, or -1 if not found
 int find_pid_in_pat( program_association_table PAT, unsigned int PID ) {
   for( int i = 0; i < PAT.Entries.size(); i++ ) {
     if( PAT.Entries[i].Program_Map_PID == PID ) {
@@ -380,6 +408,10 @@ int find_pid_in_pat( program_association_table PAT, unsigned int PID ) {
   return -1;
 }
 
+/// Checks whether a packet is part of an elementary stream
+/// \param PMT The program mapping table
+/// \param PID The PID of the packet
+/// \return PID is found in the elementary streams of PMT
 bool is_elementary_pid( program_mapping_table PMT, unsigned int PID ) {
   for( int i = 0; i < PMT.Entries.size(); i++ ) {
     if( PMT.Entries[i].Elementary_PID == PID ) {
@@ -389,6 +421,8 @@ bool is_elementary_pid( program_mapping_table PMT, unsigned int PID ) {
   return false;
 }
 
+
+/// The main function of the analyser
 int main( ) {
   std::string File;
   unsigned int BlockNo = 1;

@@ -1,7 +1,7 @@
-SRC = main.cpp ../sockets/sw_base.cpp ../sockets/sw_inet.cpp ../sockets/sw_unix.cpp
+SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Connector_RTSP
-INCLUDES = -I/usr/local/include/jthread/ 
+INCLUDES =
 DEBUG = 4
 OPTIMIZE = -g
 CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)

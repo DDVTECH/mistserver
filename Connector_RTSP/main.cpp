@@ -26,8 +26,9 @@
 int RTSP_Handler( Socket::Connection conn ) {
   bool ready4data = false;
   FLV::Tag tag;///< Temporary tag buffer for incoming video data.
-  bool inited = false;
-  bool firstvideo = true;
+  bool InitVideo = false;
+  bool InitAudio = true;
+  bool VideoMeta = false;
   std::string PreviousRequest = "";
   Socket::Connection ss(-1);
   HTTP::Parser HTTP_R, HTTP_S;
@@ -42,7 +43,7 @@ int RTSP_Handler( Socket::Connection conn ) {
       if( HTTP_R.method == "OPTIONS" ) {
         HTTP_S.SetHeader( "CSeq", HTTP_R.GetHeader( "CSeq" ).c_str() );
         HTTP_S.SetHeader( "Public", "DESCRIBE, SETUP, TEARDOWN, PLAY" );
-        HTTP_S.SetBody( "\r\n" );
+        HTTP_S.SetBody( "\r\n\r\n" );
         fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "200", "OK" ).c_str() );
         conn.write( HTTP_S.BuildResponse( "200", "OK" ) );
       } else if ( HTTP_R.method == "DESCRIBE" ) {
@@ -56,7 +57,7 @@ int RTSP_Handler( Socket::Connection conn ) {
           fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "200", "OK" ).c_str() );
           conn.write( HTTP_S.BuildResponse( "200", "OK" ) );
         }
-      } else if ( HTTP_R. method == "SETUP" ) {
+      } else if ( HTTP_R.method == "SETUP" ) {
         std::string temp = HTTP_R.GetHeader("Transport");
         int ClientRTPLoc = temp.find( "client_port=" ) + 12;
         int PortSpacer = temp.find( "-", ClientRTPLoc );
@@ -69,8 +70,24 @@ int RTSP_Handler( Socket::Connection conn ) {
         } else {
           HTTP_S.SetHeader( "CSeq", HTTP_R.GetHeader( "CSeq" ).c_str() );
           HTTP_S.SetHeader( "Session", time(NULL) );
+          HTTP_S.SetHeader( "Transport", HTTP_R.GetHeader( "Transport" ) + ";server_port=50000-50001" );
+          HTTP_S.SetBody( "\r\n\r\n" );
           fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "200", "OK" ).c_str() );
           conn.write( HTTP_S.BuildResponse( "200", "OK" ) );
+        }
+      } else if( HTTP_R.method == "PLAY" ) {
+        if( HTTP_R.GetHeader( "Range" ).substr(0,4) != "npt=" ) {
+          fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "501", "Not Implemented" ).c_str() );
+          conn.write( HTTP_S.BuildResponse( "501", "Not Implemented" ) );
+        } else {
+          HTTP_S.SetHeader( "CSeq", HTTP_R.GetHeader( "CSeq" ).c_str() );
+          HTTP_S.SetHeader( "Session", HTTP_R.GetHeader( "Session" ) );
+          HTTP_S.SetHeader( "Range", HTTP_R.GetHeader( "Range" ) );
+          HTTP_S.SetHeader( "RTP-Info", "url=" + HTTP_R.url + ";seq=0;rtptime=0" );
+          HTTP_S.SetBody( "\r\n\r\n" );
+          fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "200", "OK" ).c_str() );
+          conn.write( HTTP_S.BuildResponse( "200", "OK" ) );
+          InitVideo = true;
         }
       } else {
         fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "501", "Not Implemented" ).c_str() );
@@ -80,6 +97,9 @@ int RTSP_Handler( Socket::Connection conn ) {
       HTTP_S.Clean();
       if( PerRequest ) {
         conn.close();
+      }
+      if( InitVideo ) {
+        
       }
     }
 /*    if( !inited ) {

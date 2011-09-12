@@ -128,8 +128,6 @@ namespace Buffer{
         return (currsend == len);
       }//doSend
       /// Try to send data to this user. Disconnects if any problems occur.
-      /// \param ringbuf Array of buffers (FLV:Tag with ID attached)
-      /// \param buffers Count of elements in ringbuf
       void Send(){
         if (!S.connected()){return;}//cancel if not connected
         if (myRing->waiting){return;}//still waiting for next buffer?

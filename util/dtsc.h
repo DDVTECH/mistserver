@@ -9,16 +9,39 @@
 #include <deque>
 #include <set>
 
-// video
-//  codec (string)
 
-// audio
-//  codec (string)
-//  sampingrate (int, Hz)
-//  samplesize (int, bytesize)
-//  channels (int, channelcount)
 
 /// Holds all DDVTECH Stream Container classes and parsers.
+///Video:
+/// - codec (string: AAC, MP3)
+/// - width (int, pixels)
+/// - height (int, pixels)
+/// - fpks (int, frames per kilosecond (FPS * 1000))
+/// - bps (int, bytes per second)
+/// - init (string, init data)
+///
+///Audio:
+/// - codec (string: H264, H263, VP6)
+/// - rate (int, Hz)
+/// - size (int, bitsize)
+/// - bps (int, bytes per second)
+/// - channels (int, channelcount)
+/// - init (string, init data)
+///
+///All packets:
+/// - datatype (string: audio, video, meta (unused))
+/// - data (string: data)
+/// - time (int: ms into video)
+///
+///Video packets:
+/// - keyframe (int, if set, is a seekable keyframe)
+/// - interframe (int, if set, is a non-seekable interframe)
+/// - disposableframe (int, if set, is a disposable interframe)
+///
+///H264 video packets:
+/// - nalu (int, if set, is a nalu)
+/// - nalu_end (int, if set, is a end-of-sequence)
+/// - offset (int, unsigned version of signed int! Holds the ms offset between timestamp and proper display time for B-frames)
 namespace DTSC{
 
   /// Enumerates all possible DTMI types.
@@ -35,8 +58,8 @@ namespace DTSC{
   public:
     std::string Indice();
     DTMItype GetType();
-    uint64_t NumValue();
-    std::string StrValue();
+    uint64_t & NumValue();
+    std::string & StrValue();
     const char * Str();
     int hasContent();
     void addContent(DTMI c);
@@ -99,7 +122,7 @@ namespace DTSC{
       DTSC::DTMI metadata;
       DTSC::DTMI & getPacket(unsigned int num = 0);
       datatype lastType();
-      const char * lastData();
+      std::string & lastData();
       bool hasVideo();
       bool hasAudio();
       bool parsePacket(std::string & buffer);
@@ -112,7 +135,7 @@ namespace DTSC{
       std::set<DTSC::Ring *> rings;
       std::deque<DTSC::Ring> keyframes;
       void advanceRings();
-      const char * datapointer;
+      std::string * datapointer;
       datatype datapointertype;
       unsigned int buffercount;
   };

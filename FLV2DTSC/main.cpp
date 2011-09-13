@@ -161,10 +161,10 @@ namespace Converters{
           }
           if (!Meta_Has(meta_out, "audio", "rate")){
             switch (audiodata & 0x0C){
-              case 0x0: Meta_Put(meta_out, "audio", "rate", 5500); break;
-              case 0x4: Meta_Put(meta_out, "audio", "rate", 11000); break;
-              case 0x8: Meta_Put(meta_out, "audio", "rate", 22000); break;
-              case 0xC: Meta_Put(meta_out, "audio", "rate", 44000); break;
+              case 0x0: Meta_Put(meta_out, "audio", "rate", 5512); break;
+              case 0x4: Meta_Put(meta_out, "audio", "rate", 11025); break;
+              case 0x8: Meta_Put(meta_out, "audio", "rate", 22050); break;
+              case 0xC: Meta_Put(meta_out, "audio", "rate", 44100); break;
             }
           }
           if (!Meta_Has(meta_out, "audio", "size")){
@@ -222,11 +222,8 @@ namespace Converters{
               case 1: pack_out.addContent(DTSC::DTMI("nalu", 1)); break;
               case 2: pack_out.addContent(DTSC::DTMI("nalu_end", 1)); break;
             }
-            int offset = 0;
-            ((char*)(&offset))[0] = FLV_in.data[13];
-            ((char*)(&offset))[1] = FLV_in.data[14];
-            ((char*)(&offset))[2] = FLV_in.data[15];
-            offset >>= 8;
+            int offset = (FLV_in.data[13] << 16) + (FLV_in.data[14] << 8) + FLV_in.data[15];
+            offset = (offset << 8) >> 8;
             pack_out.addContent(DTSC::DTMI("offset", offset));
           }
           pack_out.addContent(DTSC::DTMI("time", FLV_in.tagTime()));

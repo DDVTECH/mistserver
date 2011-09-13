@@ -13,6 +13,7 @@
 #include <ctime>
 #include "../util/socket.h"
 #include "../util/http_parser.h"
+#include "../util/dtsc.h"
 #include "../util/flv_tag.h"
 #include "../util/MP4/interface.cpp"
 #include "../util/amf.h"
@@ -149,26 +150,110 @@ namespace Connector_HTTP{
     return Result;
   }//BuildManifest
 
+  /// Handles Progressive download streaming requests
+  void Progressive(FLV::Tag & tag, HTTP::Parser HTTP_S, Socket::Connection & conn, DTSC::Stream & Strm){
+    static bool progressive_has_sent_header = false;
+    if (!progressive_has_sent_header){
+      HTTP_S.Clean();//troep opruimen die misschien aanwezig is...
+      HTTP_S.SetHeader("Content-Type", "video/x-flv");//FLV files hebben altijd dit content-type.
+      //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
+      HTTP_S.protocol = "HTTP/1.0";
+      HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+      //HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
+      conn.write(FLV::Header, 13);
+      FLV::Tag tmp;
+      tmp.DTSCMetaInit(Strm);
+      conn.write(tmp.data, tmp.len);
+      if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
+        tmp.DTSCAudioInit(Strm);
+        conn.write(tmp.data, tmp.len);
+      }
+      if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
+        tmp.DTSCVideoInit(Strm);
+        conn.write(tmp.data, tmp.len);
+      }
+      progressive_has_sent_header = true;
+      #if DEBUG >= 1
+      fprintf(stderr, "Sent progressive FLV header\n");
+      #endif
+    }
+    //HTTP_S.SendBodyPart(CONN_fd, tag->data, tag->len);//schrijf deze FLV tag onbewerkt weg
+    conn.write(tag.data, tag.len);
+  }
+
+  /// Handles Flash Dynamic HTTP streaming requests
+  void FlashDynamic(FLV::Tag & tag, HTTP::Parser HTTP_S, Socket::Connection & conn, DTSC::Stream & Strm){
+    static std::queue<std::string> Flash_FragBuffer;
+    static unsigned int Flash_StartTime = 0;
+    static std::string FlashBuf;
+    static std::string FlashMeta;
+    static bool FlashFirstVideo = false;
+    static bool FlashFirstAudio = false;
+    static bool Flash_ManifestSent = false;
+    static int Flash_RequestPending = 0;
+    if (tag.tagTime() > 0){
+      if (Flash_StartTime == 0){
+        Flash_StartTime = tag.tagTime();
+      }
+      tag.tagTime(tag.tagTime() - Flash_StartTime);
+    }
+    if (tag.data[0] != 0x12 ) {
+      if (tag.isKeyframe){
+        if (FlashBuf != "" && !FlashFirstVideo && !FlashFirstAudio){
+          Flash_FragBuffer.push(FlashBuf);
+          #if DEBUG >= 4
+          fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+          #endif
+        }
+        FlashBuf.clear();
+        FlashFirstVideo = true;
+        FlashFirstAudio = true;
+      }
+      /// \todo Check metadata for video/audio, append if needed.
+      /*
+      if (FlashFirstVideo && (tag.data[0] == 0x09) && (Video_Init.len > 0)){
+        Video_Init.tagTime(tag.tagTime());
+        FlashBuf.append(Video_Init.data, Video_Init.len);
+        FlashFirstVideo = false;
+      }
+      if (FlashFirstAudio && (tag.data[0] == 0x08) && (Audio_Init.len > 0)){
+        Audio_Init.tagTime(tag.tagTime());
+        FlashBuf.append(Audio_Init.data, Audio_Init.len);
+        FlashFirstAudio = false;
+      }
+      #if DEBUG >= 5
+      fprintf(stderr, "Received a tag of type %2hhu and length %i\n", tag.data[0], tag.len);
+      #endif
+      if ((Video_Init.len > 0) && (Audio_Init.len > 0)){
+        FlashBuf.append(tag.data,tag.len);
+      }
+      */
+    } else {
+      /*
+      FlashMeta = "";
+      FlashMeta.append(tag.data+11,tag.len-15);
+      if( !Flash_ManifestSent ) {
+        HTTP_S.Clean();
+        HTTP_S.SetHeader("Content-Type","text/xml");
+        HTTP_S.SetHeader("Cache-Control","no-cache");
+        HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, tag.tagTime()));
+        HTTP_S.SendResponse(conn, "200", "OK");
+      }
+      */
+    }
+  }
+
+
   /// Main function for Connector_HTTP
   int Connector_HTTP(Socket::Connection conn){
     int handler = HANDLER_PROGRESSIVE;///< The handler used for processing this request.
     bool ready4data = false;///< Set to true when streaming is to begin.
     bool inited = false;
-    bool progressive_has_sent_header = false;
     Socket::Connection ss(-1);
     std::string streamname;
-    std::string extension;
-    std::string FlashBuf;
-    std::string FlashMeta;
-    bool Flash_ManifestSent = false;
-    int Flash_RequestPending = 0;
-    unsigned int Flash_StartTime;
-    std::queue<std::string> Flash_FragBuffer;
-    FLV::Tag tag;///< Temporary tag buffer for incoming video data.
-    FLV::Tag Audio_Init;///< Audio initialization data, if available.
-    FLV::Tag Video_Init;///< Video initialization data, if available.
-    bool FlashFirstVideo = false;
-    bool FlashFirstAudio = false;
+    FLV::Tag tag;///< Temporary tag buffer.
+    std::string recBuffer = "";
+    DTSC::Stream Strm;///< Incoming stream buffer.
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
     std::string Movie = "";
@@ -179,7 +264,7 @@ namespace Connector_HTTP{
     unsigned int lastStats = 0;
     //int CurrentFragment = -1; later herbruiken?
 
-    while (conn.connected() && !FLV::Parse_Error){
+    while (conn.connected()){
       //only parse input if available or not yet init'ed
       if (HTTP_R.Read(conn, ready4data)){
         handler = HANDLER_PROGRESSIVE;
@@ -209,8 +294,11 @@ namespace Connector_HTTP{
             printf( "URL: %s\n", HTTP_R.url.c_str());
             printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
             #endif
+            /// \todo Handle these requests properly...
+            /*
             Flash_ManifestSent = true;//stop manifest from being sent multiple times
             Flash_RequestPending++;
+            */
           }else{
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
@@ -255,6 +343,8 @@ namespace Connector_HTTP{
           #endif
           inited = true;
         }
+        /// \todo Send pending flash requests...
+        /*
         if ((Flash_RequestPending > 0) && !Flash_FragBuffer.empty()){
           HTTP_S.Clean();
           HTTP_S.SetHeader("Content-Type","video/mp4");
@@ -284,97 +374,16 @@ namespace Connector_HTTP{
             break;
           case 0: break;//not ready yet
           default:
-            if (tag.SockLoader(ss)){//able to read a full packet?
-              if (handler == HANDLER_FLASH){
-                if (tag.tagTime() > 0){
-                  if (Flash_StartTime == 0){
-                    Flash_StartTime = tag.tagTime();
-                  }
-                  tag.tagTime(tag.tagTime() - Flash_StartTime);
+            if (ss.iread(recBuffer)){
+              if (Strm.parsePacket(recBuffer)){
+                tag.DTSCLoader(Strm);
+                if (handler == HANDLER_FLASH){
+                  FlashDynamic(tag, HTTP_S, conn, Strm);
                 }
-                if (tag.data[0] != 0x12 ) {
-                  if ( (tag.data[0] == 0x09) && tag.isInitData()){
-                    if (((tag.data[11] & 0x0f) == 7) && (tag.data[12] == 0)){
-                      tag.tagTime(0);//timestamp to zero
-                      Video_Init = tag;
-                      break;
-                    }
-                  }
-                  if ((tag.data[0] == 0x08) && tag.isInitData()){
-                    if (((tag.data[11] & 0xf0) >> 4) == 10){//aac packet
-                      tag.tagTime(0);//timestamp to zero
-                      Audio_Init = tag;
-                      break;
-                    }
-                  }
-                  if (tag.isKeyframe){
-                    if (FlashBuf != "" && !FlashFirstVideo && !FlashFirstAudio){
-                      Flash_FragBuffer.push(FlashBuf);
-                      #if DEBUG >= 4
-                      fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
-                      #endif
-                    }
-                    FlashBuf.clear();
-                    FlashFirstVideo = true;
-                    FlashFirstAudio = true;
-                  }
-                  if (FlashFirstVideo){
-                    if (Video_Init.len > 0){
-                      Video_Init.tagTime(tag.tagTime());
-                      FlashBuf.append(Video_Init.data, Video_Init.len);
-                    }
-                    FlashFirstVideo = false;
-                    if (Audio_Init.len > 0){
-                      Audio_Init.tagTime(tag.tagTime());
-                      FlashBuf.append(Audio_Init.data, Audio_Init.len);
-                    }
-                    FlashFirstAudio = false;
-                  }
-                  #if DEBUG >= 5
-                  fprintf(stderr, "Received a tag of type %2hhu and length %i\n", tag.data[0], tag.len);
-                  #endif
-                  if (!FlashFirstVideo && !FlashFirstAudio){
-                    FlashBuf.append(tag.data,tag.len);
-                  }
-                } else {
-                  FlashMeta = "";
-                  FlashMeta.append(tag.data+11,tag.len-15);
-                  if( !Flash_ManifestSent ) {
-                    HTTP_S.Clean();
-                    HTTP_S.SetHeader("Content-Type","text/xml");
-                    HTTP_S.SetHeader("Cache-Control","no-cache");
-                    HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, tag.tagTime()));
-                    HTTP_S.SendResponse(conn, "200", "OK");
-                  }
+                if (handler == HANDLER_PROGRESSIVE){
+                  Progressive(tag, HTTP_S, conn, Strm);
                 }
               }
-              if (handler == HANDLER_PROGRESSIVE){
-                if (!progressive_has_sent_header){
-                  HTTP_S.Clean();//troep opruimen die misschien aanwezig is...
-                  if (extension == ".mp3"){
-                    HTTP_S.SetHeader("Content-Type", "audio/mpeg3");//MP3 files hebben dit content-type.
-                    HTTP_S.protocol = "HTTP/1.0";
-                    HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
-                  }else{
-                    HTTP_S.SetHeader("Content-Type", "video/x-flv");//FLV files hebben altijd dit content-type.
-                    //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
-                    HTTP_S.protocol = "HTTP/1.0";
-                    HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
-                    //HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
-                    conn.write(FLV::Header, 13);
-                  }
-                  progressive_has_sent_header = true;
-                }
-                if (extension == ".mp3"){
-                  if (tag.data[0] == 0x08){
-                    if (((tag.data[11] & 0xf0) >> 4) == 2){//mp3 packet
-                      conn.write(tag.data+12, tag.len-16);//write only the MP3 data of the tag
-                    }
-                  }
-                }else{
-                  conn.write(tag.data, tag.len);
-                }
-              }//PROGRESSIVE handler
             }
             break;
         }

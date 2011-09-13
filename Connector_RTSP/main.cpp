@@ -46,7 +46,7 @@ int RTSP_Handler( Socket::Connection conn ) {
   bool PlayAudio = true;
   jrtplib::RTPSession VideoSession;
   jrtplib::RTPSessionParams VideoParams;
-  jrtplib::RTPUDPv4TransmissionParams VideoTransParams;
+  jrtplib::RTPUDPv6TransmissionParams VideoTransParams;
   std::string PreviousRequest = "";
   Socket::Connection ss(-1);
   HTTP::Parser HTTP_R, HTTP_S;
@@ -54,9 +54,6 @@ int RTSP_Handler( Socket::Connection conn ) {
   while(conn.connected() && !FLV::Parse_Error) {
     if( HTTP_R.Read(conn ) ) {
       fprintf( stderr, "REQUEST:\n%s\n", HTTP_R.BuildRequest().c_str() );
-//      if( HTTP_R.GetHeader( "User-Agent" ).find( "RealMedia Player Version" ) != std::string::npos) {
-//        PerRequest = true;
-//      }
       HTTP_S.protocol = "RTSP/1.0";
       if( HTTP_R.method == "OPTIONS" ) {
         HTTP_S.SetHeader( "CSeq", HTTP_R.GetHeader( "CSeq" ).c_str() );
@@ -72,8 +69,8 @@ int RTSP_Handler( Socket::Connection conn ) {
           HTTP_S.SetHeader( "CSeq", HTTP_R.GetHeader( "CSeq" ).c_str() );
           HTTP_S.SetHeader( "Content-Type", "application/sdp" );
           /// \todo Retrieve presence of video and audio data, and process into response
-          /// \todo Retrieve Packetization mode ( is 1 for now ). Where can I retrieve this?
-          HTTP_S.SetBody( "v=0\r\no=- 0 0 IN IP4 ddvtech.com\r\ns=Fifa Test\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\na=recvonly\r\nm=video 0 RTP/AVP 98\r\na=control:rtsp://localhost/fifa/video\r\na=rtpmap:98 H264/90000\r\na=fmtp:98 packetization-mode=1\r\nm=audio 0 RTP/AVP 96\r\na=control:rtsp://localhost/fifa/audio\r\na=rtpmap:96 mpeg4-generic/16000/2\r\n\r\n");
+          /// \todo Retrieve Packetization mode ( is 0 for now ). Where can I retrieve this?
+          HTTP_S.SetBody( "v=0\r\no=- 0 0 IN IP4 ddvtech.com\r\ns=Fifa Test\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\na=recvonly\r\nm=video 0 RTP/AVP 98\r\na=control:rtsp://localhost/fifa/video\r\na=rtpmap:98 H264/90000\r\na=fmtp:98 packetization-mode=0\r\n\r\n");//m=audio 0 RTP/AAP 96\r\na=control:rtsp://localhost/fifa/audio\r\na=rtpmap:96 mpeg4-generic/16000/2\r\n\r\n");
           fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "200", "OK" ).c_str() );
           conn.write( HTTP_S.BuildResponse( "200", "OK" ) );
         }
@@ -97,7 +94,7 @@ int RTSP_Handler( Socket::Connection conn ) {
             VideoParams.SetMaximumPacketSize( 10000 );
             //pick the right port here
             VideoTransParams.SetPortbase( 50000 );
-            int VideoStatus = VideoSession.Create( VideoParams, &VideoTransParams );
+            int VideoStatus = VideoSession.Create( VideoParams, &VideoTransParams, jrtplib::RTPTransmitter::IPv6UDPProto  );
             if( VideoStatus < 0 ) {
               std::cerr << jrtplib::RTPGetErrorString( VideoStatus ) << std::endl;
               exit( -1 );
@@ -105,8 +102,11 @@ int RTSP_Handler( Socket::Connection conn ) {
               std::cerr << "Created video session\n";
             }
             /// \todo retrieve other client than localhost --> Socket::Connection has no support for this yet?
-            uint8_t localip[]={127,0,0,1};
-            jrtplib::RTPIPv4Address addr(localip,RTPClientPort);
+            
+            uint8_t localip[32];
+            int status = inet_pton( AF_INET6, conn.getHost().c_str(), localip ) ;
+            std::cerr << "Status: " <<  status << "\n";
+            jrtplib::RTPIPv6Address addr(localip,RTPClientPort);
             
             VideoStatus = VideoSession.AddDestination(addr);
             if (VideoStatus < 0) {
@@ -161,8 +161,8 @@ int RTSP_Handler( Socket::Connection conn ) {
         VideoSession.BYEDestroy(delay,"Out of data",11);
         conn.close();
       } else {
-        VideoSession.SendPacket( VideoBuf.c_str(), VideoBuf.size() );//, 98, true, ( 1.0 / 29.917 ) );
-//        jrtplib::RTPTime delay( 1.0 / 29.917 );
+        VideoSession.SendPacket( VideoBuf.c_str(), VideoBuf.size(), 98, false, ( 1.0 / 29.917 ) * 90000 );
+//        jrtplib::RTPTime delay( ( 1.0 / 29.917 ) * 90000 );
 //        jrtplib::RTPTime::Wait( delay );
       }
     }

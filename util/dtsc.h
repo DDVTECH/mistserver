@@ -45,11 +45,12 @@ namespace DTSC{
     DTMI* getContentP(std::string s);
     DTMI getContent(std::string s);
     DTMI();
-    DTMI(std::string indice, double val, DTMItype setType = DTMI_INT);
+    DTMI(std::string indice, uint64_t val, DTMItype setType = DTMI_INT);
     DTMI(std::string indice, std::string val, DTMItype setType = DTMI_STRING);
     DTMI(std::string indice, DTMItype setType = DTMI_OBJECT);
     void Print(std::string indent = "");
-    std::string Pack();
+    std::string Pack(bool netpack = false);
+    bool netpacked;
     std::string packed;
   protected:
     std::string myIndice; ///< Holds this objects indice, if any.
@@ -102,8 +103,8 @@ namespace DTSC{
       bool hasVideo();
       bool hasAudio();
       bool parsePacket(std::string & buffer);
-      std::string outPacket(unsigned int num);
-      std::string outHeader();
+      std::string & outPacket(unsigned int num);
+      std::string & outHeader();
       Ring * getRing();
       void dropRing(Ring * ptr);
   private:

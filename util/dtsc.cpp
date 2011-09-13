@@ -35,6 +35,7 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       if (buffer.length() < len+8){return false;}
       metadata = DTSC::parseDTMI((unsigned char*)buffer.c_str() + 8, len);
       buffer.erase(0, len+8);
+      return false;
     }
     if (memcmp(buffer.c_str(), DTSC::Magic_Packet, 4) == 0){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);
@@ -56,6 +57,7 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       buffer.erase(0, len+8);
       while (buffers.size() > buffercount){buffers.pop_back();}
       advanceRings();
+      return true;
     }
     #if DEBUG >= 2
     std::cerr << "Error: Invalid DTMI data! I *will* get stuck!" << std::endl;
@@ -92,25 +94,18 @@ bool DTSC::Stream::hasAudio(){
 }
 
 /// Returns a packed DTSC packet, ready to sent over the network.
-std::string DTSC::Stream::outPacket(unsigned int num){
-  std::string tmp;
-  unsigned int size;
-  tmp = Magic_Packet;
-  size = htonl(buffers[num].Pack().length());
-  tmp.append((char*)&size, 4);
-  tmp.append(buffers[num].Pack());
-  return tmp;
+std::string & DTSC::Stream::outPacket(unsigned int num){
+  buffers[num].Pack(true);
+  return buffers[num].packed;
 }
 
 /// Returns a packed DTSC header, ready to sent over the network.
-std::string DTSC::Stream::outHeader(){
-  std::string tmp;
-  unsigned int size;
-  tmp = Magic_Header;
-  size = htonl(metadata.Pack().length());
-  tmp.append((char*)&size, 4);
-  tmp.append(metadata.Pack());
-  return tmp;
+std::string & DTSC::Stream::outHeader(){
+  if ((metadata.packed.length() < 4) || !metadata.netpacked){
+    metadata.Pack(true);
+    metadata.packed.replace(0, 4, Magic_Header);
+  }
+  return metadata.packed;
 }
 
 /// advances all given out and internal Ring classes to point to the new buffer, after one has been added.
@@ -198,7 +193,17 @@ int DTSC::DTMI::hasContent(){return contents.size();};
 
 /// Adds an DTSC::DTMI to this object. Works for all types, but only makes sense for container types.
 /// This function resets DTMI::packed to an empty string, forcing a repack on the next call to DTMI::Pack.
-void DTSC::DTMI::addContent(DTSC::DTMI c){contents.push_back(c); packed = "";};
+/// If the indice name already exists, replaces the indice.
+void DTSC::DTMI::addContent(DTSC::DTMI c){
+  std::vector<DTMI>::iterator it;
+  for (it = contents.begin(); it != contents.end(); it++){
+    if (it->Indice() == c.Indice()){
+      contents.erase(it);
+      break;
+    }
+  }
+  contents.push_back(c); packed = "";
+};
 
 /// Returns a pointer to the object held at indice i.
 /// Returns AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
@@ -237,11 +242,11 @@ DTSC::DTMI::DTMI(){
 };//default constructor
 
 /// Constructor for numeric objects.
-/// The object type is by default AMF::AMF0_NUMBER, but this can be forced to a different value.
+/// The object type is by default DTMItype::DTMI_INT, but this can be forced to a different value.
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
-/// \param val The numeric value of this object. Numeric AMF0 objects only support double-type values.
+/// \param val The numeric value of this object. Numeric objects only support uint64_t values.
 /// \param setType The object type to force this object to.
-DTSC::DTMI::DTMI(std::string indice, double val, DTSC::DTMItype setType){//num type initializer
+DTSC::DTMI::DTMI(std::string indice, uint64_t val, DTSC::DTMItype setType){//num type initializer
   myIndice = indice;
   myType = setType;
   strval = "";
@@ -249,8 +254,6 @@ DTSC::DTMI::DTMI(std::string indice, double val, DTSC::DTMItype setType){//num t
 };
 
 /// Constructor for string objects.
-/// The object type is by default AMF::AMF0_STRING, but this can be forced to a different value.
-/// There is no need to manually change the type to AMF::AMF0_LONGSTRING, this will be done automatically.
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
 /// \param val The string value of this object.
 /// \param setType The object type to force this object to.
@@ -262,8 +265,7 @@ DTSC::DTMI::DTMI(std::string indice, std::string val, DTSC::DTMItype setType){//
 };
 
 /// Constructor for container objects.
-/// The object type is by default AMF::AMF0_OBJECT, but this can be forced to a different value.
-/// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
+/// \param indice The string indice of this object in its container, or empty string if none.
 /// \param setType The object type to force this object to.
 DTSC::DTMI::DTMI(std::string indice, DTSC::DTMItype setType){//object type initializer
   myIndice = indice;
@@ -290,7 +292,13 @@ void DTSC::DTMI::Print(std::string indent){
   // print my numeric or string contents
   switch (myType){
     case DTMI_INT: std::cerr << numval; break;
-    case DTMI_STRING: std::cerr << strval; break;
+    case DTMI_STRING:
+      if (strval.length() > 200 || ((strval.length() > 1) && ( (strval[0] < 'A') || (strval[0] > 'z') ) )){
+        std::cerr << strval.length() << " bytes of data";
+      }else{
+        std::cerr << strval;
+      }
+      break;
     default: break;//we don't care about the rest, and don't want a compiler warning...
   }
   std::cerr << std::endl;
@@ -303,11 +311,22 @@ void DTSC::DTMI::Print(std::string indent){
 /// Packs the DTMI to a std::string for transfer over the network.
 /// If a packed version already exists, does not regenerate it.
 /// If the object is a container type, this function will call itself recursively and contain all contents.
-std::string DTSC::DTMI::Pack(){
-  if (packed != ""){return packed;}
+/// \arg netpack If true, will pack as a full DTMI packet, if false only as the contents without header.
+std::string DTSC::DTMI::Pack(bool netpack){
+  if (packed != ""){
+    if (netpacked == netpack){return packed;}
+    if (netpacked){
+      packed.erase(0, 8);
+    }else{
+      unsigned int size = htonl(packed.length());
+      packed.insert(0, (char*)&size, 4);
+      packed.insert(0, Magic_Packet);
+    }
+    netpacked = !netpacked;
+    return packed;
+  }
   std::string r = "";
-  //skip output of DDV container types, they do not exist. Only output their contents.
-  if (myType != DTMI_ROOT){r += myType;}
+  r += myType;
   //output the properly formatted data stream for this object's contents.
   switch (myType){
     case DTMI_INT:
@@ -324,6 +343,7 @@ std::string DTSC::DTMI::Pack(){
       r += strval;
       break;
     case DTMI_OBJECT:
+    case DTMI_ROOT:
       if (contents.size() > 0){
         for (std::vector<DTSC::DTMI>::iterator it = contents.begin(); it != contents.end(); it++){
           r += it->Indice().size() / 256;
@@ -332,20 +352,19 @@ std::string DTSC::DTMI::Pack(){
           r += it->Pack();
         }
       }
-      r += (char)0; r += (char)0; r += (char)9;
-      break;
-    case DTMI_ROOT://only send contents
-      if (contents.size() > 0){
-        for (std::vector<DTSC::DTMI>::iterator it = contents.begin(); it != contents.end(); it++){
-          r += it->Pack();
-        }
-      }
+      r += (char)0x0; r += (char)0x0; r += (char)0xEE;
       break;
     case DTMI_OBJ_END:
       break;
   }
   packed = r;
-  return r;
+  netpacked = netpack;
+  if (netpacked){
+    unsigned int size = htonl(packed.length());
+    packed.insert(0, (char*)&size, 4);
+    packed.insert(0, Magic_Packet);
+  }
+  return packed;
 };//pack
 
 /// Parses a single AMF0 type - used recursively by the AMF::parse() functions.
@@ -372,7 +391,7 @@ DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, un
       tmpdbl[2] = data[i+6];
       tmpdbl[1] = data[i+7];
       tmpdbl[0] = data[i+8];
-      i+=9;//skip 8(a double)+1 forwards
+      i+=9;//skip 8(an uint64_t)+1 forwards
       return DTSC::DTMI(name, *(uint64_t*)tmpdbl, DTMI_INT);
       break;
     case DTMI_STRING:
@@ -382,17 +401,30 @@ DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, un
       i += tmpi + 5;//skip length+size+1 forwards
       return DTSC::DTMI(name, tmpstr, DTMI_STRING);
       break;
-    case DTMI_OBJECT:{
+    case DTMI_ROOT:{
       ++i;
-      DTSC::DTMI ret(name, DTMI_OBJECT);
-      while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x000009)
+      DTSC::DTMI ret(name, DTMI_ROOT);
+      while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x0000EE)
         tmpi = data[i]*256+data[i+1];//set tmpi to the UTF-8 length
         tmpstr.clear();//clean tmpstr, just to be sure
         tmpstr.append((const char*)data+i+2, (size_t)tmpi);//add the string data
         i += tmpi + 2;//skip length+size forwards
         ret.addContent(parseOneDTMI(data, len, i, tmpstr));//add content, recursively parsed, updating i, setting indice to tmpstr
       }
-      i += 3;//skip 0x000009
+      i += 3;//skip 0x0000EE
+      return ret;
+    } break;
+    case DTMI_OBJECT:{
+      ++i;
+      DTSC::DTMI ret(name, DTMI_OBJECT);
+      while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x0000EE)
+        tmpi = data[i]*256+data[i+1];//set tmpi to the UTF-8 length
+        tmpstr.clear();//clean tmpstr, just to be sure
+        tmpstr.append((const char*)data+i+2, (size_t)tmpi);//add the string data
+        i += tmpi + 2;//skip length+size forwards
+        ret.addContent(parseOneDTMI(data, len, i, tmpstr));//add content, recursively parsed, updating i, setting indice to tmpstr
+      }
+      i += 3;//skip 0x0000EE
       return ret;
     } break;
   }
@@ -403,22 +435,18 @@ DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, un
 }//parseOne
 
 /// Parses a C-string to a valid DTSC::DTMI.
-/// This function will find all AMF objects in the string and return
-/// them all packed in a single AMF::AMF0_DDV_CONTAINER DTSC::DTMI.
+/// This function will find one DTMI object in the string and return it.
 DTSC::DTMI DTSC::parseDTMI(const unsigned char * data, unsigned int len){
-  DTSC::DTMI ret("returned", DTMI_ROOT);//container type
-  unsigned int i = 0, j = 0;
-  while (i < len){
-    ret.addContent(parseOneDTMI(data, len, i, ""));
-    if (i > j){j = i;}else{return ret;}
-  }
+  DTSC::DTMI ret;//container type
+  unsigned int i = 0;
+  ret = parseOneDTMI(data, len, i, "");
   ret.packed = std::string((char*)data, (size_t)len);
+  ret.netpacked = false;
   return ret;
 }//parse
 
 /// Parses a std::string to a valid DTSC::DTMI.
-/// This function will find all AMF objects in the string and return
-/// them all packed in a single AMF::AMF0_DDV_CONTAINER DTSC::DTMI.
+/// This function will find one DTMI object in the string and return it.
 DTSC::DTMI DTSC::parseDTMI(std::string data){
   return parseDTMI((const unsigned char*)data.c_str(), data.size());
 }//parse

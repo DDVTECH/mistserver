@@ -111,7 +111,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
           bool justdone = false;
           if (tag.SockLoader(SS)){//able to read a full packet?
             //init data? parse and resent in correct order if all is received
-            /// \TODO Check metadata for needed audio/video init or not - we now assume both video/audio are always present...
+            /// \todo Check metadata for needed audio/video init or not - we now assume both video/audio are always present...
             if (((tag.data[0] == 0x09) && !viddone) || ((tag.data[0] == 0x08) && !auddone)){
               if (tag.needsInitData()){
                 if (tag.data[0] == 0x09){viddata = tag;}else{auddata = tag;}

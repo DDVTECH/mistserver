@@ -93,7 +93,7 @@ namespace Buffer{
         curr_up = 0;
         curr_down = 0;
         currsend = 0;
-        myRing = Strm->getRing();
+        myRing = 0;
         std::cout << "User " << MyNum << " connected" << std::endl;
       }//constructor
       /// Drops held DTSC::Ring class, if one is held.
@@ -129,20 +129,23 @@ namespace Buffer{
       }//doSend
       /// Try to send data to this user. Disconnects if any problems occur.
       void Send(){
+        if (!myRing){return;}//no ring!
         if (!S.connected()){return;}//cancel if not connected
         if (myRing->waiting){return;}//still waiting for next buffer?
+
+        if (myRing->starved){
+          //if corrupt data, warn and get new DTSC::Ring
+          std::cout << "Warning: User was send corrupt video data and send to the next keyframe!" << std::endl;
+          Strm->dropRing(myRing);
+          myRing = Strm->getRing();
+        }
+        currsend = 0;
 
         //try to complete a send
         if (doSend(Strm->outPacket(myRing->b).c_str(), Strm->outPacket(myRing->b).length())){
           //switch to next buffer
           if (myRing->b <= 0){myRing->waiting = true; return;}//no next buffer? go in waiting mode.
           myRing->b--;
-          if (myRing->starved){
-            //if corrupt data, warn and get new DTSC::Ring
-            std::cout << "Warning: User was send corrupt video data and send to the next keyframe!" << std::endl;
-            Strm->dropRing(myRing);
-            myRing = Strm->getRing();
-          }
           currsend = 0;
         }//completed a send
       }//send
@@ -159,8 +162,8 @@ namespace Buffer{
     sigaction (SIGPIPE, &new_action, NULL);
 
     //then check and parse the commandline
-    if (argc < 3) {
-      std::cout << "usage: " << argv[0] << " streamname [awaiting_IP]" << std::endl;
+    if (argc < 2) {
+      std::cout << "usage: " << argv[0] << " streamName [awaiting_IP]" << std::endl;
       return 1;
     }
     std::string waiting_ip = "";
@@ -229,6 +232,7 @@ namespace Buffer{
       if (incoming.connected()){
         users.push_back(incoming);
         //send the header
+        users.back().myRing = Strm->getRing();
         if (!users.back().S.write(Strm->outHeader())){
           /// \todo Do this more nicely?
           users.back().Disconnect("failed to receive the header!");
@@ -297,6 +301,7 @@ namespace Buffer{
         if (!(*usersIt).S.connected()){users.erase(usersIt);break;}
       }
     }
+    delete Strm;
     return 0;
   }
 

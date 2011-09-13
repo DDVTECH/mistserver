@@ -117,7 +117,7 @@ void DTSC::Stream::advanceRings(){
   for (sit = rings.begin(); sit != rings.end(); sit++){
     (*sit)->b++;
     if ((*sit)->waiting){(*sit)->waiting = false; (*sit)->b = 0;}
-    if ((*sit)->b >= buffers.size()){(*sit)->starved = true;}
+    if ((*sit)->starved || ((*sit)->b >= buffers.size())){(*sit)->starved = true; (*sit)->b = 0;}
   }
   for (dit = keyframes.begin(); dit != keyframes.end(); dit++){
     dit->b++;
@@ -375,7 +375,6 @@ std::string DTSC::DTMI::Pack(bool netpack){
 /// \param name Indice name for any new object created.
 /// \returns A single DTSC::DTMI, parsed from the raw data.
 DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name){
-  std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
   #if DEBUG >= 10
@@ -394,20 +393,18 @@ DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, un
       i+=9;//skip 8(an uint64_t)+1 forwards
       return DTSC::DTMI(name, *(uint64_t*)tmpdbl, DTMI_INT);
       break;
-    case DTMI_STRING:
+    case DTMI_STRING:{
       tmpi = data[i+1]*256*256*256+data[i+2]*256*256+data[i+3]*256+data[i+4];//set tmpi to UTF-8-long length
-      tmpstr.clear();//clean tmpstr, just to be sure
-      tmpstr.append((const char *)data+i+5, (size_t)tmpi);//add the string data
+      std::string tmpstr = std::string((const char *)data+i+5, (size_t)tmpi);//set the string data
       i += tmpi + 5;//skip length+size+1 forwards
       return DTSC::DTMI(name, tmpstr, DTMI_STRING);
-      break;
+      } break;
     case DTMI_ROOT:{
       ++i;
       DTSC::DTMI ret(name, DTMI_ROOT);
       while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x0000EE)
         tmpi = data[i]*256+data[i+1];//set tmpi to the UTF-8 length
-        tmpstr.clear();//clean tmpstr, just to be sure
-        tmpstr.append((const char*)data+i+2, (size_t)tmpi);//add the string data
+        std::string tmpstr = std::string((const char *)data+i+2, (size_t)tmpi);//set the string data
         i += tmpi + 2;//skip length+size forwards
         ret.addContent(parseOneDTMI(data, len, i, tmpstr));//add content, recursively parsed, updating i, setting indice to tmpstr
       }
@@ -419,8 +416,7 @@ DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, un
       DTSC::DTMI ret(name, DTMI_OBJECT);
       while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x0000EE)
         tmpi = data[i]*256+data[i+1];//set tmpi to the UTF-8 length
-        tmpstr.clear();//clean tmpstr, just to be sure
-        tmpstr.append((const char*)data+i+2, (size_t)tmpi);//add the string data
+        std::string tmpstr = std::string((const char *)data+i+2, (size_t)tmpi);//set the string data
         i += tmpi + 2;//skip length+size forwards
         ret.addContent(parseOneDTMI(data, len, i, tmpstr));//add content, recursively parsed, updating i, setting indice to tmpstr
       }

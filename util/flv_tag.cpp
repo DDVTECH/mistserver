@@ -109,7 +109,7 @@ std::string FLV::Tag::tagType(){
         case 4: R += "VP6"; break;
         case 5: R += "VP6Alpha"; break;
         case 6: R += "ScreenVideo2"; break;
-        case 7: R += "AVC"; break;
+        case 7: R += "H264"; break;
         default: R += "unknown"; break;
       }
     R += " video ";

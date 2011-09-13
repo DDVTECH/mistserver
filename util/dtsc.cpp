@@ -44,7 +44,7 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       buffers.front() = DTSC::parseDTMI((unsigned char*)buffer.c_str() + 8, len);
       datapointertype = INVALID;
       if (buffers.front().getContentP("data")){
-        datapointer = buffers.front().getContentP("data")->StrValue().c_str();
+        datapointer = &(buffers.front().getContentP("data")->StrValue());
         if (buffers.front().getContentP("datatype")){
           std::string tmp = buffers.front().getContentP("datatype")->StrValue();
           if (tmp == "video"){datapointertype = VIDEO;}
@@ -68,8 +68,8 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
 
 /// Returns a direct pointer to the data attribute of the last received packet, if available.
 /// Returns NULL if no valid pointer or packet is available.
-const char * DTSC::Stream::lastData(){
-  return datapointer;
+std::string & DTSC::Stream::lastData(){
+  return *datapointer;
 }
 
 /// Returns the packed in this buffer number.
@@ -177,11 +177,11 @@ DTSC::DTMItype DTSC::DTMI::GetType(){return myType;};
 
 /// Returns the numeric value of this object, if available.
 /// If this object holds no numeric value, 0 is returned.
-uint64_t DTSC::DTMI::NumValue(){return numval;};
+uint64_t & DTSC::DTMI::NumValue(){return numval;};
 
 /// Returns the std::string value of this object, if available.
 /// If this object holds no string value, an empty string is returned.
-std::string DTSC::DTMI::StrValue(){return strval;};
+std::string & DTSC::DTMI::StrValue(){return strval;};
 
 /// Returns the C-string value of this object, if available.
 /// If this object holds no string value, an empty C-string is returned.

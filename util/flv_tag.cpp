@@ -319,7 +319,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
       default: break;
     }
   }
-  ((unsigned int *)(data+len-4))[0] = len-15;
+  setLen();
   switch (S.lastType()){
     case DTSC::VIDEO: data[0] = 0x09; break;
     case DTSC::AUDIO: data[0] = 0x08; break;
@@ -331,6 +331,19 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
   data[3] = (len-15) & 0xFF;
   tagTime(S.getPacket().getContentP("time")->NumValue());
   return true;
+}
+
+/// Helper function that properly sets the tag length from the internal len variable.
+void FLV::Tag::setLen(){
+  int len4 = len - 4;
+  int i = data+len-1;
+  data[--i] = (len4) & 0xFF;
+  len4 >>= 8;
+  data[--i] = (len4) & 0xFF;
+  len4 >>= 8;
+  data[--i] = (len4) & 0xFF;
+  len4 >>= 8;
+  data[--i] = (len4) & 0xFF;
 }
 
 /// FLV Video init data loader function from DTSC.
@@ -355,15 +368,10 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Stream & S){
     data[13] = 0;
     data[14] = 0;
     data[15] = 0;
-    data[11] = 0x57;//H264 init data (0x07 & 0x50)
+    data[11] = 0x17;//H264 keyframe (0x07 & 0x10)
   }
-  ((unsigned int *)(data+len-4))[0] = len-15;
-  switch (S.lastType()){
-    case DTSC::VIDEO: data[0] = 0x09; break;
-    case DTSC::AUDIO: data[0] = 0x08; break;
-    case DTSC::META: data[0] = 0x12; break;
-    default: break;
-  }
+  setLen();
+  data[0] = 0x09;
   data[1] = ((len-15) >> 16) & 0xFF;
   data[2] = ((len-15) >> 8) & 0xFF;
   data[3] = (len-15) & 0xFF;
@@ -400,13 +408,14 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
     if (S.metadata.getContentP("audio")->getContentP("size")->NumValue() == 16){data[11] += 0x02;}
     if (S.metadata.getContentP("audio")->getContentP("channels")->NumValue() > 1){data[11] += 0x01;}
   }
-  ((unsigned int *)(data+len-4))[0] = len-15;
+  setLen();
   switch (S.lastType()){
     case DTSC::VIDEO: data[0] = 0x09; break;
     case DTSC::AUDIO: data[0] = 0x08; break;
     case DTSC::META: data[0] = 0x12; break;
     default: break;
   }
+  data[0] = 0x08;
   data[1] = ((len-15) >> 16) & 0xFF;
   data[2] = ((len-15) >> 8) & 0xFF;
   data[3] = (len-15) & 0xFF;
@@ -487,7 +496,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
     }
     memcpy(data+11, tmp.c_str(), len-15);
   }
-  ((unsigned int *)(data+len-4))[0] = len-15;
+  setLen();
   data[0] = 0x12;
   data[1] = ((len-15) >> 16) & 0xFF;
   data[2] = ((len-15) >> 8) & 0xFF;
@@ -512,7 +521,7 @@ bool FLV::Tag::ChunkLoader(const RTMPStream::Chunk& O){
     }
     memcpy(data+11, &(O.data[0]), O.len);
   }
-  ((unsigned int *)(data+len-4))[0] = O.len;
+  setLen();
   data[0] = O.msg_type_id;
   data[3] = O.len & 0xFF;
   data[2] = (O.len >> 8) & 0xFF;

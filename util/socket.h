@@ -27,6 +27,8 @@ namespace Socket{
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
       Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
+      bool canRead(); ///< Calls poll() on the socket, checking if data is available.
+      bool canWrite(); ///< Calls poll() on the socket, checking if data can be written.
       bool Error; ///< Set to true if a socket error happened.
       bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.
       signed int ready(); ///< Returns the ready-state for this socket.

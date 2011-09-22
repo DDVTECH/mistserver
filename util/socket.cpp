@@ -3,6 +3,11 @@
 /// Written by Jaron Vietor in 2010 for DDVTech
 
 #include "socket.h"
+#include <poll.h>
+
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
 
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a Socket::Connection.
 /// \param sockNo Integer representing the socket to convert.
@@ -68,6 +73,27 @@ Socket::Connection::Connection(std::string address, bool nonblock){
     close();
   }
 }//Socket::Connection Unix Contructor
+
+/// Calls poll() on the socket, checking if data is available.
+/// This function may return true even if there is no data, but never returns false when there is.
+bool Socket::Connection::canRead(){
+  struct pollfd PFD;
+  PFD.fd = sock;
+  PFD.events = POLLIN;
+  PFD.revents = 0;
+  poll(&PFD, 1, 5);
+  return (PFD.revents & POLLIN) == POLLIN;
+}
+/// Calls poll() on the socket, checking if data can be written.
+bool Socket::Connection::canWrite(){
+  struct pollfd PFD;
+  PFD.fd = sock;
+  PFD.events = POLLOUT;
+  PFD.revents = 0;
+  poll(&PFD, 1, 5);
+  return (PFD.revents & POLLOUT) == POLLOUT;
+}
+
 
 /// Returns the ready-state for this socket.
 /// \returns 1 if data is waiting to be read, -1 if not connected, 0 otherwise.

@@ -9,7 +9,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/epoll.h>
 #include <getopt.h>
 #include <ctime>
 #include "../util/socket.h"
@@ -134,15 +133,6 @@ namespace Connector_HTTP{
     bool FlashFirstAudio = false;
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
-    int retval;
-    int poller = epoll_create(1);
-    int sspoller = epoll_create(1);
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.fd = conn.getSocket();
-    epoll_ctl(poller, EPOLL_CTL_ADD, conn.getSocket(), &ev);
-    struct epoll_event events[1];
-
     std::string Movie = "";
     std::string Quality = "";
     int Segment = -1;
@@ -221,9 +211,6 @@ namespace Connector_HTTP{
             conn.close();
             break;
           }
-          ev.events = EPOLLIN;
-          ev.data.fd = ss.getSocket();
-          epoll_ctl(sspoller, EPOLL_CTL_ADD, ss.getSocket(), &ev);
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");
           #endif
@@ -240,7 +227,7 @@ namespace Connector_HTTP{
           fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
           #endif
         }
-        retval = epoll_wait(sspoller, events, 1, 1);
+        ss.canRead();
         switch (ss.ready()){
           case -1:
             conn.close();

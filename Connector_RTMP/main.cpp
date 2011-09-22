@@ -9,7 +9,6 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/epoll.h>
 #include <getopt.h>
 #include "../util/socket.h"
 #include "../util/flv_tag.h"
@@ -59,20 +58,10 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
     return 0;
   }
 
-  int retval;
-  int poller = epoll_create(1);
-  int sspoller = epoll_create(1);
-  struct epoll_event ev;
-  ev.events = EPOLLIN;
-  ev.data.fd = Socket.getSocket();
-  epoll_ctl(poller, EPOLL_CTL_ADD, Socket.getSocket(), &ev);
-  struct epoll_event events[1];
-
   while (Socket.connected() && !FLV::Parse_Error){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
-    retval = epoll_wait(poller, events, 1, 1);
-    if ((retval > 0) || !ready4data){// || (snd_cnt - snd_window_at >= snd_window_size)
+    if (Socket.canRead() || !ready4data){// || (snd_cnt - snd_window_at >= snd_window_size)
       switch (Socket.ready()){
         case -1: break; //disconnected
         case 0: break; //not ready yet
@@ -90,15 +79,12 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
           Socket.close();//disconnect user
           break;
         }
-        ev.events = EPOLLIN;
-        ev.data.fd = SS.getSocket();
-        epoll_ctl(sspoller, EPOLL_CTL_ADD, SS.getSocket(), &ev);
         #if DEBUG >= 3
         fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
         inited = true;
         }
-      retval = epoll_wait(sspoller, events, 1, 1);
+      SS.canRead();
       switch (SS.ready()){
         case -1:
           #if DEBUG >= 1

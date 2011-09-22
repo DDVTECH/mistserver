@@ -140,7 +140,7 @@ namespace Buffer{
     }
     std::string waiting_ip = "";
     bool ip_waiting = false;
-    int ip_input = -1;
+    Socket::Connection ip_input;
     if (argc >= 4){
       waiting_ip += argv[3];
       ip_waiting = true;
@@ -174,7 +174,7 @@ namespace Buffer{
       if (
         (!ip_waiting &&
           (std_input.canRead()) && ringbuf[current_buffer]->FLV.FileLoader(stdin)
-        ) || (ip_waiting && (ip_input > -1) &&
+        ) || (ip_waiting && (ip_input.connected()) &&
           ringbuf[current_buffer]->FLV.SockLoader(ip_input)
         )
       ){
@@ -217,6 +217,7 @@ namespace Buffer{
             lastproper = current_buffer;
           }
         }
+        if (loopcount > 5){gotData = true;}
         //keep track of buffers
         ringbuf[current_buffer]->number = loopcount;
         current_buffer++;
@@ -236,14 +237,20 @@ namespace Buffer{
           if (!users.back().S.write(FLV::Header, 13)){
             users.back().Disconnect("failed to receive the header!");
           }else{
-            if (!users.back().S.write(metadata.data, metadata.len)){
-              users.back().Disconnect("failed to receive metadata!");
+            if (metadata.len > 0){
+              if (!users.back().S.write(metadata.data, metadata.len)){
+                users.back().Disconnect("failed to receive metadata!");
+              }
             }
-            if (!users.back().S.write(audio_init.data, audio_init.len)){
-              users.back().Disconnect("failed to receive audio init!");
+            if (audio_init.len > 0){
+              if (!users.back().S.write(audio_init.data, audio_init.len)){
+                users.back().Disconnect("failed to receive audio init!");
+              }
             }
-            if (!users.back().S.write(video_init.data, video_init.len)){
-              users.back().Disconnect("failed to receive video init!");
+            if (video_init.len > 0){
+              if (!users.back().S.write(video_init.data, video_init.len)){
+                users.back().Disconnect("failed to receive video init!");
+              }
             }
           }
         }
@@ -265,7 +272,13 @@ namespace Buffer{
                 if (tmp != ""){
                   std::cout << "Push attempt from IP " << tmp << std::endl;
                   if (tmp == waiting_ip){
-                    std::cout << "Push accepted!" << std::endl;
+                    if (!ip_input.connected()){
+                      std::cout << "Push accepted!" << std::endl;
+                      ip_input = (*usersIt).S;
+                      users.erase(usersIt); break;
+                    }else{
+                      std::cout << "Push denied - push already in progress!" << std::endl;
+                    }
                   }else{
                     std::cout << "Push denied!" << std::endl;
                   }

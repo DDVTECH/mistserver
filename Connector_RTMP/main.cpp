@@ -121,7 +121,10 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
               break;
             }
             //not gotten init yet? cancel this tag
-            if (viddata.len == 0 || auddata.len == 0){break;}
+            if (tag.needsInitData()){
+              if ((tag.data[0] == 0x09) && (viddata.len == 0)){break;}
+              if ((tag.data[0] == 0x08) && (auddata.len == 0)){break;}
+            }
             //send tag normally
             Socket.write(RTMPStream::SendMedia(tag));
             #if DEBUG >= 8

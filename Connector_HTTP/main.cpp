@@ -237,7 +237,7 @@ namespace Connector_HTTP{
             break;
           case 0: break;//not ready yet
           default:
-            if (tag.SockLoader(ss)){//able to read a full packet?f
+            if (tag.SockLoader(ss)){//able to read a full packet?
               if (handler == HANDLER_FLASH){
                 if (tag.tagTime() > 0){
                   if (Flash_StartTime == 0){
@@ -269,14 +269,18 @@ namespace Connector_HTTP{
                     FlashFirstVideo = true;
                     FlashFirstAudio = true;
                   }
-                  if (FlashFirstVideo && (tag.data[0] == 0x09) && (Video_Init.len > 0)){
-                    Video_Init.tagTime(tag.tagTime());
-                    FlashBuf.append(Video_Init.data, Video_Init.len);
+                  if (FlashFirstVideo && (tag.data[0] == 0x09) && (!tag.needsInitData() || (Video_Init.len > 0))){
+                    if (tag.needsInitData()){
+                      Video_Init.tagTime(tag.tagTime());
+                      FlashBuf.append(Video_Init.data, Video_Init.len);
+                    }
                     FlashFirstVideo = false;
                   }
-                  if (FlashFirstAudio && (tag.data[0] == 0x08) && (Audio_Init.len > 0)){
-                    Audio_Init.tagTime(tag.tagTime());
-                    FlashBuf.append(Audio_Init.data, Audio_Init.len);
+                  if (FlashFirstAudio && (tag.data[0] == 0x08) && (!tag.needsInitData() || (Audio_Init.len > 0))){
+                    if (tag.needsInitData()){
+                      Audio_Init.tagTime(tag.tagTime());
+                      FlashBuf.append(Audio_Init.data, Audio_Init.len);
+                    }
                     FlashFirstAudio = false;
                   }
                   #if DEBUG >= 5

@@ -353,12 +353,19 @@ void Connector_RTMP::parseChunk(){
           if ((amfdata.getContentP(0)->StrValue() == "publish")){
             if (amfdata.getContentP(3)){
               streamname = amfdata.getContentP(3)->StrValue();
-              bool stoptokens = false;
-              for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-                if (*i == '?'){stoptokens = true;}
-                if (stoptokens || (!isalpha(*i) && !isdigit(*i))){streamname.erase(i);}else{*i=tolower(*i);}
+              for (std::string::iterator i=streamname.begin(); i != streamname.end(); ++i){
+                if (*i == '?'){streamname.erase(i, streamname.end()); break;}
+                if (!isalpha(*i) && !isdigit(*i)){
+                  streamname.erase(i);
+                  --i;
+                }else{
+                  *i=tolower(*i);
+                }
               }
               streamname = "/tmp/shared_socket_" + streamname;
+              #if DEBUG >= 4
+              fprintf(stderr, "Connecting to buffer %s...\n", streamname.c_str());
+              #endif
               SS = Socket::Connection(streamname);
               if (!SS.connected()){
                 #if DEBUG >= 1
@@ -367,6 +374,10 @@ void Connector_RTMP::parseChunk(){
                 Socket.close();//disconnect user
                 break;
               }
+              SS.write(Socket.getHost()+'\n');
+              #if DEBUG >= 4
+              fprintf(stderr, "Connected to buffer, starting to sent data...\n");
+              #endif
             }
             //send a _result reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
@@ -562,12 +573,19 @@ void Connector_RTMP::parseChunk(){
         if ((amfdata.getContentP(0)->StrValue() == "publish")){
           if (amfdata.getContentP(3)){
             streamname = amfdata.getContentP(3)->StrValue();
-            bool stoptokens = false;
-            for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-              if (*i == '?'){stoptokens = true;}
-              if (stoptokens || (!isalpha(*i) && !isdigit(*i))){streamname.erase(i);}else{*i=tolower(*i);}
+            for (std::string::iterator i=streamname.begin(); i != streamname.end(); ++i){
+              if (*i == '?'){streamname.erase(i, streamname.end()); break;}
+              if (!isalpha(*i) && !isdigit(*i)){
+                streamname.erase(i);
+                --i;
+              }else{
+                *i=tolower(*i);
+              }
             }
             streamname = "/tmp/shared_socket_" + streamname;
+            #if DEBUG >= 4
+            fprintf(stderr, "Connecting to buffer %s...\n", streamname.c_str());
+            #endif
             SS = Socket::Connection(streamname);
             if (!SS.connected()){
               #if DEBUG >= 1
@@ -577,6 +595,9 @@ void Connector_RTMP::parseChunk(){
               break;
             }
             SS.write(Socket.getHost()+'\n');
+            #if DEBUG >= 4
+            fprintf(stderr, "Connected to buffer, starting to send data...\n");
+            #endif
           }
           //send a _result reply
           AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);

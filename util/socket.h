@@ -23,6 +23,7 @@ namespace Socket{
     private:
       int sock; ///< Internally saved socket number.
       std::string remotehost; ///< Stores remote host address.
+      int unhex(char c); ///< Helper function for urlunescape.
     public:
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
@@ -44,6 +45,7 @@ namespace Socket{
       bool swrite(std::string & buffer); ///< Read call that is compatible with std::string.
       bool iread(std::string & buffer); ///< Incremental write call that is compatible with std::string.
       bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
+      std::string urlunescape(char *s); ///< Unescapes URLencoded C-strings to a std::string.
       void close(); ///< Close connection.
       std::string getHost(); ///< Gets hostname for connection, if available.
       int getSocket(); ///< Returns internal socket number.

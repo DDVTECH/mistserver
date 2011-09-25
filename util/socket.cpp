@@ -495,3 +495,27 @@ bool Socket::Server::connected(){
 
 /// Returns internal socket number.
 int Socket::Server::getSocket(){return sock;}
+
+/// Unescapes URLencoded C-strings to a std::string.
+/// This function *will* destroy the incoming data!
+std::string Socket::Connection::urlunescape(char *s){
+  char  *p;
+  for (p = s; *s != '\0'; ++s){
+    if (*s == '%'){
+      if (*++s != '\0'){
+        *p = unhex(*s) << 4;
+      }
+      if (*++s != '\0'){
+        *p++ += unhex(*s);
+      }
+    } else {
+      if (*s == '+'){*p++ = ' ';}else{*p++ = *s;}
+    }
+  }
+  *p = '\0';
+  return std::string(s);
+}
+
+int Socket::Connection::unhex(char c){
+  return( c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c - 'a' + 10 );
+}

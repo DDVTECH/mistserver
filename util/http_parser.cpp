@@ -196,10 +196,10 @@ bool HTTP::Parser::parse(){
           std::string varval;
           while (tmppost.find('=') != std::string::npos){
             size_t found = tmppost.find('=');
-            varname = urlunescape(tmppost.substr(0, found).c_str());
+            varname = urlunescape((char*)tmppost.substr(0, found).c_str());
             tmppost.erase(0, found+1);
-            size_t found = tmppost.find('&');
-            varval = urlunescape(tmppost.substr(0, found).c_str());
+            found = tmppost.find('&');
+            varval = urlunescape((char*)tmppost.substr(0, found).c_str());
             SetVar(varname, varval);
             if (found == std::string::npos){
               tmppost.clear();

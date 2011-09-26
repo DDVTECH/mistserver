@@ -13,8 +13,6 @@
 #include "../util/flv_tag.h" //FLV format parser
 #include "../util/socket.h" //Socket lib
 
-#include <sys/epoll.h>
-
 /// Holds all code unique to the Buffer.
 namespace Buffer{
 
@@ -137,8 +135,15 @@ namespace Buffer{
 
     //then check and parse the commandline
     if (argc < 3) {
-      std::cout << "usage: " << argv[0] << " buffers_count streamname" << std::endl;
+      std::cout << "usage: " << argv[0] << " buffers_count streamname [awaiting_IP]" << std::endl;
       return 1;
+    }
+    std::string waiting_ip = "";
+    bool ip_waiting = false;
+    Socket::Connection ip_input;
+    if (argc >= 4){
+      waiting_ip += argv[3];
+      ip_waiting = true;
     }
     std::string shared_socket = "/tmp/shared_socket_";
     shared_socket += argv[2];
@@ -156,26 +161,23 @@ namespace Buffer{
     int lastproper = 0;//last properly finished buffer number
     unsigned int loopcount = 0;
     Socket::Connection incoming;
+    Socket::Connection std_input(fileno(stdin));
 
     unsigned char packtype;
     bool gotVideoInfo = false;
     bool gotAudioInfo = false;
+    bool gotData = false;
 
-    int infile = fileno(stdin);//get file number for stdin
-
-    //add stdin to an epoll
-    int poller = epoll_create(1);
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.fd = infile;
-    epoll_ctl(poller, EPOLL_CTL_ADD, infile, &ev);
-    struct epoll_event events[1];
-
-
-    while(!feof(stdin) && !FLV::Parse_Error){
+    while((!feof(stdin) || ip_waiting) && !FLV::Parse_Error){
       //invalidate the current buffer
       ringbuf[current_buffer]->number = -1;
-      if ((epoll_wait(poller, events, 1, 10) > 0) && ringbuf[current_buffer]->FLV.FileLoader(stdin)){
+      if (
+        (!ip_waiting &&
+          (std_input.canRead()) && ringbuf[current_buffer]->FLV.FileLoader(stdin)
+        ) || (ip_waiting && (ip_input.connected()) &&
+          ringbuf[current_buffer]->FLV.SockLoader(ip_input)
+        )
+      ){
         loopcount++;
         packtype = ringbuf[current_buffer]->FLV.data[0];
         //store metadata, if available
@@ -215,6 +217,7 @@ namespace Buffer{
             lastproper = current_buffer;
           }
         }
+        if (loopcount > 5){gotData = true;}
         //keep track of buffers
         ringbuf[current_buffer]->number = loopcount;
         current_buffer++;
@@ -230,17 +233,25 @@ namespace Buffer{
         users.back().MyBuffer = lastproper;
         users.back().MyBuffer_num = -1;
         /// \todo Do this more nicely?
-        if (!users.back().S.write(FLV::Header, 13)){
-          users.back().Disconnect("failed to receive the header!");
-        }else{
-          if (!users.back().S.write(metadata.data, metadata.len)){
-            users.back().Disconnect("failed to receive metadata!");
-          }
-          if (!users.back().S.write(audio_init.data, audio_init.len)){
-            users.back().Disconnect("failed to receive audio init!");
-          }
-          if (!users.back().S.write(video_init.data, video_init.len)){
-            users.back().Disconnect("failed to receive video init!");
+        if (gotData){
+          if (!users.back().S.write(FLV::Header, 13)){
+            users.back().Disconnect("failed to receive the header!");
+          }else{
+            if (metadata.len > 0){
+              if (!users.back().S.write(metadata.data, metadata.len)){
+                users.back().Disconnect("failed to receive metadata!");
+              }
+            }
+            if (audio_init.len > 0){
+              if (!users.back().S.write(audio_init.data, audio_init.len)){
+                users.back().Disconnect("failed to receive audio init!");
+              }
+            }
+            if (video_init.len > 0){
+              if (!users.back().S.write(video_init.data, video_init.len)){
+                users.back().Disconnect("failed to receive video init!");
+              }
+            }
           }
         }
       }
@@ -251,6 +262,29 @@ namespace Buffer{
           if (!(*usersIt).S.connected()){
             users.erase(usersIt); break;
           }else{
+            if (!gotData && ip_waiting){
+              if ((*usersIt).S.canRead()){
+                std::string tmp = "";
+                char charbuf;
+                while (((*usersIt).S.iread(&charbuf, 1) == 1) && charbuf != '\n' ){
+                  tmp += charbuf;
+                }
+                if (tmp != ""){
+                  std::cout << "Push attempt from IP " << tmp << std::endl;
+                  if (tmp == waiting_ip){
+                    if (!ip_input.connected()){
+                      std::cout << "Push accepted!" << std::endl;
+                      ip_input = (*usersIt).S;
+                      users.erase(usersIt); break;
+                    }else{
+                      std::cout << "Push denied - push already in progress!" << std::endl;
+                    }
+                  }else{
+                    std::cout << "Push denied!" << std::endl;
+                  }
+                }
+              }
+            }
             (*usersIt).Send(ringbuf, buffers);
           }
         }

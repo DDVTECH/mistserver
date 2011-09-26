@@ -9,7 +9,6 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/epoll.h>
 #include <getopt.h>
 #include "../util/socket.h"
 #include "../util/flv_tag.h"
@@ -25,6 +24,7 @@ namespace Connector_RTMP{
   bool stopparsing = false; ///< Set to true when all parsing needs to be cancelled.
 
   Socket::Connection Socket; ///< Socket connected to user
+  Socket::Connection SS; ///< Socket connected to server
   std::string streamname = "/tmp/shared_socket"; ///< Stream that will be opened
   void parseChunk();
   int Connector_RTMP(Socket::Connection conn);
@@ -34,7 +34,6 @@ namespace Connector_RTMP{
 /// Main Connector_RTMP function
 int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   Socket = conn;
-  Socket::Connection SS;
   FLV::Tag tag, viddata, auddata;
   bool viddone = false, auddone = false;
 
@@ -59,20 +58,10 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
     return 0;
   }
 
-  int retval;
-  int poller = epoll_create(1);
-  int sspoller = epoll_create(1);
-  struct epoll_event ev;
-  ev.events = EPOLLIN;
-  ev.data.fd = Socket.getSocket();
-  epoll_ctl(poller, EPOLL_CTL_ADD, Socket.getSocket(), &ev);
-  struct epoll_event events[1];
-
   while (Socket.connected() && !FLV::Parse_Error){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
-    retval = epoll_wait(poller, events, 1, 1);
-    if ((retval > 0) || !ready4data){// || (snd_cnt - snd_window_at >= snd_window_size)
+    if (Socket.canRead() || !ready4data){// || (snd_cnt - snd_window_at >= snd_window_size)
       switch (Socket.ready()){
         case -1: break; //disconnected
         case 0: break; //not ready yet
@@ -90,15 +79,12 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
           Socket.close();//disconnect user
           break;
         }
-        ev.events = EPOLLIN;
-        ev.data.fd = SS.getSocket();
-        epoll_ctl(sspoller, EPOLL_CTL_ADD, SS.getSocket(), &ev);
         #if DEBUG >= 3
         fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
         inited = true;
         }
-      retval = epoll_wait(sspoller, events, 1, 1);
+      SS.canRead();
       switch (SS.ready()){
         case -1:
           #if DEBUG >= 1
@@ -135,7 +121,10 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
               break;
             }
             //not gotten init yet? cancel this tag
-            if (viddata.len == 0 || auddata.len == 0){break;}
+            if (tag.needsInitData()){
+              if ((tag.data[0] == 0x09) && (viddata.len == 0)){break;}
+              if ((tag.data[0] == 0x08) && (auddata.len == 0)){break;}
+            }
             //send tag normally
             Socket.write(RTMPStream::SendMedia(tag));
             #if DEBUG >= 8
@@ -168,6 +157,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
 void Connector_RTMP::parseChunk(){
   static RTMPStream::Chunk next;
   static std::string inbuffer;
+  FLV::Tag F;
   static AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
   static AMF::Object amfelem("empty", AMF::AMF0_DDV_CONTAINER);
   static AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);
@@ -243,11 +233,19 @@ void Connector_RTMP::parseChunk(){
         #if DEBUG >= 4
         fprintf(stderr, "Received audio data\n");
         #endif
+        F.ChunkLoader(next);
+        if (SS.connected()){
+          SS.write(std::string(F.data, F.len));
+        }
         break;
       case 9:
         #if DEBUG >= 4
         fprintf(stderr, "Received video data\n");
         #endif
+        F.ChunkLoader(next);
+        if (SS.connected()){
+          SS.write(std::string(F.data, F.len));
+        }
         break;
       case 15:
         #if DEBUG >= 4
@@ -352,6 +350,62 @@ void Connector_RTMP::parseChunk(){
             Socket.write(RTMPStream::SendChunk(3, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
             parsed3 = true;
           }//getStreamLength
+          if ((amfdata.getContentP(0)->StrValue() == "publish")){
+            if (amfdata.getContentP(3)){
+              streamname = amfdata.getContentP(3)->StrValue();
+              for (std::string::iterator i=streamname.begin(); i != streamname.end(); ++i){
+                if (*i == '?'){streamname.erase(i, streamname.end()); break;}
+                if (!isalpha(*i) && !isdigit(*i)){
+                  streamname.erase(i);
+                  --i;
+                }else{
+                  *i=tolower(*i);
+                }
+              }
+              streamname = "/tmp/shared_socket_" + streamname;
+              #if DEBUG >= 4
+              fprintf(stderr, "Connecting to buffer %s...\n", streamname.c_str());
+              #endif
+              SS = Socket::Connection(streamname);
+              if (!SS.connected()){
+                #if DEBUG >= 1
+                fprintf(stderr, "Could not connect to server!\n");
+                #endif
+                Socket.close();//disconnect user
+                break;
+              }
+              SS.write(Socket.getHost()+'\n');
+              #if DEBUG >= 4
+              fprintf(stderr, "Connected to buffer, starting to sent data...\n");
+              #endif
+            }
+            //send a _result reply
+            AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "_result"));//result success
+            amfreply.addContent(amfdata.getContent(1));//same transaction ID
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+            amfreply.addContent(AMF::Object("", 1, AMF::AMF0_BOOL));//publish success?
+            #if DEBUG >= 4
+            amfreply.Print();
+            #endif
+            Socket.write(RTMPStream::SendChunk(3, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
+            Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+            //send a status reply
+            amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+            amfreply.addContent(AMF::Object("", "onStatus"));//status reply
+            amfreply.addContent(AMF::Object("", 0, AMF::AMF0_NUMBER));//same transaction ID
+            amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+            amfreply.addContent(AMF::Object(""));//info
+            amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+            amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Start"));
+            amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream is now published!"));
+            amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+            #if DEBUG >= 4
+            amfreply.Print();
+            #endif
+            Socket.write(RTMPStream::SendChunk(3, 17, next.msg_stream_id, (char)0+amfreply.Pack()));
+            parsed3 = true;
+          }//getStreamLength
           if (amfdata.getContentP(0)->StrValue() == "checkBandwidth"){
             //send a _result reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
@@ -421,6 +475,10 @@ void Connector_RTMP::parseChunk(){
         #if DEBUG >= 4
         fprintf(stderr, "Received AFM0 data message (metadata)\n");
         #endif
+        F.ChunkLoader(next);
+        if (SS.connected()){
+          SS.write(std::string(F.data, F.len));
+        }
         break;
       case 19:
         #if DEBUG >= 4
@@ -441,12 +499,16 @@ void Connector_RTMP::parseChunk(){
           fprintf(stderr, "Object encoding set to %e\n", objencoding);
           #if DEBUG >= 4
           int tmpint;
-          tmpint = (int)amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
-          if (tmpint & 0x04){fprintf(stderr, "Sorensen video support detected\n");}
-          if (tmpint & 0x80){fprintf(stderr, "H264 video support detected\n");}
-          tmpint = (int)amfdata.getContentP(2)->getContentP("audioCodecs")->NumValue();
-          if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
-          if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
+          if (amfdata.getContentP(2)->getContentP("videoCodecs")){
+            tmpint = (int)amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
+            if (tmpint & 0x04){fprintf(stderr, "Sorensen video support detected\n");}
+            if (tmpint & 0x80){fprintf(stderr, "H264 video support detected\n");}
+          }
+          if (amfdata.getContentP(2)->getContentP("audioCodecs")){
+            tmpint = (int)amfdata.getContentP(2)->getContentP("audioCodecs")->NumValue();
+            if (tmpint & 0x04){fprintf(stderr, "MP3 audio support detected\n");}
+            if (tmpint & 0x400){fprintf(stderr, "AAC video support detected\n");}
+          }
           #endif
           RTMPStream::chunk_snd_max = 4096;
           Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
@@ -506,6 +568,62 @@ void Connector_RTMP::parseChunk(){
           amfreply.Print();
           #endif
           Socket.write(RTMPStream::SendChunk(3, 20, next.msg_stream_id, amfreply.Pack()));
+          parsed = true;
+        }//getStreamLength
+        if ((amfdata.getContentP(0)->StrValue() == "publish")){
+          if (amfdata.getContentP(3)){
+            streamname = amfdata.getContentP(3)->StrValue();
+            for (std::string::iterator i=streamname.begin(); i != streamname.end(); ++i){
+              if (*i == '?'){streamname.erase(i, streamname.end()); break;}
+              if (!isalpha(*i) && !isdigit(*i)){
+                streamname.erase(i);
+                --i;
+              }else{
+                *i=tolower(*i);
+              }
+            }
+            streamname = "/tmp/shared_socket_" + streamname;
+            #if DEBUG >= 4
+            fprintf(stderr, "Connecting to buffer %s...\n", streamname.c_str());
+            #endif
+            SS = Socket::Connection(streamname);
+            if (!SS.connected()){
+              #if DEBUG >= 1
+              fprintf(stderr, "Could not connect to server!\n");
+              #endif
+              Socket.close();//disconnect user
+              break;
+            }
+            SS.write(Socket.getHost()+'\n');
+            #if DEBUG >= 4
+            fprintf(stderr, "Connected to buffer, starting to send data...\n");
+            #endif
+          }
+          //send a _result reply
+          AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+          amfreply.addContent(AMF::Object("", "_result"));//result success
+          amfreply.addContent(amfdata.getContent(1));//same transaction ID
+          amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+          amfreply.addContent(AMF::Object("", 1, AMF::AMF0_BOOL));//publish success?
+          #if DEBUG >= 4
+          amfreply.Print();
+          #endif
+          Socket.write(RTMPStream::SendChunk(3, 20, next.msg_stream_id, amfreply.Pack()));
+          Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+          //send a status reply
+          amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+          amfreply.addContent(AMF::Object("", "onStatus"));//status reply
+          amfreply.addContent(AMF::Object("", 0, AMF::AMF0_NUMBER));//same transaction ID
+          amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+          amfreply.addContent(AMF::Object(""));//info
+          amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+          amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Start"));
+          amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream is now published!"));
+          amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+          #if DEBUG >= 4
+          amfreply.Print();
+          #endif
+          Socket.write(RTMPStream::SendChunk(4, 20, next.msg_stream_id, amfreply.Pack()));
           parsed = true;
         }//getStreamLength
         if (amfdata.getContentP(0)->StrValue() == "checkBandwidth"){

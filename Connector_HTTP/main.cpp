@@ -9,7 +9,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/epoll.h>
 #include <getopt.h>
 #include <ctime>
 #include "../util/socket.h"
@@ -134,15 +133,6 @@ namespace Connector_HTTP{
     bool FlashFirstAudio = false;
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
-    int retval;
-    int poller = epoll_create(1);
-    int sspoller = epoll_create(1);
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.fd = conn.getSocket();
-    epoll_ctl(poller, EPOLL_CTL_ADD, conn.getSocket(), &ev);
-    struct epoll_event events[1];
-
     std::string Movie = "";
     std::string Quality = "";
     int Segment = -1;
@@ -221,9 +211,6 @@ namespace Connector_HTTP{
             conn.close();
             break;
           }
-          ev.events = EPOLLIN;
-          ev.data.fd = ss.getSocket();
-          epoll_ctl(sspoller, EPOLL_CTL_ADD, ss.getSocket(), &ev);
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");
           #endif
@@ -240,7 +227,7 @@ namespace Connector_HTTP{
           fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
           #endif
         }
-        retval = epoll_wait(sspoller, events, 1, 1);
+        ss.canRead();
         switch (ss.ready()){
           case -1:
             conn.close();
@@ -250,7 +237,7 @@ namespace Connector_HTTP{
             break;
           case 0: break;//not ready yet
           default:
-            if (tag.SockLoader(ss)){//able to read a full packet?f
+            if (tag.SockLoader(ss)){//able to read a full packet?
               if (handler == HANDLER_FLASH){
                 if (tag.tagTime() > 0){
                   if (Flash_StartTime == 0){
@@ -282,14 +269,18 @@ namespace Connector_HTTP{
                     FlashFirstVideo = true;
                     FlashFirstAudio = true;
                   }
-                  if (FlashFirstVideo && (tag.data[0] == 0x09) && (Video_Init.len > 0)){
-                    Video_Init.tagTime(tag.tagTime());
-                    FlashBuf.append(Video_Init.data, Video_Init.len);
+                  if (FlashFirstVideo && (tag.data[0] == 0x09) && (!tag.needsInitData() || (Video_Init.len > 0))){
+                    if (tag.needsInitData()){
+                      Video_Init.tagTime(tag.tagTime());
+                      FlashBuf.append(Video_Init.data, Video_Init.len);
+                    }
                     FlashFirstVideo = false;
                   }
-                  if (FlashFirstAudio && (tag.data[0] == 0x08) && (Audio_Init.len > 0)){
-                    Audio_Init.tagTime(tag.tagTime());
-                    FlashBuf.append(Audio_Init.data, Audio_Init.len);
+                  if (FlashFirstAudio && (tag.data[0] == 0x08) && (!tag.needsInitData() || (Audio_Init.len > 0))){
+                    if (tag.needsInitData()){
+                      Audio_Init.tagTime(tag.tagTime());
+                      FlashBuf.append(Audio_Init.data, Audio_Init.len);
+                    }
                     FlashFirstAudio = false;
                   }
                   #if DEBUG >= 5

@@ -188,10 +188,25 @@ bool HTTP::Parser::parse(){
     }
     if (seenHeaders){
       if (length > 0){
-        /// \todo Include POST variable parsing?
         if (HTTPbuffer.length() >= length){
           body = HTTPbuffer.substr(0, length);
           HTTPbuffer.erase(0, length);
+          std::string tmppost = body;
+          std::string varname;
+          std::string varval;
+          while (tmppost.find('=') != std::string::npos){
+            size_t found = tmppost.find('=');
+            varname = urlunescape((char*)tmppost.substr(0, found).c_str());
+            tmppost.erase(0, found+1);
+            found = tmppost.find('&');
+            varval = urlunescape((char*)tmppost.substr(0, found).c_str());
+            SetVar(varname, varval);
+            if (found == std::string::npos){
+              tmppost.clear();
+            }else{
+              tmppost.erase(0, found+1);
+            }
+          }
           return true;
         }else{
           return false;
@@ -240,4 +255,30 @@ void HTTP::Parser::SendBodyPart(Socket::Connection & conn, std::string bodypart)
   }else{
     conn.write(bodypart);
   }
+}
+
+/// Unescapes URLencoded C-strings to a std::string.
+/// This function *will* destroy the input data!
+std::string HTTP::Parser::urlunescape(char *s){
+  char  *p;
+  for (p = s; *s != '\0'; ++s){
+    if (*s == '%'){
+      if (*++s != '\0'){
+        *p = unhex(*s) << 4;
+      }
+      if (*++s != '\0'){
+        *p++ += unhex(*s);
+      }
+    } else {
+      if (*s == '+'){*p++ = ' ';}else{*p++ = *s;}
+    }
+  }
+  *p = '\0';
+  return std::string(s);
+}
+
+/// Helper function for urlunescape.
+/// Takes a single char input and outputs its integer hex value.
+int HTTP::Parser::unhex(char c){
+  return( c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c - 'a' + 10 );
 }

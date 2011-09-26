@@ -3,6 +3,11 @@
 /// Written by Jaron Vietor in 2010 for DDVTech
 
 #include "socket.h"
+#include <poll.h>
+
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
 
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a Socket::Connection.
 /// \param sockNo Integer representing the socket to convert.
@@ -68,6 +73,27 @@ Socket::Connection::Connection(std::string address, bool nonblock){
     close();
   }
 }//Socket::Connection Unix Contructor
+
+/// Calls poll() on the socket, checking if data is available.
+/// This function may return true even if there is no data, but never returns false when there is.
+bool Socket::Connection::canRead(){
+  struct pollfd PFD;
+  PFD.fd = sock;
+  PFD.events = POLLIN;
+  PFD.revents = 0;
+  poll(&PFD, 1, 5);
+  return (PFD.revents & POLLIN) == POLLIN;
+}
+/// Calls poll() on the socket, checking if data can be written.
+bool Socket::Connection::canWrite(){
+  struct pollfd PFD;
+  PFD.fd = sock;
+  PFD.events = POLLOUT;
+  PFD.revents = 0;
+  poll(&PFD, 1, 5);
+  return (PFD.revents & POLLOUT) == POLLOUT;
+}
+
 
 /// Returns the ready-state for this socket.
 /// \returns 1 if data is waiting to be read, -1 if not connected, 0 otherwise.
@@ -348,7 +374,47 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
     }
   }else{
     #if DEBUG >= 1
-    fprintf(stderr, "Binding failed! Error: %s\n", strerror(errno));
+    fprintf(stderr, "Binding failed, retrying as IPv4... (%s)\n", strerror(errno));
+    #endif
+    close();
+  }
+  sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (sock < 0){
+    #if DEBUG >= 1
+    fprintf(stderr, "Could not create socket! Error: %s\n", strerror(errno));
+    #endif
+    return;
+  }
+  on = 1;
+  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+  if (nonblock){
+    int flags = fcntl(sock, F_GETFL, 0);
+    flags |= O_NONBLOCK;
+    fcntl(sock, F_SETFL, flags);
+  }
+  struct sockaddr_in addr4;
+  addr4.sin_family = AF_INET;
+  addr4.sin_port = htons(port);//set port
+  if (hostname == "0.0.0.0"){
+    addr4.sin_addr.s_addr = INADDR_ANY;
+  }else{
+    inet_pton(AF_INET, hostname.c_str(), &addr4.sin_addr);//set interface, 0.0.0.0 (default) is all
+  }
+  ret = bind(sock, (sockaddr*)&addr4, sizeof(addr4));//do the actual bind
+  if (ret == 0){
+    ret = listen(sock, 100);//start listening, backlog of 100 allowed
+    if (ret == 0){
+      return;
+    }else{
+      #if DEBUG >= 1
+      fprintf(stderr, "Listen failed! Error: %s\n", strerror(errno));
+      #endif
+      close();
+      return;
+    }
+  }else{
+    #if DEBUG >= 1
+    fprintf(stderr, "IPv4 binding also failed, giving up. (%s)\n", strerror(errno));
     #endif
     close();
     return;

@@ -169,14 +169,15 @@ namespace Buffer{
     bool gotData = false;
 
     while((!feof(stdin) || ip_waiting) && !FLV::Parse_Error){
+      usleep(1000); //sleep for 1 ms, to prevent 100% CPU time
       //invalidate the current buffer
       ringbuf[current_buffer]->number = -1;
       if (
-        (!ip_waiting &&
-          (std_input.canRead()) && ringbuf[current_buffer]->FLV.FileLoader(stdin)
-        ) || (ip_waiting && (ip_input.connected()) &&
-          ringbuf[current_buffer]->FLV.SockLoader(ip_input)
-        )
+          (!ip_waiting &&
+              (std_input.canRead()) && ringbuf[current_buffer]->FLV.FileLoader(stdin)
+          ) || (ip_waiting && (ip_input.connected()) &&
+              ringbuf[current_buffer]->FLV.SockLoader(ip_input)
+          )
       ){
         loopcount++;
         packtype = ringbuf[current_buffer]->FLV.data[0];
@@ -256,32 +257,32 @@ namespace Buffer{
         }
       }
 
-      //send all connections what they need, if and when they need it
+      //go through all users
       if (users.size() > 0){
         for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
+          //remove disconnected users
           if (!(*usersIt).S.connected()){
             users.erase(usersIt); break;
           }else{
-            if (!gotData && ip_waiting){
-              if ((*usersIt).S.canRead()){
-                std::string tmp = "";
-                char charbuf;
-                while (((*usersIt).S.iread(&charbuf, 1) == 1) && charbuf != '\n' ){
-                  tmp += charbuf;
-                }
-                if (tmp != ""){
-                  std::cout << "Push attempt from IP " << tmp << std::endl;
-                  if (tmp == waiting_ip){
-                    if (!ip_input.connected()){
-                      std::cout << "Push accepted!" << std::endl;
-                      ip_input = (*usersIt).S;
-                      users.erase(usersIt); break;
-                    }else{
-                      std::cout << "Push denied - push already in progress!" << std::endl;
-                    }
+            if ((*usersIt).S.canRead()){
+              std::string tmp = "";
+              char charbuf;
+              while (((*usersIt).S.iread(&charbuf, 1) == 1) && charbuf != '\n' ){
+                tmp += charbuf;
+              }
+              if (tmp != ""){
+                std::cout << "Push attempt from IP " << tmp << std::endl;
+                if (tmp == waiting_ip){
+                  if (!ip_input.connected()){
+                    std::cout << "Push accepted!" << std::endl;
+                    ip_input = (*usersIt).S;
+                    users.erase(usersIt);
+                    break;
                   }else{
-                    std::cout << "Push denied!" << std::endl;
+                    (*usersIt).Disconnect("Push denied - push already in progress!");
                   }
+                }else{
+                  (*usersIt).Disconnect("Push denied - invalid IP address!");
                 }
               }
             }
@@ -311,5 +312,5 @@ namespace Buffer{
 
 /// Entry point for Buffer, simply calls Buffer::Start().
 int main(int argc, char ** argv){
-  Buffer::Start(argc, argv);
+  return Buffer::Start(argc, argv);
 }//main

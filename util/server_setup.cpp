@@ -35,13 +35,17 @@ Socket::Server server_socket(-1); ///< Placeholder for the server socket
 /// Disconnecting the server_socket will terminate the main listening loop
 /// and cleanly shut down the process.
 void signal_handler (int signum){
-  if (!server_socket.connected()) return;
   switch (signum){
     case SIGINT: break;
     case SIGHUP: break;
     case SIGTERM: break;
+    case SIGCHLD:
+      wait(0);
+      return;
+      break;
     default: return; break;
   }
+  if (!server_socket.connected()) return;
   server_socket.close();
 }//signal_handler
 
@@ -64,7 +68,8 @@ int main(int argc, char ** argv){
   sigaction(SIGHUP, &new_action, NULL);
   sigaction(SIGTERM, &new_action, NULL);
   sigaction(SIGPIPE, &new_action, NULL);
-
+  sigaction(SIGCHLD, &new_action, NULL);
+  
   //default values
   int listen_port = DEFAULT_PORT;
   bool daemon_mode = true;
@@ -174,9 +179,7 @@ int main(int argc, char ** argv){
     }
   }
 
-  int status;
   while (server_socket.connected()){
-    while (waitpid((pid_t)-1, &status, WNOHANG) > 0){}//clean up all child processes
     S = server_socket.accept();
     if (S.connected()){//check if the new connection is valid
       pid_t myid = fork();

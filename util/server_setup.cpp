@@ -36,9 +36,21 @@ Socket::Server server_socket(-1); ///< Placeholder for the server socket
 /// and cleanly shut down the process.
 void signal_handler (int signum){
   switch (signum){
-    case SIGINT: break;
-    case SIGHUP: break;
-    case SIGTERM: break;
+    case SIGINT:
+      #if DEBUG >= 1
+      fprintf(stderr, "Received SIGINT - closing server socket.\n");
+      #endif
+      break;
+    case SIGHUP:
+      #if DEBUG >= 1
+      fprintf(stderr, "Received SIGHUP - closing server socket.\n");
+      #endif
+      break;
+    case SIGTERM:
+      #if DEBUG >= 1
+      fprintf(stderr, "Received SIGTERM - closing server socket.\n");
+      #endif
+      break;
     case SIGCHLD:
       wait(0);
       return;
@@ -192,5 +204,8 @@ int main(int argc, char ** argv){
       }
     }
   }//while connected
+  #if DEBUG >= 1
+  fprintf(stderr, "Server socket closed, exiting.\n");
+  #endif
   return 0;
 }//main

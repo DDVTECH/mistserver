@@ -246,16 +246,18 @@ namespace Connector_HTTP{
                   tag.tagTime(tag.tagTime() - Flash_StartTime);
                 }
                 if (tag.data[0] != 0x12 ) {
-                  if ((tag.isKeyframe) && (Video_Init.len == 0)){
+                  if ( (tag.data[0] == 0x09) && tag.isInitData()){
                     if (((tag.data[11] & 0x0f) == 7) && (tag.data[12] == 0)){
                       tag.tagTime(0);//timestamp to zero
                       Video_Init = tag;
+                      break;
                     }
                   }
-                  if ((tag.data[0] == 0x08) && (Audio_Init.len == 0)){
+                  if ((tag.data[0] == 0x08) && tag.isInitData()){
                     if (((tag.data[11] & 0xf0) >> 4) == 10){//aac packet
                       tag.tagTime(0);//timestamp to zero
                       Audio_Init = tag;
+                      break;
                     }
                   }
                   if (tag.isKeyframe){
@@ -269,15 +271,13 @@ namespace Connector_HTTP{
                     FlashFirstVideo = true;
                     FlashFirstAudio = true;
                   }
-                  if (FlashFirstVideo && (tag.data[0] == 0x09) && (!tag.needsInitData() || (Video_Init.len > 0))){
-                    if (tag.needsInitData()){
+                  if (FlashFirstVideo){
+                    if (Video_Init.len > 0){
                       Video_Init.tagTime(tag.tagTime());
                       FlashBuf.append(Video_Init.data, Video_Init.len);
                     }
                     FlashFirstVideo = false;
-                  }
-                  if (FlashFirstAudio && (tag.data[0] == 0x08) && (!tag.needsInitData() || (Audio_Init.len > 0))){
-                    if (tag.needsInitData()){
+                    if (Audio_Init.len > 0){
                       Audio_Init.tagTime(tag.tagTime());
                       FlashBuf.append(Audio_Init.data, Audio_Init.len);
                     }
@@ -286,7 +286,7 @@ namespace Connector_HTTP{
                   #if DEBUG >= 5
                   fprintf(stderr, "Received a tag of type %2hhu and length %i\n", tag.data[0], tag.len);
                   #endif
-                  if ((Video_Init.len > 0) && (Audio_Init.len > 0)){
+                  if (!FlashFirstVideo && !FlashFirstAudio){
                     FlashBuf.append(tag.data,tag.len);
                   }
                 } else {

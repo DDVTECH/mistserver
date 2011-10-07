@@ -484,7 +484,7 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   }
   Socket::Connection tmp(r);
   if (r < 0){
-    if (errno != EWOULDBLOCK && errno != EAGAIN){
+    if ((errno != EWOULDBLOCK) && (errno != EAGAIN) && (errno != EINTR)){
       #if DEBUG >= 1
       fprintf(stderr, "Error during accept - closing server socket.\n");
       #endif

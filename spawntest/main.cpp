@@ -8,8 +8,8 @@
 /// Testing program for Util::Proc utility class.
 int main(){
   Util::Procs::Start("number1", "./test.sh Koekjes");
-  while (true){
-    sleep(1);
-  }
+  sleep(1); sleep(1); sleep(1); sleep(1); sleep(1);
+  Util::Procs::Start("number2", "./testpipein.sh", "./testpipeout.sh");
+  sleep(1); sleep(1); sleep(1); sleep(1); sleep(1);
   return 0;
 }//main

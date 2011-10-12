@@ -24,6 +24,33 @@ void Util::Procs::childsig_handler(int signum){
   plist.erase(ret);
 }
 
+/// Attempts to run the command cmd.
+/// Replaces the current process - use after forking first!
+/// This function will never return - it will either run the given
+/// command or kill itself with return code 42.
+void Util::Procs::runCmd(std::string & cmd){
+  //split cmd into arguments
+  //supports a maximum of 20 arguments
+  char * tmp = (char*)cmd.c_str();
+  char * tmp2 = 0;
+  char * args[21];
+  int i = 0;
+  tmp2 = strtok(tmp, " ");
+  args[0] = tmp2;
+  while (tmp2 != 0 && (i < 20)){
+    tmp2 = strtok(0, " ");
+    ++i;
+    args[i] = tmp2;
+  }
+  if (i == 20){args[20] = 0;}
+  //execute the command
+  execvp(args[0], args);
+  #if DEBUG >= 1
+  std::cerr << "Error running \"" << cmd << "\": " << strerror(errno) << std::endl;
+  #endif
+  _exit(42);
+}
+
 /// Starts a new process if the name is not already active.
 /// \return 0 if process was not started, process PID otherwise.
 /// \arg name Name for this process - only used internally.
@@ -40,30 +67,68 @@ pid_t Util::Procs::Start(std::string name, std::string cmd){
   }
   pid_t ret = fork();
   if (ret == 0){
-    //split cmd into arguments
-    //supports a maximum of 20 arguments
-    char * tmp = (char*)cmd.c_str();
-    char * tmp2 = 0;
-    char * args[21];
-    int i = 0;
-    tmp2 = strtok(tmp, " ");
-    args[0] = tmp2;
-    while (tmp2 != 0 && (i < 20)){
-      tmp2 = strtok(0, " ");
-      ++i;
-      args[i] = tmp2;
-    }
-    if (i == 20){args[20] = 0;}
-    //execute the command
-    execvp(args[0], args);
-    #if DEBUG >= 1
-    std::cerr << "Error: " << strerror(errno) << std::endl;
-    #endif
-    _exit(42);
+    runCmd(cmd);
   }else{
     if (ret > 0){
       #if DEBUG >= 1
       std::cerr << "Process " << name << " started, PID " << ret << ": " << cmd << std::endl;
+      #endif
+      plist.insert(std::pair<pid_t, std::string>(ret, name));
+    }else{
+      #if DEBUG >= 1
+      std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
+      #endif
+      return 0;
+    }
+  }
+  return ret;
+}
+
+/// Starts two piped processes if the name is not already active.
+/// \return 0 if process was not started, main (receiving) process PID otherwise.
+/// \arg name Name for this process - only used internally.
+/// \arg cmd Commandline for sub (sending) process.
+/// \arg cmd2 Commandline for main (receiving) process.
+pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
+  if (isActive(name)){return getPid(name);}
+  if (!handler_set){
+    struct sigaction new_action;
+    new_action.sa_handler = Util::Procs::childsig_handler;
+    sigemptyset(&new_action.sa_mask);
+    new_action.sa_flags = 0;
+    sigaction(SIGCHLD, &new_action, NULL);
+    handler_set = true;
+  }
+  pid_t ret = fork();
+  if (ret == 0){
+    int pfildes[2];
+    if (pipe(pfildes) == -1){
+      #if DEBUG >= 1
+      std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
+      #endif
+      _exit(41);
+    }
+    pid_t pid;
+    if ((pid = fork()) == -1){
+      #if DEBUG >= 1
+      std::cerr << "Process " << name << " could not be started. Second fork() failed." << std::endl;
+      #endif
+      _exit(41);
+    }else if (pid == 0){
+      close(pfildes[0]);
+      dup2(pfildes[1],1);
+      close(pfildes[1]);
+      runCmd(cmd);
+    }else{
+      close(pfildes[1]);
+      dup2(pfildes[0],0);
+      close(pfildes[0]);
+      runCmd(cmd2);
+    }
+  }else{
+    if (ret > 0){
+      #if DEBUG >= 1
+      std::cerr << "Process " << name << " started, PID " << ret << ": " << cmd << " | " << cmd2 << std::endl;
       #endif
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{

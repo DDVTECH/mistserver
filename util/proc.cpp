@@ -19,9 +19,16 @@ void Util::Procs::childsig_handler(int signum){
   if (signum != SIGCHLD){return;}
   pid_t ret = wait(0);
   #if DEBUG >= 1
-  std::cerr << "Process " << plist[ret] << " terminated." << std::endl;
+  std::string pname = plist[ret];
   #endif
   plist.erase(ret);
+  #if DEBUG >= 1
+  if (isActive(pname)){
+    std::cerr << "Process " << pname << " half-terminated." << std::endl;
+  }else{
+    std::cerr << "Process " << pname << " fully terminated." << std::endl;
+  }
+  #endif
 }
 
 /// Attempts to run the command cmd.
@@ -99,53 +106,66 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
     sigaction(SIGCHLD, &new_action, NULL);
     handler_set = true;
   }
+  int pfildes[2];
+  if (pipe(pfildes) == -1){
+    #if DEBUG >= 1
+    std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
+    #endif
+    return 0;
+  }
+
   pid_t ret = fork();
   if (ret == 0){
-    int pfildes[2];
-    if (pipe(pfildes) == -1){
-      #if DEBUG >= 1
-      std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
-      #endif
-      _exit(41);
-    }
-    pid_t pid;
-    if ((pid = fork()) == -1){
-      #if DEBUG >= 1
-      std::cerr << "Process " << name << " could not be started. Second fork() failed." << std::endl;
-      #endif
-      _exit(41);
-    }else if (pid == 0){
-      close(pfildes[0]);
-      dup2(pfildes[1],1);
-      close(pfildes[1]);
-      runCmd(cmd);
-    }else{
-      close(pfildes[1]);
-      dup2(pfildes[0],0);
-      close(pfildes[0]);
-      runCmd(cmd2);
-    }
+    close(pfildes[0]);
+    dup2(pfildes[1],1);
+    close(pfildes[1]);
+    runCmd(cmd);
   }else{
     if (ret > 0){
-      #if DEBUG >= 1
-      std::cerr << "Process " << name << " started, PID " << ret << ": " << cmd << " | " << cmd2 << std::endl;
-      #endif
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{
       #if DEBUG >= 1
       std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
       #endif
+      close(pfildes[1]);
+      close(pfildes[0]);
       return 0;
     }
   }
+  
+  pid_t ret2 = fork();
+  if (ret2 == 0){
+    close(pfildes[1]);
+    dup2(pfildes[0],0);
+    close(pfildes[0]);
+    runCmd(cmd2);
+  }else{
+    if (ret2 > 0){
+      #if DEBUG >= 1
+        std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << "): " << cmd << " | " << cmd2 << std::endl;
+      #endif
+      plist.insert(std::pair<pid_t, std::string>(ret2, name));
+    }else{
+      #if DEBUG >= 1
+      std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
+      #endif
+      Stop(name);
+      close(pfildes[1]);
+      close(pfildes[0]);
+      return 0;
+    }
+  }
+  close(pfildes[1]);
+  close(pfildes[0]);
   return ret;
 }
 
 /// Stops the named process, if running.
 /// \arg name (Internal) name of process to stop
 void Util::Procs::Stop(std::string name){
-  if (!isActive(name)){return;}
-  Stop(getPid(name));
+  while (isActive(name)){
+    Stop(getPid(name));
+  }
 }
 
 /// Stops the process with this pid, if running.

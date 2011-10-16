@@ -27,4 +27,7 @@ namespace Util{
       static pid_t getPid(std::string name);
       static std::string getName(pid_t name);
   };
+
+  static setUser(std::string user);
+  
 };

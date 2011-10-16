@@ -30,7 +30,7 @@ namespace HTTP{
       void SendBodyPart(Socket::Connection & conn, std::string bodypart);
       void Clean();
       bool CleanForNext();
-      std::string urlunescape(char *s); ///< Unescapes URLencoded C-strings to a std::string.
+      std::string urlunescape(std::string in);
       std::string body;
       std::string method;
       std::string url;
@@ -40,6 +40,7 @@ namespace HTTP{
       bool seenHeaders;
       bool seenReq;
       bool parse();
+      void parseVars(std::string & data);
       std::string HTTPbuffer;
       std::map<std::string, std::string> headers;
       std::map<std::string, std::string> vars;

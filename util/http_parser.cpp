@@ -14,9 +14,9 @@ void HTTP::Parser::Clean(){
   method = "GET";
   url = "/";
   protocol = "HTTP/1.1";
-  body = "";
+  body.clear();
   length = 0;
-  HTTPbuffer = "";
+  HTTPbuffer.clear();
   headers.clear();
   vars.clear();
 }
@@ -172,7 +172,10 @@ bool HTTP::Parser::parse(){
         if (f != std::string::npos){url = tmpA.substr(0, f); tmpA.erase(0, f+1);}
         f = tmpA.find(' ');
         if (f != std::string::npos){protocol = tmpA.substr(0, f); tmpA.erase(0, f+1);}
-        /// \todo Include GET variable parsing?
+        if (url.find('?') != std::string::npos){
+          std::string queryvars = url.substr(url.find('?')+1);
+          parseVars(queryvars); //parse GET variables
+        }
       }else{
         if (tmpA.size() == 0){
           seenHeaders = true;
@@ -191,22 +194,7 @@ bool HTTP::Parser::parse(){
         if (HTTPbuffer.length() >= length){
           body = HTTPbuffer.substr(0, length);
           HTTPbuffer.erase(0, length);
-          std::string tmppost = body;
-          std::string varname;
-          std::string varval;
-          while (tmppost.find('=') != std::string::npos){
-            size_t found = tmppost.find('=');
-            varname = urlunescape((char*)tmppost.substr(0, found).c_str());
-            tmppost.erase(0, found+1);
-            found = tmppost.find('&');
-            varval = urlunescape((char*)tmppost.substr(0, found).c_str());
-            SetVar(varname, varval);
-            if (found == std::string::npos){
-              tmppost.clear();
-            }else{
-              tmppost.erase(0, found+1);
-            }
-          }
+          parseVars(body); //parse POST variables
           return true;
         }else{
           return false;
@@ -227,6 +215,26 @@ bool HTTP::Parser::parse(){
 void HTTP::Parser::SendResponse(Socket::Connection & conn, std::string code, std::string message){
   std::string tmp = BuildResponse(code, message);
   conn.write(tmp);
+}
+
+/// Parses GET or POST-style variable data.
+/// Saves to internal variable structure using HTTP::Parser::SetVar.
+void HTTP::Parser::parseVars(std::string & data){
+  std::string varname;
+  std::string varval;
+  while (data.find('=') != std::string::npos){
+    size_t found = data.find('=');
+    varname = urlunescape(data.substr(0, found));
+    data.erase(0, found+1);
+    found = data.find('&');
+    varval = urlunescape(data.substr(0, found));
+    SetVar(varname, varval);
+    if (found == std::string::npos){
+      data.clear();
+    }else{
+      data.erase(0, found+1);
+    }
+  }
 }
 
 /// Sends data as HTTP/1.1 bodypart to conn.
@@ -257,24 +265,26 @@ void HTTP::Parser::SendBodyPart(Socket::Connection & conn, std::string bodypart)
   }
 }
 
-/// Unescapes URLencoded C-strings to a std::string.
-/// This function *will* destroy the input data!
-std::string HTTP::Parser::urlunescape(char *s){
-  char  *p;
-  for (p = s; *s != '\0'; ++s){
-    if (*s == '%'){
-      if (*++s != '\0'){
-        *p = unhex(*s) << 4;
+/// Unescapes URLencoded std::strings.
+std::string HTTP::Parser::urlunescape(std::string in){
+  std::string out;
+  for (unsigned int i = 0; i < in.length(); ++i){
+    if (in[i] == '%'){
+      char tmp = 0;
+      ++i;
+      if (i < in.length()){
+        tmp = unhex(in[i]) << 4;
       }
-      if (*++s != '\0'){
-        *p++ += unhex(*s);
+      ++i;
+      if (i < in.length()){
+        tmp += unhex(in[i]);
       }
+      out += tmp;
     } else {
-      if (*s == '+'){*p++ = ' ';}else{*p++ = *s;}
+      if (in[i] == '+'){out += ' ';}else{out += in[i];}
     }
   }
-  *p = '\0';
-  return std::string(s);
+  return out;
 }
 
 /// Helper function for urlunescape.

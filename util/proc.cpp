@@ -10,9 +10,34 @@
 #if DEBUG >= 1
 #include <iostream>
 #endif
+#include <sys/types.h>
+#include <pwd.h>
 
 std::map<pid_t, std::string> Util::Procs::plist;
 bool Util::Procs::handler_set = false;
+
+/// Sets the current process' running user
+void Util::setUser(std::string username){
+  if (username != "root"){
+    struct passwd * user_info = getpwnam(username.c_str());
+    if (!user_info){
+      #if DEBUG >= 1
+      fprintf(stderr, "Error: could not setuid %s: could not get PID\n", username.c_str());
+      #endif
+      return 1;
+    }else{
+      if (setuid(user_info->pw_uid) != 0){
+        #if DEBUG >= 1
+        fprintf(stderr, "Error: could not setuid %s: not allowed\n", username.c_str());
+        #endif
+      }else{
+        #if DEBUG >= 3
+        fprintf(stderr, "Changed user to %s\n", username.c_str());
+        #endif
+      }
+    }
+  }
+}
 
 /// Used internally to capture child signals and update plist.
 void Util::Procs::childsig_handler(int signum){

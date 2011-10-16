@@ -25,6 +25,8 @@
 #include "../util/json/json.h"
 
 
+Json::Value Storage = Json::Value(Json::objectValue); ///< Global storage of data.
+
 void WriteFile( std::string Filename, std::string contents ) {
   std::ofstream File;
   File.open( Filename.c_str( ) );
@@ -52,9 +54,10 @@ class ConnectedUser{
       H.Clean();
       Authorized = false;
     }
+    hasAccess()
 };
 
-void Log(std::string kind, std::string message, Json::Value & Storage){
+void Log(std::string kind, std::string message){
   Json::Value m;
   m.append((Json::Value::UInt)time(0));
   m.append(kind);
@@ -63,7 +66,7 @@ void Log(std::string kind, std::string message, Json::Value & Storage){
   std::cout << "[" << kind << "] " << message << std::endl;
 }
 
-void Authorize( Json::Value & Request, Json::Value & Storage, Json::Value & Response, ConnectedUser & conn ) {
+void Authorize( Json::Value & Request, Json::Value & Response, ConnectedUser & conn ) {
   time_t Time = time(0);
   tm * TimeInfo = localtime(&Time);
   std::stringstream Date;
@@ -89,7 +92,7 @@ void Authorize( Json::Value & Request, Json::Value & Storage, Json::Value & Resp
   return;
 }
 
-void CheckConfig(Json::Value & in, Json::Value & out, Json::Value & Storage){
+void CheckConfig(Json::Value & in, Json::Value & out){
   if (in.isObject() && (in.size() > 0)){
     for (Json::ValueIterator jit = in.begin(); jit != in.end(); jit++){
       if (out.isObject() && out.isMember(jit.memberName())){
@@ -137,7 +140,6 @@ int main() {
   std::vector< ConnectedUser > users;
   Json::Value Request = Json::Value(Json::objectValue);
   Json::Value Response = Json::Value(Json::objectValue);
-  Json::Value Storage = Json::Value(Json::objectValue);
   Json::Reader JsonParse;
   std::string jsonp;
   JsonParse.parse(ReadFile("config.json"), Storage, false);
@@ -159,14 +161,14 @@ int main() {
         if (it->H.Read(it->C)){
           Response.clear(); //make sure no data leaks from previous requests
           if (!JsonParse.parse(it->H.GetVar("command"), Request, false)){
-            Log("HTTP", "Failed to parse JSON: "+it->H.GetVar("command"), Storage);
+            Log("HTTP", "Failed to parse JSON: "+it->H.GetVar("command"));
             Response["authorize"]["status"] = "INVALID";
           }else{
             std::cout << "Request: " << Request.toStyledString() << std::endl;
-            Authorize(Request, Storage, Response, (*it));
+            Authorize(Request, Response, (*it));
             if (it->Authorized){
               //Parse config and streams from the request.
-              if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"], Storage);}
+              if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
               //if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
               //sent current configuration, no matter if it was changed or not
               //Response["streams"] = Storage["streams"];

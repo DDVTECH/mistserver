@@ -90,9 +90,10 @@ void Authorize( Json::Value & Request, Json::Value & Storage, Json::Value & Resp
 }
 
 void CheckConfig(Json::Value & in, Json::Value & out){
-  Json::ValueIterator jit;
+printf( "In:\t%s\n", in.toStyledString().c_str() );
+printf( "Out:\t%s\n", out.toStyledString().c_str() );
   if (in.isObject()){
-    for (jit = in.begin(); jit != in.end(); jit++){
+    for( Json::Value::iterator jit = in.begin(); jit != in.end(); jit++){
       if (out.isObject() && out.isMember(jit.memberName())){
         Log("CONF", std::string("Updated configuration value ")+jit.memberName(), out);
       }else{
@@ -100,7 +101,7 @@ void CheckConfig(Json::Value & in, Json::Value & out){
       }
     }
     if (out.isObject()){
-      for (jit = out.begin(); jit != out.end(); jit++){
+      for ( Json::Value::iterator jit = out.begin(); jit != out.end(); jit++){
         if (!in.isMember(jit.memberName())){
           Log("CONF", std::string("Deleted configuration value ")+jit.memberName(), out);
         }

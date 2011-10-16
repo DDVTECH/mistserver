@@ -154,6 +154,7 @@ int main() {
         if (!it->C.connected()){
           it->C.close();
           users.erase(it);
+          break;
         }
         if (it->H.Read(it->C)){
           Response.clear(); //make sure no data leaks from previous requests

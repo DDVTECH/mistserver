@@ -89,20 +89,19 @@ void Authorize( Json::Value & Request, Json::Value & Storage, Json::Value & Resp
   return;
 }
 
-void CheckConfig(Json::Value & in, Json::Value & out){
-  Json::ValueIterator jit;
-  if (in.isObject()){
-    for (jit = in.begin(); jit != in.end(); jit++){
+void CheckConfig(Json::Value & in, Json::Value & out, Json::Value & Storage){
+  if (in.isObject() && (in.size() > 0)){
+    for (Json::ValueIterator jit = in.begin(); jit != in.end(); jit++){
       if (out.isObject() && out.isMember(jit.memberName())){
-        Log("CONF", std::string("Updated configuration value ")+jit.memberName(), out);
+        Log("CONF", std::string("Updated configuration value ")+jit.memberName(), Storage);
       }else{
-        Log("CONF", std::string("New configuration value ")+jit.memberName(), out);
+        Log("CONF", std::string("New configuration value ")+jit.memberName(), Storage);
       }
     }
-    if (out.isObject()){
-      for (jit = out.begin(); jit != out.end(); jit++){
+    if (out.isObject() && (out.size() > 0)){
+      for (Json::ValueIterator jit = out.begin(); jit != out.end(); jit++){
         if (!in.isMember(jit.memberName())){
-          Log("CONF", std::string("Deleted configuration value ")+jit.memberName(), out);
+          Log("CONF", std::string("Deleted configuration value ")+jit.memberName(), Storage);
         }
       }
     }
@@ -111,19 +110,18 @@ void CheckConfig(Json::Value & in, Json::Value & out){
 }
 
 void CheckStreams(Json::Value & in, Json::Value & out){
-  Json::ValueIterator jit;
-  if (in.isObject()){
-    for (jit = in.begin(); jit != in.end(); jit++){
-      if (out.isObject() && out.isMember(jit.key().asString())){
-        Log("STRM", "Updated stream "+jit.key().asString(), out);
+  if (in.isObject() && (in.size() > 0)){
+    for (Json::ValueIterator jit = in.begin(); jit != in.end(); jit++){
+      if (out.isObject() && out.isMember(jit.memberName())){
+        Log("CONF", std::string("Updated stream ")+jit.memberName(), Storage);
       }else{
-        Log("STRM", "New stream "+jit.key().asString(), out);
+        Log("CONF", std::string("New stream ")+jit.memberName(), Storage);
       }
     }
-    if (out.isObject()){
-      for (jit = out.begin(); jit != out.end(); jit++){
-        if (!in.isMember(jit.key().asString())){
-          Log("STRM", "Deleted stream "+jit.key().asString(), out);
+    if (out.isObject() && (out.size() > 0)){
+      for (Json::ValueIterator jit = out.begin(); jit != out.end(); jit++){
+        if (!in.isMember(jit.memberName())){
+          Log("CONF", std::string("Deleted stream ")+jit.memberName(), Storage);
         }
       }
     }
@@ -144,6 +142,8 @@ int main() {
   std::string jsonp;
   JsonParse.parse(ReadFile("config.json"), Storage, false);
   Storage["config"] = Json::Value(Json::objectValue);
+  Storage["log"] = Json::Value(Json::arrayValue);
+  Storage["statistics"] = Json::Value(Json::arrayValue);
   Storage["account"]["gearbox"]["password"] = Json::Value("7e0f87b116377621a75a6440ac74dcf4");
   while (API_Socket.connected()){
     usleep(10000); //sleep for 10 ms - prevents 100% CPU time
@@ -165,7 +165,7 @@ int main() {
             Authorize(Request, Storage, Response, (*it));
             if (it->Authorized){
               //Parse config and streams from the request.
-              if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
+              if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"], Storage);}
               //if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
               //sent current configuration, no matter if it was changed or not
               //Response["streams"] = Storage["streams"];

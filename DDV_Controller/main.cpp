@@ -93,16 +93,16 @@ void CheckConfig(Json::Value & in, Json::Value & out){
   Json::ValueIterator jit;
   if (in.isObject()){
     for (jit = in.begin(); jit != in.end(); jit++){
-      if (out.isObject() && out.isMember(jit.key().asString())){
-        Log("CONF", "Updated configuration value "+jit.key().asString(), out);
+      if (out.isObject() && out.isMember(jit.memberName())){
+        Log("CONF", std::string("Updated configuration value ")+jit.memberName(), out);
       }else{
-        Log("CONF", "New configuration value "+jit.key().asString(), out);
+        Log("CONF", std::string("New configuration value ")+jit.memberName(), out);
       }
     }
     if (out.isObject()){
       for (jit = out.begin(); jit != out.end(); jit++){
-        if (!in.isMember(jit.key().asString())){
-          Log("CONF", "Deleted configuration value "+jit.key().asString(), out);
+        if (!in.isMember(jit.memberName())){
+          Log("CONF", std::string("Deleted configuration value ")+jit.memberName(), out);
         }
       }
     }

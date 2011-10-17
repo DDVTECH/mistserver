@@ -1,5 +1,5 @@
-/// \file proc.cpp
-/// Contains generic functions for managing processes.
+/// \file util.cpp
+/// Contains generic functions for managing processes and configuration.
 
 #include "proc.h"
 #include <string.h>
@@ -245,4 +245,16 @@ std::string Util::Procs::getName(pid_t name){
     return plist[name];
   }
   return "";
+}
+
+Util::Config::Config(){
+  listen_port = 4242;
+  daemon_mode = true;
+  interface = "0.0.0.0";
+  configfile = "/etc/ddvtech.conf";
+  username = "root";
+  ignore_daemon = false;
+  ignore_interface = false;
+  ignore_port = false;
+  ignore_user = false;
 }

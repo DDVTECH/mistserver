@@ -116,15 +116,15 @@ void CheckStreams(Json::Value & in, Json::Value & out){
   if (in.isObject() && (in.size() > 0)){
     for (Json::ValueIterator jit = in.begin(); jit != in.end(); jit++){
       if (out.isObject() && out.isMember(jit.memberName())){
-        Log("CONF", std::string("Updated stream ")+jit.memberName(), Storage);
+        Log("STRM", std::string("Updated stream ")+jit.memberName(), Storage);
       }else{
-        Log("CONF", std::string("New stream ")+jit.memberName(), Storage);
+        Log("STRM", std::string("New stream ")+jit.memberName(), Storage);
       }
     }
     if (out.isObject() && (out.size() > 0)){
       for (Json::ValueIterator jit = out.begin(); jit != out.end(); jit++){
         if (!in.isMember(jit.memberName())){
-          Log("CONF", std::string("Deleted stream ")+jit.memberName(), Storage);
+          Log("STRM", std::string("Deleted stream ")+jit.memberName(), Storage);
         }
       }
     }
@@ -169,7 +169,7 @@ int main() {
             if (it->Authorized){
               //Parse config and streams from the request.
               if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
-              //if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
+              if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
               //sent current configuration, no matter if it was changed or not
               //Response["streams"] = Storage["streams"];
               Response["config"] = Storage["config"];

@@ -247,6 +247,7 @@ std::string Util::Procs::getName(pid_t name){
   return "";
 }
 
+/// Creates a new configuration manager.
 Util::Config::Config(){
   listen_port = 4242;
   daemon_mode = true;
@@ -257,4 +258,8 @@ Util::Config::Config(){
   ignore_interface = false;
   ignore_port = false;
   ignore_user = false;
+}
+
+void parseArgs(int argc, char ** argv){
+  
 }

@@ -1,5 +1,5 @@
-/// \file proc.h
-/// Contains generic function headers for managing processes.
+/// \file util.h
+/// Contains generic function headers for managing processes and configuration.
 
 #include <unistd.h>
 #include <string>
@@ -28,6 +28,27 @@ namespace Util{
       static std::string getName(pid_t name);
   };
 
+  /// Will set the active user to the named username.
   static setUser(std::string user);
+
+  /// Deals with parsing configuration from files or commandline options.
+  class Config{
+  private:
+    bool ignore_daemon;
+    bool ignore_interface;
+    bool ignore_port;
+    bool ignore_user;
+  public:
+    std::string configfile;
+    bool daemon_mode;
+    std::string interface;
+    int listen_port;
+    std::string username;
+    Config();
+    void parseArgs(int argc, char ** argv);
+  };
   
+  /// Will turn the current process into a daemon.
+  void Daemonize();
+
 };

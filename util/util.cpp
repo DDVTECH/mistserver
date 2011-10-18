@@ -5,7 +5,12 @@
 #include <string.h>
 #include <sys/types.h>
 #include <signal.h>
+
+#ifdef __FreeBSD__
+#include <sys/wait.h>
+#else
 #include <wait.h>
+#endif
 #include <errno.h>
 #include <iostream>
 #include <sys/types.h>
@@ -52,6 +57,7 @@ void Util::Procs::childsig_handler(int signum){
   #if DEBUG >= 1
   if (isActive(pname)){
     std::cerr << "Process " << pname << " half-terminated." << std::endl;
+    Stop(pname);
   }else{
     std::cerr << "Process " << pname << " fully terminated." << std::endl;
   }
@@ -190,8 +196,11 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
 /// Stops the named process, if running.
 /// \arg name (Internal) name of process to stop
 void Util::Procs::Stop(std::string name){
+  int max = 5;
   while (isActive(name)){
     Stop(getPid(name));
+    max--;
+    if (max <= 0){return;}
   }
 }
 

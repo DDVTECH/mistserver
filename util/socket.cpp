@@ -29,7 +29,7 @@ Socket::Connection::Connection(){
 
 /// Close connection. The internal socket is closed and then set to -1.
 void Socket::Connection::close(){
-  #if DEBUG >= 4
+  #if DEBUG >= 6
   fprintf(stderr, "Socket closed.\n");
   #endif
   shutdown(sock, SHUT_RDWR);
@@ -81,14 +81,24 @@ Socket::Connection::Connection(std::string address, bool nonblock){
 /// \param port String containing the port to connect to.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::Connection::Connection(std::string host, int port, bool nonblock){
-  struct addrinfo *result, *rp;
+  struct addrinfo *result, *rp, hints;
   Error = false;
   Blocking = false;
   std::stringstream ss;
   ss << port;
-  if (getaddrinfo(host.c_str(), ss.str().c_str(), 0, &result) != 0){
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_ADDRCONFIG;
+  hints.ai_protocol = 0;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+  int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
+  if (s != 0){
     #if DEBUG >= 1
-    fprintf(stderr, "Could not connect to %s:%i! Error: %s\n", host.c_str(), port, strerror(errno));
+    fprintf(stderr, "Could not connect to %s:%i! Error: %s\n", host.c_str(), port, gai_strerror(s));
     #endif
     close();
     return;
@@ -96,10 +106,11 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
 
   for (rp = result; rp != NULL; rp = rp->ai_next) {
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    if (sock == -1){continue;}
-    if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1){break;}
+    if (sock < 0){continue;}
+    if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0){break;}
     ::close(sock);
   }
+  freeaddrinfo(result);
 
   if (rp == 0){
     #if DEBUG >= 1
@@ -534,18 +545,18 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   }else{
     if (addrinfo.sin6_family == AF_INET6){
       tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-      #if DEBUG >= 4
+      #if DEBUG >= 6
       fprintf(stderr,"IPv6 addr: %s\n", tmp.remotehost.c_str());
       #endif
     }
     if (addrinfo.sin6_family == AF_INET){
       tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in*)&addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-      #if DEBUG >= 4
+      #if DEBUG >= 6
       fprintf(stderr,"IPv4 addr: %s\n", tmp.remotehost.c_str());
       #endif
     }
     if (addrinfo.sin6_family == AF_UNIX){
-      #if DEBUG >= 4
+      #if DEBUG >= 6
       tmp.remotehost = ((sockaddr_un*)&addrinfo)->sun_path;
       fprintf(stderr,"Unix socket, no address\n");
       #endif
@@ -557,7 +568,7 @@ Socket::Connection Socket::Server::accept(bool nonblock){
 
 /// Close connection. The internal socket is closed and then set to -1.
 void Socket::Server::close(){
-  #if DEBUG >= 4
+  #if DEBUG >= 6
   fprintf(stderr, "ServerSocket closed.\n");
   #endif
   shutdown(sock, SHUT_RDWR);

@@ -30,7 +30,8 @@
 
 #define UPLINK_INTERVAL 30
 
-#define defstr(x) #x ///< converts a define name to string
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
 
 /// Needed for base64_encode function
 static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -239,6 +240,7 @@ void CheckConfig(Json::Value & in, Json::Value & out){
     }
   }
   out = in;
+  out["version"] = TOSTRING(VERSION);
 }
 
 void CheckStreams(Json::Value & in, Json::Value & out){
@@ -353,8 +355,8 @@ int main(int argc, char ** argv){
                     Log("UPLK", "Max login attempts passed - dropping connection to uplink.");
                     it->C.close();
                   }else{
-                    Response["authorize"]["username"] = defstr(COMPILED_USERNAME);
-                    Response["authorize"]["password"] = md5(defstr(COMPILED_PASSWORD) + Request["authorize"]["challenge"].asString());
+                    Response["authorize"]["username"] = TOSTRING(COMPILED_USERNAME);
+                    Response["authorize"]["password"] = md5(TOSTRING(COMPILED_PASSWORD) + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
                     it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
                     it->H.BuildRequest();

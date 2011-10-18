@@ -178,9 +178,12 @@ bool HTTP::Parser::parse(){
     if (seenHeaders){
       if (length > 0){
         if (HTTPbuffer.length() >= length){
+          if ((method != "HTTP/1.0") && (method != "HTTP/1.1")){
+            body = HTTPbuffer.substr(0, length);
+            parseVars(body); //parse POST variables
+          }
           body = HTTPbuffer.substr(0, length);
           HTTPbuffer.erase(0, length);
-          parseVars(body); //parse POST variables
           return true;
         }else{
           return false;

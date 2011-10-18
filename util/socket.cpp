@@ -4,6 +4,8 @@
 
 #include "socket.h"
 #include <poll.h>
+#include <netdb.h>
+#include <sstream>
 
 #ifdef __FreeBSD__
 #include <netinet/in.h>
@@ -73,6 +75,45 @@ Socket::Connection::Connection(std::string address, bool nonblock){
     close();
   }
 }//Socket::Connection Unix Contructor
+
+/// Create a new TCP Socket. This socket will (try to) connect to the given host/port right away.
+/// \param host String containing the hostname to connect to.
+/// \param port String containing the port to connect to.
+/// \param nonblock Whether the socket should be nonblocking.
+Socket::Connection::Connection(std::string host, int port, bool nonblock){
+  struct addrinfo *result, *rp;
+  Error = false;
+  Blocking = false;
+  std::stringstream ss;
+  ss << port;
+  if (getaddrinfo(host.c_str(), ss.str().c_str(), 0, &result) != 0){
+    #if DEBUG >= 1
+    fprintf(stderr, "Could not connect to %s:%i! Error: %s\n", host.c_str(), port, strerror(errno));
+    #endif
+    close();
+    return;
+  }
+
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (sock == -1){continue;}
+    if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1){break;}
+    ::close(sock);
+  }
+
+  if (rp == 0){
+    #if DEBUG >= 1
+    fprintf(stderr, "Could not connect to %s! Error: %s\n", host.c_str(), strerror(errno));
+    #endif
+    close();
+  }else{
+    if (nonblock){
+      int flags = fcntl(sock, F_GETFL, 0);
+      flags |= O_NONBLOCK;
+      fcntl(sock, F_SETFL, flags);
+    }
+  }
+}//Socket::Connection TCP Contructor
 
 /// Calls poll() on the socket, checking if data is available.
 /// This function may return true even if there is no data, but never returns false when there is.

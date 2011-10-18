@@ -26,6 +26,7 @@ namespace Socket{
     public:
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
+      Connection(std::string hostname, int port, bool nonblock); ///< Create a new TCP socket.
       Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
       bool canRead(); ///< Calls poll() on the socket, checking if data is available.
       bool canWrite(); ///< Calls poll() on the socket, checking if data can be written.

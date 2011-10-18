@@ -28,6 +28,8 @@
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
 
+#define UPLINK_INTERVAL 30
+
 #define defstr(x) #x ///< converts a define name to string
 
 /// Needed for base64_encode function
@@ -122,21 +124,19 @@ unsigned char __gbv2keypub_der[] = {
 }; ///< The GBv2 public key file.
 unsigned int __gbv2keypub_der_len = 294; ///< Length of GBv2 public key data
 
-RSA * pubkey = 0; ///< Holds the public key for encoding.
-/// Attempts to load the public key for encoding.
+RSA * pubkey = 0; ///< Holds the public key.
+/// Attempts to load the GBv2 public key.
 void RSA_Load(){
-  pubkey = d2i_RSAPublicKey(0, (const unsigned char **)(&__gbv2keypub_der), __gbv2keypub_der_len);
+  const unsigned char * key = __gbv2keypub_der;
+  pubkey = d2i_RSAPublicKey(0, &key, __gbv2keypub_der_len);
 }
 
-/// Attempts to encode the input data using the key loaded with RSA_Load().
-/// Returns raw encoded data as std::string, or empty string on failure.
-std::string RSA_enc(std::string & data){
-  std::string out = "";
-  char * encrypted = (char*)malloc(RSA_size(pubkey));
-  int len = RSA_public_encrypt(data.size(), (unsigned char *)data.c_str(), (unsigned char *)encrypted, pubkey, RSA_PKCS1_PADDING);
-  if (len > 0){out = std::string(encrypted, len);}
-  free(encrypted);
-  return out;
+/// Attempts to verify RSA signature using the public key loaded with RSA_Load().
+/// Assumes basesign argument is base64 encoded RSA signature for data.
+/// Returns true if the data could be verified, false otherwise.
+bool RSA_check(std::string & data, std::string basesign){
+  std::string sign = base64_decode(basesign);
+  return (RSA_verify(NID_md5, (const unsigned char*)data.c_str(), data.size(), (const unsigned char*)sign.c_str(), sign.size(), pubkey) == 1);
 }
 
 Json::Value Storage = Json::Value(Json::objectValue); ///< Global storage of data.
@@ -163,10 +163,12 @@ class ConnectedUser{
     HTTP::Parser H;
     bool Authorized;
     bool clientMode;
+    int logins;
     std::string Username;
     ConnectedUser(Socket::Connection c){
       C = c;
       H.Clean();
+      logins = 0;
       Authorized = false;
       clientMode = false;
     }
@@ -198,7 +200,19 @@ void Authorize( Json::Value & Request, Json::Value & Response, ConnectedUser & c
         return;
       }
     }
-    Log("AUTH", "Failed login attempt "+UserID+" @ "+conn.C.getHost());
+    if (Storage["authorize"].isMember("key")){
+      UserID = "gearbox";
+      if (RSA_check(Challenge, Storage["authorize"]["key"].asString())){
+        Response["authorize"]["status"] = "OK";
+        conn.Username = UserID;
+        conn.Authorized = true;
+        return;
+      }
+    }
+    if (UserID != ""){
+      Log("AUTH", "Failed login attempt "+UserID+" @ "+conn.C.getHost());
+    }
+    conn.logins++;
   }
   conn.Username = "";
   conn.Authorized = false;
@@ -256,23 +270,68 @@ int main(int argc, char ** argv){
   time_t lastuplink = 0;
   Socket::Server API_Socket = Socket::Server(C.listen_port, C.interface, true);
   Socket::Server Stats_Socket = Socket::Server("/tmp/ddv_statistics", true);
+  Util::setUser(C.username);
+  if (C.daemon_mode){
+    Util::Daemonize();
+  }
   Socket::Connection Incoming;
   std::vector< ConnectedUser > users;
   Json::Value Request = Json::Value(Json::objectValue);
   Json::Value Response = Json::Value(Json::objectValue);
   Json::Reader JsonParse;
   std::string jsonp;
+  ConnectedUser * uplink = 0;
   JsonParse.parse(ReadFile("config.json"), Storage, false);
   if (!Storage.isMember("config")){Storage["config"] = Json::Value(Json::objectValue);}
   if (!Storage.isMember("log")){Storage["log"] = Json::Value(Json::arrayValue);}
   if (!Storage.isMember("statistics")){Storage["statistics"] = Json::Value(Json::arrayValue);}
   while (API_Socket.connected()){
     usleep(100000); //sleep for 100 ms - prevents 100% CPU time
+
+    if (time(0) - lastuplink > UPLINK_INTERVAL){
+      lastuplink = time(0);
+      bool gotUplink = false;
+      if (users.size() > 0){
+        for( std::vector< ConnectedUser >::iterator it = users.end() - 1; it >= users.begin(); it--) {
+          if (!it->C.connected()){
+            it->C.close();
+            users.erase(it);
+            break;
+          }
+          if (it->clientMode){uplink = &*it; gotUplink = true;}
+        }
+      }
+      if (!gotUplink){
+        Incoming = Socket::Connection("gearbox.ddvtech.com", 4242, true);
+        if (Incoming.connected()){
+          users.push_back(Incoming);
+          users.back().clientMode = true;
+          uplink = &users.back();
+          gotUplink = true;
+        }
+      }
+      if (gotUplink){
+        Response.clear(); //make sure no data leaks from previous requests
+        Response["config"] = Storage["config"];
+        Response["streams"] = Storage["streams"];
+        Response["log"] = Storage["log"];
+        Response["statistics"] = Storage["statistics"];
+        uplink->H.Clean();
+        uplink->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
+        uplink->H.BuildRequest();
+        uplink->C.write(uplink->H.BuildResponse("200", "OK"));
+        uplink->H.Clean();
+        Log("UPLK", "Sending server data to uplink.");
+      }else{
+        Log("UPLK", "Could not connect to uplink.");
+      }
+    }
+    
     Incoming = API_Socket.accept();
     if (Incoming.connected()){users.push_back(Incoming);}
     if (users.size() > 0){
       for( std::vector< ConnectedUser >::iterator it = users.end() - 1; it >= users.begin(); it--) {
-        if (!it->C.connected()){
+        if (!it->C.connected() || it->logins > 3){
           it->C.close();
           users.erase(it);
           break;
@@ -289,17 +348,29 @@ int main(int argc, char ** argv){
             }else{
               if (Request["authorize"]["status"] != "OK"){
                 if (Request["authorize"].isMember("challenge")){
-                  Response["authorize"]["username"] = defstr(COMPILED_USERNAME);
-                  Response["authorize"]["password"] = md5(defstr(COMPILED_PASSWORD) + Request["authorize"]["challenge"].asString());
-                  it->H.Clean();
-                  it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
-                  it->H.BuildRequest();
-                  it->C.write(it->H.BuildResponse("200", "OK"));
-                  it->H.Clean();
+                  it->logins++;
+                  if (it->logins > 2){
+                    Log("UPLK", "Max login attempts passed - dropping connection to uplink.");
+                    it->C.close();
+                  }else{
+                    Response["authorize"]["username"] = defstr(COMPILED_USERNAME);
+                    Response["authorize"]["password"] = md5(defstr(COMPILED_PASSWORD) + Request["authorize"]["challenge"].asString());
+                    it->H.Clean();
+                    it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
+                    it->H.BuildRequest();
+                    it->C.write(it->H.BuildResponse("200", "OK"));
+                    it->H.Clean();
+                    Log("UPLK", "Attempting login to uplink.");
+                  }
                 }
               }else{
                 if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
                 if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
+                if (Request.isMember("clearstatlogs")){
+                  Storage["log"].clear();
+                  Storage["statistics"].clear();
+                }
+                Log("UPLK", "Received data from uplink.");
               }
             }
           }else{
@@ -316,6 +387,7 @@ int main(int argc, char ** argv){
                 //sent current configuration, no matter if it was changed or not
                 //Response["streams"] = Storage["streams"];
                 Response["config"] = Storage["config"];
+                Response["streams"] = Storage["streams"];
                 //add required data to the current unix time to the config, for syncing reasons
                 Response["config"]["time"] = (Json::Value::UInt)time(0);
                 if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}

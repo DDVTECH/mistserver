@@ -30,7 +30,8 @@ namespace HTTP{
       void SendBodyPart(Socket::Connection & conn, std::string bodypart);
       void Clean();
       bool CleanForNext();
-      std::string urlunescape(std::string in);
+      static std::string urlunescape(const std::string & in);
+      static std::string urlencode(const std::string & in);
       std::string body;
       std::string method;
       std::string url;
@@ -45,6 +46,7 @@ namespace HTTP{
       std::map<std::string, std::string> headers;
       std::map<std::string, std::string> vars;
       void Trim(std::string & s);
-      int unhex(char c); ///< Helper function for urlunescape.
+      static int unhex(char c);
+      static std::string hex(char dec);
   };//HTTP::Parser class
 };//HTTP namespace

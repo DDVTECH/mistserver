@@ -159,10 +159,10 @@ int main(int argc, char ** argv){
   if (server_socket.connected()){
     //if setup success, enter daemon mode if requested
     if (daemon_mode){
-      daemon(1, 0);
       #if DEBUG >= 3
       fprintf(stderr, "Going into background mode...\n");
       #endif
+      daemon(1, 0);
     }
   }else{
     #if DEBUG >= 1

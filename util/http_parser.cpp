@@ -16,32 +16,20 @@ void HTTP::Parser::Clean(){
   protocol = "HTTP/1.1";
   body.clear();
   length = 0;
-  HTTPbuffer.clear();
   headers.clear();
   vars.clear();
 }
 
 /// Re-initializes the HTTP::Parser, leaving the internal data buffer alone, then tries to parse a new request or response.
-/// First does the same as HTTP::Parser::Clean(), but does not clear the internal data buffer.
-/// This function then calls the HTTP::Parser::parse() function, and returns that functions return value.
+/// Does the same as HTTP::Parser::Clean(), then returns HTTP::Parser::parse().
 bool HTTP::Parser::CleanForNext(){
-  seenHeaders = false;
-  seenReq = false;
-  method = "GET";
-  url = "/";
-  protocol = "HTTP/1.1";
-  body = "";
-  length = 0;
-  headers.clear();
-  vars.clear();
+  Clean();
   return parse();
 }
 
 /// Returns a string containing a valid HTTP 1.0 or 1.1 request, ready for sending.
 /// The request is build from internal variables set before this call is made.
-/// To be precise, method, url, protocol, headers and the internal data buffer are used,
-/// where the internal data buffer is used as the body of the request.
-/// This means you cannot mix receiving and sending, because the body would get corrupted.
+/// To be precise, method, url, protocol, headers and body are used.
 /// \return A string containing a valid HTTP 1.0 or 1.1 request, ready for sending.
 std::string HTTP::Parser::BuildRequest(){
   /// \todo Include GET/POST variable parsing?
@@ -51,15 +39,13 @@ std::string HTTP::Parser::BuildRequest(){
     tmp += (*it).first + ": " + (*it).second + "\n";
   }
   tmp += "\n";
-  tmp += HTTPbuffer;
+  tmp += body;
   return tmp;
 }
 
 /// Returns a string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
 /// The response is partly build from internal variables set before this call is made.
-/// To be precise, protocol, headers and the internal data buffer are used,
-/// where the internal data buffer is used as the body of the response.
-/// This means you cannot mix receiving and sending, because the body would get corrupted.
+/// To be precise, protocol, headers and body are used.
 /// \param code The HTTP response code. Usually you want 200.
 /// \param message The HTTP response message. Usually you want "OK".
 /// \return A string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
@@ -71,7 +57,7 @@ std::string HTTP::Parser::BuildResponse(std::string code, std::string message){
     tmp += (*it).first + ": " + (*it).second + "\n";
   }
   tmp += "\n";
-  tmp += HTTPbuffer;
+  tmp += body;
   return tmp;
 }
 
@@ -87,7 +73,7 @@ void HTTP::Parser::Trim(std::string & s){
 /// Function that sets the body of a response or request, along with the correct Content-Length header.
 /// \param s The string to set the body to.
 void HTTP::Parser::SetBody(std::string s){
-  HTTPbuffer = s;
+  body = s;
   SetHeader("Content-Length", s.length());
 }
 
@@ -95,8 +81,8 @@ void HTTP::Parser::SetBody(std::string s){
 /// \param buffer The buffer data to set the body to.
 /// \param len Length of the buffer data.
 void HTTP::Parser::SetBody(char * buffer, int len){
-  HTTPbuffer = "";
-  HTTPbuffer.append(buffer, len);
+  body = "";
+  body.append(buffer, len);
   SetHeader("Content-Length", len);
 }
 
@@ -265,8 +251,8 @@ void HTTP::Parser::SendBodyPart(Socket::Connection & conn, std::string bodypart)
   }
 }
 
-/// Unescapes URLencoded std::strings.
-std::string HTTP::Parser::urlunescape(std::string in){
+/// Unescapes URLencoded std::string data.
+std::string HTTP::Parser::urlunescape(const std::string & in){
   std::string out;
   for (unsigned int i = 0; i < in.length(); ++i){
     if (in[i] == '%'){
@@ -291,4 +277,34 @@ std::string HTTP::Parser::urlunescape(std::string in){
 /// Takes a single char input and outputs its integer hex value.
 int HTTP::Parser::unhex(char c){
   return( c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c - 'a' + 10 );
+}
+
+/// URLencodes std::string data.
+std::string HTTP::Parser::urlencode(const std::string &c){
+  std::string escaped="";
+  int max = c.length();
+  for(int i=0; i<max; i++){
+    if (('0'<=c[i] && c[i]<='9') || ('a'<=c[i] && c[i]<='z') || ('A'<=c[i] && c[i]<='Z') || (c[i]=='~' || c[i]=='!' || c[i]=='*' || c[i]=='(' || c[i]==')' || c[i]=='\'')){
+      escaped.append( &c[i], 1);
+    }else{
+      escaped.append("%");
+      escaped.append(hex(c[i]));
+    }
+  }
+  return escaped;
+}
+
+/// Helper function for urlescape.
+/// Encodes a character as two hex digits.
+std::string HTTP::Parser::hex(char dec){
+  char dig1 = (dec&0xF0)>>4;
+  char dig2 = (dec&0x0F);
+  if (dig1<= 9) dig1+=48;
+  if (10<= dig1 && dig1<=15) dig1+=97-10;
+  if (dig2<= 9) dig2+=48;
+  if (10<= dig2 && dig2<=15) dig2+=97-10;
+  std::string r;
+  r.append(&dig1, 1);
+  r.append(&dig2, 1);
+  return r;
 }

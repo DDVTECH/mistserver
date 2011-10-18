@@ -29,7 +29,7 @@ namespace Util{
   };
 
   /// Will set the active user to the named username.
-  static setUser(std::string user);
+  void setUser(std::string user);
 
   /// Deals with parsing configuration from files or commandline options.
   class Config{
@@ -39,6 +39,7 @@ namespace Util{
     bool ignore_port;
     bool ignore_user;
   public:
+    std::string confsection;
     std::string configfile;
     bool daemon_mode;
     std::string interface;
@@ -46,8 +47,9 @@ namespace Util{
     std::string username;
     Config();
     void parseArgs(int argc, char ** argv);
+    void parseFile();
   };
-  
+
   /// Will turn the current process into a daemon.
   void Daemonize();
 

@@ -2,11 +2,16 @@ SRC = main.cpp ../util/json/json_reader.cpp ../util/json/json_value.cpp ../util/
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Controller
 INCLUDES = 
-CCFLAGS = -Wall -Wextra -funsigned-char -g
+DEBUG = 4
+OPTIMIZE = -g
+COMPILED_USERNAME = testuser
+COMPILED_PASSWORD = 179ad45c6ce2cb97cf1029e212046e81
+#COMPILED_PASSWORD = testpass
+CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG) -DCOMPILED_USERNAME=$(COMPILED_USERNAME) -DCOMPILED_PASSWORD=$(COMPILED_PASSWORD)
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
-LIBS =
+LIBS = -lssl -lcrypto
 .SUFFIXES: .cpp 
 .PHONY: clean default
 default: $(OUT)

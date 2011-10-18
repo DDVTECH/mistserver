@@ -160,6 +160,7 @@ std::string ReadFile( std::string Filename ) {
 
 class ConnectedUser{
   public:
+    std::string writebuffer;
     Socket::Connection C;
     HTTP::Parser H;
     bool Authorized;
@@ -286,7 +287,7 @@ int main(int argc, char ** argv){
   JsonParse.parse(ReadFile("config.json"), Storage, false);
   if (!Storage.isMember("config")){Storage["config"] = Json::Value(Json::objectValue);}
   if (!Storage.isMember("log")){Storage["log"] = Json::Value(Json::arrayValue);}
-  if (!Storage.isMember("statistics")){Storage["statistics"] = Json::Value(Json::arrayValue);}
+  if (!Storage.isMember("statistics")){Storage["statistics"] = Json::Value(Json::objectValue);}
   while (API_Socket.connected()){
     usleep(100000); //sleep for 100 ms - prevents 100% CPU time
 
@@ -321,7 +322,7 @@ int main(int argc, char ** argv){
         uplink->H.Clean();
         uplink->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
         uplink->H.BuildRequest();
-        uplink->C.write(uplink->H.BuildResponse("200", "OK"));
+        uplink->writebuffer += uplink->H.BuildResponse("200", "OK");
         uplink->H.Clean();
         Log("UPLK", "Sending server data to uplink.");
       }else{
@@ -338,6 +339,9 @@ int main(int argc, char ** argv){
           users.erase(it);
           break;
         }
+        if (it->writebuffer != ""){
+          it->C.iwrite(it->writebuffer);
+        }
         if (it->H.Read(it->C)){
           Response.clear(); //make sure no data leaks from previous requests
           if (it->clientMode){
@@ -345,7 +349,7 @@ int main(int argc, char ** argv){
             // They are assumed to be authorized, but authorization to gearbox is still done.
             // This authorization uses the compiled-in username and password (account).
             if (!JsonParse.parse(it->H.body, Request, false)){
-              Log("HTTP", "Failed to parse JSON: "+it->H.GetVar("command"));
+              Log("HTTP", "Failed to parse JSON: "+it->H.body);
               Response["authorize"]["status"] = "INVALID";
             }else{
               if (Request["authorize"]["status"] != "OK"){
@@ -355,12 +359,16 @@ int main(int argc, char ** argv){
                     Log("UPLK", "Max login attempts passed - dropping connection to uplink.");
                     it->C.close();
                   }else{
+                    Response["config"] = Storage["config"];
+                    Response["streams"] = Storage["streams"];
+                    Response["log"] = Storage["log"];
+                    Response["statistics"] = Storage["statistics"];
                     Response["authorize"]["username"] = TOSTRING(COMPILED_USERNAME);
                     Response["authorize"]["password"] = md5(TOSTRING(COMPILED_PASSWORD) + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
                     it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
                     it->H.BuildRequest();
-                    it->C.write(it->H.BuildResponse("200", "OK"));
+                    it->writebuffer += it->H.BuildResponse("200", "OK");
                     it->H.Clean();
                     Log("UPLK", "Attempting login to uplink.");
                   }
@@ -373,6 +381,7 @@ int main(int argc, char ** argv){
                   Storage["statistics"].clear();
                 }
                 Log("UPLK", "Received data from uplink.");
+                WriteFile("config.json", Storage.toStyledString());
               }
             }
           }else{
@@ -412,12 +421,13 @@ int main(int argc, char ** argv){
             }else{
               it->H.SetBody(jsonp+"("+Response.toStyledString()+");\n\n");
             }
-            it->C.write(it->H.BuildResponse("200", "OK"));
+            it->writebuffer += it->H.BuildResponse("200", "OK");
             it->H.Clean();
           }
         }
       }
     }
   }
+  WriteFile("config.json", Storage.toStyledString());
   return 0;
 }

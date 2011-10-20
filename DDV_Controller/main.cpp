@@ -257,7 +257,6 @@ void CheckProtocols(Json::Value & p){
   bool seenHTTP = false;
   bool seenRTMP = false;
   std::string tmp;
-  Util::Procs::Stop("RTMP");
   for (Json::ValueIterator jit = p.begin(); jit != p.end(); jit++){
     if (jit.memberName() == std::string("HTTP")){
       tmp = p[jit.memberName()]["port"].asString();

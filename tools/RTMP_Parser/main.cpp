@@ -14,9 +14,9 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include "../util/flv_tag.h"
-#include "../util/amf.h"
-#include "../util/rtmpchunks.h"
+#include "../../util/flv_tag.h"
+#include "../../util/amf.h"
+#include "../../util/rtmpchunks.h"
 
 int Detail = 0;
 #define DETAIL_RECONSTRUCT 1

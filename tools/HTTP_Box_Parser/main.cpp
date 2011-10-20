@@ -10,9 +10,9 @@
 #include <iostream>
 #include <string>
 #include <stdio.h>
-#include "../util/http_parser.h"
-#include "../util/MP4/box_includes.h"
-#include "../util/flv_tag.h"
+#include "../../util/http_parser.h"
+#include "../../util/MP4/box_includes.h"
+#include "../../util/flv_tag.h"
 
 /// Debugging tool for F4M HTTP streaming data.
 /// Expects raw TCP data through stdin, outputs human-readable information to stderr.

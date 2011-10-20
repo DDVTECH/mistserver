@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <string>
-#include "../util/proc.h" //Process utility
+#include "../../util/util.h" //Process utility
 
 /// Sleeps a maximum of five seconds, each second being interruptable by a signal.
 void sleepFive(){

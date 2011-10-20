@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/amf.cpp
+SRC = main.cpp ../../util/amf.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = AMFtest
 INCLUDES = 

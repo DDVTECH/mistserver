@@ -1,17 +1,18 @@
-SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp
+SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/util.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_HTTP
 INCLUDES = 
 DEBUG = 4
 OPTIMIZE = -g
-CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)
+CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG) -DVERSION=$(VERSION)
+VERSION = `git describe --tags`
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
 LIBS=
 .SUFFIXES: .cpp 
 .PHONY: clean default
-default: $(OUT)
+default: cversion $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
 $(OUT): $(OBJ)
@@ -23,4 +24,6 @@ install: $(OUT)
 	cp -f ./$(OUT) /usr/bin/
 	cp -f ./HTTP_Conn /etc/init.d/
 	service HTTP_Conn start
+cversion:
+	rm -rf ../util/util.o
 

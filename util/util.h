@@ -5,6 +5,9 @@
 #include <string>
 #include <map>
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
 /// Contains utility code, not directly related to streaming media
 namespace Util{
 

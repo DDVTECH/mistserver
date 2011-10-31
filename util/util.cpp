@@ -276,7 +276,7 @@ Util::Config::Config(){
 /// Assumes confsection is set.
 void Util::Config::parseArgs(int argc, char ** argv){
   int opt = 0;
-  static const char *optString = "ndp:i:u:c:h?";
+  static const char *optString = "ndvp:i:u:c:h?";
   static const struct option longOpts[] = {
     {"help",0,0,'h'},
     {"port",1,0,'p'},
@@ -284,7 +284,8 @@ void Util::Config::parseArgs(int argc, char ** argv){
     {"username",1,0,'u'},
     {"no-daemon",0,0,'n'},
     {"daemon",0,0,'d'},
-    {"configfile",1,0,'c'}
+    {"configfile",1,0,'c'},
+    {"version",0,0,'v'}
   };
   while ((opt = getopt_long(argc, argv, optString, longOpts, 0)) != -1){
     switch (opt){
@@ -294,13 +295,18 @@ void Util::Config::parseArgs(int argc, char ** argv){
       case 'd': daemon_mode = true; ignore_daemon = true; break;
       case 'c': configfile = optarg; break;
       case 'u': username = optarg; ignore_user = true; break;
+      case 'v':
+        printf("%s\n", TOSTRING(VERSION));
+        exit(1);
+        break;
       case 'h':
       case '?':
-        printf("Options: -h[elp], -?, -n[odaemon], -d[aemon], -p[ort] VAL, -i[nterface] VAL, -c[onfigfile] VAL, -u[sername] VAL\n");
+        printf("Options: -h[elp], -?, -v[ersion], -n[odaemon], -d[aemon], -p[ort] VAL, -i[nterface] VAL, -c[onfigfile] VAL, -u[sername] VAL\n");
         printf("Defaults:\n  interface: 0.0.0.0\n  port: %i\n  daemon mode: true\n  configfile: /etc/ddvtech.conf\n  username: root\n", listen_port);
         printf("Username root means no change to UID, no matter what the UID is.\n");
         printf("If the configfile exists, it is always loaded first. Commandline settings then overwrite the config file.\n");
         printf("\nThis process takes it directives from the %s section of the configfile.\n", confsection.c_str());
+        printf("This is %s version %s\n", argv[0], TOSTRING(VERSION));
         exit(1);
         break;
     }
@@ -343,5 +349,8 @@ void Util::Config::parseFile(){
 /// Does not change directory to root.
 /// Does redirect output to /dev/null
 void Util::Daemonize(){
+  #if DEBUG >= 3
+  fprintf(stderr, "Going into background mode...\n");
+  #endif
   daemon(1, 0);
 }

@@ -15,10 +15,13 @@ AR = $(CROSS)ar
 LIBS = -lssl -lcrypto
 .SUFFIXES: .cpp 
 .PHONY: clean default
-default: $(OUT)
+default: cversion $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
 $(OUT): $(OBJ)
 	$(CC) $(LIBS) -o $(OUT) $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
+cversion:
+	rm -rf ../util/util.o
+

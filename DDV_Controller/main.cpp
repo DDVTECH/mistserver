@@ -30,9 +30,6 @@
 
 #define UPLINK_INTERVAL 30
 
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
-
 Socket::Server API_Socket; ///< Main connection socket.
 
 /// Basic signal handler. Disconnects the server_socket if it receives

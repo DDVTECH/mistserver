@@ -1,18 +1,19 @@
-SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/rtmpchunks.cpp ../util/crypto.cpp
+SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/rtmpchunks.cpp ../util/crypto.cpp ../util/util.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_RTMP
 INCLUDES =
 STATIC =
 DEBUG = 4
 OPTIMIZE = -g
-CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)
+CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG) -DVERSION=$(VERSION)
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
+VERSION = `git describe --tags`
 LIBS = -lssl -lcrypto
 .SUFFIXES: .cpp 
 .PHONY: clean default
-default: $(OUT)
+default: cversion $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@
 $(OUT): $(OBJ)
@@ -24,4 +25,6 @@ install: $(OUT)
 	cp -f ./$(OUT) /usr/bin/
 	cp -f ./RTMP_Conn /etc/init.d/
 	service RTMP_Conn start
+cversion:
+	rm -rf ../util/util.o
 

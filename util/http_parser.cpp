@@ -38,8 +38,7 @@ std::string HTTP::Parser::BuildRequest(){
   for (it=headers.begin(); it != headers.end(); it++){
     tmp += (*it).first + ": " + (*it).second + "\n";
   }
-  tmp += "\n";
-  tmp += body;
+  tmp += "\n" + body + "\n";
   return tmp;
 }
 
@@ -178,11 +177,8 @@ bool HTTP::Parser::parse(){
     if (seenHeaders){
       if (length > 0){
         if (HTTPbuffer.length() >= length){
-          if ((method != "HTTP/1.0") && (method != "HTTP/1.1")){
-            body = HTTPbuffer.substr(0, length);
-            parseVars(body); //parse POST variables
-          }
           body = HTTPbuffer.substr(0, length);
+          parseVars(body); //parse POST variables
           HTTPbuffer.erase(0, length);
           return true;
         }else{

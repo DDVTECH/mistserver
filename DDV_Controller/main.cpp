@@ -466,7 +466,7 @@ int main(int argc, char ** argv){
             // They are assumed to be authorized, but authorization to gearbox is still done.
             // This authorization uses the compiled-in username and password (account).
             if (!JsonParse.parse(it->H.body, Request, false)){
-              Log("HTTP", "Failed to parse body JSON: "+it->H.body);
+              Log("UPLK", "Failed to parse body JSON: "+it->H.body);
               Response["authorize"]["status"] = "INVALID";
             }else{
               if (Request["authorize"]["status"] != "OK"){

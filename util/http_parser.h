@@ -41,7 +41,7 @@ namespace HTTP{
       bool seenHeaders;
       bool seenReq;
       bool parse();
-      void parseVars(std::string & data);
+      void parseVars(std::string data);
       std::string HTTPbuffer;
       std::map<std::string, std::string> headers;
       std::map<std::string, std::string> vars;

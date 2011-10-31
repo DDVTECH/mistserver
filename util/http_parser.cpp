@@ -158,8 +158,7 @@ bool HTTP::Parser::parse(){
         f = tmpA.find(' ');
         if (f != std::string::npos){protocol = tmpA.substr(0, f); tmpA.erase(0, f+1);}
         if (url.find('?') != std::string::npos){
-          std::string queryvars = url.substr(url.find('?')+1);
-          parseVars(queryvars); //parse GET variables
+          parseVars(url.substr(url.find('?')+1)); //parse GET variables
         }
       }else{
         if (tmpA.size() == 0){
@@ -204,7 +203,7 @@ void HTTP::Parser::SendResponse(Socket::Connection & conn, std::string code, std
 
 /// Parses GET or POST-style variable data.
 /// Saves to internal variable structure using HTTP::Parser::SetVar.
-void HTTP::Parser::parseVars(std::string & data){
+void HTTP::Parser::parseVars(std::string data){
   std::string varname;
   std::string varval;
   while (data.find('=') != std::string::npos){

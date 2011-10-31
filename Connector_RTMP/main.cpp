@@ -355,7 +355,7 @@ void Connector_RTMP::parseChunk(){
               streamname = amfdata.getContentP(3)->StrValue();
               for (std::string::iterator i=streamname.begin(); i != streamname.end(); ++i){
                 if (*i == '?'){streamname.erase(i, streamname.end()); break;}
-                if (!isalpha(*i) && !isdigit(*i)){
+                if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
                   streamname.erase(i);
                   --i;
                 }else{
@@ -423,7 +423,7 @@ void Connector_RTMP::parseChunk(){
             //send streambegin
             streamname = amfdata.getContentP(3)->StrValue();
             for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-              if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
+              if (!isalpha(*i) && !isdigit(*i) && *i != '_'){streamname.erase(i);}else{*i=tolower(*i);}
             }
             streamname = "/tmp/shared_socket_" + streamname;
             Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
@@ -575,7 +575,7 @@ void Connector_RTMP::parseChunk(){
             streamname = amfdata.getContentP(3)->StrValue();
             for (std::string::iterator i=streamname.begin(); i != streamname.end(); ++i){
               if (*i == '?'){streamname.erase(i, streamname.end()); break;}
-              if (!isalpha(*i) && !isdigit(*i)){
+              if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
                 streamname.erase(i);
                 --i;
               }else{
@@ -643,7 +643,7 @@ void Connector_RTMP::parseChunk(){
           //send streambegin
           streamname = amfdata.getContentP(3)->StrValue();
           for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}
+            if (!isalpha(*i) && !isdigit(*i) && *i != '_'){streamname.erase(i);}else{*i=tolower(*i);}
           }
           streamname = "/tmp/shared_socket_" + streamname;
           Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1

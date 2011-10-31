@@ -215,7 +215,7 @@ namespace Connector_HTTP{
           }
           streamname = "/tmp/shared_socket_";
           for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i)){
+            if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
               Movie.erase(i);
             }else{
               *i=tolower(*i);
@@ -228,11 +228,10 @@ namespace Connector_HTTP{
           //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
           streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
           for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i)){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
+            if (!isalpha(*i) && !isdigit(*i) && *i != '_'){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
           }
           streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
           //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
-          printf("Streamname: %s\n", streamname.c_str());
           ready4data = true;
         }//PROGRESSIVE handler
         HTTP_R.CleanForNext(); //maak schoon na verwerken voor eventuele volgende requests...

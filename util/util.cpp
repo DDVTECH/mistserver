@@ -273,7 +273,8 @@ Util::Config::Config(){
 
 /// Parses commandline arguments.
 /// Calls exit if an unknown option is encountered, printing a help message.
-/// Assumes confsection is set.
+/// confsection must be either already set or never be set at all when this function is called.
+/// In other words: do not change confsection after calling this function.
 void Util::Config::parseArgs(int argc, char ** argv){
   int opt = 0;
   static const char *optString = "ndvp:i:u:c:h?";
@@ -301,11 +302,18 @@ void Util::Config::parseArgs(int argc, char ** argv){
         break;
       case 'h':
       case '?':
-        printf("Options: -h[elp], -?, -v[ersion], -n[odaemon], -d[aemon], -p[ort] VAL, -i[nterface] VAL, -c[onfigfile] VAL, -u[sername] VAL\n");
-        printf("Defaults:\n  interface: 0.0.0.0\n  port: %i\n  daemon mode: true\n  configfile: /etc/ddvtech.conf\n  username: root\n", listen_port);
-        printf("Username root means no change to UID, no matter what the UID is.\n");
-        printf("If the configfile exists, it is always loaded first. Commandline settings then overwrite the config file.\n");
-        printf("\nThis process takes it directives from the %s section of the configfile.\n", confsection.c_str());
+        std::string doingdaemon = "true";
+        if (!daemon_mode){doingdaemon = "false";}
+        if (confsection == ""){
+          printf("Options: -h[elp], -?, -v[ersion], -n[odaemon], -d[aemon], -p[ort] VAL, -i[nterface] VAL, -u[sername] VAL\n");
+          printf("Defaults:\n  interface: %s\n  port: %i\n  daemon mode: %s\n  username: %s\n", interface.c_str(), listen_port, doingdaemon.c_str(), username.c_str());
+        }else{
+          printf("Options: -h[elp], -?, -v[ersion], -n[odaemon], -d[aemon], -p[ort] VAL, -i[nterface] VAL, -c[onfigfile] VAL, -u[sername] VAL\n");
+          printf("Defaults:\n  interface: %s\n  port: %i\n  daemon mode: %s\n  configfile: %s\n  username: %s\n", interface.c_str(), listen_port, doingdaemon.c_str(), configfile.c_str(), username.c_str());
+          printf("Username root means no change to UID, no matter what the UID is.\n");
+          printf("If the configfile exists, it is always loaded first. Commandline settings then overwrite the config file.\n");
+          printf("\nThis process takes it directives from the %s section of the configfile.\n", confsection.c_str());
+        }
         printf("This is %s version %s\n", argv[0], TOSTRING(VERSION));
         exit(1);
         break;

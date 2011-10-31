@@ -261,7 +261,7 @@ void CheckProtocols(Json::Value & p){
       if (connports["HTTP"] != tmp){Util::Procs::Stop("HTTP");}
       connports["HTTP"] = tmp;
       if (!Util::Procs::isActive("HTTP")){
-        Util::Procs::Start("HTTP", std::string("DDV_Conn_HTTP -p ")+tmp);
+        Util::Procs::Start("HTTP", std::string("DDV_Conn_HTTP -n -p ")+tmp);
       }
     }
     if (jit.memberName() == std::string("RTMP")){
@@ -270,7 +270,7 @@ void CheckProtocols(Json::Value & p){
       if (connports["RTMP"] != tmp){Util::Procs::Stop("RTMP");}
       connports["RTMP"] = tmp;
       if (!Util::Procs::isActive("RTMP")){
-        Util::Procs::Start("RTMP", std::string("DDV_Conn_RTMP -p ")+tmp);
+        Util::Procs::Start("RTMP", std::string("DDV_Conn_RTMP -n -p ")+tmp);
       }
     }
   }

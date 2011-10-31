@@ -21,10 +21,7 @@ $(OUT): $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 install: $(OUT)
-	-service RTMP_Conn stop
 	cp -f ./$(OUT) /usr/bin/
-	cp -f ./RTMP_Conn /etc/init.d/
-	service RTMP_Conn start
 cversion:
 	rm -rf ../util/util.o
 

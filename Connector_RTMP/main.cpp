@@ -21,6 +21,7 @@ namespace Connector_RTMP{
   //for connection to server
   bool ready4data = false; ///< Set to true when streaming starts.
   bool inited = false; ///< Set to true when ready to connect to Buffer.
+  bool nostats = false; ///< Set to true if no stats should be sent anymore (push mode).
   bool stopparsing = false; ///< Set to true when all parsing needs to be cancelled.
 
   Socket::Connection Socket; ///< Socket connected to user
@@ -86,11 +87,11 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         #endif
         inited = true;
       }
-      if (inited){
+      if (inited && !nostats){
         unsigned int now = time(0);
         if (now != lastStats){
           lastStats = now;
-          std::string stat = "S "+Socket.getStats();
+          std::string stat = "S "+Socket.getStats("RTMP");
           SS.write(stat);
         }
       }
@@ -385,6 +386,7 @@ void Connector_RTMP::parseChunk(){
                 break;
               }
               SS.write("P "+Socket.getHost()+'\n');
+              nostats = true;
               #if DEBUG >= 4
               fprintf(stderr, "Connected to buffer, starting to sent data...\n");
               #endif
@@ -605,6 +607,7 @@ void Connector_RTMP::parseChunk(){
               break;
             }
             SS.write("P "+Socket.getHost()+'\n');
+            nostats = true;
             #if DEBUG >= 4
             fprintf(stderr, "Connected to buffer, starting to send data...\n");
             #endif

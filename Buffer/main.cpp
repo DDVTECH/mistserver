@@ -30,6 +30,44 @@ namespace Buffer{
     FLV::Tag FLV;
   };//buffer
 
+  /// Converts a stats line to up, down, host, connector and conntime values.
+  class Stats{
+    public:
+      unsigned int up;
+      unsigned int down;
+      std::string host;
+      std::string connector;
+      unsigned int conntime;
+      Stats(){
+        up = 0;
+        down = 0;
+        conntime = 0;
+      }
+      Stats(std::string s){
+        size_t f = s.find(' ');
+        if (f != std::string::npos){
+          host = s.substr(0, f);
+          s.erase(0, f+1);
+        }
+        f = s.find(' ');
+        if (f != std::string::npos){
+          connector = s.substr(0, f);
+          s.erase(0, f+1);
+        }
+        f = s.find(' ');
+        if (f != std::string::npos){
+          conntime = atoi(s.substr(0, f).c_str());
+          s.erase(0, f+1);
+        }
+        f = s.find(' ');
+        if (f != std::string::npos){
+          up = atoi(s.substr(0, f).c_str());
+          s.erase(0, f+1);
+          down = atoi(s.c_str());
+        }
+      }
+  };
+
   /// Holds connected users.
   /// Keeps track of what buffer users are using and the connection status.
   class user{
@@ -39,6 +77,9 @@ namespace Buffer{
       int MyBuffer_len; ///< Length in bytes of currently used buffer.
       int MyNum; ///< User ID of this user.
       int currsend; ///< Current amount of bytes sent.
+      Stats lastStats; ///< Holds last known stats for this connection.
+      unsigned int curr_up; ///< Holds the current estimated transfer speed up.
+      unsigned int curr_down; ///< Holds the current estimated transfer speed down.
       bool gotproperaudio; ///< Whether the user received proper audio yet.
       void * lastpointer; ///< Pointer to data part of current buffer.
       static int UserCount; ///< Global user counter.
@@ -49,6 +90,8 @@ namespace Buffer{
         S = fd;
         MyNum = UserCount++;
         gotproperaudio = false;
+        curr_up = 0;
+        curr_down = 0;
         std::cout << "User " << MyNum << " connected" << std::endl;
       }//constructor
       /// Disconnects the current user. Doesn't do anything if already disconnected.
@@ -56,8 +99,8 @@ namespace Buffer{
       void Disconnect(std::string reason) {
         if (S.connected()) {
           S.close();
-          std::cout << "Disconnected user " << MyNum << ": " << reason << std::endl;
         }
+        std::cout << "Disconnected user " << MyNum << ": " << reason << ". " << lastStats.connector << " transferred " << lastStats.up << " up and " << lastStats.down << " down in " << lastStats.conntime << " seconds to " << lastStats.host << std::endl;
       }//Disconnect
       /// Tries to send the current buffer, returns true if success, false otherwise.
       /// Has a side effect of dropping the connection if send will never complete.
@@ -160,6 +203,7 @@ namespace Buffer{
     int current_buffer = 0;
     int lastproper = 0;//last properly finished buffer number
     unsigned int loopcount = 0;
+    unsigned int stattimer = 0;
     Socket::Connection incoming;
     Socket::Connection std_input(fileno(stdin));
 
@@ -170,6 +214,19 @@ namespace Buffer{
 
     while((!feof(stdin) || ip_waiting) && !FLV::Parse_Error){
       usleep(1000); //sleep for 1 ms, to prevent 100% CPU time
+      unsigned int now = time(0);
+      if (now != stattimer){
+        stattimer = now;
+        unsigned int tot_up = 0, tot_down = 0, tot_count = 0;
+        if (users.size() > 0){
+          for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
+            tot_down += usersIt->curr_down;
+            tot_up += usersIt->curr_up;
+            tot_count++;
+          }
+          std::cout << "Stats: " << tot_count << " viewers, " << tot_up << " up, " << tot_down << " down" << std::endl;
+        }
+      }
       //invalidate the current buffer
       ringbuf[current_buffer]->number = -1;
       if (
@@ -262,6 +319,7 @@ namespace Buffer{
         for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
           //remove disconnected users
           if (!(*usersIt).S.connected()){
+            (*usersIt).Disconnect("Closed");
             users.erase(usersIt); break;
           }else{
             if ((*usersIt).S.canRead()){
@@ -287,7 +345,12 @@ namespace Buffer{
                   }
                 }
                 if (tmp[0] == 'S'){
-                  /// \todo Parse and save stats
+                  Stats tmpStats = Stats(tmp.substr(2));
+                  unsigned int secs = tmpStats.conntime - (*usersIt).lastStats.conntime;
+                  if (secs < 1){secs = 1;}
+                  (*usersIt).curr_up = (tmpStats.up - (*usersIt).lastStats.up) / secs;
+                  (*usersIt).curr_down = (tmpStats.down - (*usersIt).lastStats.down) / secs;
+                  (*usersIt).lastStats = tmpStats;
                 }
               }
             }

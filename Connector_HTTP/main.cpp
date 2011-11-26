@@ -268,7 +268,7 @@ namespace Connector_HTTP{
           unsigned int now = time(0);
           if (now != lastStats){
             lastStats = now;
-            std::string stat = "S "+conn.getStats();
+            std::string stat = "S "+conn.getStats("HTTP");
             ss.write(stat);
           }
         }

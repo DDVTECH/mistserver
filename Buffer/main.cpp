@@ -271,18 +271,23 @@ namespace Buffer{
                 tmp += charbuf;
               }
               if (tmp != ""){
-                std::cout << "Push attempt from IP " << tmp << std::endl;
-                if (tmp == waiting_ip){
-                  if (!ip_input.connected()){
-                    std::cout << "Push accepted!" << std::endl;
-                    ip_input = (*usersIt).S;
-                    users.erase(usersIt);
-                    break;
+                if (tmp[0] == 'P'){
+                  std::cout << "Push attempt from IP " << tmp.substr(2) << std::endl;
+                  if (tmp.substr(2) == waiting_ip){
+                    if (!ip_input.connected()){
+                      std::cout << "Push accepted!" << std::endl;
+                      ip_input = (*usersIt).S;
+                      users.erase(usersIt);
+                      break;
+                    }else{
+                      (*usersIt).Disconnect("Push denied - push already in progress!");
+                    }
                   }else{
-                    (*usersIt).Disconnect("Push denied - push already in progress!");
+                    (*usersIt).Disconnect("Push denied - invalid IP address!");
                   }
-                }else{
-                  (*usersIt).Disconnect("Push denied - invalid IP address!");
+                }
+                if (tmp[0] == 'S'){
+                  /// \todo Parse and save stats
                 }
               }
             }

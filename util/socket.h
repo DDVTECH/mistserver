@@ -25,6 +25,7 @@ namespace Socket{
       std::string remotehost; ///< Stores remote host address.
       unsigned int up;
       unsigned int down;
+      unsigned int conntime;
     public:
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
@@ -51,6 +52,7 @@ namespace Socket{
       std::string getError(); ///< Returns a string describing the last error that occured.
       unsigned int dataUp(); ///< Returns total amount of bytes sent.
       unsigned int dataDown(); ///< Returns total amount of bytes received.
+      std::string getStats(); ///< Returns a std::string of stats, ended by a newline.
       friend class Server;
       bool Error; ///< Set to true if a socket error happened.
       bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.

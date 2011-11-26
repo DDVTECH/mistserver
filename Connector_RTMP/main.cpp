@@ -58,6 +58,8 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
     return 0;
   }
 
+  unsigned int lastStats = 0;
+
   while (Socket.connected() && !FLV::Parse_Error){
     //only parse input if available or not yet init'ed
     //rightnow = getNowMS();
@@ -83,7 +85,15 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
         inited = true;
+      }
+      if (inited){
+        unsigned int now = time(0);
+        if (now != lastStats){
+          lastStats = now;
+          std::string stat = "S "+Socket.getStats();
+          SS.write(stat);
         }
+      }
       SS.canRead();
       switch (SS.ready()){
         case -1:
@@ -374,7 +384,7 @@ void Connector_RTMP::parseChunk(){
                 Socket.close();//disconnect user
                 break;
               }
-              SS.write(Socket.getHost()+'\n');
+              SS.write("P "+Socket.getHost()+'\n');
               #if DEBUG >= 4
               fprintf(stderr, "Connected to buffer, starting to sent data...\n");
               #endif
@@ -594,7 +604,7 @@ void Connector_RTMP::parseChunk(){
               Socket.close();//disconnect user
               break;
             }
-            SS.write(Socket.getHost()+'\n');
+            SS.write("P "+Socket.getHost()+'\n');
             #if DEBUG >= 4
             fprintf(stderr, "Connected to buffer, starting to send data...\n");
             #endif

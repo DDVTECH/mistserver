@@ -11,12 +11,19 @@
 #include <netinet/in.h>
 #endif
 
+std::string uint2string(unsigned int i){
+  std::stringstream st;
+  st << i;
+  return st.str();
+}
+
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a Socket::Connection.
 /// \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
   sock = sockNo;
   up = 0;
   down = 0;
+  conntime = time(0);
   Error = false;
   Blocking = false;
 }//Socket::Connection basic constructor
@@ -27,6 +34,7 @@ Socket::Connection::Connection(){
   sock = -1;
   up = 0;
   down = 0;
+  conntime = time(0);
   Error = false;
   Blocking = false;
 }//Socket::Connection basic constructor
@@ -64,6 +72,7 @@ Socket::Connection::Connection(std::string address, bool nonblock){
   Blocking = false;
   up = 0;
   down = 0;
+  conntime = time(0);
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, address.c_str(), address.size()+1);
@@ -92,6 +101,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   Blocking = false;
   up = 0;
   down = 0;
+  conntime = time(0);
   std::stringstream ss;
   ss << port;
 
@@ -203,6 +213,11 @@ unsigned int Socket::Connection::dataUp(){
 /// Returns total amount of bytes received.
 unsigned int Socket::Connection::dataDown(){
   return down;
+}
+
+/// Returns a std::string of stats, ended by a newline.
+std::string Socket::Connection::getStats(){
+  return getHost() + uint2string(time(0) - conntime) + " " + uint2string(up) + uint2string(down) + "\n";
 }
 
 /// Writes data to socket. This function blocks if the socket is blocking and all data cannot be written right away.

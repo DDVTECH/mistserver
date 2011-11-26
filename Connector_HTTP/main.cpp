@@ -175,6 +175,7 @@ namespace Connector_HTTP{
     int Segment = -1;
     int ReqFragment = -1;
     int temp;
+    unsigned int lastStats = 0;
     //int CurrentFragment = -1; later herbruiken?
 
     while (conn.connected() && !FLV::Parse_Error){
@@ -262,6 +263,14 @@ namespace Connector_HTTP{
           #if DEBUG >= 3
           fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
           #endif
+        }
+        if (inited){
+          unsigned int now = time(0);
+          if (now != lastStats){
+            lastStats = now;
+            std::string stat = "S "+conn.getStats();
+            ss.write(stat);
+          }
         }
         ss.canRead();
         switch (ss.ready()){

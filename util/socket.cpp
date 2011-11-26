@@ -216,8 +216,9 @@ unsigned int Socket::Connection::dataDown(){
 }
 
 /// Returns a std::string of stats, ended by a newline.
-std::string Socket::Connection::getStats(){
-  return getHost() + uint2string(time(0) - conntime) + " " + uint2string(up) + uint2string(down) + "\n";
+/// Requires the current connector name as an argument.
+std::string Socket::Connection::getStats(std::string C){
+  return getHost() + " " + C + " " + uint2string(time(0) - conntime) + " " + uint2string(up) + " " + uint2string(down) + "\n";
 }
 
 /// Writes data to socket. This function blocks if the socket is blocking and all data cannot be written right away.

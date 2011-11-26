@@ -23,6 +23,8 @@ namespace Socket{
     private:
       int sock; ///< Internally saved socket number.
       std::string remotehost; ///< Stores remote host address.
+      unsigned int up;
+      unsigned int down;
     public:
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
@@ -30,8 +32,6 @@ namespace Socket{
       Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
       bool canRead(); ///< Calls poll() on the socket, checking if data is available.
       bool canWrite(); ///< Calls poll() on the socket, checking if data can be written.
-      bool Error; ///< Set to true if a socket error happened.
-      bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.
       signed int ready(); ///< Returns the ready-state for this socket.
       bool connected(); ///< Returns the connected-state for this socket.
       bool read(void * buffer, int len); ///< Reads data from socket.
@@ -49,7 +49,11 @@ namespace Socket{
       std::string getHost(); ///< Gets hostname for connection, if available.
       int getSocket(); ///< Returns internal socket number.
       std::string getError(); ///< Returns a string describing the last error that occured.
+      unsigned int dataUp(); ///< Returns total amount of bytes sent.
+      unsigned int dataDown(); ///< Returns total amount of bytes received.
       friend class Server;
+      bool Error; ///< Set to true if a socket error happened.
+      bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.
   };
 
   /// This class is for easily setting up listening socket, either TCP or Unix.

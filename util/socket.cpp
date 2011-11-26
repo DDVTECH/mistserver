@@ -15,6 +15,8 @@
 /// \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
   sock = sockNo;
+  up = 0;
+  down = 0;
   Error = false;
   Blocking = false;
 }//Socket::Connection basic constructor
@@ -23,6 +25,8 @@ Socket::Connection::Connection(int sockNo){
 /// A socket created like this is always disconnected and should/could be overwritten at some point.
 Socket::Connection::Connection(){
   sock = -1;
+  up = 0;
+  down = 0;
   Error = false;
   Blocking = false;
 }//Socket::Connection basic constructor
@@ -58,6 +62,8 @@ Socket::Connection::Connection(std::string address, bool nonblock){
   }
   Error = false;
   Blocking = false;
+  up = 0;
+  down = 0;
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, address.c_str(), address.size()+1);
@@ -84,6 +90,8 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   struct addrinfo *result, *rp, hints;
   Error = false;
   Blocking = false;
+  up = 0;
+  down = 0;
   std::stringstream ss;
   ss << port;
 
@@ -187,6 +195,16 @@ bool Socket::Connection::connected(){
   return (sock >= 0);
 }
 
+/// Returns total amount of bytes sent.
+unsigned int Socket::Connection::dataUp(){
+  return up;
+}
+
+/// Returns total amount of bytes received.
+unsigned int Socket::Connection::dataDown(){
+  return down;
+}
+
 /// Writes data to socket. This function blocks if the socket is blocking and all data cannot be written right away.
 /// If the socket is nonblocking and not all data can be written, this function sets internal variable Blocking to true
 /// and returns false.
@@ -204,14 +222,15 @@ bool Socket::Connection::write(const void * buffer, int len){
       fprintf(stderr, "Could not write data! Error: %s\n", strerror(errno));
       #endif
       close();
+      up += sofar;
       return false;
     }else{
       sofar += r;
     }
   }
+  up += sofar;
   return true;
 }//DDv::Socket::write
-
 
 /// Reads data from socket. This function blocks if the socket is blocking and all data cannot be read right away.
 /// If the socket is nonblocking and not all data can be read, this function sets internal variable Blocking to true
@@ -226,13 +245,17 @@ bool Socket::Connection::read(void * buffer, int len){
     int r = recv(sock, (char*)buffer + sofar, len-sofar, 0);
     if (r < 0){
       switch (errno){
-        case EWOULDBLOCK: return 0; break;
+        case EWOULDBLOCK:
+          down += sofar;
+          return 0;
+          break;
         default:
           Error = true;
           #if DEBUG >= 2
           fprintf(stderr, "Could not read data! Error %i: %s\n", r, strerror(errno));
           #endif
           close();
+          down += sofar;
           break;
       }
       return false;
@@ -243,11 +266,13 @@ bool Socket::Connection::read(void * buffer, int len){
         fprintf(stderr, "Could not read data! Socket is closed.\n");
         #endif
         close();
+        down += sofar;
         return false;
       }
       sofar += r;
     }
   }
+  down += sofar;
   return true;
 }//Socket::Connection::read
 
@@ -285,6 +310,7 @@ int Socket::Connection::iwrite(void * buffer, int len){
     #endif
     close();
   }
+  up += r;
   return r;
 }//Socket::Connection::iwrite
 
@@ -315,6 +341,7 @@ int Socket::Connection::iread(void * buffer, int len){
     #endif
     close();
   }
+  down += r;
   return r;
 }//Socket::Connection::iread
 

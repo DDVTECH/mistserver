@@ -26,6 +26,8 @@ namespace Socket{
       unsigned int up;
       unsigned int down;
       unsigned int conntime;
+      std::string downbuffer; ///< Stores temporary data coming in.
+      std::string upbuffer; ///< Stores temporary data going out.
     public:
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
@@ -46,6 +48,9 @@ namespace Socket{
       bool swrite(std::string & buffer); ///< Read call that is compatible with std::string.
       bool iread(std::string & buffer); ///< Incremental write call that is compatible with std::string.
       bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
+      void spool(); ///< Updates the downbuffer and upbuffer internal variables.
+      std::string & Received(); ///< Returns a reference to the download buffer.
+      void Send(std::string data); ///< Appends data to the upbuffer.
       void close(); ///< Close connection.
       std::string getHost(); ///< Gets hostname for connection, if available.
       int getSocket(); ///< Returns internal socket number.

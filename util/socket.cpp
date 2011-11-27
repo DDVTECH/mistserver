@@ -221,6 +221,22 @@ std::string Socket::Connection::getStats(std::string C){
   return getHost() + " " + C + " " + uint2string(time(0) - conntime) + " " + uint2string(up) + " " + uint2string(down) + "\n";
 }
 
+/// Updates the downbuffer and upbuffer internal variables.
+void Socket::Connection::spool(){
+  iread(downbuffer);
+  iwrite(upbuffer);
+}
+
+/// Returns a reference to the download buffer.
+std::string & Socket::Connection::Received(){
+  return downbuffer;
+}
+
+/// Appends data to the upbuffer.
+void Socket::Connection::Send(std::string data){
+  upbuffer.append(data);
+}
+
 /// Writes data to socket. This function blocks if the socket is blocking and all data cannot be written right away.
 /// If the socket is nonblocking and not all data can be written, this function sets internal variable Blocking to true
 /// and returns false.

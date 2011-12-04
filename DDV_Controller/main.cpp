@@ -461,7 +461,7 @@ int main(int argc, char ** argv){
                 }
               }
             }
-            it->Received().erase(newlines+2);
+            it->Received().erase(0, newlines+2);
             newlines = it->Received().find("\n\n");
           }
         }

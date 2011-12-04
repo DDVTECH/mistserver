@@ -452,7 +452,6 @@ int main(int argc, char ** argv){
           size_t newlines = it->Received().find("\n\n");
           while (newlines != std::string::npos){
             if (JsonParse.parse(it->Received().substr(0, newlines), Request, false)){
-              Log("STAT", "Received stats from a buffer: "+Request.toStyledString());
               if (Request.isMember("totals") && Request["totals"].isMember("buffer")){
                 std::string thisbuffer = Request["totals"]["buffer"].asString();
                 Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
@@ -460,12 +459,15 @@ int main(int argc, char ** argv){
                 st << Request["totals"]["now"].asUInt();
                 std::string nowstr = st.str();
                 Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
+                if (!Storage["statistics"][thisbuffer].isMember("log")){
+                  Storage["statistics"][thisbuffer]["log"] = Json::Value(Json::arrayValue);
+                }
                 for (Json::ValueIterator jit = Request["log"].begin(); jit != Request["log"].end(); jit++){
-                  Storage["statistics"][thisbuffer]["log"][jit.memberName()] = Request["log"][jit.memberName()];
+                  Storage["statistics"][thisbuffer]["log"].append(Request["log"][jit.memberName()]);
                 }
               }
             }else{
-              Log("STAT", "Failed to parse stats from a buffer: "+it->Received().substr(0, newlines));
+              Log("STAT", "Failed to parse stats info from buffer: "+it->Received().substr(0, newlines));
             }
             it->Received().erase(0, newlines+2);
             newlines = it->Received().find("\n\n");

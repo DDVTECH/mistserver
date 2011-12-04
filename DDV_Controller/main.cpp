@@ -19,6 +19,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <sstream>
 #include "../util/socket.h"
 #include "../util/http_parser.h"
 #include "../util/md5.h"
@@ -455,7 +456,10 @@ int main(int argc, char ** argv){
               if (Request.isMember("totals") && Request["totals"].isMember("buffer")){
                 std::string thisbuffer = Request["totals"]["buffer"].asString();
                 Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
-                Storage["statistics"][thisbuffer]["totals"][Request["totals"]["now"].asString()] = Request["totals"];
+                std::stringstream st;
+                st << Request["totals"]["now"].asUInt();
+                std::string nowstr = st.str();
+                Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
                 for (Json::ValueIterator jit = Request["log"].begin(); jit != Request["log"].end(); jit++){
                   Storage["statistics"][thisbuffer]["log"][jit.memberName()] = Request["log"][jit.memberName()];
                 }

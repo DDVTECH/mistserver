@@ -255,6 +255,7 @@ namespace Buffer{
         }
         if (StatsSocket.connected()){
           StatsSocket.write(Storage.toStyledString());
+          std::cout << "Wrote stats to controller!" << std::endl;
           Storage["log"].clear();
         }
       }

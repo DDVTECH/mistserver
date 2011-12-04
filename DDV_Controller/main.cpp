@@ -460,6 +460,8 @@ int main(int argc, char ** argv){
                   Storage["statistics"][thisbuffer]["log"][jit.memberName()] = Request["log"][jit.memberName()];
                 }
               }
+            }else{
+              Log("STAT", "Failed to parse stats from a buffer: "+it->Received().substr(0, newlines));
             }
             it->Received().erase(0, newlines+2);
             newlines = it->Received().find("\n\n");

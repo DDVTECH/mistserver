@@ -446,7 +446,24 @@ int main(int argc, char ** argv){
           buffers.erase(it);
           break;
         }
-        
+        it->spool();
+        if (it->Received() != ""){
+          size_t newlines = it->Received().find("\n\n");
+          while (newlines != std::string::npos){
+            if (!JsonParse.parse(it->Received().substr(0, newlines), Request, false)){
+              if (Request.isMember("totals") && Request["totals"].isMember("buffer")){
+                std::string thisbuffer = Request["totals"]["buffer"].asString();
+                Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
+                Storage["statistics"][thisbuffer]["totals"][Request["totals"]["now"].asString()] = Request["totals"];
+                for (Json::ValueIterator jit = Request["log"].begin(); jit != Request["log"].end(); jit++){
+                  Storage["statistics"][thisbuffer]["log"][jit.memberName()] = Request["log"][jit.memberName()];
+                }
+              }
+            }
+            it->Received().erase(newlines+2);
+            newlines = it->Received().find("\n\n");
+          }
+        }
       }
     }
     if (users.size() > 0){
@@ -495,7 +512,8 @@ int main(int argc, char ** argv){
                 if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
                 if (Request.isMember("clearstatlogs")){
                   Storage["log"].clear();
-                  Storage["statistics"].clear();
+                  /// \todo Uncomment this line after testing.
+                  //Storage["statistics"].clear();
                 }
                 //Log("UPLK", "Received data from uplink.");
                 //WriteFile("config.json", Storage.toStyledString());

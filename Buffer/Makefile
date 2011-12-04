@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp
+SRC = main.cpp ../util/json/json_reader.cpp ../util/json/json_value.cpp ../util/json/json_writer.cpp ../util/socket.cpp ../util/flv_tag.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Buffer
 INCLUDES = 

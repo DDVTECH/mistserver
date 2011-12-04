@@ -450,7 +450,7 @@ int main(int argc, char ** argv){
         if (it->Received() != ""){
           size_t newlines = it->Received().find("\n\n");
           while (newlines != std::string::npos){
-            if (!JsonParse.parse(it->Received().substr(0, newlines), Request, false)){
+            if (JsonParse.parse(it->Received().substr(0, newlines), Request, false)){
               Log("STAT", "Received stats from a buffer: "+Request.toStyledString());
               if (Request.isMember("totals") && Request["totals"].isMember("buffer")){
                 std::string thisbuffer = Request["totals"]["buffer"].asString();

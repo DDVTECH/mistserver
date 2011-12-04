@@ -254,8 +254,7 @@ namespace Buffer{
           StatsSocket = Socket::Connection("/tmp/ddv_statistics", true);
         }
         if (StatsSocket.connected()){
-          StatsSocket.write(Storage.toStyledString());
-          std::cout << "Wrote stats to controller!" << std::endl;
+          StatsSocket.write(Storage.toStyledString()+"\n\n");
           Storage["log"].clear();
         }
       }

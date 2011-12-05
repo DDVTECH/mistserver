@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sstream>
 #include "../util/dtsc.h" //DTSC support
 #include "../util/socket.h" //Socket lib
 #include "../util/json/json.h"
@@ -193,7 +194,7 @@ namespace Buffer{
     Storage["totals"] = Json::Value(Json::objectValue);
 
 
-    while((!feof(stdin) || ip_waiting) && !FLV::Parse_Error){
+    while (!feof(stdin) || ip_waiting){
       usleep(1000); //sleep for 1 ms, to prevent 100% CPU time
       unsigned int now = time(0);
       if (now != stattimer){

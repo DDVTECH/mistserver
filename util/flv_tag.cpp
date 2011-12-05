@@ -336,7 +336,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
 /// Helper function that properly sets the tag length from the internal len variable.
 void FLV::Tag::setLen(){
   int len4 = len - 4;
-  int i = data+len-1;
+  int i = len-1;
   data[--i] = (len4) & 0xFF;
   len4 >>= 8;
   data[--i] = (len4) & 0xFF;

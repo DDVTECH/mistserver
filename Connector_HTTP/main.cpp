@@ -368,7 +368,7 @@ namespace Connector_HTTP{
                 if (extension == ".mp3"){
                   if (tag.data[0] == 0x08){
                     if (((tag.data[11] & 0xf0) >> 4) == 2){//mp3 packet
-                      conn.write(tag.data+12, tag.len-15);//write only the MP3 data of the tag
+                      conn.write(tag.data+12, tag.len-16);//write only the MP3 data of the tag
                     }
                   }
                 }else{

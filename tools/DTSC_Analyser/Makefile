@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/dtsc.cpp
+SRC = main.cpp ../../util/dtsc.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DTSC_Info
 INCLUDES = 

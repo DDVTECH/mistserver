@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/flv_tag.cpp ../util/dtsc.cpp ../util/amf.cpp ../util/socket.cpp
+SRC = main.cpp ../../util/flv_tag.cpp ../../util/dtsc.cpp ../../util/amf.cpp ../../util/socket.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_FLV2DTSC
 INCLUDES = 

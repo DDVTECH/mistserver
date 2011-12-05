@@ -10,9 +10,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include "../util/flv_tag.h" //FLV support
-#include "../util/dtsc.h" //DTSC support
-#include "../util/amf.h" //AMF support
+#include "../../util/flv_tag.h" //FLV support
+#include "../../util/dtsc.h" //DTSC support
+#include "../../util/amf.h" //AMF support
 
 // String  onMetaData
 // ECMA Array

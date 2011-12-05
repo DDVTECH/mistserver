@@ -157,6 +157,7 @@ namespace Connector_HTTP{
     bool progressive_has_sent_header = false;
     Socket::Connection ss(-1);
     std::string streamname;
+    std::string extension;
     std::string FlashBuf;
     std::string FlashMeta;
     bool Flash_ManifestSent = false;
@@ -227,6 +228,7 @@ namespace Connector_HTTP{
         }//FLASH handler
         if (handler == HANDLER_PROGRESSIVE){
           //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
+          extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
           streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
           for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
             if (!isalpha(*i) && !isdigit(*i) && *i != '_'){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
@@ -349,16 +351,29 @@ namespace Connector_HTTP{
               if (handler == HANDLER_PROGRESSIVE){
                 if (!progressive_has_sent_header){
                   HTTP_S.Clean();//troep opruimen die misschien aanwezig is...
-                  HTTP_S.SetHeader("Content-Type", "video/x-flv");//FLV files hebben altijd dit content-type.
-                  //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
-                  HTTP_S.protocol = "HTTP/1.0";
-                  HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
-                  //HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
-                  conn.write(FLV::Header, 13);
+                  if (extension == ".mp3"){
+                    HTTP_S.SetHeader("Content-Type", "audio/mpeg3");//MP3 files hebben dit content-type.
+                    HTTP_S.protocol = "HTTP/1.0";
+                    HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+                  }else{
+                    HTTP_S.SetHeader("Content-Type", "video/x-flv");//FLV files hebben altijd dit content-type.
+                    //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
+                    HTTP_S.protocol = "HTTP/1.0";
+                    HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+                    //HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
+                    conn.write(FLV::Header, 13);
+                  }
                   progressive_has_sent_header = true;
                 }
-                //HTTP_S.SendBodyPart(CONN_fd, tag->data, tag->len);//schrijf deze FLV tag onbewerkt weg
-                conn.write(tag.data, tag.len);
+                if (extension == ".mp3"){
+                  if (tag.data[0] == 0x08){
+                    if (((tag.data[11] & 0xf0) >> 4) == 2){//mp3 packet
+                      conn.write(tag.data+12, tag.len-15);//write only the MP3 data of the tag
+                    }
+                  }
+                }else{
+                  conn.write(tag.data, tag.len);
+                }
               }//PROGRESSIVE handler
             }
             break;

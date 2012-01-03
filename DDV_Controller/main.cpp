@@ -32,6 +32,7 @@
 #define UPLINK_INTERVAL 30
 
 Socket::Server API_Socket; ///< Main connection socket.
+std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
 
 /// Basic signal handler. Disconnects the server_socket if it receives
 /// a SIGINT, SIGHUP or SIGTERM signal, but does nothing for SIGPIPE.
@@ -319,9 +320,15 @@ void startStream(std::string name, Json::Value & data){
 }
 
 void CheckAllStreams(Json::Value & data){
+  unsigned int currTime = time(0);
   for (Json::ValueIterator jit = data.begin(); jit != data.end(); jit++){
     if (!Util::Procs::isActive(jit.memberName())){
       startStream(jit.memberName(), data[jit.memberName()]);
+    }
+    if (currTime - lastBuffer[jit.memberName()] > 5){
+      data[jit.memberName()]["online"] = 0;
+    }else{
+      data[jit.memberName()]["online"] = 1;
     }
   }
 }
@@ -425,6 +432,7 @@ int main(int argc, char ** argv){
         Response["streams"] = Storage["streams"];
         Response["log"] = Storage["log"];
         Response["statistics"] = Storage["statistics"];
+        Response["now"] = (unsigned int)lastuplink;
         uplink->H.Clean();
         uplink->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
         uplink->H.BuildRequest();
@@ -454,6 +462,7 @@ int main(int argc, char ** argv){
             if (JsonParse.parse(it->Received().substr(0, newlines), Request, false)){
               if (Request.isMember("totals") && Request["totals"].isMember("buffer")){
                 std::string thisbuffer = Request["totals"]["buffer"].asString();
+                lastBuffer[thisbuffer] = time(0);
                 Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
                 std::stringstream st;
                 st << Request["totals"]["now"].asUInt();
@@ -521,11 +530,8 @@ int main(int argc, char ** argv){
                 if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
                 if (Request.isMember("clearstatlogs")){
                   Storage["log"].clear();
-                  /// \todo Uncomment this line after testing.
-                  //Storage["statistics"].clear();
+                  Storage["statistics"].clear();
                 }
-                //Log("UPLK", "Received data from uplink.");
-                //WriteFile("config.json", Storage.toStyledString());
               }
             }
           }else{

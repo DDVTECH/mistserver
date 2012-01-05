@@ -303,6 +303,12 @@ void CheckConfig(Json::Value & in, Json::Value & out){
   out["version"] = TOSTRING(VERSION);
 }
 
+bool streamsEqual(Json::Value & one, Json::Value & two){
+  if (one["channel"]["URL"].asString() != two["channel"]["URL"].asString()){return false;}
+  if (one["preset"]["cmd"].asString() != two["preset"]["cmd"].asString()){return false;}
+  return true;
+}
+
 void startStream(std::string name, Json::Value & data){
   Log("BUFF", "(re)starting stream buffer "+name);
   std::string URL = data["channel"]["URL"].asString();
@@ -337,7 +343,7 @@ void CheckStreams(Json::Value & in, Json::Value & out){
   if (in.isObject() && (in.size() > 0)){
     for (Json::ValueIterator jit = in.begin(); jit != in.end(); jit++){
       if (out.isObject() && out.isMember(jit.memberName())){
-        if (in[jit.memberName()] != out[jit.memberName()]){
+        if (!streamsEqual(in[jit.memberName()], out[jit.memberName()])){
           Log("STRM", std::string("Updated stream ")+jit.memberName());
           Util::Procs::Stop(jit.memberName());
           startStream(jit.memberName(), in[jit.memberName()]);

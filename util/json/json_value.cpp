@@ -1312,14 +1312,14 @@ Value::isString() const
 bool 
 Value::isArray() const
 {
-   return type_ == nullValue  ||  type_ == arrayValue;
+   return type_ == arrayValue;
 }
 
 
 bool 
 Value::isObject() const
 {
-   return type_ == nullValue  ||  type_ == objectValue;
+   return type_ == objectValue;
 }
 
 

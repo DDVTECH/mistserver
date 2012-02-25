@@ -109,7 +109,10 @@ void HTTP::Parser::SetHeader(std::string i, int v){
 void HTTP::Parser::SetVar(std::string i, std::string v){
   Trim(i);
   Trim(v);
-  vars[i] = v;
+  //only set if there is actually a key
+  if(!i.empty()){
+    vars[i] = v;
+  }
 }
 
 /// Attempt to read a whole HTTP request or response from Socket::Connection.
@@ -201,23 +204,36 @@ void HTTP::Parser::SendResponse(Socket::Connection & conn, std::string code, std
   conn.write(tmp);
 }
 
+#include <iostream>
 /// Parses GET or POST-style variable data.
 /// Saves to internal variable structure using HTTP::Parser::SetVar.
 void HTTP::Parser::parseVars(std::string data){
   std::string varname;
   std::string varval;
-  while (data.find('=') != std::string::npos){
-    size_t found = data.find('=');
-    varname = urlunescape(data.substr(0, found));
-    data.erase(0, found+1);
-    found = data.find('&');
-    varval = urlunescape(data.substr(0, found));
-    SetVar(varname, varval);
-    if (found == std::string::npos){
-      data.clear();
-    }else{
-      data.erase(0, found+1);
+  // position where a part start (e.g. after &)
+  size_t pos = 0;
+  while (pos < data.length()){
+    size_t nextpos = data.find('&', pos);
+    if (nextpos == std::string::npos){
+      nextpos = data.length();
     }
+    size_t eq_pos = data.find('=', pos);
+    if (eq_pos < nextpos){
+      // there is a key and value
+      varname = data.substr(pos, eq_pos - pos);
+      varval = data.substr(eq_pos + 1, nextpos - eq_pos - 1);
+    }else{
+      // no value, only a key
+      varname = data.substr(pos, nextpos - pos);
+      varval.clear();
+    }
+    SetVar(urlunescape(varname), urlunescape(varval));
+    if (nextpos == std::string::npos){
+      // in case the string is gigantic
+      break;
+    }
+    // erase &
+    pos = nextpos + 1;
   }
 }
 

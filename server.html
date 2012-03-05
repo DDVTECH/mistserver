@@ -14,25 +14,147 @@
 
       <style>
 
-         div
+         body > div
          {
-            border: 1px solid #f0f;
+            border: 1px solid #000;
+            margin: 25px 50px 25px 50px;
+            border-radius: 3px;
+            padding: 5px;
          }
 
-         #config label, #config > span
+         h2
+         {
+            margin: 0 0 10px 0;
+            background-color: #000;
+            color: #fff;
+            font-size: 1.2em;
+            padding: 5px;
+            border-radius: 5px 5px 0 0;
+         }
+
+
+
+         #config label, #config-version, #config-time
+         {
+            display: block;
+            padding: 3px;
+            margin: 5px 0 5px 10px;
+         }
+
+         #config-status
+         {
+            margin: 0 0 0 10px;
+         }
+
+
+         #limits-list div
+         {
+            padding: 5px;
+            margin: 0 5px 0 0;
+         }
+
+         #limits-list div span
+         {
+            margin: 0 20px 0 10px;
+         }
+
+
+         #limits p, #protocols p
+         {
+            margin: 20px 0 5px 15px;
+         }
+
+         #protocol-list
+         {
+            list-style: none;
+            margin: 15px 0 0 10px;
+            padding: 0;
+         }
+
+         #protocol-list li
+         {
+            margin: 0 0 10px 5px;
+         }
+
+         #protocol-list li span
+         {
+            margin: 0 0 0 15px;
+         }
+
+         #streams-list
+         {
+            list-style: none;
+            padding: 0 0 25px 20px;
+         }
+
+         #streams-list li
+         {
+            margin: 0 0 50px 0;
+         }
+
+         #streams-list h3
+         {
+            font-size: 1.1em;
+            margin: 0 0 10px -10px;
+         }
+
+         #streams-list h3 span
+         {
+            font-size: 1em;
+            font-weight: normal;
+         }
+
+         #streams-list .blockish
          {
             display: block;
          }
 
-         span#config-status
+
+         #streams-list li > div
          {
-            display: inline;
+            margin: 0 0 20px 10px;
+            border: 1px solid #aaa;
+            border-radius: 5px;
+            padding: 10px;
          }
 
-         #streams-list li  > span
+
+
+         #streams-list li div .blockish
          {
-            display: block;
+            margin: 5px 0 0 10px;
+            width: 250px;
+            overflow: hidden;
          }
+
+
+         #streams-list li div .blockish input
+         {
+            float: right;
+         }
+
+         .mleft25
+         {
+            margin-left: 10px;
+         }
+
+         #streams-list .stream-limit div
+         {
+            margin: 10px 0 5px 10px;
+         }
+
+         #streams-list .stream-limit div span
+         {
+            margin: 5px 0 5px 10px;
+         }
+
+
+         #streams-list .stream-preset div
+         {
+            margin: 10px 0 5px 15px;
+         }
+
+
 
       </style>
 
@@ -42,7 +164,7 @@
 
       <h1>Server Manager</h1>
 
-      <div>
+      <div id='current-status'>
          Status: <span id='status'>disconnected</span>
       </div>
 
@@ -50,18 +172,18 @@
       <div id='connect'>
 
          <label for='username'>
-            Username
+            Username:
             <input type='text' id='username' value='test' />
          </label>
 
          <label for='password'>
-            Password
+            Password:
             <input type='password' id='password' value='test' />
          </label>
 
          <label for='server'>
-            Server
-            <input type='text' id='server' value='http://localhost:7340' />
+            Server:
+            <input type='text' id='server' value='http://localhost:7342' />
          </label>
 
          <button id='login'>login</button>
@@ -74,18 +196,18 @@
          <h2>Config</h2>
 
          <label for='config-host'>
-            Host: <input type='text' id='config-host' value='' /> <span id='save-config-host'>save</span>
+            Host: <input type='text' id='config-host' value='' /> <span id='save-config-host'>(save)</span>
          </label>
 
          <label for='config-name'>
-            Name: <input type='text' id='config-name' value='' /> <span id='save-config-name'>save</span>
+            Name: <input type='text' id='config-name' value='' /> <span id='save-config-name'>(save)</span>
          </label>
 
-         <span id='config-status'>status: </span> <button id='config-status-disable'>DISABLE</button>
+         <span id='config-status'>Status: </span> <button id='config-status-disable'>DISABLE</button>
 
-         <span id='config-version'>version: </span>
+         <span id='config-version'>Version: </span>
 
-         <span id='config-time'>time: </span>
+         <span id='config-time'>Time: </span>
 
       </div>
 
@@ -125,7 +247,7 @@
       </div>
 
 
-      <div>
+      <div id='protocols'>
 
          <h2>Protocols</h2>
 
@@ -147,23 +269,12 @@
       </div>
 
 
-      <div>
+      <div id='streams'>
 
          <h2>Streams</h2>
 
          <ul id='streams-list'>
          </ul>
-
-      </div>
-
-
-      <div>
-
-         <h2>Log</h2>
-
-         <p>
-            TODO: log (or not?)
-         </p>
 
       </div>
 
@@ -241,6 +352,12 @@
 
          $(document).ready(function()
          {
+
+            $('div').hide();
+
+            $('#current-status').show();
+            $('#connect').show();
+
             $('#login').click(function()
             {
                settings.credentials.username = $('#username').val(),
@@ -255,10 +372,13 @@
                   {
                      $('#status').text('logged in');
 
+                     $('div').show();
+
                      fillHTML();
                      //console.log('logged in!');
                   }else{
                      $('#status').text('disconnected - ' + errorstr);
+                     $('div').hide();
                      //console.log('error logging in: ' + errorstr);
                   }
                });
@@ -420,31 +540,41 @@
 
                cur = settings.settings.streams[stream];
 
-
-               li.append( $('<input>').attr('type', 'text').attr('id', 'stream-name-' + stream).attr('value', cur.name) );
-
-               li.append($('<span>').text('<save>').click(function(x)
-               {
-                  return function()
+               li.append( $('<div>').text('Name:').append(
+                  $('<input>').attr('type', 'text').attr('id', 'stream-name-' + stream).attr('value', cur.name)
+               ).append(
+                  $('<span>').text('<save>').click(function(x)
                   {
-                     var name = $('#stream-name-' + x).val();
+                     return function()
+                     {
+                        var name = $('#stream-name-' + x).val();
 
-                     settings.settings.streams[x].name = name;
-                     loadSettings(fillStreams);
-                  }
-               }(stream)));
+                        settings.settings.streams[x].name = name;
+                        loadSettings(fillStreams);
+                     }
+                  }(stream))
+               ) );
 
 
 
-               li.append($('<span>').text('Group: ' + cur.group));
+               li.append($('<div>').text('Group: ' + cur.group));
 
 
 
                // add channel info
                channel = $('<div>').attr('id', 'stream-channel-' + stream).text('Channel: ');
-               channel.append($('<input>').attr('type', 'text').attr('id', 'stream-channel-url-' + stream).attr('value', cur.channel.URL));
-               channel.append($('<input>').attr('type', 'text').attr('id', 'stream-channel-account-' + stream).attr('value', cur.channel.account));
-               channel.append($('<span>').text('<save>').click(function()
+
+               channel.append(
+                  $('<span>').attr('class', 'blockish').text('URL:').append(
+                     $('<input>').attr('type', 'text').attr('id', 'stream-channel-url-' + stream).attr('value', cur.channel.URL)
+                     )
+               );
+               channel.append(
+                  $('<span>').attr('class', 'blockish').text('Account:').append(
+                     $('<input>').attr('type', 'text').attr('id', 'stream-channel-account-' + stream).attr('value', cur.channel.account)
+                  )
+               );
+               channel.append($('<span>').attr('class', 'mleft25').text('(save)').click(function()
                {
                   var cname = $(this).parent().attr('id').replace('stream-channel-', ''),
                       url   = $('#stream-channel-url-' + cname).val(),
@@ -460,7 +590,7 @@
 
 
                // add limits
-               limit = $('<div>').attr('id', 'stream-limit-' + stream).text('Limits: ');
+               limit = $('<div>').attr('class', 'stream-limit').attr('id', 'stream-limit-' + stream).text('Limits: ');
 
                for(var i = 0; i < cur.limits.length; i++)
                {
@@ -536,8 +666,95 @@
                li.append(limit);
 
 
+
+
+
+               // do preset x1
+               // notes: this reads the 'preset' prop, NOT the 'presets' prop.
+
+               var spreset = $('<div>').attr('class', 'stream-preset').attr('id', 'stream-preset-' + stream).text('preset: ');
+               li.append(spreset);
+
+               spreset.append( $('<div>').text('Command: ').append(
+                  $('<input>').attr('id', 'stream-preset-cmd-' + stream).attr('type', 'text').val(settings.settings.streams[stream].preset.cmd)
+               ).append(
+                  $('<span>').text('<save>').click(function()
+                  {
+                     var stream = $(this).parent().parent().attr('id').replace('stream-preset-', '');
+                     var cmd = $('#stream-preset-cmd-' + stream).val();
+
+                     settings.settings.streams[stream].preset.cmd = cmd;
+
+                     loadSettings(fillStreams);
+                  })
+               ) );
+
+
+               spreset.append( $('<div>').text('Description: ').append(
+                  $('<input>').attr('id', 'stream-preset-desc-' + stream).attr('type', 'text').val(settings.settings.streams[stream].preset.desc)
+               ).append(
+                  $('<span>').text('<save>').click(function()
+                  {
+                     var stream = $(this).parent().parent().attr('id').replace('stream-preset-', '');
+                     var desc = $('#stream-preset-desc-' + stream).val();
+
+                     settings.settings.streams[stream].preset.desc = desc;
+
+                     loadSettings(fillStreams);
+                  })
+               ) );
+
+
+               spreset.append( $('<div>').text('Name: ').append(
+                  $('<input>').attr('id', 'stream-preset-name-' + stream).attr('type', 'text').val(settings.settings.streams[stream].preset.name)
+               ).append(
+                  $('<span>').text('<save>').click(function()
+                  {
+                     var stream = $(this).parent().parent().attr('id').replace('stream-preset-', '');
+                     var name = $('#stream-preset-name-' + stream).val();
+
+                     settings.settings.streams[stream].preset.name = name;
+
+                     loadSettings(fillStreams);
+                  })
+               ) );
+
+
+
                $('#streams-list').append(li);
+
             }
+
+
+            // new stream
+            var nspreset = $('<div>').attr('id', 'new-stream').text('New stream').append(
+               $('<div>').text('ID:').append(
+                  $('<input>').attr('id', 'new-stream-name').attr('type', 'text')
+               ).append(
+                  $('<button>').text('create').click(function()
+                  {
+                     var nstream = {};
+
+                     nstream[$('#new-stream-name').val()] =
+                     {
+                        "account": "",
+                        "channel": {"URL": "", "account": ""},
+                        "group": "",
+                        "limits": [],
+                        "name": "",
+                        "preset": {"cmd": "", "name": "", "desc": ""},
+                        "status": ""
+                     }
+
+                     $.extend(settings.settings.streams, nstream);
+
+                     loadSettings(fillStreams);
+                  })
+               )
+            );
+
+            $('#streams-list').append(nspreset);
+
          }
 
       </script>

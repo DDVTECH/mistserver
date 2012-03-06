@@ -47,15 +47,31 @@
          }
 
 
-         #limits-list div
+         #limits-list td
          {
-            padding: 5px;
-            margin: 0 5px 0 0;
+            width: 25%;
          }
 
-         #limits-list div span
+         #stream-limit-table
          {
-            margin: 0 20px 0 10px;
+            width: 100%;
+            margin: 10px 0 20px 15px;
+         }
+
+         #stream-limit-table th
+         {
+            text-align: left;
+         }
+
+         #limits-table
+         {
+            margin: 20px 0 5px 15px;
+            width: 100%;
+         }
+
+         #limits-table th
+         {
+            text-align: left;
          }
 
 
@@ -216,9 +232,21 @@
 
          <h2>Limits</h2>
 
-         <div id='limits-list'>
+         <table id='limits-table'>
 
-         </div>
+
+            <thead>
+               <th>Type</th>
+               <th>Hard/soft limit</th>
+               <th>Value</th>
+               <th></th>
+            </head>
+
+            <tbody id='limits-list'>
+
+            </tbody>
+
+         </table>
 
          <p>
             new limit: <select id='new-limit-name'>
@@ -293,6 +321,34 @@
             },
             settings: {}
          };
+
+
+         function limitShortToLong(name)
+         {
+            var i, 
+                rep = [
+                         ['kb_total', 'Total bandwidth'],
+                         ['kbps_max', 'Current bandwidth'],
+                         ['users', 'Concurrent users'],
+                         ['streams', 'Cocurrent streams'],
+                         ['geo', 'Geolimited'],
+                         ['host', 'Hostlimited'],
+                         ['time', 'Timelimited'],
+                         ['duration', 'Duration'],
+                         ['str_kbps_min', 'Minimum bitrate'],
+                         ['str_kbps_max', 'Maximum bitrate']
+                      ];
+
+            for(i = 0; i < rep.length; i++)
+            {
+               if(name == rep[i][0])
+               {
+                  return rep[i][1];
+               }
+            }
+
+            return 'error';
+         }
 
 
          function loadSettings(callback)
@@ -469,18 +525,20 @@
 
             for(i = 0; i < len; i++)
             {
-               cur = $('<div>').attr('id', 'limits-' + i);
+               cur = $('<tr>').attr('id', 'limits-' + i);
                lim = settings.settings.config.limits[i];
-               del = $('<span>').click(function()
+               del = $('<td>').click(function()
                {
                   var sfrom = $(this).parent().attr('id').replace('limits-', '');
                   settings.settings.config.limits.splice(sfrom, 1);
                   $(this).parent().remove();
 
                   loadSettings(fillLimits);
-               }).text(' <delete> ');
+               }).text('(delete)');
 
-               cur.append($('<span>').text(lim.name + ' | ' + lim.type + ' | ' + lim.val));
+               cur.append($('<td>').text(limitShortToLong(lim.name)));
+               cur.append($('<td>').text(lim.type));
+               cur.append($('<td>').text(lim.val));
 
                cur.append(del);
 
@@ -592,11 +650,26 @@
                // add limits
                limit = $('<div>').attr('class', 'stream-limit').attr('id', 'stream-limit-' + stream).text('Limits: ');
 
+               var table = $('<table>').attr('id', 'stream-limit-table');
+               var tbody = $('<tbody>');
+
+               table.append(
+                  $('<thead>').append(
+                     $('<th>').text('Type')
+                  ).append(
+                     $('<th>').text('Hard/soft limit')
+                  ).append(
+                     $('<th>').text('Value')
+                  ).append(
+                     $('<th>')
+                  )
+               ).append(tbody);
+
                for(var i = 0; i < cur.limits.length; i++)
                {
-                  var climit = $('<div>').attr('id', 'stream-limit-' + stream + '-' + i);
+                  var climit = $('<tr>').attr('id', 'stream-limit-' + stream + '-' + i);
 
-                  var del = $('<span>').click(function()
+                  var del = $('<td>').click(function()
                   {
                      var stuff = $(this).parent().attr('id').replace('stream-limit-', ''),
                          lastd = stuff.lastIndexOf('-'),
@@ -607,14 +680,18 @@
 
                      loadSettings(fillStreams);
 
-                  }).text(' <delete>');
+                  }).text('(delete)');
 
-                  climit.append($('<span>').text(cur.limits[i].name + ' | ' + cur.limits[i].type + ' | ' + cur.limits[i].val));
+                  climit.append($('<td>').text(limitShortToLong(cur.limits[i].name)));
+                  climit.append($('<td>').text(cur.limits[i].type));
+                  climit.append($('<td>').text(cur.limits[i].val));
 
                   climit.append(del);
 
-                  limit.append(climit);
+                  tbody.append(climit);
                }
+
+               limit.append(table);
 
 
                var nlimit = $('<div>').attr('id', 'new-limit-stream-' + stream).text('New limit: ');

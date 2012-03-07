@@ -1,21 +1,25 @@
-Makefile LIBS: -ljthread -lpthread -ljrtp (al ingesteld)
+example for installing to ../usr (use DESTDIR=/tmp, /usr/local or whatever you want)
+$ DESTDIR="${PWD%/*}/usr"
 
-alle includes: <jrtplib3/[blaat.h]> (al gedaan)
+building jthread (as local user, no root required):
+$ cd $somedir
+$ wget http://research.edm.uhasselt.be/jori/jthread/jthread-1.3.1.tar.gz
+$ tar xvf jthread-1.3.1.tar.gz && cd jthread-1.3.1
+$ cmake -DCMAKE_INSTALL_PREFIX:PATH="$DESTDIR"
+$ make && make install
 
-in /usr/local/include/jrtplib3/rtpsession.h (lokaal, was via jrtplib's "make install")
-en /usr/local/include/jrtplib3/rtpudpv4transmitter.h (lokaal, was via jrtplib's "make install")
-verander #include <jmutex.h> naar #include <jthread/jmutex.h>
+AFTER building jthread
+$ cd $somedir
+$ wget http://research.edm.uhasselt.be/jori/jrtplib/jrtplib-3.9.1.tar.bz2
+$ tar xf jrtplib-3.9.1.tar.bz2 && cd jrtplib-3.9.1
+$ cmake -DCMAKE_INSTALL_PREFIX:PATH="$DESTDIRr" -DADDITIONAL_INCLUDE_DIRS:STRING="$DESTDIR/include"
+$ make -j8
+Modify $DESTDIR/usr/lib/pkgconfig/jrtplib.pc such that it looks like (subst $DESTDIR accordingly):
+	Libs: -L$DESTDIR/lib/ -ljrtp -ljthread -lpthread
+$ make install
 
+building Connector_RTSP:
+$ PKG_CONFIG_PATH=$DESTDIR/lib/pkgconfig make
 
-anders geen compiles...
-
-
-Vervolgens: bij het runnen van ./Connector_RTSP: 
-./Connector_RTSP: error while loading shared libraries: libjrtp-3.7.1.so: cannot open shared object 
-file: No such file or directory
-
-
-
-
-dus: ik kan op het moment genoeg coden, en zorgen dat het compiled, maar ook daadwerkelijk draaien 
-wordt lastig... Enige ideeen?
+Running Connector_RTSP:
+$ LD_LIBRARY_PATH="$DESTDIR/lib:$LD_LIBRARY_PATH" ./Connector_RTSP

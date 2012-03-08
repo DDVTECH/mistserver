@@ -27,7 +27,7 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <fstream>
-Socket::Server server_socket(-1); ///< Placeholder for the server socket
+Socket::Server server_socket; ///< Placeholder for the server socket
 
 /// Basic signal handler. Disconnects the server_socket if it receives
 /// a SIGINT, SIGHUP or SIGTERM signal, but does nothing for SIGPIPE.

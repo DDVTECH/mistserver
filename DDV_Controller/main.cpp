@@ -455,7 +455,7 @@ int main(int argc, char ** argv){
     Incoming = Stats_Socket.accept();
     if (Incoming.connected()){buffers.push_back(Incoming);}
     if (buffers.size() > 0){
-      for( std::vector< Socket::Connection >::iterator it = buffers.end() - 1; it >= buffers.begin(); it--) {
+      for( std::vector< Socket::Connection >::iterator it = buffers.begin(); it != buffers.end(); it++) {
         if (!it->connected()){
           it->close();
           buffers.erase(it);
@@ -491,7 +491,7 @@ int main(int argc, char ** argv){
       }
     }
     if (users.size() > 0){
-      for( std::vector< ConnectedUser >::iterator it = users.end() - 1; it >= users.begin(); it--) {
+      for( std::vector< ConnectedUser >::iterator it = users.begin(); it != users.end(); it++) {
         if (!it->C.connected() || it->logins > 3){
           it->C.close();
           users.erase(it);

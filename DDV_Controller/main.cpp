@@ -522,6 +522,7 @@ int main(int argc, char ** argv){
                     Response["log"] = Storage["log"];
                     Response["statistics"] = Storage["statistics"];
                     Response["authorize"]["username"] = TOSTRING(COMPILED_USERNAME);
+                    Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
                     Response["authorize"]["password"] = md5(TOSTRING(COMPILED_PASSWORD) + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
                     it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));

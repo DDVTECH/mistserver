@@ -1,4 +1,4 @@
-default: release-install
+default: client
 .PHONY: client client-debug client-clean clean release-install debug-install docs
 
 client-debug:

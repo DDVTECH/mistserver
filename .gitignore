@@ -6,6 +6,7 @@ Buffer/DDV_Buffer
 Connector_RTMP/DDV_Conn_RTMP
 Connector_RTSP/DDV_Conn_RTSP
 Connector_RTSP/Connector_RTSP
+DDV_Controller/DDV_Controller
 Connector_RAW/DDV_Conn_RAW
 *~
 bin/*

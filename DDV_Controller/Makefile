@@ -17,9 +17,9 @@ LIBS = -lssl -lcrypto
 .PHONY: clean default
 default: cversion $(OUT)
 .cpp.o:
-	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
+	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@
 $(OUT): $(OBJ)
-	$(CC) $(LIBS) -o $(OUT) $(OBJ)
+	$(CC) -o $(OUT) $(OBJ) $(LIBS)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 cversion:

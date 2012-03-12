@@ -32,6 +32,7 @@
 #define UPLINK_INTERVAL 30
 
 Socket::Server API_Socket; ///< Main connection socket.
+std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
 
 /// Basic signal handler. Disconnects the server_socket if it receives
 /// a SIGINT, SIGHUP or SIGTERM signal, but does nothing for SIGPIPE.
@@ -302,6 +303,12 @@ void CheckConfig(Json::Value & in, Json::Value & out){
   out["version"] = TOSTRING(VERSION);
 }
 
+bool streamsEqual(Json::Value & one, Json::Value & two){
+  if (one["channel"]["URL"].asString() != two["channel"]["URL"].asString()){return false;}
+  if (one["preset"]["cmd"].asString() != two["preset"]["cmd"].asString()){return false;}
+  return true;
+}
+
 void startStream(std::string name, Json::Value & data){
   Log("BUFF", "(re)starting stream buffer "+name);
   std::string URL = data["channel"]["URL"].asString();
@@ -319,9 +326,15 @@ void startStream(std::string name, Json::Value & data){
 }
 
 void CheckAllStreams(Json::Value & data){
+  unsigned int currTime = time(0);
   for (Json::ValueIterator jit = data.begin(); jit != data.end(); jit++){
     if (!Util::Procs::isActive(jit.memberName())){
       startStream(jit.memberName(), data[jit.memberName()]);
+    }
+    if (currTime - lastBuffer[jit.memberName()] > 5){
+      data[jit.memberName()]["online"] = 0;
+    }else{
+      data[jit.memberName()]["online"] = 1;
     }
   }
 }
@@ -330,7 +343,7 @@ void CheckStreams(Json::Value & in, Json::Value & out){
   if (in.isObject() && (in.size() > 0)){
     for (Json::ValueIterator jit = in.begin(); jit != in.end(); jit++){
       if (out.isObject() && out.isMember(jit.memberName())){
-        if (in[jit.memberName()] != out[jit.memberName()]){
+        if (!streamsEqual(in[jit.memberName()], out[jit.memberName()])){
           Log("STRM", std::string("Updated stream ")+jit.memberName());
           Util::Procs::Stop(jit.memberName());
           startStream(jit.memberName(), in[jit.memberName()]);
@@ -425,6 +438,7 @@ int main(int argc, char ** argv){
         Response["streams"] = Storage["streams"];
         Response["log"] = Storage["log"];
         Response["statistics"] = Storage["statistics"];
+        Response["now"] = (unsigned int)lastuplink;
         uplink->H.Clean();
         uplink->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
         uplink->H.BuildRequest();
@@ -441,7 +455,7 @@ int main(int argc, char ** argv){
     Incoming = Stats_Socket.accept();
     if (Incoming.connected()){buffers.push_back(Incoming);}
     if (buffers.size() > 0){
-      for( std::vector< Socket::Connection >::iterator it = buffers.end() - 1; it >= buffers.begin(); it--) {
+      for( std::vector< Socket::Connection >::iterator it = buffers.begin(); it != buffers.end(); it++) {
         if (!it->connected()){
           it->close();
           buffers.erase(it);
@@ -454,6 +468,7 @@ int main(int argc, char ** argv){
             if (JsonParse.parse(it->Received().substr(0, newlines), Request, false)){
               if (Request.isMember("totals") && Request["totals"].isMember("buffer")){
                 std::string thisbuffer = Request["totals"]["buffer"].asString();
+                lastBuffer[thisbuffer] = time(0);
                 Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
                 std::stringstream st;
                 st << Request["totals"]["now"].asUInt();
@@ -476,7 +491,7 @@ int main(int argc, char ** argv){
       }
     }
     if (users.size() > 0){
-      for( std::vector< ConnectedUser >::iterator it = users.end() - 1; it >= users.begin(); it--) {
+      for( std::vector< ConnectedUser >::iterator it = users.begin(); it != users.end(); it++) {
         if (!it->C.connected() || it->logins > 3){
           it->C.close();
           users.erase(it);
@@ -507,6 +522,7 @@ int main(int argc, char ** argv){
                     Response["log"] = Storage["log"];
                     Response["statistics"] = Storage["statistics"];
                     Response["authorize"]["username"] = TOSTRING(COMPILED_USERNAME);
+                    Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
                     Response["authorize"]["password"] = md5(TOSTRING(COMPILED_PASSWORD) + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
                     it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toStyledString()));
@@ -521,11 +537,8 @@ int main(int argc, char ** argv){
                 if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
                 if (Request.isMember("clearstatlogs")){
                   Storage["log"].clear();
-                  /// \todo Uncomment this line after testing.
-                  //Storage["statistics"].clear();
+                  Storage["statistics"].clear();
                 }
-                //Log("UPLK", "Received data from uplink.");
-                //WriteFile("config.json", Storage.toStyledString());
               }
             }
           }else{

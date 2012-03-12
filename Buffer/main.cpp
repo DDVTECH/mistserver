@@ -211,7 +211,9 @@ namespace Buffer{
         Storage["totals"]["up"] = tot_up;
         Storage["totals"]["count"] = tot_count;
         Storage["totals"]["now"] = now;
-        Storage["totals"]["buffer"] = argv[2];
+        if( argc >= 4 ) {
+          Storage["totals"]["buffer"] = argv[2];
+        }
         if (!StatsSocket.connected()){
           StatsSocket = Socket::Connection("/tmp/ddv_statistics", true);
         }

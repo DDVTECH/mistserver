@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp
+SRC = main.cpp ../util/socket.cpp ../util/dtsc.cpp ../util/util.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_TS
 INCLUDES = 

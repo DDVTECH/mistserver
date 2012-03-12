@@ -510,7 +510,7 @@
             $('#config-name').val(settings.settings.config.name);
 
             $('#config-version').text('version: ' + (settings.settings.config.version || ''));
-            $('#config-time').text('time: ' + new Date(settings.settings.config.time).toUTCString() || '');
+            $('#config-time').text('time: ' + new Date(settings.settings.config.time*1000).toUTCString() || '');
 
             $('#config-status').text('status: ' + (settings.settings.config.status || ''));
          }

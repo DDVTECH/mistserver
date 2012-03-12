@@ -362,7 +362,7 @@ namespace Buffer{
               if (tmp != ""){
                 if (tmp[0] == 'P'){
                   std::cout << "Push attempt from IP " << tmp.substr(2) << std::endl;
-                  if (tmp.substr(2) == waiting_ip){
+                  if (tmp.substr(2) == waiting_ip || tmp.substr(2) == "::ffff:"+waiting_ip){
                     if (!ip_input.connected()){
                       std::cout << "Push accepted!" << std::endl;
                       ip_input = (*usersIt).S;
@@ -372,7 +372,7 @@ namespace Buffer{
                       (*usersIt).Disconnect("Push denied - push already in progress!");
                     }
                   }else{
-                    (*usersIt).Disconnect("Push denied - invalid IP address!");
+                    (*usersIt).Disconnect("Push denied - invalid IP address ("+waiting_ip+"!="+tmp.substr(2)+")!");
                   }
                 }
                 if (tmp[0] == 'S'){
@@ -399,7 +399,7 @@ namespace Buffer{
 
     // disconnect listener
     if (FLV::Parse_Error){
-      std::cout << "FLV parse error" << std::endl;
+      std::cout << "FLV parse error:" << FLV::Error_Str << std::endl;
     }else{
       std::cout << "Reached EOF of input" << std::endl;
     }

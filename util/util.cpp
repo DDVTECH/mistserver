@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <iostream>
 #include <sys/types.h>
+#include <fcntl.h>
 #include <pwd.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -147,11 +148,14 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
     return 0;
   }
 
+  int devnull = open("/dev/null", O_RDWR);
   pid_t ret = fork();
   if (ret == 0){
     close(pfildes[0]);
-    dup2(pfildes[1],1);
+    dup2(pfildes[1],STDOUT_FILENO);
     close(pfildes[1]);
+    dup2(devnull, STDIN_FILENO);
+    dup2(devnull, STDERR_FILENO);
     runCmd(cmd);
   }else{
     if (ret > 0){
@@ -165,12 +169,14 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
       return 0;
     }
   }
-  
+
   pid_t ret2 = fork();
   if (ret2 == 0){
     close(pfildes[1]);
-    dup2(pfildes[0],0);
+    dup2(pfildes[0],STDIN_FILENO);
     close(pfildes[0]);
+    dup2(devnull, STDOUT_FILENO);
+    dup2(devnull, STDERR_FILENO);
     runCmd(cmd2);
   }else{
     if (ret2 > 0){

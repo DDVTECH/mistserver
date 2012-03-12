@@ -13,7 +13,7 @@
 
 /// Holds all DDVTECH Stream Container classes and parsers.
 ///Video:
-/// - codec (string: AAC, MP3)
+/// - codec (string: H264, H263, VP6)
 /// - width (int, pixels)
 /// - height (int, pixels)
 /// - fpks (int, frames per kilosecond (FPS * 1000))
@@ -21,7 +21,7 @@
 /// - init (string, init data)
 ///
 ///Audio:
-/// - codec (string: H264, H263, VP6)
+/// - codec (string: AAC, MP3)
 /// - rate (int, Hz)
 /// - size (int, bitsize)
 /// - bps (int, bytes per second)

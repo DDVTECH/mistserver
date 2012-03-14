@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <iostream>
+#include <sstream>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -116,26 +117,34 @@ int RTSP_Handler( Socket::Connection conn ) {
         } else {
           HTTP_S.SetHeader( "CSeq", HTTP_R.GetHeader( "CSeq" ).c_str() );
           HTTP_S.SetHeader( "Session", time(NULL) );
-          /// \todo "Random" generation of server_ports
           /// \todo Add support for audio
 //          if( HTTP_R.url.find( "audio" ) != std::string::npos ) {
 //            HTTP_S.SetHeader( "Transport", HTTP_R.GetHeader( "Transport" ) + ";server_port=50002-50003" );
 //          } else {
-          //send video data
-            HTTP_S.SetHeader( "Transport", HTTP_R.GetHeader( "Transport" ) + ";server_port=50000-50001" );
           //Stub data for testing purposes. This should now be extracted somehow from DTSC::DTMI
             VideoParams.SetOwnTimestampUnit( ( 1.0 / 29.917 ) * 90000.0 );
             VideoParams.SetMaximumPacketSize( 10000 );
-          //pick the right port here
-            VideoTransParams.SetPortbase( 50000 );
           //create a JRTPlib session
-            int VideoStatus = VideoSession.Create( VideoParams, &VideoTransParams, jrtplib::RTPTransmitter::IPv6UDPProto  );
+            int VideoStatus;
+            uint16_t pbase;
+            //after 20 retries, just give up, most ports are likely in use
+            int retries = 20;
+            do {
+            //pick the right port here in the range 5000 to 5000 + 2 * 500 = 6000
+              pbase = 5000 + 2 * (rand() % 500);
+              VideoTransParams.SetPortbase( pbase );
+              VideoStatus = VideoSession.Create( VideoParams, &VideoTransParams, jrtplib::RTPTransmitter::IPv6UDPProto  );
+            } while(VideoStatus < 0 && --retries > 0);
             if( VideoStatus < 0 ) {
-              std::cerr << jrtplib::RTPGetErrorString( VideoStatus ) << std::endl;
+              std::cerr << "Video session could not be created: " << jrtplib::RTPGetErrorString( VideoStatus ) << std::endl;
               exit( -1 );
             } else {
-              std::cerr << "Created video session\n";
+              std::cerr << "Created video session using ports " << pbase << " and " << (pbase+1) << "\n";
             }
+          //send video data
+            std::stringstream transport;
+            transport << HTTP_R.GetHeader( "Transport" ) << ";server_port=" << pbase << "-" << (pbase+1);
+            HTTP_S.SetHeader( "Transport", transport.str() );
 
           /// \todo Connect with clients other than localhost            
             uint8_t localip[32];
@@ -147,7 +156,7 @@ int RTSP_Handler( Socket::Connection conn ) {
           //add the destination address to the VideoSession
             VideoStatus = VideoSession.AddDestination(addr);
             if (VideoStatus < 0) {
-              std::cerr << jrtplib::RTPGetErrorString(VideoStatus) << std::endl;
+              std::cerr << "Destination could not be set: " << jrtplib::RTPGetErrorString(VideoStatus) << std::endl;
               exit(-1);
             } else {
               std::cerr << "Destination Set\n";

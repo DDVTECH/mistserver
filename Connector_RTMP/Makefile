@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/rtmpchunks.cpp ../util/crypto.cpp ../util/util.cpp
+SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/rtmpchunks.cpp ../util/crypto.cpp ../util/util.cpp ../util/dtsc.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_RTMP
 INCLUDES =

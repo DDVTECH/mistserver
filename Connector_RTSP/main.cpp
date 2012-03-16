@@ -96,8 +96,9 @@ int RTSP_Handler( Socket::Connection conn ) {
                                                //"-": no concept of User IDs, nettype IN(ternet)
                                                //IP4: following address is a FQDN for IPv4
               "s=Fifa Test\r\n" //session name (5.3)
-              "c=IN IP4 127.0.0.1\r\n" //connection information -- not required if included in all media
-                                       //nettype addrtype connection-address
+              //"c" - destination is specified in SETUP per rfc2326 C.1.7, set null as recommended
+              "c=IN IP4 0.0.0.0\r\n" //connection information -- not required if included in all media
+                                     //nettype addrtype connection-address
               "t=0 0\r\n" //time the session is active: start-time stop-time; "0 0"=permanent session
               "a=recvonly\r\n"//zero or more session attribute lines
               "m=video 0 RTP/AVP 98\r\n"//media name and transport address: media port proto fmt ...

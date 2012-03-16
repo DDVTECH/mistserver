@@ -90,17 +90,22 @@ int RTSP_Handler( Socket::Connection conn ) {
           /// \todo Add audio to SDP file.
           //This is just a dummy with data that was supposedly right for our teststream.
           //SDP Docs: http://tools.ietf.org/html/rfc4566
-          //v=0
-          //o=- 0 0 IN IP4 ddvtech.com
-          //s=Fifa Test
-          //c=IN IP4 127.0.0.1
-          //t=0 0
-          //a=recvonly
-          //m=video 0 RTP/AVP 98
-          //a=control:rtsp://localhost/fifa/video
-          //a=rtpmap:98 H264/90000
-          //a=fmtp:98 packetization-mode=0
-          HTTP_S.SetBody( "v=0\r\no=- 0 0 IN IP4 ddvtech.com\r\ns=Fifa Test\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\na=recvonly\r\nm=video 0 RTP/AVP 98\r\na=control:rtsp://localhost/fifa/video\r\na=rtpmap:98 H264/90000\r\na=fmtp:98 packetization-mode=0\r\n\r\n");//m=audio 0 RTP/AAP 96\r\na=control:rtsp://localhost/fifa/audio\r\na=rtpmap:96 mpeg4-generic/16000/2\r\n\r\n");
+          HTTP_S.SetBody( "v=0\r\n" //protocol version
+              "o=- 0 0 IN IP4 ddvtech.com\r\n" //originator and session identifier (5.2):
+                                               //username sess-id sess-version nettype addrtype unicast-addr
+                                               //"-": no concept of User IDs, nettype IN(ternet)
+                                               //IP4: following address is a FQDN for IPv4
+              "s=Fifa Test\r\n" //session name (5.3)
+              "c=IN IP4 127.0.0.1\r\n" //connection information -- not required if included in all media
+                                       //nettype addrtype connection-address
+              "t=0 0\r\n" //time the session is active: start-time stop-time; "0 0"=permanent session
+              "a=recvonly\r\n"//zero or more session attribute lines
+              "m=video 0 RTP/AVP 98\r\n"//media name and transport address: media port proto fmt ...
+              "a=control:rtsp://localhost/fifa/video\r\n"//rfc2326 C.1.1, URL for aggregate control on session level
+              "a=rtpmap:98 H264/90000\r\n"//rfc2326 C.1.3, dynamic payload type; see also http://tools.ietf.org/html/rfc1890#section-5
+              "a=fmtp:98 packetization-mode=0"//codec-specific parameters
+              "\r\n\r\n");//m=audio 0 RTP/AAP 96\r\na=control:rtsp://localhost/fifa/audio\r\na=rtpmap:96 mpeg4-generic/16000/2\r\n\r\n");
+          //important information when supporting multiple streams http://tools.ietf.org/html/rfc2326#appendix-C.3
           fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "200", "OK" ).c_str() );
           conn.write( HTTP_S.BuildResponse( "200", "OK" ) );
         }

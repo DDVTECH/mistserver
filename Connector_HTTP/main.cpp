@@ -316,7 +316,7 @@ namespace Connector_HTTP{
         }//FLASH handler
         if (handler == HANDLER_PROGRESSIVE){
           //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
-          extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
+          std::string extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
           streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
           for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
             if (!isalpha(*i) && !isdigit(*i) && *i != '_'){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
@@ -356,6 +356,7 @@ namespace Connector_HTTP{
           fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
           #endif
         }
+         */
         if (inited){
           unsigned int now = time(0);
           if (now != lastStats){

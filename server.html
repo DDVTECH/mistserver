@@ -25,7 +25,7 @@
          h2
          {
             margin: 0 0 10px 0;
-            background-color: #000;
+            background-color: #333;
             color: #fff;
             font-size: 1.2em;
             padding: 5px;
@@ -52,13 +52,13 @@
             width: 25%;
          }
 
-         #stream-limit-table
+         #stream-limit-table, #logs table
          {
             width: 100%;
             margin: 10px 0 20px 15px;
          }
 
-         #stream-limit-table th
+         #stream-limit-table th, #logs th, #limits-table th
          {
             text-align: left;
          }
@@ -68,12 +68,6 @@
             margin: 20px 0 5px 15px;
             width: 100%;
          }
-
-         #limits-table th
-         {
-            text-align: left;
-         }
-
 
          #limits p, #protocols p
          {
@@ -307,6 +301,24 @@
       </div>
 
 
+      <div id='logs'>
+
+         <h2>Logs</h2>
+
+         <table>
+            <thead>
+               <th>Date</th>
+               <th>Type</th>
+               <th>Message</th>
+            </thead>
+            <tbody id='log-list'>
+            </tbody>
+         </table>
+
+      </div>
+
+
+
 
       <script>
 
@@ -347,7 +359,7 @@
                }
             }
 
-            return 'error';
+            return '[error] name "' + name + '" has no entry in rep (@350)!';
          }
 
 
@@ -501,6 +513,9 @@
 
             // streams
             fillStreams();
+
+            // log
+            fillLogs();
          }
 
 
@@ -598,7 +613,7 @@
 
                cur = settings.settings.streams[stream];
 
-               li.append( $('<div>').text('Name:').append(
+               li.append( $('<div>').text('Name: ').append(
                   $('<input>').attr('type', 'text').attr('id', 'stream-name-' + stream).attr('value', cur.name)
                ).append(
                   $('<span>').text('<save>').click(function(x)
@@ -615,7 +630,23 @@
 
 
 
-               li.append($('<div>').text('Group: ' + cur.group));
+               //li.append($('<div>').text('Group: ' + cur.group));
+
+               li.append( $('<div>').text('Group: ').append(
+                  $('<input>').attr('type', 'text').attr('id', 'stream-group-' + stream).attr('value', cur.group)
+               ).append(
+                  $('<span>').text('<save>').click(function(x)
+                  {
+                     return function()
+                     {
+                        var group = $('#stream-group-' + x).val();
+
+                        settings.settings.streams[x].group = group;
+                        loadSettings(fillStreams);
+                     }
+                  }(stream))
+               ) );
+
 
 
 
@@ -805,7 +836,7 @@
 
             // new stream
             var nspreset = $('<div>').attr('id', 'new-stream').text('New stream').append(
-               $('<div>').text('ID:').append(
+               $('<div>').text('Name: ').append(
                   $('<input>').attr('id', 'new-stream-name').attr('type', 'text')
                ).append(
                   $('<button>').text('create').click(function()
@@ -818,7 +849,7 @@
                         "channel": {"URL": "", "account": ""},
                         "group": "",
                         "limits": [],
-                        "name": "",
+                        "name": $('#new-stream-name').val(),
                         "preset": {"cmd": "", "name": "", "desc": ""},
                         "status": ""
                      }
@@ -832,6 +863,32 @@
 
             $('#streams-list').append(nspreset);
 
+         }
+
+
+
+         function fillLogs()
+         {
+            var i, cur, tr,
+                tbody = $('#log-list'),
+                logs = settings.settings.log.reverse(),
+                len = logs.length;
+
+            for(i = 0; i < len; i++)
+            {
+               cur = settings.settings.log[i];
+
+               tr = $('<tr>').append(
+                  $('<td>').text(new Date(cur[0] * 1000).toUTCString())
+               ).append(
+                  $('<td>').text(cur[1])
+               ).append(
+                  $('<td>').text(cur[2])
+               );
+
+
+               tbody.append(tr);
+            }
          }
 
       </script>

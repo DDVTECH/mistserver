@@ -23,6 +23,12 @@ DTSC::Stream::Stream(unsigned int rbuffers){
   buffercount = rbuffers;
 }
 
+/// Returns the time in milliseconds of the last received packet.
+/// This is _not_ the time this packet was received, only the stored time.
+unsigned int DTSC::Stream::getTime(){
+  return buffers.front().getContentP("time")->NumValue();
+}
+
 /// Attempts to parse a packet from the given std::string buffer.
 /// Returns true if successful, removing the parsed part from the buffer string.
 /// Returns false if invalid or not enough data is in the buffer.

@@ -11,12 +11,21 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sstream>
+#include <sys/time.h>
 #include "../util/dtsc.h" //DTSC support
 #include "../util/socket.h" //Socket lib
 #include "../util/json/json.h"
 
 /// Holds all code unique to the Buffer.
 namespace Buffer{
+
+  /// Gets the current system time in milliseconds.
+  unsigned int getNowMS(){
+    timeval t;
+    gettimeofday(&t, 0);
+    return t.tv_sec + t.tv_usec/1000;
+  }//getNowMS
+
 
   Json::Value Storage = Json::Value(Json::objectValue); ///< Global storage of data.
   
@@ -185,6 +194,9 @@ namespace Buffer{
     char charBuffer[1024*10];
     unsigned int charCount;
     unsigned int stattimer = 0;
+    unsigned int lastPacketTime = 0;//time in MS last packet was parsed
+    unsigned int currPacketTime = 0;//time of the last parsed packet (current packet)
+    unsigned int prevPacketTime = 0;//time of the previously parsed packet (current packet - 1)
     Socket::Connection incoming;
     Socket::Connection std_input(fileno(stdin));
     Socket::Connection StatsSocket = Socket::Connection("/tmp/ddv_statistics", true);
@@ -224,10 +236,17 @@ namespace Buffer{
       }
       //invalidate the current buffer
       if ( (!ip_waiting && std_input.canRead()) || (ip_waiting && ip_input.connected()) ){
-        std::cin.read(charBuffer, 1024*10);
-        charCount = std::cin.gcount();
-        inBuffer.append(charBuffer, charCount);
-        Strm->parsePacket(inBuffer);
+        //slow down packet receiving to real-time
+        if ((getNowMS() - lastPacketTime > currPacketTime - prevPacketTime) || (currPacketTime <= prevPacketTime)){
+          std::cin.read(charBuffer, 1024*10);
+          charCount = std::cin.gcount();
+          inBuffer.append(charBuffer, charCount);
+          if (Strm->parsePacket(inBuffer)){
+            lastPacketTime = getNowMS();
+            prevPacketTime = currPacketTime;
+            currPacketTime = Strm->getTime();
+          }
+        }
       }
 
       //check for new connections, accept them if there are any

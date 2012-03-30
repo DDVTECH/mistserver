@@ -129,6 +129,7 @@ namespace DTSC{
       std::string & outPacket(unsigned int num);
       std::string & outHeader();
       Ring * getRing();
+      unsigned int getTime();
       void dropRing(Ring * ptr);
   private:
       std::deque<DTSC::DTMI> buffers;

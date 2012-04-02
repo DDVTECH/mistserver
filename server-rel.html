@@ -82,9 +82,6 @@ tbody tr:nth-child(odd)
 {
    display: block;
    margin: 5px 0 13px 0;
-   padding: 5px;
-   color: #505050;
-   border: 1px solid #b4b4b4;
    width: 240px;
 }
 
@@ -92,13 +89,42 @@ tbody tr:nth-child(odd)
 
 #login > button
 {
+   float: right;
+   margin: 0;
+}
+
+
+
+/* input general */
+input, select
+{
+   padding: 5px;
+   color: #505050;
+   border: 1px solid #b4b4b4;
+}
+
+button
+{
    height: 30px;
    background-color: #505050;
    color: #fff;
    border: 0;
-   float: right;
-   margin: 0;
 }
+
+
+tbody button,
+tbody select,
+tbody input
+{
+   padding: 2px;
+   height: 22px;
+}
+
+tbody td button
+{
+   padding: 2px 7px 2px 7px;
+}
+
 
 
 
@@ -196,7 +222,8 @@ tbody tr:nth-child(odd)
 #header-title > span, #header-connection, #header-host,
 #nav,
 th,
-#login > input, #login > button
+#login > input, #login > button,
+p
 {
    font: normal bold 11pt Arial, sans-serif;
    text-transform: uppercase;
@@ -256,6 +283,20 @@ td
          settings: {}
       };
 
+      var ltypes =
+      [
+         ['kb_total', 'Total bandwidth'],
+         ['kbps_max', 'Current bandwidth'],
+         ['users', 'Concurrent users'],
+         ['streams', 'Cocurrent streams'],
+         ['geo', 'Geolimited'],
+         ['host', 'Hostlimited'],
+         ['time', 'Timelimited'],
+         ['duration', 'Duration'],
+         ['str_kbps_min', 'Minimum bitrate'],
+         ['str_kbps_max', 'Maximum bitrate']
+      ];
+
 
       $(document).ready(function()
       {
@@ -287,7 +328,26 @@ td
       {
          var d = new Date(date * 1000);
 
-         return d.toUTCString();
+         return d.toUTCString();     // TODO
+      }
+
+
+      function shortToLongLimit(name)
+      {
+         console.log('getting the long name for the limit "' + name + '"');
+
+         var i;
+
+         for(i = 0; i < ltypes.length; i++)
+         {
+            if(name == ltypes[i][0])
+            {
+               return ltypes[i][1];
+            }
+         }
+
+         console.log('ERROR! short limit ', name, ' not in list, returning _short name_!');
+         return name;
       }
 
 
@@ -345,7 +405,7 @@ td
                      "statistics": {}
                   }, d);
 
-                  console.log('new shinyness object:', settings.settings);
+                  console.log('new (shinyness) object:', settings.settings);
                }
 
                if(callback)
@@ -400,7 +460,6 @@ td
                   // try to login
                   setHeaderState('logingin');
 
-
                   loadSettings(function(errorstr)
                   {
                      if(errorstr == '')
@@ -429,9 +488,6 @@ td
                         console.log('error logging in: ' + errorstr);
                      }
                   });
-
-
-
                }).text('connect');
 
                $('#page').append(
@@ -442,13 +498,176 @@ td
 
 
 
-            case 'limits':
+
+            case 'protocols':
+
+               $table = $('<table>');
+               $table.html("<thead><th>Protocol</th><th>Port</th><th></th></thead>");
+               $tbody = $('<tbody>');
+
+               var tr, protocol;
+
+               // remove old stuff
+               $tbody.html('');
+
+               for(protocol in settings.settings.config.protocols)
+               {
+                  tr = $('<tr>').attr('id', 'protocol-' + protocol);
+
+                  tr.append( $('<td>').text( protocol ) );
+                  tr.append( $('<td>').text( settings.settings.config.protocols[protocol].port ) );
+
+                  tr.append( $('<td>').append( $('<button>').click(function()
+                             {
+                                var id = $(this).parent().attr('id').replace('protocol-', '');
+                                delete settings.settings.config.protocols[protocol];
+                                $(this).parent().parent().remove();
+                                loadSettings();
+                             }).text('delete') ) );
+
+                  $tbody.append(tr);
+               }
+
+               $table.append($tbody);
+
+               $('#page').append($table);
 
 
+$('#page').append( $('<p>').text('todo') );
+
+/*
+
+            var protocol, li;
+
+            $('#protocol-list').html('');
+
+            for(protocol in settings.settings.config.protocols)
+            {
+               li = $('<li>').attr('id', 'protocol-' + protocol);
+
+               li.text(protocol + ' on port ' + settings.settings.config.protocols[protocol].port);
+
+               li.append($('<button>').click(function()
+               {
+                  var prot = $(this).parent().attr('id').replace('protocol-', '');
+                  console.log(prot);
+
+                  delete settings.settings.config.protocols[prot];
+
+                  $(this).parent().remove();
+
+                  loadSettings(fillProtocols);
+               }).text('remove'));
+
+               $('#protocol-list').append(li);
+            }
+*/
 
 
 
                break;
+
+
+            case 'streams':
+
+               $streamselector = $('<select>').attr('id', 'streams-selector');
+
+               for(stream in settings.settings.streams)
+               {
+                  $streamselector.append( $('<option>').attr('value', stream).text(settings.settings.streams[stream].name) );
+               }
+
+               $streamselector.change(function()
+               {
+                  console.log('selected:', $('#streams-selector :selected').val() );
+               });
+
+               $('#page').append( $streamselector );
+
+               $('#page').append($('<p>').text('TODO'));
+
+               break;
+
+
+
+
+
+
+            case 'limits':
+               $table = $('<table>');
+               $table.html("<thead><th>Type</th><th>Hard/soft limit</th><th>Value</th><th></th></thead>");
+               $tbody = $('<tbody>');
+
+               var i, tr, limit,
+                   len = settings.settings.config.limits.length;
+
+               // remove old stuff
+               $tbody.html('');
+
+               for(i = 0; i < len; i++)
+               {
+                  tr = $('<tr>').attr('id', 'limits-' + i);
+                  limit = settings.settings.config.limits[i];
+
+                  tr.append( $('<td>').text( shortToLongLimit(limit.name) ) );
+                  tr.append( $('<td>').text( limit.type ) );
+                  tr.append( $('<td>').text( limit.val ) );
+
+                  tr.append( $('<td>').append( $('<button>').click(function()
+                             {
+                                var id = $(this).parent().attr('id').replace('limits-', '');
+                                settings.settings.config.limits.splice(id, 1);
+                                $(this).parent().parent().remove();
+
+                                loadSettings();
+                             }).text('delete') ) );
+
+                  $tbody.append(tr);
+               }
+
+               // add new limit!
+               $nltr = $('<tr>');
+
+               // type select
+               $ltype = $('<select>').attr('id', 'new-limit-type');
+               for(i = 0; i < ltypes.length; i++)
+               {
+                  $ltype.append( $('<option>').attr('value', ltypes[i][0]).text(ltypes[i][1]) );
+               }
+               $nltr.append( $('<td>').append( $ltype ) );
+               // hard/soft
+               $nltr.append( $('<td>').append( $('<select>').attr('id', 'new-limit-hs').append( $('<option>').attr('value', 'hard').text('Hard limit') ).append( $('<option>').attr('value', 'soft').text('Soft limit') ) ) );
+               // val
+               $nltr.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-limit-val') ) );
+
+               $nltr.append(
+                  $('<td>').append(
+                     $('<button>').click(function()
+                     {
+                        settings.settings.config.limits.push(
+                        {
+                           name: $('#new-limit-type :selected').val(),
+                           type: $('#new-limit-hs :selected').val(),
+                           val:  $('#new-limit-val').val()
+                        });
+
+                        loadSettings(function()
+                        {
+                           showTab('limits');
+                        });
+
+                     }).text('add new')
+                  )
+               );
+               $tbody.append($nltr);
+
+               $table.append($tbody);
+               $('#page').append($table);
+
+               break;
+
+
+
 
 
             case 'logs':
@@ -481,6 +700,9 @@ td
                $('#page').append($table);
 
                break;
+
+
+
 
 
             case 'disconnect':

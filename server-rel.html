@@ -33,6 +33,8 @@ body
 table
 {
    width: 100%;
+   margin-top: 5px;
+   border-spacing: 0;
 }
 
 table thead
@@ -52,11 +54,6 @@ table th
    text-align: left;
 }
 
-table th.moarspace
-{
-   width: 50%;
-}
-
 table td
 {
    color: #505050;
@@ -70,6 +67,43 @@ tbody tr:nth-child(odd)
 {
    background-color: #f3f3f3;
 }
+
+
+
+
+/* login stuff */
+
+#login
+{
+   width: 250px;
+}
+
+#login > input
+{
+   display: block;
+   margin: 5px 0 13px 0;
+   padding: 5px;
+   color: #505050;
+   border: 1px solid #b4b4b4;
+   width: 240px;
+}
+
+/* connect button */
+
+#login > button
+{
+   height: 30px;
+   background-color: #505050;
+   color: #fff;
+   border: 0;
+   float: right;
+   margin: 0;
+}
+
+
+
+
+
 
 
 
@@ -110,6 +144,11 @@ tbody tr:nth-child(odd)
    color: #14991a;
 }
 
+.loggingin
+{
+   color: #ee8833;
+}
+
 #header
 {
    color: #fafafa;
@@ -132,8 +171,8 @@ tbody tr:nth-child(odd)
 {
    display: block;
    color: #b4b4b4;
-   line-height: 25px;
-   padding: 5px 0 5px 30px;
+   line-height: 30px;
+   padding: 0 0 0 30px;
    margin: 5px 0 5px 0;
    cursor: pointer;
 }
@@ -144,12 +183,20 @@ tbody tr:nth-child(odd)
    background-color: #c8c8c8;
 }
 
+#nav #logoutbutton
+{
+   color: #cc3333;
+}
+
 
 
 
 /* fonts */
 
-#header-title > span, #header-connection, #header-host, #nav, th
+#header-title > span, #header-connection, #header-host,
+#nav,
+th,
+#login > input, #login > button
 {
    font: normal bold 11pt Arial, sans-serif;
    text-transform: uppercase;
@@ -175,8 +222,8 @@ td
          </div>
 
          <div id='header-status'>
-            <span id='header-connection' class='connected'>Connected</span>
-            <span id='header-host'>127.0.0.1</span>
+            <span id='header-connection' class='disconnected'>Disconnected</span>
+            <span id='header-host'></span>
          </div>
 
       </div>
@@ -187,6 +234,7 @@ td
          <li>streams</li>
          <li>limits</li>
          <li>logs</li>
+         <li id='logoutbutton'>disconnect</li>
       </ul>
 
       <div id='page'></div>
@@ -195,22 +243,139 @@ td
 
    <script>
 
-      // menu
-      $('#nav').children().each(function()
+      // creds and local copy of the settings
+      var settings =
       {
-         $(this).click(function()
+         server: '',
+         credentials:
          {
-            // remove currently selected
-            $('#nav').children().each(function()
+            username: "",
+            password: "",
+            authstring: ""
+         },
+         settings: {}
+      };
+
+
+      $(document).ready(function()
+      {
+         $('#nav').children().each(function()
+         {
+            $(this).click(function()
             {
-               $(this).attr('class', '');
+               // remove currently selected
+               $('#nav').children().each(function()
+               {
+                  $(this).attr('class', '');
+               });
+               // select this one
+               $(this).attr('class', 'selected');
+               // show correct tab
+               showTab($(this).text());
             });
-            // select this one
-            $(this).attr('class', 'selected');
-            // show correct tab
-            showTab($(this).text());
          });
+
+         // onload show login 'tab' and hide menu
+         showTab('login');
+         $('#nav').css('visibility', 'hidden');
       });
+
+
+
+      // format date to something pretty
+      function formatDate(date)
+      {
+         var d = new Date(date * 1000);
+
+         return d.toUTCString();
+      }
+
+
+      // connect to server and set/get settings
+      function loadSettings(callback)
+      {
+         var errorstr = '',
+             data = $.extend(settings.settings,
+             {
+                'authorize':
+                {
+                   'username': settings.credentials.username,
+                   'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
+                }
+             });
+
+         console.log('SEND', data);
+
+         $.ajax(
+         {
+            'url': settings.server,
+            'data':
+            {
+               "command": JSON.stringify(data)
+            },
+            'dataType': 'jsonp',
+            'success': function(d)
+            {
+               console.log('RECV', d);
+
+               if(d && d['authorize'] && d['authorize']['challenge'])
+               {
+                  if (settings.credentials.authstring != d['authorize']['challenge'])
+                  {
+                     settings.credentials.authstring = d['authorize']['challenge'];
+                     console.log('need to reload settings with new auth string');
+                     loadSettings(callback);
+                     return;
+                  }else{
+                     errorstr = 'wrong credentials';
+                  }
+               }else{
+                  settings.settings = $.extend(true, {
+                     "config":
+                     {
+                        "host": "",
+                        "limits": [],
+                        "name": "",
+                        "protocols": {},
+                        "status": "",
+                        "version": ""
+                     },
+                     "streams": {},
+                     "log": {},
+                     "statistics": {}
+                  }, d);
+
+                  console.log('new shinyness object:', settings.settings);
+               }
+
+               if(callback)
+               {
+                  callback(errorstr);
+               }
+            }
+         });
+      }
+
+
+
+      function setHeaderState(state)
+      {
+         var text, cname;
+
+         switch(state)
+         {
+            case 'logingin':        text = 'logging in...';    cname = 'loggingin';       break;
+            case 'disconnected':    text = 'disconnected';     cname = 'disconnected';    break;
+            case 'connected':       text = 'connected';        cname = 'connected';       break;
+         }
+
+         $('#header-connection').attr('class', cname);
+         $('#header-connection').text(text);
+         $('#header-host').text(settings.server.replace('http://', ''));
+      }
+
+
+
 
 
       // show tab
@@ -221,26 +386,120 @@ td
 
          switch(name)
          {
+            case 'login':
+               var host = $('<input>').attr('type', 'text').attr('placeholder', 'http://localhost:4242');
+               var user = $('<input>').attr('type', 'text').attr('placeholder', 'username');
+               var pass = $('<input>').attr('type', 'password').attr('placeholder', 'password');
+               var conn = $('<button>').click(function()
+               {
+                  // get login info
+                  settings.credentials.username = user.val();
+                  settings.credentials.password = pass.val();
+                  settings.server = host.val() || host.attr('placeholder');
+
+                  // try to login
+                  setHeaderState('logingin');
+
+
+                  loadSettings(function(errorstr)
+                  {
+                     if(errorstr == '')
+                     {
+                        setHeaderState('connected');
+
+                        $('#nav').css('visibility', 'visible');
+
+                        showTab('overview');
+
+                        // show overview as current tab - this only happens when logging out and then in
+                        $('#nav').children().each(function()
+                        {
+                           if($(this).text() != 'overview')
+                           {
+                              $(this).attr('class', '');
+                           }else{
+                              $(this).attr('class', 'selected');
+                           }
+                        });
+
+                        console.log('logged in!');
+                     }else{
+                        setHeaderState('disconnected');
+                        $('#header-host').text('');
+                        console.log('error logging in: ' + errorstr);
+                     }
+                  });
+
+
+
+               }).text('connect');
+
+               $('#page').append(
+                  $('<div>').attr('id', 'login').append(host).append(user).append(pass).append(conn)
+               );
+               break;
+
+
+
+
+            case 'limits':
+
+
+
+
+
+               break;
+
+
             case 'logs':
-
-               // build logs
                $table = $('<table>');
-               $table.html("<thead><th>Date</th><th>Type</th><th class='moarspace'>Message</th></thead>");
+               $table.html("<thead><th>Date</th><th>Type</th><th>Message</th></thead>");
+               $tbody = $('<tbody>');
 
+               var i, cur, $tr,
+                   logs = settings.settings.log.reverse(),
+                   len = logs.length;
 
-               // TODO TEST!
-               $table.append($('<tr><td>254123</td><td>SAUCE</td><td>huehue bbq lolool ?? sauce kekeke sadfq3frs fwef</td></tr>'));
-               $table.append($('<tr><td>42123</td><td>MOOAAR</td><td>huedwa r3w3d c2fwq wqs s d2 4frsfrs fwef</td></tr>'));
-               $table.append($('<tr><td>2245123</td><td>BBQ</td><td>hue 243rfwe fs q33235343keke sadfq3frs fwef</td></tr>'));
-               $table.append($('<tr><td>215123</td><td>HUEHUE</td><td> 32d 32523 dsg53g  dsers fwef</td></tr>'));
+               $tbody.html('');
 
+               for(i = 0; i < len; i++)
+               {
+                  cur = settings.settings.log[i];
 
+                  $tr = $('<tr>').append(
+                     $('<td>').text(formatDate(cur[0]))
+                  ).append(
+                     $('<td>').text(cur[1])
+                  ).append(
+                     $('<td>').text(cur[2])
+                  );
 
-               // display
+                  $tbody.append($tr);
+               }
+
+               $table.append($tbody);
                $('#page').append($table);
 
                break;
 
+
+            case 'disconnect':
+               showTab('login');
+               setHeaderState('disconnected');
+               $('#nav').css('visibility', 'hidden');
+
+               settings =
+               {
+                  server: '',
+                  credentials:
+                  {
+                     username: "",
+                     password: "",
+                     authstring: ""
+                  },
+                  settings: {}
+               };
+               break;
          }
       }
 

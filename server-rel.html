@@ -225,12 +225,16 @@ tbody td.center
 #header-title > span, #header-connection, #header-host,
 #nav,
 th,
-#login > input, #login > button,
 p,
 label
 {
    font: normal bold 11pt Arial, sans-serif;
    text-transform: uppercase;
+}
+
+#login > input, #login > button
+{
+   font: normal bold 11pt Arial, sans-serif;
 }
 
 
@@ -301,7 +305,6 @@ td
          ['str_kbps_max', 'Maximum bitrate']
       ];
 
-
       $(document).ready(function()
       {
          $('#nav').children().each(function()
@@ -326,13 +329,20 @@ td
       });
 
 
-
       // format date to something pretty
       function formatDate(date)
       {
          var d = new Date(date * 1000);
 
-         return d.toUTCString();     // TODO
+         return [
+            ('00' + d.getMonth()).slice(-2),
+            ('00' + d.getDate()).slice(-2),
+            d.getFullYear()
+         ].join('/') + ' ' + [
+            ('00' + d.getHours()).slice(-2),
+            ('00' + d.getMinutes()).slice(-2),
+            ('00' + d.getSeconds()).slice(-2)
+         ].join(':');
       }
 
 
@@ -378,6 +388,11 @@ td
                "command": JSON.stringify(data)
             },
             'dataType': 'jsonp',
+            'timeout': 2500,
+            'error': function()
+            {
+               setHeaderState('disconnected');
+            },
             'success': function(d)
             {
                console.log('RECV', d);
@@ -453,9 +468,11 @@ td
          switch(name)
          {
             case 'login':
+
+//TODO fixme login creds
                var host = $('<input>').attr('type', 'text').attr('placeholder', 'http://localhost:4242');
-               var user = $('<input>').attr('type', 'text').attr('placeholder', 'username');
-               var pass = $('<input>').attr('type', 'password').attr('placeholder', 'password');
+               var user = $('<input>').attr('type', 'text').attr('placeholder', 'USERNAME');/*.attr('value', 'testaccount'); */
+               var pass = $('<input>').attr('type', 'password').attr('placeholder', 'PASSWORD');/*.attr('value', 'pisvlek'); */
                var conn = $('<button>').click(function()
                {
                   // get login info
@@ -715,7 +732,10 @@ $('#page').append( $('<p>').text('TODO stream settings: ' + sname + ' / ' + stre
                    logs = settings.settings.log,
                    len = logs.length;
 
-               logs.reverse();
+               if(len >= 2 && settings.settings.log[0][0] < settings.settings.log[len - 1][0])
+               {
+                  logs.reverse();
+               }
 
                $tbody.html('');
 

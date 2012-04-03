@@ -3,6 +3,7 @@
 
 #pragma once
 #include "socket.h"
+#include "dtsc.h"
 #include <string>
 
 //forward declaration of RTMPStream::Chunk to avoid circular dependencies.
@@ -38,6 +39,10 @@ namespace FLV {
       Tag(const RTMPStream::Chunk& O); ///<Copy constructor from a RTMP chunk.
       //loader functions
       bool ChunkLoader(const RTMPStream::Chunk& O);
+      bool DTSCLoader(DTSC::Stream & S);
+      bool DTSCVideoInit(DTSC::Stream & S);
+      bool DTSCAudioInit(DTSC::Stream & S);
+      bool DTSCMetaInit(DTSC::Stream & S);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool SockLoader(int sock);
       bool SockLoader(Socket::Connection sock);
@@ -46,6 +51,7 @@ namespace FLV {
       int buf; ///< Maximum length of buffer space.
       bool done; ///< Body reading done?
       unsigned int sofar; ///< How many bytes are read sofar?
+      void setLen();
       //loader helper functions
       bool MemReadUntil(char * buffer, unsigned int count, unsigned int & sofar, char * D, unsigned int S, unsigned int & P);
       bool SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, Socket::Connection & sock);

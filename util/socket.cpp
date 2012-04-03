@@ -270,7 +270,7 @@ bool Socket::Connection::write(const void * buffer, int len){
 /// \param buffer Location of the buffer to read to.
 /// \param len Amount of bytes to read.
 /// \returns True if the whole read was succesfull, false otherwise.
-bool Socket::Connection::read(void * buffer, int len){
+bool Socket::Connection::read(const void * buffer, int len){
   int sofar = 0;
   if (sock < 0){return false;}
   while (sofar != len){
@@ -309,9 +309,9 @@ bool Socket::Connection::read(void * buffer, int len){
 }//Socket::Connection::read
 
 /// Read call that is compatible with file access syntax. This function simply calls the other read function.
-bool Socket::Connection::read(void * buffer, int width, int count){return read(buffer, width*count);}
+bool Socket::Connection::read(const void * buffer, int width, int count){return read(buffer, width*count);}
 /// Write call that is compatible with file access syntax. This function simply calls the other write function.
-bool Socket::Connection::write(void * buffer, int width, int count){return write(buffer, width*count);}
+bool Socket::Connection::write(const void * buffer, int width, int count){return write(buffer, width*count);}
 /// Write call that is compatible with std::string. This function simply calls the other write function.
 bool Socket::Connection::write(const std::string data){return write(data.c_str(), data.size());}
 
@@ -320,7 +320,7 @@ bool Socket::Connection::write(const std::string data){return write(data.c_str()
 /// \param buffer Location of the buffer to write from.
 /// \param len Amount of bytes to write.
 /// \returns The amount of bytes actually written.
-int Socket::Connection::iwrite(void * buffer, int len){
+int Socket::Connection::iwrite(const void * buffer, int len){
   if (sock < 0){return 0;}
   int r = send(sock, buffer, len, 0);
   if (r < 0){

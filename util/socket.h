@@ -37,15 +37,15 @@ namespace Socket{
       bool canWrite(); ///< Calls poll() on the socket, checking if data can be written.
       signed int ready(); ///< Returns the ready-state for this socket.
       bool connected(); ///< Returns the connected-state for this socket.
-      bool read(void * buffer, int len); ///< Reads data from socket.
-      bool read(void * buffer, int width, int count); ///< Read call that is compatible with file access syntax.
+      bool read(const void * buffer, int len); ///< Reads data from socket.
+      bool read(const void * buffer, int width, int count); ///< Read call that is compatible with file access syntax.
       bool write(const void * buffer, int len); ///< Writes data to socket.
-      bool write(void * buffer, int width, int count); ///< Write call that is compatible with file access syntax.
+      bool write(const void * buffer, int width, int count); ///< Write call that is compatible with file access syntax.
       bool write(const std::string data); ///< Write call that is compatible with std::string.
-      int iwrite(void * buffer, int len); ///< Incremental write call.
+      int iwrite(const void * buffer, int len); ///< Incremental write call.
       int iread(void * buffer, int len); ///< Incremental read call.
       bool read(std::string & buffer); ///< Read call that is compatible with std::string.
-      bool swrite(std::string & buffer); ///< Read call that is compatible with std::string.
+      bool swrite(std::string & buffer); ///< Write call that is compatible with std::string.
       bool iread(std::string & buffer); ///< Incremental write call that is compatible with std::string.
       bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
       void spool(); ///< Updates the downbuffer and upbuffer internal variables.

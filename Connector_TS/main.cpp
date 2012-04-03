@@ -18,7 +18,7 @@
 #include <sys/types.h>
 #include <sys/epoll.h>
 #include "../util/socket.h"
-#include "../util/flv_tag.h"
+#include "../util/dtsc.h"
 
 /// A simple class to create a single Transport Packet
 class Transport_Packet {
@@ -216,37 +216,39 @@ void SendPMT( Socket::Connection conn ) {
 
 /// Wraps one or more NALU packets into transport packets
 /// \param tag The FLV Tag
-std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
+std::vector<Transport_Packet> WrapNalus( DTSC::DTMI Tag ) {
   static int ContinuityCounter = 0;
   static int Previous_Tag = 0;
   static int First_PCR = getNowMS();
   static int Previous_PCR = 0;
+  static char LeadIn[4] = { (char)0x00, (char)0x00, (char)0x00, (char)0x001 };
   int Current_PCR;
   int Current_Tag;
-
+  std::string Data = Tag.getContentP("data")->StrValue();
+  
   int Offset = 0;
   Transport_Packet TS;
   int Sent = 0;
-  int PacketAmount = ( ( tag.len - (188 - 35 ) ) / 184 ) + 2;
+  
+  int PacketAmount = ceil( ( ( Data.size() - (188 - 35 ) ) / 184 ) + 1 );//Minus first packet, + round up and first packet.
   std::vector<Transport_Packet> Result;
-  char LeadIn[4] = { (char)0x00, (char)0x00, (char)0x00, (char)0x01 };
   TS = Transport_Packet( true, 0x100 );
   TS.SetContinuityCounter( ContinuityCounter );
   ContinuityCounter = ( ( ContinuityCounter + 1 ) & 0x0F );
   Current_PCR = getNowMS();
-  Current_Tag = ( tag.data[7] << 24 ) + ( tag.data[4] << 16 ) + ( tag.data[5] << 8 ) + ( tag.data[6] );
+  Current_Tag = Tag.getContentP("time")->NumValue();
   if( true ) { //Current_PCR - Previous_PCR >= 1 ) {
     TS.SetAdaptationField( Current_PCR - First_PCR );
     Offset = 8;
     Previous_PCR = Current_PCR;
   }
-  TS.SetPesHeader( 4 + Offset, tag.len - 16 , Current_Tag, Previous_Tag );
+  TS.SetPesHeader( 4 + Offset, Data.size() , Current_Tag, Previous_Tag );
   Previous_Tag = Current_Tag;
-  TS.SetPayload( LeadIn, 31, 23 + Offset );
-  TS.SetPayload( &tag.data[16], 157 - Offset, 27 + Offset );
+  TS.SetPayload( LeadIn, 4, 23 + Offset );
+  TS.SetPayload( &Data[16], 157 - Offset, 27 + Offset );
   Sent = 157 - Offset;
   Result.push_back( TS );
-  while( Sent + 176 < tag.len - 16 ) {
+  while( Sent + 176 < Data.size() ) {
 //  for( int i = 0; i < (PacketAmount - 1); i++ ) {
     TS = Transport_Packet( false, 0x100 );
     TS.SetContinuityCounter( ContinuityCounter );
@@ -258,11 +260,11 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
       Offset = 8;
       Previous_PCR = Current_PCR;
     }
-    TS.SetPayload( &tag.data[16 + Sent], 184 - Offset, 4 + Offset );
+    TS.SetPayload( &Data[16 + Sent], 184 - Offset, 4 + Offset );
     Sent += 184 - Offset;
     Result.push_back( TS );
   }
-  if( Sent < ( tag.len - 16 ) ) {
+  if( Sent < ( Data.size() ) ) {
     Current_PCR = getNowMS();
     Offset = 0;
     if( true ) { //now - Previous_PCR >= 5 ) {
@@ -271,16 +273,16 @@ std::vector<Transport_Packet> WrapNalus( FLV::Tag tag ) {
       Previous_PCR = Current_PCR;
     }
     std::cerr << "Wrapping packet: last packet length\n";
-    std::cerr << "\tTotal:\t\t" << tag.len - 16 << "\n";
+    std::cerr << "\tTotal:\t\t" << Data.size() << "\n";
     std::cerr << "\tSent:\t\t" << Sent << "\n";
-    int To_Send = ( tag.len - 16 ) - Sent;
+    int To_Send = ( Data.size() ) - Sent;
     std::cerr << "\tTo Send:\t" << To_Send << "\n";
     std::cerr << "\tStuffing:\t" << 176 - To_Send << "\n";
     char Stuffing = (char)0xFF;
     for( int i = 0; i < ( 176 - To_Send ); i++ ) {
       TS.SetPayload( &Stuffing, 1, 4 + Offset + i );
     }
-    TS.SetPayload( &tag.data[16 + Sent],  176 - To_Send , 4 + Offset + ( 176 - To_Send ) );
+    TS.SetPayload( &Data[16 + Sent],  176 - To_Send , 4 + Offset + ( 176 - To_Send ) );
     Result.push_back( TS );
   }
   return Result;
@@ -301,12 +303,13 @@ void Transport_Packet::Write( Socket::Connection conn ) {
 /// The main function of the connector
 /// \param conn A connection with the client
 int TS_Handler( Socket::Connection conn ) {
-  FLV::Tag tag;///< Temporary tag buffer for incoming video data.
+  DTSC::Stream stream;
+//  FLV::Tag tag;///< Temporary tag buffer for incoming video data.
   bool inited = false;
   bool firstvideo = true;
   Socket::Connection ss(-1);
   int zet = 0;
-  while(conn.connected() && !FLV::Parse_Error) {
+  while(conn.connected()) {// && !FLV::Parse_Error) {
     if( !inited ) {
       ss = Socket::Connection("/tmp/shared_socket_fifa");
       if (!ss.connected()){
@@ -331,27 +334,22 @@ int TS_Handler( Socket::Connection conn ) {
         break;
       case 0: break;//not ready yet
       default:
-        if (tag.SockLoader(ss)){//able to read a full packet?
-          if( tag.data[ 0 ] == 0x09 ) {
-            if( ( ( tag.data[ 11 ] & 0x0F ) == 7 ) ) { //&& ( tag.data[ 12 ] == 1 ) ) {
-              fprintf(stderr, "Video contains NALU\n" );
-               // if( firstvideo ) {
-               //   firstvideo = false;
-               // } else {
-                  SendPAT( conn );
-                  SendPMT( conn );
-                  std::vector<Transport_Packet> Meh = WrapNalus( tag );
-                  for( int i = 0; i < Meh.size( ); i++ ) {
-                    Meh[i].Write( conn );
-                  }
-                  std::cerr << "Item: " << ++zet << "\n";
-               // }
-            }
+        ss.spool();
+        if ( stream.parsePacket( conn.Received() ) ) {
+          if( stream.lastType() == DTSC::VIDEO ) {
+            fprintf(stderr, "Video contains NALU\n" );
+              SendPAT( conn );
+              SendPMT( conn );
+              std::vector<Transport_Packet> AllNalus = WrapNalus( stream.getPacket(0) );
+              for( int i = 0; i < AllNalus.size( ); i++ ) {
+                AllNalus[i].Write( conn );
+              }
+              std::cerr << "Item: " << ++zet << "\n";
           }
-          if( tag.data[ 0 ] == 0x08 ) {
-            if( ( tag.data[ 11 ] == 0xAF ) && ( tag.data[ 12 ] == 0x01 ) ) {
+          if( stream.lastType() == DTSC::AUDIO ) {
+//            if( ( tag.data[ 11 ] == 0xAF ) && ( tag.data[ 12 ] == 0x01 ) ) {
               fprintf(stderr, "Audio Contains Raw AAC\n");
-            }
+//            }
           }          
         }
         break;

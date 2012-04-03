@@ -1,6 +1,6 @@
-SRC = main.cpp ../util/socket.cpp ../util/dtsc.cpp ../util/util.cpp
+SRC = main.cpp ../../util/dtsc.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = DDV_Conn_TS
+OUT = DTSC_Info
 INCLUDES = 
 DEBUG = 4
 OPTIMIZE = -g
@@ -8,7 +8,7 @@ CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
-LIBS=
+LIBS = 
 .SUFFIXES: .cpp 
 .PHONY: clean default
 default: $(OUT)
@@ -19,8 +19,5 @@ $(OUT): $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 install: $(OUT)
-	-service HTTP_Conn stop
 	cp -f ./$(OUT) /usr/bin/
-	cp -f ./HTTP_Conn /etc/init.d/
-	service HTTP_Conn start
 

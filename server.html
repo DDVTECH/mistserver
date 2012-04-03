@@ -25,7 +25,7 @@
          h2
          {
             margin: 0 0 10px 0;
-            background-color: #000;
+            background-color: #333;
             color: #fff;
             font-size: 1.2em;
             padding: 5px;
@@ -52,13 +52,13 @@
             width: 25%;
          }
 
-         #stream-limit-table
+         #stream-limit-table, #logs table
          {
             width: 100%;
             margin: 10px 0 20px 15px;
          }
 
-         #stream-limit-table th
+         #stream-limit-table th, #logs th, #limits-table th
          {
             text-align: left;
          }
@@ -68,12 +68,6 @@
             margin: 20px 0 5px 15px;
             width: 100%;
          }
-
-         #limits-table th
-         {
-            text-align: left;
-         }
-
 
          #limits p, #protocols p
          {
@@ -170,6 +164,16 @@
             margin: 10px 0 5px 15px;
          }
 
+         .errorlogin
+         {
+            color: #c33;
+         }
+
+         .correctlogin
+         {
+            color: #393;
+         }
+
 
 
       </style>
@@ -189,17 +193,17 @@
 
          <label for='username'>
             Username:
-            <input type='text' id='username' value='test' />
+            <input type='text' id='username' value='testaccount' />
          </label>
 
          <label for='password'>
             Password:
-            <input type='password' id='password' value='test' />
+            <input type='password' id='password' value='pisvlek' />
          </label>
 
          <label for='server'>
             Server:
-            <input type='text' id='server' value='http://localhost:7342' />
+            <input type='text' id='server' value='http://localhost:4242' />
          </label>
 
          <button id='login'>login</button>
@@ -212,11 +216,11 @@
          <h2>Config</h2>
 
          <label for='config-host'>
-            Host: <input type='text' id='config-host' value='' /> <span id='save-config-host'>(save)</span>
+            Host: <input type='text' id='config-host' value='' /> <button id='save-config-host'>save</button>
          </label>
 
          <label for='config-name'>
-            Name: <input type='text' id='config-name' value='' /> <span id='save-config-name'>(save)</span>
+            Name: <input type='text' id='config-name' value='' /> <button id='save-config-name'>save</button>
          </label>
 
          <span id='config-status'>Status: </span> <button id='config-status-disable'>DISABLE</button>
@@ -307,6 +311,24 @@
       </div>
 
 
+      <div id='logs'>
+
+         <h2>Logs</h2>
+
+         <table>
+            <thead>
+               <th>Date</th>
+               <th>Type</th>
+               <th>Message</th>
+            </thead>
+            <tbody id='log-list'>
+            </tbody>
+         </table>
+
+      </div>
+
+
+
 
       <script>
 
@@ -347,7 +369,7 @@
                }
             }
 
-            return 'error';
+            return '[error] name "' + name + '" has no entry in rep (@350)!';
          }
 
 
@@ -392,7 +414,22 @@
                      }
                   }else{
                      //console.log('no challenge - we\'re logged in! = OK');
-                     settings.settings = d;
+                     settings.settings = $.extend(true, {
+                        "config":
+                        {
+                           "host": "",
+                           "limits": [],
+                           "name": "",
+                           "protocols": {},
+                           "status": "",
+                           "version": ""
+                        },
+                        "streams": {},
+                        "log": {},
+                        "statistics": {}
+                     }, d);
+
+                     console.log('new shinyness object:', settings.settings);
                   }
 
                   if(callback)
@@ -421,20 +458,30 @@
                settings.server = $('#server').val();
 
                $('#status').text('logging in...');
+               $('#status').attr('class', '');
 
                loadSettings(function(errorstr)
                {
                   if(errorstr == '')
                   {
                      $('#status').text('logged in');
+                     $('#status').attr('class', 'correctlogin');
 
                      $('div').show();
 
                      fillHTML();
-                     //console.log('logged in!');
+/*
+                     setInterval(function()
+                     {
+                        loadSettings(fillLogs);
+                     }, 5000);
+*/
+                     console.log('logged in!');
                   }else{
                      $('#status').text('disconnected - ' + errorstr);
-                     $('div').hide();
+                     $('#status').attr('class', 'errorlogin');
+                     $('div:not(#current-status):not(#connect)').hide();
+                     //$('div').hide();
                      //console.log('error logging in: ' + errorstr);
                   }
                });
@@ -501,6 +548,9 @@
 
             // streams
             fillStreams();
+
+            // log
+            fillLogs();
          }
 
 
@@ -534,7 +584,7 @@
                   $(this).parent().remove();
 
                   loadSettings(fillLimits);
-               }).text('(delete)');
+               }).html('<button>delete</button>');
 
                cur.append($('<td>').text(limitShortToLong(lim.name)));
                cur.append($('<td>').text(lim.type));
@@ -559,7 +609,7 @@
 
                li.text(protocol + ' on port ' + settings.settings.config.protocols[protocol].port);
 
-               li.append($('<span>').click(function()
+               li.append($('<button>').click(function()
                {
                   var prot = $(this).parent().attr('id').replace('protocol-', '');
                   console.log(prot);
@@ -569,7 +619,7 @@
                   $(this).parent().remove();
 
                   loadSettings(fillProtocols);
-               }).text('<remove>'));
+               }).text('remove'));
 
                $('#protocol-list').append(li);
             }
@@ -584,7 +634,7 @@
 
             for(stream in settings.settings.streams)
             {
-               var d = $('<span>').text(' <delete>').attr('id', 'stream-delete-' + stream).click(function()
+               var d = $('<button>').text('delete').attr('id', 'stream-delete-' + stream).click(function()
                {
                   var id = $(this).attr('id').replace('stream-delete-', '');
                   console.log('delete this stream', id);
@@ -598,10 +648,10 @@
 
                cur = settings.settings.streams[stream];
 
-               li.append( $('<div>').text('Name:').append(
+               li.append( $('<div>').text('Name: ').append(
                   $('<input>').attr('type', 'text').attr('id', 'stream-name-' + stream).attr('value', cur.name)
                ).append(
-                  $('<span>').text('<save>').click(function(x)
+                  $('<button>').text('save').click(function(x)
                   {
                      return function()
                      {
@@ -615,7 +665,23 @@
 
 
 
-               li.append($('<div>').text('Group: ' + cur.group));
+               //li.append($('<div>').text('Group: ' + cur.group));
+
+               li.append( $('<div>').text('Group: ').append(
+                  $('<input>').attr('type', 'text').attr('id', 'stream-group-' + stream).attr('value', cur.group)
+               ).append(
+                  $('<button>').text('save').click(function(x)
+                  {
+                     return function()
+                     {
+                        var group = $('#stream-group-' + x).val();
+
+                        settings.settings.streams[x].group = group;
+                        loadSettings(fillStreams);
+                     }
+                  }(stream))
+               ) );
+
 
 
 
@@ -632,7 +698,7 @@
                      $('<input>').attr('type', 'text').attr('id', 'stream-channel-account-' + stream).attr('value', cur.channel.account)
                   )
                );
-               channel.append($('<span>').attr('class', 'mleft25').text('(save)').click(function()
+               channel.append($('<button>').attr('class', 'mleft25').text('save').click(function()
                {
                   var cname = $(this).parent().attr('id').replace('stream-channel-', ''),
                       url   = $('#stream-channel-url-' + cname).val(),
@@ -665,7 +731,9 @@
                   )
                ).append(tbody);
 
-               for(var i = 0; i < cur.limits.length; i++)
+               var cll = cur.limits ? cur.limits.length : 0;
+
+               for(var i = 0; i < cll; i++)
                {
                   var climit = $('<tr>').attr('id', 'stream-limit-' + stream + '-' + i);
 
@@ -680,7 +748,7 @@
 
                      loadSettings(fillStreams);
 
-                  }).text('(delete)');
+                  }).html('<button>delete</button>');
 
                   climit.append($('<td>').text(limitShortToLong(cur.limits[i].name)));
                   climit.append($('<td>').text(cur.limits[i].type));
@@ -755,7 +823,7 @@
                spreset.append( $('<div>').text('Command: ').append(
                   $('<input>').attr('id', 'stream-preset-cmd-' + stream).attr('type', 'text').val(settings.settings.streams[stream].preset.cmd)
                ).append(
-                  $('<span>').text('<save>').click(function()
+                  $('<button>').text('save').click(function()
                   {
                      var stream = $(this).parent().parent().attr('id').replace('stream-preset-', '');
                      var cmd = $('#stream-preset-cmd-' + stream).val();
@@ -770,7 +838,7 @@
                spreset.append( $('<div>').text('Description: ').append(
                   $('<input>').attr('id', 'stream-preset-desc-' + stream).attr('type', 'text').val(settings.settings.streams[stream].preset.desc)
                ).append(
-                  $('<span>').text('<save>').click(function()
+                  $('<button>').text('save').click(function()
                   {
                      var stream = $(this).parent().parent().attr('id').replace('stream-preset-', '');
                      var desc = $('#stream-preset-desc-' + stream).val();
@@ -785,7 +853,7 @@
                spreset.append( $('<div>').text('Name: ').append(
                   $('<input>').attr('id', 'stream-preset-name-' + stream).attr('type', 'text').val(settings.settings.streams[stream].preset.name)
                ).append(
-                  $('<span>').text('<save>').click(function()
+                  $('<button>').text('save').click(function()
                   {
                      var stream = $(this).parent().parent().attr('id').replace('stream-preset-', '');
                      var name = $('#stream-preset-name-' + stream).val();
@@ -805,7 +873,7 @@
 
             // new stream
             var nspreset = $('<div>').attr('id', 'new-stream').text('New stream').append(
-               $('<div>').text('ID:').append(
+               $('<div>').text('Name: ').append(
                   $('<input>').attr('id', 'new-stream-name').attr('type', 'text')
                ).append(
                   $('<button>').text('create').click(function()
@@ -818,7 +886,7 @@
                         "channel": {"URL": "", "account": ""},
                         "group": "",
                         "limits": [],
-                        "name": "",
+                        "name": $('#new-stream-name').val(),
                         "preset": {"cmd": "", "name": "", "desc": ""},
                         "status": ""
                      }
@@ -832,6 +900,33 @@
 
             $('#streams-list').append(nspreset);
 
+         }
+
+
+
+         function fillLogs()
+         {
+            var i, cur, tr,
+                tbody = $('#log-list'),
+                logs = settings.settings.log.reverse(),
+                len = logs.length;
+
+            tbody.html('');
+
+            for(i = 0; i < len; i++)
+            {
+               cur = settings.settings.log[i];
+
+               tr = $('<tr>').append(
+                  $('<td>').text(new Date(cur[0] * 1000).toUTCString())
+               ).append(
+                  $('<td>').text(cur[1])
+               ).append(
+                  $('<td>').text(cur[2])
+               );
+
+               tbody.append(tr);
+            }
          }
 
       </script>

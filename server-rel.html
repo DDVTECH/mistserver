@@ -86,6 +86,7 @@ tbody tr:nth-child(odd)
 
 
 
+
 /* login stuff */
 
 #login
@@ -270,11 +271,26 @@ label input
    width: 225px;
 }
 
+label span
+{
+   float: right;
+}
+
 
 #editserver
 {
    width: 400px;
 }
+
+
+
+thead th .theadinfo
+{
+   color: #848484;
+   padding: 0 0 0 10px;
+   font: normal normal 9pt Arial, sans-serif;
+}
+
 
 
 
@@ -413,6 +429,19 @@ td
       }
 
 
+      function TypeofResource(uri)
+      {
+         var protocol = /([a-zA-Z]+):\/\//.exec(uri);
+
+         if(protocol === null || (protocol[1] && protocol[1] === 'file'))
+         {
+            return 'VoD';
+         }else{
+            return 'Live';
+         }
+      }
+
+
       function shortToLongLimit(name)
       {
          console.log('getting the long name for the limit "' + name + '"');
@@ -537,10 +566,9 @@ td
          {
             case 'login':
 
-//TODO fixme login creds
                var host = $('<input>').attr('type', 'text').attr('placeholder', 'HTTP://LOCALHOST:4242');
-               var user = $('<input>').attr('type', 'text').attr('placeholder', 'USERNAME').attr('value', 'testaccount');
-               var pass = $('<input>').attr('type', 'password').attr('placeholder', 'PASSWORD').attr('value', 'pisvlek');
+               var user = $('<input>').attr('type', 'text').attr('placeholder', 'USERNAME');
+               var pass = $('<input>').attr('type', 'password').attr('placeholder', 'PASSWORD');
                var conn = $('<button>').click(function()
                {
                   // get login info
@@ -591,7 +619,42 @@ td
 
             case 'overview':
 
-               $('#page').append($('<p>').text('TODO overview'));
+               $('#page').append(
+                  $('<div>').attr('id', 'editserver').append(
+                     $('<label>').attr('for', 'config-host').text('host').append(
+                        $('<input>').attr('type', 'text').attr('placeholder', 'HOST').attr('id', 'config-host').attr('value', settings.settings.config.host)
+                     )
+                  ).append(
+                     $('<label>').attr('for', 'config-name').text('name').append(
+                        $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'config-name').attr('value', settings.settings.config.name)
+                     )
+                  ).append(
+                     $('<label>').text('version').append(
+                        $('<span>').text(settings.settings.config.version)
+                     )
+                  ).append(
+                     $('<label>').text('time').append(
+                        $('<span>').text( formatDate(settings.settings.config.time) )
+                     )
+                  )
+               );
+
+               $('#editserver').append(
+                  $('<button>').attr('class', 'floatright').click(function()
+                  {
+                     var host = $('#config-host').val();
+                     var name = $('#config-name').val();
+
+                     settings.settings.config.host = host;
+                     settings.settings.config.name = name;
+
+                     loadSettings(function()
+                     {
+                        showTab('overview');
+                     });
+                  }).text( 'save' )
+               );
+
 
                break;
 
@@ -649,6 +712,11 @@ td
                            return;
                         }
 
+                        if(!settings.settings.config.protocols)
+                        {
+                           settings.settings.config.protocols = {};
+                        }
+
                         settings.settings.config.protocols[$('#new-protocol-name :selected').val()] =
                         {
                            port: $('#new-protocol-val').val()
@@ -677,7 +745,7 @@ td
 
             case 'streams':
                $table = $('<table>');
-               $table.html("<thead><th>Type</th><th></th><th>Name</th><th>Status</th><th># V</th><th></th></thead>");
+               $table.html("<thead><th>Type</th><th>Embed</th><th>Name</th><th>Status</th><th>Viewers</th><th>Edit</th></thead>");
                $tbody = $('<tbody>');
 
                var stream, cstr, $tr;
@@ -690,14 +758,29 @@ td
 
                   $tr = $('<tr>').attr('id', 'stream-' + stream);
 
-                  $tr.append( $('<td>').text('?') );
+
+                  $tr.append( $('<td>').text( TypeofResource( cstr.channel.URL ) ) );
+
 
                   $tr.append( $('<td>').append( $('<button>').text('embed') ) );
+                  // TODO do something when pressed!
+                  // FIXME need Thulinma's embed code
 
                   $tr.append( $('<td>').text(cstr.name) );
 
-                  $tr.append( $('<td>').text(cstr.status) );
-                  $tr.append( $('<td>').text(cstr.online) );
+
+                  $tr.append( $('<td>').text(cstr.online == 1 ? 'Running' : 'Error') );
+
+
+                  var cviewers = 0;
+                  if(settings.settings.statistics[stream] && settings.settings.statistics[stream].curr)
+                  {
+                     for(viewer in settings.settings.statistics[stream].curr)
+                     {
+                        cviewers++;
+                     }
+                  }
+                  $tr.append( $('<td>').text( cviewers ) );
 
 
                   $tr.append( $('<td>').append( $('<button>').text('edit').click(function()
@@ -743,11 +826,10 @@ td
                      {
                         URL: ''
                      },
-                     limits: {},
+                     limits: [],
                      preset:
                      {
-                        cmd: '',
-                        desc:''
+                        cmd: ''
                      }
                   };
                   title = 'add new stream';
@@ -772,10 +854,6 @@ td
                      $('<label>').attr('for', 'stream-edit-preset').text('preset').append(
                         $('<input>').attr('type', 'text').attr('placeholder', 'PRESET').attr('id', 'stream-edit-preset').attr('value', sdata.preset.cmd)
                      )
-                  ).append(
-                     $('<label>').attr('for', 'stream-edit-preset-descr').text('preset descr').append(
-                        $('<input>').attr('type', 'text').attr('placeholder', 'PRESET DESCRIPTION').attr('id', 'stream-edit-preset-descr').attr('value', sdata.preset.desc)
-                     )
                   )
                );
 
@@ -798,7 +876,35 @@ td
                $('#editserver').append(
                   $('<button>').attr('class', 'floatright').click(function()
                   {
-                     /// TODO settings.settings.streams[streamname] = sdata?????
+                     var n = $('#stream-edit-name');
+                     var s = $('#stream-edit-source');
+                     var p = $('#stream-edit-preset');
+
+                     if(n.val() == ''){ n.focus(); return; }
+                     if(s.val() == ''){ s.focus(); return; }
+                     if(p.val() == ''){ p.focus(); return; }
+
+                     sdata.name = n.val();
+                     sdata.channel.URL = s.val();
+                     sdata.preset.cmd = p.val();
+
+                     if(streamname == 'new')
+                     {
+                        streamname = n.val().replace(' ', '-');
+                     }
+
+                     if(!settings.settings.streams)
+                     {
+                        settings.settings.streams = {};
+                     }
+
+                     settings.settings.streams[streamname] = sdata;
+
+                     loadSettings(function()
+                     {
+                        showTab('streams');
+                     });
+                        
                   }).text('save')
                );
 
@@ -809,11 +915,29 @@ td
 
             case 'limits':
                $table = $('<table>');
-               $table.html("<thead><th>Type</th><th>Hard/soft limit</th><th>Value</th><th></th></thead>");
+               $table.html("<thead><th>Type</th><th>Hard/soft</th><th>Value</th><th>applies to</th><th>Action</th></thead>");
                $tbody = $('<tbody>');
 
-               var i, tr, limit,
-                   len = settings.settings.config.limits.length;
+               var i, tr, limit, stream, clims,
+                   alllimits = settings.settings.config.limits;
+
+               for(stream in settings.settings.streams)
+               {
+                  clims = settings.settings.streams[stream].limits;
+
+                  $.each(clims, function(k, v)
+                  {
+                     this.appliesto = stream;
+                     this.appliesi = k;
+                  });
+
+                  alllimits = alllimits.concat(clims);
+               }
+
+               console.log(alllimits);
+
+               len = alllimits.length;
+
 
                // remove old stuff
                $tbody.html('');
@@ -821,16 +945,39 @@ td
                for(i = 0; i < len; i++)
                {
                   tr = $('<tr>').attr('id', 'limits-' + i);
-                  limit = settings.settings.config.limits[i];
+                  limit = alllimits[i];
 
                   tr.append( $('<td>').text( shortToLongLimit(limit.name) ) );
                   tr.append( $('<td>').text( limit.type ) );
                   tr.append( $('<td>').text( limit.val ) );
 
+
+                  if(limit.appliesto)
+                  {
+                     tr.append( $('<td>').text( settings.settings.streams[limit.appliesto].name ).attr('id', 'limit-at-' + limit.appliesto + '-' + limit.appliesi) );
+                  }else{
+                     tr.append( $('<td>').text( 'server' ) );
+                  }
+
+                  delete limit.appliesto;
+                  delete limit.appliesi;
+
                   tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
                              {
                                 var id = $(this).parent().parent().attr('id').replace('limits-', '');
-                                settings.settings.config.limits.splice(id, 1);
+                                var at = $($(this).parent().parent().children()[3]).attr('id');
+
+                                 if(at == undefined)
+                                 {
+                                    settings.settings.config.limits.splice(id, 1);
+                                 }else{
+                                    var data = at.replace('limit-at-', '').split('-');
+                                    var loc = data.pop();
+                                    data = data.join('-');
+
+                                    settings.settings.streams[data].limits.splice(loc, 1);
+                                 }
+
                                 $(this).parent().parent().remove();
 
                                 loadSettings();
@@ -854,16 +1001,36 @@ td
                // val
                $nltr.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-limit-val') ) );
 
+
+               // appliesto
+               var $appliesto = $('<select>').attr('id', 'new-limit-appliesto').append( $('<option>').attr('value', 'server').text('Server') );
+
+               for(var strm in settings.settings.streams)
+               {
+                  $appliesto.append(
+                     $('<option>').attr('value', strm).text(settings.settings.streams[strm].name)
+                  );
+               }
+               $nltr.append( $('<td>').append( $appliesto ) );
+
+
                $nltr.append(
                   $('<td>').attr('class', 'center').append(
                      $('<button>').click(function()
                      {
-                        settings.settings.config.limits.push(
+                        var obj =
                         {
                            name: $('#new-limit-type :selected').val(),
                            type: $('#new-limit-hs :selected').val(),
                            val:  $('#new-limit-val').val()
-                        });
+                        };
+
+                        if( $('#new-limit-appliesto').val() == 'server')
+                        {
+                           settings.settings.config.limits.push(obj);
+                        }else{
+                           settings.settings.streams[ $('#new-limit-appliesto').val() ].limits.push(obj);
+                        }
 
                         loadSettings(function()
                         {
@@ -886,7 +1053,7 @@ td
 
             case 'logs':
                $table = $('<table>');
-               $table.html("<thead><th>Date</th><th>Type</th><th>Message</th></thead>");
+               $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
                $tbody = $('<tbody>');
 
                var i, cur, $tr,

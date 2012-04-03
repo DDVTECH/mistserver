@@ -580,7 +580,14 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
         len += (data[2] << 8);
         len += (data[1] << 16);
         if (buf < len){data = (char*)realloc(data, len); buf = len;}
-        if (data[0] > 0x12){FLV::Parse_Error = true; Error_Str = "Invalid Tag received."; return false;}
+        if (data[0] > 0x12){
+          data[0] += 32;
+          FLV::Parse_Error = true;
+          Error_Str = "Invalid Tag received (";
+          Error_Str += data[0];
+          Error_Str += ").";
+          return false;
+        }
         done = false;
       }
     }
@@ -607,20 +614,11 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
 /// \param sock Socket to read from.
 /// \return True if count bytes are read succesfully, false otherwise.
 bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, Socket::Connection & sock){
-  if (sofar == count){return true;}
-  if (!sock.read(buffer + sofar,count-sofar)){
-    if (errno != EWOULDBLOCK){
-      FLV::Parse_Error = true;
-      Error_Str = "Error reading from socket.";
-    }
-    return false;
-  }
-  sofar += count-sofar;
-  if (sofar == count){return true;}
-  if (sofar > count){
-    FLV::Parse_Error = true;
-    Error_Str = "Socket buffer overflow.";
-  }
+  if (sofar >= count){return true;}
+  int r = 0;
+  r = sock.iread(buffer + sofar,count-sofar);
+  sofar += r;
+  if (sofar >= count){return true;}
   return false;
 }//Tag::SockReadUntil
 
@@ -647,7 +645,14 @@ bool FLV::Tag::SockLoader(Socket::Connection sock){
         len += (data[2] << 8);
         len += (data[1] << 16);
         if (buf < len){data = (char*)realloc(data, len); buf = len;}
-        if (data[0] > 0x12){FLV::Parse_Error = true; Error_Str = "Invalid Tag received."; return false;}
+        if (data[0] > 0x12){
+          data[0] += 32;
+          FLV::Parse_Error = true;
+          Error_Str = "Invalid Tag received (";
+          Error_Str += data[0];
+          Error_Str += ").";
+          return false;
+        }
         done = false;
       }
     }
@@ -719,7 +724,14 @@ bool FLV::Tag::FileLoader(FILE * f){
         len += (data[2] << 8);
         len += (data[1] << 16);
         if (buf < len){data = (char*)realloc(data, len); buf = len;}
-        if (data[0] > 0x12){FLV::Parse_Error = true; Error_Str = "Invalid Tag received."; return false;}
+        if (data[0] > 0x12){
+          data[0] += 32;
+          FLV::Parse_Error = true;
+          Error_Str = "Invalid Tag received (";
+          Error_Str += data[0];
+          Error_Str += ").";
+          return false;
+        }
         done = false;
       }
     }

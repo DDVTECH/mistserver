@@ -241,21 +241,31 @@ void Connector_RTMP::parseChunk(){
         Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
         break;
       case 8:
-        #if DEBUG >= 4
-        fprintf(stderr, "Received audio data\n");
-        #endif
         F.ChunkLoader(next);
         if (SS.connected()){
+          #if DEBUG >= 4
+          fprintf(stderr, "A");
+          #endif
           SS.write(std::string(F.data, F.len));
+        }else{
+          #if DEBUG >= 4
+          fprintf(stderr, "Received useless audio data\n");
+          #endif
+          Socket.close();
         }
         break;
       case 9:
-        #if DEBUG >= 4
-        fprintf(stderr, "Received video data\n");
-        #endif
         F.ChunkLoader(next);
         if (SS.connected()){
+          #if DEBUG >= 4
+          fprintf(stderr, "V");
+          #endif
           SS.write(std::string(F.data, F.len));
+        }else{
+          #if DEBUG >= 4
+          fprintf(stderr, "Received useless video data\n");
+          #endif
+          Socket.close();
         }
         break;
       case 15:
@@ -348,6 +358,9 @@ void Connector_RTMP::parseChunk(){
             Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
             parsed3 = true;
           }//createStream
+          if ((amfdata.getContentP(0)->StrValue() == "closeStream") || (amfdata.getContentP(0)->StrValue() == "deleteStream")){
+            if (SS.connected()){SS.close();}
+          }
           if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){
             //send a _result reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
@@ -569,6 +582,9 @@ void Connector_RTMP::parseChunk(){
           Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
           parsed = true;
         }//createStream
+        if ((amfdata.getContentP(0)->StrValue() == "closeStream") || (amfdata.getContentP(0)->StrValue() == "deleteStream")){
+          if (SS.connected()){SS.close();}
+        }
         if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){
           //send a _result reply
           AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);

@@ -125,7 +125,10 @@ tbody td button
    padding: 2px 7px 2px 7px;
 }
 
-
+tbody td.center
+{
+   text-align: center;
+}
 
 
 
@@ -223,7 +226,8 @@ tbody td button
 #nav,
 th,
 #login > input, #login > button,
-p
+p,
+label
 {
    font: normal bold 11pt Arial, sans-serif;
    text-transform: uppercase;
@@ -420,14 +424,16 @@ td
 
       function setHeaderState(state)
       {
-         var text, cname;
+         var text, cname, title;
 
          switch(state)
          {
-            case 'logingin':        text = 'logging in...';    cname = 'loggingin';       break;
-            case 'disconnected':    text = 'disconnected';     cname = 'disconnected';    break;
-            case 'connected':       text = 'connected';        cname = 'connected';       break;
+            case 'logingin':        text = 'connecting...';    cname = 'loggingin';       title = 'connecting to ' + settings.server;     break;
+            case 'disconnected':    text = 'disconnected';     cname = 'disconnected';    title = 'disconnected';                         break;
+            case 'connected':       text = 'connected';        cname = 'connected';       title = 'connected to ' + settings.server;      break;
          }
+
+         document.title = 'Server Manager - ' + title;
 
          $('#header-connection').attr('class', cname);
          $('#header-connection').text(text);
@@ -498,6 +504,14 @@ td
 
 
 
+            case 'overview':
+
+               $('#page').append($('<p>').text('TODO overview'));
+
+               break;
+
+
+
 
             case 'protocols':
 
@@ -517,7 +531,7 @@ td
                   tr.append( $('<td>').text( protocol ) );
                   tr.append( $('<td>').text( settings.settings.config.protocols[protocol].port ) );
 
-                  tr.append( $('<td>').append( $('<button>').click(function()
+                  tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
                              {
                                 var id = $(this).parent().attr('id').replace('protocol-', '');
                                 delete settings.settings.config.protocols[protocol];
@@ -528,49 +542,53 @@ td
                   $tbody.append(tr);
                }
 
-               $table.append($tbody);
 
+               // add new limit!
+               $nprot = $('<tr>');
+               // protocol select
+               $pname = $('<select>').attr('id', 'new-protocol-name');
+               $pname.append( $('<option>').attr('value', 'HTTP').text('HTTP') );
+               $pname.append( $('<option>').attr('value', 'RTMP').text('RTMP') );
+
+               $nprot.append( $('<td>').append($pname) );
+               // val
+               $nprot.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-protocol-val') ) );
+
+               $nprot.append(
+                  $('<td>').attr('class', 'center').append(
+                     $('<button>').click(function()
+                     {
+                        settings.settings.config.protocols[$('#new-protocol-name :selected').val()] =
+                        {
+                           port: $('#new-protocol-val').val()
+                        };
+
+                        loadSettings(function()
+                        {
+                           showTab('protocols');
+                        });
+
+                     }).text('add new')
+                  )
+               );
+
+               $tbody.append($nprot);
+               $table.append($tbody);
                $('#page').append($table);
 
-
-$('#page').append( $('<p>').text('todo') );
-
-/*
-
-            var protocol, li;
-
-            $('#protocol-list').html('');
-
-            for(protocol in settings.settings.config.protocols)
-            {
-               li = $('<li>').attr('id', 'protocol-' + protocol);
-
-               li.text(protocol + ' on port ' + settings.settings.config.protocols[protocol].port);
-
-               li.append($('<button>').click(function()
-               {
-                  var prot = $(this).parent().attr('id').replace('protocol-', '');
-                  console.log(prot);
-
-                  delete settings.settings.config.protocols[prot];
-
-                  $(this).parent().remove();
-
-                  loadSettings(fillProtocols);
-               }).text('remove'));
-
-               $('#protocol-list').append(li);
-            }
-*/
-
-
-
                break;
+
+
+
+
+
 
 
             case 'streams':
 
                $streamselector = $('<select>').attr('id', 'streams-selector');
+
+               $streamselector.append( $('<option>').attr('disabled', 'disabled').text('Select a stream...') );
 
                for(stream in settings.settings.streams)
                {
@@ -579,14 +597,32 @@ $('#page').append( $('<p>').text('todo') );
 
                $streamselector.change(function()
                {
-                  console.log('selected:', $('#streams-selector :selected').val() );
+                  var sname = $('#streams-selector :selected').val();
+                  var stream = settings.settings.streams[sname];
+
+$('#page').append( $('<p>').text('TODO stream settings: ' + sname + ' / ' + stream) );
+/* // TODO
+                  $('#page').append( $('<label>').attr('for', 'stream-name').text('Name').append( $('<input>').attr('id', 'stream-name').attr('value', stream.name) ) );
+                  $('#page').append( $('<label>').attr('for', 'stream-group').text('Group').append( $('<input>').attr('id', 'stream-group').attr('value', stream.group) ) );
+
+                  $('#page').append(
+                     $('<div>').text('Channel').append(
+                        $('<label>').attr('for', 'stream-channel-url').text('URL').append( $('<input>').attr('id', 'stream-channel-url').attr('value', stream.channel.URL) )
+                     ).append(
+                        $('<label>').attr('for', 'stream-channel-account').text('Account').append( $('<input>').attr('id', 'stream-channel-account').attr('value', stream.channel.account) )
+                     )
+                  );
+*/
+
                });
 
                $('#page').append( $streamselector );
 
-               $('#page').append($('<p>').text('TODO'));
-
                break;
+
+
+
+
 
 
 
@@ -613,7 +649,7 @@ $('#page').append( $('<p>').text('todo') );
                   tr.append( $('<td>').text( limit.type ) );
                   tr.append( $('<td>').text( limit.val ) );
 
-                  tr.append( $('<td>').append( $('<button>').click(function()
+                  tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
                              {
                                 var id = $(this).parent().attr('id').replace('limits-', '');
                                 settings.settings.config.limits.splice(id, 1);
@@ -641,7 +677,7 @@ $('#page').append( $('<p>').text('todo') );
                $nltr.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-limit-val') ) );
 
                $nltr.append(
-                  $('<td>').append(
+                  $('<td>').attr('class', 'center').append(
                      $('<button>').click(function()
                      {
                         settings.settings.config.limits.push(
@@ -676,8 +712,10 @@ $('#page').append( $('<p>').text('todo') );
                $tbody = $('<tbody>');
 
                var i, cur, $tr,
-                   logs = settings.settings.log.reverse(),
+                   logs = settings.settings.log,
                    len = logs.length;
+
+               logs.reverse();
 
                $tbody.html('');
 

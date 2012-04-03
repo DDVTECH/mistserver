@@ -28,13 +28,26 @@ body
 
 
 
+.floatright
+{
+   float: right;
+}
+
+
+
+
 /* content - tables */
 
 table
 {
    width: 100%;
-   margin-top: 5px;
-   border-spacing: 0;
+   /*margin-top: 5px;*/
+   /*border-spacing: 0;*/
+}
+
+table
+{
+   border-spacing: 0 4px;
 }
 
 table thead
@@ -58,6 +71,7 @@ table td
 {
    color: #505050;
 }
+
 
 tbody tr:nth-child(even)
 {
@@ -123,6 +137,8 @@ tbody input
 tbody td button
 {
    padding: 2px 7px 2px 7px;
+   text-transform: uppercase;
+   font-weight: bold;
 }
 
 tbody td.center
@@ -132,6 +148,11 @@ tbody td.center
 
 
 
+.outsidetable td
+{
+   padding-top: 30px;
+   background-color: #fafafa;
+}
 
 
 
@@ -225,6 +246,7 @@ tbody td.center
 #header-title > span, #header-connection, #header-host,
 #nav,
 th,
+#login > button,
 p,
 label
 {
@@ -232,11 +254,10 @@ label
    text-transform: uppercase;
 }
 
-#login > input, #login > button
+#login > input
 {
    font: normal bold 11pt Arial, sans-serif;
 }
-
 
 td
 {
@@ -391,7 +412,8 @@ td
             'timeout': 2500,
             'error': function()
             {
-               setHeaderState('disconnected');
+               //setHeaderState('disconnected');
+               showTab('disconnect');
             },
             'success': function(d)
             {
@@ -471,8 +493,8 @@ td
 
 //TODO fixme login creds
                var host = $('<input>').attr('type', 'text').attr('placeholder', 'http://localhost:4242');
-               var user = $('<input>').attr('type', 'text').attr('placeholder', 'USERNAME');/*.attr('value', 'testaccount'); */
-               var pass = $('<input>').attr('type', 'password').attr('placeholder', 'PASSWORD');/*.attr('value', 'pisvlek'); */
+               var user = $('<input>').attr('type', 'text').attr('placeholder', 'USERNAME').attr('value', 'testaccount');
+               var pass = $('<input>').attr('type', 'password').attr('placeholder', 'PASSWORD').attr('value', 'pisvlek');
                var conn = $('<button>').click(function()
                {
                   // get login info
@@ -511,7 +533,7 @@ td
                         console.log('error logging in: ' + errorstr);
                      }
                   });
-               }).text('connect');
+               }).text('login');
 
                $('#page').append(
                   $('<div>').attr('id', 'login').append(host).append(user).append(pass).append(conn)
@@ -550,7 +572,7 @@ td
 
                   tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
                              {
-                                var id = $(this).parent().attr('id').replace('protocol-', '');
+                                var id = $(this).parent().parent().attr('id').replace('protocol-', '');
                                 delete settings.settings.config.protocols[protocol];
                                 $(this).parent().parent().remove();
                                 loadSettings();
@@ -561,7 +583,7 @@ td
 
 
                // add new limit!
-               $nprot = $('<tr>');
+               $nprot = $('<tr>').attr('class', 'outsidetable');
                // protocol select
                $pname = $('<select>').attr('id', 'new-protocol-name');
                $pname.append( $('<option>').attr('value', 'HTTP').text('HTTP') );
@@ -569,7 +591,7 @@ td
 
                $nprot.append( $('<td>').append($pname) );
                // val
-               $nprot.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-protocol-val') ) );
+               $nprot.append( $('<td>').append( $('<input>').attr('type', 'number').attr('id', 'new-protocol-val') ) );
 
                $nprot.append(
                   $('<td>').attr('class', 'center').append(
@@ -668,7 +690,7 @@ $('#page').append( $('<p>').text('TODO stream settings: ' + sname + ' / ' + stre
 
                   tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
                              {
-                                var id = $(this).parent().attr('id').replace('limits-', '');
+                                var id = $(this).parent().parent().attr('id').replace('limits-', '');
                                 settings.settings.config.limits.splice(id, 1);
                                 $(this).parent().parent().remove();
 
@@ -679,7 +701,7 @@ $('#page').append( $('<p>').text('TODO stream settings: ' + sname + ' / ' + stre
                }
 
                // add new limit!
-               $nltr = $('<tr>');
+               $nltr = $('<tr>').attr('class', 'outsidetable');
 
                // type select
                $ltype = $('<select>').attr('id', 'new-limit-type');
@@ -756,6 +778,17 @@ $('#page').append( $('<p>').text('TODO stream settings: ' + sname + ' / ' + stre
 
                $table.append($tbody);
                $('#page').append($table);
+
+               $('#page').append(
+                  $('<button>').attr('class', 'floatright').click(function()
+                  {
+                     settings.settings.clearstatlogs = 1;
+                     loadSettings(function()
+                     {
+                        showTab('logs');
+                     });
+                  }).text('Purge logs')
+               );
 
                break;
 

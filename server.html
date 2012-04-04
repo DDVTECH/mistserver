@@ -638,6 +638,32 @@ td
 
             case 'overview':
 
+               var svr, viewer,
+                   numstr = 0,
+                   numvwr = 0,
+                   numtotstr = 0;
+
+               for(svr in settings.settings.statistics)
+               {
+                  if(settings.settings.statistics[svr].curr)
+                  {
+                     for(viewer in settings.settings.statistics[svr].curr)
+                     {
+                        numvwr++;
+                     }
+                  }
+               }
+
+               for(svr in settings.settings.streams)
+               {
+                  numtotstr++;
+
+                  if(settings.settings.streams[svr].online && settings.settings.streams[svr].online == 1)
+                  {
+                     numstr++;
+                  }
+               }
+
                $('#page').append(
                   $('<div>').attr('id', 'editserver').append(
                      $('<label>').attr('for', 'config-host').text('host').append(
@@ -645,7 +671,7 @@ td
                      )
                   ).append(
                      $('<label>').attr('for', 'config-name').text('name').append(
-                        $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'config-name').attr('value', settings.settings.config.name)
+                        $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'config-name').attr('value', settings.settings.config.name)
                      )
                   ).append(
                      $('<label>').text('version').append(
@@ -655,8 +681,18 @@ td
                      $('<label>').text('time').append(
                         $('<span>').text( formatDate(settings.settings.config.time) )
                      )
+                  ).append(
+                     $('<label>').text('Streams').append(
+                        $('<span>').text( numstr + ' of ' + numtotstr + ' online')
+                     )
+                  ).append(
+                     $('<label>').text('Viewers').append(
+                        $('<span>').text( numvwr )
+                     )
                   )
                );
+
+
 
                $('#editserver').append(
                   $('<button>').attr('class', 'floatright').click(function()

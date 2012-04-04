@@ -148,7 +148,7 @@ namespace Buffer{
           std::cout << "Warning: User was send corrupt video data and send to the next keyframe!" << std::endl;
           Strm->dropRing(myRing);
           myRing = Strm->getRing();
-        }
+          }
         currsend = 0;
 
         //try to complete a send
@@ -204,7 +204,7 @@ namespace Buffer{
     Storage["log"] = Json::Value(Json::objectValue);
     Storage["curr"] = Json::Value(Json::objectValue);
     Storage["totals"] = Json::Value(Json::objectValue);
-
+    
 
     while (!feof(stdin) || ip_waiting){
       usleep(1000); //sleep for 1 ms, to prevent 100% CPU time
@@ -223,9 +223,7 @@ namespace Buffer{
         Storage["totals"]["up"] = tot_up;
         Storage["totals"]["count"] = tot_count;
         Storage["totals"]["now"] = now;
-        if( argc >= 4 ) {
-          Storage["totals"]["buffer"] = argv[2];
-        }
+        Storage["totals"]["buffer"] = argv[1];
         if (!StatsSocket.connected()){
           StatsSocket = Socket::Connection("/tmp/ddv_statistics", true);
         }

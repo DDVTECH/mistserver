@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/json/json_reader.cpp ../util/json/json_value.cpp ../util/json/json_writer.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/md5.cpp ../util/util.cpp
+SRC = main.cpp ../util/json.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/md5.cpp ../util/config.cpp ../util/procs.cpp ../util/base64.cpp ../util/auth.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Controller
 INCLUDES = 
@@ -23,5 +23,5 @@ $(OUT): $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 cversion:
-	rm -rf ../util/util.o
+	rm -rf ../util/config.o
 

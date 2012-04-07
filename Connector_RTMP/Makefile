@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/rtmpchunks.cpp ../util/crypto.cpp ../util/util.cpp ../util/dtsc.cpp
+SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/rtmpchunks.cpp ../util/crypto.cpp ../util/config.cpp ../util/dtsc.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_RTMP
 INCLUDES =
@@ -23,5 +23,5 @@ clean:
 install: $(OUT)
 	cp -f ./$(OUT) /usr/bin/
 cversion:
-	rm -rf ../util/util.o
+	rm -rf ../util/config.o
 

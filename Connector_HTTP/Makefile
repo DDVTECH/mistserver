@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/dtsc.cpp ../util/util.cpp
+SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/dtsc.cpp ../util/config.cpp ../util/base64.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Conn_HTTP
 INCLUDES = 
@@ -22,5 +22,5 @@ clean:
 install: $(OUT)
 	cp -f ./$(OUT) /usr/bin/
 cversion:
-	rm -rf ../util/util.o
+	rm -rf ../util/config.o
 

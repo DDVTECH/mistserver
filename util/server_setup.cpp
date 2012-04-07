@@ -22,7 +22,7 @@
 #endif
 
 #include "socket.h" //Socket library
-#include "util.h" //utilities for process spawning and config management
+#include "config.h" //utilities for config management
 #include <signal.h>
 #include <sys/types.h>
 #include <pwd.h>

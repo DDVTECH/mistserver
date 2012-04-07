@@ -14,7 +14,7 @@
 #include <sys/time.h>
 #include "../util/dtsc.h" //DTSC support
 #include "../util/socket.h" //Socket lib
-#include "../util/json/json.h"
+#include "../util/json.h"
 
 /// Holds all code unique to the Buffer.
 namespace Buffer{
@@ -27,7 +27,7 @@ namespace Buffer{
   }//getNowMS
 
 
-  Json::Value Storage = Json::Value(Json::objectValue); ///< Global storage of data.
+  JSON::Value Storage; ///< Global storage of data.
   
   ///A simple signal handler that ignores all signals.
   void termination_handler (int signum){
@@ -201,9 +201,9 @@ namespace Buffer{
     Socket::Connection std_input(fileno(stdin));
     Socket::Connection StatsSocket = Socket::Connection("/tmp/ddv_statistics", true);
 
-    Storage["log"] = Json::Value(Json::objectValue);
-    Storage["curr"] = Json::Value(Json::objectValue);
-    Storage["totals"] = Json::Value(Json::objectValue);
+    Storage["log"] = JSON::Value();
+    Storage["curr"] = JSON::Value();
+    Storage["totals"] = JSON::Value();
     
 
     while (!feof(stdin) || ip_waiting){
@@ -228,8 +228,8 @@ namespace Buffer{
           StatsSocket = Socket::Connection("/tmp/ddv_statistics", true);
         }
         if (StatsSocket.connected()){
-          StatsSocket.write(Storage.toStyledString()+"\n\n");
-          Storage["log"].clear();
+          StatsSocket.write(Storage.toString()+"\n\n");
+          Storage["log"].null();
         }
       }
       //invalidate the current buffer

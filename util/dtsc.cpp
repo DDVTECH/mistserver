@@ -66,8 +66,9 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       return true;
     }
     #if DEBUG >= 2
-    std::cerr << "Error: Invalid DTMI data! I *will* get stuck!" << std::endl;
+    std::cerr << "Error: Invalid DTMI data: " << buffer.substr(0, 4) << std::endl;
     #endif
+    buffer.erase(0, 1);
   }
   return false;
 }

@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/json.cpp ../util/socket.cpp ../util/dtsc.cpp
+SRC = main.cpp ../util/json.cpp ../util/socket.cpp ../util/dtsc.cpp ../util/tinythread.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = DDV_Buffer
 INCLUDES = 
@@ -8,7 +8,7 @@ CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
-LIBS = 
+LIBS = -lpthread
 .SUFFIXES: .cpp 
 .PHONY: clean default
 default: $(OUT)

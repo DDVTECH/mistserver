@@ -25,6 +25,10 @@ namespace Connector_HTTP{
   /// Defines the type of handler used to process this request.
   enum {HANDLER_NONE, HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO, HANDLER_JSCRIPT};
 
+  std::queue<std::string> Flash_FragBuffer;///<Fragment buffer for F4V
+  DTSC::Stream Strm;///< Incoming stream buffer.
+  HTTP::Parser HTTP_R, HTTP_S;///<HTTP Receiver en HTTP Sender.
+  
 
   /// Returns AMF-format metadata for Adobe HTTP Dynamic Streaming.
   std::string GetMetaData( ) {
@@ -66,7 +70,7 @@ namespace Connector_HTTP{
   }//getMetaData
 
   /// Returns a F4M-format manifest file for Adobe HTTP Dynamic Streaming.
-  std::string BuildManifest( std::string MetaData, std::string MovieId, int CurrentMediaTime ) {
+  std::string BuildManifest(std::string MovieId) {
     Interface * temp = new Interface;
     std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n";
     Result += "<id>";
@@ -100,7 +104,7 @@ namespace Connector_HTTP{
       HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
       //HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
       conn.write(FLV::Header, 13);
-      FLV::Tag tmp;
+      static FLV::Tag tmp;
       tmp.DTSCMetaInit(Strm);
       conn.write(tmp.data, tmp.len);
       if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
@@ -121,65 +125,28 @@ namespace Connector_HTTP{
   }
 
   /// Handles Flash Dynamic HTTP streaming requests
-  void FlashDynamic(FLV::Tag & tag, HTTP::Parser HTTP_S, Socket::Connection & conn, DTSC::Stream & Strm){
-    static std::queue<std::string> Flash_FragBuffer;
-    static unsigned int Flash_StartTime = 0;
+  void FlashDynamic(FLV::Tag & tag, DTSC::Stream & Strm){
     static std::string FlashBuf;
-    static std::string FlashMeta;
-    static bool FlashFirstVideo = false;
-    static bool FlashFirstAudio = false;
-    static bool Flash_ManifestSent = false;
-    static int Flash_RequestPending = 0;
-    if (tag.tagTime() > 0){
-      if (Flash_StartTime == 0){
-        Flash_StartTime = tag.tagTime();
+    static FLV::Tag tmp;
+    if (Strm.getPacket(0).getContentP("keyframe")){
+      if (FlashBuf != ""){
+        Flash_FragBuffer.push(FlashBuf);
+        #if DEBUG >= 4
+        fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+        #endif
       }
-      tag.tagTime(tag.tagTime() - Flash_StartTime);
+      FlashBuf.clear();
+      //fill buffer with init data, if needed.
+      if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
+        tmp.DTSCAudioInit(Strm);
+        FlashBuf.append(tmp.data, tmp.len);
+      }
+      if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
+        tmp.DTSCVideoInit(Strm);
+        FlashBuf.append(tmp.data, tmp.len);
+      }
     }
-    if (tag.data[0] != 0x12 ) {
-      if (tag.isKeyframe){
-        if (FlashBuf != "" && !FlashFirstVideo && !FlashFirstAudio){
-          Flash_FragBuffer.push(FlashBuf);
-          #if DEBUG >= 4
-          fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
-          #endif
-        }
-        FlashBuf.clear();
-        FlashFirstVideo = true;
-        FlashFirstAudio = true;
-      }
-      /// \todo Check metadata for video/audio, append if needed.
-      /*
-      if (FlashFirstVideo && (tag.data[0] == 0x09) && (Video_Init.len > 0)){
-        Video_Init.tagTime(tag.tagTime());
-        FlashBuf.append(Video_Init.data, Video_Init.len);
-        FlashFirstVideo = false;
-      }
-      if (FlashFirstAudio && (tag.data[0] == 0x08) && (Audio_Init.len > 0)){
-        Audio_Init.tagTime(tag.tagTime());
-        FlashBuf.append(Audio_Init.data, Audio_Init.len);
-        FlashFirstAudio = false;
-      }
-      #if DEBUG >= 5
-      fprintf(stderr, "Received a tag of type %2hhu and length %i\n", tag.data[0], tag.len);
-      #endif
-      if ((Video_Init.len > 0) && (Audio_Init.len > 0)){
-        FlashBuf.append(tag.data,tag.len);
-      }
-      */
-    } else {
-      /*
-      FlashMeta = "";
-      FlashMeta.append(tag.data+11,tag.len-15);
-      if( !Flash_ManifestSent ) {
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type","text/xml");
-        HTTP_S.SetHeader("Cache-Control","no-cache");
-        HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, tag.tagTime()));
-        HTTP_S.SendResponse(conn, "200", "OK");
-      }
-      */
-    }
+    FlashBuf.append(tag.data, tag.len);
   }
 
 
@@ -192,14 +159,14 @@ namespace Connector_HTTP{
     std::string streamname;
     FLV::Tag tag;///< Temporary tag buffer.
     std::string recBuffer = "";
-    DTSC::Stream Strm;///< Incoming stream buffer.
-    HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
     std::string Movie = "";
     std::string Quality = "";
     int Segment = -1;
     int ReqFragment = -1;
     int temp;
+    int Flash_RequestPending = 0;
+    bool Flash_ManifestSent = false;
     unsigned int lastStats = 0;
     //int CurrentFragment = -1; later herbruiken?
 
@@ -207,6 +174,7 @@ namespace Connector_HTTP{
       //only parse input if available or not yet init'ed
       if (HTTP_R.Read(conn, ready4data)){
         handler = HANDLER_PROGRESSIVE;
+        std::cout << "Received request: " << HTTP_R.url << std::endl;
         if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
         if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
         if (HTTP_R.url == "/crossdomain.xml"){
@@ -233,11 +201,7 @@ namespace Connector_HTTP{
             printf( "URL: %s\n", HTTP_R.url.c_str());
             printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
             #endif
-            /// \todo Handle these requests properly...
-            /*
-            Flash_ManifestSent = true;//stop manifest from being sent multiple times
             Flash_RequestPending++;
-            */
           }else{
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
@@ -251,6 +215,15 @@ namespace Connector_HTTP{
             }//strip nonalphanumeric
           }
           streamname += Movie;
+          if( !Flash_ManifestSent ) {
+            HTTP_S.Clean();
+            HTTP_S.SetHeader("Content-Type","text/xml");
+            HTTP_S.SetHeader("Cache-Control","no-cache");
+            HTTP_S.SetBody(BuildManifest(Movie));
+            HTTP_S.SendResponse(conn, "200", "OK");
+            Flash_ManifestSent = true;//stop manifest from being sent multiple times
+            std::cout << "Sent manifest" << std::endl;
+          }
           ready4data = true;
         }//FLASH handler
         if (handler == HANDLER_PROGRESSIVE){
@@ -282,8 +255,6 @@ namespace Connector_HTTP{
           #endif
           inited = true;
         }
-        /// \todo Send pending flash requests...
-        /*
         if ((Flash_RequestPending > 0) && !Flash_FragBuffer.empty()){
           HTTP_S.Clean();
           HTTP_S.SetHeader("Content-Type","video/mp4");
@@ -295,7 +266,6 @@ namespace Connector_HTTP{
           fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
           #endif
         }
-         */
         if (inited){
           unsigned int now = time(0);
           if (now != lastStats){
@@ -309,7 +279,7 @@ namespace Connector_HTTP{
           if (Strm.parsePacket(ss.Received())){
             tag.DTSCLoader(Strm);
             if (handler == HANDLER_FLASH){
-              FlashDynamic(tag, HTTP_S, conn, Strm);
+              FlashDynamic(tag, Strm);
             }
             if (handler == HANDLER_PROGRESSIVE){
               Progressive(tag, HTTP_S, conn, Strm);

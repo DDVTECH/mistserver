@@ -70,7 +70,7 @@ namespace AMF{
       Object(std::string indice, double val, obj0type setType = AMF0_NUMBER);
       Object(std::string indice, std::string val, obj0type setType = AMF0_STRING);
       Object(std::string indice, obj0type setType = AMF0_OBJECT);
-      void Print(std::string indent = "");
+      std::string Print(std::string indent = "");
       std::string Pack();
     protected:
       std::string myIndice; ///< Holds this objects indice, if any.

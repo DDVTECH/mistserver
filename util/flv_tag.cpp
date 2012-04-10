@@ -9,6 +9,7 @@
 #include <fcntl.h> //for Tag::FileLoader
 #include <stdlib.h> //malloc
 #include <string.h> //memcpy
+#include <sstream>
 
 /// Holds the last FLV header parsed.
 /// Defaults to a audio+video header on FLV version 0x01 if no header received yet.
@@ -100,80 +101,84 @@ bool FLV::Tag::isInitData(){
 /// audio, video or metadata, what encoding is used, and the details
 /// of the encoding itself.
 std::string FLV::Tag::tagType(){
-  std::string R = "";
+  std::stringstream R;
+  R << len << " bytes of ";
   switch (data[0]){
     case 0x09:
       switch (data[11] & 0x0F){
-        case 1: R += "JPEG"; break;
-        case 2: R += "H263"; break;
-        case 3: R += "ScreenVideo1"; break;
-        case 4: R += "VP6"; break;
-        case 5: R += "VP6Alpha"; break;
-        case 6: R += "ScreenVideo2"; break;
-        case 7: R += "H264"; break;
-        default: R += "unknown"; break;
+        case 1: R << "JPEG"; break;
+        case 2: R << "H263"; break;
+        case 3: R << "ScreenVideo1"; break;
+        case 4: R << "VP6"; break;
+        case 5: R << "VP6Alpha"; break;
+        case 6: R << "ScreenVideo2"; break;
+        case 7: R << "H264"; break;
+        default: R << "unknown"; break;
       }
-    R += " video ";
+    R << " video ";
     switch (data[11] & 0xF0){
-        case 0x10: R += "keyframe"; break;
-        case 0x20: R += "iframe"; break;
-        case 0x30: R += "disposableiframe"; break;
-        case 0x40: R += "generatedkeyframe"; break;
-        case 0x50: R += "videoinfo"; break;
+        case 0x10: R << "keyframe"; break;
+        case 0x20: R << "iframe"; break;
+        case 0x30: R << "disposableiframe"; break;
+        case 0x40: R << "generatedkeyframe"; break;
+        case 0x50: R << "videoinfo"; break;
       }
       if ((data[11] & 0x0F) == 7){
         switch (data[12]){
-          case 0: R += " header"; break;
-          case 1: R += " NALU"; break;
-          case 2: R += " endofsequence"; break;
+          case 0: R << " header"; break;
+          case 1: R << " NALU"; break;
+          case 2: R << " endofsequence"; break;
         }
       }
       break;
     case 0x08:
       switch (data[11] & 0xF0){
-        case 0x00: R += "linear PCM PE"; break;
-        case 0x10: R += "ADPCM"; break;
-        case 0x20: R += "MP3"; break;
-        case 0x30: R += "linear PCM LE"; break;
-        case 0x40: R += "Nelly16kHz"; break;
-        case 0x50: R += "Nelly8kHz"; break;
-        case 0x60: R += "Nelly"; break;
-        case 0x70: R += "G711A-law"; break;
-        case 0x80: R += "G711mu-law"; break;
-        case 0x90: R += "reserved"; break;
-        case 0xA0: R += "AAC"; break;
-        case 0xB0: R += "Speex"; break;
-        case 0xE0: R += "MP38kHz"; break;
-        case 0xF0: R += "DeviceSpecific"; break;
-        default: R += "unknown"; break;
+        case 0x00: R << "linear PCM PE"; break;
+        case 0x10: R << "ADPCM"; break;
+        case 0x20: R << "MP3"; break;
+        case 0x30: R << "linear PCM LE"; break;
+        case 0x40: R << "Nelly16kHz"; break;
+        case 0x50: R << "Nelly8kHz"; break;
+        case 0x60: R << "Nelly"; break;
+        case 0x70: R << "G711A-law"; break;
+        case 0x80: R << "G711mu-law"; break;
+        case 0x90: R << "reserved"; break;
+        case 0xA0: R << "AAC"; break;
+        case 0xB0: R << "Speex"; break;
+        case 0xE0: R << "MP38kHz"; break;
+        case 0xF0: R << "DeviceSpecific"; break;
+        default: R << "unknown"; break;
       }
       switch (data[11] & 0x0C){
-        case 0x0: R += " 5.5kHz"; break;
-        case 0x4: R += " 11kHz"; break;
-        case 0x8: R += " 22kHz"; break;
-        case 0xC: R += " 44kHz"; break;
+        case 0x0: R << " 5.5kHz"; break;
+        case 0x4: R << " 11kHz"; break;
+        case 0x8: R << " 22kHz"; break;
+        case 0xC: R << " 44kHz"; break;
       }
       switch (data[11] & 0x02){
-        case 0: R += " 8bit"; break;
-        case 2: R += " 16bit"; break;
+        case 0: R << " 8bit"; break;
+        case 2: R << " 16bit"; break;
       }
       switch (data[11] & 0x01){
-        case 0: R += " mono"; break;
-        case 1: R += " stereo"; break;
+        case 0: R << " mono"; break;
+        case 1: R << " stereo"; break;
       }
-      R += " audio";
+      R << " audio";
       if ((data[12] == 0) && ((data[11] & 0xF0) == 0xA0)){
-        R += " initdata";
+        R << " initdata";
       }
       break;
-    case 0x12:
-      R += "(meta)data";
+    case 0x12:{
+      R << "(meta)data: ";
+      AMF::Object metadata = AMF::parse((unsigned char*)data+11, len-15);
+      R << metadata.Print();
       break;
+    }
     default:
-      R += "unknown";
+      R << "unknown";
       break;
   }
-  return R;
+  return R.str();
 }//FLV::Tag::tagtype
 
 /// Returns the 32-bit timestamp of this tag.
@@ -297,7 +302,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
         if (S.getPacket().getContentP("interframe")){data[11] += 0x20;}
         if (S.getPacket().getContentP("disposableframe")){data[11] += 0x30;}
         break;
-      case DTSC::AUDIO:
+      case DTSC::AUDIO:{
         if ((unsigned int)len == S.lastData().length() + 16){
           memcpy(data+12, S.lastData().c_str(), S.lastData().length());
         }else{
@@ -307,12 +312,18 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
         data[11] = 0;
         if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "AAC"){data[11] += 0xA0;}
         if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "MP3"){data[11] += 0x20;}
-        if (S.metadata.getContentP("audio")->getContentP("rate")->NumValue() == 11025){data[11] += 0x04;}
-        if (S.metadata.getContentP("audio")->getContentP("rate")->NumValue() == 22050){data[11] += 0x08;}
-        if (S.metadata.getContentP("audio")->getContentP("rate")->NumValue() == 44100){data[11] += 0x0C;}
+        unsigned int datarate = S.metadata.getContentP("audio")->getContentP("rate")->NumValue();
+        if (datarate >= 44100){
+          data[11] += 0x0C;
+        }else if(datarate >= 22050){
+          data[11] += 0x08;
+        }else if(datarate >= 11025){
+          data[11] += 0x04;
+        }
         if (S.metadata.getContentP("audio")->getContentP("size")->NumValue() == 16){data[11] += 0x02;}
         if (S.metadata.getContentP("audio")->getContentP("channels")->NumValue() > 1){data[11] += 0x01;}
         break;
+      }
       case DTSC::META:
         memcpy(data+11, S.lastData().c_str(), S.lastData().length());
         break;
@@ -329,6 +340,9 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
   data[1] = ((len-15) >> 16) & 0xFF;
   data[2] = ((len-15) >> 8) & 0xFF;
   data[3] = (len-15) & 0xFF;
+  data[8] = 0;
+  data[9] = 0;
+  data[10] = 0;
   tagTime(S.getPacket().getContentP("time")->NumValue());
   return true;
 }
@@ -336,7 +350,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
 /// Helper function that properly sets the tag length from the internal len variable.
 void FLV::Tag::setLen(){
   int len4 = len - 4;
-  int i = len-1;
+  int i = len;
   data[--i] = (len4) & 0xFF;
   len4 >>= 8;
   data[--i] = (len4) & 0xFF;
@@ -375,6 +389,9 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Stream & S){
   data[1] = ((len-15) >> 16) & 0xFF;
   data[2] = ((len-15) >> 8) & 0xFF;
   data[3] = (len-15) & 0xFF;
+  data[8] = 0;
+  data[9] = 0;
+  data[10] = 0;
   tagTime(0);
   return true;
 }
@@ -402,23 +419,25 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
     data[11] = 0;
     if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "AAC"){data[11] += 0xA0;}
     if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "MP3"){data[11] += 0x20;}
-    if (S.metadata.getContentP("audio")->getContentP("rate")->NumValue() == 11000){data[11] += 0x04;}
-    if (S.metadata.getContentP("audio")->getContentP("rate")->NumValue() == 22000){data[11] += 0x08;}
-    if (S.metadata.getContentP("audio")->getContentP("rate")->NumValue() == 44000){data[11] += 0x0C;}
+    unsigned int datarate = S.metadata.getContentP("audio")->getContentP("rate")->NumValue();
+    if (datarate >= 44100){
+      data[11] += 0x0C;
+    }else if(datarate >= 22050){
+      data[11] += 0x08;
+    }else if(datarate >= 11025){
+      data[11] += 0x04;
+    }
     if (S.metadata.getContentP("audio")->getContentP("size")->NumValue() == 16){data[11] += 0x02;}
     if (S.metadata.getContentP("audio")->getContentP("channels")->NumValue() > 1){data[11] += 0x01;}
   }
   setLen();
-  switch (S.lastType()){
-    case DTSC::VIDEO: data[0] = 0x09; break;
-    case DTSC::AUDIO: data[0] = 0x08; break;
-    case DTSC::META: data[0] = 0x12; break;
-    default: break;
-  }
   data[0] = 0x08;
   data[1] = ((len-15) >> 16) & 0xFF;
   data[2] = ((len-15) >> 8) & 0xFF;
   data[3] = (len-15) & 0xFF;
+  data[8] = 0;
+  data[9] = 0;
+  data[10] = 0;
   tagTime(0);
   return true;
 }
@@ -501,6 +520,9 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
   data[1] = ((len-15) >> 16) & 0xFF;
   data[2] = ((len-15) >> 8) & 0xFF;
   data[3] = (len-15) & 0xFF;
+  data[8] = 0;
+  data[9] = 0;
+  data[10] = 0;
   tagTime(0);
   return true;
 }

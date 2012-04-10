@@ -2,6 +2,7 @@
 /// Holds all code for the AMF namespace.
 
 #include "amf.h"
+#include <sstream>
 #include <cstdio> //needed for stderr only
 
 /// Returns the std::string Indice for the current object, if available.
@@ -105,43 +106,45 @@ AMF::Object::Object(std::string indice, AMF::obj0type setType){//object type ini
 /// Prints the contents of this object to std::cerr.
 /// If this object contains other objects, it will call itself recursively
 /// and print all nested content in a nice human-readable format.
-void AMF::Object::Print(std::string indent){
-  std::cerr << indent;
+std::string AMF::Object::Print(std::string indent){
+  std::stringstream st;
+  st << indent;
   // print my type
   switch (myType){
-    case AMF::AMF0_NUMBER: std::cerr << "Number"; break;
-    case AMF::AMF0_BOOL: std::cerr << "Bool"; break;
+    case AMF::AMF0_NUMBER: st << "Number"; break;
+    case AMF::AMF0_BOOL: st << "Bool"; break;
     case AMF::AMF0_STRING://short string
-    case AMF::AMF0_LONGSTRING: std::cerr << "String"; break;
-    case AMF::AMF0_OBJECT: std::cerr << "Object"; break;
-    case AMF::AMF0_MOVIECLIP: std::cerr << "MovieClip"; break;
-    case AMF::AMF0_NULL: std::cerr << "Null"; break;
-    case AMF::AMF0_UNDEFINED: std::cerr << "Undefined"; break;
-    case AMF::AMF0_REFERENCE: std::cerr << "Reference"; break;
-    case AMF::AMF0_ECMA_ARRAY: std::cerr << "ECMA Array"; break;
-    case AMF::AMF0_OBJ_END: std::cerr << "Object end"; break;
-    case AMF::AMF0_STRICT_ARRAY: std::cerr << "Strict Array"; break;
-    case AMF::AMF0_DATE: std::cerr << "Date"; break;
-    case AMF::AMF0_UNSUPPORTED: std::cerr << "Unsupported"; break;
-    case AMF::AMF0_RECORDSET: std::cerr << "Recordset"; break;
-    case AMF::AMF0_XMLDOC: std::cerr << "XML Document"; break;
-    case AMF::AMF0_TYPED_OBJ: std::cerr << "Typed Object"; break;
-    case AMF::AMF0_UPGRADE: std::cerr << "Upgrade to AMF3"; break;
-    case AMF::AMF0_DDV_CONTAINER: std::cerr << "DDVTech Container"; break;
+    case AMF::AMF0_LONGSTRING: st << "String"; break;
+    case AMF::AMF0_OBJECT: st << "Object"; break;
+    case AMF::AMF0_MOVIECLIP: st << "MovieClip"; break;
+    case AMF::AMF0_NULL: st << "Null"; break;
+    case AMF::AMF0_UNDEFINED: st << "Undefined"; break;
+    case AMF::AMF0_REFERENCE: st << "Reference"; break;
+    case AMF::AMF0_ECMA_ARRAY: st << "ECMA Array"; break;
+    case AMF::AMF0_OBJ_END: st << "Object end"; break;
+    case AMF::AMF0_STRICT_ARRAY: st << "Strict Array"; break;
+    case AMF::AMF0_DATE: st << "Date"; break;
+    case AMF::AMF0_UNSUPPORTED: st << "Unsupported"; break;
+    case AMF::AMF0_RECORDSET: st << "Recordset"; break;
+    case AMF::AMF0_XMLDOC: st << "XML Document"; break;
+    case AMF::AMF0_TYPED_OBJ: st << "Typed Object"; break;
+    case AMF::AMF0_UPGRADE: st << "Upgrade to AMF3"; break;
+    case AMF::AMF0_DDV_CONTAINER: st << "DDVTech Container"; break;
   }
   // print my string indice, if available
-  std::cerr << " " << myIndice << " ";
+  st << " " << myIndice << " ";
   // print my numeric or string contents
   switch (myType){
-    case AMF::AMF0_NUMBER: case AMF::AMF0_BOOL: case AMF::AMF0_REFERENCE: case AMF::AMF0_DATE: std::cerr << numval; break;
-    case AMF::AMF0_STRING: case AMF::AMF0_LONGSTRING: case AMF::AMF0_XMLDOC: case AMF::AMF0_TYPED_OBJ: std::cerr << strval; break;
+    case AMF::AMF0_NUMBER: case AMF::AMF0_BOOL: case AMF::AMF0_REFERENCE: case AMF::AMF0_DATE: st << numval; break;
+    case AMF::AMF0_STRING: case AMF::AMF0_LONGSTRING: case AMF::AMF0_XMLDOC: case AMF::AMF0_TYPED_OBJ: st << strval; break;
     default: break;//we don't care about the rest, and don't want a compiler warning...
   }
-  std::cerr << std::endl;
+  st << std::endl;
   // if I hold other objects, print those too, recursively.
   if (contents.size() > 0){
-    for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){it->Print(indent+"  ");}
+    for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){st << it->Print(indent+"  ");}
   }
+  return st.str();
 };//print
 
 /// Packs the AMF object to a std::string for transfer over the network.

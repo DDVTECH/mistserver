@@ -217,6 +217,7 @@ namespace Converters{
             case 0x40: pack_out.addContent(DTSC::DTMI("keyframe", 1)); break;
             case 0x50: continue; break;//the video info byte we just throw away - useless to us...
           }
+          pack_out.addContent(DTSC::DTMI("time", FLV_in.tagTime()));
           if ((videodata & 0x0F) == 7){
             switch (FLV_in.data[12]){
               case 1: pack_out.addContent(DTSC::DTMI("nalu", 1)); break;
@@ -225,9 +226,10 @@ namespace Converters{
             int offset = (FLV_in.data[13] << 16) + (FLV_in.data[14] << 8) + FLV_in.data[15];
             offset = (offset << 8) >> 8;
             pack_out.addContent(DTSC::DTMI("offset", offset));
+            pack_out.addContent(DTSC::DTMI("data", std::string((char*)FLV_in.data+16, (size_t)FLV_in.len-20)));
+          }else{
+            pack_out.addContent(DTSC::DTMI("data", std::string((char*)FLV_in.data+12, (size_t)FLV_in.len-16)));
           }
-          pack_out.addContent(DTSC::DTMI("time", FLV_in.tagTime()));
-          pack_out.addContent(DTSC::DTMI("data", std::string((char*)FLV_in.data+12, (size_t)FLV_in.len-16)));
           if (sending){
             std::cout << pack_out.Pack(true);
           }else{

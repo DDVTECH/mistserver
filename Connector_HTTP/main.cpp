@@ -304,28 +304,17 @@ namespace Connector_HTTP{
             ss.write(stat);
           }
         }
-        ss.canRead();
-        switch (ss.ready()){
-          case -1:
-            conn.close();
-            #if DEBUG >= 1
-            fprintf(stderr, "Source socket is disconnected.\n");
-            #endif
-            break;
-          case 0: break;//not ready yet
-          default:
-            if (ss.iread(recBuffer)){
-              if (Strm.parsePacket(recBuffer)){
-                tag.DTSCLoader(Strm);
-                if (handler == HANDLER_FLASH){
-                  FlashDynamic(tag, HTTP_S, conn, Strm);
-                }
-                if (handler == HANDLER_PROGRESSIVE){
-                  Progressive(tag, HTTP_S, conn, Strm);
-                }
-              }
+        if (ss.canRead()){
+          ss.spool();
+          if (Strm.parsePacket(ss.Received())){
+            tag.DTSCLoader(Strm);
+            if (handler == HANDLER_FLASH){
+              FlashDynamic(tag, HTTP_S, conn, Strm);
             }
-            break;
+            if (handler == HANDLER_PROGRESSIVE){
+              Progressive(tag, HTTP_S, conn, Strm);
+            }
+          }
         }
       }
     }

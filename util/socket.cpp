@@ -222,9 +222,10 @@ std::string Socket::Connection::getStats(std::string C){
 }
 
 /// Updates the downbuffer and upbuffer internal variables.
-void Socket::Connection::spool(){
-  iread(downbuffer);
+/// Returns true if new data was received, false otherwise.
+bool Socket::Connection::spool(){
   iwrite(upbuffer);
+  return iread(downbuffer);
 }
 
 /// Returns a reference to the download buffer.

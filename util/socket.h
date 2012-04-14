@@ -48,7 +48,7 @@ namespace Socket{
       bool swrite(std::string & buffer); ///< Write call that is compatible with std::string.
       bool iread(std::string & buffer); ///< Incremental write call that is compatible with std::string.
       bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
-      void spool(); ///< Updates the downbuffer and upbuffer internal variables.
+      bool spool(); ///< Updates the downbuffer and upbuffer internal variables.
       std::string & Received(); ///< Returns a reference to the download buffer.
       void Send(std::string data); ///< Appends data to the upbuffer.
       void close(); ///< Close connection.

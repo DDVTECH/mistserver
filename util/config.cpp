@@ -3,7 +3,6 @@
 
 #include "config.h"
 #include <string.h>
-#include <sys/types.h>
 #include <signal.h>
 
 #ifdef __FreeBSD__
@@ -14,6 +13,7 @@
 #include <errno.h>
 #include <iostream>
 #include <sys/types.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <pwd.h>
 #include <getopt.h>

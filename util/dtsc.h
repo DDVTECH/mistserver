@@ -62,6 +62,7 @@ namespace DTSC{
     std::string & StrValue();
     const char * Str();
     int hasContent();
+    bool isEmpty();
     void addContent(DTMI c);
     DTMI* getContentP(int i);
     DTMI getContent(int i);

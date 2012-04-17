@@ -771,3 +771,178 @@ bool FLV::Tag::FileLoader(FILE * f){
   fcntl(fileno(f), F_SETFL, preflags);
   return false;
 }//FLV_GetPacket
+
+DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
+  DTSC::DTMI pack_out; // Storage for outgoing DTMI data.
+
+  if (data[0] == 0x12){
+    AMF::Object meta_in = AMF::parse((unsigned char*)data+11, len-15);
+    if (meta_in.getContentP(0) && (meta_in.getContentP(0)->StrValue() == "onMetaData") && meta_in.getContentP(1)){
+      AMF::Object * tmp = meta_in.getContentP(1);
+      if (tmp->getContentP("videocodecid")){
+        switch ((unsigned int)tmp->getContentP("videocodecid")->NumValue()){
+          case 2: Meta_Put(metadata, "video", "codec", "H263"); break;
+          case 4: Meta_Put(metadata, "video", "codec", "VP6"); break;
+          case 7: Meta_Put(metadata, "video", "codec", "H264"); break;
+          default: Meta_Put(metadata, "video", "codec", "?"); break;
+        }
+      }
+      if (tmp->getContentP("audiocodecid")){
+        switch ((unsigned int)tmp->getContentP("audiocodecid")->NumValue()){
+          case 2: Meta_Put(metadata, "audio", "codec", "MP3"); break;
+          case 10: Meta_Put(metadata, "audio", "codec", "AAC"); break;
+          default: Meta_Put(metadata, "audio", "codec", "?"); break;
+        }
+      }
+      if (tmp->getContentP("width")){
+        Meta_Put(metadata, "video", "width", tmp->getContentP("width")->NumValue());
+      }
+      if (tmp->getContentP("height")){
+        Meta_Put(metadata, "video", "height", tmp->getContentP("height")->NumValue());
+      }
+      if (tmp->getContentP("framerate")){
+        Meta_Put(metadata, "video", "fpks", tmp->getContentP("framerate")->NumValue()*1000);
+      }
+      if (tmp->getContentP("videodatarate")){
+        Meta_Put(metadata, "video", "bps", (tmp->getContentP("videodatarate")->NumValue()*1024)/8);
+      }
+      if (tmp->getContentP("audiodatarate")){
+        Meta_Put(metadata, "audio", "bps", (tmp->getContentP("audiodatarate")->NumValue()*1024)/8);
+      }
+      if (tmp->getContentP("audiosamplerate")){
+        Meta_Put(metadata, "audio", "rate", tmp->getContentP("audiosamplerate")->NumValue());
+      }
+      if (tmp->getContentP("audiosamplesize")){
+        Meta_Put(metadata, "audio", "size", tmp->getContentP("audiosamplesize")->NumValue());
+      }
+      if (tmp->getContentP("stereo")){
+        if (tmp->getContentP("stereo")->NumValue() == 1){
+          Meta_Put(metadata, "audio", "channels", 2);
+        }else{
+          Meta_Put(metadata, "audio", "channels", 1);
+        }
+      }
+    }
+    return pack_out;//empty
+  }
+  if (data[0] == 0x08){
+    char audiodata = data[11];
+    if (needsInitData() && isInitData()){
+      if ((audiodata & 0xF0) == 0xA0){
+        Meta_Put(metadata, "audio", "init", std::string((char*)data+13, (size_t)len-17));
+      }else{
+        Meta_Put(metadata, "audio", "init", std::string((char*)data+12, (size_t)len-16));
+      }
+      return pack_out;//skip rest of parsing, get next tag.
+    }
+    pack_out = DTSC::DTMI("audio", DTSC::DTMI_ROOT);
+    pack_out.addContent(DTSC::DTMI("datatype", "audio"));
+    pack_out.addContent(DTSC::DTMI("time", tagTime()));
+    if (!Meta_Has(metadata, "audio", "codec")){
+      switch (audiodata & 0xF0){
+        case 0x20: Meta_Put(metadata, "audio", "codec", "MP3"); break;
+        case 0xA0: Meta_Put(metadata, "audio", "codec", "AAC"); break;
+        default: Meta_Put(metadata, "audio", "codec", "?"); break;
+      }
+    }
+    if (!Meta_Has(metadata, "audio", "rate")){
+      switch (audiodata & 0x0C){
+        case 0x0: Meta_Put(metadata, "audio", "rate", 5512); break;
+        case 0x4: Meta_Put(metadata, "audio", "rate", 11025); break;
+        case 0x8: Meta_Put(metadata, "audio", "rate", 22050); break;
+        case 0xC: Meta_Put(metadata, "audio", "rate", 44100); break;
+      }
+    }
+    if (!Meta_Has(metadata, "audio", "size")){
+      switch (audiodata & 0x02){
+        case 0x0: Meta_Put(metadata, "audio", "size", 8); break;
+        case 0x2: Meta_Put(metadata, "audio", "size", 16); break;
+      }
+    }
+    if (!Meta_Has(metadata, "audio", "channels")){
+      switch (audiodata & 0x01){
+        case 0x0: Meta_Put(metadata, "audio", "channels", 1); break;
+        case 0x1: Meta_Put(metadata, "audio", "channels", 2); break;
+      }
+    }
+    if ((audiodata & 0xF0) == 0xA0){
+      pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+13, (size_t)len-17)));
+    }else{
+      pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+12, (size_t)len-16)));
+    }
+    return pack_out;
+  }
+  if (data[0] == 0x09){
+    char videodata = data[11];
+    if (needsInitData() && isInitData()){
+      if ((videodata & 0x0F) == 7){
+        Meta_Put(metadata, "video", "init", std::string((char*)data+16, (size_t)len-20));
+      }else{
+        Meta_Put(metadata, "video", "init", std::string((char*)data+12, (size_t)len-16));
+      }
+      return pack_out;//skip rest of parsing, get next tag.
+    }
+    if (!Meta_Has(metadata, "video", "codec")){
+      switch (videodata & 0x0F){
+        case 2: Meta_Put(metadata, "video", "codec", "H263"); break;
+        case 4: Meta_Put(metadata, "video", "codec", "VP6"); break;
+        case 7: Meta_Put(metadata, "video", "codec", "H264"); break;
+        default: Meta_Put(metadata, "video", "codec", "?"); break;
+      }
+    }
+    pack_out = DTSC::DTMI("video", DTSC::DTMI_ROOT);
+    pack_out.addContent(DTSC::DTMI("datatype", "video"));
+    switch (videodata & 0xF0){
+      case 0x10: pack_out.addContent(DTSC::DTMI("keyframe", 1)); break;
+      case 0x20: pack_out.addContent(DTSC::DTMI("interframe", 1)); break;
+      case 0x30: pack_out.addContent(DTSC::DTMI("disposableframe", 1)); break;
+      case 0x40: pack_out.addContent(DTSC::DTMI("keyframe", 1)); break;
+      case 0x50: return DTSC::DTMI(); break;//the video info byte we just throw away - useless to us...
+    }
+    pack_out.addContent(DTSC::DTMI("time", tagTime()));
+    if ((videodata & 0x0F) == 7){
+      switch (data[12]){
+        case 1: pack_out.addContent(DTSC::DTMI("nalu", 1)); break;
+        case 2: pack_out.addContent(DTSC::DTMI("nalu_end", 1)); break;
+      }
+      int offset = (data[13] << 16) + (data[14] << 8) + data[15];
+      offset = (offset << 8) >> 8;
+      pack_out.addContent(DTSC::DTMI("offset", offset));
+      pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+16, (size_t)len-20)));
+    }else{
+      pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+12, (size_t)len-16)));
+    }
+    return pack_out;
+  }
+  return pack_out;//should never get here
+}//FLV::Tag::toDTSC
+
+/// Inserts std::string type metadata into the passed DTMI object.
+/// \arg meta The DTMI object to put the metadata into.
+/// \arg cat Metadata category to insert into.
+/// \arg elem Element name to put into the category.
+/// \arg val Value to put into the element name.
+void FLV::Tag::Meta_Put(DTSC::DTMI & meta, std::string cat, std::string elem, std::string val){
+  if (meta.getContentP(cat) == 0){meta.addContent(DTSC::DTMI(cat));}
+  meta.getContentP(cat)->addContent(DTSC::DTMI(elem, val));
+}
+
+/// Inserts uint64_t type metadata into the passed DTMI object.
+/// \arg meta The DTMI object to put the metadata into.
+/// \arg cat Metadata category to insert into.
+/// \arg elem Element name to put into the category.
+/// \arg val Value to put into the element name.
+void FLV::Tag::Meta_Put(DTSC::DTMI & meta, std::string cat, std::string elem, uint64_t val){
+  if (meta.getContentP(cat) == 0){meta.addContent(DTSC::DTMI(cat));}
+  meta.getContentP(cat)->addContent(DTSC::DTMI(elem, val));
+}
+
+/// Returns true if the named category and elementname are available in the metadata.
+/// \arg meta The DTMI object to check.
+/// \arg cat Metadata category to check.
+/// \arg elem Element name to check.
+bool FLV::Tag::Meta_Has(DTSC::DTMI & meta, std::string cat, std::string elem){
+  if (meta.getContentP(cat) == 0){return false;}
+  if (meta.getContentP(cat)->getContentP(elem) == 0){return false;}
+  return true;
+}

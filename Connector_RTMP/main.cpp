@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <getopt.h>
+#include <sstream>
 #include "../util/socket.h"
 #include "../util/flv_tag.h"
 #include "../util/amf.h"
@@ -137,6 +138,12 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
 
 /// Tries to get and parse one RTMP chunk at a time.
 void Connector_RTMP::parseChunk(std::string & inbuffer){
+  //for DTSC conversion
+  static DTSC::DTMI meta_out;
+  static std::stringstream prebuffer; // Temporary buffer before sending real data
+  static bool sending = false;
+  static unsigned int counter = 0;
+  //for chunk parsing
   static RTMPStream::Chunk next;
   FLV::Tag F;
   static AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
@@ -209,32 +216,33 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
         RTMPStream::snd_window_size = ntohl(*(int*)next.data.c_str());
         Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
         break;
-      case 8:
-        F.ChunkLoader(next);
+      case 8://audio data
+      case 9://video data
+      case 18://meta data
         if (SS.connected()){
-          #if DEBUG >= 4
-          fprintf(stderr, "A");
-          #endif
-          /// \TODO Convert to DTSC properly.
-          SS.write(std::string(F.data, F.len));
+          F.ChunkLoader(next);
+          DTSC::DTMI pack_out = F.toDTSC(meta_out);
+          if (!pack_out.isEmpty()){
+            if (!sending){
+              counter++;
+              if (counter > 8){
+                sending = true;
+                meta_out.Pack(true);//pack metadata
+                meta_out.packed.replace(0, 4, DTSC::Magic_Header);//prepare proper header
+                SS.write(meta_out.packed);//write header/metadata
+                SS.write(prebuffer.str());//write buffer
+                prebuffer.str("");//clear buffer
+                SS.write(pack_out.Pack(true));//simply write
+              }else{
+                prebuffer << pack_out.Pack(true);//buffer
+              }
+            }else{
+              SS.write(pack_out.Pack(true));//simple write
+            }
+          }
         }else{
           #if DEBUG >= 4
-          fprintf(stderr, "Received useless audio data\n");
-          #endif
-          Socket.close();
-        }
-        break;
-      case 9:
-        F.ChunkLoader(next);
-        if (SS.connected()){
-          #if DEBUG >= 4
-          fprintf(stderr, "V");
-          #endif
-          /// \TODO Convert to DTSC properly.
-          SS.write(std::string(F.data, F.len));
-        }else{
-          #if DEBUG >= 4
-          fprintf(stderr, "Received useless video data\n");
+          fprintf(stderr, "Received useless media data\n");
           #endif
           Socket.close();
         }
@@ -268,15 +276,6 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
           parseAMFCommand(amfdata, 17, next.msg_stream_id);
         }//parsing AMF0-style
         } break;
-      case 18:
-        #if DEBUG >= 4
-        fprintf(stderr, "Received AFM0 data message (metadata)\n");
-        #endif
-        F.ChunkLoader(next);
-        if (SS.connected()){
-          SS.write(std::string(F.data, F.len));
-        }
-        break;
       case 19:
         #if DEBUG >= 4
         fprintf(stderr, "Received AFM0 shared object\n");

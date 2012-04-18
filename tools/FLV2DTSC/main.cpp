@@ -32,7 +32,7 @@ namespace Converters{
         if (pack_out.isEmpty()){continue;}
         if (!sending){
           counter++;
-          if (counter > 10){
+          if (counter > 8){
             sending = true;
             meta_out.Pack(true);
             meta_out.packed.replace(0, 4, DTSC::Magic_Header);
@@ -40,11 +40,12 @@ namespace Converters{
             std::cout << prebuffer.rdbuf();
             prebuffer.str("");
             std::cerr << "Buffer done, starting real-time output..." << std::endl;
+          }else{
+            prebuffer << pack_out.Pack(true);//buffer
+            continue;//don't also write
           }
-          prebuffer << pack_out.Pack(true);
-        }else{
-          std::cout << pack_out.Pack(true);
         }
+        std::cout << pack_out.Pack(true);//simply write
       }
     }
 

@@ -55,8 +55,6 @@ body
 table
 {
    width: 100%;
-   /*margin-top: 5px;*/
-   /*border-spacing: 0;*/
 }
 
 table
@@ -166,15 +164,6 @@ tbody td.center
 {
    margin: 12px 0 6px 0;
 }
-
-/*
-.outsidetable td
-{
-   padding-top: 30px;
-   background-color: #fafafa;
-}
-*/
-
 
 
 /* header */
@@ -514,7 +503,7 @@ td
 
       function shortToLongLimit(name)
       {
-         console.log('getting the long name for the limit "' + name + '"');
+         //console.log('getting the long name for the limit "' + name + '"');
 
          var i;
 
@@ -526,7 +515,7 @@ td
             }
          }
 
-         console.log('ERROR! short limit ', name, ' not in list, returning _short name_!');
+         //console.log('ERROR! short limit ', name, ' not in list, returning _short name_!');
          return name;
       }
 
@@ -555,7 +544,7 @@ td
             'timeout': 2500,
             'error': function()
             {
-               console.log('ERROR ERROR ERROR @514');
+               //console.log('ERROR ERROR ERROR @514');
             },
             'success': function(d)
             {
@@ -578,7 +567,7 @@ td
       {
          getData(function(data)
          {
-            console.log('getStatData: real data retrieved: ', data);
+            //console.log('getStatData: real data retrieved: ', data);
             var svr, viewer, ret,
                 numstr = 0,
                 numvwr = 0,
@@ -624,7 +613,7 @@ td
                 }
              });
 
-         console.log('SEND', data);
+         //console.log('SEND', data);
 
          $.ajax(
          {
@@ -642,14 +631,14 @@ td
             },
             'success': function(d)
             {
-               console.log('RECV', d);
+               //console.log('RECV', d);
 
                if(d && d['authorize'] && d['authorize']['challenge'])
                {
                   if (settings.credentials.authstring != d['authorize']['challenge'])
                   {
                      settings.credentials.authstring = d['authorize']['challenge'];
-                     console.log('need to reload settings with new auth string');
+                     //console.log('need to reload settings with new auth string');
                      loadSettings(callback);
                      return;
                   }else{
@@ -671,8 +660,25 @@ td
                      "statistics": {}
                   }, d);
 
-                  console.log('new (shinyness) object:', settings.settings);
+                  //console.log('new (shinyness) object:', settings.settings);
                }
+
+
+
+var fobj1 = {connector: 'HTTP', port: 42};
+fobj1['interface'] = 'kekeksauce';
+
+var fobj2 = {connector: 'RTMP', port: 1337};
+fobj2['interface'] = 'rtmwhat';
+
+var fobj3 = {connector: 'HTTP', port: 43};
+fobj3['interface'] = 'moarmoar';
+
+settings.settings.config.protocols = [fobj1, fobj2, fobj3];
+
+
+
+
 
                if(callback)
                {
@@ -759,11 +765,11 @@ td
                            }
                         });
 
-                        console.log('logged in!');
+                        //console.log('logged in!');
                      }else{
                         setHeaderState('disconnected');
                         $('#header-host').text('');
-                        console.log('error logging in: ' + errorstr);
+                        //console.log('error logging in: ' + errorstr);
                      }
                   });
                }).text('login');
@@ -792,12 +798,11 @@ td
 
                if(adr.length == 2)
                {
-                  console.log(adr[0], adr[1]);
+                  //console.log(adr[0], adr[1]);
+                  // put it in the page
+                  host.val(adr[1]);
+                  user.val(adr[0]);
                }
-
-               // put it in the page
-               host.val(adr[1]);
-               user.val(adr[0]);
 
 
                break;
@@ -840,7 +845,7 @@ td
                {
                   getStatData(function(data)
                   {
-                     console.log('getting live data... @' + new Date().getTime());
+                     //console.log('getting live data... @' + new Date().getTime());
                      $('#cur_streams_online').html('').text(data.streams[0] + ' of ' + data.streams[1] + ' online');
                      $('#cur_num_viewers').html('').text(data.viewers);
                   });
@@ -881,7 +886,7 @@ td
                   {
                     if(confirmDelete('Are you sure you want to force a JSON save?') == true)
                     {
-                       console.log('magie hier!');   // TODO FIXME JARON
+                       //console.log('magie hier!');   // TODO FIXME JARON
                     }
                   }).text( 'force save to JSON file' )
                );
@@ -923,7 +928,7 @@ td
                                 if(confirmDelete('Are you sure you want to delete this protocol?') == true)
                                 {
                                    var id = $(this).parent().parent().attr('id').replace('protocol-', '');
-                                   settings.settings.config.protocols.splice(i, 1);
+                                   settings.settings.config.protocols.splice(id, 1);
                                    //delete settings.settings.config.protocols[protocol];
                                    $(this).parent().parent().remove();
                                    loadSettings();
@@ -976,8 +981,8 @@ td
                            connector: $('#new-protocol-name :selected').val(),
                            port: $('#new-protocol-val').val(),
                         };
-
                         nobj['interface'] = $('#new-protocol-interface').val();
+
 
                         settings.settings.config.protocols.push(nobj);
 
@@ -1281,7 +1286,7 @@ td
                   alllimits = alllimits.concat(clims);
                }
 
-               console.log(alllimits);
+               //console.log(alllimits);
 
                len = alllimits.length;
 

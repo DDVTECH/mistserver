@@ -204,12 +204,12 @@ tbody td.center
    line-height: 30px;
 }
 
-.disconnected
+.disconnected, .red
 {
    color: #cc3333;
 }
 
-.connected
+.connected, .green
 {
    color: #14991a;
 }
@@ -1050,7 +1050,7 @@ td
                   $tr.append( $('<td>').text(cstr.name) );
 
 
-                  $tr.append( $('<td>').text(cstr.online == 1 ? 'Running' : 'Error') );
+                  $tr.append( $('<td>').html(cstr.online == 1 ? "<span class='green'>Running</span>" : "<span class='red'>Error</span>") );
 
 
                   var cviewers = 0;

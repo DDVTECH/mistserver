@@ -664,7 +664,7 @@ td
                }
 
 
-
+/*
 var fobj1 = {connector: 'HTTP', port: 42};
 fobj1['interface'] = 'kekeksauce';
 
@@ -675,7 +675,7 @@ var fobj3 = {connector: 'HTTP', port: 43};
 fobj3['interface'] = 'moarmoar';
 
 settings.settings.config.protocols = [fobj1, fobj2, fobj3];
-
+*/
 
 
 
@@ -886,7 +886,9 @@ settings.settings.config.protocols = [fobj1, fobj2, fobj3];
                   {
                     if(confirmDelete('Are you sure you want to force a JSON save?') == true)
                     {
-                       //console.log('magie hier!');   // TODO FIXME JARON
+// TODO FIXME
+                       console.log('magie hier!');   // TODO FIXME
+// /TODO /FIXME
                     }
                   }).text( 'force save to JSON file' )
                );

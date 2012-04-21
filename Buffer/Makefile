@@ -13,9 +13,9 @@ LIBS = -lpthread
 .PHONY: clean default
 default: $(OUT)
 .cpp.o:
-	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
+	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@ $(LIBS)
 $(OUT): $(OBJ)
-	$(CC) $(LIBS) -o $(OUT) $(OBJ)
+	$(CC) -o $(OUT) $(OBJ) $(LIBS)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 install: $(OUT)

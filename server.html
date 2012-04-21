@@ -293,6 +293,8 @@ label span
 #editserver
 {
    width: 400px;
+
+   float: left;
 }
 
 
@@ -317,7 +319,7 @@ p,
 label,
 #page label input,
 #page > button,
-#editserver > button
+#editserver > button, #forcesave > button
 {
    font: normal bold 11pt Arial, sans-serif;
    text-transform: uppercase;
@@ -370,6 +372,19 @@ td
    padding: 0;
 }
 
+
+
+#forcesave
+{
+   width: 400px;
+   float: left;
+   margin: 0 0 0 100px;
+}
+
+#forcesave button
+{
+   float: right;
+}
 
       </style>
 
@@ -861,6 +876,24 @@ td
                      });
                   }).text( 'save' )
                );
+
+
+               var forcesave = $('<div>').attr('id', 'forcesave');
+
+               forcesave.append(
+                  $('<p>').text('Click the button below to force a settings save. This will permanently save all changes to the config file.')
+               ).append(
+                  $('<button>').click(function()
+                  {
+                    if(confirmDelete('Are you sure you want to force a JSON save?') == true)
+                    {
+                       console.log('magie hier!');   // TODO FIXME
+                    }
+                  }).text( 'force save to JSON file' )
+               );
+
+               $('#page').append(forcesave);
+
 
 
                break;

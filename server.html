@@ -345,6 +345,32 @@ td
    font: normal normal 10pt Arial, sans-serif;
 }
 
+#streams-filter
+{
+   height: 30px;
+   margin: 5px 0 0 0;
+
+   text-align: right;
+   line-height: 30px;
+}
+
+#streams-filter label
+{
+   margin: 0 15px 0 25px;
+   padding: 0;
+   display: inline-block;
+   width: auto;
+}
+
+#streams-filter input
+{
+   float: none;
+   margin: 0 0 0 10px;
+   width: auto;
+   padding: 0;
+}
+
+
       </style>
 
 
@@ -570,7 +596,7 @@ td
                }
             }
 
-            ret = {streams: [numtotstr, numstr], viewers: numvwr};
+            ret = {streams: [numstr, numtotstr], viewers: numvwr};
             callback(ret);
          });
       }
@@ -672,6 +698,8 @@ td
       // used on the overview page. clear when not on that page in showTab()
       var sinterval = null;
 
+      // shows what kind of streams? Format is [recorded, live];
+      var streamsdisplay = [true, true];
 
 
       // show tab
@@ -926,13 +954,81 @@ td
 
 
             case 'streams':
+
+               // filter
+               $div = $('<div>').attr('id', 'streams-filter');
+
+
+
+               function filterTable()
+               {
+                  $('#streams-list-tbody').children().each(function(k, v)
+                  {
+                     var type = $($(v).children()[0]).text().toLowerCase();
+
+                     $(v).show();
+
+                     if(type == 'recorded' && streamsdisplay[0] == false)
+                     {
+                        $(v).hide();
+                     }
+
+                     if(type == 'live' && streamsdisplay[1] == false)
+                     {
+                        $(v).hide();
+                     }
+                  });
+               }
+
+               function filterOn(event, elem)
+               {
+                  if(event.target.id == '')
+                  {
+                     return;  // label click goes bubbles on checkbox, so ignore it
+                  }
+
+                  var what = $(elem).text();
+
+                  if(what == 'recorded')
+                  {
+                     streamsdisplay[0] = !streamsdisplay[0];
+                     $('#stream-filter-recorded').attr('checked', streamsdisplay[0]);
+                  }else{
+                     streamsdisplay[1] = !streamsdisplay[1];
+                     $('#stream-filter-live').attr('checked', streamsdisplay[1]);
+                  }
+
+                  filterTable();
+               }
+
+               $div.append(
+                  $('<label>').attr('for', 'stream-filter-recorded').text('recorded').append(
+                     $('<input>').attr('type', 'checkbox').attr('id', 'stream-filter-recorded').attr('checked', streamsdisplay[0])
+                  ).click(function(event)
+                  {
+                     filterOn(event, this);
+                  })
+               );
+               $div.append(
+                  $('<label>').attr('for', 'stream-filter-live').text('live').append(
+                     $('<input>').attr('type', 'checkbox').attr('id', 'stream-filter-live').attr('checked', streamsdisplay[1])
+                  ).click(function(event)
+                  {
+                     filterOn(event, this);
+                  })
+               );
+
+               $('#page').append($div);
+
+
+
                $table = $('<table>');
                $table.html("<thead><th>Type</th><th>Embed</th><th>Name</th><th>Status</th><th>Viewers</th><th>Edit</th></thead>");
                $tbody = $('<tbody>');
 
                var stream, cstr, $tr;
 
-               $tbody.html('');
+               $tbody.html('').attr('id', 'streams-list-tbody');
 
                for(stream in settings.settings.streams)
                {
@@ -982,6 +1078,8 @@ td
                $table.append($tbody);
                $('#page').append($table);
 
+               // on page load, also filter
+               filterTable();
 
                $('#page').append(
                   $('<button>').attr('class', 'floatright').click(function()

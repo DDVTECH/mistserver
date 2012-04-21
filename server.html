@@ -881,7 +881,7 @@ td
                var forcesave = $('<div>').attr('id', 'forcesave');
 
                forcesave.append(
-                  $('<p>').text('Click the button below to force a settings save. This will permanently save all changes to the config file.')
+                  $('<p>').text('Click the button below to force an immediate settings save. This differs from a regular save to memory and file save on exit by saving directly to file while operating. This may slow server processes for a short period of time.')
                ).append(
                   $('<button>').click(function()
                   {
@@ -904,7 +904,7 @@ td
             case 'protocols':
 
                $table = $('<table>');
-               $table.html("<thead><th>Protocol</th><th>Port</th><th></th></thead>");
+               $table.html("<thead><th>Protocol</th><th>Port</th><th>Interface</th><th></th></thead>");
                $tbody = $('<tbody>');
 
                var tr, protocol;
@@ -918,6 +918,8 @@ td
 
                   tr.append( $('<td>').text( protocol ) );
                   tr.append( $('<td>').text( settings.settings.config.protocols[protocol].port ) );
+
+                  tr.append( $('<td>').text( '_' ) );  // interface
 
                   tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
                              {
@@ -944,6 +946,9 @@ td
                $nprot.append( $('<td>').append($pname) );
                // val
                $nprot.append( $('<td>').append( $('<input>').attr('type', 'number').attr('id', 'new-protocol-val') ) );
+
+               // interface
+               $nprot.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-protocol-interface') ) );
 
                $nprot.append(
                   $('<td>').attr('class', 'center').append(
@@ -1234,6 +1239,8 @@ td
             case 'embed':
 
                var url = settings.settings.streams[streamname].channel.URL;
+
+               // TODO FIXME
 
                $('#page').append( $('<p>').text('This feature is not yet implemented.') );
                $('#page').append( $('<p>').text('The URL for this stream is ').append( $('<span>').attr('class', 'nocapitals').text(url) ) );

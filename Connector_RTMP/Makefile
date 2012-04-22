@@ -6,6 +6,7 @@ STATIC =
 DEBUG = 4
 OPTIMIZE = -g
 CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG) -DVERSION=$(VERSION)
+INSTALL = install
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
@@ -21,7 +22,7 @@ $(OUT): $(OBJ)
 clean:
 	rm -rf $(OBJ) $(OUT) Makefile.bak *~
 install: $(OUT)
-	cp -f ./$(OUT) /usr/bin/
+	$(INSTALL) -D ./$(OUT) $(DESTDIR)/usr/bin/$(OUT)
 cversion:
 	rm -rf ../util/config.o
 

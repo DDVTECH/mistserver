@@ -335,7 +335,7 @@ int TS_Handler( Socket::Connection conn ) {
       case 0: break;//not ready yet
       default:
         ss.spool();
-        if ( stream.parsePacket( conn.Received() ) ) {
+        if ( stream.parsePacket( ss.Received() ) ) {
           if( stream.lastType() == DTSC::VIDEO ) {
             fprintf(stderr, "Video contains NALU\n" );
               SendPAT( conn );

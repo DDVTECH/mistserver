@@ -198,6 +198,13 @@ const char * DTSC::DTMI::Str(){return strval.c_str();};
 /// If this object is not a container type, this function will always return 0.
 int DTSC::DTMI::hasContent(){return contents.size();};
 
+/// Returns true if this DTSC::DTMI value is non-default.
+/// Non-default means it is either not a root element or has content.
+bool DTSC::DTMI::isEmpty(){
+  if (myType != DTMI_ROOT){return false;}
+  return (hasContent() == 0);
+};
+
 /// Adds an DTSC::DTMI to this object. Works for all types, but only makes sense for container types.
 /// This function resets DTMI::packed to an empty string, forcing a repack on the next call to DTMI::Pack.
 /// If the indice name already exists, replaces the indice.
@@ -213,9 +220,12 @@ void DTSC::DTMI::addContent(DTSC::DTMI c){
 };
 
 /// Returns a pointer to the object held at indice i.
-/// Returns AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
+/// Returns null pointer if no object is held at this indice.
 /// \param i The indice of the object in this container.
-DTSC::DTMI* DTSC::DTMI::getContentP(int i){return &contents.at(i);};
+DTSC::DTMI* DTSC::DTMI::getContentP(int i){
+  if (contents.size() <= (unsigned int)i){return 0;}
+  return &contents.at(i);
+};
 
 /// Returns a copy of the object held at indice i.
 /// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.

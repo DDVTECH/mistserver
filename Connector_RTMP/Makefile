@@ -1,6 +1,6 @@
 SRC = main.cpp ../util/socket.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/rtmpchunks.cpp ../util/crypto.cpp ../util/config.cpp ../util/dtsc.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = DDV_Conn_RTMP
+OUT = MistConnRTMP
 INCLUDES =
 STATIC =
 DEBUG = 4
@@ -17,11 +17,11 @@ default: cversion $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@
 $(OUT): $(OBJ)
-	$(CC) -o $(OUT) $(OBJ) $(STATIC) $(LIBS)
+	$(CC) -o ../bin/$(OUT) $(OBJ) $(STATIC) $(LIBS)
 clean:
-	rm -rf $(OBJ) $(OUT) Makefile.bak *~
+	rm -rf $(OBJ) ../bin/$(OUT) Makefile.bak *~
 install: $(OUT)
-	cp -f ./$(OUT) /usr/bin/
+	cp -f ../bin/$(OUT) /usr/bin/
 cversion:
 	rm -rf ../util/config.o
 

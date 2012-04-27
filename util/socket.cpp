@@ -3,6 +3,7 @@
 /// Written by Jaron Vietor in 2010 for DDVTech
 
 #include "socket.h"
+#include <sys/stat.h>
 #include <poll.h>
 #include <netdb.h>
 #include <sstream>
@@ -647,3 +648,43 @@ bool Socket::Server::connected(){
 
 /// Returns internal socket number.
 int Socket::Server::getSocket(){return sock;}
+
+/// Connect to a stream on the system.
+/// Filters the streamname, removing invalid characters and
+/// converting all letters to lowercase.
+/// If a '?' character is found, everything following that character is deleted.
+Socket::Connection Socket::getStream(std::string streamname){
+  //strip anything that isn't numbers, digits or underscores
+  for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+    if (*i == '?'){streamname.erase(i, streamname.end()); break;}
+    if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
+      streamname.erase(i);
+    }else{
+      *i=tolower(*i);
+    }
+  }
+  return Socket::Connection("/tmp/mist/stream_"+streamname);
+}
+
+/// Create a stream on the system.
+/// Filters the streamname, removing invalid characters and
+/// converting all letters to lowercase.
+/// If a '?' character is found, everything following that character is deleted.
+/// If the /tmp/ddvtech directory doesn't exist yet, this will create it.
+Socket::Server Socket::makeStream(std::string streamname){
+  //strip anything that isn't numbers, digits or underscores
+  for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+    if (*i == '?'){streamname.erase(i, streamname.end()); break;}
+    if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
+      streamname.erase(i);
+    }else{
+      *i=tolower(*i);
+    }
+  }
+  std::string loc = "/tmp/mist/stream_"+streamname;
+  //attempt to create the /tmp/mist directory if it doesn't exist already.
+  //ignore errors - we catch all problems in the Socket::Server creation already
+  mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO);
+  //create and return the Socket::Server
+  return Socket::Server(loc);
+}

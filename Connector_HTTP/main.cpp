@@ -182,7 +182,7 @@ namespace Connector_HTTP{
           HTTP_S.Clean();
           HTTP_S.SetHeader("Content-Type", "text/xml");
           HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
-          HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+          HTTP_S.SendResponse(conn, "200", "OK");
           #if DEBUG >= 3
           printf("Sending crossdomain.xml file\n");
           #endif
@@ -206,15 +206,7 @@ namespace Connector_HTTP{
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
           }
-          streamname = "/tmp/shared_socket_";
-          for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
-              Movie.erase(i);
-            }else{
-              *i=tolower(*i);
-            }//strip nonalphanumeric
-          }
-          streamname += Movie;
+          streamname = Movie;
           if( !Flash_ManifestSent ) {
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type","text/xml");
@@ -227,22 +219,18 @@ namespace Connector_HTTP{
           ready4data = true;
         }//FLASH handler
         if (handler == HANDLER_PROGRESSIVE){
-          //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
+          //we assume the URL is the stream name with a 3 letter extension
           std::string extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
-          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
-          for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i) && *i != '_'){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
-          }
-          streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
-          //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
+          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
+          /// \todo VoD streams will need support for position reading from the URL parameters
           ready4data = true;
         }//PROGRESSIVE handler
-        HTTP_R.CleanForNext(); //maak schoon na verwerken voor eventuele volgende requests...
+        HTTP_R.CleanForNext(); //clean for any possinble next requests
       }
       if (ready4data){
         if (!inited){
           //we are ready, connect the socket!
-          ss = Socket::Connection(streamname);
+          ss = Socket::getStream(streamname);
           if (!ss.connected()){
             #if DEBUG >= 1
             fprintf(stderr, "Could not connect to server!\n");

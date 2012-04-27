@@ -1,6 +1,6 @@
 SRC = main.cpp ../util/json.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/md5.cpp ../util/config.cpp ../util/procs.cpp ../util/base64.cpp ../util/auth.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = DDV_Controller
+OUT = MistController
 INCLUDES = 
 DEBUG = 4
 OPTIMIZE = -g
@@ -19,9 +19,9 @@ default: cversion $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) -c $< -o $@
 $(OUT): $(OBJ)
-	$(CC) -o $(OUT) $(OBJ) $(LIBS)
+	$(CC) -o ../bin/$(OUT) $(OBJ) $(LIBS)
 clean:
-	rm -rf $(OBJ) $(OUT) Makefile.bak *~
+	rm -rf $(OBJ) ../bin/$(OUT) Makefile.bak *~
 cversion:
 	rm -rf ../util/config.o
 

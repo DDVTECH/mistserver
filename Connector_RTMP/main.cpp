@@ -27,7 +27,7 @@ namespace Connector_RTMP{
 
   Socket::Connection Socket; ///< Socket connected to user
   Socket::Connection SS; ///< Socket connected to server
-  std::string streamname = "/tmp/shared_socket"; ///< Stream that will be opened
+  std::string streamname; ///< Stream that will be opened
   void parseChunk(std::string & buffer);///< Parses a single RTMP chunk.
   void sendCommand(AMF::Object & amfreply, int messagetype, int stream_id);///< Sends a RTMP command either in AMF or AMF3 mode.
   void parseAMFCommand(AMF::Object & amfdata, int messagetype, int stream_id);///< Parses a single AMF command message.
@@ -73,7 +73,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!
-        SS = Socket::Connection(streamname);
+        SS = Socket::getStream(streamname);
         if (!SS.connected()){
           #if DEBUG >= 1
           fprintf(stderr, "Could not connect to server!\n");
@@ -398,20 +398,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
   if ((amfdata.getContentP(0)->StrValue() == "publish")){
     if (amfdata.getContentP(3)){
       streamname = amfdata.getContentP(3)->StrValue();
-      for (std::string::iterator i=streamname.begin(); i != streamname.end(); ++i){
-        if (*i == '?'){streamname.erase(i, streamname.end()); break;}
-        if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
-          streamname.erase(i);
-          --i;
-        }else{
-          *i=tolower(*i);
-        }
-      }
-      streamname = "/tmp/shared_socket_" + streamname;
-      #if DEBUG >= 4
-      fprintf(stderr, "Connecting to buffer %s...\n", streamname.c_str());
-      #endif
-      SS = Socket::Connection(streamname);
+      SS = Socket::getStream(streamname);
       if (!SS.connected()){
         #if DEBUG >= 1
         fprintf(stderr, "Could not connect to server!\n");
@@ -468,10 +455,6 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
   if ((amfdata.getContentP(0)->StrValue() == "play") || (amfdata.getContentP(0)->StrValue() == "play2")){
     //send streambegin
     streamname = amfdata.getContentP(3)->StrValue();
-    for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-      if (!isalpha(*i) && !isdigit(*i) && *i != '_'){streamname.erase(i);}else{*i=tolower(*i);}
-    }
-    streamname = "/tmp/shared_socket_" + streamname;
     Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
     //send a status reply
     AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);

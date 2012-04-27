@@ -157,7 +157,7 @@ void CheckProtocols(JSON::Value & p){
       if (connports["HTTP"] != tmp){Util::Procs::Stop("HTTP");}
       connports["HTTP"] = tmp;
       if (!Util::Procs::isActive("HTTP")){
-        Util::Procs::Start("HTTP", std::string("DDV_Conn_HTTP -n -p ")+tmp);
+        Util::Procs::Start("HTTP", std::string("MistConnHTTP -n -p ")+tmp);
       }
     }
     if (jit->first == "RTMP"){
@@ -166,7 +166,7 @@ void CheckProtocols(JSON::Value & p){
       if (connports["RTMP"] != tmp){Util::Procs::Stop("RTMP");}
       connports["RTMP"] = tmp;
       if (!Util::Procs::isActive("RTMP")){
-        Util::Procs::Start("RTMP", std::string("DDV_Conn_RTMP -n -p ")+tmp);
+        Util::Procs::Start("RTMP", std::string("MistConnRTMP -n -p ")+tmp);
       }
     }
   }
@@ -206,49 +206,66 @@ void startStream(std::string name, JSON::Value & data){
   std::string cmd1, cmd2;
   if (URL.substr(0, 4) == "push"){
     std::string pusher = URL.substr(7);
-    cmd2 = "DDV_Buffer 500 "+name+" "+pusher;
+    cmd2 = "MistBuffer 500 "+name+" "+pusher;
     Util::Procs::Start(name, cmd2);
   }else{
-    cmd1 = "ffmpeg -re -async 2 -i "+URL+" "+preset+" -f flv -";
-    cmd2 = "DDV_Buffer 500 "+name;
+    if (preset == ""){
+      cmd1 = "cat "+URL;
+    }else{
+      cmd1 = "ffmpeg -re -async 2 -i "+URL+" "+preset+" -f flv -";
+    }
+    cmd2 = "MistBuffer 500 "+name;
     Util::Procs::Start(name, cmd1, cmd2);
   }
 }
 
 void CheckAllStreams(JSON::Value & data){
   unsigned int currTime = time(0);
+  bool changed = false;
   for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
     if (!Util::Procs::isActive(jit->first)){
       startStream(jit->first, jit->second);
     }
     if (currTime - lastBuffer[jit->first] > 5){
+      if (jit->second["online"] != 0){changed = true;}
       jit->second["online"] = 0;
     }else{
+      if (jit->second["online"] != 1){changed = true;}
       jit->second["online"] = 1;
     }
+  }
+  if (changed){
+    WriteFile("/tmp/mist/streamlist", out.toString());
   }
 }
 
 void CheckStreams(JSON::Value & in, JSON::Value & out){
+  bool changed = false;
   for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
     if (out.isMember(jit->first)){
       if (!streamsEqual(jit->second, out[jit->first])){
         Log("STRM", std::string("Updated stream ")+jit->first);
+        changed = true
         Util::Procs::Stop(jit->first);
         startStream(jit->first, jit->second);
       }
     }else{
       Log("STRM", std::string("New stream ")+jit->first);
+      changed = true;
       startStream(jit->first, jit->second);
     }
   }
   for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
     if (!in.isMember(jit->first)){
       Log("STRM", std::string("Deleted stream ")+jit->first);
+      changed = true;
       Util::Procs::Stop(jit->first);
     }
   }
   out = in;
+  if (changed){
+    WriteFile("/tmp/mist/streamlist", out.toString());
+  }
 }
 
 int main(int argc, char ** argv){
@@ -269,7 +286,8 @@ int main(int argc, char ** argv){
   time_t lastuplink = 0;
   time_t processchecker = 0;
   API_Socket = Socket::Server(C.listen_port, C.interface, true);
-  Socket::Server Stats_Socket = Socket::Server("/tmp/ddv_statistics", true);
+  mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO);//attempt to create /tmp/mist/ - ignore failures
+  Socket::Server Stats_Socket = Socket::Server("/tmp/mist/statistics", true);
   Util::setUser(C.username);
   if (C.daemon_mode){
     Util::Daemonize();

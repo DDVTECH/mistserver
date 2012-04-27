@@ -9,23 +9,15 @@
 /// Contains utility code, not directly related to streaming media
 namespace Util{
 
-  /// Deals with parsing configuration from files or commandline options.
+  /// Deals with parsing configuration from commandline options.
   class Config{
-  private:
-    bool ignore_daemon;
-    bool ignore_interface;
-    bool ignore_port;
-    bool ignore_user;
-  public:
-    std::string confsection;
-    std::string configfile;
-    bool daemon_mode;
-    std::string interface;
-    int listen_port;
-    std::string username;
-    Config();
-    void parseArgs(int argc, char ** argv);
-    void parseFile();
+    public:
+      bool daemon_mode;
+      std::string interface;
+      int listen_port;
+      std::string username;
+      Config();
+      void parseArgs(int argc, char ** argv);
   };
 
   /// Will set the active user to the named username.

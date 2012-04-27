@@ -9,6 +9,7 @@ COMPILED_USERNAME = testuser
 COMPILED_PASSWORD = 179ad45c6ce2cb97cf1029e212046e81
 #COMPILED_PASSWORD = testpass
 CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG) -DCOMPILED_USERNAME=$(COMPILED_USERNAME) -DCOMPILED_PASSWORD=$(COMPILED_PASSWORD) -DVERSION=$(VERSION)
+INSTALL = install
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
@@ -24,4 +25,6 @@ clean:
 	rm -rf $(OBJ) ../bin/$(OUT) Makefile.bak *~
 cversion:
 	rm -rf ../util/config.o
+install: $(OUT)
+	$(INSTALL) -D ./$(OUT) $(DESTDIR)/usr/bin/$(OUT)
 

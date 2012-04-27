@@ -254,7 +254,11 @@ JSON::Value::operator std::string(){
   if (myType == STRING){
     return strVal;
   }else{
-    return toString();
+    if (myType == EMPTY){
+      return "";
+    }else{
+      return toString();
+    }
   }
 }
 

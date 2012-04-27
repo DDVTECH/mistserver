@@ -1,5 +1,5 @@
 default: client
-.PHONY: client client-debug client-clean clean release-install debug-install docs
+.PHONY: client client-debug client-clean clean release-install debug-install install docs
 
 prepare:
 	mkdir -p ./bin
@@ -27,17 +27,10 @@ client-release: prepare
 	cd Controller; $(MAKE) DEBUG=0 OPTIMIZE=-O2
 release: client-release
 release-install: client-clean client-release
-	cd Connector_RTMP; $(MAKE) install
-	cd Connector_HTTP; $(MAKE) install
-	cd Connector_RAW; $(MAKE) install
-	cd Buffer; $(MAKE) install
-	cd Controller; $(MAKE) install
+	cp ./bin/Mist* /usr/bin/
 debug-install: client-clean client-debug
-	cd Connector_RTMP; $(MAKE) install
-	cd Connector_HTTP; $(MAKE) install
-	cd Connector_RAW; $(MAKE) install
-	cd Buffer; $(MAKE) install
-	cd Controller; $(MAKE) install
+	cp ./bin/Mist* /usr/bin/
+install: debug-install
 docs:
 	doxygen ./Doxyfile > /dev/null
 

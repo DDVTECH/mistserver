@@ -17,6 +17,7 @@
 #include <set>
 #include <sys/time.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <signal.h>
 #include <sstream>
@@ -146,32 +147,64 @@ void Authorize( JSON::Value & Request, JSON::Value & Response, ConnectedUser & c
 }
 
 void CheckProtocols(JSON::Value & p){
-  static std::map<std::string, std::string> connports;
-  bool seenHTTP = false;
-  bool seenRTMP = false;
+  static std::map<std::string, std::string> current_connectors;
+  std::map<std::string, std::string> new_connectors;
+  std::map<std::string, std::string>::iterator iter;
+
   std::string tmp;
+  JSON::Value counter = (long long int)0;
+
+  //collect object type
   for (JSON::ObjIter jit = p.ObjBegin(); jit != p.ObjEnd(); jit++){
-    if (jit->first == "HTTP"){
-      tmp = (std::string)jit->second["port"];
-      seenHTTP = true;
-      if (connports["HTTP"] != tmp){Util::Procs::Stop("HTTP");}
-      connports["HTTP"] = tmp;
-      if (!Util::Procs::isActive("HTTP")){
-        Util::Procs::Start("HTTP", std::string("MistConnHTTP -n -p ")+tmp);
-      }
+    tmp = "MistConn";
+    tmp += (std::string)jit->second["connector"];
+    tmp += " -n -p ";
+    tmp += (std::string)jit->second["port"];
+    if (jit->second.isMember("interface")){
+      tmp += " -i ";
+      tmp += (std::string)jit->second["interface"];
     }
-    if (jit->first == "RTMP"){
-      tmp = (std::string)jit->second["port"];
-      seenRTMP = true;
-      if (connports["RTMP"] != tmp){Util::Procs::Stop("RTMP");}
-      connports["RTMP"] = tmp;
-      if (!Util::Procs::isActive("RTMP")){
-        Util::Procs::Start("RTMP", std::string("MistConnRTMP -n -p ")+tmp);
-      }
+    if (jit->second.isMember("username")){
+      tmp += " -u ";
+      tmp += (std::string)jit->second["username"];
+    }
+    counter = (long long int)counter + 1;
+    new_connectors[std::string("Conn")+(std::string)counter] = tmp;
+  }
+  //collect array type
+  for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
+    tmp = "MistConn";
+    tmp += (std::string)(*ait)["connector"];
+    tmp += " -n -p ";
+    tmp += (std::string)(*ait)["port"];
+    if ((*ait).isMember("interface")){
+      tmp += " -i ";
+      tmp += (std::string)(*ait)["interface"];
+    }
+    if ((*ait).isMember("username")){
+      tmp += " -u ";
+      tmp += (std::string)(*ait)["username"];
+    }
+    counter = (long long int)counter + 1;
+    new_connectors[std::string("Conn")+(std::string)counter] = tmp;
+  }
+
+  //shut down deleted/changed connectors
+  for (iter = current_connectors.begin(); iter != current_connectors.end(); iter++){
+    if (new_connectors.count(iter->first) != 1 || new_connectors[iter->first] != iter->second){
+      Util::Procs::Stop(iter->first);
     }
   }
-  if (!seenHTTP){Util::Procs::Stop("HTTP");}
-  if (!seenRTMP){Util::Procs::Stop("RTMP");}
+
+  //start up new/changed connectors
+  for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
+    if (current_connectors.count(iter->first) != 1 || current_connectors[iter->first] != iter->second || !Util::Procs::isActive(iter->first)){
+      Util::Procs::Start(iter->first, iter->second);
+    }
+  }
+
+  //store new state
+  current_connectors = new_connectors;
 }
 
 void CheckConfig(JSON::Value & in, JSON::Value & out){
@@ -227,15 +260,15 @@ void CheckAllStreams(JSON::Value & data){
       startStream(jit->first, jit->second);
     }
     if (currTime - lastBuffer[jit->first] > 5){
-      if (jit->second["online"] != 0){changed = true;}
+      if ((long long int)jit->second["online"] != 0){changed = true;}
       jit->second["online"] = 0;
     }else{
-      if (jit->second["online"] != 1){changed = true;}
+      if ((long long int)jit->second["online"] != 1){changed = true;}
       jit->second["online"] = 1;
     }
   }
   if (changed){
-    WriteFile("/tmp/mist/streamlist", out.toString());
+    WriteFile("/tmp/mist/streamlist", data.toString());
   }
 }
 
@@ -245,7 +278,7 @@ void CheckStreams(JSON::Value & in, JSON::Value & out){
     if (out.isMember(jit->first)){
       if (!streamsEqual(jit->second, out[jit->first])){
         Log("STRM", std::string("Updated stream ")+jit->first);
-        changed = true
+        changed = true;
         Util::Procs::Stop(jit->first);
         startStream(jit->first, jit->second);
       }
@@ -279,10 +312,15 @@ int main(int argc, char ** argv){
   sigaction(SIGTERM, &new_action, NULL);
   sigaction(SIGPIPE, &new_action, NULL);
 
+  Storage = JSON::fromString(ReadFile("config.json"));
   Util::Config C;
-  C.confsection = "API";
+  C.listen_port = (long long int)Storage["config"]["controller"]["port"];
+  if (C.listen_port < 1){C.listen_port = 4242;}
+  C.interface = (std::string)Storage["config"]["controller"]["interface"];
+  if (C.interface == ""){C.interface = "0.0.0.0";}
+  C.username = (std::string)Storage["config"]["controller"]["username"];
+  if (C.username == ""){C.username = "root";}
   C.parseArgs(argc, argv);
-  C.parseFile();
   time_t lastuplink = 0;
   time_t processchecker = 0;
   API_Socket = Socket::Server(C.listen_port, C.interface, true);
@@ -299,7 +337,6 @@ int main(int argc, char ** argv){
   JSON::Value Response;
   std::string jsonp;
   ConnectedUser * uplink = 0;
-  Storage = JSON::fromString(ReadFile("config.json"));
   while (API_Socket.connected()){
     usleep(100000); //sleep for 100 ms - prevents 100% CPU time
 

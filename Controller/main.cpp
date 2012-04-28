@@ -72,15 +72,6 @@ void WriteFile( std::string Filename, std::string contents ) {
   File.close( );
 }
 
-std::string ReadFile( std::string Filename ) {
-  std::string Result;
-  std::ifstream File;
-  File.open( Filename.c_str( ) );
-  while( File.good( ) ) { Result += File.get( ); }
-  File.close( );
-  return Result;
-}
-
 class ConnectedUser{
   public:
     std::string writebuffer;
@@ -268,7 +259,7 @@ void CheckAllStreams(JSON::Value & data){
     }
   }
   if (changed){
-    WriteFile("/tmp/mist/streamlist", data.toString());
+    WriteFile("/tmp/mist/streamlist", Storage.toString());
   }
 }
 
@@ -297,7 +288,7 @@ void CheckStreams(JSON::Value & in, JSON::Value & out){
   }
   out = in;
   if (changed){
-    WriteFile("/tmp/mist/streamlist", out.toString());
+    WriteFile("/tmp/mist/streamlist", Storage.toString());
   }
 }
 
@@ -312,7 +303,7 @@ int main(int argc, char ** argv){
   sigaction(SIGTERM, &new_action, NULL);
   sigaction(SIGPIPE, &new_action, NULL);
 
-  Storage = JSON::fromString(ReadFile("config.json"));
+  Storage = JSON::fromFile("config.json");
   Util::Config C;
   C.listen_port = (long long int)Storage["config"]["controller"]["port"];
   if (C.listen_port < 1){C.listen_port = 4242;}

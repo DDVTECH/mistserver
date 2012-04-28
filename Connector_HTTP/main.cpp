@@ -13,6 +13,7 @@
 #include <ctime>
 #include "../util/socket.h"
 #include "../util/http_parser.h"
+#include "../util/json.h"
 #include "../util/dtsc.h"
 #include "../util/flv_tag.h"
 #include "../util/MP4/interface.cpp"
@@ -185,6 +186,28 @@ namespace Connector_HTTP{
           HTTP_S.SendResponse(conn, "200", "OK");
           #if DEBUG >= 3
           printf("Sending crossdomain.xml file\n");
+          #endif
+        }
+        if (HTTP_R.url.substr(0, 7) == "/embed_" && HTTP_R.url.substr(HTTP_R.url.length() - 3, 3) == ".js"){
+          streamname = HTTP_R.url.substr(7, HTTP_R.url.length() - 10);
+          JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
+          std::string response;
+          handler = HANDLER_NONE;
+          HTTP_S.Clean();
+          HTTP_S.SetHeader("Content-Type", "application/javascript");
+          response = "// Generating embed code for stream " + streamname + "\n\n";
+          if (ServConf["streams"].isMember(streamname)){
+            std::string streamurl = "http://" + HTTP_S.GetHeader("Host") + "/" + streamname + ".flv";
+            response += "// Stream URL: " + streamurl + "\n\n";
+            response += "document.write('<object width=\"600\" height=\"409\"><param name=\"movie\" value=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\"></param><param name=\"flashvars\" value=\"src="+HTTP::Parser::urlencode(streamurl)+"&controlBarMode=floating\"></param><param name=\"allowFullScreen\" value=\"true\"></param><param name=\"allowscriptaccess\" value=\"always\"></param><embed src=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\" type=\"application/x-shockwave-flash\" allowscriptaccess=\"always\" allowfullscreen=\"true\" width=\"600\" height=\"409\" flashvars=\"src="+HTTP::Parser::urlencode(streamurl)+"&controlBarMode=floating\"></embed></object>');\n";
+          }else{
+            response += "// Stream not available at this server.\nalert(\"This stream is currently not available at this server.\\\\nPlease try again later!\");";
+          }
+          response += "";
+          HTTP_S.SetBody(response);
+          HTTP_S.SendResponse(conn, "200", "OK");
+          #if DEBUG >= 3
+          printf("Sending embed code for %s\n", streamname.c_str());
           #endif
         }
         if (handler == HANDLER_FLASH){

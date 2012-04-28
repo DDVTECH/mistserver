@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/dtsc.cpp ../util/config.cpp ../util/base64.cpp
+SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/dtsc.cpp ../util/config.cpp ../util/base64.cpp ../util/json.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = MistConnHTTP
 INCLUDES = 

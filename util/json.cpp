@@ -2,6 +2,7 @@
 
 #include "json.h"
 #include <sstream>
+#include <fstream>
 
 int JSON::Value::c2hex(int c){
   if (c >= '0' && c <= '9') return c - '0';
@@ -422,4 +423,14 @@ void JSON::Value::null(){
 JSON::Value JSON::fromString(std::string json){
   std::istringstream is(json);
   return JSON::Value(is);
+}
+
+/// Converts a file to a JSON::Value.
+JSON::Value JSON::fromFile(std::string filename){
+  std::string Result;
+  std::ifstream File;
+  File.open(filename.c_str());
+  while (File.good()){Result += File.get();}
+  File.close( );
+  return fromString(Result);
 }

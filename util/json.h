@@ -69,5 +69,6 @@ namespace JSON{
   };
 
   Value fromString(std::string json);
+  Value fromFile(std::string filename);
   
 };

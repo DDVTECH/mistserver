@@ -1,6 +1,6 @@
-SRC = main.cpp ../util/json/json_reader.cpp ../util/json/json_value.cpp ../util/json/json_writer.cpp ../util/socket.cpp ../util/dtsc.cpp
+SRC = main.cpp ../util/json.cpp ../util/socket.cpp ../util/dtsc.cpp ../util/tinythread.cpp user.cpp stats.cpp stream.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = DDV_Buffer
+OUT = MistBuffer
 INCLUDES = 
 DEBUG = 4
 OPTIMIZE = -g
@@ -8,16 +8,16 @@ CCFLAGS = -Wall -Wextra -funsigned-char $(OPTIMIZE) -DDEBUG=$(DEBUG)
 CC = $(CROSS)g++
 LD = $(CROSS)ld
 AR = $(CROSS)ar
-LIBS = 
+LIBS = -lpthread
 .SUFFIXES: .cpp 
 .PHONY: clean default
 default: $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
 $(OUT): $(OBJ)
-	$(CC) $(LIBS) -o $(OUT) $(OBJ)
+	$(CC) $(LIBS) -o ../bin/$(OUT) $(OBJ)
 clean:
-	rm -rf $(OBJ) $(OUT) Makefile.bak *~
+	rm -rf $(OBJ) ../bin/$(OUT) Makefile.bak *~
 install: $(OUT)
-	cp -f ./$(OUT) /usr/bin/
+	cp -f ../bin/$(OUT) /usr/bin/
 

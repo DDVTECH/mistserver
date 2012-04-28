@@ -1,12 +1,9 @@
-/// \file util.h
-/// Contains generic function headers for managing processes and configuration.
+/// \file procs.h
+/// Contains generic function headers for managing processes.
 
 #include <unistd.h>
 #include <string>
 #include <map>
-
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
 
 /// Contains utility code, not directly related to streaming media
 namespace Util{
@@ -30,30 +27,5 @@ namespace Util{
       static pid_t getPid(std::string name);
       static std::string getName(pid_t name);
   };
-
-  /// Will set the active user to the named username.
-  void setUser(std::string user);
-
-  /// Deals with parsing configuration from files or commandline options.
-  class Config{
-  private:
-    bool ignore_daemon;
-    bool ignore_interface;
-    bool ignore_port;
-    bool ignore_user;
-  public:
-    std::string confsection;
-    std::string configfile;
-    bool daemon_mode;
-    std::string interface;
-    int listen_port;
-    std::string username;
-    Config();
-    void parseArgs(int argc, char ** argv);
-    void parseFile();
-  };
-
-  /// Will turn the current process into a daemon.
-  void Daemonize();
 
 };

@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <iostream>
+#include <sstream>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -54,6 +55,7 @@ int RTSP_Handler( Socket::Connection conn ) {
   jrtplib::RTPSessionParams VideoParams;
   jrtplib::RTPUDPv6TransmissionParams VideoTransParams;
   std::string PreviousRequest = "";
+  std::string streamname;
   Socket::Connection ss(-1);
   HTTP::Parser HTTP_R, HTTP_S;
   //Some clients appear to expect a single request per connection. Don't know which ones.
@@ -89,21 +91,28 @@ int RTSP_Handler( Socket::Connection conn ) {
           /// \todo Add audio to SDP file.
           //This is just a dummy with data that was supposedly right for our teststream.
           //SDP Docs: http://tools.ietf.org/html/rfc4566
-          //v=0
-          //o=- 0 0 IN IP4 ddvtech.com
-          //s=Fifa Test
-          //c=IN IP4 127.0.0.1
-          //t=0 0
-          //a=recvonly
-          //m=video 0 RTP/AVP 98
-          //a=control:rtsp://localhost/fifa/video
-          //a=rtpmap:98 H264/90000
-          //a=fmtp:98 packetization-mode=0
-          HTTP_S.SetBody( "v=0\r\no=- 0 0 IN IP4 ddvtech.com\r\ns=Fifa Test\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\na=recvonly\r\nm=video 0 RTP/AVP 98\r\na=control:rtsp://localhost/fifa/video\r\na=rtpmap:98 H264/90000\r\na=fmtp:98 packetization-mode=0\r\n\r\n");//m=audio 0 RTP/AAP 96\r\na=control:rtsp://localhost/fifa/audio\r\na=rtpmap:96 mpeg4-generic/16000/2\r\n\r\n");
+          HTTP_S.SetBody( "v=0\r\n" //protocol version
+              "o=- 0 0 IN IP4 ddvtech.com\r\n" //originator and session identifier (5.2):
+                                               //username sess-id sess-version nettype addrtype unicast-addr
+                                               //"-": no concept of User IDs, nettype IN(ternet)
+                                               //IP4: following address is a FQDN for IPv4
+              "s=Fifa Test\r\n" //session name (5.3)
+              //"c" - destination is specified in SETUP per rfc2326 C.1.7, set null as recommended
+              "c=IN IP4 0.0.0.0\r\n" //connection information -- not required if included in all media
+                                     //nettype addrtype connection-address
+              "t=0 0\r\n" //time the session is active: start-time stop-time; "0 0"=permanent session
+              "a=recvonly\r\n"//zero or more session attribute lines
+              "m=video 0 RTP/AVP 98\r\n"//media name and transport address: media port proto fmt ...
+              "a=control:" + HTTP_R.url + "\r\n"//rfc2326 C.1.1, URL for aggregate control on session level
+              "a=rtpmap:98 H264/90000\r\n"//rfc2326 C.1.3, dynamic payload type; see also http://tools.ietf.org/html/rfc1890#section-5
+              "a=fmtp:98 packetization-mode=0"//codec-specific parameters
+              "\r\n\r\n");//m=audio 0 RTP/AAP 96\r\na=control:rtsp://localhost/fifa/audio\r\na=rtpmap:96 mpeg4-generic/16000/2\r\n\r\n");
+          //important information when supporting multiple streams http://tools.ietf.org/html/rfc2326#appendix-C.3
           fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "200", "OK" ).c_str() );
           conn.write( HTTP_S.BuildResponse( "200", "OK" ) );
         }
       } else if ( HTTP_R.method == "SETUP" ) {
+        bool setup_session = false;//whether a session should be setup or not
         std::string temp = HTTP_R.GetHeader("Transport");
         //Extract the random UTP pair for video data ( RTP/RTCP)
         int ClientRTPLoc = temp.find( "client_port=" ) + 12;
@@ -114,28 +123,66 @@ int RTSP_Handler( Socket::Connection conn ) {
           fprintf( stderr, "RESPONSE:\n%s\n", HTTP_S.BuildResponse( "459", "Aggregate Operation Not Allowed" ).c_str() );
           conn.write( HTTP_S.BuildResponse( "459", "Aggregate Operation Not Allowed" ) );
         } else {
+          do{
+            if (!ss.connected()){
+              /// \todo Put stream name-to-file mapping in a separate util file or even class
+              streamname = std::string(HTTP_R.url.c_str());
+              unsigned int slash_pos = streamname.rfind('/');
+              if (slash_pos != std::string::npos) streamname.erase(0, slash_pos);
+              for (std::string::iterator i=streamname.begin(); i != streamname.end(); ++i){
+                if (*i == '?'){
+                  streamname.erase(i, streamname.end());
+                  break;
+                }
+                if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
+                  streamname.erase(i);
+                  --i;
+                }else{
+                  *i = tolower(*i);
+                }
+              }
+              streamname = "/tmp/shared_socket_" + streamname;
+              ss = Socket::Connection(streamname);
+              if (!ss.connected()){
+                streamname = "";
+                HTTP_R.BuildResponse("404", "Not Found");
+                break; //skip the session below
+              }
+            }
+            setup_session = true;
+          }while(0);
+        }
+        if (setup_session) {
           HTTP_S.SetHeader( "CSeq", HTTP_R.GetHeader( "CSeq" ).c_str() );
           HTTP_S.SetHeader( "Session", time(NULL) );
-          /// \todo "Random" generation of server_ports
           /// \todo Add support for audio
 //          if( HTTP_R.url.find( "audio" ) != std::string::npos ) {
 //            HTTP_S.SetHeader( "Transport", HTTP_R.GetHeader( "Transport" ) + ";server_port=50002-50003" );
 //          } else {
-          //send video data
-            HTTP_S.SetHeader( "Transport", HTTP_R.GetHeader( "Transport" ) + ";server_port=50000-50001" );
           //Stub data for testing purposes. This should now be extracted somehow from DTSC::DTMI
             VideoParams.SetOwnTimestampUnit( ( 1.0 / 29.917 ) * 90000.0 );
             VideoParams.SetMaximumPacketSize( 10000 );
-          //pick the right port here
-            VideoTransParams.SetPortbase( 50000 );
           //create a JRTPlib session
-            int VideoStatus = VideoSession.Create( VideoParams, &VideoTransParams, jrtplib::RTPTransmitter::IPv6UDPProto  );
+            int VideoStatus;
+            uint16_t pbase;
+            //after 20 retries, just give up, most ports are likely in use
+            int retries = 20;
+            do {
+            //pick the right port here in the range 5000 to 5000 + 2 * 500 = 6000
+              pbase = 5000 + 2 * (rand() % 500);
+              VideoTransParams.SetPortbase( pbase );
+              VideoStatus = VideoSession.Create( VideoParams, &VideoTransParams, jrtplib::RTPTransmitter::IPv6UDPProto  );
+            } while(VideoStatus < 0 && --retries > 0);
             if( VideoStatus < 0 ) {
-              std::cerr << jrtplib::RTPGetErrorString( VideoStatus ) << std::endl;
+              std::cerr << "Video session could not be created: " << jrtplib::RTPGetErrorString( VideoStatus ) << std::endl;
               exit( -1 );
             } else {
-              std::cerr << "Created video session\n";
+              std::cerr << "Created video session using ports " << pbase << " and " << (pbase+1) << "\n";
             }
+          //send video data
+            std::stringstream transport;
+            transport << HTTP_R.GetHeader( "Transport" ) << ";server_port=" << pbase << "-" << (pbase+1);
+            HTTP_S.SetHeader( "Transport", transport.str() );
 
           /// \todo Connect with clients other than localhost            
             uint8_t localip[32];
@@ -147,7 +194,7 @@ int RTSP_Handler( Socket::Connection conn ) {
           //add the destination address to the VideoSession
             VideoStatus = VideoSession.AddDestination(addr);
             if (VideoStatus < 0) {
-              std::cerr << jrtplib::RTPGetErrorString(VideoStatus) << std::endl;
+              std::cerr << "Destination could not be set: " << jrtplib::RTPGetErrorString(VideoStatus) << std::endl;
               exit(-1);
             } else {
               std::cerr << "Destination Set\n";
@@ -201,13 +248,34 @@ int RTSP_Handler( Socket::Connection conn ) {
       }
     }
     if( PlayVideo ) {
-      /// \todo Select correct source. This should become the DTSC::DTMI or the DTSC::Stream, whatever seems more natural.
-      std::string VideoBuf = ReadNALU( );
-      if( VideoBuf == "" ) {
+      bool no_data_ignore = false;
+      std::string VideoBuf;
+      ss.canRead();
+      switch (ss.ready()) {
+        case -1:
+          std::cerr << "Buffer socket is disconnected\n";
+          break;
+        case 0://not ready
+          no_data_ignore = true;
+          break;
+        default:
+          ///\todo Make it work!
+          DTSC::Stream ds;
+          ss.spool();
+          if (ds.parsePacket(ss.Received())){
+            VideoBuf = ds.lastData();
+          }else{
+            std::cerr << "Failed to parse packet" << std::endl;
+            no_data_ignore = true;//perhaps corrupt?
+          }
+          break;
+      }
+      if(no_data_ignore){}else if( VideoBuf == "" ) {
         //videobuffer is empty, no more data.
         jrtplib::RTPTime delay = jrtplib::RTPTime(10.0);
         VideoSession.BYEDestroy(delay,"Out of data",11);
         conn.close();
+        std::cerr << "Buffer empty - closing connection" << std::endl;
       } else {
         //Send a single NALU (H264 block) here.
         VideoSession.SendPacket( VideoBuf.c_str(), VideoBuf.size(), 98, false, ( 1.0 / 29.917 ) * 90000 );

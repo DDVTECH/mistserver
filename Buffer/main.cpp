@@ -11,178 +11,157 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sstream>
-#include "../util/flv_tag.h" //FLV format parser
-#include "../util/socket.h" //Socket lib
-#include "../util/json/json.h"
+#include <sys/time.h>
+#include "stream.h"
 
 /// Holds all code unique to the Buffer.
 namespace Buffer{
 
-  Json::Value Storage = Json::Value(Json::objectValue); ///< Global storage of data.
-  
+  volatile bool buffer_running = true; ///< Set to false when shutting down.
+  Stream * thisStream = 0;
+  Socket::Server SS; ///< The server socket.
+
+  /// Gets the current system time in milliseconds.
+  unsigned int getNowMS(){
+    timeval t;
+    gettimeofday(&t, 0);
+    return t.tv_sec + t.tv_usec/1000;
+  }//getNowMS
+
+
   ///A simple signal handler that ignores all signals.
   void termination_handler (int signum){
     switch (signum){
+      case SIGKILL: buffer_running = false; break;
       case SIGPIPE: return; break;
       default: return; break;
     }
   }
 
-  ///holds FLV::Tag objects and their numbers
-  struct buffer{
-    int number;
-    FLV::Tag FLV;
-  };//buffer
-
-  /// Converts a stats line to up, down, host, connector and conntime values.
-  class Stats{
-    public:
-      unsigned int up;
-      unsigned int down;
-      std::string host;
-      std::string connector;
-      unsigned int conntime;
-      Stats(){
-        up = 0;
-        down = 0;
-        conntime = 0;
+  void handleStats(void * empty){
+    if (empty != 0){return;}
+    Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
+    while (buffer_running){
+      usleep(1000000); //sleep one second
+      if (!StatsSocket.connected()){
+        StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
       }
-      Stats(std::string s){
-        size_t f = s.find(' ');
-        if (f != std::string::npos){
-          host = s.substr(0, f);
-          s.erase(0, f+1);
-        }
-        f = s.find(' ');
-        if (f != std::string::npos){
-          connector = s.substr(0, f);
-          s.erase(0, f+1);
-        }
-        f = s.find(' ');
-        if (f != std::string::npos){
-          conntime = atoi(s.substr(0, f).c_str());
-          s.erase(0, f+1);
-        }
-        f = s.find(' ');
-        if (f != std::string::npos){
-          up = atoi(s.substr(0, f).c_str());
-          s.erase(0, f+1);
-          down = atoi(s.c_str());
-        }
+      if (StatsSocket.connected()){
+        StatsSocket.write(Stream::get()->getStats()+"\n\n");
       }
-  };
+    }
+  }
 
-  /// Holds connected users.
-  /// Keeps track of what buffer users are using and the connection status.
-  class user{
-    public:
-      int MyBuffer; ///< Index of currently used buffer.
-      int MyBuffer_num; ///< Number of currently used buffer.
-      int MyBuffer_len; ///< Length in bytes of currently used buffer.
-      int MyNum; ///< User ID of this user.
-      std::string MyStr; ///< User ID of this user as a string.
-      int currsend; ///< Current amount of bytes sent.
-      Stats lastStats; ///< Holds last known stats for this connection.
-      unsigned int curr_up; ///< Holds the current estimated transfer speed up.
-      unsigned int curr_down; ///< Holds the current estimated transfer speed down.
-      bool gotproperaudio; ///< Whether the user received proper audio yet.
-      void * lastpointer; ///< Pointer to data part of current buffer.
-      static int UserCount; ///< Global user counter.
-      Socket::Connection S; ///< Connection to user
-      /// Creates a new user from a newly connected socket.
-      /// Also prints "User connected" text to stdout.
-      user(Socket::Connection fd){
-        S = fd;
-        MyNum = UserCount++;
-        std::stringstream st;
-        st << MyNum;
-        MyStr = st.str();
-        gotproperaudio = false;
-        curr_up = 0;
-        curr_down = 0;
-        std::cout << "User " << MyNum << " connected" << std::endl;
-      }//constructor
-      /// Disconnects the current user. Doesn't do anything if already disconnected.
-      /// Prints "Disconnected user" to stdout if disconnect took place.
-      void Disconnect(std::string reason) {
-        if (S.connected()) {
-          S.close();
-        }
-        Storage["curr"].removeMember(MyStr);
-        Storage["log"][MyStr]["connector"] = lastStats.connector;
-        Storage["log"][MyStr]["up"] = lastStats.up;
-        Storage["log"][MyStr]["down"] = lastStats.down;
-        Storage["log"][MyStr]["conntime"] = lastStats.conntime;
-        Storage["log"][MyStr]["host"] = lastStats.host;
-        Storage["log"][MyStr]["start"] = (unsigned int)time(0) - lastStats.conntime;
-        std::cout << "Disconnected user " << MyStr << ": " << reason << ". " << lastStats.connector << " transferred " << lastStats.up << " up and " << lastStats.down << " down in " << lastStats.conntime << " seconds to " << lastStats.host << std::endl;
-      }//Disconnect
-      /// Tries to send the current buffer, returns true if success, false otherwise.
-      /// Has a side effect of dropping the connection if send will never complete.
-      bool doSend(){
-        int r = S.iwrite((char*)lastpointer+currsend, MyBuffer_len-currsend);
-        if (r <= 0){
-          if (errno == EWOULDBLOCK){return false;}
-          Disconnect(S.getError());
-          return false;
-        }
-        currsend += r;
-        return (currsend == MyBuffer_len);
-      }//doSend
-      /// Try to send data to this user. Disconnects if any problems occur.
-      /// \param ringbuf Array of buffers (FLV:Tag with ID attached)
-      /// \param buffers Count of elements in ringbuf
-      void Send(buffer ** ringbuf, int buffers){
-        /// \todo For MP3: gotproperaudio - if false, only send if first byte is 0xFF and set to true
-        if (!S.connected()){return;}//cancel if not connected
+  void handleUser(void * v_usr){
+    user * usr = (user*)v_usr;
+    std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
 
-        //still waiting for next buffer? check it
-        if (MyBuffer_num < 0){
-          MyBuffer_num = ringbuf[MyBuffer]->number;
-          if (MyBuffer_num < 0){
-            return; //still waiting? don't crash - wait longer.
-          }else{
-            MyBuffer_len = ringbuf[MyBuffer]->FLV.len;
-            lastpointer = ringbuf[MyBuffer]->FLV.data;
-          }
-        }
+    usr->myRing = thisStream->getRing();
+    if (!usr->S.write(thisStream->getHeader())){
+      usr->Disconnect("failed to receive the header!");
+      return;
+    }
 
-        //do check for buffer resizes
-        if (lastpointer != ringbuf[MyBuffer]->FLV.data){
-          Disconnect("Buffer resize at wrong time... had to disconnect");
-          return;
+    while (usr->S.connected()){
+      usleep(5000); //sleep 5ms
+      if (usr->S.canRead()){
+        usr->inbuffer.clear();
+        char charbuf;
+        while ((usr->S.iread(&charbuf, 1) == 1) && charbuf != '\n' ){
+          usr->inbuffer += charbuf;
         }
-
-        //try to complete a send
-        if (doSend()){
-          //switch to next buffer
-          if ((ringbuf[MyBuffer]->number != MyBuffer_num)){
-            //if corrupt data, warn and find keyframe
-            std::cout << "Warning: User " << MyNum << " was send corrupt video data and send to the next keyframe!" << std::endl;
-            int nocrashcount = 0;
-            do{
-              MyBuffer++;
-              nocrashcount++;
-              MyBuffer %= buffers;
-            }while(!ringbuf[MyBuffer]->FLV.isKeyframe && (nocrashcount < buffers));
-            //if keyframe not available, try again later
-            if (nocrashcount >= buffers){
-              std::cout << "Warning: No keyframe found in buffers! Skipping search for now..." << std::endl;
-              return;
+        if (usr->inbuffer != ""){
+          if (usr->inbuffer[0] == 'P'){
+            std::cout << "Push attempt from IP " << usr->inbuffer.substr(2) << std::endl;
+            if (thisStream->checkWaitingIP(usr->inbuffer.substr(2))){
+              if (thisStream->setInput(usr->S)){
+                std::cout << "Push accepted!" << std::endl;
+                usr->S = Socket::Connection(-1);
+                return;
+              }else{
+                usr->Disconnect("Push denied - push already in progress!");
+              }
+            }else{
+              usr->Disconnect("Push denied - invalid IP address!");
             }
-          }else{
-            MyBuffer++;
-            MyBuffer %= buffers;
           }
-          MyBuffer_num = -1;
-          lastpointer = 0;
-          currsend = 0;
-        }//completed a send
-      }//send
-  };
-  int user::UserCount = 0;
+          if (usr->inbuffer[0] == 'S'){
+            usr->tmpStats = Stats(usr->inbuffer.substr(2));
+            unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
+            if (secs < 1){secs = 1;}
+            usr->curr_up = (usr->tmpStats.up - usr->lastStats.up) / secs;
+            usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
+            usr->lastStats = usr->tmpStats;
+            thisStream->saveStats(usr->MyStr, usr->tmpStats);
+          }
+        }
+      }
+      usr->Send();
+    }
+    thisStream->cleanUsers();
+    std::cerr << "User " << usr->MyStr << " disconnected, socket number " << usr->S.getSocket() << std::endl;
+  }
 
-  /// Starts a loop, waiting for connections to send video data to.
+  /// Loop reading DTSC data from stdin and processing it at the correct speed.
+  void handleStdin(void * empty){
+    if (empty != 0){return;}
+    unsigned int lastPacketTime = 0;//time in MS last packet was parsed
+    unsigned int currPacketTime = 0;//time of the last parsed packet (current packet)
+    unsigned int prevPacketTime = 0;//time of the previously parsed packet (current packet - 1)
+    std::string inBuffer;
+    char charBuffer[1024*10];
+    unsigned int charCount;
+    unsigned int now;
+
+    while (std::cin.good() && buffer_running){
+      //slow down packet receiving to real-time
+      now = getNowMS();
+      if ((now - lastPacketTime >= currPacketTime - prevPacketTime) || (currPacketTime <= prevPacketTime)){
+        std::cin.read(charBuffer, 1024*10);
+        charCount = std::cin.gcount();
+        inBuffer.append(charBuffer, charCount);
+        thisStream->getWriteLock();
+        if (thisStream->getStream()->parsePacket(inBuffer)){
+          thisStream->getStream()->outPacket(0);
+          lastPacketTime = now;
+          prevPacketTime = currPacketTime;
+          currPacketTime = thisStream->getStream()->getTime();
+        }
+        thisStream->dropWriteLock();
+      }else{
+        if (((currPacketTime - prevPacketTime) - (now - lastPacketTime)) > 999){
+          usleep(999000);
+        }else{
+          usleep(((currPacketTime - prevPacketTime) - (now - lastPacketTime)) * 999);
+        }
+      }
+    }
+    buffer_running = false;
+    SS.close();
+  }
+
+  /// Loop reading DTSC data from an IP push address.
+  /// No changes to the speed are made.
+  void handlePushin(void * empty){
+    if (empty != 0){return;}
+    std::string inBuffer;
+    while (buffer_running){
+      if (thisStream->getIPInput().connected()){
+        if (thisStream->getIPInput().iread(inBuffer)){
+          thisStream->getWriteLock();
+          if (thisStream->getStream()->parsePacket(inBuffer)){
+            thisStream->getStream()->outPacket(0);
+          }
+          thisStream->dropWriteLock();
+        }
+      }else{
+        usleep(1000000);
+      }
+    }
+    SS.close();
+  }
+
+  /// Starts a loop, waiting for connections to send data to.
   int Start(int argc, char ** argv) {
     //first make sure no segpipe signals will kill us
     struct sigaction new_action;
@@ -190,226 +169,56 @@ namespace Buffer{
     sigemptyset (&new_action.sa_mask);
     new_action.sa_flags = 0;
     sigaction (SIGPIPE, &new_action, NULL);
+    sigaction (SIGKILL, &new_action, NULL);
 
     //then check and parse the commandline
-    if (argc < 3) {
-      std::cout << "usage: " << argv[0] << " buffers_count streamname [awaiting_IP]" << std::endl;
+    if (argc < 2) {
+      std::cout << "usage: " << argv[0] << " streamName [awaiting_IP]" << std::endl;
       return 1;
     }
-    std::string waiting_ip = "";
+    std::string name = argv[1];
     bool ip_waiting = false;
-    Socket::Connection ip_input;
+    std::string waiting_ip;
     if (argc >= 4){
-      waiting_ip += argv[3];
+      waiting_ip += argv[2];
       ip_waiting = true;
     }
-    std::string shared_socket = "/tmp/shared_socket_";
-    shared_socket += argv[2];
 
-    Socket::Server SS(shared_socket, true);
-    FLV::Tag metadata;
-    FLV::Tag video_init;
-    FLV::Tag audio_init;
-    int buffers = atoi(argv[1]);
-    buffer ** ringbuf = (buffer**) calloc (buffers,sizeof(buffer*));
-    std::vector<user> users;
-    std::vector<user>::iterator usersIt;
-    for (int i = 0; i < buffers; ++i) ringbuf[i] = new buffer;
-    int current_buffer = 0;
-    int lastproper = 0;//last properly finished buffer number
-    unsigned int loopcount = 0;
-    unsigned int stattimer = 0;
+    SS = Socket::makeStream(name);
+    thisStream = Stream::get();
+    thisStream->setName(name);
+    if (ip_waiting){
+      thisStream->setWaitingIP(waiting_ip);
+    }
     Socket::Connection incoming;
     Socket::Connection std_input(fileno(stdin));
-    Socket::Connection StatsSocket = Socket::Connection("/tmp/ddv_statistics", true);
 
-    Storage["log"] = Json::Value(Json::objectValue);
-    Storage["curr"] = Json::Value(Json::objectValue);
-    Storage["totals"] = Json::Value(Json::objectValue);
-    
-    unsigned char packtype;
-    bool gotVideoInfo = false;
-    bool gotAudioInfo = false;
-    bool gotData = false;
+    tthread::thread StatsThread = tthread::thread(handleStats, 0);
+    tthread::thread * StdinThread = 0;
+    if (!ip_waiting){
+      StdinThread = new tthread::thread(handleStdin, 0);
+    }else{
+      StdinThread = new tthread::thread(handlePushin, 0);
+    }
 
-    while((!feof(stdin) || ip_waiting) && !FLV::Parse_Error){
-      usleep(1000); //sleep for 1 ms, to prevent 100% CPU time
-      unsigned int now = time(0);
-      if (now != stattimer){
-        stattimer = now;
-        unsigned int tot_up = 0, tot_down = 0, tot_count = 0;
-        if (users.size() > 0){
-          for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-            tot_down += usersIt->curr_down;
-            tot_up += usersIt->curr_up;
-            tot_count++;
-          }
-        }
-        Storage["totals"]["down"] = tot_down;
-        Storage["totals"]["up"] = tot_up;
-        Storage["totals"]["count"] = tot_count;
-        Storage["totals"]["now"] = now;
-        Storage["totals"]["buffer"] = argv[2];
-        if (!StatsSocket.connected()){
-          StatsSocket = Socket::Connection("/tmp/ddv_statistics", true);
-        }
-        if (StatsSocket.connected()){
-          StatsSocket.write(Storage.toStyledString()+"\n\n");
-          Storage["log"].clear();
-        }
-      }
-      //invalidate the current buffer
-      ringbuf[current_buffer]->number = -1;
-      if (
-          (!ip_waiting &&
-              (std_input.canRead()) && ringbuf[current_buffer]->FLV.FileLoader(stdin)
-          ) || (ip_waiting && (ip_input.connected()) &&
-              ringbuf[current_buffer]->FLV.SockLoader(ip_input)
-          )
-      ){
-        loopcount++;
-        packtype = ringbuf[current_buffer]->FLV.data[0];
-        //store metadata, if available
-        if (packtype == 0x12){
-          metadata = ringbuf[current_buffer]->FLV;
-          std::cout << "Received metadata!" << std::endl;
-          if (gotVideoInfo && gotAudioInfo){
-            FLV::Parse_Error = true;
-            std::cout << "... after proper video and audio? Cancelling broadcast!" << std::endl;
-          }
-          gotVideoInfo = false;
-          gotAudioInfo = false;
-        }
-        //store video init data, if available
-        if (!gotVideoInfo && ringbuf[current_buffer]->FLV.isKeyframe){
-          if ((ringbuf[current_buffer]->FLV.data[11] & 0x0f) == 7){//avc packet
-            if (ringbuf[current_buffer]->FLV.data[12] == 0){
-              ringbuf[current_buffer]->FLV.tagTime(0);//timestamp to zero
-              video_init = ringbuf[current_buffer]->FLV;
-              gotVideoInfo = true;
-              std::cout << "Received video configuration!" << std::endl;
-            }
-          }else{gotVideoInfo = true;}//non-avc = no config...
-        }
-        //store audio init data, if available
-        if (!gotAudioInfo && (packtype == 0x08)){
-          if (((ringbuf[current_buffer]->FLV.data[11] & 0xf0) >> 4) == 10){//aac packet
-            ringbuf[current_buffer]->FLV.tagTime(0);//timestamp to zero
-            audio_init = ringbuf[current_buffer]->FLV;
-            gotAudioInfo = true;
-            std::cout << "Received audio configuration!" << std::endl;
-          }else{gotAudioInfo = true;}//no aac = no config...
-        }
-        //on keyframe set possible start point
-        if (packtype == 0x09){
-          if (((ringbuf[current_buffer]->FLV.data[11] & 0xf0) >> 4) == 1){
-            lastproper = current_buffer;
-          }
-        }
-        if (loopcount > 5){gotData = true;}
-        //keep track of buffers
-        ringbuf[current_buffer]->number = loopcount;
-        current_buffer++;
-        current_buffer %= buffers;
-      }
-
+    while (buffer_running && SS.connected()){
       //check for new connections, accept them if there are any
-      incoming = SS.accept(true);
+      //starts a thread for every accepted connection
+      incoming = SS.accept(false);
       if (incoming.connected()){
-        users.push_back(incoming);
-        //send the FLV header
-        users.back().currsend = 0;
-        users.back().MyBuffer = lastproper;
-        users.back().MyBuffer_num = -1;
-        /// \todo Do this more nicely?
-        if (gotData){
-          if (!users.back().S.write(FLV::Header, 13)){
-            users.back().Disconnect("failed to receive the header!");
-          }else{
-            if (metadata.len > 0){
-              if (!users.back().S.write(metadata.data, metadata.len)){
-                users.back().Disconnect("failed to receive metadata!");
-              }
-            }
-            if (audio_init.len > 0){
-              if (!users.back().S.write(audio_init.data, audio_init.len)){
-                users.back().Disconnect("failed to receive audio init!");
-              }
-            }
-            if (video_init.len > 0){
-              if (!users.back().S.write(video_init.data, video_init.len)){
-                users.back().Disconnect("failed to receive video init!");
-              }
-            }
-          }
-        }
-      }
-
-      //go through all users
-      if (users.size() > 0){
-        for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-          //remove disconnected users
-          if (!(*usersIt).S.connected()){
-            (*usersIt).Disconnect("Closed");
-            users.erase(usersIt); break;
-          }else{
-            if ((*usersIt).S.canRead()){
-              std::string tmp = "";
-              char charbuf;
-              while (((*usersIt).S.iread(&charbuf, 1) == 1) && charbuf != '\n' ){
-                tmp += charbuf;
-              }
-              if (tmp != ""){
-                if (tmp[0] == 'P'){
-                  std::cout << "Push attempt from IP " << tmp.substr(2) << std::endl;
-                  if (tmp.substr(2) == waiting_ip || tmp.substr(2) == "::ffff:"+waiting_ip){
-                    if (!ip_input.connected()){
-                      std::cout << "Push accepted!" << std::endl;
-                      ip_input = (*usersIt).S;
-                      users.erase(usersIt);
-                      break;
-                    }else{
-                      (*usersIt).Disconnect("Push denied - push already in progress!");
-                    }
-                  }else{
-                    (*usersIt).Disconnect("Push denied - invalid IP address ("+waiting_ip+"!="+tmp.substr(2)+")!");
-                  }
-                }
-                if (tmp[0] == 'S'){
-                  Stats tmpStats = Stats(tmp.substr(2));
-                  unsigned int secs = tmpStats.conntime - (*usersIt).lastStats.conntime;
-                  if (secs < 1){secs = 1;}
-                  (*usersIt).curr_up = (tmpStats.up - (*usersIt).lastStats.up) / secs;
-                  (*usersIt).curr_down = (tmpStats.down - (*usersIt).lastStats.down) / secs;
-                  (*usersIt).lastStats = tmpStats;
-                  Storage["curr"][(*usersIt).MyStr]["connector"] = tmpStats.connector;
-                  Storage["curr"][(*usersIt).MyStr]["up"] = tmpStats.up;
-                  Storage["curr"][(*usersIt).MyStr]["down"] = tmpStats.down;
-                  Storage["curr"][(*usersIt).MyStr]["conntime"] = tmpStats.conntime;
-                  Storage["curr"][(*usersIt).MyStr]["host"] = tmpStats.host;
-                  Storage["curr"][(*usersIt).MyStr]["start"] = (unsigned int) time(0) - tmpStats.conntime;
-                }
-              }
-            }
-            (*usersIt).Send(ringbuf, buffers);
-          }
-        }
+        user * usr_ptr = new user(incoming);
+        thisStream->addUser(usr_ptr);
+        usr_ptr->Thread = new tthread::thread(handleUser, (void *)usr_ptr);
       }
     }//main loop
 
     // disconnect listener
-    if (FLV::Parse_Error){
-      std::cout << "FLV parse error:" << FLV::Error_Str << std::endl;
-    }else{
-      std::cout << "Reached EOF of input" << std::endl;
-    }
+    buffer_running = false;
+    std::cout << "End of input file - buffer shutting down" << std::endl;
     SS.close();
-    while (users.size() > 0){
-      for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-        (*usersIt).Disconnect("Shutting down...");
-        if (!(*usersIt).S.connected()){users.erase(usersIt);break;}
-      }
-    }
+    StatsThread.join();
+    StdinThread->join();
+    delete thisStream;
     return 0;
   }
 

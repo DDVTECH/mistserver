@@ -13,79 +13,23 @@
 #include <ctime>
 #include "../util/socket.h"
 #include "../util/http_parser.h"
+#include "../util/json.h"
 #include "../util/dtsc.h"
 #include "../util/flv_tag.h"
 #include "../util/MP4/interface.cpp"
+#include "../util/base64.h"
 #include "../util/amf.h"
 
 /// Holds everything unique to HTTP Connector.
 namespace Connector_HTTP{
 
   /// Defines the type of handler used to process this request.
-  enum {HANDLER_NONE, HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO};
+  enum {HANDLER_NONE, HANDLER_PROGRESSIVE, HANDLER_FLASH, HANDLER_APPLE, HANDLER_MICRO, HANDLER_JSCRIPT};
 
-  /// Needed for base64_encode function
-  static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-  /// Helper for base64_decode function
-  static inline bool is_base64(unsigned char c) {
-    return (isalnum(c) || (c == '+') || (c == '/'));
-  }
-
-  /// Used to base64 encode data. Input is the plaintext as std::string, output is the encoded data as std::string.
-  /// \param input Plaintext data to encode.
-  /// \returns Base64 encoded data.
-  std::string base64_encode(std::string const input) {
-    std::string ret;
-    unsigned int in_len = input.size();
-    char quad[4], triple[3];
-    unsigned int i, x, n = 3;
-    for (x = 0; x < in_len; x = x + 3){
-      if ((in_len - x) / 3 == 0){n = (in_len - x) % 3;}
-      for (i=0; i < 3; i++){triple[i] = '0';}
-      for (i=0; i < n; i++){triple[i] = input[x + i];}
-      quad[0] = base64_chars[(triple[0] & 0xFC) >> 2]; // FC = 11111100
-      quad[1] = base64_chars[((triple[0] & 0x03) << 4) | ((triple[1] & 0xF0) >> 4)]; // 03 = 11
-      quad[2] = base64_chars[((triple[1] & 0x0F) << 2) | ((triple[2] & 0xC0) >> 6)]; // 0F = 1111, C0=11110
-      quad[3] = base64_chars[triple[2] & 0x3F]; // 3F = 111111
-      if (n < 3){quad[3] = '=';}
-      if (n < 2){quad[2] = '=';}
-      for(i=0; i < 4; i++){ret += quad[i];}
-    }
-    return ret;
-  }//base64_encode
-
-  /// Used to base64 decode data. Input is the encoded data as std::string, output is the plaintext data as std::string.
-  /// \param input Base64 encoded data to decode.
-  /// \returns Plaintext decoded data.
-  std::string base64_decode(std::string const& encoded_string) {
-    int in_len = encoded_string.size();
-    int i = 0;
-    int j = 0;
-    int in_ = 0;
-    unsigned char char_array_4[4], char_array_3[3];
-    std::string ret;
-    while (in_len-- && ( encoded_string[in_] != '=') && is_base64(encoded_string[in_])) {
-      char_array_4[i++] = encoded_string[in_]; in_++;
-      if (i ==4) {
-        for (i = 0; i <4; i++){char_array_4[i] = base64_chars.find(char_array_4[i]);}
-        char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-        char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-        char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-        for (i = 0; (i < 3); i++){ret += char_array_3[i];}
-        i = 0;
-      }
-    }
-    if (i) {
-      for (j = i; j <4; j++){char_array_4[j] = 0;}
-      for (j = 0; j <4; j++){char_array_4[j] = base64_chars.find(char_array_4[j]);}
-      char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-      char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-      char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-      for (j = 0; (j < i - 1); j++) ret += char_array_3[j];
-    }
-    return ret;
-  }
+  std::queue<std::string> Flash_FragBuffer;///<Fragment buffer for F4V
+  DTSC::Stream Strm;///< Incoming stream buffer.
+  HTTP::Parser HTTP_R, HTTP_S;///<HTTP Receiver en HTTP Sender.
+  
 
   /// Returns AMF-format metadata for Adobe HTTP Dynamic Streaming.
   std::string GetMetaData( ) {
@@ -127,7 +71,7 @@ namespace Connector_HTTP{
   }//getMetaData
 
   /// Returns a F4M-format manifest file for Adobe HTTP Dynamic Streaming.
-  std::string BuildManifest( std::string MetaData, std::string MovieId, int CurrentMediaTime ) {
+  std::string BuildManifest(std::string MovieId) {
     Interface * temp = new Interface;
     std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n";
     Result += "<id>";
@@ -136,13 +80,13 @@ namespace Connector_HTTP{
     Result += "<streamType>live</streamType>\n";
     Result += "<deliveryType>streaming</deliveryType>\n";
     Result += "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">";
-    Result += base64_encode(temp->GenerateLiveBootstrap(1));
+    Result += Base64::encode(temp->GenerateLiveBootstrap(1));
     Result += "</bootstrapInfo>\n";
     Result += "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"";
     Result += MovieId;
     Result += "/\">\n";
     Result += "<metadata>";
-    Result += base64_encode(GetMetaData());
+    Result += Base64::encode(GetMetaData());
     Result += "</metadata>\n";
     Result += "</media>\n";
     Result += "</manifest>\n";
@@ -161,7 +105,7 @@ namespace Connector_HTTP{
       HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
       //HTTP_S.SendBodyPart(CONN_fd, FLVHeader, 13);//schrijf de FLV header
       conn.write(FLV::Header, 13);
-      FLV::Tag tmp;
+      static FLV::Tag tmp;
       tmp.DTSCMetaInit(Strm);
       conn.write(tmp.data, tmp.len);
       if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
@@ -182,65 +126,28 @@ namespace Connector_HTTP{
   }
 
   /// Handles Flash Dynamic HTTP streaming requests
-  void FlashDynamic(FLV::Tag & tag, HTTP::Parser HTTP_S, Socket::Connection & conn, DTSC::Stream & Strm){
-    static std::queue<std::string> Flash_FragBuffer;
-    static unsigned int Flash_StartTime = 0;
+  void FlashDynamic(FLV::Tag & tag, DTSC::Stream & Strm){
     static std::string FlashBuf;
-    static std::string FlashMeta;
-    static bool FlashFirstVideo = false;
-    static bool FlashFirstAudio = false;
-    static bool Flash_ManifestSent = false;
-    static int Flash_RequestPending = 0;
-    if (tag.tagTime() > 0){
-      if (Flash_StartTime == 0){
-        Flash_StartTime = tag.tagTime();
+    static FLV::Tag tmp;
+    if (Strm.getPacket(0).getContentP("keyframe")){
+      if (FlashBuf != ""){
+        Flash_FragBuffer.push(FlashBuf);
+        #if DEBUG >= 4
+        fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+        #endif
       }
-      tag.tagTime(tag.tagTime() - Flash_StartTime);
+      FlashBuf.clear();
+      //fill buffer with init data, if needed.
+      if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
+        tmp.DTSCAudioInit(Strm);
+        FlashBuf.append(tmp.data, tmp.len);
+      }
+      if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
+        tmp.DTSCVideoInit(Strm);
+        FlashBuf.append(tmp.data, tmp.len);
+      }
     }
-    if (tag.data[0] != 0x12 ) {
-      if (tag.isKeyframe){
-        if (FlashBuf != "" && !FlashFirstVideo && !FlashFirstAudio){
-          Flash_FragBuffer.push(FlashBuf);
-          #if DEBUG >= 4
-          fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
-          #endif
-        }
-        FlashBuf.clear();
-        FlashFirstVideo = true;
-        FlashFirstAudio = true;
-      }
-      /// \todo Check metadata for video/audio, append if needed.
-      /*
-      if (FlashFirstVideo && (tag.data[0] == 0x09) && (Video_Init.len > 0)){
-        Video_Init.tagTime(tag.tagTime());
-        FlashBuf.append(Video_Init.data, Video_Init.len);
-        FlashFirstVideo = false;
-      }
-      if (FlashFirstAudio && (tag.data[0] == 0x08) && (Audio_Init.len > 0)){
-        Audio_Init.tagTime(tag.tagTime());
-        FlashBuf.append(Audio_Init.data, Audio_Init.len);
-        FlashFirstAudio = false;
-      }
-      #if DEBUG >= 5
-      fprintf(stderr, "Received a tag of type %2hhu and length %i\n", tag.data[0], tag.len);
-      #endif
-      if ((Video_Init.len > 0) && (Audio_Init.len > 0)){
-        FlashBuf.append(tag.data,tag.len);
-      }
-      */
-    } else {
-      /*
-      FlashMeta = "";
-      FlashMeta.append(tag.data+11,tag.len-15);
-      if( !Flash_ManifestSent ) {
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type","text/xml");
-        HTTP_S.SetHeader("Cache-Control","no-cache");
-        HTTP_S.SetBody(BuildManifest(FlashMeta, Movie, tag.tagTime()));
-        HTTP_S.SendResponse(conn, "200", "OK");
-      }
-      */
-    }
+    FlashBuf.append(tag.data, tag.len);
   }
 
 
@@ -253,14 +160,14 @@ namespace Connector_HTTP{
     std::string streamname;
     FLV::Tag tag;///< Temporary tag buffer.
     std::string recBuffer = "";
-    DTSC::Stream Strm;///< Incoming stream buffer.
-    HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
     std::string Movie = "";
     std::string Quality = "";
     int Segment = -1;
     int ReqFragment = -1;
     int temp;
+    int Flash_RequestPending = 0;
+    bool Flash_ManifestSent = false;
     unsigned int lastStats = 0;
     //int CurrentFragment = -1; later herbruiken?
 
@@ -268,6 +175,7 @@ namespace Connector_HTTP{
       //only parse input if available or not yet init'ed
       if (HTTP_R.Read(conn, ready4data)){
         handler = HANDLER_PROGRESSIVE;
+        std::cout << "Received request: " << HTTP_R.url << std::endl;
         if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
         if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
         if (HTTP_R.url == "/crossdomain.xml"){
@@ -275,9 +183,31 @@ namespace Connector_HTTP{
           HTTP_S.Clean();
           HTTP_S.SetHeader("Content-Type", "text/xml");
           HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
-          HTTP_S.SendResponse(conn, "200", "OK");//geen SetBody = unknown length! Dat willen we hier.
+          HTTP_S.SendResponse(conn, "200", "OK");
           #if DEBUG >= 3
           printf("Sending crossdomain.xml file\n");
+          #endif
+        }
+        if (HTTP_R.url.substr(0, 7) == "/embed_" && HTTP_R.url.substr(HTTP_R.url.length() - 3, 3) == ".js"){
+          streamname = HTTP_R.url.substr(7, HTTP_R.url.length() - 10);
+          JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
+          std::string response;
+          handler = HANDLER_NONE;
+          HTTP_S.Clean();
+          HTTP_S.SetHeader("Content-Type", "application/javascript");
+          response = "// Generating embed code for stream " + streamname + "\n\n";
+          if (ServConf["streams"].isMember(streamname)){
+            std::string streamurl = "http://" + HTTP_S.GetHeader("Host") + "/" + streamname + ".flv";
+            response += "// Stream URL: " + streamurl + "\n\n";
+            response += "document.write('<object width=\"600\" height=\"409\"><param name=\"movie\" value=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\"></param><param name=\"flashvars\" value=\"src="+HTTP::Parser::urlencode(streamurl)+"&controlBarMode=floating\"></param><param name=\"allowFullScreen\" value=\"true\"></param><param name=\"allowscriptaccess\" value=\"always\"></param><embed src=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\" type=\"application/x-shockwave-flash\" allowscriptaccess=\"always\" allowfullscreen=\"true\" width=\"600\" height=\"409\" flashvars=\"src="+HTTP::Parser::urlencode(streamurl)+"&controlBarMode=floating\"></embed></object>');\n";
+          }else{
+            response += "// Stream not available at this server.\nalert(\"This stream is currently not available at this server.\\\\nPlease try again later!\");";
+          }
+          response += "";
+          HTTP_S.SetBody(response);
+          HTTP_S.SendResponse(conn, "200", "OK");
+          #if DEBUG >= 3
+          printf("Sending embed code for %s\n", streamname.c_str());
           #endif
         }
         if (handler == HANDLER_FLASH){
@@ -294,43 +224,36 @@ namespace Connector_HTTP{
             printf( "URL: %s\n", HTTP_R.url.c_str());
             printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
             #endif
-            /// \todo Handle these requests properly...
-            /*
-            Flash_ManifestSent = true;//stop manifest from being sent multiple times
             Flash_RequestPending++;
-            */
           }else{
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
           }
-          streamname = "/tmp/shared_socket_";
-          for (std::string::iterator i=Movie.end()-1; i>=Movie.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
-              Movie.erase(i);
-            }else{
-              *i=tolower(*i);
-            }//strip nonalphanumeric
+          streamname = Movie;
+          if( !Flash_ManifestSent ) {
+            HTTP_S.Clean();
+            HTTP_S.SetHeader("Content-Type","text/xml");
+            HTTP_S.SetHeader("Cache-Control","no-cache");
+            HTTP_S.SetBody(BuildManifest(Movie));
+            HTTP_S.SendResponse(conn, "200", "OK");
+            Flash_ManifestSent = true;//stop manifest from being sent multiple times
+            std::cout << "Sent manifest" << std::endl;
           }
-          streamname += Movie;
           ready4data = true;
         }//FLASH handler
         if (handler == HANDLER_PROGRESSIVE){
-          //in het geval progressive nemen we aan dat de URL de streamname is, met .flv erachter
-          extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
-          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip de .flv
-          for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-            if (!isalpha(*i) && !isdigit(*i) && *i != '_'){streamname.erase(i);}else{*i=tolower(*i);}//strip nonalphanumeric
-          }
-          streamname = "/tmp/shared_socket_" + streamname;//dit is dan onze shared_socket
-          //normaal zouden we ook een position uitlezen uit de URL, maar bij LIVE streams is dat zinloos
+          //we assume the URL is the stream name with a 3 letter extension
+          std::string extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
+          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
+          /// \todo VoD streams will need support for position reading from the URL parameters
           ready4data = true;
         }//PROGRESSIVE handler
-        HTTP_R.CleanForNext(); //maak schoon na verwerken voor eventuele volgende requests...
+        HTTP_R.CleanForNext(); //clean for any possinble next requests
       }
       if (ready4data){
         if (!inited){
           //we are ready, connect the socket!
-          ss = Socket::Connection(streamname);
+          ss = Socket::getStream(streamname);
           if (!ss.connected()){
             #if DEBUG >= 1
             fprintf(stderr, "Could not connect to server!\n");
@@ -343,8 +266,6 @@ namespace Connector_HTTP{
           #endif
           inited = true;
         }
-        /// \todo Send pending flash requests...
-        /*
         if ((Flash_RequestPending > 0) && !Flash_FragBuffer.empty()){
           HTTP_S.Clean();
           HTTP_S.SetHeader("Content-Type","video/mp4");
@@ -364,28 +285,17 @@ namespace Connector_HTTP{
             ss.write(stat);
           }
         }
-        ss.canRead();
-        switch (ss.ready()){
-          case -1:
-            conn.close();
-            #if DEBUG >= 1
-            fprintf(stderr, "Source socket is disconnected.\n");
-            #endif
-            break;
-          case 0: break;//not ready yet
-          default:
-            if (ss.iread(recBuffer)){
-              if (Strm.parsePacket(recBuffer)){
-                tag.DTSCLoader(Strm);
-                if (handler == HANDLER_FLASH){
-                  FlashDynamic(tag, HTTP_S, conn, Strm);
-                }
-                if (handler == HANDLER_PROGRESSIVE){
-                  Progressive(tag, HTTP_S, conn, Strm);
-                }
-              }
+        if (ss.canRead()){
+          ss.spool();
+          if (Strm.parsePacket(ss.Received())){
+            tag.DTSCLoader(Strm);
+            if (handler == HANDLER_FLASH){
+              FlashDynamic(tag, Strm);
             }
-            break;
+            if (handler == HANDLER_PROGRESSIVE){
+              Progressive(tag, HTTP_S, conn, Strm);
+            }
+          }
         }
       }
     }

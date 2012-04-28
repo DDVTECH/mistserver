@@ -1,4 +1,4 @@
-SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/util.cpp
+SRC = main.cpp ../util/socket.cpp ../util/http_parser.cpp ../util/flv_tag.cpp ../util/amf.cpp ../util/util.cpp ../util/dtsc.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = Connector_RTSP
 INCLUDES = $(shell pkg-config --cflags jrtplib)

@@ -22,7 +22,7 @@ int main(int argc, char  ** argv) {
   }
   //transport ~50kb at a time
   //this is a nice tradeoff between CPU usage and speed
-  char buffer[50000];
+  const char buffer[50000] = {0};
   while(std::cout.good() && S.read(buffer,50000)){std::cout.write(buffer,50000);}
   S.close();
   return 0;

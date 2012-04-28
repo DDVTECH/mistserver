@@ -15,14 +15,8 @@
 #endif
 
 
-#ifndef CONFIGSECT
-  /// Configuration file section for this server.
-  #define CONFIGSECT None
-  #error "No configuration file section was set!"
-#endif
-
 #include "socket.h" //Socket library
-#include "util.h" //utilities for process spawning and config management
+#include "config.h" //utilities for config management
 #include <signal.h>
 #include <sys/types.h>
 #include <pwd.h>
@@ -83,10 +77,8 @@ int main(int argc, char ** argv){
 
   //set and parse configuration
   Util::Config C;
-  C.confsection = TOSTRING(CONFIGSECT);
   C.listen_port = DEFAULT_PORT;
   C.parseArgs(argc, argv);
-  C.parseFile();
 
   //setup a new server socket, for the correct interface and port
   server_socket = Socket::Server(C.listen_port, C.interface);

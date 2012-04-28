@@ -62,6 +62,7 @@ namespace DTSC{
     std::string & StrValue();
     const char * Str();
     int hasContent();
+    bool isEmpty();
     void addContent(DTMI c);
     DTMI* getContentP(int i);
     DTMI getContent(int i);
@@ -106,9 +107,9 @@ namespace DTSC{
   class Ring {
     public:
       Ring(unsigned int v);
-      unsigned int b; ///< Holds current number of buffer. May and is intended to change unexpectedly!
-      bool waiting; ///< If true, this Ring is currently waiting for a buffer fill.
-      bool starved; ///< If true, this Ring can no longer receive valid data.
+      volatile unsigned int b; ///< Holds current number of buffer. May and is intended to change unexpectedly!
+      volatile bool waiting; ///< If true, this Ring is currently waiting for a buffer fill.
+      volatile bool starved; ///< If true, this Ring can no longer receive valid data.
   };
 
   /// Holds temporary data for a DTSC stream and provides functions to utilize it.
@@ -129,6 +130,7 @@ namespace DTSC{
       std::string & outPacket(unsigned int num);
       std::string & outHeader();
       Ring * getRing();
+      unsigned int getTime();
       void dropRing(Ring * ptr);
   private:
       std::deque<DTSC::DTMI> buffers;

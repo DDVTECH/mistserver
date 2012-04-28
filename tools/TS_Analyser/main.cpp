@@ -347,7 +347,7 @@ void print_pmt( program_mapping_table PMT, bool Pointer_Field = false, std::stri
     printf( "%s\t\tReserved\t\t%d\n", offset.c_str(), PMT.Entries[i].Reserved_2 );
     printf( "%s\t\tES Info Length\t\t%d\n", offset.c_str(), PMT.Entries[i].ES_Info_Length );
   }
-  printf( "%s\tCRC 32\t\t%X\n", offset.c_str(), PMT.CRC_32 );
+  printf( "%s\tCRC 32\t\t%8X\n", offset.c_str(), PMT.CRC_32 );
 }
 
 /// Fills an AF structure with the right data

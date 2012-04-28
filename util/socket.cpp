@@ -3,6 +3,7 @@
 /// Written by Jaron Vietor in 2010 for DDVTech
 
 #include "socket.h"
+#include <sys/stat.h>
 #include <poll.h>
 #include <netdb.h>
 #include <sstream>
@@ -222,9 +223,10 @@ std::string Socket::Connection::getStats(std::string C){
 }
 
 /// Updates the downbuffer and upbuffer internal variables.
-void Socket::Connection::spool(){
-  iread(downbuffer);
+/// Returns true if new data was received, false otherwise.
+bool Socket::Connection::spool(){
   iwrite(upbuffer);
+  return iread(downbuffer);
 }
 
 /// Returns a reference to the download buffer.
@@ -452,7 +454,7 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET6, SOCK_STREAM, 0);
   if (sock < 0){
     #if DEBUG >= 1
-    fprintf(stderr, "Could not create socket! Error: %s\n", strerror(errno));
+    fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
     #endif
     return;
   }
@@ -466,7 +468,7 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
   struct sockaddr_in6 addr;
   addr.sin6_family = AF_INET6;
   addr.sin6_port = htons(port);//set port
-  if (hostname == "0.0.0.0"){
+  if (hostname == "0.0.0.0" || hostname.length() == 0){
     addr.sin6_addr = in6addr_any;
   }else{
     inet_pton(AF_INET6, hostname.c_str(), &addr.sin6_addr);//set interface, 0.0.0.0 (default) is all
@@ -485,14 +487,14 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
     }
   }else{
     #if DEBUG >= 1
-    fprintf(stderr, "Binding failed, retrying as IPv4... (%s)\n", strerror(errno));
+    fprintf(stderr, "Binding %s:%i failed, retrying as IPv4... (%s)\n", hostname.c_str(), port, strerror(errno));
     #endif
     close();
   }
   sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock < 0){
     #if DEBUG >= 1
-    fprintf(stderr, "Could not create socket! Error: %s\n", strerror(errno));
+    fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
     #endif
     return;
   }
@@ -506,7 +508,7 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
   struct sockaddr_in addr4;
   addr4.sin_family = AF_INET;
   addr4.sin_port = htons(port);//set port
-  if (hostname == "0.0.0.0"){
+  if (hostname == "0.0.0.0" || hostname.length() == 0){
     addr4.sin_addr.s_addr = INADDR_ANY;
   }else{
     inet_pton(AF_INET, hostname.c_str(), &addr4.sin_addr);//set interface, 0.0.0.0 (default) is all
@@ -525,7 +527,7 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
     }
   }else{
     #if DEBUG >= 1
-    fprintf(stderr, "IPv4 binding also failed, giving up. (%s)\n", strerror(errno));
+    fprintf(stderr, "IPv4 binding %s:%i also failed, giving up. (%s)\n", hostname.c_str(), port, strerror(errno));
     #endif
     close();
     return;
@@ -646,3 +648,43 @@ bool Socket::Server::connected(){
 
 /// Returns internal socket number.
 int Socket::Server::getSocket(){return sock;}
+
+/// Connect to a stream on the system.
+/// Filters the streamname, removing invalid characters and
+/// converting all letters to lowercase.
+/// If a '?' character is found, everything following that character is deleted.
+Socket::Connection Socket::getStream(std::string streamname){
+  //strip anything that isn't numbers, digits or underscores
+  for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+    if (*i == '?'){streamname.erase(i, streamname.end()); break;}
+    if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
+      streamname.erase(i);
+    }else{
+      *i=tolower(*i);
+    }
+  }
+  return Socket::Connection("/tmp/mist/stream_"+streamname);
+}
+
+/// Create a stream on the system.
+/// Filters the streamname, removing invalid characters and
+/// converting all letters to lowercase.
+/// If a '?' character is found, everything following that character is deleted.
+/// If the /tmp/ddvtech directory doesn't exist yet, this will create it.
+Socket::Server Socket::makeStream(std::string streamname){
+  //strip anything that isn't numbers, digits or underscores
+  for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
+    if (*i == '?'){streamname.erase(i, streamname.end()); break;}
+    if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
+      streamname.erase(i);
+    }else{
+      *i=tolower(*i);
+    }
+  }
+  std::string loc = "/tmp/mist/stream_"+streamname;
+  //attempt to create the /tmp/mist directory if it doesn't exist already.
+  //ignore errors - we catch all problems in the Socket::Server creation already
+  mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO);
+  //create and return the Socket::Server
+  return Socket::Server(loc);
+}

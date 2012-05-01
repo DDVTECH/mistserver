@@ -68,6 +68,16 @@ std::string JSON::Value::string_escape(std::string val){
   return out;
 }
 
+/// Skips an std::istream forward until any of the following characters is seen: ,]}
+void JSON::Value::skipToEnd(std::istream & fromstream){
+  while (fromstream.good()){
+    char peek = fromstream.peek();
+    if (peek == ','){return;}
+    if (peek == ']'){return;}
+    if (peek == '}'){return;}
+    peek = fromstream.get();
+  }
+}
 
 /// Sets this JSON::Value to null;
 JSON::Value::Value(){
@@ -78,14 +88,12 @@ JSON::Value::Value(){
 JSON::Value::Value(std::istream & fromstream){
   null();
   bool reading_object = false;
-  bool reading_obj_name = false;
   bool reading_array = false;
   while (fromstream.good()){
     int c = fromstream.peek();
     switch (c){
       case '{':
         reading_object = true;
-        reading_obj_name = true;
         c = fromstream.get();
         myType = OBJECT;
         break;
@@ -98,7 +106,7 @@ JSON::Value::Value(std::istream & fromstream){
       case '\'':
       case '"':
         c = fromstream.get();
-        if (!reading_object || !reading_obj_name){
+        if (!reading_object){
           myType = STRING;
           strVal = read_string(c, fromstream);
           return;
@@ -125,9 +133,7 @@ JSON::Value::Value(std::istream & fromstream){
       case ',':
         if (!reading_object && !reading_array) return;
         c = fromstream.get();
-        if (reading_object){
-          reading_obj_name = true;
-        }else{
+        if (reading_array){
           append(JSON::Value(fromstream));
         }
         break;
@@ -141,18 +147,21 @@ JSON::Value::Value(std::istream & fromstream){
         break;
       case 't':
       case 'T':
+        skipToEnd(fromstream);
         myType = BOOL;
         intVal = 1;
         return;
         break;
       case 'f':
       case 'F':
+        skipToEnd(fromstream);
         myType = BOOL;
         intVal = 0;
         return;
         break;
       case 'n':
       case 'N':
+        skipToEnd(fromstream);
         myType = EMPTY;
         return;
         break;
@@ -427,10 +436,9 @@ JSON::Value JSON::fromString(std::string json){
 
 /// Converts a file to a JSON::Value.
 JSON::Value JSON::fromFile(std::string filename){
-  std::string Result;
   std::ifstream File;
   File.open(filename.c_str());
-  while (File.good()){Result += File.get();}
-  File.close( );
-  return fromString(Result);
+  JSON::Value ret(File);
+  File.close();
+  return ret;
 }

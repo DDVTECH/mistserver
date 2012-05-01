@@ -613,7 +613,7 @@ td
                 }
              });
 
-         //console.log('SEND', data);
+         console.log('SEND', data);
 
          $.ajax(
          {
@@ -623,7 +623,9 @@ td
                "command": JSON.stringify(data)
             },
             'dataType': 'jsonp',
-            'timeout': 10000,
+
+            'timeout': 5000,
+
             'error': function()
             {
                //setHeaderState('disconnected');
@@ -631,7 +633,7 @@ td
             },
             'success': function(d)
             {
-               //console.log('RECV', d);
+               console.log('RECV', d);
 
                if(d && d['authorize'] && d['authorize']['challenge'])
                {
@@ -1110,13 +1112,20 @@ settings.settings.config.protocols = [fobj1, fobj2, fobj3];
 
 
                   var cviewers = 0;
-                  if(settings.settings.statistics[stream] && settings.settings.statistics[stream].curr)
+
+                  if(settings.settings.statistics && settings.settings.statistics[stream])
                   {
-                     for(viewer in settings.settings.statistics[stream].curr)
+                     if(settings.settings.statistics[stream] && settings.settings.statistics[stream].curr)
                      {
-                        cviewers++;
+                        for(viewer in settings.settings.statistics[stream].curr)
+                        {
+                           cviewers++;
+                        }
                      }
+                  }else{
+                     cviewers = 0;
                   }
+
                   $tr.append( $('<td>').text( cviewers ) );
 
 

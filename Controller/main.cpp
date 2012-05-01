@@ -222,19 +222,24 @@ void startStream(std::string name, JSON::Value & data){
   Log("BUFF", "(re)starting stream buffer "+name);
   std::string URL = data["channel"]["URL"];
   std::string preset = data["preset"]["cmd"];
-  std::string cmd1, cmd2;
+  std::string cmd1, cmd2, cmd3;
   if (URL.substr(0, 4) == "push"){
     std::string pusher = URL.substr(7);
     cmd2 = "MistBuffer "+name+" "+pusher;
     Util::Procs::Start(name, cmd2);
   }else{
-    if (preset == "" || preset == "copy"){
+    if (URL.substr(0, 1) == "/"){
       cmd1 = "cat "+URL;
     }else{
       cmd1 = "ffmpeg -re -async 2 -i "+URL+" "+preset+" -f flv -";
+      cmd2 = "MistFLV2DTSC";
     }
-    cmd2 = "MistBuffer 500 "+name;
-    Util::Procs::Start(name, cmd1, cmd2);
+    cmd3 = "MistBuffer 500 "+name;
+    if (cmd2 != ""){
+      Util::Procs::Start(name, cmd1, cmd2, cmd3);
+    }else{
+      Util::Procs::Start(name, cmd1, cmd3);
+    }
   }
 }
 

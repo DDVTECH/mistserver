@@ -10,6 +10,7 @@ client-debug: prepare
 	cd Connector_RAW; $(MAKE)
 	cd Buffer; $(MAKE)
 	cd Controller; $(MAKE)
+	cd tools/FLV2DTSC;  $(MAKE)
 client: client-debug
 client-clean:
 	cd Connector_HTTP; $(MAKE) clean
@@ -17,6 +18,7 @@ client-clean:
 	cd Connector_RAW; $(MAKE) clean
 	cd Buffer; $(MAKE) clean
 	cd Controller; $(MAKE) clean
+	cd tools/FLV2DTSC;  $(MAKE) clean
 clean: client-clean
 	rm -rf ./bin
 client-release: prepare
@@ -25,6 +27,7 @@ client-release: prepare
 	cd Connector_RAW; $(MAKE) DEBUG=0 OPTIMIZE=-O2
 	cd Buffer; $(MAKE) DEBUG=0 OPTIMIZE=-O2
 	cd Controller; $(MAKE) DEBUG=0 OPTIMIZE=-O2
+	cd tools/FLV2DTSC;  $(MAKE) DEBUG=0 OPTIMIZE=-O2
 release: client-release
 release-install: client-clean client-release
 	cp ./bin/Mist* /usr/bin/
@@ -33,4 +36,3 @@ debug-install: client-clean client-debug
 install: debug-install
 docs:
 	doxygen ./Doxyfile > /dev/null
-

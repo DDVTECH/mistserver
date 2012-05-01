@@ -18,6 +18,7 @@ namespace Util{
     public:
       static pid_t Start(std::string name, std::string cmd);
       static pid_t Start(std::string name, std::string cmd, std::string cmd2);
+      static pid_t Start(std::string name, std::string cmd, std::string cmd2, std::string cmd3);
       static void Stop(std::string name);
       static void Stop(pid_t name);
       static void StopAll();

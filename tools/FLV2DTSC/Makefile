@@ -1,6 +1,6 @@
 SRC = main.cpp ../../util/flv_tag.cpp ../../util/dtsc.cpp ../../util/amf.cpp ../../util/socket.cpp
 OBJ = $(SRC:.cpp=.o)
-OUT = DDV_FLV2DTSC
+OUT = MistFLV2DTSC
 INCLUDES = 
 DEBUG = 4
 OPTIMIZE = -g
@@ -15,9 +15,6 @@ default: $(OUT)
 .cpp.o:
 	$(CC) $(INCLUDES) $(CCFLAGS) $(LIBS) -c $< -o $@
 $(OUT): $(OBJ)
-	$(CC) $(LIBS) -o $(OUT) $(OBJ)
+	$(CC) $(LIBS) -o ../../bin/$(OUT) $(OBJ)
 clean:
-	rm -rf $(OBJ) $(OUT) Makefile.bak *~
-install: $(OUT)
-	cp -f ./$(OUT) /usr/bin/
-
+	rm -rf $(OBJ) ../../bin/$(OUT) Makefile.bak *~

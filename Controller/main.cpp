@@ -138,15 +138,17 @@ void CheckProtocols(JSON::Value & p){
 
   //collect object type
   for (JSON::ObjIter jit = p.ObjBegin(); jit != p.ObjEnd(); jit++){
+    if (!jit->second.isMember("connector") || ((std::string)jit->second["connector"]) == ""){continue;}
+    if (!jit->second.isMember("port") || ((long long int)jit->second["port"]) == 0){continue;}
     tmp = "MistConn";
     tmp += (std::string)jit->second["connector"];
     tmp += " -n -p ";
     tmp += (std::string)jit->second["port"];
-    if (jit->second.isMember("interface")){
+    if (jit->second.isMember("interface") && ((std::string)jit->second["interface"]) != "" && ((std::string)jit->second["interface"]) != "0.0.0.0"){
       tmp += " -i ";
       tmp += (std::string)jit->second["interface"];
     }
-    if (jit->second.isMember("username")){
+    if (jit->second.isMember("username") && ((std::string)jit->second["username"]) != "" && ((std::string)jit->second["username"]) != "root"){
       tmp += " -u ";
       tmp += (std::string)jit->second["username"];
     }
@@ -155,15 +157,17 @@ void CheckProtocols(JSON::Value & p){
   }
   //collect array type
   for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
+    if (!(*ait).isMember("connector") || ((std::string)(*ait)["connector"]) == ""){continue;}
+    if (!(*ait).isMember("port") || ((long long int)(*ait)["port"]) == 0){continue;}
     tmp = "MistConn";
     tmp += (std::string)(*ait)["connector"];
     tmp += " -n -p ";
     tmp += (std::string)(*ait)["port"];
-    if ((*ait).isMember("interface")){
+    if ((*ait).isMember("interface") && ((std::string)(*ait)["interface"]) != "" && ((std::string)(*ait)["interface"]) != "0.0.0.0"){
       tmp += " -i ";
       tmp += (std::string)(*ait)["interface"];
     }
-    if ((*ait).isMember("username")){
+    if ((*ait).isMember("username") && ((std::string)(*ait)["username"]) != "" && ((std::string)(*ait)["username"]) != "root"){
       tmp += " -u ";
       tmp += (std::string)(*ait)["username"];
     }

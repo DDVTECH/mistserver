@@ -225,10 +225,10 @@ void startStream(std::string name, JSON::Value & data){
   std::string cmd1, cmd2;
   if (URL.substr(0, 4) == "push"){
     std::string pusher = URL.substr(7);
-    cmd2 = "MistBuffer 500 "+name+" "+pusher;
+    cmd2 = "MistBuffer "+name+" "+pusher;
     Util::Procs::Start(name, cmd2);
   }else{
-    if (preset == ""){
+    if (preset == "" || preset == "copy"){
       cmd1 = "cat "+URL;
     }else{
       cmd1 = "ffmpeg -re -async 2 -i "+URL+" "+preset+" -f flv -";

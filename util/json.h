@@ -27,6 +27,7 @@ namespace JSON{
       std::string read_string(int separator, std::istream & fromstream);
       std::string string_escape(std::string val);
       int c2hex(int c);
+      static void skipToEnd(std::istream & fromstream);
     public:
       //constructors
       Value();

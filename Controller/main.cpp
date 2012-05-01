@@ -109,16 +109,7 @@ void Authorize( JSON::Value & Request, JSON::Value & Response, ConnectedUser & c
   if( Request.isMember( "authorize" ) ) {
     std::string UserID = Request["authorize"]["username"];
     if (Storage["account"].isMember(UserID)){
-      if( md5( (std::string)Storage["account"][UserID]["password"] + Challenge ) == (std::string)Request["authorize"]["password"] ) {
-        Response["authorize"]["status"] = "OK";
-        conn.Username = UserID;
-        conn.Authorized = true;
-        return;
-      }
-    }
-    if (Storage["authorize"].isMember("key")){
-      UserID = "gearbox";
-      if (keychecker.PubKey_Check(Challenge, Storage["authorize"]["key"])){
+      if( md5( (std::string)(Storage["account"][UserID]["password"]) + Challenge ) == (std::string)Request["authorize"]["password"] ) {
         Response["authorize"]["status"] = "OK";
         conn.Username = UserID;
         conn.Authorized = true;

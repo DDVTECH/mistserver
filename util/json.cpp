@@ -321,9 +321,11 @@ std::string JSON::Value::toString(){
     }
     case ARRAY: {
       std::string tmp = "[";
-      for (ArrIter it = ArrBegin(); it != ArrEnd(); it++){
-        tmp += it->toString();
-        if (it + 1 != ArrEnd()){tmp += ",";}
+      if (arrVal.size() > 0){
+        for (ArrIter it = ArrBegin(); it != ArrEnd(); it++){
+          tmp += it->toString();
+          if (it + 1 != ArrEnd()){tmp += ",";}
+        }
       }
       tmp += "]";
       return tmp;
@@ -331,12 +333,14 @@ std::string JSON::Value::toString(){
     }
     case OBJECT: {
       std::string tmp2 = "{";
-      ObjIter it3 = ObjEnd();
-      --it3;
-      for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
-        tmp2 += "\"" + it2->first + "\":";
-        tmp2 += it2->second.toString();
-        if (it2 != it3){tmp2 += ",";}
+      if (objVal.size() > 0){
+        ObjIter it3 = ObjEnd();
+        --it3;
+        for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
+          tmp2 += "\"" + it2->first + "\":";
+          tmp2 += it2->second.toString();
+          if (it2 != it3){tmp2 += ",";}
+        }
       }
       tmp2 += "}";
       return tmp2;

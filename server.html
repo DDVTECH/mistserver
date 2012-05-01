@@ -909,7 +909,7 @@ settings.settings.config.protocols = [fobj1, fobj2, fobj3];
                $tbody = $('<tbody>');
 
                var tr, i, protocol,
-                   len = settings.settings.config.protocols.length;
+                   len = (settings.settings.config.protocols ? settings.settings.config.protocols.length : 0);
 
                // remove old stuff
                $tbody.html('');

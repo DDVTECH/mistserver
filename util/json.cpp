@@ -3,6 +3,7 @@
 #include "json.h"
 #include <sstream>
 #include <fstream>
+#include <stdlib.h>
 
 int JSON::Value::c2hex(int c){
   if (c >= '0' && c <= '9') return c - '0';
@@ -252,9 +253,15 @@ JSON::Value & JSON::Value::operator=(const unsigned int &rhs){
   return ((*this) = (long long int)rhs);
 }
 
-/// Automatic conversion to long long int - returns 0 if not an integer type.
+/// Automatic conversion to long long int - returns 0 if not convertable.
 JSON::Value::operator long long int(){
-  return intVal;
+  if (myType == INTEGER){
+    return intVal;
+  }
+  if (myType == STRING){
+    return atoll(strVal.c_str());
+  }
+  return 0;
 }
 
 

@@ -234,7 +234,7 @@ void startStream(std::string name, JSON::Value & data){
       cmd1 = "ffmpeg -re -async 2 -i "+URL+" "+preset+" -f flv -";
       cmd2 = "MistFLV2DTSC";
     }
-    cmd3 = "MistBuffer 500 "+name;
+    cmd3 = "MistBuffer "+name;
     if (cmd2 != ""){
       Util::Procs::Start(name, cmd1, cmd2, cmd3);
     }else{

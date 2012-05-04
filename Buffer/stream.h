@@ -34,7 +34,7 @@ namespace Buffer{
       /// Blocks until writing is safe.
       void getWriteLock();
       /// Drops a previously gotten write lock.
-      void dropWriteLock();
+      void dropWriteLock(bool newpackets_available);
       /// Blocks until reading is safe.
       void getReadLock();
       /// Drops a previously gotten read lock.

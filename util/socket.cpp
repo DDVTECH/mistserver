@@ -40,6 +40,18 @@ Socket::Connection::Connection(){
   Blocking = false;
 }//Socket::Connection basic constructor
 
+
+/// Set this socket to be blocking (true) or nonblocking (false).
+void Socket::Connection::setBlocking(bool blocking){
+  int flags = fcntl(sock, F_GETFL, 0);
+  if (!blocking){
+    flags |= O_NONBLOCK;
+  }else{
+    flags &= !O_NONBLOCK;
+  }
+  fcntl(sock, F_SETFL, flags);
+}
+
 /// Close connection. The internal socket is closed and then set to -1.
 void Socket::Connection::close(){
   #if DEBUG >= 6

@@ -87,6 +87,7 @@ bool Buffer::Stream::checkWaitingIP(std::string ip){
   if (ip == waiting_ip || ip == "::ffff:"+waiting_ip){
     return true;
   }else{
+    std::cout << ip << " != " << waiting_ip << std::endl;
     return false;
   }
 }
@@ -165,12 +166,12 @@ void Buffer::Stream::getWriteLock(){
 }
 
 /// Drops a previously gotten write lock.
-void Buffer::Stream::dropWriteLock(){
+void Buffer::Stream::dropWriteLock(bool newpackets_available){
   rw_mutex.lock();
   writers--;
   rw_mutex.unlock();
   rw_change.notify_all();
-  moreData.notify_all();
+  if (newpackets_available){moreData.notify_all();}
 }
 
 /// Blocks until reading is safe.

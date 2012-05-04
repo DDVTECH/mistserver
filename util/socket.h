@@ -33,6 +33,7 @@ namespace Socket{
       Connection(int sockNo); ///< Create a new base socket.
       Connection(std::string hostname, int port, bool nonblock); ///< Create a new TCP socket.
       Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
+      void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
       bool canRead(); ///< Calls poll() on the socket, checking if data is available.
       bool canWrite(); ///< Calls poll() on the socket, checking if data can be written.
       signed int ready(); ///< Returns the ready-state for this socket.

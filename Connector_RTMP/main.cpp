@@ -45,10 +45,10 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   //first timestamp set
   RTMPStream::firsttime = RTMPStream::getNowMS();
 
-  while (Socket.connected() && (RTMPStream::handshake_in.size() < 1537)){
-    Socket.read(RTMPStream::handshake_in);
-  }
+  RTMPStream::handshake_in.reserve(1537);
+  Socket.read((char*)RTMPStream::handshake_in.c_str(), 1537);
   RTMPStream::rec_cnt += 1537;
+
   if (RTMPStream::doHandshake()){
     Socket.write(RTMPStream::handshake_out);
     Socket.read((char*)RTMPStream::handshake_in.c_str(), 1536);
@@ -64,9 +64,10 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   }
 
   unsigned int lastStats = 0;
+  conn.setBlocking(false);
 
   while (Socket.connected()){
-    sleep(10000);//sleep 10ms to prevent high CPU usage
+    usleep(10000);//sleep 10ms to prevent high CPU usage
     if (Socket.spool()){
       parseChunk(Socket.Received());
     }
@@ -309,9 +310,11 @@ void Connector_RTMP::sendCommand(AMF::Object & amfreply, int messagetype, int st
 }//sendCommand
 
 void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int stream_id){
-  bool parsed = false;
   #if DEBUG >= 4
-  amfdata.Print();
+  fprintf(stderr, "Received command: %s\n", amfdata.Print().c_str());
+  #endif
+  #if DEBUG >= 3
+  fprintf(stderr, "AMF0 command: %s\n", amfdata.getContentP(0)->StrValue().c_str());
   #endif
   if (amfdata.getContentP(0)->StrValue() == "connect"){
     double objencoding = 0;
@@ -358,12 +361,12 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     #endif
     sendCommand(amfreply, messagetype, stream_id);
     //send onBWDone packet - no clue what it is, but real server sends it...
-    amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
-    amfreply.addContent(AMF::Object("", "onBWDone"));//result
-    amfreply.addContent(amfdata.getContent(1));//same transaction ID
-    amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null
-    sendCommand(amfreply, messagetype, stream_id);
-    parsed = true;
+    //amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+    //amfreply.addContent(AMF::Object("", "onBWDone"));//result
+    //amfreply.addContent(amfdata.getContent(1));//same transaction ID
+    //amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null
+    //sendCommand(amfreply, messagetype, stream_id);
+    return;
   }//connect
   if (amfdata.getContentP(0)->StrValue() == "createStream"){
     //send a _result reply
@@ -377,10 +380,11 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     #endif
     sendCommand(amfreply, messagetype, stream_id);
     Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
-    parsed = true;
+    return;
   }//createStream
   if ((amfdata.getContentP(0)->StrValue() == "closeStream") || (amfdata.getContentP(0)->StrValue() == "deleteStream")){
     if (SS.connected()){SS.close();}
+    return;
   }
   if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){
     //send a _result reply
@@ -393,7 +397,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     amfreply.Print();
     #endif
     sendCommand(amfreply, messagetype, stream_id);
-    parsed = true;
+    return;
   }//getStreamLength
   if ((amfdata.getContentP(0)->StrValue() == "publish")){
     if (amfdata.getContentP(3)){
@@ -437,7 +441,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     amfreply.Print();
     #endif
     sendCommand(amfreply, messagetype, stream_id);
-    parsed = true;
+    return;
   }//getStreamLength
   if (amfdata.getContentP(0)->StrValue() == "checkBandwidth"){
     //send a _result reply
@@ -450,7 +454,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     amfreply.Print();
     #endif
     sendCommand(amfreply, messagetype, stream_id);
-    parsed = true;
+    return;
   }//checkBandwidth
   if ((amfdata.getContentP(0)->StrValue() == "play") || (amfdata.getContentP(0)->StrValue() == "play2")){
     //send streambegin
@@ -488,16 +492,12 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     RTMPStream::chunk_snd_max = 102400;//100KiB
     Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
     Connector_RTMP::ready4data = true;//start sending video data!
-    parsed = true;
+    return;
   }//createStream
-  #if DEBUG >= 3
-  fprintf(stderr, "AMF0 command: %s\n", amfdata.getContentP(0)->StrValue().c_str());
+
+  #if DEBUG >= 2
+  fprintf(stderr, "AMF0 command not processed! :(\n");
   #endif
-  if (!parsed){
-    #if DEBUG >= 2
-    fprintf(stderr, "AMF0 command not processed! :(\n");
-    #endif
-  }
 }//parseAMFCommand
 
 

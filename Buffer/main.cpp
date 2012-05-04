@@ -126,8 +126,10 @@ namespace Buffer{
           lastPacketTime = now;
           prevPacketTime = currPacketTime;
           currPacketTime = thisStream->getStream()->getTime();
+          thisStream->dropWriteLock(true);
+        }else{
+          thisStream->dropWriteLock(false);
         }
-        thisStream->dropWriteLock();
       }else{
         if (((currPacketTime - prevPacketTime) - (now - lastPacketTime)) > 999){
           usleep(999000);
@@ -151,8 +153,10 @@ namespace Buffer{
           thisStream->getWriteLock();
           if (thisStream->getStream()->parsePacket(inBuffer)){
             thisStream->getStream()->outPacket(0);
+            thisStream->dropWriteLock(true);
+          }else{
+            thisStream->dropWriteLock(false);
           }
-          thisStream->dropWriteLock();
         }
       }else{
         usleep(1000000);
@@ -177,27 +181,19 @@ namespace Buffer{
       return 1;
     }
     std::string name = argv[1];
-    bool ip_waiting = false;
-    std::string waiting_ip;
-    if (argc >= 4){
-      waiting_ip += argv[2];
-      ip_waiting = true;
-    }
 
     SS = Socket::makeStream(name);
     thisStream = Stream::get();
     thisStream->setName(name);
-    if (ip_waiting){
-      thisStream->setWaitingIP(waiting_ip);
-    }
     Socket::Connection incoming;
     Socket::Connection std_input(fileno(stdin));
 
     tthread::thread StatsThread = tthread::thread(handleStats, 0);
     tthread::thread * StdinThread = 0;
-    if (!ip_waiting){
+    if (argc < 3){
       StdinThread = new tthread::thread(handleStdin, 0);
     }else{
+      thisStream->setWaitingIP(argv[2]);
       StdinThread = new tthread::thread(handlePushin, 0);
     }
 

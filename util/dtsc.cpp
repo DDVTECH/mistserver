@@ -102,6 +102,8 @@ bool DTSC::Stream::hasAudio(){
 
 /// Returns a packed DTSC packet, ready to sent over the network.
 std::string & DTSC::Stream::outPacket(unsigned int num){
+  static std::string emptystring;
+  if (num >= buffers.size()) return emptystring;
   buffers[num].Pack(true);
   return buffers[num].packed;
 }

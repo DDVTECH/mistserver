@@ -1,4 +1,4 @@
-SRC = main.cpp ../../util/amf.cpp ../../util/rtmpchunks.cpp ../../util/crypto.cpp ../../util/flv_tag.cpp ../../util/socket.cpp
+SRC = main.cpp ../../util/amf.cpp ../../util/rtmpchunks.cpp ../../util/crypto.cpp ../../util/flv_tag.cpp ../../util/socket.cpp ../../util/dtsc.cpp
 OBJ = $(SRC:.cpp=.o)
 OUT = RTMP_Parser
 INCLUDES =

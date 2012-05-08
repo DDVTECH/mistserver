@@ -53,7 +53,7 @@ void Util::Config::parseArgs(int argc, char ** argv){
       case 'd': daemon_mode = true; break;
       case 'u': username = optarg; break;
       case 'v':
-        printf("%s\n", TOSTRING(VERSION));
+        printf("%s\n", TOSTRING(PACKAGE_VERSION));
         exit(1);
         break;
       case 'h':
@@ -63,7 +63,7 @@ void Util::Config::parseArgs(int argc, char ** argv){
         printf("Options: -h[elp], -?, -v[ersion], -n[odaemon], -d[aemon], -p[ort] VAL, -i[nterface] VAL, -u[sername] VAL\n");
         printf("Defaults:\n  interface: %s\n  port: %i\n  daemon mode: %s\n  username: %s\n", interface.c_str(), listen_port, doingdaemon.c_str(), username.c_str());
         printf("Username root means no change to UID, no matter what the UID is.\n");
-        printf("This is %s version %s\n", argv[0], TOSTRING(VERSION));
+        printf("This is %s version %s\n", argv[0], TOSTRING(PACKAGE_VERSION));
         exit(1);
         break;
     }

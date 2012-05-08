@@ -35,5 +35,7 @@ AC_CHECK_FUNCS([dup2 gettimeofday memset mkdir socket strerror])
 
 AC_CONFIG_FILES([Makefile
                  lib/Makefile
+                 src/converters/Makefile
+                 src/analysers/Makefile
                  src/Makefile])
 AC_OUTPUT

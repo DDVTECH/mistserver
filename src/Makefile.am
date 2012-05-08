@@ -10,4 +10,4 @@ MistConnRAW_LDADD=-lsocket
 MistConnRTMP_SOURCES=conn_rtmp.cpp
 MistConnRTMP_LDADD=-lsocket -ldtsc -lrtmpchunks -lflv_tag -lconfig -lamf -lssl -lcrypto
 MistConnHTTP_SOURCES=conn_http.cpp
-MistConnHTTP_LDADD=-lsocket
+MistConnHTTP_LDADD=-lsocket -ldtsc -lflv_tag -lamf -ljson -lhttp_parser -lmp4 -lprocs -lbase64 -lconfig

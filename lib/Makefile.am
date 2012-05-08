@@ -1,4 +1,4 @@
-noinst_LIBRARIES=libamf.a libauth.a libbase64.a libconfig.a libcrypto.a libdtsc.a libflv_tag.a libhttp_parser.a libjson.a libmd5.a libprocs.a librtmpchunks.a libsocket.a libtinythread.a
+noinst_LIBRARIES=libamf.a libauth.a libbase64.a libconfig.a libcrypto.a libdtsc.a libflv_tag.a libhttp_parser.a libjson.a libmd5.a libprocs.a librtmpchunks.a libsocket.a libtinythread.a libmp4.a
 libamf_a_SOURCES=amf.h amf.cpp
 libauth_a_SOURCES=auth.h auth.cpp
 libbase64_a_SOURCES=base64.h base64.cpp
@@ -13,3 +13,4 @@ libprocs_a_SOURCES=procs.h procs.cpp
 librtmpchunks_a_SOURCES=rtmpchunks.h rtmpchunks.cpp
 libsocket_a_SOURCES=socket.h socket.cpp
 libtinythread_a_SOURCES=tinythread.h tinythread.cpp
+libmp4_a_SOURCES=mp4.h mp4.cpp

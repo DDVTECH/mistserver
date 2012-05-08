@@ -18,6 +18,7 @@
 #include "../lib/flv_tag.h"
 #include "../lib/base64.h"
 #include "../lib/amf.h"
+#include "../lib/mp4.h"
 
 /// Holds everything unique to HTTP Connector.
 namespace Connector_HTTP{
@@ -28,18 +29,6 @@ namespace Connector_HTTP{
   std::queue<std::string> Flash_FragBuffer;///<Fragment buffer for F4V
   DTSC::Stream Strm;///< Incoming stream buffer.
   HTTP::Parser HTTP_R, HTTP_S;///<HTTP Receiver en HTTP Sender.
-
-  /// Folds data into a mdat container and returns it.
-  std::string mdatFold(std::string data){
-    std::string Result;
-    unsigned int t_int;
-    t_int = htonl(data.size()+8);
-    Result.append((char*)&t_int, 4);
-    t_int = htonl(0x6D646174);
-    Result.append((char*)&t_int, 4);
-    Result.append(data);
-    return Result;
-  }
 
   /// Returns AMF-format metadata for Adobe HTTP Dynamic Streaming.
   std::string GetMetaData( ) {
@@ -82,7 +71,6 @@ namespace Connector_HTTP{
 
   /// Returns a F4M-format manifest file for Adobe HTTP Dynamic Streaming.
   std::string BuildManifest(std::string MovieId) {
-    Interface * temp = new Interface;
     std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n";
     Result += "<id>";
     Result += MovieId;
@@ -90,7 +78,7 @@ namespace Connector_HTTP{
     Result += "<streamType>live</streamType>\n";
     Result += "<deliveryType>streaming</deliveryType>\n";
     Result += "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">";
-    Result += Base64::encode(temp->GenerateLiveBootstrap(1));
+    Result += Base64::encode(MP4::GenerateLiveBootstrap(1));
     Result += "</bootstrapInfo>\n";
     Result += "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"";
     Result += MovieId;
@@ -100,7 +88,6 @@ namespace Connector_HTTP{
     Result += "</metadata>\n";
     Result += "</media>\n";
     Result += "</manifest>\n";
-    delete temp;
     return Result;
   }//BuildManifest
 
@@ -279,7 +266,7 @@ namespace Connector_HTTP{
         if ((Flash_RequestPending > 0) && !Flash_FragBuffer.empty()){
           HTTP_S.Clean();
           HTTP_S.SetHeader("Content-Type","video/mp4");
-          HTTP_S.SetBody(mdatFold(Flash_FragBuffer.front()));
+          HTTP_S.SetBody(MP4::mdatFold(Flash_FragBuffer.front()));
           Flash_FragBuffer.pop();
           HTTP_S.SendResponse(conn, "200", "OK");//schrijf de HTTP response header
           Flash_RequestPending--;

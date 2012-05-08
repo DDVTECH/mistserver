@@ -1,0 +1,13 @@
+outdir=../bin
+out_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP
+AM_LDFLAGS=-L../lib
+MistBuffer_SOURCES=buffer.cpp buffer_stats.cpp buffer_user.cpp buffer_stream.cpp
+MistBuffer_LDADD=-ljson -lsocket -ldtsc -ltinythread -lpthread
+MistController_SOURCES=controller.cpp
+MistController_LDADD=-ljson -lsocket -lprocs -lmd5 -lconfig -lhttp_parser -lauth -lbase64 -lssl -lcrypto
+MistConnRAW_SOURCES=conn_raw.cpp
+MistConnRAW_LDADD=-lsocket
+MistConnRTMP_SOURCES=conn_rtmp.cpp
+MistConnRTMP_LDADD=-lsocket -ldtsc -lrtmpchunks -lflv_tag -lconfig -lamf -lssl -lcrypto
+MistConnHTTP_SOURCES=conn_http.cpp
+MistConnHTTP_LDADD=-lsocket

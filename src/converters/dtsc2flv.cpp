@@ -10,9 +10,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include "../../util/flv_tag.h" //FLV support
-#include "../../util/dtsc.h" //DTSC support
-#include "../../util/amf.h" //AMF support
+#include "../../lib/flv_tag.h" //FLV support
+#include "../../lib/dtsc.h" //DTSC support
+#include "../../lib/amf.h" //AMF support
 
 /// Holds all code that converts filetypes to DTSC.
 namespace Converters{

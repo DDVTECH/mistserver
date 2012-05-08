@@ -1,4 +1,5 @@
-outdir=../bin
+SUBDIRS=converters analysers
+outdir=..
 out_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP
 AM_LDFLAGS=-L../lib
 MistBuffer_SOURCES=buffer.cpp buffer_stats.cpp buffer_user.cpp buffer_stream.cpp

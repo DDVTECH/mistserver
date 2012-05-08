@@ -10,7 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include "../../util/dtsc.h" //DTSC support
+#include "../../lib/dtsc.h" //DTSC support
 
 /// Reads DTSC from stdin and outputs human-readable information to stderr.
 int main() {

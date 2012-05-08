@@ -10,7 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include "../../util/flv_tag.h" //FLV support
+#include "../../lib/flv_tag.h" //FLV support
 
 /// Reads DTSC from stdin and outputs human-readable information to stderr.
 int main() {

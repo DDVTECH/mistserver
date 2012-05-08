@@ -15,9 +15,9 @@
 #include <fstream>
 #include <string>
 #include <iostream>
-#include "../../util/flv_tag.h"
-#include "../../util/amf.h"
-#include "../../util/rtmpchunks.h"
+#include "../../lib/flv_tag.h"
+#include "../../lib/amf.h"
+#include "../../lib/rtmpchunks.h"
 
 int Detail = 0;
 #define DETAIL_RECONSTRUCT 1
@@ -153,7 +153,7 @@ int main(int argc, char ** argv){
             std::cerr << amfdata.Print() << std::endl;
           }else{
             amf3data = AMF::parse3(next.data);
-            std::cerr << amf3data.Print() << std::endl;
+            amf3data.Print();
           }
         } break;
       case 18:{

@@ -9,6 +9,8 @@ docs
 nbproject
 autom4te.cache
 src/Mist*
+src/analysers/Mist*
+src/converters/Mist*
 configure
 config.log
 config.status

@@ -7,7 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include "../../util/amf.h"
+#include "../../lib/amf.h"
 
 /// Debugging tool for AMF data.
 /// Expects AMF data through stdin, outputs human-readable information to stderr.

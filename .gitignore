@@ -1,22 +1,15 @@
 #ignore object files and nonsense like that
 *.[oa]
-Admin/main
-Connector_HTTP/DDV_Conn_HTTP
-Buffer/DDV_Buffer
-Connector_RTMP/DDV_Conn_RTMP
-Connector_RTSP/DDV_Conn_RTSP
-Connector_RTSP/Connector_RTSP
-DDV_Controller/DDV_Controller
-Connector_RAW/DDV_Conn_RAW
 *~
-bin/*
+.deps
+Makefile
+Makefile.in
+version.m4
 docs
-gearbox/plugins/001_putserversup.sh
-AMF_Tester/AMFtest
-AMF_Creator/AMFtest
-ABST_Parser/Box_Parser
-HTTP_Box_Parser/Box_Parser
-gearbox/CPP/Client/Gearbox_Client
-*.ts
+nbproject
+autom4te.cache
+src/Mist*
+configure
+config.log
+config.status
 
-/nbproject/private/

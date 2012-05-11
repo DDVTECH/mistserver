@@ -9,7 +9,6 @@
 /// - 2  = Explicit: Audio/video data details.
 /// - 4  = Verbose: details about every whole chunk.
 
-#define DEBUG 10 //maximum debugging level
 #include <cstdlib>
 #include <iostream>
 #include <fstream>

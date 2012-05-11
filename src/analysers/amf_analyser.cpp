@@ -2,7 +2,6 @@
 /// Debugging tool for AMF data.
 /// Expects AMF data through stdin, outputs human-readable information to stderr.
 
-#define DEBUG 10 //maximum debugging level
 #include <cstdlib>
 #include <iostream>
 #include <fstream>

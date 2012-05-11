@@ -795,25 +795,25 @@ DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
         }
       }
       if (tmp->getContentP("width")){
-        Meta_Put(metadata, "video", "width", tmp->getContentP("width")->NumValue());
+        Meta_Put(metadata, "video", "width", (unsigned long long int)tmp->getContentP("width")->NumValue());
       }
       if (tmp->getContentP("height")){
-        Meta_Put(metadata, "video", "height", tmp->getContentP("height")->NumValue());
+        Meta_Put(metadata, "video", "height", (unsigned long long int)tmp->getContentP("height")->NumValue());
       }
       if (tmp->getContentP("framerate")){
-        Meta_Put(metadata, "video", "fpks", tmp->getContentP("framerate")->NumValue()*1000);
+        Meta_Put(metadata, "video", "fpks", (unsigned long long int)tmp->getContentP("framerate")->NumValue()*1000);
       }
       if (tmp->getContentP("videodatarate")){
-        Meta_Put(metadata, "video", "bps", (tmp->getContentP("videodatarate")->NumValue()*1024)/8);
+        Meta_Put(metadata, "video", "bps", (unsigned long long int)(tmp->getContentP("videodatarate")->NumValue()*1024)/8);
       }
       if (tmp->getContentP("audiodatarate")){
-        Meta_Put(metadata, "audio", "bps", (tmp->getContentP("audiodatarate")->NumValue()*1024)/8);
+        Meta_Put(metadata, "audio", "bps", (unsigned long long int)(tmp->getContentP("audiodatarate")->NumValue()*1024)/8);
       }
       if (tmp->getContentP("audiosamplerate")){
-        Meta_Put(metadata, "audio", "rate", tmp->getContentP("audiosamplerate")->NumValue());
+        Meta_Put(metadata, "audio", "rate", (unsigned long long int)tmp->getContentP("audiosamplerate")->NumValue());
       }
       if (tmp->getContentP("audiosamplesize")){
-        Meta_Put(metadata, "audio", "size", tmp->getContentP("audiosamplesize")->NumValue());
+        Meta_Put(metadata, "audio", "size", (unsigned long long int)tmp->getContentP("audiosamplesize")->NumValue());
       }
       if (tmp->getContentP("stereo")){
         if (tmp->getContentP("stereo")->NumValue() == 1){

@@ -223,7 +223,7 @@ void CheckConfig(JSON::Value & in, JSON::Value & out){
     }
   }
   out = in;
-  out["version"] = TOSTRING(PACKAGE_VERSION);
+  out["version"] = PACKAGE_VERSION;
 }
 
 bool streamsEqual(JSON::Value & one, JSON::Value & two){

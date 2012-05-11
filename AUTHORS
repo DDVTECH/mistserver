@@ -1,4 +1,3 @@
-tinythread++ library taken verbatim from:
-http://tinythread.sourceforge.net
+All code was written by DDVTECH employees specifically for this project, with the exception of:
 
-All other code so far was written by DDVTECH employees.
+* tinythread++ library taken verbatim from: http://tinythread.sourceforge.net

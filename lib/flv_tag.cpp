@@ -866,8 +866,10 @@ DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
       }
     }
     if ((audiodata & 0xF0) == 0xA0){
+      if (len < 18){return DTSC::DTMI();}
       pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+13, (size_t)len-17)));
     }else{
+      if (len < 17){return DTSC::DTMI();}
       pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+12, (size_t)len-16)));
     }
     return pack_out;
@@ -876,8 +878,10 @@ DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
     char videodata = data[11];
     if (needsInitData() && isInitData()){
       if ((videodata & 0x0F) == 7){
+        if (len < 21){return DTSC::DTMI();}
         Meta_Put(metadata, "video", "init", std::string((char*)data+16, (size_t)len-20));
       }else{
+        if (len < 17){return DTSC::DTMI();}
         Meta_Put(metadata, "video", "init", std::string((char*)data+12, (size_t)len-16));
       }
       return pack_out;//skip rest of parsing, get next tag.
@@ -908,8 +912,10 @@ DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
       int offset = (data[13] << 16) + (data[14] << 8) + data[15];
       offset = (offset << 8) >> 8;
       pack_out.addContent(DTSC::DTMI("offset", offset));
+      if (len < 21){return DTSC::DTMI();}
       pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+16, (size_t)len-20)));
     }else{
+      if (len < 17){return DTSC::DTMI();}
       pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+12, (size_t)len-16)));
     }
     return pack_out;

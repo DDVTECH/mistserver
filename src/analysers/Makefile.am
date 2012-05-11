@@ -1,5 +1,4 @@
-outdir=../..
-out_PROGRAMS=MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF
+bin_PROGRAMS=MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF
 AM_LDFLAGS=-L../../lib
 MistAnalyserRTMP_SOURCES=rtmp_analyser.cpp
 MistAnalyserRTMP_LDADD=-lrtmpchunks -lamf -lflv_tag -ldtsc -lsocket -lssl -lcrypto

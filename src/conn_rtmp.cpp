@@ -505,4 +505,4 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
 #define DEFAULT_PORT 1935
 #define MAINHANDLER Connector_RTMP::Connector_RTMP
 #define CONFIGSECT RTMP
-#include "server_setup.cpp"
+#include "server_setup.h"

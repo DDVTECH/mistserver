@@ -320,4 +320,4 @@ namespace Connector_HTTP{
 #define DEFAULT_PORT 8080
 #define MAINHANDLER Connector_HTTP::Connector_HTTP
 #define CONFIGSECT HTTP
-#include "server_setup.cpp"
+#include "server_setup.h"

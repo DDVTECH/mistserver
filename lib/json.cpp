@@ -98,12 +98,16 @@ JSON::Value::Value(std::istream & fromstream){
         c = fromstream.get();
         myType = OBJECT;
         break;
-      case '[':
+      case '[':{
         reading_array = true;
         c = fromstream.get();
         myType = ARRAY;
-        append(JSON::Value(fromstream));
+        Value tmp = JSON::Value(fromstream);
+        if (tmp.myType != EMPTY){
+          append(tmp);
+        }
         break;
+      }
       case '\'':
       case '"':
         c = fromstream.get();

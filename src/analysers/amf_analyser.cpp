@@ -1,4 +1,4 @@
-/// \file AMF_Tester/main.cpp
+/// \file amf_analyser.cpp
 /// Debugging tool for AMF data.
 /// Expects AMF data through stdin, outputs human-readable information to stderr.
 

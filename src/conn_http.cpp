@@ -1,4 +1,4 @@
-/// \file Connector_HTTP/main.cpp
+/// \file conn_http.cpp
 /// Contains the main code for the HTTP Connector
 
 #include <iostream>

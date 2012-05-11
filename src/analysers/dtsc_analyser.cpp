@@ -1,4 +1,4 @@
-/// \file DTSC_Analyser/main.cpp
+/// \file dtsc_analyser.cpp
 /// Contains the code for the DTSC Analysing tool.
 
 #include <fcntl.h>

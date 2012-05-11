@@ -32,7 +32,7 @@ std::string Base64::encode(std::string const input) {
 }//base64_encode
 
 /// Used to base64 decode data. Input is the encoded data as std::string, output is the plaintext data as std::string.
-/// \param input Base64 encoded data to decode.
+/// \param encoded_string Base64 encoded data to decode.
 /// \returns Plaintext decoded data.
 std::string Base64::decode(std::string const& encoded_string) {
   int in_len = encoded_string.size();

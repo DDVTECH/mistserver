@@ -1,4 +1,4 @@
-/// \file Connector_RTMP/main.cpp
+/// \file conn_rtmp.cpp
 /// Contains the main code for the RTMP Connector
 
 #include <iostream>

@@ -1,4 +1,4 @@
-/// \file RTMP_Parser/main.cpp
+/// \file rtmp_analyser.cpp
 /// Debugging tool for RTMP data.
 /// Expects RTMP data of one side of the conversion through stdin, outputs human-readable information to stderr.
 /// Automatically skips 3073 bytes of handshake data.

@@ -1,4 +1,4 @@
-/// \file Buffer/main.cpp
+/// \file buffer.cpp
 /// Contains the main code for the Buffer.
 
 #include <fcntl.h>

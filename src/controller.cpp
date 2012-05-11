@@ -1,3 +1,6 @@
+/// \file controller.cpp
+/// Contains all code for the controller executable.
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -21,9 +24,9 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <sstream>
+#include <openssl/md5.h>
 #include "../lib/socket.h"
 #include "../lib/http_parser.h"
-#include "../lib/md5.h"
 #include "../lib/json.h"
 #include "../lib/procs.h"
 #include "../lib/config.h"
@@ -61,6 +64,17 @@ void signal_handler (int signum){
   API_Socket.close();
 }//signal_handler
 
+/// Wrapper function for openssl MD5 implementation
+std::string md5(std::string input){
+  char tmp[3];
+  std::string ret;
+  const unsigned char * res = MD5((const unsigned char*)input.c_str(), input.length(), 0);
+  for (int i = 0; i < 16; ++i){
+    snprintf(tmp, 3, "%02x", res[i]);
+    ret += tmp;
+  }
+  return ret;
+}
 
 
 JSON::Value Storage; ///< Global storage of data.

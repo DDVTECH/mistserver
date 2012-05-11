@@ -1,11 +1,25 @@
+/// \file buffer_user.h
+/// Contains definitions for buffer users.
+
 #pragma once
 #include <string>
-#include "buffer_stats.h"
 #include "../lib/dtsc.h"
 #include "../lib/socket.h"
 #include "../lib/tinythread.h"
 
 namespace Buffer{
+  /// Converts a stats line to up, down, host, connector and conntime values.
+  class Stats{
+  public:
+    unsigned int up;
+    unsigned int down;
+    std::string host;
+    std::string connector;
+    unsigned int conntime;
+    Stats();
+    Stats(std::string s);
+  };
+
   /// Holds connected users.
   /// Keeps track of what buffer users are using and the connection status.
   class user{

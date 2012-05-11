@@ -24,37 +24,6 @@ freely, subject to the following restrictions:
 #ifndef _TINYTHREAD_H_
 #define _TINYTHREAD_H_
 
-/// @file
-/// @mainpage TinyThread++ API Reference
-///
-/// @section intro_sec Introduction
-/// TinyThread++ is a minimal, portable implementation of basic threading
-/// classes for C++.
-///
-/// They closely mimic the functionality and naming of the C++0x standard, and
-/// should be easily replaceable with the corresponding std:: variants.
-///
-/// @section port_sec Portability
-/// The Win32 variant uses the native Win32 API for implementing the thread
-/// classes, while for other systems, the POSIX threads API (pthread) is used.
-///
-/// @section class_sec Classes
-/// In order to mimic the threading API of the C++0x standard, subsets of
-/// several classes are provided. The fundamental classes are:
-/// @li tthread::thread
-/// @li tthread::mutex
-/// @li tthread::recursive_mutex
-/// @li tthread::condition_variable
-/// @li tthread::lock_guard
-/// @li tthread::fast_mutex
-///
-/// @section misc_sec Miscellaneous
-/// The following special keywords are available: #thread_local.
-///
-/// For more detailed information (including additional classes), browse the
-/// different sections of this documentation. A good place to start is:
-/// tinythread.h.
-
 // Which platform are we on?
 #if !defined(_TTHREAD_PLATFORM_DEFINED_)
   #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
@@ -105,27 +74,6 @@ freely, subject to the following restrictions:
       name(const name&); \
       name& operator=(const name&);
 #endif
-
-/// @def thread_local
-/// Thread local storage keyword.
-/// A variable that is declared with the \c thread_local keyword makes the
-/// value of the variable local to each thread (known as thread-local storage,
-/// or TLS). Example usage:
-/// @code
-/// // This variable is local to each thread.
-/// thread_local int variable;
-/// @endcode
-/// @note The \c thread_local keyword is a macro that maps to the corresponding
-/// compiler directive (e.g. \c __declspec(thread)). While the C++0x standard
-/// allows for non-trivial types (e.g. classes with constructors and
-/// destructors) to be declared with the \c thread_local keyword, most pre-C++0x
-/// compilers only allow for trivial types (e.g. \c int). So, to guarantee
-/// portable code, only use trivial types for thread local storage.
-/// @note This directive is currently not supported on Mac OS X (it will give
-/// a compiler error), since compile-time TLS is not supported in the Mac OS X
-/// executable format. Also, some older versions of MinGW (before GCC 4.x) do
-/// not support this directive.
-/// @hideinitializer
 
 #if !defined(_TTHREAD_CPP0X_) && !defined(thread_local)
  #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__SUNPRO_CC) || defined(__IBMCPP__)

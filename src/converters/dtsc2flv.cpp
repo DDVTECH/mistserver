@@ -1,4 +1,4 @@
-/// \file DTSC2FLV/main.cpp
+/// \file dtsc2flv.cpp
 /// Contains the code that will transform any valid DTSC input into valid FLVs.
 
 #include <iostream>
@@ -14,7 +14,7 @@
 #include "../../lib/dtsc.h" //DTSC support
 #include "../../lib/amf.h" //AMF support
 
-/// Holds all code that converts filetypes to DTSC.
+/// Holds all code that converts filetypes to/from DTSC.
 namespace Converters{
 
   /// Reads DTSC from STDIN, outputs FLV to STDOUT.

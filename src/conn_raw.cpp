@@ -1,4 +1,4 @@
-/// \file Connector_RAW/main.cpp
+/// \file conn_raw.cpp
 /// Contains the main code for the RAW connector.
 
 #include <iostream>

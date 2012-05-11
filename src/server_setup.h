@@ -1,4 +1,4 @@
-/// \file server_setup.cpp
+/// \file server_setup.h
 /// Contains generic functions for setting up a DDVTECH Connector.
 
 #ifndef MAINHANDLER

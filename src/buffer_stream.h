@@ -1,3 +1,6 @@
+/// \file buffer_stream.h
+/// Contains definitions for buffer streams.
+
 #pragma once
 #include <string>
 #include "../lib/tinythread.h"
@@ -5,6 +8,7 @@
 #include "buffer_user.h"
 
 namespace Buffer{
+  /// Keeps track of a single streams inputs and outputs, taking care of thread safety and all other related issues.
   class Stream{
     public:
       /// Get a reference to this Stream object.

@@ -1,3 +1,6 @@
+/// \file buffer_stream.cpp
+/// Contains definitions for buffer streams.
+
 #include "buffer_stream.h"
 
 /// Stores the globally equal reference.

@@ -365,6 +365,8 @@ int main(int argc, char ** argv){
         }
       }
       if (!gotUplink){
+        /// \todo Uplink disabled until gearbox is live. Simply comment this section back in to re-enable.
+        /*
         Incoming = Socket::Connection("gearbox.ddvtech.com", 4242, true);
         if (Incoming.connected()){
           users.push_back(Incoming);
@@ -372,6 +374,7 @@ int main(int argc, char ** argv){
           uplink = &users.back();
           gotUplink = true;
         }
+        */
       }
       if (gotUplink){
         Response.null(); //make sure no data leaks from previous requests

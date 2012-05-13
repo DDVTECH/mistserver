@@ -233,7 +233,6 @@ bool streamsEqual(JSON::Value & one, JSON::Value & two){
 }
 
 void startStream(std::string name, JSON::Value & data){
-  Log("BUFF", "(re)starting stream buffer "+name);
   std::string URL = data["channel"]["URL"];
   std::string preset = data["preset"]["cmd"];
   std::string cmd1, cmd2, cmd3;
@@ -241,6 +240,7 @@ void startStream(std::string name, JSON::Value & data){
     std::string pusher = URL.substr(7);
     cmd2 = "MistBuffer "+name+" "+pusher;
     Util::Procs::Start(name, cmd2);
+    Log("BUFF", "(re)starting stream buffer "+name+" for push data from "+pusher);
   }else{
     if (URL.substr(0, 1) == "/"){
       cmd1 = "cat "+URL;
@@ -251,8 +251,10 @@ void startStream(std::string name, JSON::Value & data){
     cmd3 = "MistBuffer "+name;
     if (cmd2 != ""){
       Util::Procs::Start(name, cmd1, cmd2, cmd3);
+      Log("BUFF", "(re)starting stream buffer "+name+" for ffmpeg data: "+cmd1);
     }else{
       Util::Procs::Start(name, cmd1, cmd3);
+      Log("BUFF", "(re)starting stream buffer "+name+" using input file "+URL);
     }
   }
 }
@@ -342,6 +344,7 @@ int main(int argc, char ** argv){
   JSON::Value Response;
   std::string jsonp;
   ConnectedUser * uplink = 0;
+  Log("CONF", "Controller started");
   while (API_Socket.connected()){
     usleep(100000); //sleep for 100 ms - prevents 100% CPU time
 
@@ -350,7 +353,8 @@ int main(int argc, char ** argv){
       CheckProtocols(Storage["config"]["protocols"]);
       CheckAllStreams(Storage["streams"]);
     }
-    
+    /// \todo Uplink disabled until gearbox is live. Simply comment this section back in to re-enable.
+    /*
     if (time(0) - lastuplink > UPLINK_INTERVAL){
       lastuplink = time(0);
       bool gotUplink = false;
@@ -365,8 +369,6 @@ int main(int argc, char ** argv){
         }
       }
       if (!gotUplink){
-        /// \todo Uplink disabled until gearbox is live. Simply comment this section back in to re-enable.
-        /*
         Incoming = Socket::Connection("gearbox.ddvtech.com", 4242, true);
         if (Incoming.connected()){
           users.push_back(Incoming);
@@ -374,7 +376,6 @@ int main(int argc, char ** argv){
           uplink = &users.back();
           gotUplink = true;
         }
-        */
       }
       if (gotUplink){
         Response.null(); //make sure no data leaks from previous requests
@@ -393,6 +394,7 @@ int main(int argc, char ** argv){
         Log("UPLK", "Could not connect to uplink.");
       }
     }
+    */
     
     Incoming = API_Socket.accept();
     if (Incoming.connected()){users.push_back(Incoming);}
@@ -483,6 +485,10 @@ int main(int argc, char ** argv){
               //Parse config and streams from the request.
               if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
               if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
+              if (Request.isMember("save")){
+                WriteFile("config.json", Storage.toString());
+                Log("CONF", "Config written to file on request through API");
+              }
               //sent current configuration, no matter if it was changed or not
               //Response["streams"] = Storage["streams"];
               Response["config"] = Storage["config"];
@@ -515,6 +521,7 @@ int main(int argc, char ** argv){
       }
     }
   }
+  Log("CONF", "Controller shutting down");
   Util::Procs::StopAll();
   WriteFile("config.json", Storage.toString());
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;

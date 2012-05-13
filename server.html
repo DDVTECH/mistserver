@@ -412,1085 +412,1108 @@ td
 
    </body>
 
-   <script>
+      <script>
 
-      // creds and local copy of the settings
-      var settings =
-      {
-         server: '',
-         credentials:
+         // creds and local copy of the settings
+         var settings =
          {
-            username: "",
-            password: "",
-            authstring: ""
-         },
-         settings: {}
-      };
-
-      var ltypes =
-      [
-         ['kb_total', 'Total bandwidth'],
-         ['kbps_max', 'Current bandwidth'],
-         ['users', 'Concurrent users'],
-         ['streams', 'Cocurrent streams'],
-         ['geo', 'Geolimited'],
-         ['host', 'Hostlimited'],
-         ['time', 'Timelimited'],
-         ['duration', 'Duration'],
-         ['str_kbps_min', 'Minimum bitrate'],
-         ['str_kbps_max', 'Maximum bitrate']
-      ];
-
-      $(document).ready(function()
-      {
-         $('#nav').children().each(function()
-         {
-            $(this).click(function()
+            server: '',
+            credentials:
             {
-               // remove currently selected
-               $('#nav').children().each(function()
-               {
-                  $(this).attr('class', '');
-               });
-               // select this one
-               $(this).attr('class', 'selected');
-               // show correct tab
-               showTab($(this).text());
-            });
-         });
-
-         // onload show login 'tab' and hide menu
-         showTab('login');
-         $('#nav').css('visibility', 'hidden');
-      });
-
-
-      function confirmDelete(question)
-      {
-         return confirm(question);
-      }
-
-
-      // format date to something pretty
-      function formatDate(date)
-      {
-         var d = new Date(date * 1000);
-
-         return [
-            ('00' + d.getMonth()).slice(-2),
-            ('00' + d.getDate()).slice(-2),
-            d.getFullYear()
-         ].join('/') + ' ' + [
-            ('00' + d.getHours()).slice(-2),
-            ('00' + d.getMinutes()).slice(-2),
-            ('00' + d.getSeconds()).slice(-2)
-         ].join(':');
-      }
-
-
-      function TypeofResource(uri)
-      {
-         var protocol = /([a-zA-Z]+):\/\//.exec(uri);
-
-         if(protocol === null || (protocol[1] && protocol[1] === 'file'))
-         {
-            return 'Recorded';
-         }else{
-            return 'Live';
-         }
-      }
-
-
-      function shortToLongLimit(name)
-      {
-         //console.log('getting the long name for the limit "' + name + '"');
-
-         var i;
-
-         for(i = 0; i < ltypes.length; i++)
-         {
-            if(name == ltypes[i][0])
-            {
-               return ltypes[i][1];
-            }
-         }
-
-         //console.log('ERROR! short limit ', name, ' not in list, returning _short name_!');
-         return name;
-      }
-
-
-      function getData(callback)
-      {
-         // this beast returns the server settings, but doesn't authorize first,
-         // nor does it save the retrieved data.
-         var data =
-         {
-            'authorize':
-            {
-               'username': settings.credentials.username,
-               'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
-            }
+               username: "",
+               password: "",
+               authstring: ""
+            },
+            settings: {}
          };
 
-         $.ajax(
+         var ltypes =
+         [
+            ['kb_total', 'Total bandwidth'],
+            ['kbps_max', 'Current bandwidth'],
+            ['users', 'Concurrent users'],
+            ['streams', 'Cocurrent streams'],
+            ['geo', 'Geolimited'],
+            ['host', 'Hostlimited'],
+            ['time', 'Timelimited'],
+            ['duration', 'Duration'],
+            ['str_kbps_min', 'Minimum bitrate'],
+            ['str_kbps_max', 'Maximum bitrate']
+         ];
+
+         $(document).ready(function()
          {
-            'url': settings.server,
-            'data':
+            $('#nav').children().each(function()
             {
-               "command": JSON.stringify(data)
-            },
-            'dataType': 'jsonp',
-            'timeout': 10000,
-            'error': function()
-            {
-               //console.log('ERROR ERROR ERROR @514');
-            },
-            'success': function(d)
-            {
-               var ret = $.extend(true,
+               $(this).click(function()
                {
-                  "streams": {},
-                  "statistics": {}
-               }, d);
-
-               if(callback)
-               {
-                  callback(ret);
-               }
-            }
-         });
-      }
-
-
-      function getStatData(callback)
-      {
-         getData(function(data)
-         {
-            //console.log('getStatData: real data retrieved: ', data);
-            var svr, viewer, ret,
-                numstr = 0,
-                numvwr = 0,
-                numtotstr = 0;
-
-            for(svr in data.statistics)
-            {
-               if(data.statistics[svr].curr)
-               {
-                  for(viewer in data.statistics[svr].curr)
+                  // remove currently selected
+                  $('#nav').children().each(function()
                   {
-                     numvwr++;
-                  }
-               }
-            }
+                     $(this).attr('class', '');
+                  });
+                  // select this one
+                  $(this).attr('class', 'selected');
+                  // show correct tab
+                  showTab($(this).text());
+               });
+            });
 
-            for(svr in data.streams)
-            {
-               numtotstr++;
-
-               if(data.streams[svr].online && data.streams[svr].online == 1)
-               {
-                  numstr++;
-               }
-            }
-
-            ret = {streams: [numstr, numtotstr], viewers: numvwr};
-            callback(ret);
+            // onload show login 'tab' and hide menu
+            showTab('login');
+            $('#nav').css('visibility', 'hidden');
          });
-      }
 
 
-      // connect to server and set/get settings
-      function loadSettings(callback)
-      {
-         var errorstr = '',
-             data = $.extend(settings.settings,
-             {
-                'authorize':
-                {
-                   'username': settings.credentials.username,
-                   'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
-                }
-             });
-
-         console.log('SEND', data);
-
-         $.ajax(
+         function confirmDelete(question)
          {
-            'url': settings.server,
-            'data':
-            {
-               "command": JSON.stringify(data)
-            },
-            'dataType': 'jsonp',
+            return confirm(question);
+         }
 
-            'timeout': 5000,
 
-            'error': function()
-            {
-               //setHeaderState('disconnected');
-               showTab('disconnect');
-            },
-            'success': function(d)
-            {
-               console.log('RECV', d);
+         // format date to something pretty
+         function formatDate(date)
+         {
+            var d = new Date(date * 1000);
 
-               if(d && d['authorize'] && d['authorize']['challenge'])
+            return [
+               ('00' + d.getMonth()).slice(-2),
+               ('00' + d.getDate()).slice(-2),
+               d.getFullYear()
+            ].join('/') + ' ' + [
+               ('00' + d.getHours()).slice(-2),
+               ('00' + d.getMinutes()).slice(-2),
+               ('00' + d.getSeconds()).slice(-2)
+            ].join(':');
+         }
+
+
+         function TypeofResource(uri)
+         {
+            var protocol = /([a-zA-Z]+):\/\//.exec(uri);
+
+            if(protocol === null || (protocol[1] && protocol[1] === 'file'))
+            {
+               return 'Recorded';
+            }else{
+               return 'Live';
+            }
+         }
+
+
+         function shortToLongLimit(name)
+         {
+            //console.log('getting the long name for the limit "' + name + '"');
+
+            var i;
+
+            for(i = 0; i < ltypes.length; i++)
+            {
+               if(name == ltypes[i][0])
                {
-                  if (settings.credentials.authstring != d['authorize']['challenge'])
+                  return ltypes[i][1];
+               }
+            }
+
+            //console.log('ERROR! short limit ', name, ' not in list, returning _short name_!');
+            return name;
+         }
+
+
+
+         function forceJSONSave(callback)
+         {
+            // sends the 'force json save' command to the server
+            var data =
+            {
+               'authorize':
+               {
+                  'username': settings.credentials.username,
+                  'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
+               },
+               'save': 1
+            };
+
+            $.ajax(
+            {
+               'url': settings.server,
+               'data':
+               {
+                  "command": JSON.stringify(data)
+               },
+               'dataType': 'jsonp',
+               'timeout': 10000,
+               'error': function()
+               {
+                  console.log('forceJSONSave ERROR');
+               },
+               'success': function(d)
+               {
+                  console.log('forceJSONSave returned', d);
+               }
+            });
+         }
+
+
+
+
+         function getData(callback)
+         {
+            // this beast returns the server settings, but doesn't authorize first,
+            // nor does it save the retrieved data.
+            var data =
+            {
+               'authorize':
+               {
+                  'username': settings.credentials.username,
+                  'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
+               }
+            };
+
+            $.ajax(
+            {
+               'url': settings.server,
+               'data':
+               {
+                  "command": JSON.stringify(data)
+               },
+               'dataType': 'jsonp',
+               'timeout': 10000,
+               'error': function()
+               {
+                  //console.log('ERROR ERROR ERROR @514');
+               },
+               'success': function(d)
+               {
+                  var ret = $.extend(true,
                   {
-                     settings.credentials.authstring = d['authorize']['challenge'];
-                     //console.log('need to reload settings with new auth string');
-                     loadSettings(callback);
-                     return;
-                  }else{
-                     errorstr = 'wrong credentials';
-                  }
-               }else{
-                  settings.settings = $.extend(true, {
-                     "config":
-                     {
-                        "host": "",
-                        "limits": [],
-                        "name": "",
-                        "protocols": [],
-                        "status": "",
-                        "version": ""
-                     },
                      "streams": {},
-                     "log": {},
                      "statistics": {}
                   }, d);
 
-                  //console.log('new (shinyness) object:', settings.settings);
+                  if(callback)
+                  {
+                     callback(ret);
+                  }
                }
-
-
-/*
-var fobj1 = {connector: 'HTTP', port: 42};
-fobj1['interface'] = 'kekeksauce';
-
-var fobj2 = {connector: 'RTMP', port: 1337};
-fobj2['interface'] = 'rtmwhat';
-
-var fobj3 = {connector: 'HTTP', port: 43};
-fobj3['interface'] = 'moarmoar';
-
-settings.settings.config.protocols = [fobj1, fobj2, fobj3];
-*/
-
-
-
-
-               if(callback)
-               {
-                  callback(errorstr);
-               }
-            }
-         });
-      }
-
-
-
-      function setHeaderState(state)
-      {
-         var text, cname, title;
-
-         switch(state)
-         {
-            case 'logingin':        text = 'connecting...';    cname = 'loggingin';       title = 'connecting to ' + settings.server;     break;
-            case 'disconnected':    text = 'disconnected';     cname = 'disconnected';    title = 'disconnected';                         break;
-            case 'connected':       text = 'connected';        cname = 'connected';       title = 'connected to ' + settings.server;      break;
+            });
          }
 
-         document.title = 'Mistserver Manager - ' + title;
 
-         $('#header-connection').attr('class', cname);
-         $('#header-connection').text(text);
-         $('#header-host').text(settings.server.replace('HTTP://', ''));
-      }
-
-
-
-      // used on the overview page. clear when not on that page in showTab()
-      var sinterval = null;
-
-      // shows what kind of streams? Format is [recorded, live];
-      var streamsdisplay = [true, true];
-
-
-      // show tab
-      function showTab(name, streamname)
-      {
-         // clear page
-         $('#page').html('');
-         clearInterval(sinterval);
-
-         switch(name)
+         function getStatData(callback)
          {
-            case 'login':
+            getData(function(data)
+            {
+               //console.log('getStatData: real data retrieved: ', data);
+               var svr, viewer, ret,
+                   numstr = 0,
+                   numvwr = 0,
+                   numtotstr = 0;
 
-               var host = $('<input>').attr('type', 'text').attr('placeholder', 'HTTP://LOCALHOST:4242');
-               var user = $('<input>').attr('type', 'text').attr('placeholder', 'USERNAME');
-               var pass = $('<input>').attr('type', 'password').attr('placeholder', 'PASSWORD');
-               var conn = $('<button>').click(function()
+               for(svr in data.statistics)
                {
-                  // get login info
-                  settings.credentials.username = user.val();
-                  settings.credentials.password = pass.val();
-                  settings.server = host.val() || host.attr('placeholder');
-
-                  // save username, URL in address
-                  location.hash = user.val() + '@' + host.val();
-
-                  // try to login
-                  setHeaderState('logingin');
-
-                  loadSettings(function(errorstr)
+                  if(data.statistics[svr].curr)
                   {
-                     if(errorstr == '')
+                     for(viewer in data.statistics[svr].curr)
                      {
-                        setHeaderState('connected');
-
-                        $('#nav').css('visibility', 'visible');
-
-                        showTab('overview');
-
-                        // show overview as current tab - this only happens when logging out and then in
-                        $('#nav').children().each(function()
-                        {
-                           if($(this).text() != 'overview')
-                           {
-                              $(this).attr('class', '');
-                           }else{
-                              $(this).attr('class', 'selected');
-                           }
-                        });
-
-                        //console.log('logged in!');
-                     }else{
-                        setHeaderState('disconnected');
-                        $('#header-host').text('');
-                        //console.log('error logging in: ' + errorstr);
+                        numvwr++;
                      }
-                  });
-               }).text('login');
-
-               $('#page').append(
-                  $('<div>').attr('id', 'login').append(host).append(user).append(pass).append(conn)
-               );
-
-               // btw: if we 'enter' in host, user or pass we should try to login.
-               function hand(e)
-               {
-                  if(e.keyCode == 13)
-                  {
-                     conn.trigger('click');  // conn = login button :)
                   }
                }
 
-               host.keypress(hand);
-               user.keypress(hand);
-               pass.keypress(hand);
-
-
-
-               // retrieve address hash stuff
-               var adr = location.hash.replace('#', '').split('@');
-
-               if(adr.length == 2)
+               for(svr in data.streams)
                {
-                  //console.log(adr[0], adr[1]);
-                  // put it in the page
-                  host.val(adr[1]);
-                  user.val(adr[0]);
+                  numtotstr++;
+
+                  if(data.streams[svr].online && data.streams[svr].online == 1)
+                  {
+                     numstr++;
+                  }
                }
 
-
-               break;
-
-
-
-
-            case 'overview':
+               ret = {streams: [numstr, numtotstr], viewers: numvwr};
+               callback(ret);
+            });
+         }
 
 
-               $('#page').append(
-                  $('<div>').attr('id', 'editserver').append(
-                     $('<label>').attr('for', 'config-host').text('host').append(
-                        $('<input>').attr('type', 'text').attr('placeholder', 'HOST').attr('id', 'config-host').attr('value', settings.settings.config.host)
-                     )
-                  ).append(
-                     $('<label>').attr('for', 'config-name').text('name').append(
-                        $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'config-name').attr('value', settings.settings.config.name)
-                     )
-                  ).append(
-                     $('<label>').text('version').append(
-                        $('<span>').text(settings.settings.config.version)
-                     )
-                  ).append(
-                     $('<label>').text('time').append(
-                        $('<span>').text( formatDate(settings.settings.config.time) )
-                     )
-                  ).append(
-                     $('<label>').text('Streams').append(
-                        $('<span>').attr('id', 'cur_streams_online').text('retrieving data...')
-                     )
-                  ).append(
-                     $('<label>').text('Viewers').append(
-                        $('<span>').attr('id', 'cur_num_viewers').text('retrieving data...')
-                     )
-                  )
-               );
+         // connect to server and set/get settings
+         function loadSettings(callback)
+         {
+            var errorstr = '',
+                data = $.extend(settings.settings,
+                {
+                   'authorize':
+                   {
+                      'username': settings.credentials.username,
+                      'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
+                   }
+                });
 
-               function showStats()
+            delete data.log;   // don't send the logs back to the server
+            delete data.statistics;   // same goes for the stats
+
+            console.log('SEND', data);
+
+            $.ajax(
+            {
+               'url': settings.server,
+               'data':
                {
-                  getStatData(function(data)
-                  {
-                     //console.log('getting live data... @' + new Date().getTime());
-                     $('#cur_streams_online').html('').text(data.streams[0] + ' of ' + data.streams[1] + ' online');
-                     $('#cur_num_viewers').html('').text(data.viewers);
-                  });
-               }
+                  "command": JSON.stringify(data)
+               },
+               'dataType': 'jsonp',
 
-               sinterval = setInterval(function()
+               'timeout': 5000,
+
+               'error': function()
                {
-                  showStats();
-               }, 30000);
+                  //setHeaderState('disconnected');
+                  showTab('disconnect');
+               },
+               'success': function(d)
+               {
+                  console.log('RECV', d);
 
-               // instantly call it the first time
-               showStats();
-
-
-               $('#editserver').append(
-                  $('<button>').attr('class', 'floatright').click(function()
+                  if(d && d['authorize'] && d['authorize']['challenge'])
                   {
-                     var host = $('#config-host').val();
-                     var name = $('#config-name').val();
-
-                     settings.settings.config.host = host;
-                     settings.settings.config.name = name;
-
-                     loadSettings(function()
+                     if (settings.credentials.authstring != d['authorize']['challenge'])
                      {
-                        showTab('overview');
+                        settings.credentials.authstring = d['authorize']['challenge'];
+                        //console.log('need to reload settings with new auth string');
+                        loadSettings(callback);
+                        return;
+                     }else{
+                        errorstr = 'wrong credentials';
+                     }
+                  }else{
+                     settings.settings = $.extend(true, {
+                        "config":
+                        {
+                           "host": "",
+                           "limits": [],
+                           "name": "",
+                           "protocols": [],
+                           "status": "",
+                           "version": ""
+                        },
+                        "streams": {},
+                        "log": {},
+                        "statistics": {}
+                     }, d);
+
+                     //console.log('new (shinyness) object:', settings.settings);
+                  }
+
+                  if(callback)
+                  {
+                     callback(errorstr);
+                  }
+               }
+            });
+         }
+
+
+
+         function setHeaderState(state)
+         {
+            var text, cname, title;
+
+            switch(state)
+            {
+               case 'logingin':        text = 'connecting...';    cname = 'loggingin';       title = 'connecting to ' + settings.server;     break;
+               case 'disconnected':    text = 'disconnected';     cname = 'disconnected';    title = 'disconnected';                         break;
+               case 'connected':       text = 'connected';        cname = 'connected';       title = 'connected to ' + settings.server;      break;
+            }
+
+            document.title = 'Mistserver Manager - ' + title;
+
+            $('#header-connection').attr('class', cname);
+            $('#header-connection').text(text);
+            $('#header-host').text(settings.server.replace('HTTP://', ''));
+         }
+
+
+
+         // used on the overview page. clear when not on that page in showTab()
+         var sinterval = null;
+
+         // shows what kind of streams? Format is [recorded, live];
+         var streamsdisplay = [true, true];
+
+
+         // show tab
+         function showTab(name, streamname)
+         {
+            // clear page
+            $('#page').html('');
+            clearInterval(sinterval);
+
+            switch(name)
+            {
+               case 'login':
+
+                  var host = $('<input>').attr('type', 'text').attr('placeholder', 'HTTP://LOCALHOST:4242');
+                  var user = $('<input>').attr('type', 'text').attr('placeholder', 'USERNAME');
+                  var pass = $('<input>').attr('type', 'password').attr('placeholder', 'PASSWORD');
+                  var conn = $('<button>').click(function()
+                  {
+                     // get login info
+                     settings.credentials.username = user.val();
+                     settings.credentials.password = pass.val();
+                     settings.server = host.val() || host.attr('placeholder');
+
+                     // save username, URL in address
+                     location.hash = user.val() + '@' + host.val();
+
+                     // try to login
+                     setHeaderState('logingin');
+
+                     loadSettings(function(errorstr)
+                     {
+                        if(errorstr == '')
+                        {
+                           setHeaderState('connected');
+
+                           $('#nav').css('visibility', 'visible');
+
+                           showTab('overview');
+
+                           // show overview as current tab - this only happens when logging out and then in
+                           $('#nav').children().each(function()
+                           {
+                              if($(this).text() != 'overview')
+                              {
+                                 $(this).attr('class', '');
+                              }else{
+                                 $(this).attr('class', 'selected');
+                              }
+                           });
+
+                           //console.log('logged in!');
+                        }else{
+                           setHeaderState('disconnected');
+                           $('#header-host').text('');
+                           //console.log('error logging in: ' + errorstr);
+                        }
                      });
-                  }).text( 'save' )
-               );
+                  }).text('login');
 
+                  $('#page').append(
+                     $('<div>').attr('id', 'login').append(host).append(user).append(pass).append(conn)
+                  );
 
-               var forcesave = $('<div>').attr('id', 'forcesave');
-
-               forcesave.append(
-                  $('<p>').text('Click the button below to force an immediate settings save. This differs from a regular save to memory and file save on exit by saving directly to file while operating. This may slow server processes for a short period of time.')
-               ).append(
-                  $('<button>').click(function()
+                  // btw: if we 'enter' in host, user or pass we should try to login.
+                  function hand(e)
                   {
-                    if(confirmDelete('Are you sure you want to force a JSON save?') == true)
-                    {
-// TODO FIXME
-                       console.log('magie hier!');   // TODO FIXME
-// /TODO /FIXME
-                    }
-                  }).text( 'force save to JSON file' )
-               );
-
-               $('#page').append(forcesave);
-
-
-
-               break;
-
-
-
-
-            case 'protocols':
-
-               $table = $('<table>');
-               $table.html("<thead><th>Protocol</th><th>Port</th><th>Interface</th><th></th></thead>");
-               $tbody = $('<tbody>');
-
-               var tr, i, protocol,
-                   len = (settings.settings.config.protocols ? settings.settings.config.protocols.length : 0);
-
-               // remove old stuff
-               $tbody.html('');
-
-               for(i = 0; i < len; i++)
-               {
-                  protocol = settings.settings.config.protocols[i];  // local copy, {}
-
-                  tr = $('<tr>').attr('id', 'protocol-' + i);
-
-                  tr.append( $('<td>').text( protocol.connector ) );
-                  tr.append( $('<td>').text( protocol.port ) );
-
-                  tr.append( $('<td>').text( protocol['interface'] ) );  // interface is a reserved JS keyword :)
-
-                  tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
-                             {
-                                if(confirmDelete('Are you sure you want to delete this protocol?') == true)
-                                {
-                                   var id = $(this).parent().parent().attr('id').replace('protocol-', '');
-                                   settings.settings.config.protocols.splice(id, 1);
-                                   //delete settings.settings.config.protocols[protocol];
-                                   $(this).parent().parent().remove();
-                                   loadSettings();
-                                }
-                             }).text('delete') ) );
-
-                  $tbody.append(tr);
-               }
-
-
-               // add new protocol!
-               $nprot = $('<tr>').attr('class', 'outsidetable');
-               // protocol select
-               $pname = $('<select>').attr('id', 'new-protocol-name');
-               $pname.append( $('<option>').attr('value', 'HTTP').text('HTTP') );
-               $pname.append( $('<option>').attr('value', 'RTMP').text('RTMP') );
-
-               $nprot.append( $('<td>').append($pname) );
-               // val
-               $nprot.append( $('<td>').append( $('<input>').attr('type', 'number').attr('id', 'new-protocol-val') ) );
-
-               // interface
-               $nprot.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-protocol-interface') ) );
-
-               $nprot.append(
-                  $('<td>').attr('class', 'center').append(
-                     $('<button>').click(function()
+                     if(e.keyCode == 13)
                      {
-                        if($('#new-protocol-val').val() == '')
-                        {
-                           $('#new-protocol-val').focus();
-                           return;
-                        }
+                        conn.trigger('click');  // conn = login button :)
+                     }
+                  }
 
-                        if(!settings.settings.config.protocols)
-                        {
-                           //settings.settings.config.protocols = {};
-                           settings.settings.config.protocols = [];
-                        }
-
-                        /*
-                        settings.settings.config.protocols[$('#new-protocol-name :selected').val()] =
-                        {
-                           port: $('#new-protocol-val').val()
-                        };
-                        */
-
-                        var nobj =
-                        {
-                           connector: $('#new-protocol-name :selected').val(),
-                           port: $('#new-protocol-val').val(),
-                        };
-                        nobj['interface'] = $('#new-protocol-interface').val();
+                  host.keypress(hand);
+                  user.keypress(hand);
+                  pass.keypress(hand);
 
 
-                        settings.settings.config.protocols.push(nobj);
+
+                  // retrieve address hash stuff
+                  var adr = location.hash.replace('#', '').split('@');
+
+                  if(adr.length == 2)
+                  {
+                     //console.log(adr[0], adr[1]);
+                     // put it in the page
+                     host.val(adr[1]);
+                     user.val(adr[0]);
+                  }
+
+
+                  break;
+
+
+
+
+               case 'overview':
+
+
+                  $('#page').append(
+                     $('<div>').attr('id', 'editserver').append(
+                        $('<label>').attr('for', 'config-host').text('host').append(
+                           $('<input>').attr('type', 'text').attr('placeholder', 'HOST').attr('id', 'config-host').attr('value', settings.settings.config.host)
+                        )
+                     ).append(
+                        $('<label>').attr('for', 'config-name').text('name').append(
+                           $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'config-name').attr('value', settings.settings.config.name)
+                        )
+                     ).append(
+                        $('<label>').text('version').append(
+                           $('<span>').text(settings.settings.config.version)
+                        )
+                     ).append(
+                        $('<label>').text('time').append(
+                           $('<span>').text( formatDate(settings.settings.config.time) )
+                        )
+                     ).append(
+                        $('<label>').text('Streams').append(
+                           $('<span>').attr('id', 'cur_streams_online').text('retrieving data...')
+                        )
+                     ).append(
+                        $('<label>').text('Viewers').append(
+                           $('<span>').attr('id', 'cur_num_viewers').text('retrieving data...')
+                        )
+                     )
+                  );
+
+                  function showStats()
+                  {
+                     getStatData(function(data)
+                     {
+                        //console.log('getting live data... @' + new Date().getTime());
+                        $('#cur_streams_online').html('').text(data.streams[0] + ' of ' + data.streams[1] + ' online');
+                        $('#cur_num_viewers').html('').text(data.viewers);
+                     });
+                  }
+
+                  sinterval = setInterval(function()
+                  {
+                     showStats();
+                  }, 30000);
+
+                  // instantly call it the first time
+                  showStats();
+
+
+                  $('#editserver').append(
+                     $('<button>').attr('class', 'floatright').click(function()
+                     {
+                        var host = $('#config-host').val();
+                        var name = $('#config-name').val();
+
+                        settings.settings.config.host = host;
+                        settings.settings.config.name = name;
 
                         loadSettings(function()
                         {
-                           showTab('protocols');
+                           showTab('overview');
                         });
-
-                     }).text('add new')
-                  )
-               );
-
-               $tbody.append($nprot);
-               $table.append($tbody);
-               $('#page').append($table);
-
-               break;
+                     }).text( 'save' )
+                  );
 
 
+                  var forcesave = $('<div>').attr('id', 'forcesave');
 
-
-
-
-
-            case 'streams':
-
-               // filter
-               $div = $('<div>').attr('id', 'streams-filter');
-
-
-
-               function filterTable()
-               {
-                  $('#streams-list-tbody').children().each(function(k, v)
-                  {
-                     var type = $($(v).children()[0]).text().toLowerCase();
-
-                     $(v).show();
-
-                     if(type == 'recorded' && streamsdisplay[0] == false)
-                     {
-                        $(v).hide();
-                     }
-
-                     if(type == 'live' && streamsdisplay[1] == false)
-                     {
-                        $(v).hide();
-                     }
-                  });
-               }
-
-               function filterOn(event, elem)
-               {
-                  if(event.target.id == '')
-                  {
-                     return;  // label click goes bubbles on checkbox, so ignore it
-                  }
-
-                  var what = $(elem).text();
-
-                  if(what == 'recorded')
-                  {
-                     streamsdisplay[0] = !streamsdisplay[0];
-                     $('#stream-filter-recorded').attr('checked', streamsdisplay[0]);
-                  }else{
-                     streamsdisplay[1] = !streamsdisplay[1];
-                     $('#stream-filter-live').attr('checked', streamsdisplay[1]);
-                  }
-
-                  filterTable();
-               }
-
-               $div.append(
-                  $('<label>').attr('for', 'stream-filter-recorded').text('recorded').append(
-                     $('<input>').attr('type', 'checkbox').attr('id', 'stream-filter-recorded').attr('checked', streamsdisplay[0])
-                  ).click(function(event)
-                  {
-                     filterOn(event, this);
-                  })
-               );
-               $div.append(
-                  $('<label>').attr('for', 'stream-filter-live').text('live').append(
-                     $('<input>').attr('type', 'checkbox').attr('id', 'stream-filter-live').attr('checked', streamsdisplay[1])
-                  ).click(function(event)
-                  {
-                     filterOn(event, this);
-                  })
-               );
-
-               $('#page').append($div);
-
-
-
-               $table = $('<table>');
-               $table.html("<thead><th>Type</th><th>Embed</th><th>Name</th><th>Status</th><th>Viewers</th><th>Edit</th></thead>");
-               $tbody = $('<tbody>');
-
-               var stream, cstr, $tr;
-
-               $tbody.html('').attr('id', 'streams-list-tbody');
-
-               for(stream in settings.settings.streams)
-               {
-                  var cstr = settings.settings.streams[stream];
-
-                  $tr = $('<tr>').attr('id', 'stream-' + stream);
-
-
-                  $tr.append( $('<td>').text( TypeofResource( cstr.channel.URL ) ) );
-
-
-                  $tr.append( $('<td>').append( $('<button>').text('embed').click(function()
-                  {
-                     var sname = $(this).parent().parent().attr('id').replace('stream-', '');
-                     showTab('embed', sname);
-                  }) ) );
-
-
-                  $tr.append( $('<td>').text(cstr.name) );
-
-
-                  $tr.append( $('<td>').html(cstr.online == 1 ? "<span class='green'>Running</span>" : "<span class='red'>Error</span>") );
-
-
-                  var cviewers = 0;
-
-                  if(settings.settings.statistics && settings.settings.statistics[stream])
-                  {
-                     if(settings.settings.statistics[stream] && settings.settings.statistics[stream].curr)
-                     {
-                        for(viewer in settings.settings.statistics[stream].curr)
-                        {
-                           cviewers++;
-                        }
-                     }
-                  }else{
-                     cviewers = 0;
-                  }
-
-                  $tr.append( $('<td>').text( cviewers ) );
-
-
-                  $tr.append( $('<td>').append( $('<button>').text('edit').click(function()
-                  {
-                     var sname = $(this).parent().parent().attr('id').replace('stream-', '');
-
-                     showTab('editstream', sname);
-                  }) ) );
-
-
-                  $tbody.append($tr);
-               }
-
-               $table.append($tbody);
-               $('#page').append($table);
-
-               // on page load, also filter
-               filterTable();
-
-               $('#page').append(
-                  $('<button>').attr('class', 'floatright').click(function()
-                  {
-                     showTab('editstream', 'new');
-                  }).text('add new')
-               );
-
-               break;
-
-
-
-
-
-
-
-            case 'editstream':
-
-               var sdata, title;
-
-               if(streamname == 'new')
-               {
-                  sdata =
-                  {
-                     name: '',
-                     channel:
-                     {
-                        URL: ''
-                     },
-                     limits: [],
-                     preset:
-                     {
-                        cmd: ''
-                     }
-                  };
-                  title = 'add new stream';
-               }else{
-                  sdata = settings.settings.streams[streamname];
-                  title = 'edit stream "' + sdata.name + '"';
-               }
-
-               $('#page').append( $('<p>').text(title) );
-
-
-               $('#page').append(
-                  $('<div>').attr('id', 'editserver').append(
-                     $('<label>').attr('for', 'stream-edit-name').text('name').append(
-                        $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'stream-edit-name').attr('value', sdata.name)
-                     )
+                  forcesave.append(
+                     $('<p>').text('Click the button below to force an immediate settings save. This differs from a regular save to memory and file save on exit by saving directly to file while operating. This may slow server processes for a short period of time.')
                   ).append(
-                     $('<label>').attr('for', 'stream-edit-source').text('source').append(
-                        $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'stream-edit-source').attr('value', sdata.channel.URL)
-                     )
-                  ).append(
-                     $('<label>').attr('for', 'stream-edit-preset').text('preset').append(
-                        $('<input>').attr('type', 'text').attr('placeholder', 'PRESET').attr('id', 'stream-edit-preset').attr('value', sdata.preset.cmd)
-                     )
-                  )
-               );
-
-               $('#editserver').append(
-                  $('<button>').attr('class', 'floatright').click(function()
-                  {
-                     if(streamname == 'new')
+                     $('<button>').click(function()
                      {
-                        showTab('streams');
-                     }else{
-                        if(confirmDelete('Are you sure you want to delete the stream "' + settings.settings.streams[streamname].name + '"?') == true)
+                       if(confirmDelete('Are you sure you want to force a JSON save?') == true)
+                       {
+                          forceJSONSave();   // :)
+                       }
+                     }).text( 'force save to JSON file' )
+                  );
+
+                  $('#page').append(forcesave);
+
+
+
+                  break;
+
+
+
+
+               case 'protocols':
+
+                  $table = $('<table>');
+                  $table.html("<thead><th>Protocol</th><th>Port</th><th>Interface</th><th></th></thead>");
+                  $tbody = $('<tbody>');
+
+                  var tr, i, protocol,
+                      len = (settings.settings.config.protocols ? settings.settings.config.protocols.length : 0);
+
+                  // remove old stuff
+                  $tbody.html('');
+
+                  for(i = 0; i < len; i++)
+                  {
+                     protocol = settings.settings.config.protocols[i];  // local copy, {}
+
+                     tr = $('<tr>').attr('id', 'protocol-' + i);
+
+                     tr.append( $('<td>').text( protocol.connector ) );
+                     tr.append( $('<td>').text( protocol.port ) );
+
+                     tr.append( $('<td>').text( protocol['interface'] ) );  // interface is a reserved JS keyword :)
+
+                     tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
+                                {
+                                   if(confirmDelete('Are you sure you want to delete this protocol?') == true)
+                                   {
+                                      var id = $(this).parent().parent().attr('id').replace('protocol-', '');
+                                      settings.settings.config.protocols.splice(id, 1);
+                                      //delete settings.settings.config.protocols[protocol];
+                                      $(this).parent().parent().remove();
+                                      loadSettings();
+                                   }
+                                }).text('delete') ) );
+
+                     $tbody.append(tr);
+                  }
+
+
+                  // add new protocol!
+                  $nprot = $('<tr>').attr('class', 'outsidetable');
+                  // protocol select
+                  $pname = $('<select>').attr('id', 'new-protocol-name');
+                  $pname.append( $('<option>').attr('value', 'HTTP').text('HTTP') );
+                  $pname.append( $('<option>').attr('value', 'RTMP').text('RTMP') );
+
+                  $nprot.append( $('<td>').append($pname) );
+                  // val
+                  $nprot.append( $('<td>').append( $('<input>').attr('type', 'number').attr('id', 'new-protocol-val') ) );
+
+                  // interface
+                  $nprot.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-protocol-interface') ) );
+
+                  $nprot.append(
+                     $('<td>').attr('class', 'center').append(
+                        $('<button>').click(function()
                         {
-                           delete settings.settings.streams[streamname];
+                           if($('#new-protocol-val').val() == '')
+                           {
+                              $('#new-protocol-val').focus();
+                              return;
+                           }
+
+                           if(!settings.settings.config.protocols)
+                           {
+                              //settings.settings.config.protocols = {};
+                              settings.settings.config.protocols = [];
+                           }
+
+                           /*
+                           settings.settings.config.protocols[$('#new-protocol-name :selected').val()] =
+                           {
+                              port: $('#new-protocol-val').val()
+                           };
+                           */
+
+                           var nobj =
+                           {
+                              connector: $('#new-protocol-name :selected').val(),
+                              port: $('#new-protocol-val').val(),
+                           };
+                           nobj['interface'] = $('#new-protocol-interface').val();
+
+
+                           settings.settings.config.protocols.push(nobj);
+
                            loadSettings(function()
                            {
-                              showTab('streams');
+                              showTab('protocols');
                            });
+
+                        }).text('add new')
+                     )
+                  );
+
+                  $tbody.append($nprot);
+                  $table.append($tbody);
+                  $('#page').append($table);
+
+                  break;
+
+
+
+
+
+
+
+               case 'streams':
+
+                  // filter
+                  $div = $('<div>').attr('id', 'streams-filter');
+
+
+
+                  function filterTable()
+                  {
+                     $('#streams-list-tbody').children().each(function(k, v)
+                     {
+                        var type = $($(v).children()[0]).text().toLowerCase();
+
+                        $(v).show();
+
+                        if(type == 'recorded' && streamsdisplay[0] == false)
+                        {
+                           $(v).hide();
                         }
-                     }
-                  }).text( streamname == 'new' ? 'cancel' : 'delete' )
-               );
 
-               $('#editserver').append(
-                  $('<button>').attr('class', 'floatright').click(function()
-                  {
-                     var n = $('#stream-edit-name');
-                     var s = $('#stream-edit-source');
-                     var p = $('#stream-edit-preset');
-
-                     if(n.val() == ''){ n.focus(); return; }
-                     if(s.val() == ''){ s.focus(); return; }
-                     if(p.val() == ''){ p.focus(); return; }
-
-                     sdata.name = n.val();
-                     sdata.channel.URL = s.val();
-                     sdata.preset.cmd = p.val();
-
-                     if(streamname == 'new')
-                     {
-                        streamname = n.val().replace(/ /g, '-');
-                     }
-
-                     if(!settings.settings.streams)
-                     {
-                        settings.settings.streams = {};
-                     }
-
-                     settings.settings.streams[streamname] = sdata;
-
-                     loadSettings(function()
-                     {
-                        showTab('streams');
+                        if(type == 'live' && streamsdisplay[1] == false)
+                        {
+                           $(v).hide();
+                        }
                      });
-                        
-                  }).text('save')
-               );
-
-               break;
-
-
-
-            case 'embed':
-
-               var url = settings.settings.streams[streamname].channel.URL;
-
-               // TODO FIXME
-
-               $('#page').append( $('<p>').text('This feature is not yet implemented.') );
-               $('#page').append( $('<p>').text('The URL for this stream is ').append( $('<span>').attr('class', 'nocapitals').text(url) ) );
-
-               break;
-
-
-
-            case 'limits':
-               $table = $('<table>');
-               $table.html("<thead><th>Type</th><th>Hard/soft</th><th>Value</th><th>applies to</th><th>Action</th></thead>");
-               $tbody = $('<tbody>');
-
-               var i, tr, limit, stream, clims,
-                   alllimits = settings.settings.config.limits;
-
-               for(stream in settings.settings.streams)
-               {
-                  clims = settings.settings.streams[stream].limits;
-
-                  $.each(clims, function(k, v)
-                  {
-                     this.appliesto = stream;
-                     this.appliesi = k;
-                  });
-
-                  alllimits = alllimits.concat(clims);
-               }
-
-               //console.log(alllimits);
-
-               len = alllimits.length;
-
-
-               // remove old stuff
-               $tbody.html('');
-
-               for(i = 0; i < len; i++)
-               {
-                  tr = $('<tr>').attr('id', 'limits-' + i);
-                  limit = alllimits[i];
-
-                  tr.append( $('<td>').text( shortToLongLimit(limit.name) ) );
-                  tr.append( $('<td>').text( limit.type ) );
-                  tr.append( $('<td>').text( limit.val ) );
-
-
-                  if(limit.appliesto)
-                  {
-                     tr.append( $('<td>').text( settings.settings.streams[limit.appliesto].name ).attr('id', 'limit-at-' + limit.appliesto + '-' + limit.appliesi) );
-                  }else{
-                     tr.append( $('<td>').text( 'server' ) );
                   }
 
-                  delete limit.appliesto;
-                  delete limit.appliesi;
-
-                  tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
-                             {
-                                if(confirmDelete('Are you sure you want to delete this limit?') == true)
-                                {
-                                   var id = $(this).parent().parent().attr('id').replace('limits-', '');
-                                   var at = $($(this).parent().parent().children()[3]).attr('id');
-
-                                   if(at == undefined)
-                                   {
-                                      settings.settings.config.limits.splice(id, 1);
-                                   }else{
-                                      var data = at.replace('limit-at-', '').split('-');
-                                      var loc = data.pop();
-                                      data = data.join('-');
-
-                                      settings.settings.streams[data].limits.splice(loc, 1);
-                                   }
-
-                                   $(this).parent().parent().remove();
-
-                                   loadSettings();
-                                }
-                             }).text('delete') ) );
-
-                  $tbody.append(tr);
-               }
-
-               // add new limit!
-               $nltr = $('<tr>').attr('class', 'outsidetable');
-
-               // type select
-               $ltype = $('<select>').attr('id', 'new-limit-type');
-               for(i = 0; i < ltypes.length; i++)
-               {
-                  $ltype.append( $('<option>').attr('value', ltypes[i][0]).text(ltypes[i][1]) );
-               }
-               $nltr.append( $('<td>').append( $ltype ) );
-               // hard/soft
-               $nltr.append( $('<td>').append( $('<select>').attr('id', 'new-limit-hs').append( $('<option>').attr('value', 'hard').text('Hard limit') ).append( $('<option>').attr('value', 'soft').text('Soft limit') ) ) );
-               // val
-               $nltr.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-limit-val') ) );
-
-
-               // appliesto
-               var $appliesto = $('<select>').attr('id', 'new-limit-appliesto').append( $('<option>').attr('value', 'server').text('Server') );
-
-               for(var strm in settings.settings.streams)
-               {
-                  $appliesto.append(
-                     $('<option>').attr('value', strm).text(settings.settings.streams[strm].name)
-                  );
-               }
-               $nltr.append( $('<td>').append( $appliesto ) );
-
-
-               $nltr.append(
-                  $('<td>').attr('class', 'center').append(
-                     $('<button>').click(function()
+                  function filterOn(event, elem)
+                  {
+                     if(event.target.id == '')
                      {
-                        var obj =
-                        {
-                           name: $('#new-limit-type :selected').val(),
-                           type: $('#new-limit-hs :selected').val(),
-                           val:  $('#new-limit-val').val()
-                        };
+                        return;  // label click goes bubbles on checkbox, so ignore it
+                     }
 
-                        if( $('#new-limit-appliesto').val() == 'server')
+                     var what = $(elem).text();
+
+                     if(what == 'recorded')
+                     {
+                        streamsdisplay[0] = !streamsdisplay[0];
+                        $('#stream-filter-recorded').attr('checked', streamsdisplay[0]);
+                     }else{
+                        streamsdisplay[1] = !streamsdisplay[1];
+                        $('#stream-filter-live').attr('checked', streamsdisplay[1]);
+                     }
+
+                     filterTable();
+                  }
+
+                  $div.append(
+                     $('<label>').attr('for', 'stream-filter-recorded').text('recorded').append(
+                        $('<input>').attr('type', 'checkbox').attr('id', 'stream-filter-recorded').attr('checked', streamsdisplay[0])
+                     ).click(function(event)
+                     {
+                        filterOn(event, this);
+                     })
+                  );
+                  $div.append(
+                     $('<label>').attr('for', 'stream-filter-live').text('live').append(
+                        $('<input>').attr('type', 'checkbox').attr('id', 'stream-filter-live').attr('checked', streamsdisplay[1])
+                     ).click(function(event)
+                     {
+                        filterOn(event, this);
+                     })
+                  );
+
+                  $('#page').append($div);
+
+
+
+                  $table = $('<table>');
+                  $table.html("<thead><th>Type</th><th>Embed</th><th>Name</th><th>Status</th><th>Viewers</th><th>Edit</th></thead>");
+                  $tbody = $('<tbody>');
+
+                  var stream, cstr, $tr;
+
+                  $tbody.html('').attr('id', 'streams-list-tbody');
+
+                  for(stream in settings.settings.streams)
+                  {
+                     var cstr = settings.settings.streams[stream];
+
+                     $tr = $('<tr>').attr('id', 'stream-' + stream);
+
+
+                     $tr.append( $('<td>').text( TypeofResource( cstr.channel.URL ) ) );
+
+
+                     $tr.append( $('<td>').append( $('<button>').text('embed').click(function()
+                     {
+                        var sname = $(this).parent().parent().attr('id').replace('stream-', '');
+                        showTab('embed', sname);
+                     }) ) );
+
+
+                     $tr.append( $('<td>').text(cstr.name) );
+
+
+                     $tr.append( $('<td>').html(cstr.online == 1 ? "<span class='green'>Running</span>" : "<span class='red'>Error</span>") );
+
+
+                     var cviewers = 0;
+
+                     if(settings.settings.statistics && settings.settings.statistics[stream])
+                     {
+                        if(settings.settings.statistics[stream] && settings.settings.statistics[stream].curr)
                         {
-                           settings.settings.config.limits.push(obj);
-                        }else{
-                           settings.settings.streams[ $('#new-limit-appliesto').val() ].limits.push(obj);
+                           for(viewer in settings.settings.statistics[stream].curr)
+                           {
+                              cviewers++;
+                           }
                         }
+                     }else{
+                        cviewers = 0;
+                     }
+
+                     $tr.append( $('<td>').text( cviewers ) );
+
+
+                     $tr.append( $('<td>').append( $('<button>').text('edit').click(function()
+                     {
+                        var sname = $(this).parent().parent().attr('id').replace('stream-', '');
+
+                        showTab('editstream', sname);
+                     }) ) );
+
+
+                     $tbody.append($tr);
+                  }
+
+                  $table.append($tbody);
+                  $('#page').append($table);
+
+                  // on page load, also filter
+                  filterTable();
+
+                  $('#page').append(
+                     $('<button>').attr('class', 'floatright').click(function()
+                     {
+                        showTab('editstream', 'new');
+                     }).text('add new')
+                  );
+
+                  break;
+
+
+
+
+
+
+
+               case 'editstream':
+
+                  var sdata, title;
+
+                  if(streamname == 'new')
+                  {
+                     sdata =
+                     {
+                        name: '',
+                        channel:
+                        {
+                           URL: ''
+                        },
+                        limits: [],
+                        preset:
+                        {
+                           cmd: ''
+                        }
+                     };
+                     title = 'add new stream';
+                  }else{
+                     sdata = settings.settings.streams[streamname];
+                     title = 'edit stream "' + sdata.name + '"';
+                  }
+
+                  $('#page').append( $('<p>').text(title) );
+
+
+                  $('#page').append(
+                     $('<div>').attr('id', 'editserver').append(
+                        $('<label>').attr('for', 'stream-edit-name').text('name').append(
+                           $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'stream-edit-name').attr('value', sdata.name)
+                        )
+                     ).append(
+                        $('<label>').attr('for', 'stream-edit-source').text('source').append(
+                           $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'stream-edit-source').attr('value', sdata.channel.URL)
+                        )
+                     ).append(
+                        $('<label>').attr('for', 'stream-edit-preset').text('preset').append(
+                           $('<input>').attr('type', 'text').attr('placeholder', 'PRESET').attr('id', 'stream-edit-preset').attr('value', sdata.preset.cmd)
+                        )
+                     )
+                  );
+
+                  $('#editserver').append(
+                     $('<button>').attr('class', 'floatright').click(function()
+                     {
+                        if(streamname == 'new')
+                        {
+                           showTab('streams');
+                        }else{
+                           if(confirmDelete('Are you sure you want to delete the stream "' + settings.settings.streams[streamname].name + '"?') == true)
+                           {
+                              delete settings.settings.streams[streamname];
+                              loadSettings(function()
+                              {
+                                 showTab('streams');
+                              });
+                           }
+                        }
+                     }).text( streamname == 'new' ? 'cancel' : 'delete' )
+                  );
+
+                  $('#editserver').append(
+                     $('<button>').attr('class', 'floatright').click(function()
+                     {
+                        var n = $('#stream-edit-name');
+                        var s = $('#stream-edit-source');
+                        var p = $('#stream-edit-preset');
+
+                        if(n.val() == ''){ n.focus(); return; }
+                        if(s.val() == ''){ s.focus(); return; }
+                        if(p.val() == ''){ p.focus(); return; }
+
+                        sdata.name = n.val();
+                        sdata.channel.URL = s.val();
+                        sdata.preset.cmd = p.val();
+
+                        if(streamname == 'new')
+                        {
+                           streamname = n.val().replace(/ /g, '-');
+                        }
+
+                        if(!settings.settings.streams)
+                        {
+                           settings.settings.streams = {};
+                        }
+
+                        settings.settings.streams[streamname] = sdata;
 
                         loadSettings(function()
                         {
-                           showTab('limits');
+                           showTab('streams');
                         });
-
-                     }).text('add new')
-                  )
-               );
-               $tbody.append($nltr);
-
-               $table.append($tbody);
-               $('#page').append($table);
-
-               break;
-
-
-
-
-
-            case 'logs':
-               $table = $('<table>');
-               $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
-               $tbody = $('<tbody>');
-
-               var i, cur, $tr,
-                   logs = settings.settings.log,
-                   len = logs.length;
-
-               if(len >= 2 && settings.settings.log[0][0] < settings.settings.log[len - 1][0])
-               {
-                  logs.reverse();
-               }
-
-               $tbody.html('');
-
-               for(i = 0; i < len; i++)
-               {
-                  cur = settings.settings.log[i];
-
-                  $tr = $('<tr>').append(
-                     $('<td>').text(formatDate(cur[0]))
-                  ).append(
-                     $('<td>').text(cur[1])
-                  ).append(
-                     $('<td>').text(cur[2])
+                           
+                     }).text('save')
                   );
 
-                  $tbody.append($tr);
-               }
+                  break;
 
-               $table.append($tbody);
-               $('#page').append($table);
 
-               $('#page').append(
-                  $('<button>').attr('class', 'floatright').click(function()
+
+               case 'embed':
+
+                  var url = settings.settings.streams[streamname].channel.URL;
+
+                  // TODO when embed code is done.
+
+                  $('#page').append( $('<p>').text('This feature is not yet implemented.') );
+                  $('#page').append( $('<p>').text('The URL for this stream is ').append( $('<span>').attr('class', 'nocapitals').text(url) ) );
+
+                  break;
+
+
+
+               case 'limits':
+                  $table = $('<table>');
+                  $table.html("<thead><th>Type</th><th>Hard/soft</th><th>Value</th><th>applies to</th><th>Action</th></thead>");
+                  $tbody = $('<tbody>');
+
+                  var i, tr, limit, stream, clims,
+                      alllimits = settings.settings.config.limits;
+
+                  for(stream in settings.settings.streams)
                   {
-                     settings.settings.clearstatlogs = 1;
-                     loadSettings(function()
+                     clims = settings.settings.streams[stream].limits;
+
+                     $.each(clims, function(k, v)
                      {
-                        showTab('logs');
+                        this.appliesto = stream;
+                        this.appliesi = k;
                      });
-                  }).text('Purge logs')
-               );
 
-               break;
+                     alllimits = alllimits.concat(clims);
+                  }
+
+                  //console.log(alllimits);
+
+                  len = alllimits.length;
 
 
+                  // remove old stuff
+                  $tbody.html('');
 
-            case 'disconnect':
-               showTab('login');
-               setHeaderState('disconnected');
-               $('#nav').css('visibility', 'hidden');
-
-               settings =
-               {
-                  server: '',
-                  credentials:
+                  for(i = 0; i < len; i++)
                   {
-                     username: "",
-                     password: "",
-                     authstring: ""
-                  },
-                  settings: {}
-               };
-               break;
-         }  // end switch :D
+                     tr = $('<tr>').attr('id', 'limits-' + i);
+                     limit = alllimits[i];
+
+                     tr.append( $('<td>').text( shortToLongLimit(limit.name) ) );
+                     tr.append( $('<td>').text( limit.type ) );
+                     tr.append( $('<td>').text( limit.val ) );
 
 
-         //placeholder for older browsers
-         $('input[placeholder]').placeholder();
+                     if(limit.appliesto)
+                     {
+                        tr.append( $('<td>').text( settings.settings.streams[limit.appliesto].name ).attr('id', 'limit-at-' + limit.appliesto + '-' + limit.appliesi) );
+                     }else{
+                        tr.append( $('<td>').text( 'server' ) );
+                     }
 
-      }
+                     delete limit.appliesto;
+                     delete limit.appliesi;
 
-   </script>
+                     tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
+                                {
+                                   if(confirmDelete('Are you sure you want to delete this limit?') == true)
+                                   {
+                                      var id = $(this).parent().parent().attr('id').replace('limits-', '');
+                                      var at = $($(this).parent().parent().children()[3]).attr('id');
+
+                                      if(at == undefined)
+                                      {
+                                         settings.settings.config.limits.splice(id, 1);
+                                      }else{
+                                         var data = at.replace('limit-at-', '').split('-');
+                                         var loc = data.pop();
+                                         data = data.join('-');
+
+                                         settings.settings.streams[data].limits.splice(loc, 1);
+                                      }
+
+                                      $(this).parent().parent().remove();
+
+                                      loadSettings();
+                                   }
+                                }).text('delete') ) );
+
+                     $tbody.append(tr);
+                  }
+
+                  // add new limit!
+                  $nltr = $('<tr>').attr('class', 'outsidetable');
+
+                  // type select
+                  $ltype = $('<select>').attr('id', 'new-limit-type');
+                  for(i = 0; i < ltypes.length; i++)
+                  {
+                     $ltype.append( $('<option>').attr('value', ltypes[i][0]).text(ltypes[i][1]) );
+                  }
+                  $nltr.append( $('<td>').append( $ltype ) );
+                  // hard/soft
+                  $nltr.append( $('<td>').append( $('<select>').attr('id', 'new-limit-hs').append( $('<option>').attr('value', 'hard').text('Hard limit') ).append( $('<option>').attr('value', 'soft').text('Soft limit') ) ) );
+                  // val
+                  $nltr.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-limit-val') ) );
+
+
+                  // appliesto
+                  var $appliesto = $('<select>').attr('id', 'new-limit-appliesto').append( $('<option>').attr('value', 'server').text('Server') );
+
+                  for(var strm in settings.settings.streams)
+                  {
+                     $appliesto.append(
+                        $('<option>').attr('value', strm).text(settings.settings.streams[strm].name)
+                     );
+                  }
+                  $nltr.append( $('<td>').append( $appliesto ) );
+
+
+                  $nltr.append(
+                     $('<td>').attr('class', 'center').append(
+                        $('<button>').click(function()
+                        {
+                           var obj =
+                           {
+                              name: $('#new-limit-type :selected').val(),
+                              type: $('#new-limit-hs :selected').val(),
+                              val:  $('#new-limit-val').val()
+                           };
+
+                           if( $('#new-limit-appliesto').val() == 'server')
+                           {
+                              settings.settings.config.limits.push(obj);
+                           }else{
+                              settings.settings.streams[ $('#new-limit-appliesto').val() ].limits.push(obj);
+                           }
+
+                           loadSettings(function()
+                           {
+                              showTab('limits');
+                           });
+
+                        }).text('add new')
+                     )
+                  );
+                  $tbody.append($nltr);
+
+                  $table.append($tbody);
+                  $('#page').append($table);
+
+                  break;
+
+
+
+
+
+               case 'logs':
+                  $table = $('<table>');
+                  $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
+                  $tbody = $('<tbody>');
+
+                  var i, cur, $tr,
+                      logs = settings.settings.log,
+                      len = logs.length;
+
+                  if(len >= 2 && settings.settings.log[0][0] < settings.settings.log[len - 1][0])
+                  {
+                     logs.reverse();
+                  }
+
+                  $tbody.html('');
+
+                  for(i = 0; i < len; i++)
+                  {
+                     cur = settings.settings.log[i];
+
+                     $tr = $('<tr>').append(
+                        $('<td>').text(formatDate(cur[0]))
+                     ).append(
+                        $('<td>').text(cur[1])
+                     ).append(
+                        $('<td>').text(cur[2])
+                     );
+
+                     $tbody.append($tr);
+                  }
+
+                  $table.append($tbody);
+                  $('#page').append($table);
+
+                  $('#page').append(
+                     $('<button>').attr('class', 'floatright').click(function()
+                     {
+                        settings.settings.clearstatlogs = 1;
+                        loadSettings(function()
+                        {
+                           showTab('logs');
+                        });
+                     }).text('Purge logs')
+                  );
+
+                  break;
+
+
+
+               case 'disconnect':
+                  showTab('login');
+                  setHeaderState('disconnected');
+                  $('#nav').css('visibility', 'hidden');
+
+                  settings =
+                  {
+                     server: '',
+                     credentials:
+                     {
+                        username: "",
+                        password: "",
+                        authstring: ""
+                     },
+                     settings: {}
+                  };
+                  break;
+            }  // end switch
+
+
+            //placeholder for older browsers
+            $('input[placeholder]').placeholder();
+
+         }
+
+      </script>
+
+   </body>
 
 </html>

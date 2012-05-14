@@ -68,7 +68,9 @@ namespace Socket{
   class Server{
     private:
       int sock; ///< Internally saved socket number.
-    public:
+      bool IPv6bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv6 socket
+      bool IPv4bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv4 socket
+  public:
       Server(); ///< Create a new base Server.
       Server(int port, std::string hostname = "0.0.0.0", bool nonblock = false); ///< Create a new TCP Server.
       Server(std::string adres, bool nonblock = false); ///< Create a new Unix Server.

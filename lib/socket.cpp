@@ -463,12 +463,24 @@ Socket::Server::Server(){
 /// \param hostname (optional) The interface to bind to. The default is 0.0.0.0 (all interfaces).
 /// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
 Socket::Server::Server(int port, std::string hostname, bool nonblock){
+  if (!IPv6bind(port, hostname, nonblock) && !IPv4bind(port, hostname, nonblock)){
+    fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
+    sock = -1;
+  }
+}//Socket::Server TCP Constructor
+
+/// Attempt to bind an IPv6 socket.
+/// \param port The TCP port to listen on
+/// \param hostname The interface to bind to. The default is 0.0.0.0 (all interfaces).
+/// \param nonblock Whether accept() calls will be nonblocking. Default is false (blocking).
+/// \return True if successful, false otherwise.
+bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET6, SOCK_STREAM, 0);
   if (sock < 0){
     #if DEBUG >= 1
     fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
     #endif
-    return;
+    return false;
   }
   int on = 1;
   setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
@@ -489,28 +501,37 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100);//start listening, backlog of 100 allowed
     if (ret == 0){
-      return;
+      return true;
     }else{
       #if DEBUG >= 1
       fprintf(stderr, "Listen failed! Error: %s\n", strerror(errno));
       #endif
       close();
-      return;
+      return false;
     }
   }else{
     #if DEBUG >= 1
-    fprintf(stderr, "Binding %s:%i failed, retrying as IPv4... (%s)\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "Binding %s:%i failed (%s)\n", hostname.c_str(), port, strerror(errno));
     #endif
     close();
+    return false;
   }
+}
+
+/// Attempt to bind an IPv4 socket.
+/// \param port The TCP port to listen on
+/// \param hostname The interface to bind to. The default is 0.0.0.0 (all interfaces).
+/// \param nonblock Whether accept() calls will be nonblocking. Default is false (blocking).
+/// \return True if successful, false otherwise.
+bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock < 0){
     #if DEBUG >= 1
-    fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "Could not create IPv4 socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
     #endif
-    return;
+    return false;
   }
-  on = 1;
+  int on = 1;
   setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   if (nonblock){
     int flags = fcntl(sock, F_GETFL, 0);
@@ -525,26 +546,26 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
   }else{
     inet_pton(AF_INET, hostname.c_str(), &addr4.sin_addr);//set interface, 0.0.0.0 (default) is all
   }
-  ret = bind(sock, (sockaddr*)&addr4, sizeof(addr4));//do the actual bind
+  int ret = bind(sock, (sockaddr*)&addr4, sizeof(addr4));//do the actual bind
   if (ret == 0){
     ret = listen(sock, 100);//start listening, backlog of 100 allowed
     if (ret == 0){
-      return;
+      return true;
     }else{
       #if DEBUG >= 1
       fprintf(stderr, "Listen failed! Error: %s\n", strerror(errno));
       #endif
       close();
-      return;
+      return false;
     }
   }else{
     #if DEBUG >= 1
-    fprintf(stderr, "IPv4 binding %s:%i also failed, giving up. (%s)\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "IPv4 binding %s:%i failed (%s)\n", hostname.c_str(), port, strerror(errno));
     #endif
     close();
-    return;
+    return false;
   }
-}//Socket::Server TCP Constructor
+}
 
 /// Create a new Unix Server. The socket is immediately bound and set to listen.
 /// A maximum of 100 connections will be accepted between accept() calls.

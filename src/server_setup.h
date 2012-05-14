@@ -82,14 +82,15 @@ int main(int argc, char ** argv){
 
   //setup a new server socket, for the correct interface and port
   server_socket = Socket::Server(C.listen_port, C.interface);
-  #if DEBUG >= 3
-  fprintf(stderr, "Made a listening socket on %s:%i...\n", C.interface.c_str(), C.listen_port);
-  #endif
   if (!server_socket.connected()){
     #if DEBUG >= 1
     fprintf(stderr, "Error: could not make listening socket\n");
     #endif
     return 1;
+  }else{
+    #if DEBUG >= 3
+    fprintf(stderr, "Made a listening socket on %s:%i...\n", C.interface.c_str(), C.listen_port);
+    #endif
   }
 
   Util::setUser(C.username);

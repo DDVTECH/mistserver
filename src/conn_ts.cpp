@@ -361,4 +361,4 @@ int TS_Handler( Socket::Connection conn ) {
 #define DEFAULT_PORT 8888
 #define MAINHANDLER TS_Handler
 #define CONFIGSECT TS
-#include "../util/server_setup.cpp"
+#include "server_setup.h"

@@ -21,6 +21,8 @@ Buffer::Stream * Buffer::Stream::get(){
 /// Creates a new DTSC::Stream object, private function so only one instance can exist.
 Buffer::Stream::Stream(){
   Strm = new DTSC::Stream(5);
+  readers = 0;
+  writers = 0;
 }
 
 /// Do cleanup on delete.

@@ -1,5 +1,7 @@
 #ignore object files and nonsense like that
 *.[oa]
+*.la
+*.lo
 *~
 .deps
 Makefile

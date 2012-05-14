@@ -5,14 +5,16 @@ AC_PREREQ([2.60])
 m4_include([version.m4])
 AC_INIT(MistServer, VERSION_NUMBER, contact@ddvtech.com)
 AC_CONFIG_SRCDIR([src/buffer.cpp])
+AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE
+LT_INIT
 
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC
 
 # Checks for libraries.
-AC_PROG_RANLIB
+AC_CHECK_LIB(ssl, RC4)
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/socket.h sys/time.h unistd.h])

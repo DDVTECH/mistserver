@@ -17,7 +17,7 @@ int main() {
   FLV::Tag FLV_in; // Temporary storage for incoming FLV data.
   while (!feof(stdin)){
     if (FLV_in.FileLoader(stdin)){
-      std::cout << "Tag: " << FLV_in.tagType() << std::endl;
+      std::cout << "Tag: " << FLV_in.tagType() << "\n\tTime: " << FLV_in.tagTime() << std::endl;
     }
   }
   return 0;

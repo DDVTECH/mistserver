@@ -478,7 +478,7 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET6, SOCK_STREAM, 0);
   if (sock < 0){
     #if DEBUG >= 1
-    fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "Could not create IPv6 socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
     #endif
     return false;
   }
@@ -504,14 +504,14 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
       return true;
     }else{
       #if DEBUG >= 1
-      fprintf(stderr, "Listen failed! Error: %s\n", strerror(errno));
+      fprintf(stderr, "IPv6 Listen failed! Error: %s\n", strerror(errno));
       #endif
       close();
       return false;
     }
   }else{
     #if DEBUG >= 1
-    fprintf(stderr, "Binding %s:%i failed (%s)\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "IPv6 Binding %s:%i failed (%s)\n", hostname.c_str(), port, strerror(errno));
     #endif
     close();
     return false;
@@ -553,7 +553,7 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
       return true;
     }else{
       #if DEBUG >= 1
-      fprintf(stderr, "Listen failed! Error: %s\n", strerror(errno));
+      fprintf(stderr, "IPv4 Listen failed! Error: %s\n", strerror(errno));
       #endif
       close();
       return false;

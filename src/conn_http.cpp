@@ -164,7 +164,6 @@ namespace Connector_HTTP{
     int ReqFragment = -1;
     int temp;
     int Flash_RequestPending = 0;
-    bool Flash_ManifestSent = false;
     unsigned int lastStats = 0;
     //int CurrentFragment = -1; later herbruiken?
 
@@ -172,7 +171,9 @@ namespace Connector_HTTP{
       //only parse input if available or not yet init'ed
       if (HTTP_R.Read(conn, ready4data)){
         handler = HANDLER_PROGRESSIVE;
+        #if DEBUG >= 4
         std::cout << "Received request: " << HTTP_R.url << std::endl;
+        #endif
         if ((HTTP_R.url.find("Seg") != std::string::npos) && (HTTP_R.url.find("Frag") != std::string::npos)){handler = HANDLER_FLASH;}
         if (HTTP_R.url.find("f4m") != std::string::npos){handler = HANDLER_FLASH;}
         if (HTTP_R.url == "/crossdomain.xml"){
@@ -185,7 +186,7 @@ namespace Connector_HTTP{
           printf("Sending crossdomain.xml file\n");
           #endif
         }
-        if (HTTP_R.url.substr(0, 7) == "/embed_" && HTTP_R.url.substr(HTTP_R.url.length() - 3, 3) == ".js"){
+        if (HTTP_R.url.length() > 10 && HTTP_R.url.substr(0, 7) == "/embed_" && HTTP_R.url.substr(HTTP_R.url.length() - 3, 3) == ".js"){
           streamname = HTTP_R.url.substr(7, HTTP_R.url.length() - 10);
           JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
           std::string response;
@@ -218,24 +219,29 @@ namespace Connector_HTTP{
             temp = HTTP_R.url.find("Frag") + 4;
             ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
             #if DEBUG >= 4
-            printf( "URL: %s\n", HTTP_R.url.c_str());
-            printf( "Movie: %s, Quality: %s, Seg %d Frag %d\n", Movie.c_str(), Quality.c_str(), Segment, ReqFragment);
+            printf( "Quality: %s, Seg %d Frag %d\n", Quality.c_str(), Segment, ReqFragment);
             #endif
             Flash_RequestPending++;
           }else{
             Movie = HTTP_R.url.substr(1);
             Movie = Movie.substr(0,Movie.find("/"));
-          }
-          streamname = Movie;
-          if( !Flash_ManifestSent ) {
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type","text/xml");
             HTTP_S.SetHeader("Cache-Control","no-cache");
-            HTTP_S.SetBody(BuildManifest(Movie));
+            std::string manifest = BuildManifest(Movie);
+            #if DEBUG >= 4
+            printf("Manifest: %s\n", manifest.c_str());
+            #endif
+            HTTP_S.SetBody(manifest);
             HTTP_S.SendResponse(conn, "200", "OK");
-            Flash_ManifestSent = true;//stop manifest from being sent multiple times
-            std::cout << "Sent manifest" << std::endl;
+            #if DEBUG >= 3
+            printf("Sent manifest\n");
+            #endif
           }
+          #if DEBUG >= 4
+          printf( "Movie: %s\n", Movie.c_str());
+          #endif
+          streamname = Movie;
           ready4data = true;
         }//FLASH handler
         if (handler == HANDLER_PROGRESSIVE){
@@ -244,6 +250,9 @@ namespace Connector_HTTP{
           streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
           /// \todo VoD streams will need support for position reading from the URL parameters
           ready4data = true;
+          #if DEBUG >= 4
+          printf( "Opening progressive stream: %s\n", streamname.c_str());
+          #endif
         }//PROGRESSIVE handler
         HTTP_R.CleanForNext(); //clean for any possinble next requests
       }

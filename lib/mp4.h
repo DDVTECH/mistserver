@@ -75,7 +75,6 @@ namespace MP4{
       std::vector<abst_qualityentry> Qualities;
       std::vector<Box *> SegmentRunTables;
       std::vector<Box *> FragmentRunTables;
-      Box * Container;
   };//ABST Box
 
   struct afrt_fragmentrunentry {

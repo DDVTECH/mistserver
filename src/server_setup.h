@@ -60,7 +60,6 @@ void signal_handler (int signum){
 /// Any incoming connections will be accepted and start up the function #MAINHANDLER,
 /// which should be defined before including server_setup.cpp.
 /// The default port is set by define #DEFAULT_PORT.
-/// The configuration file section is set by define #CONFIGSECT.
 int main(int argc, char ** argv){
   Socket::Connection S;//placeholder for incoming connections
 

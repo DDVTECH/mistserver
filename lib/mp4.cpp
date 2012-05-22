@@ -187,7 +187,7 @@ void ABST::SetVersion( bool NewVersion) {
 }
 
 void ABST::SetReserved( ) {
-  Container->SetPayload((uint32_t)4,Box::uint32_to_uint8(0));
+  SetPayload((uint32_t)4,Box::uint32_to_uint8(0));
 }
 
 void ABST::WriteContent( ) {
@@ -393,7 +393,7 @@ std::string GenerateLiveBootstrap( uint32_t CurMediaTime ) {
   abst.AddServerEntry("");
   abst.AddQualityEntry("");
   abst.WriteContent();
-
+  
   std::string Result;
   Result.append((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
   return Result;

@@ -117,9 +117,6 @@ namespace Buffer{
       //slow down packet receiving to real-time
       now = getNowMS();
       if ((now - lastPacketTime >= currPacketTime - prevPacketTime) || (currPacketTime <= prevPacketTime)){
-        std::cin.read(charBuffer, 1024*10);
-        charCount = std::cin.gcount();
-        inBuffer.append(charBuffer, charCount);
         thisStream->getWriteLock();
         if (thisStream->getStream()->parsePacket(inBuffer)){
           thisStream->getStream()->outPacket(0);
@@ -129,6 +126,9 @@ namespace Buffer{
           thisStream->dropWriteLock(true);
         }else{
           thisStream->dropWriteLock(false);
+          std::cin.read(charBuffer, 1024*10);
+          charCount = std::cin.gcount();
+          inBuffer.append(charBuffer, charCount);
         }
       }else{
         if (((currPacketTime - prevPacketTime) - (now - lastPacketTime)) > 999){
@@ -149,17 +149,22 @@ namespace Buffer{
     std::string inBuffer;
     while (buffer_running){
       if (thisStream->getIPInput().connected()){
-        if (thisStream->getIPInput().iread(inBuffer)){
+        if (inBuffer.size() > 0){
           thisStream->getWriteLock();
           if (thisStream->getStream()->parsePacket(inBuffer)){
             thisStream->getStream()->outPacket(0);
             thisStream->dropWriteLock(true);
           }else{
             thisStream->dropWriteLock(false);
+            thisStream->getIPInput().iread(inBuffer);
+            usleep(1000);//1ms wait
           }
+        }else{
+          thisStream->getIPInput().iread(inBuffer);
+          usleep(1000);//1ms wait
         }
       }else{
-        usleep(1000000);
+        usleep(1000000);//1s wait
       }
     }
     SS.close();

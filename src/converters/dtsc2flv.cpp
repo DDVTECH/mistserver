@@ -27,9 +27,6 @@ namespace Converters{
     bool doneheader = false;
 
     while (std::cin.good()){
-      std::cin.read(charBuffer, 1024*10);
-      charCount = std::cin.gcount();
-      inBuffer.append(charBuffer, charCount);
       if (Strm.parsePacket(inBuffer)){
         if (!doneheader){
           doneheader = true;
@@ -48,6 +45,10 @@ namespace Converters{
         if (FLV_out.DTSCLoader(Strm)){
           std::cout.write(FLV_out.data, FLV_out.len);
         }
+      }else{
+        std::cin.read(charBuffer, 1024*10);
+        charCount = std::cin.gcount();
+        inBuffer.append(charBuffer, charCount);
       }
     }
 

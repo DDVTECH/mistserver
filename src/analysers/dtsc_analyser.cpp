@@ -23,15 +23,16 @@ int main() {
 
   while(std::cin.good()){
     //invalidate the current buffer
-    std::cin.read(charBuffer, 1024*10);
-    charCount = std::cin.gcount();
-    inBuffer.append(charBuffer, charCount);
     if (Strm.parsePacket(inBuffer)){
       if (!doneheader){
         doneheader = true;
         Strm.metadata.Print();
       }
       Strm.getPacket().Print();
+    }else{
+      std::cin.read(charBuffer, 1024*10);
+      charCount = std::cin.gcount();
+      inBuffer.append(charBuffer, charCount);
     }
   }
   return 0;

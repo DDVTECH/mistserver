@@ -22,10 +22,10 @@ namespace Buffer{
   Socket::Server SS; ///< The server socket.
 
   /// Gets the current system time in milliseconds.
-  unsigned int getNowMS(){
+  long long int getNowMS(){
     timeval t;
     gettimeofday(&t, 0);
-    return t.tv_sec + t.tv_usec/1000;
+    return t.tv_sec * 1000 + t.tv_usec/1000;
   }//getNowMS
 
 
@@ -105,24 +105,24 @@ namespace Buffer{
   /// Loop reading DTSC data from stdin and processing it at the correct speed.
   void handleStdin(void * empty){
     if (empty != 0){return;}
-    unsigned int lastPacketTime = 0;//time in MS last packet was parsed
-    unsigned int currPacketTime = 0;//time of the last parsed packet (current packet)
-    unsigned int prevPacketTime = 0;//time of the previously parsed packet (current packet - 1)
+    long long int timeDiff = 0;//difference between local time and stream time
+    unsigned int lastPacket = 0;//last parsed packet timestamp
     std::string inBuffer;
     char charBuffer[1024*10];
     unsigned int charCount;
-    unsigned int now;
+    long long int now;
 
     while (std::cin.good() && buffer_running){
       //slow down packet receiving to real-time
       now = getNowMS();
-      if ((now - lastPacketTime >= currPacketTime - prevPacketTime) || (currPacketTime <= prevPacketTime)){
+      if ((now - timeDiff >= lastPacket) || (lastPacket - (now - timeDiff) > 5000)){
         thisStream->getWriteLock();
         if (thisStream->getStream()->parsePacket(inBuffer)){
           thisStream->getStream()->outPacket(0);
-          lastPacketTime = now;
-          prevPacketTime = currPacketTime;
-          currPacketTime = thisStream->getStream()->getTime();
+          lastPacket = thisStream->getStream()->getTime();
+          if ((now - timeDiff - lastPacket) > 5000 || (now - timeDiff - lastPacket < -5000)){
+            timeDiff = now - lastPacket;
+          }
           thisStream->dropWriteLock(true);
         }else{
           thisStream->dropWriteLock(false);
@@ -131,10 +131,10 @@ namespace Buffer{
           inBuffer.append(charBuffer, charCount);
         }
       }else{
-        if (((currPacketTime - prevPacketTime) - (now - lastPacketTime)) > 999){
+        if ((lastPacket - (now - timeDiff)) > 999){
           usleep(999000);
         }else{
-          usleep(((currPacketTime - prevPacketTime) - (now - lastPacketTime)) * 999);
+          usleep((lastPacket - (now - timeDiff)) * 1000);
         }
       }
     }

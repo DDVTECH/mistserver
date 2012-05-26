@@ -105,12 +105,12 @@ namespace Connector_HTTP{
       static FLV::Tag tmp;
       tmp.DTSCMetaInit(Strm);
       conn.write(tmp.data, tmp.len);
-      if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
-        tmp.DTSCAudioInit(Strm);
-        conn.write(tmp.data, tmp.len);
-      }
       if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
         tmp.DTSCVideoInit(Strm);
+        conn.write(tmp.data, tmp.len);
+      }
+      if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
+        tmp.DTSCAudioInit(Strm);
         conn.write(tmp.data, tmp.len);
       }
       progressive_has_sent_header = true;

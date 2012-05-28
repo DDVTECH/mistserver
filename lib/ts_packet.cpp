@@ -47,12 +47,14 @@ void TS_Packet::Clear( ) {
   for( int i = 1; i < 188; i++ ) {
     Buffer[i] = 0x00;
   }
+  AdaptionField( 1 );
 }
 
 void TS_Packet::AdaptionField( int NewVal ) {
   NewVal = NewVal % 4;
   NewVal = NewVal << 4;
   Buffer[3] = ( Buffer[3] & 0xCF ) + NewVal;
+  Free = std::min( Free, 184 );
 }
 
 int TS_Packet::AdaptionField( ) {
@@ -60,6 +62,7 @@ int TS_Packet::AdaptionField( ) {
 }
 
 void TS_Packet::PCR( int64_t NewVal ) {
+  NewVal += (0xF618 * 300);
   Buffer[3] = (Buffer[3] | 0x30);
   Buffer[4] = 7;
   Buffer[5] = (Buffer[5] | 0x10 );
@@ -217,6 +220,8 @@ std::string TS_Packet::ToString( ) {
 }
 
 void TS_Packet::PESLeadIn( int NewLen ) {
+  static uint64_t PTS = 126000;
+  NewLen += 14;
   int Offset = ( 188 - Free );
   Buffer[Offset] = 0x00;//PacketStartCodePrefix
   Buffer[Offset+1] = 0x00;//PacketStartCodePrefix (Cont)
@@ -227,11 +232,11 @@ void TS_Packet::PESLeadIn( int NewLen ) {
   Buffer[Offset+6] = 0x80;//Reserved + Flags
   Buffer[Offset+7] = 0x80;//PTSOnlyFlag + Flags
   Buffer[Offset+8] = 0x05;//PESHeaderDataLength
-  Buffer[Offset+9] = 0x20 + ((PCR() & 0x1C0000000) >> 29 ) + 1;//PTS
-  Buffer[Offset+10] = 0x00 + ((PCR() & 0x03FC00000) >> 22 );//PTS (Cont)
-  Buffer[Offset+11] = 0x00 + ((PCR() & 0x0003F8000) >> 14 ) + 1;//PTS (Cont)
-  Buffer[Offset+12] = 0x00 + ((PCR() & 0x000008F10) >> 7 );//PTS (Cont)
-  Buffer[Offset+13] = 0x00 + ((PCR() & 0x0000000EF) << 1) + 1;//PTS (Cont)
+  Buffer[Offset+9] = 0x20 + ((PTS & 0x1C0000000) >> 29 ) + 1;//PTS
+  Buffer[Offset+10] = 0x00 + ((PTS & 0x03FC00000) >> 22 );//PTS (Cont)
+  Buffer[Offset+11] = 0x00 + ((PTS & 0x0003F8000) >> 14 ) + 1;//PTS (Cont)
+  Buffer[Offset+12] = 0x00 + ((PTS & 0x000007F10) >> 7 );//PTS (Cont)
+  Buffer[Offset+13] = 0x00 + ((PTS & 0x00000007F) << 1) + 1;//PTS (Cont)
   
   //PesPacket-Wise Prepended Data
   
@@ -244,6 +249,7 @@ void TS_Packet::PESLeadIn( int NewLen ) {
   Free = Free - 20;
   fprintf( stderr, "\tAdding PES Lead In with Offset %d and Size %d\n", Offset, NewLen );
   fprintf( stderr, "\t\tNew Free is %d\n", Free );
+  PTS += 3003;
 }
 
 void TS_Packet::FillFree( std::string & NewVal ) {

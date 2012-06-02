@@ -2,11 +2,12 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.60])
-m4_include([version.m4])
-AC_INIT(MistServer, VERSION_NUMBER, contact@ddvtech.com)
+AC_INIT([MistServer],
+	m4_esyscmd([git describe --tags | tr -d '\n']),
+	[contact@ddvtech.com])
 AC_CONFIG_SRCDIR([src/buffer.cpp])
-AC_CONFIG_MACRO_DIR([m4])
-AM_INIT_AUTOMAKE
+# foreign: no need for NEWS or INSTALL files
+AM_INIT_AUTOMAKE([foreign])
 LT_INIT
 
 # Checks for programs.

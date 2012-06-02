@@ -13,7 +13,11 @@ autom4te.cache
 src/Mist*
 src/analysers/Mist*
 src/converters/Mist*
-configure
-config.log
-config.status
-
+/configure
+/config.*
+/aclocal.m4
+/install-sh
+/ltmain.sh
+/missing
+/depcomp
+.libs

@@ -188,6 +188,10 @@ namespace Buffer{
     std::string name = argv[1];
 
     SS = Socket::makeStream(name);
+    if (!SS.connected()) {
+      perror("Could not create stream socket");
+      return 1;
+    }
     thisStream = Stream::get();
     thisStream->setName(name);
     Socket::Connection incoming;

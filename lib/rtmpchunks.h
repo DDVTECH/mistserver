@@ -30,7 +30,6 @@ namespace RTMPStream{
   extern unsigned int snd_cnt; ///< Counter for total data sent, in bytes.
 
   extern timeval lastrec; ///< Timestamp of last time data was received.
-  extern unsigned int firsttime; ///< Timestamp of first time a chunk was sent.
 
   /// Holds a single RTMP chunk, either send or receive direction.
   class Chunk{

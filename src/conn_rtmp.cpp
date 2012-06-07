@@ -42,9 +42,6 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   DTSC::Stream Strm;
   bool stream_inited = false;//true if init data for audio/video was sent
 
-  //first timestamp set
-  RTMPStream::firsttime = RTMPStream::getNowMS();
-
   RTMPStream::handshake_in.reserve(1537);
   Socket.read((char*)RTMPStream::handshake_in.c_str(), 1537);
   RTMPStream::rec_cnt += 1537;
@@ -96,22 +93,24 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         }
       }
       if (SS.spool()){
-        if (Strm.parsePacket(SS.Received())){
+        while (Strm.parsePacket(SS.Received())){
           //sent init data if needed
           if (!stream_inited){
+            init_tag.DTSCMetaInit(Strm);
+            Socket.Send(RTMPStream::SendMedia(init_tag));
             if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
               init_tag.DTSCAudioInit(Strm);
-              Socket.write(RTMPStream::SendMedia(init_tag));
+              Socket.Send(RTMPStream::SendMedia(init_tag));
             }
             if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
               init_tag.DTSCVideoInit(Strm);
-              Socket.write(RTMPStream::SendMedia(init_tag));
+              Socket.Send(RTMPStream::SendMedia(init_tag));
             }
             stream_inited = true;
           }
           //sent a tag
           tag.DTSCLoader(Strm);
-          Socket.write(RTMPStream::SendMedia(tag));
+          Socket.Send(RTMPStream::SendMedia(tag));
           #if DEBUG >= 8
           fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), tag.tagTime(), tag.tagType().c_str());
           #endif

@@ -13,7 +13,7 @@ std::string RTMPStream::handshake_out;///< Output for the handshake.
 unsigned int RTMPStream::getNowMS(){
   timeval t;
   gettimeofday(&t, 0);
-  return t.tv_sec + t.tv_usec/1000;
+  return t.tv_sec * 1000 + t.tv_usec/1000;
 }//RTMPStream::getNowMS
 
 
@@ -27,7 +27,6 @@ unsigned int RTMPStream::rec_cnt = 0;
 unsigned int RTMPStream::snd_cnt = 0;
 
 timeval RTMPStream::lastrec;
-unsigned int RTMPStream::firsttime;
 
 /// Holds the last sent chunk for every msg_id.
 std::map<unsigned int, RTMPStream::Chunk> RTMPStream::Chunk::lastsend;
@@ -42,7 +41,6 @@ std::string RTMPStream::Chunk::Pack(){
   RTMPStream::Chunk prev = lastsend[cs_id];
   unsigned int tmpi;
   unsigned char chtype = 0x00;
-  //timestamp -= firsttime;
   if ((prev.msg_type_id > 0) && (prev.cs_id == cs_id)){
     if (msg_stream_id == prev.msg_stream_id){
       chtype = 0x40;//do not send msg_stream_id

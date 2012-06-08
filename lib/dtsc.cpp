@@ -35,6 +35,7 @@ unsigned int DTSC::Stream::getTime(){
 /// \arg buffer The std::string buffer to attempt to parse.
 bool DTSC::Stream::parsePacket(std::string & buffer){
   uint32_t len;
+  static bool syncing = false;
   if (buffer.length() > 8){
     if (memcmp(buffer.c_str(), DTSC::Magic_Header, 4) == 0){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);
@@ -63,12 +64,21 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       buffer.erase(0, len+8);
       while (buffers.size() > buffercount){buffers.pop_back();}
       advanceRings();
+      syncing = false;
       return true;
     }
     #if DEBUG >= 2
-    std::cerr << "Error: Invalid DTMI data: " << buffer.substr(0, 4) << std::endl;
+    if (!syncing){
+      std::cerr << "Error: Invalid DTMI data detected - re-syncing" << std::endl;
+      syncing = true;
+    }
     #endif
-    buffer.erase(0, 1);
+    size_t magic_search = buffer.find(Magic_Packet);
+    if (magic_search == std::string::npos){
+      buffer.clear();
+    }else{
+      buffer.erase(0, magic_search);
+    }
   }
   return false;
 }

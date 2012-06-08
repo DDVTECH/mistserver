@@ -337,9 +337,10 @@ int main(int argc, char ** argv){
     {"interface",1,0,'i'},
     {"account",1,0,'a'},
     {"username",1,0,'u'},
-    {"no-daemon",0,0,'n'},
+    {"nodaemon",0,0,'n'},
     {"daemon",0,0,'d'},
-    {"version",0,0,'v'}
+    {"version",0,0,'v'},
+    0
   };
   while ((opt = getopt_long(argc, argv, optString, longOpts, 0)) != -1){
     switch (opt){

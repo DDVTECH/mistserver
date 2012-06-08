@@ -41,9 +41,10 @@ void Util::Config::parseArgs(int argc, char ** argv){
     {"port",1,0,'p'},
     {"interface",1,0,'i'},
     {"username",1,0,'u'},
-    {"no-daemon",0,0,'n'},
+    {"nodaemon",0,0,'n'},
     {"daemon",0,0,'d'},
-    {"version",0,0,'v'}
+    {"version",0,0,'v'},
+    0
   };
   while ((opt = getopt_long(argc, argv, optString, longOpts, 0)) != -1){
     switch (opt){

@@ -327,7 +327,58 @@ int main(int argc, char ** argv){
   if (C.interface == ""){C.interface = "0.0.0.0";}
   C.username = (std::string)Storage["config"]["controller"]["username"];
   if (C.username == ""){C.username = "root";}
-  C.parseArgs(argc, argv);
+
+
+  int opt = 0;
+  static const char *optString = "ndvp:i:u:a:h?";
+  static const struct option longOpts[] = {
+    {"help",0,0,'h'},
+    {"port",1,0,'p'},
+    {"interface",1,0,'i'},
+    {"account",1,0,'a'},
+    {"username",1,0,'u'},
+    {"no-daemon",0,0,'n'},
+    {"daemon",0,0,'d'},
+    {"version",0,0,'v'}
+  };
+  while ((opt = getopt_long(argc, argv, optString, longOpts, 0)) != -1){
+    switch (opt){
+      case 'p': C.listen_port = atoi(optarg); break;
+      case 'i': C.interface = optarg; break;
+      case 'n': C.daemon_mode = false; break;
+      case 'd': C.daemon_mode = true; break;
+      case 'u': C.username = optarg; break;
+      case 'a':{
+        std::string account = optarg;
+        size_t colon = account.find(':');
+        if (colon == std::string::npos || colon == 0 || colon == account.size()){
+          opt = '?';//invalid name/pass - show help
+        }else{
+          std::string uname = account.substr(0, colon);
+          std::string pword = account.substr(colon + 1, std::string::npos);
+          Log("CONF", "Created account "+uname+" through commandline option");
+          Storage["account"][uname]["password"] = md5(pword);
+        }
+        break;
+      }
+      case 'v':
+        printf("%s\n", PACKAGE_VERSION);
+        exit(1);
+        break;
+      case 'h':
+      case '?':
+        std::string doingdaemon = "true";
+        if (!C.daemon_mode){doingdaemon = "false";}
+        printf("Options: -h[elp], -?, -v[ersion], -n[odaemon], -d[aemon], -p[ort] VAL, -i[nterface] VAL, -u[sername] VAL, -a[ccount] USERNAME:PASSWORD\n");
+        printf("Defaults:\n  interface: %s\n  port: %i\n  daemon mode: %s\n  username: %s\n", C.interface.c_str(), C.listen_port, doingdaemon.c_str(), C.username.c_str());
+        printf("Username root means no change to UID, no matter what the UID is.\n");
+        printf("The -a option will create a new account with the given username and (raw) password. To delete accounts, manually edit the config.json file.\n");
+        printf("This is %s version %s\n", argv[0], PACKAGE_VERSION);
+        exit(1);
+        break;
+    }
+  }//commandline options parser
+
   time_t lastuplink = 0;
   time_t processchecker = 0;
   API_Socket = Socket::Server(C.listen_port, C.interface, true);

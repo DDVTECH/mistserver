@@ -1,4 +1,4 @@
-/// \file Connector_TS/main.cpp
+/// \file conn_ts.cpp
 /// Contains the main code for the TS Connector
 /// \todo Check data to be sent for video
 /// \todo Handle audio packets

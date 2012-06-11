@@ -5,9 +5,7 @@
 
 /// This constructor creates an empty TS::Packet, ready for use for either reading or writing.
 /// All this constructor does is call TS::Packet::Clear().
-TS::Packet::Packet() {
-  Clear( );
-}
+TS::Packet::Packet() { Clear( ); }
 
 /// This constructor creates a filled TS::Packet, or creates an empty
 /// packet if not enough Data provided.
@@ -17,9 +15,7 @@ TS::Packet::Packet( std::string & Data ) {
   if( Data.size() < 188 ) {
     Clear( );    
   } else {
-    for( int i = 0; i < 188; i++ ) {
-      Buffer[i] = Data[i];
-    }
+    for( int i = 0; i < 188; i++ ) { Buffer[i] = Data[i]; }
     Data.erase(0,188);
     Free = 0;
   }
@@ -42,7 +38,7 @@ int TS::Packet::PID() {
   return (( Buffer[1] & 0x1F ) << 8 ) + Buffer[2];
 }
 
-/// Sets the Continuity Counter of a single TS::Packet
+/// Sets the Continuity Counter of a single TS::Packet.
 /// \param NewContinuity The new Continuity Counter of the packet.
 void TS::Packet::ContinuityCounter( int NewContinuity ) {
   Buffer[3] = ( Buffer[3] & 0xF0 ) + ( NewContinuity & 0x0F );
@@ -55,37 +51,41 @@ int TS::Packet::ContinuityCounter() {
   return ( Buffer[3] & 0x0F );
 }
 
-/// Gets the amount of bytes that are not written yet in a TS::Packet
+/// Gets the amount of bytes that are not written yet in a TS::Packet.
 /// \return The amount of bytes that can still be written to this packet.
 int TS::Packet::BytesFree( ) {
   return Free;
 }
 
-/// Clears a TS::Packet
+/// Clears a TS::Packet.
 void TS::Packet::Clear( ) {
   Free = 184;
   Buffer[0] = 0x47;
-  for( int i = 1; i < 188; i++ ) {
-    Buffer[i] = 0x00;
-  }
+  for( int i = 1; i < 188; i++ ) { Buffer[i] = 0x00; }
   AdaptationField( 1 );
 }
 
-/// Sets the selection value for an adaptationfield of a TS::Packet
+/// Sets the selection value for an adaptationfield of a TS::Packet.
 /// \param NewSelector The new value of the selection bits.
-/// - 1: No AdaptationField
-/// - 2: AdaptationField Only
-/// - 3: AdaptationField followed by Data
+/// - 1: No AdaptationField.
+/// - 2: AdaptationField Only.
+/// - 3: AdaptationField followed by Data.
 void TS::Packet::AdaptationField( int NewSelector ) {
   Buffer[3] = ( Buffer[3] & 0xCF ) + ((NewSelector & 0x03) << 4);
   Buffer[4] = 0;
   Free = std::min( Free, 184 );
 }
 
+/// Gets whether a TS::Packet contains an adaptationfield.
+/// \return The existence of an adaptationfield.
+/// - 0: No adaptationfield present.
+/// - 1: Adaptationfield is present.
 int TS::Packet::AdaptationField( ) {
   return ((Buffer[3] & 0x30) >> 4 );
 }
 
+/// Sets the PCR (Program Clock Reference) of a TS::Packet.
+/// \param NewVal The new PCR Value.
 void TS::Packet::PCR( int64_t NewVal ) {
   NewVal += (0xF618 * 300);
   AdaptationField( 3 );
@@ -102,6 +102,8 @@ void TS::Packet::PCR( int64_t NewVal ) {
   Free = std::min( Free, 176 );
 };
 
+/// Gets the PCR (Program Clock Reference) of a TS::Packet.
+/// \return The value of the PCR.
 int64_t TS::Packet::PCR( ) {
   if( !AdaptationField() ) {
     return -1;
@@ -116,6 +118,8 @@ int64_t TS::Packet::PCR( ) {
   return Result;
 }
 
+/// Gets the current length of the adaptationfield.
+/// \return The length of the adaptationfield.
 int TS::Packet::AdaptationFieldLen( ) {
   if( !AdaptationField() ) {
     return -1;
@@ -123,6 +127,7 @@ int TS::Packet::AdaptationFieldLen( ) {
   return (int)Buffer[4];
 }
 
+/// Prints a packet to stdout, for analyser purposes.
 void TS::Packet::Print( ) {
   std::cout << "TS Packet: " << (Buffer[0] == 0x47)
             << "\n\tNewUnit: " << UnitStart()
@@ -140,10 +145,14 @@ void TS::Packet::Print( ) {
   }
 }
 
+/// Gets whether a new unit starts in this TS::Packet.
+/// \return The start of a new unit.
 int TS::Packet::UnitStart( ) {
   return ( Buffer[1] & 0x40) >> 6;
 }
 
+/// Sets the start of a new unit in this TS::Packet.
+/// \param NewVal The new value for the start of a unit.
 void TS::Packet::UnitStart( int NewVal ) {
   if( NewVal ) {
     Buffer[1] = (Buffer[1] | 0x40);
@@ -152,6 +161,8 @@ void TS::Packet::UnitStart( int NewVal ) {
   }
 }
 
+/// Gets whether this TS::Packet can be accessed at random (indicates keyframe).
+/// \return Whether or not this TS::Packet contains a keyframe.
 int TS::Packet::RandomAccess( ) {
   if( !AdaptationField() ) {
     return -1;
@@ -159,6 +170,8 @@ int TS::Packet::RandomAccess( ) {
   return ( Buffer[5] & 0x40) >> 6;
 }
 
+/// Sets whether this TS::Packet contains a keyframe
+/// \param NewVal Whether or not this TS::Packet contains a keyframe.
 void TS::Packet::RandomAccess( int NewVal ) {
   if( AdaptationField() ) {
 	if( Buffer[4] == 0 ) {
@@ -182,6 +195,7 @@ void TS::Packet::RandomAccess( int NewVal ) {
   Free = std::min( Free, 182 );
 }
 
+/// Transforms the TS::Packet into a standard Program Association Table
 void TS::Packet::DefaultPAT( ) {
   static int MyCntr = 0;
   std::copy( TS::PAT, TS::PAT + 188, Buffer );
@@ -190,6 +204,7 @@ void TS::Packet::DefaultPAT( ) {
   MyCntr = ( (MyCntr + 1) % 0x10);
 }
 
+/// Transforms the TS::Packet into a standard Program Mapping Table
 void TS::Packet::DefaultPMT( ) {
   static int MyCntr = 0;
   std::copy( TS::PMT, TS::PMT + 188, Buffer );
@@ -198,12 +213,18 @@ void TS::Packet::DefaultPMT( ) {
   MyCntr = ( (MyCntr + 1) % 0x10);
 }
 
+/// Generates a string from the contents of the TS::Packet
+/// \return A string representation of the packet.
 std::string TS::Packet::ToString( ) {
   std::string Result( Buffer, 188 );
   std::cout.write( Buffer,188 );
   return Result;
 }
 
+
+/// Generates a PES Lead-in for a video frame.
+/// Starts at the first Free byte.
+/// \param NewLen The length of this video frame.
 void TS::Packet::PESVideoLeadIn( int NewLen ) {
   static int PTS = 27000000;
   NewLen += 14;
@@ -235,6 +256,10 @@ void TS::Packet::PESVideoLeadIn( int NewLen ) {
   PTS += 3003;
 }
 
+/// Generates a PES Lead-in for an audio frame.
+/// Starts at the first Free byte.
+/// \param NewLen The length of this audio frame.
+/// \param PTS The timestamp of the audio frame.
 void TS::Packet::PESAudioLeadIn( int NewLen, uint64_t PTS ) {
   PTS = PTS * 90;
   NewLen += 8;
@@ -257,6 +282,9 @@ void TS::Packet::PESAudioLeadIn( int NewLen, uint64_t PTS ) {
   Free = Free - 12;
 }
 
+/// Fills the free bytes of the TS::Packet.
+/// Stores as many bytes from NewVal as possible in the packet.
+/// \param NewVal The data to store in the packet.
 void TS::Packet::FillFree( std::string & NewVal ) {
   int Offset = 188 - Free;
   std::copy( NewVal.begin(), NewVal.begin() + Free, Buffer + Offset );
@@ -264,6 +292,8 @@ void TS::Packet::FillFree( std::string & NewVal ) {
   Free = 0;
 }
 
+/// Adds NumBytes of stuffing to the TS::Packet.
+/// \param NumBytes the amount of stuffing bytes.
 void TS::Packet::AddStuffing( int NumBytes ) {
   if( NumBytes <= 0 ) { return; }
   if( AdaptationField( ) == 3 ) {
@@ -284,6 +314,8 @@ void TS::Packet::AddStuffing( int NumBytes ) {
   }
 }
 
+
+/// Transforms this TS::Packet into a standard Service Description Table
 void TS::Packet::FFMpegHeader( ) {
   static int MyCntr = 0;
   std::copy( TS::SDT, TS::SDT + 188, Buffer );

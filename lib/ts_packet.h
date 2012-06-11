@@ -4,6 +4,7 @@
 #include <stdint.h> //for uint64_t
 #include <iostream>
 #include <cstdio>
+#include <cstdlib>
 #include <algorithm>
 
 class TS_Packet {
@@ -30,9 +31,11 @@ class TS_Packet {
     int64_t PCR();
     void Print();
     std::string ToString();
-    void PESLeadIn( int NewLen );
+    void PESVideoLeadIn( int NewLen, uint64_t PTS = 0 );
+    void PESAudioLeadIn( int NewLen, uint64_t PTS = 0 );
     void FillFree( std::string & PackageData );
     void AddStuffing( int NumBytes );
+    void FFMpegHeader( );
   private:
     int Free;
     char Buffer[188];///< The actual data

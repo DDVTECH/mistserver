@@ -20,13 +20,6 @@ void HTTP::Parser::Clean(){
   vars.clear();
 }
 
-/// Re-initializes the HTTP::Parser, leaving the internal data buffer alone, then tries to parse a new request or response.
-/// Does the same as HTTP::Parser::Clean(), then returns HTTP::Parser::parse().
-bool HTTP::Parser::CleanForNext(){
-  Clean();
-  return parse();
-}
-
 /// Returns a string containing a valid HTTP 1.0 or 1.1 request, ready for sending.
 /// The request is build from internal variables set before this call is made.
 /// To be precise, method, url, protocol, headers and body are used.
@@ -115,34 +108,20 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
   }
 }
 
-/// Attempt to read a whole HTTP request or response from Socket::Connection.
-/// \param sock The socket to use.
-/// \param nonblock When true, will not block even if the socket is blocking.
-/// \return True of a whole request or response was read, false otherwise.
-bool HTTP::Parser::Read(Socket::Connection & sock, bool nonblock){
-  if (nonblock && (sock.ready() < 1)){return parse();}
-  sock.read(HTTPbuffer);
-  return parse();
-}//HTTPReader::ReadSocket
+/// Attempt to read a whole HTTP request or response from a std::string buffer.
+/// If a whole request could be read, it is removed from the front of the given buffer.
+/// \param strbuf The buffer to read from.
+/// \return True if a whole request or response was read, false otherwise.
+bool HTTP::Parser::Read(std::string & strbuf){
+  return parse(strbuf);
+}//HTTPReader::Read
 
-/// Reads a full set of HTTP responses/requests from file F.
-/// \return Always false. Use HTTP::Parser::CleanForNext() to parse the contents of the file.
-bool HTTP::Parser::Read(FILE * F){
-  //returned true als hele http packet gelezen is
-  int b = 1;
-  char buffer[500];
-  while (b > 0){
-    b = fread(buffer, 1, 500, F);
-    HTTPbuffer.append(buffer, b);
-  }
-  return false;
-}//HTTPReader::ReadSocket
-
-/// Attempt to read a whole HTTP response or request from the internal data buffer.
+/// Attempt to read a whole HTTP response or request from a data buffer.
 /// If succesful, fills its own fields with the proper data and removes the response/request
-/// from the internal data buffer.
+/// from the data buffer.
+/// \param HTTPbuffer The data buffer to read from.
 /// \return True on success, false otherwise.
-bool HTTP::Parser::parse(){
+bool HTTP::Parser::parse(std::string & HTTPbuffer){
   size_t f;
   std::string tmpA, tmpB, tmpC;
   while (HTTPbuffer != ""){
@@ -194,16 +173,6 @@ bool HTTP::Parser::parse(){
   return false; //we should never get here...
 }//HTTPReader::parse
 
-/// Sends data as response to conn.
-/// The response is automatically first build using HTTP::Parser::BuildResponse().
-/// \param conn The Socket::Connection to send the response over.
-/// \param code The HTTP response code. Usually you want 200.
-/// \param message The HTTP response message. Usually you want "OK".
-void HTTP::Parser::SendResponse(Socket::Connection & conn, std::string code, std::string message){
-  std::string tmp = BuildResponse(code, message);
-  conn.write(tmp);
-}
-
 #include <iostream>
 /// Parses GET or POST-style variable data.
 /// Saves to internal variable structure using HTTP::Parser::SetVar.
@@ -237,31 +206,16 @@ void HTTP::Parser::parseVars(std::string data){
   }
 }
 
-/// Sends data as HTTP/1.1 bodypart to conn.
-/// HTTP/1.1 chunked encoding is automatically applied if needed.
-/// \param conn The Socket::Connection to send the part over.
-/// \param buffer The buffer to send.
-/// \param len The length of the buffer.
-void HTTP::Parser::SendBodyPart(Socket::Connection & conn, char * buffer, int len){
-  std::string tmp;
-  tmp.append(buffer, len);
-  SendBodyPart(conn, tmp);
-}
-
-/// Sends data as HTTP/1.1 bodypart to conn.
-/// HTTP/1.1 chunked encoding is automatically applied if needed.
-/// \param conn The Socket::Connection to send the part over.
-/// \param bodypart The data to send.
-void HTTP::Parser::SendBodyPart(Socket::Connection & conn, std::string bodypart){
+/// Converts a string to chunked format if protocol is HTTP/1.1 - does nothing otherwise.
+/// \param bodypart The data to convert - will be converted in-place.
+void HTTP::Parser::Chunkify(std::string & bodypart){
   if (protocol == "HTTP/1.1"){
     static char len[10];
-    int sizelen;
-    sizelen = snprintf(len, 10, "%x\r\n", (unsigned int)bodypart.size());
-    conn.write(len, sizelen);
-    conn.write(bodypart);
-    conn.write(len+sizelen-2, 2);
-  }else{
-    conn.write(bodypart);
+    int sizelen = snprintf(len, 10, "%x\r\n", (unsigned int)bodypart.size());
+    //prepend the chunk size and \r\n
+    bodypart.insert(0, len, sizelen);
+    //append \r\n
+    bodypart.append("\r\n", 2);
   }
 }
 

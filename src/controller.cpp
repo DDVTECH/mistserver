@@ -88,7 +88,6 @@ void WriteFile( std::string Filename, std::string contents ) {
 
 class ConnectedUser{
   public:
-    std::string writebuffer;
     Socket::Connection C;
     HTTP::Parser H;
     bool Authorized;
@@ -439,7 +438,7 @@ int main(int argc, char ** argv){
         uplink->H.Clean();
         uplink->H.SetBody("command="+HTTP::Parser::urlencode(Response.toString()));
         uplink->H.BuildRequest();
-        uplink->writebuffer += uplink->H.BuildResponse("200", "OK");
+        uplink->C.Send(uplink->H.BuildResponse("200", "OK"));
         uplink->H.Clean();
         //Log("UPLK", "Sending server data to uplink.");
       }else{
@@ -459,8 +458,7 @@ int main(int argc, char ** argv){
           buffers.erase(it);
           break;
         }
-        it->spool();
-        if (it->Received() != ""){
+        if (it->spool()){
           size_t newlines = it->Received().find("\n\n");
           while (newlines != std::string::npos){
             Request = it->Received().substr(0, newlines);
@@ -489,85 +487,84 @@ int main(int argc, char ** argv){
           users.erase(it);
           break;
         }
-        if (it->writebuffer != ""){
-          it->C.iwrite(it->writebuffer);
-        }
-        if (it->H.Read(it->C)){
-          Response.null(); //make sure no data leaks from previous requests
-          if (it->clientMode){
-            // In clientMode, requests are reversed. These are connections we initiated to GearBox.
-            // They are assumed to be authorized, but authorization to gearbox is still done.
-            // This authorization uses the compiled-in username and password (account).
-            Request = JSON::fromString(it->H.body);
-            if (Request["authorize"]["status"] != "OK"){
-              if (Request["authorize"].isMember("challenge")){
-                it->logins++;
-                if (it->logins > 2){
-                  Log("UPLK", "Max login attempts passed - dropping connection to uplink.");
-                  it->C.close();
-                }else{
-                  Response["config"] = Storage["config"];
-                  Response["streams"] = Storage["streams"];
-                  Response["log"] = Storage["log"];
-                  Response["statistics"] = Storage["statistics"];
-                  Response["authorize"]["username"] = TOSTRING(COMPILED_USERNAME);
-                  Log("UPLK", "Responding to login challenge: " + (std::string)Request["authorize"]["challenge"]);
-                  Response["authorize"]["password"] = md5(TOSTRING(COMPILED_PASSWORD) + (std::string)Request["authorize"]["challenge"]);
-                  it->H.Clean();
-                  it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toString()));
-                  it->H.BuildRequest();
-                  it->writebuffer += it->H.BuildResponse("200", "OK");
-                  it->H.Clean();
-                  Log("UPLK", "Attempting login to uplink.");
+        if (it->C.spool()){
+          if (it->H.Read(it->C.Received())){
+            Response.null(); //make sure no data leaks from previous requests
+            if (it->clientMode){
+              // In clientMode, requests are reversed. These are connections we initiated to GearBox.
+              // They are assumed to be authorized, but authorization to gearbox is still done.
+              // This authorization uses the compiled-in username and password (account).
+              Request = JSON::fromString(it->H.body);
+              if (Request["authorize"]["status"] != "OK"){
+                if (Request["authorize"].isMember("challenge")){
+                  it->logins++;
+                  if (it->logins > 2){
+                    Log("UPLK", "Max login attempts passed - dropping connection to uplink.");
+                    it->C.close();
+                  }else{
+                    Response["config"] = Storage["config"];
+                    Response["streams"] = Storage["streams"];
+                    Response["log"] = Storage["log"];
+                    Response["statistics"] = Storage["statistics"];
+                    Response["authorize"]["username"] = TOSTRING(COMPILED_USERNAME);
+                    Log("UPLK", "Responding to login challenge: " + (std::string)Request["authorize"]["challenge"]);
+                    Response["authorize"]["password"] = md5(TOSTRING(COMPILED_PASSWORD) + (std::string)Request["authorize"]["challenge"]);
+                    it->H.Clean();
+                    it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toString()));
+                    it->H.BuildRequest();
+                    it->C.Send(it->H.BuildResponse("200", "OK"));
+                    it->H.Clean();
+                    Log("UPLK", "Attempting login to uplink.");
+                  }
+                }
+              }else{
+                if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
+                if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
+                if (Request.isMember("clearstatlogs")){
+                  Storage["log"].null();
+                  Storage["statistics"].null();
                 }
               }
             }else{
-              if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
-              if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
-              if (Request.isMember("clearstatlogs")){
+              Request = JSON::fromString(it->H.GetVar("command"));
+              std::cout << "Request: " << Request.toString() << std::endl;
+              Authorize(Request, Response, (*it));
+              if (it->Authorized){
+                //Parse config and streams from the request.
+                if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
+                if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
+                if (Request.isMember("save")){
+                  WriteFile("config.json", Storage.toString());
+                  Log("CONF", "Config written to file on request through API");
+                }
+                //sent current configuration, no matter if it was changed or not
+                //Response["streams"] = Storage["streams"];
+                Response["config"] = Storage["config"];
+                Response["streams"] = Storage["streams"];
+                //add required data to the current unix time to the config, for syncing reasons
+                Response["config"]["time"] = (long long int)time(0);
+                if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}
+                //sent any available logs and statistics
+                Response["log"] = Storage["log"];
+                Response["statistics"] = Storage["statistics"];
+                //clear log and statistics to prevent useless data transfer
                 Storage["log"].null();
                 Storage["statistics"].null();
               }
-            }
-          }else{
-            Request = JSON::fromString(it->H.GetVar("command"));
-            std::cout << "Request: " << Request.toString() << std::endl;
-            Authorize(Request, Response, (*it));
-            if (it->Authorized){
-              //Parse config and streams from the request.
-              if (Request.isMember("config")){CheckConfig(Request["config"], Storage["config"]);}
-              if (Request.isMember("streams")){CheckStreams(Request["streams"], Storage["streams"]);}
-              if (Request.isMember("save")){
-                WriteFile("config.json", Storage.toString());
-                Log("CONF", "Config written to file on request through API");
+              jsonp = "";
+              if (it->H.GetVar("callback") != ""){jsonp = it->H.GetVar("callback");}
+              if (it->H.GetVar("jsonp") != ""){jsonp = it->H.GetVar("jsonp");}
+              it->H.Clean();
+              it->H.protocol = "HTTP/1.0";
+              it->H.SetHeader("Content-Type", "text/javascript");
+              if (jsonp == ""){
+                it->H.SetBody(Response.toString()+"\n\n");
+              }else{
+                it->H.SetBody(jsonp+"("+Response.toString()+");\n\n");
               }
-              //sent current configuration, no matter if it was changed or not
-              //Response["streams"] = Storage["streams"];
-              Response["config"] = Storage["config"];
-              Response["streams"] = Storage["streams"];
-              //add required data to the current unix time to the config, for syncing reasons
-              Response["config"]["time"] = (long long int)time(0);
-              if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}
-              //sent any available logs and statistics
-              Response["log"] = Storage["log"];
-              Response["statistics"] = Storage["statistics"];
-              //clear log and statistics to prevent useless data transfer
-              Storage["log"].null();
-              Storage["statistics"].null();
+              it->C.Send(it->H.BuildResponse("200", "OK"));
+                it->H.Clean();
             }
-            jsonp = "";
-            if (it->H.GetVar("callback") != ""){jsonp = it->H.GetVar("callback");}
-            if (it->H.GetVar("jsonp") != ""){jsonp = it->H.GetVar("jsonp");}
-            it->H.Clean();
-            it->H.protocol = "HTTP/1.0";
-            it->H.SetHeader("Content-Type", "text/javascript");
-            if (jsonp == ""){
-              it->H.SetBody(Response.toString()+"\n\n");
-            }else{
-              it->H.SetBody(jsonp+"("+Response.toString()+");\n\n");
-            }
-            it->writebuffer += it->H.BuildResponse("200", "OK");
-            it->H.Clean();
           }
         }
       }

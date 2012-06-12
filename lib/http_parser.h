@@ -6,7 +6,6 @@
 #include <string>
 #include <stdlib.h>
 #include <stdio.h>
-#include "socket.h"
 
 /// Holds all HTTP processing related code.
 namespace HTTP{
@@ -14,8 +13,7 @@ namespace HTTP{
   class Parser{
     public:
       Parser();
-      bool Read(Socket::Connection & sock, bool nonblock = true);
-      bool Read(FILE * F);
+      bool Read(std::string & strbuf);
       std::string GetHeader(std::string i);
       std::string GetVar(std::string i);
       void SetHeader(std::string i, std::string v);
@@ -25,11 +23,8 @@ namespace HTTP{
       void SetBody(char * buffer, int len);
       std::string BuildRequest();
       std::string BuildResponse(std::string code, std::string message);
-      void SendResponse(Socket::Connection & conn, std::string code, std::string message);
-      void SendBodyPart(Socket::Connection & conn, char * buffer, int len);
-      void SendBodyPart(Socket::Connection & conn, std::string bodypart);
+      void Chunkify(std::string & bodypart);
       void Clean();
-      bool CleanForNext();
       static std::string urlunescape(const std::string & in);
       static std::string urlencode(const std::string & in);
       std::string body;
@@ -40,9 +35,9 @@ namespace HTTP{
     private:
       bool seenHeaders;
       bool seenReq;
-      bool parse();
+      bool parse(std::string & HTTPbuffer);
       void parseVars(std::string data);
-      std::string HTTPbuffer;
+      std::string read_buffer;
       std::map<std::string, std::string> headers;
       std::map<std::string, std::string> vars;
       void Trim(std::string & s);

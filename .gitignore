@@ -21,3 +21,4 @@ src/converters/Mist*
 /missing
 /depcomp
 .libs
+VERSION

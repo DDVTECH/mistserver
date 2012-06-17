@@ -2,7 +2,9 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
-
+#include <limits.h>
+#include <errno.h>
+#include <cstdio>
 #include <sys/time.h>
 #include <mist/dtsc.h>
 #include "player.h"
@@ -16,10 +18,21 @@ namespace Player{
     return t.tv_sec * 1000 + t.tv_usec/1000;
   }//getNowMS
 
+  void setBlocking(int fd, bool blocking){
+    int flags = fcntl(fd, F_GETFL);
+    if (blocking){
+      flags &= ~O_NONBLOCK;
+    }else{
+      flags |= O_NONBLOCK;
+    }
+    fcntl(fd, F_SETFL, flags);
+  }
+
   File::File(std::string filename){
     stream = new DTSC::Stream(5);
     ring = NULL;// ring will be initialized when necessary
     fileSrc.open(filename.c_str(), std::ifstream::in | std::ifstream::binary);
+    setBlocking(STDIN_FILENO, false);//prevent reading from stdin from blocking
     std::cout.setf(std::ios::unitbuf);//do not choke
     nextPacket();// initial read always returns nothing
     if (!nextPacket()){//parse metadata
@@ -35,40 +48,89 @@ namespace Player{
     }
     delete stream;
   }
+  /// \returns Number of read bytes or -1 on EOF
+  int File::fillBuffer(std::string & buffer){
+    char buff[1024 * 10];
+    if (fileSrc.good()){
+      fileSrc.read(buff, sizeof(buff));
+      inBuffer.append(buff, fileSrc.gcount());
+      return fileSrc.gcount();
+    }
+    return -1;
+  }
   // \returns True if there is a packet available for pull.
   bool File::nextPacket(){
-    if (fileSrc.good()){
-      if (stream->parsePacket(inBuffer)){
-        return true;
-      } else {
-        char buffer[1024 * 10];
-        fileSrc.read(buffer, sizeof(buffer));
-        inBuffer.append(buffer, fileSrc.gcount());
-      }
+    if (stream->parsePacket(inBuffer)){
+      return true;
+    } else {
+      fillBuffer(inBuffer);
     }
     return false;
   }
-  void File::seek(int position){
-    // XXX: implement seek.
+  void File::seek(unsigned int miliseconds){
+    DTSC::Stream * tmpStream = new DTSC::Stream(1);
+    int leftByte = 1, rightByte = INT_MAX;
+    int leftMS = 0, rightMS = INT_MAX;
+    /// \todo set last packet as last byte, consider metadata
+    while (rightMS - leftMS >= 100){
+      std::string buffer;
+      // binary search: pick the first packet on the right
+      unsigned int medByte = leftByte + (rightByte - leftByte) / 2;
+      fileSrc.clear();// clear previous IO errors
+      fileSrc.seekg(medByte);
+
+      do{ // find first occurrence of packet
+        unsigned int header_pos, read_bytes;
+        read_bytes = fillBuffer(buffer);
+        /// \todo handle EOF
+        header_pos = buffer.find(DTSC::Magic_Packet);
+        if (header_pos == std::string::npos){
+          // it is possible that the magic packet is partially shown, e.g. "DTP"
+          if (read_bytes > strlen(DTSC::Magic_Packet) - 1){
+            read_bytes -= strlen(DTSC::Magic_Packet) - 1;
+            buffer.erase(0, read_bytes);
+            medByte += read_bytes;
+          }
+          continue;// continue filling the buffer without parsing packet
+        }
+      }while (!tmpStream->parsePacket(buffer));
+      JSON::Value & medPacket = tmpStream->getPacket(0);
+      /// \todo What if time does not exist? Currently it just crashes.
+      // assumes that the time does not get over 49 days (on a 32-bit system)
+      unsigned int medMS = (unsigned int)medPacket["time"].asInt();
+
+      if (medMS > miliseconds){
+        rightByte = medByte;
+        rightMS = medMS;
+      }else if (medMS < miliseconds){
+        leftByte = medByte;
+        leftMS = medMS;
+      }
+    }
+    // clear the buffer and adjust file pointer
+    inBuffer.clear();
+    fileSrc.seekg(leftByte);
+    delete tmpStream;
   };
-  std::string * File::getPacket(){
+  std::string & File::getPacket(){
+    static std::string emptystring;
     if (ring->waiting){
-      return NULL;
+      return emptystring;
     }//still waiting for next buffer?
     if (ring->starved){
       //if corrupt data, warn and get new DTSC::Ring
       std::cerr << "Warning: User was send corrupt video data and send to the next keyframe!" << std::endl;
       stream->dropRing(ring);
       ring = stream->getRing();
-      return NULL;
+      return emptystring;
     }
     //switch to next buffer
     if (ring->b < 0){
       ring->waiting = true;
-      return NULL;
+      return emptystring;
     }//no next buffer? go in waiting mode.
     // get current packet
-    std::string * packet = &stream->outPacket(ring->b);
+    std::string & packet = stream->outPacket(ring->b);
     // make next request take a different packet
     ring->b--;
     return packet;
@@ -76,7 +138,24 @@ namespace Player{
 
   /// Reads a command from stdin. Returns true if a command was read.
   bool File::readCommand() {
-    // XXX: implement seek.
+    char line[512];
+    if (fgets(line, sizeof(line), stdin) == NULL){
+      return false;
+    }
+    {
+      int position = INT_MAX;// special value that says "invalid"
+      if (!strncmp("seek ", line, sizeof("seek ") - 1)){
+        position = atoi(line + sizeof("seek ") - 1);
+      }
+      if (!strncmp("relseek ", line, sizeof("relseek " - 1))){
+        /// \todo implement relseek in a smart way
+        //position = atoi(line + sizeof("relseek "));
+      }
+      if (position != INT_MAX){
+        File::seek(position);
+        return true;
+      }
+    }
     return false;
   }
 
@@ -89,17 +168,16 @@ namespace Player{
       now = getNowMS();
       if (now - timeDiff >= lastTime || lastTime - (now - timeDiff) > 5000) {
         if (nextPacket()) {
-          std::string * packet;
           if (!ring){ring = stream->getRing();}//get ring after reading first non-metadata
-          packet = getPacket();
-          if (!packet){
+          std::string & packet = getPacket();
+          if (packet.empty()){
             continue;
           }
           lastTime = stream->getTime();
           if (std::abs(now - timeDiff - lastTime) > 5000) {
             timeDiff = now - lastTime;
           }
-          std::cout.write(packet->c_str(), packet->length());
+          std::cout.write(packet.c_str(), packet.length());
         }
       } else {
         usleep(std::min(999LL, lastTime - (now - timeDiff)) * 1000);

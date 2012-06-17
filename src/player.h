@@ -15,11 +15,12 @@ namespace Player{
     bool nextPacket(); ///<Pulls the next packet into the queue.
     bool getPacketFromInput(); ///<Attempts to retrieve a packet from input.
     bool readCommand();
+    int fillBuffer(std::string & buffer);
   public:
     File(std::string filename); ///<Attempts to open a DTSC file
     void Play();
     ~File();
-    void seek(int position);
-    std::string * getPacket();
+    void seek(unsigned int miliseconds);
+    std::string & getPacket();
   };
 };

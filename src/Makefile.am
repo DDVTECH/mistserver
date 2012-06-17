@@ -1,12 +1,12 @@
 SUBDIRS=converters analysers
 bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP
-MistBuffer_SOURCES=buffer.cpp buffer_user.h buffer_user.cpp buffer_stream.h buffer_stream.cpp
+MistBuffer_SOURCES=buffer.cpp buffer_user.h buffer_user.cpp buffer_stream.h buffer_stream.cpp ../VERSION
 MistBuffer_LDADD=../lib/libjson.la ../lib/libsocket.la ../lib/libdtsc.la ../lib/libtinythread.la
-MistController_SOURCES=controller.cpp
+MistController_SOURCES=controller.cpp ../VERSION
 MistController_LDADD=../lib/libjson.la ../lib/libsocket.la ../lib/libprocs.la ../lib/libconfig.la ../lib/libhttp_parser.la ../lib/libauth.la ../lib/libbase64.la
-MistConnRAW_SOURCES=conn_raw.cpp
+MistConnRAW_SOURCES=conn_raw.cpp ../VERSION
 MistConnRAW_LDADD=../lib/libsocket.la
-MistConnRTMP_SOURCES=conn_rtmp.cpp server_setup.h
+MistConnRTMP_SOURCES=conn_rtmp.cpp server_setup.h ../VERSION
 MistConnRTMP_LDADD=../lib/libdtsc.la ../lib/librtmpchunks.la ../lib/libconfig.la
-MistConnHTTP_SOURCES=conn_http.cpp server_setup.h
+MistConnHTTP_SOURCES=conn_http.cpp server_setup.h ../VERSION
 MistConnHTTP_LDADD=../lib/libdtsc.la ../lib/libflv_tag.la ../lib/libjson.la ../lib/libhttp_parser.la ../lib/libmp4.la ../lib/libprocs.la ../lib/libbase64.la ../lib/libconfig.la

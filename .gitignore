@@ -22,3 +22,9 @@ src/converters/Mist*
 /depcomp
 .libs
 VERSION
+.dep.inc
+autoscan.log
+libtool
+*.dtsc
+*.flv
+*.json

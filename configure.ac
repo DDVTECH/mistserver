@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.60])
 AC_INIT([MistServer],
-	m4_esyscmd([git describe --tags | tr -d '\n']),
+	m4_esyscmd([git rev-parse 2>/dev/null&&git describe --tags > VERSION;tr -d '\n' < VERSION]),
 	[contact@ddvtech.com])
 AC_CONFIG_SRCDIR([src/buffer.cpp])
 # foreign: no need for NEWS or INSTALL files

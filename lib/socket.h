@@ -37,7 +37,7 @@ namespace Socket{
       bool canRead(); ///< Calls poll() on the socket, checking if data is available.
       bool canWrite(); ///< Calls poll() on the socket, checking if data can be written.
       signed int ready(); ///< Returns the ready-state for this socket.
-      bool connected(); ///< Returns the connected-state for this socket.
+      bool connected() const; ///< Returns the connected-state for this socket.
       bool read(const void * buffer, int len); ///< Reads data from socket.
       bool read(const void * buffer, int width, int count); ///< Read call that is compatible with file access syntax.
       bool write(const void * buffer, int len); ///< Writes data to socket.
@@ -62,6 +62,10 @@ namespace Socket{
       friend class Server;
       bool Error; ///< Set to true if a socket error happened.
       bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.
+      //overloaded operators
+      bool operator== (const Connection &B) const;
+      bool operator!= (const Connection &B) const;
+      operator bool() const;
   };
 
   /// This class is for easily setting up listening socket, either TCP or Unix.
@@ -75,7 +79,7 @@ namespace Socket{
       Server(int port, std::string hostname = "0.0.0.0", bool nonblock = false); ///< Create a new TCP Server.
       Server(std::string adres, bool nonblock = false); ///< Create a new Unix Server.
       Connection accept(bool nonblock = false); ///< Accept any waiting connections.
-      bool connected(); ///< Returns the connected-state for this socket.
+      bool connected() const; ///< Returns the connected-state for this socket.
       void close(); ///< Close connection.
       int getSocket(); ///< Returns internal socket number.
   };

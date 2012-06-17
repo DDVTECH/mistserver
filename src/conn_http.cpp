@@ -163,8 +163,8 @@ namespace Connector_HTTP{
     FLV::Tag tag;///< Temporary tag buffer.
     std::string recBuffer = "";
 
-    std::string Movie = "";
-    std::string Quality = "";
+    std::string Movie;
+    std::string Quality;
     int Segment = -1;
     int ReqFragment = -1;
     int temp;
@@ -235,32 +235,37 @@ namespace Connector_HTTP{
               HTTP_S.SetHeader("Content-Type","text/xml");
               HTTP_S.SetHeader("Cache-Control","no-cache");
               std::string manifest = BuildManifest(Movie);
-              #if DEBUG >= 4
-              printf("Manifest: %s\n", manifest.c_str());
-              #endif
               HTTP_S.SetBody(manifest);
               conn.Send(HTTP_S.BuildResponse("200", "OK"));
               #if DEBUG >= 3
               printf("Sent manifest\n");
               #endif
             }
-            #if DEBUG >= 4
-            printf( "Movie: %s\n", Movie.c_str());
-            #endif
-            streamname = Movie;
             ready4data = true;
           }//FLASH handler
           if (handler == HANDLER_PROGRESSIVE){
             //we assume the URL is the stream name with a 3 letter extension
             std::string extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
-            streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
+            Movie = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
             /// \todo VoD streams will need support for position reading from the URL parameters
             ready4data = true;
-            #if DEBUG >= 4
-            printf( "Opening progressive stream: %s\n", streamname.c_str());
-            #endif
           }//PROGRESSIVE handler
-          HTTP_R.Clean(); //clean for any possinble next requests
+          if (Movie != "" && Movie != streamname){
+            #if DEBUG >= 4
+            printf("Buffer switch detected (%s -> %s)! (Re)connecting buffer...\n", streamname.c_str(), Movie.c_str());
+            #endif
+            streamname = Movie;
+            inited = false;
+            ss.close();
+            if (handler == HANDLER_PROGRESSIVE){
+              #if DEBUG >= 4
+              printf("Progressive-mode reconnect impossible - disconnecting.\n");
+              #endif
+              conn.close();
+              ready4data = false;
+            }
+          }
+          HTTP_R.Clean(); //clean for any possible next requests
         }else{
           #if DEBUG >= 3
           fprintf(stderr, "Could not parse the following:\n%s\n", conn.Received().c_str());
@@ -275,8 +280,12 @@ namespace Connector_HTTP{
             #if DEBUG >= 1
             fprintf(stderr, "Could not connect to server!\n");
             #endif
-            conn.close();
-            break;
+            ss.close();
+            HTTP_S.Clean();
+            HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
+            conn.Send(HTTP_S.BuildResponse("404", "Not found"));
+            ready4data = false;
+            continue;
           }
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");
@@ -313,7 +322,7 @@ namespace Connector_HTTP{
       }
     }
     conn.close();
-    if (inited) ss.close();
+    ss.close();
     #if DEBUG >= 1
     if (FLV::Parse_Error){fprintf(stderr, "FLV Parser Error: %s\n", FLV::Error_Str.c_str());}
     fprintf(stderr, "User %i disconnected.\n", conn.getSocket());

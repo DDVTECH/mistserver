@@ -53,13 +53,16 @@ void Socket::Connection::setBlocking(bool blocking){
 }
 
 /// Close connection. The internal socket is closed and then set to -1.
+/// If the connection is already closed, nothing happens.
 void Socket::Connection::close(){
-  #if DEBUG >= 6
-  fprintf(stderr, "Socket closed.\n");
-  #endif
-  shutdown(sock, SHUT_RDWR);
-  ::close(sock);
-  sock = -1;
+  if (connected()){
+    #if DEBUG >= 6
+    fprintf(stderr, "Socket closed.\n");
+    #endif
+    shutdown(sock, SHUT_RDWR);
+    ::close(sock);
+    sock = -1;
+  }
 }//Socket::Connection::close
 
 /// Returns internal socket number.
@@ -214,7 +217,7 @@ signed int Socket::Connection::ready(){
 /// The connection status is updated after every read/write attempt, when errors occur
 /// and when the socket is closed manually.
 /// \returns True if socket is connected, false otherwise.
-bool Socket::Connection::connected(){
+bool Socket::Connection::connected() const{
   return (sock >= 0);
 }
 
@@ -451,6 +454,24 @@ std::string Socket::Connection::getHost(){
   return remotehost;
 }
 
+/// Returns true if these sockets are the same socket.
+/// Does not check the internal stats - only the socket itself.
+bool Socket::Connection::operator== (const Connection &B) const{
+  return sock == B.sock;
+}
+
+/// Returns true if these sockets are not the same socket.
+/// Does not check the internal stats - only the socket itself.
+bool Socket::Connection::operator!= (const Connection &B) const{
+  return sock != B.sock;
+}
+
+/// Returns true if the socket is valid.
+/// Aliases for Socket::Connection::connected()
+Socket::Connection::operator bool() const{
+  return connected();
+}
+
 /// Create a new base Server. The socket is never connected, and a placeholder for later connections.
 Socket::Server::Server(){
   sock = -1;
@@ -661,13 +682,16 @@ Socket::Connection Socket::Server::accept(bool nonblock){
 }
 
 /// Close connection. The internal socket is closed and then set to -1.
+/// If the connection is already closed, nothing happens.
 void Socket::Server::close(){
-  #if DEBUG >= 6
-  fprintf(stderr, "ServerSocket closed.\n");
-  #endif
-  shutdown(sock, SHUT_RDWR);
-  ::close(sock);
-  sock = -1;
+  if (connected()){
+    #if DEBUG >= 6
+    fprintf(stderr, "ServerSocket closed.\n");
+    #endif
+    shutdown(sock, SHUT_RDWR);
+    ::close(sock);
+    sock = -1;
+  }
 }//Socket::Server::close
 
 /// Returns the connected-state for this socket.
@@ -675,7 +699,7 @@ void Socket::Server::close(){
 /// The connection status is updated after every accept attempt, when errors occur
 /// and when the socket is closed manually.
 /// \returns True if socket is connected, false otherwise.
-bool Socket::Server::connected(){
+bool Socket::Server::connected() const{
   return (sock >= 0);
 }//Socket::Server::connected
 

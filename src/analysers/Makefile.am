@@ -1,6 +1,6 @@
 bin_PROGRAMS=MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF
 MistAnalyserRTMP_SOURCES=rtmp_analyser.cpp
-MistAnalyserRTMP_LDADD=../../lib/librtmpchunks.la ../../lib/libdtsc.la ../../lib/libcrypto.la
+MistAnalyserRTMP_LDADD=../../lib/librtmpchunks.la ../../lib/libdtsc.la ../../lib/libkeycrypto.la
 MistAnalyserFLV_SOURCES=flv_analyser.cpp
 MistAnalyserFLV_LDADD=../../lib/libflv_tag.la ../../lib/libdtsc.la
 MistAnalyserDTSC_SOURCES=dtsc_analyser.cpp

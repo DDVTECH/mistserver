@@ -257,7 +257,7 @@ namespace Connector_HTTP{
             streamname = Movie;
             inited = false;
             ss.close();
-            if (handler == HANDLER_PROGRESSIVE){
+            if (inited && handler == HANDLER_PROGRESSIVE){
               #if DEBUG >= 4
               printf("Progressive-mode reconnect impossible - disconnecting.\n");
               #endif

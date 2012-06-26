@@ -16,8 +16,8 @@ namespace TS {
   class Packet {
     public:
       Packet();
-      Packet( std::string & Data );
       ~Packet();
+      bool FromString( std::string & Data );
       void PID( int NewPID );
       int PID();
       void ContinuityCounter( int NewContinuity );
@@ -43,6 +43,9 @@ namespace TS {
       void FillFree( std::string & PackageData );
       void AddStuffing( int NumBytes );
       void FFMpegHeader( );
+      
+      int ProgramMapPID( );
+      void UpdateStreamPID( int & VideoPid, int & AudioPid );
     private:
       int Free;
       char Buffer[188];///< The actual data

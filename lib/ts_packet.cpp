@@ -7,18 +7,19 @@
 /// All this constructor does is call TS::Packet::Clear().
 TS::Packet::Packet() { Clear( ); }
 
-/// This constructor creates a filled TS::Packet, or creates an empty
-/// packet if not enough Data provided.
+/// This function fills a TS::Packet from provided Data.
 /// It fills the content with the first 188 bytes of Data.
 /// \param Data The data to be read into the packet.
-TS::Packet::Packet( std::string & Data ) {
+/// \return true if it was possible to read in a full packet, false otherwise.
+bool TS::Packet::FromString( std::string & Data ) {
   if( Data.size() < 188 ) {
-    Clear( );    
+    return false;  
   } else {
     for( int i = 0; i < 188; i++ ) { Buffer[i] = Data[i]; }
     Data.erase(0,188);
     Free = 0;
   }
+  return true;
 }
 
 /// The deconstructor deletes all space that may be occupied by a TS::Packet.
@@ -322,4 +323,29 @@ void TS::Packet::FFMpegHeader( ) {
   ContinuityCounter( MyCntr );
   Free = 0;
   MyCntr = ( (MyCntr + 1) % 0x10);
+}
+
+int TS::Packet::ProgramMapPID( ) {
+  if( PID() != 0 ) { return -1; }
+  int Offset = Buffer[4];
+  int ProgramNumber = ( Buffer[13+Offset] << 8 ) + Buffer[14+Offset];
+  if( ProgramNumber == 0 ) { return -1; }
+  return ((Buffer[15+Offset] & 0x1F) << 8 ) + Buffer[16+Offset];
+}
+
+void TS::Packet::UpdateStreamPID( int & VideoPid, int & AudioPid ) {
+  int Offset = Buffer[4];
+  int SectionLength = ( ( Buffer[6+Offset] & 0x0F) << 8 ) + Buffer[7+Offset];
+  int ProgramInfoLength = ( (Buffer[15+Offset] & 0x0F) << 8 ) + Buffer[16+Offset];
+  int CurOffset = 17+ProgramInfoLength+Offset;
+  while( CurOffset < SectionLength-4 ) {
+    if( Buffer[CurOffset] == 0x01 || Buffer[CurOffset == 0x02] ) {
+      VideoPid = ((Buffer[CurOffset+1] & 0x1F) << 8 ) + Buffer[CurOffset+2];
+    }
+    if( Buffer[CurOffset] == 0x03 || Buffer[CurOffset == 0x04] ) {
+      AudioPid = ((Buffer[CurOffset+1] & 0x1F) << 8 ) + Buffer[CurOffset+2];
+    }
+    int ESLen = (( Buffer[CurOffset+3] & 0xF0 ) << 8 ) + Buffer[CurOffset+4];
+    CurOffset += ( 5 + ESLen );
+  }
 }

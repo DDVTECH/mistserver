@@ -19,3 +19,4 @@ libtinythread_la_SOURCES=tinythread.h tinythread.cpp
 libtinythread_la_LIBADD=-lpthread
 libmp4_la_SOURCES=mp4.h mp4.cpp
 libts_packet_la_SOURCES=ts_packet.h ts_packet.cpp
+libts_packet_la_LIBADD=./libdtsc.la

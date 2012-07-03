@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <algorithm>
 
+#include "dtsc.h"
+
 /// Holds all TS processing related code.
 namespace TS {
   /// Class for reading and writing TS Streams
@@ -44,8 +46,12 @@ namespace TS {
       void AddStuffing( int NumBytes );
       void FFMpegHeader( );
       
+      int PESTimeStamp( );
+      
+      //For output to DTSC
       int ProgramMapPID( );
       void UpdateStreamPID( int & VideoPid, int & AudioPid );
+      DTSC::DTMI toDTSC(DTSC::DTMI & metadata, std::string Type);
     private:
       int Free;
       char Buffer[188];///< The actual data

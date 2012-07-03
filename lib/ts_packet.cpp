@@ -165,7 +165,7 @@ void TS::Packet::UnitStart( int NewVal ) {
 /// Gets whether this TS::Packet can be accessed at random (indicates keyframe).
 /// \return Whether or not this TS::Packet contains a keyframe.
 int TS::Packet::RandomAccess( ) {
-  if( !AdaptationField() ) {
+  if( AdaptationField() < 2 ) {
     return -1;
   }
   return ( Buffer[5] & 0x40) >> 6;
@@ -334,18 +334,45 @@ int TS::Packet::ProgramMapPID( ) {
 }
 
 void TS::Packet::UpdateStreamPID( int & VideoPid, int & AudioPid ) {
-  int Offset = Buffer[4];
-  int SectionLength = ( ( Buffer[6+Offset] & 0x0F) << 8 ) + Buffer[7+Offset];
-  int ProgramInfoLength = ( (Buffer[15+Offset] & 0x0F) << 8 ) + Buffer[16+Offset];
-  int CurOffset = 17+ProgramInfoLength+Offset;
-  while( CurOffset < SectionLength-4 ) {
-    if( Buffer[CurOffset] == 0x01 || Buffer[CurOffset == 0x02] ) {
+  int Offset = Buffer[4] + 5;
+  int SectionLength = ( ( Buffer[1+Offset] & 0x0F) << 8 ) + Buffer[2+Offset];
+  int ProgramInfoLength = ( (Buffer[10+Offset] & 0x0F) << 8 ) + Buffer[11+Offset];
+  int CurOffset = 12 + ProgramInfoLength;
+  while( CurOffset < (SectionLength+3)-4 ) {
+    if( Buffer[CurOffset] == 0x1B ) {
       VideoPid = ((Buffer[CurOffset+1] & 0x1F) << 8 ) + Buffer[CurOffset+2];
-    }
-    if( Buffer[CurOffset] == 0x03 || Buffer[CurOffset == 0x04] ) {
+      fprintf( stderr, "Video stream recognized at PID %d\n",  ((Buffer[CurOffset+1] & 0x1F) << 8 ) + Buffer[CurOffset+2] );
+    } else if( Buffer[CurOffset] == 0x0F ) {
       AudioPid = ((Buffer[CurOffset+1] & 0x1F) << 8 ) + Buffer[CurOffset+2];
+      fprintf( stderr, "Audio stream recognized at PID %d\n",  ((Buffer[CurOffset+1] & 0x1F) << 8 ) + Buffer[CurOffset+2] );
+    } else {
+      fprintf( stderr, "Unsupported stream type: %0.2X\n", Buffer[CurOffset] );
     }
-    int ESLen = (( Buffer[CurOffset+3] & 0xF0 ) << 8 ) + Buffer[CurOffset+4];
+    int ESLen = (( Buffer[CurOffset+3] & 0x0F ) << 8 ) + Buffer[CurOffset+4];
     CurOffset += ( 5 + ESLen );
   }
+}
+
+int TS::Packet::PESTimeStamp( ) {
+  if( !UnitStart( ) ) { return -1; }
+  int PesOffset = 4;
+  if( AdaptationField( ) >= 2 )  { PesOffset += 1 + AdaptationFieldLen( ); }
+  fprintf( stderr, "PES Offset: %d\n", PesOffset );
+  fprintf( stderr, "PES StartCode: %0.2X %0.2X %0.2X\n", Buffer[PesOffset], Buffer[PesOffset+1], Buffer[PesOffset+2] );
+  int MyTimestamp = (Buffer[PesOffset+9] & 0x0F) >> 1;
+  MyTimestamp = (MyTimestamp << 8) + Buffer[PesOffset+10];
+  MyTimestamp = (MyTimestamp << 7) + ((Buffer[PesOffset+11]) >> 1);
+  MyTimestamp = (MyTimestamp << 8) + Buffer[PesOffset+12];
+  MyTimestamp = (MyTimestamp << 7) + ((Buffer[PesOffset+13]) >> 1);
+  fprintf( stderr, "PES Timestamp: %d\n", MyTimestamp );
+  return 0;
+}
+
+DTSC::DTMI TS::Packet::toDTSC(DTSC::DTMI & metadata, std::string Type) {
+  DTSC::DTMI outPack = DTSC::DTMI(Type, DTSC::DTMI_ROOT);
+  outPack.addContent(DTSC::DTMI("datatype", Type));
+  if( UnitStart() ) {
+    outPack.addContent(DTSC::DTMI("time", PESTimeStamp( )));
+  }
+  return outPack;
 }

@@ -47,11 +47,13 @@ namespace TS {
       void FFMpegHeader( );
       
       int PESTimeStamp( );
+      int GetDataOffset( );
       
       //For output to DTSC
       int ProgramMapPID( );
       void UpdateStreamPID( int & VideoPid, int & AudioPid );
-      DTSC::DTMI toDTSC(DTSC::DTMI & metadata, std::string Type);
+      //DTSC::DTMI toDTSC(DTSC::DTMI & metadata, std::string Type);
+      void toDTSC( std::string Type, DTSC::DTMI & CurrentDTSC );
     private:
       int Free;
       char Buffer[188];///< The actual data

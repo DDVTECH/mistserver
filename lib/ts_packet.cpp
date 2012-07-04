@@ -368,11 +368,55 @@ int TS::Packet::PESTimeStamp( ) {
   return 0;
 }
 
+int TS::Packet::GetDataOffset( ) {
+  int Offset = 4;
+  fprintf( stderr,"\tBefore Adapt: %d\n", Offset );
+  if( AdaptationField( ) >= 2 ) {
+    Offset += 1 + AdaptationFieldLen( );
+  }
+  fprintf( stderr,"\tBefore UnitStart: %d\n", Offset );
+  if( UnitStart() ) {
+    fprintf( stderr, "\t\tPES Header Len: %d\n", Buffer[Offset+8] );
+    Offset += 8;//Default Header + Flag Bytes
+    Offset += 1 + Buffer[Offset];//HeaderLengthByte + HeaderLength
+  }
+  fprintf( stderr,"\tBefore Return: %d\n", Offset );
+  return Offset;
+}
+
+/*
 DTSC::DTMI TS::Packet::toDTSC(DTSC::DTMI & metadata, std::string Type) {
   DTSC::DTMI outPack = DTSC::DTMI(Type, DTSC::DTMI_ROOT);
   outPack.addContent(DTSC::DTMI("datatype", Type));
-  if( UnitStart() ) {
-    outPack.addContent(DTSC::DTMI("time", PESTimeStamp( )));
-  }
+  if( UnitStart() ){ outPack.addContent(DTSC::DTMI("time", PESTimeStamp( ))); }
+  if( Type == "video" && (RandomAccess() > 0) ){ outPack.addContent(DTSC::DTMI("keyframe", 1)); }
+  int DataOffset = GetDataOffset();
+  fprintf( stderr, "Data Offset: %d\n", DataOffset );
+  outPack.addContent(DTSC::DTMI("data", std::string((char*)Buffer+DataOffset, (size_t)188-DataOffset)));
   return outPack;
+}
+*/
+
+void TS::Packet::toDTSC( std::string Type, DTSC::DTMI & CurrentDTSC ) {
+  if( !CurrentDTSC.getContentP( "datatype" ) ) {
+    CurrentDTSC.addContent( DTSC::DTMI("datatype", Type ) );
+  }
+  if( UnitStart() ) {
+    if( !CurrentDTSC.getContentP( "time" ) ) {
+      CurrentDTSC.addContent( DTSC::DTMI( "time", PESTimeStamp( ) ) );
+    }
+  }
+  if( Type == "video" && (RandomAccess() > 0) ){
+    if( !CurrentDTSC.getContentP( "keyframe" ) ) {
+      CurrentDTSC.addContent(DTSC::DTMI("keyframe", 1));
+    }
+  }
+  int DataOffset = GetDataOffset();
+  fprintf( stderr, "Data Offset: %d\n", DataOffset );
+  std::string ToAppend = std::string((char*)Buffer+DataOffset, (size_t)188-DataOffset);
+  std::string CurrentData;
+  if( CurrentDTSC.getContentP( "data" ) ) {
+    CurrentData = CurrentDTSC.getContent( "data" ).StrValue( );
+  }
+  CurrentDTSC.addContent(DTSC::DTMI("data", CurrentData + ToAppend ));
 }

@@ -1,4 +1,4 @@
-noinst_LTLIBRARIES=libamf.la libauth.la libbase64.la libconfig.la libcrypto.la libdtsc.la libflv_tag.la libhttp_parser.la libjson.la libprocs.la librtmpchunks.la libsocket.la libtinythread.la libmp4.la libts_packet.la
+noinst_LTLIBRARIES=libamf.la libauth.la libbase64.la libconfig.la libcrypto.la libdtsc.la libflv_tag.la libhttp_parser.la libjson.la libprocs.la librtmpchunks.la libsocket.la libtinythread.la libmp4.la libts_packet.la libnal_unit.la
 libamf_la_SOURCES=amf.h amf.cpp
 libauth_la_SOURCES=auth.h auth.cpp
 libauth_la_LIBADD=-lssl -lcrypto
@@ -20,3 +20,4 @@ libtinythread_la_LIBADD=-lpthread
 libmp4_la_SOURCES=mp4.h mp4.cpp
 libts_packet_la_SOURCES=ts_packet.h ts_packet.cpp
 libts_packet_la_LIBADD=./libdtsc.la
+libnal_unit_la_SOURCES=nal.h nal.cpp

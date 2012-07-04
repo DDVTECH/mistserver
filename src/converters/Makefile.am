@@ -6,4 +6,3 @@ MistFLV2DTSC_SOURCES=flv2dtsc.cpp
 MistDTSCFix_SOURCES=dtscfix.cpp
 MistDTSC2TS_SOURCES=dtsc2ts.cpp
 MistTS2DTSC_SOURCES=ts2dtsc.cpp
-

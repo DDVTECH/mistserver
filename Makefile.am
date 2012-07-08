@@ -1,5 +1,5 @@
-SUBDIRS=lib src
-EXTRA_DIST=server.html VERSION
+SUBDIRS=lib
+EXTRA_DIST=VERSION
 docs:
 	doxygen ./Doxyfile > /dev/null
 .PHONY: docs

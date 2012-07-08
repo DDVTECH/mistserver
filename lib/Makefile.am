@@ -1,20 +1,9 @@
-noinst_LTLIBRARIES=libamf.la libauth.la libbase64.la libconfig.la libkeycrypto.la libdtsc.la libflv_tag.la libhttp_parser.la libjson.la libprocs.la librtmpchunks.la libsocket.la libtinythread.la libmp4.la
-libamf_la_SOURCES=amf.h amf.cpp
-libauth_la_SOURCES=auth.h auth.cpp
-libauth_la_LIBADD=-lssl -lcrypto
-libbase64_la_SOURCES=base64.h base64.cpp
-libconfig_la_SOURCES=config.h config.cpp
-libkeycrypto_la_SOURCES=crypto.h crypto.cpp
-libkeycrypto_la_LIBADD=-lssl -lcrypto
-libdtsc_la_SOURCES=dtsc.h dtsc.cpp
-libflv_tag_la_SOURCES=flv_tag.h flv_tag.cpp
-libflv_tag_la_LIBADD=./libamf.la ./libsocket.la
-libhttp_parser_la_SOURCES=http_parser.h http_parser.cpp
-libjson_la_SOURCES=json.h json.cpp
-libprocs_la_SOURCES=procs.h procs.cpp
-librtmpchunks_la_SOURCES=rtmpchunks.h rtmpchunks.cpp
-librtmpchunks_la_LIBADD=./libflv_tag.la -lssl -lcrypto ./libkeycrypto.la
-libsocket_la_SOURCES=socket.h socket.cpp
-libtinythread_la_SOURCES=tinythread.h tinythread.cpp
-libtinythread_la_LIBADD=-lpthread
-libmp4_la_SOURCES=mp4.h mp4.cpp
+lib_LTLIBRARIES=libmist-1.0.la
+libmist_1_0_la_SOURCES=amf.h amf.cpp auth.h auth.cpp base64.h base64.cpp config.h config.cpp crypto.h crypto.cpp dtsc.h dtsc.cpp flv_tag.h flv_tag.cpp http_parser.h http_parser.cpp json.h json.cpp procs.h procs.cpp rtmpchunks.h rtmpchunks.cpp socket.h socket.cpp mp4.h mp4.cpp
+libmist_1_0_la_LIBADD=-lssl -lcrypto
+
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = mist-1.0.pc
+
+library_includedir=$(includedir)/mist-1.0/mist
+library_include_HEADERS = amf.h auth.h base64.h config.h crypto.h dtsc.h flv_tag.h http_parser.h json.h procs.h rtmpchunks.h socket.h mp4.h

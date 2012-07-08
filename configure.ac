@@ -2,10 +2,10 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.60])
-AC_INIT([MistServer],
+AC_INIT([libmist],
 	m4_esyscmd([git rev-parse 2>/dev/null&&git describe --tags > VERSION;tr -d '\n' < VERSION]),
 	[contact@ddvtech.com])
-AC_CONFIG_SRCDIR([src/buffer.cpp])
+AC_CONFIG_SRCDIR([lib/dtsc.cpp])
 # foreign: no need for NEWS or INSTALL files
 AM_INIT_AUTOMAKE([foreign])
 LT_INIT
@@ -19,6 +19,7 @@ AC_CHECK_LIB(ssl, RC4)
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/socket.h sys/time.h unistd.h])
+
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
@@ -42,9 +43,5 @@ CXXFLAGS="$CXXFLAGS -funsigned-char"
 #allow verbose mode compiles
 AC_ARG_ENABLE([verbose], AC_HELP_STRING([--enable-verbose], [Compile with verbose messages]), CXXFLAGS="-DDEBUG=4 $CXXFLAGS")
 
-AC_CONFIG_FILES([Makefile
-                 lib/Makefile
-                 src/converters/Makefile
-                 src/analysers/Makefile
-                 src/Makefile])
+AC_CONFIG_FILES([Makefile lib/Makefile lib/mist-1.0.pc])
 AC_OUTPUT

@@ -727,7 +727,7 @@ Socket::Connection Socket::getStream(std::string streamname){
 /// Filters the streamname, removing invalid characters and
 /// converting all letters to lowercase.
 /// If a '?' character is found, everything following that character is deleted.
-/// If the /tmp/ddvtech directory doesn't exist yet, this will create it.
+/// If the /tmp/mist directory doesn't exist yet, this will create it.
 Socket::Server Socket::makeStream(std::string streamname){
   //strip anything that isn't numbers, digits or underscores
   for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){

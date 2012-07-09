@@ -11,10 +11,10 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <sstream>
-#include "../lib/socket.h"
-#include "../lib/flv_tag.h"
-#include "../lib/amf.h"
-#include "../lib/rtmpchunks.h"
+#include <mist/socket.h>
+#include <mist/flv_tag.h>
+#include <mist/amf.h>
+#include <mist/rtmpchunks.h>
 
 /// Holds all functions and data unique to the RTMP Connector
 namespace Connector_RTMP{

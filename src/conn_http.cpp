@@ -11,14 +11,14 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <ctime>
-#include "../lib/socket.h"
-#include "../lib/http_parser.h"
-#include "../lib/json.h"
-#include "../lib/dtsc.h"
-#include "../lib/flv_tag.h"
-#include "../lib/base64.h"
-#include "../lib/amf.h"
-#include "../lib/mp4.h"
+#include <mist/socket.h>
+#include <mist/http_parser.h>
+#include <mist/json.h>
+#include <mist/dtsc.h>
+#include <mist/flv_tag.h>
+#include <mist/base64.h>
+#include <mist/amf.h>
+#include <mist/mp4.h>
 
 /// Holds everything unique to HTTP Connector.
 namespace Connector_HTTP{

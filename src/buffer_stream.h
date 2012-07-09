@@ -3,8 +3,8 @@
 
 #pragma once
 #include <string>
-#include "../lib/tinythread.h"
-#include "../lib/json.h"
+#include <mist/json.h>
+#include "tinythread.h"
 #include "buffer_user.h"
 
 namespace Buffer{

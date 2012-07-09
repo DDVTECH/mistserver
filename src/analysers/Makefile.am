@@ -1,9 +1,7 @@
+AM_CPPFLAGS = $(MIST_CFLAGS)
+LDADD = $(MIST_LIBS)
 bin_PROGRAMS=MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF
 MistAnalyserRTMP_SOURCES=rtmp_analyser.cpp
-MistAnalyserRTMP_LDADD=../../lib/librtmpchunks.la ../../lib/libdtsc.la ../../lib/libkeycrypto.la
 MistAnalyserFLV_SOURCES=flv_analyser.cpp
-MistAnalyserFLV_LDADD=../../lib/libflv_tag.la ../../lib/libdtsc.la
 MistAnalyserDTSC_SOURCES=dtsc_analyser.cpp
-MistAnalyserDTSC_LDADD=../../lib/libdtsc.la
 MistAnalyserAMF_SOURCES=amf_analyser.cpp
-MistAnalyserAMF_LDADD=../../lib/libamf.la

@@ -10,7 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include "../../lib/flv_tag.h" //FLV support
+#include <mist/flv_tag.h> //FLV support
 
 /// Reads FLV from stdin and outputs human-readable information to stderr.
 int main() {

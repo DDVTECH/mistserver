@@ -25,12 +25,12 @@
 #include <signal.h>
 #include <sstream>
 #include <openssl/md5.h>
-#include "../lib/socket.h"
-#include "../lib/http_parser.h"
-#include "../lib/json.h"
-#include "../lib/procs.h"
-#include "../lib/config.h"
-#include "../lib/auth.h"
+#include <mist/socket.h>
+#include <mist/http_parser.h>
+#include <mist/json.h>
+#include <mist/procs.h>
+#include <mist/config.h>
+#include <mist/auth.h>
 
 #define UPLINK_INTERVAL 30
 

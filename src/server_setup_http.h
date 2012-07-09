@@ -1,5 +1,5 @@
-/// \file server_setup.h
-/// Contains generic functions for setting up a Connector.
+/// \file server_setup_http.h
+/// Contains generic functions for setting up a HTTP Connector.
 
 #ifndef MAINHANDLER
   /// Handler that is called for accepted incoming connections.
@@ -7,13 +7,11 @@
   #error "No handler was set!"
 #endif
 
-
-#ifndef DEFAULT_PORT
-  /// Default port for this server.
-  #define DEFAULT_PORT 0
-  #error "No default port was set!"
+#ifndef CONNECTOR
+  /// Connector name for the socket.
+  #define CONNECTOR NoConnector
+  #error "No connector was set!"
 #endif
-
 
 #include <mist/socket.h> //Socket library
 #include <mist/config.h> //utilities for config management
@@ -54,12 +52,12 @@ void signal_handler (int signum){
   server_socket.close();
 }//signal_handler
 
-/// Generic main entry point and loop for DDV Connectors.
+/// Generic main entry point and loop for DDV HTTP-based Connectors.
 /// This sets up the proper termination handler, checks commandline options,
-/// parses config files and opens a listening socket on the requested port.
+/// parses config files and opens a listening socket.
 /// Any incoming connections will be accepted and start up the function #MAINHANDLER,
-/// which should be defined before including server_setup.cpp.
-/// The default port is set by define #DEFAULT_PORT.
+/// which should be defined before including server_setup_http.cpp.
+/// The connector name is set by define #CONNECTOR.
 int main(int argc, char ** argv){
   Socket::Connection S;//placeholder for incoming connections
 
@@ -76,11 +74,10 @@ int main(int argc, char ** argv){
 
   //set and parse configuration
   Util::Config C;
-  C.listen_port = DEFAULT_PORT;
   C.parseArgs(argc, argv);
 
   //setup a new server socket, for the correct interface and port
-  server_socket = Socket::Server(C.listen_port, C.interface);
+  server_socket = Socket::Server("/tmp/mist/http_" CONNECTOR);
   if (!server_socket.connected()){
     #if DEBUG >= 1
     fprintf(stderr, "Error: could not make listening socket\n");

@@ -16,9 +16,11 @@ AC_PROG_CC
 
 # Checks for libraries.
 AC_CHECK_LIB(ssl, RC4)
+PKG_CHECK_MODULES([MIST], [mist-1.0 >= 0.0.0])
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/socket.h sys/time.h unistd.h])
+
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
@@ -43,7 +45,6 @@ CXXFLAGS="$CXXFLAGS -funsigned-char"
 AC_ARG_ENABLE([verbose], AC_HELP_STRING([--enable-verbose], [Compile with verbose messages]), CXXFLAGS="-DDEBUG=4 $CXXFLAGS")
 
 AC_CONFIG_FILES([Makefile
-                 lib/Makefile
                  src/converters/Makefile
                  src/analysers/Makefile
                  src/Makefile])

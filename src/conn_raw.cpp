@@ -2,7 +2,7 @@
 /// Contains the main code for the RAW connector.
 
 #include <iostream>
-#include "../lib/socket.h"
+#include <mist/socket.h>
 
 /// Contains the main code for the RAW connector.
 /// Expects a single commandline argument telling it which stream to connect to,

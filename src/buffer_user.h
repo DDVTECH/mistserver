@@ -3,9 +3,9 @@
 
 #pragma once
 #include <string>
-#include "../lib/dtsc.h"
-#include "../lib/socket.h"
-#include "../lib/tinythread.h"
+#include <mist/dtsc.h>
+#include <mist/socket.h>
+#include "tinythread.h"
 
 namespace Buffer{
   /// Converts a stats line to up, down, host, connector and conntime values.

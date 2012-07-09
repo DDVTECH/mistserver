@@ -9,33 +9,27 @@ NAL_Unit::NAL_Unit( std::string & InputData ) {
 }
 
 bool NAL_Unit::ReadData( std::string & InputData ) {
+  std::string FullAnnexB;
+  FullAnnexB += (char)0x00;
+  FullAnnexB += (char)0x00;
+  FullAnnexB += (char)0x00;
+  FullAnnexB += (char)0x01;
+  std::string ShortAnnexB;
+  ShortAnnexB += (char)0x00;
+  ShortAnnexB += (char)0x00;
+  ShortAnnexB += (char)0x01;
+//  fprintf( stderr, "NAL_Unit::ReadData --- DataSize: %d\n", InputData.size() );
+  if( InputData.size() < 3 ) { return false; }
   bool AnnexB = false;
-  if( InputData[0] == 0x00 && InputData[1] == 0x00 ) {
-    if( InputData[2] == 0x01 ) {
-      AnnexB = true;
-    }
-    if( InputData[2] == 0x00 && InputData[3] == 0x01 ) {
-      InputData.erase(0,1);
-      AnnexB = true;
-    }
-  }
+  if( InputData.substr(0,3) == ShortAnnexB ) { AnnexB = true; }
+  if( InputData.substr(0,4) == FullAnnexB ) { InputData.erase(0,1); AnnexB = true; }
   if( AnnexB ) {
     MyData = "";
     InputData.erase(0,3);//Intro Bytes
     bool FinalByteRead = false;
-    while( !FinalByteRead ) {
-      MyData += InputData[0];
-      InputData.erase(0,1);
-      if( InputData[0] == 0x00 && InputData[1] == 0x00 ) {
-        if( InputData[2] == 0x01 ) {
-          FinalByteRead = true;
-        }
-        if( InputData[2] == 0x00 && InputData[3] == 0x01 ) {
-          InputData.erase(0,1);
-          FinalByteRead= true;
-        }
-      }
-    }
+    int Location = std::min( InputData.find( ShortAnnexB ), InputData.find( FullAnnexB ) );
+    MyData = InputData.substr(0,Location);
+    InputData.erase(0,Location);
   } else {
     if( InputData.size() < 4 ) { return false; }
     int UnitLen = (InputData[0] << 24) + (InputData[1] << 16) + (InputData[2] << 8) + InputData[3];

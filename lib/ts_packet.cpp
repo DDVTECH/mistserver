@@ -365,54 +365,55 @@ int TS::Packet::PESTimeStamp( ) {
   MyTimestamp = (MyTimestamp << 8) + Buffer[PesOffset+12];
   MyTimestamp = (MyTimestamp << 7) + ((Buffer[PesOffset+13]) >> 1);
   fprintf( stderr, "PES Timestamp: %d\n", MyTimestamp );
-  return 0;
+  return MyTimestamp;
 }
 
 int TS::Packet::GetDataOffset( ) {
   int Offset = 4;
-  fprintf( stderr,"\tBefore Adapt: %d\n", Offset );
   if( AdaptationField( ) >= 2 ) {
     Offset += 1 + AdaptationFieldLen( );
   }
-  fprintf( stderr,"\tBefore UnitStart: %d\n", Offset );
   if( UnitStart() ) {
-    fprintf( stderr, "\t\tPES Header Len: %d\n", Buffer[Offset+8] );
     Offset += 8;//Default Header + Flag Bytes
     Offset += 1 + Buffer[Offset];//HeaderLengthByte + HeaderLength
   }
-  fprintf( stderr,"\tBefore Return: %d\n", Offset );
   return Offset;
 }
-
-/*
-DTSC::DTMI TS::Packet::toDTSC(DTSC::DTMI & metadata, std::string Type) {
-  DTSC::DTMI outPack = DTSC::DTMI(Type, DTSC::DTMI_ROOT);
-  outPack.addContent(DTSC::DTMI("datatype", Type));
-  if( UnitStart() ){ outPack.addContent(DTSC::DTMI("time", PESTimeStamp( ))); }
-  if( Type == "video" && (RandomAccess() > 0) ){ outPack.addContent(DTSC::DTMI("keyframe", 1)); }
-  int DataOffset = GetDataOffset();
-  fprintf( stderr, "Data Offset: %d\n", DataOffset );
-  outPack.addContent(DTSC::DTMI("data", std::string((char*)Buffer+DataOffset, (size_t)188-DataOffset)));
-  return outPack;
-}
-*/
 
 void TS::Packet::toDTSC( std::string Type, DTSC::DTMI & CurrentDTSC ) {
   if( !CurrentDTSC.getContentP( "datatype" ) ) {
     CurrentDTSC.addContent( DTSC::DTMI("datatype", Type ) );
   }
-  if( UnitStart() ) {
-    if( !CurrentDTSC.getContentP( "time" ) ) {
-      CurrentDTSC.addContent( DTSC::DTMI( "time", PESTimeStamp( ) ) );
+  if( Type == "video" ) {
+    if ( (RandomAccess() > 0) ){
+      if( !CurrentDTSC.getContentP( "keyframe" ) && !CurrentDTSC.getContentP( "interframe" ) ) {
+        CurrentDTSC.addContent(DTSC::DTMI("keyframe", 1));
+      }
+    } else {
+      if( !CurrentDTSC.getContentP( "keyframe" ) && !CurrentDTSC.getContentP( "interframe" ) ) {
+        CurrentDTSC.addContent(DTSC::DTMI("interframe", 1));
+      }
     }
   }
-  if( Type == "video" && (RandomAccess() > 0) ){
-    if( !CurrentDTSC.getContentP( "keyframe" ) ) {
-      CurrentDTSC.addContent(DTSC::DTMI("keyframe", 1));
+  if( UnitStart() ) {
+    if( !CurrentDTSC.getContentP( "time" ) ) {
+      if( Type == "audio" ) {
+        CurrentDTSC.addContent( DTSC::DTMI( "time", PESTimeStamp( ) / 81000 ) );
+      } else {
+        //CurrentDTSC.addContent( DTSC::DTMI( "time", PESTimeStamp( ) / 27000 ) );
+        CurrentDTSC.addContent( DTSC::DTMI( "time", (PESTimeStamp( ) - 27000000) / 91 ) );
+      }
+    }
+  }
+  if( Type == "video" ) {
+    if( !CurrentDTSC.getContentP( "nalu" ) ) {
+      CurrentDTSC.addContent( DTSC::DTMI( "nalu", 1 ) );
+    }
+    if( !CurrentDTSC.getContentP( "offset" ) ) {
+      CurrentDTSC.addContent( DTSC::DTMI( "offset", 0 ) );
     }
   }
   int DataOffset = GetDataOffset();
-  fprintf( stderr, "Data Offset: %d\n", DataOffset );
   std::string ToAppend = std::string((char*)Buffer+DataOffset, (size_t)188-DataOffset);
   std::string CurrentData;
   if( CurrentDTSC.getContentP( "data" ) ) {

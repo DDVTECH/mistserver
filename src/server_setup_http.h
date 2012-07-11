@@ -9,7 +9,7 @@
 
 #ifndef CONNECTOR
   /// Connector name for the socket.
-  #define CONNECTOR NoConnector
+  #define CONNECTOR "NoConnector"
   #error "No connector was set!"
 #endif
 

@@ -1,9 +1,11 @@
 AM_CPPFLAGS = $(MIST_CFLAGS)
 LDADD = $(MIST_LIBS)
 SUBDIRS=converters analysers
-bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP
+bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic
 MistBuffer_SOURCES=buffer.cpp buffer_user.h buffer_user.cpp buffer_stream.h buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
 MistController_SOURCES=controller.cpp ../VERSION
 MistConnRAW_SOURCES=conn_raw.cpp ../VERSION
 MistConnRTMP_SOURCES=conn_rtmp.cpp server_setup.h ../VERSION
 MistConnHTTP_SOURCES=conn_http.cpp server_setup.h ../VERSION
+MistConnHTTPProgressive_SOURCES=conn_http_progressive.cpp server_setup_http.h ../VERSION
+MistConnHTTPDynamic_SOURCES=conn_http_dynamic.cpp server_setup_http.h ../VERSION

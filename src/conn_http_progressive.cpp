@@ -141,5 +141,5 @@ namespace Connector_HTTP_Progressive{
 
 // Load http setup file with the correct settings for this HTTP connector
 #define MAINHANDLER Connector_HTTP_Progressive::Connector_HTTP_Progressive
-#define CONNECTOR progressive
+#define CONNECTOR "progressive"
 #include "server_setup_http.h"

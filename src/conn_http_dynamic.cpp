@@ -65,16 +65,16 @@ namespace Connector_HTTP_Dynamic{
 
   /// Returns a F4M-format manifest file
   std::string BuildManifest(std::string MovieId) {
-    std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
-      "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n" +
-      "<id>" + MovieId + "</id>\n" +
-      "<mimeType>video/mp4</mimeType>\n" +
-      "<streamType>live</streamType>\n" +
-      "<deliveryType>streaming</deliveryType>\n" +
-      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(MP4::GenerateLiveBootstrap(1)) + "</bootstrapInfo>\n" +
-      "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n" +
-      "<metadata>" + Base64::encode(GetMetaData()) + "</metadata>\n" +
-      "</media>\n" +
+    std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+      "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
+      "<id>" + MovieId + "</id>\n"
+      "<mimeType>video/mp4</mimeType>\n"
+      "<streamType>live</streamType>\n"
+      "<deliveryType>streaming</deliveryType>\n"
+      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(MP4::GenerateLiveBootstrap(1)) + "</bootstrapInfo>\n"
+      "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
+      "<metadata>" + Base64::encode(GetMetaData()) + "</metadata>\n"
+      "</media>\n"
       "</manifest>\n";
     return Result;
   }//BuildManifest
@@ -231,5 +231,5 @@ namespace Connector_HTTP_Dynamic{
 
 // Load http setup file with the correct settings for this HTTP connector
 #define MAINHANDLER Connector_HTTP_Dynamic::Connector_HTTP_Dynamic
-#define CONNECTOR dynamic
+#define CONNECTOR "dynamic"
 #include "server_setup_http.h"

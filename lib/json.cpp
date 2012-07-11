@@ -283,6 +283,18 @@ JSON::Value::operator std::string(){
   }
 }
 
+/// Automatic conversion to bool.
+/// Returns true if there is anything meaningful stored into this value.
+JSON::Value::operator bool(){
+  if (myType == STRING){return strVal == "";}
+  if (myType == INTEGER){return intVal == 0;}
+  if (myType == BOOL){return intVal == 0;}
+  if (myType == OBJECT){return size() > 0;}
+  if (myType == ARRAY){return size() > 0;}
+  if (myType == EMPTY){return false;}
+  return false;//unimplemented? should never happen...
+}
+
 /// Retrieves or sets the JSON::Value at this position in the object.
 /// Converts destructively to object if not already an object.
 JSON::Value & JSON::Value::operator[](const std::string i){
@@ -431,6 +443,11 @@ JSON::ArrIter JSON::Value::ArrBegin(){
 /// Returns an iterator to the end of the array, if any.
 JSON::ArrIter JSON::Value::ArrEnd(){
   return arrVal.end();
+}
+
+/// Returns the total of the objects and array size combined.
+unsigned int JSON::Value::size(){
+  return objVal.size() + arrVal.size();
 }
 
 /// Completely clears the contents of this value,

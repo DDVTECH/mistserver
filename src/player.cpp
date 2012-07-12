@@ -58,7 +58,6 @@ namespace Player{
     char buff[1024 * 10];
     if (fileSrc.good()){
       fileSrc.read(buff, sizeof(buff));
-      if (fileSrc.eof()) return -1;
       buffer.append(buff, fileSrc.gcount());
       return fileSrc.gcount();
     }
@@ -177,7 +176,7 @@ seekDone:
 
   void File::Play() {
     long long now, timeDiff = 0, lastTime = 0;
-    while (fileSrc.good()) {
+    while (fileSrc.good() || !inBuffer.empty()) {
       if (readCommand()) {
         continue;
       }

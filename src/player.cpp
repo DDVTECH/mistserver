@@ -76,8 +76,10 @@ namespace Player{
     DTSC::Stream * tmpStream = new DTSC::Stream(1);
     unsigned long leftByte = 1, rightByte = fileSize;
     unsigned int leftMS = 0, rightMS = INT_MAX;
+    unsigned long foundRange = 0;//leftMS concatenated with rightMS
+    int lastOccurences = 0;//times that foundRange stayed the same during an iteration
     /// \todo set last packet as last byte, consider metadata
-    while (rightMS - leftMS >= 100 && leftMS + 100 <= miliseconds){
+    while (lastOccurences < 5){//assume that we have found the position if the boundaries do not in 5 times
       std::string buffer;
       // binary search: pick the first packet on the right
       unsigned long medByte = leftByte + (rightByte - leftByte) / 2;
@@ -112,6 +114,9 @@ namespace Player{
         leftByte = medByte;
         leftMS = medMS;
       }
+      //concatenate leftMS with rightMS
+      unsigned long sum = ((unsigned long)leftMS << (CHAR_BIT * sizeof(leftMS))) | rightMS;
+      if (foundRange == sum){++lastOccurences;}else{foundRange = sum;lastOccurences = 0;}
     }
 seekDone:
     // clear the buffer and adjust file pointer

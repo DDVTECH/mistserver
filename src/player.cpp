@@ -150,12 +150,13 @@ seekDone:
     if (fgets(line, sizeof(line), stdin) == NULL){
       return false;
     }
+    line[sizeof(line) - 1] = 0;// in case stream is not null-terminated...
     line_len = strlen(line);
     if (line[line_len - 1] == '\n'){
       line[--line_len] = 0;
     }
     {
-      int position = INT_MAX;// special value that says "invalid"
+      unsigned int position = INT_MAX;// special value that says "invalid"
       if (!strncmp("seek ", line, sizeof("seek ") - 1)){
         position = atoi(line + sizeof("seek ") - 1);
       }
@@ -165,16 +166,21 @@ seekDone:
       }
       if (position != INT_MAX){
         File::seek(position);
+        inBuffer.clear();//clear buffered data from file
         return true;
       }
     }
     if (!strncmp("byteseek ", line, sizeof("byteseek " - 1))){
       std::streampos byte = atoi(line + sizeof("byteseek "));
       fileSrc.seekg(byte);//if EOF, then it's the client's fault, ignore it.
+      inBuffer.clear();//clear buffered data from file
       return true;
     }
     if (!strcmp("play", line)){
       playing = true;
+    }
+    if (!strcmp("pause", line)){
+      playing = false;
     }
     return false;
   }

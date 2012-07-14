@@ -395,13 +395,20 @@ void TS::Packet::toDTSC( std::string Type, DTSC::DTMI & CurrentDTSC ) {
       }
     }
   }
+  if( Type == "audio" ) {
+    if( ( RandomAccess() > 0 ) ) {
+      if( !CurrentDTSC.getContentP( "keyframe" ) && !CurrentDTSC.getContentP( "interframe" ) ) {
+        CurrentDTSC.addContent(DTSC::DTMI("keyframe", 1));
+      }
+    }
+  }
   if( UnitStart() ) {
     if( !CurrentDTSC.getContentP( "time" ) ) {
       if( Type == "audio" ) {
         CurrentDTSC.addContent( DTSC::DTMI( "time", PESTimeStamp( ) / 81000 ) );
       } else {
-        //CurrentDTSC.addContent( DTSC::DTMI( "time", PESTimeStamp( ) / 27000 ) );
-        CurrentDTSC.addContent( DTSC::DTMI( "time", (PESTimeStamp( ) - 27000000) / 91 ) );
+        CurrentDTSC.addContent( DTSC::DTMI( "time", ( PESTimeStamp( ) / 27000 ) - 700 ) );
+        //CurrentDTSC.addContent( DTSC::DTMI( "time", (PESTimeStamp( ) / 27000000) / 91 ) );
       }
     }
   }

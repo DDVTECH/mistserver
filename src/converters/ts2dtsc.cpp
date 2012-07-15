@@ -42,13 +42,24 @@ int main( ) {
   Meta_Put(Meta, "video", "height", 720);
   Meta_Put(Meta, "video", "fpks", 2997000);
   Meta_Put(Meta, "video", "bps", 832794);
+  char VideoInit[] = {0x01,0x4D,0x40,0x1F,
+                      0xFF,0xE1,0x00,0x14,
+                      0x27,0x4D,0x40,0x1F,
+                      0xA9,0x18,0x0A,0x00,
+                      0xB7,0x60,0x0D,0x40,
+                      0x40,0x40,0x4C,0x2B,
+                      0x5E,0xF7,0xC0,0x40,
+                      0x01,0x00,0x04,0x28,
+                      0xCE,0x09,0xC8};
+  Meta_Put(Meta, "video", "init", std::string( VideoInit, 35 ) );
   
   Meta_Put(Meta, "audio", "codec", "AAC");
   Meta_Put(Meta, "audio", "bps", 24021);
   Meta_Put(Meta, "audio", "rate", 48000);
   Meta_Put(Meta, "audio", "size", 16);
   Meta_Put(Meta, "audio", "channels", 2);
-  
+  char AudioInit[] = {0x11,0x90};
+  Meta_Put(Meta, "audio", "init", std::string( AudioInit, 2 ) );
   
   Meta.Pack(true);
   Meta.packed.replace(0, 4, DTSC::Magic_Header);

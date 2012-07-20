@@ -286,9 +286,9 @@ JSON::Value::operator std::string(){
 /// Automatic conversion to bool.
 /// Returns true if there is anything meaningful stored into this value.
 JSON::Value::operator bool(){
-  if (myType == STRING){return strVal == "";}
-  if (myType == INTEGER){return intVal == 0;}
-  if (myType == BOOL){return intVal == 0;}
+  if (myType == STRING){return strVal != "";}
+  if (myType == INTEGER){return intVal != 0;}
+  if (myType == BOOL){return intVal != 0;}
   if (myType == OBJECT){return size() > 0;}
   if (myType == ARRAY){return size() > 0;}
   if (myType == EMPTY){return false;}

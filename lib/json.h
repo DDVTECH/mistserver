@@ -1,5 +1,6 @@
 /// \file json.h Holds all JSON-related headers.
 
+#pragma once
 #include <string>
 #include <deque>
 #include <map>

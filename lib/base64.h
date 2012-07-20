@@ -1,3 +1,4 @@
+#pragma once
 #include <string>
 
 /// Holds base64 decoding and encoding functions.

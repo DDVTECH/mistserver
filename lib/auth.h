@@ -1,3 +1,4 @@
+#pragma once
 #include <string>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>

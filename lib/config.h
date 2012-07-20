@@ -1,6 +1,7 @@
 /// \file config.h
 /// Contains generic function headers for managing configuration.
 
+#pragma once
 #include <string>
 
 #define STRINGIFY(x) #x

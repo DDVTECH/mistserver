@@ -1,6 +1,7 @@
 /// \file procs.h
 /// Contains generic function headers for managing processes.
 
+#pragma once
 #include <unistd.h>
 #include <string>
 #include <map>

@@ -51,6 +51,9 @@ namespace JSON{
       operator long long int();
       operator std::string();
       operator bool();
+      const std::string asString();
+      const long long int asInt();
+      const bool asBool();
       //array operator for maps and arrays
       Value & operator[](const std::string i);
       Value & operator[](const char * i);

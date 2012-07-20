@@ -295,6 +295,20 @@ JSON::Value::operator bool(){
   return false;//unimplemented? should never happen...
 }
 
+/// Explicit conversion to std::string.
+const std::string JSON::Value::asString(){
+  return (std::string)*this;
+}
+/// Explicit conversion to long long int.
+const long long int JSON::Value::asInt(){
+  return (long long int)*this;
+}
+/// Explicit conversion to bool.
+const bool JSON::Value::asBool(){
+  return (bool)*this;
+}
+
+
 /// Retrieves or sets the JSON::Value at this position in the object.
 /// Converts destructively to object if not already an object.
 JSON::Value & JSON::Value::operator[](const std::string i){

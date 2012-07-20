@@ -3,22 +3,31 @@
 
 #pragma once
 #include <string>
-
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
+#include "json.h"
 
 /// Contains utility code, not directly related to streaming media
 namespace Util{
 
   /// Deals with parsing configuration from commandline options.
   class Config{
+    private:
+      JSON::Value vals; ///< Holds all current config values
+      int long_count;
+      static void signal_handler(int signum);
     public:
-      bool daemon_mode;
-      std::string interface;
-      int listen_port;
-      std::string username;
-      Config();
+      //variables
+      static bool is_active; ///< Set to true by activate(), set to false by the signal handler.
+      //functions
+      Config(std::string cmd, std::string version);
+      void addOption(std::string optname, JSON::Value option);
+      void printHelp(std::ostream & output);
       void parseArgs(int argc, char ** argv);
+      JSON::Value & getOption(std::string optname);
+      std::string getString(std::string optname);
+      long long int getInteger(std::string optname);
+      bool getBool(std::string optname);
+      void activate();
+      void addConnectorOptions(int port);
   };
 
   /// Will set the active user to the named username.

@@ -12,6 +12,7 @@
 #include <getopt.h>
 #include <sstream>
 #include <mist/socket.h>
+#include <mist/config.h>
 #include <mist/flv_tag.h>
 #include <mist/amf.h>
 #include <mist/rtmpchunks.h>
@@ -499,9 +500,27 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
   #endif
 }//parseAMFCommand
 
-
-// Load main server setup file, default port 1935, handler is Connector_RTMP::Connector_RTMP
-#define DEFAULT_PORT 1935
-#define MAINHANDLER Connector_RTMP::Connector_RTMP
-#define CONFIGSECT RTMP
-#include "server_setup.h"
+int main(int argc, char ** argv){
+  Util::Config conf(argv[0], PACKAGE_VERSION);
+  conf.addConnectorOptions(1935);
+  conf.parseArgs(argc, argv);
+  Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));
+  if (!server_socket.connected()){return 1;}
+  conf.activate();
+  
+  while (server_socket.connected() && conf.is_active){
+    Socket::Connection S = server_socket.accept();
+    if (S.connected()){//check if the new connection is valid
+      pid_t myid = fork();
+      if (myid == 0){//if new child, start MAINHANDLER
+        return Connector_RTMP::Connector_RTMP(S);
+      }else{//otherwise, do nothing or output debugging text
+        #if DEBUG >= 3
+        fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
+        #endif
+      }
+    }
+  }//while connected
+  server_socket.close();
+  return 0;
+}//main

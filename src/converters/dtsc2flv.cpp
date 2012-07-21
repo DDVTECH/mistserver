@@ -13,10 +13,11 @@
 #include <mist/flv_tag.h> //FLV support
 #include <mist/dtsc.h> //DTSC support
 #include <mist/amf.h> //AMF support
+#include <mist/config.h>
 
 /// Holds all code that converts filetypes to/from DTSC.
 namespace Converters{
-
+  
   /// Reads DTSC from STDIN, outputs FLV to STDOUT.
   int DTSC2FLV() {
     FLV::Tag FLV_out; // Temporary storage for outgoing FLV data.
@@ -60,6 +61,8 @@ namespace Converters{
 };//Converter namespace
 
 /// Entry point for DTSC2FLV, simply calls Converters::DTSC2FLV().
-int main(){
+int main(int argc, char ** argv){
+  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.parseArgs(argc, argv);
   return Converters::DTSC2FLV();
 }//main

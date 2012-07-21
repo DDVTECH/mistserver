@@ -7,10 +7,13 @@
 #include <fstream>
 #include <string>
 #include <mist/amf.h>
+#include <mist/config.h>
 
 /// Debugging tool for AMF data.
 /// Expects AMF data through stdin, outputs human-readable information to stderr.
-int main() {
+int main(int argc, char ** argv) {
+  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.parseArgs(argc, argv);
   std::string temp;
   while (std::cin.good()){temp += std::cin.get();}//read all of std::cin to temp
   temp.erase(temp.size()-1, 1);//strip the invalid last character

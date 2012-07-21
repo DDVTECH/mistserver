@@ -229,7 +229,27 @@ namespace Connector_HTTP_Dynamic{
 
 };//Connector_HTTP_Dynamic namespace
 
-// Load http setup file with the correct settings for this HTTP connector
-#define MAINHANDLER Connector_HTTP_Dynamic::Connector_HTTP_Dynamic
-#define CONNECTOR "dynamic"
-#include "server_setup_http.h"
+int main(int argc, char ** argv){
+  Util::Config conf(argv[0], PACKAGE_VERSION);
+  conf.addConnectorOptions(1935);
+  conf.parseArgs(argc, argv);
+  Socket::Server server_socket = Socket::Server("/tmp/mist/http_dynamic");
+  if (!server_socket.connected()){return 1;}
+  conf.activate();
+  
+  while (server_socket.connected() && conf.is_active){
+    Socket::Connection S = server_socket.accept();
+    if (S.connected()){//check if the new connection is valid
+      pid_t myid = fork();
+      if (myid == 0){//if new child, start MAINHANDLER
+        return Connector_RTMP::Connector_RTMP(S);
+      }else{//otherwise, do nothing or output debugging text
+        #if DEBUG >= 3
+        fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
+        #endif
+      }
+    }
+  }//while connected
+  server_socket.close();
+  return 0;
+}//main

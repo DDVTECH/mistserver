@@ -25,14 +25,15 @@
 #include <signal.h>
 #include <sstream>
 #include <openssl/md5.h>
+#include <mist/config.h>
 #include <mist/socket.h>
 #include <mist/http_parser.h>
-#include <mist/json.h>
 #include <mist/procs.h>
-#include <mist/config.h>
 #include <mist/auth.h>
 
 #define UPLINK_INTERVAL 30
+#define COMPILED_USERNAME ""
+#define COMPILED_PASSWORD ""
 
 Socket::Server API_Socket; ///< Main connection socket.
 std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
@@ -308,6 +309,24 @@ void CheckStreams(JSON::Value & in, JSON::Value & out){
 }
 
 int main(int argc, char ** argv){
+  Storage = JSON::fromFile("config.json");
+  JSON::Value stored_port = JSON::fromString("{\"long\":\"port\", \"short\":\"p\", \"arg\":\"integer\", \"help\":\"TCP port to listen on.\"}");
+  stored_port["default"] = Storage["config"]["controller"]["port"];
+  if (!stored_port["default"]){stored_port["default"] = 4242;}
+  JSON::Value stored_interface = JSON::fromString("{\"long\":\"interface\", \"short\":\"i\", \"arg\":\"string\", \"help\":\"Interface address to listen on, or 0.0.0.0 for all available interfaces.\"}");
+  stored_interface["default"] = Storage["config"]["controller"]["interface"];
+  if (!stored_interface["default"]){stored_interface["default"] = "0.0.0.0";}
+  JSON::Value stored_user = JSON::fromString("{\"long\":\"username\", \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to drop privileges to, or root to not drop provileges.\"}");
+  stored_user["default"] = Storage["config"]["controller"]["username"];
+  if (!stored_user["default"]){stored_user["default"] = "root";}
+  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.addOption("listen_port", stored_port);
+  conf.addOption("listen_interface", stored_interface);
+  conf.addOption("username", stored_user);
+  conf.addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"default\":1, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
+  conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
+  conf.parseArgs(argc, argv);
+
   //setup signal handler
   struct sigaction new_action;
   new_action.sa_handler = signal_handler;
@@ -318,76 +337,22 @@ int main(int argc, char ** argv){
   sigaction(SIGTERM, &new_action, NULL);
   sigaction(SIGPIPE, &new_action, NULL);
 
-  Storage = JSON::fromFile("config.json");
-  Util::Config C;
-  C.listen_port = (long long int)Storage["config"]["controller"]["port"];
-  if (C.listen_port < 1){C.listen_port = 4242;}
-  C.interface = (std::string)Storage["config"]["controller"]["interface"];
-  if (C.interface == ""){C.interface = "0.0.0.0";}
-  C.username = (std::string)Storage["config"]["controller"]["username"];
-  if (C.username == ""){C.username = "root";}
-
-
-  int opt = 0;
-  static const char *optString = "ndvp:i:u:a:h?";
-  static const struct option longOpts[] = {
-    {"help",0,0,'h'},
-    {"port",1,0,'p'},
-    {"interface",1,0,'i'},
-    {"account",1,0,'a'},
-    {"username",1,0,'u'},
-    {"nodaemon",0,0,'n'},
-    {"daemon",0,0,'d'},
-    {"version",0,0,'v'},
-    0
-  };
-  while ((opt = getopt_long(argc, argv, optString, longOpts, 0)) != -1){
-    switch (opt){
-      case 'p': C.listen_port = atoi(optarg); break;
-      case 'i': C.interface = optarg; break;
-      case 'n': C.daemon_mode = false; break;
-      case 'd': C.daemon_mode = true; break;
-      case 'u': C.username = optarg; break;
-      case 'a':{
-        std::string account = optarg;
-        size_t colon = account.find(':');
-        if (colon == std::string::npos || colon == 0 || colon == account.size()){
-          opt = '?';//invalid name/pass - show help
-        }else{
-          std::string uname = account.substr(0, colon);
-          std::string pword = account.substr(colon + 1, std::string::npos);
-          Log("CONF", "Created account "+uname+" through commandline option");
-          Storage["account"][uname]["password"] = md5(pword);
-        }
-        break;
-      }
-      case 'v':
-        printf("%s\n", PACKAGE_VERSION);
-        exit(1);
-        break;
-      case 'h':
-      case '?':
-        std::string doingdaemon = "true";
-        if (!C.daemon_mode){doingdaemon = "false";}
-        printf("Options: -h[elp], -?, -v[ersion], -n[odaemon], -d[aemon], -p[ort] VAL, -i[nterface] VAL, -u[sername] VAL, -a[ccount] USERNAME:PASSWORD\n");
-        printf("Defaults:\n  interface: %s\n  port: %i\n  daemon mode: %s\n  username: %s\n", C.interface.c_str(), C.listen_port, doingdaemon.c_str(), C.username.c_str());
-        printf("Username root means no change to UID, no matter what the UID is.\n");
-        printf("The -a option will create a new account with the given username and (raw) password. To delete accounts, manually edit the config.json file.\n");
-        printf("This is %s version %s\n", argv[0], PACKAGE_VERSION);
-        exit(1);
-        break;
+  std::string account = conf.getString("account");
+  if (account.size() > 0){
+    size_t colon = account.find(':');
+    if (colon != std::string::npos && colon != 0 && colon != account.size()){
+      std::string uname = account.substr(0, colon);
+      std::string pword = account.substr(colon + 1, std::string::npos);
+      Log("CONF", "Created account "+uname+" through commandline option");
+      Storage["account"][uname]["password"] = md5(pword);
     }
-  }//commandline options parser
-
+  }
   time_t lastuplink = 0;
   time_t processchecker = 0;
-  API_Socket = Socket::Server(C.listen_port, C.interface, true);
+  API_Socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"), true);
   mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO);//attempt to create /tmp/mist/ - ignore failures
   Socket::Server Stats_Socket = Socket::Server("/tmp/mist/statistics", true);
-  Util::setUser(C.username);
-  if (C.daemon_mode){
-    Util::Daemonize();
-  }
+  conf.activate();
   Socket::Connection Incoming;
   std::vector< ConnectedUser > users;
   std::vector<Socket::Connection> buffers;
@@ -506,9 +471,9 @@ int main(int argc, char ** argv){
                     Response["streams"] = Storage["streams"];
                     Response["log"] = Storage["log"];
                     Response["statistics"] = Storage["statistics"];
-                    Response["authorize"]["username"] = TOSTRING(COMPILED_USERNAME);
+                    Response["authorize"]["username"] = COMPILED_USERNAME;
                     Log("UPLK", "Responding to login challenge: " + (std::string)Request["authorize"]["challenge"]);
-                    Response["authorize"]["password"] = md5(TOSTRING(COMPILED_PASSWORD) + (std::string)Request["authorize"]["challenge"]);
+                    Response["authorize"]["password"] = md5(COMPILED_PASSWORD + (std::string)Request["authorize"]["challenge"]);
                     it->H.Clean();
                     it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toString()));
                     it->H.BuildRequest();

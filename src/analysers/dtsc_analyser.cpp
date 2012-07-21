@@ -11,9 +11,13 @@
 #include <unistd.h>
 #include <signal.h>
 #include <mist/dtsc.h> //DTSC support
+#include <mist/config.h>
 
 /// Reads DTSC from stdin and outputs human-readable information to stderr.
-int main() {
+int main(int argc, char ** argv) {
+  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.parseArgs(argc, argv);
+  
   DTSC::Stream Strm;
 
   std::string inBuffer;

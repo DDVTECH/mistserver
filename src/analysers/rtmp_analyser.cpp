@@ -17,6 +17,7 @@
 #include <mist/flv_tag.h>
 #include <mist/amf.h>
 #include <mist/rtmpchunks.h>
+#include <mist/config.h>
 
 int Detail = 0;
 #define DETAIL_RECONSTRUCT 1
@@ -28,9 +29,12 @@ int Detail = 0;
 /// Will output FLV file to stdout, if available
 /// Automatically skips 3073 bytes of handshake data.
 int main(int argc, char ** argv){
-
-  if (argc > 1){
-    Detail = atoi(argv[1]);
+  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.addOption("detail", JSON::fromString("{\"arg_num\":1, \"arg\":\"integer\", \"default\":0, \"help\":\"Bitmask, 1 = Reconstruct, 2 = Explicit media info, 4 = Verbose chunks\"}"));
+  conf.parseArgs(argc, argv);
+  
+  Detail = conf.getInteger("detail");
+  if (Detail > 0){
     fprintf(stderr, "Detail level set:\n");
     if ((Detail & DETAIL_RECONSTRUCT) == DETAIL_RECONSTRUCT){
       fprintf(stderr, " - Will reconstuct FLV file to stdout\n");

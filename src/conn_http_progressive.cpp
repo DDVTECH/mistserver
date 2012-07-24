@@ -16,9 +16,10 @@
 #include <mist/dtsc.h>
 #include <mist/flv_tag.h>
 #include <mist/amf.h>
+#include <mist/config.h>
 
 /// Holds everything unique to HTTP Progressive Connector.
-namespace Connector_HTTP_Progressive{
+namespace Connector_HTTP{
 
   /// Main function for Connector_HTTP_Progressive
   int Connector_HTTP_Progressive(Socket::Connection conn){
@@ -152,7 +153,7 @@ int main(int argc, char ** argv){
     if (S.connected()){//check if the new connection is valid
       pid_t myid = fork();
       if (myid == 0){//if new child, start MAINHANDLER
-        return Connector_RTMP::Connector_RTMP(S);
+        return Connector_HTTP::Connector_HTTP_Progressive(S);
       }else{//otherwise, do nothing or output debugging text
         #if DEBUG >= 3
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());

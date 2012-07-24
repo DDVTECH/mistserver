@@ -19,9 +19,10 @@
 #include <mist/base64.h>
 #include <mist/amf.h>
 #include <mist/mp4.h>
+#include <mist/config.h>
 
 /// Holds everything unique to HTTP Dynamic Connector.
-namespace Connector_HTTP_Dynamic{
+namespace Connector_HTTP{
 
   /// Returns AMF-format metadata
   std::string GetMetaData( ) {
@@ -242,7 +243,7 @@ int main(int argc, char ** argv){
     if (S.connected()){//check if the new connection is valid
       pid_t myid = fork();
       if (myid == 0){//if new child, start MAINHANDLER
-        return Connector_RTMP::Connector_RTMP(S);
+        return Connector_HTTP::Connector_HTTP_Dynamic(S);
       }else{//otherwise, do nothing or output debugging text
         #if DEBUG >= 3
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());

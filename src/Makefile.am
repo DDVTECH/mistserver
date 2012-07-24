@@ -6,6 +6,6 @@ MistBuffer_SOURCES=buffer.cpp buffer_user.h buffer_user.cpp buffer_stream.h buff
 MistController_SOURCES=controller.cpp ../VERSION
 MistConnRAW_SOURCES=conn_raw.cpp ../VERSION
 MistConnRTMP_SOURCES=conn_rtmp.cpp ../VERSION
-MistConnHTTP_SOURCES=conn_http.cpp ../VERSION
+MistConnHTTP_SOURCES=conn_http.cpp tinythread.cpp tinythread.h ../VERSION
 MistConnHTTPProgressive_SOURCES=conn_http_progressive.cpp ../VERSION
 MistConnHTTPDynamic_SOURCES=conn_http_dynamic.cpp ../VERSION

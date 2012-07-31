@@ -112,8 +112,7 @@ namespace Connector_HTTP{
           std::cout << "Received request: " << HTTP_R.url << std::endl;
           #endif
           if (HTTP_R.url.find("f4m") == std::string::npos){
-            Movie = HTTP_R.url.substr(1);
-            Movie = Movie.substr(0,Movie.find("/"));
+            Movie = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
             Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
             Quality = Quality.substr(0, Quality.find("Seg"));
             temp = HTTP_R.url.find("Seg") + 3;
@@ -125,8 +124,7 @@ namespace Connector_HTTP{
             #endif
             Flash_RequestPending++;
           }else{
-            Movie = HTTP_R.url.substr(1);
-            Movie = Movie.substr(0,Movie.find("/"));
+            Movie = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type","text/xml");
             HTTP_S.SetHeader("Cache-Control","no-cache");

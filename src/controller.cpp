@@ -327,16 +327,6 @@ int main(int argc, char ** argv){
   conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
   conf.parseArgs(argc, argv);
 
-  //setup signal handler
-  struct sigaction new_action;
-  new_action.sa_handler = signal_handler;
-  sigemptyset (&new_action.sa_mask);
-  new_action.sa_flags = 0;
-  sigaction(SIGINT, &new_action, NULL);
-  sigaction(SIGHUP, &new_action, NULL);
-  sigaction(SIGTERM, &new_action, NULL);
-  sigaction(SIGPIPE, &new_action, NULL);
-
   std::string account = conf.getString("account");
   if (account.size() > 0){
     size_t colon = account.find(':');
@@ -361,7 +351,7 @@ int main(int argc, char ** argv){
   std::string jsonp;
   ConnectedUser * uplink = 0;
   Log("CONF", "Controller started");
-  while (API_Socket.connected()){
+  while (API_Socket.connected() && conf.is_active){
     usleep(100000); //sleep for 100 ms - prevents 100% CPU time
 
     if (time(0) - processchecker > 10){
@@ -535,6 +525,7 @@ int main(int argc, char ** argv){
       }
     }
   }
+  API_Socket.close();
   Log("CONF", "Controller shutting down");
   Util::Procs::StopAll();
   WriteFile("config.json", Storage.toString());

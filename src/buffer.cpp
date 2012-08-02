@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <sstream>
 #include <sys/time.h>
+#include <mist/config.h>
 #include "buffer_stream.h"
 
 /// Holds all code unique to the Buffer.
@@ -172,20 +173,12 @@ namespace Buffer{
 
   /// Starts a loop, waiting for connections to send data to.
   int Start(int argc, char ** argv) {
-    //first make sure no segpipe signals will kill us
-    struct sigaction new_action;
-    new_action.sa_handler = termination_handler;
-    sigemptyset (&new_action.sa_mask);
-    new_action.sa_flags = 0;
-    sigaction (SIGPIPE, &new_action, NULL);
-    sigaction (SIGKILL, &new_action, NULL);
-
-    //then check and parse the commandline
-    if (argc < 2) {
-      std::cout << "usage: " << argv[0] << " streamName [awaiting_IP]" << std::endl;
-      return 1;
-    }
-    std::string name = argv[1];
+    Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+    conf.addOption("stream_name", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Name of the stream this buffer will be providing.\"}"));
+    conf.addOption("awaiting_ip", JSON::fromString("{\"arg_num\":2, \"arg\":\"string\", \"default\":\"\", \"help\":\"IP address to expect incoming data from. This will completely disable reading from standard input if used.\"}"));
+    conf.parseArgs(argc, argv);
+    
+    std::string name = conf.getString("stream_name");
 
     SS = Socket::makeStream(name);
     if (!SS.connected()) {
@@ -199,10 +192,11 @@ namespace Buffer{
 
     tthread::thread StatsThread = tthread::thread(handleStats, 0);
     tthread::thread * StdinThread = 0;
-    if (argc < 3){
+    std::string await_ip = conf.getString("awaiting_ip");
+    if (await_ip == ""){
       StdinThread = new tthread::thread(handleStdin, 0);
     }else{
-      thisStream->setWaitingIP(argv[2]);
+      thisStream->setWaitingIP(await_ip);
       StdinThread = new tthread::thread(handlePushin, 0);
     }
 

@@ -51,7 +51,7 @@ namespace Connector_HTTP{
           #endif
           //we assume the URL is the stream name with a 3 letter extension
           std::string extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
-          Movie = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
+          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
           /// \todo VoD streams will need support for position reading from the URL parameters
           ready4data = true;
           HTTP_R.Clean(); //clean for any possible next requests

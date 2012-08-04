@@ -324,7 +324,7 @@ int main(int argc, char ** argv){
   conf.addOption("listen_interface", stored_interface);
   conf.addOption("username", stored_user);
   conf.addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"default\":1, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
-  conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
+  conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
   conf.parseArgs(argc, argv);
 
   std::string account = conf.getString("account");

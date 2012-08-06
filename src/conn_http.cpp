@@ -159,9 +159,9 @@ namespace Connector_HTTP{
     H.Clean();
 
     //check if a connection exists, and if not create one
-    std::cout << "Creating connection" << std::endl;
     conn_mutex.lock();
     if (!connconn.count(uid)){
+      std::cout << "Creating connection" << std::endl;
       connconn[uid] = new ConnConn(new Socket::Connection("/tmp/mist/http_"+connector));
       connconn[uid]->conn->setBlocking(false);//do not block on spool() with no data
     }
@@ -181,6 +181,7 @@ namespace Connector_HTTP{
     tthread::lock_guard<tthread::mutex> guard(connconn[uid]->in_use);
     //if the server connection is dead, handle as timeout.
     if (!connconn.count(uid) || !connconn[uid]->conn->connected()){
+      std::cout << "Dimeout" << std::endl;
       Handle_Timeout(H, conn);
       return;
     }
@@ -199,12 +200,13 @@ namespace Connector_HTTP{
         }
       }else{
         //keep trying unless the timeout triggers
-        timeout++;
-        if (timeout > 50){
+        if (timeout++ > 50){
+          std::cout << "Timeout" << std::endl;
           Handle_Timeout(H, conn);
           return;
+        }else{
+          usleep(100000);
         }
-        usleep(100000);
       }
     }
     if (!connconn.count(uid) || !connconn[uid]->conn->connected()){
@@ -218,21 +220,20 @@ namespace Connector_HTTP{
         //known length - simply re-send the request with added headers and continue
         std::cout << "Known success" << std::endl;
         H.SetHeader("X-UID", uid);
-        H.protocol = "HTTP/1.0";
         conn->Send(H.BuildResponse("200", "OK"));
       }else{
         //unknown length
         std::cout << "Unknown success" << std::endl;
         H.SetHeader("X-UID", uid);
-        H.protocol = "HTTP/1.0";
         conn->Send(H.BuildResponse("200", "OK"));
         //continue sending data from this socket and keep it permanently in use
-        while (connconn[uid]->conn->connected()){
+        while (connconn.count(uid) && connconn[uid]->conn->connected() && conn->connected()){
           if (connconn[uid]->conn->spool()){
             //forward any and all incoming data directly without parsing
             conn->Send(connconn[uid]->conn->Received());
             connconn[uid]->conn->Received().clear();
           }
+          conn->spool();
         }
       }
     }

@@ -27,11 +27,12 @@ void HTTP::Parser::Clean(){
 std::string HTTP::Parser::BuildRequest(){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
+  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
   std::string tmp = method+" "+url+" "+protocol+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
     tmp += (*it).first + ": " + (*it).second + "\n";
   }
-  tmp += "\n" + body + "\n";
+  tmp += "\n" + body;
   return tmp;
 }
 
@@ -44,6 +45,7 @@ std::string HTTP::Parser::BuildRequest(){
 std::string HTTP::Parser::BuildResponse(std::string code, std::string message){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
+  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
   std::string tmp = protocol+" "+code+" "+message+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
     tmp += (*it).first + ": " + (*it).second + "\n";
@@ -134,14 +136,17 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
       if (!seenReq){
         seenReq = true;
         f = tmpA.find(' ');
-        if (f != std::string::npos){method = tmpA.substr(0, f); tmpA.erase(0, f+1);}
-        f = tmpA.find(' ');
-        if (f != std::string::npos){url = tmpA.substr(0, f); tmpA.erase(0, f+1);}
-        f = tmpA.find(' ');
-        if (f != std::string::npos){protocol = tmpA.substr(0, f); tmpA.erase(0, f+1);}
-        if (url.find('?') != std::string::npos){
-          parseVars(url.substr(url.find('?')+1)); //parse GET variables
-        }
+        if (f != std::string::npos){
+          method = tmpA.substr(0, f); tmpA.erase(0, f+1);
+          f = tmpA.find(' ');
+          if (f != std::string::npos){
+            url = tmpA.substr(0, f); tmpA.erase(0, f+1);
+            protocol = tmpA;
+            if (url.find('?') != std::string::npos){
+              parseVars(url.substr(url.find('?')+1)); //parse GET variables
+            }
+          }else{seenReq = false;}
+        }else{seenReq = false;}
       }else{
         if (tmpA.size() == 0){
           seenHeaders = true;

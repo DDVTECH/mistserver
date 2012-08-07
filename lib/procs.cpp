@@ -325,9 +325,9 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
 /// \return 0 if process was not started, process PID otherwise.
 /// \arg name Name for this process - only used internally.
 /// \arg argv Command for this process.
-/// \arg fdin Standard input file descriptor. If -1, fd is automatically allocated and written.
-/// \arg fdout Standard output file descriptor. If -1, fd is automatically allocated and written.
-/// \arg fderr Standard error file descriptor. If -1, fd is automatically allocated and written.
+/// \arg fdin Standard input file descriptor. If null, /dev/null is assumed. Otherwise, if arg contains -1, a new fd is automatically allocated and written into this arg. Then the arg will be used as fd.
+/// \arg fdout Same as fdin, but for stdout.
+/// \arg fdout Same as fdin, but for stderr.
 pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int * fdout, int * fderr){
   if (isActive(name)){return getPid(name);}
   pid_t pid;
@@ -340,20 +340,20 @@ pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int *
     sigaction(SIGCHLD, &new_action, NULL);
     handler_set = true;
   }
-  if (*fdin == -1 && pipe(pipein) < 0){
+  if (fdin && *fdin == -1 && pipe(pipein) < 0){
     #if DEBUG >= 1
     std::cerr << "Pipe (in) creation failed for " << name << std::endl;
     #endif
     return 0;
   }
-  if (*fdout == -1 && pipe(pipeout) < 0) {
+  if (fdout && *fdout == -1 && pipe(pipeout) < 0) {
     #if DEBUG >= 1
     std::cerr << "Pipe (out) creation failed for " << name << std::endl;
     #endif
     if (*fdin == -1){close(pipein[0]);close(pipein[1]);}
     return 0;
   }
-  if (*fderr == -1 && pipe(pipeerr) < 0) {
+  if (fderr && *fderr == -1 && pipe(pipeerr) < 0) {
     #if DEBUG >= 1
     std::cerr << "Pipe (err) creation failed for " << name << std::endl;
     #endif
@@ -361,21 +361,40 @@ pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int *
     if (*fdout == -1){close(pipeout[0]);close(pipeout[1]);}
     return 0;
   }
+  int devnull = -1;
+  if (!fdin || !fdout || !fderr){
+    devnull = open("/dev/null", O_RDWR);
+    if (devnull == -1){
+      #if DEBUG >= 1
+      std::cerr << "Could not open /dev/null for " << name << ": " << strerror(errno) << std::endl;
+      #endif
+      if (*fdin  == -1){close(pipein [0]);close(pipein [1]);}
+      if (*fdout == -1){close(pipeout[0]);close(pipeout[1]);}
+      if (*fderr == -1){close(pipeerr[0]);close(pipeerr[1]);}
+      return 0;
+    }
+  }
   pid = fork();
   if (pid == 0){//child
-    if (*fdin == -1){
+    if (!fdin){
+      dup2(devnull, STDIN_FILENO);
+    }else if (*fdin == -1){
       close(pipein[1]);// close unused write end
       dup2(pipein[0], STDIN_FILENO);
     }else{
       dup2(*fdin, STDIN_FILENO);
     }
-    if (*fdout == -1){
+    if (!fdout){
+      dup2(devnull, STDOUT_FILENO);
+    }else if (*fdout == -1){
       close(pipeout[0]);// close unused read end
       dup2(pipeout[1], STDOUT_FILENO);
     }else{
       dup2(*fdout, STDOUT_FILENO);
     }
-    if (*fderr == -1){
+    if (!fderr){
+      dup2(devnull, STDERR_FILENO);
+    }else if (*fderr == -1){
       close(pipeerr[0]);// close unused read end
       dup2(pipeerr[1], STDERR_FILENO);
     }else{
@@ -390,27 +409,30 @@ pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int *
     #if DEBUG >= 1
     std::cerr << "Failed to fork for pipe: " << name << std::endl;
     #endif
-    if (*fdin  == -1){close(pipein [0]);close(pipein [1]);}
-    if (*fdout == -1){close(pipeout[0]);close(pipeout[1]);}
-    if (*fderr == -1){close(pipeerr[0]);close(pipeerr[1]);}
+    if (fdin  && *fdin  == -1){close(pipein [0]);close(pipein [1]);}
+    if (fdout && *fdout == -1){close(pipeout[0]);close(pipeout[1]);}
+    if (fderr && *fderr == -1){close(pipeerr[0]);close(pipeerr[1]);}
+    if (devnull != -1){close(devnull);}
     return 0;
   } else{//parent
     #if DEBUG >= 1
     std::cerr << "Piped process " << name << " started";
-    std::cerr << " in="  << (*fdin  == -1 ? pipein [1] : *fdin );
-    std::cerr << " out=" << (*fdout == -1 ? pipeout[0] : *fdout);
-    std::cerr << " err=" << (*fderr == -1 ? pipeerr[0] : *fderr);
+    if (fdin ) std::cerr << " in="  << (*fdin  == -1 ? pipein [1] : *fdin );
+    if (fdout) std::cerr << " out=" << (*fdout == -1 ? pipeout[0] : *fdout);
+    if (fderr) std::cerr << " err=" << (*fderr == -1 ? pipeerr[0] : *fderr);
+    if (devnull != -1) std::cerr << " null=" << devnull;
     std::cerr << ", PID " << pid << ": " << argv[0] << std::endl;
     #endif
-    if (*fdin == -1){
+    if (devnull != -1){close(devnull);}
+    if (fdin  && *fdin == -1){
       close(pipein[0]);// close unused end end
       *fdin = pipein[1];
     }
-    if (*fdout == -1){
+    if (fdout && *fdout == -1){
       close(pipeout[1]);// close unused write end
       *fdout = pipeout[0];
     }
-    if (*fderr == -1){
+    if (fderr && *fderr == -1){
       close(pipeerr[1]);// close unused write end
       *fderr = pipeerr[0];
     }

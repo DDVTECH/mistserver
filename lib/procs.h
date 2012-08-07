@@ -23,6 +23,7 @@ namespace Util{
       static pid_t Start(std::string name, std::string cmd);
       static pid_t Start(std::string name, std::string cmd, std::string cmd2);
       static pid_t Start(std::string name, std::string cmd, std::string cmd2, std::string cmd3);
+      static pid_t StartPiped(std::string name, char * argv[], int * fdin, int * fdout, int * fderr);
       static void Stop(std::string name);
       static void Stop(pid_t name);
       static void StopAll();

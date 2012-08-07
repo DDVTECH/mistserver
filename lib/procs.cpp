@@ -321,6 +321,105 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
   return ret3;
 }
 
+/// Starts a new process with given fds if the name is not already active.
+/// \return 0 if process was not started, process PID otherwise.
+/// \arg name Name for this process - only used internally.
+/// \arg argv Command for this process.
+/// \arg fdin Standard input file descriptor. If -1, fd is automatically allocated and written.
+/// \arg fdout Standard output file descriptor. If -1, fd is automatically allocated and written.
+/// \arg fderr Standard error file descriptor. If -1, fd is automatically allocated and written.
+pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int * fdout, int * fderr){
+  if (isActive(name)){return getPid(name);}
+  pid_t pid;
+  int pipein[2], pipeout[2], pipeerr[2];
+  if (!handler_set){
+    struct sigaction new_action;
+    new_action.sa_handler = Util::Procs::childsig_handler;
+    sigemptyset(&new_action.sa_mask);
+    new_action.sa_flags = 0;
+    sigaction(SIGCHLD, &new_action, NULL);
+    handler_set = true;
+  }
+  if (*fdin == -1 && pipe(pipein) < 0){
+    #if DEBUG >= 1
+    std::cerr << "Pipe (in) creation failed for " << name << std::endl;
+    #endif
+    return 0;
+  }
+  if (*fdout == -1 && pipe(pipeout) < 0) {
+    #if DEBUG >= 1
+    std::cerr << "Pipe (out) creation failed for " << name << std::endl;
+    #endif
+    if (*fdin == -1){close(pipein[0]);close(pipein[1]);}
+    return 0;
+  }
+  if (*fderr == -1 && pipe(pipeerr) < 0) {
+    #if DEBUG >= 1
+    std::cerr << "Pipe (err) creation failed for " << name << std::endl;
+    #endif
+    if (*fdin  == -1){close(pipein [0]);close(pipein [1]);}
+    if (*fdout == -1){close(pipeout[0]);close(pipeout[1]);}
+    return 0;
+  }
+  pid = fork();
+  if (pid == 0){//child
+    if (*fdin == -1){
+      close(pipein[1]);// close unused write end
+      dup2(pipein[0], STDIN_FILENO);
+    }else{
+      dup2(*fdin, STDIN_FILENO);
+    }
+    if (*fdout == -1){
+      close(pipeout[0]);// close unused read end
+      dup2(pipeout[1], STDOUT_FILENO);
+    }else{
+      dup2(*fdout, STDOUT_FILENO);
+    }
+    if (*fderr == -1){
+      close(pipeerr[0]);// close unused read end
+      dup2(pipeerr[1], STDERR_FILENO);
+    }else{
+      dup2(*fderr, STDERR_FILENO);
+    }
+    execvp(argv[0], argv);
+    #if DEBUG >= 1
+    perror("execvp failed");
+    #endif
+    exit(42);
+  } else if (pid == -1){
+    #if DEBUG >= 1
+    std::cerr << "Failed to fork for pipe: " << name << std::endl;
+    #endif
+    if (*fdin  == -1){close(pipein [0]);close(pipein [1]);}
+    if (*fdout == -1){close(pipeout[0]);close(pipeout[1]);}
+    if (*fderr == -1){close(pipeerr[0]);close(pipeerr[1]);}
+    return 0;
+  } else{//parent
+    #if DEBUG >= 1
+    std::cerr << "Piped process " << name << " started";
+    std::cerr << " in="  << (*fdin  == -1 ? pipein [1] : *fdin );
+    std::cerr << " out=" << (*fdout == -1 ? pipeout[0] : *fdout);
+    std::cerr << " err=" << (*fderr == -1 ? pipeerr[0] : *fderr);
+    std::cerr << ", PID " << pid << ": " << argv[0] << std::endl;
+    #endif
+    if (*fdin == -1){
+      close(pipein[0]);// close unused end end
+      *fdin = pipein[1];
+    }
+    if (*fdout == -1){
+      close(pipeout[1]);// close unused write end
+      *fdout = pipeout[0];
+    }
+    if (*fderr == -1){
+      close(pipeerr[1]);// close unused write end
+      *fderr = pipeerr[0];
+    }
+    plist.insert(std::pair<pid_t, std::string>(pid, name));
+  }
+  return pid;
+}
+
+
 /// Stops the named process, if running.
 /// \arg name (Internal) name of process to stop
 void Util::Procs::Stop(std::string name){

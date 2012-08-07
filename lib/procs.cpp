@@ -381,25 +381,32 @@ pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int *
     }else if (*fdin == -1){
       close(pipein[1]);// close unused write end
       dup2(pipein[0], STDIN_FILENO);
-    }else{
+      close(pipein[0]);
+    }else if (*fdin != STDIN_FILENO){
       dup2(*fdin, STDIN_FILENO);
+      close(*fdin);
     }
     if (!fdout){
       dup2(devnull, STDOUT_FILENO);
     }else if (*fdout == -1){
       close(pipeout[0]);// close unused read end
       dup2(pipeout[1], STDOUT_FILENO);
-    }else{
+      close(pipeout[1]);
+    }else if (*fdout != STDOUT_FILENO){
       dup2(*fdout, STDOUT_FILENO);
+      close(*fdout);
     }
     if (!fderr){
       dup2(devnull, STDERR_FILENO);
     }else if (*fderr == -1){
       close(pipeerr[0]);// close unused read end
       dup2(pipeerr[1], STDERR_FILENO);
-    }else{
+      close(pipeerr[1]);
+    }else if (*fderr != STDERR_FILENO){
       dup2(*fderr, STDERR_FILENO);
+      close(*fderr);
     }
+    if (devnull != -1){close(devnull);}
     execvp(argv[0], argv);
     #if DEBUG >= 1
     perror("execvp failed");

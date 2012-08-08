@@ -118,6 +118,7 @@ namespace Connector_HTTP{
             conn.Send(std::string(tag.data, tag.len));//write the tag contents
           }
         }
+        if (!ss.connected()){break;}
       }
     }
     conn.close();

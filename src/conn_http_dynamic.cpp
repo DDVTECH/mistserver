@@ -206,6 +206,7 @@ namespace Connector_HTTP{
             FlashBuf.append(tag.data, tag.len);
           }
         }
+        if (!ss.connected()){break;}
       }
     }
     conn.close();

@@ -161,7 +161,6 @@ namespace Connector_HTTP{
     //check if a connection exists, and if not create one
     conn_mutex.lock();
     if (!connconn.count(uid)){
-      std::cout << "Creating connection" << std::endl;
       connconn[uid] = new ConnConn(new Socket::Connection("/tmp/mist/http_"+connector));
       connconn[uid]->conn->setBlocking(false);//do not block on spool() with no data
     }
@@ -176,23 +175,20 @@ namespace Connector_HTTP{
     }
     conn_mutex.unlock();
 
-    std::cout << "Locking connection" << std::endl;
     //lock the mutex for this connection, and handle the request
     tthread::lock_guard<tthread::mutex> guard(connconn[uid]->in_use);
     //if the server connection is dead, handle as timeout.
     if (!connconn.count(uid) || !connconn[uid]->conn->connected()){
-      std::cout << "Dimeout" << std::endl;
       Handle_Timeout(H, conn);
       return;
     }
-    std::cout << "Forwarding connection" << std::endl;
     //forward the original request
     connconn[uid]->conn->Send(request);
     connconn[uid]->lastuse = 0;
     unsigned int timeout = 0;
     //wait for a response
-    std::cout << "Waiting connection" << std::endl;
-    while (connconn.count(uid) && connconn[uid]->conn->connected()){
+    while (connconn.count(uid) && connconn[uid]->conn->connected() && conn->connected()){
+      conn->spool();
       if (connconn[uid]->conn->spool()){
         //check if the whole response was received
         if (H.Read(connconn[uid]->conn->Received())){
@@ -200,8 +196,8 @@ namespace Connector_HTTP{
         }
       }else{
         //keep trying unless the timeout triggers
-        if (timeout++ > 50){
-          std::cout << "Timeout" << std::endl;
+        if (timeout++ > 100){
+          std::cout << "[10s timeout triggered]" << std::endl;
           Handle_Timeout(H, conn);
           return;
         }else{
@@ -209,21 +205,18 @@ namespace Connector_HTTP{
         }
       }
     }
-    if (!connconn.count(uid) || !connconn[uid]->conn->connected()){
+    if (!connconn.count(uid) || !connconn[uid]->conn->connected() || !conn->connected()){
       //failure, disconnect and sent error to user
-      std::cout << "Failure" << std::endl;
       Handle_Timeout(H, conn);
       return;
     }else{
       //success, check type of response
       if (H.GetHeader("Content-Length") != ""){
         //known length - simply re-send the request with added headers and continue
-        std::cout << "Known success" << std::endl;
         H.SetHeader("X-UID", uid);
         conn->Send(H.BuildResponse("200", "OK"));
       }else{
         //unknown length
-        std::cout << "Unknown success" << std::endl;
         H.SetHeader("X-UID", uid);
         conn->Send(H.BuildResponse("200", "OK"));
         //continue sending data from this socket and keep it permanently in use
@@ -237,7 +230,6 @@ namespace Connector_HTTP{
         }
       }
     }
-    std::cout << "Completing connection" << std::endl;
   }
 
   /// Returns the name of the HTTP connector the given request should be served by.

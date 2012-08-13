@@ -1129,7 +1129,7 @@ td
                      $tr.append( $('<td>').text(cstr.name) );
 
 
-                     $tr.append( $('<td>').html(cstr.online == 1 ? "<span class='green'>Running</span>" : "<span class='red'>Error</span>") );
+                     $tr.append( $('<td>').html(cstr.online == 1 ? "<span class='green'>Running</span>" : "<span class='red'>Error: "+cstr.online+"</span>") );
 
 
                      var cviewers = 0;

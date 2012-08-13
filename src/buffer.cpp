@@ -30,15 +30,6 @@ namespace Buffer{
   }//getNowMS
 
 
-  ///A simple signal handler that ignores all signals.
-  void termination_handler (int signum){
-    switch (signum){
-      case SIGKILL: buffer_running = false; break;
-      case SIGPIPE: return; break;
-      default: return; break;
-    }
-  }
-
   void handleStats(void * empty){
     if (empty != 0){return;}
     Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
@@ -51,6 +42,7 @@ namespace Buffer{
         StatsSocket.write(Stream::get()->getStats()+"\n\n");
       }
     }
+    StatsSocket.close();
   }
 
   void handleUser(void * v_usr){
@@ -176,8 +168,9 @@ namespace Buffer{
     Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
     conf.addOption("stream_name", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Name of the stream this buffer will be providing.\"}"));
     conf.addOption("awaiting_ip", JSON::fromString("{\"arg_num\":2, \"arg\":\"string\", \"default\":\"\", \"help\":\"IP address to expect incoming data from. This will completely disable reading from standard input if used.\"}"));
+    conf.addOption("reportstats", JSON::fromString("{\"default\":0, \"help\":\"Report stats to a controller process.\", \"short\":\"s\", \"long\":\"reportstats\"}"));
     conf.parseArgs(argc, argv);
-    
+
     std::string name = conf.getString("stream_name");
 
     SS = Socket::makeStream(name);
@@ -185,12 +178,14 @@ namespace Buffer{
       perror("Could not create stream socket");
       return 1;
     }
+    conf.activate();
     thisStream = Stream::get();
     thisStream->setName(name);
     Socket::Connection incoming;
     Socket::Connection std_input(fileno(stdin));
 
-    tthread::thread StatsThread = tthread::thread(handleStats, 0);
+    tthread::thread * StatsThread = 0;
+    if (conf.getBool("reportstats")){StatsThread = new tthread::thread(handleStats, 0);}
     tthread::thread * StdinThread = 0;
     std::string await_ip = conf.getString("awaiting_ip");
     if (await_ip == ""){
@@ -200,7 +195,7 @@ namespace Buffer{
       StdinThread = new tthread::thread(handlePushin, 0);
     }
 
-    while (buffer_running && SS.connected()){
+    while (buffer_running && SS.connected() && conf.is_active){
       //check for new connections, accept them if there are any
       //starts a thread for every accepted connection
       incoming = SS.accept(false);
@@ -215,7 +210,7 @@ namespace Buffer{
     buffer_running = false;
     std::cout << "End of input file - buffer shutting down" << std::endl;
     SS.close();
-    StatsThread.join();
+    if (StatsThread){StatsThread->join();}
     StdinThread->join();
     delete thisStream;
     return 0;

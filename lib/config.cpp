@@ -219,7 +219,7 @@ void Util::Config::parseArgs(int argc, char ** argv){
 /// If the option does not exist, this exits the application with a return code of 37.
 JSON::Value & Util::Config::getOption(std::string optname){
   if (!vals.isMember(optname)){
-    std::cout << "Fatal error: a non-existent option was accessed." << std::endl;
+    std::cout << "Fatal error: a non-existent option '" << optname << "' was accessed." << std::endl;
     exit(37);
   }
   if (vals[optname].isMember("current")){

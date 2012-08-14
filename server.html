@@ -529,7 +529,7 @@ td
                'authorize':
                {
                   'username': settings.credentials.username,
-                  'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
+                  'password': (settings.credentials.authstring != "" ? MD5(MD5(settings.credentials.password) + settings.credentials.authstring) : "" )
                },
                'save': 1
             };
@@ -566,7 +566,7 @@ td
                'authorize':
                {
                   'username': settings.credentials.username,
-                  'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
+                  'password': (settings.credentials.authstring != "" ? MD5(MD5(settings.credentials.password) + settings.credentials.authstring) : "" )
                }
             };
 
@@ -646,7 +646,7 @@ td
                    'authorize':
                    {
                       'username': settings.credentials.username,
-                      'password': MD5(MD5(settings.credentials.password) + settings.credentials.authstring)
+                      'password': (settings.credentials.authstring != "" ? MD5(MD5(settings.credentials.password) + settings.credentials.authstring) : "" )
                    }
                 });
 

@@ -203,9 +203,6 @@ signed int Socket::Connection::ready(){
     }
   }
   if (r == 0){
-    #if DEBUG >= 4
-    fprintf(stderr, "Socket ready error - socket is closed.\n");
-    #endif
     close();
     return -1;
   }
@@ -311,9 +308,6 @@ bool Socket::Connection::read(const void * buffer, int len){
     }else{
       if (r == 0){
         Error = true;
-        #if DEBUG >= 2
-        fprintf(stderr, "Could not read data! Socket is closed.\n");
-        #endif
         close();
         down += sofar;
         return false;
@@ -354,9 +348,6 @@ int Socket::Connection::iwrite(const void * buffer, int len){
     }
   }
   if (r == 0){
-    #if DEBUG >= 4
-    fprintf(stderr, "Could not iwrite data! Socket is closed.\n");
-    #endif
     close();
   }
   up += r;
@@ -385,9 +376,6 @@ int Socket::Connection::iread(void * buffer, int len){
     }
   }
   if (r == 0){
-    #if DEBUG >= 4
-    fprintf(stderr, "Could not iread data! Socket is closed.\n");
-    #endif
     close();
   }
   down += r;
@@ -522,6 +510,9 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100);//start listening, backlog of 100 allowed
     if (ret == 0){
+      #if DEBUG >= 1
+      fprintf(stderr, "IPv6 socket success @ %s:%i\n", hostname.c_str(), port);
+      #endif
       return true;
     }else{
       #if DEBUG >= 1
@@ -571,6 +562,9 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100);//start listening, backlog of 100 allowed
     if (ret == 0){
+      #if DEBUG >= 1
+      fprintf(stderr, "IPv4 socket success @ %s:%i\n", hostname.c_str(), port);
+      #endif
       return true;
     }else{
       #if DEBUG >= 1

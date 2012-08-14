@@ -80,6 +80,11 @@ class ConnectedUser{
 };
 
 void Log(std::string kind, std::string message){
+  //if last log message equals this one, do not log.
+  if (Storage["log"].size() > 0){
+    JSON::ArrIter it = Storage["log"].ArrEnd() - 1;
+    if ((*it)[2] == message){return;}
+  }
   JSON::Value m;
   m.append((long long int)time(0));
   m.append(kind);
@@ -170,6 +175,7 @@ void CheckProtocols(JSON::Value & p){
   //shut down deleted/changed connectors
   for (iter = current_connectors.begin(); iter != current_connectors.end(); iter++){
     if (new_connectors.count(iter->first) != 1 || new_connectors[iter->first] != iter->second){
+      Log("CONF", "Stopping connector: " + iter->second);
       Util::Procs::Stop(iter->first);
     }
   }
@@ -177,6 +183,7 @@ void CheckProtocols(JSON::Value & p){
   //start up new/changed connectors
   for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
     if (current_connectors.count(iter->first) != 1 || current_connectors[iter->first] != iter->second || !Util::Procs::isActive(iter->first)){
+      Log("CONF", "Starting connector: " + iter->second);
       Util::Procs::Start(iter->first, iter->second);
     }
   }
@@ -189,7 +196,9 @@ void CheckConfig(JSON::Value & in, JSON::Value & out){
   for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
     if (out.isMember(jit->first)){
       if (jit->second != out[jit->first]){
-        Log("CONF", std::string("Updated configuration value ")+jit->first);
+        if (jit->first != "time"){
+          Log("CONF", std::string("Updated configuration value ")+jit->first);
+        }
       }
     }else{
       Log("CONF", std::string("New configuration value ")+jit->first);

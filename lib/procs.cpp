@@ -32,7 +32,6 @@ void Util::Procs::childsig_handler(int signum){
   plist.erase(ret);
   #if DEBUG >= 1
   if (isActive(pname)){
-    std::cerr << "Process " << pname << " part-terminated." << std::endl;
     Stop(pname);
   }else{
     std::cerr << "Process " << pname << " fully terminated." << std::endl;

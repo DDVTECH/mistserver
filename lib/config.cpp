@@ -248,13 +248,17 @@ bool Util::Config::getBool(std::string optname){
 }
 
 /// Activated the stored config. This will:
-/// - Drop permissions to the stored "username".
-/// - Daemonize the process if "daemonize" is true.
+/// - Drop permissions to the stored "username", if any.
+/// - Daemonize the process if "daemonize" exists and is true.
 /// - Set is_active to true.
 /// - Set up a signal handler to set is_active to false for the SIGINT, SIGHUP and SIGTERM signals.
 void Util::Config::activate(){
-  setUser(getString("username"));
-  if (getBool("daemonize")){Daemonize();}
+  if (vals.isMember("username")){
+    setUser(getString("username"));
+  }
+  if (vals.isMember("daemonize") && getBool("daemonize")){
+    Daemonize();
+  }
   struct sigaction new_action;
   new_action.sa_handler = signal_handler;
   sigemptyset (&new_action.sa_mask);

@@ -104,7 +104,7 @@ void Authorize( JSON::Value & Request, JSON::Value & Response, ConnectedUser & c
   if( Request.isMember( "authorize" ) ) {
     std::string UserID = Request["authorize"]["username"];
     if (Storage["account"].isMember(UserID)){
-      if( md5( (std::string)(Storage["account"][UserID]["password"]) + Challenge ) == (std::string)Request["authorize"]["password"] ) {
+      if (md5(Storage["account"][UserID]["password"].asString() + Challenge) == Request["authorize"]["password"].asString()){
         Response["authorize"]["status"] = "OK";
         conn.Username = UserID;
         conn.Authorized = true;
@@ -135,41 +135,41 @@ void CheckProtocols(JSON::Value & p){
 
   //collect object type
   for (JSON::ObjIter jit = p.ObjBegin(); jit != p.ObjEnd(); jit++){
-    if (!jit->second.isMember("connector") || ((std::string)jit->second["connector"]) == ""){continue;}
-    if (!jit->second.isMember("port") || ((long long int)jit->second["port"]) == 0){continue;}
+    if (!jit->second.isMember("connector") || jit->second["connector"].asString() == ""){continue;}
+    if (!jit->second.isMember("port") || jit->second["port"].asInt() == 0){continue;}
     tmp = "MistConn";
-    tmp += (std::string)jit->second["connector"];
+    tmp += jit->second["connector"].asString();
     tmp += " -n -p ";
-    tmp += (std::string)jit->second["port"];
-    if (jit->second.isMember("interface") && ((std::string)jit->second["interface"]) != "" && ((std::string)jit->second["interface"]) != "0.0.0.0"){
+    tmp += jit->second["port"].asString();
+    if (jit->second.isMember("interface") && jit->second["interface"].asString() != "" && jit->second["interface"].asString() != "0.0.0.0"){
       tmp += " -i ";
-      tmp += (std::string)jit->second["interface"];
+      tmp += jit->second["interface"].asString();
     }
-    if (jit->second.isMember("username") && ((std::string)jit->second["username"]) != "" && ((std::string)jit->second["username"]) != "root"){
+    if (jit->second.isMember("username") && jit->second["username"].asString() != "" && jit->second["username"].asString() != "root"){
       tmp += " -u ";
-      tmp += (std::string)jit->second["username"];
+      tmp += jit->second["username"].asString();
     }
-    counter = (long long int)counter + 1;
-    new_connectors[std::string("Conn")+(std::string)counter] = tmp;
+    counter = counter.asInt() + 1;
+    new_connectors[std::string("Conn")+counter.asString()] = tmp;
   }
   //collect array type
   for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
-    if (!(*ait).isMember("connector") || ((std::string)(*ait)["connector"]) == ""){continue;}
-    if (!(*ait).isMember("port") || ((long long int)(*ait)["port"]) == 0){continue;}
+    if (!(*ait).isMember("connector") || (*ait)["connector"].asString() == ""){continue;}
+    if (!(*ait).isMember("port") || (*ait)["port"].asInt() == 0){continue;}
     tmp = "MistConn";
-    tmp += (std::string)(*ait)["connector"];
+    tmp += (*ait)["connector"].asString();
     tmp += " -n -p ";
-    tmp += (std::string)(*ait)["port"];
-    if ((*ait).isMember("interface") && ((std::string)(*ait)["interface"]) != "" && ((std::string)(*ait)["interface"]) != "0.0.0.0"){
+    tmp += (*ait)["port"].asString();
+    if ((*ait).isMember("interface") && (*ait)["interface"].asString() != "" && (*ait)["interface"].asString() != "0.0.0.0"){
       tmp += " -i ";
-      tmp += (std::string)(*ait)["interface"];
+      tmp += (*ait)["interface"].asString();
     }
-    if ((*ait).isMember("username") && ((std::string)(*ait)["username"]) != "" && ((std::string)(*ait)["username"]) != "root"){
+    if ((*ait).isMember("username") && (*ait)["username"].asString() != "" && (*ait)["username"].asString() != "root"){
       tmp += " -u ";
-      tmp += (std::string)(*ait)["username"];
+      tmp += (*ait)["username"].asString();
     }
-    counter = (long long int)counter + 1;
-    new_connectors[std::string("Conn")+(std::string)counter] = tmp;
+    counter = counter.asInt() + 1;
+    new_connectors[std::string("Conn")+counter.asString()] = tmp;
   }
 
   //shut down deleted/changed connectors
@@ -259,10 +259,10 @@ void CheckAllStreams(JSON::Value & data){
       startStream(jit->first, jit->second);
     }
     if (currTime - lastBuffer[jit->first] > 5){
-      if ((long long int)jit->second["online"] != 0){changed = true;}
+      if (jit->second["online"].asInt() != 0){changed = true;}
       jit->second["online"] = 0;
     }else{
-      if ((long long int)jit->second["online"] != 1){changed = true;}
+      if (jit->second["online"].asInt() != 1){changed = true;}
       jit->second["online"] = 1;
     }
   }
@@ -415,7 +415,7 @@ int main(int argc, char ** argv){
               Connector::lastBuffer[thisbuffer] = time(0);
               Connector::Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
               std::stringstream st;
-              st << (long long int)Request["totals"]["now"];
+              st << Request["totals"]["now"].asInt();
               std::string nowstr = st.str();
               Connector::Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
               Connector::Storage["statistics"][thisbuffer]["totals"].shrink(600);//limit to 10 minutes of data
@@ -457,8 +457,8 @@ int main(int argc, char ** argv){
                     Response["log"] = Connector::Storage["log"];
                     Response["statistics"] = Connector::Storage["statistics"];
                     Response["authorize"]["username"] = COMPILED_USERNAME;
-                    Connector::Log("UPLK", "Responding to login challenge: " + (std::string)Request["authorize"]["challenge"]);
-                    Response["authorize"]["password"] = Connector::md5(COMPILED_PASSWORD + (std::string)Request["authorize"]["challenge"]);
+                    Connector::Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
+                    Response["authorize"]["password"] = Connector::md5(COMPILED_PASSWORD + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
                     it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toString()));
                     it->H.BuildRequest();

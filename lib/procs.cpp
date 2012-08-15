@@ -20,12 +20,29 @@
 #include <stdio.h>
 
 std::map<pid_t, std::string> Util::Procs::plist;
+std::map<pid_t, Util::TerminationNotifier> Util::Procs::exitHandlers;
 bool Util::Procs::handler_set = false;
 
 /// Used internally to capture child signals and update plist.
 void Util::Procs::childsig_handler(int signum){
   if (signum != SIGCHLD){return;}
-  pid_t ret = wait(0);
+  int status;
+  pid_t ret = waitpid(-1, &status, WNOHANG);
+  if (ret == 0){//ignore, would block otherwise
+    return;
+  }else if(ret < 0){
+#if DEBUG >= 3
+    std::cerr << "SIGCHLD received, but no child died";
+#endif
+    return;
+  }
+  int exitcode;
+  if (WIFEXITED(status)){
+    exitcode = WEXITSTATUS(status);
+  }else if (WIFSIGNALED(status)){
+    exitcode = -WTERMSIG(status);
+  }else{/* not possible */return;}
+
   #if DEBUG >= 1
   std::string pname = plist[ret];
   #endif
@@ -34,9 +51,19 @@ void Util::Procs::childsig_handler(int signum){
   if (isActive(pname)){
     Stop(pname);
   }else{
+    //can this ever happen?
     std::cerr << "Process " << pname << " fully terminated." << std::endl;
   }
   #endif
+
+  TerminationNotifier tn = exitHandlers[ret];
+  exitHandlers.erase(ret);
+  if (tn){
+#if DEBUG >= 2
+    std::cerr << "Calling termination handler for " << pname << std::endl;
+#endif
+    tn(ret, exitcode);
+  }
 }
 
 /// Attempts to run the command cmd.
@@ -357,4 +384,14 @@ std::string Util::Procs::getName(pid_t name){
     return plist[name];
   }
   return "";
+}
+
+/// Registers one notifier function for when a process indentified by PID terminates.
+/// \return true if the notifier could be registered, false otherwise.
+bool Util::Procs::SetTerminationNotifier(pid_t pid, TerminationNotifier notifier){
+  if (plist.find(pid) != plist.end()){
+    exitHandlers[pid] = notifier;
+    return true;
+  }
+  return false;
 }

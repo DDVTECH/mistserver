@@ -170,6 +170,7 @@ void CheckProtocols(JSON::Value & p){
     }
     counter = counter.asInt() + 1;
     new_connectors[std::string("Conn")+counter.asString()] = tmp;
+    (*ait)["online"] = Util::Procs::isActive(std::string("Conn")+counter.asString());
   }
 
   //shut down deleted/changed connectors

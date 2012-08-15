@@ -267,6 +267,7 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
+  double *d;// hack to work around strict aliasing
   #if DEBUG >= 10
   fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
   #endif
@@ -281,7 +282,8 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
       tmpdbl[1] = data[i+7];
       tmpdbl[0] = data[i+8];
       i+=9;//skip 8(a double)+1 forwards
-      return AMF::Object(name, *(double*)tmpdbl, AMF::AMF0_NUMBER);
+      d = (double*)tmpdbl;
+      return AMF::Object(name, *d, AMF::AMF0_NUMBER);
       break;
     case AMF::AMF0_DATE:
       tmpdbl[7] = data[i+1];
@@ -293,7 +295,8 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
       tmpdbl[1] = data[i+7];
       tmpdbl[0] = data[i+8];
       i+=11;//skip 8(a double)+1+timezone(2) forwards
-      return AMF::Object(name, *(double*)tmpdbl, AMF::AMF0_DATE);
+      d = (double*)tmpdbl;
+      return AMF::Object(name, *d, AMF::AMF0_DATE);
       break;
     case AMF::AMF0_BOOL:
       i+=2;//skip bool+1 forwards
@@ -609,6 +612,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
   unsigned int tmpi = 0;
   unsigned int arrsize = 0;
   unsigned char tmpdbl[8];
+  double *d;// hack to work around strict aliasing
   #if DEBUG >= 10
   fprintf(stderr, "Note: AMF3 type %hhx found. %i bytes left\n", data[i], len-i);
   #endif
@@ -654,7 +658,8 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       tmpdbl[1] = data[i+7];
       tmpdbl[0] = data[i+8];
       i+=9;//skip 8(a double)+1 forwards
-      return AMF::Object3(name, *(double*)tmpdbl, AMF::AMF3_DOUBLE);
+      d = (double*)tmpdbl;
+      return AMF::Object3(name, *d, AMF::AMF3_DOUBLE);
       break;
     case AMF::AMF3_STRING:
       if (data[i+1] < 0x80){
@@ -809,8 +814,9 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       tmpdbl[2] = data[i+5];
       tmpdbl[1] = data[i+6];
       tmpdbl[0] = data[i+7];
+      d = (double*)tmpdbl;
       i += 8;//skip a double forwards
-      return AMF::Object3(name, *(double*)tmpdbl, AMF::AMF3_DATE);
+      return AMF::Object3(name, *d, AMF::AMF3_DATE);
       break;
     case AMF::AMF3_ARRAY:{
       if (data[i+1] < 0x80){

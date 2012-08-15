@@ -406,6 +406,7 @@ std::string DTSC::DTMI::Pack(bool netpack){
 DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name){
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
+  uint64_t * d;// hack to work around strict aliasing
   #if DEBUG >= 10
   fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
   #endif
@@ -420,7 +421,8 @@ DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, un
       tmpdbl[1] = data[i+7];
       tmpdbl[0] = data[i+8];
       i+=9;//skip 8(an uint64_t)+1 forwards
-      return DTSC::DTMI(name, *(uint64_t*)tmpdbl, DTMI_INT);
+      d = (uint64_t*)tmpdbl;
+      return DTSC::DTMI(name, *d, DTMI_INT);
       break;
     case DTMI_STRING:{
       tmpi = data[i+1]*256*256*256+data[i+2]*256*256+data[i+3]*256+data[i+4];//set tmpi to UTF-8-long length

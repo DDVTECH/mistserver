@@ -1,7 +1,7 @@
+#define DEBUG 10
+
 /// \file conn_ts.cpp
 /// Contains the main code for the TS Connector
-/// \todo Check data to be sent for video
-/// \todo Handle audio packets
 
 #include <queue>
 #include <cmath>
@@ -17,13 +17,15 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
-#include "../lib/socket.h"
-#include "../lib/dtsc.h"
-#include "../lib/ts_packet.h"
+#include <mist/socket.h>
+#include <mist/dtsc.h>
+#include <mist/ts_packet.h>
+#include <mist/config.h>
 
 /// The main function of the connector
 /// \param conn A connection with the client
-int TS_Handler( Socket::Connection conn ) {
+/// \param streamname The name of the stream
+int TS_Handler( Socket::Connection conn, std::string streamname ) {
   std::string ToPack;
   std::string DTMIData;
   TS::Packet PackData;
@@ -41,9 +43,9 @@ int TS_Handler( Socket::Connection conn ) {
   bool inited = false;
   Socket::Connection ss;
   
-  while(conn.connected()) {// && !FLV::Parse_Error) {
+  while(conn.connected()) {
     if( !inited ) {
-      ss = Socket::Connection("/tmp/shared_socket_fifa");
+      ss = Socket::Connection("/tmp/mist/stream_" + streamname );
       if (!ss.connected()){
         #if DEBUG >= 1
         fprintf(stderr, "Could not connect to server!\n");
@@ -67,7 +69,7 @@ int TS_Handler( Socket::Connection conn ) {
       case 0: break;//not ready yet
       default:
         ss.spool();
-        if ( DTSCStream.parsePacket( conn.Received() ) ) {
+        if ( DTSCStream.parsePacket( ss.Received() ) ) {
           if( DTSCStream.lastType() == DTSC::VIDEO ) {
             DTMIData = DTSCStream.lastData();
             if( DTSCStream.getPacket(0).getContent("keyframe").NumValue() ) {
@@ -77,6 +79,9 @@ int TS_Handler( Socket::Connection conn ) {
               IsKeyFrame = false;
               FirstKeyFrame = false;
             }
+            #if DEBUG >= 3
+   		    fprintf(stderr, "Videoframe received -- Keyframe: %d\n", IsKeyFrame );
+			#endif
             TimeStamp = (DTSCStream.getPacket(0).getContent("time").NumValue() * 27000 );
             int TSType;
             bool FirstPic = true;
@@ -116,10 +121,16 @@ int TS_Handler( Socket::Connection conn ) {
             while( ToPack.size() ) {
               if ( ( PacketNumber % 42 ) == 0 ) {
                 PackData.DefaultPAT();
-                PackData.ToString();
+                #if DEBUG >= 3
+				fprintf(stderr, "\tSending PAT\n" );
+				#endif
+                conn.write( PackData.ToString() );
               } else if ( ( PacketNumber % 42 ) == 1 ) {
                 PackData.DefaultPMT();
-                PackData.ToString();
+                #if DEBUG >= 3
+				fprintf(stderr, "\tSending PMT\n" );
+				#endif
+                conn.write( PackData.ToString() );
               } else {
                 PackData.Clear();
                 PackData.PID( 0x100 );
@@ -141,9 +152,13 @@ int TS_Handler( Socket::Connection conn ) {
                   PackData.AddStuffing( 184 - (ToPack.size()) );
                 }
                 PackData.FillFree( ToPack );
-                PackData.ToString();
+                #if DEBUG >= 3
+				fprintf(stderr, "\tSending Video Data\n" );
+				#endif
+                conn.write( PackData.ToString() );
               }
               PacketNumber ++;
+              conn.spool();
             }
           }
           if( DTSCStream.lastType() == DTSC::AUDIO ) {
@@ -155,10 +170,10 @@ int TS_Handler( Socket::Connection conn ) {
             while( ToPack.size() ) {
               if ( ( PacketNumber % 42 ) == 0 ) {
                 PackData.DefaultPAT();
-                PackData.ToString();
+                conn.write( PackData.ToString() );
               } else if ( ( PacketNumber % 42 ) == 1 ) {
                 PackData.DefaultPMT();
-                PackData.ToString();
+                conn.write( PackData.ToString() );
               } else {
                 PackData.Clear();
                 PackData.PID( 0x101 );
@@ -175,9 +190,10 @@ int TS_Handler( Socket::Connection conn ) {
                   PackData.AddStuffing( 184 - (ToPack.size()) );
                 }
                 PackData.FillFree( ToPack );
-                PackData.ToString();
+                conn.write( PackData.ToString() );
               }
               PacketNumber ++;
+              conn.spool();
             }
           }          
         }
@@ -187,7 +203,29 @@ int TS_Handler( Socket::Connection conn ) {
   return 0;
 }
 
-#define DEFAULT_PORT 8888
-#define MAINHANDLER TS_Handler
-#define CONFIGSECT TS
-#include "server_setup.h"
+int main(int argc, char ** argv){
+  Util::Config conf(argv[0], PACKAGE_VERSION);
+  conf.addOption("streamname",JSON::fromString("{\"arg\":\"string\",\"arg_num\":1,\"help\":\"The name of the stream that this connector will transmit.\"}"));
+  conf.addConnectorOptions(8888);
+  conf.parseArgs(argc, argv);
+  Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));
+  if (!server_socket.connected()){return 1;}
+  conf.activate();
+  
+  while (server_socket.connected() && conf.is_active){
+    Socket::Connection S = server_socket.accept();
+    if (S.connected()){//check if the new connection is valid
+fprintf(stderr,"Incoming connection\n");
+      pid_t myid = fork();
+      if (myid == 0){//if new child, start MAINHANDLER
+        return TS_Handler(S,conf.getString("streamname"));
+      }else{//otherwise, do nothing or output debugging text
+        #if DEBUG >= 3
+        fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
+        #endif
+      }
+    }
+  }//while connected
+  server_socket.close();
+  return 0;
+}//main

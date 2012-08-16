@@ -1,7 +1,7 @@
 #include <string>
-#include "../../lib/ts_packet.h" //TS support
-#include "../../lib/dtsc.h" //DTSC support
-#include "../../lib/nal.h" //NAL Unit operations
+#include <mist/ts_packet.h> //TS support
+#include <mist/dtsc.h> //DTSC support
+#include <mist/nal.h> //NAL Unit operations
 
 //DTSC::DTMI MetaData
 //DTSC::DTMI OutData

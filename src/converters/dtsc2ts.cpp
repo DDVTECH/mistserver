@@ -7,8 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include "../../lib/ts_packet.h" //TS support
-#include "../../lib/dtsc.h" //DTSC support
+#include <mist/ts_packet.h> //TS support
+#include <mist/dtsc.h> //DTSC support
 
 int main( ) {
   char charBuffer[1024*10];

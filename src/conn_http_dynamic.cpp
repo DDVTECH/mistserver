@@ -24,46 +24,6 @@
 /// Holds everything unique to HTTP Dynamic Connector.
 namespace Connector_HTTP{
 
-  /// Returns AMF-format metadata
-  std::string GetMetaData( ) {
-    /// \todo Make this actually do what it should - even though it seems to be ignored completely by all media players.
-    AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
-    amfreply.addContent(AMF::Object("onMetaData",AMF::AMF0_STRING));
-    amfreply.addContent(AMF::Object("",AMF::AMF0_ECMA_ARRAY));
-    amfreply.getContentP(1)->addContent(AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY));
-    amfreply.getContentP(1)->getContentP(0)->addContent(AMF::Object("arrVal"));
-    //amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMF::Object("timescale",(double)1000));
-    //amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMF::Object("length",(double)59641700));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMF::Object("language","eng"));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->getContentP(1)->addContent(AMF::Object("arrVal"));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(0)->getContentP(1)->getContentP(0)->addContent(AMF::Object("sampletype","avc1"));
-    amfreply.getContentP(1)->getContentP(0)->addContent(AMF::Object("arrVal"));
-    //amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMF::Object("timescale",(double)44100));
-    //amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMF::Object("length",(double)28630000));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMF::Object("language","eng"));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(1)->addContent(AMF::Object("arrVal"));
-    amfreply.getContentP(1)->getContentP(0)->getContentP(1)->getContentP(1)->getContentP(0)->addContent(AMF::Object("sampletype","mp4a"));
-    amfreply.getContentP(1)->addContent(AMF::Object("audiochannels",(double)2));
-    amfreply.getContentP(1)->addContent(AMF::Object("audiosamplerate",(double)44100));
-    amfreply.getContentP(1)->addContent(AMF::Object("videoframerate",(double)25));
-    amfreply.getContentP(1)->addContent(AMF::Object("aacaot",(double)2));
-    amfreply.getContentP(1)->addContent(AMF::Object("avclevel",(double)12));
-    amfreply.getContentP(1)->addContent(AMF::Object("avcprofile",(double)77));
-    amfreply.getContentP(1)->addContent(AMF::Object("audiocodecid","mp4a"));
-    amfreply.getContentP(1)->addContent(AMF::Object("videocodecid","avc1"));
-    amfreply.getContentP(1)->addContent(AMF::Object("width",(double)1280));
-    amfreply.getContentP(1)->addContent(AMF::Object("height",(double)720));
-    amfreply.getContentP(1)->addContent(AMF::Object("frameWidth",(double)1280));
-    amfreply.getContentP(1)->addContent(AMF::Object("frameHeight",(double)720));
-    amfreply.getContentP(1)->addContent(AMF::Object("displayWidth",(double)1280));
-    amfreply.getContentP(1)->addContent(AMF::Object("displayHeight",(double)720));
-    //amfreply.getContentP(1)->addContent(AMF::Object("moovposition",(double)35506700));
-    //amfreply.getContentP(1)->addContent(AMF::Object("duration",(double)596.458));
-    return amfreply.Pack( );
-  }//getMetaData
-
   /// Returns a F4M-format manifest file
   std::string BuildManifest(std::string MovieId) {
     std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
@@ -74,7 +34,6 @@ namespace Connector_HTTP{
       "<deliveryType>streaming</deliveryType>\n"
       "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(MP4::GenerateLiveBootstrap(1)) + "</bootstrapInfo>\n"
       "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
-      "<metadata>" + Base64::encode(GetMetaData()) + "</metadata>\n"
       "</media>\n"
       "</manifest>\n";
     return Result;

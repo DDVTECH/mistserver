@@ -91,6 +91,7 @@ namespace Buffer{
       }
       usr->Send();
     }
+    usr->Disconnect("Socket closed.");
     thisStream->cleanUsers();
     std::cerr << "User " << usr->MyStr << " disconnected, socket number " << usr->S.getSocket() << std::endl;
   }

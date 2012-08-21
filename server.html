@@ -379,6 +379,26 @@ td
 {
    text-transform: none;
 }
+
+
+#shield
+{
+   position: absolute;
+   background-color: #fff;
+   background-color: rgba(255, 255, 255, 0.5);
+   left: 0;
+   top: 60px;
+   z-index: 5;
+
+   width: 100%;
+   height: 100%;
+
+   color: #505050;
+   font: normal bold 11pt Arial, sans-serif;
+   text-align: center;
+   padding: 50px 0 0 0;
+}
+
       </style>
 
 
@@ -414,7 +434,25 @@ td
 
       <script>
 
-         // creds and local copy of the settings
+
+/*  WERKLOG todolist
+// TODO FIXME remove deze comment als het klaar is
+settings.settings.statistics[streamID].log (zelfde als curr maar log = gesloten connecties, dus ex-users
+TODO als server het stuurt
+*/
+
+
+			/**
+			 * Local settings page
+			 * DDVTECH
+			 * for more information, see http://mistserver.org/index.php?title=Stand-alone_Configuration_Page
+			 */
+
+
+			/**
+			 * Store a local copy of the data send by the server.
+			 * server is the URL, credentials hold the username, password and authstring and settings is the local copy.
+			 */
          var settings =
          {
             server: '',
@@ -427,6 +465,10 @@ td
             settings: {}
          };
 
+
+			/**
+			 *  Table for long/short limit names
+			 */
          var ltypes =
          [
             ['kb_total', 'Total bandwidth'],
@@ -441,37 +483,50 @@ td
             ['str_kbps_max', 'Maximum bitrate']
          ];
 
+
+			/**
+			 *  When the page loads, fix the menu and show the correct tab
+			 */
          $(document).ready(function()
          {
             $('#nav').children().each(function()
             {
                $(this).click(function()
                {
-                  // remove currently selected
+                  // remove currently selected' class
                   $('#nav').children().each(function()
                   {
                      $(this).attr('class', '');
                   });
+
                   // select this one
                   $(this).attr('class', 'selected');
+
                   // show correct tab
                   showTab($(this).text());
                });
             });
 
-            // onload show login 'tab' and hide menu
+            // show login 'tab' and hide menu
             showTab('login');
             $('#nav').css('visibility', 'hidden');
          });
 
 
+			/**
+			 * Show a confirm dialog
+			 * @param question the question displayed
+			 */
          function confirmDelete(question)
          {
             return confirm(question);
          }
 
 
-         // format date to something pretty
+			/**
+			 * Format a date to mm/dd/yyyy hh:mm:ss format
+			 * @param date the date to format (timestamp)
+			 */
          function formatDate(date)
          {
             var d = new Date(date * 1000);
@@ -488,6 +543,10 @@ td
          }
 
 
+			/**
+			 * Find out what kind of resource an URI is
+			 * @param uri the URI to check. If it start with a protocol (ebut not file://) return 'Live', else 'Recorded'
+			 */
          function TypeofResource(uri)
          {
             var protocol = /([a-zA-Z]+):\/\//.exec(uri);
@@ -501,10 +560,12 @@ td
          }
 
 
+			/**
+			 * convert a short limit name to a long one using the table above
+			 * @param name the short name of a limit
+			 */
          function shortToLongLimit(name)
          {
-            //console.log('getting the long name for the limit "' + name + '"');
-
             var i;
 
             for(i = 0; i < ltypes.length; i++)
@@ -515,15 +576,17 @@ td
                }
             }
 
-            //console.log('ERROR! short limit ', name, ' not in list, returning _short name_!');
             return name;
          }
 
 
-
+			/**
+			 * forse the server to save to the config file
+			 * @param callback function to call after the command is send
+			 */
          function forceJSONSave(callback)
          {
-            // sends the 'force json save' command to the server
+				// build the object to send to the server
             var data =
             {
                'authorize':
@@ -534,6 +597,7 @@ td
                'save': 1
             };
 
+				// make the XHR call
             $.ajax(
             {
                'url': settings.server,
@@ -543,24 +607,19 @@ td
                },
                'dataType': 'jsonp',
                'timeout': 10000,
-               'error': function()
-               {
-                  console.log('forceJSONSave ERROR');
-               },
-               'success': function(d)
-               {
-                  console.log('forceJSONSave returned', d);
-               }
+               'error': function(){},
+               'success': function(){}
             });
          }
 
 
-
-
+			/**
+			 * retrieves data from the server ;)
+			 * note: does not authenticate first. Assumes user is logged in.
+			 * @param callback the function to call when the data has been retrieved. This callback has 1 parameter, the data retrieved.
+			 */
          function getData(callback)
          {
-            // this beast returns the server settings, but doesn't authorize first,
-            // nor does it save the retrieved data.
             var data =
             {
                'authorize':
@@ -579,17 +638,17 @@ td
                },
                'dataType': 'jsonp',
                'timeout': 10000,
-               'error': function()
-               {
-                  //console.log('ERROR ERROR ERROR @514');
-               },
+               'error': function(){},
                'success': function(d)
                {
+
                   var ret = $.extend(true,
                   {
                      "streams": {},
                      "statistics": {}
                   }, d);
+
+						console.log('[651] RECV', ret);
 
                   if(callback)
                   {
@@ -600,11 +659,53 @@ td
          }
 
 
+			/**
+			 * retrieved the status and number of viewers from all streams
+			 * @param callback function that is called when the data is collected. Has one parameter, the data retrieved
+			 */
+			function getStreamsData(callback)
+			{
+
+				getData(function(data)
+				{
+					var streams = {};   // streamID: [status, numViewers];
+					var cnt = 0;
+
+					for(var stream in data.streams)
+					{
+						streams[stream] = [data.streams[stream].online, 0];
+						cnt++;
+					}
+
+					if(cnt === 0)
+					{
+						return;   // if there are no streams, don't collect data and just return
+					}
+
+					for(stream in data.statistics)
+					{
+						if(data.statistics[stream].curr)
+						{
+							for(var viewer in data.statistics[stream].curr)
+							{
+								streams[stream][1]++;
+							}
+						}
+					}
+
+					callback(streams);
+				});
+			}
+
+
+			/**
+			 * retrieves the stream status (online and total number of streams) and viewer info (total number of viewers).
+			 * @param callback function that is called when data is retrieved. Has one parameter, the retrieved data.
+			 */
          function getStatData(callback)
          {
             getData(function(data)
             {
-               //console.log('getStatData: real data retrieved: ', data);
                var svr, viewer, ret,
                    numstr = 0,
                    numvwr = 0,
@@ -637,9 +738,15 @@ td
          }
 
 
-         // connect to server and set/get settings
+			/**
+			 * Connect to the server and retrieve the data
+			 * @param callback the function to call when connected. Has one parameter, an optional error string.
+			 */
          function loadSettings(callback)
          {
+				// display 'loading, please wait' while retrieving data
+				$('body').append( $('<div>').attr('id', 'shield').text('Loading, please wait...') );
+
             var errorstr = '',
                 data = $.extend(settings.settings,
                 {
@@ -653,7 +760,7 @@ td
             delete data.log;   // don't send the logs back to the server
             delete data.statistics;   // same goes for the stats
 
-            console.log('SEND', data);
+            console.log('[763] SEND', data);
 
             $.ajax(
             {
@@ -668,19 +775,20 @@ td
 
                'error': function()
                {
-                  //setHeaderState('disconnected');
                   showTab('disconnect');
+						$('#shield').remove();   // remove loading display
                },
                'success': function(d)
                {
-                  console.log('RECV', d);
+						$('#shield').remove();   // remove loading display
+
+                  console.log('[785] RECV', d);
 
                   if(d && d['authorize'] && d['authorize']['challenge'])
                   {
                      if (settings.credentials.authstring != d['authorize']['challenge'])
                      {
                         settings.credentials.authstring = d['authorize']['challenge'];
-                        //console.log('need to reload settings with new auth string');
                         loadSettings(callback);
                         return;
                      }else{
@@ -701,8 +809,6 @@ td
                         "log": {},
                         "statistics": {}
                      }, d);
-
-                     //console.log('new (shinyness) object:', settings.settings);
                   }
 
                   if(callback)
@@ -714,7 +820,10 @@ td
          }
 
 
-
+			/**
+			 * Sets the page's header text (loging in, connected, disconnected), title and pretty colors (!)
+			 * @param state the state of the header. Possible are 'logingin', 'disconnected' or 'connected'.
+			 */
          function setHeaderState(state)
          {
             var text, cname, title;
@@ -734,18 +843,22 @@ td
          }
 
 
-
-         // used on the overview page. clear when not on that page in showTab()
+         // used on the overview and streams page. cleared when switching to another 'tab'.
          var sinterval = null;
 
-         // shows what kind of streams? Format is [recorded, live];
+         // what kind of streams should be displayed? Format is [recorded, live];
          var streamsdisplay = [true, true];
 
 
-         // show tab
+
+			/**
+			 * Display a certain page. It contains a (giant) switch-statement, that builds a page depending on the tab requested
+			 * @param name the name of the tab
+			 * @param streamname only used when editing streams, the name of the edited (or new) stream. Also used with the 'embed' tab
+			 */
          function showTab(name, streamname)
          {
-            // clear page
+            // clear page and refresh interval
             $('#page').html('');
             clearInterval(sinterval);
 
@@ -790,11 +903,9 @@ td
                               }
                            });
 
-                           //console.log('logged in!');
                         }else{
                            setHeaderState('disconnected');
                            $('#header-host').text('');
-                           //console.log('error logging in: ' + errorstr);
                         }
                      });
                   }).text('login');
@@ -803,12 +914,12 @@ td
                      $('<div>').attr('id', 'login').append(host).append(user).append(pass).append(conn)
                   );
 
-                  // btw: if we 'enter' in host, user or pass we should try to login.
+                  // if we 'enter' in host, user or pass we should try to login.
                   function hand(e)
                   {
                      if(e.keyCode == 13)
                      {
-                        conn.trigger('click');  // conn = login button :)
+                        conn.trigger('click');  // conn = login button
                      }
                   }
 
@@ -816,19 +927,15 @@ td
                   user.keypress(hand);
                   pass.keypress(hand);
 
-
-
-                  // retrieve address hash stuff
+                  // retrieve address hash from URL
                   var adr = location.hash.replace('#', '').split('@');
 
                   if(adr.length == 2)
                   {
-                     //console.log(adr[0], adr[1]);
                      // put it in the page
                      host.val(adr[1]);
                      user.val(adr[0]);
                   }
-
 
                   break;
 
@@ -836,7 +943,6 @@ td
 
 
                case 'overview':
-
 
                   $('#page').append(
                      $('<div>').attr('id', 'editserver').append(
@@ -870,18 +976,17 @@ td
                   {
                      getStatData(function(data)
                      {
-                        //console.log('getting live data... @' + new Date().getTime());
                         $('#cur_streams_online').html('').text(data.streams[0] + ' of ' + data.streams[1] + ' online');
                         $('#cur_num_viewers').html('').text(data.viewers);
                      });
                   }
 
+						// refresh the stream status + viewers
                   sinterval = setInterval(function()
                   {
                      showStats();
-                  }, 30000);
+                  }, 10000);
 
-                  // instantly call it the first time
                   showStats();
 
 
@@ -911,14 +1016,12 @@ td
                      {
                        if(confirmDelete('Are you sure you want to force a JSON save?') == true)
                        {
-                          forceJSONSave();   // :)
+                          forceJSONSave();
                        }
                      }).text( 'force save to JSON file' )
                   );
 
                   $('#page').append(forcesave);
-
-
 
                   break;
 
@@ -934,19 +1037,18 @@ td
                   var tr, i, protocol,
                       len = (settings.settings.config.protocols ? settings.settings.config.protocols.length : 0);
 
-                  // remove old stuff
                   $tbody.html('');
 
                   for(i = 0; i < len; i++)
                   {
-                     protocol = settings.settings.config.protocols[i];  // local copy, {}
+                     protocol = settings.settings.config.protocols[i];  // local copy
 
                      tr = $('<tr>').attr('id', 'protocol-' + i);
 
                      tr.append( $('<td>').text( protocol.connector ) );
                      tr.append( $('<td>').text( protocol.port ) );
 
-                     tr.append( $('<td>').text( protocol['interface'] ) );  // interface is a reserved JS keyword :)
+                     tr.append( $('<td>').text( protocol['interface'] ) );  // interface is a reserved JS keyword
 
                      tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
                                 {
@@ -954,7 +1056,6 @@ td
                                    {
                                       var id = $(this).parent().parent().attr('id').replace('protocol-', '');
                                       settings.settings.config.protocols.splice(id, 1);
-                                      //delete settings.settings.config.protocols[protocol];
                                       $(this).parent().parent().remove();
                                       loadSettings();
                                    }
@@ -972,7 +1073,7 @@ td
                   $pname.append( $('<option>').attr('value', 'RTMP').text('RTMP') );
 
                   $nprot.append( $('<td>').append($pname) );
-                  // val
+                  // the port value
                   $nprot.append( $('<td>').append( $('<input>').attr('type', 'number').attr('id', 'new-protocol-val') ) );
 
                   // interface
@@ -990,24 +1091,16 @@ td
 
                            if(!settings.settings.config.protocols)
                            {
-                              //settings.settings.config.protocols = {};
                               settings.settings.config.protocols = [];
                            }
-
-                           /*
-                           settings.settings.config.protocols[$('#new-protocol-name :selected').val()] =
-                           {
-                              port: $('#new-protocol-val').val()
-                           };
-                           */
 
                            var nobj =
                            {
                               connector: $('#new-protocol-name :selected').val(),
-                              port: $('#new-protocol-val').val(),
+                              port: Math.abs($('#new-protocol-val').val()),
                            };
-                           nobj['interface'] = $('#new-protocol-interface').val();
 
+                           nobj['interface'] = $('#new-protocol-interface').val();
 
                            settings.settings.config.protocols.push(nobj);
 
@@ -1034,11 +1127,10 @@ td
 
                case 'streams':
 
-                  // filter
+                  // the filter element containr
                   $div = $('<div>').attr('id', 'streams-filter');
 
-
-
+						// filters the table. uses the streamsdisplay
                   function filterTable()
                   {
                      $('#streams-list-tbody').children().each(function(k, v)
@@ -1099,7 +1191,37 @@ td
 
                   $('#page').append($div);
 
+						// refresh every streams' data (status and viewer count)
+						function refreshStreams()
+						{
+							getStreamsData(function(streams)
+							{
+								for(stream in streams)
+								{
+									if( $('stream-' + stream) )
+									{
+										var row = $('#stream-' + stream);
+										var status = streams[stream][0];
 
+										if(status == 1)
+										{
+											$(row.children()[3]).html("<span class='green'>Running</span>");
+										}else{
+											$(row.children()[3]).html("<span class='red'>" + (status ? status : 'Offline') + "</span>");
+										}
+
+										$(row.children()[4]).text(streams[stream][1]);
+									}
+								}
+							});
+						};
+
+						sinterval = setInterval(function()
+						{
+							refreshStreams();
+						}, 10000);
+
+						refreshStreams();
 
                   $table = $('<table>');
                   $table.html("<thead><th>Type</th><th>Embed</th><th>Name</th><th>Status</th><th>Viewers</th><th>Edit</th></thead>");
@@ -1115,22 +1237,22 @@ td
 
                      $tr = $('<tr>').attr('id', 'stream-' + stream);
 
-
                      $tr.append( $('<td>').text( TypeofResource( cstr.channel.URL ) ) );
-
 
                      $tr.append( $('<td>').append( $('<button>').text('embed').click(function()
                      {
                         var sname = $(this).parent().parent().attr('id').replace('stream-', '');
                         showTab('embed', sname);
-                     }) ) );
-
+                     }) ) );   // end function, end click(), end append(), end append(). Huzzah jQuery.
 
                      $tr.append( $('<td>').text(cstr.name) );
 
-
-                     $tr.append( $('<td>').html(cstr.online == 1 ? "<span class='green'>Running</span>" : "<span class='red'>Error: "+cstr.online+"</span>") );
-
+                     if(cstr.online && cstr.online == 1)
+                     {
+                        $tr.append( $('<td>').html("<span class='green'>Running</span>") );
+                     }else{
+                        $tr.append( $('<td>').html("<span class='red'>" + (cstr.online ? cstr.online : 'Offline') + "</span>") );
+                     }
 
                      var cviewers = 0;
 
@@ -1149,14 +1271,12 @@ td
 
                      $tr.append( $('<td>').text( cviewers ) );
 
-
                      $tr.append( $('<td>').append( $('<button>').text('edit').click(function()
                      {
                         var sname = $(this).parent().parent().attr('id').replace('stream-', '');
 
                         showTab('editstream', sname);
-                     }) ) );
-
+                     }) ) );   // end function, end click, end append, end append.
 
                      $tbody.append($tr);
                   }
@@ -1164,7 +1284,7 @@ td
                   $table.append($tbody);
                   $('#page').append($table);
 
-                  // on page load, also filter
+                  // on page load, also filter with the (users' defined) stream filter
                   filterTable();
 
                   $('#page').append(
@@ -1209,7 +1329,6 @@ td
 
                   $('#page').append( $('<p>').text(title) );
 
-
                   $('#page').append(
                      $('<div>').attr('id', 'editserver').append(
                         $('<label>').attr('for', 'stream-edit-name').text('name').append(
@@ -1217,14 +1336,40 @@ td
                         )
                      ).append(
                         $('<label>').attr('for', 'stream-edit-source').text('source').append(
-                           $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'stream-edit-source').attr('value', sdata.channel.URL)
+                           $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'stream-edit-source').attr('value', sdata.channel.URL).keyup(function()
+									{
+									   var text = $(this).val();
+
+										if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
+										{
+											$('#stream-edit-preset').val('');
+											$('#stream-edit-preset').hide();
+											$('#stream-edit-preset-label').hide();
+										}else{
+											$('#stream-edit-preset').show();
+											$('#stream-edit-preset-label').show();
+										}
+									})
                         )
                      ).append(
-                        $('<label>').attr('for', 'stream-edit-preset').text('preset').append(
+                        $('<label>').attr('id', 'stream-edit-preset-label').attr('for', 'stream-edit-preset').text('preset').append(
                            $('<input>').attr('type', 'text').attr('placeholder', 'PRESET').attr('id', 'stream-edit-preset').attr('value', sdata.preset.cmd)
                         )
                      )
                   );
+
+						// if the source is push or file, don't do a preset
+					   var text = $('#stream-edit-source').val();
+
+						if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
+						{
+							$('#stream-edit-preset').hide();
+							$('#stream-edit-preset-label').hide();
+						}else{
+							$('#stream-edit-preset').show();
+							$('#stream-edit-preset-label').show();
+						}
+
 
                   $('#editserver').append(
                      $('<button>').attr('class', 'floatright').click(function()
@@ -1254,7 +1399,6 @@ td
 
                         if(n.val() == ''){ n.focus(); return; }
                         if(s.val() == ''){ s.focus(); return; }
-                        if(p.val() == ''){ p.focus(); return; }
 
                         sdata.name = n.val();
                         sdata.channel.URL = s.val();
@@ -1284,16 +1428,27 @@ td
 
 
 
+
+
                case 'embed':
 
-                  var url = settings.settings.streams[streamname].channel.URL;
+                  //var url = settings.settings.streams[streamname].channel.URL;
 
-                  // TODO when embed code is done.
+
+//if http port
+// HOST:http_port/embed_STREAMNAME.js
+// preview-knop
+//else
+// warning: no http connector!
+// endif
+
 
                   $('#page').append( $('<p>').text('This feature is not yet implemented.') );
                   $('#page').append( $('<p>').text('The URL for this stream is ').append( $('<span>').attr('class', 'nocapitals').text(url) ) );
 
                   break;
+
+
 
 
 
@@ -1318,12 +1473,9 @@ td
                      alllimits = alllimits.concat(clims);
                   }
 
-                  //console.log(alllimits);
-
                   len = alllimits.length;
 
-
-                  // remove old stuff
+                  // remove old items
                   $tbody.html('');
 
                   for(i = 0; i < len; i++)
@@ -1373,23 +1525,22 @@ td
                      $tbody.append(tr);
                   }
 
-                  // add new limit!
+                  // add new limit
                   $nltr = $('<tr>').attr('class', 'outsidetable');
 
-                  // type select
+                  // type selector
                   $ltype = $('<select>').attr('id', 'new-limit-type');
                   for(i = 0; i < ltypes.length; i++)
                   {
                      $ltype.append( $('<option>').attr('value', ltypes[i][0]).text(ltypes[i][1]) );
                   }
                   $nltr.append( $('<td>').append( $ltype ) );
-                  // hard/soft
+                  // hard/soft limit
                   $nltr.append( $('<td>').append( $('<select>').attr('id', 'new-limit-hs').append( $('<option>').attr('value', 'hard').text('Hard limit') ).append( $('<option>').attr('value', 'soft').text('Soft limit') ) ) );
-                  // val
+                  // value
                   $nltr.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-limit-val') ) );
 
-
-                  // appliesto
+                  // applies to (stream)
                   var $appliesto = $('<select>').attr('id', 'new-limit-appliesto').append( $('<option>').attr('value', 'server').text('Server') );
 
                   for(var strm in settings.settings.streams)
@@ -1399,7 +1550,6 @@ td
                      );
                   }
                   $nltr.append( $('<td>').append( $appliesto ) );
-
 
                   $nltr.append(
                      $('<td>').attr('class', 'center').append(
@@ -1436,13 +1586,15 @@ td
 
 
 
-
-
                case 'logs':
                   $table = $('<table>');
                   $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
                   $tbody = $('<tbody>');
 
+						if(!settings.settings.log)
+						{
+							return;  // no logs, so just bail
+						}
                   var i, cur, $tr,
                       logs = settings.settings.log,
                       len = logs.length;
@@ -1504,6 +1656,7 @@ td
                      settings: {}
                   };
                   break;
+
             }  // end switch
 
 

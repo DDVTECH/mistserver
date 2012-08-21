@@ -396,9 +396,9 @@ int main(int argc, char ** argv){
       }
     }
 
-    Incoming = API_Socket.accept();
+    Incoming = API_Socket.accept(true);
     if (Incoming.connected()){users.push_back(Incoming);}
-    Incoming = Stats_Socket.accept();
+    Incoming = Stats_Socket.accept(true);
     if (Incoming.connected()){buffers.push_back(Incoming);}
     if (buffers.size() > 0){
       for( std::vector< Socket::Connection >::iterator it = buffers.begin(); it != buffers.end(); it++) {

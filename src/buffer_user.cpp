@@ -27,6 +27,7 @@ Buffer::user::user(Socket::Connection fd){
 /// Drops held DTSC::Ring class, if one is held.
 Buffer::user::~user(){
   Stream::get()->dropRing(myRing);
+  Disconnect("User disconnected");
 }//destructor
 
 /// Disconnects the current user. Doesn't do anything if already disconnected.

@@ -8,6 +8,7 @@
 #include <string>
 #include <deque>
 #include <set>
+#include <stdio.h> //for FILE
 
 
 
@@ -101,6 +102,22 @@ namespace DTSC{
 
   extern char Magic_Header[]; ///< The magic bytes for a DTSC header
   extern char Magic_Packet[]; ///< The magic bytes for a DTSC packet
+
+  /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
+  class File{
+    public:
+      File(std::string filename, bool create = false);
+      ~File();
+      std::string & getHeader();
+      bool writeHeader(std::string & header, bool force = false);
+      std::string & getPacket();
+    private:
+      std::string strbuffer;
+      FILE * F;
+      long headerSize;
+      char buffer[4];
+  };//FileWriter
+
 
   /// A part from the DTSC::Stream ringbuffer.
   /// Holds information about a buffer that will stay consistent

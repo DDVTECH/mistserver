@@ -2,9 +2,9 @@
 /// Holds all code for DDVTECH Stream Container parsing/generation.
 
 #include "dtsc.h"
+#include <stdlib.h>
 #include <string.h> //for memcmp
 #include <arpa/inet.h> //for htonl/ntohl
-#include <stdio.h> //for fprint, stderr
 
 char DTSC::Magic_Header[] = "DTSC";
 char DTSC::Magic_Packet[] = "DTPD";
@@ -477,3 +477,100 @@ DTSC::DTMI DTSC::parseDTMI(const unsigned char * data, unsigned int len){
 DTSC::DTMI DTSC::parseDTMI(std::string data){
   return parseDTMI((const unsigned char*)data.c_str(), data.size());
 }//parse
+
+/// Open a filename for DTSC reading/writing.
+/// If create is true and file does not exist, attempt to create.
+DTSC::File::File(std::string filename, bool create){
+  if (create){
+    F = fopen(filename.c_str(), "w+b");
+  }else{
+    F = fopen(filename.c_str(), "r+b");
+  }
+  if (!F){
+    fprintf(stderr, "Could not open file %s\n", filename.c_str());
+    return;
+  }
+
+  //if first 4 bytes not available, assume empty file, write header
+  if (fread(buffer, 4, 1, F) != 1){
+    fseek(F, 0, SEEK_SET);
+    fwrite(DTSC::Magic_Header, 4, 1, F);
+  }else{
+    if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
+      fprintf(stderr, "Not a DTSC file - aborting: %s\n", filename.c_str());
+      fclose(F);
+      F = 0;
+      return;
+    }
+  }
+  //we now know the first 4 bytes are DTSC::Magic_Header and we have a valid file
+  fseek(F, 4, SEEK_SET);
+  if (fread(buffer, 4, 1, F) != 1){
+    fseek(F, 4, SEEK_SET);
+    memset(buffer, 0, 4);
+    fwrite(buffer, 4, 1, F);//write 4 zero-bytes
+    headerSize = 0;
+  }else{
+    headerSize = ntohl(((uint32_t *)buffer)[0]);
+  }
+  fseek(F, 8+headerSize, SEEK_SET);
+}
+
+/// Returns the header metadata for this file as a std::string.
+/// Sets the file pointer to the first packet.
+std::string & DTSC::File::getHeader(){
+  fseek(F, 8, SEEK_SET);
+  strbuffer.reserve(headerSize);
+  fread((void*)strbuffer.c_str(), headerSize, 1, F);
+  fseek(F, 8+headerSize, SEEK_SET);
+}
+
+/// (Re)writes the given string to the header area if the size is the same as the existing header.
+/// Forces a write if force is set to true.
+bool DTSC::File::writeHeader(std::string & header, bool force){
+  if (headerSize != header.size() && !force){
+    fprintf(stderr, "Could not overwrite header - not equal size\n");
+    return false;
+  }
+  headerSize = header.size() - 8;
+  fseek(F, 0, SEEK_SET);
+  int ret = fwrite(header.c_str(), 8+headerSize, 1, F);
+  fseek(F, 8+headerSize, SEEK_SET);
+  return (ret == 1);
+}
+
+/// Reads the packet available at the current file position, returning it as a std::string.
+/// If the packet could not be read for any reason, the reason is printed to stderr and an empty string returned.
+std::string & DTSC::File::getPacket(){
+  if (fread(buffer, 4, 1, F) != 1){
+    fprintf(stderr, "Could not read header\n");
+    strbuffer = "";
+    return strbuffer;
+  }
+  if (memcmp(buffer, DTSC::Magic_Packet, 4) != 0){
+    fprintf(stderr, "Could not overwrite header - not equal size\n");
+    strbuffer = "";
+    return strbuffer;
+  }
+  if (fread(buffer, 4, 1, F) != 1){
+    fprintf(stderr, "Could not read size\n");
+    strbuffer = "";
+    return strbuffer;
+  }
+  long packSize = ntohl(((uint32_t *)buffer)[0]);
+  strbuffer.reserve(packSize);
+  if (fread((void*)strbuffer.c_str(), packSize, 1, F)){
+    fprintf(stderr, "Could not read packet\n");
+    strbuffer = "";
+    return strbuffer;
+  }
+  return strbuffer;
+}
+
+/// Close the file if open
+DTSC::File::~File(){
+  if (F){
+    fclose(F);
+    F = 0;
+  }
+}

@@ -1,7 +1,8 @@
-#include "mp4.h"
 #include <stdlib.h> //for malloc and free
 #include <string.h> //for memcpy
 #include <arpa/inet.h> //for htonl and friends
+#include "mp4.h"
+#include "json.h"
 
 /// Contains all MP4 format related code.
 namespace MP4{
@@ -363,12 +364,16 @@ void ASRT::WriteContent( ) {
   SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
 }
 
-std::string GenerateLiveBootstrap( uint32_t CurMediaTime ) {
+std::string GenerateLiveBootstrap( JSON::Value & metadata ) {
   AFRT afrt;
   afrt.SetUpdate(false);
   afrt.SetTimeScale(1000);
   afrt.AddQualityEntry("");
-  afrt.AddFragmentRunEntry(1, 0 , 4000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+  if (!metadata.isMember("video") || !metadata["video"].isMember("keyms")){
+    afrt.AddFragmentRunEntry(1, 0, 1000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+  }else{
+    afrt.AddFragmentRunEntry(1, 0, metadata["video"]["keyms"].asInt()); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+  }
   afrt.WriteContent();
 
   ASRT asrt;

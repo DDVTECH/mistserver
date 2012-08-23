@@ -2,6 +2,7 @@
 #include <string>
 #include <stdint.h>
 #include <vector>
+#include "json.h"
 
 /// Contains all MP4 format related code.
 namespace MP4{
@@ -125,7 +126,7 @@ namespace MP4{
       Box * Container;
   };//ASRT Box
 
-  std::string GenerateLiveBootstrap( uint32_t CurMediaTime );
+  std::string GenerateLiveBootstrap( JSON::Value & metadata );
   std::string mdatFold(std::string data);
 
 };

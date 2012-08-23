@@ -4,6 +4,7 @@
 #pragma once
 #include "socket.h"
 #include "dtsc.h"
+#include "json.h"
 #include <string>
 
 //forward declaration of RTMPStream::Chunk to avoid circular dependencies.
@@ -43,7 +44,7 @@ namespace FLV {
       bool DTSCVideoInit(DTSC::Stream & S);
       bool DTSCAudioInit(DTSC::Stream & S);
       bool DTSCMetaInit(DTSC::Stream & S);
-      DTSC::DTMI toDTSC(DTSC::DTMI & metadata);
+      JSON::Value toJSON(JSON::Value & metadata);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool SockLoader(int sock);
       bool SockLoader(Socket::Connection sock);
@@ -57,10 +58,10 @@ namespace FLV {
       bool MemReadUntil(char * buffer, unsigned int count, unsigned int & sofar, char * D, unsigned int S, unsigned int & P);
       bool SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, Socket::Connection & sock);
       bool FileReadUntil(char * buffer, unsigned int count, unsigned int & sofar, FILE * f);
-      //DTSC writer helpers
-      void Meta_Put(DTSC::DTMI & meta, std::string cat, std::string elem, std::string val);
-      void Meta_Put(DTSC::DTMI & meta, std::string cat, std::string elem, uint64_t val);
-      bool Meta_Has(DTSC::DTMI & meta, std::string cat, std::string elem);
+      //JSON writer helpers
+      void Meta_Put(JSON::Value & meta, std::string cat, std::string elem, std::string val);
+      void Meta_Put(JSON::Value & meta, std::string cat, std::string elem, uint64_t val);
+      bool Meta_Has(JSON::Value & meta, std::string cat, std::string elem);
   };//Tag
 
 };//FLV namespace

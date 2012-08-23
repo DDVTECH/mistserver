@@ -140,7 +140,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
 /// Tries to get and parse one RTMP chunk at a time.
 void Connector_RTMP::parseChunk(std::string & inbuffer){
   //for DTSC conversion
-  static DTSC::DTMI meta_out;
+  static JSON::Value meta_out;
   static std::stringstream prebuffer; // Temporary buffer before sending real data
   static bool sending = false;
   static unsigned int counter = 0;
@@ -222,23 +222,37 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
       case 18://meta data
         if (SS.connected()){
           F.ChunkLoader(next);
-          DTSC::DTMI pack_out = F.toDTSC(meta_out);
-          if (!pack_out.isEmpty()){
+          JSON::Value pack_out = F.toJSON(meta_out);
+          if (!pack_out.isNull()){
             if (!sending){
               counter++;
               if (counter > 8){
                 sending = true;
-                meta_out.Pack(true);//pack metadata
-                meta_out.packed.replace(0, 4, DTSC::Magic_Header);//prepare proper header
-                SS.write(meta_out.packed);//write header/metadata
+                std::string packed = meta_out.toPacked();
+                unsigned int size = htonl(packed.size());
+                SS.write(std::string(DTSC::Magic_Header, 4));
+                SS.write(std::string((char*)&size, 4));
+                SS.write(packed);
                 SS.write(prebuffer.str());//write buffer
                 prebuffer.str("");//clear buffer
-                SS.write(pack_out.Pack(true));//simply write
+                packed = pack_out.toPacked();
+                size = htonl(packed.size());
+                SS.write(std::string(DTSC::Magic_Packet, 4));
+                SS.write(std::string((char*)&size, 4));
+                SS.write(packed);
               }else{
-                prebuffer << pack_out.Pack(true);//buffer
+                std::string packed = pack_out.toPacked();
+                unsigned int size = htonl(packed.size());
+                prebuffer << std::string(DTSC::Magic_Packet, 4);
+                prebuffer << std::string((char*)&size, 4);
+                prebuffer << packed;
               }
             }else{
-              SS.write(pack_out.Pack(true));//simple write
+              std::string packed = pack_out.toPacked();
+              unsigned int size = htonl(packed.size());
+              SS.write(std::string(DTSC::Magic_Packet, 4));
+              SS.write(std::string((char*)&size, 4));
+              SS.write(packed);
             }
           }
         }else{

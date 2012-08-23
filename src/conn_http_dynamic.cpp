@@ -25,14 +25,14 @@
 namespace Connector_HTTP{
 
   /// Returns a F4M-format manifest file
-  std::string BuildManifest(std::string MovieId) {
+  std::string BuildManifest(std::string MovieId, JSON::Value & metadata) {
     std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
       "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
       "<id>" + MovieId + "</id>\n"
       "<mimeType>video/mp4</mimeType>\n"
       "<streamType>live</streamType>\n"
       "<deliveryType>streaming</deliveryType>\n"
-      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(MP4::GenerateLiveBootstrap(1)) + "</bootstrapInfo>\n"
+      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(MP4::GenerateLiveBootstrap(metadata)) + "</bootstrapInfo>\n"
       "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
       "</media>\n"
       "</manifest>\n";
@@ -49,6 +49,7 @@ namespace Connector_HTTP{
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
     bool ready4data = false;//Set to true when streaming is to begin.
+    bool pending_manifest = false;
     bool inited = false;
     Socket::Connection ss(-1);
     std::string streamname;
@@ -84,15 +85,7 @@ namespace Connector_HTTP{
             Flash_RequestPending++;
           }else{
             streamname = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
-            HTTP_S.Clean();
-            HTTP_S.SetHeader("Content-Type","text/xml");
-            HTTP_S.SetHeader("Cache-Control","no-cache");
-            std::string manifest = BuildManifest(Movie);
-            HTTP_S.SetBody(manifest);
-            conn.Send(HTTP_S.BuildResponse("200", "OK"));
-            #if DEBUG >= 3
-            printf("Sent manifest\n");
-            #endif
+            pending_manifest = true;
           }
           ready4data = true;
           HTTP_R.Clean(); //clean for any possible next requests
@@ -141,6 +134,19 @@ namespace Connector_HTTP{
         if (ss.spool() || ss.Received() != ""){
           if (Strm.parsePacket(ss.Received())){
             tag.DTSCLoader(Strm);
+            if (pending_manifest){
+              JSON::Value meta = JSON::fromDTMI(Strm.metadata.Pack(false));
+              HTTP_S.Clean();
+              HTTP_S.SetHeader("Content-Type","text/xml");
+              HTTP_S.SetHeader("Cache-Control","no-cache");
+              std::string manifest = BuildManifest(Movie, meta);
+              HTTP_S.SetBody(manifest);
+              conn.Send(HTTP_S.BuildResponse("200", "OK"));
+              #if DEBUG >= 3
+              printf("Sent manifest\n");
+              #endif
+              pending_manifest = false;
+            }
             if (Strm.getPacket(0).getContentP("keyframe")){
               if (FlashBuf != ""){
                 Flash_FragBuffer.push(FlashBuf);

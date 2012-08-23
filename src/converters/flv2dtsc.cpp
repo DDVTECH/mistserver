@@ -10,9 +10,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include <mist/flv_tag.h> //FLV support
-#include <mist/dtsc.h> //DTSC support
-#include <mist/amf.h> //AMF support
+#include <mist/flv_tag.h>
+#include <mist/dtsc.h>
+#include <mist/json.h>
+#include <mist/amf.h>
 #include <mist/config.h>
 
 /// Holds all code that converts filetypes to/from to DTSC.
@@ -21,41 +22,46 @@ namespace Converters{
   /// Reads FLV from STDIN, outputs DTSC to STDOUT.
   int FLV2DTSC() {
     FLV::Tag FLV_in; // Temporary storage for incoming FLV data.
-    DTSC::DTMI meta_out; // Storage for outgoing DTMI header data.
-    DTSC::DTMI pack_out; // Storage for outgoing DTMI data.
+    JSON::Value meta_out; // Storage for outgoing header data.
+    JSON::Value pack_out; // Storage for outgoing data.
     std::stringstream prebuffer; // Temporary buffer before sending real data
     bool sending = false;
     unsigned int counter = 0;
     
     while (!feof(stdin)){
       if (FLV_in.FileLoader(stdin)){
-        pack_out = FLV_in.toDTSC(meta_out);
-        if (pack_out.isEmpty()){continue;}
+        pack_out = FLV_in.toJSON(meta_out);
+        if (pack_out.isNull()){continue;}
         if (!sending){
           counter++;
           if (counter > 8){
             sending = true;
-            meta_out.Pack(true);
-            meta_out.packed.replace(0, 4, DTSC::Magic_Header);
-            std::cout << meta_out.packed;
+            std::string packed_header = meta_out.toPacked();
+            unsigned int size = htonl(packed_header.size());
+            std::cout << std::string(DTSC::Magic_Header, 4) << std::string((char*)&size, 4) << packed_header;
             std::cout << prebuffer.rdbuf();
             prebuffer.str("");
             std::cerr << "Buffer done, starting real-time output..." << std::endl;
           }else{
-            prebuffer << pack_out.Pack(true);//buffer
+            std::string packed_out = pack_out.toPacked();
+            unsigned int size = htonl(packed_out.size());
+            prebuffer << std::string(DTSC::Magic_Packet, 4) << std::string((char*)&size, 4) << packed_out;
             continue;//don't also write
           }
         }
-        std::cout << pack_out.Pack(true);//simply write
+        //simply write
+        std::string packed_out = pack_out.toPacked();
+        unsigned int size = htonl(packed_out.size());
+        std::cout << std::string(DTSC::Magic_Packet, 4) << std::string((char*)&size, 4) << packed_out;
       }
     }
 
     // if the FLV input is very short, do output it correctly...
     if (!sending){
       std::cerr << "EOF - outputting buffer..." << std::endl;
-      meta_out.Pack(true);
-      meta_out.packed.replace(0, 4, DTSC::Magic_Header);
-      std::cout << meta_out.packed;
+      std::string packed_header = meta_out.toPacked();
+      unsigned int size = htonl(packed_header.size());
+      std::cout << std::string(DTSC::Magic_Header, 4) << std::string((char*)&size, 4) << packed_header;
       std::cout << prebuffer.rdbuf();
     }
     std::cerr << "Done!" << std::endl;

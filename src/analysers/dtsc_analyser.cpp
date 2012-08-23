@@ -10,7 +10,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include <mist/dtsc.h> //DTSC support
+#include <mist/dtsc.h>
+#include <mist/json.h>
 #include <mist/config.h>
 
 /// Reads DTSC from stdin and outputs human-readable information to stderr.
@@ -50,6 +51,9 @@ int main(int argc, char ** argv) {
       if (!doneheader){
         doneheader = true;
         Strm.metadata.Print();
+        JSON::Value mdata = JSON::fromDTMI(Strm.metadata.Pack(false));
+        std::cout << mdata.toString() << std::endl;
+        std::cout << mdata.toPrettyString() << std::endl;
       }
       Strm.getPacket().Print();
       //get current timestamp

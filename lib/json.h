@@ -59,12 +59,20 @@ namespace JSON{
       Value & operator[](const char * i);
       Value & operator[](unsigned int i);
       //handy functions and others
+      std::string toPacked();
       std::string toString();
+      std::string toPrettyString(int indentation = 0);
       void append(const Value & rhs);
       void prepend(const Value & rhs);
       void shrink(unsigned int size);
       void removeMember(const std::string & name);
       bool isMember(const std::string & name) const;
+      bool isInt() const;
+      bool isString() const;
+      bool isBool() const;
+      bool isObject() const;
+      bool isArray() const;
+      bool isNull() const;
       ObjIter ObjBegin();
       ObjIter ObjEnd();
       ArrIter ArrBegin();
@@ -73,6 +81,8 @@ namespace JSON{
       void null();
   };
 
+  Value fromDTMI(std::string data);
+  Value fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i);
   Value fromString(std::string json);
   Value fromFile(std::string filename);
   

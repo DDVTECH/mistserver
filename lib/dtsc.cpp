@@ -520,9 +520,10 @@ DTSC::File::File(std::string filename, bool create){
 /// Sets the file pointer to the first packet.
 std::string & DTSC::File::getHeader(){
   fseek(F, 8, SEEK_SET);
-  strbuffer.reserve(headerSize);
+  strbuffer.resize(headerSize);
   fread((void*)strbuffer.c_str(), headerSize, 1, F);
   fseek(F, 8+headerSize, SEEK_SET);
+  return strbuffer;
 }
 
 /// (Re)writes the given string to the header area if the size is the same as the existing header.
@@ -532,9 +533,9 @@ bool DTSC::File::writeHeader(std::string & header, bool force){
     fprintf(stderr, "Could not overwrite header - not equal size\n");
     return false;
   }
-  headerSize = header.size() - 8;
-  fseek(F, 0, SEEK_SET);
-  int ret = fwrite(header.c_str(), 8+headerSize, 1, F);
+  headerSize = header.size();
+  fseek(F, 8, SEEK_SET);
+  int ret = fwrite(header.c_str(), headerSize, 1, F);
   fseek(F, 8+headerSize, SEEK_SET);
   return (ret == 1);
 }
@@ -558,8 +559,8 @@ std::string & DTSC::File::getPacket(){
     return strbuffer;
   }
   long packSize = ntohl(((uint32_t *)buffer)[0]);
-  strbuffer.reserve(packSize);
-  if (fread((void*)strbuffer.c_str(), packSize, 1, F)){
+  strbuffer.resize(packSize);
+  if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
     fprintf(stderr, "Could not read packet\n");
     strbuffer = "";
     return strbuffer;

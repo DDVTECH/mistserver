@@ -48,7 +48,7 @@ namespace Connector_HTTP{
     abst.AddSegmentRunTable(&asrt);
     abst.SetBootstrapVersion(1);
     abst.SetProfile(0);
-    if (metadata.isMember("length")){
+    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
       abst.SetLive(false);
       abst.SetMediaTime(1000*metadata["length"].asInt());
     }else{

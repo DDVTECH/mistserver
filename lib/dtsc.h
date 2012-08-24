@@ -9,6 +9,7 @@
 #include <deque>
 #include <set>
 #include <stdio.h> //for FILE
+#include "json.h"
 
 
 
@@ -21,6 +22,7 @@
 /// - fpks (int, frames per kilosecond (FPS * 1000))
 /// - bps (int, bytes per second)
 /// - init (string, init data)
+/// - keycount (int, count of keyframes)
 /// - keyms (int, average ms per keyframe)
 /// - keyvar (int, max ms per keyframe variance)
 /// - keys (array of byte position ints - first is first keyframe, last is last keyframe, in between have ~equal spacing)
@@ -49,53 +51,6 @@
 /// - offset (int, unsigned version of signed int! Holds the ms offset between timestamp and proper display time for B-frames)
 namespace DTSC{
 
-  /// Enumerates all possible DTMI types.
-  enum DTMItype {
-    DTMI_INT = 0x01, ///< Unsigned 64-bit integer.
-    DTMI_STRING = 0x02, ///< String, equivalent to the AMF longstring type.
-    DTMI_OBJECT = 0xE0, ///< Object, equivalent to the AMF object type.
-    DTMI_OBJ_END = 0xEE, ///< End of object marker.
-    DTMI_ROOT = 0xFF ///< Root node for all DTMI data.
-  };
-  
-  /// Recursive class that holds DDVTECH MediaInfo.
-  class DTMI {
-  public:
-    std::string Indice();
-    DTMItype GetType();
-    uint64_t & NumValue();
-    std::string & StrValue();
-    const char * Str();
-    int hasContent();
-    bool isEmpty();
-    void addContent(DTMI c);
-    DTMI* getContentP(int i);
-    DTMI getContent(int i);
-    DTMI* getContentP(std::string s);
-    DTMI getContent(std::string s);
-    DTMI();
-    DTMI(std::string indice, uint64_t val, DTMItype setType = DTMI_INT);
-    DTMI(std::string indice, std::string val, DTMItype setType = DTMI_STRING);
-    DTMI(std::string indice, DTMItype setType = DTMI_OBJECT);
-    void Print(std::string indent = "");
-    std::string Pack(bool netpack = false);
-    bool netpacked;
-    std::string packed;
-  protected:
-    std::string myIndice; ///< Holds this objects indice, if any.
-    DTMItype myType; ///< Holds this objects AMF0 type.
-    std::string strval; ///< Holds this objects string value, if any.
-    uint64_t numval; ///< Holds this objects numeric value, if any.
-    std::vector<DTMI> contents; ///< Holds this objects contents, if any (for container types).
-  };//AMFType
-  
-  /// Parses a C-string to a valid DTSC::DTMI.
-  DTMI parseDTMI(const unsigned char * data, unsigned int len);
-  /// Parses a std::string to a valid DTSC::DTMI.
-  DTMI parseDTMI(std::string data);
-  /// Parses a single DTMI type - used recursively by the DTSC::parseDTMI() functions.
-  DTMI parseOneDTMI(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name);
-  
   /// This enum holds all possible datatypes for DTSC packets.
   enum datatype {
     AUDIO, ///< Stream Audio data
@@ -141,8 +96,8 @@ namespace DTSC{
       Stream();
       ~Stream();
       Stream(unsigned int buffers);
-      DTSC::DTMI metadata;
-      DTSC::DTMI & getPacket(unsigned int num = 0);
+      JSON::Value metadata;
+      JSON::Value & getPacket(unsigned int num = 0);
       datatype lastType();
       std::string & lastData();
       bool hasVideo();
@@ -154,7 +109,7 @@ namespace DTSC{
       unsigned int getTime();
       void dropRing(Ring * ptr);
   private:
-      std::deque<DTSC::DTMI> buffers;
+      std::deque<JSON::Value> buffers;
       std::set<DTSC::Ring *> rings;
       std::deque<DTSC::Ring> keyframes;
       void advanceRings();

@@ -364,46 +364,6 @@ void ASRT::WriteContent( ) {
   SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
 }
 
-std::string GenerateLiveBootstrap( JSON::Value & metadata ) {
-  AFRT afrt;
-  afrt.SetUpdate(false);
-  afrt.SetTimeScale(1000);
-  afrt.AddQualityEntry("");
-  if (!metadata.isMember("video") || !metadata["video"].isMember("keyms")){
-    afrt.AddFragmentRunEntry(1, 0, 1000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
-  }else{
-    afrt.AddFragmentRunEntry(1, 0, metadata["video"]["keyms"].asInt()); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
-  }
-  afrt.WriteContent();
-
-  ASRT asrt;
-  asrt.SetUpdate(false);
-  asrt.AddQualityEntry("");
-  asrt.AddSegmentRunEntry(1, 199);//1 Segment, 199 Fragments
-  asrt.WriteContent();
-
-  ABST abst;
-  abst.AddFragmentRunTable(&afrt);
-  abst.AddSegmentRunTable(&asrt);
-  abst.SetBootstrapVersion(1);
-  abst.SetProfile(0);
-  abst.SetLive(true);
-  abst.SetUpdate(false);
-  abst.SetTimeScale(1000);
-  abst.SetMediaTime(0xFFFFFFFF);
-  abst.SetSMPTE(0);
-  abst.SetMovieIdentifier("fifa");
-  abst.SetDRM("");
-  abst.SetMetaData("");
-  abst.AddServerEntry("");
-  abst.AddQualityEntry("");
-  abst.WriteContent();
-  
-  std::string Result;
-  Result.append((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
-  return Result;
-}
-
 std::string mdatFold(std::string data){
   std::string Result;
   unsigned int t_int;

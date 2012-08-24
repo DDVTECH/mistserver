@@ -20,22 +20,86 @@
 #include <mist/amf.h>
 #include <mist/mp4.h>
 #include <mist/config.h>
+#include <sstream>
 
 /// Holds everything unique to HTTP Dynamic Connector.
 namespace Connector_HTTP{
 
+  std::string GenerateBootstrap(std::string & MovieId, JSON::Value & metadata){
+    MP4::AFRT afrt;
+    afrt.SetUpdate(false);
+    afrt.SetTimeScale(1000);
+    afrt.AddQualityEntry("");
+    if (!metadata.isMember("video") || !metadata["video"].isMember("keyms")){
+      afrt.AddFragmentRunEntry(1, 0, 1000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+    }else{
+      afrt.AddFragmentRunEntry(1, 0, metadata["video"]["keyms"].asInt()); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+    }
+    afrt.WriteContent();
+    
+    MP4::ASRT asrt;
+    asrt.SetUpdate(false);
+    asrt.AddQualityEntry("");
+    asrt.AddSegmentRunEntry(1, 199);//1 Segment, 199 Fragments
+    asrt.WriteContent();
+    
+    MP4::ABST abst;
+    abst.AddFragmentRunTable(&afrt);
+    abst.AddSegmentRunTable(&asrt);
+    abst.SetBootstrapVersion(1);
+    abst.SetProfile(0);
+    if (metadata.isMember("length")){
+      abst.SetLive(false);
+      abst.SetMediaTime(1000*metadata["length"].asInt());
+    }else{
+      abst.SetLive(true);
+      abst.SetMediaTime(0);
+    }
+    abst.SetUpdate(false);
+    abst.SetTimeScale(1000);
+    abst.SetSMPTE(0);
+    abst.SetMovieIdentifier(MovieId);
+    abst.SetDRM("");
+    abst.SetMetaData("");
+    abst.AddServerEntry("");
+    abst.AddQualityEntry("");
+    abst.WriteContent();
+    
+    std::string Result;
+    Result.append((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
+    return Base64::encode(Result);
+  }
+  
+
   /// Returns a F4M-format manifest file
-  std::string BuildManifest(std::string MovieId, JSON::Value & metadata) {
-    std::string Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+  std::string BuildManifest(std::string & MovieId, JSON::Value & metadata){
+    std::string Result;
+    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
+      std::stringstream st;
+      st << ((double)metadata["video"]["keyms"].asInt() / 1000);
+      Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+      "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
+      "<id>" + MovieId + "</id>\n"
+      "<duration>" + metadata["length"].asString() + "</duration>\n"
+      "<mimeType>video/mp4</mimeType>\n"
+      "<streamType>recorded</streamType>\n"
+      "<deliveryType>streaming</deliveryType>\n"
+      "<bestEffortFetchInfo segmentDuration=\""+metadata["length"].asString()+".000\" fragmentDuration=\""+st.str()+"\" />\n"
+      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + GenerateBootstrap(MovieId, metadata) + "</bootstrapInfo>\n"
+      "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
+      "</manifest>\n";
+    }else{
+      Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
       "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
       "<id>" + MovieId + "</id>\n"
       "<mimeType>video/mp4</mimeType>\n"
       "<streamType>live</streamType>\n"
       "<deliveryType>streaming</deliveryType>\n"
       "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(MP4::GenerateLiveBootstrap(metadata)) + "</bootstrapInfo>\n"
-      "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
-      "</media>\n"
+      "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
       "</manifest>\n";
+    }
+    std::cerr << "Sending this manifest:" << std::endl << Result << std::endl;
     return Result;
   }//BuildManifest
 

@@ -96,6 +96,11 @@ void Box::ResetPayload( ) {
   ((unsigned int*)Payload)[0] = htonl(0);
 }
 
+std::string Box::toPrettyString(int indent){
+  return std::string(indent, ' ')+"Unimplemented pretty-printing for this box";
+}
+
+
 void ABST::SetBootstrapVersion( uint32_t Version ) {
   curBootstrapInfoVersion = Version;
 }
@@ -255,6 +260,33 @@ void ABST::WriteContent( ) {
   SetPayload((uint32_t)4,Box::uint32_to_uint8(curBootstrapInfoVersion),4);
 }
 
+std::string ABST::toPrettyString(int indent){
+  std::string r;
+  r += std::string(indent, ' ')+"Bootstrap Info\n";
+  if (isUpdate){
+    r += std::string(indent+1, ' ')+"Update\n";
+  }else{
+    r += std::string(indent+1, ' ')+"Replacement or new table\n";
+  }
+  if (isLive){
+    r += std::string(indent+1, ' ')+"Live\n";
+  }else{
+    r += std::string(indent+1, ' ')+"Recorded\n";
+  }
+  r += std::string(indent+1, ' ')+"Profile "+JSON::Value((long long int)curProfile).asString()+"\n";
+  r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)curTimeScale).asString()+"\n";
+  r += std::string(indent+1, ' ')+"CurrMediaTime "+JSON::Value((long long int)curMediatime).asString()+"\n";
+  r += std::string(indent+1, ' ')+"Segment Run Tables "+JSON::Value((long long int)SegmentRunTables.size()).asString()+"\n";
+  for( uint32_t i = 0; i < SegmentRunTables.size(); i++ ) {
+    r += ((ASRT*)SegmentRunTables[i])->toPrettyString(indent+2)+"\n";
+  }
+  r += std::string(indent+1, ' ')+"Fragment Run Tables "+JSON::Value((long long int)FragmentRunTables.size()).asString()+"\n";
+  for( uint32_t i = 0; i < FragmentRunTables.size(); i++ ) {
+    r += ((AFRT*)FragmentRunTables[i])->toPrettyString(indent+2)+"\n";
+  }
+  return r;
+}
+
 void AFRT::SetUpdate( bool Update ) {
   isUpdate = Update;
 }
@@ -316,6 +348,26 @@ void AFRT::WriteContent( ) {
   SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
 }
 
+std::string AFRT::toPrettyString(int indent){
+  std::string r;
+  r += std::string(indent, ' ')+"Fragment Run Table\n";
+  if (isUpdate){
+    r += std::string(indent+1, ' ')+"Update\n";
+  }else{
+    r += std::string(indent+1, ' ')+"Replacement or new table\n";
+  }
+  r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)curTimeScale).asString()+"\n";
+  r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((long long int)QualitySegmentUrlModifiers.size()).asString()+"\n";
+  for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
+    r += std::string(indent+2, ' ')+"\""+QualitySegmentUrlModifiers[i]+"\"\n";
+  }
+  r += std::string(indent+1, ' ')+"Fragments "+JSON::Value((long long int)FragmentRunEntryTable.size()).asString()+"\n";
+  for( uint32_t i = 0; i < FragmentRunEntryTable.size(); i ++ ) {
+    r += std::string(indent+2, ' ')+"Duration "+JSON::Value((long long int)FragmentRunEntryTable[i].FragmentDuration).asString()+", starting at "+JSON::Value((long long int)FragmentRunEntryTable[i].FirstFragment).asString()+" @ "+JSON::Value((long long int)FragmentRunEntryTable[i].FirstFragmentTimestamp).asString();
+  }
+  return r;
+}
+
 void ASRT::SetUpdate( bool Update ) {
   isUpdate = Update;
 }
@@ -362,6 +414,25 @@ void ASRT::WriteContent( ) {
   SetPayload((uint32_t)serializedQualities.size(),(uint8_t*)serializedQualities.c_str(),5);
   SetPayload((uint32_t)1,Box::uint8_to_uint8(QualitySegmentUrlModifiers.size()),4);
   SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
+}
+
+std::string ASRT::toPrettyString(int indent){
+  std::string r;
+  r += std::string(indent, ' ')+"Segment Run Table\n";
+  if (isUpdate){
+    r += std::string(indent+1, ' ')+"Update\n";
+  }else{
+    r += std::string(indent+1, ' ')+"Replacement or new table\n";
+  }
+  r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((long long int)QualitySegmentUrlModifiers.size()).asString()+"\n";
+  for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
+    r += std::string(indent+2, ' ')+"\""+QualitySegmentUrlModifiers[i]+"\"\n";
+  }
+  r += std::string(indent+1, ' ')+"Segments "+JSON::Value((long long int)SegmentRunEntryTable.size()).asString()+"\n";
+  for( uint32_t i = 0; i < SegmentRunEntryTable.size(); i ++ ) {
+    r += std::string(indent+2, ' ')+JSON::Value((long long int)SegmentRunEntryTable[i].FragmentsPerSegment).asString()+" fragments per, starting at "+JSON::Value((long long int)SegmentRunEntryTable[i].FirstSegment).asString();
+  }
+  return r;
 }
 
 std::string mdatFold(std::string data){

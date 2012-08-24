@@ -25,6 +25,7 @@ namespace MP4{
       static uint8_t * uint16_to_uint8( uint16_t data );
       static uint8_t * uint8_to_uint8( uint8_t data );
       void ResetPayload( );
+      std::string toPrettyString(int indent = 0);
     private:
       uint8_t * Payload;
       uint32_t PayloadSize;
@@ -58,6 +59,7 @@ namespace MP4{
       void AddFragmentRunTable( Box * newFragment, uint32_t Offset = 0 );
       void SetVersion( bool NewVersion = 0 );
       void WriteContent( );
+      std::string toPrettyString(int indent = 0);
     private:
       void SetDefaults( );
       void SetReserved( );
@@ -95,6 +97,7 @@ namespace MP4{
       void AddQualityEntry( std::string Quality = "", uint32_t Offset = 0 );
       void AddFragmentRunEntry( uint32_t FirstFragment = 0, uint32_t FirstFragmentTimestamp = 0, uint32_t FragmentsDuration = 1, uint8_t Discontinuity = 0, uint32_t Offset = 0 );
       void WriteContent( );
+      std::string toPrettyString(int indent = 0);
     private:
       void SetDefaults( );
       bool isUpdate;
@@ -117,6 +120,7 @@ namespace MP4{
       void AddSegmentRunEntry( uint32_t FirstSegment = 0, uint32_t FragmentsPerSegment = 100, uint32_t Offset = 0 );
       void WriteContent( );
       void SetVersion( bool NewVersion = 0 );
+      std::string toPrettyString(int indent = 0);
     private:
       void SetDefaults( );
       bool isUpdate;

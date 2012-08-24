@@ -53,7 +53,7 @@ namespace Connector_HTTP{
       abst.SetMediaTime(1000*metadata["length"].asInt());
     }else{
       abst.SetLive(true);
-      abst.SetMediaTime(0);
+      abst.SetMediaTime(0xFFFFFFFF);
     }
     abst.SetUpdate(false);
     abst.SetTimeScale(1000);
@@ -95,7 +95,7 @@ namespace Connector_HTTP{
       "<mimeType>video/mp4</mimeType>\n"
       "<streamType>live</streamType>\n"
       "<deliveryType>streaming</deliveryType>\n"
-      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(MP4::GenerateLiveBootstrap(metadata)) + "</bootstrapInfo>\n"
+      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + GenerateBootstrap(MovieId, metadata) + "</bootstrapInfo>\n"
       "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
       "</manifest>\n";
     }

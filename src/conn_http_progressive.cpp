@@ -101,12 +101,12 @@ namespace Connector_HTTP{
               tmp.DTSCMetaInit(Strm);
               conn.Send(std::string(tmp.data, tmp.len));
               //write video init data, if needed
-              if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
+              if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
                 tmp.DTSCVideoInit(Strm);
                 conn.Send(std::string(tmp.data, tmp.len));
               }
               //write audio init data, if needed
-              if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
+              if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
                 tmp.DTSCAudioInit(Strm);
                 conn.Send(std::string(tmp.data, tmp.len));
               }

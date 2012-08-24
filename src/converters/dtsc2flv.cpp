@@ -34,11 +34,11 @@ namespace Converters{
           std::cout.write(FLV::Header, 13);
           FLV_out.DTSCMetaInit(Strm);
           std::cout.write(FLV_out.data, FLV_out.len);
-          if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
+          if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
             FLV_out.DTSCVideoInit(Strm);
             std::cout.write(FLV_out.data, FLV_out.len);
           }
-          if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
+          if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
             FLV_out.DTSCAudioInit(Strm);
             std::cout.write(FLV_out.data, FLV_out.len);
           }

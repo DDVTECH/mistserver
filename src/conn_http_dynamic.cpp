@@ -135,11 +135,10 @@ namespace Connector_HTTP{
           if (Strm.parsePacket(ss.Received())){
             tag.DTSCLoader(Strm);
             if (pending_manifest){
-              JSON::Value meta = JSON::fromDTMI(Strm.metadata.Pack(false));
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
               HTTP_S.SetHeader("Cache-Control","no-cache");
-              std::string manifest = BuildManifest(Movie, meta);
+              std::string manifest = BuildManifest(Movie, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.Send(HTTP_S.BuildResponse("200", "OK"));
               #if DEBUG >= 3
@@ -147,7 +146,7 @@ namespace Connector_HTTP{
               #endif
               pending_manifest = false;
             }
-            if (Strm.getPacket(0).getContentP("keyframe")){
+            if (Strm.getPacket(0).isMember("keyframe")){
               if (FlashBuf != ""){
                 Flash_FragBuffer.push(FlashBuf);
                 while (Flash_FragBuffer.size() > 2){
@@ -159,11 +158,11 @@ namespace Connector_HTTP{
               }
               FlashBuf.clear();
               //fill buffer with init data, if needed.
-              if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
+              if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
                 tmp.DTSCAudioInit(Strm);
                 FlashBuf.append(tmp.data, tmp.len);
               }
-              if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
+              if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
                 tmp.DTSCVideoInit(Strm);
                 FlashBuf.append(tmp.data, tmp.len);
               }

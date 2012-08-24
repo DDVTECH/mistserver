@@ -99,11 +99,11 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
           if (!stream_inited){
             init_tag.DTSCMetaInit(Strm);
             Socket.Send(RTMPStream::SendMedia(init_tag));
-            if (Strm.metadata.getContentP("audio") && Strm.metadata.getContentP("audio")->getContentP("init")){
+            if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
               init_tag.DTSCAudioInit(Strm);
               Socket.Send(RTMPStream::SendMedia(init_tag));
             }
-            if (Strm.metadata.getContentP("video") && Strm.metadata.getContentP("video")->getContentP("init")){
+            if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
               init_tag.DTSCVideoInit(Strm);
               Socket.Send(RTMPStream::SendMedia(init_tag));
             }
@@ -228,31 +228,15 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
               counter++;
               if (counter > 8){
                 sending = true;
-                std::string packed = meta_out.toPacked();
-                unsigned int size = htonl(packed.size());
-                SS.write(std::string(DTSC::Magic_Header, 4));
-                SS.write(std::string((char*)&size, 4));
-                SS.write(packed);
+                SS.write(meta_out.toNetPacked());
                 SS.write(prebuffer.str());//write buffer
                 prebuffer.str("");//clear buffer
-                packed = pack_out.toPacked();
-                size = htonl(packed.size());
-                SS.write(std::string(DTSC::Magic_Packet, 4));
-                SS.write(std::string((char*)&size, 4));
-                SS.write(packed);
+                SS.write(pack_out.toNetPacked());
               }else{
-                std::string packed = pack_out.toPacked();
-                unsigned int size = htonl(packed.size());
-                prebuffer << std::string(DTSC::Magic_Packet, 4);
-                prebuffer << std::string((char*)&size, 4);
-                prebuffer << packed;
+                prebuffer << pack_out.toNetPacked();
               }
             }else{
-              std::string packed = pack_out.toPacked();
-              unsigned int size = htonl(packed.size());
-              SS.write(std::string(DTSC::Magic_Packet, 4));
-              SS.write(std::string((char*)&size, 4));
-              SS.write(packed);
+              SS.write(pack_out.toNetPacked());
             }
           }
         }else{

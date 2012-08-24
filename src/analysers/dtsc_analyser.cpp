@@ -1,30 +1,21 @@
 /// \file dtsc_analyser.cpp
-/// Contains the code for the DTSC Analysing tool.
+/// Reads an DTSC file and prints all readable data about it
 
-#include <fcntl.h>
-#include <iostream>
 #include <string>
-#include <vector>
-#include <cstdlib>
-#include <cstdio>
-#include <string.h>
-#include <unistd.h>
-#include <signal.h>
 #include <mist/dtsc.h>
 #include <mist/json.h>
 #include <mist/config.h>
 
-/// Reads DTSC from stdin and outputs human-readable information to stderr.
-int main(int argc, char ** argv) {
+/// Reads an DTSC file and prints all readable data about it
+int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Filename of the DTSC file to analyse.\"}"));
   conf.parseArgs(argc, argv);
-  
-  DTSC::Stream Strm;
-
-  std::string inBuffer;
-  char charBuffer[1024*10];
-  unsigned int charCount;
-  bool doneheader = false;
+  DTSC::File F(conf.getString("filename"));
+  std::string loader = F.getHeader();
+  JSON::Value meta = JSON::fromDTMI(loader);
+  std::cout << meta.toPrettyString() << std::endl;
+  JSON::Value pack;
 
   long long unsigned int firstpack = 0;
   long long unsigned int nowpack = 0;
@@ -42,42 +33,31 @@ int main(int argc, char ** argv) {
   long long unsigned int aud_max = 0;
   long long unsigned int bfrm_min = 0xffffffff;
   long long unsigned int bfrm_max = 0;
-  std::string datatype;
   long long unsigned int bps = 0;
 
-  while(std::cin.good()){
-    //invalidate the current buffer
-    if (Strm.parsePacket(inBuffer)){
-      if (!doneheader){
-        doneheader = true;
-        Strm.metadata.Print();
-        JSON::Value mdata = JSON::fromDTMI(Strm.metadata.Pack(false));
-        std::cout << mdata.toString() << std::endl;
-        std::cout << mdata.toPrettyString() << std::endl;
-      }
-      Strm.getPacket().Print();
-      //get current timestamp
-      nowpack = Strm.getPacket().getContentP("time")->NumValue();
+  while (loader.size() != 0){
+    loader = F.getPacket();
+    if (loader.size() != 0){
+      pack = JSON::fromDTMI(loader);
+      std::cout << pack.toPrettyString() << std::endl;
+      nowpack = pack["time"].asInt();
       if (firstpack == 0){firstpack = nowpack;}
-      datatype = Strm.getPacket().getContentP("datatype")->StrValue();
-
-      if (datatype == "audio"){
+      if (pack["datatype"].asString() == "audio"){
         if (lastaudio != 0 && (nowpack - lastaudio) != 0){
-          bps = Strm.lastData().size() / (nowpack - lastaudio);
+          bps = pack["data"].asString().size() / (nowpack - lastaudio);
           if (bps < aud_min){aud_min = bps;}
           if (bps > aud_max){aud_max = bps;}
         }
-        totalaudio += Strm.lastData().size();
+        totalaudio += pack["data"].asString().size();
         lastaudio = nowpack;
       }
-
-      if (datatype == "video"){
+      if (pack["datatype"].asString() == "video"){
         if (lastvideo != 0 && (nowpack - lastvideo) != 0){
-          bps = Strm.lastData().size() / (nowpack - lastvideo);
+          bps = pack["data"].asString().size() / (nowpack - lastvideo);
           if (bps < vid_min){vid_min = bps;}
           if (bps > vid_max){vid_max = bps;}
         }
-        if (Strm.getPacket().getContentP("keyframe") != 0){
+        if (pack["keyframe"].asInt() != 0){
           if (lastkey != 0){
             bps = nowpack - lastkey;
             if (bps < key_min){key_min = bps;}
@@ -86,32 +66,36 @@ int main(int argc, char ** argv) {
           keyframes++;
           lastkey = nowpack;
         }
-        if (Strm.getPacket().getContentP("offset") != 0){
-          bps = Strm.getPacket().getContentP("offset")->NumValue();
+        if (pack["offset"].asInt() != 0){
+          bps = pack["offset"].asInt();
           if (bps < bfrm_min){bfrm_min = bps;}
           if (bps > bfrm_max){bfrm_max = bps;}
         }
-        totalvideo += Strm.lastData().size();
+        totalvideo += pack["data"].asString().size();
         lastvideo = nowpack;
       }
-
-    }else{
-      std::cin.read(charBuffer, 1024*10);
-      charCount = std::cin.gcount();
-      inBuffer.append(charBuffer, charCount);
     }
   }
+
   std::cout << std::endl << "Summary:" << std::endl;
-  if (Strm.metadata.getContentP("audio") != 0){
-    std::cout << "  Audio: " << Strm.metadata.getContentP("audio")->getContentP("codec")->StrValue() << std::endl;
-    std::cout << "    Bitrate: " << aud_min << " - " << aud_max << " (avg: " << totalaudio / ((lastaudio - firstpack) / 1000) << ")" << std::endl;
+  meta["length"] = (long long int)((nowpack - firstpack)/1000);
+  if (meta.isMember("audio")){
+    meta["audio"]["bps"] = (long long int)(totalaudio / ((lastaudio - firstpack) / 1000));
+    std::cout << "  Audio: " << meta["audio"]["codec"].asString() << std::endl;
+    std::cout << "    Bitrate: " << meta["audio"]["bps"].asInt() << std::endl;
   }
-  if (Strm.metadata.getContentP("video") != 0){
-    std::cout << "  Video: " << Strm.metadata.getContentP("video")->getContentP("codec")->StrValue() << std::endl;
-    std::cout << "    Bitrate: " << vid_min << " - " << vid_max << " (avg: " << totalvideo / ((lastvideo - firstpack) / 1000) << ")" << std::endl;
-    std::cout << "    Keyframes: " << key_min << " - " << key_max << " (avg: " << ((lastvideo - firstpack) / keyframes) << ")" << std::endl;
+  if (meta.isMember("video")){
+    meta["video"]["bps"] = (long long int)(totalvideo / ((lastvideo - firstpack) / 1000));
+    meta["video"]["keyms"] = (long long int)((lastvideo - firstpack) / keyframes);
+    if (meta["video"]["keyms"].asInt() - key_min > key_max - meta["video"]["keyms"].asInt()){
+      meta["video"]["keyvar"] = (long long int)(meta["video"]["keyms"].asInt() - key_min);
+    }else{
+      meta["video"]["keyvar"] = (long long int)(key_max - meta["video"]["keyms"].asInt());
+    }
+    std::cout << "  Video: " << meta["video"]["codec"].asString() << std::endl;
+    std::cout << "    Bitrate: " << meta["video"]["bps"].asInt() << std::endl;
+    std::cout << "    Keyframes: " << meta["video"]["keyms"].asInt() << "~" << meta["video"]["keyvar"].asInt() << std::endl;
     std::cout << "    B-frames: " << bfrm_min << " - " << bfrm_max << std::endl;
   }
-  
   return 0;
-}
+}//main

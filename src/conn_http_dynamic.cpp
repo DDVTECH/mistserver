@@ -30,8 +30,9 @@ namespace Connector_HTTP{
     afrt.SetUpdate(false);
     afrt.SetTimeScale(1000);
     afrt.AddQualityEntry("");
-    if (!metadata.isMember("video") || !metadata["video"].isMember("keyms")){
-      afrt.AddFragmentRunEntry(1, 0, 1000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+    if (!metadata.isMember("video") || !metadata["video"].isMember("keyms") || metadata["video"]["keyms"].asInt() == 0){
+      //metadata["lasttime"].asInt()?
+      afrt.AddFragmentRunEntry(1, 0, 2000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
     }else{
       afrt.AddFragmentRunEntry(1, 0, metadata["video"]["keyms"].asInt()); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
     }
@@ -53,7 +54,7 @@ namespace Connector_HTTP{
       abst.SetMediaTime(1000*metadata["length"].asInt());
     }else{
       abst.SetLive(true);
-      abst.SetMediaTime(0xFFFFFFFF);
+      abst.SetMediaTime(0xFFFFFFFF);//metadata["lasttime"].asInt()?
     }
     abst.SetUpdate(false);
     abst.SetTimeScale(1000);
@@ -67,6 +68,7 @@ namespace Connector_HTTP{
     
     std::string Result;
     Result.append((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
+    std::cout << "Sending bootstrap:" << std::endl << abst.toPrettyString(0) << std::endl;
     return Base64::encode(Result);
   }
   
@@ -120,7 +122,6 @@ namespace Connector_HTTP{
     FLV::Tag tag;///< Temporary tag buffer.
     std::string recBuffer = "";
 
-    std::string Movie;
     std::string Quality;
     int Segment = -1;
     int ReqFragment = -1;
@@ -197,12 +198,22 @@ namespace Connector_HTTP{
         }
         if (ss.spool() || ss.Received() != ""){
           if (Strm.parsePacket(ss.Received())){
+            if (Strm.getPacket(0).isMember("time")){
+              if (!Strm.metadata.isMember("firsttime")){
+                Strm.metadata["firsttime"] = Strm.getPacket(0)["time"];
+              }else{
+                if (!Strm.metadata.isMember("length") || Strm.metadata["length"].asInt() == 0){
+                  Strm.getPacket(0)["time"] = Strm.getPacket(0)["time"].asInt() - Strm.metadata["firsttime"].asInt();
+                }
+              }
+              Strm.metadata["lasttime"] = Strm.getPacket(0)["time"];
+            }
             tag.DTSCLoader(Strm);
             if (pending_manifest){
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
               HTTP_S.SetHeader("Cache-Control","no-cache");
-              std::string manifest = BuildManifest(Movie, Strm.metadata);
+              std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.Send(HTTP_S.BuildResponse("200", "OK"));
               #if DEBUG >= 3

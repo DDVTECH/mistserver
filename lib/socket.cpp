@@ -442,6 +442,12 @@ std::string Socket::Connection::getHost(){
   return remotehost;
 }
 
+/// Sets hostname for connection manually.
+/// Overwrites the detected host, thus possibily making it incorrect.
+void setHost(std::string host){
+  remotehost = host;
+}
+
 /// Returns true if these sockets are the same socket.
 /// Does not check the internal stats - only the socket itself.
 bool Socket::Connection::operator== (const Connection &B) const{

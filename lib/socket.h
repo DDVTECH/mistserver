@@ -54,6 +54,7 @@ namespace Socket{
       void Send(std::string data); ///< Appends data to the upbuffer.
       void close(); ///< Close connection.
       std::string getHost(); ///< Gets hostname for connection, if available.
+      void setHost(std::string host); ///< Sets hostname for connection manually.
       int getSocket(); ///< Returns internal socket number.
       std::string getError(); ///< Returns a string describing the last error that occured.
       unsigned int dataUp(); ///< Returns total amount of bytes sent.

@@ -144,6 +144,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
             protocol = tmpA;
             if (url.find('?') != std::string::npos){
               parseVars(url.substr(url.find('?')+1)); //parse GET variables
+              url.resize(url.find('?'));
             }
           }else{seenReq = false;}
         }else{seenReq = false;}

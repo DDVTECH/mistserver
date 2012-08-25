@@ -334,6 +334,8 @@ int main(int argc, char ** argv){
         delete T;
       }
       Connector_HTTP::thread_mutex.unlock();
+    }else{
+      usleep(100000);//sleep 100ms
     }
   }//while connected and not requested to stop
   server_socket.close();

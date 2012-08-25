@@ -444,7 +444,7 @@ std::string Socket::Connection::getHost(){
 
 /// Sets hostname for connection manually.
 /// Overwrites the detected host, thus possibily making it incorrect.
-void setHost(std::string host){
+void Socket::Connection::setHost(std::string host){
   remotehost = host;
 }
 

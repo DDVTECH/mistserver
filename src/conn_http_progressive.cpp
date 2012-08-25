@@ -31,14 +31,7 @@ namespace Connector_HTTP{
     Socket::Connection ss(-1);
     std::string streamname;
     FLV::Tag tag;///< Temporary tag buffer.
-    std::string recBuffer = "";
 
-    std::string Movie;
-    std::string Quality;
-    int Segment = -1;
-    int ReqFragment = -1;
-    int temp;
-    int Flash_RequestPending = 0;
     unsigned int lastStats = 0;
     conn.setBlocking(false);//do not block on conn.spool() when no data is available
 

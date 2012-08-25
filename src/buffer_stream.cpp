@@ -27,7 +27,6 @@ Buffer::Stream::Stream(){
 
 /// Do cleanup on delete.
 Buffer::Stream::~Stream(){
-  delete Strm;
   while (users.size() > 0){
     stats_mutex.lock();
     for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
@@ -42,6 +41,7 @@ Buffer::Stream::~Stream(){
     moreData.notify_all();
     cleanUsers();
   }
+  delete Strm;
 }
 
 /// Calculate and return the current statistics in JSON format.

@@ -8,7 +8,7 @@ EXTRA_DIST=server.html server.html.h embed.js.h
 AM_CPPFLAGS = $(MIST_CFLAGS)
 LDADD = $(MIST_LIBS)
 SUBDIRS=converters analysers
-bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic
+bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistPlayer
 MistBuffer_SOURCES=buffer.cpp buffer_user.h buffer_user.cpp buffer_stream.h buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
 MistBuffer_LDADD=$(MIST_LIBS) -lpthread
 MistController_SOURCES=controller.cpp ../VERSION ./server.html.h
@@ -18,6 +18,8 @@ MistConnHTTP_SOURCES=conn_http.cpp tinythread.cpp tinythread.h ../VERSION ./embe
 MistConnHTTP_LDADD=$(MIST_LIBS) -lpthread
 MistConnHTTPProgressive_SOURCES=conn_http_progressive.cpp ../VERSION
 MistConnHTTPDynamic_SOURCES=conn_http_dynamic.cpp ../VERSION
+MistPlayer_SOURCES=player.h player.cpp
+MistPlayer_LDADD=$(MIST_LIBS)
 
 lspSOURCES=$(lspdir)/jquery.js $(lspdir)/placeholder.js $(lspdir)/md5.js $(lspdir)/main.js $(lspdir)/functions.js
 lspDATA=$(lspdir)/header.html $(lspdir)/style.css $(lspdir)/footer.html

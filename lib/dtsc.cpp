@@ -217,7 +217,8 @@ DTSC::File::File(std::string filename, bool create){
     fwrite(buffer, 4, 1, F);//write 4 zero-bytes
     headerSize = 0;
   }else{
-    headerSize = ntohl(((uint32_t *)buffer)[0]);
+    uint32_t * ubuffer = (uint32_t *)buffer;
+    headerSize = ntohl(ubuffer[0]);
   }
   fseek(F, 8+headerSize, SEEK_SET);
 }
@@ -264,7 +265,8 @@ std::string & DTSC::File::getPacket(){
     strbuffer = "";
     return strbuffer;
   }
-  long packSize = ntohl(((uint32_t *)buffer)[0]);
+  uint32_t * ubuffer = (uint32_t *)buffer;
+  long packSize = ntohl(ubuffer[0]);
   strbuffer.resize(packSize);
   if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
     fprintf(stderr, "Could not read packet\n");

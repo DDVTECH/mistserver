@@ -73,7 +73,7 @@ namespace DTSC{
     private:
       std::string strbuffer;
       FILE * F;
-      long headerSize;
+      unsigned long headerSize;
       char buffer[4];
   };//FileWriter
 

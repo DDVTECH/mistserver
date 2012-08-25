@@ -480,7 +480,7 @@ std::string JSON::Value::toPrettyString(int indentation){
       break;
     }
     case STRING: {
-      for (int i = 0; i < 5 && i < strVal.size(); ++i){
+      for (unsigned int i = 0; i < 5 && i < strVal.size(); ++i){
         if (strVal[i] < 32 || strVal[i] > 125){
           return JSON::Value((long long int)strVal.size()).asString()+" bytes of binary data";
         }

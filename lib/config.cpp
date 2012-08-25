@@ -61,10 +61,10 @@ void Util::Config::addOption(std::string optname, JSON::Value option){
 
 /// Prints a usage message to the given output.
 void Util::Config::printHelp(std::ostream & output){
-  int longest = 0;
+  unsigned int longest = 0;
   std::map<long long int, std::string> args;
   for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
-    int current = 0;
+    unsigned int current = 0;
     if (it->second.isMember("long")){current += it->second["long"].asString().size() + 4;}
     if (it->second.isMember("short")){current += it->second["short"].asString().size() + 3;}
     if (current > longest){longest = current;}

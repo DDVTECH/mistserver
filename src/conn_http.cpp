@@ -227,6 +227,7 @@ namespace Connector_HTTP{
             connconn[uid]->conn->Received().clear();
           }
           conn->spool();
+          usleep(30000);
         }
       }
     }

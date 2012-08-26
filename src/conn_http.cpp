@@ -159,9 +159,18 @@ namespace Connector_HTTP{
     std::string request = H.BuildRequest();//copy the request for later forwarding to the connector
     H.Clean();
 
+    //existing connections must be murdered, if any
+    if (connconn.count(uid)){
+      if (!connconn[uid]->in_use.try_lock()){
+        connconn[uid]->conn->close();
+        connconn[uid]->in_use.lock();
+      }
+      connconn[uid]->in_use.unlock();
+    }
     //check if a connection exists, and if not create one
     conn_mutex.lock();
-    if (!connconn.count(uid)){
+    if (!connconn.count(uid) || !connconn[uid]->conn->connected()){
+      if (connconn.count(uid)){connconn.erase(uid);}
       connconn[uid] = new ConnConn(new Socket::Connection("/tmp/mist/http_"+connector));
       connconn[uid]->conn->setBlocking(false);//do not block on spool() with no data
     }

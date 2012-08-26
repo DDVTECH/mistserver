@@ -46,8 +46,6 @@ namespace FLV {
       bool DTSCMetaInit(DTSC::Stream & S);
       JSON::Value toJSON(JSON::Value & metadata);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
-      bool SockLoader(int sock);
-      bool SockLoader(Socket::Connection sock);
       bool FileLoader(FILE * f);
     protected:
       int buf; ///< Maximum length of buffer space.
@@ -56,7 +54,6 @@ namespace FLV {
       void setLen();
       //loader helper functions
       bool MemReadUntil(char * buffer, unsigned int count, unsigned int & sofar, char * D, unsigned int S, unsigned int & P);
-      bool SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, Socket::Connection & sock);
       bool FileReadUntil(char * buffer, unsigned int count, unsigned int & sofar, FILE * f);
       //JSON writer helpers
       void Meta_Put(JSON::Value & meta, std::string cat, std::string elem, std::string val);

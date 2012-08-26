@@ -68,7 +68,9 @@ namespace Connector_HTTP{
     
     std::string Result;
     Result.append((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
+    #if DEBUG >= 4
     std::cout << "Sending bootstrap:" << std::endl << abst.toPrettyString(0) << std::endl;
+    #endif
     return Base64::encode(Result);
   }
   
@@ -101,7 +103,9 @@ namespace Connector_HTTP{
       "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
       "</manifest>\n";
     }
+    #if DEBUG >= 4
     std::cerr << "Sending this manifest:" << std::endl << Result << std::endl;
+    #endif
     return Result;
   }//BuildManifest
 

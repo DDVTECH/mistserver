@@ -128,14 +128,18 @@ void Buffer::Stream::saveStats(std::string username, Stats & stats){
 /// Stores final statistics.
 void Buffer::Stream::clearStats(std::string username, Stats & stats, std::string reason){
   stats_mutex.lock();
-  Storage["curr"].removeMember(username);
+  if (Storage["curr"].isMember(username)){
+    Storage["curr"].removeMember(username);
+    #if DEBUG >= 4
+    std::cout << "Disconnected user " << username << ": " << reason << ". " << stats.connector << " transferred " << stats.up << " up and " << stats.down << " down in " << stats.conntime << " seconds to " << stats.host << std::endl;
+    #endif
+  }
   Storage["log"][username]["connector"] = stats.connector;
   Storage["log"][username]["up"] = stats.up;
   Storage["log"][username]["down"] = stats.down;
   Storage["log"][username]["conntime"] = stats.conntime;
   Storage["log"][username]["host"] = stats.host;
   Storage["log"][username]["start"] = (unsigned int)time(0) - stats.conntime;
-  std::cout << "Disconnected user " << username << ": " << reason << ". " << stats.connector << " transferred " << stats.up << " up and " << stats.down << " down in " << stats.conntime << " seconds to " << stats.host << std::endl;
   stats_mutex.unlock();
   cleanUsers();
 }

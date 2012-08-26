@@ -21,7 +21,6 @@ Buffer::user::user(Socket::Connection fd){
   currsend = 0;
   myRing = 0;
   Thread = 0;
-  std::cout << "User " << MyNum << " connected" << std::endl;
 }//constructor
 
 /// Drops held DTSC::Ring class, if one is held.
@@ -65,7 +64,7 @@ void Buffer::user::Send(){
   }//still waiting for next buffer?
   if (myRing->starved){
     //if corrupt data, warn and get new DTSC::Ring
-    std::cout << "Warning: User was send corrupt video data and send to the next keyframe!" << std::endl;
+    std::cout << "Warning: User " << MyNum << " was send corrupt video data and send to the next keyframe!" << std::endl;
     Stream::get()->dropRing(myRing);
     myRing = Stream::get()->getRing();
     return;

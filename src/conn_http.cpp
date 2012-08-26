@@ -59,21 +59,17 @@ namespace Connector_HTTP{
   void Timeout_Thread(void * n){
     n = 0;//prevent unused variable warning
     tthread::lock_guard<tthread::mutex> guard(timeout_mutex);
-    std::cout << "Started timeout thread" << std::endl;
     while (true){
       {
         tthread::lock_guard<tthread::mutex> guard(conn_mutex);
         if (connconn.empty()){
-          std::cout << "No more connections" << std::endl;
           return;
         }
-        std::cout << "Currently " << connconn.size() << " active connections" << std::endl;
         std::map<std::string, ConnConn*>::iterator it;
         for (it = connconn.begin(); it != connconn.end(); it++){
           if (!it->second->conn->connected() || it->second->lastuse++ > 15){
             if (it->second->in_use.try_lock()){
               it->second->in_use.unlock();
-              std::cout << "Murdered one" << std::endl;
               delete it->second;
               connconn.erase(it);
               it = connconn.begin();//get a valid iterator
@@ -273,7 +269,6 @@ namespace Connector_HTTP{
     HTTP::Parser Client;
     while (conn->connected()){
       if (conn->spool()){
-        std::cout << "Data: " << conn->Received() << std::endl;
         if (Client.Read(conn->Received())){
           std::string handler = getHTTPType(Client);
           #if DEBUG >= 4
@@ -289,7 +284,6 @@ namespace Connector_HTTP{
             Handle_Through_Connector(Client, conn, handler);
           }
           Client.Clean(); //clean for any possible next requests
-          std::cout << "Request handled" << std::endl;
         }else{
           #if DEBUG >= 3
           fprintf(stderr, "Could not parse the following:\n%s\n", conn->Received().c_str());

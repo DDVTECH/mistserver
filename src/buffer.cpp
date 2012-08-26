@@ -48,7 +48,9 @@ namespace Buffer{
 
   void handleUser(void * v_usr){
     user * usr = (user*)v_usr;
+    #if DEBUG >= 4
     std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
+    #endif
 
     usr->myRing = thisStream->getRing();
     usr->S.Send(thisStream->getHeader());
@@ -89,7 +91,6 @@ namespace Buffer{
     }
     usr->Disconnect("Socket closed.");
     thisStream->cleanUsers();
-    std::cerr << "User " << usr->MyStr << " disconnected, socket number " << usr->S.getSocket() << std::endl;
   }
 
   /// Loop reading DTSC data from stdin and processing it at the correct speed.

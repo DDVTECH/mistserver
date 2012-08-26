@@ -34,6 +34,11 @@ namespace Player{
     fileSrc.open(filename.c_str(), std::ifstream::in | std::ifstream::binary);
     setBlocking(STDIN_FILENO, false);//prevent reading from stdin from blocking
     std::cout.setf(std::ios::unitbuf);//do not choke
+
+    fileSrc.seekg(0, std::ios::end);
+    fileSize = fileSrc.tellg();
+    fileSrc.seekg(0);
+
     nextPacket();// initial read always returns nothing
     if (!nextPacket()){//parse metadata
       std::cout << stream->outHeader();
@@ -53,7 +58,8 @@ namespace Player{
     char buff[1024 * 10];
     if (fileSrc.good()){
       fileSrc.read(buff, sizeof(buff));
-      inBuffer.append(buff, fileSrc.gcount());
+      if (fileSrc.eof()) return -1;
+      buffer.append(buff, fileSrc.gcount());
       return fileSrc.gcount();
     }
     return -1;
@@ -69,24 +75,25 @@ namespace Player{
   }
   void File::seek(unsigned int miliseconds){
     DTSC::Stream * tmpStream = new DTSC::Stream(1);
-    int leftByte = 1, rightByte = INT_MAX;
-    int leftMS = 0, rightMS = INT_MAX;
+    unsigned long leftByte = 1, rightByte = fileSize;
+    unsigned int leftMS = 0, rightMS = INT_MAX;
     /// \todo set last packet as last byte, consider metadata
-    while (rightMS - leftMS >= 100){
+    while (rightMS - leftMS >= 100 && leftMS + 100 <= miliseconds){
       std::string buffer;
       // binary search: pick the first packet on the right
-      unsigned int medByte = leftByte + (rightByte - leftByte) / 2;
+      unsigned long medByte = leftByte + (rightByte - leftByte) / 2;
       fileSrc.clear();// clear previous IO errors
       fileSrc.seekg(medByte);
 
       do{ // find first occurrence of packet
-        unsigned int header_pos, read_bytes;
-        read_bytes = fillBuffer(buffer);
-        /// \todo handle EOF
-        header_pos = buffer.find(DTSC::Magic_Packet);
+        int read_bytes = fillBuffer(buffer);
+        if (read_bytes < 0){// EOF? O noes! EOF!
+          goto seekDone;
+        }
+        unsigned long header_pos = buffer.find(DTSC::Magic_Packet);
         if (header_pos == std::string::npos){
           // it is possible that the magic packet is partially shown, e.g. "DTP"
-          if (read_bytes > strlen(DTSC::Magic_Packet) - 1){
+          if ((unsigned)read_bytes > strlen(DTSC::Magic_Packet) - 1){
             read_bytes -= strlen(DTSC::Magic_Packet) - 1;
             buffer.erase(0, read_bytes);
             medByte += read_bytes;
@@ -107,6 +114,7 @@ namespace Player{
         leftMS = medMS;
       }
     }
+seekDone:
     // clear the buffer and adjust file pointer
     inBuffer.clear();
     fileSrc.seekg(leftByte);

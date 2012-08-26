@@ -12,6 +12,8 @@ namespace Player{
     std::string inBuffer; ///<Buffer of unprocessed bytes read from input.
     DTSC::Stream * stream;
     DTSC::Ring * ring;
+    long fileSize; ///< Input size in bytes.
+    bool playing; ///< Whether the stream can be sent or not.
     bool nextPacket(); ///<Pulls the next packet into the queue.
     bool getPacketFromInput(); ///<Attempts to retrieve a packet from input.
     bool readCommand();

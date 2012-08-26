@@ -155,6 +155,7 @@ namespace Connector_HTTP{
     //create a unique ID based on a hash of the user agent and host, followed by the stream name and connector
     std::string uid = md5(H.GetHeader("User-Agent")+conn->getHost())+"_"+H.GetVar("stream")+"_"+connector;
     H.SetHeader("X-UID", uid);//add the UID to the headers before copying
+    H.SetHeader("X-Origin", conn->getHost());//add the UID to the headers before copying
     std::string request = H.BuildRequest();//copy the request for later forwarding to the connector
     H.Clean();
 

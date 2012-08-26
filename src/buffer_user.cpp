@@ -32,12 +32,14 @@ Buffer::user::~user(){
 /// Disconnects the current user. Doesn't do anything if already disconnected.
 /// Prints "Disconnected user" to stdout if disconnect took place.
 void Buffer::user::Disconnect(std::string reason) {
+  Stream::get()->clearStats(MyStr, lastStats, reason);
   if (S.connected()){S.close();}
   if (Thread != 0){
-    if (Thread->joinable()){Thread->join();}
+    if (Thread->joinable()){
+      Thread->join();
+    }
     Thread = 0;
   }
-  Stream::get()->clearStats(MyStr, lastStats, reason);
 }//Disconnect
 
 /// Tries to send the current buffer, returns true if success, false otherwise.

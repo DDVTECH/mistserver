@@ -39,7 +39,8 @@ namespace Buffer{
         StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
       }
       if (StatsSocket.connected()){
-        StatsSocket.write(Stream::get()->getStats()+"\n\n");
+        StatsSocket.Send(Stream::get()->getStats()+"\n\n");
+        StatsSocket.flush();
       }
     }
     StatsSocket.close();
@@ -50,23 +51,18 @@ namespace Buffer{
     std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
 
     usr->myRing = thisStream->getRing();
-    if (!usr->S.write(thisStream->getHeader())){
-      usr->Disconnect("failed to receive the header!");
-      return;
-    }
+    usr->S.Send(thisStream->getHeader());
+    usr->S.flush();
 
     while (usr->S.connected()){
       usleep(5000); //sleep 5ms
-      if (usr->S.canRead()){
-        usr->inbuffer.clear();
-        char charbuf;
-        while ((usr->S.iread(&charbuf, 1) == 1) && charbuf != '\n' ){
-          usr->inbuffer += charbuf;
-        }
-        if (usr->inbuffer != ""){
-          if (usr->inbuffer[0] == 'P'){
-            std::cout << "Push attempt from IP " << usr->inbuffer.substr(2) << std::endl;
-            if (thisStream->checkWaitingIP(usr->inbuffer.substr(2))){
+      if (usr->S.spool() && usr->S.Received().find('\n') != std::string::npos){
+        std::string cmd = usr->S.Received().substr(0, usr->S.Received().find('\n'));
+        usr->S.Received().erase(0, usr->S.Received().find('\n')+1);
+        if (cmd != ""){
+          if (cmd[0] == 'P'){
+            std::cout << "Push attempt from IP " << cmd.substr(2) << std::endl;
+            if (thisStream->checkWaitingIP(cmd.substr(2))){
               if (thisStream->setInput(usr->S)){
                 std::cout << "Push accepted!" << std::endl;
                 usr->S = Socket::Connection(-1);
@@ -78,8 +74,8 @@ namespace Buffer{
               usr->Disconnect("Push denied - invalid IP address!");
             }
           }
-          if (usr->inbuffer[0] == 'S'){
-            usr->tmpStats = Stats(usr->inbuffer.substr(2));
+          if (cmd[0] == 'S'){
+            usr->tmpStats = Stats(cmd.substr(2));
             unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
             if (secs < 1){secs = 1;}
             usr->curr_up = (usr->tmpStats.up - usr->lastStats.up) / secs;
@@ -140,21 +136,18 @@ namespace Buffer{
   /// No changes to the speed are made.
   void handlePushin(void * empty){
     if (empty != 0){return;}
-    std::string inBuffer;
     while (buffer_running){
       if (thisStream->getIPInput().connected()){
-        if (inBuffer.size() > 0){
+        if (thisStream->getIPInput().spool()){
           thisStream->getWriteLock();
-          if (thisStream->getStream()->parsePacket(inBuffer)){
+          if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
             thisStream->getStream()->outPacket(0);
             thisStream->dropWriteLock(true);
           }else{
             thisStream->dropWriteLock(false);
-            thisStream->getIPInput().iread(inBuffer);
             usleep(1000);//1ms wait
           }
         }else{
-          thisStream->getIPInput().iread(inBuffer);
           usleep(1000);//1ms wait
         }
       }else{
@@ -199,7 +192,7 @@ namespace Buffer{
     while (buffer_running && SS.connected() && conf.is_active){
       //check for new connections, accept them if there are any
       //starts a thread for every accepted connection
-      incoming = SS.accept(false);
+      incoming = SS.accept(true);
       if (incoming.connected()){
         user * usr_ptr = new user(incoming);
         thisStream->addUser(usr_ptr);

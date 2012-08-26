@@ -39,17 +39,20 @@ namespace Connector_RTMP{
 /// Main Connector_RTMP function
 int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   Socket = conn;
+  Socket.setBlocking(false);
   FLV::Tag tag, init_tag;
   DTSC::Stream Strm;
   bool stream_inited = false;//true if init data for audio/video was sent
 
-  RTMPStream::handshake_in.reserve(1537);
-  Socket.read((char*)RTMPStream::handshake_in.c_str(), 1537);
+  while (Socket.Received().size() < 1537 && Socket.connected()){Socket.spool(); usleep(5000);}
+  RTMPStream::handshake_in = Socket.Received().substr(0, 1537);
+  Socket.Received().erase(0, 1537);
   RTMPStream::rec_cnt += 1537;
 
   if (RTMPStream::doHandshake()){
-    Socket.write(RTMPStream::handshake_out);
-    Socket.read((char*)RTMPStream::handshake_in.c_str(), 1536);
+    Socket.Send(RTMPStream::handshake_out);
+    while (Socket.Received().size() < 1536 && Socket.connected()){Socket.spool(); usleep(5000);}
+    Socket.Received().erase(0, 1536);
     RTMPStream::rec_cnt += 1536;
     #if DEBUG >= 4
     fprintf(stderr, "Handshake succcess!\n");
@@ -62,11 +65,12 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   }
 
   unsigned int lastStats = 0;
-  conn.setBlocking(false);
+  bool firstrun = true;
 
   while (Socket.connected()){
     usleep(10000);//sleep 10ms to prevent high CPU usage
-    if (Socket.spool()){
+    if (Socket.spool() || firstrun){
+      firstrun = false;
       parseChunk(Socket.Received());
     }
     if (ready4data){
@@ -80,6 +84,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
           Socket.close();//disconnect user
           break;
         }
+        SS.setBlocking(false);
         #if DEBUG >= 3
         fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
@@ -89,8 +94,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         unsigned int now = time(0);
         if (now != lastStats){
           lastStats = now;
-          std::string stat = "S "+Socket.getStats("RTMP");
-          SS.write(stat);
+          SS.Send("S "+Socket.getStats("RTMP"));
         }
       }
       if (SS.spool()){
@@ -119,8 +123,10 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
       }
     }
   }
-  SS.close();
   Socket.close();
+  SS.Send("S "+Socket.getStats("RTMP"));
+  SS.flush();
+  SS.close();
   #if DEBUG >= 1
   if (FLV::Parse_Error){fprintf(stderr, "FLV Parse Error: %s\n", FLV::Error_Str.c_str());}
   fprintf(stderr, "User %i disconnected.\n", conn.getSocket());
@@ -157,7 +163,7 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
     //send ACK if we received a whole window
     if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size)){
       RTMPStream::rec_window_at = RTMPStream::rec_cnt;
-      Socket.write(RTMPStream::SendCTL(3, RTMPStream::rec_cnt));//send ack (msg 3)
+      Socket.Send(RTMPStream::SendCTL(3, RTMPStream::rec_cnt));//send ack (msg 3)
     }
 
     switch (next.msg_type_id){
@@ -207,7 +213,7 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
         #endif
         RTMPStream::rec_window_size = ntohl(*(int*)next.data.c_str());
         RTMPStream::rec_window_at = RTMPStream::rec_cnt;
-        Socket.write(RTMPStream::SendCTL(3, RTMPStream::rec_cnt));//send ack (msg 3)
+        Socket.Send(RTMPStream::SendCTL(3, RTMPStream::rec_cnt));//send ack (msg 3)
         break;
       case 6:
         #if DEBUG >= 4
@@ -215,7 +221,7 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
         #endif
         //4 bytes window size, 1 byte limit type (ignored)
         RTMPStream::snd_window_size = ntohl(*(int*)next.data.c_str());
-        Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
+        Socket.Send(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
         break;
       case 8://audio data
       case 9://video data
@@ -228,15 +234,15 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
               counter++;
               if (counter > 8){
                 sending = true;
-                SS.write(meta_out.toNetPacked());
-                SS.write(prebuffer.str());//write buffer
+                SS.Send(meta_out.toNetPacked());
+                SS.Send(prebuffer.str());//write buffer
                 prebuffer.str("");//clear buffer
-                SS.write(pack_out.toNetPacked());
+                SS.Send(pack_out.toNetPacked());
               }else{
                 prebuffer << pack_out.toNetPacked();
               }
             }else{
-              SS.write(pack_out.toNetPacked());
+              SS.Send(pack_out.toNetPacked());
             }
           }
         }else{
@@ -301,9 +307,9 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
 
 void Connector_RTMP::sendCommand(AMF::Object & amfreply, int messagetype, int stream_id){
   if (messagetype == 17){
-    Socket.write(RTMPStream::SendChunk(3, messagetype, stream_id, (char)0+amfreply.Pack()));
+    Socket.Send(RTMPStream::SendChunk(3, messagetype, stream_id, (char)0+amfreply.Pack()));
   }else{
-    Socket.write(RTMPStream::SendChunk(3, messagetype, stream_id, amfreply.Pack()));
+    Socket.Send(RTMPStream::SendChunk(3, messagetype, stream_id, amfreply.Pack()));
   }
 }//sendCommand
 
@@ -319,7 +325,6 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     if (amfdata.getContentP(2)->getContentP("objectEncoding")){
       objencoding = amfdata.getContentP(2)->getContentP("objectEncoding")->NumValue();
     }
-    fprintf(stderr, "Object encoding set to %e\n", objencoding);
     #if DEBUG >= 4
     int tmpint;
     if (amfdata.getContentP(2)->getContentP("videoCodecs")){
@@ -334,10 +339,10 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     }
     #endif
     RTMPStream::chunk_snd_max = 4096;
-    Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
-    Socket.write(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
-    Socket.write(RTMPStream::SendCTL(6, RTMPStream::rec_window_size));//send rec window acknowledgement size (msg 6)
-    Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+    Socket.Send(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
+    Socket.Send(RTMPStream::SendCTL(5, RTMPStream::snd_window_size));//send window acknowledgement size (msg 5)
+    Socket.Send(RTMPStream::SendCTL(6, RTMPStream::rec_window_size));//send rec window acknowledgement size (msg 6)
+    Socket.Send(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
     //send a _result reply
     AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
     amfreply.addContent(AMF::Object("", "_result"));//result success
@@ -377,7 +382,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     amfreply.Print();
     #endif
     sendCommand(amfreply, messagetype, stream_id);
-    Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+    Socket.Send(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
     return;
   }//createStream
   if ((amfdata.getContentP(0)->StrValue() == "closeStream") || (amfdata.getContentP(0)->StrValue() == "deleteStream")){
@@ -408,7 +413,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
         Socket.close();//disconnect user
         return;
       }
-      SS.write("P "+Socket.getHost()+'\n');
+      SS.Send("P "+Socket.getHost()+'\n');
       nostats = true;
       #if DEBUG >= 4
       fprintf(stderr, "Connected to buffer, starting to send data...\n");
@@ -424,7 +429,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     amfreply.Print();
     #endif
     sendCommand(amfreply, messagetype, stream_id);
-    Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+    Socket.Send(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
     //send a status reply
     amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
     amfreply.addContent(AMF::Object("", "onStatus"));//status reply
@@ -457,7 +462,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
   if ((amfdata.getContentP(0)->StrValue() == "play") || (amfdata.getContentP(0)->StrValue() == "play2")){
     //send streambegin
     streamname = amfdata.getContentP(3)->StrValue();
-    Socket.write(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+    Socket.Send(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
     //send a status reply
     AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
     amfreply.addContent(AMF::Object("", "onStatus"));//status reply
@@ -488,7 +493,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     #endif
     sendCommand(amfreply, messagetype, stream_id);
     RTMPStream::chunk_snd_max = 102400;//100KiB
-    Socket.write(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
+    Socket.Send(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
     Connector_RTMP::ready4data = true;//start sending video data!
     return;
   }//createStream

@@ -136,6 +136,7 @@ namespace Connector_HTTP{
           #if DEBUG >= 4
           std::cout << "Received request: " << HTTP_R.url << std::endl;
           #endif
+          conn.setHost(HTTP_R.GetHeader("X-Origin"));
           if (HTTP_R.url.find("f4m") == std::string::npos){
             streamname = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
             Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
@@ -249,6 +250,8 @@ namespace Connector_HTTP{
       }
     }
     conn.close();
+    ss.Send("S "+conn.getStats("HTTP_Dynamic"));
+    ss.flush();
     ss.close();
     #if DEBUG >= 1
     if (FLV::Parse_Error){fprintf(stderr, "FLV Parser Error: %s\n", FLV::Error_Str.c_str());}

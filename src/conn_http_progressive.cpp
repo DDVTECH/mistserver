@@ -42,6 +42,7 @@ namespace Connector_HTTP{
           #if DEBUG >= 4
           std::cout << "Received request: " << HTTP_R.url << std::endl;
           #endif
+          conn.setHost(HTTP_R.GetHeader("X-Origin"));
           //we assume the URL is the stream name with a 3 letter extension
           std::string extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
           streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
@@ -115,6 +116,8 @@ namespace Connector_HTTP{
       }
     }
     conn.close();
+    ss.Send("S "+conn.getStats("HTTP_Dynamic"));
+    ss.flush();
     ss.close();
     #if DEBUG >= 1
     if (FLV::Parse_Error){fprintf(stderr, "FLV Parser Error: %s\n", FLV::Error_Str.c_str());}

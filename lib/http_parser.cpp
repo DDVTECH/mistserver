@@ -30,7 +30,9 @@ std::string HTTP::Parser::BuildRequest(){
   if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
   std::string tmp = method+" "+url+" "+protocol+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
-    tmp += (*it).first + ": " + (*it).second + "\n";
+    if ((*it).first != "" && (*it).second != ""){
+      tmp += (*it).first + ": " + (*it).second + "\n";
+    }
   }
   tmp += "\n" + body;
   return tmp;
@@ -48,7 +50,9 @@ std::string HTTP::Parser::BuildResponse(std::string code, std::string message){
   if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
   std::string tmp = protocol+" "+code+" "+message+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
-    tmp += (*it).first + ": " + (*it).second + "\n";
+    if ((*it).first != "" && (*it).second != ""){
+      tmp += (*it).first + ": " + (*it).second + "\n";
+    }
   }
   tmp += "\n";
   tmp += body;

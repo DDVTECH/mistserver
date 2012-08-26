@@ -252,6 +252,15 @@ void startStream(std::string name, JSON::Value & data){
   }
 }
 
+void CheckStats(JSON::Value & stats){
+  unsigned int currTime = time(0);
+  for (JSON::ObjIter jit = stats.ObjBegin(); jit != stats.ObjEnd(); jit++){
+    if (currTime - lastBuffer[jit->first] > 120){
+      stats.removeMember(jit->first);
+    }
+  }
+}
+
 void CheckAllStreams(JSON::Value & data){
   unsigned int currTime = time(0);
   bool changed = false;
@@ -355,6 +364,7 @@ int main(int argc, char ** argv){
       processchecker = time(0);
       Connector::CheckProtocols(Connector::Storage["config"]["protocols"]);
       Connector::CheckAllStreams(Connector::Storage["streams"]);
+      Connector::CheckStats(Connector::Storage["statistics"]);
     }
     if (conf.getBool("uplink") && time(0) - lastuplink > UPLINK_INTERVAL){
       lastuplink = time(0);

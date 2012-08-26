@@ -51,7 +51,9 @@ std::string HTTP::Parser::BuildResponse(std::string code, std::string message){
   std::string tmp = protocol+" "+code+" "+message+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
     if ((*it).first != "" && (*it).second != ""){
-      tmp += (*it).first + ": " + (*it).second + "\n";
+      if ((*it).first != "Content-Length" || (*it).second != "0"){
+        tmp += (*it).first + ": " + (*it).second + "\n";
+      }
     }
   }
   tmp += "\n";

@@ -257,6 +257,7 @@ void CheckStats(JSON::Value & stats){
   for (JSON::ObjIter jit = stats.ObjBegin(); jit != stats.ObjEnd(); jit++){
     if (currTime - lastBuffer[jit->first] > 120){
       stats.removeMember(jit->first);
+      return;
     }
   }
 }

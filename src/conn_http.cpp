@@ -197,8 +197,8 @@ namespace Connector_HTTP{
         }
       }else{
         //keep trying unless the timeout triggers
-        if (timeout++ > 100){
-          std::cout << "[10s timeout triggered]" << std::endl;
+        if (timeout++ > 200){
+          std::cout << "[20s timeout triggered]" << std::endl;
           Handle_Timeout(H, conn);
           return;
         }else{

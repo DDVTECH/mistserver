@@ -11,6 +11,7 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <ctime>
+#include <sstream>
 #include <mist/socket.h>
 #include <mist/http_parser.h>
 #include <mist/dtsc.h>
@@ -34,6 +35,7 @@ namespace Connector_HTTP{
     FLV::Tag tag;///< Temporary tag buffer.
 
     unsigned int lastStats = 0;
+    unsigned int seek_pos = 0;//seek position in milliseconds
     conn.setBlocking(false);//do not block on conn.spool() when no data is available
 
     while (conn.connected()){
@@ -45,9 +47,10 @@ namespace Connector_HTTP{
           #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
           //we assume the URL is the stream name with a 3 letter extension
-          std::string extension = HTTP_R.url.substr(HTTP_R.url.size()-4);
-          streamname = HTTP_R.url.substr(0, HTTP_R.url.size()-4);//strip the extension
-          /// \todo VoD streams will need support for position reading from the URL parameters
+          std::string streamname(HTTP_R.url);
+          size_t extDot = streamname.rfind('.');
+          if (extDot != std::string::npos){streamname.resize(extDot);};//strip the extension
+          seek_pos = 1000 * atof(HTTP_R.GetVar("start").c_str());//seconds to ms
           ready4data = true;
           HTTP_R.Clean(); //clean for any possible next requests
         }else{
@@ -70,6 +73,11 @@ namespace Connector_HTTP{
             conn.Send(HTTP_S.BuildResponse("404", "Not found"));
             ready4data = false;
             continue;
+          }
+          if (seek_pos){
+            std::stringstream cmd;
+            cmd << "seek " << seek_pos << "\n";
+            ss.Send(cmd.str().c_str());
           }
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");

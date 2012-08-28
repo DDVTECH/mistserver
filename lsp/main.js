@@ -333,7 +333,7 @@ TODO als server het stuurt
                            var nobj =
                            {
                               connector: $('#new-protocol-name :selected').val(),
-                              port: Math.abs($('#new-protocol-val').val()),
+                              port: Math.abs($('#new-protocol-val').val())
                            };
 
                            nobj['interface'] = $('#new-protocol-interface').val();

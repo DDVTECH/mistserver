@@ -28,30 +28,37 @@ bool Util::Config::is_active = false;
 Util::Config::Config(std::string cmd, std::string version){
   vals.null();
   long_count = 0;
-  vals["cmd"]["current"] = cmd;
+  vals["cmd"]["value"].append(cmd);
   vals["version"]["long"] = "version";
   vals["version"]["short"] = "v";
   vals["version"]["help"] = "Display library and application version, then exit.";
   vals["help"]["long"] = "help";
   vals["help"]["short"] = "h";
   vals["help"]["help"] = "Display usage and version information, then exit.";
-  vals["version"]["current"] = version;
+  vals["version"]["value"].append((std::string)PACKAGE_VERSION);
+  vals["version"]["value"].append(version);
 }
 
 /// Adds an option to the configuration parser.
 /// The option needs an unique name (doubles will overwrite the previous) and can contain the following in the option itself:
+///\code
 /// {
 ///   "short":"o",          //The short option letter
 ///   "long":"onName",      //The long option
 ///   "short_off":"n",      //The short option-off letter
 ///   "long_off":"offName", //The long option-off
-///   "arg":"integer",          //The type of argument, if required.
-///   "default":1234,       //The default value for this option if it is not given on the commandline.
+///   "arg":"integer",      //The type of argument, if required.
+///   "value":[],           //The default value(s) for this option if it is not given on the commandline.
 ///   "arg_num":1,          //The count this value has on the commandline, after all the options have been processed.
 ///   "help":"Blahblahblah" //The helptext for this option.
 /// }
+///\endcode
 void Util::Config::addOption(std::string optname, JSON::Value option){
   vals[optname] = option;
+  if (!vals[optname].isMember("value") && vals[optname].isMember("default")){
+    vals[optname]["value"].append(vals[optname]["default"]);
+    vals[optname].removeMember("default");
+  }
   long_count = 0;
   for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
     if (it->second.isMember("long")){long_count++;}
@@ -80,7 +87,7 @@ void Util::Config::printHelp(std::ostream & output){
   }
   output << "Usage: " << getString("cmd") << " [options]";
   for (std::map<long long int, std::string>::iterator i = args.begin(); i != args.end(); i++){
-    if (vals[i->second].isMember("default")){
+    if (vals[i->second].isMember("value") && vals[i->second]["value"].size()){
       output << " [" << i->second << "]";
     }else{
       output << " " << i->second;
@@ -163,7 +170,7 @@ void Util::Config::parseArgs(int argc, char ** argv){
       if (it->second.isMember("arg")){longOpts[long_i].has_arg = 1;}
       long_i++;
     }
-    if (it->second.isMember("arg_num") && !it->second.isMember("default")){
+    if (it->second.isMember("arg_num") && !(it->second.isMember("value") && it->second["value"].size())){
       if (it->second["arg_num"].asInt() > arg_count){
         arg_count = it->second["arg_num"].asInt();
       }
@@ -183,14 +190,14 @@ void Util::Config::parseArgs(int argc, char ** argv){
         for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
           if (it->second.isMember("short") && it->second["short"].asString()[0] == opt){
             if (it->second.isMember("arg")){
-              it->second["current"] = (std::string)optarg;
+              it->second["value"].append((std::string)optarg);
             }else{
-              it->second["current"] = 1;
+              it->second["value"].append((long long int)1);
             }
             break;
           }
           if (it->second.isMember("short_off") && it->second["short_off"].asString()[0] == opt){
-            it->second["current"] = 0;
+            it->second["value"].append((long long int)0);
           }
         }
         break;
@@ -201,7 +208,7 @@ void Util::Config::parseArgs(int argc, char ** argv){
   while (optind < argc){//parse all remaining options, ignoring anything unexpected.
     for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
       if (it->second.isMember("arg_num") && it->second["arg_num"].asInt() == long_i){
-        it->second["current"] = (std::string)argv[optind];
+        it->second["value"].append((std::string)argv[optind]);
         optind++;
         long_i++;
         break;
@@ -217,15 +224,19 @@ void Util::Config::parseArgs(int argc, char ** argv){
 
 /// Returns a reference to the current value of an option or default if none was set.
 /// If the option does not exist, this exits the application with a return code of 37.
-JSON::Value & Util::Config::getOption(std::string optname){
+JSON::Value & Util::Config::getOption(std::string optname, bool asArray){
   if (!vals.isMember(optname)){
     std::cout << "Fatal error: a non-existent option '" << optname << "' was accessed." << std::endl;
     exit(37);
   }
-  if (vals[optname].isMember("current")){
-    return vals[optname]["current"];
+  if (!vals[optname].isMember("value") || !vals[optname]["value"].isArray()){
+    vals[optname]["value"].append(JSON::Value());
+  }
+  if (asArray){
+    return vals[optname]["value"];
   }else{
-    return vals[optname]["default"];
+    int n = vals[optname]["value"].size();
+    return vals[optname]["value"][n-1];
   }
 }
 
@@ -292,11 +303,11 @@ void Util::Config::signal_handler(int signum){
 /// Adds the default connector options to this Util::Config object.
 void Util::Config::addConnectorOptions(int port){
   JSON::Value stored_port = JSON::fromString("{\"long\":\"port\", \"short\":\"p\", \"arg\":\"integer\", \"help\":\"TCP port to listen on.\"}");
-  stored_port["default"] = port;
+  stored_port["value"].append((long long int)port);
   addOption("listen_port", stored_port);
-  addOption("listen_interface", JSON::fromString("{\"long\":\"interface\", \"default\":\"0.0.0.0\", \"short\":\"i\", \"arg\":\"string\", \"help\":\"Interface address to listen on, or 0.0.0.0 for all available interfaces.\"}"));
-  addOption("username", JSON::fromString("{\"long\":\"username\", \"default\":\"root\", \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to drop privileges to, or root to not drop provileges.\"}"));
-  addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"default\":1, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
+  addOption("listen_interface", JSON::fromString("{\"long\":\"interface\", \"value\":[\"0.0.0.0\"], \"short\":\"i\", \"arg\":\"string\", \"help\":\"Interface address to listen on, or 0.0.0.0 for all available interfaces.\"}"));
+  addOption("username", JSON::fromString("{\"long\":\"username\", \"value\":[\"root\"], \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to drop privileges to, or root to not drop provileges.\"}"));
+  addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"value\":[1], \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
 }//addConnectorOptions
 
 /// Sets the current process' running user

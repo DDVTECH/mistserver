@@ -577,7 +577,7 @@ int Socket::Server::getSocket(){return sock;}
 /// converting all letters to lowercase.
 /// If a '?' character is found, everything following that character is deleted.
 Socket::Connection Socket::getStream(std::string streamname){
-  //strip anything that isn't numbers, digits or underscores
+  //strip anything that isn't a number, alpha or underscore
   for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
     if (*i == '?'){streamname.erase(i, streamname.end()); break;}
     if (!isalpha(*i) && !isdigit(*i) && *i != '_'){

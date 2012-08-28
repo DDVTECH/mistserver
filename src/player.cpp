@@ -147,8 +147,13 @@ seekDone:
   /// Reads a command from stdin. Returns true if a command was read.
   bool File::readCommand() {
     char line[512];
+    size_t line_len;
     if (fgets(line, sizeof(line), stdin) == NULL){
       return false;
+    }
+    line_len = strlen(line);
+    if (line[line_len - 1] == '\n'){
+      line[--line_len] = 0;
     }
     {
       int position = INT_MAX;// special value that says "invalid"
@@ -164,6 +169,9 @@ seekDone:
         return true;
       }
     }
+    if (!strcmp("play", line)){
+      playing = true;
+    }
     return false;
   }
 
@@ -172,6 +180,12 @@ seekDone:
     while (fileSrc.good()) {
       if (readCommand()) {
         continue;
+      }
+      if (!playing){
+        setBlocking(STDIN_FILENO, true);
+        continue;
+      }else{
+        setBlocking(STDIN_FILENO, false);
       }
       now = getNowMS();
       if (now - timeDiff >= lastTime || lastTime - (now - timeDiff) > 5000) {

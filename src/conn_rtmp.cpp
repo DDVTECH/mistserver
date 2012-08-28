@@ -89,6 +89,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         #if DEBUG >= 3
         fprintf(stderr, "Everything connected, starting to send video data...\n");
         #endif
+        SS.Send("play\n");SS.flush();
         inited = true;
       }
       if (inited && !nostats){

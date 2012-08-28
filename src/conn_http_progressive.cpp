@@ -74,6 +74,7 @@ namespace Connector_HTTP{
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");
           #endif
+          ss.Send("play\n");ss.flush();
           inited = true;
         }
         unsigned int now = time(0);

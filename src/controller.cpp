@@ -30,6 +30,7 @@
 #include <mist/http_parser.h>
 #include <mist/procs.h>
 #include <mist/auth.h>
+#include "../server.html.h"
 
 #define UPLINK_INTERVAL 30
 #define COMPILED_USERNAME ""
@@ -489,44 +490,53 @@ int main(int argc, char ** argv){
               }
             }else{
               Request = JSON::fromString(it->H.GetVar("command"));
-              Authorize(Request, Response, (*it));
-              if (it->Authorized){
-                //Parse config and streams from the request.
-                if (Request.isMember("config")){Connector::CheckConfig(Request["config"], Connector::Storage["config"]);}
-                if (Request.isMember("streams")){Connector::CheckStreams(Request["streams"], Connector::Storage["streams"]);}
-                if (Request.isMember("save")){
-                  Connector::WriteFile("config.json", Connector::Storage.toString());
-                  Connector::Log("CONF", "Config written to file on request through API");
-                }
-                //sent current configuration, no matter if it was changed or not
-                //Response["streams"] = Storage["streams"];
-                Response["config"] = Connector::Storage["config"];
-                Response["streams"] = Connector::Storage["streams"];
-                //add required data to the current unix time to the config, for syncing reasons
-                Response["config"]["time"] = (long long int)time(0);
-                if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}
-                //sent any available logs and statistics
-                Response["log"] = Connector::Storage["log"];
-                Response["statistics"] = Connector::Storage["statistics"];
-                //clear log and statistics if requested
-                if (Request.isMember("clearstatlogs")){
-                  Connector::Storage["log"].null();
-                  Connector::Storage["statistics"].null();
-                }
-              }
-              jsonp = "";
-              if (it->H.GetVar("callback") != ""){jsonp = it->H.GetVar("callback");}
-              if (it->H.GetVar("jsonp") != ""){jsonp = it->H.GetVar("jsonp");}
-              it->H.Clean();
-              it->H.protocol = "HTTP/1.0";
-              it->H.SetHeader("Content-Type", "text/javascript");
-              if (jsonp == ""){
-                it->H.SetBody(Response.toString()+"\n\n");
-              }else{
-                it->H.SetBody(jsonp+"("+Response.toString()+");\n\n");
-              }
-              it->C.Send(it->H.BuildResponse("200", "OK"));
+              if (!Request.isObject() && it->H.url != "/api"){
                 it->H.Clean();
+                it->H.SetHeader("Content-Type", "text/html");
+                it->H.SetHeader("X-Info", "To force an API response, request the file /api");
+                it->H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+                it->H.SetBody(std::string((char*)___server_html, (size_t)___server_html_len));
+                it->C.Send(it->H.BuildResponse("200", "OK"));
+                it->H.Clean();
+              }else{
+                Authorize(Request, Response, (*it));
+                if (it->Authorized){
+                  //Parse config and streams from the request.
+                  if (Request.isMember("config")){Connector::CheckConfig(Request["config"], Connector::Storage["config"]);}
+                  if (Request.isMember("streams")){Connector::CheckStreams(Request["streams"], Connector::Storage["streams"]);}
+                  if (Request.isMember("save")){
+                    Connector::WriteFile("config.json", Connector::Storage.toString());
+                    Connector::Log("CONF", "Config written to file on request through API");
+                  }
+                  //sent current configuration, no matter if it was changed or not
+                  //Response["streams"] = Storage["streams"];
+                  Response["config"] = Connector::Storage["config"];
+                  Response["streams"] = Connector::Storage["streams"];
+                  //add required data to the current unix time to the config, for syncing reasons
+                  Response["config"]["time"] = (long long int)time(0);
+                  if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}
+                  //sent any available logs and statistics
+                  Response["log"] = Connector::Storage["log"];
+                  Response["statistics"] = Connector::Storage["statistics"];
+                  //clear log and statistics if requested
+                  if (Request.isMember("clearstatlogs")){
+                    Connector::Storage["log"].null();
+                    Connector::Storage["statistics"].null();
+                  }
+                }
+                jsonp = "";
+                if (it->H.GetVar("callback") != ""){jsonp = it->H.GetVar("callback");}
+                if (it->H.GetVar("jsonp") != ""){jsonp = it->H.GetVar("jsonp");}
+                it->H.Clean();
+                it->H.SetHeader("Content-Type", "text/javascript");
+                if (jsonp == ""){
+                  it->H.SetBody(Response.toString()+"\n\n");
+                }else{
+                  it->H.SetBody(jsonp+"("+Response.toString()+");\n\n");
+                }
+                it->C.Send(it->H.BuildResponse("200", "OK"));
+                it->H.Clean();
+              }
             }
           }
         }

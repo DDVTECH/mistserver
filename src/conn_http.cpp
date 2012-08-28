@@ -86,14 +86,14 @@ namespace Connector_HTTP{
   /// Handles requests without associated handler, displaying a nice friendly error message.
   void Handle_None(HTTP::Parser & H, Socket::Connection * conn){
     H.Clean();
-    H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+    H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody("<!DOCTYPE html><html><head><title>Unsupported Media Type</title></head><body><h1>Unsupported Media Type</h1>The server isn't quite sure what you wanted to receive from it.</body></html>");
     conn->Send(H.BuildResponse("415", "Unsupported Media Type"));
   }
 
   void Handle_Timeout(HTTP::Parser & H, Socket::Connection * conn){
     H.Clean();
-    H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+    H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody("<!DOCTYPE html><html><head><title>Gateway timeout</title></head><body><h1>Gateway timeout</h1>Though the server understood your request and attempted to handle it, somehow handling it took longer than it should. Your request has been cancelled - please try again later.</body></html>");
     conn->Send(H.BuildResponse("504", "Gateway Timeout"));
   }
@@ -104,7 +104,7 @@ namespace Connector_HTTP{
     if (H.url == "/crossdomain.xml"){
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
-      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       conn->Send(H.BuildResponse("200", "OK"));
       return;
@@ -115,7 +115,7 @@ namespace Connector_HTTP{
       JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
       std::string response;
       H.Clean();
-      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetHeader("Content-Type", "application/javascript");
       response = "// Generating embed code for stream " + streamname + "\n\n";
       if (ServConf["streams"].isMember(streamname)){
@@ -220,10 +220,12 @@ namespace Connector_HTTP{
       if (H.GetHeader("Content-Length") != ""){
         //known length - simply re-send the request with added headers and continue
         H.SetHeader("X-UID", uid);
+        H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         conn->Send(H.BuildResponse("200", "OK"));
       }else{
         //unknown length
         H.SetHeader("X-UID", uid);
+        H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         conn->Send(H.BuildResponse("200", "OK"));
         //continue sending data from this socket and keep it permanently in use
         while (connconn.count(uid) && connconn[uid]->conn->connected() && conn->connected()){

@@ -168,6 +168,11 @@ seekDone:
         return true;
       }
     }
+    if (!strncmp("byteseek ", line, sizeof("byteseek " - 1))){
+      std::streampos byte = atoi(line + sizeof("byteseek "));
+      fileSrc.seekg(byte);//if EOF, then it's the client's fault, ignore it.
+      return true;
+    }
     if (!strcmp("play", line)){
       playing = true;
     }

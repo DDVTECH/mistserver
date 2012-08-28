@@ -16,7 +16,7 @@ MistConnHTTPDynamic_SOURCES=conn_http_dynamic.cpp ../VERSION
 	cat ../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js ../lsp/functions.js > ../lsp/uncompressed.js
 ../lsp/compressed.js: ../lsp/uncompressed.js
 	echo "<script>" > ../lsp/compressed.js
-	../lsp/closure < ../lsp/uncompressed.js >> ../lsp/compressed.js
+	java -jar ../lsp/jscompiler.jar < ../lsp/uncompressed.js >> ../lsp/compressed.js
 	echo "</script>" >> ../lsp/compressed.js
 ../server.html: ../lsp/compressed.js
 	cat ../lsp/header.html ../lsp/compressed.js > ../server.html

@@ -450,6 +450,9 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
 
   amfdata.addContent(AMF::Object("", "onMetaData"));
   amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
+  if (S.metadata.isMember("duration")){
+    amfdata.getContentP(1)->addContent(AMF::Object("duration", S.metadata["duration"].asInt() / 1000, AMF::AMF0_NUMBER));
+  }
   if (S.metadata.isMember("video")){
     amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
     if (S.metadata["video"]["codec"].asString() == "H264"){

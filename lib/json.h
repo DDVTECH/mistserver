@@ -6,6 +6,9 @@
 #include <map>
 #include <istream>
 
+//empty definition of DTSC::Stream so it can be a friend.
+namespace DTSC{class Stream;}
+
 /// JSON-related classes and functions
 namespace JSON{
 
@@ -30,6 +33,8 @@ namespace JSON{
       int c2hex(int c);
       static void skipToEnd(std::istream & fromstream);
     public:
+      //friends
+      friend class DTSC::Stream;//for access to strVal
       //constructors
       Value();
       Value(std::istream & fromstream);
@@ -60,6 +65,7 @@ namespace JSON{
       Value & operator[](unsigned int i);
       //handy functions and others
       std::string toPacked();
+      std::string & toNetPacked();
       std::string toString();
       std::string toPrettyString(int indentation = 0);
       void append(const Value & rhs);

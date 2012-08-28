@@ -257,14 +257,14 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
   switch (S.lastType()){
     case DTSC::VIDEO:
       len = S.lastData().length() + 16;
-      if (S.metadata.getContentP("video") && S.metadata.getContentP("video")->getContentP("codec")){
-        if (S.metadata.getContentP("video")->getContentP("codec")->StrValue() == "H264"){len += 4;}
+      if (S.metadata.isMember("video") && S.metadata["video"].isMember("codec")){
+        if (S.metadata["video"]["codec"].asString() == "H264"){len += 4;}
       }
       break;
     case DTSC::AUDIO:
       len = S.lastData().length() + 16;
-      if (S.metadata.getContentP("audio") && S.metadata.getContentP("audio")->getContentP("codec")){
-        if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "AAC"){len += 1;}
+      if (S.metadata.isMember("audio") && S.metadata["audio"].isMember("codec")){
+        if (S.metadata["audio"]["codec"].asString() == "AAC"){len += 1;}
       }
       break;
     case DTSC::META:
@@ -289,18 +289,18 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
           memcpy(data+12, S.lastData().c_str(), S.lastData().length());
         }else{
           memcpy(data+16, S.lastData().c_str(), S.lastData().length());
-          if (S.getPacket().getContentP("nalu")){data[12] = 1;}else{data[12] = 2;}
-          int offset = S.getPacket().getContentP("offset")->NumValue();
+          if (S.getPacket().isMember("nalu")){data[12] = 1;}else{data[12] = 2;}
+          int offset = S.getPacket()["offset"].asInt();
           data[13] = (offset >> 16) & 0xFF;
           data[14] = (offset >> 8) & 0XFF;
           data[15] = offset & 0xFF;
         }
         data[11] = 0;
-        if (S.metadata.getContentP("video")->getContentP("codec")->StrValue() == "H264"){data[11] += 7;}
-        if (S.metadata.getContentP("video")->getContentP("codec")->StrValue() == "H263"){data[11] += 2;}
-        if (S.getPacket().getContentP("keyframe")){data[11] += 0x10;}
-        if (S.getPacket().getContentP("interframe")){data[11] += 0x20;}
-        if (S.getPacket().getContentP("disposableframe")){data[11] += 0x30;}
+        if (S.metadata["video"]["codec"].asString() == "H264"){data[11] += 7;}
+        if (S.metadata["video"]["codec"].asString() == "H263"){data[11] += 2;}
+        if (S.getPacket().isMember("keyframe")){data[11] += 0x10;}
+        if (S.getPacket().isMember("interframe")){data[11] += 0x20;}
+        if (S.getPacket().isMember("disposableframe")){data[11] += 0x30;}
         break;
       case DTSC::AUDIO:{
         if ((unsigned int)len == S.lastData().length() + 16){
@@ -310,9 +310,9 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
           data[12] = 1;//raw AAC data, not sequence header
         }
         data[11] = 0;
-        if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "AAC"){data[11] += 0xA0;}
-        if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "MP3"){data[11] += 0x20;}
-        unsigned int datarate = S.metadata.getContentP("audio")->getContentP("rate")->NumValue();
+        if (S.metadata["audio"]["codec"].asString() == "AAC"){data[11] += 0xA0;}
+        if (S.metadata["audio"]["codec"].asString() == "MP3"){data[11] += 0x20;}
+        unsigned int datarate = S.metadata["audio"]["rate"].asInt();
         if (datarate >= 44100){
           data[11] += 0x0C;
         }else if(datarate >= 22050){
@@ -320,8 +320,8 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
         }else if(datarate >= 11025){
           data[11] += 0x04;
         }
-        if (S.metadata.getContentP("audio")->getContentP("size")->NumValue() == 16){data[11] += 0x02;}
-        if (S.metadata.getContentP("audio")->getContentP("channels")->NumValue() > 1){data[11] += 0x01;}
+        if (S.metadata["audio"]["size"].asInt() == 16){data[11] += 0x02;}
+        if (S.metadata["audio"]["channels"].asInt() > 1){data[11] += 0x01;}
         break;
       }
       case DTSC::META:
@@ -343,7 +343,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
   data[8] = 0;
   data[9] = 0;
   data[10] = 0;
-  tagTime(S.getPacket().getContentP("time")->NumValue());
+  tagTime(S.getPacket()["time"].asInt());
   return true;
 }
 
@@ -364,8 +364,8 @@ void FLV::Tag::setLen(){
 /// Takes the DTSC Video init data and makes it into FLV.
 /// Assumes init data is available - so check before calling!
 bool FLV::Tag::DTSCVideoInit(DTSC::Stream & S){
-  if (S.metadata.getContentP("video")->getContentP("codec")->StrValue() == "H264"){
-    len = S.metadata.getContentP("video")->getContentP("init")->StrValue().length() + 20;
+  if (S.metadata["video"]["codec"].asString() == "H264"){
+    len = S.metadata["video"]["init"].asString().length() + 20;
   }
   if (len > 0){
     if (!data){
@@ -377,7 +377,7 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Stream & S){
         buf = len;
       }
     }
-    memcpy(data+16, S.metadata.getContentP("video")->getContentP("init")->StrValue().c_str(), len-20);
+    memcpy(data+16, S.metadata["video"]["init"].asString().c_str(), len-20);
     data[12] = 0;//H264 sequence header
     data[13] = 0;
     data[14] = 0;
@@ -401,8 +401,8 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Stream & S){
 /// Assumes init data is available - so check before calling!
 bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
   len = 0;
-  if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "AAC"){
-    len = S.metadata.getContentP("audio")->getContentP("init")->StrValue().length() + 17;
+  if (S.metadata["audio"]["codec"].asString() == "AAC"){
+    len = S.metadata["audio"]["init"].asString().length() + 17;
   }
   if (len > 0){
     if (!data){
@@ -414,12 +414,12 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
         buf = len;
       }
     }
-    memcpy(data+13, S.metadata.getContentP("audio")->getContentP("init")->StrValue().c_str(), len-17);
+    memcpy(data+13, S.metadata["audio"]["init"].asString().c_str(), len-17);
     data[12] = 0;//AAC sequence header
     data[11] = 0;
-    if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "AAC"){data[11] += 0xA0;}
-    if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "MP3"){data[11] += 0x20;}
-    unsigned int datarate = S.metadata.getContentP("audio")->getContentP("rate")->NumValue();
+    if (S.metadata["audio"]["codec"].asString() == "AAC"){data[11] += 0xA0;}
+    if (S.metadata["audio"]["codec"].asString() == "MP3"){data[11] += 0x20;}
+    unsigned int datarate = S.metadata["audio"]["rate"].asInt();
     if (datarate >= 44100){
       data[11] += 0x0C;
     }else if(datarate >= 22050){
@@ -427,8 +427,8 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
     }else if(datarate >= 11025){
       data[11] += 0x04;
     }
-    if (S.metadata.getContentP("audio")->getContentP("size")->NumValue() == 16){data[11] += 0x02;}
-    if (S.metadata.getContentP("audio")->getContentP("channels")->NumValue() > 1){data[11] += 0x01;}
+    if (S.metadata["audio"]["size"].asInt() == 16){data[11] += 0x02;}
+    if (S.metadata["audio"]["channels"].asInt() > 1){data[11] += 0x01;}
   }
   setLen();
   data[0] = 0x08;
@@ -450,54 +450,54 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
 
   amfdata.addContent(AMF::Object("", "onMetaData"));
   amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
-  if (S.metadata.getContentP("video")){
+  if (S.metadata.isMember("video")){
     amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
-    if (S.metadata.getContentP("video")->getContentP("codec")->StrValue() == "H264"){
+    if (S.metadata["video"]["codec"].asString() == "H264"){
       amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 7, AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("video")->getContentP("codec")->StrValue() == "VP6"){
+    if (S.metadata["video"]["codec"].asString() == "VP6"){
       amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 4, AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("video")->getContentP("codec")->StrValue() == "H263"){
+    if (S.metadata["video"]["codec"].asString() == "H263"){
       amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 2, AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("video")->getContentP("width")){
-      amfdata.getContentP(1)->addContent(AMF::Object("width", S.metadata.getContentP("video")->getContentP("width")->NumValue(), AMF::AMF0_NUMBER));
+    if (S.metadata["video"].isMember("width")){
+      amfdata.getContentP(1)->addContent(AMF::Object("width", S.metadata["video"]["width"].asInt(), AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("video")->getContentP("height")){
-      amfdata.getContentP(1)->addContent(AMF::Object("height", S.metadata.getContentP("video")->getContentP("height")->NumValue(), AMF::AMF0_NUMBER));
+    if (S.metadata["video"].isMember("height")){
+      amfdata.getContentP(1)->addContent(AMF::Object("height", S.metadata["video"]["height"].asInt(), AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("video")->getContentP("fpks")){
-      amfdata.getContentP(1)->addContent(AMF::Object("framerate", (double)S.metadata.getContentP("video")->getContentP("fpks")->NumValue() / 1000.0, AMF::AMF0_NUMBER));
+    if (S.metadata["video"].isMember("fpks")){
+      amfdata.getContentP(1)->addContent(AMF::Object("framerate", (double)S.metadata["video"]["fpks"].asInt() / 1000.0, AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("video")->getContentP("bps")){
-      amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", ((double)S.metadata.getContentP("video")->getContentP("bps")->NumValue() * 8.0) / 1024.0, AMF::AMF0_NUMBER));
+    if (S.metadata["video"].isMember("bps")){
+      amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", ((double)S.metadata["video"]["bps"].asInt() * 8.0) / 1024.0, AMF::AMF0_NUMBER));
     }
   }
-  if (S.metadata.getContentP("audio")){
+  if (S.metadata.isMember("audio")){
     amfdata.getContentP(1)->addContent(AMF::Object("hasAudio", 1, AMF::AMF0_BOOL));
     amfdata.getContentP(1)->addContent(AMF::Object("audiodelay", 0, AMF::AMF0_NUMBER));
-    if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "AAC"){
+    if (S.metadata["audio"]["codec"].asString() == "AAC"){
       amfdata.getContentP(1)->addContent(AMF::Object("audiocodecid", 10, AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("audio")->getContentP("codec")->StrValue() == "MP3"){
+    if (S.metadata["audio"]["codec"].asString() == "MP3"){
       amfdata.getContentP(1)->addContent(AMF::Object("audiocodecid", 2, AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("audio")->getContentP("channels")){
-      if (S.metadata.getContentP("audio")->getContentP("channels")->NumValue() > 1){
+    if (S.metadata["audio"].isMember("channels")){
+      if (S.metadata["audio"]["channels"].asInt() > 1){
         amfdata.getContentP(1)->addContent(AMF::Object("stereo", 1, AMF::AMF0_BOOL));
       }else{
         amfdata.getContentP(1)->addContent(AMF::Object("stereo", 0, AMF::AMF0_BOOL));
       }
     }
-    if (S.metadata.getContentP("audio")->getContentP("rate")){
-      amfdata.getContentP(1)->addContent(AMF::Object("audiosamplerate", S.metadata.getContentP("audio")->getContentP("rate")->NumValue(), AMF::AMF0_NUMBER));
+    if (S.metadata["audio"].isMember("rate")){
+      amfdata.getContentP(1)->addContent(AMF::Object("audiosamplerate", S.metadata["audio"]["rate"].asInt(), AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("audio")->getContentP("size")){
-      amfdata.getContentP(1)->addContent(AMF::Object("audiosamplesize", S.metadata.getContentP("audio")->getContentP("size")->NumValue(), AMF::AMF0_NUMBER));
+    if (S.metadata["audio"].isMember("size")){
+      amfdata.getContentP(1)->addContent(AMF::Object("audiosamplesize", S.metadata["audio"]["size"].asInt(), AMF::AMF0_NUMBER));
     }
-    if (S.metadata.getContentP("audio")->getContentP("bps")){
-      amfdata.getContentP(1)->addContent(AMF::Object("audiodatarate", ((double)S.metadata.getContentP("audio")->getContentP("bps")->NumValue() * 8.0) / 1024.0, AMF::AMF0_NUMBER));
+    if (S.metadata["audio"].isMember("bps")){
+      amfdata.getContentP(1)->addContent(AMF::Object("audiodatarate", ((double)S.metadata["audio"]["bps"].asInt() * 8.0) / 1024.0, AMF::AMF0_NUMBER));
     }
   }
   
@@ -627,79 +627,6 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
 }//Tag::MemLoader
 
 
-/// Helper function for FLV::SockLoader.
-/// This function will try to read count bytes from socket sock into buffer.
-/// This function should be called repeatedly until true.
-/// \param buffer The target buffer.
-/// \param count Amount of bytes to read.
-/// \param sofar Current amount read.
-/// \param sock Socket to read from.
-/// \return True if count bytes are read succesfully, false otherwise.
-bool FLV::Tag::SockReadUntil(char * buffer, unsigned int count, unsigned int & sofar, Socket::Connection & sock){
-  if (sofar >= count){return true;}
-  int r = 0;
-  r = sock.iread(buffer + sofar,count-sofar);
-  sofar += r;
-  if (sofar >= count){return true;}
-  return false;
-}//Tag::SockReadUntil
-
-/// Try to load a tag from a socket.
-/// This is a stateful function - if fed incorrect data, it will most likely never return true again!
-/// While this function returns false, the Tag might not contain valid data.
-/// \param sock The socket to read from.
-/// \return True if a whole tag is succesfully read, false otherwise.
-bool FLV::Tag::SockLoader(Socket::Connection sock){
-  if (buf < 15){data = (char*)realloc(data, 15); buf = 15;}
-  if (done){
-    if (SockReadUntil(data, 11, sofar, sock)){
-      //if its a correct FLV header, throw away and read tag header
-      if (FLV::is_header(data)){
-        if (SockReadUntil(data, 13, sofar, sock)){
-          if (FLV::check_header(data)){
-            sofar = 0;
-            memcpy(FLV::Header, data, 13);
-          }else{FLV::Parse_Error = true; Error_Str = "Invalid header received."; return false;}
-        }
-      }else{
-        //if a tag header, calculate length and read tag body
-        len = data[3] + 15;
-        len += (data[2] << 8);
-        len += (data[1] << 16);
-        if (buf < len){data = (char*)realloc(data, len); buf = len;}
-        if (data[0] > 0x12){
-          data[0] += 32;
-          FLV::Parse_Error = true;
-          Error_Str = "Invalid Tag received (";
-          Error_Str += data[0];
-          Error_Str += ").";
-          return false;
-        }
-        done = false;
-      }
-    }
-  }else{
-    //read tag body
-    if (SockReadUntil(data, len, sofar, sock)){
-      //calculate keyframeness, next time read header again, return true
-      if ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1)){isKeyframe = true;}else{isKeyframe = false;}
-      done = true;
-      sofar = 0;
-      return true;
-    }
-  }
-  return false;
-}//Tag::SockLoader
-
-/// Try to load a tag from a socket.
-/// This is a stateful function - if fed incorrect data, it will most likely never return true again!
-/// While this function returns false, the Tag might not contain valid data.
-/// \param sock The socket to read from.
-/// \return True if a whole tag is succesfully read, false otherwise.
-bool FLV::Tag::SockLoader(int sock){
-  return SockLoader(Socket::Connection(sock));
-}//Tag::SockLoader
-
 /// Helper function for FLV::FileLoader.
 /// This function will try to read count bytes from file f into buffer.
 /// This function should be called repeatedly until true.
@@ -772,8 +699,8 @@ bool FLV::Tag::FileLoader(FILE * f){
   return false;
 }//FLV_GetPacket
 
-DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
-  DTSC::DTMI pack_out; // Storage for outgoing DTMI data.
+JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
+  JSON::Value pack_out; // Storage for outgoing metadata.
 
   if (data[0] == 0x12){
     AMF::Object meta_in = AMF::parse((unsigned char*)data+11, len-15);
@@ -781,45 +708,59 @@ DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
       AMF::Object * tmp = meta_in.getContentP(1);
       if (tmp->getContentP("videocodecid")){
         switch ((unsigned int)tmp->getContentP("videocodecid")->NumValue()){
-          case 2: Meta_Put(metadata, "video", "codec", "H263"); break;
-          case 4: Meta_Put(metadata, "video", "codec", "VP6"); break;
-          case 7: Meta_Put(metadata, "video", "codec", "H264"); break;
-          default: Meta_Put(metadata, "video", "codec", "?"); break;
+          case 2: metadata["video"]["codec"] = "H263"; break;
+          case 4: metadata["video"]["codec"] = "VP6"; break;
+          case 7: metadata["video"]["codec"] = "H264"; break;
+          default: metadata["video"]["codec"] = "?"; break;
         }
       }
       if (tmp->getContentP("audiocodecid")){
         switch ((unsigned int)tmp->getContentP("audiocodecid")->NumValue()){
-          case 2: Meta_Put(metadata, "audio", "codec", "MP3"); break;
-          case 10: Meta_Put(metadata, "audio", "codec", "AAC"); break;
-          default: Meta_Put(metadata, "audio", "codec", "?"); break;
+          case 2: metadata["audio"]["codec"] = "MP3"; break;
+          case 10: metadata["audio"]["codec"] = "AAC"; break;
+          default: metadata["audio"]["codec"] = "?"; break;
         }
       }
       if (tmp->getContentP("width")){
-        Meta_Put(metadata, "video", "width", (unsigned long long int)tmp->getContentP("width")->NumValue());
+        metadata["video"]["width"] = (long long int)tmp->getContentP("width")->NumValue();
       }
       if (tmp->getContentP("height")){
-        Meta_Put(metadata, "video", "height", (unsigned long long int)tmp->getContentP("height")->NumValue());
+        metadata["video"]["height"] = (long long int)tmp->getContentP("height")->NumValue();
       }
       if (tmp->getContentP("framerate")){
-        Meta_Put(metadata, "video", "fpks", (unsigned long long int)tmp->getContentP("framerate")->NumValue()*1000);
+        metadata["video"]["fpks"] = (long long int)tmp->getContentP("framerate")->NumValue()*1000;
       }
       if (tmp->getContentP("videodatarate")){
-        Meta_Put(metadata, "video", "bps", (unsigned long long int)(tmp->getContentP("videodatarate")->NumValue()*1024)/8);
+        metadata["video"]["bps"] = (long long int)(tmp->getContentP("videodatarate")->NumValue()*1024)/8;
       }
       if (tmp->getContentP("audiodatarate")){
-        Meta_Put(metadata, "audio", "bps", (unsigned long long int)(tmp->getContentP("audiodatarate")->NumValue()*1024)/8);
+        metadata["audio"]["bps"] = (long long int)(tmp->getContentP("audiodatarate")->NumValue()*1024)/8;
       }
       if (tmp->getContentP("audiosamplerate")){
-        Meta_Put(metadata, "audio", "rate", (unsigned long long int)tmp->getContentP("audiosamplerate")->NumValue());
+        metadata["audio"]["rate"] = (long long int)tmp->getContentP("audiosamplerate")->NumValue();
       }
       if (tmp->getContentP("audiosamplesize")){
-        Meta_Put(metadata, "audio", "size", (unsigned long long int)tmp->getContentP("audiosamplesize")->NumValue());
+        metadata["audio"]["size"] = (long long int)tmp->getContentP("audiosamplesize")->NumValue();
       }
       if (tmp->getContentP("stereo")){
         if (tmp->getContentP("stereo")->NumValue() == 1){
-          Meta_Put(metadata, "audio", "channels", 2);
+          metadata["audio"]["channels"] = 2;
         }else{
-          Meta_Put(metadata, "audio", "channels", 1);
+          metadata["audio"]["channels"] = 1;
+        }
+      }
+    }
+    if (!metadata.isMember("length")){metadata["length"] = 0;}
+    if (metadata.isMember("video")){
+      if (!metadata["video"].isMember("width")){metadata["video"]["width"] = 0;}
+      if (!metadata["video"].isMember("height")){metadata["video"]["height"] = 0;}
+      if (!metadata["video"].isMember("fpks")){metadata["video"]["fpks"] = 0;}
+      if (!metadata["video"].isMember("bps")){metadata["video"]["bps"] = 0;}
+      if (!metadata["video"].isMember("keyms")){metadata["video"]["keyms"] = 0;}
+      if (!metadata["video"].isMember("keyvar")){metadata["video"]["keyvar"] = 0;}
+      if (!metadata["video"].isMember("keys")){
+        while (metadata["video"]["keys"].size() < 100){
+          metadata["video"]["keys"].append(JSON::Value((long long int)0));
         }
       }
     }
@@ -829,48 +770,47 @@ DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
     char audiodata = data[11];
     if (needsInitData() && isInitData()){
       if ((audiodata & 0xF0) == 0xA0){
-        Meta_Put(metadata, "audio", "init", std::string((char*)data+13, (size_t)len-17));
+        metadata["audio"]["init"] = std::string((char*)data+13, (size_t)len-17);
       }else{
-        Meta_Put(metadata, "audio", "init", std::string((char*)data+12, (size_t)len-16));
+        metadata["audio"]["init"] = std::string((char*)data+12, (size_t)len-16);
       }
       return pack_out;//skip rest of parsing, get next tag.
     }
-    pack_out = DTSC::DTMI("audio", DTSC::DTMI_ROOT);
-    pack_out.addContent(DTSC::DTMI("datatype", "audio"));
-    pack_out.addContent(DTSC::DTMI("time", tagTime()));
-    if (!Meta_Has(metadata, "audio", "codec")){
+    pack_out["datatype"] = "audio";
+    pack_out["time"] = tagTime();
+    if (!metadata["audio"].isMember("codec") || metadata["audio"]["size"].asString() == ""){
       switch (audiodata & 0xF0){
-        case 0x20: Meta_Put(metadata, "audio", "codec", "MP3"); break;
-        case 0xA0: Meta_Put(metadata, "audio", "codec", "AAC"); break;
-        default: Meta_Put(metadata, "audio", "codec", "?"); break;
+        case 0x20: metadata["audio"]["codec"] = "MP3"; break;
+        case 0xA0: metadata["audio"]["codec"] = "AAC"; break;
+        default: metadata["audio"]["codec"] = "?"; break;
       }
     }
-    if (!Meta_Has(metadata, "audio", "rate")){
+    if (!metadata["audio"].isMember("rate") || metadata["audio"]["rate"].asInt() < 1){
       switch (audiodata & 0x0C){
-        case 0x0: Meta_Put(metadata, "audio", "rate", 5512); break;
-        case 0x4: Meta_Put(metadata, "audio", "rate", 11025); break;
-        case 0x8: Meta_Put(metadata, "audio", "rate", 22050); break;
-        case 0xC: Meta_Put(metadata, "audio", "rate", 44100); break;
+        case 0x0: metadata["audio"]["rate"] = 5512; break;
+        case 0x4: metadata["audio"]["rate"] = 11025; break;
+        case 0x8: metadata["audio"]["rate"] = 22050; break;
+        case 0xC: metadata["audio"]["rate"] = 44100; break;
       }
     }
-    if (!Meta_Has(metadata, "audio", "size")){
+    if (!metadata["audio"].isMember("size") || metadata["audio"]["size"].asInt() < 1){
       switch (audiodata & 0x02){
-        case 0x0: Meta_Put(metadata, "audio", "size", 8); break;
-        case 0x2: Meta_Put(metadata, "audio", "size", 16); break;
+        case 0x0: metadata["audio"]["size"] = 8; break;
+        case 0x2: metadata["audio"]["size"] = 16; break;
       }
     }
-    if (!Meta_Has(metadata, "audio", "channels")){
+    if (!metadata["audio"].isMember("channels") || metadata["audio"]["channels"].asInt() < 1){
       switch (audiodata & 0x01){
-        case 0x0: Meta_Put(metadata, "audio", "channels", 1); break;
-        case 0x1: Meta_Put(metadata, "audio", "channels", 2); break;
+        case 0x0: metadata["audio"]["channels"] = 1; break;
+        case 0x1: metadata["audio"]["channels"] = 2; break;
       }
     }
     if ((audiodata & 0xF0) == 0xA0){
-      if (len < 18){return DTSC::DTMI();}
-      pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+13, (size_t)len-17)));
+      if (len < 18){return JSON::Value();}
+      pack_out["data"] = std::string((char*)data+13, (size_t)len-17);
     }else{
-      if (len < 17){return DTSC::DTMI();}
-      pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+12, (size_t)len-16)));
+      if (len < 17){return JSON::Value();}
+      pack_out["data"] = std::string((char*)data+12, (size_t)len-16);
     }
     return pack_out;
   }
@@ -878,77 +818,46 @@ DTSC::DTMI FLV::Tag::toDTSC(DTSC::DTMI & metadata){
     char videodata = data[11];
     if (needsInitData() && isInitData()){
       if ((videodata & 0x0F) == 7){
-        if (len < 21){return DTSC::DTMI();}
-        Meta_Put(metadata, "video", "init", std::string((char*)data+16, (size_t)len-20));
+        if (len < 21){return JSON::Value();}
+        metadata["video"]["init"] = std::string((char*)data+16, (size_t)len-20);
       }else{
-        if (len < 17){return DTSC::DTMI();}
-        Meta_Put(metadata, "video", "init", std::string((char*)data+12, (size_t)len-16));
+        if (len < 17){return JSON::Value();}
+        metadata["video"]["init"] = std::string((char*)data+12, (size_t)len-16);
       }
       return pack_out;//skip rest of parsing, get next tag.
     }
-    if (!Meta_Has(metadata, "video", "codec")){
+    if (!metadata["video"].isMember("codec") || metadata["video"]["codec"].asString() == ""){
       switch (videodata & 0x0F){
-        case 2: Meta_Put(metadata, "video", "codec", "H263"); break;
-        case 4: Meta_Put(metadata, "video", "codec", "VP6"); break;
-        case 7: Meta_Put(metadata, "video", "codec", "H264"); break;
-        default: Meta_Put(metadata, "video", "codec", "?"); break;
+        case 2: metadata["video"]["codec"] = "H263"; break;
+        case 4: metadata["video"]["codec"] = "VP6"; break;
+        case 7: metadata["video"]["codec"] = "H264"; break;
+        default: metadata["video"]["codec"] = "?"; break;
       }
     }
-    pack_out = DTSC::DTMI("video", DTSC::DTMI_ROOT);
-    pack_out.addContent(DTSC::DTMI("datatype", "video"));
+    pack_out["datatype"] = "video";
     switch (videodata & 0xF0){
-      case 0x10: pack_out.addContent(DTSC::DTMI("keyframe", 1)); break;
-      case 0x20: pack_out.addContent(DTSC::DTMI("interframe", 1)); break;
-      case 0x30: pack_out.addContent(DTSC::DTMI("disposableframe", 1)); break;
-      case 0x40: pack_out.addContent(DTSC::DTMI("keyframe", 1)); break;
-      case 0x50: return DTSC::DTMI(); break;//the video info byte we just throw away - useless to us...
+      case 0x10: pack_out["keyframe"] = 1; break;
+      case 0x20: pack_out["interframe"] = 1; break;
+      case 0x30: pack_out["disposableframe"] = 1; break;
+      case 0x40: pack_out["keyframe"] = 1; break;
+      case 0x50: return JSON::Value(); break;//the video info byte we just throw away - useless to us...
     }
-    pack_out.addContent(DTSC::DTMI("time", tagTime()));
+    pack_out["time"] = tagTime();
     if ((videodata & 0x0F) == 7){
       switch (data[12]){
-        case 1: pack_out.addContent(DTSC::DTMI("nalu", 1)); break;
-        case 2: pack_out.addContent(DTSC::DTMI("nalu_end", 1)); break;
+        case 1: pack_out["nalu"] = 1; break;
+        case 2: pack_out["nalu_end"] = 1; break;
       }
       int offset = (data[13] << 16) + (data[14] << 8) + data[15];
       offset = (offset << 8) >> 8;
-      pack_out.addContent(DTSC::DTMI("offset", offset));
-      if (len < 21){return DTSC::DTMI();}
-      pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+16, (size_t)len-20)));
+      pack_out["offset"] = offset;
+      if (len < 21){return JSON::Value();}
+      pack_out["data"] = std::string((char*)data+16, (size_t)len-20);
     }else{
-      if (len < 17){return DTSC::DTMI();}
-      pack_out.addContent(DTSC::DTMI("data", std::string((char*)data+12, (size_t)len-16)));
+      if (len < 17){return JSON::Value();}
+      pack_out["data"] = std::string((char*)data+12, (size_t)len-16);
     }
     return pack_out;
   }
   return pack_out;//should never get here
-}//FLV::Tag::toDTSC
-
-/// Inserts std::string type metadata into the passed DTMI object.
-/// \arg meta The DTMI object to put the metadata into.
-/// \arg cat Metadata category to insert into.
-/// \arg elem Element name to put into the category.
-/// \arg val Value to put into the element name.
-void FLV::Tag::Meta_Put(DTSC::DTMI & meta, std::string cat, std::string elem, std::string val){
-  if (meta.getContentP(cat) == 0){meta.addContent(DTSC::DTMI(cat));}
-  meta.getContentP(cat)->addContent(DTSC::DTMI(elem, val));
-}
-
-/// Inserts uint64_t type metadata into the passed DTMI object.
-/// \arg meta The DTMI object to put the metadata into.
-/// \arg cat Metadata category to insert into.
-/// \arg elem Element name to put into the category.
-/// \arg val Value to put into the element name.
-void FLV::Tag::Meta_Put(DTSC::DTMI & meta, std::string cat, std::string elem, uint64_t val){
-  if (meta.getContentP(cat) == 0){meta.addContent(DTSC::DTMI(cat));}
-  meta.getContentP(cat)->addContent(DTSC::DTMI(elem, val));
-}
-
-/// Returns true if the named category and elementname are available in the metadata.
-/// \arg meta The DTMI object to check.
-/// \arg cat Metadata category to check.
-/// \arg elem Element name to check.
-bool FLV::Tag::Meta_Has(DTSC::DTMI & meta, std::string cat, std::string elem){
-  if (meta.getContentP(cat) == 0){return false;}
-  if (meta.getContentP(cat)->getContentP(elem) == 0){return false;}
-  return true;
-}
+}//FLV::Tag::toJSON

@@ -14,6 +14,8 @@
 #include <string.h>
 #include <fcntl.h>
 
+//for being friendly with Socket::Connection down below
+namespace Buffer{class user;};
 
 ///Holds Socket tools.
 namespace Socket{
@@ -28,34 +30,32 @@ namespace Socket{
       unsigned int conntime;
       std::string downbuffer; ///< Stores temporary data coming in.
       std::string upbuffer; ///< Stores temporary data going out.
+      int iread(void * buffer, int len); ///< Incremental read call.
+      int iwrite(const void * buffer, int len); ///< Incremental write call.
+      bool iread(std::string & buffer); ///< Incremental write call that is compatible with std::string.
+      bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
     public:
+      //friends
+      friend class Buffer::user;
+      //constructors
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
       Connection(std::string hostname, int port, bool nonblock); ///< Create a new TCP socket.
       Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
-      void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
-      bool canRead(); ///< Calls poll() on the socket, checking if data is available.
-      bool canWrite(); ///< Calls poll() on the socket, checking if data can be written.
-      signed int ready(); ///< Returns the ready-state for this socket.
-      bool connected() const; ///< Returns the connected-state for this socket.
-      bool read(const void * buffer, int len); ///< Reads data from socket.
-      bool read(const void * buffer, int width, int count); ///< Read call that is compatible with file access syntax.
-      bool write(const void * buffer, int len); ///< Writes data to socket.
-      bool write(const void * buffer, int width, int count); ///< Write call that is compatible with file access syntax.
-      bool write(const std::string data); ///< Write call that is compatible with std::string.
-      int iwrite(const void * buffer, int len); ///< Incremental write call.
-      int iread(void * buffer, int len); ///< Incremental read call.
-      bool read(std::string & buffer); ///< Read call that is compatible with std::string.
-      bool swrite(std::string & buffer); ///< Write call that is compatible with std::string.
-      bool iread(std::string & buffer); ///< Incremental write call that is compatible with std::string.
-      bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
-      bool spool(); ///< Updates the downbuffer and upbuffer internal variables.
-      std::string & Received(); ///< Returns a reference to the download buffer.
-      void Send(std::string data); ///< Appends data to the upbuffer.
+      //generic methods
       void close(); ///< Close connection.
+      void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
       std::string getHost(); ///< Gets hostname for connection, if available.
+      void setHost(std::string host); ///< Sets hostname for connection manually.
       int getSocket(); ///< Returns internal socket number.
       std::string getError(); ///< Returns a string describing the last error that occured.
+      bool connected() const; ///< Returns the connected-state for this socket.
+      //buffered i/o methods
+      bool spool(); ///< Updates the downbuffer and upbuffer internal variables.
+      bool flush(); ///< Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
+      std::string & Received(); ///< Returns a reference to the download buffer.
+      void Send(std::string data); ///< Appends data to the upbuffer.
+      //stats related methods
       unsigned int dataUp(); ///< Returns total amount of bytes sent.
       unsigned int dataDown(); ///< Returns total amount of bytes received.
       std::string getStats(std::string C); ///< Returns a std::string of stats, ended by a newline.

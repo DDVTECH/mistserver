@@ -56,12 +56,12 @@ void Util::Procs::childsig_handler(int signum){
   }
   #endif
 
-  TerminationNotifier tn = exitHandlers[ret];
-  exitHandlers.erase(ret);
-  if (tn){
-#if DEBUG >= 2
+  if (exitHandlers.count(ret) > 0){
+    TerminationNotifier tn = exitHandlers[ret];
+    exitHandlers.erase(ret);
+    #if DEBUG >= 2
     std::cerr << "Calling termination handler for " << pname << std::endl;
-#endif
+    #endif
     tn(ret, exitcode);
   }
 }

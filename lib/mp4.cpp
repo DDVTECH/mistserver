@@ -1,7 +1,8 @@
-#include "mp4.h"
 #include <stdlib.h> //for malloc and free
 #include <string.h> //for memcpy
 #include <arpa/inet.h> //for htonl and friends
+#include "mp4.h"
+#include "json.h"
 
 /// Contains all MP4 format related code.
 namespace MP4{
@@ -94,6 +95,11 @@ void Box::ResetPayload( ) {
   Payload = (uint8_t *)realloc(Payload, PayloadSize + 8);
   ((unsigned int*)Payload)[0] = htonl(0);
 }
+
+std::string Box::toPrettyString(int indent){
+  return std::string(indent, ' ')+"Unimplemented pretty-printing for this box";
+}
+
 
 void ABST::SetBootstrapVersion( uint32_t Version ) {
   curBootstrapInfoVersion = Version;
@@ -254,6 +260,33 @@ void ABST::WriteContent( ) {
   SetPayload((uint32_t)4,Box::uint32_to_uint8(curBootstrapInfoVersion),4);
 }
 
+std::string ABST::toPrettyString(int indent){
+  std::string r;
+  r += std::string(indent, ' ')+"Bootstrap Info\n";
+  if (isUpdate){
+    r += std::string(indent+1, ' ')+"Update\n";
+  }else{
+    r += std::string(indent+1, ' ')+"Replacement or new table\n";
+  }
+  if (isLive){
+    r += std::string(indent+1, ' ')+"Live\n";
+  }else{
+    r += std::string(indent+1, ' ')+"Recorded\n";
+  }
+  r += std::string(indent+1, ' ')+"Profile "+JSON::Value((long long int)curProfile).asString()+"\n";
+  r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)curTimeScale).asString()+"\n";
+  r += std::string(indent+1, ' ')+"CurrMediaTime "+JSON::Value((long long int)curMediatime).asString()+"\n";
+  r += std::string(indent+1, ' ')+"Segment Run Tables "+JSON::Value((long long int)SegmentRunTables.size()).asString()+"\n";
+  for( uint32_t i = 0; i < SegmentRunTables.size(); i++ ) {
+    r += ((ASRT*)SegmentRunTables[i])->toPrettyString(indent+2)+"\n";
+  }
+  r += std::string(indent+1, ' ')+"Fragment Run Tables "+JSON::Value((long long int)FragmentRunTables.size()).asString()+"\n";
+  for( uint32_t i = 0; i < FragmentRunTables.size(); i++ ) {
+    r += ((AFRT*)FragmentRunTables[i])->toPrettyString(indent+2)+"\n";
+  }
+  return r;
+}
+
 void AFRT::SetUpdate( bool Update ) {
   isUpdate = Update;
 }
@@ -315,6 +348,26 @@ void AFRT::WriteContent( ) {
   SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
 }
 
+std::string AFRT::toPrettyString(int indent){
+  std::string r;
+  r += std::string(indent, ' ')+"Fragment Run Table\n";
+  if (isUpdate){
+    r += std::string(indent+1, ' ')+"Update\n";
+  }else{
+    r += std::string(indent+1, ' ')+"Replacement or new table\n";
+  }
+  r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)curTimeScale).asString()+"\n";
+  r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((long long int)QualitySegmentUrlModifiers.size()).asString()+"\n";
+  for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
+    r += std::string(indent+2, ' ')+"\""+QualitySegmentUrlModifiers[i]+"\"\n";
+  }
+  r += std::string(indent+1, ' ')+"Fragments "+JSON::Value((long long int)FragmentRunEntryTable.size()).asString()+"\n";
+  for( uint32_t i = 0; i < FragmentRunEntryTable.size(); i ++ ) {
+    r += std::string(indent+2, ' ')+"Duration "+JSON::Value((long long int)FragmentRunEntryTable[i].FragmentDuration).asString()+", starting at "+JSON::Value((long long int)FragmentRunEntryTable[i].FirstFragment).asString()+" @ "+JSON::Value((long long int)FragmentRunEntryTable[i].FirstFragmentTimestamp).asString();
+  }
+  return r;
+}
+
 void ASRT::SetUpdate( bool Update ) {
   isUpdate = Update;
 }
@@ -363,40 +416,23 @@ void ASRT::WriteContent( ) {
   SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
 }
 
-std::string GenerateLiveBootstrap( uint32_t CurMediaTime ) {
-  AFRT afrt;
-  afrt.SetUpdate(false);
-  afrt.SetTimeScale(1000);
-  afrt.AddQualityEntry("");
-  afrt.AddFragmentRunEntry(1, 0 , 4000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
-  afrt.WriteContent();
-
-  ASRT asrt;
-  asrt.SetUpdate(false);
-  asrt.AddQualityEntry("");
-  asrt.AddSegmentRunEntry(1, 199);//1 Segment, 199 Fragments
-  asrt.WriteContent();
-
-  ABST abst;
-  abst.AddFragmentRunTable(&afrt);
-  abst.AddSegmentRunTable(&asrt);
-  abst.SetBootstrapVersion(1);
-  abst.SetProfile(0);
-  abst.SetLive(true);
-  abst.SetUpdate(false);
-  abst.SetTimeScale(1000);
-  abst.SetMediaTime(0xFFFFFFFF);
-  abst.SetSMPTE(0);
-  abst.SetMovieIdentifier("fifa");
-  abst.SetDRM("");
-  abst.SetMetaData("");
-  abst.AddServerEntry("");
-  abst.AddQualityEntry("");
-  abst.WriteContent();
-  
-  std::string Result;
-  Result.append((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
-  return Result;
+std::string ASRT::toPrettyString(int indent){
+  std::string r;
+  r += std::string(indent, ' ')+"Segment Run Table\n";
+  if (isUpdate){
+    r += std::string(indent+1, ' ')+"Update\n";
+  }else{
+    r += std::string(indent+1, ' ')+"Replacement or new table\n";
+  }
+  r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((long long int)QualitySegmentUrlModifiers.size()).asString()+"\n";
+  for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
+    r += std::string(indent+2, ' ')+"\""+QualitySegmentUrlModifiers[i]+"\"\n";
+  }
+  r += std::string(indent+1, ' ')+"Segments "+JSON::Value((long long int)SegmentRunEntryTable.size()).asString()+"\n";
+  for( uint32_t i = 0; i < SegmentRunEntryTable.size(); i ++ ) {
+    r += std::string(indent+2, ' ')+JSON::Value((long long int)SegmentRunEntryTable[i].FragmentsPerSegment).asString()+" fragments per, starting at "+JSON::Value((long long int)SegmentRunEntryTable[i].FirstSegment).asString();
+  }
+  return r;
 }
 
 std::string mdatFold(std::string data){

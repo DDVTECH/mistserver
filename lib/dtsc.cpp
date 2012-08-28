@@ -26,7 +26,7 @@ DTSC::Stream::Stream(unsigned int rbuffers){
 /// Returns the time in milliseconds of the last received packet.
 /// This is _not_ the time this packet was received, only the stored time.
 unsigned int DTSC::Stream::getTime(){
-  return buffers.front().getContentP("time")->NumValue();
+  return buffers.front()["time"].asInt();
 }
 
 /// Attempts to parse a packet from the given std::string buffer.
@@ -40,20 +40,22 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
     if (memcmp(buffer.c_str(), DTSC::Magic_Header, 4) == 0){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);
       if (buffer.length() < len+8){return false;}
-      metadata = DTSC::parseDTMI((unsigned char*)buffer.c_str() + 8, len);
+      unsigned int i = 0;
+      metadata = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
       buffer.erase(0, len+8);
       return false;
     }
     if (memcmp(buffer.c_str(), DTSC::Magic_Packet, 4) == 0){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);
       if (buffer.length() < len+8){return false;}
-      buffers.push_front(DTSC::DTMI("empty", DTMI_ROOT));
-      buffers.front() = DTSC::parseDTMI((unsigned char*)buffer.c_str() + 8, len);
+      buffers.push_front(JSON::Value());
+      unsigned int i = 0;
+      buffers.front() = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
       datapointertype = INVALID;
-      if (buffers.front().getContentP("data")){
-        datapointer = &(buffers.front().getContentP("data")->StrValue());
-        if (buffers.front().getContentP("datatype")){
-          std::string tmp = buffers.front().getContentP("datatype")->StrValue();
+      if (buffers.front().isMember("data")){
+        datapointer = &(buffers.front()["data"].strVal);
+        if (buffers.front().isMember("datatype")){
+          std::string tmp = buffers.front()["datatype"].asString();
           if (tmp == "video"){datapointertype = VIDEO;}
           if (tmp == "audio"){datapointertype = AUDIO;}
           if (tmp == "meta"){datapointertype = META;}
@@ -91,7 +93,7 @@ std::string & DTSC::Stream::lastData(){
 
 /// Returns the packed in this buffer number.
 /// \arg num Buffer number.
-DTSC::DTMI & DTSC::Stream::getPacket(unsigned int num){
+JSON::Value & DTSC::Stream::getPacket(unsigned int num){
   return buffers[num];
 }
 
@@ -102,29 +104,24 @@ DTSC::datatype DTSC::Stream::lastType(){
 
 /// Returns true if the current stream contains at least one video track.
 bool DTSC::Stream::hasVideo(){
-  return (metadata.getContentP("video") != 0);
+  return metadata.isMember("video");
 }
 
 /// Returns true if the current stream contains at least one audio track.
 bool DTSC::Stream::hasAudio(){
-  return (metadata.getContentP("audio") != 0);
+  return metadata.isMember("audio");
 }
 
 /// Returns a packed DTSC packet, ready to sent over the network.
 std::string & DTSC::Stream::outPacket(unsigned int num){
   static std::string emptystring;
   if (num >= buffers.size()) return emptystring;
-  buffers[num].Pack(true);
-  return buffers[num].packed;
+  return buffers[num].toNetPacked();
 }
 
 /// Returns a packed DTSC header, ready to sent over the network.
 std::string & DTSC::Stream::outHeader(){
-  if ((metadata.packed.length() < 4) || !metadata.netpacked){
-    metadata.Pack(true);
-    metadata.packed.replace(0, 4, Magic_Header);
-  }
-  return metadata.packed;
+  return metadata.toNetPacked();
 }
 
 /// advances all given out and internal Ring classes to point to the new buffer, after one has been added.
@@ -142,7 +139,7 @@ void DTSC::Stream::advanceRings(){
     dit->b++;
     if (dit->b >= buffers.size()){keyframes.erase(dit); break;}
   }
-  if ((lastType() == VIDEO) && (buffers.front().getContentP("keyframe"))){
+  if ((lastType() == VIDEO) && (buffers.front().isMember("keyframe"))){
     keyframes.push_front(DTSC::Ring(0));
   }
   //increase buffer size if no keyframes available
@@ -187,297 +184,6 @@ DTSC::Stream::~Stream(){
   for (sit = rings.begin(); sit != rings.end(); sit++){delete (*sit);}
 }
 
-/// Returns the std::string Indice for the current object, if available.
-/// Returns an empty string if no indice exists.
-std::string DTSC::DTMI::Indice(){return myIndice;};
-
-/// Returns the DTSC::DTMItype AMF0 object type for this object.
-DTSC::DTMItype DTSC::DTMI::GetType(){return myType;};
-
-/// Returns the numeric value of this object, if available.
-/// If this object holds no numeric value, 0 is returned.
-uint64_t & DTSC::DTMI::NumValue(){return numval;};
-
-/// Returns the std::string value of this object, if available.
-/// If this object holds no string value, an empty string is returned.
-std::string & DTSC::DTMI::StrValue(){return strval;};
-
-/// Returns the C-string value of this object, if available.
-/// If this object holds no string value, an empty C-string is returned.
-const char * DTSC::DTMI::Str(){return strval.c_str();};
-
-/// Returns a count of the amount of objects this object currently holds.
-/// If this object is not a container type, this function will always return 0.
-int DTSC::DTMI::hasContent(){return contents.size();};
-
-/// Returns true if this DTSC::DTMI value is non-default.
-/// Non-default means it is either not a root element or has content.
-bool DTSC::DTMI::isEmpty(){
-  if (myType != DTMI_ROOT){return false;}
-  return (hasContent() == 0);
-};
-
-/// Adds an DTSC::DTMI to this object. Works for all types, but only makes sense for container types.
-/// This function resets DTMI::packed to an empty string, forcing a repack on the next call to DTMI::Pack.
-/// If the indice name already exists, replaces the indice.
-void DTSC::DTMI::addContent(DTSC::DTMI c){
-  std::vector<DTMI>::iterator it;
-  for (it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == c.Indice()){
-      contents.erase(it);
-      break;
-    }
-  }
-  contents.push_back(c); packed = "";
-};
-
-/// Returns a pointer to the object held at indice i.
-/// Returns null pointer if no object is held at this indice.
-/// \param i The indice of the object in this container.
-DTSC::DTMI* DTSC::DTMI::getContentP(int i){
-  if (contents.size() <= (unsigned int)i){return 0;}
-  return &contents.at(i);
-};
-
-/// Returns a copy of the object held at indice i.
-/// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
-/// \param i The indice of the object in this container.
-DTSC::DTMI DTSC::DTMI::getContent(int i){return contents.at(i);};
-
-/// Returns a pointer to the object held at indice s.
-/// Returns NULL if no object is held at this indice.
-/// \param s The indice of the object in this container.
-DTSC::DTMI* DTSC::DTMI::getContentP(std::string s){
-  for (std::vector<DTSC::DTMI>::iterator it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == s){return &(*it);}
-  }
-  return 0;
-};
-
-/// Returns a copy of the object held at indice s.
-/// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
-/// \param s The indice of the object in this container.
-DTSC::DTMI DTSC::DTMI::getContent(std::string s){
-  for (std::vector<DTSC::DTMI>::iterator it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == s){return *it;}
-  }
-  return DTSC::DTMI("error", DTMI_ROOT);
-};
-
-/// Default constructor.
-/// Simply fills the data with DTSC::DTMI("error", AMF0_DDV_CONTAINER)
-DTSC::DTMI::DTMI(){
-  *this = DTSC::DTMI("error", DTMI_ROOT);
-};//default constructor
-
-/// Constructor for numeric objects.
-/// The object type is by default DTMItype::DTMI_INT, but this can be forced to a different value.
-/// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
-/// \param val The numeric value of this object. Numeric objects only support uint64_t values.
-/// \param setType The object type to force this object to.
-DTSC::DTMI::DTMI(std::string indice, uint64_t val, DTSC::DTMItype setType){//num type initializer
-  myIndice = indice;
-  myType = setType;
-  strval = "";
-  numval = val;
-};
-
-/// Constructor for string objects.
-/// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
-/// \param val The string value of this object.
-/// \param setType The object type to force this object to.
-DTSC::DTMI::DTMI(std::string indice, std::string val, DTSC::DTMItype setType){//str type initializer
-  myIndice = indice;
-  myType = setType;
-  strval = val;
-  numval = 0;
-};
-
-/// Constructor for container objects.
-/// \param indice The string indice of this object in its container, or empty string if none.
-/// \param setType The object type to force this object to.
-DTSC::DTMI::DTMI(std::string indice, DTSC::DTMItype setType){//object type initializer
-  myIndice = indice;
-  myType = setType;
-  strval = "";
-  numval = 0;
-};
-
-/// Prints the contents of this object to std::cerr.
-/// If this object contains other objects, it will call itself recursively
-/// and print all nested content in a nice human-readable format.
-void DTSC::DTMI::Print(std::string indent){
-  std::cerr << indent;
-  // print my type
-  switch (myType){
-    case DTMI_INT: std::cerr << "Integer"; break;
-    case DTMI_STRING: std::cerr << "String"; break;
-    case DTMI_OBJECT: std::cerr << "Object"; break;
-    case DTMI_OBJ_END: std::cerr << "Object end"; break;
-    case DTMI_ROOT: std::cerr << "Root Node"; break;
-  }
-  // print my string indice, if available
-  std::cerr << " " << myIndice << " ";
-  // print my numeric or string contents
-  switch (myType){
-    case DTMI_INT: std::cerr << numval; break;
-    case DTMI_STRING:
-      if (strval.length() > 200 || ((strval.length() > 1) && ( (strval[0] < 'A') || (strval[0] > 'z') ) )){
-        std::cerr << strval.length() << " bytes of data";
-      }else{
-        std::cerr << strval;
-      }
-      break;
-    default: break;//we don't care about the rest, and don't want a compiler warning...
-  }
-  std::cerr << std::endl;
-  // if I hold other objects, print those too, recursively.
-  if (contents.size() > 0){
-    for (std::vector<DTSC::DTMI>::iterator it = contents.begin(); it != contents.end(); it++){it->Print(indent+"  ");}
-  }
-};//print
-
-/// Packs the DTMI to a std::string for transfer over the network.
-/// If a packed version already exists, does not regenerate it.
-/// If the object is a container type, this function will call itself recursively and contain all contents.
-/// \arg netpack If true, will pack as a full DTMI packet, if false only as the contents without header.
-std::string DTSC::DTMI::Pack(bool netpack){
-  if (packed != ""){
-    if (netpacked == netpack){return packed;}
-    if (netpacked){
-      packed.erase(0, 8);
-    }else{
-      unsigned int size = htonl(packed.length());
-      packed.insert(0, (char*)&size, 4);
-      packed.insert(0, Magic_Packet);
-    }
-    netpacked = !netpacked;
-    return packed;
-  }
-  std::string r = "";
-  r += myType;
-  //output the properly formatted data stream for this object's contents.
-  switch (myType){
-    case DTMI_INT:
-      r += *(((char*)&numval)+7); r += *(((char*)&numval)+6);
-      r += *(((char*)&numval)+5); r += *(((char*)&numval)+4);
-      r += *(((char*)&numval)+3); r += *(((char*)&numval)+2);
-      r += *(((char*)&numval)+1); r += *(((char*)&numval));
-      break;
-    case DTMI_STRING:
-      r += strval.size() / (256*256*256);
-      r += strval.size() / (256*256);
-      r += strval.size() / 256;
-      r += strval.size() % 256;
-      r += strval;
-      break;
-    case DTMI_OBJECT:
-    case DTMI_ROOT:
-      if (contents.size() > 0){
-        for (std::vector<DTSC::DTMI>::iterator it = contents.begin(); it != contents.end(); it++){
-          r += it->Indice().size() / 256;
-          r += it->Indice().size() % 256;
-          r += it->Indice();
-          r += it->Pack();
-        }
-      }
-      r += (char)0x0; r += (char)0x0; r += (char)0xEE;
-      break;
-    case DTMI_OBJ_END:
-      break;
-  }
-  packed = r;
-  netpacked = netpack;
-  if (netpacked){
-    unsigned int size = htonl(packed.length());
-    packed.insert(0, (char*)&size, 4);
-    packed.insert(0, Magic_Packet);
-  }
-  return packed;
-};//pack
-
-/// Parses a single AMF0 type - used recursively by the AMF::parse() functions.
-/// This function updates i every call with the new position in the data.
-/// \param data The raw data to parse.
-/// \param len The size of the raw data.
-/// \param i Current parsing position in the raw data.
-/// \param name Indice name for any new object created.
-/// \returns A single DTSC::DTMI, parsed from the raw data.
-DTSC::DTMI DTSC::parseOneDTMI(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name){
-  unsigned int tmpi = 0;
-  unsigned char tmpdbl[8];
-  uint64_t * d;// hack to work around strict aliasing
-  #if DEBUG >= 10
-  fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
-  #endif
-  switch (data[i]){
-    case DTMI_INT:
-      tmpdbl[7] = data[i+1];
-      tmpdbl[6] = data[i+2];
-      tmpdbl[5] = data[i+3];
-      tmpdbl[4] = data[i+4];
-      tmpdbl[3] = data[i+5];
-      tmpdbl[2] = data[i+6];
-      tmpdbl[1] = data[i+7];
-      tmpdbl[0] = data[i+8];
-      i+=9;//skip 8(an uint64_t)+1 forwards
-      d = (uint64_t*)tmpdbl;
-      return DTSC::DTMI(name, *d, DTMI_INT);
-      break;
-    case DTMI_STRING:{
-      tmpi = data[i+1]*256*256*256+data[i+2]*256*256+data[i+3]*256+data[i+4];//set tmpi to UTF-8-long length
-      std::string tmpstr = std::string((const char *)data+i+5, (size_t)tmpi);//set the string data
-      i += tmpi + 5;//skip length+size+1 forwards
-      return DTSC::DTMI(name, tmpstr, DTMI_STRING);
-      } break;
-    case DTMI_ROOT:{
-      ++i;
-      DTSC::DTMI ret(name, DTMI_ROOT);
-      while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x0000EE)
-        tmpi = data[i]*256+data[i+1];//set tmpi to the UTF-8 length
-        std::string tmpstr = std::string((const char *)data+i+2, (size_t)tmpi);//set the string data
-        i += tmpi + 2;//skip length+size forwards
-        ret.addContent(parseOneDTMI(data, len, i, tmpstr));//add content, recursively parsed, updating i, setting indice to tmpstr
-      }
-      i += 3;//skip 0x0000EE
-      return ret;
-    } break;
-    case DTMI_OBJECT:{
-      ++i;
-      DTSC::DTMI ret(name, DTMI_OBJECT);
-      while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x0000EE)
-        tmpi = data[i]*256+data[i+1];//set tmpi to the UTF-8 length
-        std::string tmpstr = std::string((const char *)data+i+2, (size_t)tmpi);//set the string data
-        i += tmpi + 2;//skip length+size forwards
-        ret.addContent(parseOneDTMI(data, len, i, tmpstr));//add content, recursively parsed, updating i, setting indice to tmpstr
-      }
-      i += 3;//skip 0x0000EE
-      return ret;
-    } break;
-  }
-  #if DEBUG >= 2
-  fprintf(stderr, "Error: Unimplemented DTMI type %hhx - returning.\n", data[i]);
-  #endif
-  return DTSC::DTMI("error", DTMI_ROOT);
-}//parseOne
-
-/// Parses a C-string to a valid DTSC::DTMI.
-/// This function will find one DTMI object in the string and return it.
-DTSC::DTMI DTSC::parseDTMI(const unsigned char * data, unsigned int len){
-  DTSC::DTMI ret;//container type
-  unsigned int i = 0;
-  ret = parseOneDTMI(data, len, i, "");
-  ret.packed = std::string((char*)data, (size_t)len);
-  ret.netpacked = false;
-  return ret;
-}//parse
-
-/// Parses a std::string to a valid DTSC::DTMI.
-/// This function will find one DTMI object in the string and return it.
-DTSC::DTMI DTSC::parseDTMI(std::string data){
-  return parseDTMI((const unsigned char*)data.c_str(), data.size());
-}//parse
-
 /// Open a filename for DTSC reading/writing.
 /// If create is true and file does not exist, attempt to create.
 DTSC::File::File(std::string filename, bool create){
@@ -511,7 +217,8 @@ DTSC::File::File(std::string filename, bool create){
     fwrite(buffer, 4, 1, F);//write 4 zero-bytes
     headerSize = 0;
   }else{
-    headerSize = ntohl(((uint32_t *)buffer)[0]);
+    uint32_t * ubuffer = (uint32_t *)buffer;
+    headerSize = ntohl(ubuffer[0]);
   }
   fseek(F, 8+headerSize, SEEK_SET);
 }
@@ -520,9 +227,10 @@ DTSC::File::File(std::string filename, bool create){
 /// Sets the file pointer to the first packet.
 std::string & DTSC::File::getHeader(){
   fseek(F, 8, SEEK_SET);
-  strbuffer.reserve(headerSize);
+  strbuffer.resize(headerSize);
   fread((void*)strbuffer.c_str(), headerSize, 1, F);
   fseek(F, 8+headerSize, SEEK_SET);
+  return strbuffer;
 }
 
 /// (Re)writes the given string to the header area if the size is the same as the existing header.
@@ -532,9 +240,9 @@ bool DTSC::File::writeHeader(std::string & header, bool force){
     fprintf(stderr, "Could not overwrite header - not equal size\n");
     return false;
   }
-  headerSize = header.size() - 8;
-  fseek(F, 0, SEEK_SET);
-  int ret = fwrite(header.c_str(), 8+headerSize, 1, F);
+  headerSize = header.size();
+  fseek(F, 8, SEEK_SET);
+  int ret = fwrite(header.c_str(), headerSize, 1, F);
   fseek(F, 8+headerSize, SEEK_SET);
   return (ret == 1);
 }
@@ -557,9 +265,10 @@ std::string & DTSC::File::getPacket(){
     strbuffer = "";
     return strbuffer;
   }
-  long packSize = ntohl(((uint32_t *)buffer)[0]);
-  strbuffer.reserve(packSize);
-  if (fread((void*)strbuffer.c_str(), packSize, 1, F)){
+  uint32_t * ubuffer = (uint32_t *)buffer;
+  long packSize = ntohl(ubuffer[0]);
+  strbuffer.resize(packSize);
+  if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
     fprintf(stderr, "Could not read packet\n");
     strbuffer = "";
     return strbuffer;

@@ -5,6 +5,8 @@
 #include <fstream>
 #include <stdlib.h>
 #include <stdint.h> //for uint64_t
+#include <string.h> //for memcpy
+#include <arpa/inet.h> //for htonl
 
 int JSON::Value::c2hex(int c){
   if (c >= '0' && c <= '9') return c - '0';
@@ -345,6 +347,7 @@ JSON::Value & JSON::Value::operator[](unsigned int i){
 
 /// Packs to a std::string for transfer over the network.
 /// If the object is a container type, this function will call itself recursively and contain all contents.
+/// As a side effect, this function clear the internal buffer of any object-types.
 std::string JSON::Value::toPacked(){
   std::string r;
   if (isInt() || isNull() || isBool()){
@@ -374,6 +377,7 @@ std::string JSON::Value::toPacked(){
       }
     }
     r += (char)0x0; r += (char)0x0; r += (char)0xEE;
+    strVal.clear();
   }
   if (isArray()){
     r += 0x0A;
@@ -384,6 +388,37 @@ std::string JSON::Value::toPacked(){
   }
   return r;
 };//toPacked
+
+
+/// Packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
+/// Non-object-types will print an error to stderr and return an empty string.
+/// This function returns a reference to an internal buffer where the prepared data is kept.
+/// The internal buffer is *not* made stale if any changes occur inside the object - subsequent calls to toPacked() will clear the buffer.
+std::string & JSON::Value::toNetPacked(){
+  static std::string emptystring;
+  //check if this is legal
+  if (myType != OBJECT){
+    fprintf(stderr, "Fatal error: Only objects may be NetPacked! Aborting.\n");
+    return emptystring;
+  }
+  //if sneaky storage doesn't contain correct data, re-calculate it
+  if (strVal.size() == 0 || strVal[0] != 'D' || strVal[1] != 'T'){
+    std::string packed = toPacked();
+    strVal.resize(packed.size() + 8);
+    //insert proper header for this type of data
+    if (isMember("data")){
+      memcpy((void*)strVal.c_str(), "DTPD", 4);
+    }else{
+      memcpy((void*)strVal.c_str(), "DTSC", 4);
+    }
+    //insert the packet length at bytes 4-7
+    unsigned int size = htonl(packed.size());
+    memcpy((void*)(strVal.c_str() + 4), (void*)&size, 4);
+    //copy the rest of the string
+    memcpy((void*)(strVal.c_str() + 8), packed.c_str(), packed.size());
+  }
+  return strVal;
+}
 
 
 /// Converts this JSON::Value to valid JSON notation and returns it.
@@ -445,7 +480,7 @@ std::string JSON::Value::toPrettyString(int indentation){
       break;
     }
     case STRING: {
-      for (int i = 0; i < 5 && i < strVal.size(); ++i){
+      for (unsigned int i = 0; i < 5 && i < strVal.size(); ++i){
         if (strVal[i] < 32 || strVal[i] > 125){
           return JSON::Value((long long int)strVal.size()).asString()+" bytes of binary data";
         }

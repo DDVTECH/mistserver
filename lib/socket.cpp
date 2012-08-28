@@ -160,55 +160,6 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   }
 }//Socket::Connection TCP Contructor
 
-/// Calls poll() on the socket, checking if data is available.
-/// This function may return true even if there is no data, but never returns false when there is.
-bool Socket::Connection::canRead(){
-  struct pollfd PFD;
-  PFD.fd = sock;
-  PFD.events = POLLIN;
-  PFD.revents = 0;
-  poll(&PFD, 1, 5);
-  return (PFD.revents & POLLIN) == POLLIN;
-}
-/// Calls poll() on the socket, checking if data can be written.
-bool Socket::Connection::canWrite(){
-  struct pollfd PFD;
-  PFD.fd = sock;
-  PFD.events = POLLOUT;
-  PFD.revents = 0;
-  poll(&PFD, 1, 5);
-  return (PFD.revents & POLLOUT) == POLLOUT;
-}
-
-
-/// Returns the ready-state for this socket.
-/// \returns 1 if data is waiting to be read, -1 if not connected, 0 otherwise.
-signed int Socket::Connection::ready(){
-  if (sock < 0) return -1;
-  char tmp;
-  int preflags = fcntl(sock, F_GETFL, 0);
-  int postflags = preflags | O_NONBLOCK;
-  fcntl(sock, F_SETFL, postflags);
-  int r = recv(sock, &tmp, 1, MSG_PEEK);
-  fcntl(sock, F_SETFL, preflags);
-  if (r < 0){
-    if (errno == EAGAIN || errno == EWOULDBLOCK){
-      return 0;
-    }else{
-      #if DEBUG >= 2
-      fprintf(stderr, "Socket ready error! Error: %s\n", strerror(errno));
-      #endif
-      close();
-      return -1;
-    }
-  }
-  if (r == 0){
-    close();
-    return -1;
-  }
-  return r;
-}
-
 /// Returns the connected-state for this socket.
 /// Note that this function might be slightly behind the real situation.
 /// The connection status is updated after every read/write attempt, when errors occur
@@ -241,6 +192,17 @@ bool Socket::Connection::spool(){
   return iread(downbuffer);
 }
 
+/// Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
+/// Returns true if new data was received, false otherwise.
+bool Socket::Connection::flush(){
+  while (upbuffer.size() > 0 && connected()){
+    iwrite(upbuffer);
+    usleep(5000);//sleep 5 ms
+  }
+  return iread(downbuffer);
+}
+
+
 /// Returns a reference to the download buffer.
 std::string & Socket::Connection::Received(){
   return downbuffer;
@@ -250,81 +212,6 @@ std::string & Socket::Connection::Received(){
 void Socket::Connection::Send(std::string data){
   upbuffer.append(data);
 }
-
-/// Writes data to socket. This function blocks if the socket is blocking and all data cannot be written right away.
-/// If the socket is nonblocking and not all data can be written, this function sets internal variable Blocking to true
-/// and returns false.
-/// \param buffer Location of the buffer to write from.
-/// \param len Amount of bytes to write.
-/// \returns True if the whole write was succesfull, false otherwise.
-bool Socket::Connection::write(const void * buffer, int len){
-  int sofar = 0;
-  if (sock < 0){return false;}
-  while (sofar != len){
-    int r = send(sock, (char*)buffer + sofar, len-sofar, 0);
-    if (r <= 0){
-      Error = true;
-      #if DEBUG >= 2
-      fprintf(stderr, "Could not write data! Error: %s\n", strerror(errno));
-      #endif
-      close();
-      up += sofar;
-      return false;
-    }else{
-      sofar += r;
-    }
-  }
-  up += sofar;
-  return true;
-}//DDv::Socket::write
-
-/// Reads data from socket. This function blocks if the socket is blocking and all data cannot be read right away.
-/// If the socket is nonblocking and not all data can be read, this function sets internal variable Blocking to true
-/// and returns false.
-/// \param buffer Location of the buffer to read to.
-/// \param len Amount of bytes to read.
-/// \returns True if the whole read was succesfull, false otherwise.
-bool Socket::Connection::read(const void * buffer, int len){
-  int sofar = 0;
-  if (sock < 0){return false;}
-  while (sofar != len){
-    int r = recv(sock, (char*)buffer + sofar, len-sofar, 0);
-    if (r < 0){
-      switch (errno){
-        case EWOULDBLOCK:
-          down += sofar;
-          return 0;
-          break;
-        default:
-          Error = true;
-          #if DEBUG >= 2
-          fprintf(stderr, "Could not read data! Error %i: %s\n", r, strerror(errno));
-          #endif
-          close();
-          down += sofar;
-          break;
-      }
-      return false;
-    }else{
-      if (r == 0){
-        Error = true;
-        close();
-        down += sofar;
-        return false;
-      }
-      sofar += r;
-    }
-  }
-  down += sofar;
-  return true;
-}//Socket::Connection::read
-
-/// Read call that is compatible with file access syntax. This function simply calls the other read function.
-bool Socket::Connection::read(const void * buffer, int width, int count){return read(buffer, width*count);}
-/// Write call that is compatible with file access syntax. This function simply calls the other write function.
-bool Socket::Connection::write(const void * buffer, int width, int count){return write(buffer, width*count);}
-/// Write call that is compatible with std::string. This function simply calls the other write function.
-bool Socket::Connection::write(const std::string data){return write(data.c_str(), data.size());}
 
 /// Incremental write call. This function tries to write len bytes to the socket from the buffer,
 /// returning the amount of bytes it actually wrote.
@@ -336,12 +223,16 @@ int Socket::Connection::iwrite(const void * buffer, int len){
   int r = send(sock, buffer, len, 0);
   if (r < 0){
     switch (errno){
-      case EWOULDBLOCK: return 0; break;
+      case EWOULDBLOCK:
+        return 0;
+        break;
       default:
-        Error = true;
-        #if DEBUG >= 2
-        fprintf(stderr, "Could not iwrite data! Error: %s\n", strerror(errno));
-        #endif
+        if (errno != EPIPE){
+          Error = true;
+          #if DEBUG >= 2
+          fprintf(stderr, "Could not iwrite data! Error: %s\n", strerror(errno));
+          #endif
+        }
         close();
         return 0;
         break;
@@ -364,12 +255,16 @@ int Socket::Connection::iread(void * buffer, int len){
   int r = recv(sock, buffer, len, 0);
   if (r < 0){
     switch (errno){
-      case EWOULDBLOCK: return 0; break;
+      case EWOULDBLOCK:
+        return 0;
+        break;
       default:
-        Error = true;
-        #if DEBUG >= 2
-        fprintf(stderr, "Could not iread data! Error: %s\n", strerror(errno));
-        #endif
+        if (errno != EPIPE){
+          Error = true;
+          #if DEBUG >= 2
+          fprintf(stderr, "Could not iread data! Error: %s\n", strerror(errno));
+          #endif
+        }
         close();
         return 0;
         break;
@@ -381,23 +276,6 @@ int Socket::Connection::iread(void * buffer, int len){
   down += r;
   return r;
 }//Socket::Connection::iread
-
-/// Read call that is compatible with std::string.
-/// Data is read using iread (which is nonblocking if the Socket::Connection itself is),
-/// then appended to end of buffer. This functions reads at least one byte before returning.
-/// \param buffer std::string to append data to.
-/// \return True if new data arrived, false otherwise.
-bool Socket::Connection::read(std::string & buffer){
-  char cbuffer[5000];
-  if (!read(cbuffer, 1)){return false;}
-  int num = iread(cbuffer+1, 4999);
-  if (num > 0){
-    buffer.append(cbuffer, num+1);
-  }else{
-    buffer.append(cbuffer, 1);
-  }
-  return true;
-}//read
 
 /// Read call that is compatible with std::string.
 /// Data is read using iread (which is nonblocking if the Socket::Connection itself is),
@@ -425,21 +303,15 @@ bool Socket::Connection::iwrite(std::string & buffer){
   return true;
 }//iwrite
 
-/// Write call that is compatible with std::string.
-/// Data is written using write (which is always blocking),
-/// then removed from front of buffer.
-/// \param buffer std::string to remove data from.
-/// \return True if more data was sent, false otherwise.
-bool Socket::Connection::swrite(std::string & buffer){
-  if (buffer.size() < 1){return false;}
-  bool tmp = write((void*)buffer.c_str(), buffer.size());
-  if (tmp){buffer = "";}
-  return tmp;
-}//write
-
 /// Gets hostname for connection, if available.
 std::string Socket::Connection::getHost(){
   return remotehost;
+}
+
+/// Sets hostname for connection manually.
+/// Overwrites the detected host, thus possibily making it incorrect.
+void Socket::Connection::setHost(std::string host){
+  remotehost = host;
 }
 
 /// Returns true if these sockets are the same socket.
@@ -705,7 +577,7 @@ int Socket::Server::getSocket(){return sock;}
 /// converting all letters to lowercase.
 /// If a '?' character is found, everything following that character is deleted.
 Socket::Connection Socket::getStream(std::string streamname){
-  //strip anything that isn't numbers, digits or underscores
+  //strip anything that isn't a number, alpha or underscore
   for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
     if (*i == '?'){streamname.erase(i, streamname.end()); break;}
     if (!isalpha(*i) && !isdigit(*i) && *i != '_'){

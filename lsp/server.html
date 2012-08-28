@@ -1,0 +1,49 @@
+<!doctype html>
+
+<html lang='en'>
+
+   <head>
+
+      <meta charset='utf-8' />
+
+      <title>Mistserver Manager - not connected</title>
+
+      <script src='jquery.js'></script>
+      <script src='placeholder.js'></script> 
+      <script src='md5.js'></script>
+      <script src='main.js'></script>
+      <script src='functions.js'></script>
+
+      <link rel='stylesheet' href='style.css' />
+
+   </head>
+
+   <body>
+
+      <div id='header'>
+
+         <div id='header-title'>
+            <span>Mistserver Manager</span>
+         </div>
+
+         <div id='header-status'>
+            <span id='header-connection' class='disconnected'>Disconnected</span>
+            <span id='header-host'></span>
+         </div>
+
+      </div>
+
+      <ul id='nav'>
+         <li class='selected'>overview</li>
+         <li>protocols</li>
+         <li>streams</li>
+         <li>limits</li>
+         <li>logs</li>
+         <li id='logoutbutton'>disconnect</li>
+      </ul>
+
+      <div id='page'></div>
+
+   </body>
+
+</html>

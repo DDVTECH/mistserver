@@ -1,0 +1,375 @@
+
+
+body
+{
+   background-color: #fafafa;
+   margin: 0;
+}
+
+#page
+{
+   overflow: hidden;
+   margin: 10px -170px 0 230px;
+   padding: 0;   
+}
+
+
+
+.floatright
+{
+   float: right;
+}
+
+
+
+
+/* content - tables */
+
+table
+{
+   width: 100%;
+}
+
+table
+{
+   border-spacing: 0 4px;
+}
+
+table thead
+{
+   background-color: #c8c8c8;
+}
+
+table th, table td
+{
+   height: 30px;
+   padding: 0 0 0 30px;
+}
+
+table th
+{
+   color: #505050;
+   text-align: left;
+}
+
+table td
+{
+   color: #505050;
+}
+
+
+tbody tr:nth-child(even)
+{
+   background-color: #f0f0f0;
+}
+tbody tr:nth-child(odd)
+{
+   background-color: #f3f3f3;
+}
+
+
+
+
+
+/* login stuff */
+
+#login
+{
+   width: 250px;
+}
+
+#login > input
+{
+   display: block;
+   margin: 5px 0 13px 0;
+   width: 240px;
+}
+
+/* connect button */
+
+#login > button
+{
+   float: right;
+   margin: 0;
+}
+
+
+
+/* input general */
+input, select
+{
+   padding: 5px;
+   color: #505050;
+   border: 1px solid #b4b4b4;
+}
+
+button
+{
+   height: 30px;
+   background-color: #505050;
+   color: #fff;
+   border: 0;
+}
+
+
+tbody button,
+tbody select,
+tbody input
+{
+   height: 22px;
+   padding: 2px;
+}
+
+tbody td button
+{
+   text-transform: uppercase;
+   font-weight: bold;
+   padding: 2px 7px 2px 7px;
+}
+
+tbody td.center
+{
+   text-align: center;
+}
+
+
+#page > button
+{
+   margin: 12px 0 6px 0;
+}
+
+
+/* header */
+
+#header
+{
+   margin: 30px 0 0 0;
+   width: 100%;
+   background-color: #b4b4b4;
+   height: 30px;
+}
+
+#header-title
+{
+   padding: 0 0 0 30px;
+   float: left;
+}
+
+#header-status
+{
+   float: right;
+   padding: 0 30px 0 0;
+}
+
+#header-title, #header-status
+{
+   line-height: 30px;
+}
+
+.disconnected, .red
+{
+   color: #cc3333;
+}
+
+.connected, .green
+{
+   color: #14991a;
+}
+
+.loggingin
+{
+   color: #ee8833;
+}
+
+#header
+{
+   color: #fafafa;
+}
+
+
+
+/* navigation */
+
+#nav
+{
+   float: left;
+   width: 200px;
+   list-style: none;
+   padding: 0;
+   margin: 10px 0 0 0;
+}
+
+#nav li
+{
+   display: block;
+   color: #b4b4b4;
+   line-height: 30px;
+   padding: 0 0 0 30px;
+   margin: 5px 0 5px 0;
+   cursor: pointer;
+}
+
+#nav li:hover, #nav .selected
+{
+   color: #505050;
+   background-color: #c8c8c8;
+}
+
+li#logoutbutton
+{
+   color: #cc3333;
+}
+
+
+p, label
+{
+   color: #505050;
+}
+
+p
+{
+   margin-top: 8px;
+}
+
+label
+{
+   display: block;
+   margin: 6px 0 9px 0;
+   padding: 8px 0 0 0;
+   width: 400px;
+}
+
+label input
+{
+   float: right;
+   margin: -8px 0 0 0;
+   width: 225px;
+}
+
+label span
+{
+   float: right;
+}
+
+
+#editserver
+{
+   width: 400px;
+
+   float: left;
+}
+
+
+
+thead th .theadinfo
+{
+   color: #848484;
+   padding: 0 0 0 10px;
+   font: normal normal 9pt Arial, sans-serif;
+}
+
+
+
+
+/* fonts */
+
+#header-title > span, #header-connection, #header-host,
+#nav,
+th,
+#login > button,
+p,
+label,
+#page label input,
+#page > button,
+#editserver > button, #forcesave > button
+{
+   font: normal bold 11pt Arial, sans-serif;
+   text-transform: uppercase;
+}
+
+
+.nocapitals
+{
+   text-transform: none ;
+}
+
+#editserver label input
+{
+   text-transform: none;
+   font-weight: normal;
+}
+
+#login > input
+{
+   font: normal bold 11pt Arial, sans-serif;
+}
+
+td
+{
+   font: normal normal 10pt Arial, sans-serif;
+}
+
+#streams-filter
+{
+   height: 30px;
+   margin: 5px 0 0 0;
+
+   text-align: right;
+   line-height: 30px;
+}
+
+#streams-filter label
+{
+   margin: 0 15px 0 25px;
+   padding: 0;
+   display: inline-block;
+   width: auto;
+}
+
+#streams-filter input
+{
+   float: none;
+   margin: 0 0 0 10px;
+   width: auto;
+   padding: 0;
+}
+
+
+
+#forcesave
+{
+   width: 400px;
+   float: left;
+   margin: 0 0 0 100px;
+}
+
+#forcesave button
+{
+   float: right;
+}
+
+#forcesave p
+{
+   text-transform: none;
+}
+
+
+#shield
+{
+   position: absolute;
+   background-color: #fff;
+   background-color: rgba(255, 255, 255, 0.5);
+   left: 0;
+   top: 60px;
+   z-index: 5;
+
+   width: 100%;
+   height: 100%;
+
+   color: #505050;
+   font: normal bold 11pt Arial, sans-serif;
+   text-align: center;
+   padding: 50px 0 0 0;
+}
+
+      

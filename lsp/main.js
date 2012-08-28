@@ -443,7 +443,7 @@ TODO als server het stuurt
 										{
 											$(row.children()[3]).html("<span class='green'>Running</span>");
 										}else{
-											$(row.children()[3]).html("<span class='red'>" + (status ? status : 'Offline') + "</span>");
+											$(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : 'Unknown, checking...') + "</span>");
 										}
 
 										$(row.children()[4]).text(streams[stream][1]);
@@ -487,7 +487,7 @@ TODO als server het stuurt
                      {
                         $tr.append( $('<td>').html("<span class='green'>Running</span>") );
                      }else{
-                        $tr.append( $('<td>').html("<span class='red'>" + (cstr.online ? cstr.online : 'Offline') + "</span>") );
+                        $tr.append( $('<td>').html("<span class='red'>" + (cstr.online == 0 ? 'Offline' : 'Unknown, checking...') + "</span>") );
                      }
 
                      var cviewers = 0;
@@ -636,13 +636,15 @@ TODO als server het stuurt
                         if(n.val() == ''){ n.focus(); return; }
                         if(s.val() == ''){ s.focus(); return; }
 
-                        sdata.name = n.val();
+								var newname = n.val().replace(/([^a-zA-Z0-9_])/g, '').toLowerCase();
+
+                        sdata.name = newname;
                         sdata.channel.URL = s.val();
                         sdata.preset.cmd = p.val();
 
                         if(streamname == 'new')
                         {
-                           streamname = n.val().replace(/ /g, '-');
+                           streamname = newname;
                         }
 
                         if(!settings.settings.streams)
@@ -650,7 +652,9 @@ TODO als server het stuurt
                            settings.settings.streams = {};
                         }
 
-                        settings.settings.streams[streamname] = sdata;
+								delete settings.settings.streams[streamname];
+
+                        settings.settings.streams[newname] = sdata;
 
                         loadSettings(function()
                         {

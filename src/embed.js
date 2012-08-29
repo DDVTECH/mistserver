@@ -1,4 +1,4 @@
-function(video)
+function mistembed(video)
 {
 // add stuff to mistvideo object, if it doesn't exist yet
 if(!mistvideo.hasSupport || !mistvideo.buildPlayer)

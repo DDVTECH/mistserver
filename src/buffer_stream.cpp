@@ -60,7 +60,10 @@ std::string Buffer::Stream::getStats(){
   Storage["totals"]["up"] = tot_up;
   Storage["totals"]["count"] = tot_count;
   Storage["totals"]["now"] = now;
-  Storage["totals"]["buffer"] = name;
+  Storage["buffer"] = name;
+  Storage["meta"] = Strm->metadata;
+  if (Storage["meta"].isMember("audio")){Storage["meta"]["audio"].removeMember("init");}
+  if (Storage["meta"].isMember("video")){Storage["meta"]["video"].removeMember("init");}
   std::string ret = Storage.toString();
   Storage["log"].null();
   stats_mutex.unlock();

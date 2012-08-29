@@ -101,7 +101,9 @@ namespace Connector_HTTP{
   /// Handles internal requests.
   void Handle_Internal(HTTP::Parser & H, Socket::Connection * conn){
 
-    if (H.url == "/crossdomain.xml"){
+    std::string url = H.url;
+
+    if (url == "/crossdomain.xml"){
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
@@ -110,22 +112,60 @@ namespace Connector_HTTP{
       return;
     }//crossdomain.xml
 
-    if (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js"){
-      std::string streamname = H.url.substr(7, H.url.length() - 10);
+    if ((url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js") || (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(H.url.length() - 3, 3) == ".js")){
+      std::string streamname;
+      if (url.substr(0, 6) == "/info_"){
+        streamname = url.substr(6, url.length() - 9);
+      }else{
+        streamname = url.substr(7, url.length() - 10);
+      }
       JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
       std::string response;
+      std::string host = H.GetHeader("Host");
+      if (host.find(':')){host.resize(host.find(':'));}
       H.Clean();
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetHeader("Content-Type", "application/javascript");
-      response = "// Generating embed code for stream " + streamname + "\n\n";
-      if (ServConf["streams"].isMember(streamname)){
-        std::string streamurl = "http://" + H.GetHeader("Host") + "/" + streamname + ".flv";
-        response += "// Stream URL: " + streamurl + "\n\n";
-        response += "document.write('<object width=\"600\" height=\"409\"><param name=\"movie\" value=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\"></param><param name=\"flashvars\" value=\"src="+HTTP::Parser::urlencode(streamurl)+"&controlBarMode=floating\"></param><param name=\"allowFullScreen\" value=\"true\"></param><param name=\"allowscriptaccess\" value=\"always\"></param><embed src=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\" type=\"application/x-shockwave-flash\" allowscriptaccess=\"always\" allowfullscreen=\"true\" width=\"600\" height=\"409\" flashvars=\"src="+HTTP::Parser::urlencode(streamurl)+"&controlBarMode=floating\"></embed></object>');\n";
+      response = "// Generating info code for stream " + streamname + "\n\nif (!mistvideo){var mistvideo = {};}\n";
+      JSON::Value json_resp;
+      if (ServConf["streams"].isMember(streamname) && ServConf["config"]["protocols"].size() > 0){
+        json_resp["width"] = ServConf["statistics"][streamname]["meta"]["video"]["width"].asInt();
+        json_resp["height"] = ServConf["statistics"][streamname]["meta"]["video"]["height"].asInt();
+        //first, see if we have RTMP working and output all the RTMP.
+        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
+          if ((*it)["connector"].asString() == "RTMP"){
+            JSON::Value tmp;
+            tmp["type"] = "rtmp";
+            tmp["url"] = "rtmp://" + host + ":" + (*it)["port"].asString() + "/play/" + streamname;
+            json_resp["source"].append(tmp);
+          }
+        }
+        //then, see if we have HTTP working and output all the dynamic.
+        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
+          if ((*it)["connector"].asString() == "HTTP"){
+            JSON::Value tmp;
+            tmp["type"] = "f4v";
+            tmp["url"] = "http://" + host + ":" + (*it)["port"].asString() + "/"+streamname+"/manifest.f4m";
+            json_resp["source"].append(tmp);
+          }
+        }
+        //and all the progressive.
+        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
+          if ((*it)["connector"].asString() == "HTTP"){
+            JSON::Value tmp;
+            tmp["type"] = "flv";
+            tmp["url"] = "http://" + host + ":" + (*it)["port"].asString() + "/"+streamname+".flv";
+            json_resp["source"].append(tmp);
+          }
+        }
       }else{
-        response += "// Stream not available at this server.\nalert(\"This stream is currently not available at this server.\\\\nPlease try again later!\");";
+        json_resp["error"] = "The specified stream is not available on this server.";
+        json_resp["bbq"] = "sauce";//for legacy purposes ^_^
       }
-      response += "";
+      response += "mistvideo['" + streamname + "'] = "+json_resp.toString()+";\n";
+      if (url.substr(0, 6) != "/info_" && !json_resp.isMember("error")){
+        response += "\n\nif(!mistvideo.hasSupport||!mistvideo.buildPlayer){mistvideo.flashVersion=function(){var version=0;try{version=navigator.mimeTypes['application/x-shockwave-flash'].enabledPlugin.description.replace(/([^0-9\\.])/g,'').split('.')[0];}catch(e){}try{version=new ActiveXObject('ShockwaveFlash.ShockwaveFlash').GetVariable(\"$version\").replace(/([^0-9\\,])/g,'').split(',')[0];}catch(e){}return version;};mistvideo.supports={flashversion:parseInt(mistvideo.flashVersion(),10)};mistvideo.hasSupport=function(type){switch(type){case'f4v':return mistvideo.supports.flashversion>=11;break;case'rtmp':return mistvideo.supports.flashversion>=10;break;case'flv':return mistvideo.supports.flashversion>=7;break;default:return false;}};mistvideo.buildPlayer=function(src,container,width,height){switch(src.type){case'f4v':case'rtmp':case'flv':container.innerHTML='<object width=\"'+width+'\" height=\"'+height+'\"><param name=\"movie\" value=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\"></param><param name=\"flashvars\" value=\"src='+encodeURI(src.url)+'&controlBarMode=floating\"></param><param name=\"allowFullScreen\" value=\"true\"></param><param name=\"allowscriptaccess\" value=\"always\"></param><embed src=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\" type=\"application/x-shockwave-flash\" allowscriptaccess=\"always\" allowfullscreen=\"true\" width=\"'+width+'\" height=\"'+height+'\" flashvars=\"src='+encodeURI(src.url)+'&controlBarMode=floating\"></embed></object>';break;}};}var video=mistvideo['"+streamname+"'],container=document.createElement('div'),scripts=document.getElementsByTagName('script'),me=scripts[scripts.length-1];me.parentNode.insertBefore(container,me);container.setAttribute('class','mistvideo');me.parentNode.removeChild(me);if(video.error){container.innerHTML=['<strong>Error: ',video.error,'</strong>'].join('');}else if(video.source.length<1){container.innerHTML='<strong>Error: no streams found</strong>';}else{var i,videofoundPlayer=false,len=video.source.length;for(i=0;i<len;i++){if(mistvideo.hasSupport(video.source[i].type)){mistvideo.buildPlayer(video.source[i],container,video.width,video.height);foundPlayer=true;break;}}if(!foundPlayer){container.innerHTML='fallback here';}}\n";
+      }
       H.SetBody(response);
       conn->Send(H.BuildResponse("200", "OK"));
       return;
@@ -261,6 +301,7 @@ namespace Connector_HTTP{
     }
     if (H.url == "/crossdomain.xml"){return "internal";}
     if (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js"){return "internal";}
+    if (H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js"){return "internal";}
     return "none";
   }
 

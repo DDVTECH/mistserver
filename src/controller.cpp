@@ -171,7 +171,11 @@ void CheckProtocols(JSON::Value & p){
     }
     counter = counter.asInt() + 1;
     new_connectors[std::string("Conn")+counter.asString()] = tmp;
-    (*ait)["online"] = Util::Procs::isActive(std::string("Conn")+counter.asString());
+    if (Util::Procs::isActive(std::string("Conn")+counter.asString())){
+      (*ait)["online"] = 1;
+    }else{
+      (*ait)["online"] = 0;
+    }
   }
 
   //shut down deleted/changed connectors
@@ -423,18 +427,22 @@ int main(int argc, char ** argv){
           size_t newlines = it->Received().find("\n\n");
           while (newlines != std::string::npos){
             Request = JSON::fromString(it->Received().substr(0, newlines));
-            if (Request.isMember("totals") && Request["totals"].isMember("buffer")){
-              std::string thisbuffer = Request["totals"]["buffer"];
+            if (Request.isMember("buffer")){
+              std::string thisbuffer = Request["buffer"];
               Connector::lastBuffer[thisbuffer] = time(0);
-              Connector::Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
-              std::stringstream st;
-              st << Request["totals"]["now"].asInt();
-              std::string nowstr = st.str();
-              Connector::Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
-              Connector::Storage["statistics"][thisbuffer]["totals"].shrink(600);//limit to 10 minutes of data
-              for (JSON::ObjIter jit = Request["log"].ObjBegin(); jit != Request["log"].ObjEnd(); jit++){
-                Connector::Storage["statistics"][thisbuffer]["log"].append(jit->second);
-                Connector::Storage["statistics"][thisbuffer]["log"].shrink(1000);//limit to 1000 users per buffer
+              if (Request.isMember("meta")){
+                Connector::Storage["statistics"][thisbuffer]["meta"] = Request["meta"];
+              }
+              if (Request.isMember("totals")){
+                Connector::Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
+                std::string nowstr = Request["totals"]["now"].asString();
+                Connector::Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
+                Connector::Storage["statistics"][thisbuffer]["totals"].shrink(600);//limit to 10 minutes of data
+                //if metadata is available, store it
+                for (JSON::ObjIter jit = Request["log"].ObjBegin(); jit != Request["log"].ObjEnd(); jit++){
+                  Connector::Storage["statistics"][thisbuffer]["log"].append(jit->second);
+                  Connector::Storage["statistics"][thisbuffer]["log"].shrink(1000);//limit to 1000 users per buffer
+                }
               }
             }
             it->Received().erase(0, newlines+2);

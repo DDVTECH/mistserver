@@ -1,5 +1,10 @@
 
 
+
+:-moz-placeholder { color: #999 !important; }
+
+
+
 body
 {
    background-color: #fafafa;

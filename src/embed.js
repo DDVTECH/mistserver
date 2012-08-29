@@ -1,3 +1,5 @@
+function(video)
+{
 // add stuff to mistvideo object, if it doesn't exist yet
 if(!mistvideo.hasSupport || !mistvideo.buildPlayer)
 {
@@ -107,4 +109,7 @@ if(video.error)
 		// of all the streams given, none was supported (eg. no flash and HTML5 video). Fall back.
 		container.innerHTML = 'fallback here';
 	}
+}
+
+
 }

@@ -110,10 +110,10 @@ TODO als server het stuurt
                      // get login info
                      settings.credentials.username = user.val();
                      settings.credentials.password = pass.val();
-                     settings.server = host.val() || host.attr('placeholder');
+                     settings.server = host.val() == '' ? host.attr('placeholder') : host.val().toLowerCase();
 
                      // save username, URL in address
-                     location.hash = user.val() + '@' + host.val();
+                     location.hash = user.val() + '@' + settings.server;
 
                      // try to login
                      setHeaderState('logingin');

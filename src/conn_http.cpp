@@ -18,6 +18,7 @@
 #include <mist/config.h>
 #include <mist/procs.h>
 #include "tinythread.h"
+#include "embed.js.h"
 
 /// Holds everything unique to HTTP Connector.
 namespace Connector_HTTP{
@@ -164,7 +165,9 @@ namespace Connector_HTTP{
       }
       response += "mistvideo['" + streamname + "'] = "+json_resp.toString()+";\n";
       if (url.substr(0, 6) != "/info_" && !json_resp.isMember("error")){
-        response += "\n\nif(!mistvideo.hasSupport||!mistvideo.buildPlayer){mistvideo.flashVersion=function(){var version=0;try{version=navigator.mimeTypes['application/x-shockwave-flash'].enabledPlugin.description.replace(/([^0-9\\.])/g,'').split('.')[0];}catch(e){}try{version=new ActiveXObject('ShockwaveFlash.ShockwaveFlash').GetVariable(\"$version\").replace(/([^0-9\\,])/g,'').split(',')[0];}catch(e){}return version;};mistvideo.supports={flashversion:parseInt(mistvideo.flashVersion(),10)};mistvideo.hasSupport=function(type){switch(type){case'f4v':return mistvideo.supports.flashversion>=11;break;case'rtmp':return mistvideo.supports.flashversion>=10;break;case'flv':return mistvideo.supports.flashversion>=7;break;default:return false;}};mistvideo.buildPlayer=function(src,container,width,height){switch(src.type){case'f4v':case'rtmp':case'flv':container.innerHTML='<object width=\"'+width+'\" height=\"'+height+'\"><param name=\"movie\" value=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\"></param><param name=\"flashvars\" value=\"src='+encodeURI(src.url)+'&controlBarMode=floating\"></param><param name=\"allowFullScreen\" value=\"true\"></param><param name=\"allowscriptaccess\" value=\"always\"></param><embed src=\"http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf\" type=\"application/x-shockwave-flash\" allowscriptaccess=\"always\" allowfullscreen=\"true\" width=\"'+width+'\" height=\"'+height+'\" flashvars=\"src='+encodeURI(src.url)+'&controlBarMode=floating\"></embed></object>';break;}};}var video=mistvideo['"+streamname+"'],container=document.createElement('div'),scripts=document.getElementsByTagName('script'),me=scripts[scripts.length-1];me.parentNode.insertBefore(container,me);container.setAttribute('class','mistvideo');me.parentNode.removeChild(me);if(video.error){container.innerHTML=['<strong>Error: ',video.error,'</strong>'].join('');}else if(video.source.length<1){container.innerHTML='<strong>Error: no streams found</strong>';}else{var i,videofoundPlayer=false,len=video.source.length;for(i=0;i<len;i++){if(mistvideo.hasSupport(video.source[i].type)){mistvideo.buildPlayer(video.source[i],container,video.width,video.height);foundPlayer=true;break;}}if(!foundPlayer){container.innerHTML='fallback here';}}\n";
+        response.append("\n(");
+        response.append((char*)embed_js, (size_t)embed_js_len);
+        response.append("(\"" + streamname + "\"));\n");
       }
       H.SetBody(response);
       conn->Send(H.BuildResponse("200", "OK"));

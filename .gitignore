@@ -29,4 +29,5 @@ libtool
 *.flv
 *.json
 server.html*
+*.js.h
 

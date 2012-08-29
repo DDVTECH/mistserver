@@ -166,7 +166,7 @@ namespace Connector_HTTP{
       response += "mistvideo['" + streamname + "'] = "+json_resp.toString()+";\n";
       if (url.substr(0, 6) != "/info_" && !json_resp.isMember("error")){
         response.append("\n(");
-        response.append((char*)embed_js, (size_t)embed_js_len);
+        response.append((char*)embed_js, (size_t)embed_js_len-2);//remove trailing ";\n" from xxd conversion
         response.append("(\"" + streamname + "\"));\n");
       }
       H.SetBody(response);

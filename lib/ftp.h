@@ -1,3 +1,4 @@
+#include <map>
 #include <string>
 #include <cstdlib>
 #include <cstdio>
@@ -54,13 +55,14 @@ namespace FTP {
   
   class User {
     public:
-      User( Socket::Connection NewConnection = Socket::Connection() );
+      User( Socket::Connection NewConnection = Socket::Connection(), std::map<std::string,std::string> Credentials = std::map<std::string,std::string>() );
       ~User( );
       int ParseCommand( std::string Command );
       bool LoggedIn( );
       std::string NumToMsg( int MsgNum );
       Socket::Connection Conn;
     private:
+      std::map<std::string,std::string> AllCredentials;
       std::string USER;
       std::string PASS;
       Mode MODE;

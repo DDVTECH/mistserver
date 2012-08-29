@@ -1,6 +1,6 @@
 #include "ftp.h"
 
-FTP::User::User( Socket::Connection NewConnection ) {
+FTP::User::User( Socket::Connection NewConnection, std::map<std::string,std::string> Credentials ) {
   Conn = NewConnection;
   USER = "";
   PASS = "";
@@ -9,6 +9,7 @@ FTP::User::User( Socket::Connection NewConnection ) {
   TYPE = TYPE_ASCII_NONPRINT;
   PORT = 20;
   RNFR = "";
+  AllCredentials = Credentials;
   
   MyDir = Filesystem::Directory( "", FTPBasePath );
   MyDir.SetPermissions( "", Filesystem::P_LIST );
@@ -69,14 +70,14 @@ int FTP::User::ParseCommand( std::string Command ) {
       USER = "";
       PASS = "";
       if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      USER = ThisCmd;
+      USER = Command;
       return 331;//User name okay, need password.
       break;
     }
     case CMD_PASS: {
       if( USER == "" ) { return 503; }//Bad sequence of commands
       if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      PASS = ThisCmd;
+      PASS = Command;
       if( !LoggedIn( ) ) {
         USER = "";
         PASS ="";
@@ -89,15 +90,15 @@ int FTP::User::ParseCommand( std::string Command ) {
       std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
       if( Connected.connected() ) {
-        Conn.write( "125 Data connection already open; transfer starting.\n" );
+        Conn.Send( "125 Data connection already open; transfer starting.\n" );
       } else {
-        Conn.write( "150 File status okay; about to open data connection.\n" );
+        Conn.Send( "150 File status okay; about to open data connection.\n" );
       }
       while( !Connected.connected() ) {
         Connected = Passive.accept();
       }
       fprintf( stderr, "Sending LIST information\n" );
-      Connected.write( MyDir.LIST( ActiveStreams ) );
+      Connected.Send( MyDir.LIST( ActiveStreams ) );
       Connected.close( );
       return 226;
       break;
@@ -136,15 +137,15 @@ int FTP::User::ParseCommand( std::string Command ) {
       std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
       if( Connected.connected() ) {
-        Conn.write( "125 Data connection already open; transfer starting.\n" );
+        Conn.Send( "125 Data connection already open; transfer starting.\n" );
       } else {
-        Conn.write( "150 File status okay; about to open data connection.\n" );
+        Conn.Send( "150 File status okay; about to open data connection.\n" );
       }
       while( !Connected.connected() ) {
         Connected = Passive.accept();
       }
       fprintf( stderr, "Sending RETR information\n" );
-      Connected.write( MyDir.RETR( Command ) );
+      Connected.Send( MyDir.RETR( Command ) );
       Connected.close();
       return 226;
       break;
@@ -156,9 +157,9 @@ int FTP::User::ParseCommand( std::string Command ) {
       std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
       if( Connected.connected() ) {
-        Conn.write( "125 Data connection already open; transfer starting.\n" );
+        Conn.Send( "125 Data connection already open; transfer starting.\n" );
       } else {
-        Conn.write( "150 File status okay; about to open data connection.\n" );
+        Conn.Send( "150 File status okay; about to open data connection.\n" );
       }
       while( !Connected.connected() ) {
         Connected = Passive.accept();
@@ -306,7 +307,13 @@ int FTP::User::ParseCommand( std::string Command ) {
 
 bool FTP::User::LoggedIn( ) {
   if( USER == "" || PASS == "" ) { return false; }
-  return true;
+  if( !AllCredentials.size() ) {
+    return true;
+  }
+  if( ( AllCredentials.find( USER ) != AllCredentials.end() ) && AllCredentials[USER] == PASS ) {
+    return true;
+  }
+  return false;
 }
 
 std::string FTP::User::NumToMsg( int MsgNum ) {

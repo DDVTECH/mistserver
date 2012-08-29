@@ -40,22 +40,35 @@ function mistembed(streamname)
 	};
 
 	// build HTML for certain kinds of types
-	function buildPlayer(src, container, width, height)
+	function buildPlayer(src, container, videowidth, videoheight)
 	{
 		// get the container's width/height
-		cwidth = parseInt(container.style.width, 10);
-		cheight = parseInt(container.style.height, 10);
+		var containerwidth = parseInt(container.scrollWidth, 10);
+		var containerheight = parseInt(container.scrollHeight, 10);
 
-		// video's max width/height is either the containers width/height (if it's smaller then the video) or the video's size
-		width = cwidth < width ? cwidth : width;
-		height = cheight < height ? cheight : height;
+		if(videowidth > containerwidth && containerwidth > 0)
+		{
+			var ratio = videowidth / containerwidth;
+
+			videowidth /= ratio;
+			videoheight /= ratio;
+		}
+
+		if(videoheight > containerheight && containerheight > 0)
+		{
+			var ratio = videoheight / containerheight;
+
+			videowidth /= ratio;
+			videoheight /= ratio;
+		}
+
 
 		switch(src.type)
 		{
 			case 'f4v':
 			case 'rtmp':
 			case 'flv':
-				container.innerHTML = '<object width="' + width + '" height="' + height + '"><param name="movie" value="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf"></param><param name="flashvars" value="src=' + encodeURI(src.url) + '&controlBarMode=floating"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + width + '" height="' + height + '" flashvars="src=' + encodeURI(src.url) + '&controlBarMode=floating"></embed></object>';
+				container.innerHTML = '<object width="' + videowidth + '" height="' + videoheight + '"><param name="movie" value="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf"></param><param name="flashvars" value="src=' + encodeURI(src.url) + '&controlBarMode=floating"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + videowidth + '" height="' + videoheight + '" flashvars="src=' + encodeURI(src.url) + '&controlBarMode=floating"></embed></object>';
 			break;
 		}
 	};

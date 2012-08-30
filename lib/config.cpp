@@ -341,5 +341,9 @@ void Util::Daemonize(){
   #if DEBUG >= 3
   fprintf(stderr, "Going into background mode...\n");
   #endif
-  daemon(1, 0);
+  if (daemon(1, 0) < 0) {
+    #if DEBUG >= 1
+    fprintf(stderr, "Failed to daemonize: %s\n", strerror(errno));
+    #endif
+  }
 }

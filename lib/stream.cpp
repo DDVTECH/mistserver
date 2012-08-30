@@ -1,6 +1,8 @@
 /// \file stream.cpp
 /// Utilities for handling streams.
 
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "stream.h"
 #include "procs.h"
 #include "socket.h"

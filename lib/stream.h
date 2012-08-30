@@ -3,12 +3,12 @@
 
 #pragma once
 #include <string>
-#include <mist/socket.h>
+#include "socket.h"
 
 namespace Util{
   class Stream{
     /// Sanitize a streamname.
-    void sanitizeName(std::string & streamname);
+    static void sanitizeName(std::string & streamname);
   public:
     /// Get a connection to a Live stream.
     static Socket::Connection getLive(std::string streamname);

@@ -38,11 +38,11 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([dup2 gettimeofday memset mkdir socket strerror])
 
-# Fix chars to unsigned
-CXXFLAGS="$CXXFLAGS -funsigned-char"
+AC_SUBST([global_CFLAGS], [-funsigned-char])
 
 #allow verbose mode compiles
-AC_ARG_ENABLE([verbose], AC_HELP_STRING([--enable-verbose], [Compile with verbose messages]), CXXFLAGS="-DDEBUG=4 $CXXFLAGS")
+AC_ARG_ENABLE([verbose], AC_HELP_STRING([--enable-verbose], [Compile with verbose messages]),
+	AC_DEFINE([DEBUG], [4]))
 
 AC_CONFIG_FILES([Makefile
                  src/converters/Makefile

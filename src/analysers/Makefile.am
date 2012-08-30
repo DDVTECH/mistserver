@@ -1,4 +1,4 @@
-AM_CPPFLAGS = $(MIST_CFLAGS)
+AM_CPPFLAGS = $(global_CFLAGS) $(MIST_CFLAGS)
 LDADD = $(MIST_LIBS)
 bin_PROGRAMS=MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF
 MistAnalyserRTMP_SOURCES=rtmp_analyser.cpp

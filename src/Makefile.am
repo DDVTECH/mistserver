@@ -5,7 +5,7 @@ BUILT_SOURCES=server.html.h embed.js.h
 # Do not clean below files, build machines do not have closure installed
 EXTRA_DIST=server.html server.html.h embed.js.h
 
-AM_CPPFLAGS = $(MIST_CFLAGS)
+AM_CPPFLAGS = $(global_CFLAGS) $(MIST_CFLAGS)
 LDADD = $(MIST_LIBS)
 SUBDIRS=converters analysers
 bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistPlayer

@@ -24,6 +24,7 @@ namespace Socket{
   class Connection{
     private:
       int sock; ///< Internally saved socket number.
+      int pipes[2]; ///< Internally saved file descriptors for pipe socket simulation.
       std::string remotehost; ///< Stores remote host address.
       unsigned int up;
       unsigned int down;
@@ -42,6 +43,7 @@ namespace Socket{
       Connection(int sockNo); ///< Create a new base socket.
       Connection(std::string hostname, int port, bool nonblock); ///< Create a new TCP socket.
       Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
+      Connection(int write, int read); ///< Simulate a socket using two file descriptors.
       //generic methods
       void close(); ///< Close connection.
       void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).

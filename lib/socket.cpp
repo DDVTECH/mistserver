@@ -22,6 +22,22 @@ std::string uint2string(unsigned int i){
 /// \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
   sock = sockNo;
+  pipes[0] = -1;
+  pipes[1] = -1;
+  up = 0;
+  down = 0;
+  conntime = time(0);
+  Error = false;
+  Blocking = false;
+}//Socket::Connection basic constructor
+
+/// Simulate a socket using two file descriptors.
+/// \param write The filedescriptor to write to.
+/// \param read The filedescriptor to read from.
+Socket::Connection::Connection(int write, int read){
+  sock = -1;
+  pipes[0] = write;
+  pipes[1] = read;
   up = 0;
   down = 0;
   conntime = time(0);
@@ -33,6 +49,8 @@ Socket::Connection::Connection(int sockNo){
 /// A socket created like this is always disconnected and should/could be overwritten at some point.
 Socket::Connection::Connection(){
   sock = -1;
+  pipes[0] = -1;
+  pipes[1] = -1;
   up = 0;
   down = 0;
   conntime = time(0);
@@ -59,9 +77,21 @@ void Socket::Connection::close(){
     #if DEBUG >= 6
     fprintf(stderr, "Socket closed.\n");
     #endif
-    shutdown(sock, SHUT_RDWR);
-    ::close(sock);
-    sock = -1;
+    if (sock != -1){
+      shutdown(sock, SHUT_RDWR);
+      ::close(sock);
+      sock = -1;
+    }
+    if (pipes[0] != -1){
+      shutdown(pipes[0], SHUT_RDWR);
+      ::close(pipes[0]);
+      pipes[0] = -1;
+    }
+    if (pipes[1] != -1){
+      shutdown(pipes[1], SHUT_RDWR);
+      ::close(pipes[1]);
+      pipes[1] = -1;
+    }
   }
 }//Socket::Connection::close
 
@@ -166,7 +196,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
 /// and when the socket is closed manually.
 /// \returns True if socket is connected, false otherwise.
 bool Socket::Connection::connected() const{
-  return (sock >= 0);
+  return (sock >= 0) || ((pipes[0] >= 0) && (pipes[1] >= 0));
 }
 
 /// Returns total amount of bytes sent.
@@ -219,8 +249,13 @@ void Socket::Connection::Send(std::string data){
 /// \param len Amount of bytes to write.
 /// \returns The amount of bytes actually written.
 int Socket::Connection::iwrite(const void * buffer, int len){
-  if (sock < 0){return 0;}
-  int r = send(sock, buffer, len, 0);
+  if (!connected()){return 0;}
+  int r;
+  if (sock >= 0){
+    r = send(sock, buffer, len, 0);
+  }else{
+    r = write(pipes[0], buffer, len);
+  }
   if (r < 0){
     switch (errno){
       case EWOULDBLOCK:
@@ -238,7 +273,7 @@ int Socket::Connection::iwrite(const void * buffer, int len){
         break;
     }
   }
-  if (r == 0){
+  if (r == 0 && (sock >= 0)){
     close();
   }
   up += r;
@@ -251,8 +286,13 @@ int Socket::Connection::iwrite(const void * buffer, int len){
 /// \param len Amount of bytes to read.
 /// \returns The amount of bytes actually read.
 int Socket::Connection::iread(void * buffer, int len){
-  if (sock < 0){return 0;}
-  int r = recv(sock, buffer, len, 0);
+  if (!connected()){return 0;}
+  int r;
+  if (sock >= 0){
+    r = recv(sock, buffer, len, 0);
+  }else{
+    r = read(pipes[1], buffer, len);
+  }
   if (r < 0){
     switch (errno){
       case EWOULDBLOCK:
@@ -270,7 +310,7 @@ int Socket::Connection::iread(void * buffer, int len){
         break;
     }
   }
-  if (r == 0){
+  if (r == 0 && (sock >= 0)){
     close();
   }
   down += r;
@@ -317,13 +357,13 @@ void Socket::Connection::setHost(std::string host){
 /// Returns true if these sockets are the same socket.
 /// Does not check the internal stats - only the socket itself.
 bool Socket::Connection::operator== (const Connection &B) const{
-  return sock == B.sock;
+  return sock == B.sock && pipes[0] == B.pipes[0] && pipes[1] == B.pipes[1];
 }
 
 /// Returns true if these sockets are not the same socket.
 /// Does not check the internal stats - only the socket itself.
 bool Socket::Connection::operator!= (const Connection &B) const{
-  return sock != B.sock;
+  return sock != B.sock || pipes[0] != B.pipes[0] || pipes[1] != B.pipes[1];
 }
 
 /// Returns true if the socket is valid.

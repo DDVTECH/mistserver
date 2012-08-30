@@ -85,11 +85,5 @@ namespace Socket{
       void close(); ///< Close connection.
       int getSocket(); ///< Returns internal socket number.
   };
-
-  /// Connect to a stream on the system.
-  Connection getStream(std::string streamname);
-
-  /// Create a stream on the system.
-  Server makeStream(std::string streamname);
   
 };

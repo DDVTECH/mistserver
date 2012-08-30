@@ -30,7 +30,7 @@
 #include <mist/http_parser.h>
 #include <mist/procs.h>
 #include <mist/auth.h>
-#include "../server.html.h"
+#include "server.html.h"
 
 #define UPLINK_INTERVAL 30
 #define COMPILED_USERNAME ""

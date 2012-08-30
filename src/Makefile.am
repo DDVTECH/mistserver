@@ -1,10 +1,16 @@
+lspdir=$(srcdir)/../lsp
+CLOSUREJAR=$(lspdir)/closure-compiler.jar
+CLOSURE=java -jar $(CLOSUREJAR) --warning_level QUIET
+BUILT_SOURCES=server.html.h embed.js.h
+CLEANFILES=$(BUILT_SOURCES) server.html compressed.js
+
 AM_CPPFLAGS = $(MIST_CFLAGS)
 LDADD = $(MIST_LIBS)
 SUBDIRS=converters analysers
 bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic
 MistBuffer_SOURCES=buffer.cpp buffer_user.h buffer_user.cpp buffer_stream.h buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
 MistBuffer_LDADD=$(MIST_LIBS) -lpthread
-MistController_SOURCES=controller.cpp ../VERSION ../server.html.h
+MistController_SOURCES=controller.cpp ../VERSION ./server.html.h
 MistConnRAW_SOURCES=conn_raw.cpp ../VERSION
 MistConnRTMP_SOURCES=conn_rtmp.cpp ../VERSION
 MistConnHTTP_SOURCES=conn_http.cpp tinythread.cpp tinythread.h ../VERSION ./embed.js.h
@@ -12,3 +18,26 @@ MistConnHTTP_LDADD=$(MIST_LIBS) -lpthread
 MistConnHTTPProgressive_SOURCES=conn_http_progressive.cpp ../VERSION
 MistConnHTTPDynamic_SOURCES=conn_http_dynamic.cpp ../VERSION
 
+lspSOURCES=$(lspdir)/jquery.js $(lspdir)/placeholder.js $(lspdir)/md5.js $(lspdir)/main.js $(lspdir)/functions.js
+lspDATA=$(lspdir)/header.html $(lspdir)/style.css $(lspdir)/footer.html
+
+embed.js.h: $(srcdir)/embed.js $(CLOSUREJAR)
+	$(CLOSURE) $< > embed.min.js
+	xxd -i embed.min.js | sed s/_min_/_/g > embed.js.h
+	rm embed.min.js
+
+compressed.js: $(lspSOURCES) $(CLOSUREJAR)
+	-mkdir lsp
+	$(CLOSURE) $(lspSOURCES) > $@
+
+server.html: compressed.js $(lspDATA)
+	cat $(lspdir)/header.html > $@
+	echo "<script>" >> $@
+	cat compressed.js >> $@
+	echo "</script><style>" >> $@
+	cat $(lspdir)/style.css >> $@
+	echo "</style>" >> $@
+	cat $(lspdir)/footer.html >> $@
+
+server.html.h: server.html
+	xxd -i server.html server.html.h

@@ -16,6 +16,7 @@
 #include <mist/flv_tag.h>
 #include <mist/amf.h>
 #include <mist/rtmpchunks.h>
+#include <mist/stream.h>
 
 /// Holds all functions and data unique to the RTMP Connector
 namespace Connector_RTMP{
@@ -76,7 +77,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
     if (ready4data){
       if (!inited){
         //we are ready, connect the socket!
-        SS = Socket::getStream(streamname);
+        SS = Util::Stream::getStream(streamname);
         if (!SS.connected()){
           #if DEBUG >= 1
           fprintf(stderr, "Could not connect to server!\n");
@@ -405,7 +406,8 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
   if ((amfdata.getContentP(0)->StrValue() == "publish")){
     if (amfdata.getContentP(3)){
       streamname = amfdata.getContentP(3)->StrValue();
-      SS = Socket::getStream(streamname);
+      /// \todo implement push for MistPlayer or restrict and change to getLive
+      SS = Util::Stream::getStream(streamname);
       if (!SS.connected()){
         #if DEBUG >= 1
         fprintf(stderr, "Could not connect to server!\n");

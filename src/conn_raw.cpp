@@ -5,6 +5,7 @@
 #include <sstream>
 #include <mist/config.h>
 #include <mist/socket.h>
+#include <mist/stream.h>
 
 /// Contains the main code for the RAW connector.
 /// Expects a single commandline argument telling it which stream to connect to,
@@ -15,7 +16,7 @@ int main(int argc, char  ** argv) {
   conf.parseArgs(argc, argv);
 
   //connect to the proper stream
-  Socket::Connection S = Socket::getStream(conf.getString("stream_name"));
+  Socket::Connection S = Util::Stream::getStream(conf.getString("stream_name"));
   S.setBlocking(false);
   if (!S.connected()){
     std::cout << "Could not open stream " << conf.getString("stream_name") << std::endl;

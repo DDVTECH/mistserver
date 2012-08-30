@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include <mist/config.h>
 #include "buffer_stream.h"
+#include <mist/stream.h>
 
 /// Holds all code unique to the Buffer.
 namespace Buffer{
@@ -168,7 +169,7 @@ namespace Buffer{
 
     std::string name = conf.getString("stream_name");
 
-    SS = Socket::makeStream(name);
+    SS = Util::Stream::makeLive(name);
     if (!SS.connected()) {
       perror("Could not create stream socket");
       return 1;

@@ -17,6 +17,7 @@
 #include <mist/flv_tag.h>
 #include <mist/amf.h>
 #include <mist/config.h>
+#include <mist/stream.h>
 
 /// Holds everything unique to HTTP Progressive Connector.
 namespace Connector_HTTP{
@@ -58,7 +59,7 @@ namespace Connector_HTTP{
       if (ready4data){
         if (!inited){
           //we are ready, connect the socket!
-          ss = Socket::getStream(streamname);
+          ss = Util::Stream::getStream(streamname);
           if (!ss.connected()){
             #if DEBUG >= 1
             fprintf(stderr, "Could not connect to server!\n");

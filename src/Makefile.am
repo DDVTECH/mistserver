@@ -1,23 +1,3 @@
-../lsp/uncompressed.js: ../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js ../lsp/functions.js
-	cat ../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js ../lsp/functions.js > ../lsp/uncompressed.js
-../lsp/compressed.js: ../lsp/uncompressed.js
-	echo "<script>" > ../lsp/compressed.js
-	java -jar ../lsp/jscompiler.jar < ../lsp/uncompressed.js >> ../lsp/compressed.js
-	echo "</script>" >> ../lsp/compressed.js
-../server.html: ../lsp/compressed.js
-	cat ../lsp/header.html ../lsp/compressed.js > ../server.html
-	echo "<style>" >> ../server.html
-	cat ../lsp/style.css >> ../server.html
-	echo "</style>" >> ../server.html
-	cat ../lsp/footer.html >> ../server.html
-../server.html.h: ../server.html
-	xxd -i ../server.html ../server.html.h
-./embed.js.h: ./embed.js
-	mv embed.js tmp.js
-	java -jar ../lsp/jscompiler.jar < tmp.js > embed.js
-	xxd -i embed.js embed.js.h
-	mv tmp.js embed.js
-
 AM_CPPFLAGS = $(MIST_CFLAGS)
 LDADD = $(MIST_LIBS)
 SUBDIRS=converters analysers

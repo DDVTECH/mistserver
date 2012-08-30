@@ -503,7 +503,7 @@ int main(int argc, char ** argv){
                 it->H.SetHeader("Content-Type", "text/html");
                 it->H.SetHeader("X-Info", "To force an API response, request the file /api");
                 it->H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
-                it->H.SetBody(std::string((char*)___server_html, (size_t)___server_html_len));
+                it->H.SetBody(std::string((char*)server_html, (size_t)server_html_len));
                 it->C.Send(it->H.BuildResponse("200", "OK"));
                 it->H.Clean();
               }else{

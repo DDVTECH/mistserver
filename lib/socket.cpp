@@ -83,12 +83,10 @@ void Socket::Connection::close(){
       sock = -1;
     }
     if (pipes[0] != -1){
-      shutdown(pipes[0], SHUT_RDWR);
       ::close(pipes[0]);
       pipes[0] = -1;
     }
     if (pipes[1] != -1){
-      shutdown(pipes[1], SHUT_RDWR);
       ::close(pipes[1]);
       pipes[1] = -1;
     }

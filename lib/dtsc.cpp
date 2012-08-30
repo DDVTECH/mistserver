@@ -228,7 +228,12 @@ DTSC::File::File(std::string filename, bool create){
 std::string & DTSC::File::getHeader(){
   fseek(F, 8, SEEK_SET);
   strbuffer.resize(headerSize);
-  fread((void*)strbuffer.c_str(), headerSize, 1, F);
+  if (fread((void*)strbuffer.c_str(), headerSize, 1, F) != headerSize){
+    /// \todo check seek as well and do something more sensible...
+    #if DEBUG >= 10
+    fprintf(stderr, "Panic! Invalid DTSC File header\n");
+    #endif
+  }
   fseek(F, 8+headerSize, SEEK_SET);
   return strbuffer;
 }

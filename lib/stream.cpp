@@ -1,8 +1,13 @@
 /// \file stream.cpp
 /// Utilities for handling streams.
 
+#if DEBUG >= 4
+#include <iostream>
+#endif
+
 #include <sys/stat.h>
 #include <sys/types.h>
+#include "json.h"
 #include "stream.h"
 #include "procs.h"
 #include "socket.h"
@@ -23,31 +28,42 @@ void Util::Stream::sanitizeName(std::string & streamname){
 }
 
 Socket::Connection Util::Stream::getLive(std::string streamname){
-  sanitizeName(streamname);
   return Socket::Connection("/tmp/mist/stream_"+streamname);
 }
 
-/// Starts a process for the VoD stream.
-Socket::Connection Util::Stream::getVod(std::string streamname){
-  sanitizeName(streamname);
-  std::string filename = "/tmp/mist/vod_" + streamname;
-  /// \todo Is the name unique enough?
+/// Starts a process for a VoD stream.
+Socket::Connection Util::Stream::getVod(std::string filename){
   std::string name = "MistPlayer " + filename;
   const char *argv[] = { "MistPlayer", filename.c_str(), NULL };
-  int fdin = -1, fdout = -1;
-  Util::Procs::StartPiped(name, (char **)argv, &fdin, &fdout, 0);
+  int fdin = -1, fdout = -1, fderr = fileno(stderr);
+  Util::Procs::StartPiped(name, (char **)argv, &fdin, &fdout, &fderr);
   // if StartPiped fails then fdin and fdout will be unmodified (-1)
   return Socket::Connection(fdin, fdout);
 }
 
 /// Probe for available streams. Currently first VoD, then Live.
 Socket::Connection Util::Stream::getStream(std::string streamname){
-  Socket::Connection vod = getVod(streamname);
-  if (vod.connected()){
-    return vod;
+  sanitizeName(streamname);
+  JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
+  if (ServConf["streams"].isMember(streamname)){
+    if (ServConf["streams"][streamname]["channel"]["URL"].asString()[0] == '/'){
+      #if DEBUG >= 4
+      std::cerr << "Opening VoD stream from file " << ServConf["streams"][streamname]["channel"]["URL"].asString() << std::endl;
+      #endif
+      return getVod(ServConf["streams"][streamname]["channel"]["URL"].asString());
+    }else{
+      #if DEBUG >= 4
+      std::cerr << "Opening live stream " << streamname << std::endl;
+      #endif
+      return Socket::Connection("/tmp/mist/stream_"+streamname);
+    }
   }
-  return getLive(streamname);
+  #if DEBUG >= 4
+  std::cerr << "Could not open stream " << streamname << " - stream not found" << std::endl;
+  #endif
+  return Socket::Connection();
 }
+
 /// Create a stream on the system.
 /// Filters the streamname, removing invalid characters and
 /// converting all letters to lowercase.

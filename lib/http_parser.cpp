@@ -24,18 +24,18 @@ void HTTP::Parser::Clean(){
 /// The request is build from internal variables set before this call is made.
 /// To be precise, method, url, protocol, headers and body are used.
 /// \return A string containing a valid HTTP 1.0 or 1.1 request, ready for sending.
-std::string HTTP::Parser::BuildRequest(){
+std::string & HTTP::Parser::BuildRequest(){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
-  std::string tmp = method+" "+url+" "+protocol+"\n";
+  builder = method+" "+url+" "+protocol+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
     if ((*it).first != "" && (*it).second != ""){
-      tmp += (*it).first + ": " + (*it).second + "\n";
+      builder += (*it).first + ": " + (*it).second + "\n";
     }
   }
-  tmp += "\n" + body;
-  return tmp;
+  builder += "\n" + body;
+  return builder;
 }
 
 /// Returns a string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
@@ -44,21 +44,21 @@ std::string HTTP::Parser::BuildRequest(){
 /// \param code The HTTP response code. Usually you want 200.
 /// \param message The HTTP response message. Usually you want "OK".
 /// \return A string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
-std::string HTTP::Parser::BuildResponse(std::string code, std::string message){
+std::string & HTTP::Parser::BuildResponse(std::string code, std::string message){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
-  std::string tmp = protocol+" "+code+" "+message+"\n";
+  builder = protocol+" "+code+" "+message+"\n";
   for (it=headers.begin(); it != headers.end(); it++){
     if ((*it).first != "" && (*it).second != ""){
       if ((*it).first != "Content-Length" || (*it).second != "0"){
-        tmp += (*it).first + ": " + (*it).second + "\n";
+        builder += (*it).first + ": " + (*it).second + "\n";
       }
     }
   }
-  tmp += "\n";
-  tmp += body;
-  return tmp;
+  builder += "\n";
+  builder += body;
+  return builder;
 }
 
 /// Trims any whitespace at the front or back of the string.
@@ -84,6 +84,15 @@ void HTTP::Parser::SetBody(char * buffer, int len){
   body = "";
   body.append(buffer, len);
   SetHeader("Content-Length", len);
+}
+
+/// Returns header i, if set.
+std::string HTTP::Parser::getUrl(){
+  if (url.find('?') != std::string::npos){
+    return url.substr(0, url.find('?'));
+  }else{
+    return url;
+  }
 }
 
 /// Returns header i, if set.
@@ -150,7 +159,6 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
             protocol = tmpA;
             if (url.find('?') != std::string::npos){
               parseVars(url.substr(url.find('?')+1)); //parse GET variables
-              url.resize(url.find('?'));
             }
           }else{seenReq = false;}
         }else{seenReq = false;}

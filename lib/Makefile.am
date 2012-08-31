@@ -1,3 +1,5 @@
+AM_CPPFLAGS = $(global_CFLAGS)
+
 lib_LTLIBRARIES=libmist-1.0.la
 libmist_1_0_la_SOURCES=amf.h amf.cpp auth.h auth.cpp base64.h base64.cpp config.h config.cpp crypto.h crypto.cpp dtsc.h dtsc.cpp flv_tag.h flv_tag.cpp http_parser.h http_parser.cpp json.h json.cpp procs.h procs.cpp rtmpchunks.h rtmpchunks.cpp socket.h socket.cpp mp4.h mp4.cpp ftp.h ftp.cpp filesystem.h filesystem.cpp stream.h stream.cpp
 libmist_1_0_la_LIBADD=-lssl -lcrypto

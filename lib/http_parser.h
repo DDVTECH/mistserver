@@ -16,13 +16,14 @@ namespace HTTP{
       bool Read(std::string & strbuf);
       std::string GetHeader(std::string i);
       std::string GetVar(std::string i);
+      std::string getUrl();
       void SetHeader(std::string i, std::string v);
       void SetHeader(std::string i, int v);
       void SetVar(std::string i, std::string v);
       void SetBody(std::string s);
       void SetBody(char * buffer, int len);
-      std::string BuildRequest();
-      std::string BuildResponse(std::string code, std::string message);
+      std::string & BuildRequest();
+      std::string & BuildResponse(std::string code, std::string message);
       void Chunkify(std::string & bodypart);
       void Clean();
       static std::string urlunescape(const std::string & in);
@@ -37,6 +38,7 @@ namespace HTTP{
       bool seenReq;
       bool parse(std::string & HTTPbuffer);
       void parseVars(std::string data);
+      std::string builder;
       std::string read_buffer;
       std::map<std::string, std::string> headers;
       std::map<std::string, std::string> vars;

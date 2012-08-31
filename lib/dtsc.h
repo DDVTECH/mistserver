@@ -69,11 +69,17 @@ namespace DTSC{
       ~File();
       std::string & getHeader();
       bool writeHeader(std::string & header, bool force = false);
+      void seekNext();
       std::string & getPacket();
+      JSON::Value & getJSON();
       bool seek_frame(int frameno);
-    private:
+      bool seek_time(int seconds);
+  private:
       std::string strbuffer;
+      JSON::Value jsonbuffer;
       std::map<int, long> frames;
+      std::map<int, long> msframes;
+      long long int currtime;
       int currframe;
       FILE * F;
       unsigned long headerSize;

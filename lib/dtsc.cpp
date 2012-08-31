@@ -222,7 +222,8 @@ DTSC::File::File(std::string filename, bool create){
   }
   fseek(F, 8+headerSize, SEEK_SET);
   currframe = 1;
-  frames[currframe] = ftell(F);
+  frames[1] = 8+headerSize;
+  msframes[1] = 0;
 }
 
 /// Returns the header metadata for this file as a std::string.
@@ -256,24 +257,27 @@ bool DTSC::File::writeHeader(std::string & header, bool force){
   return (ret == 1);
 }
 
-/// Reads the packet available at the current file position, returning it as a std::string.
-/// If the packet could not be read for any reason, the reason is printed to stderr and an empty string returned.
+/// Reads the packet available at the current file position.
+/// If the packet could not be read for any reason, the reason is printed to stderr.
 /// Reading the packet means the file position is increased to the next packet.
-std::string & DTSC::File::getPacket(){
+void DTSC::File::seekNext(){
   if (fread(buffer, 4, 1, F) != 1){
     fprintf(stderr, "Could not read header\n");
     strbuffer = "";
-    return strbuffer;
+    jsonbuffer.null();
+    return;
   }
   if (memcmp(buffer, DTSC::Magic_Packet, 4) != 0){
-    fprintf(stderr, "Invalid header\n");
+    fprintf(stderr, "Invalid header - %.4s != %.4s\n", buffer, DTSC::Magic_Packet);
     strbuffer = "";
-    return strbuffer;
+    jsonbuffer.null();
+    return;
   }
   if (fread(buffer, 4, 1, F) != 1){
     fprintf(stderr, "Could not read size\n");
     strbuffer = "";
-    return strbuffer;
+    jsonbuffer.null();
+    return;
   }
   uint32_t * ubuffer = (uint32_t *)buffer;
   long packSize = ntohl(ubuffer[0]);
@@ -281,36 +285,78 @@ std::string & DTSC::File::getPacket(){
   if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
     fprintf(stderr, "Could not read packet\n");
     strbuffer = "";
-    return strbuffer;
+    jsonbuffer.null();
+    return;
   }
-  currframe++;
-  frames[currframe] = ftell(F);
-  return strbuffer;
+  jsonbuffer = JSON::fromDTMI(strbuffer);
+  if (jsonbuffer.isMember("keyframe")){
+    long pos = ftell(F) - (packSize + 8);
+    if (frames[currframe] != pos){
+      currframe++;
+      currtime = jsonbuffer["time"].asInt();
+      #if DEBUG >= 4
+      std::cerr << "Found a new frame " << currframe << " @ " << pos << "b/" << currtime << "s" << std::endl;
+      #endif
+      frames[currframe] = pos;
+      msframes[currframe] = currtime;
+    }
+  }
 }
+
+/// Returns the internal buffer of the last read packet in raw binary format.
+std::string & DTSC::File::getPacket(){return strbuffer;}
+
+/// Returns the internal buffer of the last read packet in JSON format.
+JSON::Value & DTSC::File::getJSON(){return jsonbuffer;}
 
 /// Attempts to seek to the given frame number within the file.
 /// Returns true if successful, false otherwise.
 bool DTSC::File::seek_frame(int frameno){
-  std::map<int, long>::iterator it = frames.lower_bound(frameno);
-  if (it->first == frameno){
-    if (fseek(F, it->second, SEEK_SET) == 0){
+  if (frames.count(frameno) > 0){
+    if (fseek(F, frames[frameno], SEEK_SET) == 0){
       currframe = frameno;
       return true;
     }
   }else{
-    if (fseek(F, it->second, SEEK_SET) == 0){
-      currframe = it->first;
+    for (int i = frameno; i >= 1; --i){
+      if (frames.count(i) > 0){currframe = i; break;}
+    }
+    if (fseek(F, frames[currframe], SEEK_SET) == 0){
+      #if DEBUG >= 4
+      std::cerr << "Seeking from frame " << currframe << " @ " << frames[currframe] << " to " << frameno << std::endl;
+      #endif
       while (currframe < frameno){
-        if (fread(buffer, 4, 1, F) != 1){return false;}//read header
-        if (memcmp(buffer, DTSC::Magic_Packet, 4) != 0){return false;}//check header
-        if (fread(buffer, 4, 1, F) != 1){return false;}//read size
-        uint32_t * ubuffer = (uint32_t *)buffer;
-        long packSize = ntohl(ubuffer[0]);
-        if (fseek(F, packSize, SEEK_CUR) != 0){return false;}//seek to next packet
-        currframe++;
+        seekNext();
+        if (jsonbuffer.isNull()){return false;}
       }
       return true;
     }
+  }
+  return false;
+}
+
+/// Attempts to seek to the given time in ms within the file.
+/// Returns true if successful, false otherwise.
+bool DTSC::File::seek_time(int ms){
+  std::map<int, long>::iterator it;
+  currtime = 0;
+  currframe = 1;
+  for (it = msframes.begin(); it != msframes.end(); ++it){
+    if (it->second > ms){break;}
+    if (it->second > currtime){currtime = it->second; currframe = it->first;}
+  }
+  if (fseek(F, frames[currframe], SEEK_SET) == 0){
+    #if DEBUG >= 4
+    std::cerr << "Seeking from frame " << currframe << " @ " << msframes[currframe] << "ms to " << ms << "ms" << std::endl;
+    #endif
+    while (currtime < ms){
+      seekNext();
+      if (jsonbuffer.isNull()){return false;}
+    }
+    if (currtime > ms){
+      return seek_frame(currframe - 1);
+    }
+    return true;
   }
   return false;
 }

@@ -47,7 +47,7 @@ namespace Connector_HTTP{
           #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
           //we assume the URL is the stream name with a 3 letter extension
-          std::string streamname(HTTP_R.url);
+          streamname = HTTP_R.url;
           size_t extDot = streamname.rfind('.');
           if (extDot != std::string::npos){streamname.resize(extDot);};//strip the extension
           seek_pos = 1000 * atof(HTTP_R.GetVar("start").c_str());//seconds to ms

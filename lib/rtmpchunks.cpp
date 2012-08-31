@@ -36,8 +36,8 @@ std::map<unsigned int, RTMPStream::Chunk> RTMPStream::Chunk::lastrecv;
 /// Packs up the chunk for sending over the network.
 /// \warning Do not call if you are not actually sending the resulting data!
 /// \returns A std::string ready to be sent.
-std::string RTMPStream::Chunk::Pack(){
-  std::string output = "";
+std::string & RTMPStream::Chunk::Pack(){
+  static std::string output = "";
   RTMPStream::Chunk prev = lastsend[cs_id];
   unsigned int tmpi;
   unsigned char chtype = 0x00;
@@ -143,8 +143,8 @@ RTMPStream::Chunk::Chunk(){
 }//constructor
 
 /// Packs up a chunk with the given arguments as properties.
-std::string RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data){
-  RTMPStream::Chunk ch;
+std::string & RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data){
+  static RTMPStream::Chunk ch;
   ch.cs_id = cs_id;
   ch.timestamp = RTMPStream::getNowMS();
   ch.len = data.size();
@@ -161,8 +161,8 @@ std::string RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id,
 /// \param data Contents of the media data.
 /// \param len Length of the media data, in bytes.
 /// \param ts Timestamp of the media data, relative to current system time.
-std::string RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char * data, int len, unsigned int ts){
-  RTMPStream::Chunk ch;
+std::string & RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char * data, int len, unsigned int ts){
+  static RTMPStream::Chunk ch;
   ch.cs_id = msg_type_id+42;
   ch.timestamp = ts;
   ch.len = len;
@@ -170,14 +170,14 @@ std::string RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char * dat
   ch.len_left = 0;
   ch.msg_type_id = msg_type_id;
   ch.msg_stream_id = 1;
-  ch.data.append((char*)data, (size_t)len);
+  ch.data = std::string((char*)data, (size_t)len);
   return ch.Pack();
 }//SendMedia
 
 /// Packs up a chunk with media contents.
 /// \param tag FLV::Tag with media to send.
-std::string RTMPStream::SendMedia(FLV::Tag & tag){
-  RTMPStream::Chunk ch;
+std::string & RTMPStream::SendMedia(FLV::Tag & tag){
+  static RTMPStream::Chunk ch;
   ch.cs_id = ((unsigned char)tag.data[0]);
   ch.timestamp = tag.tagTime();
   ch.len = tag.len-15;
@@ -185,13 +185,13 @@ std::string RTMPStream::SendMedia(FLV::Tag & tag){
   ch.len_left = 0;
   ch.msg_type_id = (unsigned char)tag.data[0];
   ch.msg_stream_id = 1;
-  ch.data.append(tag.data+11, (size_t)(tag.len-15));
+  ch.data = std::string(tag.data+11, (size_t)(tag.len-15));
   return ch.Pack();
 }//SendMedia
 
 /// Packs up a chunk for a control message with 1 argument.
-std::string RTMPStream::SendCTL(unsigned char type, unsigned int data){
-  RTMPStream::Chunk ch;
+std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data){
+  static RTMPStream::Chunk ch;
   ch.cs_id = 2;
   ch.timestamp = RTMPStream::getNowMS();
   ch.len = 4;
@@ -205,8 +205,8 @@ std::string RTMPStream::SendCTL(unsigned char type, unsigned int data){
 }//SendCTL
 
 /// Packs up a chunk for a control message with 2 arguments.
-std::string RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned char data2){
-  RTMPStream::Chunk ch;
+std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned char data2){
+  static RTMPStream::Chunk ch;
   ch.cs_id = 2;
   ch.timestamp = RTMPStream::getNowMS();
   ch.len = 5;
@@ -221,8 +221,8 @@ std::string RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned 
 }//SendCTL
 
 /// Packs up a chunk for a user control message with 1 argument.
-std::string RTMPStream::SendUSR(unsigned char type, unsigned int data){
-  RTMPStream::Chunk ch;
+std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data){
+  static RTMPStream::Chunk ch;
   ch.cs_id = 2;
   ch.timestamp = RTMPStream::getNowMS();
   ch.len = 6;
@@ -238,8 +238,8 @@ std::string RTMPStream::SendUSR(unsigned char type, unsigned int data){
 }//SendUSR
 
 /// Packs up a chunk for a user control message with 2 arguments.
-std::string RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned int data2){
-  RTMPStream::Chunk ch;
+std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned int data2){
+  static RTMPStream::Chunk ch;
   ch.cs_id = 2;
   ch.timestamp = RTMPStream::getNowMS();
   ch.len = 10;

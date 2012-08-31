@@ -70,8 +70,11 @@ namespace DTSC{
       std::string & getHeader();
       bool writeHeader(std::string & header, bool force = false);
       std::string & getPacket();
+      bool seek_frame(int frameno);
     private:
       std::string strbuffer;
+      std::map<int, long> frames;
+      int currframe;
       FILE * F;
       unsigned long headerSize;
       char buffer[4];

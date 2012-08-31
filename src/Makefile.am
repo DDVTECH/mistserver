@@ -18,7 +18,7 @@ MistConnHTTP_SOURCES=conn_http.cpp tinythread.cpp tinythread.h ../VERSION ./embe
 MistConnHTTP_LDADD=$(MIST_LIBS) -lpthread
 MistConnHTTPProgressive_SOURCES=conn_http_progressive.cpp ../VERSION
 MistConnHTTPDynamic_SOURCES=conn_http_dynamic.cpp ../VERSION
-MistPlayer_SOURCES=player.h player.cpp
+MistPlayer_SOURCES=player.cpp
 MistPlayer_LDADD=$(MIST_LIBS)
 
 lspSOURCES=$(lspdir)/jquery.js $(lspdir)/placeholder.js $(lspdir)/md5.js $(lspdir)/main.js $(lspdir)/functions.js

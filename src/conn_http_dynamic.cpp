@@ -153,6 +153,8 @@ namespace Connector_HTTP{
             #if DEBUG >= 4
             printf( "Quality: %s, Seg %d Frag %d\n", Quality.c_str(), Segment, ReqFragment);
             #endif
+            ss.Send("f " + JSON::Value((long long int)ReqFragment) + "\no \n");
+            ss.flush();
             Flash_RequestPending++;
           }else{
             streamname = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
@@ -184,7 +186,6 @@ namespace Connector_HTTP{
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");
           #endif
-          ss.Send("play\n");ss.flush();
           inited = true;
         }
         if ((Flash_RequestPending > 0) && !Flash_FragBuffer.empty()){

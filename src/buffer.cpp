@@ -63,28 +63,45 @@ namespace Buffer{
         std::string cmd = usr->S.Received().substr(0, usr->S.Received().find('\n'));
         usr->S.Received().erase(0, usr->S.Received().find('\n')+1);
         if (cmd != ""){
-          if (cmd[0] == 'P'){
-            std::cout << "Push attempt from IP " << cmd.substr(2) << std::endl;
-            if (thisStream->checkWaitingIP(cmd.substr(2))){
-              if (thisStream->setInput(usr->S)){
-                std::cout << "Push accepted!" << std::endl;
-                usr->S = Socket::Connection(-1);
-                return;
+          switch (cmd[0]){
+            case 'P':{ //Push
+              std::cout << "Push attempt from IP " << cmd.substr(2) << std::endl;
+              if (thisStream->checkWaitingIP(cmd.substr(2))){
+                if (thisStream->setInput(usr->S)){
+                  std::cout << "Push accepted!" << std::endl;
+                  usr->S = Socket::Connection(-1);
+                  return;
+                }else{
+                  usr->Disconnect("Push denied - push already in progress!");
+                }
               }else{
-                usr->Disconnect("Push denied - push already in progress!");
+                usr->Disconnect("Push denied - invalid IP address!");
               }
-            }else{
-              usr->Disconnect("Push denied - invalid IP address!");
-            }
-          }
-          if (cmd[0] == 'S'){
-            usr->tmpStats = Stats(cmd.substr(2));
-            unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
-            if (secs < 1){secs = 1;}
-            usr->curr_up = (usr->tmpStats.up - usr->lastStats.up) / secs;
-            usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
-            usr->lastStats = usr->tmpStats;
-            thisStream->saveStats(usr->MyStr, usr->tmpStats);
+            } break;
+            case 'S':{ //Stats
+              usr->tmpStats = Stats(cmd.substr(2));
+              unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
+              if (secs < 1){secs = 1;}
+              usr->curr_up = (usr->tmpStats.up - usr->lastStats.up) / secs;
+              usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
+              usr->lastStats = usr->tmpStats;
+              thisStream->saveStats(usr->MyStr, usr->tmpStats);
+            } break;
+            case 's':{ //second-seek
+              //ignored for now
+            } break;
+            case 'f':{ //frame-seek
+              //ignored for now
+            } break;
+            case 'p':{ //play
+              //ignored for now
+            } break;
+            case 'o':{ //once-play
+              //ignored for now
+            } break;
+            case 'q':{ //quit-playing
+              //ignored for now
+            } break;
           }
         }
       }
@@ -107,12 +124,12 @@ namespace Buffer{
     while (std::cin.good() && buffer_running){
       //slow down packet receiving to real-time
       now = getNowMS();
-      if ((now - timeDiff >= lastPacket) || (lastPacket - (now - timeDiff) > 5000)){
+      if ((now - timeDiff >= lastPacket) || (lastPacket - (now - timeDiff) > 15000)){
         thisStream->getWriteLock();
         if (thisStream->getStream()->parsePacket(inBuffer)){
           thisStream->getStream()->outPacket(0);
           lastPacket = thisStream->getStream()->getTime();
-          if ((now - timeDiff - lastPacket) > 5000 || (now - timeDiff - lastPacket < -5000)){
+          if ((now - timeDiff - lastPacket) > 15000 || (now - timeDiff - lastPacket < -15000)){
             timeDiff = now - lastPacket;
           }
           thisStream->dropWriteLock(true);
@@ -123,11 +140,7 @@ namespace Buffer{
           inBuffer.append(charBuffer, charCount);
         }
       }else{
-        if ((lastPacket - (now - timeDiff)) > 999){
-          usleep(999000);
-        }else{
-          usleep((lastPacket - (now - timeDiff)) * 1000);
-        }
+        usleep(std::min(14999LL, lastTime - (now - timeDiff)) * 1000);
       }
     }
     buffer_running = false;

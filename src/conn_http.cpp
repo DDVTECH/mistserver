@@ -17,6 +17,7 @@
 #include <mist/http_parser.h>
 #include <mist/config.h>
 #include <mist/procs.h>
+#include <mist/stream.h>
 #include "tinythread.h"
 #include "embed.js.h"
 
@@ -120,6 +121,7 @@ namespace Connector_HTTP{
       }else{
         streamname = url.substr(7, url.length() - 10);
       }
+      Util::Stream::sanitizeName(streamname);
       JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
       std::string response;
       std::string host = H.GetHeader("Host");
@@ -292,13 +294,17 @@ namespace Connector_HTTP{
   /// - progressive (request fed from http_progressive connector)
   std::string getHTTPType(HTTP::Parser & H){
     if ((H.url.find("f4m") != std::string::npos) || ((H.url.find("Seg") != std::string::npos) && (H.url.find("Frag") != std::string::npos))){
-      H.SetVar("stream", H.url.substr(1,H.url.find("/",1)-1));
+      std::string streamname = H.url.substr(1,H.url.find("/",1)-1);
+      Util::Stream::sanitizeName(streamname);
+      H.SetVar("stream", streamname);
       return "dynamic";
     }
     if (H.url.length() > 4){
       std::string ext = H.url.substr(H.url.length() - 4, 4);
       if (ext == ".flv" || ext == ".mp3"){
-        H.SetVar("stream", H.url.substr(1,H.url.length() - 5));
+        std::string streamname = H.url.substr(1,H.url.length() - 5);
+        Util::Stream::sanitizeName(streamname);
+        H.SetVar("stream", streamname);
         return "progressive";
       }
     }

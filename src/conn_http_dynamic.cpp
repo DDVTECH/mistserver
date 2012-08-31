@@ -113,6 +113,7 @@ namespace Connector_HTTP{
   /// Main function for Connector_HTTP_Dynamic
   int Connector_HTTP_Dynamic(Socket::Connection conn){
     std::string FlashBuf;
+    int flashbuf_nonempty = 0;
     FLV::Tag tmp;//temporary tag, for init data
 
     std::queue<std::string> Flash_FragBuffer;//Fragment buffer
@@ -139,11 +140,27 @@ namespace Connector_HTTP{
       if (conn.spool()){
         if (HTTP_R.Read(conn.Received())){
           #if DEBUG >= 4
-          std::cout << "Received request: " << HTTP_R.url << std::endl;
+          std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
           #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
           if (HTTP_R.url.find("f4m") == std::string::npos){
             streamname = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
+            if (!ss){
+              ss = Util::Stream::getStream(streamname);
+              if (!ss.connected()){
+                #if DEBUG >= 1
+                fprintf(stderr, "Could not connect to server!\n");
+                #endif
+                ss.close();
+                HTTP_S.Clean();
+                HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
+                conn.Send(HTTP_S.BuildResponse("404", "Not found"));
+                ready4data = false;
+                continue;
+              }
+              ss.setBlocking(false);
+              inited = true;
+            }
             Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
             Quality = Quality.substr(0, Quality.find("Seg"));
             temp = HTTP_R.url.find("Seg") + 3;
@@ -153,12 +170,27 @@ namespace Connector_HTTP{
             #if DEBUG >= 4
             printf( "Quality: %s, Seg %d Frag %d\n", Quality.c_str(), Segment, ReqFragment);
             #endif
-            ss.Send("f " + JSON::Value((long long int)ReqFragment) + "\no \n");
+            std::stringstream sstream;
+            sstream << "f " << ReqFragment << "\no \n";
+            ss.Send(sstream.str().c_str());
             ss.flush();
             Flash_RequestPending++;
           }else{
             streamname = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
-            pending_manifest = true;
+            if (!Strm.metadata.isNull()){
+              HTTP_S.Clean();
+              HTTP_S.SetHeader("Content-Type","text/xml");
+              HTTP_S.SetHeader("Cache-Control","no-cache");
+              std::string manifest = BuildManifest(streamname, Strm.metadata);
+              HTTP_S.SetBody(manifest);
+              conn.Send(HTTP_S.BuildResponse("200", "OK"));
+              #if DEBUG >= 3
+              printf("Sent manifest\n");
+              #endif
+              pending_manifest = false;
+            }else{
+              pending_manifest = true;
+            }
           }
           ready4data = true;
           HTTP_R.Clean(); //clean for any possible next requests
@@ -183,6 +215,7 @@ namespace Connector_HTTP{
             ready4data = false;
             continue;
           }
+          ss.setBlocking(false);
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");
           #endif
@@ -202,7 +235,8 @@ namespace Connector_HTTP{
         unsigned int now = time(0);
         if (now != lastStats){
           lastStats = now;
-          ss.Send("S "+conn.getStats("HTTP_Dynamic"));
+          ss.Send("S ");
+          ss.Send(conn.getStats("HTTP_Dynamic").c_str());
         }
         if (ss.spool() || ss.Received() != ""){
           if (Strm.parsePacket(ss.Received())){
@@ -216,7 +250,9 @@ namespace Connector_HTTP{
               }
               Strm.metadata["lasttime"] = Strm.getPacket(0)["time"];
             }
-            tag.DTSCLoader(Strm);
+            if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
+              tag.DTSCLoader(Strm);
+            }
             if (pending_manifest){
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
@@ -229,17 +265,18 @@ namespace Connector_HTTP{
               #endif
               pending_manifest = false;
             }
-            if (Strm.getPacket(0).isMember("keyframe")){
-              if (FlashBuf != ""){
+            if (Strm.getPacket(0).isMember("keyframe") || Strm.getPacket(0)["datatype"].asString() == "pause_marker"){
+              if (flashbuf_nonempty){
                 Flash_FragBuffer.push(FlashBuf);
                 while (Flash_FragBuffer.size() > 2){
                   Flash_FragBuffer.pop();
                 }
                 #if DEBUG >= 4
-                fprintf(stderr, "Received a fragment. Now %i in buffer.\n", (int)Flash_FragBuffer.size());
+                fprintf(stderr, "Received a %s fragment of %i packets. Now %i in buffer.\n", Strm.getPacket(0)["datatype"].asString().c_str(), flashbuf_nonempty, (int)Flash_FragBuffer.size());
                 #endif
               }
               FlashBuf.clear();
+              flashbuf_nonempty = 0;
               //fill buffer with init data, if needed.
               if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
                 tmp.DTSCAudioInit(Strm);
@@ -250,14 +287,31 @@ namespace Connector_HTTP{
                 FlashBuf.append(tmp.data, tmp.len);
               }
             }
-            FlashBuf.append(tag.data, tag.len);
+            if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
+              ++flashbuf_nonempty;
+              FlashBuf.append(tag.data, tag.len);
+            }
+          }else{
+            if (pending_manifest && !Strm.metadata.isNull()){
+              HTTP_S.Clean();
+              HTTP_S.SetHeader("Content-Type","text/xml");
+              HTTP_S.SetHeader("Cache-Control","no-cache");
+              std::string manifest = BuildManifest(streamname, Strm.metadata);
+              HTTP_S.SetBody(manifest);
+              conn.Send(HTTP_S.BuildResponse("200", "OK"));
+              #if DEBUG >= 3
+              printf("Sent manifest\n");
+              #endif
+              pending_manifest = false;
+            }
           }
         }
         if (!ss.connected()){break;}
       }
     }
     conn.close();
-    ss.Send("S "+conn.getStats("HTTP_Dynamic"));
+    ss.Send("S ");
+    ss.Send(conn.getStats("HTTP_Dynamic").c_str());
     ss.flush();
     ss.close();
     #if DEBUG >= 1

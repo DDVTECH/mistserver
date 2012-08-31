@@ -14,7 +14,7 @@ namespace Buffer{
       /// Get a reference to this Stream object.
       static Stream * get();
       /// Get the current statistics in JSON format.
-      std::string getStats();
+      std::string & getStats();
       /// Get a new DTSC::Ring object for a user.
       DTSC::Ring * getRing();
       /// Drop a DTSC::Ring object.

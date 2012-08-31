@@ -36,12 +36,14 @@ int main(int argc, char  ** argv) {
       lastStats = now;
       std::stringstream st;
       st << "S localhost RAW " << (time(0) - started) << " " << S.dataDown() << " " << S.dataUp() << "\n";
-      S.Send(st.str());
+      std::string tmp = st.str();
+      S.Send(tmp);
     }
   }
   std::stringstream st;
   st << "S localhost RAW " << (time(0) - started) << " " << S.dataDown() << " " << S.dataUp() << "\n";
-  S.Send(st.str());
+  std::string tmp = st.str();
+  S.Send(tmp);
   S.flush();
   S.close();
   return 0;

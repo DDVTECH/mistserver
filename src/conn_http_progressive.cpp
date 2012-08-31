@@ -35,7 +35,7 @@ namespace Connector_HTTP{
     FLV::Tag tag;///< Temporary tag buffer.
 
     unsigned int lastStats = 0;
-    unsigned int seek_pos = 0;//seek position in milliseconds
+    unsigned int seek_pos = 0;//seek position in ms
     conn.setBlocking(false);//do not block on conn.spool() when no data is available
 
     while (conn.connected()){
@@ -43,14 +43,14 @@ namespace Connector_HTTP{
       if (conn.spool()){
         if (HTTP_R.Read(conn.Received())){
           #if DEBUG >= 4
-          std::cout << "Received request: " << HTTP_R.url << std::endl;
+          std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
           #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
           //we assume the URL is the stream name with a 3 letter extension
-          streamname = HTTP_R.url;
+          streamname = HTTP_R.getUrl().substr(1);
           size_t extDot = streamname.rfind('.');
           if (extDot != std::string::npos){streamname.resize(extDot);};//strip the extension
-          seek_pos = 1000 * atof(HTTP_R.GetVar("start").c_str());//seconds to ms
+          seek_pos = atoi(HTTP_R.GetVar("start").c_str()) * 1000;//seconds to ms
           ready4data = true;
           HTTP_R.Clean(); //clean for any possible next requests
         }else{
@@ -65,7 +65,7 @@ namespace Connector_HTTP{
           ss = Util::Stream::getStream(streamname);
           if (!ss.connected()){
             #if DEBUG >= 1
-            fprintf(stderr, "Could not connect to server!\n");
+            fprintf(stderr, "Could not connect to server for %s!\n", streamname.c_str());
             #endif
             ss.close();
             HTTP_S.Clean();
@@ -77,7 +77,7 @@ namespace Connector_HTTP{
           if (seek_pos){
             std::stringstream cmd;
             cmd << "s " << seek_pos << "\n";
-            ss.Send(cmd.str());
+            ss.Send(cmd.str().c_str());
           }
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");
@@ -89,7 +89,8 @@ namespace Connector_HTTP{
         unsigned int now = time(0);
         if (now != lastStats){
           lastStats = now;
-          ss.Send("S "+conn.getStats("HTTP_Progressive"));
+          ss.Send("S ");
+          ss.Send(conn.getStats("HTTP_Progressive").c_str());
         }
         if (ss.spool() || ss.Received() != ""){
           if (Strm.parsePacket(ss.Received())){
@@ -100,34 +101,35 @@ namespace Connector_HTTP{
               //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
               HTTP_S.protocol = "HTTP/1.0";
               conn.Send(HTTP_S.BuildResponse("200", "OK"));//no SetBody = unknown length - this is intentional, we will stream the entire file
-              conn.Send(std::string(FLV::Header, 13));//write FLV header
+              conn.Send(FLV::Header, 13);//write FLV header
               static FLV::Tag tmp;
               //write metadata
               tmp.DTSCMetaInit(Strm);
-              conn.Send(std::string(tmp.data, tmp.len));
+              conn.Send(tmp.data, tmp.len);
               //write video init data, if needed
               if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
                 tmp.DTSCVideoInit(Strm);
-                conn.Send(std::string(tmp.data, tmp.len));
+                conn.Send(tmp.data, tmp.len);
               }
               //write audio init data, if needed
               if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
                 tmp.DTSCAudioInit(Strm);
-                conn.Send(std::string(tmp.data, tmp.len));
+                conn.Send(tmp.data, tmp.len);
               }
               progressive_has_sent_header = true;
               #if DEBUG >= 1
               fprintf(stderr, "Sent progressive FLV header\n");
               #endif
             }
-            conn.Send(std::string(tag.data, tag.len));//write the tag contents
+            conn.Send(tag.data, tag.len);//write the tag contents
           }
         }
         if (!ss.connected()){break;}
       }
     }
     conn.close();
-    ss.Send("S "+conn.getStats("HTTP_Dynamic"));
+    ss.Send("S ");
+    ss.Send(conn.getStats("HTTP_Dynamic").c_str());
     ss.flush();
     ss.close();
     #if DEBUG >= 1

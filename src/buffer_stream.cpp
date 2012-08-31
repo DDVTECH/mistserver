@@ -45,7 +45,8 @@ Buffer::Stream::~Stream(){
 }
 
 /// Calculate and return the current statistics in JSON format.
-std::string Buffer::Stream::getStats(){
+std::string & Buffer::Stream::getStats(){
+  static std::string ret;
   unsigned int now = time(0);
   unsigned int tot_up = 0, tot_down = 0, tot_count = 0;
   stats_mutex.lock();
@@ -64,7 +65,7 @@ std::string Buffer::Stream::getStats(){
   Storage["meta"] = Strm->metadata;
   if (Storage["meta"].isMember("audio")){Storage["meta"]["audio"].removeMember("init");}
   if (Storage["meta"].isMember("video")){Storage["meta"]["video"].removeMember("init");}
-  std::string ret = Storage.toString();
+  ret = Storage.toString();
   Storage["log"].null();
   stats_mutex.unlock();
   return ret;

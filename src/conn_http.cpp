@@ -103,7 +103,7 @@ namespace Connector_HTTP{
   /// Handles internal requests.
   void Handle_Internal(HTTP::Parser & H, Socket::Connection * conn){
 
-    std::string url = H.url;
+    std::string url = H.getUrl();
 
     if (url == "/crossdomain.xml"){
       H.Clean();
@@ -114,7 +114,7 @@ namespace Connector_HTTP{
       return;
     }//crossdomain.xml
 
-    if ((url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js") || (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(H.url.length() - 3, 3) == ".js")){
+    if ((url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js") || (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(url.length() - 3, 3) == ".js")){
       std::string streamname;
       if (url.substr(0, 6) == "/info_"){
         streamname = url.substr(6, url.length() - 9);
@@ -293,24 +293,25 @@ namespace Connector_HTTP{
   /// - dynamic (request fed from http_dynamic connector)
   /// - progressive (request fed from http_progressive connector)
   std::string getHTTPType(HTTP::Parser & H){
-    if ((H.url.find("f4m") != std::string::npos) || ((H.url.find("Seg") != std::string::npos) && (H.url.find("Frag") != std::string::npos))){
-      std::string streamname = H.url.substr(1,H.url.find("/",1)-1);
+    std::string url = H.getUrl();
+    if ((url.find("f4m") != std::string::npos) || ((url.find("Seg") != std::string::npos) && (url.find("Frag") != std::string::npos))){
+      std::string streamname = url.substr(1,url.find("/",1)-1);
       Util::Stream::sanitizeName(streamname);
       H.SetVar("stream", streamname);
       return "dynamic";
     }
-    if (H.url.length() > 4){
-      std::string ext = H.url.substr(H.url.length() - 4, 4);
+    if (url.length() > 4){
+      std::string ext = url.substr(url.length() - 4, 4);
       if (ext == ".flv" || ext == ".mp3"){
-        std::string streamname = H.url.substr(1,H.url.length() - 5);
+        std::string streamname = url.substr(1,url.length() - 5);
         Util::Stream::sanitizeName(streamname);
         H.SetVar("stream", streamname);
         return "progressive";
       }
     }
-    if (H.url == "/crossdomain.xml"){return "internal";}
-    if (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js"){return "internal";}
-    if (H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js"){return "internal";}
+    if (url == "/crossdomain.xml"){return "internal";}
+    if (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(url.length() - 3, 3) == ".js"){return "internal";}
+    if (url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js"){return "internal";}
     return "none";
   }
 
@@ -324,7 +325,7 @@ namespace Connector_HTTP{
         if (Client.Read(conn->Received())){
           std::string handler = getHTTPType(Client);
           #if DEBUG >= 4
-          std::cout << "Received request: " << Client.url << " => " << handler << " (" << Client.GetVar("stream") << ")" << std::endl;
+          std::cout << "Received request: " << Client.getUrl() << " => " << handler << " (" << Client.GetVar("stream") << ")" << std::endl;
           #endif
           if (handler == "none" || handler == "internal"){
             if (handler == "internal"){

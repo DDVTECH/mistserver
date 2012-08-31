@@ -33,6 +33,7 @@ namespace Buffer{
 
   void handleStats(void * empty){
     if (empty != 0){return;}
+    std::string double_newline = "\n\n";
     Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
     while (buffer_running){
       usleep(1000000); //sleep one second
@@ -40,7 +41,8 @@ namespace Buffer{
         StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
       }
       if (StatsSocket.connected()){
-        StatsSocket.Send(Stream::get()->getStats()+"\n\n");
+        StatsSocket.Send(Stream::get()->getStats());
+        StatsSocket.Send(double_newline);
         StatsSocket.flush();
       }
     }
@@ -140,7 +142,7 @@ namespace Buffer{
           inBuffer.append(charBuffer, charCount);
         }
       }else{
-        usleep(std::min(14999LL, lastTime - (now - timeDiff)) * 1000);
+        usleep(std::min(14999LL, lastPacket - (now - timeDiff)) * 1000);
       }
     }
     buffer_running = false;

@@ -32,6 +32,9 @@ namespace Connector_RTMP{
   int play_streamid = -1;
   int play_msgtype = -1;
 
+  //generic state keeping
+  bool stream_inited = false;///true if init data for audio/video was sent
+
   Socket::Connection Socket; ///< Socket connected to user
   Socket::Connection SS; ///< Socket connected to server
   std::string streamname; ///< Stream that will be opened
@@ -48,7 +51,6 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   Socket.setBlocking(false);
   FLV::Tag tag, init_tag;
   DTSC::Stream Strm;
-  bool stream_inited = false;//true if init data for audio/video was sent
 
   while (Socket.Received().size() < 1537 && Socket.connected()){Socket.spool(); usleep(5000);}
   RTMPStream::handshake_in = Socket.Received().substr(0, 1537);
@@ -101,7 +103,8 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         unsigned int now = time(0);
         if (now != lastStats){
           lastStats = now;
-          SS.Send("S "+Socket.getStats("RTMP"));
+          SS.Send("S ");
+          SS.Send(Socket.getStats("RTMP").c_str());
         }
       }
       if (SS.spool()){
@@ -167,7 +170,8 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
     }
   }
   Socket.close();
-  SS.Send("S "+Socket.getStats("RTMP"));
+  SS.Send("S ");
+  SS.Send(Socket.getStats("RTMP").c_str());
   SS.flush();
   SS.close();
   #if DEBUG >= 1
@@ -278,7 +282,7 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
               if (counter > 8){
                 sending = true;
                 SS.Send(meta_out.toNetPacked());
-                SS.Send(prebuffer.str());//write buffer
+                SS.Send(prebuffer.str().c_str());//write buffer
                 prebuffer.str("");//clear buffer
                 SS.Send(pack_out.toNetPacked());
               }else{
@@ -451,7 +455,9 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
         Socket.close();//disconnect user
         return;
       }
-      SS.Send("P "+Socket.getHost()+'\n');
+      SS.Send("P ");
+      SS.Send(Socket.getHost().c_str());
+      SS.Send("\n");
       nostats = true;
       #if DEBUG >= 4
       fprintf(stderr, "Connected to buffer, starting to send data...\n");
@@ -503,7 +509,9 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     play_msgtype = messagetype;
     play_streamid = stream_id;
     stream_inited = false;
-    SS.Send("seek " + JSON::Value((long long int)amfdata.getContentP(3)->NumValue()).asString() + "\n");
+    SS.Send("s ");
+    SS.Send(JSON::Value((long long int)amfdata.getContentP(3)->NumValue()).asString().c_str());
+    SS.Send("\n");
     return;
   }//seek
   

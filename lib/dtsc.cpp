@@ -221,20 +221,24 @@ DTSC::File::File(std::string filename, bool create){
     headerSize = ntohl(ubuffer[0]);
   }
   fseek(F, 8+headerSize, SEEK_SET);
+  currframe = 1;
+  frames[currframe] = ftell(F);
 }
 
 /// Returns the header metadata for this file as a std::string.
 /// Sets the file pointer to the first packet.
 std::string & DTSC::File::getHeader(){
-  fseek(F, 8, SEEK_SET);
+  if (fseek(F, 8, SEEK_SET) != 0){
+    strbuffer = "";
+    return strbuffer;
+  }
   strbuffer.resize(headerSize);
-  if (fread((void*)strbuffer.c_str(), headerSize, 1, F) != headerSize){
-    /// \todo check seek as well and do something more sensible...
-    #if DEBUG >= 10
-    fprintf(stderr, "Panic! Invalid DTSC File header\n");
-    #endif
+  if (fread((void*)strbuffer.c_str(), headerSize, 1, F) != 1){
+    strbuffer = "";
+    return strbuffer;
   }
   fseek(F, 8+headerSize, SEEK_SET);
+  currframe = 1;
   return strbuffer;
 }
 
@@ -254,6 +258,7 @@ bool DTSC::File::writeHeader(std::string & header, bool force){
 
 /// Reads the packet available at the current file position, returning it as a std::string.
 /// If the packet could not be read for any reason, the reason is printed to stderr and an empty string returned.
+/// Reading the packet means the file position is increased to the next packet.
 std::string & DTSC::File::getPacket(){
   if (fread(buffer, 4, 1, F) != 1){
     fprintf(stderr, "Could not read header\n");
@@ -261,7 +266,7 @@ std::string & DTSC::File::getPacket(){
     return strbuffer;
   }
   if (memcmp(buffer, DTSC::Magic_Packet, 4) != 0){
-    fprintf(stderr, "Could not overwrite header - not equal size\n");
+    fprintf(stderr, "Invalid header\n");
     strbuffer = "";
     return strbuffer;
   }
@@ -278,7 +283,36 @@ std::string & DTSC::File::getPacket(){
     strbuffer = "";
     return strbuffer;
   }
+  currframe++;
+  frames[currframe] = ftell(F);
   return strbuffer;
+}
+
+/// Attempts to seek to the given frame number within the file.
+/// Returns true if successful, false otherwise.
+bool DTSC::File::seek_frame(int frameno){
+  std::map<int, long>::iterator it = frames.lower_bound(frameno);
+  if (it->first == frameno){
+    if (fseek(F, it->second, SEEK_SET) == 0){
+      currframe = frameno;
+      return true;
+    }
+  }else{
+    if (fseek(F, it->second, SEEK_SET) == 0){
+      currframe = it->first;
+      while (currframe < frameno){
+        if (fread(buffer, 4, 1, F) != 1){return false;}//read header
+        if (memcmp(buffer, DTSC::Magic_Packet, 4) != 0){return false;}//check header
+        if (fread(buffer, 4, 1, F) != 1){return false;}//read size
+        uint32_t * ubuffer = (uint32_t *)buffer;
+        long packSize = ntohl(ubuffer[0]);
+        if (fseek(F, packSize, SEEK_CUR) != 0){return false;}//seek to next packet
+        currframe++;
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 /// Close the file if open

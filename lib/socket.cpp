@@ -58,16 +58,22 @@ Socket::Connection::Connection(){
   Blocking = false;
 }//Socket::Connection basic constructor
 
-
-/// Set this socket to be blocking (true) or nonblocking (false).
-void Socket::Connection::setBlocking(bool blocking){
-  int flags = fcntl(sock, F_GETFL, 0);
+/// Internally used call to make an file descriptor blocking or not.
+void setFDBlocking(int FD, bool blocking){
+  int flags = fcntl(FD, F_GETFL, 0);
   if (!blocking){
     flags |= O_NONBLOCK;
   }else{
     flags &= !O_NONBLOCK;
   }
-  fcntl(sock, F_SETFL, flags);
+  fcntl(FD, F_SETFL, flags);
+}
+
+/// Set this socket to be blocking (true) or nonblocking (false).
+void Socket::Connection::setBlocking(bool blocking){
+  if (sock >=0){setFDBlocking(sock, blocking);}
+  if (pipes[0] >=0){setFDBlocking(pipes[0], blocking);}
+  if (pipes[1] >=0){setFDBlocking(pipes[1], blocking);}
 }
 
 /// Close connection. The internal socket is closed and then set to -1.
@@ -79,15 +85,18 @@ void Socket::Connection::close(){
     #endif
     if (sock != -1){
       shutdown(sock, SHUT_RDWR);
-      ::close(sock);
+      errno = EINTR;
+      while (::close(sock) != 0 && errno == EINTR){}
       sock = -1;
     }
     if (pipes[0] != -1){
-      ::close(pipes[0]);
+      errno = EINTR;
+      while (::close(pipes[0]) != 0 && errno == EINTR){}
       pipes[0] = -1;
     }
     if (pipes[1] != -1){
-      ::close(pipes[1]);
+      errno = EINTR;
+      while (::close(pipes[1]) != 0 && errno == EINTR){}
       pipes[1] = -1;
     }
   }
@@ -237,8 +246,64 @@ std::string & Socket::Connection::Received(){
 }
 
 /// Appends data to the upbuffer.
-void Socket::Connection::Send(std::string data){
-  upbuffer.append(data);
+/// This will attempt to send the upbuffer (if non-empty) first.
+/// If the upbuffer is empty before or after this attempt, it will attempt to send
+/// the data right away. Any data that could not be send will be put into the upbuffer.
+/// This means this function is blocking if the socket is, but nonblocking otherwise.
+void Socket::Connection::Send(std::string & data){
+  if (upbuffer.size() > 0){
+    iwrite(upbuffer);
+    if (upbuffer.size() > 0){
+      upbuffer.append(data);
+    }
+  }
+  if (upbuffer.size() == 0){
+    int i = iwrite(data.c_str(), data.size());
+    if (i < data.size()){
+      upbuffer.append(data, i, data.size() - i);
+    }
+  }
+}
+
+/// Appends data to the upbuffer.
+/// This will attempt to send the upbuffer (if non-empty) first.
+/// If the upbuffer is empty before or after this attempt, it will attempt to send
+/// the data right away. Any data that could not be send will be put into the upbuffer.
+/// This means this function is blocking if the socket is, but nonblocking otherwise.
+void Socket::Connection::Send(const char * data){
+  int len = strlen(data);
+  if (upbuffer.size() > 0){
+    iwrite(upbuffer);
+    if (upbuffer.size() > 0){
+      upbuffer.append(data, (size_t)len);
+    }
+  }
+  if (upbuffer.size() == 0){
+    int i = iwrite(data, len);
+    if (i < len){
+      upbuffer.append(data + i, (size_t)(len - i));
+    }
+  }
+}
+
+/// Appends data to the upbuffer.
+/// This will attempt to send the upbuffer (if non-empty) first.
+/// If the upbuffer is empty before or after this attempt, it will attempt to send
+/// the data right away. Any data that could not be send will be put into the upbuffer.
+/// This means this function is blocking if the socket is, but nonblocking otherwise.
+void Socket::Connection::Send(const char * data, size_t len){
+  if (upbuffer.size() > 0){
+    iwrite(upbuffer);
+    if (upbuffer.size() > 0){
+      upbuffer.append(data, len);
+    }
+  }
+  if (upbuffer.size() == 0){
+    int i = iwrite(data, len);
+    if (i < len){
+      upbuffer.append(data + i, len - i);
+    }
+  }
 }
 
 /// Incremental write call. This function tries to write len bytes to the socket from the buffer,
@@ -593,7 +658,8 @@ void Socket::Server::close(){
     fprintf(stderr, "ServerSocket closed.\n");
     #endif
     shutdown(sock, SHUT_RDWR);
-    ::close(sock);
+    errno = EINTR;
+    while (::close(sock) != 0 && errno == EINTR){}
     sock = -1;
   }
 }//Socket::Server::close

@@ -56,7 +56,9 @@ namespace Socket{
       bool spool(); ///< Updates the downbuffer and upbuffer internal variables.
       bool flush(); ///< Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
       std::string & Received(); ///< Returns a reference to the download buffer.
-      void Send(std::string data); ///< Appends data to the upbuffer.
+      void Send(std::string & data); ///< Appends data to the upbuffer.
+      void Send(const char * data); ///< Appends data to the upbuffer.
+      void Send(const char * data, size_t len); ///< Appends data to the upbuffer.
       //stats related methods
       unsigned int dataUp(); ///< Returns total amount of bytes sent.
       unsigned int dataDown(); ///< Returns total amount of bytes received.

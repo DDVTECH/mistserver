@@ -236,13 +236,13 @@ void startStream(std::string name, JSON::Value & data){
     Log("BUFF", "(re)starting stream buffer "+name+" for push data from "+pusher);
   }else{
     if (URL.substr(0, 1) == "/"){
-      return; //MistPlayer handles VoD
       struct stat fileinfo;
       if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
-        Log("BUFF", "*Not* starting stream "+name+"! File not found: "+URL);
+        Log("BUFF", "Warning for VoD stream "+name+"! File not found: "+URL);
         return;
       }
       cmd1 = "cat "+URL;
+      return; //MistPlayer handles VoD
     }else{
       cmd1 = "ffmpeg -re -async 2 -i "+URL+" "+preset+" -f flv -";
       cmd2 = "MistFLV2DTSC";

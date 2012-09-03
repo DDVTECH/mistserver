@@ -236,6 +236,7 @@ void startStream(std::string name, JSON::Value & data){
     Log("BUFF", "(re)starting stream buffer "+name+" for push data from "+pusher);
   }else{
     if (URL.substr(0, 1) == "/"){
+      return; //MistPlayer handles VoD
       struct stat fileinfo;
       if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
         Log("BUFF", "*Not* starting stream "+name+"! File not found: "+URL);

@@ -12,6 +12,45 @@
 #include <mist/config.h>
 #include <mist/socket.h>
 
+/// Copy of stats from buffer_user.cpp
+class Stats{
+  public:
+    unsigned int up;
+    unsigned int down;
+    std::string host;
+    std::string connector;
+    unsigned int conntime;
+    Stats(){
+      up = 0; down = 0; conntime = 0;
+    };
+    /// Reads a stats string and parses it to the internal representation.
+    Stats(std::string s){
+      Buffer::Stats::Stats(std::string s){
+        size_t f = s.find(' ');
+        if (f != std::string::npos){
+          host = s.substr(0, f);
+          s.erase(0, f+1);
+        }
+        f = s.find(' ');
+        if (f != std::string::npos){
+          connector = s.substr(0, f);
+          s.erase(0, f+1);
+        }
+        f = s.find(' ');
+        if (f != std::string::npos){
+          conntime = atoi(s.substr(0, f).c_str());
+          s.erase(0, f+1);
+        }
+        f = s.find(' ');
+        if (f != std::string::npos){
+          up = atoi(s.substr(0, f).c_str());
+          s.erase(0, f+1);
+          down = atoi(s.c_str());
+        }
+    };
+};
+
+
 /// Gets the current system time in milliseconds.
 long long int getNowMS(){
   timeval t;
@@ -32,7 +71,9 @@ int main(int argc, char** argv){
   JSON::Value pausemark;
   pausemark["datatype"] = "pause_marker";
   pausemark["time"] = (long long int)0;
-  
+
+  Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
+
   //send the header
   {
     in_out.Send("DTSC");
@@ -45,6 +86,7 @@ int main(int argc, char** argv){
   JSON::Value last_pack;
 
   long long now, timeDiff = 0, lastTime = 0;
+  Stats sts;
 
   while (in_out.connected()){
     if (in_out.spool()){
@@ -60,11 +102,24 @@ int main(int argc, char** argv){
               in_out.close();//pushing to VoD makes no sense
             } break;
             case 'S':{ //Stats
-              #if DEBUG >= 4
-              //std::cerr << "Received stats - ignoring (" << cmd << ")" << std::endl;
-              #endif
-              /// \todo Parse stats command properly.
-              /* Stats(cmd.substr(2)); */
+              if (!StatsSocket.connected()){
+                StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
+              }
+              if (StatsSocket.connected()){
+                sts = Stats(cmd.substr(2));
+                JSON::Value json_sts;
+                json_sts["vod"]["down"] = (long long int)sts.down;
+                json_sts["vod"]["up"] = (long long int)sts.up;
+                json_sts["vod"]["time"] = (long long int)sts.conntime;
+                json_sts["vod"]["host"] = sts.host;
+                json_sts["vod"]["connector"] = sts.connector;
+                json_sts["vod"]["filename"] = conf.getString("filename");
+                json_sts["vod"]["now"] = (long long int)time(0);
+                json_sts["vod"]["meta"] = meta;
+                StatsSocket.Send(json_sys.toString());
+                StatsSocket.Send("\n\n");
+                StatsSocket.flush();
+              }
             } break;
             case 's':{ //second-seek
               #if DEBUG >= 4
@@ -146,5 +201,7 @@ int main(int argc, char** argv){
     }
     usleep(10000);//sleep 10ms
   }
+
+  StatsSocket.close();
   return 0;
 }

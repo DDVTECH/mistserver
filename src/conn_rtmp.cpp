@@ -111,12 +111,6 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         while (Strm.parsePacket(SS.Received())){
 
           if (play_trans != -1){
-            //send streambegin
-            Socket.Send(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
-            //send streamisrecorded if stream, well, is recorded.
-            if (Strm.metadata.isMember("length") && Strm.metadata["length"].asInt() > 0){
-              Socket.Send(RTMPStream::SendUSR(4, 2));//send UCM StreamIsRecorded (4), stream 1
-            }
             //send a status reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
             amfreply.addContent(AMF::Object("", "onStatus"));//status reply
@@ -129,6 +123,13 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
             amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
             amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
             sendCommand(amfreply, play_msgtype, play_streamid);
+            //send streamisrecorded if stream, well, is recorded.
+            if (Strm.metadata.isMember("length") && Strm.metadata["length"].asInt() > 0){
+              Socket.Send(RTMPStream::SendUSR(4, 1));//send UCM StreamIsRecorded (4), stream 1
+            }
+            //send streambegin
+            Socket.Send(RTMPStream::SendUSR(0, 1));//send UCM StreamBegin (0), stream 1
+            //and more reply
             amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
             amfreply.addContent(AMF::Object("", "onStatus"));//status reply
             amfreply.addContent(AMF::Object("", (double)play_trans));//same transaction ID
@@ -142,6 +143,8 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
             sendCommand(amfreply, play_msgtype, play_streamid);
             RTMPStream::chunk_snd_max = 102400;//100KiB
             Socket.Send(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max));//send chunk size max (msg 1)
+            //send dunno?
+            Socket.Send(RTMPStream::SendUSR(32, 1));//send UCM no clue?, stream 1
             play_trans = -1;
           }
 
@@ -354,7 +357,7 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
 
 void Connector_RTMP::sendCommand(AMF::Object & amfreply, int messagetype, int stream_id){
   #if DEBUG >= 4
-  amfreply.Print();
+  std::cerr << amfreply.Print() << std::endl;
   #endif
   if (messagetype == 17){
     Socket.Send(RTMPStream::SendChunk(3, messagetype, stream_id, (char)0+amfreply.Pack()));
@@ -398,9 +401,9 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     amfreply.addContent(AMF::Object("", "_result"));//result success
     amfreply.addContent(amfdata.getContent(1));//same transaction ID
     amfreply.addContent(AMF::Object(""));//server properties
-    amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,0,1,123"));
+    amfreply.getContentP(2)->addContent(AMF::Object("fmsVer", "FMS/3,5,5,2004"));
     amfreply.getContentP(2)->addContent(AMF::Object("capabilities", (double)31));
-    //amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
+    amfreply.getContentP(2)->addContent(AMF::Object("mode", (double)1));
     amfreply.addContent(AMF::Object(""));//info
     amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
     amfreply.getContentP(3)->addContent(AMF::Object("code", "NetConnection.Connect.Success"));

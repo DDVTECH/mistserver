@@ -37,7 +37,8 @@ std::map<unsigned int, RTMPStream::Chunk> RTMPStream::Chunk::lastrecv;
 /// \warning Do not call if you are not actually sending the resulting data!
 /// \returns A std::string ready to be sent.
 std::string & RTMPStream::Chunk::Pack(){
-  static std::string output = "";
+  static std::string output;
+  output.clear();
   RTMPStream::Chunk prev = lastsend[cs_id];
   unsigned int tmpi;
   unsigned char chtype = 0x00;

@@ -56,6 +56,7 @@ namespace DTSC{
     AUDIO, ///< Stream Audio data
     VIDEO, ///< Stream Video data
     META, ///< Stream Metadata
+    PAUSEMARK, ///< Pause marker
     INVALID ///< Anything else or no data available.
   };
 

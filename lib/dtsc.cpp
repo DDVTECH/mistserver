@@ -54,14 +54,15 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
         datapointer = &(buffers.front()["data"].strVal);
-        if (buffers.front().isMember("datatype")){
-          std::string tmp = buffers.front()["datatype"].asString();
-          if (tmp == "video"){datapointertype = VIDEO;}
-          if (tmp == "audio"){datapointertype = AUDIO;}
-          if (tmp == "meta"){datapointertype = META;}
-        }
       }else{
         datapointer = 0;
+      }
+      if (buffers.front().isMember("datatype")){
+        std::string tmp = buffers.front()["datatype"].asString();
+        if (tmp == "video"){datapointertype = VIDEO;}
+        if (tmp == "audio"){datapointertype = AUDIO;}
+        if (tmp == "meta"){datapointertype = META;}
+        if (tmp == "pause_marker"){datapointertype = PAUSEMARK;}
       }
       buffer.erase(0, len+8);
       while (buffers.size() > buffercount){buffers.pop_back();}
@@ -295,7 +296,11 @@ void DTSC::File::seekNext(){
       currframe++;
       currtime = jsonbuffer["time"].asInt();
       #if DEBUG >= 4
-      std::cerr << "Found a new frame " << currframe << " @ " << pos << "b/" << currtime << "s" << std::endl;
+      if (frames[currframe] != pos){
+        std::cerr << "Found a new frame " << currframe << " @ " << pos << "b/" << currtime << "ms" << std::endl;
+      }else{
+        std::cerr << "Passing frame " << currframe << " @ " << pos << "b/" << currtime << "ms" << std::endl;
+      }
       #endif
       frames[currframe] = pos;
       msframes[currframe] = currtime;
@@ -329,6 +334,7 @@ bool DTSC::File::seek_frame(int frameno){
         seekNext();
         if (jsonbuffer.isNull()){return false;}
       }
+      seek_frame(frameno);
       return true;
     }
   }

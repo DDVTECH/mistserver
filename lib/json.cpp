@@ -406,7 +406,7 @@ std::string & JSON::Value::toNetPacked(){
     std::string packed = toPacked();
     strVal.resize(packed.size() + 8);
     //insert proper header for this type of data
-    if (isMember("data")){
+    if (isMember("datatype")){
       memcpy((void*)strVal.c_str(), "DTPD", 4);
     }else{
       memcpy((void*)strVal.c_str(), "DTSC", 4);

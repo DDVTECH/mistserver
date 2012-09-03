@@ -122,6 +122,7 @@ namespace Connector_HTTP{
 
     bool ready4data = false;//Set to true when streaming is to begin.
     bool pending_manifest = false;
+    bool receive_marks = false;//when set to true, this stream will ignore keyframes and instead use pause marks
     bool inited = false;
     Socket::Connection ss(-1);
     std::string streamname;
@@ -181,6 +182,7 @@ namespace Connector_HTTP{
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
               HTTP_S.SetHeader("Cache-Control","no-cache");
+              if (Strm.metadata.isMember("length")){receive_marks = true;}
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.Send(HTTP_S.BuildResponse("200", "OK"));
@@ -257,6 +259,7 @@ namespace Connector_HTTP{
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
               HTTP_S.SetHeader("Cache-Control","no-cache");
+              if (Strm.metadata.isMember("length")){receive_marks = true;}
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.Send(HTTP_S.BuildResponse("200", "OK"));
@@ -265,8 +268,9 @@ namespace Connector_HTTP{
               #endif
               pending_manifest = false;
             }
-            if (Strm.getPacket(0).isMember("keyframe") || Strm.getPacket(0)["datatype"].asString() == "pause_marker"){
-              if (flashbuf_nonempty){
+            if (!receive_marks && Strm.metadata.isMember("length")){receive_marks = true;}
+            if ((Strm.getPacket(0).isMember("keyframe") && !receive_marks) || Strm.lastType() == DTSC::PAUSEMARK){
+              if (flashbuf_nonempty || Strm.lastType() == DTSC::PAUSEMARK){
                 Flash_FragBuffer.push(FlashBuf);
                 while (Flash_FragBuffer.size() > 2){
                   Flash_FragBuffer.pop();
@@ -296,6 +300,7 @@ namespace Connector_HTTP{
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
               HTTP_S.SetHeader("Cache-Control","no-cache");
+              if (Strm.metadata.isMember("length")){receive_marks = true;}
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.Send(HTTP_S.BuildResponse("200", "OK"));

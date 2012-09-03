@@ -98,7 +98,8 @@ int FTP::User::ParseCommand( std::string Command ) {
         Connected = Passive.accept();
       }
       fprintf( stderr, "Sending LIST information\n" );
-      Connected.Send( MyDir.LIST( ActiveStreams ) );
+      std::string tmpstr = MyDir.LIST( ActiveStreams );
+      Connected.Send( tmpstr );
       Connected.close( );
       return 226;
       break;
@@ -145,7 +146,8 @@ int FTP::User::ParseCommand( std::string Command ) {
         Connected = Passive.accept();
       }
       fprintf( stderr, "Sending RETR information\n" );
-      Connected.Send( MyDir.RETR( Command ) );
+      std::string tmpstr = MyDir.RETR( Command );
+      Connected.Send( tmpstr );
       Connected.close();
       return 226;
       break;

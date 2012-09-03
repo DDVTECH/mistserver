@@ -6,6 +6,7 @@
 #endif
 
 #include <stdio.h> //for fileno
+#include <stdlib.h> //for atoi
 #include <sys/time.h>
 #include <mist/dtsc.h>
 #include <mist/json.h>
@@ -25,28 +26,27 @@ class Stats{
     };
     /// Reads a stats string and parses it to the internal representation.
     Stats(std::string s){
-      Buffer::Stats::Stats(std::string s){
-        size_t f = s.find(' ');
-        if (f != std::string::npos){
-          host = s.substr(0, f);
-          s.erase(0, f+1);
-        }
-        f = s.find(' ');
-        if (f != std::string::npos){
-          connector = s.substr(0, f);
-          s.erase(0, f+1);
-        }
-        f = s.find(' ');
-        if (f != std::string::npos){
-          conntime = atoi(s.substr(0, f).c_str());
-          s.erase(0, f+1);
-        }
-        f = s.find(' ');
-        if (f != std::string::npos){
-          up = atoi(s.substr(0, f).c_str());
-          s.erase(0, f+1);
-          down = atoi(s.c_str());
-        }
+      size_t f = s.find(' ');
+      if (f != std::string::npos){
+        host = s.substr(0, f);
+        s.erase(0, f+1);
+      }
+      f = s.find(' ');
+      if (f != std::string::npos){
+        connector = s.substr(0, f);
+        s.erase(0, f+1);
+      }
+      f = s.find(' ');
+      if (f != std::string::npos){
+        conntime = atoi(s.substr(0, f).c_str());
+        s.erase(0, f+1);
+      }
+      f = s.find(' ');
+      if (f != std::string::npos){
+        up = atoi(s.substr(0, f).c_str());
+        s.erase(0, f+1);
+        down = atoi(s.c_str());
+      }
     };
 };
 
@@ -116,7 +116,7 @@ int main(int argc, char** argv){
                 json_sts["vod"]["filename"] = conf.getString("filename");
                 json_sts["vod"]["now"] = (long long int)time(0);
                 json_sts["vod"]["meta"] = meta;
-                StatsSocket.Send(json_sys.toString());
+                StatsSocket.Send(json_sts.toString().c_str());
                 StatsSocket.Send("\n\n");
                 StatsSocket.flush();
               }

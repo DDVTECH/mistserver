@@ -85,6 +85,7 @@ int main(int argc, char** argv){
   JSON::Value meta = JSON::fromDTMI(meta_str);
   JSON::Value last_pack;
 
+  bool meta_sent = false;
   long long now, timeDiff = 0, lastTime = 0;
   Stats sts;
 
@@ -115,7 +116,11 @@ int main(int argc, char** argv){
                 json_sts["vod"]["connector"] = sts.connector;
                 json_sts["vod"]["filename"] = conf.getString("filename");
                 json_sts["vod"]["now"] = (long long int)time(0);
-                json_sts["vod"]["meta"] = meta;
+                json_sts["vod"]["start"] = (long long int)(time(0) - sts.conntime);
+                if (!meta_sent){
+                  json_sts["vod"]["meta"] = meta;
+                  meta_sent = true;
+                }
                 StatsSocket.Send(json_sts.toString().c_str());
                 StatsSocket.Send("\n\n");
                 StatsSocket.flush();

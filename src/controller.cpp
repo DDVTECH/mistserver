@@ -264,6 +264,25 @@ void CheckStats(JSON::Value & stats){
     if (currTime - lastBuffer[jit->first] > 120){
       stats.removeMember(jit->first);
       return;
+    }else{
+      if (jit->second.isMember("curr") && jit->second["curr"].size() > 0){
+        long long int nowtime = time(0);
+        for (JSON::ObjIter u_it = jit->second["curr"].ObjBegin(); u_it != jit->second["curr"].ObjEnd(); ++u_it){
+          if (u_it->second.isMember("now") && u_it->second["now"].asInt() < nowtime - 3){
+            jit->second["log"].append(u_it->second);
+            jit->second["curr"].removeMember(u_it->first);
+            if (jit->second["curr"].size() < 1){
+              break;
+            }else{
+              if (jit->second["curr"].ObjBegin() != u_it){
+                u_it--;
+              }else{
+                u_it = jit->second["curr"].ObjBegin();
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -438,11 +457,35 @@ int main(int argc, char ** argv){
                 Connector::Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
                 std::string nowstr = Request["totals"]["now"].asString();
                 Connector::Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
+                Connector::Storage["statistics"][thisbuffer]["totals"][nowstr].removeMember("now");
                 Connector::Storage["statistics"][thisbuffer]["totals"].shrink(600);//limit to 10 minutes of data
                 //if metadata is available, store it
                 for (JSON::ObjIter jit = Request["log"].ObjBegin(); jit != Request["log"].ObjEnd(); jit++){
                   Connector::Storage["statistics"][thisbuffer]["log"].append(jit->second);
                   Connector::Storage["statistics"][thisbuffer]["log"].shrink(1000);//limit to 1000 users per buffer
+                }
+              }
+            }
+            if (Request.isMember("vod")){
+              std::string thisfile = Request["vod"]["filename"];
+              for (JSON::ObjIter oit = Connector::Storage["streams"].ObjBegin(); oit != Connector::Storage["streams"].ObjEnd(); ++oit){
+                if (oit->second["channel"]["URL"].asString() == thisfile){
+                  Connector::lastBuffer[oit->first] = time(0);
+                  if (Request["vod"].isMember("meta")){
+                    Connector::Storage["statistics"][oit->first]["meta"] = Request["vod"]["meta"];
+                  }
+                  JSON::Value sockit = (long long int)it->getSocket();
+                  std::string nowstr = Request["vod"]["now"].asString();
+                  Connector::Storage["statistics"][oit->first]["curr"][sockit.asString()] = Request["vod"];
+                  Connector::Storage["statistics"][oit->first]["curr"][sockit.asString()].removeMember("meta");
+                  JSON::Value nowtotal;
+                  for (JSON::ObjIter u_it = Connector::Storage["statistics"][oit->first]["curr"].ObjBegin(); u_it != Connector::Storage["statistics"][oit->first]["curr"].ObjEnd(); ++u_it){
+                    nowtotal["up"] = nowtotal["up"].asInt() + u_it->second["up"].asInt();
+                    nowtotal["down"] = nowtotal["down"].asInt() + u_it->second["down"].asInt();
+                    nowtotal["count"] = nowtotal["count"].asInt() + 1;
+                  }
+                  Connector::Storage["statistics"][oit->first]["totals"][nowstr] = nowtotal;
+                  Connector::Storage["statistics"][oit->first]["totals"].shrink(600);
                 }
               }
             }

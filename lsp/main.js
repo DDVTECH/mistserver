@@ -443,7 +443,7 @@ TODO als server het stuurt
 										{
 											$(row.children()[3]).html("<span class='green'>Running</span>");
 										}else{
-											$(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : 'Unknown, checking...') + "</span>");
+                      $(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : (!status ? 'Unknown, checking...' : status) ) + "</span>");
 										}
 
 										$(row.children()[4]).text(streams[stream][1]);

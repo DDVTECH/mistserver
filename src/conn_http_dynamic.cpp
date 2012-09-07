@@ -42,7 +42,8 @@ namespace Connector_HTTP{
     MP4::ASRT asrt;
     asrt.SetUpdate(false);
     asrt.AddQualityEntry("");
-    asrt.AddSegmentRunEntry(1, 199);//1 Segment, 199 Fragments
+    /// \todo Actually use correct number of fragments.
+    asrt.AddSegmentRunEntry(1, 20000);//1 Segment, 20000 Fragments
     asrt.WriteContent();
     
     MP4::ABST abst;

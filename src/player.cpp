@@ -198,6 +198,7 @@ int main(int argc, char** argv){
           unsigned int size = htonl(source.getPacket().size());
           in_out.Send((char*)&size, 4);
           in_out.Send(source.getPacket());
+          in_out.flush();
         }
       } else {
         usleep(std::min(10000LL, lastTime - (now - timeDiff)) * 1000);

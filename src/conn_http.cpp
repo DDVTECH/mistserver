@@ -199,6 +199,7 @@ namespace Connector_HTTP{
     H.SetHeader("X-Origin", conn->getHost());//add the UID to the headers before copying
     std::string request = H.BuildRequest();//copy the request for later forwarding to the connector
     std::string orig_url = H.getUrl();
+    int starttime = time(0);
     H.Clean();
 
     //check if a connection exists, and if not create one
@@ -267,6 +268,7 @@ namespace Connector_HTTP{
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         conn->Send(H.BuildResponse("200", "OK"));
+        conn->flush();
       }else{
         //unknown length
         H.SetHeader("X-UID", uid);
@@ -286,8 +288,8 @@ namespace Connector_HTTP{
             //forward any and all incoming data directly without parsing
             conn->Send(myConn->Received());
             myConn->Received().clear();
+            conn->flush();
           }
-          conn->spool();
           usleep(30000);
         }
         myConn->close();
@@ -295,7 +297,7 @@ namespace Connector_HTTP{
       }
       //print some debug info
       #if DEBUG >= 4
-      std::cout << "Finished request: " << orig_url << " => " << connector << " (" << uid << ")" << std::endl;
+      std::cout << "Finished request: " << orig_url << " => " << connector << " (" << uid << ") in " << (time(0) - starttime) << "s" << std::endl;
       #endif
     }
   }

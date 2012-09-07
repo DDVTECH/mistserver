@@ -271,15 +271,8 @@ void CheckStats(JSON::Value & stats){
           if (u_it->second.isMember("now") && u_it->second["now"].asInt() < nowtime - 3){
             jit->second["log"].append(u_it->second);
             jit->second["curr"].removeMember(u_it->first);
-            if (jit->second["curr"].size() < 1){
-              break;
-            }else{
-              if (jit->second["curr"].ObjBegin() != u_it){
-                u_it--;
-              }else{
-                u_it = jit->second["curr"].ObjBegin();
-              }
-            }
+            if (!jit->second["curr"].size()){break;}
+            u_it = jit->second["curr"].ObjBegin();
           }
         }
       }

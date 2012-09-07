@@ -239,9 +239,11 @@ void startStream(std::string name, JSON::Value & data){
       struct stat fileinfo;
       if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
         Log("BUFF", "Warning for VoD stream "+name+"! File not found: "+URL);
+        data["error"] = "Not found: "+URL;
         return;
       }
       cmd1 = "cat "+URL;
+      data["error"] = "Available";
       return; //MistPlayer handles VoD
     }else{
       cmd1 = "ffmpeg -re -async 2 -i "+URL+" "+preset+" -f flv -";
@@ -288,8 +290,12 @@ void CheckAllStreams(JSON::Value & data){
       startStream(jit->first, jit->second);
     }
     if (currTime - lastBuffer[jit->first] > 5){
-      if (jit->second["online"].asInt() != 0){changed = true;}
-      jit->second["online"] = 0;
+      if (jit->second["online"].asInt() == 1){changed = true;}
+      if (jit->second.isMember("error") && jit->second["error"].asString() != ""){
+        jit->second["online"] = jit->second["error"];
+      }else{
+        jit->second["online"] = 0;
+      }
     }else{
       if (jit->second["online"].asInt() != 1){changed = true;}
       jit->second["online"] = 1;

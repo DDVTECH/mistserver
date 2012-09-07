@@ -29,7 +29,7 @@ embed.js.h: $(srcdir)/embed.js
 	xxd -i embed.min.js | sed s/_min_/_/g > embed.js.h
 	rm embed.min.js
 
-server.html: $(lspDATA)
+server.html: $(lspDATA) $(lspSOURCES)
 	$(CLOSURE) $(lspSOURCES) > compressed.js
 	cat $(lspdir)/header.html > $@
 	echo "<script>" >> $@

@@ -1,10 +1,7 @@
 /// \file player.cpp
 /// Holds all code for the MistPlayer application used for VoD streams.
 
-#if DEBUG >= 4
 #include <iostream>//for std::cerr
-#endif
-
 #include <stdio.h> //for fileno
 #include <stdlib.h> //for atoi
 #include <sys/time.h>
@@ -89,7 +86,7 @@ int main(int argc, char** argv){
   long long now, timeDiff = 0, lastTime = 0;
   Stats sts;
 
-  while (in_out.connected()){
+  while (in_out.connected() && std::cin.good() && std::cout.good()){
     if (in_out.spool()){
       while (in_out.Received().find('\n') != std::string::npos){
         std::string cmd = in_out.Received().substr(0, in_out.Received().find('\n'));

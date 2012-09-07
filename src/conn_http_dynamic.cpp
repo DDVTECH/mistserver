@@ -201,6 +201,8 @@ namespace Connector_HTTP{
           fprintf(stderr, "Could not parse the following:\n%s\n", conn.Received().c_str());
           #endif
         }
+      }else{
+        usleep(10000);//sleep 10ms
       }
       if (ready4data){
         if (!inited){

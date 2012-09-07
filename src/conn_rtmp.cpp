@@ -76,10 +76,11 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   bool firstrun = true;
 
   while (Socket.connected()){
-    usleep(10000);//sleep 10ms to prevent high CPU usage
     if (Socket.spool() || firstrun){
       firstrun = false;
       parseChunk(Socket.Received());
+    }else{
+      usleep(10000);//sleep 10ms to prevent high CPU usage
     }
     if (ready4data){
       if (!inited){

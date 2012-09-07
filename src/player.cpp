@@ -70,6 +70,7 @@ int main(int argc, char** argv){
   pausemark["time"] = (long long int)0;
 
   Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
+  int lasttime = time(0);
 
   //send the header
   {
@@ -86,7 +87,7 @@ int main(int argc, char** argv){
   long long now, timeDiff = 0, lastTime = 0;
   Stats sts;
 
-  while (in_out.connected() && std::cin.good() && std::cout.good()){
+  while (in_out.connected() && std::cin.good() && std::cout.good() && (time(0) - lasttime < 60)){
     if (in_out.spool()){
       while (in_out.Received().find('\n') != std::string::npos){
         std::string cmd = in_out.Received().substr(0, in_out.Received().find('\n'));
@@ -190,6 +191,7 @@ int main(int argc, char** argv){
           }
         }
         if (playing != 0){
+          lasttime = time(0);
           //insert proper header for this type of data
           in_out.Send("DTPD");
           //insert the packet length
@@ -205,5 +207,6 @@ int main(int argc, char** argv){
   }
 
   StatsSocket.close();
+  in_out.close();
   return 0;
 }

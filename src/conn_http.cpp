@@ -198,22 +198,22 @@ namespace Connector_HTTP{
     H.SetHeader("X-UID", uid);//add the UID to the headers before copying
     H.SetHeader("X-Origin", conn->getHost());//add the UID to the headers before copying
     std::string request = H.BuildRequest();//copy the request for later forwarding to the connector
+    std::string orig_url = H.getUrl();
     H.Clean();
 
-    //existing connections must be murdered, if any
-    if (connconn.count(uid)){
-      if (!connconn[uid]->in_use.try_lock()){
-        connconn[uid]->conn->close();
-        connconn[uid]->in_use.lock();
-      }
-      connconn[uid]->in_use.unlock();
-    }
     //check if a connection exists, and if not create one
     conn_mutex.lock();
     if (!connconn.count(uid) || !connconn[uid]->conn->connected()){
       if (connconn.count(uid)){connconn.erase(uid);}
       connconn[uid] = new ConnConn(new Socket::Connection("/tmp/mist/http_"+connector));
       connconn[uid]->conn->setBlocking(false);//do not block on spool() with no data
+      #if DEBUG >= 4
+      std::cout << "Created new connection " << uid << std::endl;
+      #endif
+    }else{
+      #if DEBUG >= 4
+      std::cout << "Re-using connection " << uid << std::endl;
+      #endif
     }
     //start a new timeout thread, if neccesary
     if (timeout_mutex.try_lock()){
@@ -272,17 +272,31 @@ namespace Connector_HTTP{
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         conn->Send(H.BuildResponse("200", "OK"));
+        //switch out the connection for an empty one - it makes no sense to keep these globally
+        Socket::Connection * myConn = connconn[uid]->conn;
+        connconn[uid]->conn = new Socket::Connection();
+        connconn[uid]->in_use.unlock();
+        //print some debug info
+        #if DEBUG >= 4
+        std::cout << "Handling request: " << orig_url << " => " << connector << " (" << uid << ")" << std::endl;
+        #endif
         //continue sending data from this socket and keep it permanently in use
-        while (connconn.count(uid) && connconn[uid]->conn->connected() && conn->connected()){
-          if (connconn[uid]->conn->spool()){
+        while (myConn->connected() && conn->connected()){
+          if (myConn->spool()){
             //forward any and all incoming data directly without parsing
-            conn->Send(connconn[uid]->conn->Received());
-            connconn[uid]->conn->Received().clear();
+            conn->Send(myConn->Received());
+            myConn->Received().clear();
           }
           conn->spool();
           usleep(30000);
         }
+        myConn->close();
+        delete myConn;
       }
+      //print some debug info
+      #if DEBUG >= 4
+      std::cout << "Finished request: " << orig_url << " => " << connector << " (" << uid << ")" << std::endl;
+      #endif
     }
   }
 

@@ -55,7 +55,7 @@ namespace FTP {
   
   class User {
     public:
-      User( Socket::Connection NewConnection = Socket::Connection(), std::map<std::string,std::string> Credentials = std::map<std::string,std::string>() );
+      User( Socket::Connection NewConnection, std::map<std::string,std::string> Credentials);
       ~User( );
       int ParseCommand( std::string Command );
       bool LoggedIn( );

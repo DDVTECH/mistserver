@@ -141,7 +141,8 @@ bool HTTP::Parser::Read(std::string & strbuf){
 bool HTTP::Parser::parse(std::string & HTTPbuffer){
   size_t f;
   std::string tmpA, tmpB, tmpC;
-  while (HTTPbuffer != ""){
+  /// \todo Make this not resize HTTPbuffer in parts, but read all at once and then remove the entire request, like doxygen claims it does.
+  while (!HTTPbuffer.empty()){
     if (!seenHeaders){
       f = HTTPbuffer.find('\n');
       if (f == std::string::npos) return false;
@@ -190,7 +191,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
       }
     }
   }
-  return false; //we should never get here...
+  return false; //empty input
 }//HTTPReader::parse
 
 #include <iostream>

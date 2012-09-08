@@ -254,7 +254,7 @@
                {
                   numtotstr++;
 
-                  if(data.streams[svr].online && data.streams[svr].online == 1)
+                  if(data.streams[svr].online && data.streams[svr].online != 0 )
                   {
                      numstr++;
                   }

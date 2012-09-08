@@ -493,7 +493,7 @@ TODO als server het stuurt
                         $tr.append( $('<td>').html("<span class='red'>" + (cstr.online == 0 ? 'Offline' : 'Unknown, checking...') + "</span>") );
                      }
 */
-										$(tr.append( $('<td>').html( formatStatus(cstr.online) );
+										$tr.append( $('<td>').html( formatStatus( cstr.online ) ) );
 
 
                      var cviewers = 0;

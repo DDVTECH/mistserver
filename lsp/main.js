@@ -446,7 +446,7 @@ TODO als server het stuurt
                       				$(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : (!status ? 'Unknown, checking...' : status) ) + "</span>");
 										}
 */
-										$row.children()[3]).html( formatStatus(status) );
+										$(row.children()[3]).html( formatStatus(status) );
 
 										$(row.children()[4]).text(streams[stream][1]);
 									}
@@ -493,7 +493,7 @@ TODO als server het stuurt
                         $tr.append( $('<td>').html("<span class='red'>" + (cstr.online == 0 ? 'Offline' : 'Unknown, checking...') + "</span>") );
                      }
 */
-										$tr.append( $('<td>').html( formatStatus(status) );
+										$tr.append( $('<td>').html( formatStatus(cstr.online) );
 
 
                      var cviewers = 0;

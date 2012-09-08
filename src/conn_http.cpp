@@ -11,6 +11,7 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <ctime>
+#include <sys/time.h>//for gettimeofday
 #include <set>
 #include <openssl/md5.h>
 #include <mist/socket.h>
@@ -199,7 +200,6 @@ namespace Connector_HTTP{
     H.SetHeader("X-Origin", conn->getHost());//add the UID to the headers before copying
     std::string request = H.BuildRequest();//copy the request for later forwarding to the connector
     std::string orig_url = H.getUrl();
-    int starttime = time(0);
     H.Clean();
 
     //check if a connection exists, and if not create one
@@ -278,10 +278,6 @@ namespace Connector_HTTP{
         Socket::Connection * myConn = connconn[uid]->conn;
         connconn[uid]->conn = new Socket::Connection();
         connconn[uid]->in_use.unlock();
-        //print some debug info
-        #if DEBUG >= 4
-        std::cout << "Handling request: " << orig_url << " => " << connector << " (" << uid << ")" << std::endl;
-        #endif
         //continue sending data from this socket and keep it permanently in use
         while (myConn->connected() && conn->connected()){
           if (myConn->spool()){
@@ -289,16 +285,14 @@ namespace Connector_HTTP{
             conn->Send(myConn->Received());
             myConn->Received().clear();
             conn->flush();
+          }else{
+            usleep(30000);
           }
-          usleep(30000);
         }
         myConn->close();
         delete myConn;
+        conn->close();
       }
-      //print some debug info
-      #if DEBUG >= 4
-      std::cout << "Finished request: " << orig_url << " => " << connector << " (" << uid << ") in " << (time(0) - starttime) << "s" << std::endl;
-      #endif
     }
   }
 
@@ -331,17 +325,25 @@ namespace Connector_HTTP{
     return "none";
   }
 
+  /// Gets the current system time in milliseconds.
+  long long int getNowMS(){
+    timeval t;
+    gettimeofday(&t, 0);
+    return t.tv_sec * 1000 + t.tv_usec/1000;
+  }//getNowMS
+
   /// Thread for handling a single HTTP connection
   void Handle_HTTP_Connection(void * pointer){
     Socket::Connection * conn = (Socket::Connection *)pointer;
     conn->setBlocking(false);//do not block on conn.spool() when no data is available
     HTTP::Parser Client;
     while (conn->connected()){
-      if (conn->spool()){
+      if (conn->spool() || !conn->Received().empty()){
         if (Client.Read(conn->Received())){
           std::string handler = getHTTPType(Client);
+          long long int startms = getNowMS();
           #if DEBUG >= 4
-          std::cout << "Received request: " << Client.getUrl() << " => " << handler << " (" << Client.GetVar("stream") << ")" << std::endl;
+          std::cout << "Received request: " << Client.getUrl() << " (" << conn->getSocket() << ") => " << handler << " (" << Client.GetVar("stream") << ")" << std::endl;
           #endif
           if (handler == "none" || handler == "internal"){
             if (handler == "internal"){
@@ -352,11 +354,15 @@ namespace Connector_HTTP{
           }else{
             Handle_Through_Connector(Client, conn, handler);
           }
+          #if DEBUG >= 4
+          std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (getNowMS() - startms) << " ms" << std::endl;
+          #endif
           Client.Clean(); //clean for any possible next requests
         }else{
           #if DEBUG >= 3
           fprintf(stderr, "Could not parse the following:\n%s\n", conn->Received().c_str());
           #endif
+          usleep(100000);//sleep 100ms
         }
       }else{
         usleep(10000);//sleep 10ms

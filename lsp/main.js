@@ -438,13 +438,15 @@ TODO als server het stuurt
 									{
 										var row = $('#stream-' + stream);
 										var status = streams[stream][0];
-
+/*
 										if(status == 1)
 										{
 											$(row.children()[3]).html("<span class='green'>Running</span>");
-										}else{
-                      $(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : (!status ? 'Unknown, checking...' : status) ) + "</span>");
 										}
+                      				$(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : (!status ? 'Unknown, checking...' : status) ) + "</span>");
+										}
+*/
+										$row.children()[3]).html( formatStatus(status) );
 
 										$(row.children()[4]).text(streams[stream][1]);
 									}
@@ -483,12 +485,16 @@ TODO als server het stuurt
 
                      $tr.append( $('<td>').text(cstr.name) );
 
+/*
                      if(cstr.online && cstr.online == 1)
                      {
                         $tr.append( $('<td>').html("<span class='green'>Running</span>") );
                      }else{
                         $tr.append( $('<td>').html("<span class='red'>" + (cstr.online == 0 ? 'Offline' : 'Unknown, checking...') + "</span>") );
                      }
+*/
+										$tr.append( $('<td>').html( formatStatus(status) );
+
 
                      var cviewers = 0;
 

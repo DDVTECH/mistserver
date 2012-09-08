@@ -370,3 +370,35 @@
             $('#header-host').text(settings.server.replace('HTTP://', ''));
          }
 
+
+
+			/**
+			 * Formats the status property to a string (with colors!)
+			 * @param status, the status property of a stream
+			 */
+         function formatStatus(status)
+         {
+				if(status == undefined)
+				{
+					return "<span>Unknown, checking...</span>";
+				}
+
+				switch(status)
+				{
+					case 1:		return "<span class='green'>Running</span>";				break;
+					case 0:		return "<span class='red'>Offline</span>";				break;
+					default:		return "<span class='green'>" + status + "</span>";	break;
+				}
+         }
+
+
+/*
+										if(status == 1)
+										{
+											$(row.children()[3]).html("<span class='green'>Running</span>");
+										}
+                      				$(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : (!status ? 'Unknown, checking...' : status) ) + "</span>");
+										}
+
+*/
+

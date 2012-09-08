@@ -70,7 +70,7 @@ namespace Connector_HTTP{
     
     std::string Result;
     Result.append((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
-    #if DEBUG >= 4
+    #if DEBUG >= 8
     std::cout << "Sending bootstrap:" << std::endl << abst.toPrettyString(0) << std::endl;
     #endif
     return Base64::encode(Result);
@@ -105,7 +105,7 @@ namespace Connector_HTTP{
       "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
       "</manifest>\n";
     }
-    #if DEBUG >= 4
+    #if DEBUG >= 8
     std::cerr << "Sending this manifest:" << std::endl << Result << std::endl;
     #endif
     return Result;
@@ -113,11 +113,10 @@ namespace Connector_HTTP{
 
   /// Main function for Connector_HTTP_Dynamic
   int Connector_HTTP_Dynamic(Socket::Connection conn){
-    std::string FlashBuf;
+    std::stringstream FlashBuf;
     int flashbuf_nonempty = 0;
     FLV::Tag tmp;//temporary tag, for init data
 
-    std::queue<std::string> Flash_FragBuffer;//Fragment buffer
     DTSC::Stream Strm;//Incoming stream buffer.
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
 
@@ -226,17 +225,6 @@ namespace Connector_HTTP{
           #endif
           inited = true;
         }
-        if ((Flash_RequestPending > 0) && !Flash_FragBuffer.empty()){
-          HTTP_S.Clean();
-          HTTP_S.SetHeader("Content-Type","video/mp4");
-          HTTP_S.SetBody(MP4::mdatFold(Flash_FragBuffer.front()));
-          Flash_FragBuffer.pop();
-          conn.Send(HTTP_S.BuildResponse("200", "OK"));
-          Flash_RequestPending--;
-          #if DEBUG >= 3
-          fprintf(stderr, "Sending a video fragment. %i left in buffer, %i requested\n", (int)Flash_FragBuffer.size(), Flash_RequestPending);
-          #endif
-        }
         unsigned int now = time(0);
         if (now != lastStats){
           lastStats = now;
@@ -274,29 +262,35 @@ namespace Connector_HTTP{
             if (!receive_marks && Strm.metadata.isMember("length")){receive_marks = true;}
             if ((Strm.getPacket(0).isMember("keyframe") && !receive_marks) || Strm.lastType() == DTSC::PAUSEMARK){
               if (flashbuf_nonempty || Strm.lastType() == DTSC::PAUSEMARK){
-                Flash_FragBuffer.push(FlashBuf);
-                while (Flash_FragBuffer.size() > 2){
-                  Flash_FragBuffer.pop();
-                }
                 #if DEBUG >= 4
-                fprintf(stderr, "Received a %s fragment of %i packets. Now %i in buffer.\n", Strm.getPacket(0)["datatype"].asString().c_str(), flashbuf_nonempty, (int)Flash_FragBuffer.size());
+                fprintf(stderr, "Received a %s fragment of %i packets.\n", Strm.getPacket(0)["datatype"].asString().c_str(), flashbuf_nonempty);
                 #endif
+                if (Flash_RequestPending > 0){
+                  HTTP_S.Clean();
+                  HTTP_S.SetHeader("Content-Type","video/mp4");
+                  HTTP_S.SetBody(MP4::mdatFold(FlashBuf.str()));
+                  conn.Send(HTTP_S.BuildResponse("200", "OK"));
+                  Flash_RequestPending--;
+                  #if DEBUG >= 3
+                  fprintf(stderr, "Sending a fragment\n");
+                  #endif
+                }
               }
-              FlashBuf.clear();
+              FlashBuf.str("");
               flashbuf_nonempty = 0;
               //fill buffer with init data, if needed.
               if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
                 tmp.DTSCAudioInit(Strm);
-                FlashBuf.append(tmp.data, tmp.len);
+                FlashBuf.write(tmp.data, tmp.len);
               }
               if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
                 tmp.DTSCVideoInit(Strm);
-                FlashBuf.append(tmp.data, tmp.len);
+                FlashBuf.write(tmp.data, tmp.len);
               }
             }
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
               ++flashbuf_nonempty;
-              FlashBuf.append(tag.data, tag.len);
+              FlashBuf.write(tag.data, tag.len);
             }
           }else{
             if (pending_manifest && !Strm.metadata.isNull()){

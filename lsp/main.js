@@ -1,12 +1,4 @@
 
-
-/*  WERKLOG todolist
-// TODO FIXME remove deze comment als het klaar is
-settings.settings.statistics[streamID].log (zelfde als curr maar log = gesloten connecties, dus ex-users
-TODO als server het stuurt
-*/
-
-
 			/**
 			 * Local settings page
 			 * DDVTECH
@@ -102,7 +94,7 @@ TODO als server het stuurt
             {
                case 'login':
 
-                  var host = $('<input>').attr('type', 'text').attr('placeholder', 'HTTP://LOCALHOST:4242');
+                  var host = $('<input>').attr('type', 'text').attr('placeholder', 'HTTP://' + (location.host == '' ? 'localhost:4242' : location.host) + '/api');
                   var user = $('<input>').attr('type', 'text').attr('placeholder', 'USERNAME');
                   var pass = $('<input>').attr('type', 'password').attr('placeholder', 'PASSWORD');
                   var conn = $('<button>').click(function()
@@ -438,14 +430,7 @@ TODO als server het stuurt
 									{
 										var row = $('#stream-' + stream);
 										var status = streams[stream][0];
-/*
-										if(status == 1)
-										{
-											$(row.children()[3]).html("<span class='green'>Running</span>");
-										}
-                      				$(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : (!status ? 'Unknown, checking...' : status) ) + "</span>");
-										}
-*/
+
 										$(row.children()[3]).html( formatStatus(status) );
 
 										$(row.children()[4]).text(streams[stream][1]);
@@ -485,16 +470,7 @@ TODO als server het stuurt
 
                      $tr.append( $('<td>').text(cstr.name) );
 
-/*
-                     if(cstr.online && cstr.online == 1)
-                     {
-                        $tr.append( $('<td>').html("<span class='green'>Running</span>") );
-                     }else{
-                        $tr.append( $('<td>').html("<span class='red'>" + (cstr.online == 0 ? 'Offline' : 'Unknown, checking...') + "</span>") );
-                     }
-*/
-										$tr.append( $('<td>').html( formatStatus( cstr.online ) ) );
-
+							$tr.append( $('<td>').html( formatStatus( cstr.online ) ) );
 
                      var cviewers = 0;
 
@@ -680,9 +656,10 @@ TODO als server het stuurt
 
 						if(isThereAHTTPConnector())
 						{
-							var embed = 'http://' + parseURL(settings.server).host + ':8080/embed_' + streamname + '.js';
+							var embedbase = 'http://' + parseURL(settings.server).host + ':8080/';
 
-							$('#page').append( $('<p>').attr('class', 'nocapitals').text('The embed URL is "' + embed + '".') );
+							$('#page').append( $('<p>').attr('class', 'nocapitals').text('The info embed URL is "' + embedbase + 'info_' + streamname + '.js".') );
+							$('#page').append( $('<p>').attr('class', 'nocapitals').text('The embed embed URL is "' + embedbase + 'embed_' + streamname + '.js".') );
 
 							$('#page').append( $('<button>').text('preview').click(function()
 							{
@@ -701,10 +678,14 @@ TODO als server het stuurt
 
 						var embed = 'http://' + parseURL(settings.server).host + ':8080/embed_' + streamname + '.js';
 
-						$('#page').append( $('<div>').html( "<script src='" + embed + "'></script>" ) );
+						$('#page').append( $('<div>').attr('id', 'previewcontainer') );
+
+						// jQuery doesn't work -> use DOM magic
+						var script = document.createElement('script');
+						script.src = embed;
+						document.getElementById('previewcontainer').appendChild( script );
 
                   break;
-
 
 
 

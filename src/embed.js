@@ -33,7 +33,7 @@ function mistembed(streamname)
 		{
 			case 'f4v':		return supports.flashversion >= 11;		break;
 			case 'rtmp':	return supports.flashversion >= 10;		break;
-			case 'flv':		return supports.flashversion >= 7;			break;
+			case 'flv':		return supports.flashversion >= 7;		break;
 
 			default:			return false;
 		}
@@ -42,13 +42,16 @@ function mistembed(streamname)
 	// build HTML for certain kinds of types
 	function buildPlayer(src, container, videowidth, videoheight)
 	{
+		// used to recalculate the width/height
+      var ratio;
+
 		// get the container's width/height
 		var containerwidth = parseInt(container.scrollWidth, 10);
 		var containerheight = parseInt(container.scrollHeight, 10);
 
 		if(videowidth > containerwidth && containerwidth > 0)
 		{
-			var ratio = videowidth / containerwidth;
+			ratio = videowidth / containerwidth;
 
 			videowidth /= ratio;
 			videoheight /= ratio;
@@ -56,23 +59,26 @@ function mistembed(streamname)
 
 		if(videoheight > containerheight && containerheight > 0)
 		{
-			var ratio = videoheight / containerheight;
+			ratio = videoheight / containerheight;
 
 			videowidth /= ratio;
 			videoheight /= ratio;
 		}
-
 
 		switch(src.type)
 		{
 			case 'f4v':
 			case 'rtmp':
 			case 'flv':
-        container.innerHTML = '<object width="' + videowidth + '" height="' + videoheight + '"><param name="movie" value="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf"></param><param name="flashvars" value="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + videowidth + '" height="' + videoheight + '" flashvars="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10"></embed></object>';
+         	container.innerHTML = '<object width="' + videowidth + '" height="' + videoheight + '"><param name="movie" value="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf"></param><param name="flashvars" value="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + videowidth + '" height="' + videoheight + '" flashvars="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10"></embed></object>';
+			break;
+
+			case 'fallback':
+				container.innerHTML = '<strong>No support for any player found</strong>';
 			break;
 		}
-	};
 
+	};
 
 
 
@@ -108,7 +114,7 @@ function mistembed(streamname)
 			if( hasSupport( video.source[i].type ) )
 			{
 				// we support this kind of video, so build it.
-				buildPlayer(video.source[i], container, video.width, video.height);
+				buildPlayer(video.source[i], container.parentNode, video.width, video.height);
 
 				// we've build a player, so we're done here
 				foundPlayer = true;
@@ -118,8 +124,8 @@ function mistembed(streamname)
 
 		if(!foundPlayer)
 		{
-			// of all the streams given, none was supported (eg. no flash and HTML5 video). Fall back.
-			container.innerHTML = 'fallback here';
+			// of all the streams given, none was supported (eg. no flash and HTML5 video). Display error
+			buildPlayer({type: 'fallback'}, container.parentNode, video.width, video.height);
 		}
 	}
 

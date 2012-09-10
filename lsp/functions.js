@@ -190,7 +190,7 @@
 			 */
          function parseURL(url)
 			{
-				var pattern = /(https?)\:\/\/([^:\/]+)\:(\d+)?/;
+				var pattern = /(https?)\:\/\/([^:\/]+)\:(\d+)?/i;
 				
 				var retobj = {protocol: '', host: '', port: ''};
 				var results = url.match(pattern);
@@ -390,15 +390,4 @@
 					default:		return "<span class='green'>" + status + "</span>";	break;
 				}
          }
-
-
-/*
-										if(status == 1)
-										{
-											$(row.children()[3]).html("<span class='green'>Running</span>");
-										}
-                      				$(row.children()[3]).html("<span class='red'>" + (status == 0 ? 'Offline' : (!status ? 'Unknown, checking...' : status) ) + "</span>");
-										}
-
-*/
 

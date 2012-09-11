@@ -10,26 +10,28 @@ namespace MP4{
   class Box {
     public:
       Box();
-      Box(uint32_t BoxType);
-      Box(uint8_t * Content, uint32_t length);
+      Box(char* boxType);
+      Box(std::string & newData);
       ~Box();
-      void SetBoxType(uint32_t BoxType);
-      uint32_t GetBoxType();
-      void SetPayload(uint32_t Size, uint8_t * Data, uint32_t Index = 0);
-      uint32_t GetPayloadSize();
-      uint8_t * GetPayload();
-      uint8_t * GetPayload(uint32_t Index, uint32_t & Size);
-      uint32_t GetBoxedDataSize();
-      uint8_t * GetBoxedData( );
-      static uint8_t * uint32_to_uint8( uint32_t data );
-      static uint8_t * uint16_to_uint8( uint16_t data );
-      static uint8_t * uint8_to_uint8( uint8_t data );
-      void ResetPayload( );
+      std::string getType();
+      bool isType( char* boxType );
+      bool read(std::string & newData);
+      size_t boxedSize();
+      size_t payloadSize();
+      std::string & asBox();
+      void clear();
       std::string toPrettyString(int indent = 0);
-    private:
-      uint8_t * Payload;
-      uint32_t PayloadSize;
+    protected:
+      void setInt8( char data, size_t index = 0);
+      void setInt16( short data, size_t index = 0);
+      void setInt32( long data, size_t index = 0);
+      void setInt64( long long int data, size_t index = 0);
+      void setString(std::string data, size_t index = 0);
+      void setString(char* data, size_t size, size_t index = 0);
+      std::string data;
   };//Box Class
+
+//Tot hier rewritten
 
   struct abst_serverentry {
     std::string ServerBaseUrl;

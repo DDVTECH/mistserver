@@ -26,8 +26,10 @@ int main(int argc, char  ** argv) {
   unsigned int started = time(0);
   while(std::cout.good()){
     if (S.spool()){
-      std::cout.write(S.Received().c_str(),S.Received().size());
-      S.Received().clear();
+      while (S.Received().size()){
+        std::cout.write(S.Received().get().c_str(),S.Received().get().size());
+        S.Received().get().clear();
+      }
     }else{
       usleep(10000);//sleep 10ms if no data
     }

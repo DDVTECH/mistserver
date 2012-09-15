@@ -40,8 +40,8 @@ namespace Connector_HTTP{
 
     while (conn.connected()){
       //only parse input if available or not yet init'ed
-      if (conn.spool()){
-        if (HTTP_R.Read(conn.Received())){
+      if (conn.spool() || conn.Received().size()){
+        if (HTTP_R.Read(conn.Received().get())){
           #if DEBUG >= 4
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
           #endif
@@ -53,10 +53,6 @@ namespace Connector_HTTP{
           seek_pos = atoi(HTTP_R.GetVar("start").c_str()) * 1000;//seconds to ms
           ready4data = true;
           HTTP_R.Clean(); //clean for any possible next requests
-        }else{
-          #if DEBUG >= 3
-          fprintf(stderr, "Could not parse the following:\n%s\n", conn.Received().c_str());
-          #endif
         }
       }else{
         usleep(10000);//sleep 10ms
@@ -94,7 +90,7 @@ namespace Connector_HTTP{
           ss.Send("S ");
           ss.Send(conn.getStats("HTTP_Progressive").c_str());
         }
-        if (ss.spool() || ss.Received() != ""){
+        if (ss.spool() || ss.Received().size()){
           if (Strm.parsePacket(ss.Received())){
             tag.DTSCLoader(Strm);
             if (!progressive_has_sent_header){

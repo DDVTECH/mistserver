@@ -241,9 +241,9 @@ namespace Connector_HTTP{
     //wait for a response
     while (connconn.count(uid) && connconn[uid]->conn->connected() && conn->connected()){
       conn->spool();
-      if (connconn[uid]->conn->spool()){
+      if (connconn[uid]->conn->Received().size() || connconn[uid]->conn->spool()){
         //check if the whole response was received
-        if (H.Read(connconn[uid]->conn->Received())){
+        if (H.Read(connconn[uid]->conn->Received().get())){
           break;//continue down below this while loop
         }
       }else{
@@ -280,10 +280,10 @@ namespace Connector_HTTP{
         connconn[uid]->in_use.unlock();
         //continue sending data from this socket and keep it permanently in use
         while (myConn->connected() && conn->connected()){
-          if (myConn->spool()){
+          if (myConn->Received().size() || myConn->spool()){
             //forward any and all incoming data directly without parsing
-            conn->Send(myConn->Received());
-            myConn->Received().clear();
+            conn->Send(myConn->Received().get());
+            myConn->Received().get().clear();
             conn->flush();
           }else{
             usleep(30000);
@@ -338,8 +338,8 @@ namespace Connector_HTTP{
     conn->setBlocking(false);//do not block on conn.spool() when no data is available
     HTTP::Parser Client;
     while (conn->connected()){
-      if (conn->spool() || !conn->Received().empty()){
-        if (Client.Read(conn->Received())){
+      if (conn->Received().size() || conn->spool()){
+        if (Client.Read(conn->Received().get())){
           std::string handler = getHTTPType(Client);
           long long int startms = getNowMS();
           #if DEBUG >= 4
@@ -358,11 +358,6 @@ namespace Connector_HTTP{
           std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (getNowMS() - startms) << " ms" << std::endl;
           #endif
           Client.Clean(); //clean for any possible next requests
-        }else{
-          #if DEBUG >= 3
-          fprintf(stderr, "Could not parse the following:\n%s\n", conn->Received().c_str());
-          #endif
-          usleep(100000);//sleep 100ms
         }
       }else{
         usleep(10000);//sleep 10ms

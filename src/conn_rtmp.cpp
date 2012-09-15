@@ -52,15 +52,14 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   FLV::Tag tag, init_tag;
   DTSC::Stream Strm;
 
-  while (Socket.Received().size() < 1537 && Socket.connected()){Socket.spool(); usleep(5000);}
-  RTMPStream::handshake_in = Socket.Received().substr(0, 1537);
-  Socket.Received().erase(0, 1537);
+  while (!Socket.Received().available(1537) && Socket.connected()){Socket.spool(); usleep(5000);}
+  RTMPStream::handshake_in = Socket.Received().remove(1537);
   RTMPStream::rec_cnt += 1537;
 
   if (RTMPStream::doHandshake()){
     Socket.Send(RTMPStream::handshake_out);
-    while (Socket.Received().size() < 1536 && Socket.connected()){Socket.spool(); usleep(5000);}
-    Socket.Received().erase(0, 1536);
+    while (!Socket.Received().available(1536) && Socket.connected()){Socket.spool(); usleep(5000);}
+    Socket.Received().remove(1536);
     RTMPStream::rec_cnt += 1536;
     #if DEBUG >= 4
     fprintf(stderr, "Handshake succcess!\n");
@@ -73,12 +72,10 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   }
 
   unsigned int lastStats = 0;
-  bool firstrun = true;
 
   while (Socket.connected()){
-    if (Socket.spool() || firstrun){
-      firstrun = false;
-      parseChunk(Socket.Received());
+    if (Socket.Received().size() || Socket.spool()){
+      parseChunk(Socket.Received().get());
     }else{
       usleep(10000);//sleep 10ms to prevent high CPU usage
     }
@@ -108,9 +105,8 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
           SS.Send(Socket.getStats("RTMP").c_str());
         }
       }
-      if (SS.spool()){
-        while (Strm.parsePacket(SS.Received())){
-
+      if (SS.spool() || SS.Received().size()){
+        if (Strm.parsePacket(SS.Received())){
           if (play_trans != -1){
             //send a status reply
             AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);

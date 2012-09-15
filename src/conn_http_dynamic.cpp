@@ -138,8 +138,8 @@ namespace Connector_HTTP{
     conn.setBlocking(false);//do not block on conn.spool() when no data is available
 
     while (conn.connected()){
-      if (conn.spool()){
-        if (HTTP_R.Read(conn.Received())){
+      if (conn.spool() || conn.Received().size()){
+        if (HTTP_R.Read(conn.Received().get())){
           #if DEBUG >= 4
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
           #endif
@@ -196,10 +196,6 @@ namespace Connector_HTTP{
           }
           ready4data = true;
           HTTP_R.Clean(); //clean for any possible next requests
-        }else{
-          #if DEBUG >= 3
-          fprintf(stderr, "Could not parse the following:\n%s\n", conn.Received().c_str());
-          #endif
         }
       }else{
         usleep(10000);//sleep 10ms
@@ -231,7 +227,7 @@ namespace Connector_HTTP{
           ss.Send("S ");
           ss.Send(conn.getStats("HTTP_Dynamic").c_str());
         }
-        if (ss.spool() || ss.Received() != ""){
+        if (ss.spool() || ss.Received().size()){
           if (Strm.parsePacket(ss.Received())){
             if (Strm.getPacket(0).isMember("time")){
               if (!Strm.metadata.isMember("firsttime")){
@@ -272,7 +268,11 @@ namespace Connector_HTTP{
                   conn.Send(HTTP_S.BuildResponse("200", "OK"));
                   Flash_RequestPending--;
                   #if DEBUG >= 3
-                  fprintf(stderr, "Sending a fragment\n");
+                  fprintf(stderr, "Sending a fragment...");
+                  #endif
+                  conn.flush();
+                  #if DEBUG >= 3
+                  fprintf(stderr, "Done\n");
                   #endif
                 }
               }

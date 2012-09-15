@@ -61,14 +61,19 @@ namespace Buffer{
 
     while (usr->S.connected()){
       usleep(5000); //sleep 5ms
-      if (usr->S.spool() && usr->S.Received().find('\n') != std::string::npos){
-        std::string cmd = usr->S.Received().substr(0, usr->S.Received().find('\n'));
-        usr->S.Received().erase(0, usr->S.Received().find('\n')+1);
-        if (cmd != ""){
-          switch (cmd[0]){
+      usr->Send();
+      if (usr->S.spool() && usr->S.Received().size()){
+        //delete anything that doesn't end with a newline
+        if (!usr->S.Received().get().empty() && *(usr->S.Received().get().rbegin()) != '\n'){
+          usr->S.Received().get().clear();
+          continue;
+        }
+        usr->S.Received().get().resize(usr->S.Received().get().size() - 1);
+        if (!usr->S.Received().get().empty()){
+          switch (usr->S.Received().get()[0]){
             case 'P':{ //Push
-              std::cout << "Push attempt from IP " << cmd.substr(2) << std::endl;
-              if (thisStream->checkWaitingIP(cmd.substr(2))){
+              std::cout << "Push attempt from IP " << usr->S.Received().get().substr(2) << std::endl;
+              if (thisStream->checkWaitingIP(usr->S.Received().get().substr(2))){
                 if (thisStream->setInput(usr->S)){
                   std::cout << "Push accepted!" << std::endl;
                   usr->S = Socket::Connection(-1);
@@ -81,7 +86,7 @@ namespace Buffer{
               }
             } break;
             case 'S':{ //Stats
-              usr->tmpStats = Stats(cmd.substr(2));
+              usr->tmpStats = Stats(usr->S.Received().get().substr(2));
               unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
               if (secs < 1){secs = 1;}
               usr->curr_up = (usr->tmpStats.up - usr->lastStats.up) / secs;
@@ -107,7 +112,6 @@ namespace Buffer{
           }
         }
       }
-      usr->Send();
     }
     usr->Disconnect("Socket closed.");
     thisStream->cleanUsers();
@@ -157,7 +161,7 @@ namespace Buffer{
       if (thisStream->getIPInput().connected()){
         if (thisStream->getIPInput().spool()){
           thisStream->getWriteLock();
-          if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
+          if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received().get())){
             thisStream->getStream()->outPacket(0);
             thisStream->dropWriteLock(true);
           }else{

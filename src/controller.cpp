@@ -383,7 +383,7 @@ int main(int argc, char ** argv){
   Connector::Log("CONF", "Controller started");
   conf.activate();
   while (API_Socket.connected() && conf.is_active){
-    usleep(100000); //sleep for 100 ms - prevents 100% CPU time
+    usleep(10000); //sleep for 10 ms - prevents 100% CPU time
 
     if (time(0) - processchecker > 10){
       processchecker = time(0);
@@ -443,9 +443,10 @@ int main(int argc, char ** argv){
           break;
         }
         if (it->spool()){
-          size_t newlines = it->Received().find("\n\n");
-          while (newlines != std::string::npos){
-            Request = JSON::fromString(it->Received().substr(0, newlines));
+          while (it->Received().size()){
+            it->Received().get().resize(it->Received().get().size() - 1);
+            Request = JSON::fromString(it->Received().get());
+            it->Received().get().clear();
             if (Request.isMember("buffer")){
               std::string thisbuffer = Request["buffer"];
               Connector::lastBuffer[thisbuffer] = time(0);
@@ -488,8 +489,6 @@ int main(int argc, char ** argv){
                 }
               }
             }
-            it->Received().erase(0, newlines+2);
-            newlines = it->Received().find("\n\n");
           }
         }
       }
@@ -501,8 +500,8 @@ int main(int argc, char ** argv){
           users.erase(it);
           break;
         }
-        if (it->C.spool()){
-          if (it->H.Read(it->C.Received())){
+        if (it->C.spool() || it->C.Received().size()){
+          if (it->H.Read(it->C.Received().get())){
             Response.null(); //make sure no data leaks from previous requests
             if (it->clientMode){
               // In clientMode, requests are reversed. These are connections we initiated to GearBox.

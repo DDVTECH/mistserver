@@ -86,6 +86,59 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
   return false;
 }
 
+/// Attempts to parse a packet from the given Socket::Buffer.
+/// Returns true if successful, removing the parsed part from the buffer.
+/// Returns false if invalid or not enough data is in the buffer.
+/// \arg buffer The Socket::Buffer to attempt to parse.
+bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
+  uint32_t len;
+  static bool syncing = false;
+  if (buffer.available(8)){
+    std::string header_bytes = buffer.copy(8);
+    if (memcmp(header_bytes.c_str(), DTSC::Magic_Header, 4) == 0){
+      len = ntohl(((uint32_t *)header_bytes.c_str())[1]);
+      if (!buffer.available(len+8)){return false;}
+      unsigned int i = 0;
+      std::string wholepacket = buffer.remove(len+8);
+      metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
+      return false;
+    }
+    if (memcmp(header_bytes.c_str(), DTSC::Magic_Packet, 4) == 0){
+      len = ntohl(((uint32_t *)header_bytes.c_str())[1]);
+      if (!buffer.available(len+8)){return false;}
+      buffers.push_front(JSON::Value());
+      unsigned int i = 0;
+      std::string wholepacket = buffer.remove(len+8);
+      buffers.front() = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
+      datapointertype = INVALID;
+      if (buffers.front().isMember("data")){
+        datapointer = &(buffers.front()["data"].strVal);
+      }else{
+        datapointer = 0;
+      }
+      if (buffers.front().isMember("datatype")){
+        std::string tmp = buffers.front()["datatype"].asString();
+        if (tmp == "video"){datapointertype = VIDEO;}
+        if (tmp == "audio"){datapointertype = AUDIO;}
+        if (tmp == "meta"){datapointertype = META;}
+        if (tmp == "pause_marker"){datapointertype = PAUSEMARK;}
+      }
+      while (buffers.size() > buffercount){buffers.pop_back();}
+      advanceRings();
+      syncing = false;
+      return true;
+    }
+    #if DEBUG >= 2
+    if (!syncing){
+      std::cerr << "Error: Invalid DTMI data detected - syncing" << std::endl;
+      syncing = true;
+    }
+    #endif
+    buffer.get().clear();
+  }
+  return false;
+}
+
 /// Returns a direct pointer to the data attribute of the last received packet, if available.
 /// Returns NULL if no valid pointer or packet is available.
 std::string & DTSC::Stream::lastData(){
@@ -295,7 +348,7 @@ void DTSC::File::seekNext(){
     if (frames[currframe] != pos){
       currframe++;
       currtime = jsonbuffer["time"].asInt();
-      #if DEBUG >= 4
+      #if DEBUG >= 6
       if (frames[currframe] != pos){
         std::cerr << "Found a new frame " << currframe << " @ " << pos << "b/" << currtime << "ms" << std::endl;
       }else{

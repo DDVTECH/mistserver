@@ -4,6 +4,7 @@
 
 #pragma once
 #include <string>
+#include <sstream>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -13,12 +14,27 @@
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
+#include <deque>
 
 //for being friendly with Socket::Connection down below
 namespace Buffer{class user;};
 
 ///Holds Socket tools.
 namespace Socket{
+
+  /// A buffer made out of std::string objects that can be efficiently read from and written to.
+  class Buffer{
+    private:
+      std::deque<std::string> data;
+    public:
+      unsigned int size();
+      void append(const std::string & newdata);
+      void append(const char * newdata, const unsigned int newdatasize);
+      std::string & get();
+      bool available(unsigned int count);
+      std::string remove(unsigned int count);
+      std::string copy(unsigned int count);
+  };//Buffer
 
   /// This class is for easy communicating through sockets, either TCP or Unix.
   class Connection{
@@ -29,15 +45,15 @@ namespace Socket{
       unsigned int up;
       unsigned int down;
       unsigned int conntime;
-      std::string downbuffer; ///< Stores temporary data coming in.
-      std::string upbuffer; ///< Stores temporary data going out.
+      Buffer downbuffer; ///< Stores temporary data coming in.
+      Buffer upbuffer; ///< Stores temporary data going out.
       int iread(void * buffer, int len); ///< Incremental read call.
       int iwrite(const void * buffer, int len); ///< Incremental write call.
-      bool iread(std::string & buffer); ///< Incremental write call that is compatible with std::string.
+      bool iread(Buffer & buffer); ///< Incremental write call that is compatible with Socket::Buffer.
       bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
-    public:
+  public:
       //friends
-      friend class Buffer::user;
+      friend class ::Buffer::user;
       //constructors
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
@@ -55,7 +71,7 @@ namespace Socket{
       //buffered i/o methods
       bool spool(); ///< Updates the downbuffer and upbuffer internal variables.
       bool flush(); ///< Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
-      std::string & Received(); ///< Returns a reference to the download buffer.
+      Buffer & Received(); ///< Returns a reference to the download buffer.
       void Send(std::string & data); ///< Appends data to the upbuffer.
       void Send(const char * data); ///< Appends data to the upbuffer.
       void Send(const char * data, size_t len); ///< Appends data to the upbuffer.

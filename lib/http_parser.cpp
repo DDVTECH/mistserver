@@ -133,6 +133,7 @@ bool HTTP::Parser::Read(std::string & strbuf){
   return parse(strbuf);
 }//HTTPReader::Read
 
+#include <iostream>
 /// Attempt to read a whole HTTP response or request from a data buffer.
 /// If succesful, fills its own fields with the proper data and removes the response/request
 /// from the data buffer.
@@ -141,13 +142,17 @@ bool HTTP::Parser::Read(std::string & strbuf){
 bool HTTP::Parser::parse(std::string & HTTPbuffer){
   size_t f;
   std::string tmpA, tmpB, tmpC;
-  /// \todo Make this not resize HTTPbuffer in parts, but read all at once and then remove the entire request, like doxygen claims it does.
+  /// \todo Make this not resize HTTPbuffer in parts, but read all at once and then remove the entire request, like doxygen claims it does?
   while (!HTTPbuffer.empty()){
     if (!seenHeaders){
       f = HTTPbuffer.find('\n');
       if (f == std::string::npos) return false;
       tmpA = HTTPbuffer.substr(0, f);
-      HTTPbuffer.erase(0, f+1);
+      if (f+1 == HTTPbuffer.size()){
+        HTTPbuffer.clear();
+      }else{
+        HTTPbuffer.erase(0, f+1);
+      }
       while (tmpA.find('\r') != std::string::npos){tmpA.erase(tmpA.find('\r'));}
       if (!seenReq){
         seenReq = true;
@@ -166,7 +171,11 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
       }else{
         if (tmpA.size() == 0){
           seenHeaders = true;
-          if (GetHeader("Content-Length") != ""){length = atoi(GetHeader("Content-Length").c_str());}
+          body.clear();
+          if (GetHeader("Content-Length") != ""){
+            length = atoi(GetHeader("Content-Length").c_str());
+            if (body.capacity() < length){body.reserve(length);}
+          }
         }else{
           f = tmpA.find(':');
           if (f == std::string::npos) continue;
@@ -178,10 +187,13 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
     }
     if (seenHeaders){
       if (length > 0){
-        if (HTTPbuffer.length() >= length){
-          body = HTTPbuffer.substr(0, length);
+        unsigned int toappend = length - body.length();
+        if (toappend > 0){
+          body.append(HTTPbuffer, 0, toappend);
+          HTTPbuffer.erase(0, toappend);
+        }
+        if (length == body.length()){
           parseVars(body); //parse POST variables
-          HTTPbuffer.erase(0, length);
           return true;
         }else{
           return false;
@@ -194,7 +206,6 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
   return false; //empty input
 }//HTTPReader::parse
 
-#include <iostream>
 /// Parses GET or POST-style variable data.
 /// Saves to internal variable structure using HTTP::Parser::SetVar.
 void HTTP::Parser::parseVars(std::string data){

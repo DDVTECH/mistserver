@@ -169,7 +169,8 @@ int FTP::User::ParseCommand( std::string Command ) {
       fprintf( stderr, "Reading STOR information\n" );
       std::string Buffer;
       while( Connected.spool() ) { }
-      Buffer = Connected.Received();
+      /// \todo Comment me back in. ^_^
+      //Buffer = Connected.Received();
       MyDir.STOR( Command, Buffer );
       return 250;
       break;

@@ -12,11 +12,109 @@
 #include <netinet/in.h>
 #endif
 
+#define BUFFER_BLOCKSIZE 4096 //set buffer blocksize to 4KiB
+#include <iostream>//temporary for debugging
+
 std::string uint2string(unsigned int i){
   std::stringstream st;
   st << i;
   return st.str();
 }
+
+/// Returns the amount of elements in the internal std::deque of std::string objects.
+/// The back is popped as long as it is empty, first - this way this function is
+/// guaranteed to return 0 if the buffer is empty.
+unsigned int Socket::Buffer::size(){
+  while (data.size() > 0 && data.back().empty()){data.pop_back();}
+  return data.size();
+}
+
+/// Appends this string to the internal std::deque of std::string objects.
+/// It is automatically split every BUFFER_BLOCKSIZE bytes.
+void Socket::Buffer::append(const std::string & newdata){
+  append(newdata.c_str(), newdata.size());
+}
+
+/// Appends this data block to the internal std::deque of std::string objects.
+/// It is automatically split every BUFFER_BLOCKSIZE bytes.
+void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize){
+  unsigned int i = 0, j = 0;
+  while (i < newdatasize){
+    j = i;
+    while (j < newdatasize && j - i <= BUFFER_BLOCKSIZE){
+      j++;
+      if (newdata[j-1] == '\n'){break;}
+    }
+    if (i != j){
+      data.push_front(std::string(newdata+i, (size_t)(j - i)));
+      i = j;
+    }else{
+      break;
+    }
+  }
+  if (data.size() > 1000){
+    std::cerr << "Warning: After " << newdatasize << " new bytes, buffer has " << data.size() << " parts!" << std::endl;
+  }
+}
+
+/// Returns true if at least count bytes are available in this buffer.
+bool Socket::Buffer::available(unsigned int count){
+  unsigned int i = 0;
+  for (std::deque<std::string>::iterator it = data.begin(); it != data.end(); ++it){
+    i += (*it).size();
+    if (i >= count){return true;}
+  }
+  return false;
+}
+
+/// Removes count bytes from the buffer, returning them by value.
+/// Returns an empty string if not all count bytes are available.
+std::string Socket::Buffer::remove(unsigned int count){
+  if (!available(count)){return "";}
+  unsigned int i = 0;
+  std::string ret;
+  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
+    if (i + (*it).size() < count){
+      ret.append(*it);
+      i += (*it).size();
+      (*it).clear();
+    }else{
+      ret.append(*it, 0, count - i);
+      (*it).erase(0, count - i);
+      break;
+    }
+  }
+  return ret;
+}
+
+/// Copies count bytes from the buffer, returning them by value.
+/// Returns an empty string if not all count bytes are available.
+std::string Socket::Buffer::copy(unsigned int count){
+  if (!available(count)){return "";}
+  unsigned int i = 0;
+  std::string ret;
+  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
+    if (i + (*it).size() < count){
+      ret.append(*it);
+      i += (*it).size();
+    }else{
+      ret.append(*it, 0, count - i);
+      break;
+    }
+  }
+  return ret;
+}
+
+/// Gets a reference to the back of the internal std::deque of std::string objects.
+std::string & Socket::Buffer::get(){
+  static std::string empty;
+  if (data.size() > 0){
+    return data.back();
+  }else{
+    return empty;
+  }
+}
+
 
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a Socket::Connection.
 /// \param sockNo Integer representing the socket to convert.
@@ -225,23 +323,36 @@ std::string Socket::Connection::getStats(std::string C){
 /// Updates the downbuffer and upbuffer internal variables.
 /// Returns true if new data was received, false otherwise.
 bool Socket::Connection::spool(){
-  iwrite(upbuffer);
-  return iread(downbuffer);
+  if (upbuffer.size() > 0){
+    iwrite(upbuffer.get());
+  }
+  /// \todo Provide better mechanism to prevent overbuffering.
+  if (downbuffer.size() > 1000){
+    return true;
+  }else{
+    return iread(downbuffer);
+  }
 }
 
 /// Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
 /// Returns true if new data was received, false otherwise.
 bool Socket::Connection::flush(){
   while (upbuffer.size() > 0 && connected()){
-    iwrite(upbuffer);
-    usleep(5000);//sleep 5 ms
+    if (!iwrite(upbuffer.get())){
+      usleep(10000);//sleep 10ms
+    }
   }
-  return iread(downbuffer);
+  /// \todo Provide better mechanism to prevent overbuffering.
+  if (downbuffer.size() > 1000){
+    return true;
+  }else{
+    return iread(downbuffer);
+  }
 }
 
 
 /// Returns a reference to the download buffer.
-std::string & Socket::Connection::Received(){
+Socket::Buffer & Socket::Connection::Received(){
   return downbuffer;
 }
 
@@ -251,16 +362,15 @@ std::string & Socket::Connection::Received(){
 /// the data right away. Any data that could not be send will be put into the upbuffer.
 /// This means this function is blocking if the socket is, but nonblocking otherwise.
 void Socket::Connection::Send(std::string & data){
-  if (upbuffer.size() > 0){
-    iwrite(upbuffer);
-    if (upbuffer.size() > 0){
-      upbuffer.append(data);
-    }
+  while (upbuffer.size() > 0){
+    if (!iwrite(upbuffer.get())){break;}
   }
-  if (upbuffer.size() == 0){
+  if (upbuffer.size() > 0){
+    upbuffer.append(data);
+  }else{
     int i = iwrite(data.c_str(), data.size());
     if (i < data.size()){
-      upbuffer.append(data, i, data.size() - i);
+      upbuffer.append(data.c_str()+i, data.size() - i);
     }
   }
 }
@@ -272,16 +382,15 @@ void Socket::Connection::Send(std::string & data){
 /// This means this function is blocking if the socket is, but nonblocking otherwise.
 void Socket::Connection::Send(const char * data){
   int len = strlen(data);
-  if (upbuffer.size() > 0){
-    iwrite(upbuffer);
-    if (upbuffer.size() > 0){
-      upbuffer.append(data, (size_t)len);
-    }
+  while (upbuffer.size() > 0){
+    if (!iwrite(upbuffer.get())){break;}
   }
-  if (upbuffer.size() == 0){
+  if (upbuffer.size() > 0){
+    upbuffer.append(data, len);
+  }else{
     int i = iwrite(data, len);
     if (i < len){
-      upbuffer.append(data + i, (size_t)(len - i));
+      upbuffer.append(data + i, len - i);
     }
   }
 }
@@ -292,13 +401,12 @@ void Socket::Connection::Send(const char * data){
 /// the data right away. Any data that could not be send will be put into the upbuffer.
 /// This means this function is blocking if the socket is, but nonblocking otherwise.
 void Socket::Connection::Send(const char * data, size_t len){
-  if (upbuffer.size() > 0){
-    iwrite(upbuffer);
-    if (upbuffer.size() > 0){
-      upbuffer.append(data, len);
-    }
+  while (upbuffer.size() > 0){
+    if (!iwrite(upbuffer.get())){break;}
   }
-  if (upbuffer.size() == 0){
+  if (upbuffer.size() > 0){
+    upbuffer.append(data, len);
+  }else{
     int i = iwrite(data, len);
     if (i < len){
       upbuffer.append(data + i, len - i);
@@ -380,14 +488,14 @@ int Socket::Connection::iread(void * buffer, int len){
   return r;
 }//Socket::Connection::iread
 
-/// Read call that is compatible with std::string.
+/// Read call that is compatible with Socket::Buffer.
 /// Data is read using iread (which is nonblocking if the Socket::Connection itself is),
 /// then appended to end of buffer.
-/// \param buffer std::string to append data to.
+/// \param buffer Socket::Buffer to append data to.
 /// \return True if new data arrived, false otherwise.
-bool Socket::Connection::iread(std::string & buffer){
-  char cbuffer[5000];
-  int num = iread(cbuffer, 5000);
+bool Socket::Connection::iread(Buffer & buffer){
+  char cbuffer[BUFFER_BLOCKSIZE];
+  int num = iread(cbuffer, BUFFER_BLOCKSIZE);
   if (num < 1){return false;}
   buffer.append(cbuffer, num);
   return true;

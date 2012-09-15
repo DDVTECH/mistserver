@@ -258,15 +258,17 @@ std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigne
 
 
 /// Parses the argument string into the current chunk.
-/// Tries to read a whole chunk, if successful it will remove
-/// the corresponding data from the input string.
+/// Tries to read a whole chunk, removing data from the input string as it reads.
 /// If only part of a chunk is read, it will remove the part and call itself again.
 /// This has the effect of only causing a "true" reponse in the case a *whole* chunk
 /// is read, not just part of a chunk.
 /// \param indata The input string to parse and update.
 /// \warning This function will destroy the current data in this chunk!
 /// \returns True if a whole chunk could be read, false otherwise.
-bool RTMPStream::Chunk::Parse(std::string & indata){
+bool RTMPStream::Chunk::Parse(std::string & source){
+  static std::string indata;
+  indata.append(source);
+  source.clear();
   gettimeofday(&RTMPStream::lastrec, 0);
   unsigned int i = 0;
   if (indata.size() < 1) return false;//need at least a byte
@@ -378,7 +380,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
     if (len_left == 0){
       return true;
     }else{
-      return Parse(indata);
+      return Parse(source);
     }
   }else{
     data = "";

@@ -10,6 +10,7 @@
 #include <set>
 #include <stdio.h> //for FILE
 #include "json.h"
+#include "socket.h"
 
 
 
@@ -113,6 +114,7 @@ namespace DTSC{
       bool hasVideo();
       bool hasAudio();
       bool parsePacket(std::string & buffer);
+      bool parsePacket(Socket::Buffer & buffer);
       std::string & outPacket(unsigned int num);
       std::string & outHeader();
       Ring * getRing();

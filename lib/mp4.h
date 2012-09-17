@@ -1,7 +1,10 @@
 #pragma once
 #include <string>
+#include <iostream>
 #include <stdint.h>
-#include <vector>
+#include <deque>
+#include <vector> ///\todo remove this include
+#include <algorithm>
 #include "json.h"
 
 /// Contains all MP4 format related code.
@@ -10,76 +13,67 @@ namespace MP4{
   class Box {
     public:
       Box( size_t size = 0);
-      Box(char* boxType, size_t size = 0 );
-      Box(std::string & newData);
+      Box( const char* boxType, size_t size = 0 );
+      Box( std::string & newData );
       ~Box();
       std::string getType();
       bool isType( char* boxType );
-      bool read(std::string & newData);
+      bool read( std::string & newData );
       size_t boxedSize();
       size_t payloadSize();
       std::string & asBox();
+      void regenerate();
       void clear();
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString( int indent = 0 );
     protected:
-      void setInt8( char newData, size_t index = 0);
-      void setInt16( short newData, size_t index = 0);
-      void setInt32( long newData, size_t index = 0);
-      void setInt64( long long int newData, size_t index = 0);
-      void setString(std::string newData, size_t index = 0);
-      void setString(char* newData, size_t size, size_t index = 0);
+      void setInt8( char newData, size_t index );
+      char getInt8( size_t index );
+      void setInt16( short newData, size_t index );
+      short getInt16( size_t index );
+      void setInt24( long newData, size_t index );
+      long getInt24( size_t index );
+      void setInt32( long newData, size_t index );
+      long getInt32( size_t index );
+      void setInt64( long long int newData, size_t index );
+      long long int getInt64( size_t index );
+      void setString(std::string newData, size_t index );
+      void setString(char* newData, size_t size, size_t index );
       std::string data;
+      bool isUpdated;
   };//Box Class
-
-//Tot hier rewritten
-
-  struct abst_serverentry {
-    std::string ServerBaseUrl;
-  };//abst_serverentry
-
-  struct abst_qualityentry {
-    std::string QualityModifier;
-  };//abst_qualityentry
 
   /// ABST Box class
   class ABST: public Box {
     public:
-      ABST() : Box(0x61627374){};
-      void SetBootstrapVersion( uint32_t Version = 1 );
-      void SetProfile( uint8_t Profile = 0 );
-      void SetLive( bool Live = true );
-      void SetUpdate( bool Update = false );
-      void SetTimeScale( uint32_t Scale = 1000 );
-      void SetMediaTime( uint32_t Time = 0 );
-      void SetSMPTE( uint32_t Smpte = 0 );
-      void SetMovieIdentifier( std::string Identifier = "" );
-      void SetDRM( std::string Drm = "" );
-      void SetMetaData( std::string MetaData = "" );
-      void AddServerEntry( std::string Url = "", uint32_t Offset = 0 );
-      void AddQualityEntry( std::string Quality = "", uint32_t Offset = 0 );
-      void AddSegmentRunTable( Box * newSegment, uint32_t Offset = 0 );
-      void AddFragmentRunTable( Box * newFragment, uint32_t Offset = 0 );
-      void SetVersion( bool NewVersion = 0 );
-      void WriteContent( );
+      ABST();
+      void setVersion( char newVersion );
+      void setFlags( long newFlags );
+      void setBootstrapinfoVersion( long newVersion );
+      void setProfile( char newProfile );
+      void setLive( char newLive );
+      void setUpdate( char newUpdate );
+      void setTimeScale( long newTimeScale );
+      void setCurrentMediaTime( long long int newTime );
+      void setSmpteTimeCodeOffset( long long int newTime );
+      void setMovieIdentifier( std::string newIdentifier );
+      void addServerEntry( std::string newEntry );
+      void delServerEntry( std::string delEntry );
+      void addQualityEntry( std::string newEntry );
+      void delQualityEntry( std::string delEntry );
+      void setDrmData( std::string newDrm );
+      void setMetaData( std::string newMetaData );
+      void addSegmentRunTable( Box * newSegment );
+      void addFragmentRunTable( Box * newFragment );
       std::string toPrettyString(int indent = 0);
     private:
-      void SetDefaults( );
-      void SetReserved( );
-      uint32_t curBootstrapInfoVersion;
-      uint8_t curProfile;
-      bool isLive;
-      bool isUpdate;
-      bool Version;
-      uint32_t curTimeScale;
-      uint32_t curMediatime;//write as uint64_t
-      uint32_t curSMPTE;//write as uint64_t
-      std::string curMovieIdentifier;
-      std::string curDRM;
-      std::string curMetaData;
-      std::vector<abst_serverentry> Servers;
-      std::vector<abst_qualityentry> Qualities;
-      std::vector<Box *> SegmentRunTables;
-      std::vector<Box *> FragmentRunTables;
+      void regenerate();
+      std::string movieIdentifier;
+      std::deque<std::string> Servers;
+      std::deque<std::string> Qualities;
+      std::string drmData;
+      std::string metaData;
+      std::deque<Box *> segmentTables;
+      std::deque<Box *> fragmentTables;
   };//ABST Box
 
   struct afrt_fragmentrunentry {
@@ -93,19 +87,18 @@ namespace MP4{
   /// AFRT Box class
   class AFRT : public Box {
     public:
-      AFRT() : Box(0x61667274){};
-      void SetUpdate( bool Update = false );
-      void SetTimeScale( uint32_t Scale = 1000 );
-      void AddQualityEntry( std::string Quality = "", uint32_t Offset = 0 );
+      AFRT();
+      void setVersion( char newVersion );
+      void setUpdate( long newUpdate );
+      void setTimeScale( long newScale );
+      void addQualityEntry( std::string newQuality );
+      
       void AddFragmentRunEntry( uint32_t FirstFragment = 0, uint32_t FirstFragmentTimestamp = 0, uint32_t FragmentsDuration = 1, uint8_t Discontinuity = 0, uint32_t Offset = 0 );
       void WriteContent( );
       std::string toPrettyString(int indent = 0);
     private:
-      void SetDefaults( );
-      bool isUpdate;
-      uint32_t curTimeScale;
-      std::vector<std::string> QualitySegmentUrlModifiers;
-      std::vector<afrt_fragmentrunentry> FragmentRunEntryTable;
+      std::deque<std::string> qualityModifiers;
+      std::deque<afrt_fragmentrunentry> FragmentRunEntryTable;
   };//AFRT Box
 
   struct asrt_segmentrunentry {
@@ -131,7 +124,5 @@ namespace MP4{
       std::vector<asrt_segmentrunentry> SegmentRunEntryTable;
       Box * Container;
   };//ASRT Box
-
-  std::string mdatFold(std::string data);
 
 };

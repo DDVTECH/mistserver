@@ -8,17 +8,18 @@
 namespace MP4{
 
   Box::Box(size_t size) {
+    isUpdated = false;
     data.resize( size + 8 );
-    memset( (char*)data.c_str(), 0, size + 8 );
   }
 
-  Box::Box( char* BoxType, size_t size ) {
+  Box::Box( const char* BoxType, size_t size ) {
+    isUpdated = false;
     data.resize( size + 8 );
-    memset( (char*)data.c_str(), 0, size + 8 );
     memcpy( (char*)data.c_str() + 4, BoxType, 4 );
   }
 
   Box::Box( std::string & newData ) {
+    isUpdated = false;
     if( !read( newData ) ) {
       clear();
     }
@@ -55,6 +56,9 @@ namespace MP4{
   }
 
   std::string & Box::asBox() {
+    if( isUpdated ) {
+      regenerate( );
+    }
     ((int*)data.c_str())[0] = htonl( data.size() );
     return data;
   }
@@ -74,6 +78,14 @@ namespace MP4{
     }
     data[index] = newData;
   }
+  
+  char Box::getInt8( size_t index ) {
+    index += 8;
+    if( index > data.size() ) {
+      data.resize( index );
+    }
+    return data[index];
+  }
 
   void Box::setInt16( short newData, size_t index ) {
     index += 8;
@@ -83,6 +95,39 @@ namespace MP4{
     newData = htons( newData );
     memcpy( (char*)data.c_str() + index, (char*)newData, 2 );
   }
+  
+  short Box::getInt16( size_t index ) {
+    index += 8;
+    if( index + 1 > data.size() ) {
+      data.resize( index + 1 );
+    }
+    short result;
+    memcpy( (char*)result, (char*)data.c_str() + index, 2 );
+    return ntohs(result);
+  }
+  
+  void Box::setInt24( long newData, size_t index ) {
+    index += 8;
+    if( index + 2 > data.size() ) {
+      data.resize( index + 2 );
+    }
+    data[index] = (newData & 0x00FF0000) >> 16;
+    data[index+1] = (newData & 0x0000FF00) >> 8;
+    data[index+2] = (newData & 0x000000FF);
+  }
+  
+  long Box::getInt24( size_t index ) {
+    index += 8;
+    if( index + 2 > data.size() ) {
+      data.resize( index + 2 );
+    }
+    long result = data[index];
+    result <<= 8;
+    result += data[index+1];
+    result <<= 8;
+    result += data[index+2];
+    return result;
+  }
 
   void Box::setInt32( long newData, size_t index ) {
     index += 8;
@@ -91,6 +136,17 @@ namespace MP4{
     }
     newData = htonl( newData );
     memcpy( (char*)data.c_str() + index, (char*)newData, 4 );
+  }
+  
+  long Box::getInt32( size_t index ) {
+    index += 8;
+    if( index + 3 > data.size() ) {
+      data.resize( index + 3 );
+    }
+    long result;
+    
+    memcpy( (char*)result, (char*)data.c_str() + index, 4 );
+    return ntohl(result);
   }
 
   void Box::setInt64( long long int newData, size_t index ) {
@@ -107,6 +163,30 @@ namespace MP4{
     data[index+6] = ( newData * 0x000000000000FF00 ) >> 8;
     data[index+7] = ( newData * 0x00000000000000FF );
   }
+  
+  long long int Box::getInt64( size_t index ) {
+    index += 8;
+    if( index + 7 > data.size() ) {
+      data.resize( index + 7 );
+    }
+    long result = data[index];
+    result <<= 8;
+    result += data[index+1];
+    result <<= 8;
+    result += data[index+2];
+    result <<= 8;
+    result += data[index+3];
+    result <<= 8;
+    result += data[index+4];
+    result <<= 8;
+    result += data[index+5];
+    result <<= 8;
+    result += data[index+6];
+    result <<= 8;
+    result += data[index+7];
+    return result;
+  }
+
 
   void Box::setString(std::string newData, size_t index ) {
     setString( (char*)newData.c_str(), newData.size(), index );
@@ -120,197 +200,218 @@ namespace MP4{
     memcpy( (char*)data.c_str() + index, newData, size );
   }
 
-
-/*
-  void ABST::SetBootstrapVersion( uint32_t Version ) {
-    curBootstrapInfoVersion = Version;
+  void Box::regenerate() {
+    std::cerr << "Regenerate() not implemented for this box type\n";
+  }
+  
+  ABST::ABST( ) : Box("abst") {
+    setVersion( 0 );
+    setFlags( 0 );
+    setBootstrapinfoVersion( 0 );
+    setProfile( 0 );
+    setLive( 1 );
+    setUpdate( 0 );
+    setTimeScale( 1000 );
+    setCurrentMediaTime( 0 );
+    setSmpteTimeCodeOffset( 0 );
+    setMovieIdentifier( "" );
+    setDrmData( "" );
+    setMetaData( "" );  
+  }
+  
+  void ABST::setVersion( char newVersion ) {
+    setInt8( newVersion, 0 );
+  }
+  
+  void ABST::setFlags( long newFlags ) {
+    setInt24( newFlags, 1 );
   }
 
-  void ABST::SetProfile( uint8_t Profile ) {
-    curProfile = Profile;
+  void ABST::setBootstrapinfoVersion( long newVersion ) {
+    setInt32( newVersion, 4 );
   }
 
-  void ABST::SetLive( bool Live ) {
-    isLive = Live;
+  void ABST::setProfile( char newProfile ) {
+    setInt8( ( getInt8(5) & 0x3F ) + ( ( newProfile & 0x02 ) << 6 ), 5 );
   }
 
-  void ABST::SetUpdate( bool Update ) {
-    isUpdate = Update;
+
+  void ABST::setLive( char newLive ) {
+    setInt8( ( getInt8(5) & 0xDF ) + ( ( newLive & 0x01 ) << 5 ), 5 );
   }
 
-  void ABST::SetTimeScale( uint32_t Scale ) {
-    curTimeScale = Scale;
+
+  void ABST::setUpdate( char newUpdate ) {
+    setInt8( ( getInt8(5) & 0xEF ) + ( ( newUpdate & 0x01 ) << 4 ), 5 );
   }
 
-  void ABST::SetMediaTime( uint32_t Time ) {
-    curMediatime = Time;
+  void ABST::setTimeScale( long newScale ) {
+    setInt32( newScale, 6 );
+  }
+  
+  void ABST::setCurrentMediaTime( long long int newTime ) {
+    setInt64( newTime, 10 );
   }
 
-  void ABST::SetSMPTE( uint32_t Smpte ) {
-    curSMPTE = Smpte;
+  void ABST::setSmpteTimeCodeOffset( long long int newTime ) {
+    setInt64( newTime, 18 );
   }
 
-  void ABST::SetMovieIdentifier( std::string Identifier ) {
-    curMovieIdentifier = Identifier;
+  void ABST::setMovieIdentifier( std::string newIdentifier ) {
+    movieIdentifier = newIdentifier;
   }
 
-  void ABST::SetDRM( std::string Drm ) {
-    curDRM = Drm;
-  }
-
-  void ABST::SetMetaData( std::string MetaData ) {
-    curMetaData = MetaData;
-  }
-
-  void ABST::AddServerEntry( std::string Url, uint32_t Offset ) {
-    if(Offset >= Servers.size()) {
-      Servers.resize(Offset+1);
+  void ABST::addServerEntry( std::string newEntry ) {
+    if( std::find( Servers.begin(), Servers.end(), newEntry ) == Servers.end() ) {
+      Servers.push_back( newEntry );
+      isUpdated = true;
     }
-    Servers[Offset].ServerBaseUrl = Url;
   }
-
-  void ABST::AddQualityEntry( std::string Quality, uint32_t Offset ) {
-    if(Offset >= Qualities.size()) {
-      Qualities.resize(Offset+1);
-    }
-    Qualities[Offset].QualityModifier = Quality;
-  }
-
-  void ABST::AddSegmentRunTable( Box * newSegment, uint32_t Offset ) {
-    if( Offset >= SegmentRunTables.size() ) {
-      SegmentRunTables.resize(Offset+1);
-    }
-    if( SegmentRunTables[Offset] ) {
-      delete SegmentRunTables[Offset];
-    }
-    SegmentRunTables[Offset] = newSegment;
-  }
-
-  void ABST::AddFragmentRunTable( Box * newFragment, uint32_t Offset ) {
-    if( Offset >= FragmentRunTables.size() ) {
-      FragmentRunTables.resize(Offset+1);
-    }
-    if( FragmentRunTables[Offset] ) {
-      delete FragmentRunTables[Offset];
-    }
-    FragmentRunTables[Offset] = newFragment;
-  }
-
-  void ABST::SetDefaults( ) {
-    SetProfile( );
-    SetLive( );
-    SetUpdate( );
-    SetTimeScale( );
-    SetMediaTime( );
-    SetSMPTE( );
-    SetMovieIdentifier( );
-    SetDRM( );
-    SetMetaData( );
-    SetVersion( );
-  }
-
-  void ABST::SetVersion( bool NewVersion) {
-    Version = NewVersion;
-  }
-
-  void ABST::SetReserved( ) {
-    SetInt32(0);
-  }
-
-  void ABST::WriteContent( ) {
-    Box * current;
-    std::string serializedServers = "";
-    std::string serializedQualities = "";
-    std::string serializedSegments = "";
-    std::string serializedFragments = "";
-    int SegmentAmount = 0;
-    int FragmentAmount = 0;
-    uint8_t * temp = new uint8_t[1];
-    
-    clear( );
-    SetReserved( );
-    
-    for( uint32_t i = 0; i < Servers.size(); i++ ) {
-      serializedServers.append(Servers[i].ServerBaseUrl.c_str());
-      serializedServers += '\0';
-    }
-    for( uint32_t i = 0; i < Qualities.size(); i++ ) {
-      serializedQualities.append(Qualities[i].QualityModifier.c_str());
-      serializedQualities += '\0';
-    }
-    for( uint32_t i = 0; i < SegmentRunTables.size(); i++ ) {
-      current=SegmentRunTables[i];
-      if( current ) {
-        SegmentAmount ++;
-        serializedSegments.append((char*)current->GetBoxedData(),current->GetBoxedDataSize());
+  
+  void ABST::delServerEntry( std::string delEntry ) {
+    for( std::deque<std::string>::iterator it = Servers.begin(); it != Servers.end(); it++ ) {
+      if( (*it) == delEntry ) {
+        Servers.erase( it );
+        isUpdated = true;
+        break;
       }
     }
-    for( uint32_t i = 0; i < FragmentRunTables.size(); i++ ) {
-      current=FragmentRunTables[i];
-      if( current ) {
-        FragmentAmount ++;
-        serializedFragments.append((char*)current->GetBoxedData(),current->GetBoxedDataSize());
+  }
+  
+  void ABST::addQualityEntry( std::string newEntry ) {
+    if( std::find( Qualities.begin(), Qualities.end(), newEntry ) == Qualities.end() ) {
+      Servers.push_back( newEntry );
+      isUpdated = true;
+    }
+  }
+  
+  void ABST::delQualityEntry( std::string delEntry ) {
+    for( std::deque<std::string>::iterator it = Qualities.begin(); it != Qualities.end(); it++ ) {
+      if( (*it) == delEntry ) {
+        Qualities.erase( it );
+        isUpdated = true;
+        break;
       }
     }
-    uint32_t OffsetServerEntryCount = 29 + curMovieIdentifier.size() + 1;
-    uint32_t OffsetQualityEntryCount = OffsetServerEntryCount + 1 + serializedServers.size();
-    uint32_t OffsetDrmData = OffsetQualityEntryCount + 1 + serializedQualities.size();
-    uint32_t OffsetMetaData = OffsetDrmData + curDRM.size() + 1;
-    uint32_t OffsetSegmentRuntableCount = OffsetMetaData + curMetaData.size() + 1;
-    uint32_t OffsetFragmentRuntableCount = OffsetSegmentRuntableCount + 1 + serializedSegments.size();
-    
-    temp[0] = 0 + ( curProfile << 6 ) + ( (uint8_t)isLive << 7 ) + ( (uint8_t)isUpdate << 7 );
-    
-    SetPayload((uint32_t)serializedFragments.size(),(uint8_t*)serializedFragments.c_str(),OffsetFragmentRuntableCount+1);
-    SetPayload((uint32_t)1,Box::uint8_to_uint8(FragmentAmount),OffsetFragmentRuntableCount);
-    SetPayload((uint32_t)serializedSegments.size(),(uint8_t*)serializedSegments.c_str(),OffsetSegmentRuntableCount+1);
-    SetPayload((uint32_t)1,Box::uint8_to_uint8(SegmentAmount),OffsetSegmentRuntableCount);
-    SetPayload((uint32_t)curMetaData.size()+1,(uint8_t*)curMetaData.c_str(),OffsetMetaData);
-    SetPayload((uint32_t)curDRM.size()+1,(uint8_t*)curDRM.c_str(),OffsetDrmData);
-    SetPayload((uint32_t)serializedQualities.size(),(uint8_t*)serializedQualities.c_str(),OffsetQualityEntryCount+1);
-    SetPayload((uint32_t)1,Box::uint8_to_uint8(Qualities.size()),OffsetQualityEntryCount);
-    SetPayload((uint32_t)serializedServers.size(),(uint8_t*)serializedServers.c_str(),OffsetServerEntryCount+1);
-    SetPayload((uint32_t)1,Box::uint8_to_uint8(Servers.size()),OffsetServerEntryCount);
-    SetPayload((uint32_t)curMovieIdentifier.size()+1,(uint8_t*)curMovieIdentifier.c_str(),29);//+1 for \0-terminated string...
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(curSMPTE),25);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(0),21);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(curMediatime),17);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(0),13);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(curTimeScale),9);
-    SetPayload((uint32_t)1,temp,8);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(curBootstrapInfoVersion),4);
   }
 
-  std::string ABST::toPrettyString(int indent){
+  void ABST::setDrmData( std::string newDrm ) {
+    drmData = newDrm;
+    isUpdated = true;
+  }
+
+  void ABST::setMetaData( std::string newMetaData ) {
+    metaData = newMetaData;
+    isUpdated = true;
+  }
+
+  void ABST::addSegmentRunTable( Box * newSegment ) {
+    segmentTables.push_back(newSegment);
+    isUpdated = true;
+  }
+
+  void ABST::addFragmentRunTable( Box * newFragment ) {
+    fragmentTables.push_back(newFragment);
+    isUpdated = true;
+  }
+  
+  void ABST::regenerate( ) {
+    int myOffset = 26;
+    //0-terminated movieIdentifier
+    memcpy( (char*)data.c_str() + myOffset, movieIdentifier.c_str(), movieIdentifier.size() + 1);
+    myOffset += movieIdentifier.size() + 1;
+    //8-bit server amount
+    setInt8( Servers.size(), myOffset );
+    myOffset ++;
+    //0-terminated string for each entry
+    for( std::deque<std::string>::iterator it = Servers.begin(); it != Servers.end(); it++ ) {
+      memcpy( (char*)data.c_str() + myOffset, (*it).c_str(), (*it).size() + 1);
+      myOffset += (*it).size() + 1;
+    }
+    //8-bit quality amount
+    setInt8( Qualities.size(), myOffset );
+    myOffset ++;
+    //0-terminated string for each entry
+    for( std::deque<std::string>::iterator it = Qualities.begin();it != Qualities.end(); it++ ) {
+      memcpy( (char*)data.c_str() + myOffset, (*it).c_str(), (*it).size() + 1);
+      myOffset += (*it).size() + 1;
+    }
+    //0-terminated DrmData
+    memcpy( (char*)data.c_str() + myOffset, drmData.c_str(), drmData.size() + 1);
+    myOffset += drmData.size() + 1;
+    //0-terminated MetaData
+    memcpy( (char*)data.c_str() + myOffset, metaData.c_str(), metaData.size() + 1);
+    myOffset += metaData.size() + 1;
+    //8-bit segment run amount
+    setInt8( segmentTables.size(), myOffset );
+    myOffset ++;
+    //retrieve box for each entry
+    for( std::deque<Box*>::iterator it = segmentTables.begin(); it != segmentTables.end(); it++ ) {
+      memcpy( (char*)data.c_str() + myOffset, (*it)->asBox().c_str(), (*it)->boxedSize() );
+      myOffset += (*it)->boxedSize();
+    }
+    //8-bit fragment run amount
+    setInt8( fragmentTables.size(), myOffset );
+    myOffset ++;
+    //retrieve box for each entry
+    for( std::deque<Box*>::iterator it = fragmentTables.begin(); it != fragmentTables.end(); it++ ) {
+      memcpy( (char*)data.c_str() + myOffset, (*it)->asBox().c_str(), (*it)->boxedSize() + 1);
+      myOffset += (*it)->boxedSize();
+    }
+    isUpdated = false;
+  }
+
+  std::string ABST::toPrettyString( int indent ) {
     std::string r;
     r += std::string(indent, ' ')+"Bootstrap Info\n";
-    if (isUpdate){
+    if( getInt8(5) & 0x10 ) {
       r += std::string(indent+1, ' ')+"Update\n";
-    }else{
+    } else {
       r += std::string(indent+1, ' ')+"Replacement or new table\n";
     }
-    if (isLive){
-      r += std::string(indent+1, ' ')+"Live\n";
+    if( getInt8(5) & 0x20 ) {
+      r += std::string(indent+1, ' ' )+"Live\n";
     }else{
-      r += std::string(indent+1, ' ')+"Recorded\n";
+      r += std::string(indent+1, ' ' )+"Recorded\n";
     }
-    r += std::string(indent+1, ' ')+"Profile "+JSON::Value((long long int)curProfile).asString()+"\n";
-    r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)curTimeScale).asString()+"\n";
-    r += std::string(indent+1, ' ')+"CurrMediaTime "+JSON::Value((long long int)curMediatime).asString()+"\n";
-    r += std::string(indent+1, ' ')+"Segment Run Tables "+JSON::Value((long long int)SegmentRunTables.size()).asString()+"\n";
-    for( uint32_t i = 0; i < SegmentRunTables.size(); i++ ) {
-      r += ((ASRT*)SegmentRunTables[i])->toPrettyString(indent+2)+"\n";
+    r += std::string(indent+1, ' ')+"Profile "+JSON::Value((long long int)( getInt8(5) & 0xC0 ) ).asString()+"\n";
+    r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)getInt64(10)).asString()+"\n";
+    r += std::string(indent+1, ' ')+"CurrMediaTime "+JSON::Value((long long int)getInt32(6)).asString()+"\n";
+    r += std::string(indent+1, ' ')+"Segment Run Tables "+JSON::Value((long long int)segmentTables.size()).asString()+"\n";
+    for( uint32_t i = 0; i < segmentTables.size(); i++ ) {
+      r += ((ASRT*)segmentTables[i])->toPrettyString(indent+2)+"\n";
     }
-    r += std::string(indent+1, ' ')+"Fragment Run Tables "+JSON::Value((long long int)FragmentRunTables.size()).asString()+"\n";
-    for( uint32_t i = 0; i < FragmentRunTables.size(); i++ ) {
-      r += ((AFRT*)FragmentRunTables[i])->toPrettyString(indent+2)+"\n";
+    r += std::string(indent+1, ' ')+"Fragment Run Tables "+JSON::Value((long long int)fragmentTables.size()).asString()+"\n";
+    for( uint32_t i = 0; i < fragmentTables.size(); i++ ) {
+      r += ((AFRT*)fragmentTables[i])->toPrettyString(indent+2)+"\n";
     }
     return r;
   }
-
-  void AFRT::SetUpdate( bool Update ) {
-    isUpdate = Update;
+  
+  AFTR::AFRT() : Box(0x61667274){
+    setVersion( 0 );
+    setUpdate( 0 );
+    setTimeScale( 1000 );
   }
+  
+  void AFRT::setVersion( char newVersion ) {
+    setInt8( newVersion ,0 )
+  }
+  
+  void AFRT::setUpdate( long newUpdate ) {
+    setInt24( newUpdate, 1 );
+  }
+  
+  void AFRT::setTimeScale( long newScale ) {
+    setInt32( newScale, 4 );
+  }
+  
+  void AFRT::addQualityEntry( std::string newQuality ) {
+    qualityModifiers.push_back( newQuality );
+  }
+
+  
+/*
 
   void AFRT::AddQualityEntry( std::string Quality, uint32_t Offset ) {
     if(Offset >= QualitySegmentUrlModifiers.size()) {
@@ -456,16 +557,6 @@ namespace MP4{
     return r;
   }
 
-  std::string mdatFold(std::string data){
-    std::string Result;
-    unsigned int t_int;
-    t_int = htonl(data.size()+8);
-    Result.append((char*)&t_int, 4);
-    t_int = htonl(0x6D646174);
-    Result.append((char*)&t_int, 4);
-    Result.append(data);
-    return Result;
-  }
 */
 
 };

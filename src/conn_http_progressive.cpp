@@ -55,7 +55,7 @@ namespace Connector_HTTP{
           HTTP_R.Clean(); //clean for any possible next requests
         }
       }else{
-        usleep(10000);//sleep 10ms
+        usleep(1000);//sleep 1ms
       }
       if (ready4data){
         if (!inited){
@@ -68,58 +68,57 @@ namespace Connector_HTTP{
             ss.close();
             HTTP_S.Clean();
             HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
-            conn.Send(HTTP_S.BuildResponse("404", "Not found"));
+            conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
             ready4data = false;
             continue;
           }
           if (seek_pos){
             std::stringstream cmd;
             cmd << "s " << seek_pos << "\n";
-            ss.Send(cmd.str().c_str());
+            ss.SendNow(cmd.str().c_str());
           }
           #if DEBUG >= 3
           fprintf(stderr, "Everything connected, starting to send video data...\n");
           #endif
-          ss.Send("p\n");
-          ss.flush();
+          ss.SendNow("p\n");
           inited = true;
         }
         unsigned int now = time(0);
         if (now != lastStats){
           lastStats = now;
           ss.Send("S ");
-          ss.Send(conn.getStats("HTTP_Progressive").c_str());
+          ss.SendNow(conn.getStats("HTTP_Progressive").c_str());
         }
-        if (ss.spool() || ss.Received().size()){
-          if (Strm.parsePacket(ss.Received())){
-            tag.DTSCLoader(Strm);
+        if (ss.spool()){
+          while (Strm.parsePacket(ss.Received())){
             if (!progressive_has_sent_header){
               HTTP_S.Clean();//make sure no parts of old requests are left in any buffers
               HTTP_S.SetHeader("Content-Type", "video/x-flv");//Send the correct content-type for FLV files
               //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
               HTTP_S.protocol = "HTTP/1.0";
-              conn.Send(HTTP_S.BuildResponse("200", "OK"));//no SetBody = unknown length - this is intentional, we will stream the entire file
-              conn.Send(FLV::Header, 13);//write FLV header
+              conn.SendNow(HTTP_S.BuildResponse("200", "OK"));//no SetBody = unknown length - this is intentional, we will stream the entire file
+              conn.SendNow(FLV::Header, 13);//write FLV header
               static FLV::Tag tmp;
               //write metadata
               tmp.DTSCMetaInit(Strm);
-              conn.Send(tmp.data, tmp.len);
+              conn.SendNow(tmp.data, tmp.len);
               //write video init data, if needed
               if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
                 tmp.DTSCVideoInit(Strm);
-                conn.Send(tmp.data, tmp.len);
+                conn.SendNow(tmp.data, tmp.len);
               }
               //write audio init data, if needed
               if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
                 tmp.DTSCAudioInit(Strm);
-                conn.Send(tmp.data, tmp.len);
+                conn.SendNow(tmp.data, tmp.len);
               }
               progressive_has_sent_header = true;
               #if DEBUG >= 1
               fprintf(stderr, "Sent progressive FLV header\n");
               #endif
             }
-            conn.Send(tag.data, tag.len);//write the tag contents
+            tag.DTSCLoader(Strm);
+            conn.SendNow(tag.data, tag.len);//write the tag contents
           }
         }
         if (!ss.connected()){break;}
@@ -127,8 +126,7 @@ namespace Connector_HTTP{
     }
     conn.close();
     ss.Send("S ");
-    ss.Send(conn.getStats("HTTP_Dynamic").c_str());
-    ss.flush();
+    ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
     ss.close();
     #if DEBUG >= 1
     if (FLV::Parse_Error){fprintf(stderr, "FLV Parser Error: %s\n", FLV::Error_Str.c_str());}

@@ -91,14 +91,14 @@ namespace Connector_HTTP{
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody("<!DOCTYPE html><html><head><title>Unsupported Media Type</title></head><body><h1>Unsupported Media Type</h1>The server isn't quite sure what you wanted to receive from it.</body></html>");
-    conn->Send(H.BuildResponse("415", "Unsupported Media Type"));
+    conn->SendNow(H.BuildResponse("415", "Unsupported Media Type"));
   }
 
   void Handle_Timeout(HTTP::Parser & H, Socket::Connection * conn){
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody("<!DOCTYPE html><html><head><title>Gateway timeout</title></head><body><h1>Gateway timeout</h1>Though the server understood your request and attempted to handle it, somehow handling it took longer than it should. Your request has been cancelled - please try again later.</body></html>");
-    conn->Send(H.BuildResponse("504", "Gateway Timeout"));
+    conn->SendNow(H.BuildResponse("504", "Gateway Timeout"));
   }
 
   /// Handles internal requests.
@@ -111,7 +111,7 @@ namespace Connector_HTTP{
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
-      conn->Send(H.BuildResponse("200", "OK"));
+      conn->SendNow(H.BuildResponse("200", "OK"));
       return;
     }//crossdomain.xml
 
@@ -173,7 +173,7 @@ namespace Connector_HTTP{
         response.append("(\"" + streamname + "\"));\n");
       }
       H.SetBody(response);
-      conn->Send(H.BuildResponse("200", "OK"));
+      conn->SendNow(H.BuildResponse("200", "OK"));
       return;
     }//embed code generator
 
@@ -235,7 +235,7 @@ namespace Connector_HTTP{
       return;
     }
     //forward the original request
-    connconn[uid]->conn->Send(request);
+    connconn[uid]->conn->SendNow(request);
     connconn[uid]->lastuse = 0;
     unsigned int timeout = 0;
     //wait for a response
@@ -267,13 +267,13 @@ namespace Connector_HTTP{
         //known length - simply re-send the request with added headers and continue
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
-        conn->Send(H.BuildResponse("200", "OK"));
+        conn->SendNow(H.BuildResponse("200", "OK"));
         conn->flush();
       }else{
         //unknown length
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
-        conn->Send(H.BuildResponse("200", "OK"));
+        conn->SendNow(H.BuildResponse("200", "OK"));
         //switch out the connection for an empty one - it makes no sense to keep these globally
         Socket::Connection * myConn = connconn[uid]->conn;
         connconn[uid]->conn = new Socket::Connection();
@@ -282,9 +282,8 @@ namespace Connector_HTTP{
         while (myConn->connected() && conn->connected()){
           if (myConn->Received().size() || myConn->spool()){
             //forward any and all incoming data directly without parsing
-            conn->Send(myConn->Received().get());
+            conn->SendNow(myConn->Received().get());
             myConn->Received().get().clear();
-            conn->flush();
           }else{
             usleep(30000);
           }

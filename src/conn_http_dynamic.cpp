@@ -26,21 +26,29 @@
 /// Holds everything unique to HTTP Dynamic Connector.
 namespace Connector_HTTP{
 
-  std::string GenerateBootstrap(std::string & MovieId, JSON::Value & metadata){
+  std::string GenerateBootstrap(std::string & MovieId, JSON::Value & metadata, int fragnum, int starttime){
     MP4::AFRT afrt;
-    afrt.SetUpdate(false);
+    if (starttime == 0){
+      afrt.SetUpdate(false);
+    }else{
+      afrt.SetUpdate(true);
+    }
     afrt.SetTimeScale(1000);
     afrt.AddQualityEntry("");
     if (!metadata.isMember("video") || !metadata["video"].isMember("keyms") || metadata["video"]["keyms"].asInt() == 0){
       //metadata["lasttime"].asInt()?
-      afrt.AddFragmentRunEntry(1, 0, 2000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+      afrt.AddFragmentRunEntry(fragnum, starttime, 2000); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
     }else{
-      afrt.AddFragmentRunEntry(1, 0, metadata["video"]["keyms"].asInt()); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
+      afrt.AddFragmentRunEntry(fragnum, starttime, metadata["video"]["keyms"].asInt()); //FirstFragment, FirstFragmentTimestamp,Fragment Duration in milliseconds
     }
     afrt.WriteContent();
     
     MP4::ASRT asrt;
-    asrt.SetUpdate(false);
+    if (starttime == 0){
+      asrt.SetUpdate(false);
+    }else{
+      asrt.SetUpdate(true);
+    }
     asrt.AddQualityEntry("");
     /// \todo Actually use correct number of fragments.
     asrt.AddSegmentRunEntry(1, 20000);//1 Segment, 20000 Fragments
@@ -58,7 +66,11 @@ namespace Connector_HTTP{
       abst.SetLive(true);
       abst.SetMediaTime(0xFFFFFFFF);//metadata["lasttime"].asInt()?
     }
-    abst.SetUpdate(false);
+    if (starttime == 0){
+      abst.SetUpdate(false);
+    }else{
+      abst.SetUpdate(true);
+    }
     abst.SetTimeScale(1000);
     abst.SetSMPTE(0);
     abst.SetMovieIdentifier(MovieId);
@@ -67,13 +79,11 @@ namespace Connector_HTTP{
     abst.AddServerEntry("");
     abst.AddQualityEntry("");
     abst.WriteContent();
-    
-    std::string Result;
-    Result.append((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
-    #if DEBUG >= 8
+
+    //#if DEBUG >= 8
     std::cout << "Sending bootstrap:" << std::endl << abst.toPrettyString(0) << std::endl;
-    #endif
-    return Base64::encode(Result);
+    //#endif
+    return std::string((char*)abst.GetBoxedData(), (int)abst.GetBoxedDataSize());
   }
   
 
@@ -91,7 +101,7 @@ namespace Connector_HTTP{
       "<streamType>recorded</streamType>\n"
       "<deliveryType>streaming</deliveryType>\n"
       "<bestEffortFetchInfo segmentDuration=\""+metadata["length"].asString()+".000\" fragmentDuration=\""+st.str()+"\" />\n"
-      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + GenerateBootstrap(MovieId, metadata) + "</bootstrapInfo>\n"
+      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0)) + "</bootstrapInfo>\n"
       "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
       "</manifest>\n";
     }else{
@@ -101,7 +111,7 @@ namespace Connector_HTTP{
       "<mimeType>video/mp4</mimeType>\n"
       "<streamType>live</streamType>\n"
       "<deliveryType>streaming</deliveryType>\n"
-      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + GenerateBootstrap(MovieId, metadata) + "</bootstrapInfo>\n"
+      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0)) + "</bootstrapInfo>\n"
       "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
       "</manifest>\n";
     }
@@ -113,9 +123,10 @@ namespace Connector_HTTP{
 
   /// Main function for Connector_HTTP_Dynamic
   int Connector_HTTP_Dynamic(Socket::Connection conn){
-    std::stringstream FlashBuf;
-    int flashbuf_nonempty = 0;
-    FLV::Tag tmp;//temporary tag, for init data
+    std::deque<std::string> FlashBuf;
+    int FlashBufSize = 0;
+    long long int FlashBufTime = 0;
+    FLV::Tag tmp;//temporary tag
 
     DTSC::Stream Strm;//Incoming stream buffer.
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
@@ -126,7 +137,6 @@ namespace Connector_HTTP{
     bool inited = false;
     Socket::Connection ss(-1);
     std::string streamname;
-    FLV::Tag tag;///< Temporary tag buffer.
     std::string recBuffer = "";
 
     std::string Quality;
@@ -155,7 +165,7 @@ namespace Connector_HTTP{
                 ss.close();
                 HTTP_S.Clean();
                 HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
-                conn.Send(HTTP_S.BuildResponse("404", "Not found"));
+                conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
                 ready4data = false;
                 continue;
               }
@@ -173,8 +183,7 @@ namespace Connector_HTTP{
             #endif
             std::stringstream sstream;
             sstream << "f " << ReqFragment << "\no \n";
-            ss.Send(sstream.str().c_str());
-            ss.flush();
+            ss.SendNow(sstream.str().c_str());
             Flash_RequestPending++;
           }else{
             streamname = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
@@ -185,7 +194,7 @@ namespace Connector_HTTP{
               if (Strm.metadata.isMember("length")){receive_marks = true;}
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
-              conn.Send(HTTP_S.BuildResponse("200", "OK"));
+              conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
               #if DEBUG >= 3
               printf("Sent manifest\n");
               #endif
@@ -198,7 +207,11 @@ namespace Connector_HTTP{
           HTTP_R.Clean(); //clean for any possible next requests
         }
       }else{
-        usleep(10000);//sleep 10ms
+        if (Flash_RequestPending){
+          usleep(1000);//sleep 1ms
+        }else{
+          usleep(10000);//sleep 10ms
+        }
       }
       if (ready4data){
         if (!inited){
@@ -211,7 +224,7 @@ namespace Connector_HTTP{
             ss.close();
             HTTP_S.Clean();
             HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
-            conn.Send(HTTP_S.BuildResponse("404", "Not found"));
+            conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
             ready4data = false;
             continue;
           }
@@ -225,10 +238,10 @@ namespace Connector_HTTP{
         if (now != lastStats){
           lastStats = now;
           ss.Send("S ");
-          ss.Send(conn.getStats("HTTP_Dynamic").c_str());
+          ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
         }
-        if (ss.spool() || ss.Received().size()){
-          if (Strm.parsePacket(ss.Received())){
+        if (ss.spool()){
+          while (Strm.parsePacket(ss.Received())){
             if (Strm.getPacket(0).isMember("time")){
               if (!Strm.metadata.isMember("firsttime")){
                 Strm.metadata["firsttime"] = Strm.getPacket(0)["time"];
@@ -239,9 +252,6 @@ namespace Connector_HTTP{
               }
               Strm.metadata["lasttime"] = Strm.getPacket(0)["time"];
             }
-            if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
-              tag.DTSCLoader(Strm);
-            }
             if (pending_manifest){
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
@@ -249,7 +259,7 @@ namespace Connector_HTTP{
               if (Strm.metadata.isMember("length")){receive_marks = true;}
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
-              conn.Send(HTTP_S.BuildResponse("200", "OK"));
+              conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
               #if DEBUG >= 3
               printf("Sent manifest\n");
               #endif
@@ -257,55 +267,80 @@ namespace Connector_HTTP{
             }
             if (!receive_marks && Strm.metadata.isMember("length")){receive_marks = true;}
             if ((Strm.getPacket(0).isMember("keyframe") && !receive_marks) || Strm.lastType() == DTSC::PAUSEMARK){
-              if (flashbuf_nonempty || Strm.lastType() == DTSC::PAUSEMARK){
-                #if DEBUG >= 4
-                fprintf(stderr, "Received a %s fragment of %i packets.\n", Strm.getPacket(0)["datatype"].asString().c_str(), flashbuf_nonempty);
+              #if DEBUG >= 4
+              fprintf(stderr, "Received a %s fragment of %i bytes.\n", Strm.getPacket(0)["datatype"].asString().c_str(), FlashBufSize);
+              #endif
+              if (Flash_RequestPending > 0 && FlashBufSize){
+                #if DEBUG >= 3
+                fprintf(stderr, "Sending a fragment...");
                 #endif
-                if (Flash_RequestPending > 0){
-                  HTTP_S.Clean();
-                  HTTP_S.SetHeader("Content-Type","video/mp4");
-                  HTTP_S.SetBody(MP4::mdatFold(FlashBuf.str()));
-                  conn.Send(HTTP_S.BuildResponse("200", "OK"));
-                  Flash_RequestPending--;
-                  #if DEBUG >= 3
-                  fprintf(stderr, "Sending a fragment...");
-                  #endif
-                  conn.flush();
-                  #if DEBUG >= 3
-                  fprintf(stderr, "Done\n");
-                  #endif
+                static std::string btstrp;
+                btstrp = GenerateBootstrap(streamname, Strm.metadata, ReqFragment, FlashBufTime);
+                HTTP_S.Clean();
+                HTTP_S.SetHeader("Content-Type", "video/mp4");
+                HTTP_S.SetBody("");
+                HTTP_S.SetHeader("Content-Length", FlashBufSize+32+33+btstrp.size());
+                conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
+                conn.SendNow("\x00\x00\x00\x21" "afra\x00\x00\x00\x00\x00\x00\x00\x03\xE8\x00\x00\x00\x01", 21);
+                unsigned long tmptime = htonl(FlashBufTime << 32);
+                conn.SendNow((char*)&tmptime, 4);
+                tmptime = htonl(FlashBufTime & 0xFFFFFFFF);
+                conn.SendNow((char*)&tmptime, 4);
+                tmptime = htonl(65);
+                conn.SendNow((char*)&tmptime, 4);
+
+                conn.SendNow(btstrp);
+
+                conn.SendNow("\x00\x00\x00\x18moof\x00\x00\x00\x10mfhd\x00\x00\x00\x00", 20);
+                unsigned long fragno = htonl(ReqFragment);
+                conn.SendNow((char*)&fragno, 4);
+                unsigned long size = htonl(FlashBufSize+8);
+                conn.SendNow((char*)&size, 4);
+                conn.SendNow("mdat", 4);
+                while (FlashBuf.size() > 0){
+                  conn.SendNow(FlashBuf.front());
+                  FlashBuf.pop_front();
                 }
+                Flash_RequestPending--;
+                #if DEBUG >= 3
+                fprintf(stderr, "Done\n");
+                #endif
               }
-              FlashBuf.str("");
-              flashbuf_nonempty = 0;
-              //fill buffer with init data, if needed.
-              if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
-                tmp.DTSCAudioInit(Strm);
-                FlashBuf.write(tmp.data, tmp.len);
-              }
-              if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
-                tmp.DTSCVideoInit(Strm);
-                FlashBuf.write(tmp.data, tmp.len);
-              }
+              FlashBuf.clear();
+              FlashBufSize = 0;
             }
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
-              ++flashbuf_nonempty;
-              FlashBuf.write(tag.data, tag.len);
+              if (FlashBufSize == 0){
+                //fill buffer with init data, if needed.
+                if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
+                  tmp.DTSCAudioInit(Strm);
+                  FlashBuf.push_back(std::string(tmp.data, tmp.len));
+                  FlashBufSize += tmp.len;
+                }
+                if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
+                  tmp.DTSCVideoInit(Strm);
+                  FlashBuf.push_back(std::string(tmp.data, tmp.len));
+                  FlashBufSize += tmp.len;
+                }
+                FlashBufTime = Strm.getPacket(0)["time"].asInt();
+              }
+              tmp.DTSCLoader(Strm);
+              FlashBuf.push_back(std::string(tmp.data, tmp.len));
+              FlashBufSize += tmp.len;
             }
-          }else{
-            if (pending_manifest && !Strm.metadata.isNull()){
-              HTTP_S.Clean();
-              HTTP_S.SetHeader("Content-Type","text/xml");
-              HTTP_S.SetHeader("Cache-Control","no-cache");
-              if (Strm.metadata.isMember("length")){receive_marks = true;}
-              std::string manifest = BuildManifest(streamname, Strm.metadata);
-              HTTP_S.SetBody(manifest);
-              conn.Send(HTTP_S.BuildResponse("200", "OK"));
-              #if DEBUG >= 3
-              printf("Sent manifest\n");
-              #endif
-              pending_manifest = false;
-            }
+          }
+          if (pending_manifest && !Strm.metadata.isNull()){
+            HTTP_S.Clean();
+            HTTP_S.SetHeader("Content-Type","text/xml");
+            HTTP_S.SetHeader("Cache-Control","no-cache");
+            if (Strm.metadata.isMember("length")){receive_marks = true;}
+            std::string manifest = BuildManifest(streamname, Strm.metadata);
+            HTTP_S.SetBody(manifest);
+            conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
+            #if DEBUG >= 3
+            printf("Sent manifest\n");
+            #endif
+            pending_manifest = false;
           }
         }
         if (!ss.connected()){break;}
@@ -313,8 +348,7 @@ namespace Connector_HTTP{
     }
     conn.close();
     ss.Send("S ");
-    ss.Send(conn.getStats("HTTP_Dynamic").c_str());
-    ss.flush();
+    ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
     ss.close();
     #if DEBUG >= 1
     if (FLV::Parse_Error){fprintf(stderr, "FLV Parser Error: %s\n", FLV::Error_Str.c_str());}

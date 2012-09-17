@@ -9,8 +9,8 @@ namespace MP4{
 
   class Box {
     public:
-      Box();
-      Box(char* boxType);
+      Box( size_t size = 0);
+      Box(char* boxType, size_t size = 0 );
       Box(std::string & newData);
       ~Box();
       std::string getType();
@@ -22,12 +22,12 @@ namespace MP4{
       void clear();
       std::string toPrettyString(int indent = 0);
     protected:
-      void setInt8( char data, size_t index = 0);
-      void setInt16( short data, size_t index = 0);
-      void setInt32( long data, size_t index = 0);
-      void setInt64( long long int data, size_t index = 0);
-      void setString(std::string data, size_t index = 0);
-      void setString(char* data, size_t size, size_t index = 0);
+      void setInt8( char newData, size_t index = 0);
+      void setInt16( short newData, size_t index = 0);
+      void setInt32( long newData, size_t index = 0);
+      void setInt64( long long int newData, size_t index = 0);
+      void setString(std::string newData, size_t index = 0);
+      void setString(char* newData, size_t size, size_t index = 0);
       std::string data;
   };//Box Class
 

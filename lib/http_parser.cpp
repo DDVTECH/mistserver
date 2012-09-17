@@ -110,7 +110,7 @@ void HTTP::Parser::SetHeader(std::string i, std::string v){
 /// Sets header i to integer value v.
 void HTTP::Parser::SetHeader(std::string i, int v){
   Trim(i);
-  char val[128];
+  char val[23];//ints are never bigger than 22 chars as decimal
   sprintf(val, "%i", v);
   headers[i] = val;
 }

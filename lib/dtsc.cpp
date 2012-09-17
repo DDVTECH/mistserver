@@ -316,7 +316,13 @@ bool DTSC::File::writeHeader(std::string & header, bool force){
 /// Reading the packet means the file position is increased to the next packet.
 void DTSC::File::seekNext(){
   if (fread(buffer, 4, 1, F) != 1){
-    fprintf(stderr, "Could not read header\n");
+    if (feof(F)){
+      #if DEBUG >= 4
+      fprintf(stderr, "End of file reached.\n");
+      #endif
+    }else{
+      fprintf(stderr, "Could not read header\n");
+    }
     strbuffer = "";
     jsonbuffer.null();
     return;

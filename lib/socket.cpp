@@ -21,6 +21,13 @@ std::string uint2string(unsigned int i){
   return st.str();
 }
 
+void ms_sleep(int ms){
+  struct timespec T;
+  T.tv_sec = ms/1000;
+  T.tv_nsec = 1000*(ms%1000);
+  nanosleep(&T, 0);
+}
+
 /// Returns the amount of elements in the internal std::deque of std::string objects.
 /// The back is popped as long as it is empty, first - this way this function is
 /// guaranteed to return 0 if the buffer is empty.
@@ -73,6 +80,7 @@ std::string Socket::Buffer::remove(unsigned int count){
   if (!available(count)){return "";}
   unsigned int i = 0;
   std::string ret;
+  ret.reserve(count);
   for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
     if (i + (*it).size() < count){
       ret.append(*it);
@@ -339,7 +347,7 @@ bool Socket::Connection::spool(){
 bool Socket::Connection::flush(){
   while (upbuffer.size() > 0 && connected()){
     if (!iwrite(upbuffer.get())){
-      usleep(10000);//sleep 10ms
+      ms_sleep(10);//sleep 10ms
     }
   }
   /// \todo Provide better mechanism to prevent overbuffering.
@@ -356,41 +364,22 @@ Socket::Buffer & Socket::Connection::Received(){
   return downbuffer;
 }
 
-/// Appends data to the upbuffer.
-/// This will attempt to send the upbuffer (if non-empty) first.
-/// If the upbuffer is empty before or after this attempt, it will attempt to send
-/// the data right away. Any data that could not be send will be put into the upbuffer.
-/// This means this function is blocking if the socket is, but nonblocking otherwise.
-void Socket::Connection::Send(std::string & data){
-  while (upbuffer.size() > 0){
-    if (!iwrite(upbuffer.get())){break;}
-  }
-  if (upbuffer.size() > 0){
-    upbuffer.append(data);
-  }else{
-    int i = iwrite(data.c_str(), data.size());
-    if (i < data.size()){
-      upbuffer.append(data.c_str()+i, data.size() - i);
+/// Will not buffer anything but always send right away. Blocks.
+/// This will send the upbuffer (if non-empty) first, then the data.
+/// Any data that could not be send will block until it can be send or the connection is severed.
+void Socket::Connection::SendNow(const char * data, size_t len){
+  while (upbuffer.size() > 0 && connected()){
+    if (!iwrite(upbuffer.get())){
+      ms_sleep(1);//sleep 1ms if buffer full
     }
   }
-}
-
-/// Appends data to the upbuffer.
-/// This will attempt to send the upbuffer (if non-empty) first.
-/// If the upbuffer is empty before or after this attempt, it will attempt to send
-/// the data right away. Any data that could not be send will be put into the upbuffer.
-/// This means this function is blocking if the socket is, but nonblocking otherwise.
-void Socket::Connection::Send(const char * data){
-  int len = strlen(data);
-  while (upbuffer.size() > 0){
-    if (!iwrite(upbuffer.get())){break;}
-  }
-  if (upbuffer.size() > 0){
-    upbuffer.append(data, len);
-  }else{
-    int i = iwrite(data, len);
-    if (i < len){
-      upbuffer.append(data + i, len - i);
+  int i = iwrite(data, len);
+  while (i < len && connected()){
+    int j = iwrite(data+i, len-i);
+    if (j > 0){
+      i += j;
+    }else{
+      ms_sleep(1);//sleep 1ms and retry
     }
   }
 }
@@ -412,6 +401,40 @@ void Socket::Connection::Send(const char * data, size_t len){
       upbuffer.append(data + i, len - i);
     }
   }
+}
+
+/// Will not buffer anything but always send right away. Blocks.
+/// This will send the upbuffer (if non-empty) first, then the data.
+/// Any data that could not be send will block until it can be send or the connection is severed.
+void Socket::Connection::SendNow(const char * data){
+  int len = strlen(data);
+  SendNow(data, len);
+}
+
+/// Appends data to the upbuffer.
+/// This will attempt to send the upbuffer (if non-empty) first.
+/// If the upbuffer is empty before or after this attempt, it will attempt to send
+/// the data right away. Any data that could not be send will be put into the upbuffer.
+/// This means this function is blocking if the socket is, but nonblocking otherwise.
+void Socket::Connection::Send(const char * data){
+  int len = strlen(data);
+  Send(data, len);
+}
+
+/// Will not buffer anything but always send right away. Blocks.
+/// This will send the upbuffer (if non-empty) first, then the data.
+/// Any data that could not be send will block until it can be send or the connection is severed.
+void Socket::Connection::SendNow(std::string & data){
+  SendNow(data.c_str(), data.size());
+}
+
+/// Appends data to the upbuffer.
+/// This will attempt to send the upbuffer (if non-empty) first.
+/// If the upbuffer is empty before or after this attempt, it will attempt to send
+/// the data right away. Any data that could not be send will be put into the upbuffer.
+/// This means this function is blocking if the socket is, but nonblocking otherwise.
+void Socket::Connection::Send(std::string & data){
+  Send(data.c_str(), data.size());
 }
 
 /// Incremental write call. This function tries to write len bytes to the socket from the buffer,

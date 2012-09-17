@@ -75,6 +75,9 @@ namespace Socket{
       void Send(std::string & data); ///< Appends data to the upbuffer.
       void Send(const char * data); ///< Appends data to the upbuffer.
       void Send(const char * data, size_t len); ///< Appends data to the upbuffer.
+      void SendNow(std::string & data); ///< Will not buffer anything but always send right away. Blocks.
+      void SendNow(const char * data); ///< Will not buffer anything but always send right away. Blocks.
+      void SendNow(const char * data, size_t len); ///< Will not buffer anything but always send right away. Blocks.
       //stats related methods
       unsigned int dataUp(); ///< Returns total amount of bytes sent.
       unsigned int dataDown(); ///< Returns total amount of bytes received.

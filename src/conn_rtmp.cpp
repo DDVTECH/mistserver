@@ -17,6 +17,7 @@
 #include <mist/amf.h>
 #include <mist/rtmpchunks.h>
 #include <mist/stream.h>
+#include <mist/timing.h>
 
 /// Holds all functions and data unique to the RTMP Connector
 namespace Connector_RTMP{
@@ -38,7 +39,7 @@ namespace Connector_RTMP{
   Socket::Connection Socket; ///< Socket connected to user
   Socket::Connection SS; ///< Socket connected to server
   std::string streamname; ///< Stream that will be opened
-  void parseChunk(std::string & buffer);///< Parses a single RTMP chunk.
+  void parseChunk(Socket::Buffer & buffer);///< Parses a single RTMP chunk.
   void sendCommand(AMF::Object & amfreply, int messagetype, int stream_id);///< Sends a RTMP command either in AMF or AMF3 mode.
   void parseAMFCommand(AMF::Object & amfdata, int messagetype, int stream_id);///< Parses a single AMF command message.
   int Connector_RTMP(Socket::Connection conn);
@@ -52,13 +53,13 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   FLV::Tag tag, init_tag;
   DTSC::Stream Strm;
 
-  while (!Socket.Received().available(1537) && Socket.connected()){Socket.spool(); usleep(5000);}
+  while (!Socket.Received().available(1537) && Socket.connected()){Socket.spool(); Util::sleep(5);}
   RTMPStream::handshake_in = Socket.Received().remove(1537);
   RTMPStream::rec_cnt += 1537;
 
   if (RTMPStream::doHandshake()){
     Socket.SendNow(RTMPStream::handshake_out);
-    while (!Socket.Received().available(1536) && Socket.connected()){Socket.spool(); usleep(5000);}
+    while (!Socket.Received().available(1536) && Socket.connected()){Socket.spool(); Util::sleep(5);}
     Socket.Received().remove(1536);
     RTMPStream::rec_cnt += 1536;
     #if DEBUG >= 4
@@ -72,14 +73,14 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   }
 
   unsigned int lastStats = 0;
+  bool firsttime = true;
 
   while (Socket.connected()){
-    if (Socket.spool() || Socket.Received().size()){
-      while (Socket.Received().size()){
-        parseChunk(Socket.Received().get());
-      }
+    if (Socket.spool() || firsttime){
+      parseChunk(Socket.Received());
+      firsttime = false;
     }else{
-      usleep(1000);//sleep 1ms to prevent high CPU usage
+      Util::sleep(1);//sleep 1ms to prevent high CPU usage
     }
     if (ready4data){
       if (!inited){
@@ -100,10 +101,9 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
         inited = true;
       }
       if (inited && !nostats){
-        unsigned int now = time(0);
+        long long int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
-          SS.Send("S ");
           SS.SendNow(Socket.getStats("RTMP").c_str());
         }
       }
@@ -172,7 +172,6 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
     }
   }
   Socket.close();
-  SS.Send("S ");
   SS.SendNow(Socket.getStats("RTMP").c_str());
   SS.close();
   #if DEBUG >= 1
@@ -192,7 +191,7 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
 }//Connector_RTMP
 
 /// Tries to get and parse one RTMP chunk at a time.
-void Connector_RTMP::parseChunk(std::string & inbuffer){
+void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
   //for DTSC conversion
   static JSON::Value meta_out;
   static std::stringstream prebuffer; // Temporary buffer before sending real data
@@ -240,10 +239,6 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
         RTMPStream::snd_window_at = RTMPStream::snd_cnt;
         break;
       case 4:{
-        #if DEBUG >= 4
-        short int ucmtype = ntohs(*(short int*)next.data.c_str());
-        fprintf(stderr, "CTRL: User control message %hi\n", ucmtype);
-        #endif
         //2 bytes event type, rest = event data
         //types:
         //0 = stream begin, 4 bytes ID
@@ -254,6 +249,19 @@ void Connector_RTMP::parseChunk(std::string & inbuffer){
         //6 = pingrequest, 4 bytes data
         //7 = pingresponse, 4 bytes data
         //we don't need to process this
+        #if DEBUG >= 4
+        short int ucmtype = ntohs(*(short int*)next.data.c_str());
+        switch (ucmtype){
+          case 0: fprintf(stderr, "CTRL: UCM StreamBegin %i\n", ntohl(*((int*)(next.data.c_str()+2)))); break;
+          case 1: fprintf(stderr, "CTRL: UCM StreamEOF %i\n", ntohl(*((int*)(next.data.c_str()+2)))); break;
+          case 2: fprintf(stderr, "CTRL: UCM StreamDry %i\n", ntohl(*((int*)(next.data.c_str()+2)))); break;
+          case 3: fprintf(stderr, "CTRL: UCM SetBufferLength %i %i\n", ntohl(*((int*)(next.data.c_str()+2))), ntohl(*((int*)(next.data.c_str()+6)))); break;
+          case 4: fprintf(stderr, "CTRL: UCM StreamIsRecorded %i\n", ntohl(*((int*)(next.data.c_str()+2)))); break;
+          case 6: fprintf(stderr, "CTRL: UCM PingRequest %i\n", ntohl(*((int*)(next.data.c_str()+2)))); break;
+          case 7: fprintf(stderr, "CTRL: UCM PingResponse %i\n", ntohl(*((int*)(next.data.c_str()+2)))); break;
+          default: fprintf(stderr, "CTRL: UCM Unknown (%hi)\n", ucmtype); break;
+        }
+        #endif
       } break;
       case 5://window size of other end
         #if DEBUG >= 4
@@ -510,9 +518,53 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     play_msgtype = messagetype;
     play_streamid = stream_id;
     stream_inited = false;
+    
+    AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+    amfreply.addContent(AMF::Object("", "onStatus"));//status reply
+    amfreply.addContent(amfdata.getContent(1));//same transaction ID
+    amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+    amfreply.addContent(AMF::Object(""));//info
+    amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+    amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Seek.Notify"));
+    amfreply.getContentP(3)->addContent(AMF::Object("description", "Seeking to the specified time"));
+    amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
+    amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+    sendCommand(amfreply, play_msgtype, play_streamid);
     SS.Send("s ");
     SS.Send(JSON::Value((long long int)amfdata.getContentP(3)->NumValue()).asString().c_str());
     SS.Send("\n");
+    return;
+  }//seek
+  if ((amfdata.getContentP(0)->StrValue() == "pauseRaw") || (amfdata.getContentP(0)->StrValue() == "pause")){
+    if (amfdata.getContentP(3)->NumValue()){
+      SS.Send("q\n");//quit playing
+      //send a status reply
+      AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+      amfreply.addContent(AMF::Object("", "onStatus"));//status reply
+      amfreply.addContent(amfdata.getContent(1));//same transaction ID
+      amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+      amfreply.addContent(AMF::Object(""));//info
+      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Pause.Notify"));
+      amfreply.getContentP(3)->addContent(AMF::Object("description", "Pausing playback"));
+      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
+      amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+      sendCommand(amfreply, play_msgtype, play_streamid);
+    }else{
+      SS.Send("p\n");//start playing
+      //send a status reply
+      AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+      amfreply.addContent(AMF::Object("", "onStatus"));//status reply
+      amfreply.addContent(amfdata.getContent(1));//same transaction ID
+      amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL));//null - command info
+      amfreply.addContent(AMF::Object(""));//info
+      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Unpause.Notify"));
+      amfreply.getContentP(3)->addContent(AMF::Object("description", "Resuming playback"));
+      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
+      amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+      sendCommand(amfreply, play_msgtype, play_streamid);
+    }
     return;
   }//seek
   

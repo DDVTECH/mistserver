@@ -11,14 +11,12 @@
 #include <cstdlib>
 #include <queue>
 #include <cmath>
-#include <ctime>
 #include <cstdio>
 #include <climits>
 #include <cstring>
 #include <unistd.h>
 #include <getopt.h>
 #include <set>
-#include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -30,6 +28,7 @@
 #include <mist/http_parser.h>
 #include <mist/procs.h>
 #include <mist/auth.h>
+#include <mist/timing.h>
 #include "server.html.h"
 
 #define UPLINK_INTERVAL 30
@@ -87,7 +86,7 @@ void Log(std::string kind, std::string message){
     if ((*it)[2] == message){return;}
   }
   JSON::Value m;
-  m.append((long long int)time(0));
+  m.append(Util::epoch());
   m.append(kind);
   m.append(message);
   Storage["log"].append(m);
@@ -261,16 +260,15 @@ void startStream(std::string name, JSON::Value & data){
 }
 
 void CheckStats(JSON::Value & stats){
-  unsigned int currTime = time(0);
+  long long int currTime = Util::epoch();
   for (JSON::ObjIter jit = stats.ObjBegin(); jit != stats.ObjEnd(); jit++){
     if (currTime - lastBuffer[jit->first] > 120){
       stats.removeMember(jit->first);
       return;
     }else{
       if (jit->second.isMember("curr") && jit->second["curr"].size() > 0){
-        long long int nowtime = time(0);
         for (JSON::ObjIter u_it = jit->second["curr"].ObjBegin(); u_it != jit->second["curr"].ObjEnd(); ++u_it){
-          if (u_it->second.isMember("now") && u_it->second["now"].asInt() < nowtime - 3){
+          if (u_it->second.isMember("now") && u_it->second["now"].asInt() < currTime - 3){
             jit->second["log"].append(u_it->second);
             jit->second["curr"].removeMember(u_it->first);
             if (!jit->second["curr"].size()){break;}
@@ -283,7 +281,7 @@ void CheckStats(JSON::Value & stats){
 }
 
 void CheckAllStreams(JSON::Value & data){
-  unsigned int currTime = time(0);
+  long long int currTime = Util::epoch();
   bool changed = false;
   for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
     if (!Util::Procs::isActive(jit->first)){
@@ -385,14 +383,14 @@ int main(int argc, char ** argv){
   while (API_Socket.connected() && conf.is_active){
     usleep(10000); //sleep for 10 ms - prevents 100% CPU time
 
-    if (time(0) - processchecker > 10){
-      processchecker = time(0);
+    if (Util::epoch() - processchecker > 10){
+      processchecker = Util::epoch();
       Connector::CheckProtocols(Connector::Storage["config"]["protocols"]);
       Connector::CheckAllStreams(Connector::Storage["streams"]);
       Connector::CheckStats(Connector::Storage["statistics"]);
     }
-    if (conf.getBool("uplink") && time(0) - lastuplink > UPLINK_INTERVAL){
-      lastuplink = time(0);
+    if (conf.getBool("uplink") && Util::epoch() - lastuplink > UPLINK_INTERVAL){
+      lastuplink = Util::epoch();
       bool gotUplink = false;
       if (users.size() > 0){
         for( std::vector< Connector::ConnectedUser >::iterator it = users.end() - 1; it >= users.begin(); it--) {
@@ -449,7 +447,7 @@ int main(int argc, char ** argv){
             it->Received().get().clear();
             if (Request.isMember("buffer")){
               std::string thisbuffer = Request["buffer"];
-              Connector::lastBuffer[thisbuffer] = time(0);
+              Connector::lastBuffer[thisbuffer] = Util::epoch();
               if (Request.isMember("meta")){
                 Connector::Storage["statistics"][thisbuffer]["meta"] = Request["meta"];
               }
@@ -470,7 +468,7 @@ int main(int argc, char ** argv){
               std::string thisfile = Request["vod"]["filename"];
               for (JSON::ObjIter oit = Connector::Storage["streams"].ObjBegin(); oit != Connector::Storage["streams"].ObjEnd(); ++oit){
                 if (oit->second["channel"]["URL"].asString() == thisfile){
-                  Connector::lastBuffer[oit->first] = time(0);
+                  Connector::lastBuffer[oit->first] = Util::epoch();
                   if (Request["vod"].isMember("meta")){
                     Connector::Storage["statistics"][oit->first]["meta"] = Request["vod"]["meta"];
                   }
@@ -563,7 +561,7 @@ int main(int argc, char ** argv){
                   Response["config"] = Connector::Storage["config"];
                   Response["streams"] = Connector::Storage["streams"];
                   //add required data to the current unix time to the config, for syncing reasons
-                  Response["config"]["time"] = (long long int)time(0);
+                  Response["config"]["time"] = Util::epoch();
                   if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}
                   //sent any available logs and statistics
                   Response["log"] = Connector::Storage["log"];

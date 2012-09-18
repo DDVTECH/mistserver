@@ -2,6 +2,7 @@
 /// Contains definitions for buffer streams.
 
 #include "buffer_stream.h"
+#include <mist/timing.h>
 
 /// Stores the globally equal reference.
 Buffer::Stream * Buffer::Stream::ref = 0;
@@ -47,7 +48,7 @@ Buffer::Stream::~Stream(){
 /// Calculate and return the current statistics in JSON format.
 std::string & Buffer::Stream::getStats(){
   static std::string ret;
-  unsigned int now = time(0);
+  long long int now = Util::epoch();
   unsigned int tot_up = 0, tot_down = 0, tot_count = 0;
   stats_mutex.lock();
   if (users.size() > 0){
@@ -125,7 +126,7 @@ void Buffer::Stream::saveStats(std::string username, Stats & stats){
   Storage["curr"][username]["down"] = stats.down;
   Storage["curr"][username]["conntime"] = stats.conntime;
   Storage["curr"][username]["host"] = stats.host;
-  Storage["curr"][username]["start"] = (unsigned int) time(0) - stats.conntime;
+  Storage["curr"][username]["start"] = Util::epoch() - stats.conntime;
   stats_mutex.unlock();
 }
 
@@ -143,7 +144,7 @@ void Buffer::Stream::clearStats(std::string username, Stats & stats, std::string
   Storage["log"][username]["down"] = stats.down;
   Storage["log"][username]["conntime"] = stats.conntime;
   Storage["log"][username]["host"] = stats.host;
-  Storage["log"][username]["start"] = (unsigned int)time(0) - stats.conntime;
+  Storage["log"][username]["start"] = Util::epoch() - stats.conntime;
   stats_mutex.unlock();
   cleanUsers();
 }

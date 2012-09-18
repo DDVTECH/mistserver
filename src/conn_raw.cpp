@@ -6,6 +6,7 @@
 #include <mist/config.h>
 #include <mist/socket.h>
 #include <mist/stream.h>
+#include <mist/timing.h>
 
 /// Contains the main code for the RAW connector.
 /// Expects a single commandline argument telling it which stream to connect to,
@@ -22,8 +23,8 @@ int main(int argc, char  ** argv) {
     std::cout << "Could not open stream " << conf.getString("stream_name") << std::endl;
     return 1;
   }
-  unsigned int lastStats = 0;
-  unsigned int started = time(0);
+  long long int lastStats = 0;
+  long long int started = Util::epoch();
   while(std::cout.good()){
     if (S.spool()){
       while (S.Received().size()){
@@ -31,18 +32,18 @@ int main(int argc, char  ** argv) {
         S.Received().get().clear();
       }
     }else{
-      usleep(10000);//sleep 10ms if no data
+      Util::sleep(10);//sleep 10ms if no data
     }
-    unsigned int now = time(0);
+    unsigned int now = Util::epoch();
     if (now != lastStats){
       lastStats = now;
       std::stringstream st;
-      st << "S localhost RAW " << (time(0) - started) << " " << S.dataDown() << " " << S.dataUp() << "\n";
+      st << "S localhost RAW " << (Util::epoch() - started) << " " << S.dataDown() << " " << S.dataUp() << "\n";
       S.SendNow(st.str().c_str());
     }
   }
   std::stringstream st;
-  st << "S localhost RAW " << (time(0) - started) << " " << S.dataDown() << " " << S.dataUp() << "\n";
+  st << "S localhost RAW " << (Util::epoch() - started) << " " << S.dataDown() << " " << S.dataUp() << "\n";
   S.SendNow(st.str().c_str());
   S.close();
   return 0;

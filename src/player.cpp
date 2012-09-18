@@ -9,6 +9,7 @@
 #include <mist/json.h>
 #include <mist/config.h>
 #include <mist/socket.h>
+#include <mist/timing.h>
 
 /// Copy of stats from buffer_user.cpp
 class Stats{
@@ -47,14 +48,6 @@ class Stats{
     };
 };
 
-
-/// Gets the current system time in milliseconds.
-long long int getNowMS(){
-  timeval t;
-  gettimeofday(&t, 0);
-  return t.tv_sec * 1000 + t.tv_usec/1000;
-}//getNowMS
-
 int main(int argc, char** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"help\":\"Name of the file to write to stdout.\"}"));
@@ -70,7 +63,7 @@ int main(int argc, char** argv){
   pausemark["time"] = (long long int)0;
 
   Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
-  int lasttime = time(0);//time last packet was sent
+  int lasttime = Util::epoch();//time last packet was sent
 
   //send the header
   {
@@ -91,7 +84,7 @@ int main(int argc, char** argv){
   long long bench = 0;//for benchmarking
   Stats sts;
 
-  while (in_out.connected() && std::cin.good() && std::cout.good() && (time(0) - lasttime < 60)){
+  while (in_out.connected() && std::cin.good() && std::cout.good() && (Util::epoch() - lasttime < 60)){
     if (in_out.spool()){
       while (in_out.Received().size()){
         //delete anything that doesn't end with a newline
@@ -121,8 +114,8 @@ int main(int argc, char** argv){
                 json_sts["vod"]["host"] = sts.host;
                 json_sts["vod"]["connector"] = sts.connector;
                 json_sts["vod"]["filename"] = conf.getString("filename");
-                json_sts["vod"]["now"] = (long long int)time(0);
-                json_sts["vod"]["start"] = (long long int)(time(0) - sts.conntime);
+                json_sts["vod"]["now"] = Util::epoch();
+                json_sts["vod"]["start"] = Util::epoch() - sts.conntime;
                 if (!meta_sent){
                   json_sts["vod"]["meta"] = meta;
                   meta_sent = true;
@@ -135,12 +128,15 @@ int main(int argc, char** argv){
             case 's':{ //second-seek
               int ms = JSON::Value(in_out.Received().get().substr(2)).asInt();
               bool ret = source.seek_time(ms);
+              lastTime = 0;
             } break;
             case 'f':{ //frame-seek
               bool ret = source.seek_frame(JSON::Value(in_out.Received().get().substr(2)).asInt());
+              lastTime = 0;
             } break;
             case 'p':{ //play
               playing = -1;
+              lastTime = 0;
               in_out.setBlocking(false);
             } break;
             case 'o':{ //once-play
@@ -150,7 +146,7 @@ int main(int argc, char** argv){
               #if DEBUG >= 4
               std::cerr << "Playing one keyframe" << std::endl;
               #endif
-              bench = getNowMS();
+              bench = Util::getMS();
             } break;
             case 'q':{ //quit-playing
               playing = 0;
@@ -162,15 +158,17 @@ int main(int argc, char** argv){
       }
     }
     if (playing != 0){
-      now = getNowMS();
-      if (playing > 0 || meta["video"]["keyms"].asInt() <= now-lastTime) {
+      now = Util::getMS();
         source.seekNext();
         if (source.getJSON().isMember("keyframe")){
+          if (playing == -1 && meta["video"]["keyms"].asInt() > now-lastTime) {
+            Util::sleep(meta["video"]["keyms"].asInt()-(now-lastTime));
+          }
           lastTime = now;
           if (playing > 0){--playing;}
           if (playing == 0){
             #if DEBUG >= 4
-            std::cerr << "Sending pause_marker (" << (getNowMS() - bench) << "ms)" << std::endl;
+            std::cerr << "Sending pause_marker (" << (Util::getMS() - bench) << "ms)" << std::endl;
             #endif
             pausemark["time"] = (long long int)now;
             pausemark.toPacked();
@@ -179,7 +177,7 @@ int main(int argc, char** argv){
           }
         }
         if (playing != 0){
-          lasttime = time(0);
+          lasttime = Util::epoch();
           //insert proper header for this type of data
           in_out.Send("DTPD");
           //insert the packet length
@@ -187,11 +185,8 @@ int main(int argc, char** argv){
           in_out.Send((char*)&size, 4);
           in_out.SendNow(source.getPacket());
         }
-      } else {
-        usleep((meta["video"]["keyms"].asInt()-(now-lastTime))*1000);
-      }
     }else{
-      usleep(10000);//sleep 10ms
+      Util::sleep(10);
     }
   }
 

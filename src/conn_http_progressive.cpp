@@ -10,7 +10,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <getopt.h>
-#include <ctime>
 #include <sstream>
 #include <mist/socket.h>
 #include <mist/http_parser.h>
@@ -19,6 +18,7 @@
 #include <mist/amf.h>
 #include <mist/config.h>
 #include <mist/stream.h>
+#include <mist/timing.h>
 
 /// Holds everything unique to HTTP Progressive Connector.
 namespace Connector_HTTP{
@@ -36,26 +36,25 @@ namespace Connector_HTTP{
 
     unsigned int lastStats = 0;
     unsigned int seek_pos = 0;//seek position in ms
-    conn.setBlocking(false);//do not block on conn.spool() when no data is available
 
     while (conn.connected()){
       //only parse input if available or not yet init'ed
-      if (conn.spool() || conn.Received().size()){
-        if (HTTP_R.Read(conn.Received().get())){
-          #if DEBUG >= 4
-          std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
-          #endif
-          conn.setHost(HTTP_R.GetHeader("X-Origin"));
-          //we assume the URL is the stream name with a 3 letter extension
-          streamname = HTTP_R.getUrl().substr(1);
-          size_t extDot = streamname.rfind('.');
-          if (extDot != std::string::npos){streamname.resize(extDot);};//strip the extension
-          seek_pos = atoi(HTTP_R.GetVar("start").c_str()) * 1000;//seconds to ms
-          ready4data = true;
-          HTTP_R.Clean(); //clean for any possible next requests
+      if (!inited){
+        if (conn.Received().size() || conn.spool()){
+          if (HTTP_R.Read(conn.Received().get())){
+            #if DEBUG >= 4
+            std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
+            #endif
+            conn.setHost(HTTP_R.GetHeader("X-Origin"));
+            //we assume the URL is the stream name with a 3 letter extension
+            streamname = HTTP_R.getUrl().substr(1);
+            size_t extDot = streamname.rfind('.');
+            if (extDot != std::string::npos){streamname.resize(extDot);};//strip the extension
+            seek_pos = atoi(HTTP_R.GetVar("start").c_str()) * 1000;//seconds to ms
+            ready4data = true;
+            HTTP_R.Clean(); //clean for any possible next requests
+          }
         }
-      }else{
-        usleep(1000);//sleep 1ms
       }
       if (ready4data){
         if (!inited){
@@ -83,10 +82,9 @@ namespace Connector_HTTP{
           ss.SendNow("p\n");
           inited = true;
         }
-        unsigned int now = time(0);
+        unsigned int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
-          ss.Send("S ");
           ss.SendNow(conn.getStats("HTTP_Progressive").c_str());
         }
         if (ss.spool()){
@@ -98,19 +96,18 @@ namespace Connector_HTTP{
               HTTP_S.protocol = "HTTP/1.0";
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));//no SetBody = unknown length - this is intentional, we will stream the entire file
               conn.SendNow(FLV::Header, 13);//write FLV header
-              static FLV::Tag tmp;
               //write metadata
-              tmp.DTSCMetaInit(Strm);
-              conn.SendNow(tmp.data, tmp.len);
+              tag.DTSCMetaInit(Strm);
+              conn.SendNow(tag.data, tag.len);
               //write video init data, if needed
               if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
-                tmp.DTSCVideoInit(Strm);
-                conn.SendNow(tmp.data, tmp.len);
+                tag.DTSCVideoInit(Strm);
+                conn.SendNow(tag.data, tag.len);
               }
               //write audio init data, if needed
               if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
-                tmp.DTSCAudioInit(Strm);
-                conn.SendNow(tmp.data, tmp.len);
+                tag.DTSCAudioInit(Strm);
+                conn.SendNow(tag.data, tag.len);
               }
               progressive_has_sent_header = true;
               #if DEBUG >= 1
@@ -120,12 +117,13 @@ namespace Connector_HTTP{
             tag.DTSCLoader(Strm);
             conn.SendNow(tag.data, tag.len);//write the tag contents
           }
+        }else{
+          Util::sleep(1);
         }
         if (!ss.connected()){break;}
       }
     }
     conn.close();
-    ss.Send("S ");
     ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
     ss.close();
     #if DEBUG >= 1

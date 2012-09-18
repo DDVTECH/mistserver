@@ -10,7 +10,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <getopt.h>
-#include <ctime>
 #include <mist/socket.h>
 #include <mist/http_parser.h>
 #include <mist/json.h>
@@ -22,6 +21,7 @@
 #include <mist/config.h>
 #include <sstream>
 #include <mist/stream.h>
+#include <mist/timing.h>
 
 /// Holds everything unique to HTTP Dynamic Connector.
 namespace Connector_HTTP{
@@ -234,10 +234,9 @@ namespace Connector_HTTP{
           #endif
           inited = true;
         }
-        unsigned int now = time(0);
+        unsigned int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
-          ss.Send("S ");
           ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
         }
         if (ss.spool()){
@@ -347,7 +346,6 @@ namespace Connector_HTTP{
       }
     }
     conn.close();
-    ss.Send("S ");
     ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
     ss.close();
     #if DEBUG >= 1

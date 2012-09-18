@@ -10,8 +10,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <getopt.h>
-#include <ctime>
-#include <sys/time.h>//for gettimeofday
 #include <set>
 #include <openssl/md5.h>
 #include <mist/socket.h>
@@ -19,6 +17,7 @@
 #include <mist/config.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
+#include <mist/timing.h>
 #include "tinythread.h"
 #include "embed.js.h"
 
@@ -324,13 +323,6 @@ namespace Connector_HTTP{
     return "none";
   }
 
-  /// Gets the current system time in milliseconds.
-  long long int getNowMS(){
-    timeval t;
-    gettimeofday(&t, 0);
-    return t.tv_sec * 1000 + t.tv_usec/1000;
-  }//getNowMS
-
   /// Thread for handling a single HTTP connection
   void Handle_HTTP_Connection(void * pointer){
     Socket::Connection * conn = (Socket::Connection *)pointer;
@@ -340,7 +332,7 @@ namespace Connector_HTTP{
       if (conn->Received().size() || conn->spool()){
         if (Client.Read(conn->Received().get())){
           std::string handler = getHTTPType(Client);
-          long long int startms = getNowMS();
+          long long int startms = Util::getMS();
           #if DEBUG >= 4
           std::cout << "Received request: " << Client.getUrl() << " (" << conn->getSocket() << ") => " << handler << " (" << Client.GetVar("stream") << ")" << std::endl;
           #endif
@@ -354,7 +346,7 @@ namespace Connector_HTTP{
             Handle_Through_Connector(Client, conn, handler);
           }
           #if DEBUG >= 4
-          std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (getNowMS() - startms) << " ms" << std::endl;
+          std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (Util::getMS() - startms) << " ms" << std::endl;
           #endif
           Client.Clean(); //clean for any possible next requests
         }

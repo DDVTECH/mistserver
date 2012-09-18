@@ -38,9 +38,9 @@ namespace MP4{
   bool Box::read(std::string & newData) {
     if( newData.size() > 4 ) {
       size_t size = ntohl( ((int*)newData.c_str())[0] );
-      if( newData.size() > size + 8 ) {
-        data = newData.substr( 0, size + 8 );
-        newData.erase( 0, size + 8 );
+      if( newData.size() > size ) {
+        data = newData.substr( 0, size );
+        newData.erase( 0, size );
         return true;
       }
     }
@@ -69,12 +69,12 @@ namespace MP4{
 
   std::string Box::toPrettyString(int indent){
     switch( ntohl(((int*)data.c_str())[1]) ) { //type is at this address
-      case 0x6D666864: return ((MFHD*)this)->toPrettyString(indent);
-      case 0x6D6F6F66: return ((MOOF*)this)->toPrettyString(indent);
-      case 0x61627374: return ((ABST*)this)->toPrettyString(indent);
-      case 0x61667274: return ((AFRT*)this)->toPrettyString(indent);
-      case 0x61737274: return ((ASRT*)this)->toPrettyString(indent);
-      default: return std::string(indent, ' ')+"Unimplemented pretty-printing for box "+std::string(data,4,4)+"\n";
+      case 0x6D666864: return ((MFHD*)this)->toPrettyString(indent); break;
+      case 0x6D6F6F66: return ((MOOF*)this)->toPrettyString(indent); break;
+      case 0x61627374: return ((ABST*)this)->toPrettyString(indent); break;
+      case 0x61667274: return ((AFRT*)this)->toPrettyString(indent); break;
+      case 0x61737274: return ((ASRT*)this)->toPrettyString(indent); break;
+      default: return std::string(indent, ' ')+"Unimplemented pretty-printing for box "+std::string(data,4,4)+"\n"; break;
     }
   }
 
@@ -100,7 +100,7 @@ namespace MP4{
       data.resize( index + 1 );
     }
     newData = htons( newData );
-    memcpy( (char*)data.c_str() + index, (char*)newData, 2 );
+    memcpy( (void*)(data.c_str() + index), (void*)&newData, 2 );
   }
   
   short Box::getInt16( size_t index ) {
@@ -109,7 +109,7 @@ namespace MP4{
       data.resize( index + 1 );
     }
     short result;
-    memcpy( (char*)result, (char*)data.c_str() + index, 2 );
+    memcpy( (void*)&result, (void*)(data.c_str() + index), 2 );
     return ntohs(result);
   }
   
@@ -142,7 +142,7 @@ namespace MP4{
       data.resize( index + 3 );
     }
     newData = htonl( newData );
-    memcpy( (char*)data.c_str() + index, (char*)newData, 4 );
+    memcpy( (char*)data.c_str() + index, (char*)&newData, 4 );
   }
   
   long Box::getInt32( size_t index ) {
@@ -152,7 +152,7 @@ namespace MP4{
     }
     long result;
     
-    memcpy( (char*)result, (char*)data.c_str() + index, 4 );
+    memcpy( (char*)&result, (char*)data.c_str() + index, 4 );
     return ntohl(result);
   }
 
@@ -577,10 +577,10 @@ namespace MP4{
   std::string MOOF::toPrettyString( int indent ) {
     std::string r;
     r += std::string(indent, ' ')+"Movie Fragment\n";
-    
     for( uint32_t i = 0; i < content.size(); i++ ) {
       r += content[i]->toPrettyString(indent+2);
     }
+    return r;
   }
   
   TRUN::TRUN() : Box("trun") {

@@ -68,7 +68,14 @@ namespace MP4{
   }
 
   std::string Box::toPrettyString(int indent){
-    return std::string(indent, ' ')+"Unimplemented pretty-printing for this box";
+    switch( ntohl(((int*)data.c_str())[1]) ) { //type is at this address
+      case 0x6D666864: return ((MFHD*)this)->toPrettyString(indent);
+      case 0x6D6F6F66: return ((MOOF*)this)->toPrettyString(indent);
+      case 0x61627374: return ((ABST*)this)->toPrettyString(indent);
+      case 0x61667274: return ((AFRT*)this)->toPrettyString(indent);
+      case 0x61737274: return ((ASRT*)this)->toPrettyString(indent);
+      default: return std::string(indent, ' ')+"Unimplemented pretty-printing for box "+std::string(data,4,4)+"\n";
+    }
   }
 
   void Box::setInt8( char newData, size_t index ) {
@@ -316,6 +323,7 @@ namespace MP4{
   }
   
   void ABST::regenerate( ) {
+    data.resize( 26 );
     int myOffset = 26;
     //0-terminated movieIdentifier
     memcpy( (char*)data.c_str() + myOffset, movieIdentifier.c_str(), movieIdentifier.size() + 1);
@@ -379,11 +387,11 @@ namespace MP4{
     r += std::string(indent+1, ' ')+"CurrMediaTime "+JSON::Value((long long int)getInt32(6)).asString()+"\n";
     r += std::string(indent+1, ' ')+"Segment Run Tables "+JSON::Value((long long int)segmentTables.size()).asString()+"\n";
     for( uint32_t i = 0; i < segmentTables.size(); i++ ) {
-      r += ((ASRT*)segmentTables[i])->toPrettyString(indent+2)+"\n";
+      r += segmentTables[i]->toPrettyString(indent+2);
     }
     r += std::string(indent+1, ' ')+"Fragment Run Tables "+JSON::Value((long long int)fragmentTables.size()).asString()+"\n";
     for( uint32_t i = 0; i < fragmentTables.size(); i++ ) {
-      r += ((AFRT*)fragmentTables[i])->toPrettyString(indent+2)+"\n";
+      r += fragmentTables[i]->toPrettyString(indent+2);
     }
     return r;
   }
@@ -422,6 +430,7 @@ namespace MP4{
   }
   
   void AFRT::regenerate( ) {
+    data.resize( 8 );
     int myOffset = 8;
     setInt8( qualityModifiers.size(), myOffset );
     myOffset ++;
@@ -461,7 +470,7 @@ namespace MP4{
     }
     r += std::string(indent+1, ' ')+"Fragments "+JSON::Value((long long int)fragmentRunTable.size()).asString()+"\n";
     for( uint32_t i = 0; i < fragmentRunTable.size(); i ++ ) {
-      r += std::string(indent+2, ' ')+"Duration "+JSON::Value((long long int)fragmentRunTable[i].duration).asString()+", starting at "+JSON::Value((long long int)fragmentRunTable[i].firstFragment).asString()+" @ "+JSON::Value((long long int)fragmentRunTable[i].firstTimestamp).asString();
+      r += std::string(indent+2, ' ')+"Duration "+JSON::Value((long long int)fragmentRunTable[i].duration).asString()+", starting at "+JSON::Value((long long int)fragmentRunTable[i].firstFragment).asString()+" @ "+JSON::Value((long long int)fragmentRunTable[i].firstTimestamp).asString()+"\n";
     }
     return r;
   }
@@ -493,6 +502,7 @@ namespace MP4{
   }
   
   void ASRT::regenerate( ) {
+    data.resize( 4 );
     int myOffset = 4;
     setInt8( qualityModifiers.size(), myOffset );
     myOffset ++;
@@ -527,7 +537,7 @@ namespace MP4{
     }
     r += std::string(indent+1, ' ')+"Segments "+JSON::Value((long long int)segmentRunTable.size()).asString()+"\n";
     for( uint32_t i = 0; i < segmentRunTable.size(); i ++ ) {
-      r += std::string(indent+2, ' ')+JSON::Value((long long int)segmentRunTable[i].fragmentsPerSegment).asString()+" fragments per, starting at "+JSON::Value((long long int)segmentRunTable[i].firstSegment).asString();
+      r += std::string(indent+2, ' ')+JSON::Value((long long int)segmentRunTable[i].fragmentsPerSegment).asString()+" fragments per, starting at "+JSON::Value((long long int)segmentRunTable[i].firstSegment).asString()+"\n";
     }
     return r;
   }
@@ -540,6 +550,12 @@ namespace MP4{
     setInt32( newSequenceNumber, 4 );
   }
   
+  std::string MFHD::toPrettyString( int indent ) {
+    std::string r;
+    r += std::string(indent, ' ')+"Movie Fragment Header\n";
+    r += std::string(indent+1, ' ')+"SequenceNumber: "+JSON::Value((long long int)getInt32(4)).asString()+"\n";
+  }
+  
   MOOF::MOOF() : Box("moof") {}
   
   void MOOF::addContent( Box* newContent ) {
@@ -548,11 +564,97 @@ namespace MP4{
   }
   
   void MOOF::regenerate() {
+    data.resize( 0 );
     int myOffset = 0;
     //retrieve box for each entry
     for( std::deque<Box*>::iterator it = content.begin(); it != content.end(); it++ ) {
       memcpy( (char*)data.c_str() + myOffset, (*it)->asBox().c_str(), (*it)->boxedSize() + 1);
       myOffset += (*it)->boxedSize();
+    }
+    isUpdated = false;
+  }
+  
+  std::string MOOF::toPrettyString( int indent ) {
+    std::string r;
+    r += std::string(indent, ' ')+"Movie Fragment\n";
+    
+    for( uint32_t i = 0; i < content.size(); i++ ) {
+      r += content[i]->toPrettyString(indent+2);
+    }
+  }
+  
+  TRUN::TRUN() : Box("trun") {
+    setInt8(0,0);
+  }
+  
+  void TRUN::setFlags( long newFlags ) {
+    setInt24(newFlags,1);
+    isUpdated = true;
+  }
+  
+  void TRUN::setDataOffset( long newOffset ) {
+    dataOffset = newOffset;
+    isUpdated = true;
+  }
+  
+  void TRUN::setFirstSampleFlags( char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy, char sampleIsDifferenceSample ) {
+    firstSampleFlags = getSampleFlags( sampleDependsOn, sampleIsDependedOn, sampleHasRedundancy, sampleIsDifferenceSample );
+    isUpdated = true;
+  }
+  
+  void TRUN::addSampleInformation( long newDuration, long newSize, char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy,char sampleIsDifferenceSample, long newCompositionTimeOffset ) {
+    trunSampleInformation newSample;
+    newSample.sampleDuration = newDuration;
+    newSample.sampleSize = newSize;
+    newSample.sampleFlags = getSampleFlags( sampleDependsOn, sampleIsDependedOn, sampleHasRedundancy, sampleIsDifferenceSample );
+    newSample.sampleCompositionTimeOffset = newCompositionTimeOffset;
+    allSamples.push_back( newSample );
+    isUpdated = true;
+  }
+  
+  long TRUN::getSampleFlags( char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy, char sampleIsDifferenceSample ) {
+    long sampleFlags = ( sampleDependsOn & 0x03 );
+    sampleFlags <<= 2;
+    sampleFlags += ( sampleIsDependedOn & 0x03 );
+    sampleFlags <<= 2;
+    sampleFlags += ( sampleHasRedundancy & 0x03 );
+    sampleFlags <<= 5;
+    sampleFlags += ( sampleIsDifferenceSample & 0x01 );
+    sampleFlags <<= 17;
+    sampleFlags += 0x0000FFFF;
+    return sampleFlags;
+  }
+  
+  void TRUN::regenerate( ) {
+    data.resize( 4 );
+    int myOffset = 4;
+    setInt32( allSamples.size(), myOffset );
+    myOffset += 4;
+    if( getInt24( 1 ) & 0x000001 ) {
+      setInt32( dataOffset, myOffset );
+      myOffset += 4;
+    }
+    if( getInt24( 1 ) & 0x000004 ) {
+      setInt32( firstSampleFlags, myOffset );
+      myOffset += 4;
+    }
+    for( std::deque<trunSampleInformation>::iterator it = allSamples.begin(); it != allSamples.end(); it++ ) {
+      if( getInt24( 1 ) & 0x000100 ) {
+        setInt32( (*it).sampleDuration, myOffset );
+        myOffset += 4;
+      }
+      if( getInt24( 1 ) & 0x000200 ) {
+        setInt32( (*it).sampleSize, myOffset );
+        myOffset += 4;
+      }
+      if( getInt24( 1 ) & 0x000400 ) {
+        setInt32( (*it).sampleFlags, myOffset );
+        myOffset += 4;
+      }
+      if( getInt24( 1 ) & 0x000800 ) {
+        setInt32( (*it).sampleCompositionTimeOffset, myOffset );
+        myOffset += 4;
+      }
     }
     isUpdated = false;
   }

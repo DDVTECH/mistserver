@@ -124,6 +124,7 @@ namespace MP4{
     public:
       MFHD();
       void setSequenceNumber( long newSequenceNumber );
+      std::string toPrettyString(int indent = 0);
   };//MFHD Box
   
   class MOOF : public Box {
@@ -131,7 +132,30 @@ namespace MP4{
       MOOF();
       void addContent( Box* newContent );
       void regenerate( );
+      std::string toPrettyString(int indent = 0);
     private:
       std::deque<Box*> content;
   };//MOOF Box
+  
+  struct trunSampleInformation {
+    long sampleDuration;
+    long sampleSize;
+    long sampleFlags;
+    long sampleCompositionTimeOffset;
+  };
+  
+  class TRUN : public Box {
+    public:
+      TRUN();
+      void setFlags( long newFlags );
+      void setDataOffset( long newOffset );
+      void setFirstSampleFlags( char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy, char sampleIsDifferenceSample );
+      void addSampleInformation( long newDuration, long newSize, char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy,char sampleIsDifferenceSample, long newCompositionTimeOffset );
+      void regenerate();
+    private:
+      long getSampleFlags( char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy, char sampleIsDifferenceSample );
+      long dataOffset;
+      long firstSampleFlags;
+      std::deque<trunSampleInformation> allSamples;
+  };
 };

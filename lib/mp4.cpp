@@ -531,4 +531,12 @@ namespace MP4{
     }
     return r;
   }
+  
+  MFHD::MFHD() : Box("mfhd") {
+    setInt32(0,0);
+  }
+  
+  void MFHD::setSequenceNumber( long newSequenceNumber ) {
+    setInt32( newSequenceNumber, 4 );
+  }
 };

@@ -119,5 +119,10 @@ namespace MP4{
       std::deque<std::string> qualityModifiers;
       std::deque<segmentRun> segmentRunTable;
   };//ASRT Box
-
+  
+  class MFHD : public Box {
+    public:
+      MFHD();
+      void setSequenceNumber( long newSequenceNumber );
+  };//MFHD Box
 };

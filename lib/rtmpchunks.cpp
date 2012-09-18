@@ -4,18 +4,11 @@
 #include "rtmpchunks.h"
 #include "flv_tag.h"
 #include "crypto.h"
+#include "timing.h"
 
 char versionstring[] = "WWW.DDVTECH.COM "; ///< String that is repeated in the RTMP handshake
 std::string RTMPStream::handshake_in; ///< Input for the handshake.
 std::string RTMPStream::handshake_out;///< Output for the handshake.
-
-/// Gets the current system time in milliseconds.
-unsigned int RTMPStream::getNowMS(){
-  timeval t;
-  gettimeofday(&t, 0);
-  return t.tv_sec * 1000 + t.tv_usec/1000;
-}//RTMPStream::getNowMS
-
 
 unsigned int RTMPStream::chunk_rec_max = 128;
 unsigned int RTMPStream::chunk_snd_max = 128;
@@ -147,7 +140,7 @@ RTMPStream::Chunk::Chunk(){
 std::string & RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data){
   static RTMPStream::Chunk ch;
   ch.cs_id = cs_id;
-  ch.timestamp = RTMPStream::getNowMS();
+  ch.timestamp = Util::epoch();
   ch.len = data.size();
   ch.real_len = data.size();
   ch.len_left = 0;
@@ -194,7 +187,7 @@ std::string & RTMPStream::SendMedia(FLV::Tag & tag){
 std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = RTMPStream::getNowMS();
+  ch.timestamp = Util::epoch();
   ch.len = 4;
   ch.real_len = 4;
   ch.len_left = 0;
@@ -209,7 +202,7 @@ std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data){
 std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned char data2){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = RTMPStream::getNowMS();
+  ch.timestamp = Util::epoch();
   ch.len = 5;
   ch.real_len = 5;
   ch.len_left = 0;
@@ -225,7 +218,7 @@ std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigne
 std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = RTMPStream::getNowMS();
+  ch.timestamp = Util::epoch();
   ch.len = 6;
   ch.real_len = 6;
   ch.len_left = 0;
@@ -242,7 +235,7 @@ std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data){
 std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned int data2){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = RTMPStream::getNowMS();
+  ch.timestamp = Util::epoch();
   ch.len = 10;
   ch.real_len = 10;
   ch.len_left = 0;
@@ -265,10 +258,7 @@ std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigne
 /// \param indata The input string to parse and update.
 /// \warning This function will destroy the current data in this chunk!
 /// \returns True if a whole chunk could be read, false otherwise.
-bool RTMPStream::Chunk::Parse(std::string & source){
-  static std::string indata;
-  indata.append(source);
-  source.clear();
+bool RTMPStream::Chunk::Parse(std::string & indata){
   gettimeofday(&RTMPStream::lastrec, 0);
   unsigned int i = 0;
   if (indata.size() < 1) return false;//need at least a byte
@@ -380,7 +370,7 @@ bool RTMPStream::Chunk::Parse(std::string & source){
     if (len_left == 0){
       return true;
     }else{
-      return Parse(source);
+      return Parse(indata);
     }
   }else{
     data = "";
@@ -391,6 +381,139 @@ bool RTMPStream::Chunk::Parse(std::string & source){
   }
 }//Parse
 
+/// Parses the argument string into the current chunk.
+/// Tries to read a whole chunk, removing data from the input as it reads.
+/// If only part of a chunk is read, it will remove the part and call itself again.
+/// This has the effect of only causing a "true" reponse in the case a *whole* chunk
+/// is read, not just part of a chunk.
+/// \param indata The input string to parse and update.
+/// \warning This function will destroy the current data in this chunk!
+/// \returns True if a whole chunk could be read, false otherwise.
+bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer){
+  gettimeofday(&RTMPStream::lastrec, 0);
+  unsigned int i = 0;
+  if (!buffer.available(3)){return false;}//we want at least 3 bytes
+  std::string indata = buffer.copy(3);
+  
+  unsigned char chunktype = indata[i++];
+  //read the chunkstream ID properly
+  switch (chunktype & 0x3F){
+    case 0:
+      cs_id = indata[i++] + 64;
+      break;
+    case 1:
+      cs_id = indata[i++] + 64;
+      cs_id += indata[i++] * 256;
+      break;
+    default:
+      cs_id = chunktype & 0x3F;
+      break;
+  }
+  
+  RTMPStream::Chunk prev = lastrecv[cs_id];
+  
+  //process the rest of the header, for each chunk type
+  headertype = chunktype & 0xC0;
+  switch (headertype){
+    case 0x00:
+      if (!buffer.available(i+11)){return false;} //can't read whole header
+      indata = buffer.copy(i+11);
+      timestamp = indata[i++]*256*256;
+      timestamp += indata[i++]*256;
+      timestamp += indata[i++];
+      len = indata[i++]*256*256;
+      len += indata[i++]*256;
+      len += indata[i++];
+      len_left = 0;
+      msg_type_id = indata[i++];
+      msg_stream_id = indata[i++];
+      msg_stream_id += indata[i++]*256;
+      msg_stream_id += indata[i++]*256*256;
+      msg_stream_id += indata[i++]*256*256*256;
+      break;
+    case 0x40:
+      if (!buffer.available(i+7)){return false;} //can't read whole header
+      indata = buffer.copy(i+7);
+      if (prev.msg_type_id == 0){fprintf(stderr, "Warning: Header type 0x40 with no valid previous chunk!\n");}
+      timestamp = indata[i++]*256*256;
+      timestamp += indata[i++]*256;
+      timestamp += indata[i++];
+      if (timestamp != 0x00ffffff){timestamp += prev.timestamp;}
+      len = indata[i++]*256*256;
+      len += indata[i++]*256;
+      len += indata[i++];
+      len_left = 0;
+      msg_type_id = indata[i++];
+      msg_stream_id = prev.msg_stream_id;
+      break;
+    case 0x80:
+      if (!buffer.available(i+3)){return false;} //can't read whole header
+      indata = buffer.copy(i+3);
+      if (prev.msg_type_id == 0){fprintf(stderr, "Warning: Header type 0x80 with no valid previous chunk!\n");}
+      timestamp = indata[i++]*256*256;
+      timestamp += indata[i++]*256;
+      timestamp += indata[i++];
+      if (timestamp != 0x00ffffff){timestamp += prev.timestamp;}
+      len = prev.len;
+      len_left = prev.len_left;
+      msg_type_id = prev.msg_type_id;
+      msg_stream_id = prev.msg_stream_id;
+      break;
+    case 0xC0:
+      if (prev.msg_type_id == 0){fprintf(stderr, "Warning: Header type 0xC0 with no valid previous chunk!\n");}
+      timestamp = prev.timestamp;
+      len = prev.len;
+      len_left = prev.len_left;
+      msg_type_id = prev.msg_type_id;
+      msg_stream_id = prev.msg_stream_id;
+      break;
+  }
+  //calculate chunk length, real length, and length left till complete
+  if (len_left > 0){
+    real_len = len_left;
+    len_left -= real_len;
+  }else{
+    real_len = len;
+  }
+  if (real_len > RTMPStream::chunk_rec_max){
+    len_left += real_len - RTMPStream::chunk_rec_max;
+    real_len = RTMPStream::chunk_rec_max;
+  }
+  //read extended timestamp, if neccesary
+  if (timestamp == 0x00ffffff){
+    if (!buffer.available(i+4)){return false;} //can't read timestamp
+    indata = buffer.copy(i+4);
+    timestamp = indata[i++]*256*256*256;
+    timestamp += indata[i++]*256*256;
+    timestamp += indata[i++]*256;
+    timestamp += indata[i++];
+  }
+  
+  //read data if length > 0, and allocate it
+  if (real_len > 0){
+    if (!buffer.available(i+real_len)){return false;}//can't read all data (yet)
+    buffer.remove(i);//remove the header
+    if (prev.len_left > 0){
+      data = prev.data + buffer.remove(real_len);//append the data and remove from buffer
+    }else{
+      data = buffer.remove(real_len);//append the data and remove from buffer
+    }
+    lastrecv[cs_id] = *this;
+    RTMPStream::rec_cnt += i+real_len;
+    if (len_left == 0){
+      return true;
+    }else{
+      return Parse(buffer);
+    }
+  }else{
+    buffer.remove(i);//remove the header
+    data = "";
+    indata = indata.substr(i+real_len);
+    lastrecv[cs_id] = *this;
+    RTMPStream::rec_cnt += i+real_len;
+    return true;
+  }
+}//Parse
 
 /// Does the handshake. Expects handshake_in to be filled, and fills handshake_out.
 /// After calling this function, don't forget to read and ignore 1536 extra bytes,

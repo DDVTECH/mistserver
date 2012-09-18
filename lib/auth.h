@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <time.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
 

@@ -3,6 +3,7 @@
 /// Written by Jaron Vietor in 2010 for DDVTech
 
 #include "socket.h"
+#include "timing.h"
 #include <sys/stat.h>
 #include <poll.h>
 #include <netdb.h>
@@ -15,17 +16,11 @@
 #define BUFFER_BLOCKSIZE 4096 //set buffer blocksize to 4KiB
 #include <iostream>//temporary for debugging
 
+
 std::string uint2string(unsigned int i){
   std::stringstream st;
   st << i;
   return st.str();
-}
-
-void ms_sleep(int ms){
-  struct timespec T;
-  T.tv_sec = ms/1000;
-  T.tv_nsec = 1000*(ms%1000);
-  nanosleep(&T, 0);
 }
 
 /// Returns the amount of elements in the internal std::deque of std::string objects.
@@ -132,7 +127,7 @@ Socket::Connection::Connection(int sockNo){
   pipes[1] = -1;
   up = 0;
   down = 0;
-  conntime = time(0);
+  conntime = Util::epoch();
   Error = false;
   Blocking = false;
 }//Socket::Connection basic constructor
@@ -146,7 +141,7 @@ Socket::Connection::Connection(int write, int read){
   pipes[1] = read;
   up = 0;
   down = 0;
-  conntime = time(0);
+  conntime = Util::epoch();
   Error = false;
   Blocking = false;
 }//Socket::Connection basic constructor
@@ -159,7 +154,7 @@ Socket::Connection::Connection(){
   pipes[1] = -1;
   up = 0;
   down = 0;
-  conntime = time(0);
+  conntime = Util::epoch();
   Error = false;
   Blocking = false;
 }//Socket::Connection basic constructor
@@ -231,7 +226,7 @@ Socket::Connection::Connection(std::string address, bool nonblock){
   Blocking = false;
   up = 0;
   down = 0;
-  conntime = time(0);
+  conntime = Util::epoch();
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, address.c_str(), address.size()+1);
@@ -260,7 +255,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   Blocking = false;
   up = 0;
   down = 0;
-  conntime = time(0);
+  conntime = Util::epoch();
   std::stringstream ss;
   ss << port;
 
@@ -325,7 +320,7 @@ unsigned int Socket::Connection::dataDown(){
 /// Returns a std::string of stats, ended by a newline.
 /// Requires the current connector name as an argument.
 std::string Socket::Connection::getStats(std::string C){
-  return getHost() + " " + C + " " + uint2string(time(0) - conntime) + " " + uint2string(up) + " " + uint2string(down) + "\n";
+  return "S " + getHost() + " " + C + " " + uint2string(Util::epoch() - conntime) + " " + uint2string(up) + " " + uint2string(down) + "\n";
 }
 
 /// Updates the downbuffer and upbuffer internal variables.
@@ -347,7 +342,7 @@ bool Socket::Connection::spool(){
 bool Socket::Connection::flush(){
   while (upbuffer.size() > 0 && connected()){
     if (!iwrite(upbuffer.get())){
-      ms_sleep(10);//sleep 10ms
+      Util::sleep(10);//sleep 10ms
     }
   }
   /// \todo Provide better mechanism to prevent overbuffering.
@@ -370,7 +365,7 @@ Socket::Buffer & Socket::Connection::Received(){
 void Socket::Connection::SendNow(const char * data, size_t len){
   while (upbuffer.size() > 0 && connected()){
     if (!iwrite(upbuffer.get())){
-      ms_sleep(1);//sleep 1ms if buffer full
+      Util::sleep(1);//sleep 1ms if buffer full
     }
   }
   int i = iwrite(data, len);
@@ -379,7 +374,7 @@ void Socket::Connection::SendNow(const char * data, size_t len){
     if (j > 0){
       i += j;
     }else{
-      ms_sleep(1);//sleep 1ms and retry
+      Util::sleep(1);//sleep 1ms and retry
     }
   }
 }

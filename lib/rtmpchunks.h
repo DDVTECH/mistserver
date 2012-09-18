@@ -8,6 +8,7 @@
 #include <sys/time.h>
 #include <string>
 #include <arpa/inet.h>
+#include "socket.h"
 
 //forward declaration of FLV::Tag to avoid circular dependencies.
 namespace FLV{
@@ -16,9 +17,6 @@ namespace FLV{
 
 /// Contains all functions and classes needed for RTMP connections.
 namespace RTMPStream{
-
-  /// Gets the current system time in milliseconds.
-  unsigned int getNowMS();
 
   extern unsigned int chunk_rec_max; ///< Maximum size for a received chunk.
   extern unsigned int chunk_snd_max; ///< Maximum size for a sent chunk.
@@ -46,6 +44,7 @@ namespace RTMPStream{
 
       Chunk();
       bool Parse(std::string & data);
+      bool Parse(Socket::Buffer & data);
       std::string & Pack();
 
     private:

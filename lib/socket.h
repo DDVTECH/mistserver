@@ -44,7 +44,7 @@ namespace Socket{
       std::string remotehost; ///< Stores remote host address.
       unsigned int up;
       unsigned int down;
-      unsigned int conntime;
+      long long int conntime;
       Buffer downbuffer; ///< Stores temporary data coming in.
       Buffer upbuffer; ///< Stores temporary data going out.
       int iread(void * buffer, int len); ///< Incremental read call.

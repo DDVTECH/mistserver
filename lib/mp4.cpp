@@ -539,4 +539,21 @@ namespace MP4{
   void MFHD::setSequenceNumber( long newSequenceNumber ) {
     setInt32( newSequenceNumber, 4 );
   }
+  
+  MOOF::MOOF() : Box("moof") {}
+  
+  void MOOF::addContent( Box* newContent ) {
+    content.push_back( newContent );
+    isUpdated = true;
+  }
+  
+  void MOOF::regenerate() {
+    int myOffset = 0;
+    //retrieve box for each entry
+    for( std::deque<Box*>::iterator it = content.begin(); it != content.end(); it++ ) {
+      memcpy( (char*)data.c_str() + myOffset, (*it)->asBox().c_str(), (*it)->boxedSize() + 1);
+      myOffset += (*it)->boxedSize();
+    }
+    isUpdated = false;
+  }
 };

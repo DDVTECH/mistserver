@@ -125,4 +125,13 @@ namespace MP4{
       MFHD();
       void setSequenceNumber( long newSequenceNumber );
   };//MFHD Box
+  
+  class MOOF : public Box {
+    public:
+      MOOF();
+      void addContent( Box* newContent );
+      void regenerate( );
+    private:
+      std::deque<Box*> content;
+  };//MOOF Box
 };

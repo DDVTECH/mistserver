@@ -388,14 +388,14 @@ namespace MP4{
     return r;
   }
   
-  AFTR::AFRT() : Box(0x61667274){
+  AFRT::AFRT() : Box("afrt"){
     setVersion( 0 );
     setUpdate( 0 );
     setTimeScale( 1000 );
   }
   
   void AFRT::setVersion( char newVersion ) {
-    setInt8( newVersion ,0 )
+    setInt8( newVersion ,0 );
   }
   
   void AFRT::setUpdate( long newUpdate ) {
@@ -408,155 +408,127 @@ namespace MP4{
   
   void AFRT::addQualityEntry( std::string newQuality ) {
     qualityModifiers.push_back( newQuality );
+    isUpdated = true;
   }
-
   
-/*
-
-  void AFRT::AddQualityEntry( std::string Quality, uint32_t Offset ) {
-    if(Offset >= QualitySegmentUrlModifiers.size()) {
-      QualitySegmentUrlModifiers.resize(Offset+1);
-    }
-    QualitySegmentUrlModifiers[Offset] = Quality;
+  void AFRT::addFragmentRun( long firstFragment, long long int firstTimestamp, long duration, char discontinuity ) {
+    fragmentRun newRun;
+    newRun.firstFragment = firstFragment;
+    newRun.firstTimestamp = firstTimestamp;
+    newRun.duration = duration;
+    newRun.discontinuity = discontinuity;
+    fragmentRunTable.push_back( newRun );
+    isUpdated = true;
   }
-
-  void AFRT::AddFragmentRunEntry( uint32_t FirstFragment, uint32_t FirstFragmentTimestamp, uint32_t FragmentsDuration, uint8_t Discontinuity, uint32_t Offset ) {
-    if( Offset >= FragmentRunEntryTable.size() ) {
-      FragmentRunEntryTable.resize(Offset+1);
+  
+  void AFRT::regenerate( ) {
+    int myOffset = 8;
+    setInt8( qualityModifiers.size(), myOffset );
+    myOffset ++;
+    //0-terminated string for each entry
+    for( std::deque<std::string>::iterator it = qualityModifiers.begin();it != qualityModifiers.end(); it++ ) {
+      memcpy( (char*)data.c_str() + myOffset, (*it).c_str(), (*it).size() + 1);
+      myOffset += (*it).size() + 1;
     }
-    FragmentRunEntryTable[Offset].FirstFragment = FirstFragment;
-    FragmentRunEntryTable[Offset].FirstFragmentTimestamp = FirstFragmentTimestamp;
-    FragmentRunEntryTable[Offset].FragmentDuration = FragmentsDuration;
-    if( FragmentsDuration == 0) {
-      FragmentRunEntryTable[Offset].DiscontinuityIndicator = Discontinuity;
+    setInt32( fragmentRunTable.size(), myOffset );
+    myOffset += 4;
+    //table values for each entry
+    for( std::deque<fragmentRun>::iterator it = fragmentRunTable.begin();it != fragmentRunTable.end(); it++ ) {
+      setInt32( (*it).firstFragment, myOffset );
+      myOffset += 4;
+      setInt64( (*it).firstTimestamp, myOffset );
+      myOffset += 8;
+      setInt32( (*it).duration, myOffset );
+      myOffset += 4;
+      setInt8( (*it).discontinuity, myOffset );
+      myOffset += 1;
     }
-  }
-
-  void AFRT::SetDefaults( ) {
-    SetUpdate( );
-    SetTimeScale( );
-  }
-
-  void AFRT::SetTimeScale( uint32_t Scale ) {
-    curTimeScale = Scale;
-  }
-
-  void AFRT::WriteContent( ) {
-    std::string serializedQualities = "";
-    std::string serializedFragmentEntries = "";
-    clear();
-    
-    for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
-      serializedQualities.append(QualitySegmentUrlModifiers[i].c_str());
-      serializedQualities += '\0';
-    }
-    for( uint32_t i = 0; i < FragmentRunEntryTable.size(); i ++ ) {
-      serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FirstFragment),4);
-      serializedFragmentEntries.append((char*)Box::uint32_to_uint8(0),4);
-      serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FirstFragmentTimestamp),4);
-      serializedFragmentEntries.append((char*)Box::uint32_to_uint8(FragmentRunEntryTable[i].FragmentDuration),4);
-      if(FragmentRunEntryTable[i].FragmentDuration == 0) {
-        serializedFragmentEntries.append((char*)Box::uint8_to_uint8(FragmentRunEntryTable[i].DiscontinuityIndicator),1);
-      }
-    }
-    
-    uint32_t OffsetFragmentRunEntryCount = 9 + serializedQualities.size();
-    
-    SetPayload((uint32_t)serializedFragmentEntries.size(),(uint8_t*)serializedFragmentEntries.c_str(),OffsetFragmentRunEntryCount+4);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(FragmentRunEntryTable.size()),OffsetFragmentRunEntryCount);
-    SetPayload((uint32_t)serializedQualities.size(),(uint8_t*)serializedQualities.c_str(),9);
-    SetPayload((uint32_t)1,Box::uint8_to_uint8(QualitySegmentUrlModifiers.size()),8);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(curTimeScale),4);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
+    isUpdated = false;
   }
 
   std::string AFRT::toPrettyString(int indent){
     std::string r;
     r += std::string(indent, ' ')+"Fragment Run Table\n";
-    if (isUpdate){
+    if (getInt24(1)){
       r += std::string(indent+1, ' ')+"Update\n";
     }else{
       r += std::string(indent+1, ' ')+"Replacement or new table\n";
     }
-    r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)curTimeScale).asString()+"\n";
-    r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((long long int)QualitySegmentUrlModifiers.size()).asString()+"\n";
-    for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
-      r += std::string(indent+2, ' ')+"\""+QualitySegmentUrlModifiers[i]+"\"\n";
+    r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)getInt32(4)).asString()+"\n";
+    r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((long long int)qualityModifiers.size()).asString()+"\n";
+    for( uint32_t i = 0; i < qualityModifiers.size(); i++ ) {
+      r += std::string(indent+2, ' ')+"\""+qualityModifiers[i]+"\"\n";
     }
-    r += std::string(indent+1, ' ')+"Fragments "+JSON::Value((long long int)FragmentRunEntryTable.size()).asString()+"\n";
-    for( uint32_t i = 0; i < FragmentRunEntryTable.size(); i ++ ) {
-      r += std::string(indent+2, ' ')+"Duration "+JSON::Value((long long int)FragmentRunEntryTable[i].FragmentDuration).asString()+", starting at "+JSON::Value((long long int)FragmentRunEntryTable[i].FirstFragment).asString()+" @ "+JSON::Value((long long int)FragmentRunEntryTable[i].FirstFragmentTimestamp).asString();
+    r += std::string(indent+1, ' ')+"Fragments "+JSON::Value((long long int)fragmentRunTable.size()).asString()+"\n";
+    for( uint32_t i = 0; i < fragmentRunTable.size(); i ++ ) {
+      r += std::string(indent+2, ' ')+"Duration "+JSON::Value((long long int)fragmentRunTable[i].duration).asString()+", starting at "+JSON::Value((long long int)fragmentRunTable[i].firstFragment).asString()+" @ "+JSON::Value((long long int)fragmentRunTable[i].firstTimestamp).asString();
     }
     return r;
   }
-
-  void ASRT::SetUpdate( bool Update ) {
-    isUpdate = Update;
+  
+  ASRT::ASRT() : Box("asrt") {
+    setVersion( 0 );
+    setUpdate( 0 );
   }
-
-  void ASRT::AddQualityEntry( std::string Quality, uint32_t Offset ) {
-    if(Offset >= QualitySegmentUrlModifiers.size()) {
-      QualitySegmentUrlModifiers.resize(Offset+1);
+  
+  void ASRT::setVersion( char newVersion ) {
+    setInt8( newVersion, 0 );
+  }
+  
+  void ASRT::setUpdate( long newUpdate ) {
+    setInt24( newUpdate, 1 );
+  }
+  
+  void ASRT::addQualityEntry( std::string newQuality ) {
+    qualityModifiers.push_back( newQuality );
+    isUpdated = true;
+  }
+  
+  void ASRT::addSegmentRun( long firstSegment, long fragmentsPerSegment ) {
+    segmentRun newRun;
+    newRun.firstSegment = firstSegment;
+    newRun.fragmentsPerSegment = fragmentsPerSegment;
+    segmentRunTable.push_back( newRun );
+    isUpdated = true;
+  }
+  
+  void ASRT::regenerate( ) {
+    int myOffset = 4;
+    setInt8( qualityModifiers.size(), myOffset );
+    myOffset ++;
+    //0-terminated string for each entry
+    for( std::deque<std::string>::iterator it = qualityModifiers.begin();it != qualityModifiers.end(); it++ ) {
+      memcpy( (char*)data.c_str() + myOffset, (*it).c_str(), (*it).size() + 1);
+      myOffset += (*it).size() + 1;
     }
-    QualitySegmentUrlModifiers[Offset] = Quality;
-  }
-
-  void ASRT::AddSegmentRunEntry( uint32_t FirstSegment, uint32_t FragmentsPerSegment, uint32_t Offset ) {
-    if( Offset >= SegmentRunEntryTable.size() ) {
-      SegmentRunEntryTable.resize(Offset+1);
+    setInt32( segmentRunTable.size(), myOffset );
+    myOffset += 4;
+    //table values for each entry
+    for( std::deque<segmentRun>::iterator it = segmentRunTable.begin();it != segmentRunTable.end(); it++ ) {
+      setInt32( (*it).firstSegment, myOffset );
+      myOffset += 4;
+      setInt32( (*it).fragmentsPerSegment, myOffset );
+      myOffset += 4;
     }
-    SegmentRunEntryTable[Offset].FirstSegment = FirstSegment;
-    SegmentRunEntryTable[Offset].FragmentsPerSegment = FragmentsPerSegment;
-  }
-
-  void ASRT::SetVersion( bool NewVersion ) {
-    Version = NewVersion;
-  }
-
-  void ASRT::SetDefaults( ) {
-    SetUpdate( );
-  }
-
-  void ASRT::WriteContent( ) {
-    std::string serializedQualities = "";
-    ResetPayload( );
-    
-    for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
-      serializedQualities.append(QualitySegmentUrlModifiers[i].c_str());
-      serializedQualities += '\0';
-    }
-    
-    uint32_t OffsetSegmentRunEntryCount = 5 + serializedQualities.size();
-    
-    for( uint32_t i = 0; i < SegmentRunEntryTable.size(); i ++ ) {
-      SetPayload((uint32_t)4,Box::uint32_to_uint8(SegmentRunEntryTable[i].FragmentsPerSegment),(8*i)+OffsetSegmentRunEntryCount+8);
-      SetPayload((uint32_t)4,Box::uint32_to_uint8(SegmentRunEntryTable[i].FirstSegment),(8*i)+OffsetSegmentRunEntryCount+4);
-    }
-    SetPayload((uint32_t)4,Box::uint32_to_uint8(SegmentRunEntryTable.size()),OffsetSegmentRunEntryCount);
-    SetPayload((uint32_t)serializedQualities.size(),(uint8_t*)serializedQualities.c_str(),5);
-    SetPayload((uint32_t)1,Box::uint8_to_uint8(QualitySegmentUrlModifiers.size()),4);
-    SetPayload((uint32_t)4,Box::uint32_to_uint8((isUpdate ? 1 : 0)));
+    isUpdated = false;
   }
 
   std::string ASRT::toPrettyString(int indent){
     std::string r;
     r += std::string(indent, ' ')+"Segment Run Table\n";
-    if (isUpdate){
+    if (getInt24(1)){
       r += std::string(indent+1, ' ')+"Update\n";
     }else{
       r += std::string(indent+1, ' ')+"Replacement or new table\n";
     }
-    r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((long long int)QualitySegmentUrlModifiers.size()).asString()+"\n";
-    for( uint32_t i = 0; i < QualitySegmentUrlModifiers.size(); i++ ) {
-      r += std::string(indent+2, ' ')+"\""+QualitySegmentUrlModifiers[i]+"\"\n";
+    r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((long long int)qualityModifiers.size()).asString()+"\n";
+    for( uint32_t i = 0; i < qualityModifiers.size(); i++ ) {
+      r += std::string(indent+2, ' ')+"\""+qualityModifiers[i]+"\"\n";
     }
-    r += std::string(indent+1, ' ')+"Segments "+JSON::Value((long long int)SegmentRunEntryTable.size()).asString()+"\n";
-    for( uint32_t i = 0; i < SegmentRunEntryTable.size(); i ++ ) {
-      r += std::string(indent+2, ' ')+JSON::Value((long long int)SegmentRunEntryTable[i].FragmentsPerSegment).asString()+" fragments per, starting at "+JSON::Value((long long int)SegmentRunEntryTable[i].FirstSegment).asString();
+    r += std::string(indent+1, ' ')+"Segments "+JSON::Value((long long int)segmentRunTable.size()).asString()+"\n";
+    for( uint32_t i = 0; i < segmentRunTable.size(); i ++ ) {
+      r += std::string(indent+2, ' ')+JSON::Value((long long int)segmentRunTable[i].fragmentsPerSegment).asString()+" fragments per, starting at "+JSON::Value((long long int)segmentRunTable[i].firstSegment).asString();
     }
     return r;
   }
-
-*/
-
 };

@@ -76,12 +76,12 @@ namespace MP4{
       std::deque<Box *> fragmentTables;
   };//ABST Box
 
-  struct afrt_fragmentrunentry {
-    uint32_t FirstFragment;
-    uint32_t FirstFragmentTimestamp; //write as uint64_t
-    uint32_t FragmentDuration;
-    uint8_t DiscontinuityIndicator;//if FragmentDuration == 0
-  };//afrt_fragmentrunentry
+  struct fragmentRun {
+    long firstFragment;
+    long long int firstTimestamp;
+    long duration;
+    char discontinuity;
+  };//fragmentRun
 
 
   /// AFRT Box class
@@ -92,37 +92,32 @@ namespace MP4{
       void setUpdate( long newUpdate );
       void setTimeScale( long newScale );
       void addQualityEntry( std::string newQuality );
-      
-      void AddFragmentRunEntry( uint32_t FirstFragment = 0, uint32_t FirstFragmentTimestamp = 0, uint32_t FragmentsDuration = 1, uint8_t Discontinuity = 0, uint32_t Offset = 0 );
-      void WriteContent( );
+      void addFragmentRun( long firstFragment, long long int firstTimestamp, long duration, char discontinuity );
+      void regenerate( );
       std::string toPrettyString(int indent = 0);
     private:
       std::deque<std::string> qualityModifiers;
-      std::deque<afrt_fragmentrunentry> FragmentRunEntryTable;
+      std::deque<fragmentRun> fragmentRunTable;
   };//AFRT Box
 
-  struct asrt_segmentrunentry {
-    uint32_t FirstSegment;
-    uint32_t FragmentsPerSegment;
-  };//abst_qualityentry
+  struct segmentRun {
+    uint32_t firstSegment;
+    uint32_t fragmentsPerSegment;
+  };//segmentRun
 
   /// ASRT Box class
   class ASRT : public Box {
     public:
-      ASRT() : Box(0x61737274){};
-      void SetUpdate( bool Update = false );
-      void AddQualityEntry( std::string Quality = "", uint32_t Offset = 0 );
-      void AddSegmentRunEntry( uint32_t FirstSegment = 0, uint32_t FragmentsPerSegment = 100, uint32_t Offset = 0 );
-      void WriteContent( );
-      void SetVersion( bool NewVersion = 0 );
+      ASRT();
+      void setVersion( char newVersion );
+      void setUpdate( long newUpdate );
+      void addQualityEntry( std::string newQuality );
+      void addSegmentRun( long firstSegment, long fragmentsPerSegment );
+      void regenerate();
       std::string toPrettyString(int indent = 0);
     private:
-      void SetDefaults( );
-      bool isUpdate;
-      bool Version;
-      std::vector<std::string> QualitySegmentUrlModifiers;
-      std::vector<asrt_segmentrunentry> SegmentRunEntryTable;
-      Box * Container;
+      std::deque<std::string> qualityModifiers;
+      std::deque<segmentRun> segmentRunTable;
   };//ASRT Box
 
 };

@@ -11,16 +11,15 @@ void Util::sleep(int ms){
   if (ms > 10000){return;}
   struct timespec T;
   T.tv_sec = ms/1000;
-  T.tv_nsec = 1000*(ms%1000);
+  T.tv_nsec = 1000000*(ms%1000);
   nanosleep(&T, 0);
 }
 
 /// Gets the current time in milliseconds.
 long long int Util::getMS(){
-  /// \todo Possibly change to use clock_gettime - needs -lrt though...
   struct timespec t;
   clock_gettime(CLOCK_REALTIME, &t);
-  return ((long long int)t.tv_sec) * 1000 + t.tv_nsec/1000;
+  return ((long long int)t.tv_sec) * 1000 + t.tv_nsec/1000000;
 }
 
 /// Gets the amount of seconds since 01/01/1970.

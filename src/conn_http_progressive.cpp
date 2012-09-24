@@ -95,11 +95,13 @@ namespace Connector_HTTP{
           }
           if (seek_byte){
             //wait until we have a header
-            while (!ss.Received().size()){
-              ss.spool();
-              Util::sleep(1);
+            while (!Strm.metadata){
+              if (ss.spool()){
+                Strm.parsePacket(ss.Received());//read the metadata
+              }else{
+                Util::sleep(5);
+              }
             }
-            Strm.parsePacket(ss.Received());//read the metadata
             int byterate = 0;
             if (Strm.metadata.isMember("video")){
               byterate += Strm.metadata["video"]["bps"].asInt();

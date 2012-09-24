@@ -35,8 +35,9 @@ namespace Connector_HTTP{
     FLV::Tag tag;///< Temporary tag buffer.
 
     unsigned int lastStats = 0;
-    unsigned int seek_pos = 0;//seek position in ms
-
+    unsigned int seek_sec = 0;//seek position in ms
+    unsigned int seek_byte = 0;//seek position in bytes
+    
     while (conn.connected()){
       //only parse input if available or not yet init'ed
       if (!inited){
@@ -50,7 +51,28 @@ namespace Connector_HTTP{
             streamname = HTTP_R.getUrl().substr(1);
             size_t extDot = streamname.rfind('.');
             if (extDot != std::string::npos){streamname.resize(extDot);};//strip the extension
-            seek_pos = atoi(HTTP_R.GetVar("start").c_str()) * 1000;//seconds to ms
+            int start = 0;
+            if (!HTTP_R.GetVar("start").empty()){
+              start = atoi(HTTP_R.GetVar("start").c_str());
+            }
+            if (!HTTP_R.GetVar("starttime").empty()){
+              start = atoi(HTTP_R.GetVar("starttime").c_str());
+            }
+            if (!HTTP_R.GetVar("apstart").empty()){
+              start = atoi(HTTP_R.GetVar("apstart").c_str());
+            }
+            if (!HTTP_R.GetVar("ec_seek").empty()){
+              start = atoi(HTTP_R.GetVar("ec_seek").c_str());
+            }
+            if (!HTTP_R.GetVar("fs").empty()){
+              start = atoi(HTTP_R.GetVar("fs").c_str());
+            }
+            //under 3 hours we assume seconds, otherwise byte position
+            if (start < 10800){
+              seek_sec = start*1000;//ms, not s
+            }else{
+              seek_byte = start;//divide by 1mbit, then *1000 for ms.
+            }
             ready4data = true;
             HTTP_R.Clean(); //clean for any possible next requests
           }
@@ -71,9 +93,25 @@ namespace Connector_HTTP{
             ready4data = false;
             continue;
           }
-          if (seek_pos){
+          if (seek_byte){
+            //wait until we have a header
+            while (!ss.Received().size()){
+              ss.spool();
+              Util::sleep(1);
+            }
+            Strm.parsePacket(ss.Received());//read the metadata
+            int byterate = 0;
+            if (Strm.metadata.isMember("video")){
+              byterate += Strm.metadata["video"]["bps"].asInt();
+            }
+            if (Strm.metadata.isMember("audio")){
+              byterate += Strm.metadata["audio"]["bps"].asInt();
+            }
+            seek_sec = (seek_byte / byterate) * 1000;
+          }
+          if (seek_sec){
             std::stringstream cmd;
-            cmd << "s " << seek_pos << "\n";
+            cmd << "s " << seek_sec << "\n";
             ss.SendNow(cmd.str().c_str());
           }
           #if DEBUG >= 3

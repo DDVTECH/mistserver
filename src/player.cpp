@@ -11,6 +11,18 @@
 #include <mist/socket.h>
 #include <mist/timing.h>
 
+//under cygwin, recv blocks for ~15ms if no data is available.
+//This is a hack to keep performance decent with that bug present.
+#ifdef __CYGWIN__
+#define CYG_DEFI int cyg_count;
+#define CYG_INCR cyg_count++;
+#define CYG_LOOP && (cyg_count % 20 == 0)
+#else
+#define CYG_DEFI 
+#define CYG_INCR 
+#define CYG_LOOP 
+#endif
+
 /// Copy of stats from buffer_user.cpp
 class Stats{
   public:
@@ -83,9 +95,11 @@ int main(int argc, char** argv){
   long long now, lastTime = 0;//for timing of sending packets
   long long bench = 0;//for benchmarking
   Stats sts;
+  CYG_DEFI
 
   while (in_out.connected() && std::cin.good() && std::cout.good() && (Util::epoch() - lasttime < 60)){
-    if (in_out.spool()){
+    CYG_INCR
+    if (in_out.spool() CYG_LOOP){
       while (in_out.Received().size()){
         //delete anything that doesn't end with a newline
         if (*(in_out.Received().get().rbegin()) != '\n'){
@@ -160,6 +174,7 @@ int main(int argc, char** argv){
     if (playing != 0){
       now = Util::getMS();
         source.seekNext();
+        if (!source.getJSON()){playing = 0;}
         if (source.getJSON().isMember("keyframe")){
           if (playing == -1 && meta["video"]["keyms"].asInt() > now-lastTime) {
             Util::sleep(meta["video"]["keyms"].asInt()-(now-lastTime));

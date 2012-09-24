@@ -213,6 +213,15 @@ bool JSON::Value::operator==(const JSON::Value & rhs) const{
     }
     return true;
   }
+  if (myType == ARRAY){
+    if (arrVal.size() != rhs.arrVal.size()) return false;
+    int i = 0;
+    for (std::deque<Value>::const_iterator it = arrVal.begin(); it != arrVal.end(); ++it){
+      if (*it != rhs.arrVal[i]){return false;}
+      i++;
+    }
+    return true;
+  }
   return true;
 }
 

@@ -3,7 +3,6 @@
 #include <iostream>
 #include <stdint.h>
 #include <deque>
-#include <vector> ///\todo remove this include
 #include <algorithm>
 #include "json.h"
 
@@ -12,20 +11,18 @@ namespace MP4{
 
   class Box {
     public:
-      Box( size_t size = 0);
-      Box( const char* boxType, size_t size = 0 );
-      Box( std::string & newData );
+      Box(char * datapointer = 0, bool manage = true);
       ~Box();
       std::string getType();
       bool isType( char* boxType );
-      bool read( std::string & newData );
+      bool read(std::string & newData);
       size_t boxedSize();
       size_t payloadSize();
-      std::string & asBox();
-      void regenerate();
+      char * asBox();
       void clear();
       std::string toPrettyString( int indent = 0 );
     protected:
+      //integer functions
       void setInt8( char newData, size_t index );
       char getInt8( size_t index );
       void setInt16( short newData, size_t index );
@@ -36,44 +33,60 @@ namespace MP4{
       long getInt32( size_t index );
       void setInt64( long long int newData, size_t index );
       long long int getInt64( size_t index );
+      //string functions
       void setString(std::string newData, size_t index );
       void setString(char* newData, size_t size, size_t index );
-      std::string data;
-      bool isUpdated;
+      char * getString(size_t index);
+      size_t getStringLen(size_t index);
+      //data functions
+      bool reserve(size_t position, size_t current, size_t wanted);
+      //internal variables
+      char * data; ///< Holds the data of this box
+      int data_size; ///< Currently reserved size
+      bool managed; ///< If false, will not attempt to resize/free the data pointer.
   };//Box Class
 
   /// ABST Box class
   class ABST: public Box {
     public:
       ABST();
-      void setVersion( char newVersion );
-      void setFlags( long newFlags );
-      void setBootstrapinfoVersion( long newVersion );
-      void setProfile( char newProfile );
-      void setLive( char newLive );
-      void setUpdate( char newUpdate );
-      void setTimeScale( long newTimeScale );
-      void setCurrentMediaTime( long long int newTime );
-      void setSmpteTimeCodeOffset( long long int newTime );
-      void setMovieIdentifier( std::string newIdentifier );
-      void addServerEntry( std::string newEntry );
-      void delServerEntry( std::string delEntry );
-      void addQualityEntry( std::string newEntry );
-      void delQualityEntry( std::string delEntry );
-      void setDrmData( std::string newDrm );
-      void setMetaData( std::string newMetaData );
-      void addSegmentRunTable( Box * newSegment );
-      void addFragmentRunTable( Box * newFragment );
+      void setVersion(char newVersion);
+      char getVersion();
+      void setFlags(long newFlags);
+      long getFlags();
+      void setBootstrapinfoVersion(long newVersion);
+      long getBootstrapinfoVersion();
+      void setProfile(char newProfile);
+      char getProfile();
+      void setLive(char newLive);
+      char getLive();
+      void setUpdate(char newUpdate);
+      char getUpdate();
+      void setTimeScale(long newTimeScale);
+      long getTimeScale();
+      void setCurrentMediaTime(long long int newTime);
+      long long int getCurrentMediaTime();
+      void setSmpteTimeCodeOffset(long long int newTime);
+      long long int getSmpteTimeCodeOffset();
+      void setMovieIdentifier(std::string & newIdentifier);
+      char * getMovieIdentifier();
+      void setServerEntry(std::string & entry, int no);
+      char * getServerEntry(int no);
+      int getServerEntryCount();
+      void setQualityEntry(std::string & entry, int no);
+      char * getQualityEntry(int no);
+      int getQualityEntryCount();
+      void setDrmData(std::string newDrm);
+      char * getDrmData();
+      void setMetaData(std::string newMetaData);
+      char * getMetaData();
+      void setSegmentRunTable(ASRT table, int no);
+      ASRT & getSegmentRunTable(int no);
+      int getSegmentRunTableCount();
+      void setFragmentRunTables(AFRT table, int no);
+      AFRT & getFragmentRunTable(int no);
+      int getFragmentRunTableCount();
       std::string toPrettyString(int indent = 0);
-    private:
-      void regenerate();
-      std::string movieIdentifier;
-      std::deque<std::string> Servers;
-      std::deque<std::string> Qualities;
-      std::string drmData;
-      std::string metaData;
-      std::deque<Box *> segmentTables;
-      std::deque<Box *> fragmentTables;
   };//ABST Box
 
   struct fragmentRun {

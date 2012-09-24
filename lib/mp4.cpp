@@ -7,39 +7,50 @@
 /// Contains all MP4 format related code.
 namespace MP4{
 
-  Box::Box(size_t size) {
-    isUpdated = false;
-    data.resize( size + 8 );
-  }
-
-  Box::Box( const char* BoxType, size_t size ) {
-    isUpdated = false;
-    data.resize( size + 8 );
-    memcpy( (char*)data.c_str() + 4, BoxType, 4 );
-  }
-
-  Box::Box( std::string & newData ) {
-    isUpdated = false;
-    if( !read( newData ) ) {
+  /// Creates a new box, optionally using the indicated pointer for storage.
+  /// If manage is set to true, the pointer will be realloc'ed when the box needs to be resized.
+  /// If the datapointer is NULL, manage is assumed to be true even if explicitly given as false.
+  /// If managed, the pointer will be free'd upon destruction.
+  Box::Box(char * datapointer, bool manage){
+    data = datapointer;
+    managed = manage;
+    if (data == 0){
       clear();
+    }else{
+      data_size = ntohl(((int*)data)[0]);
     }
   }
 
-  Box::~Box() { }
+  /// If managed, this will free the data pointer.
+  Box::~Box(){
+    if (managed && data != 0){
+      free(data);
+      data = 0;
+    }
+  }
 
+  /// Returns the values at byte positions 4 through 7.
   std::string Box::getType() {
-    return data.substr(4,4);
+    return std::string(data+4,4);
   }
 
+  /// Returns true if the given 4-byte boxtype is equal to the values at byte positions 4 through 7.
   bool Box::isType( char* boxType ) {
-    return !memcmp( boxType, data.c_str() + 4, 4 );
+    return !memcmp(boxType, data + 4, 4);
   }
 
-  bool Box::read(std::string & newData) {
-    if( newData.size() > 4 ) {
+  /// Reads out a whole box (if possible) from newData, copying to the internal data storage and removing from the input string.
+  /// \returns True on success, false otherwise.
+  bool Box::read(std::string & newData){
+    if (!managed){return false;}
+    if (newData.size() > 4){
       size_t size = ntohl( ((int*)newData.c_str())[0] );
-      if( newData.size() > size ) {
-        data = newData.substr( 0, size );
+      if (newData.size() >= size){
+        void * ret = malloc(size);
+        if (!ret){return false;}
+        free(data);
+        data = ret;
+        memcpy(data, newData.c_str(), size);
         newData.erase( 0, size );
         return true;
       }
@@ -47,26 +58,39 @@ namespace MP4{
     return false;
   }
 
+  /// Returns the total boxed size of this box, including the header.
   size_t Box::boxedSize() {
-    return data.size();
+    return ntohl(((int*)data)[0]);
   }
 
+  /// Retruns the size of the payload of thix box, excluding the header.
+  /// This value is defined as boxedSize() - 8.
   size_t Box::payloadSize() {
-    return data.size() - 8;
+    return boxedSize() - 8;
   }
 
-  std::string & Box::asBox() {
-    if( isUpdated ) {
-      regenerate( );
-    }
-    ((int*)data.c_str())[0] = htonl( data.size() );
+  /// Returns a copy of the data pointer.
+  char * Box::asBox() {
     return data;
   }
 
+  /// Makes this box managed if it wasn't already, resetting the internal storage to 8 bytes (the minimum).
+  /// If this box wasn't managed, the original data is left intact - otherwise it is free'd.
+  /// If it was somehow impossible to allocate 8 bytes (should never happen), this will cause segfaults later.
   void Box::clear() {
-    data.resize( 8 );
+    if (data && managed){free(data);}
+    managed = true;
+    data = malloc(8);
+    if (data){
+      data_size = 8;
+      ((int*)data)[0] = htonl(data_size);
+    }else{
+      data_size = 0;
+    }
   }
 
+  /// Attempts to typecast this Box to a more specific type and call the toPrettyString() function of that type.
+  /// If this failed, it will print out a message saying pretty-printing is not implemented for <boxtype>.
   std::string Box::toPrettyString(int indent){
     switch( ntohl(((int*)data.c_str())[1]) ) { //type is at this address
       case 0x6D666864: return ((MFHD*)this)->toPrettyString(indent); break;
@@ -78,55 +102,73 @@ namespace MP4{
     }
   }
 
+  /// Sets the 8 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Fails silently if resizing failed.
   void Box::setInt8( char newData, size_t index ) {
     index += 8;
-    if( index > data.size() ) {
-      data.resize( index );
+    if (index >= boxedSize()){
+      if (!reserve(index, 0, 1)){return;}
     }
     data[index] = newData;
   }
-  
+
+  /// Gets the 8 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
   char Box::getInt8( size_t index ) {
     index += 8;
-    if( index > data.size() ) {
-      data.resize( index );
+    if (index >= boxedSize()){
+      if (!reserve(index, 0, 1)){return 0;}
     }
     return data[index];
   }
 
+  /// Sets the 16 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Fails silently if resizing failed.
   void Box::setInt16( short newData, size_t index ) {
     index += 8;
-    if( index + 1 > data.size() ) {
-      data.resize( index + 1 );
+    if (index+1 >= boxedSize()){
+      if (!reserve(index, 0, 2)){return;}
     }
     newData = htons( newData );
     memcpy( (void*)(data.c_str() + index), (void*)&newData, 2 );
   }
-  
+
+  /// Gets the 16 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
   short Box::getInt16( size_t index ) {
     index += 8;
-    if( index + 1 > data.size() ) {
-      data.resize( index + 1 );
+    if (index+1 >= boxedSize()){
+      if (!reserve(index, 0, 2)){return 0;}
     }
     short result;
     memcpy( (void*)&result, (void*)(data.c_str() + index), 2 );
     return ntohs(result);
   }
   
+  /// Sets the 24 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Fails silently if resizing failed.
   void Box::setInt24( long newData, size_t index ) {
     index += 8;
-    if( index + 2 > data.size() ) {
-      data.resize( index + 2 );
+    if (index+2 >= boxedSize()){
+      if (!reserve(index, 0, 3)){return;}
     }
     data[index] = (newData & 0x00FF0000) >> 16;
     data[index+1] = (newData & 0x0000FF00) >> 8;
     data[index+2] = (newData & 0x000000FF);
   }
-  
+
+  /// Gets the 24 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
   long Box::getInt24( size_t index ) {
     index += 8;
-    if( index + 2 > data.size() ) {
-      data.resize( index + 2 );
+    if (index+2 >= boxedSize()){
+      if (!reserve(index, 0, 3)){return 0;}
     }
     long result = data[index];
     result <<= 8;
@@ -136,81 +178,146 @@ namespace MP4{
     return result;
   }
 
+  /// Sets the 32 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Fails silently if resizing failed.
   void Box::setInt32( long newData, size_t index ) {
     index += 8;
-    if( index + 3 > data.size() ) {
-      data.resize( index + 3 );
+    if (index+3 >= boxedSize()){
+      if (!reserve(index, 0, 4)){return;}
     }
     newData = htonl( newData );
     memcpy( (char*)data.c_str() + index, (char*)&newData, 4 );
   }
-  
+
+  /// Gets the 32 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
   long Box::getInt32( size_t index ) {
     index += 8;
-    if( index + 3 > data.size() ) {
-      data.resize( index + 3 );
+    if (index+3 >= boxedSize()){
+      if (!reserve(index, 0, 4)){return 0;}
     }
     long result;
-    
     memcpy( (char*)&result, (char*)data.c_str() + index, 4 );
     return ntohl(result);
   }
 
+  /// Sets the 64 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Fails silently if resizing failed.
   void Box::setInt64( long long int newData, size_t index ) {
     index += 8;
-    if( index + 7 > data.size() ) {
-      data.resize( index + 7 );
+    if (index+7 >= boxedSize()){
+      if (!reserve(index, 0, 8)){return;}
     }
-    data[index] = ( newData * 0xFF00000000000000 ) >> 56;
-    data[index+1] = ( newData * 0x00FF000000000000 ) >> 48;
-    data[index+2] = ( newData * 0x0000FF0000000000 ) >> 40;
-    data[index+3] = ( newData * 0x000000FF00000000 ) >> 32;
-    data[index+4] = ( newData * 0x00000000FF000000 ) >> 24;
-    data[index+5] = ( newData * 0x0000000000FF0000 ) >> 16;
-    data[index+6] = ( newData * 0x000000000000FF00 ) >> 8;
-    data[index+7] = ( newData * 0x00000000000000FF );
+    data[index] = ( newData & 0xFF00000000000000 ) >> 56;
+    data[index+1] = ( newData & 0x00FF000000000000 ) >> 48;
+    data[index+2] = ( newData & 0x0000FF0000000000 ) >> 40;
+    data[index+3] = ( newData & 0x000000FF00000000 ) >> 32;
+    data[index+4] = ( newData & 0x00000000FF000000 ) >> 24;
+    data[index+5] = ( newData & 0x0000000000FF0000 ) >> 16;
+    data[index+6] = ( newData & 0x000000000000FF00 ) >> 8;
+    data[index+7] = ( newData & 0x00000000000000FF );
   }
-  
+
+  /// Gets the 64 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
   long long int Box::getInt64( size_t index ) {
     index += 8;
-    if( index + 7 > data.size() ) {
-      data.resize( index + 7 );
+    if (index+7 >= boxedSize()){
+      if (!reserve(index, 0, 8)){return 0;}
     }
     long result = data[index];
-    result <<= 8;
-    result += data[index+1];
-    result <<= 8;
-    result += data[index+2];
-    result <<= 8;
-    result += data[index+3];
-    result <<= 8;
-    result += data[index+4];
-    result <<= 8;
-    result += data[index+5];
-    result <<= 8;
-    result += data[index+6];
-    result <<= 8;
-    result += data[index+7];
+    result <<= 8; result += data[index+1];
+    result <<= 8; result += data[index+2];
+    result <<= 8; result += data[index+3];
+    result <<= 8; result += data[index+4];
+    result <<= 8; result += data[index+5];
+    result <<= 8; result += data[index+6];
+    result <<= 8; result += data[index+7];
     return result;
   }
 
-
+  /// Sets the NULL-terminated string at the given index.
+  /// Will attempt to resize if the string doesn't fit.
+  /// Fails silently if resizing failed.
   void Box::setString(std::string newData, size_t index ) {
     setString( (char*)newData.c_str(), newData.size(), index );
   }
 
+  /// Sets the NULL-terminated string at the given index.
+  /// Will attempt to resize if the string doesn't fit.
+  /// Fails silently if resizing failed.
   void Box::setString(char* newData, size_t size, size_t index ) {
     index += 8;
-    if( index + size > data.size() ) {
-      data.resize( index + size );
+    if (index >= boxedSize()){
+      if (!reserve(index, 0, 1)){return;}
+      data[index] = 0;
     }
-    memcpy( (char*)data.c_str() + index, newData, size );
+    if (getStringLen(index) != size){
+      if (!reserve(index, getStringLen(index)+1, size+1)){return;}
+    }
+    memcpy(data + index, newData, size+1);
   }
 
-  void Box::regenerate() {
-    std::cerr << "Regenerate() not implemented for this box type\n";
+  /// Gets the NULL-terminated string at the given index.
+  /// Will attempt to resize if the string is out of range.
+  /// Returns null if resizing failed.
+  char * Box::getString(size_t index){
+    index += 8;
+    if (index >= boxedSize()){
+      if (!reserve(index, 0, 1)){return 0;}
+      data[index] = 0;
+    }
+    return data+index;
   }
-  
+
+  /// Returns the length of the NULL-terminated string at the given index.
+  /// Returns 0 if out of range.
+  size_t Box::getStringLen(size_t index){
+    index += 8;
+    if (index >= boxedSize()){return 0;}
+    return strlen(data+index);
+  }
+
+  /// Attempts to reserve enough space for wanted bytes of data at given position, where current bytes of data is now reserved.
+  /// This will move any existing data behind the currently reserved space to the proper location after reserving.
+  /// \returns True on success, false otherwise.
+  bool reserve(size_t position, size_t current, size_t wanted){
+    if (current == wanted){return true;}
+    if (current < wanted){
+      //make bigger
+      if (boxedSize() + (wanted-current) > data_size){
+        //realloc if managed, otherwise fail
+        if (!managed){return false;}
+        void * ret = realloc(data, boxedSize() + (wanted-current));
+        if (!ret){return false;}
+        data = ret;
+        data_size = boxedSize() + (wanted-current);
+      }
+      //move data behind backward, if any
+      if (boxedSize() - (position+current) > 0){
+        memmove(position+wanted, position+current, boxedSize() - (position+current));
+      }
+      //calculate and set new size
+      int newSize = boxedSize() + (wanted-current);
+      ((int*)data)[0] = htonl(newSize);
+      return true;
+    }else{
+      //make smaller
+      //move data behind forward, if any
+      if (boxedSize() - (position+current) > 0){
+        memmove(position+wanted, position+current, boxedSize() - (position+current));
+      }
+      //calculate and set new size
+      int newSize = boxedSize() - (current-wanted);
+      ((int*)data)[0] = htonl(newSize);
+      return true;
+    }
+  }
+
   ABST::ABST( ) : Box("abst") {
     setVersion( 0 );
     setFlags( 0 );
@@ -239,33 +346,34 @@ namespace MP4{
   }
 
   void ABST::setProfile( char newProfile ) {
-    setInt8( ( getInt8(5) & 0x3F ) + ( ( newProfile & 0x02 ) << 6 ), 5 );
+    setInt8((getInt8(8) & 0x3F) + ((newProfile & 0x02) << 6), 8);
   }
 
 
   void ABST::setLive( char newLive ) {
-    setInt8( ( getInt8(5) & 0xDF ) + ( ( newLive & 0x01 ) << 5 ), 5 );
+    setInt8((getInt8(8) & 0xDF) + ((newLive & 0x01) << 5), 8);
   }
 
 
   void ABST::setUpdate( char newUpdate ) {
-    setInt8( ( getInt8(5) & 0xEF ) + ( ( newUpdate & 0x01 ) << 4 ), 5 );
+    setInt8((getInt8(8) & 0xEF) + ((newUpdate & 0x01) << 4), 8);
   }
 
   void ABST::setTimeScale( long newScale ) {
-    setInt32( newScale, 6 );
+    setInt32(newScale, 9);
   }
   
   void ABST::setCurrentMediaTime( long long int newTime ) {
-    setInt64( newTime, 10 );
+    setInt64( newTime, 13);
   }
 
   void ABST::setSmpteTimeCodeOffset( long long int newTime ) {
-    setInt64( newTime, 18 );
+    setInt64( newTime, 21);
   }
 
   void ABST::setMovieIdentifier( std::string newIdentifier ) {
     movieIdentifier = newIdentifier;
+    isUpdated = true;
   }
 
   void ABST::addServerEntry( std::string newEntry ) {
@@ -323,8 +431,9 @@ namespace MP4{
   }
   
   void ABST::regenerate( ) {
-    data.resize( 26 );
-    int myOffset = 26;
+    if (!isUpdated){return;}//skip if already up to date
+    data.resize(29);
+    int myOffset = 29;
     //0-terminated movieIdentifier
     memcpy( (char*)data.c_str() + myOffset, movieIdentifier.c_str(), movieIdentifier.size() + 1);
     myOffset += movieIdentifier.size() + 1;
@@ -370,22 +479,24 @@ namespace MP4{
   }
 
   std::string ABST::toPrettyString( int indent ) {
-    std::string r;
-    r += std::string(indent, ' ')+"Bootstrap Info\n";
+    regenerate();
+    std::stringbuffer r;
+    r << std::string(indent, ' ') << "Bootstrap Info" << std::endl;
+    r << std::string(indent+1, ' ') << "Version " <<  getInt8(0) << std::endl;
     if( getInt8(5) & 0x10 ) {
-      r += std::string(indent+1, ' ')+"Update\n";
+      r << std::string(indent+1, ' ') << "Update" << std::endl;
     } else {
-      r += std::string(indent+1, ' ')+"Replacement or new table\n";
+      r << std::string(indent+1, ' ') << "Replacement or new table" << std::endl;
     }
     if( getInt8(5) & 0x20 ) {
-      r += std::string(indent+1, ' ' )+"Live\n";
+      r << std::string(indent+1, ' ' ) << "Live" << std::endl;
     }else{
-      r += std::string(indent+1, ' ' )+"Recorded\n";
+      r << std::string(indent+1, ' ' ) << "Recorded" << std::endl;
     }
-    r += std::string(indent+1, ' ')+"Profile "+JSON::Value((long long int)( getInt8(5) & 0xC0 ) ).asString()+"\n";
-    r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((long long int)getInt64(10)).asString()+"\n";
-    r += std::string(indent+1, ' ')+"CurrMediaTime "+JSON::Value((long long int)getInt32(6)).asString()+"\n";
-    r += std::string(indent+1, ' ')+"Segment Run Tables "+JSON::Value((long long int)segmentTables.size()).asString()+"\n";
+    r << std::string(indent+1, ' ') << "Profile " << ( getInt8(5) & 0xC0 ) << std::endl;
+    r << std::string(indent+1, ' ') << "Timescale " << getInt64(10) << std::endl;
+    r << std::string(indent+1, ' ') << "CurrMediaTime " << getInt32(6) << std::endl;
+    r << std::string(indent+1, ' ') << "Segment Run Tables " << segmentTables.size() << std::endl;
     for( uint32_t i = 0; i < segmentTables.size(); i++ ) {
       r += segmentTables[i]->toPrettyString(indent+2);
     }
@@ -393,7 +504,7 @@ namespace MP4{
     for( uint32_t i = 0; i < fragmentTables.size(); i++ ) {
       r += fragmentTables[i]->toPrettyString(indent+2);
     }
-    return r;
+    return r.str();
   }
   
   AFRT::AFRT() : Box("afrt"){
@@ -430,6 +541,7 @@ namespace MP4{
   }
   
   void AFRT::regenerate( ) {
+    if (!isUpdated){return;}//skip if already up to date
     data.resize( 8 );
     int myOffset = 8;
     setInt8( qualityModifiers.size(), myOffset );
@@ -502,6 +614,7 @@ namespace MP4{
   }
   
   void ASRT::regenerate( ) {
+    if (!isUpdated){return;}//skip if already up to date
     data.resize( 4 );
     int myOffset = 4;
     setInt8( qualityModifiers.size(), myOffset );
@@ -564,6 +677,7 @@ namespace MP4{
   }
   
   void MOOF::regenerate() {
+    if (!isUpdated){return;}//skip if already up to date
     data.resize( 0 );
     int myOffset = 0;
     //retrieve box for each entry
@@ -626,6 +740,7 @@ namespace MP4{
   }
   
   void TRUN::regenerate( ) {
+    if (!isUpdated){return;}//skip if already up to date
     data.resize( 4 );
     int myOffset = 4;
     setInt32( allSamples.size(), myOffset );

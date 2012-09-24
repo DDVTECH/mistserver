@@ -453,6 +453,21 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
   if (S.metadata.isMember("length")){
     amfdata.getContentP(1)->addContent(AMF::Object("duration", S.metadata["length"].asInt(), AMF::AMF0_NUMBER));
     amfdata.getContentP(1)->addContent(AMF::Object("moovPosition", 40, AMF::AMF0_NUMBER));
+    AMF::Object keys("keyframes", AMF::AMF0_OBJECT);
+    keys.addContent(AMF::Object("filepositions", AMF::AMF0_STRICT_ARRAY));
+    keys.addContent(AMF::Object("times", AMF::AMF0_STRICT_ARRAY));
+    int total_byterate = 0;
+    if (S.metadata.isMember("video")){
+      total_byterate += S.metadata["video"]["bps"].asInt();
+    }
+    if (S.metadata.isMember("audio")){
+      total_byterate += S.metadata["audio"]["bps"].asInt();
+    }
+    for (int i = 0; i < S.metadata["length"].asInt(); ++i){//for each second in the file
+      keys.getContentP(0)->addContent(AMF::Object("", i * total_byterate, AMF::AMF0_NUMBER));//multiply by byterate for fake byte positions
+      keys.getContentP(1)->addContent(AMF::Object("", i, AMF::AMF0_NUMBER));//seconds
+    }
+    amfdata.getContentP(1)->addContent(keys);
   }
   if (S.metadata.isMember("video")){
     amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
@@ -475,7 +490,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
       amfdata.getContentP(1)->addContent(AMF::Object("videoframerate", (double)S.metadata["video"]["fpks"].asInt() / 1000.0, AMF::AMF0_NUMBER));
     }
     if (S.metadata["video"].isMember("bps")){
-      amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", ((double)S.metadata["video"]["bps"].asInt() * 8.0) / 1024.0, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", (double)S.metadata["video"]["bps"].asInt() * 128.0, AMF::AMF0_NUMBER));
     }
   }
   if (S.metadata.isMember("audio")){
@@ -497,7 +512,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
       amfdata.getContentP(1)->addContent(AMF::Object("audiosamplesize", S.metadata["audio"]["size"].asInt(), AMF::AMF0_NUMBER));
     }
     if (S.metadata["audio"].isMember("bps")){
-      amfdata.getContentP(1)->addContent(AMF::Object("audiodatarate", ((double)S.metadata["audio"]["bps"].asInt() * 8.0) / 1024.0, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiodatarate", (double)S.metadata["audio"]["bps"].asInt() * 128.0, AMF::AMF0_NUMBER));
     }
   }
   AMF::Object trinfo = AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY);

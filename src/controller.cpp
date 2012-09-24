@@ -282,26 +282,31 @@ void CheckStats(JSON::Value & stats){
 
 void CheckAllStreams(JSON::Value & data){
   long long int currTime = Util::epoch();
-  bool changed = false;
   for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
     if (!Util::Procs::isActive(jit->first)){
       startStream(jit->first, jit->second);
     }
     if (currTime - lastBuffer[jit->first] > 5){
-      if (jit->second["online"].asInt() == 1){changed = true;}
       if (jit->second.isMember("error") && jit->second["error"].asString() != ""){
         jit->second["online"] = jit->second["error"];
       }else{
         jit->second["online"] = 0;
       }
     }else{
-      if (jit->second["online"].asInt() != 1){changed = true;}
       jit->second["online"] = 1;
     }
   }
-  if (changed){
-    WriteFile("/tmp/mist/streamlist", Storage.toString());
+  static JSON::Value strlist;
+  bool changed = false;
+  if (strlist["config"] != Storage["config"]){
+    strlist["config"] = Storage["config"];
+    changed = true;
   }
+  if (strlist["streams"] != Storage["streams"]){
+    strlist["streams"] = Storage["streams"];
+    changed = true;
+  }
+  if (changed){WriteFile("/tmp/mist/streamlist", strlist.toString());}
 }
 
 void CheckStreams(JSON::Value & in, JSON::Value & out){
@@ -310,27 +315,21 @@ void CheckStreams(JSON::Value & in, JSON::Value & out){
     if (out.isMember(jit->first)){
       if (!streamsEqual(jit->second, out[jit->first])){
         Log("STRM", std::string("Updated stream ")+jit->first);
-        changed = true;
         Util::Procs::Stop(jit->first);
         startStream(jit->first, jit->second);
       }
     }else{
       Log("STRM", std::string("New stream ")+jit->first);
-      changed = true;
       startStream(jit->first, jit->second);
     }
   }
   for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
     if (!in.isMember(jit->first)){
       Log("STRM", std::string("Deleted stream ")+jit->first);
-      changed = true;
       Util::Procs::Stop(jit->first);
     }
   }
   out = in;
-  if (changed){
-    WriteFile("/tmp/mist/streamlist", Storage.toString());
-  }
 }
 
 }; //Connector namespace
@@ -448,8 +447,9 @@ int main(int argc, char ** argv){
             if (Request.isMember("buffer")){
               std::string thisbuffer = Request["buffer"];
               Connector::lastBuffer[thisbuffer] = Util::epoch();
+              //if metadata is available, store it
               if (Request.isMember("meta")){
-                Connector::Storage["statistics"][thisbuffer]["meta"] = Request["meta"];
+                Connector::Storage["streams"][thisbuffer]["meta"] = Request["meta"];
               }
               if (Request.isMember("totals")){
                 Connector::Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
@@ -457,7 +457,6 @@ int main(int argc, char ** argv){
                 Connector::Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
                 Connector::Storage["statistics"][thisbuffer]["totals"][nowstr].removeMember("now");
                 Connector::Storage["statistics"][thisbuffer]["totals"].shrink(600);//limit to 10 minutes of data
-                //if metadata is available, store it
                 for (JSON::ObjIter jit = Request["log"].ObjBegin(); jit != Request["log"].ObjEnd(); jit++){
                   Connector::Storage["statistics"][thisbuffer]["log"].append(jit->second);
                   Connector::Storage["statistics"][thisbuffer]["log"].shrink(1000);//limit to 1000 users per buffer
@@ -470,7 +469,7 @@ int main(int argc, char ** argv){
                 if (oit->second["channel"]["URL"].asString() == thisfile){
                   Connector::lastBuffer[oit->first] = Util::epoch();
                   if (Request["vod"].isMember("meta")){
-                    Connector::Storage["statistics"][oit->first]["meta"] = Request["vod"]["meta"];
+                    Connector::Storage["streams"][oit->first]["meta"] = Request["vod"]["meta"];
                   }
                   JSON::Value sockit = (long long int)it->getSocket();
                   std::string nowstr = Request["vod"]["now"].asString();

@@ -132,8 +132,8 @@ namespace Connector_HTTP{
       response = "// Generating info code for stream " + streamname + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
       if (ServConf["streams"].isMember(streamname) && ServConf["config"]["protocols"].size() > 0){
-        json_resp["width"] = ServConf["statistics"][streamname]["meta"]["video"]["width"].asInt();
-        json_resp["height"] = ServConf["statistics"][streamname]["meta"]["video"]["height"].asInt();
+        json_resp["width"] = ServConf["streams"][streamname]["meta"]["video"]["width"].asInt();
+        json_resp["height"] = ServConf["streams"][streamname]["meta"]["video"]["height"].asInt();
         //first, see if we have RTMP working and output all the RTMP.
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
           if ((*it)["connector"].asString() == "RTMP"){

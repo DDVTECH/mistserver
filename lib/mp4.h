@@ -1,7 +1,9 @@
 #pragma once
 #include <string>
 #include <iostream>
+#include <cstdio>
 #include <stdint.h>
+#include <sstream>
 #include <deque>
 #include <algorithm>
 #include "json.h"
@@ -46,49 +48,6 @@ namespace MP4{
       bool managed; ///< If false, will not attempt to resize/free the data pointer.
   };//Box Class
 
-  /// ABST Box class
-  class ABST: public Box {
-    public:
-      ABST();
-      void setVersion(char newVersion);
-      char getVersion();
-      void setFlags(long newFlags);
-      long getFlags();
-      void setBootstrapinfoVersion(long newVersion);
-      long getBootstrapinfoVersion();
-      void setProfile(char newProfile);
-      char getProfile();
-      void setLive(char newLive);
-      char getLive();
-      void setUpdate(char newUpdate);
-      char getUpdate();
-      void setTimeScale(long newTimeScale);
-      long getTimeScale();
-      void setCurrentMediaTime(long long int newTime);
-      long long int getCurrentMediaTime();
-      void setSmpteTimeCodeOffset(long long int newTime);
-      long long int getSmpteTimeCodeOffset();
-      void setMovieIdentifier(std::string & newIdentifier);
-      char * getMovieIdentifier();
-      void setServerEntry(std::string & entry, int no);
-      char * getServerEntry(int no);
-      int getServerEntryCount();
-      void setQualityEntry(std::string & entry, int no);
-      char * getQualityEntry(int no);
-      int getQualityEntryCount();
-      void setDrmData(std::string newDrm);
-      char * getDrmData();
-      void setMetaData(std::string newMetaData);
-      char * getMetaData();
-      void setSegmentRunTable(ASRT table, int no);
-      ASRT & getSegmentRunTable(int no);
-      int getSegmentRunTableCount();
-      void setFragmentRunTables(AFRT table, int no);
-      AFRT & getFragmentRunTable(int no);
-      int getFragmentRunTableCount();
-      std::string toPrettyString(int indent = 0);
-  };//ABST Box
-
   struct fragmentRun {
     long firstFragment;
     long long int firstTimestamp;
@@ -113,24 +72,26 @@ namespace MP4{
       std::deque<fragmentRun> fragmentRunTable;
   };//AFRT Box
 
-  struct segmentRun {
-    uint32_t firstSegment;
-    uint32_t fragmentsPerSegment;
-  };//segmentRun
+  struct asrt_runtable{
+    long firstSegment;
+    long fragmentsPerSegment;
+  };
 
   /// ASRT Box class
   class ASRT : public Box {
     public:
       ASRT();
       void setVersion( char newVersion );
+      long getVersion();
       void setUpdate( long newUpdate );
-      void addQualityEntry( std::string newQuality );
-      void addSegmentRun( long firstSegment, long fragmentsPerSegment );
-      void regenerate();
+      long getUpdate();
+      long getQualityEntryCount();
+      void setQualityEntry( std::string & newQuality, long no );
+      const char* getQualityEntry( long no );
+      long getSegmentRunEntryCount();
+      void setSegmentRun( long firstSegment, long fragmentsPerSegment, long no );
+      asrt_runtable getSegmentRun( long no );
       std::string toPrettyString(int indent = 0);
-    private:
-      std::deque<std::string> qualityModifiers;
-      std::deque<segmentRun> segmentRunTable;
   };//ASRT Box
   
   class MFHD : public Box {
@@ -149,6 +110,49 @@ namespace MP4{
     private:
       std::deque<Box*> content;
   };//MOOF Box
+  
+  /// ABST Box class
+  class ABST: public Box {
+    public:
+      ABST();
+      void setVersion(char newVersion);
+      char getVersion();
+      void setFlags(long newFlags);
+      long getFlags();
+      void setBootstrapinfoVersion(long newVersion);
+      long getBootstrapinfoVersion();
+      void setProfile(char newProfile);
+      char getProfile();
+      void setLive(bool newLive);
+      bool getLive();
+      void setUpdate(bool newUpdate);
+      bool getUpdate();
+      void setTimeScale(long newTimeScale);
+      long getTimeScale();
+      void setCurrentMediaTime(long long int newTime);
+      long long int getCurrentMediaTime();
+      void setSmpteTimeCodeOffset(long long int newTime);
+      long long int getSmpteTimeCodeOffset();
+      void setMovieIdentifier(std::string & newIdentifier);
+      char * getMovieIdentifier();
+      long getServerEntryCount();
+      void setServerEntry(std::string & entry, long no);
+      const char * getServerEntry(long no);
+      long getQualityEntryCount();
+      void setQualityEntry(std::string & entry, long no);
+      const char * getQualityEntry(long no);
+      void setDrmData(std::string newDrm);
+      char * getDrmData();
+      void setMetaData(std::string newMetaData);
+      char * getMetaData();
+      long getSegmentRunTableCount();
+      void setSegmentRunTable(ASRT table, long no);
+      ASRT & getSegmentRunTable(long no);
+      long getFragmentRunTableCount();
+      void setFragmentRunTable(AFRT table, long no);
+      AFRT & getFragmentRunTable(long no);
+      std::string toPrettyString(long indent = 0);
+  };//ABST Box
   
   struct trunSampleInformation {
     long sampleDuration;

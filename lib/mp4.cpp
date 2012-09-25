@@ -16,6 +16,7 @@ namespace MP4{
   Box::Box(char * datapointer, bool manage){
     data = datapointer;
     managed = manage;
+    payloadOffset = 8;
     if (data == 0){
       clear();
     }else{
@@ -46,7 +47,18 @@ namespace MP4{
   bool Box::read(std::string & newData){
     if (!managed){return false;}
     if (newData.size() > 4){
-      size_t size = ntohl( ((int*)newData.c_str())[0] );
+      payloadOffset = 8;
+      long long int size = ntohl( ((int*)newData.c_str())[0] );
+      if( size == 1) {
+        if( newData.size() > 16) {
+          size = 0 + ntohl( ((int*)newData.c_str())[2] );
+          size <<= 32;
+          size += ntohl( ((int*)newData.c_str())[3] );
+          payloadOffset = 16;
+        } else {
+          return false;
+        }
+      }
       if (newData.size() >= size){
         void * ret = malloc(size);
         if (!ret){return false;}
@@ -61,14 +73,17 @@ namespace MP4{
   }
 
   /// Returns the total boxed size of this box, including the header.
-  size_t Box::boxedSize() {
-    return ntohl(((int*)data)[0]);
+  long long int Box::boxedSize() {
+    if( payloadOffset == 16 ) {
+      return ((long long int)ntohl( ((int*)data)[2] ) << 32) + ntohl( ((int*)data)[3] );
+    }
+    return ntohl( ((int*)data)[0] );
   }
 
   /// Retruns the size of the payload of thix box, excluding the header.
   /// This value is defined as boxedSize() - 8.
-  size_t Box::payloadSize() {
-    return boxedSize() - 8;
+  long long int Box::payloadSize() {
+    return boxedSize() - payloadOffset;
   }
 
   /// Returns a copy of the data pointer.
@@ -82,6 +97,7 @@ namespace MP4{
   void Box::clear() {
     if (data && managed){free(data);}
     managed = true;
+    payloadOffset = 8;
     data = (char*)malloc(8);
     if (data){
       data_size = 8;
@@ -102,6 +118,7 @@ namespace MP4{
       case 0x61737274: return ((ASRT*)this)->toPrettyString(indent); break;
       case 0x7472756E: return ((TRUN*)this)->toPrettyString(indent); break;
       case 0x74726166: return ((TRAF*)this)->toPrettyString(indent); break;
+      case 0x74666864: return ((TFHD*)this)->toPrettyString(indent); break;
       default: return std::string(indent, ' ')+"Unimplemented pretty-printing for box "+std::string(data+4,4)+"\n"; break;
     }
   }
@@ -110,7 +127,7 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Fails silently if resizing failed.
   void Box::setInt8( char newData, size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index >= boxedSize()){
       if (!reserve(index, 0, 1)){return;}
     }
@@ -121,7 +138,7 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Returns zero if resizing failed.
   char Box::getInt8( size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index >= boxedSize()){
       if (!reserve(index, 0, 1)){return 0;}
     }
@@ -132,7 +149,7 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Fails silently if resizing failed.
   void Box::setInt16( short newData, size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index+1 >= boxedSize()){
       if (!reserve(index, 0, 2)){return;}
     }
@@ -144,7 +161,7 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Returns zero if resizing failed.
   short Box::getInt16( size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index+1 >= boxedSize()){
       if (!reserve(index, 0, 2)){return 0;}
     }
@@ -157,7 +174,7 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Fails silently if resizing failed.
   void Box::setInt24( long newData, size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index+2 >= boxedSize()){
       if (!reserve(index, 0, 3)){return;}
     }
@@ -170,7 +187,7 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Returns zero if resizing failed.
   long Box::getInt24( size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index+2 >= boxedSize()){
       if (!reserve(index, 0, 3)){return 0;}
     }
@@ -186,7 +203,7 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Fails silently if resizing failed.
   void Box::setInt32( long newData, size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index+3 >= boxedSize()){
       if (!reserve(index, 0, 4)){return;}
     }
@@ -198,7 +215,7 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Returns zero if resizing failed.
   long Box::getInt32( size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index+3 >= boxedSize()){
       if (!reserve(index, 0, 4)){return 0;}
     }
@@ -211,10 +228,13 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Fails silently if resizing failed.
   void Box::setInt64( Int64 newData, size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index+7 >= boxedSize()){
       if (!reserve(index, 0, 8)){return;}
     }
+///\todo Fix 64 bit conversion
+//    *((int*)(data[index])) =   htonl((int)(newData>>32));
+//    *((int*)(data[index+4])) = htonl((int)newData);
     data[index] = ( newData & 0xFF00000000000000 ) >> 56;
     data[index+1] = ( newData & 0x00FF000000000000 ) >> 48;
     data[index+2] = ( newData & 0x0000FF0000000000 ) >> 40;
@@ -229,18 +249,13 @@ namespace MP4{
   /// Attempts to resize the data pointer if the index is out of range.
   /// Returns zero if resizing failed.
   Int64 Box::getInt64( size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index+7 >= boxedSize()){
       if (!reserve(index, 0, 8)){return 0;}
     }
-    long result = data[index];
-    result <<= 8; result += data[index+1];
-    result <<= 8; result += data[index+2];
-    result <<= 8; result += data[index+3];
-    result <<= 8; result += data[index+4];
-    result <<= 8; result += data[index+5];
-    result <<= 8; result += data[index+6];
-    result <<= 8; result += data[index+7];
+    Int64 result = ntohl( ((int*)data)[2] );
+    result <<= 32;
+    result += ntohl( ((int*)data)[3] );
     return result;
   }
 
@@ -255,7 +270,7 @@ namespace MP4{
   /// Will attempt to resize if the string doesn't fit.
   /// Fails silently if resizing failed.
   void Box::setString(char* newData, size_t size, size_t index ) {
-    index += 8;
+    index += payloadOffset;
     if (index >= boxedSize()){
       if (!reserve(index, 0, 1)){return;}
       data[index] = 0;
@@ -270,7 +285,7 @@ namespace MP4{
   /// Will attempt to resize if the string is out of range.
   /// Returns null if resizing failed.
   char * Box::getString(size_t index){
-    index += 8;
+    index += payloadOffset;
     if (index >= boxedSize()){
       if (!reserve(index, 0, 1)){return 0;}
       data[index] = 0;
@@ -281,7 +296,7 @@ namespace MP4{
   /// Returns the length of the NULL-terminated string at the given index.
   /// Returns 0 if out of range.
   size_t Box::getStringLen(size_t index){
-    index += 8;
+    index += payloadOffset;
     if (index >= boxedSize()){return 0;}
     return strlen(data+index);
   }
@@ -301,25 +316,17 @@ namespace MP4{
         data = (char*)ret;
         data_size = boxedSize() + (wanted-current);
       }
-      //move data behind backward, if any
-      if (boxedSize() - (position+current) > 0){
-        memmove(data+position+wanted, data+position+current, boxedSize() - (position+current));
-      }
-      //calculate and set new size
+    }
+    //move data behind, if any
+    if (boxedSize() - (position+current) > 0){
+      memmove(data+position+wanted, data+position+current, boxedSize() - (position+current));
+    }
+    //calculate and set new size
+    if (payloadOffset != 16) {
       int newSize = boxedSize() + (wanted-current);
       ((int*)data)[0] = htonl(newSize);
-      return true;
-    }else{
-      //make smaller
-      //move data behind forward, if any
-      if (boxedSize() - (position+current) > 0){
-        memmove(data+position+wanted, data+position+current, boxedSize() - (position+current));
-      }
-      //calculate and set new size
-      int newSize = boxedSize() - (current-wanted);
-      ((int*)data)[0] = htonl(newSize);
-      return true;
     }
+    return true;
   }
 
   ABST::ABST( ) {
@@ -402,8 +409,8 @@ namespace MP4{
       } else {
         if(!reserve(tempLoc, 0, no - getServerEntryCount())){return;};
         memset(data+tempLoc, 0, no - getServerEntryCount());
-        tempLoc += no - getServerEntryCount();
-        setInt8(no, countLoc);//set new serverEntryCount
+        tempLoc += (no-1) - getServerEntryCount();
+        setInt8(no+1, countLoc);//set new serverEntryCount
         break;
       }
     }
@@ -438,8 +445,8 @@ namespace MP4{
       } else {
         if(!reserve(tempLoc, 0, no - getQualityEntryCount())){return;};
         memset(data+tempLoc, 0, no - getQualityEntryCount());
-        tempLoc += no - getQualityEntryCount();
-        setInt8(no, countLoc);//set new qualityEntryCount
+        tempLoc += (no-1) - getQualityEntryCount();
+        setInt8(no+1, countLoc);//set new qualityEntryCount
         break;
       }
     }
@@ -456,84 +463,63 @@ namespace MP4{
   }
   
   void ABST::setDrmData( std::string newDrm ) {
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    setString(newDrm, offset);
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    setString(newDrm, tempLoc);
   }
   
   char* ABST::getDrmData() {
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    return getString(offset);
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    return getString(tempLoc);
   }
 
   void ABST::setMetaData( std::string newMetaData ) {
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset+=getStringLen(offset)+1;
-    setString(newMetaData, offset);
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    offset += getStringLen(tempLoc)+1;
+    setString(newMetaData, tempLoc);
   }
   
   char* ABST::getMetaData() {
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset+=getStringLen(offset)+1;
-    return getString(offset);
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    offset+=getStringLen(tempLoc)+1;
+    return getString(tempLoc);
   }
 
   long ABST::getSegmentRunTableCount(){
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset+=getStringLen(offset)+1;//DrmData
-    offset+=getStringLen(offset)+1;//MetaData
-    return getInt8(offset);
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc+=getStringLen(tempLoc)+1;//DrmData
+    tempLoc+=getStringLen(tempLoc)+1;//MetaData
+    return getInt8(tempLoc);
   }
   
   void ABST::setSegmentRunTable( ASRT newSegment, long no ) {
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset+=getStringLen(offset)+1;//DrmData
-    offset+=getStringLen(offset)+1;//MetaData
-    int countLoc = offset;
-    int tempLoc = countLoc + 1;//segmentRuntableCount
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc+=getStringLen(tempLoc)+1;//DrmData
+    tempLoc+=getStringLen(tempLoc)+1;//MetaData
+    int countLoc = tempLoc;
+    tempLoc++;//skip segmentRuntableCount
     for (int i = 0; i < no; i++){
       if (i < getSegmentRunTableCount()){
+        
+////Rewritten Tot Hier        
+        
         tempLoc += Box(data+8+tempLoc,false).boxedSize();
       } else {
         if(!reserve(tempLoc, 0, 8 * (no - getSegmentRunTableCount()))){return;};

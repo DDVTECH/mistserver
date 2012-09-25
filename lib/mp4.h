@@ -18,8 +18,8 @@ namespace MP4{
       std::string getType();
       bool isType( char* boxType );
       bool read(std::string & newData);
-      size_t boxedSize();
-      size_t payloadSize();
+      long long int boxedSize();
+      long long int payloadSize();
       char * asBox();
       void clear();
       std::string toPrettyString( int indent = 0 );
@@ -40,12 +40,15 @@ namespace MP4{
       void setString(char* newData, size_t size, size_t index );
       char * getString(size_t index);
       size_t getStringLen(size_t index);
+      //box functions
+      Box getBox(size_t index);
       //data functions
       bool reserve(size_t position, size_t current, size_t wanted);
       //internal variables
       char * data; ///< Holds the data of this box
       int data_size; ///< Currently reserved size
       bool managed; ///< If false, will not attempt to resize/free the data pointer.
+      int payloadOffset;///<The offset of the payload with regards to the data
   };//Box Class
 
   struct afrt_runtable {

@@ -897,13 +897,13 @@ namespace MP4{
   }
 
   void TRUN::setDataOffset(long newOffset){
-    if (getFlags() & dataOffset){
+    if (getFlags() & trundataOffset){
       setInt32(newOffset, 8);
     }
   }
 
   long TRUN::getDataOffset(){
-    if (getFlags() & dataOffset){
+    if (getFlags() & trundataOffset){
       return getInt32(8);
     }else{
       return 0;
@@ -911,8 +911,8 @@ namespace MP4{
   }
 
   void TRUN::setFirstSampleFlags(long newSampleFlags){
-    if (!(getFlags() & firstSampleFlags)){return;}
-    if (getFlags() & dataOffset){
+    if (!(getFlags() & trunfirstSampleFlags)){return;}
+    if (getFlags() & trundataOffset){
       setInt32(newSampleFlags, 12);
     }else{
       setInt32(newSampleFlags, 8);
@@ -920,8 +920,8 @@ namespace MP4{
   }
 
   long TRUN::getFirstSampleFlags(){
-    if (!(getFlags() & firstSampleFlags)){return 0;}
-    if (getFlags() & dataOffset){
+    if (!(getFlags() & trunfirstSampleFlags)){return 0;}
+    if (getFlags() & trundataOffset){
       return getInt32(12);
     }else{
       return getInt32(8);
@@ -935,27 +935,27 @@ namespace MP4{
   void TRUN::setSampleInformation(trunSampleInformation newSample, long no){
     long flags = getFlags();
     long sampInfoSize = 0;
-    if (flags & sampleDuration){sampInfoSize += 4;}
-    if (flags & sampleSize){sampInfoSize += 4;}
-    if (flags & sampleFlags){sampInfoSize += 4;}
-    if (flags & sampleOffsets){sampInfoSize += 4;}
+    if (flags & trunsampleDuration){sampInfoSize += 4;}
+    if (flags & trunsampleSize){sampInfoSize += 4;}
+    if (flags & trunsampleFlags){sampInfoSize += 4;}
+    if (flags & trunsampleOffsets){sampInfoSize += 4;}
     long offset = 8;
-    if (flags & dataOffset){offset += 4;}
-    if (flags & firstSampleFlags){offset += 4;}
+    if (flags & trundataOffset){offset += 4;}
+    if (flags & trunfirstSampleFlags){offset += 4;}
     long innerOffset = 0;
-    if (flags & sampleDuration){
+    if (flags & trunsampleDuration){
       setInt32(newSample.sampleDuration, offset + no*sampInfoSize + innerOffset);
       innerOffset += 4;
     }
-    if (flags & sampleSize){
+    if (flags & trunsampleSize){
       setInt32(newSample.sampleSize, offset + no*sampInfoSize + innerOffset);
       innerOffset += 4;
     }
-    if (flags & sampleFlags){
+    if (flags & trunsampleFlags){
       setInt32(newSample.sampleFlags, offset + no*sampInfoSize + innerOffset);
       innerOffset += 4;
     }
-    if (flags & sampleOffsets){
+    if (flags & trunsampleOffsets){
       setInt32(newSample.sampleOffset, offset + no*sampInfoSize + innerOffset);
       innerOffset += 4;
     }
@@ -973,27 +973,27 @@ namespace MP4{
     if (getSampleInformationCount() < no+1){return ret;}
     long flags = getFlags();
     long sampInfoSize = 0;
-    if (flags & sampleDuration){sampInfoSize += 4;}
-    if (flags & sampleSize){sampInfoSize += 4;}
-    if (flags & sampleFlags){sampInfoSize += 4;}
-    if (flags & sampleOffsets){sampInfoSize += 4;}
+    if (flags & trunsampleDuration){sampInfoSize += 4;}
+    if (flags & trunsampleSize){sampInfoSize += 4;}
+    if (flags & trunsampleFlags){sampInfoSize += 4;}
+    if (flags & trunsampleOffsets){sampInfoSize += 4;}
     long offset = 8;
-    if (flags & dataOffset){offset += 4;}
-    if (flags & firstSampleFlags){offset += 4;}
+    if (flags & trundataOffset){offset += 4;}
+    if (flags & trunfirstSampleFlags){offset += 4;}
     long innerOffset = 0;
-    if (flags & sampleDuration){
+    if (flags & trunsampleDuration){
       ret.sampleDuration = getInt32(offset + no*sampInfoSize + innerOffset);
       innerOffset += 4;
     }
-    if (flags & sampleSize){
+    if (flags & trunsampleSize){
       ret.sampleSize = getInt32(offset + no*sampInfoSize + innerOffset);
       innerOffset += 4;
     }
-    if (flags & sampleFlags){
+    if (flags & trunsampleFlags){
       ret.sampleFlags = getInt32(offset + no*sampInfoSize + innerOffset);
       innerOffset += 4;
     }
-    if (flags & sampleOffsets){
+    if (flags & trunsampleOffsets){
       ret.sampleOffset = getInt32(offset + no*sampInfoSize + innerOffset);
       innerOffset += 4;
     }
@@ -1007,31 +1007,31 @@ namespace MP4{
     
     long flags = getFlags();
     r << std::string(indent+1, ' ') << "Flags";
-    if (flags & dataOffset){r << " dataOffset";}
-    if (flags & firstSampleFlags){r << " firstSampleFlags";}
-    if (flags & sampleDuration){r << " sampleDuration";}
-    if (flags & sampleSize){r << " sampleSize";}
-    if (flags & sampleFlags){r << " sampleFlags";}
-    if (flags & sampleOffsets){r << " sampleOffsets";}
+    if (flags & trundataOffset){r << " dataOffset";}
+    if (flags & trunfirstSampleFlags){r << " firstSampleFlags";}
+    if (flags & trunsampleDuration){r << " sampleDuration";}
+    if (flags & trunsampleSize){r << " sampleSize";}
+    if (flags & trunsampleFlags){r << " sampleFlags";}
+    if (flags & trunsampleOffsets){r << " sampleOffsets";}
     r << std::endl;
     
-    if (flags & dataOffset){r << std::string(indent+1, ' ') << "Data Offset " << getDataOffset() << std::endl;}
-    if (flags & dataOffset){r << std::string(indent+1, ' ') << "Sample Flags" << prettyFlags(getFirstSampleFlags()) << std::endl;}
+    if (flags & trundataOffset){r << std::string(indent+1, ' ') << "Data Offset " << getDataOffset() << std::endl;}
+    if (flags & trundataOffset){r << std::string(indent+1, ' ') << "Sample Flags" << prettySampleFlags(getFirstSampleFlags()) << std::endl;}
 
     r << std::string(indent+1, ' ') << "SampleInformation (" << getSampleInformationCount() << "):" << std::endl;
     for (int i = 0; i < getSampleInformationCount(); ++i){
       r << std::string(indent+2, ' ') << "[" << i << "]" << std::endl;
       trunSampleInformation samp = getSampleInformation(i);
-      if (flags & sampleDuration){
+      if (flags & trunsampleDuration){
         r << std::string(indent+2, ' ') << "Duration " << samp.sampleDuration << std::endl;
       }
-      if (flags & sampleSize){
+      if (flags & trunsampleSize){
         r << std::string(indent+2, ' ') << "Size " << samp.sampleSize << std::endl;
       }
-      if (flags & sampleFlags){
-        r << std::string(indent+2, ' ') << "Flags " << prettyFlags(samp.sampleFlags) << std::endl;
+      if (flags & trunsampleFlags){
+        r << std::string(indent+2, ' ') << "Flags " << prettySampleFlags(samp.sampleFlags) << std::endl;
       }
-      if (flags & sampleOffsets){
+      if (flags & trunsampleOffsets){
         r << std::string(indent+2, ' ') << "Offset " << samp.sampleOffset << std::endl;
       }
     }
@@ -1039,7 +1039,7 @@ namespace MP4{
     return r.str();
   }
 
-  std::string TRUN::prettyFlags(long flag){
+  std::string prettySampleFlags(long flag){
     std::stringstream r;
     if (flag & noIPicture){r << " noIPicture";}
     if (flag & isIPicture){r << " isIPicture";}
@@ -1051,5 +1051,132 @@ namespace MP4{
     return r.str();
   }
 
+  TFHD::TFHD(){
+    memcpy(data + 4, "tfhd", 4);
+  }
+
+  void TFHD::setFlags(long newFlags){
+    setInt24(newFlags,1);
+  }
+
+  long TFHD::getFlags(){
+    return getInt24(1);
+  }
+
+  void TFHD::setTrackID(long newID){
+    setInt32(newID,4);
+  }
+
+  long TFHD::getTrackID(){
+    return getInt32(4);
+  }
+
+  void TFHD::setBaseDataOffset(long long newOffset){
+    if (getFlags() & tfhdBaseOffset){
+      setInt64(newOffset, 8);
+    }
+  }
+  
+  long long TFHD::getBaseDataOffset(){
+    if (getFlags() & tfhdBaseOffset){
+      return getInt64(8);
+    }else{
+      return 0;
+    }
+  }
+  
+  void TFHD::setSampleDescriptionIndex(long newIndex){
+    if (!(getFlags() & tfhdSampleDesc)){return;}
+    int offset = 8;
+    if (getFlags() & tfhdBaseOffset){offset += 8;}
+    setInt32(newIndex, offset);
+  }
+  
+  long TFHD::getSampleDescriptionIndex(){
+    if (!(getFlags() & tfhdSampleDesc)){return 0;}
+    int offset = 8;
+    if (getFlags() & tfhdBaseOffset){offset += 8;}
+    return getInt32(offset);
+  }
+  
+  void TFHD::setDefaultSampleDuration(long newDuration){
+    if (!(getFlags() & tfhdSampleDura)){return;}
+    int offset = 8;
+    if (getFlags() & tfhdBaseOffset){offset += 8;}
+    if (getFlags() & tfhdSampleDesc){offset += 4;}
+    setInt32(newDuration, offset);
+  }
+  
+  long TFHD::getDefaultSampleDuration(){
+    if (!(getFlags() & tfhdSampleDura)){return 0;}
+    int offset = 8;
+    if (getFlags() & tfhdBaseOffset){offset += 8;}
+    if (getFlags() & tfhdSampleDesc){offset += 4;}
+    return getInt32(offset);
+  }
+  
+  void TFHD::setDefaultSampleSize(long newSize){
+    if (!(getFlags() & tfhdSampleSize)){return;}
+    int offset = 8;
+    if (getFlags() & tfhdBaseOffset){offset += 8;}
+    if (getFlags() & tfhdSampleDesc){offset += 4;}
+    if (getFlags() & tfhdSampleDura){offset += 4;}
+    setInt32(newSize, offset);
+  }
+  
+  long TFHD::getDefaultSampleSize(){
+    if (!(getFlags() & tfhdSampleSize)){return 0;}
+    int offset = 8;
+    if (getFlags() & tfhdBaseOffset){offset += 8;}
+    if (getFlags() & tfhdSampleDesc){offset += 4;}
+    if (getFlags() & tfhdSampleDura){offset += 4;}
+    return getInt32(offset);
+  }
+  
+  void TFHD::setDefaultSampleFlags(long newFlags){
+    if (!(getFlags() & tfhdSampleFlag)){return;}
+    int offset = 8;
+    if (getFlags() & tfhdBaseOffset){offset += 8;}
+    if (getFlags() & tfhdSampleDesc){offset += 4;}
+    if (getFlags() & tfhdSampleDura){offset += 4;}
+    if (getFlags() & tfhdSampleSize){offset += 4;}
+    setInt32(newFlags, offset);
+  }
+  
+  long TFHD::getDefaultSampleFlags(){
+    if (!(getFlags() & tfhdSampleFlag)){return 0;}
+    int offset = 8;
+    if (getFlags() & tfhdBaseOffset){offset += 8;}
+    if (getFlags() & tfhdSampleDesc){offset += 4;}
+    if (getFlags() & tfhdSampleDura){offset += 4;}
+    if (getFlags() & tfhdSampleSize){offset += 4;}
+    return getInt32(offset);
+  }
+  
+  std::string TFHD::toPrettyString(long indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[tfhd] Track Fragment Header" << std::endl;
+    r << std::string(indent+1, ' ') << "Version " << getInt8(0) << std::endl;
+    
+    long flags = getFlags();
+    r << std::string(indent+1, ' ') << "Flags";
+    if (flags & tfhdBaseOffset){r << " BaseOffset";}
+    if (flags & tfhdSampleDesc){r << " SampleDesc";}
+    if (flags & tfhdSampleDura){r << " SampleDura";}
+    if (flags & tfhdSampleSize){r << " SampleSize";}
+    if (flags & tfhdSampleFlag){r << " SampleFlag";}
+    if (flags & tfhdNoDuration){r << " NoDuration";}
+    r << std::endl;
+    
+    r << std::string(indent+1, ' ') << "TrackID " << getTrackID() << std::endl;
+
+    if (flags & tfhdBaseOffset){r << std::string(indent+1, ' ') << "Base Offset " << getBaseDataOffset() << std::endl;}
+    if (flags & tfhdSampleDesc){r << std::string(indent+1, ' ') << "Sample Description Index " << getSampleDescriptionIndex() << std::endl;}
+    if (flags & tfhdSampleDura){r << std::string(indent+1, ' ') << "Default Sample Duration " << getDefaultSampleDuration() << std::endl;}
+    if (flags & tfhdSampleSize){r << std::string(indent+1, ' ') << "Default Same Size " << getDefaultSampleSize() << std::endl;}
+    if (flags & tfhdSampleFlag){r << std::string(indent+1, ' ') << "Default Sample Flags " << prettySampleFlags(getDefaultSampleFlags()) << std::endl;}
+    
+    return r.str();
+  }
 
 };

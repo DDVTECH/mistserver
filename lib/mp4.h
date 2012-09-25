@@ -161,12 +161,12 @@ namespace MP4{
     long sampleOffset;
   };
   enum trunflags {
-    dataOffset       = 0x000001,
-    firstSampleFlags = 0x000004,
-    sampleDuration   = 0x000100,
-    sampleSize       = 0x000200,
-    sampleFlags      = 0x000400,
-    sampleOffsets    = 0x000800
+    trundataOffset       = 0x000001,
+    trunfirstSampleFlags = 0x000004,
+    trunsampleDuration   = 0x000100,
+    trunsampleSize       = 0x000200,
+    trunsampleFlags      = 0x000400,
+    trunsampleOffsets    = 0x000800
   };
   enum sampleflags {
     noIPicture = 0x1000000,
@@ -179,6 +179,7 @@ namespace MP4{
     iskeySample = 0x0,
     MUST_BE_PRESENT = 0x1
   };
+  std::string prettySampleFlags(long flag);
   class TRUN : public Box {
     public:
       TRUN();
@@ -192,6 +193,34 @@ namespace MP4{
       void setSampleInformation(trunSampleInformation newSample, long no);
       trunSampleInformation getSampleInformation(long no);
       std::string toPrettyString(long indent = 0);
-      std::string prettyFlags(long flag);
   };
+
+  enum tfhdflags {
+    tfhdBaseOffset = 0x000001,
+    tfhdSampleDesc = 0x000002,
+    tfhdSampleDura = 0x000008,
+    tfhdSampleSize = 0x000010,
+    tfhdSampleFlag = 0x000020,
+    tfhdNoDuration = 0x010000,
+  };
+  class TFHD : public Box {
+    public:
+      TFHD();
+      void setFlags(long newFlags);
+      long getFlags();
+      void setTrackID(long newID);
+      long getTrackID();
+      void setBaseDataOffset(long long newOffset);
+      long long getBaseDataOffset();
+      void setSampleDescriptionIndex(long newIndex);
+      long getSampleDescriptionIndex();
+      void setDefaultSampleDuration(long newDuration);
+      long getDefaultSampleDuration();
+      void setDefaultSampleSize(long newSize);
+      long getDefaultSampleSize();
+      void setDefaultSampleFlags(long newFlags);
+      long getDefaultSampleFlags();
+      std::string toPrettyString(long indent = 0);
+  };
+
 };

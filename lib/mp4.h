@@ -150,12 +150,20 @@ namespace MP4{
   class MOOF : public Box {
     public:
       MOOF();
-      void addContent( Box* newContent );
-      void regenerate( );
+      long getContentCount();
+      void setContent( Box newContent, long no );
+      Box getContent( long no );
       std::string toPrettyString(int indent = 0);
-    private:
-      std::deque<Box*> content;
   };//MOOF Box
+  
+  class TRAF : public Box {
+    public:
+      TRAF();
+      long getContentCount();
+      void setContent( Box newContent, long no );
+      Box getContent( long no );
+      std::string toPrettyString(int indent = 0);
+  };//TRAF Box
   
   struct trunSampleInformation {
     long sampleDuration;

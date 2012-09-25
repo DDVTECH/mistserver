@@ -100,6 +100,8 @@ namespace MP4{
       case 0x61627374: return ((ABST*)this)->toPrettyString(indent); break;
       case 0x61667274: return ((AFRT*)this)->toPrettyString(indent); break;
       case 0x61737274: return ((ASRT*)this)->toPrettyString(indent); break;
+      case 0x7472756E: return ((TRUN*)this)->toPrettyString(indent); break;
+      case 0x74726166: return ((TRAF*)this)->toPrettyString(indent); break;
       default: return std::string(indent, ' ')+"Unimplemented pretty-printing for box "+std::string(data+4,4)+"\n"; break;
     }
   }
@@ -944,8 +946,43 @@ namespace MP4{
     memcpy(data + 4, "moof", 4);
   }
   
-  void MOOF::addContent( Box* newContent ) {
-    content.push_back( newContent );
+  long MOOF::getContentCount() {
+    int res = 0;
+    int tempLoc = 0;
+    while( tempLoc < boxedSize()-8 ){
+      res ++;
+      tempLoc += Box(data+8+tempLoc, false).boxedSize();
+    }
+    return res;
+  }
+  
+  void MOOF::setContent( Box newContent, long no ) {
+    int tempLoc = 0;
+    int contentCount = getContentCount();
+    for (int i = 0; i < no; i++){
+      if (i < contentCount){
+        tempLoc += Box(data+8+tempLoc,false).boxedSize();
+      } else {
+        if(!reserve(tempLoc, 0, (no - contentCount)*8)){return;};
+        memset(data+tempLoc, 0, (no - contentCount)*8);
+        tempLoc += (no - contentCount)*8;
+        break;
+      }
+    }
+    Box oldContent = Box( data+8+tempLoc, false );
+    if( !reserve( tempLoc, oldContent.boxedSize(), newContent.boxedSize() ) ) { return; }
+    memcpy( data+8+tempLoc, newContent.asBox(), newContent.boxedSize() );
+  }
+  
+  Box MOOF::getContent( long no ){
+    if( no > getContentCount() ) { return Box(); }
+    int i = 0;
+    int tempLoc = 0;
+    while( i < no ) {
+      tempLoc += Box( data+8+tempLoc, false).boxedSize();
+      i++;
+    }
+    return Box(data+8+tempLoc, false);
   }
   
   std::string MOOF::toPrettyString( int indent ) {
@@ -953,13 +990,74 @@ namespace MP4{
     r << std::string(indent, ' ') << "[moof] Movie Fragment Box" << std::endl;
     Box curBox;
     int tempLoc = 0;
-    while( tempLoc < boxedSize()-8 ){
-      curBox = Box( data+8+tempLoc, false );
+    int contentCount = getContentCount();
+    for( int i = 0; i < contentCount; i++ ) {
+      curBox = getContent(i);
       r << curBox.toPrettyString(indent+1);
       tempLoc += curBox.boxedSize();
     }
     return r.str();
   }
+  
+  TRAF::TRAF(){
+    memcpy(data + 4, "traf", 4);
+  }
+
+  long TRAF::getContentCount() {
+    int res = 0;
+    int tempLoc = 0;
+    while( tempLoc < boxedSize()-8 ){
+      res ++;
+      tempLoc += Box(data+8+tempLoc, false).boxedSize();
+    }
+    return res;
+  }
+  
+  void TRAF::setContent( Box newContent, long no ) {
+    int tempLoc = 0;
+    int contentCount = getContentCount();
+    for (int i = 0; i < no; i++){
+      if (i < contentCount){
+        tempLoc += Box(data+8+tempLoc,false).boxedSize();
+      } else {
+        if(!reserve(tempLoc, 0, (no - contentCount)*8)){return;};
+        memset(data+tempLoc, 0, (no - contentCount)*8);
+        tempLoc += (no - contentCount)*8;
+        break;
+      }
+    }
+    Box oldContent = Box( data+8+tempLoc, false );
+    if( !reserve( tempLoc, oldContent.boxedSize(), newContent.boxedSize() ) ) { return; }
+    memcpy( data+8+tempLoc, newContent.asBox(), newContent.boxedSize() );
+  }
+  
+  Box TRAF::getContent( long no ){
+    if( no > getContentCount() ) { return Box(); }
+    int i = 0;
+    int tempLoc = 0;
+    while( i < no ) {
+      tempLoc += Box( data+8+tempLoc, false).boxedSize();
+      i++;
+    }
+    return Box(data+8+tempLoc, false);
+  }
+  
+  std::string TRAF::toPrettyString( int indent ) {
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[traf] Track Fragment Box" << std::endl;
+    Box curBox;
+    int tempLoc = 0;
+    int contentCount = getContentCount();
+    for( int i = 0; i < contentCount; i++ ) {
+      curBox = getContent(i);
+      r << curBox.toPrettyString(indent+1);
+      tempLoc += curBox.boxedSize();
+    }
+    return r.str();
+  }
+  
+  
+
   
   TRUN::TRUN(){
     memcpy(data + 4, "trun", 4);

@@ -1354,4 +1354,187 @@ namespace MP4{
     return r.str();
   }
 
+  AFRA::AFRA(){
+    memcpy(data + 4, "afra", 4);
+    setInt32(0, 9);//entrycount = 0
+    setFlags(0);
+  }
+  
+  void AFRA::setVersion(long newVersion){
+    setInt8(newVersion, 0);
+  }
+  
+  long AFRA::getVersion(){
+    return getInt8(0);
+  }
+  
+  void AFRA::setFlags(long newFlags){
+    setInt24(newFlags, 1);
+  }
+  
+  long AFRA::getFlags(){
+    return getInt24(1);
+  }
+  
+  void AFRA::setLongIDs(bool newVal){
+    if (newVal){
+      setInt8((getInt8(4) & 0x7F) + 0x80, 4);
+    }else{
+      setInt8((getInt8(4) & 0x7F), 4);
+    }
+  }
+  
+  bool AFRA::getLongIDs(){
+    return getInt8(4) & 0x80;
+  }
+
+  void AFRA::setLongOffsets(bool newVal){
+    if (newVal){
+      setInt8((getInt8(4) & 0xBF) + 0x40, 4);
+    }else{
+      setInt8((getInt8(4) & 0xBF), 4);
+    }
+  }
+  
+  bool AFRA::getLongOffsets(){
+    return getInt8(4) & 0x40;
+  }
+  
+  void AFRA::setGlobalEntries(bool newVal){
+    if (newVal){
+      setInt8((getInt8(4) & 0xDF) + 0x20, 4);
+    }else{
+      setInt8((getInt8(4) & 0xDF), 4);
+    }
+  }
+  
+  bool AFRA::getGlobalEntries(){
+    return getInt8(4) & 0x20;
+  }
+  
+  void AFRA::setTimeScale(long newVal){
+    setInt32(newVal, 5);
+  }
+  
+  long AFRA::getTimeScale(){
+    return getInt32(5);
+  }
+  
+  long AFRA::getEntryCount(){
+    return getInt32(9);
+  }
+  
+  void AFRA::setEntry(afraentry newEntry, long no){
+    int entrysize = 12;
+    if (getLongOffsets()){entrysize = 16;}
+    setInt64(newEntry.time, 13+entrysize*no);
+    if (getLongOffsets()){
+      setInt64(newEntry.offset, 21+entrysize*no);
+    }else{
+      setInt32(newEntry.offset, 21+entrysize*no);
+    }
+    if (no+1 > getEntryCount()){setInt32(no+1, 9);}
+  }
+  
+  afraentry AFRA::getEntry(long no){
+    afraentry ret;
+    int entrysize = 12;
+    if (getLongOffsets()){entrysize = 16;}
+    ret.time = getInt64(13+entrysize*no);
+    if (getLongOffsets()){
+      ret.offset = getInt64(21+entrysize*no);
+    }else{
+      ret.offset = getInt32(21+entrysize*no);
+    }
+  }
+  
+  long AFRA::getGlobalEntryCount(){
+    if (!getGlobalEntries()){return 0;}
+    int entrysize = 12;
+    if (getLongOffsets()){entrysize = 16;}
+    return getInt32(13+entrysize*getEntryCount());
+  }
+
+  void AFRA::setGlobalEntry(globalafraentry newEntry, long no){
+    int offset = 13+12*getEntryCount()+4;
+    if (getLongOffsets()){offset = 13+16*getEntryCount()+4;}
+    int entrysize = 20;
+    if (getLongIDs()){entrysize += 4;}
+    if (getLongOffsets()){entrysize += 8;}
+    
+    setInt64(newEntry.time, offset+entrysize*no);
+    if (getLongIDs()){
+      setInt32(newEntry.segment, offset+entrysize*no+8);
+      setInt32(newEntry.fragment, offset+entrysize*no+12);
+    }else{
+      setInt16(newEntry.segment, offset+entrysize*no+8);
+      setInt16(newEntry.fragment, offset+entrysize*no+10);
+    }
+    if (getLongOffsets()){
+      setInt64(newEntry.afraoffset, offset+entrysize*no+entrysize-16);
+      setInt64(newEntry.offsetfromafra, offset+entrysize*no+entrysize-8);
+    }else{
+      setInt32(newEntry.afraoffset, offset+entrysize*no+entrysize-8);
+      setInt32(newEntry.offsetfromafra, offset+entrysize*no+entrysize-4);
+    }
+    
+    if (getInt32(offset-4) < no+1){setInt32(no+1, offset-4);}
+  }
+
+  globalafraentry AFRA::getGlobalEntry(long no){
+    globalafraentry ret;
+    int offset = 13+12*getEntryCount()+4;
+    if (getLongOffsets()){offset = 13+16*getEntryCount()+4;}
+    int entrysize = 20;
+    if (getLongIDs()){entrysize += 4;}
+    if (getLongOffsets()){entrysize += 8;}
+    
+    ret.time = getInt64(offset+entrysize*no);
+    if (getLongIDs()){
+      ret.segment = getInt32(offset+entrysize*no+8);
+      ret.fragment = getInt32(offset+entrysize*no+12);
+    }else{
+      ret.segment = getInt16(offset+entrysize*no+8);
+      ret.fragment = getInt16(offset+entrysize*no+10);
+    }
+    if (getLongOffsets()){
+      ret.afraoffset = getInt64(offset+entrysize*no+entrysize-16);
+      ret.offsetfromafra = getInt64(offset+entrysize*no+entrysize-8);
+    }else{
+      ret.afraoffset = getInt32(offset+entrysize*no+entrysize-8);
+      ret.offsetfromafra = getInt32(offset+entrysize*no+entrysize-4);
+    }
+    return ret;
+  }
+
+  std::string AFRA::toPrettyString(long indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[afra] Fragment Random Access" << std::endl;
+    r << std::string(indent+1, ' ') << "Version " << getVersion() << std::endl;
+    r << std::string(indent+1, ' ') << "Flags " << getFlags() << std::endl;
+    r << std::string(indent+1, ' ') << "Long IDs " << getLongIDs() << std::endl;
+    r << std::string(indent+1, ' ') << "Long Offsets " << getLongOffsets() << std::endl;
+    r << std::string(indent+1, ' ') << "Global Entries " << getGlobalEntries() << std::endl;
+    r << std::string(indent+1, ' ') << "TimeScale " << getTimeScale() << std::endl;
+
+    long count = getEntryCount();
+    r << std::string(indent+1, ' ') << "Entries (" << count << ") " << std::endl;
+    for (long i = 0; i < count; ++i){
+      afraentry tmpent = getEntry(i);
+      r << std::string(indent+1, ' ') << i << ": Time " << tmpent.time << ", Offset " << tmpent.offset << std::endl;
+    }
+
+    if (getGlobalEntries()){
+      count = getGlobalEntryCount();
+      r << std::string(indent+1, ' ') << "Global Entries (" << count << ") " << std::endl;
+      for (long i = 0; i < count; ++i){
+        globalafraentry tmpent = getGlobalEntry(i);
+        r << std::string(indent+1, ' ') << i << ": T " << tmpent.time << ", S" << tmpent.segment << "F" << tmpent.fragment << ", " << tmpent.afraoffset << "/" << tmpent.offsetfromafra << std::endl;
+      }
+    }
+    
+    return r.str();
+  }
+
+
 };

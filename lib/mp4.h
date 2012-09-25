@@ -234,4 +234,39 @@ namespace MP4{
       std::string toPrettyString(long indent = 0);
   };
 
+  struct afraentry {
+    long long time;
+    long long offset;
+  };
+  struct globalafraentry {
+    long long time;
+    long segment;
+    long fragment;
+    long long afraoffset;
+    long long offsetfromafra;
+  };
+  class AFRA : public Box {
+  public:
+    AFRA();
+    void setVersion(long newVersion);
+    long getVersion();
+    void setFlags(long newFlags);
+    long getFlags();
+    void setLongIDs(bool newVal);
+    bool getLongIDs();
+    void setLongOffsets(bool newVal);
+    bool getLongOffsets();
+    void setGlobalEntries(bool newVal);
+    bool getGlobalEntries();
+    void setTimeScale(long newVal);
+    long getTimeScale();
+    long getEntryCount();
+    void setEntry(afraentry newEntry, long no);
+    afraentry getEntry(long no);
+    long getGlobalEntryCount();
+    void setGlobalEntry(globalafraentry newEntry, long no);
+    globalafraentry getGlobalEntry(long no);
+    std::string toPrettyString(long indent = 0);
+  };
+  
 };

@@ -887,38 +887,169 @@ namespace MP4{
   TRUN::TRUN(){
     memcpy(data + 4, "trun", 4);
   }
-  
-  void TRUN::setFlags( long newFlags ) {
+
+  void TRUN::setFlags(long newFlags){
     setInt24(newFlags,1);
   }
-  
-  void TRUN::setDataOffset( long newOffset ) {
-    dataOffset = newOffset;
+
+  long TRUN::getFlags(){
+    return getInt24(1);
   }
-  
-  void TRUN::setFirstSampleFlags( char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy, char sampleIsDifferenceSample ) {
-    firstSampleFlags = getSampleFlags( sampleDependsOn, sampleIsDependedOn, sampleHasRedundancy, sampleIsDifferenceSample );
+
+  void TRUN::setDataOffset(long newOffset){
+    if (getFlags() & dataOffset){
+      setInt32(newOffset, 8);
+    }
   }
-  
-  void TRUN::addSampleInformation( long newDuration, long newSize, char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy,char sampleIsDifferenceSample, long newCompositionTimeOffset ) {
-    trunSampleInformation newSample;
-    newSample.sampleDuration = newDuration;
-    newSample.sampleSize = newSize;
-    newSample.sampleFlags = getSampleFlags( sampleDependsOn, sampleIsDependedOn, sampleHasRedundancy, sampleIsDifferenceSample );
-    newSample.sampleCompositionTimeOffset = newCompositionTimeOffset;
-    allSamples.push_back( newSample );
+
+  long TRUN::getDataOffset(){
+    if (getFlags() & dataOffset){
+      return getInt32(8);
+    }else{
+      return 0;
+    }
   }
-  
-  long TRUN::getSampleFlags( char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy, char sampleIsDifferenceSample ) {
-    long sampleFlags = ( sampleDependsOn & 0x03 );
-    sampleFlags <<= 2;
-    sampleFlags += ( sampleIsDependedOn & 0x03 );
-    sampleFlags <<= 2;
-    sampleFlags += ( sampleHasRedundancy & 0x03 );
-    sampleFlags <<= 5;
-    sampleFlags += ( sampleIsDifferenceSample & 0x01 );
-    sampleFlags <<= 17;
-    sampleFlags += 0x0000FFFF;
-    return sampleFlags;
+
+  void TRUN::setFirstSampleFlags(long newSampleFlags){
+    if (!(getFlags() & firstSampleFlags)){return;}
+    if (getFlags() & dataOffset){
+      setInt32(newSampleFlags, 12);
+    }else{
+      setInt32(newSampleFlags, 8);
+    }
   }
+
+  long TRUN::getFirstSampleFlags(){
+    if (!(getFlags() & firstSampleFlags)){return 0;}
+    if (getFlags() & dataOffset){
+      return getInt32(12);
+    }else{
+      return getInt32(8);
+    }
+  }
+
+  long TRUN::getSampleInformationCount(){
+    return getInt32(4);
+  }
+
+  void TRUN::setSampleInformation(trunSampleInformation newSample, long no){
+    long flags = getFlags();
+    long sampInfoSize = 0;
+    if (flags & sampleDuration){sampInfoSize += 4;}
+    if (flags & sampleSize){sampInfoSize += 4;}
+    if (flags & sampleFlags){sampInfoSize += 4;}
+    if (flags & sampleOffsets){sampInfoSize += 4;}
+    long offset = 8;
+    if (flags & dataOffset){offset += 4;}
+    if (flags & firstSampleFlags){offset += 4;}
+    long innerOffset = 0;
+    if (flags & sampleDuration){
+      setInt32(newSample.sampleDuration, offset + no*sampInfoSize + innerOffset);
+      innerOffset += 4;
+    }
+    if (flags & sampleSize){
+      setInt32(newSample.sampleSize, offset + no*sampInfoSize + innerOffset);
+      innerOffset += 4;
+    }
+    if (flags & sampleFlags){
+      setInt32(newSample.sampleFlags, offset + no*sampInfoSize + innerOffset);
+      innerOffset += 4;
+    }
+    if (flags & sampleOffsets){
+      setInt32(newSample.sampleOffset, offset + no*sampInfoSize + innerOffset);
+      innerOffset += 4;
+    }
+    if (getSampleInformationCount() < no+1){
+      setInt32(no+1,4);
+    }
+  }
+
+  trunSampleInformation TRUN::getSampleInformation(long no){
+    trunSampleInformation ret;
+    ret.sampleDuration = 0;
+    ret.sampleSize = 0;
+    ret.sampleFlags = 0;
+    ret.sampleOffset = 0;
+    if (getSampleInformationCount() < no+1){return ret;}
+    long flags = getFlags();
+    long sampInfoSize = 0;
+    if (flags & sampleDuration){sampInfoSize += 4;}
+    if (flags & sampleSize){sampInfoSize += 4;}
+    if (flags & sampleFlags){sampInfoSize += 4;}
+    if (flags & sampleOffsets){sampInfoSize += 4;}
+    long offset = 8;
+    if (flags & dataOffset){offset += 4;}
+    if (flags & firstSampleFlags){offset += 4;}
+    long innerOffset = 0;
+    if (flags & sampleDuration){
+      ret.sampleDuration = getInt32(offset + no*sampInfoSize + innerOffset);
+      innerOffset += 4;
+    }
+    if (flags & sampleSize){
+      ret.sampleSize = getInt32(offset + no*sampInfoSize + innerOffset);
+      innerOffset += 4;
+    }
+    if (flags & sampleFlags){
+      ret.sampleFlags = getInt32(offset + no*sampInfoSize + innerOffset);
+      innerOffset += 4;
+    }
+    if (flags & sampleOffsets){
+      ret.sampleOffset = getInt32(offset + no*sampInfoSize + innerOffset);
+      innerOffset += 4;
+    }
+    return ret;
+  }
+
+  std::string TRUN::toPrettyString(long indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[trun] Track Fragment Run" << std::endl;
+    r << std::string(indent+1, ' ') << "Version " << getInt8(0) << std::endl;
+    
+    long flags = getFlags();
+    r << std::string(indent+1, ' ') << "Flags";
+    if (flags & dataOffset){r << " dataOffset";}
+    if (flags & firstSampleFlags){r << " firstSampleFlags";}
+    if (flags & sampleDuration){r << " sampleDuration";}
+    if (flags & sampleSize){r << " sampleSize";}
+    if (flags & sampleFlags){r << " sampleFlags";}
+    if (flags & sampleOffsets){r << " sampleOffsets";}
+    r << std::endl;
+    
+    if (flags & dataOffset){r << std::string(indent+1, ' ') << "Data Offset " << getDataOffset() << std::endl;}
+    if (flags & dataOffset){r << std::string(indent+1, ' ') << "Sample Flags" << prettyFlags(getFirstSampleFlags()) << std::endl;}
+
+    r << std::string(indent+1, ' ') << "SampleInformation (" << getSampleInformationCount() << "):" << std::endl;
+    for (int i = 0; i < getSampleInformationCount(); ++i){
+      r << std::string(indent+2, ' ') << "[" << i << "]" << std::endl;
+      trunSampleInformation samp = getSampleInformation(i);
+      if (flags & sampleDuration){
+        r << std::string(indent+2, ' ') << "Duration " << samp.sampleDuration << std::endl;
+      }
+      if (flags & sampleSize){
+        r << std::string(indent+2, ' ') << "Size " << samp.sampleSize << std::endl;
+      }
+      if (flags & sampleFlags){
+        r << std::string(indent+2, ' ') << "Flags " << prettyFlags(samp.sampleFlags) << std::endl;
+      }
+      if (flags & sampleOffsets){
+        r << std::string(indent+2, ' ') << "Offset " << samp.sampleOffset << std::endl;
+      }
+    }
+
+    return r.str();
+  }
+
+  std::string TRUN::prettyFlags(long flag){
+    std::stringstream r;
+    if (flag & noIPicture){r << " noIPicture";}
+    if (flag & isIPicture){r << " isIPicture";}
+    if (flag & noDisposable){r << " noDisposable";}
+    if (flag & isDisposable){r << " isDisposable";}
+    if (flag & isRedundant){r << " isRedundant";}
+    if (flag & noRedundant){r << " noRedundant";}
+    if (flag & noKeySample){r << " noKeySample";}else{r << " isKeySample";}
+    return r.str();
+  }
+
+
 };

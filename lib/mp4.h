@@ -158,21 +158,40 @@ namespace MP4{
     long sampleDuration;
     long sampleSize;
     long sampleFlags;
-    long sampleCompositionTimeOffset;
+    long sampleOffset;
   };
-  
+  enum trunflags {
+    dataOffset       = 0x000001,
+    firstSampleFlags = 0x000004,
+    sampleDuration   = 0x000100,
+    sampleSize       = 0x000200,
+    sampleFlags      = 0x000400,
+    sampleOffsets    = 0x000800
+  };
+  enum sampleflags {
+    noIPicture = 0x1000000,
+    isIPicture = 0x2000000,
+    noDisposable = 0x400000,
+    isDisposable = 0x800000,
+    isRedundant = 0x100000,
+    noRedundant = 0x200000,
+    noKeySample = 0x10000,
+    iskeySample = 0x0,
+    MUST_BE_PRESENT = 0x1
+  };
   class TRUN : public Box {
     public:
       TRUN();
-      void setFlags( long newFlags );
-      void setDataOffset( long newOffset );
-      void setFirstSampleFlags( char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy, char sampleIsDifferenceSample );
-      void addSampleInformation( long newDuration, long newSize, char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy,char sampleIsDifferenceSample, long newCompositionTimeOffset );
-      void regenerate();
-    private:
-      long getSampleFlags( char sampleDependsOn, char sampleIsDependedOn, char sampleHasRedundancy, char sampleIsDifferenceSample );
-      long dataOffset;
-      long firstSampleFlags;
-      std::deque<trunSampleInformation> allSamples;
+      void setFlags(long newFlags);
+      long getFlags();
+      void setDataOffset(long newOffset);
+      long getDataOffset();
+      void setFirstSampleFlags(long newSampleFlags);
+      long getFirstSampleFlags();
+      long getSampleInformationCount();
+      void setSampleInformation(trunSampleInformation newSample, long no);
+      trunSampleInformation getSampleInformation(long no);
+      std::string toPrettyString(long indent = 0);
+      std::string prettyFlags(long flag);
   };
 };

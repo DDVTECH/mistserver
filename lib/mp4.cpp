@@ -538,11 +538,14 @@ namespace MP4{
         for( int j = 0; j < (no - getSegmentRunTableCount())*8; j += 8 ) {
           setInt32(8,tempLoc+j);
         }
-        tempLoc += (no - getServerEntryCount() ) * 8;
+        tempLoc += (no - getSegmentRunTableCount() ) * 8;
         setInt8(no, countLoc);//set new serverEntryCount
         break;
       }
     }
+    ASRT oldSegment = Box(data+8+tempLoc,false);
+    if(!reserve(tempLoc,oldSegment.boxedSize(),newSegment.boxedSize())){return;}
+    memcpy( data+8+tempLoc, newSegment.asBox(), newSegment.boxedSize() );
   }
   
   ASRT & ABST::getSegmentRunTable( long no ) {
@@ -589,7 +592,41 @@ namespace MP4{
     return getInt8( tempLoc );
   }
   
-  //tot hier
+  void ABST::setFragmentRunTable( AFRT newFragment, long no ) {
+    long offset = 29 + getStringLen(29)+1 + 1;
+    for( int i = 0; i< getServerEntryCount(); i++ ) {
+      offset += getStringLen(offset)+1;
+    }
+    offset++;
+    for( int i = 0; i< getQualityEntryCount(); i++ ) {
+      offset += getStringLen(offset)+1;
+    }
+    offset+=getStringLen(offset)+1;//DrmData
+    offset+=getStringLen(offset)+1;//MetaData
+    
+    int tempLoc = offset + 1;//segmentRuntableCount
+    for (int i = 0; i < getSegmentRunTableCount(); i++ ) {
+      tempLoc += Box(data+8+tempLoc,false).boxedSize();//walk through all segments
+    }
+    int countloc = tempLoc;
+    tempLoc += 1;
+    for (int i = 0; i < no; i++){
+      if (i < getFragmentRunTableCount()){
+        tempLoc += Box(data+8+tempLoc,false).boxedSize();
+      } else {
+        if(!reserve(tempLoc, 0, 8 * (no - getFragmentRunTableCount()))){return;};
+        for( int j = 0; j < (no - getFragmentRunTableCount())*8; j += 8 ) {
+          setInt32(8,tempLoc+j);
+        }
+        tempLoc += (no - getFragmentRunTableCount() ) * 8;
+        setInt8(no, countLoc);//set new serverEntryCount
+        break;
+      }
+    }
+    AFRT oldFragment = Box(data+8+tempLoc,false);
+    if(!reserve(tempLoc,oldFragment.boxedSize(),newFragment.boxedSize())){return;}
+    memcpy( data+8+tempLoc, newFragment.asBox(), newFragment.boxedSize() );
+  }
 
   AFRT & ABST::getFragmentRunTable( long no ) {
     static Box result;

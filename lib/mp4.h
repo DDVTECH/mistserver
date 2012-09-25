@@ -48,28 +48,30 @@ namespace MP4{
       bool managed; ///< If false, will not attempt to resize/free the data pointer.
   };//Box Class
 
-  struct fragmentRun {
+  struct afrt_runtable {
     long firstFragment;
     long long int firstTimestamp;
     long duration;
-    char discontinuity;
+    long discontinuity;
   };//fragmentRun
-
 
   /// AFRT Box class
   class AFRT : public Box {
     public:
       AFRT();
       void setVersion( char newVersion );
+      long getVersion();
       void setUpdate( long newUpdate );
+      long getUpdate();
       void setTimeScale( long newScale );
-      void addQualityEntry( std::string newQuality );
-      void addFragmentRun( long firstFragment, long long int firstTimestamp, long duration, char discontinuity );
-      void regenerate( );
+      long getTimeScale();
+      long getQualityEntryCount();
+      void setQualityEntry( std::string & newQuality, long no );
+      const char * getQualityEntry( long no );
+      long getFragmentRunCount();
+      void setFragmentRun( afrt_runtable newRun, long no );
+      afrt_runtable getFragmentRun( long no );
       std::string toPrettyString(int indent = 0);
-    private:
-      std::deque<std::string> qualityModifiers;
-      std::deque<fragmentRun> fragmentRunTable;
   };//AFRT Box
 
   struct asrt_runtable{
@@ -93,23 +95,6 @@ namespace MP4{
       asrt_runtable getSegmentRun( long no );
       std::string toPrettyString(int indent = 0);
   };//ASRT Box
-  
-  class MFHD : public Box {
-    public:
-      MFHD();
-      void setSequenceNumber( long newSequenceNumber );
-      std::string toPrettyString(int indent = 0);
-  };//MFHD Box
-  
-  class MOOF : public Box {
-    public:
-      MOOF();
-      void addContent( Box* newContent );
-      void regenerate( );
-      std::string toPrettyString(int indent = 0);
-    private:
-      std::deque<Box*> content;
-  };//MOOF Box
   
   /// ABST Box class
   class ABST: public Box {
@@ -153,6 +138,24 @@ namespace MP4{
       AFRT & getFragmentRunTable(long no);
       std::string toPrettyString(long indent = 0);
   };//ABST Box
+  
+  class MFHD : public Box {
+    public:
+      MFHD();
+      void setSequenceNumber( long newSequenceNumber );
+      long getSequenceNumber();
+      std::string toPrettyString(int indent = 0);
+  };//MFHD Box
+  
+  class MOOF : public Box {
+    public:
+      MOOF();
+      void addContent( Box* newContent );
+      void regenerate( );
+      std::string toPrettyString(int indent = 0);
+    private:
+      std::deque<Box*> content;
+  };//MOOF Box
   
   struct trunSampleInformation {
     long sampleDuration;

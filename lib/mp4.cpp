@@ -95,10 +95,10 @@ namespace MP4{
   /// If this failed, it will print out a message saying pretty-printing is not implemented for <boxtype>.
   std::string Box::toPrettyString(int indent){
     switch (ntohl( *((int*)(data+4)) )){ //type is at this address
-      //case 0x6D666864: return ((MFHD*)this)->toPrettyString(indent); break;
-      //case 0x6D6F6F66: return ((MOOF*)this)->toPrettyString(indent); break;
+      case 0x6D666864: return ((MFHD*)this)->toPrettyString(indent); break;
+      case 0x6D6F6F66: return ((MOOF*)this)->toPrettyString(indent); break;
       case 0x61627374: return ((ABST*)this)->toPrettyString(indent); break;
-      //case 0x61667274: return ((AFRT*)this)->toPrettyString(indent); break;
+      case 0x61667274: return ((AFRT*)this)->toPrettyString(indent); break;
       case 0x61737274: return ((ASRT*)this)->toPrettyString(indent); break;
       default: return std::string(indent, ' ')+"Unimplemented pretty-printing for box "+std::string(data+4,4)+"\n"; break;
     }
@@ -543,7 +543,7 @@ namespace MP4{
         break;
       }
     }
-    ASRT oldSegment = Box(data+8+tempLoc,false);
+    Box oldSegment = Box(data+8+tempLoc,false);
     if(!reserve(tempLoc,oldSegment.boxedSize(),newSegment.boxedSize())){return;}
     memcpy( data+8+tempLoc, newSegment.asBox(), newSegment.boxedSize() );
   }
@@ -608,7 +608,7 @@ namespace MP4{
     for (int i = 0; i < getSegmentRunTableCount(); i++ ) {
       tempLoc += Box(data+8+tempLoc,false).boxedSize();//walk through all segments
     }
-    int countloc = tempLoc;
+    int countLoc = tempLoc;
     tempLoc += 1;
     for (int i = 0; i < no; i++){
       if (i < getFragmentRunTableCount()){
@@ -623,7 +623,7 @@ namespace MP4{
         break;
       }
     }
-    AFRT oldFragment = Box(data+8+tempLoc,false);
+    Box oldFragment = Box(data+8+tempLoc,false);
     if(!reserve(tempLoc,oldFragment.boxedSize(),newFragment.boxedSize())){return;}
     memcpy( data+8+tempLoc, newFragment.asBox(), newFragment.boxedSize() );
   }
@@ -685,10 +685,8 @@ namespace MP4{
     for( int i = 0; i < getQualityEntryCount(); i++ ) {
       r << std::string(indent+2, ' ') << getQualityEntry(i) << std::endl;
     }
-    
     r << std::string(indent+1, ' ') << "DrmData " << getDrmData() << std::endl;
     r << std::string(indent+1, ' ') << "MetaData " << getMetaData() << std::endl;
-
     r << std::string(indent+1, ' ') << "SegmentRunTableEntries (" << getSegmentRunTableCount() << ")" << std::endl;
     for( uint32_t i = 0; i < getSegmentRunTableCount(); i++ ) {
       r << ((Box)getSegmentRunTable(i)).toPrettyString(indent+2);
@@ -707,49 +705,117 @@ namespace MP4{
     setTimeScale( 1000 );
   }
   
-  void AFRT::setVersion( char newVersion ) {
-    setInt8( newVersion ,0 );
+  void AFRT::setVersion(char newVersion){setInt8(newVersion, 0);}
+  
+  long AFRT::getVersion(){return getInt8(0);}
+  
+  void AFRT::setUpdate(long newUpdate){setInt24(newUpdate, 1);}
+  
+  long AFRT::getUpdate(){return getInt24(1);}
+  
+  void AFRT::setTimeScale(long newScale){setInt32(newScale, 4);}
+  
+  long AFRT::getTimeScale(){return getInt32(4);}
+  
+  long AFRT::getQualityEntryCount(){return getInt8(8);}
+  
+  void AFRT::setQualityEntry(std::string & newEntry, long no){
+    int countLoc = 8;
+    int tempLoc = countLoc+1;
+    for (int i = 0; i < no; i++){
+      if (i < getQualityEntryCount()){
+        tempLoc += getStringLen(tempLoc)+1;
+      } else {
+        if(!reserve(tempLoc, 0, no - getQualityEntryCount())){return;};
+        memset(data+tempLoc, 0, no - getQualityEntryCount());
+        tempLoc += no - getQualityEntryCount();
+        setInt8(no, countLoc);//set new qualityEntryCount
+        break;
+      }
+    }
+    setString(newEntry, tempLoc);
   }
   
-  void AFRT::setUpdate( long newUpdate ) {
-    setInt24( newUpdate, 1 );
+  const char* AFRT::getQualityEntry(long no){
+    if (no > getQualityEntryCount()){return "";}
+    int tempLoc = 9;//position of first quality entry
+    for (int i = 0; i < no; i++){tempLoc += getStringLen(tempLoc)+1;}
+    return getString(tempLoc);
   }
   
-  void AFRT::setTimeScale( long newScale ) {
-    setInt32( newScale, 4 );
+  long AFRT::getFragmentRunCount(){
+    int tempLoc = 9;
+    for( int i = 0; i < getQualityEntryCount(); i++ ){
+      tempLoc += getStringLen(tempLoc)+1;
+    }
+    return getInt32(tempLoc);
   }
   
-  void AFRT::addQualityEntry( std::string newQuality ) {
-    qualityModifiers.push_back( newQuality );
+  void AFRT::setFragmentRun( afrt_runtable newRun, long no ) {
+    int tempLoc = 9;
+    for( int i = 0; i < getQualityEntryCount(); i++ ){
+      tempLoc += getStringLen(tempLoc)+1;
+    }
+    int countLoc = tempLoc;
+    tempLoc += 4;
+    for (int i = 0; i < no; i++){
+      if (i < getFragmentRunCount()){
+        tempLoc += 17;
+      } else {
+        if(!reserve(tempLoc, 0, 17 * (no - getQualityEntryCount()))){return;};
+        memset(data+tempLoc, 0, 17 * (no - getQualityEntryCount()));
+        tempLoc += 17 * (no - getQualityEntryCount());
+        setInt32(no, countLoc);//set new qualityEntryCount
+        break;
+      }
+    }
+    setInt32(newRun.firstFragment,tempLoc);
+    setInt64(newRun.firstTimestamp,tempLoc+4);
+    setInt32(newRun.duration,tempLoc+12);
+    setInt8(newRun.discontinuity,tempLoc+16);
   }
   
-  void AFRT::addFragmentRun( long firstFragment, Int64 firstTimestamp, long duration, char discontinuity ) {
-    fragmentRun newRun;
-    newRun.firstFragment = firstFragment;
-    newRun.firstTimestamp = firstTimestamp;
-    newRun.duration = duration;
-    newRun.discontinuity = discontinuity;
-    fragmentRunTable.push_back( newRun );
+  afrt_runtable AFRT::getFragmentRun( long no ) {
+    afrt_runtable res;
+    if( no > getFragmentRunCount() ){return res;}
+    int tempLoc = 9;
+    for( int i = 0; i < getQualityEntryCount(); i++ ){
+      tempLoc += getStringLen(tempLoc)+1;
+    }
+    int countLoc = tempLoc;
+    tempLoc += 4;
+    for (int i = 0; i < no; i++){
+      tempLoc += 17;
+    }
+    res.firstFragment = getInt32(tempLoc);
+    res.firstTimestamp = getInt64(tempLoc+4);
+    res.duration = getInt32(tempLoc+12);
+    res.discontinuity = getInt8(tempLoc+16);
+    return res;
   }
   
   std::string AFRT::toPrettyString(int indent){
-    std::string r;
-    r += std::string(indent, ' ')+"Fragment Run Table\n";
-    if (getInt24(1)){
-      r += std::string(indent+1, ' ')+"Update\n";
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[afrt] Fragment Run Table" << std::endl;
+    if (getUpdate()){
+      r << std::string(indent+1, ' ') << "Update" << std::endl;
     }else{
-      r += std::string(indent+1, ' ')+"Replacement or new table\n";
+      r << std::string(indent+1, ' ') << "Replacement or new table" << std::endl;
     }
-    r += std::string(indent+1, ' ')+"Timescale "+JSON::Value((Int64)getInt32(4)).asString()+"\n";
-    r += std::string(indent+1, ' ')+"Qualities "+JSON::Value((Int64)qualityModifiers.size()).asString()+"\n";
-    for( uint32_t i = 0; i < qualityModifiers.size(); i++ ) {
-      r += std::string(indent+2, ' ')+"\""+qualityModifiers[i]+"\"\n";
+    r << std::string(indent+1, ' ') << "Timescale " << getTimeScale() << std::endl;
+    r << std::string(indent+1, ' ') << "QualitySegmentUrlModifiers (" << getQualityEntryCount() << ")" << std::endl;
+    for( int i = 0; i < getQualityEntryCount(); i++ ) {
+      r << std::string(indent+2, ' ') << getQualityEntry(i) << std::endl;
     }
-    r += std::string(indent+1, ' ')+"Fragments "+JSON::Value((Int64)fragmentRunTable.size()).asString()+"\n";
-    for( uint32_t i = 0; i < fragmentRunTable.size(); i ++ ) {
-      r += std::string(indent+2, ' ')+"Duration "+JSON::Value((Int64)fragmentRunTable[i].duration).asString()+", starting at "+JSON::Value((Int64)fragmentRunTable[i].firstFragment).asString()+" @ "+JSON::Value((Int64)fragmentRunTable[i].firstTimestamp).asString()+"\n";
+    r << std::string(indent+1, ' ') << "FragmentRunEntryTable (" << getFragmentRunCount() << ")" << std::endl;
+    for( int i = 0; i < getFragmentRunCount(); i ++ ) {
+      afrt_runtable myRun = getFragmentRun(i);
+      r << std::string(indent+2, ' ') << "First Fragment " << myRun.firstFragment << std::endl;
+      r << std::string(indent+2, ' ') << "First Timestamp " << myRun.firstTimestamp << std::endl;
+      r << std::string(indent+2, ' ') << "Duration " << myRun.duration << std::endl;
+      r << std::string(indent+2, ' ') << "Discontinuity " << myRun.discontinuity << std::endl;
     }
-    return r;
+    return r.str();
   }
   
   ASRT::ASRT(){
@@ -806,16 +872,16 @@ namespace MP4{
   
   void ASRT::setSegmentRun( long firstSegment, long fragmentsPerSegment, long no ) {
     int tempLoc = 5;//position of qualityentry count;
-    for (int i = 0; i < getSegmentRunEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    for (int i = 0; i < getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
     int countLoc = tempLoc;
     tempLoc += 4;
     for (int i = 0; i < no; i++){
       if (i < getSegmentRunEntryCount()){
         tempLoc += 8;
       } else {
-        if(!reserve(tempLoc, 0, (no - getQualityEntryCount())*8)){return;};
-        memset(data+tempLoc, 0, (no - getQualityEntryCount())*8);
-        tempLoc += (no - getQualityEntryCount())*8;
+        if(!reserve(tempLoc, 0, (no - getSegmentRunEntryCount())*8)){return;};
+        memset(data+tempLoc, 0, (no - getSegmentRunEntryCount())*8);
+        tempLoc += (no - getSegmentRunEntryCount())*8;
         setInt32(no, countLoc);//set new qualityEntryCount
         break;
       }
@@ -825,12 +891,13 @@ namespace MP4{
   }
   
   asrt_runtable ASRT::getSegmentRun( long no ) {
+    asrt_runtable res;
+    if( no > getSegmentRunEntryCount() ) { return res; }
     int tempLoc = 5;//position of qualityentry count;
     for (int i = 0; i < getSegmentRunEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
     int countLoc = tempLoc;
     tempLoc += 4;
     for (int i = 0; i < no; i++){tempLoc += 8;}
-    asrt_runtable res;
     res.firstSegment = getInt32(tempLoc);
     res.fragmentsPerSegment = getInt32(tempLoc+4);
     return res;
@@ -858,18 +925,19 @@ namespace MP4{
   }
   
   MFHD::MFHD(){
-    setInt32(0,0);
     memcpy(data + 4, "mfhd", 4);
+    setInt32(0,0);
   }
   
-  void MFHD::setSequenceNumber( long newSequenceNumber ) {
-    setInt32( newSequenceNumber, 4 );
-  }
+  void MFHD::setSequenceNumber(long newSequenceNumber){setInt32(newSequenceNumber, 4);}
+  
+  long MFHD::getSequenceNumber(){return getInt32(4);}
   
   std::string MFHD::toPrettyString( int indent ) {
-    std::string r;
-    r += std::string(indent, ' ')+"Movie Fragment Header\n";
-    r += std::string(indent+1, ' ')+"SequenceNumber: "+JSON::Value((Int64)getInt32(4)).asString()+"\n";
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[mfhd] Movie Fragment Header" << std::endl;
+    r << std::string(indent+1, ' ') << "SequenceNumber " << getSequenceNumber() << std::endl;
+    return r.str();
   }
   
   MOOF::MOOF(){
@@ -881,7 +949,16 @@ namespace MP4{
   }
   
   std::string MOOF::toPrettyString( int indent ) {
-    
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[moof] Movie Fragment Box" << std::endl;
+    Box curBox;
+    int tempLoc = 0;
+    while( tempLoc < boxedSize()-8 ){
+      curBox = Box( data+8+tempLoc, false );
+      r << curBox.toPrettyString(indent+1);
+      tempLoc += curBox.boxedSize();
+    }
+    return r.str();
   }
   
   TRUN::TRUN(){

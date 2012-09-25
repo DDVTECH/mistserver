@@ -16,7 +16,7 @@
 #ifdef __CYGWIN__
 #define CYG_DEFI int cyg_count;
 #define CYG_INCR cyg_count++;
-#define CYG_LOOP && (cyg_count % 20 == 0)
+#define CYG_LOOP (cyg_count % 20 == 0) &&
 #else
 #define CYG_DEFI 
 #define CYG_INCR 
@@ -99,7 +99,7 @@ int main(int argc, char** argv){
 
   while (in_out.connected() && std::cin.good() && std::cout.good() && (Util::epoch() - lasttime < 60)){
     CYG_INCR
-    if (in_out.spool() CYG_LOOP){
+    if (CYG_LOOP in_out.spool()){
       while (in_out.Received().size()){
         //delete anything that doesn't end with a newline
         if (*(in_out.Received().get().rbegin()) != '\n'){

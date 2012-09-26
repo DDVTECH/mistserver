@@ -90,6 +90,10 @@ namespace MP4{
   char * Box::asBox() {
     return data;
   }
+  
+  char * Box::payload() {
+    return data + payloadOffset;
+  }
 
   /// Makes this box managed if it wasn't already, resetting the internal storage to 8 bytes (the minimum).
   /// If this box wasn't managed, the original data is left intact - otherwise it is free'd.
@@ -115,6 +119,7 @@ namespace MP4{
       case 0x6D6F6F66: return ((MOOF*)this)->toPrettyString(indent); break;
       case 0x61627374: return ((ABST*)this)->toPrettyString(indent); break;
       case 0x61667274: return ((AFRT*)this)->toPrettyString(indent); break;
+      case 0x61667261: return ((AFRA*)this)->toPrettyString(indent); break;
       case 0x61737274: return ((ASRT*)this)->toPrettyString(indent); break;
       case 0x7472756E: return ((TRUN*)this)->toPrettyString(indent); break;
       case 0x74726166: return ((TRAF*)this)->toPrettyString(indent); break;
@@ -253,9 +258,9 @@ namespace MP4{
     if (index+7 >= boxedSize()){
       if (!reserve(index, 0, 8)){return 0;}
     }
-    Int64 result = ntohl( ((int*)data)[2] );
+    Int64 result = ntohl( ((int*)(data+index))[0] );
     result <<= 32;
-    result += ntohl( ((int*)data)[3] );
+    result += ntohl( ((int*)(data+index))[1] );
     return result;
   }
 
@@ -483,7 +488,7 @@ namespace MP4{
     for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
     tempLoc++;
     for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
-    offset += getStringLen(tempLoc)+1;
+    tempLoc += getStringLen(tempLoc)+1;
     setString(newMetaData, tempLoc);
   }
   
@@ -492,7 +497,7 @@ namespace MP4{
     for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
     tempLoc++;
     for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
-    offset+=getStringLen(tempLoc)+1;
+    tempLoc += getStringLen(tempLoc)+1;
     return getString(tempLoc);
   }
 
@@ -691,6 +696,8 @@ namespace MP4{
     setVersion( 0 );
     setUpdate( 0 );
     setTimeScale( 1000 );
+    setInt8(0,9);
+    setInt32(0,10);
   }
   
   void AFRT::setVersion(char newVersion){setInt8(newVersion, 0);}
@@ -752,8 +759,8 @@ namespace MP4{
       } else {
         if(!reserve(tempLoc, 0, 17 * (no - getQualityEntryCount()))){return;};
         memset(data+tempLoc, 0, 17 * (no - getQualityEntryCount()));
-        tempLoc += 17 * (no - getQualityEntryCount());
-        setInt32(no, countLoc);//set new qualityEntryCount
+        tempLoc += 17 * ((no-1) - getQualityEntryCount());
+        setInt32((no+1), countLoc);//set new qualityEntryCount
         break;
       }
     }
@@ -773,12 +780,17 @@ namespace MP4{
     int countLoc = tempLoc;
     tempLoc += 4;
     for (int i = 0; i < no; i++){
-      tempLoc += 17;
+      if (getInt32(tempLoc+12) == 0 ) { tempLoc++;} 
+      tempLoc += 16;
     }
     res.firstFragment = getInt32(tempLoc);
     res.firstTimestamp = getInt64(tempLoc+4);
     res.duration = getInt32(tempLoc+12);
-    res.discontinuity = getInt8(tempLoc+16);
+    if( res.duration ) {
+      res.discontinuity = getInt8(tempLoc+16);
+    } else {
+      res.discontinuity = 0;
+    }
     return res;
   }
   
@@ -1432,6 +1444,7 @@ namespace MP4{
     }else{
       ret.offset = getInt32(21+entrysize*no);
     }
+    return ret;
   }
   
   long AFRA::getGlobalEntryCount(){

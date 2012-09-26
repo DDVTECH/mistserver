@@ -21,6 +21,7 @@ namespace MP4{
       long long int boxedSize();
       long long int payloadSize();
       char * asBox();
+      char * payload();
       void clear();
       std::string toPrettyString( int indent = 0 );
     protected:

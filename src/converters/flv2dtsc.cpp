@@ -36,6 +36,7 @@ namespace Converters{
           counter++;
           if (counter > 8){
             sending = true;
+            meta_out["moreheader"] = 0LL;
             std::string packed_header = meta_out.toPacked();
             unsigned int size = htonl(packed_header.size());
             std::cout << std::string(DTSC::Magic_Header, 4) << std::string((char*)&size, 4) << packed_header;
@@ -59,12 +60,13 @@ namespace Converters{
     // if the FLV input is very short, do output it correctly...
     if (!sending){
       std::cerr << "EOF - outputting buffer..." << std::endl;
+      meta_out["moreheader"] = 0LL;
       std::string packed_header = meta_out.toPacked();
       unsigned int size = htonl(packed_header.size());
       std::cout << std::string(DTSC::Magic_Header, 4) << std::string((char*)&size, 4) << packed_header;
       std::cout << prebuffer.rdbuf();
     }
-    std::cerr << "Done!" << std::endl;
+    std::cerr << "Done! If you output this data to a file, don't forget to run MistDTSCFix next." << std::endl;
     
     return 0;
   }//FLV2DTSC

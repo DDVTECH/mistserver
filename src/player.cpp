@@ -69,7 +69,7 @@ int main(int argc, char** argv){
 
   DTSC::File source = DTSC::File(conf.getString("filename"));
   Socket::Connection in_out = Socket::Connection(fileno(stdout), fileno(stdin));
-  std::string meta_str = source.getHeader();
+  JSON::Value meta = source.getMeta();
   JSON::Value pausemark;
   pausemark["datatype"] = "pause_marker";
   pausemark["time"] = (long long int)0;
@@ -78,14 +78,9 @@ int main(int argc, char** argv){
   int lasttime = Util::epoch();//time last packet was sent
 
   //send the header
-  {
-    in_out.Send("DTSC");
-    unsigned int size = htonl(meta_str.size());
-    in_out.Send((char*)&size, 4);
-    in_out.Send(meta_str);
-  }
+  std::string meta_str = meta.toNetPacked();
+  in_out.Send(meta_str);
 
-  JSON::Value meta = JSON::fromDTMI(meta_str);
   if (meta["video"]["keyms"].asInt() < 11){
     meta["video"]["keyms"] = (long long int)1000;
   }
@@ -132,6 +127,10 @@ int main(int argc, char** argv){
                 json_sts["vod"]["start"] = Util::epoch() - sts.conntime;
                 if (!meta_sent){
                   json_sts["vod"]["meta"] = meta;
+                  json_sts["vod"]["meta"]["audio"].removeMember("init");
+                  json_sts["vod"]["meta"]["video"].removeMember("init");
+                  json_sts["vod"]["meta"].removeMember("keytime");
+                  json_sts["vod"]["meta"].removeMember("keybpos");
                   meta_sent = true;
                 }
                 StatsSocket.Send(json_sts.toString().c_str());
@@ -181,17 +180,16 @@ int main(int argc, char** argv){
           }
           lastTime = now;
           if (playing > 0){--playing;}
-          if (playing == 0){
-            #if DEBUG >= 4
-            std::cerr << "Sending pause_marker (" << (Util::getMS() - bench) << "ms)" << std::endl;
-            #endif
-            pausemark["time"] = (long long int)now;
-            pausemark.toPacked();
-            in_out.SendNow(pausemark.toNetPacked());
-            in_out.setBlocking(true);
-          }
         }
-        if (playing != 0){
+        if (playing == 0){
+          #if DEBUG >= 4
+          std::cerr << "Sending pause_marker (" << (Util::getMS() - bench) << "ms)" << std::endl;
+          #endif
+          pausemark["time"] = source.getJSON()["time"];
+          pausemark.toPacked();
+          in_out.SendNow(pausemark.toNetPacked());
+          in_out.setBlocking(true);
+        }else{
           lasttime = Util::epoch();
           //insert proper header for this type of data
           in_out.Send("DTPD");

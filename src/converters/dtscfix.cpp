@@ -12,9 +12,20 @@ namespace Converters{
   /// Reads an DTSC file and attempts to fix the metadata in it.
   int DTSCFix(Util::Config & conf) {
     DTSC::File F(conf.getString("filename"));
-    std::string loader = F.getHeader();
-    JSON::Value meta = JSON::fromDTMI(loader);
+    JSON::Value oriheader = F.getMeta();
+    JSON::Value meta = oriheader;
     JSON::Value pack;
+
+    if (!oriheader.isMember("moreheader")){
+      std::cerr << "This file is not DTSCFix'able. Please re-convert and try again." << std::endl;
+      return 1;
+    }
+    if (oriheader["moreheader"].asInt() > 0){
+      std::cerr << "Warning: This file has already been DTSCFix'ed. Doing this multiple times makes the file larger for no reason." << std::endl;
+    }
+    meta.removeMember("keytime");
+    meta.removeMember("keybpos");
+    meta.removeMember("moreheader");
 
     long long unsigned int firstpack = 0;
     long long unsigned int nowpack = 0;
@@ -54,6 +65,8 @@ namespace Converters{
           if (bps > vid_max){vid_max = bps;}
         }
         if (F.getJSON()["keyframe"].asInt() != 0){
+          meta["keytime"].append(F.getJSON()["time"]);
+          meta["keybpos"].append(F.getLastReadPos());
           if (lastkey != 0){
             bps = nowpack - lastkey;
             if (bps < key_min){key_min = bps;}
@@ -73,12 +86,10 @@ namespace Converters{
       F.seekNext();
     }
 
-    std::cout << std::endl << "Summary:" << std::endl;
     meta["length"] = (long long int)((nowpack - firstpack)/1000);
+    meta["lastms"] = (long long int)nowpack;
     if (meta.isMember("audio")){
       meta["audio"]["bps"] = (long long int)(totalaudio / ((lastaudio - firstpack) / 1000));
-      std::cout << "  Audio: " << meta["audio"]["codec"].asString() << std::endl;
-      std::cout << "    Bitrate: " << meta["audio"]["bps"].asInt() << std::endl;
     }
     if (meta.isMember("video")){
       meta["video"]["bps"] = (long long int)(totalvideo / ((lastvideo - firstpack) / 1000));
@@ -88,16 +99,20 @@ namespace Converters{
       }else{
         meta["video"]["keyvar"] = (long long int)(key_max - meta["video"]["keyms"].asInt());
       }
-      std::cout << "  Video: " << meta["video"]["codec"].asString() << std::endl;
-      std::cout << "    Bitrate: " << meta["video"]["bps"].asInt() << std::endl;
-      std::cout << "    Keyframes: " << meta["video"]["keyms"].asInt() << "~" << meta["video"]["keyvar"].asInt() << std::endl;
-      std::cout << "    B-frames: " << bfrm_min << " - " << bfrm_max << std::endl;
     }
 
+    std::cerr << "Appending new header..." << std::endl;
+    std::string loader = meta.toPacked();
+    long long int newHPos = F.addHeader(loader);
+    if (!newHPos){
+      std::cerr << "Failure appending new header. Cancelling." << std::endl;
+      return 1;
+    }
     std::cerr << "Re-writing header..." << std::endl;
-
-    loader = meta.toPacked();
+    oriheader["moreheader"] = newHPos;
+    loader = oriheader.toPacked();
     if (F.writeHeader(loader)){
+      std::cerr << "Metadata is now: " << meta.toPrettyString(0) << std::endl;
       return 0;
     }else{
       return -1;

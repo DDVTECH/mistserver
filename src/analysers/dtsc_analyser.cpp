@@ -13,8 +13,7 @@ int main(int argc, char ** argv){
   conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Filename of the DTSC file to analyse.\"}"));
   conf.parseArgs(argc, argv);
   DTSC::File F(conf.getString("filename"));
-  std::string loader = F.getHeader();
-  JSON::Value meta = JSON::fromDTMI(loader);
+  JSON::Value meta = F.getMeta();
   std::cout << meta.toPrettyString() << std::endl;
   JSON::Value pack;
 

@@ -215,7 +215,6 @@ void CheckConfig(JSON::Value & in, JSON::Value & out){
     }
   }
   out = in;
-  out["version"] = PACKAGE_VERSION;
 }
 
 bool streamsEqual(JSON::Value & one, JSON::Value & two){
@@ -558,6 +557,7 @@ int main(int argc, char ** argv){
                   //sent current configuration, no matter if it was changed or not
                   //Response["streams"] = Storage["streams"];
                   Response["config"] = Connector::Storage["config"];
+                  Response["config"]["version"] = PACKAGE_VERSION "/" + Util::Config::libver;
                   Response["streams"] = Connector::Storage["streams"];
                   //add required data to the current unix time to the config, for syncing reasons
                   Response["config"]["time"] = Util::epoch();

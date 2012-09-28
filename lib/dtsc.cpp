@@ -243,6 +243,12 @@ DTSC::Stream::~Stream(){
 DTSC::File::File(std::string filename, bool create){
   if (create){
     F = fopen(filename.c_str(), "w+b");
+    //write an empty header
+    fseek(F, 0, SEEK_SET);
+    fwrite(DTSC::Magic_Header, 4, 1, F);
+    memset(buffer, 0, 4);
+    fwrite(buffer, 4, 1, F);//write 4 zero-bytes
+    headerSize = 0;
   }else{
     F = fopen(filename.c_str(), "r+b");
   }
@@ -251,50 +257,26 @@ DTSC::File::File(std::string filename, bool create){
     return;
   }
 
-  //if first 4 bytes not available, assume empty file, write header
-  if (fread(buffer, 4, 1, F) != 1){
-    fseek(F, 0, SEEK_SET);
-    fwrite(DTSC::Magic_Header, 4, 1, F);
-  }else{
-    if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
-      fprintf(stderr, "Not a DTSC file - aborting: %s\n", filename.c_str());
-      fclose(F);
-      F = 0;
-      return;
-    }
-  }
   //we now know the first 4 bytes are DTSC::Magic_Header and we have a valid file
   fseek(F, 4, SEEK_SET);
   if (fread(buffer, 4, 1, F) != 1){
     fseek(F, 4, SEEK_SET);
     memset(buffer, 0, 4);
     fwrite(buffer, 4, 1, F);//write 4 zero-bytes
-    headerSize = 0;
   }else{
     uint32_t * ubuffer = (uint32_t *)buffer;
     headerSize = ntohl(ubuffer[0]);
   }
+  readHeader(0);
   fseek(F, 8+headerSize, SEEK_SET);
   currframe = 1;
   frames[1] = 8+headerSize;
   msframes[1] = 0;
 }
 
-/// Returns the header metadata for this file as a std::string.
-/// Sets the file pointer to the first packet.
-std::string & DTSC::File::getHeader(){
-  if (fseek(F, 8, SEEK_SET) != 0){
-    strbuffer = "";
-    return strbuffer;
-  }
-  strbuffer.resize(headerSize);
-  if (fread((void*)strbuffer.c_str(), headerSize, 1, F) != 1){
-    strbuffer = "";
-    return strbuffer;
-  }
-  fseek(F, 8+headerSize, SEEK_SET);
-  currframe = 1;
-  return strbuffer;
+/// Returns the header metadata for this file as JSON::Value.
+JSON::Value & DTSC::File::getMeta(){
+  return metadata;
 }
 
 /// (Re)writes the given string to the header area if the size is the same as the existing header.
@@ -311,10 +293,84 @@ bool DTSC::File::writeHeader(std::string & header, bool force){
   return (ret == 1);
 }
 
+/// Adds the given string as a new header to the end of the file.
+/// \returns The positon the header was written at, or 0 on failure.
+long long int DTSC::File::addHeader(std::string & header){
+  fseek(F, 0, SEEK_END);
+  long long int writePos = ftell(F);
+  int hSize = htonl(header.size());
+  int ret = fwrite(DTSC::Magic_Header, 4, 1, F);//write header
+  if (ret != 1){return 0;}
+  ret = fwrite((void*)(&hSize), 4, 1, F);//write size
+  if (ret != 1){return 0;}
+  ret = fwrite(header.c_str(), header.size(), 1, F);//write contents
+  if (ret != 1){return 0;}
+  return writePos;//return position written at
+}
+
+/// Reads the header at the given file position.
+/// If the packet could not be read for any reason, the reason is printed to stderr.
+/// Reading the header means the file position is moved to after the header.
+void DTSC::File::readHeader(int pos){
+  fseek(F, pos, SEEK_SET);
+  if (fread(buffer, 4, 1, F) != 1){
+    if (feof(F)){
+      #if DEBUG >= 4
+      fprintf(stderr, "End of file reached (H%i)\n", pos);
+      #endif
+    }else{
+      fprintf(stderr, "Could not read header (H%i)\n", pos);
+    }
+    strbuffer = "";
+    metadata.null();
+    return;
+  }
+  if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
+    fprintf(stderr, "Invalid header - %.4s != %.4s  (H%i)\n", buffer, DTSC::Magic_Header, pos);
+    strbuffer = "";
+    metadata.null();
+    return;
+  }
+  if (fread(buffer, 4, 1, F) != 1){
+    fprintf(stderr, "Could not read size (H%i)\n", pos);
+    strbuffer = "";
+    metadata.null();
+    return;
+  }
+  uint32_t * ubuffer = (uint32_t *)buffer;
+  long packSize = ntohl(ubuffer[0]);
+  strbuffer.resize(packSize);
+  if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
+    fprintf(stderr, "Could not read packet (H%i)\n", pos);
+    strbuffer = "";
+    metadata.null();
+    return;
+  }
+  metadata = JSON::fromDTMI(strbuffer);
+  //if there is another header, read it and replace metadata with that one.
+  if (metadata.isMember("moreheader") && metadata["moreheader"].asInt() > 0){
+    readHeader(metadata["moreheader"].asInt());
+    return;
+  }
+  if (metadata.isMember("keytime")){
+    msframes.clear();
+    for (int i = 0; i < metadata["keytime"].size(); ++i){
+      msframes[i+1] = metadata["keytime"][i].asInt();
+    }
+  }
+  if (metadata.isMember("keybpos")){
+    frames.clear();
+    for (int i = 0; i < metadata["keybpos"].size(); ++i){
+      frames[i+1] = metadata["keybpos"][i].asInt();
+    }
+  }
+}
+
 /// Reads the packet available at the current file position.
 /// If the packet could not be read for any reason, the reason is printed to stderr.
 /// Reading the packet means the file position is increased to the next packet.
 void DTSC::File::seekNext(){
+  lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1){
     if (feof(F)){
       #if DEBUG >= 4
@@ -350,22 +406,24 @@ void DTSC::File::seekNext(){
   }
   jsonbuffer = JSON::fromDTMI(strbuffer);
   if (jsonbuffer.isMember("keyframe")){
-    long pos = ftell(F) - (packSize + 8);
-    if (frames[currframe] != pos){
+    if (frames[currframe] != lastreadpos){
       currframe++;
       currtime = jsonbuffer["time"].asInt();
       #if DEBUG >= 6
-      if (frames[currframe] != pos){
-        std::cerr << "Found a new frame " << currframe << " @ " << pos << "b/" << currtime << "ms" << std::endl;
+      if (frames[currframe] != lastreadpos){
+        std::cerr << "Found a new frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
       }else{
-        std::cerr << "Passing frame " << currframe << " @ " << pos << "b/" << currtime << "ms" << std::endl;
+        std::cerr << "Passing frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
       }
       #endif
-      frames[currframe] = pos;
+      frames[currframe] = lastreadpos;
       msframes[currframe] = currtime;
     }
   }
 }
+
+/// Returns the byte positon of the start of the last packet that was read.
+long long int DTSC::File::getLastReadPos(){return lastreadpos;}
 
 /// Returns the internal buffer of the last read packet in raw binary format.
 std::string & DTSC::File::getPacket(){return strbuffer;}
@@ -378,6 +436,9 @@ JSON::Value & DTSC::File::getJSON(){return jsonbuffer;}
 bool DTSC::File::seek_frame(int frameno){
   if (frames.count(frameno) > 0){
     if (fseek(F, frames[frameno], SEEK_SET) == 0){
+      #if DEBUG >= 4
+      std::cerr << "Seek direct from " << currframe << " @ " << frames[currframe] << " to " << frameno << " @ " << frames[frameno] << std::endl;
+      #endif
       currframe = frameno;
       return true;
     }

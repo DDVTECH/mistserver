@@ -364,6 +364,10 @@ void FLV::Tag::setLen(){
 /// Takes the DTSC Video init data and makes it into FLV.
 /// Assumes init data is available - so check before calling!
 bool FLV::Tag::DTSCVideoInit(DTSC::Stream & S){
+  //Unknown? Assume H264.
+  if (S.metadata["video"]["codec"].asString() == "?"){
+    S.metadata["video"]["codec"] = "H264";
+  }
   if (S.metadata["video"]["codec"].asString() == "H264"){
     len = S.metadata["video"]["init"].asString().length() + 20;
   }
@@ -401,6 +405,10 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Stream & S){
 /// Assumes init data is available - so check before calling!
 bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
   len = 0;
+  //Unknown? Assume AAC.
+  if (S.metadata["audio"]["codec"].asString() == "?"){
+    S.metadata["audio"]["codec"] = "AAC";
+  }
   if (S.metadata["audio"]["codec"].asString() == "AAC"){
     len = S.metadata["audio"]["init"].asString().length() + 17;
   }
@@ -446,6 +454,15 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
 /// Takes the DTSC metadata and makes it into FLV.
 /// Assumes metadata is available - so check before calling!
 bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
+  //Unknown? Assume AAC.
+  if (S.metadata["audio"]["codec"].asString() == "?"){
+    S.metadata["audio"]["codec"] = "AAC";
+  }
+  //Unknown? Assume H264.
+  if (S.metadata["video"]["codec"].asString() == "?"){
+    S.metadata["video"]["codec"] = "H264";
+  }
+  
   AMF::Object amfdata("root", AMF::AMF0_DDV_CONTAINER);
 
   amfdata.addContent(AMF::Object("", "onMetaData"));
@@ -805,11 +822,6 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
       if (!metadata["video"].isMember("bps")){metadata["video"]["bps"] = 0;}
       if (!metadata["video"].isMember("keyms")){metadata["video"]["keyms"] = 0;}
       if (!metadata["video"].isMember("keyvar")){metadata["video"]["keyvar"] = 0;}
-      if (!metadata["video"].isMember("keys")){
-        while (metadata["video"]["keys"].size() < 100){
-          metadata["video"]["keys"].append(JSON::Value((long long int)0));
-        }
-      }
     }
     return pack_out;//empty
   }
@@ -829,7 +841,6 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
       switch (audiodata & 0xF0){
         case 0x20: metadata["audio"]["codec"] = "MP3"; break;
         case 0xA0: metadata["audio"]["codec"] = "AAC"; break;
-        default: metadata["audio"]["codec"] = "?"; break;
       }
     }
     if (!metadata["audio"].isMember("rate") || metadata["audio"]["rate"].asInt() < 1){
@@ -878,7 +889,6 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
         case 2: metadata["video"]["codec"] = "H263"; break;
         case 4: metadata["video"]["codec"] = "VP6"; break;
         case 7: metadata["video"]["codec"] = "H264"; break;
-        default: metadata["video"]["codec"] = "?"; break;
       }
     }
     pack_out["datatype"] = "video";

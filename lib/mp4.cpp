@@ -242,17 +242,8 @@ namespace MP4{
       if (!reserve(index, 0, 8)){return;}
       setInt64(0, index-payloadOffset);
     }
-///\todo Fix 64 bit conversion
-//    *((int*)(data[index])) =   htonl((int)(newData>>32));
-//    *((int*)(data[index+4])) = htonl((int)newData);
-    data[index] = ( newData & 0xFF00000000000000 ) >> 56;
-    data[index+1] = ( newData & 0x00FF000000000000 ) >> 48;
-    data[index+2] = ( newData & 0x0000FF0000000000 ) >> 40;
-    data[index+3] = ( newData & 0x000000FF00000000 ) >> 32;
-    data[index+4] = ( newData & 0x00000000FF000000 ) >> 24;
-    data[index+5] = ( newData & 0x0000000000FF0000 ) >> 16;
-    data[index+6] = ( newData & 0x000000000000FF00 ) >> 8;
-    data[index+7] = ( newData & 0x00000000000000FF );
+    ((int*)(data+index))[0] =   htonl((int)(newData>>32));
+    ((int*)(data+index))[1] = htonl((int)(newData & 0xFFFFFFFF));
   }
 
   /// Gets the 64 bits integer at the given index.

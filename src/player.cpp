@@ -92,7 +92,7 @@ int main(int argc, char** argv){
   Stats sts;
   CYG_DEFI
 
-  while (in_out.connected() && std::cin.good() && std::cout.good() && (Util::epoch() - lasttime < 60)){
+  while (in_out.connected() && (Util::epoch() - lasttime < 60)){
     CYG_INCR
     if (CYG_LOOP in_out.spool()){
       while (in_out.Received().size()){
@@ -202,8 +202,14 @@ int main(int argc, char** argv){
       Util::sleep(10);
     }
   }
-
   StatsSocket.close();
   in_out.close();
+  #if DEBUG >= 4
+  if (Util::epoch() - lasttime < 60){
+    std::cerr << "Player exited (disconnect)." << std::endl;
+  }else{
+    std::cerr << "Player exited (timeout)." << std::endl;
+  }
+  #endif
   return 0;
 }

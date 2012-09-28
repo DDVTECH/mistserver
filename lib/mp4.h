@@ -42,7 +42,9 @@ namespace MP4{
       char * getString(size_t index);
       size_t getStringLen(size_t index);
       //box functions
-      Box getBox(size_t index);
+      Box & getBox(size_t index);
+      size_t getBoxLen(size_t index);
+      void setBox(Box & newEntry, size_t index);
       //data functions
       bool reserve(size_t position, size_t current, size_t wanted);
       //internal variables
@@ -135,10 +137,10 @@ namespace MP4{
       void setMetaData(std::string newMetaData);
       char * getMetaData();
       long getSegmentRunTableCount();
-      void setSegmentRunTable(ASRT table, long no);
+      void setSegmentRunTable(ASRT & table, long no);
       ASRT & getSegmentRunTable(long no);
       long getFragmentRunTableCount();
-      void setFragmentRunTable(AFRT table, long no);
+      void setFragmentRunTable(AFRT & table, long no);
       AFRT & getFragmentRunTable(long no);
       std::string toPrettyString(long indent = 0);
   };//ABST Box
@@ -155,8 +157,8 @@ namespace MP4{
     public:
       MOOF();
       long getContentCount();
-      void setContent( Box newContent, long no );
-      Box getContent( long no );
+      void setContent(Box & newContent, long no);
+      Box & getContent(long no);
       std::string toPrettyString(int indent = 0);
   };//MOOF Box
   
@@ -164,8 +166,8 @@ namespace MP4{
     public:
       TRAF();
       long getContentCount();
-      void setContent( Box newContent, long no );
-      Box getContent( long no );
+      void setContent(Box & newContent, long no);
+      Box & getContent(long no);
       std::string toPrettyString(int indent = 0);
   };//TRAF Box
   

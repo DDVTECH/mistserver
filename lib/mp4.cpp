@@ -146,6 +146,7 @@ namespace MP4{
     index += payloadOffset;
     if (index >= boxedSize()){
       if (!reserve(index, 0, 1)){return 0;}
+      setInt8(0, index-payloadOffset);
     }
     return data[index];
   }
@@ -169,6 +170,7 @@ namespace MP4{
     index += payloadOffset;
     if (index+1 >= boxedSize()){
       if (!reserve(index, 0, 2)){return 0;}
+      setInt16(0, index-payloadOffset);
     }
     short result;
     memcpy( (char*)&result, data + index, 2 );
@@ -195,6 +197,7 @@ namespace MP4{
     index += payloadOffset;
     if (index+2 >= boxedSize()){
       if (!reserve(index, 0, 3)){return 0;}
+      setInt24(0, index-payloadOffset);
     }
     long result = data[index];
     result <<= 8;
@@ -211,6 +214,7 @@ namespace MP4{
     index += payloadOffset;
     if (index+3 >= boxedSize()){
       if (!reserve(index, 0, 4)){return;}
+      setInt32(0, index-payloadOffset);
     }
     newData = htonl( newData );
     memcpy( data + index, (char*)&newData, 4 );
@@ -236,6 +240,7 @@ namespace MP4{
     index += payloadOffset;
     if (index+7 >= boxedSize()){
       if (!reserve(index, 0, 8)){return;}
+      setInt64(0, index-payloadOffset);
     }
 ///\todo Fix 64 bit conversion
 //    *((int*)(data[index])) =   htonl((int)(newData>>32));
@@ -306,6 +311,41 @@ namespace MP4{
     return strlen(data+index);
   }
 
+  /// Gets a reference to the box at the given index.
+  /// Do not store or copy this reference, for there will be raptors.
+  /// Will attempt to resize if out of range.
+  /// Returns an 8-byte error box if resizing failed.
+  Box & Box::getBox(size_t index){
+    static Box retbox;
+    index += payloadOffset;
+    if (index+8 > boxedSize()){
+      if (!reserve(index, 0, 8)){
+        retbox = Box((char*)"\000\000\000\010erro", false);
+        return retbox;
+      }
+      memcpy(data+index, "\000\000\000\010erro", 8);
+    }
+    retbox = Box(data+index, false);
+    return retbox;
+  }
+
+  /// Returns the size of the box at the given position.
+  /// Returns undefined values if there is no box at the given position.
+  /// Returns 0 if out of range.
+  size_t Box::getBoxLen(size_t index){
+    if (index+payloadOffset+8 > boxedSize()){return 0;}
+    return getBox(index).boxedSize();
+  }
+
+  /// Replaces the existing box at the given index by the new box newEntry.
+  /// Will resize if needed, will reserve new space if out of range.
+  void Box::setBox(Box & newEntry, size_t index){
+    int oldlen = getBoxLen(index);
+    int newlen = newEntry.boxedSize();
+    if (oldlen != newlen && !reserve(index+payloadOffset, oldlen, newlen)){return;}
+    memcpy(data+index+payloadOffset, newEntry.asBox(), newlen);
+  }
+
   /// Attempts to reserve enough space for wanted bytes of data at given position, where current bytes of data is now reserved.
   /// This will move any existing data behind the currently reserved space to the proper location after reserving.
   /// \returns True on success, false otherwise.
@@ -323,7 +363,7 @@ namespace MP4{
       }
     }
     //move data behind, if any
-    if (boxedSize() - (position+current) > 0){
+    if (boxedSize() > (position+current)){
       memmove(data+position+wanted, data+position+current, boxedSize() - (position+current));
     }
     //calculate and set new size
@@ -347,6 +387,8 @@ namespace MP4{
     setSmpteTimeCodeOffset( 0 );
     std::string empty;
     setMovieIdentifier( empty );
+    setInt8(0, 30);//set serverentrycount to 0
+    setInt8(0, 31);//set qualityentrycount to 0
     setDrmData( empty );
     setMetaData( empty );  
   }
@@ -408,61 +450,65 @@ namespace MP4{
   void ABST::setServerEntry(std::string & newEntry, long no){
     int countLoc = 29 + getStringLen(29)+1;
     int tempLoc = countLoc+1;
-    for (int i = 0; i < no; i++){
-      if (i < getServerEntryCount()){
-        tempLoc += getStringLen(tempLoc)+1;
-      } else {
-        if(!reserve(tempLoc, 0, no - getServerEntryCount())){return;};
-        memset(data+tempLoc, 0, no - getServerEntryCount());
-        tempLoc += (no-1) - getServerEntryCount();
-        setInt8(no+1, countLoc);//set new serverEntryCount
-        break;
-      }
+    //attempt to reach the wanted position
+    int i;
+    for (i = 0; i < getInt8(countLoc) && i < no; ++i){
+      tempLoc += getStringLen(tempLoc)+1;
     }
+    //we are now either at the end, or at the right position
+    //let's reserve any unreserved space...
+    if (no+1 > getInt8(countLoc)){
+      int amount = no+1-getInt8(countLoc);
+      if(!reserve(payloadOffset+tempLoc, 0, amount)){return;};
+      memset(data+payloadOffset+tempLoc, 0, amount);
+      setInt8(no+1, countLoc);//set new qualityEntryCount
+      tempLoc += no-i;
+    }
+    //now, tempLoc is at position for string number no, and we have at least 1 byte reserved.
     setString(newEntry, tempLoc);
   }
   
   ///\return Empty string if no > serverEntryCount(), serverEntry[no] otherwise.
   const char* ABST::getServerEntry(long no){
-    if (no > getServerEntryCount()){return "";}
-    int tempLoc = 29+getStringLen(29)+1 + 1;//position of entry count;
+    if (no+1 > getServerEntryCount()){return "";}
+    int tempLoc = 29+getStringLen(29)+1 + 1;//position of first entry
     for (int i = 0; i < no; i++){tempLoc += getStringLen(tempLoc)+1;}
     return getString(tempLoc);
   }
   
   long ABST::getQualityEntryCount(){
     int countLoc = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      countLoc += getStringLen(countLoc)+1;
-    }
+    for (int i = 0; i< getServerEntryCount(); i++){countLoc += getStringLen(countLoc)+1;}
     return getInt8(countLoc);
   }
   
   void ABST::setQualityEntry(std::string & newEntry, long no){
     int countLoc = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      countLoc += getStringLen(countLoc)+1;
-    }
+    for (int i = 0; i< getServerEntryCount(); i++){countLoc += getStringLen(countLoc)+1;}
     int tempLoc = countLoc+1;
-    for (int i = 0; i < no; i++){
-      if (i < getQualityEntryCount()){
-        tempLoc += getStringLen(tempLoc)+1;
-      } else {
-        if(!reserve(tempLoc, 0, no - getQualityEntryCount())){return;};
-        memset(data+tempLoc, 0, no - getQualityEntryCount());
-        tempLoc += (no-1) - getQualityEntryCount();
-        setInt8(no+1, countLoc);//set new qualityEntryCount
-        break;
-      }
+    //attempt to reach the wanted position
+    int i;
+    for (i = 0; i < getInt8(countLoc) && i < no; ++i){
+      tempLoc += getStringLen(tempLoc)+1;
     }
+    //we are now either at the end, or at the right position
+    //let's reserve any unreserved space...
+    if (no+1 > getInt8(countLoc)){
+      int amount = no+1-getInt8(countLoc);
+      if(!reserve(payloadOffset+tempLoc, 0, amount)){return;};
+      memset(data+payloadOffset+tempLoc, 0, amount);
+      setInt8(no+1, countLoc);//set new qualityEntryCount
+      tempLoc += no-i;
+    }
+    //now, tempLoc is at position for string number no, and we have at least 1 byte reserved.
     setString(newEntry, tempLoc);
   }
   
   const char* ABST::getQualityEntry(long no){
     if (no > getQualityEntryCount()){return "";}
-    int tempLoc = 29+getStringLen(29)+1 + 1;//position of serverentry count;
+    int tempLoc = 29+getStringLen(29)+1 + 1;//position of serverentries;
     for (int i = 0; i < getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
-    tempLoc += 1;
+    tempLoc += 1;//first qualityentry
     for (int i = 0; i < no; i++){tempLoc += getStringLen(tempLoc)+1;}
     return getString(tempLoc);
   }
@@ -511,7 +557,7 @@ namespace MP4{
     return getInt8(tempLoc);
   }
   
-  void ABST::setSegmentRunTable( ASRT newSegment, long no ) {
+  void ABST::setSegmentRunTable( ASRT & newSegment, long no ) {
     long tempLoc = 29 + getStringLen(29)+1 + 1;
     for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
     tempLoc++;
@@ -520,25 +566,23 @@ namespace MP4{
     tempLoc+=getStringLen(tempLoc)+1;//MetaData
     int countLoc = tempLoc;
     tempLoc++;//skip segmentRuntableCount
-    for (int i = 0; i < no; i++){
-      if (i < getSegmentRunTableCount()){
-        
-////Rewritten Tot Hier        
-        
-        tempLoc += Box(data+8+tempLoc,false).boxedSize();
-      } else {
-        if(!reserve(tempLoc, 0, 8 * (no - getSegmentRunTableCount()))){return;};
-        for( int j = 0; j < (no - getSegmentRunTableCount())*8; j += 8 ) {
-          setInt32(8,tempLoc+j);
-        }
-        tempLoc += (no - getSegmentRunTableCount() ) * 8;
-        setInt8(no, countLoc);//set new serverEntryCount
-        break;
+    //attempt to reach the wanted position
+    int i;
+    for (i = 0; i < getInt8(countLoc) && i < no; ++i){tempLoc += getBoxLen(tempLoc);}
+    //we are now either at the end, or at the right position
+    //let's reserve any unreserved space...
+    if (no+1 > getInt8(countLoc)){
+      int amount = no+1-getInt8(countLoc);
+      if(!reserve(payloadOffset+tempLoc, 0, amount*8)){return;};
+      //set empty erro boxes as contents
+      for (int j = 0; j < amount; ++j){
+        memcpy(data+payloadOffset+tempLoc+j*8, "\000\000\000\010erro", 8);
       }
+      setInt8(no+1, countLoc);//set new count
+      tempLoc += (no-i)*8;
     }
-    Box oldSegment = Box(data+8+tempLoc,false);
-    if(!reserve(tempLoc,oldSegment.boxedSize(),newSegment.boxedSize())){return;}
-    memcpy( data+8+tempLoc, newSegment.asBox(), newSegment.boxedSize() );
+    //now, tempLoc is at position for string number no, and we have at least an erro box reserved.
+    setBox(newSegment, tempLoc);
   }
   
   ASRT & ABST::getSegmentRunTable( long no ) {
@@ -547,115 +591,83 @@ namespace MP4{
       static Box res;
       return (ASRT&)res;
     }
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset+=getStringLen(offset)+1;//DrmData
-    offset+=getStringLen(offset)+1;//MetaData
-    int countLoc = offset;
-    int tempLoc = countLoc + 1;//segmentRuntableCount
-    for (int i = 0; i < no; i++){
-      tempLoc += Box(data+8+tempLoc,false).boxedSize();
-    }
-    result = Box(data+8+tempLoc,false);
-    return (ASRT&)result;
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc+=getStringLen(tempLoc)+1;//DrmData
+    tempLoc+=getStringLen(tempLoc)+1;//MetaData
+    int countLoc = tempLoc;
+    tempLoc++;//segmentRuntableCount
+    for (int i = 0; i < no; ++i){tempLoc += getBoxLen(tempLoc);}
+    return (ASRT&)getBox(tempLoc);
   }
   
   long ABST::getFragmentRunTableCount() {
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset+=getStringLen(offset)+1;//DrmData
-    offset+=getStringLen(offset)+1;//MetaData
-    int countLoc = offset;
-    int tempLoc = countLoc + 1;//segmentRuntableCount
-    for (int i = 0; i < getSegmentRunTableCount(); i++){
-      tempLoc += Box(data+8+tempLoc,false).boxedSize();
-    }
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc+=getStringLen(tempLoc)+1;//DrmData
+    tempLoc+=getStringLen(tempLoc)+1;//MetaData
+    for (int i = getInt8(tempLoc++); i != 0; --i){tempLoc += getBoxLen(tempLoc);}
     return getInt8( tempLoc );
   }
   
-  void ABST::setFragmentRunTable( AFRT newFragment, long no ) {
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset+=getStringLen(offset)+1;//DrmData
-    offset+=getStringLen(offset)+1;//MetaData
-    
-    int tempLoc = offset + 1;//segmentRuntableCount
-    for (int i = 0; i < getSegmentRunTableCount(); i++ ) {
-      tempLoc += Box(data+8+tempLoc,false).boxedSize();//walk through all segments
-    }
+  void ABST::setFragmentRunTable( AFRT & newFragment, long no ) {
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc+=getStringLen(tempLoc)+1;//DrmData
+    tempLoc+=getStringLen(tempLoc)+1;//MetaData
+    for (int i = getInt8(tempLoc++); i != 0; --i){tempLoc += getBoxLen(tempLoc);}
     int countLoc = tempLoc;
-    tempLoc += 1;
-    for (int i = 0; i < no; i++){
-      if (i < getFragmentRunTableCount()){
-        tempLoc += Box(data+8+tempLoc,false).boxedSize();
-      } else {
-        if(!reserve(tempLoc, 0, 8 * (no - getFragmentRunTableCount()))){return;};
-        for( int j = 0; j < (no - getFragmentRunTableCount())*8; j += 8 ) {
-          setInt32(8,tempLoc+j);
-        }
-        tempLoc += (no - getFragmentRunTableCount() ) * 8;
-        setInt8(no, countLoc);//set new serverEntryCount
-        break;
+    tempLoc++;
+    //attempt to reach the wanted position
+    int i;
+    for (i = 0; i < getInt8(countLoc) && i < no; ++i){tempLoc += getBoxLen(tempLoc);}
+    //we are now either at the end, or at the right position
+    //let's reserve any unreserved space...
+    if (no+1 > getInt8(countLoc)){
+      int amount = no+1-getInt8(countLoc);
+      if(!reserve(payloadOffset+tempLoc, 0, amount*8)){return;};
+      //set empty erro boxes as contents
+      for (int j = 0; j < amount; ++j){
+        memcpy(data+payloadOffset+tempLoc+j*8, "\000\000\000\010erro", 8);
       }
+      setInt8(no+1, countLoc);//set new count
+      tempLoc += (no-i)*8;
     }
-    Box oldFragment = Box(data+8+tempLoc,false);
-    if(!reserve(tempLoc,oldFragment.boxedSize(),newFragment.boxedSize())){return;}
-    memcpy( data+8+tempLoc, newFragment.asBox(), newFragment.boxedSize() );
+    //now, tempLoc is at position for string number no, and we have at least 1 byte reserved.
+    setBox(newFragment, tempLoc);
   }
 
   AFRT & ABST::getFragmentRunTable( long no ) {
     static Box result;
-    if( no > getFragmentRunTableCount() ) {
+    if (no >= getFragmentRunTableCount()){
       static Box res;
       return (AFRT&)res;
     }
-    long offset = 29 + getStringLen(29)+1 + 1;
-    for( int i = 0; i< getServerEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset++;
-    for( int i = 0; i< getQualityEntryCount(); i++ ) {
-      offset += getStringLen(offset)+1;
-    }
-    offset+=getStringLen(offset)+1;//DrmData
-    offset+=getStringLen(offset)+1;//MetaData
-    int countLoc = offset;
-    int tempLoc = countLoc + 1;//segmentRuntableCount
-    for (int i = 0; i < getSegmentRunTableCount(); i++){
-      tempLoc += Box(data+8+tempLoc,false).boxedSize();
-    }
-    tempLoc ++;//segmentRuntableCount
-    for (int i = 0; i < no; i++){
-      tempLoc += Box(data+8+tempLoc,false).boxedSize();
-    }
-    result = Box(data+8+tempLoc,false);
-    return (AFRT&)result;
+    long tempLoc = 29 + getStringLen(29)+1 + 1;
+    for (int i = 0; i< getServerEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc++;
+    for (int i = 0; i< getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    tempLoc+=getStringLen(tempLoc)+1;//DrmData
+    tempLoc+=getStringLen(tempLoc)+1;//MetaData
+    for (int i = getInt8(tempLoc++); i != 0; --i){tempLoc += getBoxLen(tempLoc);}
+    int countLoc = tempLoc;
+    tempLoc++;
+    for (int i = 0; i < no; i++){tempLoc += getBoxLen(tempLoc);}
+    return (AFRT&)getBox(tempLoc);
   }
   
   std::string ABST::toPrettyString( long indent ) {
     std::stringstream r;
-    r << std::string(indent, ' ') << "[abst] Bootstrap Info" << std::endl;
-    r << std::string(indent+1, ' ') << "Version " <<  getVersion() << std::endl;
+    r << std::string(indent, ' ') << "[abst] Bootstrap Info (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent+1, ' ') << "Version " <<  (int)getVersion() << std::endl;
     r << std::string(indent+1, ' ') << "BootstrapinfoVersion " << getBootstrapinfoVersion() << std::endl;
-    r << std::string(indent+1, ' ') << "Profile " << getProfile() << std::endl;
+    r << std::string(indent+1, ' ') << "Profile " << (int)getProfile() << std::endl;
     if( getLive() ) {
       r << std::string(indent+1, ' ' ) << "Live" << std::endl;
     }else{
@@ -672,11 +684,11 @@ namespace MP4{
     r << std::string(indent+1, ' ') << "MovieIdentifier " << getMovieIdentifier() << std::endl;
     r << std::string(indent+1, ' ') << "ServerEntryTable (" << getServerEntryCount() << ")" << std::endl;
     for( int i = 0; i < getServerEntryCount(); i++ ) {
-      r << std::string(indent+2, ' ') << getServerEntry(i) << std::endl;
+      r << std::string(indent+2, ' ') << i << ": " << getServerEntry(i) << std::endl;
     }
     r << std::string(indent+1, ' ') << "QualityEntryTable (" << getQualityEntryCount() << ")" << std::endl;
     for( int i = 0; i < getQualityEntryCount(); i++ ) {
-      r << std::string(indent+2, ' ') << getQualityEntry(i) << std::endl;
+      r << std::string(indent+2, ' ') << i << ": " << getQualityEntry(i) << std::endl;
     }
     r << std::string(indent+1, ' ') << "DrmData " << getDrmData() << std::endl;
     r << std::string(indent+1, ' ') << "MetaData " << getMetaData() << std::endl;
@@ -693,11 +705,9 @@ namespace MP4{
   
   AFRT::AFRT(){
     memcpy(data + 4, "afrt", 4);
-    setVersion( 0 );
-    setUpdate( 0 );
-    setTimeScale( 1000 );
-    setInt8(0,9);
-    setInt32(0,10);
+    setVersion(0);
+    setUpdate(0);
+    setTimeScale(1000);
   }
   
   void AFRT::setVersion(char newVersion){setInt8(newVersion, 0);}
@@ -717,22 +727,26 @@ namespace MP4{
   void AFRT::setQualityEntry(std::string & newEntry, long no){
     int countLoc = 8;
     int tempLoc = countLoc+1;
-    for (int i = 0; i < no; i++){
-      if (i < getQualityEntryCount()){
-        tempLoc += getStringLen(tempLoc)+1;
-      } else {
-        if(!reserve(tempLoc, 0, no - getQualityEntryCount())){return;};
-        memset(data+tempLoc, 0, no - getQualityEntryCount());
-        tempLoc += no - getQualityEntryCount();
-        setInt8(no, countLoc);//set new qualityEntryCount
-        break;
-      }
+    //attempt to reach the wanted position
+    int i;
+    for (i = 0; i < getQualityEntryCount() && i < no; ++i){
+      tempLoc += getStringLen(tempLoc)+1;
     }
+    //we are now either at the end, or at the right position
+    //let's reserve any unreserved space...
+    if (no+1 > getQualityEntryCount()){
+      int amount = no+1-getQualityEntryCount();
+      if(!reserve(payloadOffset+tempLoc, 0, amount)){return;};
+      memset(data+payloadOffset+tempLoc, 0, amount);
+      setInt8(no+1, countLoc);//set new qualityEntryCount
+      tempLoc += no-i;
+    }
+    //now, tempLoc is at position for string number no, and we have at least 1 byte reserved.
     setString(newEntry, tempLoc);
   }
   
   const char* AFRT::getQualityEntry(long no){
-    if (no > getQualityEntryCount()){return "";}
+    if (no+1 > getQualityEntryCount()){return "";}
     int tempLoc = 9;//position of first quality entry
     for (int i = 0; i < no; i++){tempLoc += getStringLen(tempLoc)+1;}
     return getString(tempLoc);
@@ -740,34 +754,27 @@ namespace MP4{
   
   long AFRT::getFragmentRunCount(){
     int tempLoc = 9;
-    for( int i = 0; i < getQualityEntryCount(); i++ ){
-      tempLoc += getStringLen(tempLoc)+1;
-    }
+    for (int i = 0; i < getQualityEntryCount(); ++i){tempLoc += getStringLen(tempLoc)+1;}
     return getInt32(tempLoc);
   }
   
   void AFRT::setFragmentRun( afrt_runtable newRun, long no ) {
     int tempLoc = 9;
-    for( int i = 0; i < getQualityEntryCount(); i++ ){
+    for (int i = 0; i < getQualityEntryCount(); ++i){
       tempLoc += getStringLen(tempLoc)+1;
     }
     int countLoc = tempLoc;
     tempLoc += 4;
     for (int i = 0; i < no; i++){
-      if (i < getFragmentRunCount()){
-        tempLoc += 17;
-      } else {
-        if(!reserve(tempLoc, 0, 17 * (no - getQualityEntryCount()))){return;};
-        memset(data+tempLoc, 0, 17 * (no - getQualityEntryCount()));
-        tempLoc += 17 * ((no-1) - getQualityEntryCount());
-        setInt32((no+1), countLoc);//set new qualityEntryCount
-        break;
-      }
+      if (getInt32(tempLoc+12) == 0){tempLoc += 17;}else{tempLoc += 16;}
     }
     setInt32(newRun.firstFragment,tempLoc);
     setInt64(newRun.firstTimestamp,tempLoc+4);
     setInt32(newRun.duration,tempLoc+12);
-    setInt8(newRun.discontinuity,tempLoc+16);
+    if (newRun.duration == 0){
+      setInt8(newRun.discontinuity,tempLoc+16);
+    }
+    if (getInt32(countLoc) < no+1){setInt32(no+1, countLoc);}
   }
   
   afrt_runtable AFRT::getFragmentRun( long no ) {
@@ -780,8 +787,7 @@ namespace MP4{
     int countLoc = tempLoc;
     tempLoc += 4;
     for (int i = 0; i < no; i++){
-      if (getInt32(tempLoc+12) == 0 ) { tempLoc++;} 
-      tempLoc += 16;
+      if (getInt32(tempLoc+12) == 0){tempLoc += 17;}else{tempLoc += 16;}
     }
     res.firstFragment = getInt32(tempLoc);
     res.firstTimestamp = getInt64(tempLoc+4);
@@ -796,7 +802,8 @@ namespace MP4{
   
   std::string AFRT::toPrettyString(int indent){
     std::stringstream r;
-    r << std::string(indent, ' ') << "[afrt] Fragment Run Table" << std::endl;
+    r << std::string(indent, ' ') << "[afrt] Fragment Run Table (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent+1, ' ') << "Version " << (int)getVersion() << std::endl;
     if (getUpdate()){
       r << std::string(indent+1, ' ') << "Update" << std::endl;
     }else{
@@ -805,15 +812,16 @@ namespace MP4{
     r << std::string(indent+1, ' ') << "Timescale " << getTimeScale() << std::endl;
     r << std::string(indent+1, ' ') << "QualitySegmentUrlModifiers (" << getQualityEntryCount() << ")" << std::endl;
     for( int i = 0; i < getQualityEntryCount(); i++ ) {
-      r << std::string(indent+2, ' ') << getQualityEntry(i) << std::endl;
+      r << std::string(indent+2, ' ') << i << ": " << getQualityEntry(i) << std::endl;
     }
     r << std::string(indent+1, ' ') << "FragmentRunEntryTable (" << getFragmentRunCount() << ")" << std::endl;
     for( int i = 0; i < getFragmentRunCount(); i ++ ) {
       afrt_runtable myRun = getFragmentRun(i);
-      r << std::string(indent+2, ' ') << "First Fragment " << myRun.firstFragment << std::endl;
-      r << std::string(indent+2, ' ') << "First Timestamp " << myRun.firstTimestamp << std::endl;
-      r << std::string(indent+2, ' ') << "Duration " << myRun.duration << std::endl;
-      r << std::string(indent+2, ' ') << "Discontinuity " << myRun.discontinuity << std::endl;
+      if (myRun.duration){
+        r << std::string(indent+2, ' ') << i << ": " << myRun.firstFragment << " is at " << ((double)myRun.firstTimestamp / (double)getTimeScale()) << "s, " << ((double)myRun.duration / (double)getTimeScale()) << "s per fragment." << std::endl;
+      }else{
+        r << std::string(indent+2, ' ') << i << ": " << myRun.firstFragment << " is at " << ((double)myRun.firstTimestamp / (double)getTimeScale()) << "s, discontinuity type " << myRun.discontinuity << std::endl;
+      }
     }
     return r.str();
   }
@@ -843,17 +851,21 @@ namespace MP4{
   void ASRT::setQualityEntry(std::string & newEntry, long no){
     int countLoc = 4;
     int tempLoc = countLoc+1;
-    for (int i = 0; i < no; i++){
-      if (i < getQualityEntryCount()){
-        tempLoc += getStringLen(tempLoc)+1;
-      } else {
-        if(!reserve(tempLoc, 0, no - getQualityEntryCount())){return;};
-        memset(data+tempLoc, 0, no - getQualityEntryCount());
-        tempLoc += no - getQualityEntryCount();
-        setInt8(no, countLoc);//set new qualityEntryCount
-        break;
-      }
+    //attempt to reach the wanted position
+    int i;
+    for (i = 0; i < getQualityEntryCount() && i < no; ++i){
+      tempLoc += getStringLen(tempLoc)+1;
     }
+    //we are now either at the end, or at the right position
+    //let's reserve any unreserved space...
+    if (no+1 > getQualityEntryCount()){
+      int amount = no+1-getQualityEntryCount();
+      if(!reserve(payloadOffset+tempLoc, 0, amount)){return;};
+      memset(data+payloadOffset+tempLoc, 0, amount);
+      setInt8(no+1, countLoc);//set new qualityEntryCount
+      tempLoc += no-i;
+    }
+    //now, tempLoc is at position for string number no, and we have at least 1 byte reserved.
     setString(newEntry, tempLoc);
   }
   
@@ -874,17 +886,9 @@ namespace MP4{
     int tempLoc = 5;//position of qualityentry count;
     for (int i = 0; i < getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
     int countLoc = tempLoc;
-    tempLoc += 4;
-    for (int i = 0; i < no; i++){
-      if (i < getSegmentRunEntryCount()){
-        tempLoc += 8;
-      } else {
-        if(!reserve(tempLoc, 0, (no - getSegmentRunEntryCount())*8)){return;};
-        memset(data+tempLoc, 0, (no - getSegmentRunEntryCount())*8);
-        tempLoc += (no - getSegmentRunEntryCount())*8;
-        setInt32(no, countLoc);//set new qualityEntryCount
-        break;
-      }
+    tempLoc += 4 + no*8;
+    if (no+1 < getSegmentRunEntryCount()){
+      setInt32(no+1, countLoc);//set new qualityEntryCount
     }
     setInt32(firstSegment,tempLoc);
     setInt32(fragmentsPerSegment,tempLoc+4);
@@ -892,12 +896,11 @@ namespace MP4{
   
   asrt_runtable ASRT::getSegmentRun( long no ) {
     asrt_runtable res;
-    if( no > getSegmentRunEntryCount() ) { return res; }
+    if (no >= getSegmentRunEntryCount()){return res;}
     int tempLoc = 5;//position of qualityentry count;
-    for (int i = 0; i < getSegmentRunEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
+    for (int i = 0; i < getQualityEntryCount(); ++i){tempLoc += getStringLen(tempLoc)+1;}
     int countLoc = tempLoc;
-    tempLoc += 4;
-    for (int i = 0; i < no; i++){tempLoc += 8;}
+    tempLoc += 4 + 8*no;
     res.firstSegment = getInt32(tempLoc);
     res.fragmentsPerSegment = getInt32(tempLoc+4);
     return res;
@@ -905,7 +908,7 @@ namespace MP4{
   
   std::string ASRT::toPrettyString(int indent){
     std::stringstream r;
-    r << std::string(indent, ' ') << "[asrt] Segment Run Table" << std::endl;
+    r << std::string(indent, ' ') << "[asrt] Segment Run Table (" << boxedSize() << ")" << std::endl;
     r << std::string(indent+1, ' ') << "Version " << getVersion() << std::endl;
     if (getUpdate()){
       r << std::string(indent+1, ' ') << "Update" << std::endl;
@@ -914,12 +917,11 @@ namespace MP4{
     }
     r << std::string(indent+1, ' ') << "QualityEntryTable (" << getQualityEntryCount() << ")" << std::endl;
     for( int i = 0; i < getQualityEntryCount(); i++ ) {
-      r << std::string(indent+2, ' ') << getQualityEntry(i) << std::endl;
+      r << std::string(indent+2, ' ') << i << ": " << getQualityEntry(i) << std::endl;
     }
     r << std::string(indent+1, ' ') << "SegmentRunEntryTable (" << getSegmentRunEntryCount()<< ")" << std::endl;
     for( int i = 0; i < getSegmentRunEntryCount(); i ++ ) {
-      r << std::string(indent+2, ' ') << "FirstSegment " << getSegmentRun(i).firstSegment << std::endl;
-      r << std::string(indent+2, ' ') << "FragmentsPerSegment " << getSegmentRun(i).fragmentsPerSegment << std::endl;
+      r << std::string(indent+2, ' ') << i << ": First=" << getSegmentRun(i).firstSegment << ", FragmentsPerSegment=" << getSegmentRun(i).fragmentsPerSegment << std::endl;
     }
     return r.str();
   }
@@ -935,7 +937,7 @@ namespace MP4{
   
   std::string MFHD::toPrettyString( int indent ) {
     std::stringstream r;
-    r << std::string(indent, ' ') << "[mfhd] Movie Fragment Header" << std::endl;
+    r << std::string(indent, ' ') << "[mfhd] Movie Fragment Header (" << boxedSize() << ")" << std::endl;
     r << std::string(indent+1, ' ') << "SequenceNumber " << getSequenceNumber() << std::endl;
     return r.str();
   }
@@ -947,19 +949,19 @@ namespace MP4{
   long MOOF::getContentCount() {
     int res = 0;
     int tempLoc = 0;
-    while( tempLoc < boxedSize()-8 ){
-      res ++;
-      tempLoc += Box(data+8+tempLoc, false).boxedSize();
+    while (tempLoc < boxedSize()-8){
+      res++;
+      tempLoc += getBoxLen(tempLoc);
     }
     return res;
   }
   
-  void MOOF::setContent( Box newContent, long no ) {
+  void MOOF::setContent(Box & newContent, long no){
     int tempLoc = 0;
     int contentCount = getContentCount();
     for (int i = 0; i < no; i++){
       if (i < contentCount){
-        tempLoc += Box(data+8+tempLoc,false).boxedSize();
+        tempLoc += getBoxLen(tempLoc);
       } else {
         if(!reserve(tempLoc, 0, (no - contentCount)*8)){return;};
         memset(data+tempLoc, 0, (no - contentCount)*8);
@@ -967,32 +969,31 @@ namespace MP4{
         break;
       }
     }
-    Box oldContent = Box( data+8+tempLoc, false );
-    if( !reserve( tempLoc, oldContent.boxedSize(), newContent.boxedSize() ) ) { return; }
-    memcpy( data+8+tempLoc, newContent.asBox(), newContent.boxedSize() );
+    setBox(newContent, tempLoc);
   }
   
-  Box MOOF::getContent( long no ){
-    if( no > getContentCount() ) { return Box(); }
+  Box & MOOF::getContent(long no){
+    static Box ret = Box((char*)"\000\000\000\010erro", false);
+    if (no > getContentCount()){return ret;}
     int i = 0;
     int tempLoc = 0;
-    while( i < no ) {
-      tempLoc += Box( data+8+tempLoc, false).boxedSize();
+    while (i < no){
+      tempLoc += getBoxLen(tempLoc);
       i++;
     }
-    return Box(data+8+tempLoc, false);
+    return getBox(tempLoc);
   }
   
   std::string MOOF::toPrettyString( int indent ) {
     std::stringstream r;
-    r << std::string(indent, ' ') << "[moof] Movie Fragment Box" << std::endl;
+    r << std::string(indent, ' ') << "[moof] Movie Fragment Box (" << boxedSize() << ")" << std::endl;
     Box curBox;
     int tempLoc = 0;
     int contentCount = getContentCount();
     for( int i = 0; i < contentCount; i++ ) {
       curBox = getContent(i);
       r << curBox.toPrettyString(indent+1);
-      tempLoc += curBox.boxedSize();
+      tempLoc += getBoxLen(tempLoc);
     }
     return r.str();
   }
@@ -1004,19 +1005,19 @@ namespace MP4{
   long TRAF::getContentCount() {
     int res = 0;
     int tempLoc = 0;
-    while( tempLoc < boxedSize()-8 ){
-      res ++;
-      tempLoc += Box(data+8+tempLoc, false).boxedSize();
+    while (tempLoc < boxedSize()-8){
+      res++;
+      tempLoc += getBoxLen(tempLoc);
     }
     return res;
   }
   
-  void TRAF::setContent( Box newContent, long no ) {
+  void TRAF::setContent(Box & newContent, long no){
     int tempLoc = 0;
     int contentCount = getContentCount();
     for (int i = 0; i < no; i++){
       if (i < contentCount){
-        tempLoc += Box(data+8+tempLoc,false).boxedSize();
+        tempLoc += getBoxLen(tempLoc);
       } else {
         if(!reserve(tempLoc, 0, (no - contentCount)*8)){return;};
         memset(data+tempLoc, 0, (no - contentCount)*8);
@@ -1024,25 +1025,24 @@ namespace MP4{
         break;
       }
     }
-    Box oldContent = Box( data+8+tempLoc, false );
-    if( !reserve( tempLoc, oldContent.boxedSize(), newContent.boxedSize() ) ) { return; }
-    memcpy( data+8+tempLoc, newContent.asBox(), newContent.boxedSize() );
+    setBox(newContent, tempLoc);
   }
   
-  Box TRAF::getContent( long no ){
-    if( no > getContentCount() ) { return Box(); }
+  Box & TRAF::getContent( long no ){
+    static Box ret = Box((char*)"\000\000\000\010erro", false);
+    if (no > getContentCount()){return ret;}
     int i = 0;
     int tempLoc = 0;
-    while( i < no ) {
-      tempLoc += Box( data+8+tempLoc, false).boxedSize();
+    while (i < no){
+      tempLoc += getBoxLen(tempLoc);
       i++;
     }
-    return Box(data+8+tempLoc, false);
+    return getBox(tempLoc);
   }
   
   std::string TRAF::toPrettyString( int indent ) {
     std::stringstream r;
-    r << std::string(indent, ' ') << "[traf] Track Fragment Box" << std::endl;
+    r << std::string(indent, ' ') << "[traf] Track Fragment Box (" << boxedSize() << ")" << std::endl;
     Box curBox;
     int tempLoc = 0;
     int contentCount = getContentCount();
@@ -1175,8 +1175,8 @@ namespace MP4{
 
   std::string TRUN::toPrettyString(long indent){
     std::stringstream r;
-    r << std::string(indent, ' ') << "[trun] Track Fragment Run" << std::endl;
-    r << std::string(indent+1, ' ') << "Version " << getInt8(0) << std::endl;
+    r << std::string(indent, ' ') << "[trun] Track Fragment Run (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent+1, ' ') << "Version " << (int)getInt8(0) << std::endl;
     
     long flags = getFlags();
     r << std::string(indent+1, ' ') << "Flags";
@@ -1328,8 +1328,8 @@ namespace MP4{
   
   std::string TFHD::toPrettyString(long indent){
     std::stringstream r;
-    r << std::string(indent, ' ') << "[tfhd] Track Fragment Header" << std::endl;
-    r << std::string(indent+1, ' ') << "Version " << getInt8(0) << std::endl;
+    r << std::string(indent, ' ') << "[tfhd] Track Fragment Header (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent+1, ' ') << "Version " << (int)getInt8(0) << std::endl;
     
     long flags = getFlags();
     r << std::string(indent+1, ' ') << "Flags";
@@ -1508,7 +1508,7 @@ namespace MP4{
 
   std::string AFRA::toPrettyString(long indent){
     std::stringstream r;
-    r << std::string(indent, ' ') << "[afra] Fragment Random Access" << std::endl;
+    r << std::string(indent, ' ') << "[afra] Fragment Random Access (" << boxedSize() << ")" << std::endl;
     r << std::string(indent+1, ' ') << "Version " << getVersion() << std::endl;
     r << std::string(indent+1, ' ') << "Flags " << getFlags() << std::endl;
     r << std::string(indent+1, ' ') << "Long IDs " << getLongIDs() << std::endl;

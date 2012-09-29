@@ -331,5 +331,5 @@ int main(int argc, char ** argv) {
   abst.setFragmentRunTable(afrt, 0);
 
   if (abst.boxedSize() != __data_len){return 42;}
-  return memcmp(abst.asBox(), __data, __data_len) << std::endl;
+  return memcmp(abst.asBox(), __data, __data_len);
 }

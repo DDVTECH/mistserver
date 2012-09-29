@@ -342,6 +342,9 @@ namespace MP4{
   /// \returns True on success, false otherwise.
   bool Box::reserve(size_t position, size_t current, size_t wanted){
     if (current == wanted){return true;}
+    if (position > boxedSize()){
+      wanted += position - boxedSize();
+    }
     if (current < wanted){
       //make bigger
       if (boxedSize() + (wanted-current) > data_size){
@@ -350,6 +353,7 @@ namespace MP4{
         void * ret = realloc(data, boxedSize() + (wanted-current));
         if (!ret){return false;}
         data = (char*)ret;
+        memset(data+boxedSize(), 0, wanted-current);//initialize to 0
         data_size = boxedSize() + (wanted-current);
       }
     }
@@ -757,6 +761,11 @@ namespace MP4{
     int countLoc = tempLoc;
     tempLoc += 4;
     for (int i = 0; i < no; i++){
+      if (i+1 > getInt32(countLoc)){
+        setInt32(0,tempLoc);
+        setInt64(0,tempLoc+4);
+        setInt32(1,tempLoc+12);
+      }
       if (getInt32(tempLoc+12) == 0){tempLoc += 17;}else{tempLoc += 16;}
     }
     setInt32(newRun.firstFragment,tempLoc);
@@ -878,7 +887,7 @@ namespace MP4{
     for (int i = 0; i < getQualityEntryCount(); i++){tempLoc += getStringLen(tempLoc)+1;}
     int countLoc = tempLoc;
     tempLoc += 4 + no*8;
-    if (no+1 < getSegmentRunEntryCount()){
+    if (no+1 > getInt32(countLoc)){
       setInt32(no+1, countLoc);//set new qualityEntryCount
     }
     setInt32(firstSegment,tempLoc);

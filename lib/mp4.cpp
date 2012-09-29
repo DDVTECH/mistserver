@@ -214,7 +214,6 @@ namespace MP4{
     index += payloadOffset;
     if (index+3 >= boxedSize()){
       if (!reserve(index, 0, 4)){return;}
-      setInt32(0, index-payloadOffset);
     }
     newData = htonl( newData );
     memcpy( data + index, (char*)&newData, 4 );
@@ -227,6 +226,7 @@ namespace MP4{
     index += payloadOffset;
     if (index+3 >= boxedSize()){
       if (!reserve(index, 0, 4)){return 0;}
+      setInt32(0, index-payloadOffset);
     }
     long result;
     memcpy( (char*)&result, data + index, 4 );
@@ -240,7 +240,6 @@ namespace MP4{
     index += payloadOffset;
     if (index+7 >= boxedSize()){
       if (!reserve(index, 0, 8)){return;}
-      setInt64(0, index-payloadOffset);
     }
     ((int*)(data+index))[0] =   htonl((int)(newData>>32));
     ((int*)(data+index))[1] = htonl((int)(newData & 0xFFFFFFFF));
@@ -253,6 +252,7 @@ namespace MP4{
     index += payloadOffset;
     if (index+7 >= boxedSize()){
       if (!reserve(index, 0, 8)){return 0;}
+      setInt64(0, index-payloadOffset);
     }
     Int64 result = ntohl( ((int*)(data+index))[0] );
     result <<= 32;

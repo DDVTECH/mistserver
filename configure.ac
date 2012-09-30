@@ -16,7 +16,7 @@ AC_PROG_CC
 
 # Checks for libraries.
 AC_CHECK_LIB(ssl, RC4)
-PKG_CHECK_MODULES([MIST], [mist-1.0 >= 2.0.0])
+PKG_CHECK_MODULES([MIST], [mist-1.0 >= 3.0.0])
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/socket.h sys/time.h unistd.h])

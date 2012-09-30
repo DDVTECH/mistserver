@@ -42,6 +42,15 @@ namespace Connector_HTTP{
       //only parse input if available or not yet init'ed
       if (!inited){
         if (conn.Received().size() || conn.spool()){
+          //make sure it ends in a \n
+          if (*(conn.Received().get().rbegin()) != '\n'){
+            std::string tmp = conn.Received().get();
+            conn.Received().get().clear();
+            if (conn.Received().size()){
+              conn.Received().get().insert(0, tmp);
+            }
+            continue;
+          }
           if (HTTP_R.Read(conn.Received().get())){
             #if DEBUG >= 4
             std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;

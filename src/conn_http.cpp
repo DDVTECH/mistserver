@@ -241,6 +241,15 @@ namespace Connector_HTTP{
     while (connconn.count(uid) && connconn[uid]->conn->connected() && conn->connected()){
       conn->spool();
       if (connconn[uid]->conn->Received().size() || connconn[uid]->conn->spool()){
+        //make sure we end in a \n
+        if (*(connconn[uid]->conn->Received().get().rbegin()) != '\n'){
+          std::string tmp = connconn[uid]->conn->Received().get();
+          connconn[uid]->conn->Received().get().clear();
+          if (connconn[uid]->conn->Received().size()){
+            connconn[uid]->conn->Received().get().insert(0, tmp);
+          }
+          continue;
+        }
         //check if the whole response was received
         if (H.Read(connconn[uid]->conn->Received().get())){
           break;//continue down below this while loop
@@ -330,6 +339,15 @@ namespace Connector_HTTP{
     HTTP::Parser Client;
     while (conn->connected()){
       if (conn->Received().size() || conn->spool()){
+        //make sure it ends in a \n
+        if (*(conn->Received().get().rbegin()) != '\n'){
+          std::string tmp = conn->Received().get();
+          conn->Received().get().clear();
+          if (conn->Received().size()){
+            conn->Received().get().insert(0, tmp);
+          }
+          continue;
+        }
         if (Client.Read(conn->Received().get())){
           std::string handler = getHTTPType(Client);
           long long int startms = Util::getMS();

@@ -497,6 +497,15 @@ int main(int argc, char ** argv){
           break;
         }
         if (it->C.spool() || it->C.Received().size()){
+          if (*(it->C.Received().get().rbegin()) != '\n'){
+            std::string tmp = it->C.Received().get();
+            it->C.Received().get().clear();
+            if (it->C.Received().size()){
+              it->C.Received().get().insert(0, tmp);
+            }
+            continue;
+          }
+          
           if (it->H.Read(it->C.Received().get())){
             Response.null(); //make sure no data leaks from previous requests
             if (it->clientMode){

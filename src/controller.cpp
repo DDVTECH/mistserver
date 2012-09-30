@@ -502,10 +502,11 @@ int main(int argc, char ** argv){
             it->C.Received().get().clear();
             if (it->C.Received().size()){
               it->C.Received().get().insert(0, tmp);
+            }else{
+              it->C.Received().append(tmp);
             }
             continue;
           }
-          
           if (it->H.Read(it->C.Received().get())){
             Response.null(); //make sure no data leaks from previous requests
             if (it->clientMode){

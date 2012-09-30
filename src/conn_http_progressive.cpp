@@ -48,6 +48,8 @@ namespace Connector_HTTP{
             conn.Received().get().clear();
             if (conn.Received().size()){
               conn.Received().get().insert(0, tmp);
+            }else{
+              conn.Received().append(tmp);
             }
             continue;
           }

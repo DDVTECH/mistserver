@@ -2,7 +2,7 @@ For full documentation as well as background information, visit our wiki at:
 http://wiki.mistserver.com/
 
 Code contributions and bug reports are welcomed through:
-https://github.com/DDVTECH/DMS
+https://github.com/DDVTECH/
 
 The following configure options are possible:
 --enable-verbose  = Compiles all applications in verbose mode, printing a lot more information to the screen than normally.

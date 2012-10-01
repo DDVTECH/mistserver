@@ -110,9 +110,9 @@ namespace Connector_HTTP{
     abst.setSegmentRunTable(asrt, 0);
     abst.setFragmentRunTable(afrt, 0);
 
-    //#if DEBUG >= 8
+    #if DEBUG >= 8
     std::cout << "Sending bootstrap:" << std::endl << abst.toPrettyString(0) << std::endl;
-    //#endif
+    #endif
     return std::string((char*)abst.asBox(), (int)abst.boxedSize());
   }
   
@@ -189,7 +189,6 @@ namespace Connector_HTTP{
           }else{
             conn.Received().append(tmp);
           }
-          continue;
         }
         if (HTTP_R.Read(conn.Received().get())){
           #if DEBUG >= 4

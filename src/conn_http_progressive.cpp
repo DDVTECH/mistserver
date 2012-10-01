@@ -51,7 +51,6 @@ namespace Connector_HTTP{
             }else{
               conn.Received().append(tmp);
             }
-            continue;
           }
           if (HTTP_R.Read(conn.Received().get())){
             #if DEBUG >= 4

@@ -250,7 +250,6 @@ namespace Connector_HTTP{
           }else{
             connconn[uid]->conn->Received().append(tmp);
           }
-          continue;
         }
         //check if the whole response was received
         if (H.Read(connconn[uid]->conn->Received().get())){
@@ -350,7 +349,6 @@ namespace Connector_HTTP{
           }else{
             conn->Received().append(tmp);
           }
-          continue;
         }
         if (Client.Read(conn->Received().get())){
           std::string handler = getHTTPType(Client);

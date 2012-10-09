@@ -305,10 +305,9 @@ class cpudata {
 };
 
 void checkCapable(JSON::Value & capa){
+  capa.null();
   std::ifstream cpuinfo("/proc/cpuinfo");
-  if (!cpuinfo){
-    capa["cpu"].null();
-  }else{
+  if (cpuinfo){
     std::map<int, cpudata> cpus;
     char line[300];
     int proccount = -1;
@@ -357,9 +356,7 @@ void checkCapable(JSON::Value & capa){
     capa["threads"] = total_threads;
   }
   std::ifstream meminfo("/proc/meminfo");
-  if (!meminfo){
-    capa["mem"].null();
-  }else{
+  if (meminfo){
     char line[300];
     int bufcache = 0;
     while (meminfo.good()){
@@ -372,17 +369,30 @@ void checkCapable(JSON::Value & capa){
         }
         continue;
       }
-      //parse lines here
       long long int i;
-      if (sscanf(line, "MemTotal : %Li kB", &i) == 1){capa["mem"]["total"] = i*1024;}
-      if (sscanf(line, "MemFree : %Li kB", &i) == 1){capa["mem"]["free"] = i*1024;}
-      if (sscanf(line, "SwapTotal : %Li kB", &i) == 1){capa["mem"]["swaptotal"] = i*1024;}
-      if (sscanf(line, "SwapFree : %Li kB", &i) == 1){capa["mem"]["swapfree"] = i*1024;}
-      if (sscanf(line, "Buffers : %Li kB", &i) == 1){bufcache += i*1024;}
-      if (sscanf(line, "Cached : %Li kB", &i) == 1){bufcache += i*1024;}
+      if (sscanf(line, "MemTotal : %Li kB", &i) == 1){capa["mem"]["total"] = i/1024;}
+      if (sscanf(line, "MemFree : %Li kB", &i) == 1){capa["mem"]["free"] = i/1024;}
+      if (sscanf(line, "SwapTotal : %Li kB", &i) == 1){capa["mem"]["swaptotal"] = i/1024;}
+      if (sscanf(line, "SwapFree : %Li kB", &i) == 1){capa["mem"]["swapfree"] = i/1024;}
+      if (sscanf(line, "Buffers : %Li kB", &i) == 1){bufcache += i/1024;}
+      if (sscanf(line, "Cached : %Li kB", &i) == 1){bufcache += i/1024;}
     }
     capa["mem"]["used"] = capa["mem"]["total"].asInt() - capa["mem"]["free"].asInt() - bufcache;
     capa["mem"]["cached"] = bufcache;
+    capa["load"]["memory"] = ((capa["mem"]["used"].asInt() + (capa["mem"]["swaptotal"].asInt() - capa["mem"]["swapfree"].asInt())) * 100) / capa["mem"]["total"].asInt();
+  }
+  std::ifstream loadavg("/proc/loadavg");
+  if (loadavg){
+    char line[300];
+    int bufcache = 0;
+    loadavg.getline(line, 300);
+    //parse lines here
+    float onemin, fivemin, fifteenmin;
+    if (sscanf(line, "%f %f %f", &onemin, &fivemin, &fifteenmin) == 3){
+      capa["load"]["one"] = (long long int)(onemin * 100);
+      capa["load"]["five"] = (long long int)(onemin * 100);
+      capa["load"]["fifteen"] = (long long int)(onemin * 100);
+    }
   }
 }
 

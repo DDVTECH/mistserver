@@ -34,14 +34,14 @@ int main( ) {
     if ( DTSCStream.parsePacket( StrData ) ) {
       if( DTSCStream.lastType() == DTSC::VIDEO ) {
         DTMIData = DTSCStream.lastData();
-        if( DTSCStream.getPacket(0).getContent("keyframe").NumValue() ) {
+        if( DTSCStream.getPacket(0).isMember("keyframe") ) {
           IsKeyFrame = true;
           FirstIDRInKeyFrame = true;
         } else {
           IsKeyFrame = false;
           FirstKeyFrame = false;
         }
-        TimeStamp = ((DTSCStream.getPacket(0).getContent("time").NumValue() + 700) * 27000 );
+        TimeStamp = ( DTSCStream.getPacket(0)["time"].asInt() * 27000 );
         if( IsKeyFrame ) {
           fprintf( stderr, "Keyframe, timeStamp: %u\n", TimeStamp );
         }
@@ -117,7 +117,7 @@ int main( ) {
         DTMIData = DTSCStream.lastData();
         ToPack = TS::GetAudioHeader( DTMIData.size() );
         ToPack += DTMIData;
-        TimeStamp = DTSCStream.getPacket(0).getContent("time").NumValue() * 900;
+        TimeStamp = DTSCStream.getPacket(0)["time"].asInt() * 81000;
         while( ToPack.size() ) {
           if ( ( PacketNumber % 42 ) == 0 ) {
             PackData.DefaultPAT();

@@ -9,4 +9,4 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = mist-1.0.pc
 
 library_includedir=$(includedir)/mist-1.0/mist
-library_include_HEADERS = amf.h auth.h base64.h config.h dtsc.h flv_tag.h http_parser.h json.h procs.h rtmpchunks.h socket.h mp4.h ftp.h filesystem.h stream.h timing.h
+library_include_HEADERS = amf.h auth.h base64.h config.h dtsc.h flv_tag.h http_parser.h json.h procs.h rtmpchunks.h socket.h mp4.h ftp.h filesystem.h stream.h timing.h nal.h ts_packet.h

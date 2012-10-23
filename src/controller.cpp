@@ -668,7 +668,7 @@ int main(int argc, char ** argv){
                 it->H.Clean();
                 it->H.SetHeader("Content-Type", "text/html");
                 it->H.SetHeader("X-Info", "To force an API response, request the file /api");
-                it->H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+                it->H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE);
                 it->H.SetBody(std::string((char*)server_html, (size_t)server_html_len));
                 it->C.Send(it->H.BuildResponse("200", "OK"));
                 it->H.Clean();
@@ -685,8 +685,7 @@ int main(int argc, char ** argv){
                   //sent current configuration, no matter if it was changed or not
                   //Response["streams"] = Storage["streams"];
                   Response["config"] = Controller::Storage["config"];
-                  Controller::checkCapable(Response["capabilities"]);
-                  Response["config"]["version"] = PACKAGE_VERSION "/" + Util::Config::libver;
+                  Response["config"]["version"] = PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE;
                   Response["streams"] = Controller::Storage["streams"];
                   //add required data to the current unix time to the config, for syncing reasons
                   Response["config"]["time"] = Util::epoch();

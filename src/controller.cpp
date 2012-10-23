@@ -189,7 +189,7 @@ void CheckProtocols(JSON::Value & p){
   for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
     if (current_connectors.count(iter->first) != 1 || current_connectors[iter->first] != iter->second || !Util::Procs::isActive(iter->first)){
       Log("CONF", "Starting connector: " + iter->second);
-      Util::Procs::Start(iter->first, iter->second);
+      Util::Procs::Start(iter->first, Util::getMyPath() + iter->second);
     }
   }
 
@@ -230,7 +230,7 @@ void startStream(std::string name, JSON::Value & data){
   if (URL.substr(0, 4) == "push"){
     std::string pusher = URL.substr(7);
     cmd2 = "MistBuffer -s "+name+" "+pusher;
-    Util::Procs::Start(name, cmd2);
+    Util::Procs::Start(name, Util::getMyPath() + cmd2);
     Log("BUFF", "(re)starting stream buffer "+name+" for push data from "+pusher);
   }else{
     if (URL.substr(0, 1) == "/"){
@@ -249,10 +249,10 @@ void startStream(std::string name, JSON::Value & data){
     }
     cmd3 = "MistBuffer -s "+name;
     if (cmd2 != ""){
-      Util::Procs::Start(name, cmd1, cmd2, cmd3);
+      Util::Procs::Start(name, cmd1, Util::getMyPath() + cmd2, Util::getMyPath() + cmd3);
       Log("BUFF", "(re)starting stream buffer "+name+" for ffmpeg data: "+cmd1);
     }else{
-      Util::Procs::Start(name, cmd1, cmd3);
+      Util::Procs::Start(name, cmd1, Util::getMyPath() + cmd3);
       Log("BUFF", "(re)starting stream buffer "+name+" using input file "+URL);
     }
   }

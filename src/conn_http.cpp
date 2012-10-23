@@ -402,8 +402,8 @@ int main(int argc, char ** argv){
   conf.activate();
 
   //start progressive and dynamic handlers from the same folder as this application
-  Util::Procs::Start("progressive", (std::string)(argv[0]) + "Progressive -n");
-  Util::Procs::Start("dynamic", (std::string)(argv[0]) + "Dynamic -n");
+  Util::Procs::Start("progressive", Util::getMyPath() + "MistConnHTTPProgressive -n");
+  Util::Procs::Start("dynamic", Util::getMyPath() + "MistConnHTTPDynamic -n");
   
   while (server_socket.connected() && conf.is_active){
     Socket::Connection S = server_socket.accept();

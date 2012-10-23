@@ -8,7 +8,7 @@ EXTRA_DIST=server.html server.html.h embed.js.h
 AM_CPPFLAGS = $(global_CFLAGS) $(MIST_CFLAGS)
 LDADD = $(MIST_LIBS)
 SUBDIRS=converters analysers
-bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistPlayer
+bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistConnHTTPSmooth MistPlayer
 MistBuffer_SOURCES=buffer.cpp buffer_user.h buffer_user.cpp buffer_stream.h buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
 MistBuffer_LDADD=$(MIST_LIBS) -lpthread
 MistController_SOURCES=controller.cpp ../VERSION ./server.html.h
@@ -18,6 +18,7 @@ MistConnHTTP_SOURCES=conn_http.cpp tinythread.cpp tinythread.h ../VERSION ./embe
 MistConnHTTP_LDADD=$(MIST_LIBS) -lpthread
 MistConnHTTPProgressive_SOURCES=conn_http_progressive.cpp ../VERSION
 MistConnHTTPDynamic_SOURCES=conn_http_dynamic.cpp ../VERSION
+MistConnHTTPSmooth_SOURCES=conn_http_smooth.cpp ../VERSION
 MistPlayer_SOURCES=player.cpp
 MistPlayer_LDADD=$(MIST_LIBS)
 

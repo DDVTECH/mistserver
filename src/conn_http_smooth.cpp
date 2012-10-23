@@ -25,136 +25,55 @@
 
 /// Holds everything unique to HTTP Dynamic Connector.
 namespace Connector_HTTP{
-
-  std::string GenerateBootstrap(std::string & MovieId, JSON::Value & metadata, int fragnum, int starttime, int endtime){
-    std::string empty;
-
-    MP4::ASRT asrt;
-    if (starttime == 0){
-      asrt.setUpdate(false);
-    }else{
-      asrt.setUpdate(true);
-    }
-    asrt.setVersion(1);
-    asrt.setQualityEntry(empty, 0);
-    if (!metadata.isMember("keytime") || metadata["keytime"].size() == 0){
-      asrt.setSegmentRun(1, 20000, 0);
-    }else{
-      asrt.setSegmentRun(1, metadata["keytime"].size(), 0);
-    }
-
-
-    MP4::AFRT afrt;
-    if (starttime == 0){
-      afrt.setUpdate(false);
-    }else{
-      afrt.setUpdate(true);
-    }
-    afrt.setVersion(1);
-    afrt.setTimeScale(1000);
-    afrt.setQualityEntry(empty, 0);
-    MP4::afrt_runtable afrtrun;
-    if (!metadata.isMember("keytime") || metadata["keytime"].size() == 0){
-      afrtrun.firstFragment = 1;
-      afrtrun.firstTimestamp = 0;
-      if (!metadata.isMember("video") || !metadata["video"].isMember("keyms") || metadata["video"]["keyms"].asInt() == 0){
-        afrtrun.duration = 2000;
-      }else{
-        afrtrun.duration = metadata["video"]["keyms"].asInt();
-      }
-      afrt.setFragmentRun(afrtrun, 0);
-    }else{
-      for (int i = 0; i < metadata["keytime"].size(); i++){
-        afrtrun.firstFragment = i+1;
-        afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
-        if (i+1 < metadata["keytime"].size()){
-          afrtrun.duration = metadata["keytime"][i+1].asInt() - metadata["keytime"][i].asInt();
-        }else{
-          if (metadata["lastms"].asInt()){
-            afrtrun.duration = metadata["lastms"].asInt() - metadata["keytime"][i].asInt();
-          }else{
-            afrtrun.duration = 3000;//guess 3 seconds if unknown
-          }
-        }
-        afrt.setFragmentRun(afrtrun, i);
-      }
-    }
-    
-    MP4::ABST abst;
-    abst.setVersion(1);
-    abst.setBootstrapinfoVersion(1);
-    abst.setProfile(0);
-    if (starttime == 0){
-      abst.setUpdate(false);
-    }else{
-      abst.setUpdate(true);
-    }
-    abst.setTimeScale(1000);
-    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
-      abst.setLive(false);
-      if (metadata["lastms"].asInt()){
-        abst.setCurrentMediaTime(metadata["lastms"].asInt());
-      }else{
-        abst.setCurrentMediaTime(1000*metadata["length"].asInt());
-      }
-    }else{
-      abst.setLive(true);
-      abst.setCurrentMediaTime(0xFFFFFFFF);
-    }
-    abst.setSmpteTimeCodeOffset(0);
-    abst.setMovieIdentifier(MovieId);
-    abst.setServerEntry(empty, 0);
-    abst.setQualityEntry(empty, 0);
-    abst.setDrmData(empty);
-    abst.setMetaData(empty);
-    abst.setSegmentRunTable(asrt, 0);
-    abst.setFragmentRunTable(afrt, 0);
-
-    #if DEBUG >= 8
-    std::cout << "Sending bootstrap:" << std::endl << abst.toPrettyString(0) << std::endl;
-    #endif
-    return std::string((char*)abst.asBox(), (int)abst.boxedSize());
-  }
-  
-
-  /// Returns a F4M-format manifest file
+  /// Returns a Smooth-format manifest file
   std::string BuildManifest(std::string & MovieId, JSON::Value & metadata){
-    std::string Result;
-    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
-      Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-      "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
-      "<id>" + MovieId + "</id>\n"
-      "<width>" + metadata["video"]["width"].asString() + "</width>\n"
-      "<height>" + metadata["video"]["height"].asString() + "</height>\n"
-      "<duration>" + metadata["length"].asString() + ".000</duration>\n"
-      "<mimeType>video/mp4</mimeType>\n"
-      "<streamType>recorded</streamType>\n"
-      "<deliveryType>streaming</deliveryType>\n"
-      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0, 0)) + "</bootstrapInfo>\n"
-      "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
-      "<metadata>AgAKb25NZXRhRGF0YQgAAAAAAAl0cmFja2luZm8KAAAAAgMACXRpbWVzY2FsZQBA+GoAAAAAAAAGbGVuZ3RoAEGMcHoQAAAAAAhsYW5ndWFnZQIAA2VuZwARc2FtcGxlZGVzY3JpcHRpb24KAAAAAQMACnNhbXBsZXR5cGUCAARhdmMxAAAJAAAJAwAJdGltZXNjYWxlAEDncAAAAAAAAAZsZW5ndGgAQXtNvTAAAAAACGxhbmd1YWdlAgADZW5nABFzYW1wbGVkZXNjcmlwdGlvbgoAAAABAwAKc2FtcGxldHlwZQIABG1wNGEAAAkAAAkADWF1ZGlvY2hhbm5lbHMAQAAAAAAAAAAAD2F1ZGlvc2FtcGxlcmF0ZQBA53AAAAAAAAAOdmlkZW9mcmFtZXJhdGUAQDf/gi5SciUABmFhY2FvdABAAAAAAAAAAAAIYXZjbGV2ZWwAQD8AAAAAAAAACmF2Y3Byb2ZpbGUAQFNAAAAAAAAADGF1ZGlvY29kZWNpZAIABG1wNGEADHZpZGVvY29kZWNpZAIABGF2YzEABXdpZHRoAECQ4AAAAAAAAAZoZWlnaHQAQIMAAAAAAAAACmZyYW1lV2lkdGgAQJDgAAAAAAAAC2ZyYW1lSGVpZ2h0AECDAAAAAAAAAAxkaXNwbGF5V2lkdGgAQJDgAAAAAAAADWRpc3BsYXlIZWlnaHQAQIMAAAAAAAAADG1vb3Zwb3NpdGlvbgBBmxq2uAAAAAAIZHVyYXRpb24AQIKjqW3oyhIAAAk=</metadata>\n"
-      "</media>\n"
-      "</manifest>\n";
-    }else{
-      Result="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-      "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
-      "<id>" + MovieId + "</id>\n"
-      "<mimeType>video/mp4</mimeType>\n"
-      "<streamType>live</streamType>\n"
-      "<deliveryType>streaming</deliveryType>\n"
-      "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0, 0)) + "</bootstrapInfo>\n"
-      "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
-      "</manifest>\n";
+    std::stringstream Result;
+    Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+    Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"1000\" Duration=\"" << metadata["lastms"].asInt() << "\">\n";
+    if( metadata.isMember( "audio" ) ) {
+      Result << "  <StreamIndex Type=\"audio\" QualityLevels=\"1\" TimeScale=\"1000\" Name=\"audio\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/A({start time})\">\n";
+      Result << "    <QualityLevel Index=\"0\" Bitrate=\"" << metadata["audio"]["bps"].asInt()*8 << "\" CodecPrivateData=\"";
+      Result << std::hex;
+      for( int i = 0; i < metadata["audio"]["init"].asString().size(); i++ ) {
+        Result << (int)metadata["audio"]["init"].asString()[i];
+      }
+      Result << std::dec;
+      Result << "\" SamplingRate=\"" << metadata["audio"]["rate"].asInt() << "\" Channels=\"2\" BitsPerSample=\"16\" PacketSize=\"4\" AudioTag=\"255\" FourCC=\"AACL\" />\n";
+      for( int i = 0; i < metadata["keytime"].size(); i++ ) {
+        Result << "      <c ";
+        if( i == 0 ) { Result << "t=\"0\" "; }
+        Result << "d=\"" << metadata["keytime"][i].asInt() << "\"/>\n";
+      }
+      Result << "   </StreamIndex>\n";
     }
+    if( metadata.isMember( "video" ) ) {
+      Result << "  <StreamIndex Type=\"video\" QualityLevels=\"1\" TimeScale=\"1000\" Name=\"video\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/V({start time})\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" DisplayWidth=\"" << metadata["video"]["width"].asInt() << "\" DisplayHeight=\"" << metadata["video"]["height"].asInt() << "\">\n";
+      Result << "    <QualityLevel Index=\"0\" Bitrate=\"" << metadata["video"]["bps"].asInt()*8 << "\" CodecPrivateData=\"";
+      Result << std::hex;
+      for( int i = 0; i < metadata["video"]["init"].asString().size(); i++ ) {
+        Result << (int)metadata["video"]["init"].asString()[i];
+      }
+      Result << std::dec;
+      Result << "\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" FourCC=\"AVC1\"/>\n";
+      for( int i = 0; i < metadata["keytime"].size(); i++ ) {
+        Result << "      <c ";
+        if( i == 0 ) { Result << "t=\"0\" "; }
+        Result << "d=\"" << metadata["keytime"][i].asInt() << "\"/>\n";
+      }
+      Result << "   </StreamIndex>\n";
+    }
+    Result << "</SmoothStreamingMedia>\n";
+      
     #if DEBUG >= 8
     std::cerr << "Sending this manifest:" << std::endl << Result << std::endl;
     #endif
-    return Result;
+    return Result.str();
   }//BuildManifest
 
   /// Main function for Connector_HTTP_Dynamic
   int Connector_HTTP_Dynamic(Socket::Connection conn){
     std::deque<std::string> FlashBuf;
+    std::vector<int> Timestamps;
     int FlashBufSize = 0;
     long long int FlashBufTime = 0;
     FLV::Tag tmp;//temporary tag
@@ -170,10 +89,14 @@ namespace Connector_HTTP{
     std::string streamname;
     std::string recBuffer = "";
 
+    bool wantsVideo = false;
+    bool wantsAudio = false;
+    
     std::string Quality;
     int Segment = -1;
     int ReqFragment = -1;
     int temp;
+    std::string tempStr;
     int Flash_RequestPending = 0;
     unsigned int lastStats = 0;
     conn.setBlocking(false);//do not block on conn.spool() when no data is available
@@ -195,8 +118,8 @@ namespace Connector_HTTP{
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
           #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
-          if (HTTP_R.url.find("f4m") == std::string::npos){
-            streamname = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
+          if (HTTP_R.url.find("Manifest") == std::string::npos){
+            streamname = HTTP_R.url.substr(8,HTTP_R.url.find("/",8)-8);
             if (!ss){
               ss = Util::Stream::getStream(streamname);
               if (!ss.connected()){
@@ -205,7 +128,7 @@ namespace Connector_HTTP{
                 #endif
                 ss.close();
                 HTTP_S.Clean();
-                HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
+                HTTP_S.SetBody("No such stream " + streamname + " is available on the system. Please try again.\n");
                 conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
                 ready4data = false;
                 continue;
@@ -213,21 +136,22 @@ namespace Connector_HTTP{
               ss.setBlocking(false);
               inited = true;
             }
-            Quality = HTTP_R.url.substr( HTTP_R.url.find("/",1)+1 );
-            Quality = Quality.substr(0, Quality.find("Seg"));
-            temp = HTTP_R.url.find("Seg") + 3;
-            Segment = atoi( HTTP_R.url.substr(temp,HTTP_R.url.find("-",temp)-temp).c_str());
-            temp = HTTP_R.url.find("Frag") + 4;
-            ReqFragment = atoi( HTTP_R.url.substr(temp).c_str() );
+            Quality = HTTP_R.url.substr( HTTP_R.url.find("/Q(",8)+3 );
+            Quality = Quality.substr(0, Quality.find(")"));
+            tempStr = HTTP_R.url.substr( HTTP_R.url.find(")/") + 2 );
+            if( tempStr[0] == 'A' ) { wantsAudio = true; }
+            if( tempStr[0] == 'V' ) { wantsVideo = true; }
+            tempStr = tempStr.find("(") + 1;
+            ReqFragment = atoi( tempStr.substr(0,tempStr.find(")")).c_str() );
             #if DEBUG >= 4
-            printf( "Quality: %s, Seg %d Frag %d\n", Quality.c_str(), Segment, ReqFragment);
+            printf( "Quality: %s, Frag %d\n", Quality.c_str(), ReqFragment);
             #endif
             std::stringstream sstream;
-            sstream << "f " << ReqFragment << "\no \n";
+            sstream << "s " << ReqFragment << "\no \n";
             ss.SendNow(sstream.str().c_str());
             Flash_RequestPending++;
           }else{
-            streamname = HTTP_R.url.substr(1,HTTP_R.url.find("/",1)-1);
+            streamname = HTTP_R.url.substr(8,HTTP_R.url.find("/",8)-8);
             if (!Strm.metadata.isNull()){
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
@@ -264,7 +188,7 @@ namespace Connector_HTTP{
             #endif
             ss.close();
             HTTP_S.Clean();
-            HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
+            HTTP_S.SetBody("No such stream " + streamname + " is available on the system. Please try again.\n");
             conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
             ready4data = false;
             continue;
@@ -278,7 +202,7 @@ namespace Connector_HTTP{
         unsigned int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
-          ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
+          ss.SendNow(conn.getStats("HTTP_Smooth").c_str());
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
@@ -306,6 +230,9 @@ namespace Connector_HTTP{
               pending_manifest = false;
             }
             if (!receive_marks && Strm.metadata.isMember("length")){receive_marks = true;}
+            if ( Strm.lastType() == DTSC::PAUSEMARK ) {
+              Timestamps.push_back( Strm.getPacket(0)["time"].asInt() );
+            }
             if ((Strm.getPacket(0).isMember("keyframe") && !receive_marks) || Strm.lastType() == DTSC::PAUSEMARK){
               #if DEBUG >= 4
               fprintf(stderr, "Received a %s fragment of %i bytes.\n", Strm.getPacket(0)["datatype"].asString().c_str(), FlashBufSize);
@@ -319,21 +246,51 @@ namespace Connector_HTTP{
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
                 HTTP_S.SetBody("");
-                HTTP_S.SetHeader("Content-Length", FlashBufSize+8);//32+33+btstrp.size());
+                
+                MP4::MFHD mfhd_box;
+                mfhd_box.setSequenceNumber( 1 );
+                
+                MP4::TFHD tfhd_box;
+                tfhd_box.setFlags( MP4::tfhdSampleFlag );
+                tfhd_box.setTrackID( 1 );
+                tfhd_box.setDefaultSampleFlags( MP4::noIPicture | MP4::noDisposable | MP4::noKeySample );
+                
+                MP4::TRUN trun_box;
+                //maybe reinsert dataOffset
+                trun_box.setFlags( MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize );
+                trun_box.setFirstSampleFlags( MP4::isIPicture | MP4::noDisposable | MP4::isKeySample );
+                std::deque< std::string >::iterator FlashBufIter = FlashBuf.begin();
+                for( int i = 0; i < FlashBuf.size(); i++ ) {
+                  MP4::trunSampleInformation trunSample;
+                  trunSample.sampleSize = (*FlashBufIter).size();
+                  trunSample.sampleDuration = Timestamps[i+1]-Timestamps[i];
+                  trun_box.setSampleInformation( trunSample, i );
+                  FlashBufIter ++;
+                }
+                
+                MP4::Box sdtp_box;
+                sdtp_box.setType( "sdtp" );
+                sdtp_box.setInt32( 0, 0 );
+                sdtp_box.setInt8( 0x24, 4 );
+                for( int i = 1; i < FlashBuf.size(); i++ ) {
+                  sdtp_box.setInt8( 0x14, i+4 );
+                }
+                
+                MP4::TRAF traf_box;
+                traf_box.setContent( tfhd_box, 0 );
+                traf_box.setContent( trun_box, 1 );
+                traf_box.setContent( sdtp_box, 2 );
+                
+                MP4::MOOF moof_box;
+                moof_box.setContent( mfhd_box, 0 );
+                moof_box.setContent( traf_box, 1 );
+                
+                HTTP_S.SetHeader("Content-Length", FlashBufSize+8+moof_box.boxedSize());//32+33+btstrp.size());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-                //conn.SendNow("\x00\x00\x00\x21" "afra\x00\x00\x00\x00\x00\x00\x00\x03\xE8\x00\x00\x00\x01", 21);
-                //unsigned long tmptime = htonl(FlashBufTime << 32);
-                //conn.SendNow((char*)&tmptime, 4);
-                //tmptime = htonl(FlashBufTime & 0xFFFFFFFF);
-                //conn.SendNow((char*)&tmptime, 4);
-                //tmptime = htonl(65);
-                //conn.SendNow((char*)&tmptime, 4);
+                
 
-                //conn.SendNow(btstrp);
-
-                //conn.SendNow("\x00\x00\x00\x18moof\x00\x00\x00\x10mfhd\x00\x00\x00\x00", 20);
-                //unsigned long fragno = htonl(ReqFragment);
-                //conn.SendNow((char*)&fragno, 4);
+                conn.SendNow( moof_box.asBox(), moof_box.boxedSize() );
+                
                 unsigned long size = htonl(FlashBufSize+8);
                 conn.SendNow((char*)&size, 4);
                 conn.SendNow("mdat", 4);
@@ -349,26 +306,15 @@ namespace Connector_HTTP{
               FlashBuf.clear();
               FlashBufSize = 0;
             }
-            if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
-              if (FlashBufSize == 0){
-                //fill buffer with init data, if needed.
-                if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
-                  tmp.DTSCAudioInit(Strm);
-                  tmp.tagTime(Strm.getPacket(0)["time"].asInt());
-                  FlashBuf.push_back(std::string(tmp.data, tmp.len));
-                  FlashBufSize += tmp.len;
-                }
-                if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
-                  tmp.DTSCVideoInit(Strm);
-                  tmp.tagTime(Strm.getPacket(0)["time"].asInt());
-                  FlashBuf.push_back(std::string(tmp.data, tmp.len));
-                  FlashBufSize += tmp.len;
-                }
-                FlashBufTime = Strm.getPacket(0)["time"].asInt();
-              }
-              tmp.DTSCLoader(Strm);
-              FlashBuf.push_back(std::string(tmp.data, tmp.len));
-              FlashBufSize += tmp.len;
+            if ( wantsVideo && Strm.lastType() == DTSC::VIDEO ) {
+              FlashBuf.push_back( Strm.lastData() );
+              FlashBufSize += Strm.lastData().size();
+              Timestamps.push_back( Strm.getPacket(0)["time"].asInt() );
+            }
+            if ( wantsAudio && Strm.lastType() == DTSC::AUDIO ) {
+              FlashBuf.push_back( Strm.lastData() );
+              FlashBufSize += Strm.lastData().size();
+              Timestamps.push_back( Strm.getPacket(0)["time"].asInt() );
             }
           }
           if (pending_manifest && !Strm.metadata.isNull()){
@@ -389,7 +335,7 @@ namespace Connector_HTTP{
       }
     }
     conn.close();
-    ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
+    ss.SendNow(conn.getStats("HTTP_Smooth").c_str());
     ss.close();
     #if DEBUG >= 1
     if (FLV::Parse_Error){fprintf(stderr, "FLV Parser Error: %s\n", FLV::Error_Str.c_str());}
@@ -405,15 +351,15 @@ namespace Connector_HTTP{
     }
     #endif
     return 0;
-  }//Connector_HTTP_Dynamic main function
+  }//Connector_HTTP_Smooth main function
 
-};//Connector_HTTP_Dynamic namespace
+};//Connector_HTTP_Smooth namespace
 
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   conf.addConnectorOptions(1935);
   conf.parseArgs(argc, argv);
-  Socket::Server server_socket = Socket::Server("/tmp/mist/http_dynamic");
+  Socket::Server server_socket = Socket::Server("/tmp/mist/http_smooth");
   if (!server_socket.connected()){return 1;}
   conf.activate();
   

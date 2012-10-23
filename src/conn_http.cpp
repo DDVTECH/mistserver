@@ -318,6 +318,12 @@ namespace Connector_HTTP{
       H.SetVar("stream", streamname);
       return "dynamic";
     }
+    if (url.find("/smooth/") != std::string::npos ) {
+      std::string streamname = url.substr(8,url.find("/",8)-8);
+      Util::Stream::sanitizeName(streamname);
+      H.SetVar("stream", streamname);
+      return "smooth";
+    }
     if (url.length() > 4){
       std::string ext = url.substr(url.length() - 4, 4);
       if (ext == ".flv" || ext == ".mp3"){
@@ -404,7 +410,8 @@ int main(int argc, char ** argv){
   //start progressive and dynamic handlers from the same folder as this application
   Util::Procs::Start("progressive", Util::getMyPath() + "MistConnHTTPProgressive -n");
   Util::Procs::Start("dynamic", Util::getMyPath() + "MistConnHTTPDynamic -n");
-  
+  Util::Procs::Start("smooth", Util::getMyPath() + "MistConnHTTPSmooth -n");
+
   while (server_socket.connected() && conf.is_active){
     Socket::Connection S = server_socket.accept();
     if (S.connected()){//check if the new connection is valid

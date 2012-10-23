@@ -10,6 +10,7 @@
 #include "json.h"
 #include "stream.h"
 #include "procs.h"
+#include "config.h"
 #include "socket.h"
 
 /// Filters the streamname, removing invalid characters and converting all
@@ -34,7 +35,8 @@ Socket::Connection Util::Stream::getLive(std::string streamname){
 /// Starts a process for a VoD stream.
 Socket::Connection Util::Stream::getVod(std::string filename){
   std::string name = "MistPlayer " + filename;
-  const char *argv[] = { "MistPlayer", filename.c_str(), NULL };
+  std::string player_bin = Util::getMyPath() + "MistPlayer";
+  const char *argv[] = {player_bin.c_str(), filename.c_str(), NULL};
   int fdin = -1, fdout = -1, fderr = fileno(stderr);
   Util::Procs::StartPiped(name, (char **)argv, &fdin, &fdout, &fderr);
   // if StartPiped fails then fdin and fdout will be unmodified (-1)

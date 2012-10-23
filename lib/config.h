@@ -31,6 +31,9 @@ namespace Util{
       void addConnectorOptions(int port);
   };
 
+  /// Gets directory the current executable is stored in.
+  std::string getMyPath();
+
   /// Will set the active user to the named username.
   void setUser(std::string user);
 

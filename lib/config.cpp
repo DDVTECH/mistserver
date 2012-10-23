@@ -311,6 +311,21 @@ void Util::Config::addConnectorOptions(int port){
   addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"value\":[1], \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
 }//addConnectorOptions
 
+/// Gets directory the current executable is stored in.
+std::string Util::getMyPath(){
+  char mypath[500];
+  int ret = readlink("/proc/self/exe", mypath, 500);
+  if (ret != -1){mypath[ret] = 0;}else{mypath[0] = 0;}
+  std::string tPath = mypath;
+  size_t slash = tPath.rfind('/');
+  if (slash == std::string::npos){
+    slash = tPath.rfind('\\');
+    if (slash == std::string::npos){return "";}
+  }
+  tPath.resize(slash+1);
+  return tPath;
+}
+
 /// Sets the current process' running user
 void Util::setUser(std::string username){
   if (username != "root"){

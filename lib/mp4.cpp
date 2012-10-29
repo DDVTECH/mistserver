@@ -124,6 +124,7 @@ namespace MP4{
       case 0x7472756E: return ((TRUN*)this)->toPrettyString(indent); break;
       case 0x74726166: return ((TRAF*)this)->toPrettyString(indent); break;
       case 0x74666864: return ((TFHD*)this)->toPrettyString(indent); break;
+      case 0x61766343: return ((AVCC*)this)->toPrettyString(indent); break;
       default: return std::string(indent, ' ')+"Unimplemented pretty-printing for box "+std::string(data+4,4)+"\n"; break;
     }
   }
@@ -1535,5 +1536,114 @@ namespace MP4{
     return r.str();
   }
 
-
+  AVCC::AVCC() {
+    memcpy(data + 4, "avcC", 4);
+    setInt8( 0xFF, 4 );//reserved + 4-bytes NAL length
+  }
+  
+  void AVCC::setVersion( long newVersion ) {
+    setInt8( newVersion, 0 );
+  }
+  
+  long AVCC::getVersion( ) {
+    return getInt8( 0 );
+  }
+  
+  void AVCC::setProfile( long newProfile ) {
+    setInt8( newProfile, 1 );
+  }
+  
+  long AVCC::getProfile( ) {
+    return getInt8( 1 );
+  }
+  
+  void AVCC::setCompatibleProfiles( long newCompatibleProfiles ) {
+    setInt8( newCompatibleProfiles, 2 );
+  }
+  
+  long AVCC::getCompatibleProfiles( ) {
+    return getInt8( 2 );
+  }
+  
+  void AVCC::setLevel( long newLevel ) {
+    setInt8( newLevel, 3 );
+  }
+  
+  long AVCC::getLevel( ) {
+    return getInt8( 3 );
+  }
+  
+  void AVCC::setSPSNumber( long newSPSNumber ) {
+    setInt8( newSPSNumber, 5 );
+  }
+  
+  long AVCC::getSPSNumber( ) {
+    return getInt8( 5 );
+  }
+  
+  void AVCC::setSPS( std::string newSPS ) {
+    setInt16( newSPS.size(), 6 );
+    for( int i = 0; i < newSPS.size(); i++ ) {
+      setInt8( newSPS[i], 8+i );
+    }//not null-terminated
+  }
+  
+  long AVCC::getSPSLen( ) {
+    return getInt16( 6 );
+  }
+  
+  char* AVCC::getSPS( ) {
+    return payload() + 8;
+  }
+  
+  void AVCC::setPPSNumber( long newPPSNumber ) {
+    int offset = 8 + getSPSLen( );
+    setInt8( newPPSNumber, offset );
+  }
+  
+  long AVCC::getPPSNumber( ) {
+    int offset = 8 + getSPSLen( );
+    return getInt8( offset );
+  }
+  
+  void AVCC::setPPS( std::string newPPS ) {
+    int offset = 8 + getSPSLen( ) + 1;
+    setInt16( newPPS.size(), offset );
+    for( int i = 0; i < newPPS.size(); i++ ) {
+      setInt8( newPPS[i], offset+2+i );
+    }//not null-terminated
+  }
+  
+  long AVCC::getPPSLen( ) {
+    int offset = 8 + getSPSLen( ) + 1;
+    return getInt16( offset );
+  }
+  
+  char* AVCC::getPPS( ) {
+    int offset = 8 + getSPSLen( ) + 3;
+    return payload() + offset;
+  }
+  
+  std::string AVCC::toPrettyString(long indent) { 
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[avcC] H.264 Init Data (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent+1, ' ') << "Version: " << getVersion( ) << std::endl;
+    r << std::string(indent+1, ' ') << "Profile: " << getProfile( ) << std::endl;
+    r << std::string(indent+1, ' ') << "Compatible Profiles: " << getCompatibleProfiles( ) << std::endl;
+    r << std::string(indent+1, ' ') << "Level: " << getLevel( ) << std::endl;
+    r << std::string(indent+1, ' ') << "SPS Number: " << getSPSNumber( ) << std::endl;
+    r << std::string(indent+2, ' ') << getSPSLen( ) << " of SPS data" << std::endl;
+    r << std::string(indent+1, ' ') << "PPS Number: " << getPPSNumber( ) << std::endl;
+    r << std::string(indent+2, ' ') << getPPSLen( ) << " of PPS data" << std::endl;
+    return r.str();
+  }
+  
+  std::string AVCC::asAnnexB( ) {
+    std::stringstream r;
+    r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
+    r << getSPS( );
+    r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
+    r << getPPS( );
+    return r.str();
+  }
 };

@@ -275,4 +275,29 @@ namespace MP4{
     std::string toPrettyString(long indent = 0);
   };
   
+  
+  class AVCC : public Box {
+    public:
+      AVCC();
+      void setVersion( long newVersion );
+      long getVersion( );
+      void setProfile( long newProfile );
+      long getProfile( );
+      void setCompatibleProfiles( long newCompatibleProfiles );
+      long getCompatibleProfiles( );
+      void setLevel( long newLevel );
+      long getLevel( );
+      void setSPSNumber( long newSPSNumber );
+      long getSPSNumber( );
+      void setSPS( std::string newSPS );
+      long getSPSLen( );
+      char* getSPS( );
+      void setPPSNumber( long newPPSNumber );
+      long getPPSNumber( );
+      void setPPS( std::string newPPS );
+      long getPPSLen( );
+      char* getPPS( );
+      std::string asAnnexB( );
+      std::string toPrettyString(long indent = 0);
+  };
 };

@@ -193,7 +193,7 @@ namespace MP4{
     isRedundant = 0x100000,
     noRedundant = 0x200000,
     noKeySample = 0x10000,
-    iskeySample = 0x0,
+    isKeySample = 0x0,
     MUST_BE_PRESENT = 0x1
   };
   std::string prettySampleFlags(long flag);

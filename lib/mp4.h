@@ -275,7 +275,6 @@ namespace MP4{
     std::string toPrettyString(long indent = 0);
   };
   
-  
   class AVCC : public Box {
     public:
       AVCC();
@@ -298,6 +297,16 @@ namespace MP4{
       long getPPSLen( );
       char* getPPS( );
       std::string asAnnexB( );
+      void setPayload( std::string newPayload );
       std::string toPrettyString(long indent = 0);
+  };
+  
+  class SDTP : public Box {
+    public:
+      SDTP();
+      void setVersion( long newVersion );
+      long getVersion( );
+      void setValue( long newValue, size_t index );
+      long getValue( size_t index );
   };
 };

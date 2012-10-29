@@ -1641,9 +1641,34 @@ namespace MP4{
   std::string AVCC::asAnnexB( ) {
     std::stringstream r;
     r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
-    r << getSPS( );
+    r.write( getSPS( ), getSPSLen() );
     r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
-    r << getPPS( );
+    r.write( getPPS( ), getPPSLen() );
     return r.str();
+  }
+  
+  void AVCC::setPayload( std::string newPayload ) {
+    if( ! reserve( 0, payloadSize(), newPayload.size() ) ) { return; }
+    memcpy( (char*)payload(), (char*)newPayload.c_str(), newPayload.size() ); 
+  }
+  
+  SDTP::SDTP() {
+    memcpy(data + 4, "sdtp", 4);
+  }
+  
+  void SDTP::setVersion( long newVersion ) {
+    setInt8( newVersion, 0 );
+  }
+  
+  long SDTP::getVersion( ) {
+    return getInt8( 0 );
+  }
+  
+  void SDTP::setValue( long newValue, size_t index ) {
+    setInt8( newValue, index );
+  }
+  
+  long SDTP::getValue( size_t index ) {
+    getInt8( index );
   }
 };

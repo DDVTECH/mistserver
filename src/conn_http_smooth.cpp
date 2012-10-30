@@ -32,7 +32,7 @@ namespace Connector_HTTP{
     Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
     Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"10000000\" Duration=\"" << metadata["lastms"].asInt() << "\">\n";
     if( metadata.isMember( "audio" ) ) {
-      Result << "  <StreamIndex Type=\"audio\" QualityLevels=\"1\" TimeScale=\"10000000\" Name=\"audio\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/A({start time})\">\n";
+      Result << "  <StreamIndex Type=\"audio\" QualityLevels=\"1\" Name=\"audio\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/A({start time})\">\n";
       Result << "    <QualityLevel Index=\"0\" Bitrate=\"" << metadata["audio"]["bps"].asInt()*8 << "\" CodecPrivateData=\"";
       Result << std::hex;
       for( int i = 0; i < metadata["audio"]["init"].asString().size(); i++ ) {
@@ -49,7 +49,7 @@ namespace Connector_HTTP{
       Result << "   </StreamIndex>\n";
     }
     if( metadata.isMember( "video" ) ) {
-      Result << "  <StreamIndex Type=\"video\" QualityLevels=\"1\" TimeScale=\"10000000\" Name=\"video\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/V({start time})\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" DisplayWidth=\"" << metadata["video"]["width"].asInt() << "\" DisplayHeight=\"" << metadata["video"]["height"].asInt() << "\">\n";
+      Result << "  <StreamIndex Type=\"video\" QualityLevels=\"1\" Name=\"video\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/V({start time})\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" DisplayWidth=\"" << metadata["video"]["width"].asInt() << "\" DisplayHeight=\"" << metadata["video"]["height"].asInt() << "\">\n";
       Result << "    <QualityLevel Index=\"0\" Bitrate=\"" << metadata["video"]["bps"].asInt()*8 << "\" CodecPrivateData=\"";
       MP4::AVCC avccbox;
       avccbox.setPayload( metadata["video"]["init"].asString() );
@@ -255,29 +255,41 @@ namespace Connector_HTTP{
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
                 HTTP_S.SetBody("");
                 
+                int myDuration;
+                
                 MP4::MFHD mfhd_box;
-                mfhd_box.setSequenceNumber( 1 );
+                for( int i = 0; i < Strm.metadata["keytime"].size(); i++ ) {
+                  if( Strm.metadata["keytime"][i].asInt() >= ( ReqFragment / 10000 ) ) {
+                    std::cerr << "Sequence Number: " << i+1 << std::endl;
+                    mfhd_box.setSequenceNumber( i+1 );
+                    if( i != Strm.metadata["keytime"].size() ) {
+                      myDuration = Strm.metadata["keytime"][i+1].asInt() - Strm.metadata["keytime"][i].asInt();
+                    } else {
+                      myDuration = Strm.metadata["lastms"].asInt() - Strm.metadata["keytime"][i].asInt();
+                    }
+                    myDuration = myDuration * 10000;
+                    break;
+                  }
+                }
                 
                 MP4::TFHD tfhd_box;
                 tfhd_box.setFlags( MP4::tfhdSampleFlag );
                 tfhd_box.setTrackID( 1 );
-                tfhd_box.setDefaultSampleFlags( MP4::noIPicture | MP4::noDisposable | MP4::noKeySample );
+                tfhd_box.setDefaultSampleFlags( 0x000000C0 | MP4::noIPicture | MP4::noDisposable | MP4::noKeySample );
                 
                 MP4::TRUN trun_box;
                 //maybe reinsert dataOffset
                 std::cerr << "Setting Flags: " << (MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize) << std::endl;
                 trun_box.setFlags( MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize );
                 trun_box.setDataOffset( 42 );
-                trun_box.setFirstSampleFlags( MP4::isIPicture | MP4::noDisposable | MP4::isKeySample );
-                std::deque< std::string >::iterator FlashBufIter = FlashBuf.begin();
+                trun_box.setFirstSampleFlags( 0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample );
                 for( int i = 0; i < FlashBuf.size(); i++ ) {
                   MP4::trunSampleInformation trunSample;
-                  trunSample.sampleSize = (*FlashBufIter).size();
-                  trunSample.sampleDuration = (Timestamps[i+1]-Timestamps[i]) * 10000;
+                  trunSample.sampleSize = FlashBuf[i].size();
+                  //trunSample.sampleDuration = (Timestamps[i+1]-Timestamps[i]) * 10000;
+                  trunSample.sampleDuration = (((double)myDuration / FlashBuf.size()) * i) - (((double)myDuration / FlashBuf.size()) * (i-1));
                   trun_box.setSampleInformation( trunSample, i );
-                  FlashBufIter ++;
                 }
-                
                 MP4::SDTP sdtp_box;
                 sdtp_box.setVersion( 0 );
                 sdtp_box.setValue( 0x24, 4 );
@@ -324,24 +336,9 @@ namespace Connector_HTTP{
               FlashBuf.clear();
               FlashBufSize = 0;
             }
-            if ( wantsAudio && Strm.lastType() == DTSC::AUDIO ) {
+            if ( ( wantsAudio && Strm.lastType() == DTSC::AUDIO ) || ( wantsVideo && Strm.lastType() == DTSC::VIDEO ) ) {
               FlashBuf.push_back( Strm.lastData() );
               FlashBufSize += Strm.lastData().size();
-              Timestamps.push_back( Strm.getPacket(0)["time"].asInt() );
-            }
-            if ( wantsVideo && Strm.lastType() == DTSC::VIDEO ) {
-              std::stringstream myStream;
-              std::string myData = Strm.lastData();
-              //while( myData.size() ) {
-              //  myStream << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
-              //  int myLen = ( myData[0] << 24 ) + ( myData[1] << 16 ) + ( myData[2] << 8 ) + myData[3];
-              //  myStream << myData.substr( 4, myLen );
-              //  myData.erase( 0, myLen + 4 );
-              //}
-              //FlashBuf.push_back( myStream.str() );
-              FlashBuf.push_back( myData );
-              //FlashBufSize += myStream.str().size();
-              FlashBufSize += myData.size();
               Timestamps.push_back( Strm.getPacket(0)["time"].asInt() );
             }
           }

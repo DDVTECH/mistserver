@@ -318,8 +318,8 @@ namespace Connector_HTTP{
       H.SetVar("stream", streamname);
       return "dynamic";
     }
-    if (url.find("/smooth/") != std::string::npos ) {
-      std::string streamname = url.substr(8,url.find("/",8)-8);
+    if (url.find("/smooth/") != std::string::npos && url.find(".ism") != std::string::npos ) {
+      std::string streamname = url.substr(8,url.find("/",8)-12);
       Util::Stream::sanitizeName(streamname);
       H.SetVar("stream", streamname);
       return "smooth";

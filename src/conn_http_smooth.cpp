@@ -2,6 +2,7 @@
 /// Contains the main code for the HTTP Dynamic Connector
 
 #include <iostream>
+#include <iomanip>
 #include <queue>
 #include <cstdlib>
 #include <cstdio>
@@ -29,37 +30,42 @@ namespace Connector_HTTP{
   std::string BuildManifest(std::string & MovieId, JSON::Value & metadata){
     std::stringstream Result;
     Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
-    Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"1000\" Duration=\"" << metadata["lastms"].asInt() << "\">\n";
+    Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"10000000\" Duration=\"" << metadata["lastms"].asInt() << "\">\n";
     if( metadata.isMember( "audio" ) ) {
-      Result << "  <StreamIndex Type=\"audio\" QualityLevels=\"1\" TimeScale=\"1000\" Name=\"audio\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/A({start time})\">\n";
+      Result << "  <StreamIndex Type=\"audio\" QualityLevels=\"1\" TimeScale=\"10000000\" Name=\"audio\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/A({start time})\">\n";
       Result << "    <QualityLevel Index=\"0\" Bitrate=\"" << metadata["audio"]["bps"].asInt()*8 << "\" CodecPrivateData=\"";
       Result << std::hex;
       for( int i = 0; i < metadata["audio"]["init"].asString().size(); i++ ) {
-        Result << (int)metadata["audio"]["init"].asString()[i];
+        Result << std::setfill('0') << std::setw(2) << std::right << (int)metadata["audio"]["init"].asString()[i];
       }
       Result << std::dec;
-      Result << "\" SamplingRate=\"" << metadata["audio"]["rate"].asInt() << "\" Channels=\"2\" BitsPerSample=\"16\" PacketSize=\"4\" AudioTag=\"255\" FourCC=\"AACL\" />\n";
-      for( int i = 0; i < metadata["keytime"].size(); i++ ) {
-        Result << "      <c ";
+      Result << "\" SamplingRate=\"" << metadata["audio"]["rate"].asInt() << "\" Channels=\"2\" BitsPerSample=\"16\" PacketSize=\"4\" AudioTag=\"255\" FourCC=\"AACL\"  />\n";
+      for( int i = 0; i < metadata["keytime"].size()-1; i++ ) {
+        Result << "    <c ";
         if( i == 0 ) { Result << "t=\"0\" "; }
-        Result << "d=\"" << metadata["keytime"][i].asInt() << "\"/>\n";
+        Result << "d=\"" << 10000 * ( metadata["keytime"][i+1].asInt() - metadata["keytime"][i].asInt() ) << "\" />\n";
       }
+      Result << "    <c d=\"" << 10000 * ( metadata["lastms"].asInt() - metadata["keytime"][metadata["keytime"].size()-1].asInt() ) << "\" />\n";
       Result << "   </StreamIndex>\n";
     }
     if( metadata.isMember( "video" ) ) {
-      Result << "  <StreamIndex Type=\"video\" QualityLevels=\"1\" TimeScale=\"1000\" Name=\"video\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/V({start time})\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" DisplayWidth=\"" << metadata["video"]["width"].asInt() << "\" DisplayHeight=\"" << metadata["video"]["height"].asInt() << "\">\n";
+      Result << "  <StreamIndex Type=\"video\" QualityLevels=\"1\" TimeScale=\"10000000\" Name=\"video\" Chunks=\"" << metadata["keytime"].size() << "\" Url=\"Q({bitrate})/V({start time})\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" DisplayWidth=\"" << metadata["video"]["width"].asInt() << "\" DisplayHeight=\"" << metadata["video"]["height"].asInt() << "\">\n";
       Result << "    <QualityLevel Index=\"0\" Bitrate=\"" << metadata["video"]["bps"].asInt()*8 << "\" CodecPrivateData=\"";
+      MP4::AVCC avccbox;
+      avccbox.setPayload( metadata["video"]["init"].asString() );
+      std::string tmpString = avccbox.asAnnexB( );
       Result << std::hex;
-      for( int i = 0; i < metadata["video"]["init"].asString().size(); i++ ) {
-        Result << (int)metadata["video"]["init"].asString()[i];
+      for( int i = 0; i < tmpString.size(); i++ ) {
+        Result << std::setfill('0') << std::setw(2) << std::right << (int)tmpString[i];
       }
       Result << std::dec;
-      Result << "\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" FourCC=\"AVC1\"/>\n";
-      for( int i = 0; i < metadata["keytime"].size(); i++ ) {
-        Result << "      <c ";
+      Result << "\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" FourCC=\"AVC1\" />\n";
+      for( int i = 0; i < metadata["keytime"].size()-1; i++ ) {
+        Result << "    <c ";
         if( i == 0 ) { Result << "t=\"0\" "; }
-        Result << "d=\"" << metadata["keytime"][i].asInt() << "\"/>\n";
+        Result << "d=\"" << 10000 * ( metadata["keytime"][i+1].asInt() - metadata["keytime"][i].asInt() ) << "\" />\n";
       }
+      Result << "    <c d=\"" << 10000 * ( metadata["lastms"].asInt() - metadata["keytime"][metadata["keytime"].size()-1].asInt() ) << "\" />\n";
       Result << "   </StreamIndex>\n";
     }
     Result << "</SmoothStreamingMedia>\n";
@@ -119,7 +125,7 @@ namespace Connector_HTTP{
           #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
           if (HTTP_R.url.find("Manifest") == std::string::npos){
-            streamname = HTTP_R.url.substr(8,HTTP_R.url.find("/",8)-8);
+            streamname = HTTP_R.url.substr(8,HTTP_R.url.find("/",8)-12);
             if (!ss){
               ss = Util::Stream::getStream(streamname);
               if (!ss.connected()){
@@ -139,19 +145,21 @@ namespace Connector_HTTP{
             Quality = HTTP_R.url.substr( HTTP_R.url.find("/Q(",8)+3 );
             Quality = Quality.substr(0, Quality.find(")"));
             tempStr = HTTP_R.url.substr( HTTP_R.url.find(")/") + 2 );
+            wantsAudio = false;
+            wantsVideo = false;
             if( tempStr[0] == 'A' ) { wantsAudio = true; }
             if( tempStr[0] == 'V' ) { wantsVideo = true; }
-            tempStr = tempStr.find("(") + 1;
+            tempStr = tempStr.substr( tempStr.find("(") + 1 );
             ReqFragment = atoi( tempStr.substr(0,tempStr.find(")")).c_str() );
             #if DEBUG >= 4
-            printf( "Quality: %s, Frag %d\n", Quality.c_str(), ReqFragment);
+            printf( "Quality: %s, Frag %d\n", Quality.c_str(), ( ReqFragment / 10000 ) );
             #endif
             std::stringstream sstream;
-            sstream << "s " << ReqFragment << "\no \n";
+            sstream << "s " << ( ReqFragment / 10000 ) << "\no \n";
             ss.SendNow(sstream.str().c_str());
             Flash_RequestPending++;
           }else{
-            streamname = HTTP_R.url.substr(8,HTTP_R.url.find("/",8)-8);
+            streamname = HTTP_R.url.substr(8,HTTP_R.url.find("/",8)-12);
             if (!Strm.metadata.isNull()){
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type","text/xml");
@@ -257,23 +265,24 @@ namespace Connector_HTTP{
                 
                 MP4::TRUN trun_box;
                 //maybe reinsert dataOffset
-                trun_box.setFlags( MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize );
+                std::cerr << "Setting Flags: " << (MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize) << std::endl;
+                trun_box.setFlags( MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize );
+                trun_box.setDataOffset( 42 );
                 trun_box.setFirstSampleFlags( MP4::isIPicture | MP4::noDisposable | MP4::isKeySample );
                 std::deque< std::string >::iterator FlashBufIter = FlashBuf.begin();
                 for( int i = 0; i < FlashBuf.size(); i++ ) {
                   MP4::trunSampleInformation trunSample;
                   trunSample.sampleSize = (*FlashBufIter).size();
-                  trunSample.sampleDuration = Timestamps[i+1]-Timestamps[i];
+                  trunSample.sampleDuration = (Timestamps[i+1]-Timestamps[i]) * 10000;
                   trun_box.setSampleInformation( trunSample, i );
                   FlashBufIter ++;
                 }
                 
-                MP4::Box sdtp_box;
-                sdtp_box.setType( "sdtp" );
-                sdtp_box.setInt32( 0, 0 );
-                sdtp_box.setInt8( 0x24, 4 );
+                MP4::SDTP sdtp_box;
+                sdtp_box.setVersion( 0 );
+                sdtp_box.setValue( 0x24, 4 );
                 for( int i = 1; i < FlashBuf.size(); i++ ) {
-                  sdtp_box.setInt8( 0x14, i+4 );
+                  sdtp_box.setValue( 0x14, 4+i );
                 }
                 
                 MP4::TRAF traf_box;
@@ -284,6 +293,15 @@ namespace Connector_HTTP{
                 MP4::MOOF moof_box;
                 moof_box.setContent( mfhd_box, 0 );
                 moof_box.setContent( traf_box, 1 );
+                
+                //setting tha offsets!
+                trun_box.setDataOffset(moof_box.boxedSize() + 8);
+                traf_box.setContent( trun_box, 1 );
+                moof_box.setContent( traf_box, 1 );
+                
+                
+                //std::cerr << "\t[encoded] = " << ((MP4::TRUN&)(((MP4::TRAF&)(moof_box.getContent(1))).getContent(1))).getDataOffset() << std::endl;
+                
                 
                 HTTP_S.SetHeader("Content-Length", FlashBufSize+8+moof_box.boxedSize());//32+33+btstrp.size());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
@@ -306,14 +324,24 @@ namespace Connector_HTTP{
               FlashBuf.clear();
               FlashBufSize = 0;
             }
-            if ( wantsVideo && Strm.lastType() == DTSC::VIDEO ) {
+            if ( wantsAudio && Strm.lastType() == DTSC::AUDIO ) {
               FlashBuf.push_back( Strm.lastData() );
               FlashBufSize += Strm.lastData().size();
               Timestamps.push_back( Strm.getPacket(0)["time"].asInt() );
             }
-            if ( wantsAudio && Strm.lastType() == DTSC::AUDIO ) {
-              FlashBuf.push_back( Strm.lastData() );
-              FlashBufSize += Strm.lastData().size();
+            if ( wantsVideo && Strm.lastType() == DTSC::VIDEO ) {
+              std::stringstream myStream;
+              std::string myData = Strm.lastData();
+              //while( myData.size() ) {
+              //  myStream << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
+              //  int myLen = ( myData[0] << 24 ) + ( myData[1] << 16 ) + ( myData[2] << 8 ) + myData[3];
+              //  myStream << myData.substr( 4, myLen );
+              //  myData.erase( 0, myLen + 4 );
+              //}
+              //FlashBuf.push_back( myStream.str() );
+              FlashBuf.push_back( myData );
+              //FlashBufSize += myStream.str().size();
+              FlashBufSize += myData.size();
               Timestamps.push_back( Strm.getPacket(0)["time"].asInt() );
             }
           }

@@ -23,6 +23,12 @@ int main(int argc, char ** argv) {
   MP4::Box mp4data;
   while (mp4data.read(temp)){
     std::cerr << mp4data.toPrettyString(0) << std::endl;
+    if( mp4data.isType( "mdat" ) ) {
+      std::ofstream oFile;
+      oFile.open( "mdat" );
+      oFile << std::string( mp4data.payload(), mp4data.payloadSize() );
+      oFile.close();
+    }
   }
   return 0;
 }

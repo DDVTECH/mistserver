@@ -178,22 +178,22 @@ namespace MP4{
     long sampleOffset;
   };
   enum trunflags {
-    trundataOffset       = 0x000001,
-    trunfirstSampleFlags = 0x000004,
-    trunsampleDuration   = 0x000100,
-    trunsampleSize       = 0x000200,
-    trunsampleFlags      = 0x000400,
-    trunsampleOffsets    = 0x000800
+    trundataOffset       = 0x00000001,
+    trunfirstSampleFlags = 0x00000004,
+    trunsampleDuration   = 0x00000100,
+    trunsampleSize       = 0x00000200,
+    trunsampleFlags      = 0x00000400,
+    trunsampleOffsets    = 0x00000800
   };
   enum sampleflags {
-    noIPicture = 0x1000000,
-    isIPicture = 0x2000000,
-    noDisposable = 0x400000,
-    isDisposable = 0x800000,
-    isRedundant = 0x100000,
-    noRedundant = 0x200000,
-    noKeySample = 0x10000,
-    isKeySample = 0x0,
+    noIPicture =   0x01000000,
+    isIPicture =   0x02000000,
+    noDisposable = 0x00400000,
+    isDisposable = 0x00800000,
+    isRedundant =  0x00100000,
+    noRedundant =  0x00200000,
+    noKeySample =  0x00010000,
+    isKeySample =  0x00000000,
     MUST_BE_PRESENT = 0x1
   };
   std::string prettySampleFlags(long flag);

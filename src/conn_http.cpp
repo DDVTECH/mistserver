@@ -369,6 +369,9 @@ namespace Connector_HTTP{
           std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (Util::getMS() - startms) << " ms" << std::endl;
           #endif
           Client.Clean(); //clean for any possible next requests
+        }else{
+          //make sure connections get cleaned up properly when disconnected part-way into a request
+          conn->spool();
         }
       }else{
         usleep(10000);//sleep 10ms

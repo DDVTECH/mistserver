@@ -339,7 +339,7 @@ namespace Connector_HTTP{
     conn->setBlocking(false);//do not block on conn.spool() when no data is available
     HTTP::Parser Client;
     while (conn->connected()){
-      if (conn->Received().size() || conn->spool()){
+      if (conn->spool() || conn->Received().size()){
         //make sure it ends in a \n
         if (*(conn->Received().get().rbegin()) != '\n'){
           std::string tmp = conn->Received().get();
@@ -369,9 +369,6 @@ namespace Connector_HTTP{
           std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (Util::getMS() - startms) << " ms" << std::endl;
           #endif
           Client.Clean(); //clean for any possible next requests
-        }else{
-          //make sure connections get cleaned up properly when disconnected part-way into a request
-          conn->spool();
         }
       }else{
         usleep(10000);//sleep 10ms

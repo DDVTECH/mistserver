@@ -442,7 +442,7 @@ void Socket::Connection::Send(std::string & data){
 /// \param len Amount of bytes to write.
 /// \returns The amount of bytes actually written.
 int Socket::Connection::iwrite(const void * buffer, int len){
-  if (!connected()){return 0;}
+  if (!connected() || len < 1){return 0;}
   int r;
   if (sock >= 0){
     r = send(sock, buffer, len, 0);
@@ -479,7 +479,7 @@ int Socket::Connection::iwrite(const void * buffer, int len){
 /// \param len Amount of bytes to read.
 /// \returns The amount of bytes actually read.
 int Socket::Connection::iread(void * buffer, int len){
-  if (!connected()){return 0;}
+  if (!connected() || len < 1){return 0;}
   int r;
   if (sock >= 0){
     r = recv(sock, buffer, len, 0);

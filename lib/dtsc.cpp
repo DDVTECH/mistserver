@@ -145,7 +145,7 @@ std::string & DTSC::Stream::lastData(){
   return *datapointer;
 }
 
-/// Returns the packed in this buffer number.
+/// Returns the packet in this buffer number.
 /// \arg num Buffer number.
 JSON::Value & DTSC::Stream::getPacket(unsigned int num){
   return buffers[num];
@@ -169,7 +169,7 @@ bool DTSC::Stream::hasAudio(){
 /// Returns a packed DTSC packet, ready to sent over the network.
 std::string & DTSC::Stream::outPacket(unsigned int num){
   static std::string emptystring;
-  if (num >= buffers.size()) return emptystring;
+  if (num >= buffers.size() || !buffers[num].isObject()) return emptystring;
   return buffers[num].toNetPacked();
 }
 

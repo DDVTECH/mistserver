@@ -291,9 +291,9 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
               if (counter > 8){
                 sending = true;
                 SS.SendNow(meta_out.toNetPacked());
-                SS.SendNow(prebuffer.str().c_str());//write buffer
+                SS.SendNow(prebuffer.str().c_str(), prebuffer.str().size());//write buffer
                 prebuffer.str("");//clear buffer
-                SS.Send(pack_out.toNetPacked());
+                SS.SendNow(pack_out.toNetPacked());
               }else{
                 prebuffer << pack_out.toNetPacked();
               }

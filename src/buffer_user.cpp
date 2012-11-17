@@ -31,19 +31,14 @@ Buffer::user::~user(){
 /// Disconnects the current user. Doesn't do anything if already disconnected.
 /// Prints "Disconnected user" to stdout if disconnect took place.
 void Buffer::user::Disconnect(std::string reason) {
-  Stream::get()->clearStats(MyStr, lastStats, reason);
   if (S.connected()){S.close();}
-  if (Thread != 0){
-    if (Thread->joinable()){
-      Thread->join();
-    }
-    Thread = 0;
-  }
+  Stream::get()->clearStats(MyStr, lastStats, reason);
 }//Disconnect
 
 /// Tries to send the current buffer, returns true if success, false otherwise.
 /// Has a side effect of dropping the connection if send will never complete.
 bool Buffer::user::doSend(const char * ptr, int len){
+  if (!len){return false;}//do not do empty sends
   int r = S.iwrite(ptr+currsend, len-currsend);
   if (r <= 0){
     if (errno == EWOULDBLOCK){return false;}

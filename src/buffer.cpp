@@ -37,6 +37,7 @@ namespace Buffer{
     Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
     while (buffer_running){
       usleep(1000000); //sleep one second
+      Stream::get()->cleanUsers();
       if (!StatsSocket.connected()){
         StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
       }
@@ -56,8 +57,9 @@ namespace Buffer{
     #endif
 
     usr->myRing = thisStream->getRing();
-    usr->S.Send(thisStream->getHeader());
-    usr->S.flush();
+    if (thisStream->getHeader().size() > 0){
+      usr->S.SendNow(thisStream->getHeader());
+    }
 
     while (usr->S.connected()){
       usleep(5000); //sleep 5ms
@@ -114,7 +116,6 @@ namespace Buffer{
       }
     }
     usr->Disconnect("Socket closed.");
-    thisStream->cleanUsers();
   }
 
   /// Loop reading DTSC data from stdin and processing it at the correct speed.
@@ -161,8 +162,8 @@ namespace Buffer{
       if (thisStream->getIPInput().connected()){
         if (thisStream->getIPInput().spool()){
           thisStream->getWriteLock();
-          if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received().get())){
-            thisStream->getStream()->outPacket(0);
+          if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
+            //thisStream->getStream()->outPacket(0);
             thisStream->dropWriteLock(true);
           }else{
             thisStream->dropWriteLock(false);
@@ -223,10 +224,15 @@ namespace Buffer{
 
     // disconnect listener
     buffer_running = false;
-    std::cout << "End of input file - buffer shutting down" << std::endl;
+    std::cout << "Buffer shutting down" << std::endl;
     SS.close();
-    if (StatsThread){StatsThread->join();}
+    if (StatsThread){
+      StatsThread->join();
+      delete StatsThread;
+    }
+    if (thisStream->getIPInput().connected()){thisStream->getIPInput().close();}
     StdinThread->join();
+    delete StdinThread;
     delete thisStream;
     return 0;
   }

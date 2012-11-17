@@ -32,10 +32,8 @@ Buffer::Stream::~Stream(){
     stats_mutex.lock();
     for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
       if ((**usersIt).S.connected()){
-        if ((**usersIt).myRing->waiting){
-          (**usersIt).S.close();
-          printf("Closing user %s\n", (**usersIt).MyStr.c_str());
-        }
+        (**usersIt).S.close();
+        printf("Closing user %s\n", (**usersIt).MyStr.c_str());
       }
     }
     stats_mutex.unlock();
@@ -146,7 +144,6 @@ void Buffer::Stream::clearStats(std::string username, Stats & stats, std::string
   Storage["log"][username]["host"] = stats.host;
   Storage["log"][username]["start"] = Util::epoch() - stats.conntime;
   stats_mutex.unlock();
-  cleanUsers();
 }
 
 /// Cleans up broken connections
@@ -162,6 +159,14 @@ void Buffer::Stream::cleanUsers(){
           users.erase(usersIt);
           repeat = true;
           break;
+        }else{
+          if (!(**usersIt).S.connected()){
+            if ((**usersIt).Thread->joinable()){
+              (**usersIt).Thread->join();
+              delete (**usersIt).Thread;
+              (**usersIt).Thread = 0;
+            }
+          }
         }
       }
     }

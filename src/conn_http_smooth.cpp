@@ -100,7 +100,7 @@ namespace Connector_HTTP{
     
     std::string Quality;
     int Segment = -1;
-    int ReqFragment = -1;
+    long long int ReqFragment = -1;
     int temp;
     std::string tempStr;
     int Flash_RequestPending = 0;
@@ -150,7 +150,7 @@ namespace Connector_HTTP{
             if( tempStr[0] == 'A' ) { wantsAudio = true; }
             if( tempStr[0] == 'V' ) { wantsVideo = true; }
             tempStr = tempStr.substr( tempStr.find("(") + 1 );
-            ReqFragment = atoi( tempStr.substr(0,tempStr.find(")")).c_str() );
+            ReqFragment = atoll( tempStr.substr(0,tempStr.find(")")).c_str() );
             #if DEBUG >= 4
             printf( "Quality: %s, Frag %d\n", Quality.c_str(), ( ReqFragment / 10000 ) );
             #endif

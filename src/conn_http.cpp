@@ -114,6 +114,15 @@ namespace Connector_HTTP{
       return;
     }//crossdomain.xml
 
+    if (url == "/clientaccesspolicy.xml"){
+      H.Clean();
+      H.SetHeader("Content-Type", "text/xml");
+      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+      H.SetBody("<?xml version=\"1.0\" encoding=\"utf-8\"?><access-policy><cross-domain-access><policy><allow-from http-methods=\"*\" http-request-headers=\"*\"><domain uri=\"*\"/></allow-from><grant-to><resource path=\"/\" include-subpaths=\"true\"/></grant-to></policy></cross-domain-access></access-policy>");
+      conn->SendNow(H.BuildResponse("200", "OK"));
+      return;
+    }//clientaccesspolicy.xml
+
     if ((url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js") || (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(url.length() - 3, 3) == ".js")){
       std::string streamname;
       if (url.substr(0, 6) == "/info_"){
@@ -334,6 +343,7 @@ namespace Connector_HTTP{
       }
     }
     if (url == "/crossdomain.xml"){return "internal";}
+    if (url == "/clientaccesspolicy.xml"){return "internal";}
     if (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(url.length() - 3, 3) == ".js"){return "internal";}
     if (url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js"){return "internal";}
     return "none";

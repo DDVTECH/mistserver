@@ -28,13 +28,13 @@ std::string & HTTP::Parser::BuildRequest(){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
-  builder = method+" "+url+" "+protocol+"\n";
+  builder = method+" "+url+" "+protocol+"\r\n";
   for (it=headers.begin(); it != headers.end(); it++){
     if ((*it).first != "" && (*it).second != ""){
-      builder += (*it).first + ": " + (*it).second + "\n";
+      builder += (*it).first + ": " + (*it).second + "\r\n";
     }
   }
-  builder += "\n" + body;
+  builder += "\r\n" + body;
   return builder;
 }
 
@@ -48,15 +48,15 @@ std::string & HTTP::Parser::BuildResponse(std::string code, std::string message)
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
-  builder = protocol+" "+code+" "+message+"\n";
+  builder = protocol+" "+code+" "+message+"\r\n";
   for (it=headers.begin(); it != headers.end(); it++){
     if ((*it).first != "" && (*it).second != ""){
       if ((*it).first != "Content-Length" || (*it).second != "0"){
-        builder += (*it).first + ": " + (*it).second + "\n";
+        builder += (*it).first + ": " + (*it).second + "\r\n";
       }
     }
   }
-  builder += "\n";
+  builder += "\r\n";
   builder += body;
   return builder;
 }

@@ -15,7 +15,8 @@ AC_PROG_CXX
 AC_PROG_CC
 
 # Checks for libraries.
-AC_CHECK_LIB(ssl, RC4)
+AC_DEFINE(_GNU_SOURCE)
+#AC_CHECK_LIB(ssl, RC4)
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/socket.h sys/time.h unistd.h])

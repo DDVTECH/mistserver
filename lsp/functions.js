@@ -227,6 +227,28 @@
 
 
 			/**
+			 * retrieve port of the http connector
+			 * @return the port number
+			 */
+			function getHTTPControllerPort()
+			{
+            var i,
+                len = (settings.settings.config.protocols ? settings.settings.config.protocols.length : 0);
+
+				for(i = 0; i < len; i++)
+				{
+					if(settings.settings.config.protocols[i].connector == 'HTTP')
+					{
+						return settings.settings.config.protocols[i].port;
+					}
+				}
+
+				return 0;
+			}
+
+
+
+			/**
 			 * retrieves the stream status (online and total number of streams) and viewer info (total number of viewers).
 			 * @param callback function that is called when data is retrieved. Has one parameter, the retrieved data.
 			 */

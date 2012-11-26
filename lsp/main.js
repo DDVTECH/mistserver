@@ -656,7 +656,7 @@
 
 						if(isThereAHTTPConnector())
 						{
-							var embedbase = 'http://' + parseURL(settings.server).host + ':8080/';
+							var embedbase = 'http://' + parseURL(settings.server).host + ':' + getHTTPControllerPort() + '/';
 
 							$('#page').append( $('<p>').attr('class', 'nocapitals').text('The info embed URL is "' + embedbase + 'info_' + streamname + '.js".') );
 							$('#page').append( $('<p>').attr('class', 'nocapitals').text('The embed embed URL is "' + embedbase + 'embed_' + streamname + '.js".') );
@@ -676,7 +676,7 @@
 
                case 'preview':
 
-						var embed = 'http://' + parseURL(settings.server).host + ':8080/embed_' + streamname + '.js';
+						var embed = 'http://' + parseURL(settings.server).host + ':' + getHTTPControllerPort() + '/embed_' + streamname + '.js';
 
 						$('#page').append( $('<div>').attr('id', 'previewcontainer') );
 

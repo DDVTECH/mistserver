@@ -15,7 +15,8 @@ AC_PROG_CXX
 AC_PROG_CC
 
 # Checks for libraries.
-AC_CHECK_LIB(ssl, RC4)
+AC_DEFINE(_GNU_SOURCE)
+#AC_CHECK_LIB(ssl, RC4)
 PKG_CHECK_MODULES([MIST], [mist-1.0 >= 3.0.0])
 
 # Checks for header files.

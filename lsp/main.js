@@ -298,6 +298,9 @@
                   // protocol select
                   $pname = $('<select>').attr('id', 'new-protocol-name');
                   $pname.append( $('<option>').attr('value', 'HTTP').text('HTTP') );
+                  $pname.append( $('<option>').attr('value', 'HTTPDynamic').text('HTTPDynamic') );
+                  $pname.append( $('<option>').attr('value', 'HTTPProgressive').text('HTTPProgressive') );
+                  $pname.append( $('<option>').attr('value', 'HTTPSmooth').text('HTTPSmooth') );
                   $pname.append( $('<option>').attr('value', 'RTMP').text('RTMP') );
 
                   $nprot.append( $('<td>').append($pname) );

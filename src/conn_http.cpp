@@ -11,13 +11,13 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <set>
-#include <openssl/md5.h>
 #include <mist/socket.h>
 #include <mist/http_parser.h>
 #include <mist/config.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/timing.h>
+#include <mist/auth.h>
 #include "tinythread.h"
 #include "embed.js.h"
 
@@ -188,22 +188,10 @@ namespace Connector_HTTP{
     Handle_None(H, conn);//anything else doesn't get handled
   }
 
-  /// Wrapper function for openssl MD5 implementation
-  std::string md5(std::string input){
-    char tmp[3];
-    std::string ret;
-    const unsigned char * res = MD5((const unsigned char*)input.c_str(), input.length(), 0);
-    for (int i = 0; i < 16; ++i){
-      snprintf(tmp, 3, "%02x", res[i]);
-      ret += tmp;
-    }
-    return ret;
-  }
-
   /// Handles requests without associated handler, displaying a nice friendly error message.
   void Handle_Through_Connector(HTTP::Parser & H, Socket::Connection * conn, std::string & connector){
     //create a unique ID based on a hash of the user agent and host, followed by the stream name and connector
-    std::string uid = md5(H.GetHeader("User-Agent")+conn->getHost())+"_"+H.GetVar("stream")+"_"+connector;
+    std::string uid = Secure::md5(H.GetHeader("User-Agent")+conn->getHost())+"_"+H.GetVar("stream")+"_"+connector;
     H.SetHeader("X-UID", uid);//add the UID to the headers before copying
     H.SetHeader("X-Origin", conn->getHost());//add the UID to the headers before copying
     std::string request = H.BuildRequest();//copy the request for later forwarding to the connector
@@ -416,11 +404,6 @@ int main(int argc, char ** argv){
   Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));
   if (!server_socket.connected()){return 1;}
   conf.activate();
-
-  //start progressive and dynamic handlers from the same folder as this application
-  Util::Procs::Start("progressive", Util::getMyPath() + "MistConnHTTPProgressive -n");
-  Util::Procs::Start("dynamic", Util::getMyPath() + "MistConnHTTPDynamic -n");
-  Util::Procs::Start("smooth", Util::getMyPath() + "MistConnHTTPSmooth -n");
 
   while (server_socket.connected() && conf.is_active){
     Socket::Connection S = server_socket.accept();

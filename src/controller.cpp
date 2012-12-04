@@ -22,13 +22,14 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <sstream>
-#include <openssl/md5.h>
 #include <mist/config.h>
 #include <mist/socket.h>
 #include <mist/http_parser.h>
 #include <mist/procs.h>
 #include <mist/auth.h>
 #include <mist/timing.h>
+#include "controller_storage.h"
+#include "controller_connectors.h"
 #include "server.html.h"
 
 #define UPLINK_INTERVAL 30
@@ -38,22 +39,8 @@
 namespace Controller{
 
 std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
-Auth keychecker; ///< Checks key authorization.
+Secure::Auth keychecker; ///< Checks key authorization.
 
-/// Wrapper function for openssl MD5 implementation
-std::string md5(std::string input){
-  char tmp[3];
-  std::string ret;
-  const unsigned char * res = MD5((const unsigned char*)input.c_str(), input.length(), 0);
-  for (int i = 0; i < 16; ++i){
-    snprintf(tmp, 3, "%02x", res[i]);
-    ret += tmp;
-  }
-  return ret;
-}
-
-
-JSON::Value Storage; ///< Global storage of data.
 
 void WriteFile( std::string Filename, std::string contents ) {
   std::ofstream File;
@@ -79,32 +66,17 @@ class ConnectedUser{
     }
 };
 
-void Log(std::string kind, std::string message){
-  //if last log message equals this one, do not log.
-  if (Storage["log"].size() > 0){
-    JSON::ArrIter it = Storage["log"].ArrEnd() - 1;
-    if ((*it)[2] == message){return;}
-  }
-  JSON::Value m;
-  m.append(Util::epoch());
-  m.append(kind);
-  m.append(message);
-  Storage["log"].append(m);
-  Storage["log"].shrink(100);//limit to 100 log messages
-  std::cout << "[" << kind << "] " << message << std::endl;
-}
-
 void Authorize( JSON::Value & Request, JSON::Value & Response, ConnectedUser & conn ) {
   time_t Time = time(0);
   tm * TimeInfo = localtime(&Time);
   std::stringstream Date;
   std::string retval;
   Date << TimeInfo->tm_mday << "-" << TimeInfo->tm_mon << "-" << TimeInfo->tm_year + 1900;
-  std::string Challenge = md5( Date.str().c_str() + conn.C.getHost() );
+  std::string Challenge = Secure::md5( Date.str().c_str() + conn.C.getHost() );
   if( Request.isMember( "authorize" ) ) {
     std::string UserID = Request["authorize"]["username"];
     if (Storage["account"].isMember(UserID)){
-      if (md5(Storage["account"][UserID]["password"].asString() + Challenge) == Request["authorize"]["password"].asString()){
+      if (Secure::md5(Storage["account"][UserID]["password"].asString() + Challenge) == Request["authorize"]["password"].asString()){
         Response["authorize"]["status"] = "OK";
         conn.Username = UserID;
         conn.Authorized = true;
@@ -112,7 +84,7 @@ void Authorize( JSON::Value & Request, JSON::Value & Response, ConnectedUser & c
       }
     }
     if (UserID != ""){
-      if (Request["authorize"]["password"].asString() != "" && md5(Storage["account"][UserID]["password"].asString()) != Request["authorize"]["password"].asString()){
+      if (Request["authorize"]["password"].asString() != "" && Secure::md5(Storage["account"][UserID]["password"].asString()) != Request["authorize"]["password"].asString()){
         Log("AUTH", "Failed login attempt "+UserID+" @ "+conn.C.getHost());
       }
     }
@@ -123,78 +95,6 @@ void Authorize( JSON::Value & Request, JSON::Value & Response, ConnectedUser & c
   Response["authorize"]["status"] = "CHALL";
   Response["authorize"]["challenge"] = Challenge;
   return;
-}
-
-void CheckProtocols(JSON::Value & p){
-  static std::map<std::string, std::string> current_connectors;
-  std::map<std::string, std::string> new_connectors;
-  std::map<std::string, std::string>::iterator iter;
-
-  std::string tmp;
-  JSON::Value counter = (long long int)0;
-
-  //collect object type
-  for (JSON::ObjIter jit = p.ObjBegin(); jit != p.ObjEnd(); jit++){
-    if (!jit->second.isMember("connector") || jit->second["connector"].asString() == ""){continue;}
-    if (!jit->second.isMember("port") || jit->second["port"].asInt() == 0){continue;}
-    tmp = "MistConn";
-    tmp += jit->second["connector"].asString();
-    tmp += " -n -p ";
-    tmp += jit->second["port"].asString();
-    if (jit->second.isMember("interface") && jit->second["interface"].asString() != "" && jit->second["interface"].asString() != "0.0.0.0"){
-      tmp += " -i ";
-      tmp += jit->second["interface"].asString();
-    }
-    if (jit->second.isMember("username") && jit->second["username"].asString() != "" && jit->second["username"].asString() != "root"){
-      tmp += " -u ";
-      tmp += jit->second["username"].asString();
-    }
-    counter = counter.asInt() + 1;
-    new_connectors[std::string("Conn")+counter.asString()] = tmp;
-  }
-  //collect array type
-  for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
-    if (!(*ait).isMember("connector") || (*ait)["connector"].asString() == ""){continue;}
-    if (!(*ait).isMember("port") || (*ait)["port"].asInt() == 0){continue;}
-    tmp = "MistConn";
-    tmp += (*ait)["connector"].asString();
-    tmp += " -n -p ";
-    tmp += (*ait)["port"].asString();
-    if ((*ait).isMember("interface") && (*ait)["interface"].asString() != "" && (*ait)["interface"].asString() != "0.0.0.0"){
-      tmp += " -i ";
-      tmp += (*ait)["interface"].asString();
-    }
-    if ((*ait).isMember("username") && (*ait)["username"].asString() != "" && (*ait)["username"].asString() != "root"){
-      tmp += " -u ";
-      tmp += (*ait)["username"].asString();
-    }
-    counter = counter.asInt() + 1;
-    new_connectors[std::string("Conn")+counter.asString()] = tmp;
-    if (Util::Procs::isActive(std::string("Conn")+counter.asString())){
-      (*ait)["online"] = 1;
-    }else{
-      (*ait)["online"] = 0;
-    }
-  }
-
-  //shut down deleted/changed connectors
-  for (iter = current_connectors.begin(); iter != current_connectors.end(); iter++){
-    if (new_connectors.count(iter->first) != 1 || new_connectors[iter->first] != iter->second){
-      Log("CONF", "Stopping connector: " + iter->second);
-      Util::Procs::Stop(iter->first);
-    }
-  }
-
-  //start up new/changed connectors
-  for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
-    if (current_connectors.count(iter->first) != 1 || current_connectors[iter->first] != iter->second || !Util::Procs::isActive(iter->first)){
-      Log("CONF", "Starting connector: " + iter->second);
-      Util::Procs::Start(iter->first, Util::getMyPath() + iter->second);
-    }
-  }
-
-  //store new state
-  current_connectors = new_connectors;
 }
 
 void CheckConfig(JSON::Value & in, JSON::Value & out){
@@ -477,7 +377,7 @@ int main(int argc, char ** argv){
       std::string uname = account.substr(0, colon);
       std::string pword = account.substr(colon + 1, std::string::npos);
       Controller::Log("CONF", "Created account "+uname+" through commandline option");
-      Controller::Storage["account"][uname]["password"] = Controller::md5(pword);
+      Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
     }
   }
   time_t lastuplink = 0;
@@ -645,7 +545,7 @@ int main(int argc, char ** argv){
                     Response["authorize"]["username"] = COMPILED_USERNAME;
                     Controller::checkCapable(Response["capabilities"]);
                     Controller::Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
-                    Response["authorize"]["password"] = Controller::md5(COMPILED_PASSWORD + Request["authorize"]["challenge"].asString());
+                    Response["authorize"]["password"] = Secure::md5(COMPILED_PASSWORD + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
                     it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toString()));
                     it->H.BuildRequest();

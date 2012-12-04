@@ -19,7 +19,7 @@ int main( ) {
   TS::Packet PackData;
   DTSC::Stream DTSCStream;
   int PacketNumber = 0;
-  uint64_t TimeStamp = 0;
+  long long unsigned int TimeStamp = 0;
   int ThisNaluSize;
   char VideoCounter = 0;
   char AudioCounter = 0;
@@ -41,9 +41,9 @@ int main( ) {
           IsKeyFrame = false;
           FirstKeyFrame = false;
         }
-        TimeStamp = ( DTSCStream.getPacket(0)["time"].asInt() * 27000 );
         if( IsKeyFrame ) {
-          fprintf( stderr, "Keyframe, timeStamp: %u\n", TimeStamp );
+          TimeStamp = ( DTSCStream.getPacket(0)["time"].asInt() * 27000 );
+          fprintf( stderr, "Keyframe, timeStamp: %llu (%llu)\n", TimeStamp, (TimeStamp / 27000) );
         }
         int TSType;
         bool FirstPic = true;
@@ -83,10 +83,10 @@ int main( ) {
         while( ToPack.size() ) {
           if ( ( PacketNumber % 42 ) == 0 ) {
             PackData.DefaultPAT();
-            PackData.ToString();
+            std::cout.write( PackData.ToString(), 188 );
           } else if ( ( PacketNumber % 42 ) == 1 ) {
             PackData.DefaultPMT();
-            PackData.ToString();
+            std::cout.write( PackData.ToString(), 188 );
           } else {
             PackData.Clear();
             PackData.PID( 0x100 );
@@ -101,14 +101,14 @@ int main( ) {
                 PackData.AdaptationField( 0x01 );
               }
               PackData.AddStuffing( 184 - (20+ToPack.size()) );
-              PackData.PESVideoLeadIn( ToPack.size() );
+              PackData.PESVideoLeadIn( ToPack.size(), DTSCStream.getPacket(0)["time"].asInt() * 90 );
               WritePesHeader = false;
             } else {
               PackData.AdaptationField( 0x01 );
               PackData.AddStuffing( 184 - (ToPack.size()) );
             }
             PackData.FillFree( ToPack );
-            PackData.ToString();
+            std::cout.write( PackData.ToString(), 188 );
           }
           PacketNumber ++;
         }
@@ -121,10 +121,10 @@ int main( ) {
         while( ToPack.size() ) {
           if ( ( PacketNumber % 42 ) == 0 ) {
             PackData.DefaultPAT();
-            PackData.ToString();
+            std::cout.write( PackData.ToString(), 188 );
           } else if ( ( PacketNumber % 42 ) == 1 ) {
             PackData.DefaultPMT();
-            PackData.ToString();
+            std::cout.write( PackData.ToString(), 188 );
           } else {
             PackData.Clear();
             PackData.PID( 0x101 );
@@ -142,7 +142,7 @@ int main( ) {
               PackData.AddStuffing( 184 - (ToPack.size()) );
             }
             PackData.FillFree( ToPack );
-            PackData.ToString();
+            std::cout.write( PackData.ToString(), 188 );
           }
           PacketNumber ++;
         }

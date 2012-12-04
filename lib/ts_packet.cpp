@@ -223,8 +223,8 @@ char* TS::Packet::ToString( ) {
 /// Generates a PES Lead-in for a video frame.
 /// Starts at the first Free byte.
 /// \param NewLen The length of this video frame.
-void TS::Packet::PESVideoLeadIn( int NewLen ) {
-  static int PTS = 126000;
+void TS::Packet::PESVideoLeadIn( int NewLen, long long unsigned int PTS ) {
+  //static long long unsigned int PTS = 0;
   NewLen += 14;
   int Offset = ( 188 - Free );
   Buffer[Offset] = 0x00;//PacketStartCodePrefix
@@ -234,24 +234,30 @@ void TS::Packet::PESVideoLeadIn( int NewLen ) {
   Buffer[Offset+4] = (NewLen & 0xFF00) >> 8;//PES PacketLength
   Buffer[Offset+5] = (NewLen & 0x00FF);//PES PacketLength (Cont)
   Buffer[Offset+6] = 0x80;//Reserved + Flags
-  Buffer[Offset+7] = 0x80;//PTSOnlyFlag + Flags
-  Buffer[Offset+8] = 0x05;//PESHeaderDataLength
-  Buffer[Offset+9] = 0x20 + ((PTS & 0x1C0000000) >> 29 ) + 1;//PTS
-  Buffer[Offset+10] = 0x00 + ((PTS & 0x03FC00000) >> 22 );//PTS (Cont)
-  Buffer[Offset+11] = 0x00 + ((PTS & 0x0003F8000) >> 14 ) + 1;//PTS (Cont)
-  Buffer[Offset+12] = 0x00 + ((PTS & 0x000007F80) >> 7 );//PTS (Cont)
-  Buffer[Offset+13] = 0x00 + ((PTS & 0x00000007F) << 1) + 1;//PTS (Cont)
-  
+  if( PTS != 1 ) {  
+    Buffer[Offset+7] = 0x80;//PTSOnlyFlag + Flags
+    Buffer[Offset+8] = 0x05;//PESHeaderDataLength
+    Buffer[Offset+9] = 0x20 +  ((PTS & 0x1C0000000) >> 29 ) + 1;//PTS
+    Buffer[Offset+10] = 0x00 + ((PTS & 0x03FC00000) >> 22 );//PTS (Cont)
+    Buffer[Offset+11] = 0x00 + ((PTS & 0x0003F8000) >> 14 ) + 1;//PTS (Cont)
+    Buffer[Offset+12] = 0x00 + ((PTS & 0x000007F80) >> 7 );//PTS (Cont)
+    Buffer[Offset+13] = 0x00 + ((PTS & 0x00000007F) << 1) + 1;//PTS (Cont)
+    Offset += 14;
+  } else {
+    Buffer[Offset+7] = 0x00;//PTSOnlyFlag + Flags
+    Buffer[Offset+8] = 0x00;//PESHeaderDataLength
+    Offset += 9;
+  }
   //PesPacket-Wise Prepended Data
   
-  Buffer[Offset+14] = 0x00;//NALU StartCode
-  Buffer[Offset+15] = 0x00;//NALU StartCode (Cont)
-  Buffer[Offset+16] = 0x00;//NALU StartCode (Cont)
-  Buffer[Offset+17] = 0x01;//NALU StartCode (Cont)
-  Buffer[Offset+18] = 0x09;//NALU EndOfPacket (Einde Vorige Packet)
-  Buffer[Offset+19] = 0xF0;//NALU EndOfPacket (Cont)
-  Free = Free - 20;
-  PTS += 3003;
+  Buffer[Offset] = 0x00;//NALU StartCode
+  Buffer[Offset+1] = 0x00;//NALU StartCode (Cont)
+  Buffer[Offset+2] = 0x00;//NALU StartCode (Cont)
+  Buffer[Offset+3] = 0x01;//NALU StartCode (Cont)
+  Buffer[Offset+4] = 0x09;//NALU EndOfPacket (Einde Vorige Packet)
+  Buffer[Offset+5] = 0xF0;//NALU EndOfPacket (Cont)
+  Free = Free - (Offset+6);
+  //PTS += 3003;
 }
 
 /// Generates a PES Lead-in for an audio frame.

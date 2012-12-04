@@ -40,7 +40,7 @@ namespace TS {
       
       void Print();
       char* ToString();
-      void PESVideoLeadIn( int NewLen );
+      void PESVideoLeadIn( int NewLen, long long unsigned int PTS = 1 );
       void PESAudioLeadIn( int NewLen, uint64_t PTS = 0 );
       void FillFree( std::string & PackageData );
       void AddStuffing( int NumBytes );

@@ -5,7 +5,6 @@ includedir=@includedir@
 
 Name: Mist
 Description: Mist Streaming Media Library
-Requires: openssl
 Version: @PACKAGE_VERSION@
-Libs: -L${libdir} -lmist-1.0 -lssl -lcrypto -lrt
+Libs: -L${libdir} -lmist-1.0
 Cflags: -I${includedir}/mist-1.0 -I${libdir}/mist-1.0/include

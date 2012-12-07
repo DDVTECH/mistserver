@@ -407,7 +407,7 @@ std::string & JSON::Value::toNetPacked(){
   static std::string emptystring;
   //check if this is legal
   if (myType != OBJECT){
-    fprintf(stderr, "Fatal error: Only objects may be NetPacked! Aborting.\n");
+    fprintf(stderr, "Error: Only objects may be NetPacked!\n");
     return emptystring;
   }
   //if sneaky storage doesn't contain correct data, re-calculate it

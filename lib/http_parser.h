@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 /// Holds all HTTP processing related code.
-namespace HTTP{
+namespace HTTP {
   /// Simple class for reading and writing HTTP 1.0 and 1.1.
   class Parser{
     public:
@@ -45,5 +45,7 @@ namespace HTTP{
       void Trim(std::string & s);
       static int unhex(char c);
       static std::string hex(char dec);
-  };//HTTP::Parser class
-};//HTTP namespace
+  };
+//HTTP::Parser class
+
+}//HTTP namespace

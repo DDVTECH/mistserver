@@ -2,11 +2,16 @@
 /// Contains generic function headers for managing configuration.
 
 #pragma once
+
+#ifndef PACKAGE_VERSION
+#define PACKAGE_VERSION "unknown"
+#endif
+
 #include <string>
 #include "json.h"
 
 /// Contains utility code, not directly related to streaming media
-namespace Util{
+namespace Util {
 
   /// Deals with parsing configuration from commandline options.
   class Config{
@@ -40,4 +45,5 @@ namespace Util{
   /// Will turn the current process into a daemon.
   void Daemonize();
 
-};
+}
+;

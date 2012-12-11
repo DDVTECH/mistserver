@@ -16,7 +16,6 @@
 #define BUFFER_BLOCKSIZE 4096 //set buffer blocksize to 4KiB
 #include <iostream>//temporary for debugging
 
-
 std::string uint2string(unsigned int i){
   std::stringstream st;
   st << i;
@@ -27,7 +26,9 @@ std::string uint2string(unsigned int i){
 /// The back is popped as long as it is empty, first - this way this function is
 /// guaranteed to return 0 if the buffer is empty.
 unsigned int Socket::Buffer::size(){
-  while (data.size() > 0 && data.back().empty()){data.pop_back();}
+  while (data.size() > 0 && data.back().empty()){
+    data.pop_back();
+  }
   return data.size();
 }
 
@@ -45,10 +46,12 @@ void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize
     j = i;
     while (j < newdatasize && j - i <= BUFFER_BLOCKSIZE){
       j++;
-      if (newdata[j-1] == '\n'){break;}
+      if (newdata[j - 1] == '\n'){
+        break;
+      }
     }
     if (i != j){
-      data.push_front(std::string(newdata+i, (size_t)(j - i)));
+      data.push_front(std::string(newdata + i, (size_t)(j - i)));
       i = j;
     }else{
       break;
@@ -63,8 +66,10 @@ void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize
 bool Socket::Buffer::available(unsigned int count){
   unsigned int i = 0;
   for (std::deque<std::string>::iterator it = data.begin(); it != data.end(); ++it){
-    i += (*it).size();
-    if (i >= count){return true;}
+    i += ( *it).size();
+    if (i >= count){
+      return true;
+    }
   }
   return false;
 }
@@ -72,18 +77,20 @@ bool Socket::Buffer::available(unsigned int count){
 /// Removes count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
 std::string Socket::Buffer::remove(unsigned int count){
-  if (!available(count)){return "";}
+  if ( !available(count)){
+    return "";
+  }
   unsigned int i = 0;
   std::string ret;
   ret.reserve(count);
   for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
-    if (i + (*it).size() < count){
-      ret.append(*it);
-      i += (*it).size();
-      (*it).clear();
+    if (i + ( *it).size() < count){
+      ret.append( *it);
+      i += ( *it).size();
+      ( *it).clear();
     }else{
-      ret.append(*it, 0, count - i);
-      (*it).erase(0, count - i);
+      ret.append( *it, 0, count - i);
+      ( *it).erase(0, count - i);
       break;
     }
   }
@@ -93,15 +100,17 @@ std::string Socket::Buffer::remove(unsigned int count){
 /// Copies count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
 std::string Socket::Buffer::copy(unsigned int count){
-  if (!available(count)){return "";}
+  if ( !available(count)){
+    return "";
+  }
   unsigned int i = 0;
   std::string ret;
   for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
-    if (i + (*it).size() < count){
-      ret.append(*it);
-      i += (*it).size();
+    if (i + ( *it).size() < count){
+      ret.append( *it);
+      i += ( *it).size();
     }else{
-      ret.append(*it, 0, count - i);
+      ret.append( *it, 0, count - i);
       break;
     }
   }
@@ -118,7 +127,6 @@ std::string & Socket::Buffer::get(){
   }
 }
 
-
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a Socket::Connection.
 /// \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
@@ -130,7 +138,7 @@ Socket::Connection::Connection(int sockNo){
   conntime = Util::epoch();
   Error = false;
   Blocking = false;
-}//Socket::Connection basic constructor
+} //Socket::Connection basic constructor
 
 /// Simulate a socket using two file descriptors.
 /// \param write The filedescriptor to write to.
@@ -144,7 +152,7 @@ Socket::Connection::Connection(int write, int read){
   conntime = Util::epoch();
   Error = false;
   Blocking = false;
-}//Socket::Connection basic constructor
+} //Socket::Connection basic constructor
 
 /// Create a new disconnected base socket. This is a basic constructor for placeholder purposes.
 /// A socket created like this is always disconnected and should/could be overwritten at some point.
@@ -157,12 +165,12 @@ Socket::Connection::Connection(){
   conntime = Util::epoch();
   Error = false;
   Blocking = false;
-}//Socket::Connection basic constructor
+} //Socket::Connection basic constructor
 
 /// Internally used call to make an file descriptor blocking or not.
 void setFDBlocking(int FD, bool blocking){
   int flags = fcntl(FD, F_GETFL, 0);
-  if (!blocking){
+  if ( !blocking){
     flags |= O_NONBLOCK;
   }else{
     flags &= !O_NONBLOCK;
@@ -172,44 +180,57 @@ void setFDBlocking(int FD, bool blocking){
 
 /// Set this socket to be blocking (true) or nonblocking (false).
 void Socket::Connection::setBlocking(bool blocking){
-  if (sock >=0){setFDBlocking(sock, blocking);}
-  if (pipes[0] >=0){setFDBlocking(pipes[0], blocking);}
-  if (pipes[1] >=0){setFDBlocking(pipes[1], blocking);}
+  if (sock >= 0){
+    setFDBlocking(sock, blocking);
+  }
+  if (pipes[0] >= 0){
+    setFDBlocking(pipes[0], blocking);
+  }
+  if (pipes[1] >= 0){
+    setFDBlocking(pipes[1], blocking);
+  }
 }
 
 /// Close connection. The internal socket is closed and then set to -1.
 /// If the connection is already closed, nothing happens.
 void Socket::Connection::close(){
   if (connected()){
-    #if DEBUG >= 6
+#if DEBUG >= 6
     fprintf(stderr, "Socket closed.\n");
-    #endif
+#endif
     if (sock != -1){
       shutdown(sock, SHUT_RDWR);
       errno = EINTR;
-      while (::close(sock) != 0 && errno == EINTR){}
+      while (::close(sock) != 0 && errno == EINTR){
+      }
       sock = -1;
     }
     if (pipes[0] != -1){
       errno = EINTR;
-      while (::close(pipes[0]) != 0 && errno == EINTR){}
+      while (::close(pipes[0]) != 0 && errno == EINTR){
+      }
       pipes[0] = -1;
     }
     if (pipes[1] != -1){
       errno = EINTR;
-      while (::close(pipes[1]) != 0 && errno == EINTR){}
+      while (::close(pipes[1]) != 0 && errno == EINTR){
+      }
       pipes[1] = -1;
     }
   }
-}//Socket::Connection::close
+} //Socket::Connection::close
 
 /// Returns internal socket number.
-int Socket::Connection::getSocket(){return sock;}
+int Socket::Connection::getSocket(){
+  return sock;
+}
 
 /// Returns a string describing the last error that occured.
 /// Simply calls strerror(errno) - not very reliable!
 /// \todo Improve getError at some point to be more reliable and only report socket errors.
-std::string Socket::Connection::getError(){return strerror(errno);}
+std::string Socket::Connection::getError(){
+  return strerror(errno);
+}
 
 /// Create a new Unix Socket. This socket will (try to) connect to the given address right away.
 /// \param address String containing the location of the Unix socket to connect to.
@@ -219,9 +240,9 @@ Socket::Connection::Connection(std::string address, bool nonblock){
   pipes[1] = -1;
   sock = socket(PF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "Could not create socket! Error: %s\n", strerror(errno));
-    #endif
+#endif
     return;
   }
   Error = false;
@@ -231,8 +252,8 @@ Socket::Connection::Connection(std::string address, bool nonblock){
   conntime = Util::epoch();
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, address.c_str(), address.size()+1);
-  int r = connect(sock, (sockaddr*)&addr, sizeof(addr));
+  strncpy(addr.sun_path, address.c_str(), address.size() + 1);
+  int r = connect(sock, (sockaddr*) &addr, sizeof(addr));
   if (r == 0){
     if (nonblock){
       int flags = fcntl(sock, F_GETFL, 0);
@@ -240,12 +261,12 @@ Socket::Connection::Connection(std::string address, bool nonblock){
       fcntl(sock, F_SETFL, flags);
     }
   }else{
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "Could not connect to %s! Error: %s\n", address.c_str(), strerror(errno));
-    #endif
+#endif
     close();
   }
-}//Socket::Connection Unix Contructor
+} //Socket::Connection Unix Contructor
 
 /// Create a new TCP Socket. This socket will (try to) connect to the given host/port right away.
 /// \param host String containing the hostname to connect to.
@@ -263,7 +284,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   std::stringstream ss;
   ss << port;
 
-  memset(&hints, 0, sizeof(struct addrinfo));
+  memset( &hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_ADDRCONFIG;
@@ -273,25 +294,29 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   hints.ai_next = NULL;
   int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "Could not connect to %s:%i! Error: %s\n", host.c_str(), port, gai_strerror(s));
-    #endif
+#endif
     close();
     return;
   }
 
-  for (rp = result; rp != NULL; rp = rp->ai_next) {
+  for (rp = result; rp != NULL; rp = rp->ai_next){
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    if (sock < 0){continue;}
-    if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0){break;}
+    if (sock < 0){
+      continue;
+    }
+    if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0){
+      break;
+    }
     ::close(sock);
   }
   freeaddrinfo(result);
 
   if (rp == 0){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "Could not connect to %s! Error: %s\n", host.c_str(), strerror(errno));
-    #endif
+#endif
     close();
   }else{
     if (nonblock){
@@ -300,7 +325,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
       fcntl(sock, F_SETFL, flags);
     }
   }
-}//Socket::Connection TCP Contructor
+} //Socket::Connection TCP Contructor
 
 /// Returns the connected-state for this socket.
 /// Note that this function might be slightly behind the real situation.
@@ -345,8 +370,8 @@ bool Socket::Connection::spool(){
 /// Returns true if new data was received, false otherwise.
 bool Socket::Connection::flush(){
   while (upbuffer.size() > 0 && connected()){
-    if (!iwrite(upbuffer.get())){
-      Util::sleep(10);//sleep 10ms
+    if ( !iwrite(upbuffer.get())){
+      Util::sleep(10); //sleep 10ms
     }
   }
   /// \todo Provide better mechanism to prevent overbuffering.
@@ -356,7 +381,6 @@ bool Socket::Connection::flush(){
     return iread(downbuffer);
   }
 }
-
 
 /// Returns a reference to the download buffer.
 Socket::Buffer & Socket::Connection::Received(){
@@ -368,17 +392,17 @@ Socket::Buffer & Socket::Connection::Received(){
 /// Any data that could not be send will block until it can be send or the connection is severed.
 void Socket::Connection::SendNow(const char * data, size_t len){
   while (upbuffer.size() > 0 && connected()){
-    if (!iwrite(upbuffer.get())){
-      Util::sleep(1);//sleep 1ms if buffer full
+    if ( !iwrite(upbuffer.get())){
+      Util::sleep(1); //sleep 1ms if buffer full
     }
   }
   int i = iwrite(data, len);
   while (i < len && connected()){
-    int j = iwrite(data+i, len-i);
+    int j = iwrite(data + i, len - i);
     if (j > 0){
       i += j;
     }else{
-      Util::sleep(1);//sleep 1ms and retry
+      Util::sleep(1); //sleep 1ms and retry
     }
   }
 }
@@ -390,7 +414,9 @@ void Socket::Connection::SendNow(const char * data, size_t len){
 /// This means this function is blocking if the socket is, but nonblocking otherwise.
 void Socket::Connection::Send(const char * data, size_t len){
   while (upbuffer.size() > 0){
-    if (!iwrite(upbuffer.get())){break;}
+    if ( !iwrite(upbuffer.get())){
+      break;
+    }
   }
   if (upbuffer.size() > 0){
     upbuffer.append(data, len);
@@ -442,7 +468,9 @@ void Socket::Connection::Send(std::string & data){
 /// \param len Amount of bytes to write.
 /// \returns The amount of bytes actually written.
 int Socket::Connection::iwrite(const void * buffer, int len){
-  if (!connected() || len < 1){return 0;}
+  if ( !connected() || len < 1){
+    return 0;
+  }
   int r;
   if (sock >= 0){
     r = send(sock, buffer, len, 0);
@@ -457,9 +485,9 @@ int Socket::Connection::iwrite(const void * buffer, int len){
       default:
         if (errno != EPIPE){
           Error = true;
-          #if DEBUG >= 2
+#if DEBUG >= 2
           fprintf(stderr, "Could not iwrite data! Error: %s\n", strerror(errno));
-          #endif
+#endif
         }
         close();
         return 0;
@@ -471,7 +499,7 @@ int Socket::Connection::iwrite(const void * buffer, int len){
   }
   up += r;
   return r;
-}//Socket::Connection::iwrite
+} //Socket::Connection::iwrite
 
 /// Incremental read call. This function tries to read len bytes to the buffer from the socket,
 /// returning the amount of bytes it actually read.
@@ -479,7 +507,9 @@ int Socket::Connection::iwrite(const void * buffer, int len){
 /// \param len Amount of bytes to read.
 /// \returns The amount of bytes actually read.
 int Socket::Connection::iread(void * buffer, int len){
-  if (!connected() || len < 1){return 0;}
+  if ( !connected() || len < 1){
+    return 0;
+  }
   int r;
   if (sock >= 0){
     r = recv(sock, buffer, len, 0);
@@ -494,9 +524,9 @@ int Socket::Connection::iread(void * buffer, int len){
       default:
         if (errno != EPIPE){
           Error = true;
-          #if DEBUG >= 2
+#if DEBUG >= 2
           fprintf(stderr, "Could not iread data! Error: %s\n", strerror(errno));
-          #endif
+#endif
         }
         close();
         return 0;
@@ -508,7 +538,7 @@ int Socket::Connection::iread(void * buffer, int len){
   }
   down += r;
   return r;
-}//Socket::Connection::iread
+} //Socket::Connection::iread
 
 /// Read call that is compatible with Socket::Buffer.
 /// Data is read using iread (which is nonblocking if the Socket::Connection itself is),
@@ -518,10 +548,12 @@ int Socket::Connection::iread(void * buffer, int len){
 bool Socket::Connection::iread(Buffer & buffer){
   char cbuffer[BUFFER_BLOCKSIZE];
   int num = iread(cbuffer, BUFFER_BLOCKSIZE);
-  if (num < 1){return false;}
+  if (num < 1){
+    return false;
+  }
   buffer.append(cbuffer, num);
   return true;
-}//iread
+} //iread
 
 /// Incremental write call that is compatible with std::string.
 /// Data is written using iwrite (which is nonblocking if the Socket::Connection itself is),
@@ -529,12 +561,16 @@ bool Socket::Connection::iread(Buffer & buffer){
 /// \param buffer std::string to remove data from.
 /// \return True if more data was sent, false otherwise.
 bool Socket::Connection::iwrite(std::string & buffer){
-  if (buffer.size() < 1){return false;}
+  if (buffer.size() < 1){
+    return false;
+  }
   int tmp = iwrite((void*)buffer.c_str(), buffer.size());
-  if (tmp < 1){return false;}
+  if (tmp < 1){
+    return false;
+  }
   buffer = buffer.substr(tmp);
   return true;
-}//iwrite
+} //iwrite
 
 /// Gets hostname for connection, if available.
 std::string Socket::Connection::getHost(){
@@ -549,13 +585,13 @@ void Socket::Connection::setHost(std::string host){
 
 /// Returns true if these sockets are the same socket.
 /// Does not check the internal stats - only the socket itself.
-bool Socket::Connection::operator== (const Connection &B) const{
+bool Socket::Connection::operator==(const Connection &B) const{
   return sock == B.sock && pipes[0] == B.pipes[0] && pipes[1] == B.pipes[1];
 }
 
 /// Returns true if these sockets are not the same socket.
 /// Does not check the internal stats - only the socket itself.
-bool Socket::Connection::operator!= (const Connection &B) const{
+bool Socket::Connection::operator!=(const Connection &B) const{
   return sock != B.sock || pipes[0] != B.pipes[0] || pipes[1] != B.pipes[1];
 }
 
@@ -568,7 +604,7 @@ Socket::Connection::operator bool() const{
 /// Create a new base Server. The socket is never connected, and a placeholder for later connections.
 Socket::Server::Server(){
   sock = -1;
-}//Socket::Server base Constructor
+} //Socket::Server base Constructor
 
 /// Create a new TCP Server. The socket is immediately bound and set to listen.
 /// A maximum of 100 connections will be accepted between accept() calls.
@@ -577,11 +613,11 @@ Socket::Server::Server(){
 /// \param hostname (optional) The interface to bind to. The default is 0.0.0.0 (all interfaces).
 /// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
 Socket::Server::Server(int port, std::string hostname, bool nonblock){
-  if (!IPv6bind(port, hostname, nonblock) && !IPv4bind(port, hostname, nonblock)){
+  if ( !IPv6bind(port, hostname, nonblock) && !IPv4bind(port, hostname, nonblock)){
     fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
     sock = -1;
   }
-}//Socket::Server TCP Constructor
+} //Socket::Server TCP Constructor
 
 /// Attempt to bind an IPv6 socket.
 /// \param port The TCP port to listen on
@@ -591,9 +627,9 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
 bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET6, SOCK_STREAM, 0);
   if (sock < 0){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "Could not create IPv6 socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
-    #endif
+#endif
     return false;
   }
   int on = 1;
@@ -605,31 +641,31 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   }
   struct sockaddr_in6 addr;
   addr.sin6_family = AF_INET6;
-  addr.sin6_port = htons(port);//set port
+  addr.sin6_port = htons(port); //set port
   if (hostname == "0.0.0.0" || hostname.length() == 0){
     addr.sin6_addr = in6addr_any;
   }else{
-    inet_pton(AF_INET6, hostname.c_str(), &addr.sin6_addr);//set interface, 0.0.0.0 (default) is all
+    inet_pton(AF_INET6, hostname.c_str(), &addr.sin6_addr); //set interface, 0.0.0.0 (default) is all
   }
-  int ret = bind(sock, (sockaddr*)&addr, sizeof(addr));//do the actual bind
+  int ret = bind(sock, (sockaddr*) &addr, sizeof(addr)); //do the actual bind
   if (ret == 0){
-    ret = listen(sock, 100);//start listening, backlog of 100 allowed
+    ret = listen(sock, 100); //start listening, backlog of 100 allowed
     if (ret == 0){
-      #if DEBUG >= 1
+#if DEBUG >= 1
       fprintf(stderr, "IPv6 socket success @ %s:%i\n", hostname.c_str(), port);
-      #endif
+#endif
       return true;
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       fprintf(stderr, "IPv6 Listen failed! Error: %s\n", strerror(errno));
-      #endif
+#endif
       close();
       return false;
     }
   }else{
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "IPv6 Binding %s:%i failed (%s)\n", hostname.c_str(), port, strerror(errno));
-    #endif
+#endif
     close();
     return false;
   }
@@ -643,9 +679,9 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
 bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock < 0){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "Could not create IPv4 socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
-    #endif
+#endif
     return false;
   }
   int on = 1;
@@ -657,31 +693,31 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   }
   struct sockaddr_in addr4;
   addr4.sin_family = AF_INET;
-  addr4.sin_port = htons(port);//set port
+  addr4.sin_port = htons(port); //set port
   if (hostname == "0.0.0.0" || hostname.length() == 0){
     addr4.sin_addr.s_addr = INADDR_ANY;
   }else{
-    inet_pton(AF_INET, hostname.c_str(), &addr4.sin_addr);//set interface, 0.0.0.0 (default) is all
+    inet_pton(AF_INET, hostname.c_str(), &addr4.sin_addr); //set interface, 0.0.0.0 (default) is all
   }
-  int ret = bind(sock, (sockaddr*)&addr4, sizeof(addr4));//do the actual bind
+  int ret = bind(sock, (sockaddr*) &addr4, sizeof(addr4)); //do the actual bind
   if (ret == 0){
-    ret = listen(sock, 100);//start listening, backlog of 100 allowed
+    ret = listen(sock, 100); //start listening, backlog of 100 allowed
     if (ret == 0){
-      #if DEBUG >= 1
+#if DEBUG >= 1
       fprintf(stderr, "IPv4 socket success @ %s:%i\n", hostname.c_str(), port);
-      #endif
+#endif
       return true;
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       fprintf(stderr, "IPv4 Listen failed! Error: %s\n", strerror(errno));
-      #endif
+#endif
       close();
       return false;
     }
   }else{
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "IPv4 binding %s:%i failed (%s)\n", hostname.c_str(), port, strerror(errno));
-    #endif
+#endif
     close();
     return false;
   }
@@ -697,9 +733,9 @@ Socket::Server::Server(std::string address, bool nonblock){
   unlink(address.c_str());
   sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "Could not create socket! Error: %s\n", strerror(errno));
-    #endif
+#endif
     return;
   }
   if (nonblock){
@@ -709,38 +745,40 @@ Socket::Server::Server(std::string address, bool nonblock){
   }
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, address.c_str(), address.size()+1);
-  int ret = bind(sock, (sockaddr*)&addr, sizeof(addr));
+  strncpy(addr.sun_path, address.c_str(), address.size() + 1);
+  int ret = bind(sock, (sockaddr*) &addr, sizeof(addr));
   if (ret == 0){
-    ret = listen(sock, 100);//start listening, backlog of 100 allowed
+    ret = listen(sock, 100); //start listening, backlog of 100 allowed
     if (ret == 0){
       return;
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       fprintf(stderr, "Listen failed! Error: %s\n", strerror(errno));
-      #endif
+#endif
       close();
       return;
     }
   }else{
-    #if DEBUG >= 1
+#if DEBUG >= 1
     fprintf(stderr, "Binding failed! Error: %s\n", strerror(errno));
-    #endif
+#endif
     close();
     return;
   }
-}//Socket::Server Unix Constructor
+} //Socket::Server Unix Constructor
 
 /// Accept any waiting connections. If the Socket::Server is blocking, this function will block until there is an incoming connection.
 /// If the Socket::Server is nonblocking, it might return a Socket::Connection that is not connected, so check for this.
 /// \param nonblock (optional) Whether the newly connected socket should be nonblocking. Default is false (blocking).
 /// \returns A Socket::Connection, which may or may not be connected, depending on settings and circumstances.
 Socket::Connection Socket::Server::accept(bool nonblock){
-  if (sock < 0){return Socket::Connection(-1);}
+  if (sock < 0){
+    return Socket::Connection( -1);
+  }
   struct sockaddr_in6 addrinfo;
   socklen_t len = sizeof(addrinfo);
   static char addrconv[INET6_ADDRSTRLEN];
-  int r = ::accept(sock, (sockaddr*)&addrinfo, &len);
+  int r = ::accept(sock, (sockaddr*) &addrinfo, &len);
   //set the socket to be nonblocking, if requested.
   //we could do this through accept4 with a flag, but that call is non-standard...
   if ((r >= 0) && nonblock){
@@ -751,29 +789,29 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   Socket::Connection tmp(r);
   if (r < 0){
     if ((errno != EWOULDBLOCK) && (errno != EAGAIN) && (errno != EINTR)){
-      #if DEBUG >= 1
+#if DEBUG >= 1
       fprintf(stderr, "Error during accept - closing server socket.\n");
-      #endif
+#endif
       close();
     }
   }else{
     if (addrinfo.sin6_family == AF_INET6){
       tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-      #if DEBUG >= 6
+#if DEBUG >= 6
       fprintf(stderr,"IPv6 addr: %s\n", tmp.remotehost.c_str());
-      #endif
+#endif
     }
     if (addrinfo.sin6_family == AF_INET){
-      tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in*)&addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-      #if DEBUG >= 6
+      tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in*) &addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+#if DEBUG >= 6
       fprintf(stderr,"IPv4 addr: %s\n", tmp.remotehost.c_str());
-      #endif
+#endif
     }
     if (addrinfo.sin6_family == AF_UNIX){
-      #if DEBUG >= 6
+#if DEBUG >= 6
       tmp.remotehost = ((sockaddr_un*)&addrinfo)->sun_path;
       fprintf(stderr,"Unix socket, no address\n");
-      #endif
+#endif
       tmp.remotehost = "UNIX_SOCKET";
     }
   }
@@ -784,15 +822,16 @@ Socket::Connection Socket::Server::accept(bool nonblock){
 /// If the connection is already closed, nothing happens.
 void Socket::Server::close(){
   if (connected()){
-    #if DEBUG >= 6
+#if DEBUG >= 6
     fprintf(stderr, "ServerSocket closed.\n");
-    #endif
+#endif
     shutdown(sock, SHUT_RDWR);
     errno = EINTR;
-    while (::close(sock) != 0 && errno == EINTR){}
+    while (::close(sock) != 0 && errno == EINTR){
+    }
     sock = -1;
   }
-}//Socket::Server::close
+} //Socket::Server::close
 
 /// Returns the connected-state for this socket.
 /// Note that this function might be slightly behind the real situation.
@@ -801,7 +840,9 @@ void Socket::Server::close(){
 /// \returns True if socket is connected, false otherwise.
 bool Socket::Server::connected() const{
   return (sock >= 0);
-}//Socket::Server::connected
+} //Socket::Server::connected
 
 /// Returns internal socket number.
-int Socket::Server::getSocket(){return sock;}
+int Socket::Server::getSocket(){
+  return sock;
+}

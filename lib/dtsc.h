@@ -12,8 +12,6 @@
 #include "json.h"
 #include "socket.h"
 
-
-
 /// Holds all DDVTECH Stream Container classes and parsers.
 ///length (int, length in seconds, if available)
 ///video:
@@ -50,10 +48,10 @@
 /// - nalu (int, if set, is a nalu)
 /// - nalu_end (int, if set, is a end-of-sequence)
 /// - offset (int, unsigned version of signed int! Holds the ms offset between timestamp and proper display time for B-frames)
-namespace DTSC{
+namespace DTSC {
 
   /// This enum holds all possible datatypes for DTSC packets.
-  enum datatype {
+  enum datatype{
     AUDIO, ///< Stream Audio data
     VIDEO, ///< Stream Video data
     META, ///< Stream Metadata
@@ -91,12 +89,12 @@ namespace DTSC{
       FILE * F;
       unsigned long headerSize;
       char buffer[4];
-  };//FileWriter
-
+  };
+  //FileWriter
 
   /// A part from the DTSC::Stream ringbuffer.
   /// Holds information about a buffer that will stay consistent
-  class Ring {
+  class Ring{
     public:
       Ring(unsigned int v);
       volatile unsigned int b; ///< Holds current number of buffer. May and is intended to change unexpectedly!
@@ -107,7 +105,7 @@ namespace DTSC{
   /// Holds temporary data for a DTSC stream and provides functions to utilize it.
   /// Optionally also acts as a ring buffer of a certain requested size.
   /// If ring buffering mode is enabled, it will automatically grow in size to always contain at least one keyframe.
-  class Stream {
+  class Stream{
     public:
       Stream();
       ~Stream();
@@ -125,7 +123,7 @@ namespace DTSC{
       Ring * getRing();
       unsigned int getTime();
       void dropRing(Ring * ptr);
-  private:
+    private:
       std::deque<JSON::Value> buffers;
       std::set<DTSC::Ring *> rings;
       std::deque<DTSC::Ring> keyframes;
@@ -134,4 +132,4 @@ namespace DTSC{
       datatype datapointertype;
       unsigned int buffercount;
   };
-};
+}

@@ -7,14 +7,12 @@
 #include <stdint.h> //for uint64_t
 #include <string.h> //for memcpy
 #include <arpa/inet.h> //for htonl
-
 int JSON::Value::c2hex(int c){
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return c - 'a' + 10;
   if (c >= 'A' && c <= 'F') return c - 'A' + 10;
   return 0;
 }
-
 
 std::string JSON::Value::read_string(int separator, std::istream & fromstream){
   std::string out;
@@ -27,17 +25,28 @@ std::string JSON::Value::read_string(int separator, std::istream & fromstream){
     }
     if (escaped){
       switch (c){
-        case 'b': out += '\b'; break;
-        case 'f': out += '\f'; break;
-        case 'n': out += '\n'; break;
-        case 'r': out += '\r'; break;
-        case 't': out += '\t'; break;
-        case 'u':{
-           int d1 = fromstream.get();
-           int d2 = fromstream.get();
-           int d3 = fromstream.get();
-           int d4 = fromstream.get();
-           c = c2hex(d4) + (c2hex(d3) << 4) + (c2hex(d2) << 8) + (c2hex(d1) << 16);
+        case 'b':
+          out += '\b';
+          break;
+        case 'f':
+          out += '\f';
+          break;
+        case 'n':
+          out += '\n';
+          break;
+        case 'r':
+          out += '\r';
+          break;
+        case 't':
+          out += '\t';
+          break;
+        case 'u': {
+          int d1 = fromstream.get();
+          int d2 = fromstream.get();
+          int d3 = fromstream.get();
+          int d4 = fromstream.get();
+          c = c2hex(d4) + (c2hex(d3) << 4) + (c2hex(d2) << 8) + (c2hex(d1) << 16);
+          break;
         }
         default:
           out += (char)c;
@@ -58,14 +67,30 @@ std::string JSON::Value::string_escape(std::string val){
   std::string out = "\"";
   for (unsigned int i = 0; i < val.size(); ++i){
     switch (val[i]){
-      case '"': out += "\\\""; break;
-      case '\\': out += "\\\\"; break;
-      case '\n': out += "\\n"; break;
-      case '\b': out += "\\b"; break;
-      case '\f': out += "\\f"; break;
-      case '\r': out += "\\r"; break;
-      case '\t': out += "\\t"; break;
-      default: out += val[i];
+      case '"':
+        out += "\\\"";
+        break;
+      case '\\':
+        out += "\\\\";
+        break;
+      case '\n':
+        out += "\\n";
+        break;
+      case '\b':
+        out += "\\b";
+        break;
+      case '\f':
+        out += "\\f";
+        break;
+      case '\r':
+        out += "\\r";
+        break;
+      case '\t':
+        out += "\\t";
+        break;
+      default:
+        out += val[i];
+        break;
     }
   }
   out += "\"";
@@ -76,9 +101,15 @@ std::string JSON::Value::string_escape(std::string val){
 void JSON::Value::skipToEnd(std::istream & fromstream){
   while (fromstream.good()){
     char peek = fromstream.peek();
-    if (peek == ','){return;}
-    if (peek == ']'){return;}
-    if (peek == '}'){return;}
+    if (peek == ','){
+      return;
+    }
+    if (peek == ']'){
+      return;
+    }
+    if (peek == '}'){
+      return;
+    }
     peek = fromstream.get();
   }
 }
@@ -101,7 +132,7 @@ JSON::Value::Value(std::istream & fromstream){
         c = fromstream.get();
         myType = OBJECT;
         break;
-      case '[':{
+      case '[': {
         reading_array = true;
         c = fromstream.get();
         myType = ARRAY;
@@ -114,13 +145,13 @@ JSON::Value::Value(std::istream & fromstream){
       case '\'':
       case '"':
         c = fromstream.get();
-        if (!reading_object){
+        if ( !reading_object){
           myType = STRING;
           strVal = read_string(c, fromstream);
           return;
         }else{
           std::string tmpstr = read_string(c, fromstream);
-          (*this)[tmpstr] = JSON::Value(fromstream);
+          ( *this)[tmpstr] = JSON::Value(fromstream);
         }
         break;
       case '0':
@@ -139,18 +170,22 @@ JSON::Value::Value(std::istream & fromstream){
         intVal += c - '0';
         break;
       case ',':
-        if (!reading_object && !reading_array) return;
+        if ( !reading_object && !reading_array) return;
         c = fromstream.get();
         if (reading_array){
           append(JSON::Value(fromstream));
         }
         break;
       case '}':
-        if (reading_object){c = fromstream.get();}
+        if (reading_object){
+          c = fromstream.get();
+        }
         return;
         break;
       case ']':
-        if (reading_array){c = fromstream.get();}
+        if (reading_array){
+          c = fromstream.get();
+        }
         return;
         break;
       case 't':
@@ -174,7 +209,7 @@ JSON::Value::Value(std::istream & fromstream){
         return;
         break;
       default:
-        c = fromstream.get();//ignore this character
+        c = fromstream.get(); //ignore this character
         continue;
         break;
     }
@@ -185,12 +220,14 @@ JSON::Value::Value(std::istream & fromstream){
 JSON::Value::Value(const std::string & val){
   myType = STRING;
   strVal = val;
+  intVal = 0;
 }
 
 /// Sets this JSON::Value to the given string.
 JSON::Value::Value(const char * val){
   myType = STRING;
   strVal = val;
+  intVal = 0;
 }
 
 /// Sets this JSON::Value to the given integer.
@@ -202,14 +239,24 @@ JSON::Value::Value(long long int val){
 /// Compares a JSON::Value to another for equality.
 bool JSON::Value::operator==(const JSON::Value & rhs) const{
   if (myType != rhs.myType) return false;
-  if (myType == INTEGER || myType == BOOL){return intVal == rhs.intVal;}
-  if (myType == STRING){return strVal == rhs.strVal;}
-  if (myType == EMPTY){return true;}
+  if (myType == INTEGER || myType == BOOL){
+    return intVal == rhs.intVal;
+  }
+  if (myType == STRING){
+    return strVal == rhs.strVal;
+  }
+  if (myType == EMPTY){
+    return true;
+  }
   if (myType == OBJECT){
     if (objVal.size() != rhs.objVal.size()) return false;
     for (std::map<std::string, Value>::const_iterator it = objVal.begin(); it != objVal.end(); ++it){
-      if (!rhs.isMember(it->first)){return false;}
-      if (it->second != rhs.objVal.find(it->first)->second){return false;}
+      if ( !rhs.isMember(it->first)){
+        return false;
+      }
+      if (it->second != rhs.objVal.find(it->first)->second){
+        return false;
+      }
     }
     return true;
   }
@@ -217,7 +264,9 @@ bool JSON::Value::operator==(const JSON::Value & rhs) const{
     if (arrVal.size() != rhs.arrVal.size()) return false;
     int i = 0;
     for (std::deque<Value>::const_iterator it = arrVal.begin(); it != arrVal.end(); ++it){
-      if (*it != rhs.arrVal[i]){return false;}
+      if ( *it != rhs.arrVal[i]){
+        return false;
+      }
       i++;
     }
     return true;
@@ -227,7 +276,7 @@ bool JSON::Value::operator==(const JSON::Value & rhs) const{
 
 /// Compares a JSON::Value to another for equality.
 bool JSON::Value::operator!=(const JSON::Value & rhs) const{
-  return !((*this) == rhs);
+  return !(( *this) == rhs);
 }
 
 /// Sets this JSON::Value to the given boolean.
@@ -248,7 +297,7 @@ JSON::Value & JSON::Value::operator=(const std::string &rhs){
 
 /// Sets this JSON::Value to the given string.
 JSON::Value & JSON::Value::operator=(const char * rhs){
-  return ((*this) = (std::string)rhs);
+  return (( *this) = (std::string)rhs);
 }
 
 /// Sets this JSON::Value to the given integer.
@@ -261,12 +310,12 @@ JSON::Value & JSON::Value::operator=(const long long int &rhs){
 
 /// Sets this JSON::Value to the given integer.
 JSON::Value & JSON::Value::operator=(const int &rhs){
-  return ((*this) = (long long int)rhs);
+  return (( *this) = (long long int)rhs);
 }
 
 /// Sets this JSON::Value to the given integer.
 JSON::Value & JSON::Value::operator=(const unsigned int &rhs){
-  return ((*this) = (long long int)rhs);
+  return (( *this) = (long long int)rhs);
 }
 
 /// Automatic conversion to long long int - returns 0 if not convertable.
@@ -279,7 +328,6 @@ JSON::Value::operator long long int(){
   }
   return 0;
 }
-
 
 /// Automatic conversion to std::string.
 /// Returns the raw string value if available, otherwise calls toString().
@@ -298,28 +346,39 @@ JSON::Value::operator std::string(){
 /// Automatic conversion to bool.
 /// Returns true if there is anything meaningful stored into this value.
 JSON::Value::operator bool(){
-  if (myType == STRING){return strVal != "";}
-  if (myType == INTEGER){return intVal != 0;}
-  if (myType == BOOL){return intVal != 0;}
-  if (myType == OBJECT){return size() > 0;}
-  if (myType == ARRAY){return size() > 0;}
-  if (myType == EMPTY){return false;}
-  return false;//unimplemented? should never happen...
+  if (myType == STRING){
+    return strVal != "";
+  }
+  if (myType == INTEGER){
+    return intVal != 0;
+  }
+  if (myType == BOOL){
+    return intVal != 0;
+  }
+  if (myType == OBJECT){
+    return size() > 0;
+  }
+  if (myType == ARRAY){
+    return size() > 0;
+  }
+  if (myType == EMPTY){
+    return false;
+  }
+  return false; //unimplemented? should never happen...
 }
 
 /// Explicit conversion to std::string.
 const std::string JSON::Value::asString(){
-  return (std::string)*this;
+  return (std::string) *this;
 }
 /// Explicit conversion to long long int.
 const long long int JSON::Value::asInt(){
-  return (long long int)*this;
+  return (long long int) *this;
 }
 /// Explicit conversion to bool.
 const bool JSON::Value::asBool(){
-  return (bool)*this;
+  return (bool) *this;
 }
-
 
 /// Retrieves or sets the JSON::Value at this position in the object.
 /// Converts destructively to object if not already an object.
@@ -362,15 +421,19 @@ std::string JSON::Value::toPacked(){
   if (isInt() || isNull() || isBool()){
     r += 0x01;
     uint64_t numval = intVal;
-    r += *(((char*)&numval)+7); r += *(((char*)&numval)+6);
-    r += *(((char*)&numval)+5); r += *(((char*)&numval)+4);
-    r += *(((char*)&numval)+3); r += *(((char*)&numval)+2);
-    r += *(((char*)&numval)+1); r += *(((char*)&numval));
+    r += *(((char*) &numval) + 7);
+    r += *(((char*) &numval) + 6);
+    r += *(((char*) &numval) + 5);
+    r += *(((char*) &numval) + 4);
+    r += *(((char*) &numval) + 3);
+    r += *(((char*) &numval) + 2);
+    r += *(((char*) &numval) + 1);
+    r += *(((char*) &numval));
   }
   if (isString()){
     r += 0x02;
-    r += strVal.size() / (256*256*256);
-    r += strVal.size() / (256*256);
+    r += strVal.size() / (256 * 256 * 256);
+    r += strVal.size() / (256 * 256);
     r += strVal.size() / 256;
     r += strVal.size() % 256;
     r += strVal;
@@ -385,7 +448,9 @@ std::string JSON::Value::toPacked(){
         r += it->second.toPacked();
       }
     }
-    r += (char)0x0; r += (char)0x0; r += (char)0xEE;
+    r += (char)0x0;
+    r += (char)0x0;
+    r += (char)0xEE;
     strVal.clear();
   }
   if (isArray()){
@@ -393,11 +458,14 @@ std::string JSON::Value::toPacked(){
     for (JSON::ArrIter it = arrVal.begin(); it != arrVal.end(); it++){
       r += it->toPacked();
     }
-    r += (char)0x0; r += (char)0x0; r += (char)0xEE;
+    r += (char)0x0;
+    r += (char)0x0;
+    r += (char)0xEE;
   }
   return r;
-};//toPacked
-
+}
+;
+//toPacked
 
 /// Packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
 /// Non-object-types will print an error to stderr and return an empty string.
@@ -422,13 +490,12 @@ std::string & JSON::Value::toNetPacked(){
     }
     //insert the packet length at bytes 4-7
     unsigned int size = htonl(packed.size());
-    memcpy((void*)(strVal.c_str() + 4), (void*)&size, 4);
+    memcpy((void*)(strVal.c_str() + 4), (void*) &size, 4);
     //copy the rest of the string
     memcpy((void*)(strVal.c_str() + 8), packed.c_str(), packed.size());
   }
   return strVal;
 }
-
 
 /// Converts this JSON::Value to valid JSON notation and returns it.
 /// Makes absolutely no attempts to pretty-print anything. :-)
@@ -449,7 +516,9 @@ std::string JSON::Value::toString(){
       if (arrVal.size() > 0){
         for (ArrIter it = ArrBegin(); it != ArrEnd(); it++){
           tmp += it->toString();
-          if (it + 1 != ArrEnd()){tmp += ",";}
+          if (it + 1 != ArrEnd()){
+            tmp += ",";
+          }
         }
       }
       tmp += "]";
@@ -464,7 +533,9 @@ std::string JSON::Value::toString(){
         for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
           tmp2 += "\"" + it2->first + "\":";
           tmp2 += it2->second.toString();
-          if (it2 != it3){tmp2 += ",";}
+          if (it2 != it3){
+            tmp2 += ",";
+          }
         }
       }
       tmp2 += "}";
@@ -475,7 +546,7 @@ std::string JSON::Value::toString(){
     default:
       return "null";
   }
-  return "null";//should never get here...
+  return "null"; //should never get here...
 }
 
 /// Converts this JSON::Value to valid JSON notation and returns it.
@@ -491,7 +562,7 @@ std::string JSON::Value::toPrettyString(int indentation){
     case STRING: {
       for (unsigned int i = 0; i < 5 && i < strVal.size(); ++i){
         if (strVal[i] < 32 || strVal[i] > 125){
-          return JSON::Value((long long int)strVal.size()).asString()+" bytes of binary data";
+          return JSON::Value((long long int)strVal.size()).asString() + " bytes of binary data";
         }
       }
       return string_escape(strVal);
@@ -501,10 +572,12 @@ std::string JSON::Value::toPrettyString(int indentation){
       if (arrVal.size() > 0){
         std::string tmp = "[\n";
         for (ArrIter it = ArrBegin(); it != ArrEnd(); it++){
-          tmp += std::string(indentation+2, ' ')+it->toPrettyString(indentation+2);
-          if (it + 1 != ArrEnd()){tmp += ",\n";}
+          tmp += std::string(indentation + 2, ' ') + it->toPrettyString(indentation + 2);
+          if (it + 1 != ArrEnd()){
+            tmp += ",\n";
+          }
         }
-        tmp += "\n"+std::string(indentation, ' ')+"]";
+        tmp += "\n" + std::string(indentation, ' ') + "]";
         return tmp;
       }else{
         return "[]";
@@ -517,11 +590,13 @@ std::string JSON::Value::toPrettyString(int indentation){
         ObjIter it3 = ObjEnd();
         --it3;
         for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
-          tmp2 += std::string(indentation+2, ' ')+"\"" + it2->first + "\":";
-          tmp2 += it2->second.toPrettyString(indentation+2);
-          if (it2 != it3){tmp2 += ",\n";}
+          tmp2 += std::string(indentation + 2, ' ') + "\"" + it2->first + "\":";
+          tmp2 += it2->second.toPrettyString(indentation + 2);
+          if (it2 != it3){
+            tmp2 += ",\n";
+          }
         }
-        tmp2 += "\n"+std::string(indentation, ' ')+"}";
+        tmp2 += "\n" + std::string(indentation, ' ') + "}";
         return tmp2;
       }else{
         return "{}";
@@ -532,7 +607,7 @@ std::string JSON::Value::toPrettyString(int indentation){
     default:
       return "null";
   }
-  return "null";//should never get here...
+  return "null"; //should never get here...
 }
 
 /// Appends the given value to the end of this JSON::Value array.
@@ -563,11 +638,15 @@ void JSON::Value::prepend(const JSON::Value & rhs){
 /// given size.
 void JSON::Value::shrink(unsigned int size){
   if (myType == ARRAY){
-    while (arrVal.size() > size){arrVal.pop_front();}
+    while (arrVal.size() > size){
+      arrVal.pop_front();
+    }
     return;
   }
   if (myType == OBJECT){
-    while (objVal.size() > size){objVal.erase(objVal.begin());}
+    while (objVal.size() > size){
+      objVal.erase(objVal.begin());
+    }
     return;
   }
 }
@@ -671,62 +750,66 @@ JSON::Value JSON::fromFile(std::string filename){
 /// \param i Current parsing position in the raw data (defaults to 0).
 /// \returns A single JSON::Value, parsed from the raw data.
 JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i){
-  #if DEBUG >= 10
+#if DEBUG >= 10
   fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
-  #endif
+#endif
   switch (data[i]){
-    case 0x01:{//integer
+    case 0x01: { //integer
       unsigned char tmpdbl[8];
-      tmpdbl[7] = data[i+1];
-      tmpdbl[6] = data[i+2];
-      tmpdbl[5] = data[i+3];
-      tmpdbl[4] = data[i+4];
-      tmpdbl[3] = data[i+5];
-      tmpdbl[2] = data[i+6];
-      tmpdbl[1] = data[i+7];
-      tmpdbl[0] = data[i+8];
-      i+=9;//skip 8(an uint64_t)+1 forwards
+      tmpdbl[7] = data[i + 1];
+      tmpdbl[6] = data[i + 2];
+      tmpdbl[5] = data[i + 3];
+      tmpdbl[4] = data[i + 4];
+      tmpdbl[3] = data[i + 5];
+      tmpdbl[2] = data[i + 6];
+      tmpdbl[1] = data[i + 7];
+      tmpdbl[0] = data[i + 8];
+      i += 9; //skip 8(an uint64_t)+1 forwards
       uint64_t * d = (uint64_t*)tmpdbl;
-      return JSON::Value((long long int)*d);
-    } break;
-    case 0x02:{//string
-      unsigned int tmpi = data[i+1]*256*256*256+data[i+2]*256*256+data[i+3]*256+data[i+4];//set tmpi to UTF-8-long length
-      std::string tmpstr = std::string((const char *)data+i+5, (size_t)tmpi);//set the string data
-      i += tmpi + 5;//skip length+size+1 forwards
+      return JSON::Value((long long int) *d);
+    }
+      break;
+    case 0x02: { //string
+      unsigned int tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; //set tmpi to UTF-8-long length
+      std::string tmpstr = std::string((const char *)data + i + 5, (size_t)tmpi); //set the string data
+      i += tmpi + 5; //skip length+size+1 forwards
       return JSON::Value(tmpstr);
-    } break;
-    case 0xFF://also object
-    case 0xE0:{//object
+    }
+      break;
+    case 0xFF: //also object
+    case 0xE0: { //object
       ++i;
       JSON::Value ret;
-      while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x0000EE)
-        unsigned int tmpi = data[i]*256+data[i+1];//set tmpi to the UTF-8 length
-        std::string tmpstr = std::string((const char *)data+i+2, (size_t)tmpi);//set the string data
-        i += tmpi + 2;//skip length+size forwards
-        ret[tmpstr] = fromDTMI(data, len, i);//add content, recursively parsed, updating i, setting indice to tmpstr
+      while (data[i] + data[i + 1] != 0){ //while not encountering 0x0000 (we assume 0x0000EE)
+        unsigned int tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
+        std::string tmpstr = std::string((const char *)data + i + 2, (size_t)tmpi); //set the string data
+        i += tmpi + 2; //skip length+size forwards
+        ret[tmpstr] = fromDTMI(data, len, i); //add content, recursively parsed, updating i, setting indice to tmpstr
       }
-      i += 3;//skip 0x0000EE
+      i += 3; //skip 0x0000EE
       return ret;
-    } break;
-    case 0x0A:{//array
+    }
+      break;
+    case 0x0A: { //array
       JSON::Value ret;
       ++i;
-      while (data[i] + data[i+1] != 0){//while not encountering 0x0000 (we assume 0x0000EE)
-        ret.append(fromDTMI(data, len, i));//add content, recursively parsed, updating i
+      while (data[i] + data[i + 1] != 0){ //while not encountering 0x0000 (we assume 0x0000EE)
+        ret.append(fromDTMI(data, len, i)); //add content, recursively parsed, updating i
       }
-      i += 3;//skip 0x0000EE
+      i += 3; //skip 0x0000EE
       return ret;
-    } break;
+    }
+      break;
   }
-  #if DEBUG >= 2
+#if DEBUG >= 2
   fprintf(stderr, "Error: Unimplemented DTMI type %hhx - returning.\n", data[i]);
-  #endif
+#endif
   return JSON::Value();
-}//fromOneDTMI
+} //fromOneDTMI
 
 /// Parses a std::string to a valid JSON::Value.
 /// This function will find one DTMI object in the string and return it.
 JSON::Value JSON::fromDTMI(std::string data){
   unsigned int i = 0;
   return fromDTMI((const unsigned char*)data.c_str(), data.size(), i);
-}//fromDTMI
+} //fromDTMI

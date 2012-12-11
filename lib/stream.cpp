@@ -18,18 +18,21 @@
 /// that character is deleted. The original string is modified.
 void Util::Stream::sanitizeName(std::string & streamname){
   //strip anything that isn't numbers, digits or underscores
-  for (std::string::iterator i=streamname.end()-1; i>=streamname.begin(); --i){
-    if (*i == '?'){streamname.erase(i, streamname.end()); break;}
-    if (!isalpha(*i) && !isdigit(*i) && *i != '_'){
+  for (std::string::iterator i = streamname.end() - 1; i >= streamname.begin(); --i){
+    if ( *i == '?'){
+      streamname.erase(i, streamname.end());
+      break;
+    }
+    if ( !isalpha( *i) && !isdigit( *i) && *i != '_'){
       streamname.erase(i);
     }else{
-      *i=tolower(*i);
+      *i = tolower( *i);
     }
   }
 }
 
 Socket::Connection Util::Stream::getLive(std::string streamname){
-  return Socket::Connection("/tmp/mist/stream_"+streamname);
+  return Socket::Connection("/tmp/mist/stream_" + streamname);
 }
 
 /// Starts a process for a VoD stream.
@@ -49,20 +52,20 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
   JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
   if (ServConf["streams"].isMember(streamname)){
     if (ServConf["streams"][streamname]["channel"]["URL"].asString()[0] == '/'){
-      #if DEBUG >= 4
+#if DEBUG >= 4
       std::cerr << "Opening VoD stream from file " << ServConf["streams"][streamname]["channel"]["URL"].asString() << std::endl;
-      #endif
+#endif
       return getVod(ServConf["streams"][streamname]["channel"]["URL"].asString());
     }else{
-      #if DEBUG >= 4
+#if DEBUG >= 4
       std::cerr << "Opening live stream " << streamname << std::endl;
-      #endif
-      return Socket::Connection("/tmp/mist/stream_"+streamname);
+#endif
+      return Socket::Connection("/tmp/mist/stream_" + streamname);
     }
   }
-  #if DEBUG >= 4
+#if DEBUG >= 4
   std::cerr << "Could not open stream " << streamname << " - stream not found" << std::endl;
-  #endif
+#endif
   return Socket::Connection();
 }
 
@@ -73,7 +76,7 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
 /// If the /tmp/mist directory doesn't exist yet, this will create it.
 Socket::Server Util::Stream::makeLive(std::string streamname){
   sanitizeName(streamname);
-  std::string loc = "/tmp/mist/stream_"+streamname;
+  std::string loc = "/tmp/mist/stream_" + streamname;
   //attempt to create the /tmp/mist directory if it doesn't exist already.
   //ignore errors - we catch all problems in the Socket::Server creation already
   mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO);

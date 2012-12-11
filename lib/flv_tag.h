@@ -7,10 +7,11 @@
 #include "json.h"
 #include <string>
 
+
 //forward declaration of RTMPStream::Chunk to avoid circular dependencies.
-namespace RTMPStream{
+namespace RTMPStream {
   class Chunk;
-};
+}
 
 /// This namespace holds all FLV-parsing related functionality.
 namespace FLV {
@@ -24,7 +25,7 @@ namespace FLV {
   bool is_header(char * header); ///< Checks the first 3 bytes for the string "FLV".
 
   /// This class is used to hold, work with and get information about a single FLV tag.
-  class Tag {
+  class Tag{
     public:
       int len; ///< Actual length of tag.
       bool isKeyframe; ///< True if current tag is a video keyframe.
@@ -36,7 +37,7 @@ namespace FLV {
       void tagTime(unsigned int T); ///< Sets the 32-bit timestamp of this tag.
       Tag(); ///< Constructor for a new, empty, tag.
       Tag(const Tag& O); ///< Copy constructor, copies the contents of an existing tag.
-      Tag & operator= (const Tag& O); ///< Assignment operator - works exactly like the copy constructor.
+      Tag & operator=(const Tag& O); ///< Assignment operator - works exactly like the copy constructor.
       Tag(const RTMPStream::Chunk& O); ///<Copy constructor from a RTMP chunk.
       //loader functions
       bool ChunkLoader(const RTMPStream::Chunk& O);
@@ -59,6 +60,7 @@ namespace FLV {
       void Meta_Put(JSON::Value & meta, std::string cat, std::string elem, std::string val);
       void Meta_Put(JSON::Value & meta, std::string cat, std::string elem, uint64_t val);
       bool Meta_Has(JSON::Value & meta, std::string cat, std::string elem);
-  };//Tag
+  };
+//Tag
 
-};//FLV namespace
+}//FLV namespace

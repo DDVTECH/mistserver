@@ -11,12 +11,12 @@
 #include "socket.h"
 
 //forward declaration of FLV::Tag to avoid circular dependencies.
-namespace FLV{
+namespace FLV {
   class Tag;
-};
+}
 
 /// Contains all functions and classes needed for RTMP connections.
-namespace RTMPStream{
+namespace RTMPStream {
 
   extern unsigned int chunk_rec_max; ///< Maximum size for a received chunk.
   extern unsigned int chunk_snd_max; ///< Maximum size for a sent chunk.
@@ -50,7 +50,8 @@ namespace RTMPStream{
     private:
       static std::map<unsigned int, Chunk> lastsend;
       static std::map<unsigned int, Chunk> lastrecv;
-  };//RTMPStream::Chunk
+  };
+  //RTMPStream::Chunk
 
   std::string & SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data);
   std::string & SendMedia(unsigned char msg_type_id, unsigned char * data, int len, unsigned int ts);
@@ -66,4 +67,4 @@ namespace RTMPStream{
   extern std::string handshake_out;
   /// Does the handshake. Expects handshake_in to be filled, and fills handshake_out.
   bool doHandshake();
-};//RTMPStream namespace
+} //RTMPStream namespace

@@ -17,10 +17,12 @@
 #include <deque>
 
 //for being friendly with Socket::Connection down below
-namespace Buffer{class user;};
+namespace Buffer {
+  class user;
+}
 
 ///Holds Socket tools.
-namespace Socket{
+namespace Socket {
 
   /// A buffer made out of std::string objects that can be efficiently read from and written to.
   class Buffer{
@@ -34,7 +36,8 @@ namespace Socket{
       bool available(unsigned int count);
       std::string remove(unsigned int count);
       std::string copy(unsigned int count);
-  };//Buffer
+  };
+  //Buffer
 
   /// This class is for easy communicating through sockets, either TCP or Unix.
   class Connection{
@@ -51,7 +54,7 @@ namespace Socket{
       int iwrite(const void * buffer, int len); ///< Incremental write call.
       bool iread(Buffer & buffer); ///< Incremental write call that is compatible with Socket::Buffer.
       bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
-  public:
+    public:
       //friends
       friend class ::Buffer::user;
       //constructors
@@ -86,8 +89,8 @@ namespace Socket{
       bool Error; ///< Set to true if a socket error happened.
       bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.
       //overloaded operators
-      bool operator== (const Connection &B) const;
-      bool operator!= (const Connection &B) const;
+      bool operator==(const Connection &B) const;
+      bool operator!=(const Connection &B) const;
       operator bool() const;
   };
 
@@ -97,7 +100,7 @@ namespace Socket{
       int sock; ///< Internally saved socket number.
       bool IPv6bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv6 socket
       bool IPv4bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv4 socket
-  public:
+    public:
       Server(); ///< Create a new base Server.
       Server(int port, std::string hostname = "0.0.0.0", bool nonblock = false); ///< Create a new TCP Server.
       Server(std::string adres, bool nonblock = false); ///< Create a new Unix Server.
@@ -106,5 +109,5 @@ namespace Socket{
       void close(); ///< Close connection.
       int getSocket(); ///< Returns internal socket number.
   };
-  
-};
+
+}

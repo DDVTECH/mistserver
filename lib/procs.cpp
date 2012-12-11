@@ -25,12 +25,14 @@ bool Util::Procs::handler_set = false;
 
 /// Used internally to capture child signals and update plist.
 void Util::Procs::childsig_handler(int signum){
-  if (signum != SIGCHLD){return;}
-  int status;
-  pid_t ret = waitpid(-1, &status, WNOHANG);
-  if (ret == 0){//ignore, would block otherwise
+  if (signum != SIGCHLD){
     return;
-  }else if(ret < 0){
+  }
+  int status;
+  pid_t ret = waitpid( -1, &status, WNOHANG);
+  if (ret == 0){ //ignore, would block otherwise
+    return;
+  }else if (ret < 0){
 #if DEBUG >= 3
     std::cerr << "SIGCHLD received, but no child died";
 #endif
@@ -41,27 +43,29 @@ void Util::Procs::childsig_handler(int signum){
     exitcode = WEXITSTATUS(status);
   }else if (WIFSIGNALED(status)){
     exitcode = -WTERMSIG(status);
-  }else{/* not possible */return;}
+  }else{/* not possible */
+    return;
+  }
 
-  #if DEBUG >= 1
+#if DEBUG >= 1
   std::string pname = plist[ret];
-  #endif
+#endif
   plist.erase(ret);
-  #if DEBUG >= 1
+#if DEBUG >= 1
   if (isActive(pname)){
     Stop(pname);
-  }else{
+  } else{
     //can this ever happen?
     std::cerr << "Process " << pname << " fully terminated." << std::endl;
   }
-  #endif
+#endif
 
   if (exitHandlers.count(ret) > 0){
     TerminationNotifier tn = exitHandlers[ret];
     exitHandlers.erase(ret);
-    #if DEBUG >= 2
+#if DEBUG >= 2
     std::cerr << "Calling termination handler for " << pname << std::endl;
-    #endif
+#endif
     tn(ret, exitcode);
   }
 }
@@ -84,12 +88,14 @@ void Util::Procs::runCmd(std::string & cmd){
     ++i;
     args[i] = tmp2;
   }
-  if (i == 20){args[20] = 0;}
+  if (i == 20){
+    args[20] = 0;
+  }
   //execute the command
   execvp(args[0], args);
-  #if DEBUG >= 1
+#if DEBUG >= 1
   std::cerr << "Error running \"" << cmd << "\": " << strerror(errno) << std::endl;
-  #endif
+#endif
   _exit(42);
 }
 
@@ -98,11 +104,13 @@ void Util::Procs::runCmd(std::string & cmd){
 /// \arg name Name for this process - only used internally.
 /// \arg cmd Commandline for this process.
 pid_t Util::Procs::Start(std::string name, std::string cmd){
-  if (isActive(name)){return getPid(name);}
-  if (!handler_set){
+  if (isActive(name)){
+    return getPid(name);
+  }
+  if ( !handler_set){
     struct sigaction new_action;
     new_action.sa_handler = Util::Procs::childsig_handler;
-    sigemptyset(&new_action.sa_mask);
+    sigemptyset( &new_action.sa_mask);
     new_action.sa_flags = 0;
     sigaction(SIGCHLD, &new_action, NULL);
     handler_set = true;
@@ -112,14 +120,14 @@ pid_t Util::Procs::Start(std::string name, std::string cmd){
     runCmd(cmd);
   }else{
     if (ret > 0){
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " started, PID " << ret << ": " << cmd << std::endl;
-      #endif
+#endif
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-      #endif
+#endif
       return 0;
     }
   }
@@ -132,20 +140,22 @@ pid_t Util::Procs::Start(std::string name, std::string cmd){
 /// \arg cmd Commandline for sub (sending) process.
 /// \arg cmd2 Commandline for main (receiving) process.
 pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
-  if (isActive(name)){return getPid(name);}
-  if (!handler_set){
+  if (isActive(name)){
+    return getPid(name);
+  }
+  if ( !handler_set){
     struct sigaction new_action;
     new_action.sa_handler = Util::Procs::childsig_handler;
-    sigemptyset(&new_action.sa_mask);
+    sigemptyset( &new_action.sa_mask);
     new_action.sa_flags = 0;
     sigaction(SIGCHLD, &new_action, NULL);
     handler_set = true;
   }
   int pfildes[2];
   if (pipe(pfildes) == -1){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
-    #endif
+#endif
     return 0;
   }
 
@@ -153,7 +163,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
   pid_t ret = fork();
   if (ret == 0){
     close(pfildes[0]);
-    dup2(pfildes[1],STDOUT_FILENO);
+    dup2(pfildes[1], STDOUT_FILENO);
     close(pfildes[1]);
     dup2(devnull, STDIN_FILENO);
     dup2(devnull, STDERR_FILENO);
@@ -162,9 +172,9 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
     if (ret > 0){
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-      #endif
+#endif
       close(pfildes[1]);
       close(pfildes[0]);
       return 0;
@@ -174,21 +184,21 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
   pid_t ret2 = fork();
   if (ret2 == 0){
     close(pfildes[1]);
-    dup2(pfildes[0],STDIN_FILENO);
+    dup2(pfildes[0], STDIN_FILENO);
     close(pfildes[0]);
     dup2(devnull, STDOUT_FILENO);
     dup2(devnull, STDERR_FILENO);
     runCmd(cmd2);
   }else{
     if (ret2 > 0){
-      #if DEBUG >= 1
-        std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << "): " << cmd << " | " << cmd2 << std::endl;
-      #endif
+#if DEBUG >= 1
+      std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << "): " << cmd << " | " << cmd2 << std::endl;
+#endif
       plist.insert(std::pair<pid_t, std::string>(ret2, name));
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-      #endif
+#endif
       Stop(name);
       close(pfildes[1]);
       close(pfildes[0]);
@@ -207,11 +217,13 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
 /// \arg cmd2 Commandline for sub (middle) process.
 /// \arg cmd3 Commandline for main (receiving) process.
 pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, std::string cmd3){
-  if (isActive(name)){return getPid(name);}
-  if (!handler_set){
+  if (isActive(name)){
+    return getPid(name);
+  }
+  if ( !handler_set){
     struct sigaction new_action;
     new_action.sa_handler = Util::Procs::childsig_handler;
-    sigemptyset(&new_action.sa_mask);
+    sigemptyset( &new_action.sa_mask);
     new_action.sa_flags = 0;
     sigaction(SIGCHLD, &new_action, NULL);
     handler_set = true;
@@ -220,23 +232,23 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
   int pfildes[2];
   int pfildes2[2];
   if (pipe(pfildes) == -1){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
-    #endif
+#endif
     return 0;
   }
   if (pipe(pfildes2) == -1){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
-    #endif
+#endif
     return 0;
   }
-  
+
   int devnull = open("/dev/null", O_RDWR);
   pid_t ret = fork();
   if (ret == 0){
     close(pfildes[0]);
-    dup2(pfildes[1],STDOUT_FILENO);
+    dup2(pfildes[1], STDOUT_FILENO);
     close(pfildes[1]);
     dup2(devnull, STDIN_FILENO);
     dup2(devnull, STDERR_FILENO);
@@ -247,9 +259,9 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     if (ret > 0){
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-      #endif
+#endif
       close(pfildes[1]);
       close(pfildes[0]);
       close(pfildes2[1]);
@@ -257,27 +269,27 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
       return 0;
     }
   }
-  
+
   pid_t ret2 = fork();
   if (ret2 == 0){
     close(pfildes[1]);
     close(pfildes2[0]);
-    dup2(pfildes[0],STDIN_FILENO);
+    dup2(pfildes[0], STDIN_FILENO);
     close(pfildes[0]);
-    dup2(pfildes2[1],STDOUT_FILENO);
+    dup2(pfildes2[1], STDOUT_FILENO);
     close(pfildes2[1]);
     dup2(devnull, STDERR_FILENO);
     runCmd(cmd2);
   }else{
     if (ret2 > 0){
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << "): " << cmd << " | " << cmd2 << std::endl;
-      #endif
+#endif
       plist.insert(std::pair<pid_t, std::string>(ret2, name));
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-      #endif
+#endif
       Stop(name);
       close(pfildes[1]);
       close(pfildes[0]);
@@ -294,21 +306,21 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     close(pfildes[1]);
     close(pfildes[0]);
     close(pfildes2[1]);
-    dup2(pfildes2[0],STDIN_FILENO);
+    dup2(pfildes2[0], STDIN_FILENO);
     close(pfildes2[0]);
     dup2(devnull, STDOUT_FILENO);
     dup2(devnull, STDERR_FILENO);
     runCmd(cmd3);
   }else{
     if (ret3 > 0){
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << ", " << ret3 << "): " << cmd << " | " << cmd2 << " | " << cmd3 << std::endl;
-      #endif
+#endif
       plist.insert(std::pair<pid_t, std::string>(ret3, name));
     }else{
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-      #endif
+#endif
       Stop(name);
       close(pfildes[1]);
       close(pfildes[0]);
@@ -317,7 +329,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
       return 0;
     }
   }
-  
+
   return ret3;
 }
 
@@ -329,125 +341,159 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
 /// \arg fdout Same as fdin, but for stdout.
 /// \arg fdout Same as fdin, but for stderr.
 pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int * fdout, int * fderr){
-  if (isActive(name)){return getPid(name);}
+  if (isActive(name)){
+    return getPid(name);
+  }
   pid_t pid;
   int pipein[2], pipeout[2], pipeerr[2];
-  if (!handler_set){
+  if ( !handler_set){
     struct sigaction new_action;
     new_action.sa_handler = Util::Procs::childsig_handler;
-    sigemptyset(&new_action.sa_mask);
+    sigemptyset( &new_action.sa_mask);
     new_action.sa_flags = 0;
     sigaction(SIGCHLD, &new_action, NULL);
     handler_set = true;
   }
   if (fdin && *fdin == -1 && pipe(pipein) < 0){
-    #if DEBUG >= 1
+#if DEBUG >= 1
     std::cerr << "Pipe (in) creation failed for " << name << std::endl;
-    #endif
+#endif
     return 0;
   }
-  if (fdout && *fdout == -1 && pipe(pipeout) < 0) {
-    #if DEBUG >= 1
+  if (fdout && *fdout == -1 && pipe(pipeout) < 0){
+#if DEBUG >= 1
     std::cerr << "Pipe (out) creation failed for " << name << std::endl;
-    #endif
-    if (*fdin == -1){close(pipein[0]);close(pipein[1]);}
+#endif
+    if ( *fdin == -1){
+      close(pipein[0]);
+      close(pipein[1]);
+    }
     return 0;
   }
-  if (fderr && *fderr == -1 && pipe(pipeerr) < 0) {
-    #if DEBUG >= 1
+  if (fderr && *fderr == -1 && pipe(pipeerr) < 0){
+#if DEBUG >= 1
     std::cerr << "Pipe (err) creation failed for " << name << std::endl;
-    #endif
-    if (*fdin  == -1){close(pipein [0]);close(pipein [1]);}
-    if (*fdout == -1){close(pipeout[0]);close(pipeout[1]);}
+#endif
+    if ( *fdin == -1){
+      close(pipein[0]);
+      close(pipein[1]);
+    }
+    if ( *fdout == -1){
+      close(pipeout[0]);
+      close(pipeout[1]);
+    }
     return 0;
   }
   int devnull = -1;
-  if (!fdin || !fdout || !fderr){
+  if ( !fdin || !fdout || !fderr){
     devnull = open("/dev/null", O_RDWR);
     if (devnull == -1){
-      #if DEBUG >= 1
+#if DEBUG >= 1
       std::cerr << "Could not open /dev/null for " << name << ": " << strerror(errno) << std::endl;
-      #endif
-      if (*fdin  == -1){close(pipein [0]);close(pipein [1]);}
-      if (*fdout == -1){close(pipeout[0]);close(pipeout[1]);}
-      if (*fderr == -1){close(pipeerr[0]);close(pipeerr[1]);}
+#endif
+      if ( *fdin == -1){
+        close(pipein[0]);
+        close(pipein[1]);
+      }
+      if ( *fdout == -1){
+        close(pipeout[0]);
+        close(pipeout[1]);
+      }
+      if ( *fderr == -1){
+        close(pipeerr[0]);
+        close(pipeerr[1]);
+      }
       return 0;
     }
   }
   pid = fork();
-  if (pid == 0){//child
-    if (!fdin){
+  if (pid == 0){ //child
+    if ( !fdin){
       dup2(devnull, STDIN_FILENO);
-    }else if (*fdin == -1){
-      close(pipein[1]);// close unused write end
+    }else if ( *fdin == -1){
+      close(pipein[1]); // close unused write end
       dup2(pipein[0], STDIN_FILENO);
       close(pipein[0]);
-    }else if (*fdin != STDIN_FILENO){
-      dup2(*fdin, STDIN_FILENO);
-      close(*fdin);
+    }else if ( *fdin != STDIN_FILENO){
+      dup2( *fdin, STDIN_FILENO);
+      close( *fdin);
     }
-    if (!fdout){
+    if ( !fdout){
       dup2(devnull, STDOUT_FILENO);
-    }else if (*fdout == -1){
-      close(pipeout[0]);// close unused read end
+    }else if ( *fdout == -1){
+      close(pipeout[0]); // close unused read end
       dup2(pipeout[1], STDOUT_FILENO);
       close(pipeout[1]);
-    }else if (*fdout != STDOUT_FILENO){
-      dup2(*fdout, STDOUT_FILENO);
-      close(*fdout);
+    }else if ( *fdout != STDOUT_FILENO){
+      dup2( *fdout, STDOUT_FILENO);
+      close( *fdout);
     }
-    if (!fderr){
+    if ( !fderr){
       dup2(devnull, STDERR_FILENO);
-    }else if (*fderr == -1){
-      close(pipeerr[0]);// close unused read end
+    }else if ( *fderr == -1){
+      close(pipeerr[0]); // close unused read end
       dup2(pipeerr[1], STDERR_FILENO);
       close(pipeerr[1]);
-    }else if (*fderr != STDERR_FILENO){
-      dup2(*fderr, STDERR_FILENO);
-      close(*fderr);
+    }else if ( *fderr != STDERR_FILENO){
+      dup2( *fderr, STDERR_FILENO);
+      close( *fderr);
     }
-    if (devnull != -1){close(devnull);}
+    if (devnull != -1){
+      close(devnull);
+    }
     execvp(argv[0], argv);
-    #if DEBUG >= 1
+#if DEBUG >= 1
     perror("execvp failed");
-    #endif
+#endif
     exit(42);
-  } else if (pid == -1){
-    #if DEBUG >= 1
+  }else if (pid == -1){
+#if DEBUG >= 1
     std::cerr << "Failed to fork for pipe: " << name << std::endl;
-    #endif
-    if (fdin  && *fdin  == -1){close(pipein [0]);close(pipein [1]);}
-    if (fdout && *fdout == -1){close(pipeout[0]);close(pipeout[1]);}
-    if (fderr && *fderr == -1){close(pipeerr[0]);close(pipeerr[1]);}
-    if (devnull != -1){close(devnull);}
+#endif
+    if (fdin && *fdin == -1){
+      close(pipein[0]);
+      close(pipein[1]);
+    }
+    if (fdout && *fdout == -1){
+      close(pipeout[0]);
+      close(pipeout[1]);
+    }
+    if (fderr && *fderr == -1){
+      close(pipeerr[0]);
+      close(pipeerr[1]);
+    }
+    if (devnull != -1){
+      close(devnull);
+    }
     return 0;
-  } else{//parent
-    #if DEBUG >= 1
+  }else{ //parent
+#if DEBUG >= 1
     std::cerr << "Piped process " << name << " started";
-    if (fdin ) std::cerr << " in="  << (*fdin  == -1 ? pipein [1] : *fdin );
+    if (fdin ) std::cerr << " in=" << (*fdin == -1 ? pipein [1] : *fdin );
     if (fdout) std::cerr << " out=" << (*fdout == -1 ? pipeout[0] : *fdout);
     if (fderr) std::cerr << " err=" << (*fderr == -1 ? pipeerr[0] : *fderr);
     if (devnull != -1) std::cerr << " null=" << devnull;
     std::cerr << ", PID " << pid << ": " << argv[0] << std::endl;
-    #endif
-    if (devnull != -1){close(devnull);}
-    if (fdin  && *fdin == -1){
-      close(pipein[0]);// close unused end end
+#endif
+    if (devnull != -1){
+      close(devnull);
+    }
+    if (fdin && *fdin == -1){
+      close(pipein[0]); // close unused end end
       *fdin = pipein[1];
     }
     if (fdout && *fdout == -1){
-      close(pipeout[1]);// close unused write end
+      close(pipeout[1]); // close unused write end
       *fdout = pipeout[0];
     }
     if (fderr && *fderr == -1){
-      close(pipeerr[1]);// close unused write end
+      close(pipeerr[1]); // close unused write end
       *fderr = pipeerr[0];
     }
     plist.insert(std::pair<pid_t, std::string>(pid, name));
   }
   return pid;
 }
-
 
 /// Stops the named process, if running.
 /// \arg name (Internal) name of process to stop
@@ -456,7 +502,9 @@ void Util::Procs::Stop(std::string name){
   while (isActive(name)){
     Stop(getPid(name));
     max--;
-    if (max <= 0){return;}
+    if (max <= 0){
+      return;
+    }
   }
 }
 
@@ -472,20 +520,22 @@ void Util::Procs::Stop(pid_t name){
 void Util::Procs::StopAll(){
   std::map<pid_t, std::string>::iterator it;
   for (it = plist.begin(); it != plist.end(); it++){
-    Stop((*it).first);
+    Stop(( *it).first);
   }
 }
 
 /// Returns the number of active child processes.
 int Util::Procs::Count(){
-   return plist.size();
+  return plist.size();
 }
 
 /// Returns true if a process by this name is currently active.
 bool Util::Procs::isActive(std::string name){
   std::map<pid_t, std::string>::iterator it;
   for (it = plist.begin(); it != plist.end(); it++){
-    if ((*it).second == name){return true;}
+    if (( *it).second == name){
+      return true;
+    }
   }
   return false;
 }
@@ -500,7 +550,9 @@ bool Util::Procs::isActive(pid_t name){
 pid_t Util::Procs::getPid(std::string name){
   std::map<pid_t, std::string>::iterator it;
   for (it = plist.begin(); it != plist.end(); it++){
-    if ((*it).second == name){return (*it).first;}
+    if (( *it).second == name){
+      return ( *it).first;
+    }
   }
   return 0;
 }

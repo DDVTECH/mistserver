@@ -5,7 +5,9 @@
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().
-HTTP::Parser::Parser(){Clean();}
+HTTP::Parser::Parser(){
+  Clean();
+}
 
 /// Completely re-initializes the HTTP::Parser, leaving it ready for either reading or writing usage.
 void HTTP::Parser::Clean(){
@@ -27,11 +29,13 @@ void HTTP::Parser::Clean(){
 std::string & HTTP::Parser::BuildRequest(){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
-  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
-  builder = method+" "+url+" "+protocol+"\r\n";
-  for (it=headers.begin(); it != headers.end(); it++){
-    if ((*it).first != "" && (*it).second != ""){
-      builder += (*it).first + ": " + (*it).second + "\r\n";
+  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){
+    protocol = "HTTP/1.0";
+  }
+  builder = method + " " + url + " " + protocol + "\r\n";
+  for (it = headers.begin(); it != headers.end(); it++){
+    if (( *it).first != "" && ( *it).second != ""){
+      builder += ( *it).first + ": " + ( *it).second + "\r\n";
     }
   }
   builder += "\r\n" + body;
@@ -47,12 +51,14 @@ std::string & HTTP::Parser::BuildRequest(){
 std::string & HTTP::Parser::BuildResponse(std::string code, std::string message){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
-  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){protocol = "HTTP/1.0";}
-  builder = protocol+" "+code+" "+message+"\r\n";
-  for (it=headers.begin(); it != headers.end(); it++){
-    if ((*it).first != "" && (*it).second != ""){
-      if ((*it).first != "Content-Length" || (*it).second != "0"){
-        builder += (*it).first + ": " + (*it).second + "\r\n";
+  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){
+    protocol = "HTTP/1.0";
+  }
+  builder = protocol + " " + code + " " + message + "\r\n";
+  for (it = headers.begin(); it != headers.end(); it++){
+    if (( *it).first != "" && ( *it).second != ""){
+      if (( *it).first != "Content-Length" || ( *it).second != "0"){
+        builder += ( *it).first + ": " + ( *it).second + "\r\n";
       }
     }
   }
@@ -67,7 +73,11 @@ std::string & HTTP::Parser::BuildResponse(std::string code, std::string message)
 void HTTP::Parser::Trim(std::string & s){
   size_t startpos = s.find_first_not_of(" \t");
   size_t endpos = s.find_last_not_of(" \t");
-  if ((std::string::npos == startpos) || (std::string::npos == endpos)){s = "";}else{s = s.substr(startpos, endpos-startpos+1);}
+  if ((std::string::npos == startpos) || (std::string::npos == endpos)){
+    s = "";
+  }else{
+    s = s.substr(startpos, endpos - startpos + 1);
+  }
 }
 
 /// Function that sets the body of a response or request, along with the correct Content-Length header.
@@ -96,9 +106,13 @@ std::string HTTP::Parser::getUrl(){
 }
 
 /// Returns header i, if set.
-std::string HTTP::Parser::GetHeader(std::string i){return headers[i];}
+std::string HTTP::Parser::GetHeader(std::string i){
+  return headers[i];
+}
 /// Returns POST variable i, if set.
-std::string HTTP::Parser::GetVar(std::string i){return vars[i];}
+std::string HTTP::Parser::GetVar(std::string i){
+  return vars[i];
+}
 
 /// Sets header i to string value v.
 void HTTP::Parser::SetHeader(std::string i, std::string v){
@@ -110,7 +124,7 @@ void HTTP::Parser::SetHeader(std::string i, std::string v){
 /// Sets header i to integer value v.
 void HTTP::Parser::SetHeader(std::string i, int v){
   Trim(i);
-  char val[23];//ints are never bigger than 22 chars as decimal
+  char val[23]; //ints are never bigger than 22 chars as decimal
   sprintf(val, "%i", v);
   headers[i] = val;
 }
@@ -120,7 +134,7 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
   Trim(i);
   Trim(v);
   //only set if there is actually a key
-  if(!i.empty()){
+  if ( !i.empty()){
     vars[i] = v;
   }
 }
@@ -131,7 +145,7 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 /// \return True if a whole request or response was read, false otherwise.
 bool HTTP::Parser::Read(std::string & strbuf){
   return parse(strbuf);
-}//HTTPReader::Read
+} //HTTPReader::Read
 
 #include <iostream>
 /// Attempt to read a whole HTTP response or request from a data buffer.
@@ -143,44 +157,54 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
   size_t f;
   std::string tmpA, tmpB, tmpC;
   /// \todo Make this not resize HTTPbuffer in parts, but read all at once and then remove the entire request, like doxygen claims it does?
-  while (!HTTPbuffer.empty()){
-    if (!seenHeaders){
+  while ( !HTTPbuffer.empty()){
+    if ( !seenHeaders){
       f = HTTPbuffer.find('\n');
       if (f == std::string::npos) return false;
       tmpA = HTTPbuffer.substr(0, f);
-      if (f+1 == HTTPbuffer.size()){
+      if (f + 1 == HTTPbuffer.size()){
         HTTPbuffer.clear();
       }else{
-        HTTPbuffer.erase(0, f+1);
+        HTTPbuffer.erase(0, f + 1);
       }
-      while (tmpA.find('\r') != std::string::npos){tmpA.erase(tmpA.find('\r'));}
-      if (!seenReq){
+      while (tmpA.find('\r') != std::string::npos){
+        tmpA.erase(tmpA.find('\r'));
+      }
+      if ( !seenReq){
         seenReq = true;
         f = tmpA.find(' ');
         if (f != std::string::npos){
-          method = tmpA.substr(0, f); tmpA.erase(0, f+1);
+          method = tmpA.substr(0, f);
+          tmpA.erase(0, f + 1);
           f = tmpA.find(' ');
           if (f != std::string::npos){
-            url = tmpA.substr(0, f); tmpA.erase(0, f+1);
+            url = tmpA.substr(0, f);
+            tmpA.erase(0, f + 1);
             protocol = tmpA;
             if (url.find('?') != std::string::npos){
-              parseVars(url.substr(url.find('?')+1)); //parse GET variables
+              parseVars(url.substr(url.find('?') + 1)); //parse GET variables
             }
-          }else{seenReq = false;}
-        }else{seenReq = false;}
+          }else{
+            seenReq = false;
+          }
+        }else{
+          seenReq = false;
+        }
       }else{
         if (tmpA.size() == 0){
           seenHeaders = true;
           body.clear();
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
-            if (body.capacity() < length){body.reserve(length);}
+            if (body.capacity() < length){
+              body.reserve(length);
+            }
           }
         }else{
           f = tmpA.find(':');
           if (f == std::string::npos) continue;
           tmpB = tmpA.substr(0, f);
-          tmpC = tmpA.substr(f+1);
+          tmpC = tmpA.substr(f + 1);
           SetHeader(tmpB, tmpC);
         }
       }
@@ -204,7 +228,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
     }
   }
   return false; //empty input
-}//HTTPReader::parse
+} //HTTPReader::parse
 
 /// Parses GET or POST-style variable data.
 /// Saves to internal variable structure using HTTP::Parser::SetVar.
@@ -266,8 +290,12 @@ std::string HTTP::Parser::urlunescape(const std::string & in){
         tmp += unhex(in[i]);
       }
       out += tmp;
-    } else {
-      if (in[i] == '+'){out += ' ';}else{out += in[i];}
+    }else{
+      if (in[i] == '+'){
+        out += ' ';
+      }else{
+        out += in[i];
+      }
     }
   }
   return out;
@@ -276,15 +304,16 @@ std::string HTTP::Parser::urlunescape(const std::string & in){
 /// Helper function for urlunescape.
 /// Takes a single char input and outputs its integer hex value.
 int HTTP::Parser::unhex(char c){
-  return( c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c - 'a' + 10 );
+  return (c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c - 'a' + 10);
 }
 
 /// URLencodes std::string data.
 std::string HTTP::Parser::urlencode(const std::string &c){
-  std::string escaped="";
+  std::string escaped = "";
   int max = c.length();
-  for(int i=0; i<max; i++){
-    if (('0'<=c[i] && c[i]<='9') || ('a'<=c[i] && c[i]<='z') || ('A'<=c[i] && c[i]<='Z') || (c[i]=='~' || c[i]=='!' || c[i]=='*' || c[i]=='(' || c[i]==')' || c[i]=='\'')){
+  for (int i = 0; i < max; i++){
+    if (('0' <= c[i] && c[i] <= '9') || ('a' <= c[i] && c[i] <= 'z') || ('A' <= c[i] && c[i] <= 'Z')
+        || (c[i] == '~' || c[i] == '!' || c[i] == '*' || c[i] == '(' || c[i] == ')' || c[i] == '\'')){
       escaped.append( &c[i], 1);
     }else{
       escaped.append("%");
@@ -297,14 +326,14 @@ std::string HTTP::Parser::urlencode(const std::string &c){
 /// Helper function for urlescape.
 /// Encodes a character as two hex digits.
 std::string HTTP::Parser::hex(char dec){
-  char dig1 = (dec&0xF0)>>4;
-  char dig2 = (dec&0x0F);
-  if (dig1<= 9) dig1+=48;
-  if (10<= dig1 && dig1<=15) dig1+=97-10;
-  if (dig2<= 9) dig2+=48;
-  if (10<= dig2 && dig2<=15) dig2+=97-10;
+  char dig1 = (dec & 0xF0) >> 4;
+  char dig2 = (dec & 0x0F);
+  if (dig1 <= 9) dig1 += 48;
+  if (10 <= dig1 && dig1 <= 15) dig1 += 97 - 10;
+  if (dig2 <= 9) dig2 += 48;
+  if (10 <= dig2 && dig2 <= 15) dig2 += 97 - 10;
   std::string r;
-  r.append(&dig1, 1);
-  r.append(&dig2, 1);
+  r.append( &dig1, 1);
+  r.append( &dig2, 1);
   return r;
 }

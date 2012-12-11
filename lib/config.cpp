@@ -56,14 +56,18 @@ Util::Config::Config(std::string cmd, std::string version){
 ///\endcode
 void Util::Config::addOption(std::string optname, JSON::Value option){
   vals[optname] = option;
-  if (!vals[optname].isMember("value") && vals[optname].isMember("default")){
+  if ( !vals[optname].isMember("value") && vals[optname].isMember("default")){
     vals[optname]["value"].append(vals[optname]["default"]);
     vals[optname].removeMember("default");
   }
   long_count = 0;
   for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
-    if (it->second.isMember("long")){long_count++;}
-    if (it->second.isMember("long_off")){long_count++;}
+    if (it->second.isMember("long")){
+      long_count++;
+    }
+    if (it->second.isMember("long_off")){
+      long_count++;
+    }
   }
 }
 
@@ -73,16 +77,30 @@ void Util::Config::printHelp(std::ostream & output){
   std::map<long long int, std::string> args;
   for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
     unsigned int current = 0;
-    if (it->second.isMember("long")){current += it->second["long"].asString().size() + 4;}
-    if (it->second.isMember("short")){current += it->second["short"].asString().size() + 3;}
-    if (current > longest){longest = current;}
+    if (it->second.isMember("long")){
+      current += it->second["long"].asString().size() + 4;
+    }
+    if (it->second.isMember("short")){
+      current += it->second["short"].asString().size() + 3;
+    }
+    if (current > longest){
+      longest = current;
+    }
     current = 0;
-    if (it->second.isMember("long_off")){current += it->second["long_off"].asString().size() + 4;}
-    if (it->second.isMember("short_off")){current += it->second["short_off"].asString().size() + 3;}
-    if (current > longest){longest = current;}
+    if (it->second.isMember("long_off")){
+      current += it->second["long_off"].asString().size() + 4;
+    }
+    if (it->second.isMember("short_off")){
+      current += it->second["short_off"].asString().size() + 3;
+    }
+    if (current > longest){
+      longest = current;
+    }
     if (it->second.isMember("arg_num")){
       current = it->first.size() + 3;
-      if (current > longest){longest = current;}
+      if (current > longest){
+        longest = current;
+      }
       args[it->second["arg_num"].asInt()] = it->first;
     }
   }
@@ -108,7 +126,9 @@ void Util::Config::printHelp(std::ostream & output){
           f = "-" + it->second["short"].asString();
         }
       }
-      while (f.size() < longest){f.append(" ");}
+      while (f.size() < longest){
+        f.append(" ");
+      }
       if (it->second.isMember("arg")){
         output << f << "(" << it->second["arg"].asString() << ") " << it->second["help"].asString() << std::endl;
       }else{
@@ -126,7 +146,9 @@ void Util::Config::printHelp(std::ostream & output){
           f = "-" + it->second["short_off"].asString();
         }
       }
-      while (f.size() < longest){f.append(" ");}
+      while (f.size() < longest){
+        f.append(" ");
+      }
       if (it->second.isMember("arg")){
         output << f << "(" << it->second["arg"].asString() << ") " << it->second["help"].asString() << std::endl;
       }else{
@@ -135,40 +157,49 @@ void Util::Config::printHelp(std::ostream & output){
     }
     if (it->second.isMember("arg_num")){
       f = it->first;
-      while (f.size() < longest){f.append(" ");}
+      while (f.size() < longest){
+        f.append(" ");
+      }
       output << f << "(" << it->second["arg"].asString() << ") " << it->second["help"].asString() << std::endl;
     }
   }
 }
-
 
 /// Parses commandline arguments.
 /// Calls exit if an unknown option is encountered, printing a help message.
 void Util::Config::parseArgs(int argc, char ** argv){
   int opt = 0;
   std::string shortopts;
-  struct option * longOpts = (struct option*)calloc(long_count+1, sizeof(struct option));
+  struct option * longOpts = (struct option*)calloc(long_count + 1, sizeof(struct option));
   int long_i = 0;
   int arg_count = 0;
   for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
     if (it->second.isMember("short")){
       shortopts += it->second["short"].asString();
-      if (it->second.isMember("arg")){shortopts += ":";}
+      if (it->second.isMember("arg")){
+        shortopts += ":";
+      }
     }
     if (it->second.isMember("short_off")){
       shortopts += it->second["short_off"].asString();
-      if (it->second.isMember("arg")){shortopts += ":";}
+      if (it->second.isMember("arg")){
+        shortopts += ":";
+      }
     }
     if (it->second.isMember("long")){
       longOpts[long_i].name = it->second["long"].asString().c_str();
       longOpts[long_i].val = it->second["short"].asString()[0];
-      if (it->second.isMember("arg")){longOpts[long_i].has_arg = 1;}
+      if (it->second.isMember("arg")){
+        longOpts[long_i].has_arg = 1;
+      }
       long_i++;
     }
     if (it->second.isMember("long_off")){
       longOpts[long_i].name = it->second["long_off"].asString().c_str();
       longOpts[long_i].val = it->second["short_off"].asString()[0];
-      if (it->second.isMember("arg")){longOpts[long_i].has_arg = 1;}
+      if (it->second.isMember("arg")){
+        longOpts[long_i].has_arg = 1;
+      }
       long_i++;
     }
     if (it->second.isMember("arg_num") && !(it->second.isMember("value") && it->second["value"].size())){
@@ -203,10 +234,10 @@ void Util::Config::parseArgs(int argc, char ** argv){
         }
         break;
     }
-  }//commandline options parser
-  free(longOpts);//free the long options array
-  long_i = 1;//re-use long_i as an argument counter
-  while (optind < argc){//parse all remaining options, ignoring anything unexpected.
+  } //commandline options parser
+  free(longOpts); //free the long options array
+  long_i = 1; //re-use long_i as an argument counter
+  while (optind < argc){ //parse all remaining options, ignoring anything unexpected.
     for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
       if (it->second.isMember("arg_num") && it->second["arg_num"].asInt() == long_i){
         it->second["value"].append((std::string)argv[optind]);
@@ -226,18 +257,18 @@ void Util::Config::parseArgs(int argc, char ** argv){
 /// Returns a reference to the current value of an option or default if none was set.
 /// If the option does not exist, this exits the application with a return code of 37.
 JSON::Value & Util::Config::getOption(std::string optname, bool asArray){
-  if (!vals.isMember(optname)){
+  if ( !vals.isMember(optname)){
     std::cout << "Fatal error: a non-existent option '" << optname << "' was accessed." << std::endl;
     exit(37);
   }
-  if (!vals[optname].isMember("value") || !vals[optname]["value"].isArray()){
+  if ( !vals[optname].isMember("value") || !vals[optname]["value"].isArray()){
     vals[optname]["value"].append(JSON::Value());
   }
   if (asArray){
     return vals[optname]["value"];
   }else{
     int n = vals[optname]["value"].size();
-    return vals[optname]["value"][n-1];
+    return vals[optname]["value"][n - 1];
   }
 }
 
@@ -273,7 +304,7 @@ void Util::Config::activate(){
   }
   struct sigaction new_action;
   new_action.sa_handler = signal_handler;
-  sigemptyset (&new_action.sa_mask);
+  sigemptyset( &new_action.sa_mask);
   new_action.sa_flags = 0;
   sigaction(SIGINT, &new_action, NULL);
   sigaction(SIGHUP, &new_action, NULL);
@@ -288,41 +319,53 @@ void Util::Config::activate(){
 /// signal, and ignores all other signals.
 void Util::Config::signal_handler(int signum){
   switch (signum){
-    case SIGINT://these three signals will set is_active to false.
+    case SIGINT: //these three signals will set is_active to false.
     case SIGHUP:
     case SIGTERM:
       is_active = false;
       break;
-    case SIGCHLD://when a child dies, reap it.
+    case SIGCHLD: //when a child dies, reap it.
       wait(0);
       break;
     default: //other signals are ignored
       break;
   }
-}//signal_handler
+} //signal_handler
 
 /// Adds the default connector options to this Util::Config object.
 void Util::Config::addConnectorOptions(int port){
   JSON::Value stored_port = JSON::fromString("{\"long\":\"port\", \"short\":\"p\", \"arg\":\"integer\", \"help\":\"TCP port to listen on.\"}");
   stored_port["value"].append((long long int)port);
   addOption("listen_port", stored_port);
-  addOption("listen_interface", JSON::fromString("{\"long\":\"interface\", \"value\":[\"0.0.0.0\"], \"short\":\"i\", \"arg\":\"string\", \"help\":\"Interface address to listen on, or 0.0.0.0 for all available interfaces.\"}"));
-  addOption("username", JSON::fromString("{\"long\":\"username\", \"value\":[\"root\"], \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to drop privileges to, or root to not drop provileges.\"}"));
-  addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"value\":[1], \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
-}//addConnectorOptions
+  addOption("listen_interface",
+      JSON::fromString(
+          "{\"long\":\"interface\", \"value\":[\"0.0.0.0\"], \"short\":\"i\", \"arg\":\"string\", \"help\":\"Interface address to listen on, or 0.0.0.0 for all available interfaces.\"}"));
+  addOption("username",
+      JSON::fromString(
+          "{\"long\":\"username\", \"value\":[\"root\"], \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to drop privileges to, or root to not drop provileges.\"}"));
+  addOption("daemonize",
+      JSON::fromString(
+          "{\"long\":\"daemon\", \"short\":\"d\", \"value\":[1], \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
+} //addConnectorOptions
 
 /// Gets directory the current executable is stored in.
 std::string Util::getMyPath(){
   char mypath[500];
   int ret = readlink("/proc/self/exe", mypath, 500);
-  if (ret != -1){mypath[ret] = 0;}else{mypath[0] = 0;}
+  if (ret != -1){
+    mypath[ret] = 0;
+  }else{
+    mypath[0] = 0;
+  }
   std::string tPath = mypath;
   size_t slash = tPath.rfind('/');
   if (slash == std::string::npos){
     slash = tPath.rfind('\\');
-    if (slash == std::string::npos){return "";}
+    if (slash == std::string::npos){
+      return "";
+    }
   }
-  tPath.resize(slash+1);
+  tPath.resize(slash + 1);
   return tPath;
 }
 
@@ -330,20 +373,20 @@ std::string Util::getMyPath(){
 void Util::setUser(std::string username){
   if (username != "root"){
     struct passwd * user_info = getpwnam(username.c_str());
-    if (!user_info){
-      #if DEBUG >= 1
+    if ( !user_info){
+#if DEBUG >= 1
       fprintf(stderr, "Error: could not setuid %s: could not get PID\n", username.c_str());
-      #endif
+#endif
       return;
     }else{
       if (setuid(user_info->pw_uid) != 0){
-        #if DEBUG >= 1
+#if DEBUG >= 1
         fprintf(stderr, "Error: could not setuid %s: not allowed\n", username.c_str());
-        #endif
+#endif
       }else{
-        #if DEBUG >= 3
+#if DEBUG >= 3
         fprintf(stderr, "Changed user to %s\n", username.c_str());
-        #endif
+#endif
       }
     }
   }
@@ -354,12 +397,12 @@ void Util::setUser(std::string username){
 /// Does not change directory to root.
 /// Does redirect output to /dev/null
 void Util::Daemonize(){
-  #if DEBUG >= 3
+#if DEBUG >= 3
   fprintf(stderr, "Going into background mode...\n");
-  #endif
-  if (daemon(1, 0) < 0) {
-    #if DEBUG >= 1
+#endif
+  if (daemon(1, 0) < 0){
+#if DEBUG >= 1
     fprintf(stderr, "Failed to daemonize: %s\n", strerror(errno));
-    #endif
+#endif
   }
 }

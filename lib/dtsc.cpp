@@ -5,12 +5,12 @@
 #include <stdlib.h>
 #include <string.h> //for memcmp
 #include <arpa/inet.h> //for htonl/ntohl
-
 char DTSC::Magic_Header[] = "DTSC";
 char DTSC::Magic_Packet[] = "DTPD";
 
 /// Initializes a DTSC::Stream with only one packet buffer.
 DTSC::Stream::Stream(){
+  datapointertype = DTSC::INVALID;
   datapointer = 0;
   buffercount = 1;
 }
@@ -18,8 +18,11 @@ DTSC::Stream::Stream(){
 /// Initializes a DTSC::Stream with a minimum of rbuffers packet buffers.
 /// The actual buffer count may not at all times be the requested amount.
 DTSC::Stream::Stream(unsigned int rbuffers){
+  datapointertype = DTSC::INVALID;
   datapointer = 0;
-  if (rbuffers < 1){rbuffers = 1;}
+  if (rbuffers < 1){
+    rbuffers = 1;
+  }
   buffercount = rbuffers;
 }
 
@@ -39,15 +42,19 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
   if (buffer.length() > 8){
     if (memcmp(buffer.c_str(), DTSC::Magic_Header, 4) == 0){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);
-      if (buffer.length() < len+8){return false;}
+      if (buffer.length() < len + 8){
+        return false;
+      }
       unsigned int i = 0;
       metadata = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
-      buffer.erase(0, len+8);
+      buffer.erase(0, len + 8);
       return false;
     }
     if (memcmp(buffer.c_str(), DTSC::Magic_Packet, 4) == 0){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);
-      if (buffer.length() < len+8){return false;}
+      if (buffer.length() < len + 8){
+        return false;
+      }
       buffers.push_front(JSON::Value());
       unsigned int i = 0;
       buffers.front() = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
@@ -59,23 +66,33 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       }
       if (buffers.front().isMember("datatype")){
         std::string tmp = buffers.front()["datatype"].asString();
-        if (tmp == "video"){datapointertype = VIDEO;}
-        if (tmp == "audio"){datapointertype = AUDIO;}
-        if (tmp == "meta"){datapointertype = META;}
-        if (tmp == "pause_marker"){datapointertype = PAUSEMARK;}
+        if (tmp == "video"){
+          datapointertype = VIDEO;
+        }
+        if (tmp == "audio"){
+          datapointertype = AUDIO;
+        }
+        if (tmp == "meta"){
+          datapointertype = META;
+        }
+        if (tmp == "pause_marker"){
+          datapointertype = PAUSEMARK;
+        }
       }
-      buffer.erase(0, len+8);
-      while (buffers.size() > buffercount){buffers.pop_back();}
+      buffer.erase(0, len + 8);
+      while (buffers.size() > buffercount){
+        buffers.pop_back();
+      }
       advanceRings();
       syncing = false;
       return true;
     }
-    #if DEBUG >= 2
+#if DEBUG >= 2
     if (!syncing){
       std::cerr << "Error: Invalid DTMI data detected - re-syncing" << std::endl;
       syncing = true;
     }
-    #endif
+#endif
     size_t magic_search = buffer.find(Magic_Packet);
     if (magic_search == std::string::npos){
       buffer.clear();
@@ -97,18 +114,22 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
     std::string header_bytes = buffer.copy(8);
     if (memcmp(header_bytes.c_str(), DTSC::Magic_Header, 4) == 0){
       len = ntohl(((uint32_t *)header_bytes.c_str())[1]);
-      if (!buffer.available(len+8)){return false;}
+      if ( !buffer.available(len + 8)){
+        return false;
+      }
       unsigned int i = 0;
-      std::string wholepacket = buffer.remove(len+8);
+      std::string wholepacket = buffer.remove(len + 8);
       metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
       return false;
     }
     if (memcmp(header_bytes.c_str(), DTSC::Magic_Packet, 4) == 0){
       len = ntohl(((uint32_t *)header_bytes.c_str())[1]);
-      if (!buffer.available(len+8)){return false;}
+      if ( !buffer.available(len + 8)){
+        return false;
+      }
       buffers.push_front(JSON::Value());
       unsigned int i = 0;
-      std::string wholepacket = buffer.remove(len+8);
+      std::string wholepacket = buffer.remove(len + 8);
       buffers.front() = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
@@ -118,22 +139,32 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       }
       if (buffers.front().isMember("datatype")){
         std::string tmp = buffers.front()["datatype"].asString();
-        if (tmp == "video"){datapointertype = VIDEO;}
-        if (tmp == "audio"){datapointertype = AUDIO;}
-        if (tmp == "meta"){datapointertype = META;}
-        if (tmp == "pause_marker"){datapointertype = PAUSEMARK;}
+        if (tmp == "video"){
+          datapointertype = VIDEO;
+        }
+        if (tmp == "audio"){
+          datapointertype = AUDIO;
+        }
+        if (tmp == "meta"){
+          datapointertype = META;
+        }
+        if (tmp == "pause_marker"){
+          datapointertype = PAUSEMARK;
+        }
       }
-      while (buffers.size() > buffercount){buffers.pop_back();}
+      while (buffers.size() > buffercount){
+        buffers.pop_back();
+      }
       advanceRings();
       syncing = false;
       return true;
     }
-    #if DEBUG >= 2
+#if DEBUG >= 2
     if (!syncing){
       std::cerr << "Error: Invalid DTMI data detected - syncing" << std::endl;
       syncing = true;
     }
-    #endif
+#endif
     buffer.get().clear();
   }
   return false;
@@ -185,19 +216,30 @@ void DTSC::Stream::advanceRings(){
   std::deque<DTSC::Ring>::iterator dit;
   std::set<DTSC::Ring *>::iterator sit;
   for (sit = rings.begin(); sit != rings.end(); sit++){
-    (*sit)->b++;
-    if ((*sit)->waiting){(*sit)->waiting = false; (*sit)->b = 0;}
-    if ((*sit)->starved || ((*sit)->b >= buffers.size())){(*sit)->starved = true; (*sit)->b = 0;}
+    ( *sit)->b++;
+    if (( *sit)->waiting){
+      ( *sit)->waiting = false;
+      ( *sit)->b = 0;
+    }
+    if (( *sit)->starved || (( *sit)->b >= buffers.size())){
+      ( *sit)->starved = true;
+      ( *sit)->b = 0;
+    }
   }
   for (dit = keyframes.begin(); dit != keyframes.end(); dit++){
     dit->b++;
-    if (dit->b >= buffers.size()){keyframes.erase(dit); break;}
+    if (dit->b >= buffers.size()){
+      keyframes.erase(dit);
+      break;
+    }
   }
   if ((lastType() == VIDEO) && (buffers.front().isMember("keyframe"))){
     keyframes.push_front(DTSC::Ring(0));
   }
   //increase buffer size if no keyframes available
-  if ((buffercount > 1) && (keyframes.size() < 1)){buffercount++;}
+  if ((buffercount > 1) && (keyframes.size() < 1)){
+    buffercount++;
+  }
 }
 
 /// Constructs a new Ring, at the given buffer position.
@@ -235,7 +277,9 @@ void DTSC::Stream::dropRing(DTSC::Ring * ptr){
 /// Drops all Ring classes that have been given out.
 DTSC::Stream::~Stream(){
   std::set<DTSC::Ring *>::iterator sit;
-  for (sit = rings.begin(); sit != rings.end(); sit++){delete (*sit);}
+  for (sit = rings.begin(); sit != rings.end(); sit++){
+    delete ( *sit);
+  }
 }
 
 /// Open a filename for DTSC reading/writing.
@@ -247,12 +291,12 @@ DTSC::File::File(std::string filename, bool create){
     fseek(F, 0, SEEK_SET);
     fwrite(DTSC::Magic_Header, 4, 1, F);
     memset(buffer, 0, 4);
-    fwrite(buffer, 4, 1, F);//write 4 zero-bytes
+    fwrite(buffer, 4, 1, F); //write 4 zero-bytes
     headerSize = 0;
   }else{
     F = fopen(filename.c_str(), "r+b");
   }
-  if (!F){
+  if ( !F){
     fprintf(stderr, "Could not open file %s\n", filename.c_str());
     return;
   }
@@ -262,15 +306,15 @@ DTSC::File::File(std::string filename, bool create){
   if (fread(buffer, 4, 1, F) != 1){
     fseek(F, 4, SEEK_SET);
     memset(buffer, 0, 4);
-    fwrite(buffer, 4, 1, F);//write 4 zero-bytes
+    fwrite(buffer, 4, 1, F); //write 4 zero-bytes
   }else{
     uint32_t * ubuffer = (uint32_t *)buffer;
     headerSize = ntohl(ubuffer[0]);
   }
   readHeader(0);
-  fseek(F, 8+headerSize, SEEK_SET);
+  fseek(F, 8 + headerSize, SEEK_SET);
   currframe = 1;
-  frames[1] = 8+headerSize;
+  frames[1] = 8 + headerSize;
   msframes[1] = 0;
 }
 
@@ -289,7 +333,7 @@ bool DTSC::File::writeHeader(std::string & header, bool force){
   headerSize = header.size();
   fseek(F, 8, SEEK_SET);
   int ret = fwrite(header.c_str(), headerSize, 1, F);
-  fseek(F, 8+headerSize, SEEK_SET);
+  fseek(F, 8 + headerSize, SEEK_SET);
   return (ret == 1);
 }
 
@@ -299,13 +343,19 @@ long long int DTSC::File::addHeader(std::string & header){
   fseek(F, 0, SEEK_END);
   long long int writePos = ftell(F);
   int hSize = htonl(header.size());
-  int ret = fwrite(DTSC::Magic_Header, 4, 1, F);//write header
-  if (ret != 1){return 0;}
-  ret = fwrite((void*)(&hSize), 4, 1, F);//write size
-  if (ret != 1){return 0;}
-  ret = fwrite(header.c_str(), header.size(), 1, F);//write contents
-  if (ret != 1){return 0;}
-  return writePos;//return position written at
+  int ret = fwrite(DTSC::Magic_Header, 4, 1, F); //write header
+  if (ret != 1){
+    return 0;
+  }
+  ret = fwrite((void*)( &hSize), 4, 1, F); //write size
+  if (ret != 1){
+    return 0;
+  }
+  ret = fwrite(header.c_str(), header.size(), 1, F); //write contents
+  if (ret != 1){
+    return 0;
+  }
+  return writePos; //return position written at
 }
 
 /// Reads the header at the given file position.
@@ -315,9 +365,9 @@ void DTSC::File::readHeader(int pos){
   fseek(F, pos, SEEK_SET);
   if (fread(buffer, 4, 1, F) != 1){
     if (feof(F)){
-      #if DEBUG >= 4
+#if DEBUG >= 4
       fprintf(stderr, "End of file reached (H%i)\n", pos);
-      #endif
+#endif
     }else{
       fprintf(stderr, "Could not read header (H%i)\n", pos);
     }
@@ -355,13 +405,13 @@ void DTSC::File::readHeader(int pos){
   if (metadata.isMember("keytime")){
     msframes.clear();
     for (int i = 0; i < metadata["keytime"].size(); ++i){
-      msframes[i+1] = metadata["keytime"][i].asInt();
+      msframes[i + 1] = metadata["keytime"][i].asInt();
     }
   }
   if (metadata.isMember("keybpos")){
     frames.clear();
     for (int i = 0; i < metadata["keybpos"].size(); ++i){
-      frames[i+1] = metadata["keybpos"][i].asInt();
+      frames[i + 1] = metadata["keybpos"][i].asInt();
     }
   }
 }
@@ -373,9 +423,9 @@ void DTSC::File::seekNext(){
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1){
     if (feof(F)){
-      #if DEBUG >= 4
+#if DEBUG >= 4
       fprintf(stderr, "End of file reached.\n");
-      #endif
+#endif
     }else{
       fprintf(stderr, "Could not read header\n");
     }
@@ -409,13 +459,13 @@ void DTSC::File::seekNext(){
     if (frames[currframe] != lastreadpos){
       currframe++;
       currtime = jsonbuffer["time"].asInt();
-      #if DEBUG >= 6
+#if DEBUG >= 6
       if (frames[currframe] != lastreadpos){
         std::cerr << "Found a new frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
-      }else{
+      } else{
         std::cerr << "Passing frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
       }
-      #endif
+#endif
       frames[currframe] = lastreadpos;
       msframes[currframe] = currtime;
     }
@@ -423,36 +473,47 @@ void DTSC::File::seekNext(){
 }
 
 /// Returns the byte positon of the start of the last packet that was read.
-long long int DTSC::File::getLastReadPos(){return lastreadpos;}
+long long int DTSC::File::getLastReadPos(){
+  return lastreadpos;
+}
 
 /// Returns the internal buffer of the last read packet in raw binary format.
-std::string & DTSC::File::getPacket(){return strbuffer;}
+std::string & DTSC::File::getPacket(){
+  return strbuffer;
+}
 
 /// Returns the internal buffer of the last read packet in JSON format.
-JSON::Value & DTSC::File::getJSON(){return jsonbuffer;}
+JSON::Value & DTSC::File::getJSON(){
+  return jsonbuffer;
+}
 
 /// Attempts to seek to the given frame number within the file.
 /// Returns true if successful, false otherwise.
 bool DTSC::File::seek_frame(int frameno){
   if (frames.count(frameno) > 0){
     if (fseek(F, frames[frameno], SEEK_SET) == 0){
-      #if DEBUG >= 4
+#if DEBUG >= 4
       std::cerr << "Seek direct from " << currframe << " @ " << frames[currframe] << " to " << frameno << " @ " << frames[frameno] << std::endl;
-      #endif
+#endif
       currframe = frameno;
       return true;
     }
   }else{
     for (int i = frameno; i >= 1; --i){
-      if (frames.count(i) > 0){currframe = i; break;}
+      if (frames.count(i) > 0){
+        currframe = i;
+        break;
+      }
     }
     if (fseek(F, frames[currframe], SEEK_SET) == 0){
-      #if DEBUG >= 4
+#if DEBUG >= 4
       std::cerr << "Seeking from frame " << currframe << " @ " << frames[currframe] << " to " << frameno << std::endl;
-      #endif
+#endif
       while (currframe < frameno){
         seekNext();
-        if (jsonbuffer.isNull()){return false;}
+        if (jsonbuffer.isNull()){
+          return false;
+        }
       }
       seek_frame(frameno);
       return true;
@@ -468,16 +529,23 @@ bool DTSC::File::seek_time(int ms){
   currtime = 0;
   currframe = 1;
   for (it = msframes.begin(); it != msframes.end(); ++it){
-    if (it->second > ms){break;}
-    if (it->second > currtime){currtime = it->second; currframe = it->first;}
+    if (it->second > ms){
+      break;
+    }
+    if (it->second > currtime){
+      currtime = it->second;
+      currframe = it->first;
+    }
   }
   if (fseek(F, frames[currframe], SEEK_SET) == 0){
-    #if DEBUG >= 4
+#if DEBUG >= 4
     std::cerr << "Seeking from frame " << currframe << " @ " << msframes[currframe] << "ms to " << ms << "ms" << std::endl;
-    #endif
+#endif
     while (currtime < ms){
       seekNext();
-      if (jsonbuffer.isNull()){return false;}
+      if (jsonbuffer.isNull()){
+        return false;
+      }
     }
     if (currtime > ms){
       return seek_frame(currframe - 1);

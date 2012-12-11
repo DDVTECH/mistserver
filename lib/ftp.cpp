@@ -1,7 +1,8 @@
 #include "ftp.h"
 
-FTP::User::User( Socket::Connection NewConnection, std::map<std::string,std::string> Credentials ) {
+FTP::User::User(Socket::Connection NewConnection, std::map<std::string, std::string> Credentials){
   Conn = NewConnection;
+  MyPassivePort = 0;
   USER = "";
   PASS = "";
   MODE = MODE_STREAM;
@@ -10,78 +11,150 @@ FTP::User::User( Socket::Connection NewConnection, std::map<std::string,std::str
   PORT = 20;
   RNFR = "";
   AllCredentials = Credentials;
-  
-  MyDir = Filesystem::Directory( "", FTPBasePath );
-  MyDir.SetPermissions( "", Filesystem::P_LIST );
-  MyDir.SetPermissions( "Unconverted", Filesystem::P_LIST | Filesystem::P_DELE | Filesystem::P_RNFT | Filesystem::P_STOR | Filesystem::P_RETR );
-  MyDir.SetPermissions( "Converted", Filesystem::P_LIST | Filesystem::P_DELE | Filesystem::P_RNFT | Filesystem::P_RETR );
-  MyDir.SetPermissions( "OnDemand", Filesystem::P_LIST | Filesystem::P_RETR );
-  MyDir.SetPermissions( "Live", Filesystem::P_LIST );
-  
-  MyDir.SetVisibility( "Converted", Filesystem::S_INACTIVE );
-  MyDir.SetVisibility( "OnDemand", Filesystem::S_ACTIVE );
-  
-  JSON::Value MyConfig = JSON::fromFile( "/tmp/mist/streamlist" );
-  fprintf( stderr, "Streamamount: %d\n", MyConfig["streams"].size() );
-  for( JSON::ObjIter it = MyConfig["streams"].ObjBegin(); it != MyConfig["streams"].ObjEnd(); it++ ) {
-    std::string ThisStream = (*it).second["channel"]["URL"].toString();
-    ThisStream.erase( ThisStream.begin() );
-    ThisStream.erase( ThisStream.end() - 1 );
-    while( ThisStream.find( '/' ) != std::string::npos ) {
-      ThisStream.erase(0,ThisStream.find('/')+1);
+
+  MyDir = Filesystem::Directory("", FTPBasePath);
+  MyDir.SetPermissions("", Filesystem::P_LIST);
+  MyDir.SetPermissions("Unconverted", Filesystem::P_LIST | Filesystem::P_DELE | Filesystem::P_RNFT | Filesystem::P_STOR | Filesystem::P_RETR);
+  MyDir.SetPermissions("Converted", Filesystem::P_LIST | Filesystem::P_DELE | Filesystem::P_RNFT | Filesystem::P_RETR);
+  MyDir.SetPermissions("OnDemand", Filesystem::P_LIST | Filesystem::P_RETR);
+  MyDir.SetPermissions("Live", Filesystem::P_LIST);
+
+  MyDir.SetVisibility("Converted", Filesystem::S_INACTIVE);
+  MyDir.SetVisibility("OnDemand", Filesystem::S_ACTIVE);
+
+  JSON::Value MyConfig = JSON::fromFile("/tmp/mist/streamlist");
+  fprintf(stderr, "Streamamount: %d\n", MyConfig["streams"].size());
+  for (JSON::ObjIter it = MyConfig["streams"].ObjBegin(); it != MyConfig["streams"].ObjEnd(); it++){
+    std::string ThisStream = ( *it).second["channel"]["URL"].toString();
+    ThisStream.erase(ThisStream.begin());
+    ThisStream.erase(ThisStream.end() - 1);
+    while (ThisStream.find('/') != std::string::npos){
+      ThisStream.erase(0, ThisStream.find('/') + 1);
     }
-    ActiveStreams.push_back( ThisStream );
-    fprintf( stderr, "\t%s\n", ThisStream.c_str() );
+    ActiveStreams.push_back(ThisStream);
+    fprintf(stderr, "\t%s\n", ThisStream.c_str());
   }
 }
 
-FTP::User::~User( ) { }
+FTP::User::~User(){
+}
 
-int FTP::User::ParseCommand( std::string Command ) {
+int FTP::User::ParseCommand(std::string Command){
   Commands ThisCmd = CMD_NOCMD;
-  if( Command.substr(0,4) == "NOOP" ) { ThisCmd = CMD_NOOP; Command.erase(0,5); }
-  if( Command.substr(0,4) == "USER" ) { ThisCmd = CMD_USER; Command.erase(0,5); }
-  if( Command.substr(0,4) == "PASS" ) { ThisCmd = CMD_PASS; Command.erase(0,5); }
-  if( Command.substr(0,4) == "QUIT" ) { ThisCmd = CMD_QUIT; Command.erase(0,5); }
-  if( Command.substr(0,4) == "PORT" ) { ThisCmd = CMD_PORT; Command.erase(0,5); }
-  if( Command.substr(0,4) == "RETR" ) { ThisCmd = CMD_RETR; Command.erase(0,5); }
-  if( Command.substr(0,4) == "STOR" ) { ThisCmd = CMD_STOR; Command.erase(0,5); }
-  if( Command.substr(0,4) == "TYPE" ) { ThisCmd = CMD_TYPE; Command.erase(0,5); }
-  if( Command.substr(0,4) == "MODE" ) { ThisCmd = CMD_MODE; Command.erase(0,5); }
-  if( Command.substr(0,4) == "STRU" ) { ThisCmd = CMD_STRU; Command.erase(0,5); }
-  if( Command.substr(0,4) == "EPSV" ) { ThisCmd = CMD_EPSV; Command.erase(0,5); }
-  if( Command.substr(0,4) == "PASV" ) { ThisCmd = CMD_PASV; Command.erase(0,5); }
-  if( Command.substr(0,4) == "LIST" ) { ThisCmd = CMD_LIST; Command.erase(0,5); }
-  if( Command.substr(0,4) == "CDUP" ) { ThisCmd = CMD_CDUP; Command.erase(0,5); }
-  if( Command.substr(0,4) == "DELE" ) { ThisCmd = CMD_DELE; Command.erase(0,5); }
-  if( Command.substr(0,4) == "RNFR" ) { ThisCmd = CMD_RNFR; Command.erase(0,5); }
-  if( Command.substr(0,4) == "RNTO" ) { ThisCmd = CMD_RNTO; Command.erase(0,5); }
-  if( Command.substr(0,3) == "PWD" ) { ThisCmd = CMD_PWD; Command.erase(0,4); }
-  if( Command.substr(0,3) == "CWD" ) { ThisCmd = CMD_CWD; Command.erase(0,4); }
-  if( Command.substr(0,3) == "RMD" ) { ThisCmd = CMD_RMD; Command.erase(0,4); }
-  if( Command.substr(0,3) == "MKD" ) { ThisCmd = CMD_MKD; Command.erase(0,4); }
-  if( ThisCmd != CMD_RNTO ) { RNFR = ""; }
-  switch( ThisCmd ) {
+  if (Command.substr(0, 4) == "NOOP"){
+    ThisCmd = CMD_NOOP;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "USER"){
+    ThisCmd = CMD_USER;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "PASS"){
+    ThisCmd = CMD_PASS;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "QUIT"){
+    ThisCmd = CMD_QUIT;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "PORT"){
+    ThisCmd = CMD_PORT;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "RETR"){
+    ThisCmd = CMD_RETR;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "STOR"){
+    ThisCmd = CMD_STOR;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "TYPE"){
+    ThisCmd = CMD_TYPE;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "MODE"){
+    ThisCmd = CMD_MODE;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "STRU"){
+    ThisCmd = CMD_STRU;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "EPSV"){
+    ThisCmd = CMD_EPSV;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "PASV"){
+    ThisCmd = CMD_PASV;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "LIST"){
+    ThisCmd = CMD_LIST;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "CDUP"){
+    ThisCmd = CMD_CDUP;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "DELE"){
+    ThisCmd = CMD_DELE;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "RNFR"){
+    ThisCmd = CMD_RNFR;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 4) == "RNTO"){
+    ThisCmd = CMD_RNTO;
+    Command.erase(0, 5);
+  }
+  if (Command.substr(0, 3) == "PWD"){
+    ThisCmd = CMD_PWD;
+    Command.erase(0, 4);
+  }
+  if (Command.substr(0, 3) == "CWD"){
+    ThisCmd = CMD_CWD;
+    Command.erase(0, 4);
+  }
+  if (Command.substr(0, 3) == "RMD"){
+    ThisCmd = CMD_RMD;
+    Command.erase(0, 4);
+  }
+  if (Command.substr(0, 3) == "MKD"){
+    ThisCmd = CMD_MKD;
+    Command.erase(0, 4);
+  }
+  if (ThisCmd != CMD_RNTO){
+    RNFR = "";
+  }
+  switch (ThisCmd){
     case CMD_NOOP: {
-      return 200;//Command okay.
+      return 200; //Command okay.
       break;
     }
     case CMD_USER: {
       USER = "";
       PASS = "";
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
       USER = Command;
-      return 331;//User name okay, need password.
+      return 331; //User name okay, need password.
       break;
     }
     case CMD_PASS: {
-      if( USER == "" ) { return 503; }//Bad sequence of commands
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
+      if (USER == ""){
+        return 503;
+      } //Bad sequence of commands
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
       PASS = Command;
-      if( !LoggedIn( ) ) {
+      if ( !LoggedIn()){
         USER = "";
-        PASS ="";
-        return 530;//Not logged in.
+        PASS = "";
+        return 530; //Not logged in.
       }
       return 230;
       break;
@@ -89,135 +162,184 @@ int FTP::User::ParseCommand( std::string Command ) {
     case CMD_LIST: {
       std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
-      if( Connected.connected() ) {
-        Conn.Send( "125 Data connection already open; transfer starting.\n" );
-      } else {
-        Conn.Send( "150 File status okay; about to open data connection.\n" );
+      if (Connected.connected()){
+        Conn.Send("125 Data connection already open; transfer starting.\n");
+      }else{
+        Conn.Send("150 File status okay; about to open data connection.\n");
       }
-      while( !Connected.connected() ) {
+      while ( !Connected.connected()){
         Connected = Passive.accept();
       }
-      fprintf( stderr, "Sending LIST information\n" );
-      std::string tmpstr = MyDir.LIST( ActiveStreams );
-      Connected.Send( tmpstr );
-      Connected.close( );
+      fprintf(stderr, "Sending LIST information\n");
+      std::string tmpstr = MyDir.LIST(ActiveStreams);
+      Connected.Send(tmpstr);
+      Connected.close();
       return 226;
       break;
     }
     case CMD_QUIT: {
-      return 221;//Service closing control connection. Logged out if appropriate.
+      return 221; //Service closing control connection. Logged out if appropriate.
       break;
     }
     case CMD_PORT: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      PORT = atoi( Command.c_str() );
-      return 200;//Command okay.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      PORT = atoi(Command.c_str());
+      return 200; //Command okay.
       break;
     }
     case CMD_EPSV: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
       MyPassivePort = (rand() % 9999);
       std::cout << ":" << MyPassivePort << "\n";
-      Passive = Socket::Server(MyPassivePort,"0.0.0.0",true);
+      Passive = Socket::Server(MyPassivePort, "0.0.0.0", true);
       return 229;
       break;
     }
     case CMD_PASV: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
       MyPassivePort = (rand() % 9999) + 49152;
       std::cout << ":" << MyPassivePort << "\n";
-      Passive = Socket::Server(MyPassivePort,"0.0.0.0",true);
+      Passive = Socket::Server(MyPassivePort, "0.0.0.0", true);
       return 227;
       break;
     }
     case CMD_RETR: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( !MyDir.HasPermission( Filesystem::P_RETR ) ) { return 550; }//Access denied.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if ( !MyDir.HasPermission(Filesystem::P_RETR)){
+        return 550;
+      } //Access denied.
       std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
-      if( Connected.connected() ) {
-        Conn.Send( "125 Data connection already open; transfer starting.\n" );
-      } else {
-        Conn.Send( "150 File status okay; about to open data connection.\n" );
+      if (Connected.connected()){
+        Conn.Send("125 Data connection already open; transfer starting.\n");
+      }else{
+        Conn.Send("150 File status okay; about to open data connection.\n");
       }
-      while( !Connected.connected() ) {
+      while ( !Connected.connected()){
         Connected = Passive.accept();
       }
-      fprintf( stderr, "Sending RETR information\n" );
-      std::string tmpstr = MyDir.RETR( Command );
-      Connected.Send( tmpstr );
+      fprintf(stderr, "Sending RETR information\n");
+      std::string tmpstr = MyDir.RETR(Command);
+      Connected.Send(tmpstr);
       Connected.close();
       return 226;
       break;
     }
     case CMD_STOR: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( !MyDir.HasPermission( Filesystem::P_STOR ) ) { return 550; }//Access denied.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if ( !MyDir.HasPermission(Filesystem::P_STOR)){
+        return 550;
+      } //Access denied.
       std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
-      if( Connected.connected() ) {
-        Conn.Send( "125 Data connection already open; transfer starting.\n" );
-      } else {
-        Conn.Send( "150 File status okay; about to open data connection.\n" );
+      if (Connected.connected()){
+        Conn.Send("125 Data connection already open; transfer starting.\n");
+      }else{
+        Conn.Send("150 File status okay; about to open data connection.\n");
       }
-      while( !Connected.connected() ) {
+      while ( !Connected.connected()){
         Connected = Passive.accept();
       }
-      fprintf( stderr, "Reading STOR information\n" );
+      fprintf(stderr, "Reading STOR information\n");
       std::string Buffer;
-      while( Connected.spool() ) { }
+      while (Connected.spool()){
+      }
       /// \todo Comment me back in. ^_^
       //Buffer = Connected.Received();
-      MyDir.STOR( Command, Buffer );
+      MyDir.STOR(Command, Buffer);
       return 250;
       break;
     }
     case CMD_TYPE: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( Command.size() != 1 && Command.size() != 3 ) { return 501; }//Syntax error in parameters or arguments.
-      switch( Command[0] ) {
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if (Command.size() != 1 && Command.size() != 3){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      switch (Command[0]){
         case 'A': {
-          if( Command.size() > 1 ) {
-            if( Command[1] != ' ' ) { return 501; }//Syntax error in parameters or arguments.
-            if( Command[2] != 'N' ) { return 504; }//Command not implemented for that parameter.
+          if (Command.size() > 1){
+            if (Command[1] != ' '){
+              return 501;
+            } //Syntax error in parameters or arguments.
+            if (Command[2] != 'N'){
+              return 504;
+            } //Command not implemented for that parameter.
           }
           TYPE = TYPE_ASCII_NONPRINT;
           break;
         }
         case 'I': {
-          if( Command.size() > 1 ) {
-            if( Command[1] != ' ' ) { return 501; }//Syntax error in parameters or arguments.
-            if( Command[2] != 'N' ) { return 504; }//Command not implemented for that parameter.
+          if (Command.size() > 1){
+            if (Command[1] != ' '){
+              return 501;
+            } //Syntax error in parameters or arguments.
+            if (Command[2] != 'N'){
+              return 504;
+            } //Command not implemented for that parameter.
           }
           TYPE = TYPE_IMAGE_NONPRINT;
           break;
         }
         default: {
-          return 504;//Command not implemented for that parameter.
+          return 504; //Command not implemented for that parameter.
           break;
         }
       }
-      return 200;//Command okay.
+      return 200; //Command okay.
       break;
     }
     case CMD_MODE: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( Command.size() != 1 ) { return 501; }//Syntax error in parameters or arguments.
-      if( Command[0] != 'S' ) { return 504; }//Command not implemented for that parameter.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if (Command.size() != 1){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if (Command[0] != 'S'){
+        return 504;
+      } //Command not implemented for that parameter.
       MODE = MODE_STREAM;
-      return 200;//Command okay.
+      return 200; //Command okay.
       break;
     }
     case CMD_STRU: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( Command.size() != 1 ) { return 501; }//Syntax error in parameters or arguments.
-      switch( Command[0] ) {
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if (Command.size() != 1){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      switch (Command[0]){
         case 'F': {
           STRU = STRU_FILE;
           break;
@@ -227,24 +349,30 @@ int FTP::User::ParseCommand( std::string Command ) {
           break;
         }
         default: {
-          return 504;//Command not implemented for that parameter.
+          return 504; //Command not implemented for that parameter.
           break;
         }
       }
-      return 200;//Command okay.
+      return 200; //Command okay.
       break;
     }
     case CMD_PWD: {
-      if( !LoggedIn( ) ) { return 550; }//Not logged in.
-      if( Command != "" ) { return 501; }//Syntax error in parameters or arguments.
-      return 2570;//257 -- 0 to indicate PWD over MKD
+      if ( !LoggedIn()){
+        return 550;
+      } //Not logged in.
+      if (Command != ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      return 2570; //257 -- 0 to indicate PWD over MKD
       break;
     }
     case CMD_CWD: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
       Filesystem::Directory TmpDir = MyDir;
-      if( TmpDir.CWD( Command ) ) {
-        if( TmpDir.IsDir( ) ) {
+      if (TmpDir.CWD(Command)){
+        if (TmpDir.IsDir()){
           MyDir = TmpDir;
           return 250;
         }
@@ -253,11 +381,15 @@ int FTP::User::ParseCommand( std::string Command ) {
       break;
     }
     case CMD_CDUP: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command != "" ) { return 501; }//Syntax error in parameters or arguments.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command != ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
       Filesystem::Directory TmpDir = MyDir;
-      if( TmpDir.CDUP( ) ) {
-        if( TmpDir.IsDir( ) ) {
+      if (TmpDir.CDUP()){
+        if (TmpDir.IsDir()){
           MyDir = TmpDir;
           return 250;
         }
@@ -266,62 +398,98 @@ int FTP::User::ParseCommand( std::string Command ) {
       break;
     }
     case CMD_DELE: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( !MyDir.DELE( Command ) ) { return 550; }
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if ( !MyDir.DELE(Command)){
+        return 550;
+      }
       return 250;
       break;
     }
     case CMD_RMD: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( !MyDir.HasPermission( Filesystem::P_RMD ) ) { return 550; }
-      if( !MyDir.DELE( Command ) ) { return 550; }
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if ( !MyDir.HasPermission(Filesystem::P_RMD)){
+        return 550;
+      }
+      if ( !MyDir.DELE(Command)){
+        return 550;
+      }
       return 250;
       break;
     }
     case CMD_MKD: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( !MyDir.HasPermission( Filesystem::P_MKD ) ) { return 550; }
-      if( !MyDir.MKD( Command ) ) { return 550; }
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if ( !MyDir.HasPermission(Filesystem::P_MKD)){
+        return 550;
+      }
+      if ( !MyDir.MKD(Command)){
+        return 550;
+      }
       return 2571;
       break;
     }
     case CMD_RNFR: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
       RNFR = Command;
-      return 350;//Awaiting further information
+      return 350; //Awaiting further information
     }
     case CMD_RNTO: {
-      if( !LoggedIn( ) ) { return 530; }//Not logged in.
-      if( Command == "" ) { return 501; }//Syntax error in parameters or arguments.
-      if( RNFR == "" ) { return 503; } //Bad sequence of commands
-      if( !MyDir.Rename( RNFR, Command ) ) { return 550; }
+      if ( !LoggedIn()){
+        return 530;
+      } //Not logged in.
+      if (Command == ""){
+        return 501;
+      } //Syntax error in parameters or arguments.
+      if (RNFR == ""){
+        return 503;
+      } //Bad sequence of commands
+      if ( !MyDir.Rename(RNFR, Command)){
+        return 550;
+      }
       return 250;
     }
     default: {
-      return 502;//Command not implemented.
+      return 502; //Command not implemented.
       break;
     }
   }
 }
 
-bool FTP::User::LoggedIn( ) {
-  if( USER == "" || PASS == "" ) { return false; }
-  if( !AllCredentials.size() ) {
+bool FTP::User::LoggedIn(){
+  if (USER == "" || PASS == ""){
+    return false;
+  }
+  if ( !AllCredentials.size()){
     return true;
   }
-  if( ( AllCredentials.find( USER ) != AllCredentials.end() ) && AllCredentials[USER] == PASS ) {
+  if ((AllCredentials.find(USER) != AllCredentials.end()) && AllCredentials[USER] == PASS){
     return true;
   }
   return false;
 }
 
-std::string FTP::User::NumToMsg( int MsgNum ) {
+std::string FTP::User::NumToMsg(int MsgNum){
   std::string Result;
-  switch( MsgNum ) {
+  switch (MsgNum){
     case 200: {
       Result = "200 Message okay.\n";
       break;
@@ -335,15 +503,15 @@ std::string FTP::User::NumToMsg( int MsgNum ) {
       break;
     }
     case 227: {
-	  std::stringstream sstr;
+      std::stringstream sstr;
       sstr << "227 Entering passive mode (0,0,0,0,";
       sstr << (MyPassivePort >> 8) % 256;
       sstr << ",";
       sstr << MyPassivePort % 256;
       sstr << ").\n";
       Result = sstr.str();
-	  break;
-	}
+      break;
+    }
     case 229: {
       std::stringstream sstr;
       sstr << "229 Entering extended passive mode (|||";
@@ -360,12 +528,12 @@ std::string FTP::User::NumToMsg( int MsgNum ) {
       Result = "250 Requested file action okay, completed.\n";
       break;
     }
-    case 2570: {//PWD
-      Result = "257 \"" + MyDir.PWD( ) + "\" selected as PWD\n";
+    case 2570: { //PWD
+      Result = "257 \"" + MyDir.PWD() + "\" selected as PWD\n";
       break;
     }
-    case 2571: {//MKD
-      Result = "257 \"" + MyDir.PWD( ) + "\" created\n";
+    case 2571: { //MKD
+      Result = "257 \"" + MyDir.PWD() + "\" created\n";
       break;
     }
     case 331: {

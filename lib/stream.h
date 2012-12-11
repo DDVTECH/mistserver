@@ -5,7 +5,7 @@
 #include <string>
 #include "socket.h"
 
-namespace Util{
+namespace Util {
   class Stream{
     public:
       static void sanitizeName(std::string & streamname);

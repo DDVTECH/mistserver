@@ -7,19 +7,24 @@
 #include <istream>
 
 //empty definition of DTSC::Stream so it can be a friend.
-namespace DTSC{class Stream;}
+namespace DTSC {
+  class Stream;
+}
 
 /// JSON-related classes and functions
-namespace JSON{
+namespace JSON {
 
   /// Lists all types of JSON::Value.
-  enum ValueType{ EMPTY, BOOL, INTEGER, STRING, ARRAY, OBJECT };
+  enum ValueType{
+    EMPTY, BOOL, INTEGER, STRING, ARRAY, OBJECT
+  };
 
-  class Value;//forward declaration for below typedef
+  class Value;
+  //forward declaration for below typedef
 
   typedef std::map<std::string, Value>::iterator ObjIter;
   typedef std::deque<Value>::iterator ArrIter;
-  
+
   /// A JSON::Value is either a string or an integer, but may also be an object, array or null.
   class Value{
     private:
@@ -34,7 +39,7 @@ namespace JSON{
       static void skipToEnd(std::istream & fromstream);
     public:
       //friends
-      friend class DTSC::Stream;//for access to strVal
+      friend class DTSC::Stream; //for access to strVal
       //constructors
       Value();
       Value(std::istream & fromstream);
@@ -91,5 +96,5 @@ namespace JSON{
   Value fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i);
   Value fromString(std::string json);
   Value fromFile(std::string filename);
-  
-};
+
+}

@@ -13,22 +13,23 @@
 
 namespace FTP {
   static std::string FTPBasePath = "/tmp/mist/OnDemand/";
-  
-  enum Mode {
+
+  enum Mode{
     MODE_STREAM,
-  };//FTP::Mode enumeration
-  
-  enum Structure {
-    STRU_FILE,
-    STRU_RECORD,
-  };//FTP::Structure enumeration
-  
-  enum Type {
-    TYPE_ASCII_NONPRINT,
-    TYPE_IMAGE_NONPRINT,
-  };//FTP::Type enumeration
-  
-  enum Commands {
+  };
+  //FTP::Mode enumeration
+
+  enum Structure{
+    STRU_FILE, STRU_RECORD,
+  };
+  //FTP::Structure enumeration
+
+  enum Type{
+    TYPE_ASCII_NONPRINT, TYPE_IMAGE_NONPRINT,
+  };
+  //FTP::Type enumeration
+
+  enum Commands{
     CMD_NOCMD,
     CMD_NOOP,
     CMD_USER,
@@ -51,18 +52,19 @@ namespace FTP {
     CMD_MKD,
     CMD_RNFR,
     CMD_RNTO,
-  };//FTP::Commands enumeration
-  
-  class User {
+  };
+  //FTP::Commands enumeration
+
+  class User{
     public:
-      User( Socket::Connection NewConnection, std::map<std::string,std::string> Credentials);
-      ~User( );
-      int ParseCommand( std::string Command );
-      bool LoggedIn( );
-      std::string NumToMsg( int MsgNum );
+      User(Socket::Connection NewConnection, std::map<std::string, std::string> Credentials);
+      ~User();
+      int ParseCommand(std::string Command);
+      bool LoggedIn();
+      std::string NumToMsg(int MsgNum);
       Socket::Connection Conn;
     private:
-      std::map<std::string,std::string> AllCredentials;
+      std::map<std::string, std::string> AllCredentials;
       std::string USER;
       std::string PASS;
       Mode MODE;
@@ -73,7 +75,8 @@ namespace FTP {
       int MyPassivePort;
       Filesystem::Directory MyDir;
       std::string RNFR;
-      std::vector< std::string > ActiveStreams;
-  };//FTP::User class
-  
-};//FTP Namespace
+      std::vector<std::string> ActiveStreams;
+  };
+//FTP::User class
+
+}//FTP Namespace

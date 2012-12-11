@@ -7,7 +7,7 @@
 #include <map>
 
 /// Contains utility code, not directly related to streaming media
-namespace Util{
+namespace Util {
 
   typedef void (*TerminationNotifier)(pid_t pid, int exitCode);
 
@@ -35,4 +35,4 @@ namespace Util{
       static bool SetTerminationNotifier(pid_t pid, TerminationNotifier notifier);
   };
 
-};
+}

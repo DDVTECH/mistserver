@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace Secure{
+namespace Secure {
   class Auth{
     private:
       void * pubkey; ///< Holds the public key.

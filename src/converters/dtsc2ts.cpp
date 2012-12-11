@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <mist/ts_packet.h> //TS support
 #include <mist/dtsc.h> //DTSC support
+#include <mist/mp4.h> //For initdata conversion
 
 int main( ) {
   char charBuffer[1024*10];
@@ -27,11 +28,16 @@ int main( ) {
   bool IsKeyFrame;
   bool FirstKeyFrame = true;
   bool FirstIDRInKeyFrame;
+  MP4::AVCC avccbox;
+  bool haveAvcc = false;
+  
+  
   while( std::cin.good() ) {
-    std::cin.read(charBuffer, 1024*10);
-    charCount = std::cin.gcount();
-    StrData.append(charBuffer, charCount);
     if ( DTSCStream.parsePacket( StrData ) ) {
+      if( !haveAvcc ) {
+        avccbox.setPayload( DTSCStream.metadata["video"]["init"].asString() );
+        haveAvcc = true;
+      }
       if( DTSCStream.lastType() == DTSC::VIDEO ) {
         DTMIData = DTSCStream.lastData();
         if( DTSCStream.getPacket(0).isMember("keyframe") ) {
@@ -51,11 +57,10 @@ int main( ) {
           ThisNaluSize =  (DTMIData[0] << 24) + (DTMIData[1] << 16) +
                           (DTMIData[2] << 8) + DTMIData[3];
           DTMIData.erase(0,4);//Erase the first four characters;
-          TSType = (int)DTMIData[0];
-          if( TSType == 0x25 ) {
+          TSType = (int)DTMIData[0] & 0x1F;
+          if( TSType == 0x05 ) {
             if( FirstPic ) {
-              ToPack.append(TS::PPS,24);
-              ToPack.append(TS::SPS,8);
+              ToPack += avccbox.asAnnexB( );
               FirstPic = false;
             } 
             if( IsKeyFrame ) {
@@ -66,7 +71,7 @@ int main( ) {
                 ToPack.append(TS::ShortNalHeader,3);
               }
             }
-          } else if ( TSType == 0x21 ) {
+          } else if ( TSType == 0x01 ) {
             if( FirstPic ) {
               ToPack.append(TS::NalHeader,4);
               FirstPic = false;
@@ -84,32 +89,31 @@ int main( ) {
           if ( ( PacketNumber % 42 ) == 0 ) {
             PackData.DefaultPAT();
             std::cout.write( PackData.ToString(), 188 );
-          } else if ( ( PacketNumber % 42 ) == 1 ) {
             PackData.DefaultPMT();
             std::cout.write( PackData.ToString(), 188 );
-          } else {
-            PackData.Clear();
-            PackData.PID( 0x100 );
-            PackData.ContinuityCounter( VideoCounter );
-            VideoCounter ++;
-            if( WritePesHeader ) {
-              PackData.UnitStart( 1 );
-              if( IsKeyFrame ) {
-                PackData.RandomAccess( 1 );
-                PackData.PCR( TimeStamp );
-              } else {
-                PackData.AdaptationField( 0x01 );
-              }
-              PackData.AddStuffing( 184 - (20+ToPack.size()) );
-              PackData.PESVideoLeadIn( ToPack.size(), DTSCStream.getPacket(0)["time"].asInt() * 90 );
-              WritePesHeader = false;
-            } else {
-              PackData.AdaptationField( 0x01 );
-              PackData.AddStuffing( 184 - (ToPack.size()) );
-            }
-            PackData.FillFree( ToPack );
-            std::cout.write( PackData.ToString(), 188 );
+            PacketNumber += 2;
           }
+          PackData.Clear();
+          PackData.PID( 0x100 );
+          PackData.ContinuityCounter( VideoCounter );
+          VideoCounter ++;
+          if( WritePesHeader ) {
+            PackData.UnitStart( 1 );
+            if( IsKeyFrame ) {
+              PackData.RandomAccess( 1 );
+              PackData.PCR( TimeStamp );
+            } else {
+              PackData.AdaptationField( 1 );
+            }
+            PackData.AddStuffing( 184 - (20+ToPack.size()) );
+            PackData.PESVideoLeadIn( ToPack.size(), DTSCStream.getPacket(0)["time"].asInt() * 90 );
+            WritePesHeader = false;
+          } else {
+            PackData.AdaptationField( 1 );
+            PackData.AddStuffing( 184 - (ToPack.size()) );
+          }
+          PackData.FillFree( ToPack );
+          std::cout.write( PackData.ToString(), 188 );
           PacketNumber ++;
         }
       } else if( DTSCStream.lastType() == DTSC::AUDIO ) {
@@ -122,31 +126,33 @@ int main( ) {
           if ( ( PacketNumber % 42 ) == 0 ) {
             PackData.DefaultPAT();
             std::cout.write( PackData.ToString(), 188 );
-          } else if ( ( PacketNumber % 42 ) == 1 ) {
             PackData.DefaultPMT();
             std::cout.write( PackData.ToString(), 188 );
-          } else {
-            PackData.Clear();
-            PackData.PID( 0x101 );
-            PackData.ContinuityCounter( AudioCounter );
-            AudioCounter ++;
-            if( WritePesHeader ) {
-              PackData.UnitStart( 1 );
-              //PackData.RandomAccess( 1 );
-              PackData.AddStuffing( 184 - (14 + ToPack.size()) );
-              PackData.RandomAccess( 1 );
-              PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
-              WritePesHeader = false;
-            } else {
-              PackData.AdaptationField( 0x01 );
-              PackData.AddStuffing( 184 - (ToPack.size()) );
-            }
-            PackData.FillFree( ToPack );
-            std::cout.write( PackData.ToString(), 188 );
+            PacketNumber += 2;
           }
+          PackData.Clear();
+          PackData.PID( 0x101 );
+          PackData.ContinuityCounter( AudioCounter );
+          AudioCounter ++;
+          if( WritePesHeader ) {
+            PackData.UnitStart( 1 );
+            PackData.RandomAccess( 1 );
+            PackData.AddStuffing( 184 - (14 + ToPack.size()) );
+            PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
+            WritePesHeader = false;
+          } else {
+            PackData.AdaptationField( 1 );
+            PackData.AddStuffing( 184 - (ToPack.size()) );
+          }
+          PackData.FillFree( ToPack );
+          std::cout.write( PackData.ToString(), 188 );
           PacketNumber ++;
         }
       }
+    } else {
+      std::cin.read(charBuffer, 1024*10);
+      charCount = std::cin.gcount();
+      StrData.append(charBuffer, charCount);
     }
   }
   return 0;

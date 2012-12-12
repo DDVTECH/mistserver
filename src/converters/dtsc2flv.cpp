@@ -16,20 +16,20 @@
 #include <mist/config.h>
 
 /// Holds all code that converts filetypes to/from DTSC.
-namespace Converters{
-  
+namespace Converters {
+
   /// Reads DTSC from STDIN, outputs FLV to STDOUT.
-  int DTSC2FLV() {
+  int DTSC2FLV(){
     FLV::Tag FLV_out; // Temporary storage for outgoing FLV data.
     DTSC::Stream Strm;
     std::string inBuffer;
-    char charBuffer[1024*10];
+    char charBuffer[1024 * 10];
     unsigned int charCount;
     bool doneheader = false;
 
     while (std::cin.good()){
       if (Strm.parsePacket(inBuffer)){
-        if (!doneheader){
+        if ( !doneheader){
           doneheader = true;
           std::cout.write(FLV::Header, 13);
           FLV_out.DTSCMetaInit(Strm);
@@ -47,22 +47,22 @@ namespace Converters{
           std::cout.write(FLV_out.data, FLV_out.len);
         }
       }else{
-        std::cin.read(charBuffer, 1024*10);
+        std::cin.read(charBuffer, 1024 * 10);
         charCount = std::cin.gcount();
         inBuffer.append(charBuffer, charCount);
       }
     }
 
     std::cerr << "Done!" << std::endl;
-    
-    return 0;
-  }//FLV2DTSC
 
-};//Converter namespace
+    return 0;
+  } //FLV2DTSC
+
+} //Converter namespace
 
 /// Entry point for DTSC2FLV, simply calls Converters::DTSC2FLV().
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
   conf.parseArgs(argc, argv);
   return Converters::DTSC2FLV();
-}//main
+} //main

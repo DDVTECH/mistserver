@@ -13,7 +13,9 @@ Buffer::Stream * Buffer::Stream::get(){
   if (ref == 0){
     //prevent creating two at the same time
     creator.lock();
-    if (ref == 0){ref = new Stream();}
+    if (ref == 0){
+      ref = new Stream();
+    }
     creator.unlock();
   }
   return ref;
@@ -31,9 +33,9 @@ Buffer::Stream::~Stream(){
   while (users.size() > 0){
     stats_mutex.lock();
     for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-      if ((**usersIt).S.connected()){
-        (**usersIt).S.close();
-        printf("Closing user %s\n", (**usersIt).MyStr.c_str());
+      if (( * *usersIt).S.connected()){
+        ( * *usersIt).S.close();
+        printf("Closing user %s\n", ( * *usersIt).MyStr.c_str());
       }
     }
     stats_mutex.unlock();
@@ -51,8 +53,8 @@ std::string & Buffer::Stream::getStats(){
   stats_mutex.lock();
   if (users.size() > 0){
     for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-      tot_down += (**usersIt).curr_down;
-      tot_up += (**usersIt).curr_up;
+      tot_down += ( * *usersIt).curr_down;
+      tot_up += ( * *usersIt).curr_up;
       tot_count++;
     }
   }
@@ -62,8 +64,12 @@ std::string & Buffer::Stream::getStats(){
   Storage["totals"]["now"] = now;
   Storage["buffer"] = name;
   Storage["meta"] = Strm->metadata;
-  if (Storage["meta"].isMember("audio")){Storage["meta"]["audio"].removeMember("init");}
-  if (Storage["meta"].isMember("video")){Storage["meta"]["video"].removeMember("init");}
+  if (Storage["meta"].isMember("audio")){
+    Storage["meta"]["audio"].removeMember("init");
+  }
+  if (Storage["meta"].isMember("video")){
+    Storage["meta"]["video"].removeMember("init");
+  }
   ret = Storage.toString();
   Storage["log"].null();
   stats_mutex.unlock();
@@ -92,7 +98,7 @@ void Buffer::Stream::setWaitingIP(std::string ip){
 
 /// Check if this is the IP address to accept push data from.
 bool Buffer::Stream::checkWaitingIP(std::string ip){
-  if (ip == waiting_ip || ip == "::ffff:"+waiting_ip){
+  if (ip == waiting_ip || ip == "::ffff:" + waiting_ip){
     return true;
   }else{
     std::cout << ip << " != " << waiting_ip << std::endl;
@@ -115,7 +121,6 @@ Socket::Connection & Buffer::Stream::getIPInput(){
   return ip_input;
 }
 
-
 /// Stores intermediate statistics.
 void Buffer::Stream::saveStats(std::string username, Stats & stats){
   stats_mutex.lock();
@@ -133,9 +138,10 @@ void Buffer::Stream::clearStats(std::string username, Stats & stats, std::string
   stats_mutex.lock();
   if (Storage["curr"].isMember(username)){
     Storage["curr"].removeMember(username);
-    #if DEBUG >= 4
-    std::cout << "Disconnected user " << username << ": " << reason << ". " << stats.connector << " transferred " << stats.up << " up and " << stats.down << " down in " << stats.conntime << " seconds to " << stats.host << std::endl;
-    #endif
+#if DEBUG >= 4
+    std::cout << "Disconnected user " << username << ": " << reason << ". " << stats.connector << " transferred " << stats.up << " up and "
+        << stats.down << " down in " << stats.conntime << " seconds to " << stats.host << std::endl;
+#endif
   }
   Storage["log"][username]["connector"] = stats.connector;
   Storage["log"][username]["up"] = stats.up;
@@ -154,23 +160,23 @@ void Buffer::Stream::cleanUsers(){
     repeat = false;
     if (users.size() > 0){
       for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-        if ((**usersIt).Thread == 0 && !(**usersIt).S.connected()){
+        if (( * *usersIt).Thread == 0 && !( * *usersIt).S.connected()){
           delete *usersIt;
           users.erase(usersIt);
           repeat = true;
           break;
         }else{
-          if (!(**usersIt).S.connected()){
-            if ((**usersIt).Thread->joinable()){
-              (**usersIt).Thread->join();
-              delete (**usersIt).Thread;
-              (**usersIt).Thread = 0;
+          if ( !( * *usersIt).S.connected()){
+            if (( * *usersIt).Thread->joinable()){
+              ( * *usersIt).Thread->join();
+              delete ( * *usersIt).Thread;
+              ( * *usersIt).Thread = 0;
             }
           }
         }
       }
     }
-  }while(repeat);
+  }while (repeat);
   stats_mutex.unlock();
 }
 
@@ -190,7 +196,9 @@ void Buffer::Stream::dropWriteLock(bool newpackets_available){
   writers--;
   rw_mutex.unlock();
   rw_change.notify_all();
-  if (newpackets_available){moreData.notify_all();}
+  if (newpackets_available){
+    moreData.notify_all();
+  }
 }
 
 /// Blocks until reading is safe.

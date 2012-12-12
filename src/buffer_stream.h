@@ -3,11 +3,13 @@
 
 #pragma once
 #include <string>
+#include <mist/dtsc.h>
 #include <mist/json.h>
+#include <mist/socket.h>
 #include "tinythread.h"
 #include "buffer_user.h"
 
-namespace Buffer{
+namespace Buffer {
   /// Keeps track of a single streams inputs and outputs, taking care of thread safety and all other related issues.
   class Stream{
     public:
@@ -53,9 +55,9 @@ namespace Buffer{
       void waitForData();
       /// Cleanup function
       ~Stream();
-  private:
-      volatile int readers;///< Current count of active readers;
-      volatile int writers;///< Current count of waiting/active writers.
+    private:
+      volatile int readers; ///< Current count of active readers;
+      volatile int writers; ///< Current count of waiting/active writers.
       tthread::mutex rw_mutex; ///< Mutex for read/write locking.
       tthread::condition_variable rw_change; ///< Triggered when reader/writer count changes.
       static Stream * ref;
@@ -70,4 +72,5 @@ namespace Buffer{
       std::string name; ///< Name for this buffer.
       tthread::condition_variable moreData; ///< Triggered when more data becomes available.
   };
-};
+}
+;

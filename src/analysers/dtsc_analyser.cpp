@@ -36,15 +36,21 @@ int main(int argc, char ** argv){
   long long unsigned int bps = 0;
 
   F.seekNext();
-  while (!F.getJSON().isNull()){
+  while ( !F.getJSON().isNull()){
     std::cout << F.getJSON().toPrettyString() << std::endl;
     nowpack = F.getJSON()["time"].asInt();
-    if (firstpack == 0){firstpack = nowpack;}
+    if (firstpack == 0){
+      firstpack = nowpack;
+    }
     if (F.getJSON()["datatype"].asString() == "audio"){
       if (lastaudio != 0 && (nowpack - lastaudio) != 0){
         bps = F.getJSON()["data"].asString().size() / (nowpack - lastaudio);
-        if (bps < aud_min){aud_min = bps;}
-        if (bps > aud_max){aud_max = bps;}
+        if (bps < aud_min){
+          aud_min = bps;
+        }
+        if (bps > aud_max){
+          aud_max = bps;
+        }
       }
       totalaudio += F.getJSON()["data"].asString().size();
       lastaudio = nowpack;
@@ -52,22 +58,34 @@ int main(int argc, char ** argv){
     if (F.getJSON()["datatype"].asString() == "video"){
       if (lastvideo != 0 && (nowpack - lastvideo) != 0){
         bps = F.getJSON()["data"].asString().size() / (nowpack - lastvideo);
-        if (bps < vid_min){vid_min = bps;}
-        if (bps > vid_max){vid_max = bps;}
+        if (bps < vid_min){
+          vid_min = bps;
+        }
+        if (bps > vid_max){
+          vid_max = bps;
+        }
       }
       if (F.getJSON()["keyframe"].asInt() != 0){
         if (lastkey != 0){
           bps = nowpack - lastkey;
-          if (bps < key_min){key_min = bps;}
-          if (bps > key_max){key_max = bps;}
+          if (bps < key_min){
+            key_min = bps;
+          }
+          if (bps > key_max){
+            key_max = bps;
+          }
         }
         keyframes++;
         lastkey = nowpack;
       }
       if (F.getJSON()["offset"].asInt() != 0){
         bps = F.getJSON()["offset"].asInt();
-        if (bps < bfrm_min){bfrm_min = bps;}
-        if (bps > bfrm_max){bfrm_max = bps;}
+        if (bps < bfrm_min){
+          bfrm_min = bps;
+        }
+        if (bps > bfrm_max){
+          bfrm_max = bps;
+        }
       }
       totalvideo += F.getJSON()["data"].asString().size();
       lastvideo = nowpack;
@@ -76,7 +94,7 @@ int main(int argc, char ** argv){
   }
 
   std::cout << std::endl << "Summary:" << std::endl;
-  meta["length"] = (long long int)((nowpack - firstpack)/1000);
+  meta["length"] = (long long int)((nowpack - firstpack) / 1000);
   if (meta.isMember("audio")){
     meta["audio"]["bps"] = (long long int)(totalaudio / ((lastaudio - firstpack) / 1000));
     std::cout << "  Audio: " << meta["audio"]["codec"].asString() << std::endl;
@@ -96,4 +114,4 @@ int main(int argc, char ** argv){
     std::cout << "    B-frames: " << bfrm_min << " - " << bfrm_max << std::endl;
   }
   return 0;
-}//main
+} //main

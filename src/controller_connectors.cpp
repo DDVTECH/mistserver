@@ -2,11 +2,35 @@
 #include <mist/config.h>
 #include <mist/procs.h>
 #include "controller_storage.h"
+#include "controller_connectors.h"
 
-namespace Controller{
-  
+namespace Controller {
+
+  static std::map<std::string, std::string> current_connectors;
+
+  /// Checks if the binary mentioned in the protocol argument is currently active, if so, restarts it.
+  void UpdateProtocol(std::string protocol){
+    std::map<std::string, std::string>::iterator iter;
+    for (iter = current_connectors.begin(); iter != current_connectors.end(); iter++){
+      if (iter->second.substr(0, protocol.size()) == protocol){
+        Log("CONF", "Restarting connector for update: " + iter->second);
+        Util::Procs::Stop(iter->first);
+        int i = 0;
+        while (Util::Procs::isActive(iter->first) && i < 30){
+          Util::sleep(100);
+        }
+        if (i >= 30){
+          Log("WARN", "Connector still active 3 seconds after shutdown - delaying restart.");
+        }else{
+          Util::Procs::Start(iter->first, Util::getMyPath() + iter->second);
+        }
+        return;
+      }
+    }
+  }
+
+  /// Checks current protocol configuration, updates state of enabled connectors if neccesary.
   void CheckProtocols(JSON::Value & p){
-    static std::map<std::string, std::string> current_connectors;
     std::map<std::string, std::string> new_connectors;
     std::map<std::string, std::string>::iterator iter;
     bool haveHTTPgeneric = false;
@@ -16,35 +40,40 @@ namespace Controller{
     JSON::Value counter = (long long int)0;
 
     for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
-      if (!(*ait).isMember("connector") || (*ait)["connector"].asString() == ""){continue;}
-      
-      tmp = std::string("MistConn") + (*ait)["connector"].asString() + std::string(" -n");
-      if ((*ait)["connector"].asString() == "HTTP"){haveHTTPgeneric = true;}
-      if ((*ait)["connector"].asString() != "HTTP" && (*ait)["connector"].asString().substr(0, 4) == "HTTP"){haveHTTPspecific = true;}
-    
-      if ((*ait).isMember("port") && (*ait)["port"].asInt() != 0){
-        tmp += std::string(" -p ") + (*ait)["port"].asString();
-      }
-    
-      if ((*ait).isMember("interface") && (*ait)["interface"].asString() != "" && (*ait)["interface"].asString() != "0.0.0.0"){
-        tmp += std::string(" -i ") + (*ait)["interface"].asString();
+      if ( !( *ait).isMember("connector") || ( *ait)["connector"].asString() == ""){
+        continue;
       }
 
-      if ((*ait).isMember("username") && (*ait)["username"].asString() != "" && (*ait)["username"].asString() != "root"){
-        tmp += std::string(" -u ") + (*ait)["username"].asString();
+      tmp = std::string("MistConn") + ( *ait)["connector"].asString() + std::string(" -n");
+      if (( *ait)["connector"].asString() == "HTTP"){
+        haveHTTPgeneric = true;
+      }
+      if (( *ait)["connector"].asString() != "HTTP" && ( *ait)["connector"].asString().substr(0, 4) == "HTTP"){
+        haveHTTPspecific = true;
       }
 
-      if ((*ait).isMember("args") && (*ait)["args"].asString() != ""){
-        tmp += std::string(" ") + (*ait)["args"].asString();
+      if (( *ait).isMember("port") && ( *ait)["port"].asInt() != 0){
+        tmp += std::string(" -p ") + ( *ait)["port"].asString();
       }
 
+      if (( *ait).isMember("interface") && ( *ait)["interface"].asString() != "" && ( *ait)["interface"].asString() != "0.0.0.0"){
+        tmp += std::string(" -i ") + ( *ait)["interface"].asString();
+      }
+
+      if (( *ait).isMember("username") && ( *ait)["username"].asString() != "" && ( *ait)["username"].asString() != "root"){
+        tmp += std::string(" -u ") + ( *ait)["username"].asString();
+      }
+
+      if (( *ait).isMember("args") && ( *ait)["args"].asString() != ""){
+        tmp += std::string(" ") + ( *ait)["args"].asString();
+      }
 
       counter = counter.asInt() + 1;
-      new_connectors[std::string("Conn")+counter.asString()] = tmp;
-      if (Util::Procs::isActive(std::string("Conn")+counter.asString())){
-        (*ait)["online"] = 1;
+      new_connectors[std::string("Conn") + counter.asString()] = tmp;
+      if (Util::Procs::isActive(std::string("Conn") + counter.asString())){
+        ( *ait)["online"] = 1;
       }else{
-        (*ait)["online"] = 0;
+        ( *ait)["online"] = 0;
       }
     }
 
@@ -67,7 +96,7 @@ namespace Controller{
     if (haveHTTPgeneric && !haveHTTPspecific){
       Log("WARN", "HTTP Connector is enabled but no HTTP-based protocols are active!");
     }
-    if (!haveHTTPgeneric && haveHTTPspecific){
+    if ( !haveHTTPgeneric && haveHTTPspecific){
       Log("WARN", "HTTP-based protocols will not work without the generic HTTP connector!");
     }
 
@@ -75,5 +104,4 @@ namespace Controller{
     current_connectors = new_connectors;
   }
 
-  
 }

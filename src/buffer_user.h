@@ -7,17 +7,17 @@
 #include <mist/socket.h>
 #include "tinythread.h"
 
-namespace Buffer{
+namespace Buffer {
   /// Converts a stats line to up, down, host, connector and conntime values.
   class Stats{
-  public:
-    unsigned int up;
-    unsigned int down;
-    std::string host;
-    std::string connector;
-    unsigned int conntime;
-    Stats();
-    Stats(std::string s);
+    public:
+      unsigned int up;
+      unsigned int down;
+      std::string host;
+      std::string connector;
+      unsigned int conntime;
+      Stats();
+      Stats(std::string s);
   };
 
   /// Holds connected users.

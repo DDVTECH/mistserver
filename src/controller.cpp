@@ -2,26 +2,8 @@
 /// Contains all code for the controller executable.
 
 #include <iostream>
-#include <fstream>
-#include <string>
-#include <sstream>
 #include <vector>
-#include <map>
-#include <set>
-#include <cstdlib>
-#include <queue>
-#include <cmath>
-#include <cstdio>
-#include <climits>
-#include <cstring>
-#include <unistd.h>
-#include <getopt.h>
-#include <set>
-#include <sys/wait.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <signal.h>
-#include <sstream>
 #include <mist/config.h>
 #include <mist/socket.h>
 #include <mist/http_parser.h>
@@ -30,343 +12,142 @@
 #include <mist/timing.h>
 #include "controller_storage.h"
 #include "controller_connectors.h"
+#include "controller_streams.h"
+#include "controller_capabilities.h"
 #include "server.html.h"
 
 #define UPLINK_INTERVAL 30
 #define COMPILED_USERNAME ""
 #define COMPILED_PASSWORD ""
 
-namespace Controller{
+namespace Controller {
 
-std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
-Secure::Auth keychecker; ///< Checks key authorization.
+  Secure::Auth keychecker; ///< Checks key authorization.
 
-
-void WriteFile( std::string Filename, std::string contents ) {
-  std::ofstream File;
-  File.open( Filename.c_str( ) );
-  File << contents << std::endl;
-  File.close( );
-}
-
-class ConnectedUser{
-  public:
-    Socket::Connection C;
-    HTTP::Parser H;
-    bool Authorized;
-    bool clientMode;
-    int logins;
-    std::string Username;
-    ConnectedUser(Socket::Connection c){
-      C = c;
-      H.Clean();
-      logins = 0;
-      Authorized = false;
-      clientMode = false;
-    }
-};
-
-void Authorize( JSON::Value & Request, JSON::Value & Response, ConnectedUser & conn ) {
-  time_t Time = time(0);
-  tm * TimeInfo = localtime(&Time);
-  std::stringstream Date;
-  std::string retval;
-  Date << TimeInfo->tm_mday << "-" << TimeInfo->tm_mon << "-" << TimeInfo->tm_year + 1900;
-  std::string Challenge = Secure::md5( Date.str().c_str() + conn.C.getHost() );
-  if( Request.isMember( "authorize" ) ) {
-    std::string UserID = Request["authorize"]["username"];
-    if (Storage["account"].isMember(UserID)){
-      if (Secure::md5(Storage["account"][UserID]["password"].asString() + Challenge) == Request["authorize"]["password"].asString()){
-        Response["authorize"]["status"] = "OK";
-        conn.Username = UserID;
-        conn.Authorized = true;
-        return;
+  class ConnectedUser{
+    public:
+      Socket::Connection C;
+      HTTP::Parser H;
+      bool Authorized;
+      bool clientMode;
+      int logins;
+      std::string Username;
+      ConnectedUser(Socket::Connection c){
+        C = c;
+        H.Clean();
+        logins = 0;
+        Authorized = false;
+        clientMode = false;
       }
-    }
-    if (UserID != ""){
-      if (Request["authorize"]["password"].asString() != "" && Secure::md5(Storage["account"][UserID]["password"].asString()) != Request["authorize"]["password"].asString()){
-        Log("AUTH", "Failed login attempt "+UserID+" @ "+conn.C.getHost());
-      }
-    }
-    conn.logins++;
-  }
-  conn.Username = "";
-  conn.Authorized = false;
-  Response["authorize"]["status"] = "CHALL";
-  Response["authorize"]["challenge"] = Challenge;
-  return;
-}
+  };
 
-void CheckConfig(JSON::Value & in, JSON::Value & out){
-  for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
-    if (out.isMember(jit->first)){
-      if (jit->second != out[jit->first]){
-        if (jit->first != "time"){
-          Log("CONF", std::string("Updated configuration value ")+jit->first);
+  void Authorize(JSON::Value & Request, JSON::Value & Response, ConnectedUser & conn){
+    time_t Time = time(0);
+    tm * TimeInfo = localtime( &Time);
+    std::stringstream Date;
+    std::string retval;
+    Date << TimeInfo->tm_mday << "-" << TimeInfo->tm_mon << "-" << TimeInfo->tm_year + 1900;
+    std::string Challenge = Secure::md5(Date.str().c_str() + conn.C.getHost());
+    if (Request.isMember("authorize")){
+      std::string UserID = Request["authorize"]["username"];
+      if (Storage["account"].isMember(UserID)){
+        if (Secure::md5(Storage["account"][UserID]["password"].asString() + Challenge) == Request["authorize"]["password"].asString()){
+          Response["authorize"]["status"] = "OK";
+          conn.Username = UserID;
+          conn.Authorized = true;
+          return;
         }
       }
-    }else{
-      Log("CONF", std::string("New configuration value ")+jit->first);
-    }
-  }
-  for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
-    if (!in.isMember(jit->first)){
-      Log("CONF", std::string("Deleted configuration value ")+jit->first);
-    }
-  }
-  out = in;
-}
-
-bool streamsEqual(JSON::Value & one, JSON::Value & two){
-  if (one["channel"]["URL"] != two["channel"]["URL"]){return false;}
-  if (one["preset"]["cmd"] != two["preset"]["cmd"]){return false;}
-  return true;
-}
-
-void startStream(std::string name, JSON::Value & data){
-  std::string URL = data["channel"]["URL"];
-  std::string preset = data["preset"]["cmd"];
-  std::string cmd1, cmd2, cmd3;
-  if (URL.substr(0, 4) == "push"){
-    std::string pusher = URL.substr(7);
-    cmd2 = "MistBuffer -s "+name+" "+pusher;
-    Util::Procs::Start(name, Util::getMyPath() + cmd2);
-    Log("BUFF", "(re)starting stream buffer "+name+" for push data from "+pusher);
-  }else{
-    if (URL.substr(0, 1) == "/"){
-      struct stat fileinfo;
-      if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
-        Log("BUFF", "Warning for VoD stream "+name+"! File not found: "+URL);
-        data["error"] = "Not found: "+URL;
-        return;
+      if (UserID != ""){
+        if (Request["authorize"]["password"].asString() != ""
+            && Secure::md5(Storage["account"][UserID]["password"].asString()) != Request["authorize"]["password"].asString()){
+          Log("AUTH", "Failed login attempt " + UserID + " @ " + conn.C.getHost());
+        }
       }
-      cmd1 = "cat "+URL;
-      data["error"] = "Available";
-      return; //MistPlayer handles VoD
-    }else{
-      cmd1 = "ffmpeg -re -async 2 -i "+URL+" "+preset+" -f flv -";
-      cmd2 = "MistFLV2DTSC";
+      conn.logins++;
     }
-    cmd3 = "MistBuffer -s "+name;
-    if (cmd2 != ""){
-      Util::Procs::Start(name, cmd1, Util::getMyPath() + cmd2, Util::getMyPath() + cmd3);
-      Log("BUFF", "(re)starting stream buffer "+name+" for ffmpeg data: "+cmd1);
-    }else{
-      Util::Procs::Start(name, cmd1, Util::getMyPath() + cmd3);
-      Log("BUFF", "(re)starting stream buffer "+name+" using input file "+URL);
-    }
+    conn.Username = "";
+    conn.Authorized = false;
+    Response["authorize"]["status"] = "CHALL";
+    Response["authorize"]["challenge"] = Challenge;
+    return;
   }
-}
 
-void CheckStats(JSON::Value & stats){
-  long long int currTime = Util::epoch();
-  for (JSON::ObjIter jit = stats.ObjBegin(); jit != stats.ObjEnd(); jit++){
-    if (currTime - lastBuffer[jit->first] > 120){
-      stats.removeMember(jit->first);
-      return;
-    }else{
-      if (jit->second.isMember("curr") && jit->second["curr"].size() > 0){
-        for (JSON::ObjIter u_it = jit->second["curr"].ObjBegin(); u_it != jit->second["curr"].ObjEnd(); ++u_it){
-          if (u_it->second.isMember("now") && u_it->second["now"].asInt() < currTime - 3){
-            jit->second["log"].append(u_it->second);
-            jit->second["curr"].removeMember(u_it->first);
-            if (!jit->second["curr"].size()){break;}
-            u_it = jit->second["curr"].ObjBegin();
+  void CheckConfig(JSON::Value & in, JSON::Value & out){
+    for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
+      if (out.isMember(jit->first)){
+        if (jit->second != out[jit->first]){
+          if (jit->first != "time"){
+            Log("CONF", std::string("Updated configuration value ") + jit->first);
+          }
+        }
+      }else{
+        Log("CONF", std::string("New configuration value ") + jit->first);
+      }
+    }
+    for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
+      if ( !in.isMember(jit->first)){
+        Log("CONF", std::string("Deleted configuration value ") + jit->first);
+      }
+    }
+    out = in;
+  }
+
+  void CheckStats(JSON::Value & stats){
+    long long int currTime = Util::epoch();
+    for (JSON::ObjIter jit = stats.ObjBegin(); jit != stats.ObjEnd(); jit++){
+      if (currTime - lastBuffer[jit->first] > 120){
+        stats.removeMember(jit->first);
+        return;
+      }else{
+        if (jit->second.isMember("curr") && jit->second["curr"].size() > 0){
+          for (JSON::ObjIter u_it = jit->second["curr"].ObjBegin(); u_it != jit->second["curr"].ObjEnd(); ++u_it){
+            if (u_it->second.isMember("now") && u_it->second["now"].asInt() < currTime - 3){
+              jit->second["log"].append(u_it->second);
+              jit->second["curr"].removeMember(u_it->first);
+              if ( !jit->second["curr"].size()){
+                break;
+              }
+              u_it = jit->second["curr"].ObjBegin();
+            }
           }
         }
       }
     }
   }
-}
 
-class cpudata {
-  public:
-    std::string model;
-    int cores;
-    int threads;
-    int mhz;
-    int id;
-    cpudata(){
-      model = "Unknown";
-      cores = 1;
-      threads = 1;
-      mhz = 0;
-      id = 0;
-    };
-    void fill(char * data){
-      int i;
-      i = 0;
-      if (sscanf(data, "model name : %n", &i) != EOF && i > 0){model = (data+i);}
-      if (sscanf(data, "cpu cores : %d", &i) == 1){cores = i;}
-      if (sscanf(data, "siblings : %d", &i) == 1){threads = i;}
-      if (sscanf(data, "physical id : %d", &i) == 1){id = i;}
-      if (sscanf(data, "cpu MHz : %d", &i) == 1){mhz = i;}
-    };
-};
-
-void checkCapable(JSON::Value & capa){
-  capa.null();
-  std::ifstream cpuinfo("/proc/cpuinfo");
-  if (cpuinfo){
-    std::map<int, cpudata> cpus;
-    char line[300];
-    int proccount = -1;
-    while (cpuinfo.good()){
-      cpuinfo.getline(line, 300);
-      if (cpuinfo.fail()){
-        //empty lines? ignore them, clear flags, continue
-        if (!cpuinfo.eof()){
-          cpuinfo.ignore();
-          cpuinfo.clear();
-        }
-        continue;
-      }
-      if (memcmp(line, "processor", 9) == 0){proccount++;}
-      cpus[proccount].fill(line);
-    }
-    //fix wrong core counts
-    std::map<int,int> corecounts;
-    for (int i = 0; i <= proccount; ++i){
-      corecounts[cpus[i].id]++;
-    }
-    //remove double physical IDs - we only want real CPUs.
-    std::set<int> used_physids;
-    int total_speed = 0;
-    int total_threads = 0;
-    for (int i = 0; i <= proccount; ++i){
-      if (!used_physids.count(cpus[i].id)){
-        used_physids.insert(cpus[i].id);
-        JSON::Value thiscpu;
-        thiscpu["model"] = cpus[i].model;
-        thiscpu["cores"] = cpus[i].cores;
-        if (cpus[i].cores < 2 && corecounts[cpus[i].id] > cpus[i].cores){
-          thiscpu["cores"] = corecounts[cpus[i].id];
-        }
-        thiscpu["threads"] = cpus[i].threads;
-        if (thiscpu["cores"].asInt() > thiscpu["threads"].asInt()){
-          thiscpu["threads"] = thiscpu["cores"];
-        }
-        thiscpu["mhz"] = cpus[i].mhz;
-        capa["cpu"].append(thiscpu);
-        total_speed += cpus[i].cores * cpus[i].mhz;
-        total_threads += cpus[i].threads;
-      }
-    }
-    capa["speed"] = total_speed;
-    capa["threads"] = total_threads;
-  }
-  std::ifstream meminfo("/proc/meminfo");
-  if (meminfo){
-    char line[300];
-    int bufcache = 0;
-    while (meminfo.good()){
-      meminfo.getline(line, 300);
-      if (meminfo.fail()){
-        //empty lines? ignore them, clear flags, continue
-        if (!meminfo.eof()){
-          meminfo.ignore();
-          meminfo.clear();
-        }
-        continue;
-      }
-      long long int i;
-      if (sscanf(line, "MemTotal : %Li kB", &i) == 1){capa["mem"]["total"] = i/1024;}
-      if (sscanf(line, "MemFree : %Li kB", &i) == 1){capa["mem"]["free"] = i/1024;}
-      if (sscanf(line, "SwapTotal : %Li kB", &i) == 1){capa["mem"]["swaptotal"] = i/1024;}
-      if (sscanf(line, "SwapFree : %Li kB", &i) == 1){capa["mem"]["swapfree"] = i/1024;}
-      if (sscanf(line, "Buffers : %Li kB", &i) == 1){bufcache += i/1024;}
-      if (sscanf(line, "Cached : %Li kB", &i) == 1){bufcache += i/1024;}
-    }
-    capa["mem"]["used"] = capa["mem"]["total"].asInt() - capa["mem"]["free"].asInt() - bufcache;
-    capa["mem"]["cached"] = bufcache;
-    capa["load"]["memory"] = ((capa["mem"]["used"].asInt() + (capa["mem"]["swaptotal"].asInt() - capa["mem"]["swapfree"].asInt())) * 100) / capa["mem"]["total"].asInt();
-  }
-  std::ifstream loadavg("/proc/loadavg");
-  if (loadavg){
-    char line[300];
-    int bufcache = 0;
-    loadavg.getline(line, 300);
-    //parse lines here
-    float onemin, fivemin, fifteenmin;
-    if (sscanf(line, "%f %f %f", &onemin, &fivemin, &fifteenmin) == 3){
-      capa["load"]["one"] = (long long int)(onemin * 100);
-      capa["load"]["five"] = (long long int)(onemin * 100);
-      capa["load"]["fifteen"] = (long long int)(onemin * 100);
-    }
-  }
-}
-
-void CheckAllStreams(JSON::Value & data){
-  long long int currTime = Util::epoch();
-  for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
-    if (!Util::Procs::isActive(jit->first)){
-      startStream(jit->first, jit->second);
-    }
-    if (currTime - lastBuffer[jit->first] > 5){
-      if (jit->second.isMember("error") && jit->second["error"].asString() != ""){
-        jit->second["online"] = jit->second["error"];
-      }else{
-        jit->second["online"] = 0;
-      }
-    }else{
-      jit->second["online"] = 1;
-    }
-  }
-  static JSON::Value strlist;
-  bool changed = false;
-  if (strlist["config"] != Storage["config"]){
-    strlist["config"] = Storage["config"];
-    changed = true;
-  }
-  if (strlist["streams"] != Storage["streams"]){
-    strlist["streams"] = Storage["streams"];
-    changed = true;
-  }
-  if (changed){WriteFile("/tmp/mist/streamlist", strlist.toString());}
-}
-
-void CheckStreams(JSON::Value & in, JSON::Value & out){
-  bool changed = false;
-  for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
-    if (out.isMember(jit->first)){
-      if (!streamsEqual(jit->second, out[jit->first])){
-        Log("STRM", std::string("Updated stream ")+jit->first);
-        Util::Procs::Stop(jit->first);
-        startStream(jit->first, jit->second);
-      }
-    }else{
-      Log("STRM", std::string("New stream ")+jit->first);
-      startStream(jit->first, jit->second);
-    }
-  }
-  for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
-    if (!in.isMember(jit->first)){
-      Log("STRM", std::string("Deleted stream ")+jit->first);
-      Util::Procs::Stop(jit->first);
-    }
-  }
-  out = in;
-}
-
-}; //Connector namespace
+} //Controller namespace
 
 int main(int argc, char ** argv){
   Controller::Storage = JSON::fromFile("config.json");
   JSON::Value stored_port = JSON::fromString("{\"long\":\"port\", \"short\":\"p\", \"arg\":\"integer\", \"help\":\"TCP port to listen on.\"}");
   stored_port["default"] = Controller::Storage["config"]["controller"]["port"];
-  if (!stored_port["default"]){stored_port["default"] = 4242;}
-  JSON::Value stored_interface = JSON::fromString("{\"long\":\"interface\", \"short\":\"i\", \"arg\":\"string\", \"help\":\"Interface address to listen on, or 0.0.0.0 for all available interfaces.\"}");
+  if ( !stored_port["default"]){
+    stored_port["default"] = 4242;
+  }
+  JSON::Value stored_interface =
+      JSON::fromString(
+          "{\"long\":\"interface\", \"short\":\"i\", \"arg\":\"string\", \"help\":\"Interface address to listen on, or 0.0.0.0 for all available interfaces.\"}");
   stored_interface["default"] = Controller::Storage["config"]["controller"]["interface"];
-  if (!stored_interface["default"]){stored_interface["default"] = "0.0.0.0";}
-  JSON::Value stored_user = JSON::fromString("{\"long\":\"username\", \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to drop privileges to, or root to not drop provileges.\"}");
+  if ( !stored_interface["default"]){
+    stored_interface["default"] = "0.0.0.0";
+  }
+  JSON::Value stored_user = JSON::fromString(
+      "{\"long\":\"username\", \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to drop privileges to, or root to not drop provileges.\"}");
   stored_user["default"] = Controller::Storage["config"]["controller"]["username"];
-  if (!stored_user["default"]){stored_user["default"] = "root";}
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  if ( !stored_user["default"]){
+    stored_user["default"] = "root";
+  }
+  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION " / " RELEASE);
   conf.addOption("listen_port", stored_port);
   conf.addOption("listen_interface", stored_interface);
   conf.addOption("username", stored_user);
-  conf.addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"default\":1, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
-  conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
+  conf.addOption("daemonize",
+      JSON::fromString(
+          "{\"long\":\"daemon\", \"short\":\"d\", \"default\":1, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
+  conf.addOption("account",
+      JSON::fromString(
+          "{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
   conf.addOption("uplink", JSON::fromString("{\"default\":0, \"help\":\"Enable MistSteward uplink.\", \"short\":\"U\", \"long\":\"uplink\"}"));
   conf.parseArgs(argc, argv);
 
@@ -376,18 +157,18 @@ int main(int argc, char ** argv){
     if (colon != std::string::npos && colon != 0 && colon != account.size()){
       std::string uname = account.substr(0, colon);
       std::string pword = account.substr(colon + 1, std::string::npos);
-      Controller::Log("CONF", "Created account "+uname+" through commandline option");
+      Controller::Log("CONF", "Created account " + uname + " through commandline option");
       Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
     }
   }
   time_t lastuplink = 0;
   time_t processchecker = 0;
   Socket::Server API_Socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"), true);
-  mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO);//attempt to create /tmp/mist/ - ignore failures
+  mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO); //attempt to create /tmp/mist/ - ignore failures
   Socket::Server Stats_Socket = Socket::Server("/tmp/mist/statistics", true);
   conf.activate();
   Socket::Connection Incoming;
-  std::vector< Controller::ConnectedUser > users;
+  std::vector<Controller::ConnectedUser> users;
   std::vector<Socket::Connection> buffers;
   JSON::Value Request;
   JSON::Value Response;
@@ -408,19 +189,22 @@ int main(int argc, char ** argv){
       lastuplink = Util::epoch();
       bool gotUplink = false;
       if (users.size() > 0){
-        for( std::vector< Controller::ConnectedUser >::iterator it = users.end() - 1; it >= users.begin(); it--) {
-          if (!it->C.connected()){
+        for (std::vector<Controller::ConnectedUser>::iterator it = users.end() - 1; it >= users.begin(); it--){
+          if ( !it->C.connected()){
             it->C.close();
             users.erase(it);
             break;
           }
-          if (it->clientMode){uplink = &*it; gotUplink = true;}
+          if (it->clientMode){
+            uplink = & *it;
+            gotUplink = true;
+          }
         }
       }
-      if (!gotUplink){
+      if ( !gotUplink){
         Incoming = Socket::Connection("gearbox.ddvtech.com", 4242, true);
         if (Incoming.connected()){
-          users.push_back(Incoming);
+          users.push_back((Controller::ConnectedUser)Incoming);
           users.back().clientMode = true;
           uplink = &users.back();
           gotUplink = true;
@@ -434,7 +218,7 @@ int main(int argc, char ** argv){
         Response["statistics"] = Controller::Storage["statistics"];
         Response["now"] = (unsigned int)lastuplink;
         uplink->H.Clean();
-        uplink->H.SetBody("command="+HTTP::Parser::urlencode(Response.toString()));
+        uplink->H.SetBody("command=" + HTTP::Parser::urlencode(Response.toString()));
         uplink->H.BuildRequest();
         uplink->C.Send(uplink->H.BuildResponse("200", "OK"));
         uplink->H.Clean();
@@ -445,12 +229,16 @@ int main(int argc, char ** argv){
     }
 
     Incoming = API_Socket.accept(true);
-    if (Incoming.connected()){users.push_back(Incoming);}
+    if (Incoming.connected()){
+      users.push_back((Controller::ConnectedUser)Incoming);
+    }
     Incoming = Stats_Socket.accept(true);
-    if (Incoming.connected()){buffers.push_back(Incoming);}
+    if (Incoming.connected()){
+      buffers.push_back(Incoming);
+    }
     if (buffers.size() > 0){
-      for( std::vector< Socket::Connection >::iterator it = buffers.begin(); it != buffers.end(); it++) {
-        if (!it->connected()){
+      for (std::vector<Socket::Connection>::iterator it = buffers.begin(); it != buffers.end(); it++){
+        if ( !it->connected()){
           it->close();
           buffers.erase(it);
           break;
@@ -472,10 +260,10 @@ int main(int argc, char ** argv){
                 std::string nowstr = Request["totals"]["now"].asString();
                 Controller::Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
                 Controller::Storage["statistics"][thisbuffer]["totals"][nowstr].removeMember("now");
-                Controller::Storage["statistics"][thisbuffer]["totals"].shrink(600);//limit to 10 minutes of data
+                Controller::Storage["statistics"][thisbuffer]["totals"].shrink(600); //limit to 10 minutes of data
                 for (JSON::ObjIter jit = Request["log"].ObjBegin(); jit != Request["log"].ObjEnd(); jit++){
                   Controller::Storage["statistics"][thisbuffer]["log"].append(jit->second);
-                  Controller::Storage["statistics"][thisbuffer]["log"].shrink(1000);//limit to 1000 users per buffer
+                  Controller::Storage["statistics"][thisbuffer]["log"].shrink(1000); //limit to 1000 users per buffer
                 }
               }
             }
@@ -492,7 +280,8 @@ int main(int argc, char ** argv){
                   Controller::Storage["statistics"][oit->first]["curr"][sockit.asString()] = Request["vod"];
                   Controller::Storage["statistics"][oit->first]["curr"][sockit.asString()].removeMember("meta");
                   JSON::Value nowtotal;
-                  for (JSON::ObjIter u_it = Controller::Storage["statistics"][oit->first]["curr"].ObjBegin(); u_it != Controller::Storage["statistics"][oit->first]["curr"].ObjEnd(); ++u_it){
+                  for (JSON::ObjIter u_it = Controller::Storage["statistics"][oit->first]["curr"].ObjBegin();
+                      u_it != Controller::Storage["statistics"][oit->first]["curr"].ObjEnd(); ++u_it){
                     nowtotal["up"] = nowtotal["up"].asInt() + u_it->second["up"].asInt();
                     nowtotal["down"] = nowtotal["down"].asInt() + u_it->second["down"].asInt();
                     nowtotal["count"] = nowtotal["count"].asInt() + 1;
@@ -507,14 +296,14 @@ int main(int argc, char ** argv){
       }
     }
     if (users.size() > 0){
-      for( std::vector< Controller::ConnectedUser >::iterator it = users.begin(); it != users.end(); it++) {
-        if (!it->C.connected() || it->logins > 3){
+      for (std::vector<Controller::ConnectedUser>::iterator it = users.begin(); it != users.end(); it++){
+        if ( !it->C.connected() || it->logins > 3){
           it->C.close();
           users.erase(it);
           break;
         }
         if (it->C.spool() || it->C.Received().size()){
-          if (*(it->C.Received().get().rbegin()) != '\n'){
+          if ( *(it->C.Received().get().rbegin()) != '\n'){
             std::string tmp = it->C.Received().get();
             it->C.Received().get().clear();
             if (it->C.Received().size()){
@@ -547,7 +336,7 @@ int main(int argc, char ** argv){
                     Controller::Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
                     Response["authorize"]["password"] = Secure::md5(COMPILED_PASSWORD + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
-                    it->H.SetBody("command="+HTTP::Parser::urlencode(Response.toString()));
+                    it->H.SetBody("command=" + HTTP::Parser::urlencode(Response.toString()));
                     it->H.BuildRequest();
                     it->C.Send(it->H.BuildResponse("200", "OK"));
                     it->H.Clean();
@@ -555,8 +344,12 @@ int main(int argc, char ** argv){
                   }
                 }
               }else{
-                if (Request.isMember("config")){Controller::CheckConfig(Request["config"], Controller::Storage["config"]);}
-                if (Request.isMember("streams")){Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);}
+                if (Request.isMember("config")){
+                  Controller::CheckConfig(Request["config"], Controller::Storage["config"]);
+                }
+                if (Request.isMember("streams")){
+                  Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
+                }
                 if (Request.isMember("clearstatlogs")){
                   Controller::Storage["log"].null();
                   Controller::Storage["statistics"].null();
@@ -564,7 +357,7 @@ int main(int argc, char ** argv){
               }
             }else{
               Request = JSON::fromString(it->H.GetVar("command"));
-              if (!Request.isObject() && it->H.url != "/api"){
+              if ( !Request.isObject() && it->H.url != "/api"){
                 it->H.Clean();
                 it->H.SetHeader("Content-Type", "text/html");
                 it->H.SetHeader("X-Info", "To force an API response, request the file /api");
@@ -573,11 +366,15 @@ int main(int argc, char ** argv){
                 it->C.Send(it->H.BuildResponse("200", "OK"));
                 it->H.Clean();
               }else{
-                Authorize(Request, Response, (*it));
+                Authorize(Request, Response, ( *it));
                 if (it->Authorized){
                   //Parse config and streams from the request.
-                  if (Request.isMember("config")){Controller::CheckConfig(Request["config"], Controller::Storage["config"]);}
-                  if (Request.isMember("streams")){Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);}
+                  if (Request.isMember("config")){
+                    Controller::CheckConfig(Request["config"], Controller::Storage["config"]);
+                  }
+                  if (Request.isMember("streams")){
+                    Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
+                  }
                   if (Request.isMember("save")){
                     Controller::WriteFile("config.json", Controller::Storage.toString());
                     Controller::Log("CONF", "Config written to file on request through API");
@@ -589,7 +386,9 @@ int main(int argc, char ** argv){
                   Response["streams"] = Controller::Storage["streams"];
                   //add required data to the current unix time to the config, for syncing reasons
                   Response["config"]["time"] = Util::epoch();
-                  if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}
+                  if ( !Response["config"].isMember("serverid")){
+                    Response["config"]["serverid"] = "";
+                  }
                   //sent any available logs and statistics
                   Response["log"] = Controller::Storage["log"];
                   Response["statistics"] = Controller::Storage["statistics"];
@@ -600,14 +399,18 @@ int main(int argc, char ** argv){
                   }
                 }
                 jsonp = "";
-                if (it->H.GetVar("callback") != ""){jsonp = it->H.GetVar("callback");}
-                if (it->H.GetVar("jsonp") != ""){jsonp = it->H.GetVar("jsonp");}
+                if (it->H.GetVar("callback") != ""){
+                  jsonp = it->H.GetVar("callback");
+                }
+                if (it->H.GetVar("jsonp") != ""){
+                  jsonp = it->H.GetVar("jsonp");
+                }
                 it->H.Clean();
                 it->H.SetHeader("Content-Type", "text/javascript");
                 if (jsonp == ""){
-                  it->H.SetBody(Response.toString()+"\n\n");
+                  it->H.SetBody(Response.toString() + "\n\n");
                 }else{
-                  it->H.SetBody(jsonp+"("+Response.toString()+");\n\n");
+                  it->H.SetBody(jsonp + "(" + Response.toString() + ");\n\n");
                 }
                 it->C.Send(it->H.BuildResponse("200", "OK"));
                 it->H.Clean();

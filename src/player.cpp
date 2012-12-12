@@ -32,32 +32,35 @@ class Stats{
     std::string connector;
     unsigned int conntime;
     Stats(){
-      up = 0; down = 0; conntime = 0;
-    };
+      up = 0;
+      down = 0;
+      conntime = 0;
+    }
+    ;
     /// Reads a stats string and parses it to the internal representation.
     Stats(std::string s){
       size_t f = s.find(' ');
       if (f != std::string::npos){
         host = s.substr(0, f);
-        s.erase(0, f+1);
+        s.erase(0, f + 1);
       }
       f = s.find(' ');
       if (f != std::string::npos){
         connector = s.substr(0, f);
-        s.erase(0, f+1);
+        s.erase(0, f + 1);
       }
       f = s.find(' ');
       if (f != std::string::npos){
         conntime = atoi(s.substr(0, f).c_str());
-        s.erase(0, f+1);
+        s.erase(0, f + 1);
       }
       f = s.find(' ');
       if (f != std::string::npos){
         up = atoi(s.substr(0, f).c_str());
-        s.erase(0, f+1);
+        s.erase(0, f + 1);
         down = atoi(s.c_str());
       }
-    };
+    }
 };
 
 int main(int argc, char** argv){
@@ -75,7 +78,7 @@ int main(int argc, char** argv){
   pausemark["time"] = (long long int)0;
 
   Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
-  int lasttime = Util::epoch();//time last packet was sent
+  int lasttime = Util::epoch(); //time last packet was sent
 
   //send the header
   std::string meta_str = meta.toNetPacked();
@@ -87,8 +90,8 @@ int main(int argc, char** argv){
   JSON::Value last_pack;
 
   bool meta_sent = false;
-  long long now, lastTime = 0;//for timing of sending packets
-  long long bench = 0;//for benchmarking
+  long long now, lastTime = 0; //for timing of sending packets
+  long long bench = 0; //for benchmarking
   Stats sts;
   CYG_DEFI
 
@@ -97,21 +100,22 @@ int main(int argc, char** argv){
     if (CYG_LOOP in_out.spool()){
       while (in_out.Received().size()){
         //delete anything that doesn't end with a newline
-        if (*(in_out.Received().get().rbegin()) != '\n'){
+        if ( *(in_out.Received().get().rbegin()) != '\n'){
           in_out.Received().get().clear();
           continue;
         }
         in_out.Received().get().resize(in_out.Received().get().size() - 1);
-        if (!in_out.Received().get().empty()){
+        if ( !in_out.Received().get().empty()){
           switch (in_out.Received().get()[0]){
-            case 'P':{ //Push
-              #if DEBUG >= 4
+            case 'P': { //Push
+#if DEBUG >= 4
               std::cerr << "Received push - ignoring (" << in_out.Received().get() << ")" << std::endl;
-              #endif
-              in_out.close();//pushing to VoD makes no sense
-            } break;
-            case 'S':{ //Stats
-              if (!StatsSocket.connected()){
+#endif
+              in_out.close(); //pushing to VoD makes no sense
+            }
+              break;
+            case 'S': { //Stats
+              if ( !StatsSocket.connected()){
                 StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
               }
               if (StatsSocket.connected()){
@@ -125,7 +129,7 @@ int main(int argc, char** argv){
                 json_sts["vod"]["filename"] = conf.getString("filename");
                 json_sts["vod"]["now"] = Util::epoch();
                 json_sts["vod"]["start"] = Util::epoch() - sts.conntime;
-                if (!meta_sent){
+                if ( !meta_sent){
                   json_sts["vod"]["meta"] = meta;
                   json_sts["vod"]["meta"]["audio"].removeMember("init");
                   json_sts["vod"]["meta"]["video"].removeMember("init");
@@ -137,34 +141,42 @@ int main(int argc, char** argv){
                 StatsSocket.Send("\n\n");
                 StatsSocket.flush();
               }
-            } break;
-            case 's':{ //second-seek
+            }
+              break;
+            case 's': { //second-seek
               int ms = JSON::Value(in_out.Received().get().substr(2)).asInt();
               bool ret = source.seek_time(ms);
               lastTime = 0;
-            } break;
-            case 'f':{ //frame-seek
+            }
+              break;
+            case 'f': { //frame-seek
               bool ret = source.seek_frame(JSON::Value(in_out.Received().get().substr(2)).asInt());
               lastTime = 0;
-            } break;
-            case 'p':{ //play
+            }
+              break;
+            case 'p': { //play
               playing = -1;
               lastTime = 0;
               in_out.setBlocking(false);
-            } break;
-            case 'o':{ //once-play
-              if (playing <= 0){playing = 1;}
+            }
+              break;
+            case 'o': { //once-play
+              if (playing <= 0){
+                playing = 1;
+              }
               ++playing;
               in_out.setBlocking(false);
-              #if DEBUG >= 4
+#if DEBUG >= 4
               std::cerr << "Playing one keyframe" << std::endl;
-              #endif
+#endif
               bench = Util::getMS();
-            } break;
-            case 'q':{ //quit-playing
+            }
+              break;
+            case 'q': { //quit-playing
               playing = 0;
               in_out.setBlocking(true);
-            } break;
+            }
+              break;
           }
           in_out.Received().get().clear();
         }
@@ -172,44 +184,48 @@ int main(int argc, char** argv){
     }
     if (playing != 0){
       now = Util::getMS();
-        source.seekNext();
-        if (!source.getJSON()){playing = 0;}
-        if (source.getJSON().isMember("keyframe")){
-          if (playing == -1 && meta["video"]["keyms"].asInt() > now-lastTime) {
-            Util::sleep(meta["video"]["keyms"].asInt()-(now-lastTime));
-          }
-          lastTime = now;
-          if (playing > 0){--playing;}
+      source.seekNext();
+      if ( !source.getJSON()){
+        playing = 0;
+      }
+      if (source.getJSON().isMember("keyframe")){
+        if (playing == -1 && meta["video"]["keyms"].asInt() > now - lastTime){
+          Util::sleep(meta["video"]["keyms"].asInt() - (now - lastTime));
         }
-        if (playing == 0){
-          #if DEBUG >= 4
-          std::cerr << "Sending pause_marker (" << (Util::getMS() - bench) << "ms)" << std::endl;
-          #endif
-          pausemark["time"] = source.getJSON()["time"];
-          pausemark.toPacked();
-          in_out.SendNow(pausemark.toNetPacked());
-          in_out.setBlocking(true);
-        }else{
-          lasttime = Util::epoch();
-          //insert proper header for this type of data
-          in_out.Send("DTPD");
-          //insert the packet length
-          unsigned int size = htonl(source.getPacket().size());
-          in_out.Send((char*)&size, 4);
-          in_out.SendNow(source.getPacket());
+        lastTime = now;
+        if (playing > 0){
+          --playing;
         }
+      }
+      if (playing == 0){
+#if DEBUG >= 4
+        std::cerr << "Sending pause_marker (" << (Util::getMS() - bench) << "ms)" << std::endl;
+#endif
+        pausemark["time"] = source.getJSON()["time"];
+        pausemark.toPacked();
+        in_out.SendNow(pausemark.toNetPacked());
+        in_out.setBlocking(true);
+      }else{
+        lasttime = Util::epoch();
+        //insert proper header for this type of data
+        in_out.Send("DTPD");
+        //insert the packet length
+        unsigned int size = htonl(source.getPacket().size());
+        in_out.Send((char*) &size, 4);
+        in_out.SendNow(source.getPacket());
+      }
     }else{
       Util::sleep(10);
     }
   }
   StatsSocket.close();
   in_out.close();
-  #if DEBUG >= 4
+#if DEBUG >= 4
   if (Util::epoch() - lasttime < 60){
     std::cerr << "Player exited (disconnect)." << std::endl;
   }else{
     std::cerr << "Player exited (timeout)." << std::endl;
   }
-  #endif
+#endif
   return 0;
 }

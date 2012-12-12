@@ -17,7 +17,7 @@
 #include <mist/stream.h>
 
 /// Holds all code unique to the Buffer.
-namespace Buffer{
+namespace Buffer {
 
   volatile bool buffer_running = true; ///< Set to false when shutting down.
   Stream * thisStream = 0;
@@ -26,19 +26,20 @@ namespace Buffer{
   /// Gets the current system time in milliseconds.
   long long int getNowMS(){
     timeval t;
-    gettimeofday(&t, 0);
-    return t.tv_sec * 1000 + t.tv_usec/1000;
-  }//getNowMS
-
+    gettimeofday( &t, 0);
+    return t.tv_sec * 1000 + t.tv_usec / 1000;
+  } //getNowMS
 
   void handleStats(void * empty){
-    if (empty != 0){return;}
+    if (empty != 0){
+      return;
+    }
     std::string double_newline = "\n\n";
     Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
     while (buffer_running){
       usleep(1000000); //sleep one second
       Stream::get()->cleanUsers();
-      if (!StatsSocket.connected()){
+      if ( !StatsSocket.connected()){
         StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
       }
       if (StatsSocket.connected()){
@@ -52,9 +53,9 @@ namespace Buffer{
 
   void handleUser(void * v_usr){
     user * usr = (user*)v_usr;
-    #if DEBUG >= 4
+#if DEBUG >= 4
     std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
-    #endif
+#endif
 
     usr->myRing = thisStream->getRing();
     if (thisStream->getHeader().size() > 0){
@@ -66,19 +67,19 @@ namespace Buffer{
       usr->Send();
       if (usr->S.spool() && usr->S.Received().size()){
         //delete anything that doesn't end with a newline
-        if (!usr->S.Received().get().empty() && *(usr->S.Received().get().rbegin()) != '\n'){
+        if ( !usr->S.Received().get().empty() && *(usr->S.Received().get().rbegin()) != '\n'){
           usr->S.Received().get().clear();
           continue;
         }
         usr->S.Received().get().resize(usr->S.Received().get().size() - 1);
-        if (!usr->S.Received().get().empty()){
+        if ( !usr->S.Received().get().empty()){
           switch (usr->S.Received().get()[0]){
-            case 'P':{ //Push
+            case 'P': { //Push
               std::cout << "Push attempt from IP " << usr->S.Received().get().substr(2) << std::endl;
               if (thisStream->checkWaitingIP(usr->S.Received().get().substr(2))){
                 if (thisStream->setInput(usr->S)){
                   std::cout << "Push accepted!" << std::endl;
-                  usr->S = Socket::Connection(-1);
+                  usr->S = Socket::Connection( -1);
                   return;
                 }else{
                   usr->Disconnect("Push denied - push already in progress!");
@@ -86,31 +87,40 @@ namespace Buffer{
               }else{
                 usr->Disconnect("Push denied - invalid IP address!");
               }
-            } break;
-            case 'S':{ //Stats
+            }
+              break;
+            case 'S': { //Stats
               usr->tmpStats = Stats(usr->S.Received().get().substr(2));
               unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
-              if (secs < 1){secs = 1;}
+              if (secs < 1){
+                secs = 1;
+              }
               usr->curr_up = (usr->tmpStats.up - usr->lastStats.up) / secs;
               usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
               usr->lastStats = usr->tmpStats;
               thisStream->saveStats(usr->MyStr, usr->tmpStats);
-            } break;
-            case 's':{ //second-seek
+            }
+              break;
+            case 's': { //second-seek
               //ignored for now
-            } break;
-            case 'f':{ //frame-seek
+            }
+              break;
+            case 'f': { //frame-seek
               //ignored for now
-            } break;
-            case 'p':{ //play
+            }
+              break;
+            case 'p': { //play
               //ignored for now
-            } break;
-            case 'o':{ //once-play
+            }
+              break;
+            case 'o': { //once-play
               //ignored for now
-            } break;
-            case 'q':{ //quit-playing
+            }
+              break;
+            case 'q': { //quit-playing
               //ignored for now
-            } break;
+            }
+              break;
           }
         }
       }
@@ -120,11 +130,13 @@ namespace Buffer{
 
   /// Loop reading DTSC data from stdin and processing it at the correct speed.
   void handleStdin(void * empty){
-    if (empty != 0){return;}
-    long long int timeDiff = 0;//difference between local time and stream time
-    unsigned int lastPacket = 0;//last parsed packet timestamp
+    if (empty != 0){
+      return;
+    }
+    long long int timeDiff = 0; //difference between local time and stream time
+    unsigned int lastPacket = 0; //last parsed packet timestamp
     std::string inBuffer;
-    char charBuffer[1024*10];
+    char charBuffer[1024 * 10];
     unsigned int charCount;
     long long int now;
 
@@ -142,7 +154,7 @@ namespace Buffer{
           thisStream->dropWriteLock(true);
         }else{
           thisStream->dropWriteLock(false);
-          std::cin.read(charBuffer, 1024*10);
+          std::cin.read(charBuffer, 1024 * 10);
           charCount = std::cin.gcount();
           inBuffer.append(charBuffer, charCount);
         }
@@ -157,7 +169,9 @@ namespace Buffer{
   /// Loop reading DTSC data from an IP push address.
   /// No changes to the speed are made.
   void handlePushin(void * empty){
-    if (empty != 0){return;}
+    if (empty != 0){
+      return;
+    }
     while (buffer_running){
       if (thisStream->getIPInput().connected()){
         if (thisStream->getIPInput().spool()){
@@ -167,30 +181,34 @@ namespace Buffer{
             thisStream->dropWriteLock(true);
           }else{
             thisStream->dropWriteLock(false);
-            usleep(1000);//1ms wait
+            usleep(1000); //1ms wait
           }
         }else{
-          usleep(1000);//1ms wait
+          usleep(1000); //1ms wait
         }
       }else{
-        usleep(1000000);//1s wait
+        usleep(1000000); //1s wait
       }
     }
     SS.close();
   }
 
   /// Starts a loop, waiting for connections to send data to.
-  int Start(int argc, char ** argv) {
+  int Start(int argc, char ** argv){
     Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
-    conf.addOption("stream_name", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Name of the stream this buffer will be providing.\"}"));
-    conf.addOption("awaiting_ip", JSON::fromString("{\"arg_num\":2, \"arg\":\"string\", \"default\":\"\", \"help\":\"IP address to expect incoming data from. This will completely disable reading from standard input if used.\"}"));
-    conf.addOption("reportstats", JSON::fromString("{\"default\":0, \"help\":\"Report stats to a controller process.\", \"short\":\"s\", \"long\":\"reportstats\"}"));
+    conf.addOption("stream_name",
+        JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Name of the stream this buffer will be providing.\"}"));
+    conf.addOption("awaiting_ip",
+        JSON::fromString(
+            "{\"arg_num\":2, \"arg\":\"string\", \"default\":\"\", \"help\":\"IP address to expect incoming data from. This will completely disable reading from standard input if used.\"}"));
+    conf.addOption("reportstats",
+        JSON::fromString("{\"default\":0, \"help\":\"Report stats to a controller process.\", \"short\":\"s\", \"long\":\"reportstats\"}"));
     conf.parseArgs(argc, argv);
 
     std::string name = conf.getString("stream_name");
 
     SS = Util::Stream::makeLive(name);
-    if (!SS.connected()) {
+    if ( !SS.connected()){
       perror("Could not create stream socket");
       return 1;
     }
@@ -201,7 +219,9 @@ namespace Buffer{
     Socket::Connection std_input(fileno(stdin));
 
     tthread::thread * StatsThread = 0;
-    if (conf.getBool("reportstats")){StatsThread = new tthread::thread(handleStats, 0);}
+    if (conf.getBool("reportstats")){
+      StatsThread = new tthread::thread(handleStats, 0);
+    }
     tthread::thread * StdinThread = 0;
     std::string await_ip = conf.getString("awaiting_ip");
     if (await_ip == ""){
@@ -220,7 +240,7 @@ namespace Buffer{
         thisStream->addUser(usr_ptr);
         usr_ptr->Thread = new tthread::thread(handleUser, (void *)usr_ptr);
       }
-    }//main loop
+    } //main loop
 
     // disconnect listener
     buffer_running = false;
@@ -230,16 +250,20 @@ namespace Buffer{
       StatsThread->join();
       delete StatsThread;
     }
-    if (thisStream->getIPInput().connected()){thisStream->getIPInput().close();}
+    if (thisStream->getIPInput().connected()){
+      thisStream->getIPInput().close();
+    }
     StdinThread->join();
     delete StdinThread;
     delete thisStream;
     return 0;
   }
 
-};//Buffer namespace
+}
+;
+//Buffer namespace
 
 /// Entry point for Buffer, simply calls Buffer::Start().
 int main(int argc, char ** argv){
   return Buffer::Start(argc, argv);
-}//main
+} //main

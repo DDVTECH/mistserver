@@ -148,6 +148,45 @@ namespace Controller {
         capa["load"]["fifteen"] = (long long int)(onemin * 100);
       }
     }
+
+    //list available protocols and report about them
+    capa["connectors"]["RTMP"]["desc"] = "Enables the RTMP protocol which is used by Adobe Flash Player.";
+    capa["connectors"]["RTMP"]["deps"] = "";
+    capa["connectors"]["RTMP"]["optional"]["port"]["name"] = "TCP port";
+    capa["connectors"]["RTMP"]["optional"]["port"]["help"] = "TCP port to listen on - default if unprovided is 1935";
+    capa["connectors"]["RTMP"]["optional"]["port"]["type"] = "uint";
+    capa["connectors"]["RTMP"]["optional"]["interface"]["name"] = "Interface";
+    capa["connectors"]["RTMP"]["optional"]["interface"]["help"] = "Address of the interface to listen on - default if unprovided is all interfaces";
+    capa["connectors"]["RTMP"]["optional"]["interface"]["type"] = "str";
+    capa["connectors"]["RTMP"]["optional"]["username"]["name"] = "Username";
+    capa["connectors"]["RTMP"]["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
+    capa["connectors"]["RTMP"]["optional"]["username"]["type"] = "str";
+    capa["connectors"]["HTTP"]["desc"] = "Enables the generic HTTP listener, required by all other HTTP protocols. Needs other HTTP protocols enabled to do much of anything.";
+    capa["connectors"]["HTTP"]["deps"] = "";
+    capa["connectors"]["HTTP"]["optional"]["port"]["name"] = "TCP port";
+    capa["connectors"]["HTTP"]["optional"]["port"]["help"] = "TCP port to listen on - default if unprovided is 8080";
+    capa["connectors"]["HTTP"]["optional"]["port"]["type"] = "uint";
+    capa["connectors"]["HTTP"]["optional"]["interface"]["name"] = "Interface";
+    capa["connectors"]["HTTP"]["optional"]["interface"]["help"] = "Address of the interface to listen on - default if unprovided is all interfaces";
+    capa["connectors"]["HTTP"]["optional"]["interface"]["type"] = "str";
+    capa["connectors"]["HTTP"]["optional"]["username"]["name"] = "Username";
+    capa["connectors"]["HTTP"]["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
+    capa["connectors"]["HTTP"]["optional"]["username"]["type"] = "str";
+    capa["connectors"]["HTTPProgressive"]["desc"] = "Enables HTTP protocol progressive streaming.";
+    capa["connectors"]["HTTPProgressive"]["deps"] = "HTTP";
+    capa["connectors"]["HTTPProgressive"]["optional"]["username"]["name"] = "Username";
+    capa["connectors"]["HTTPProgressive"]["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
+    capa["connectors"]["HTTPProgressive"]["optional"]["username"]["type"] = "str";
+    capa["connectors"]["HTTPDynamic"]["desc"] = "Enables HTTP protocol Adobe-specific dynamic streaming (aka HDS).";
+    capa["connectors"]["HTTPDynamic"]["deps"] = "HTTP";
+    capa["connectors"]["HTTPDynamic"]["optional"]["username"]["name"] = "Username";
+    capa["connectors"]["HTTPDynamic"]["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
+    capa["connectors"]["HTTPDynamic"]["optional"]["username"]["type"] = "str";
+    capa["connectors"]["HTTPSmooth"]["desc"] = "Enables HTTP protocol MicroSoft-specific smooth streaming through silverlight.";
+    capa["connectors"]["HTTPSmooth"]["deps"] = "HTTP";
+    capa["connectors"]["HTTPSmooth"]["optional"]["username"]["name"] = "Username";
+    capa["connectors"]["HTTPSmooth"]["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
+    capa["connectors"]["HTTPSmooth"]["optional"]["username"]["type"] = "str";
   }
 
 }

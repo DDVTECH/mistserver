@@ -375,6 +375,9 @@ int main(int argc, char ** argv){
                   if (Request.isMember("streams")){
                     Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
                   }
+                  if (Request.isMember("capabilities")){
+                    Controller::checkCapable(Response["capabilities"]);
+                  }
                   if (Request.isMember("save")){
                     Controller::WriteFile("config.json", Controller::Storage.toString());
                     Controller::Log("CONF", "Config written to file on request through API");

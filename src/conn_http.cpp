@@ -267,12 +267,12 @@ namespace Connector_HTTP {
         }
       }else{
         //keep trying unless the timeout triggers
-        if (timeout++ > 200){
+        if (timeout++ > 4000){
           std::cout << "[20s timeout triggered]" << std::endl;
           Handle_Timeout(H, conn);
           return;
         }else{
-          usleep(100000);
+          Util::sleep(5);
         }
       }
     }
@@ -304,7 +304,7 @@ namespace Connector_HTTP {
             conn->SendNow(myConn->Received().get());
             myConn->Received().get().clear();
           }else{
-            usleep(30000);
+            Util::sleep(30);
           }
         }
         myConn->close();
@@ -397,7 +397,7 @@ namespace Connector_HTTP {
           Client.Clean(); //clean for any possible next requests
         }
       }else{
-        usleep(10000); //sleep 10ms
+        Util::sleep(10); //sleep 10ms
       }
     }
     //close and remove the connection
@@ -444,7 +444,7 @@ int main(int argc, char ** argv){
       }
       Connector_HTTP::thread_mutex.unlock();
     }else{
-      usleep(100000); //sleep 100ms
+      Util::sleep(10); //sleep 10ms
     }
   } //while connected and not requested to stop
   server_socket.close();
@@ -454,9 +454,6 @@ int main(int argc, char ** argv){
   while (repeat){
     Connector_HTTP::thread_mutex.lock();
     repeat = !Connector_HTTP::active_threads.empty();
-    if (repeat){
-      usleep(100000); //sleep 100ms
-    }
     //clean up any threads that may have finished
     while ( !Connector_HTTP::done_threads.empty()){
       tthread::thread * T = *Connector_HTTP::done_threads.begin();
@@ -465,6 +462,9 @@ int main(int argc, char ** argv){
       delete T;
     }
     Connector_HTTP::thread_mutex.unlock();
+    if (repeat){
+      Util::sleep(100); //sleep 100ms
+    }
   }
 
   return 0;

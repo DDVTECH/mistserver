@@ -54,12 +54,16 @@ namespace TS {
   /// The length of this header will ALWAYS be 7 bytes, and has to be 
   /// prepended on each audio frame.
   /// \param FrameLen the length of the current audio frame.
-  static inline std::string GetAudioHeader( int FrameLen ) {
-    char StandardHeader[7] = {0xFF,0xF1,0x4C,0x80,0x00,0x1F,0xFC};
+  static inline std::string GetAudioHeader( int FrameLen, std::string initData ) {
+    char StandardHeader[7] = {0xFF,0xF1,0x00,0x00,0x00,0x1F,0xFC};
     FrameLen += 7;
-    StandardHeader[3] = ( StandardHeader[3] & 0xFC ) + ( ( FrameLen & 0x00001800 ) >> 11 );
+    StandardHeader[2] = ((((initData[0] >> 3) - 1) << 6 ) & 0xC0);//AAC Profile - 1 ( First two bits )
+    StandardHeader[2] |= (( ((initData[0] & 0x07) << 1) | ((initData[1] >> 7) & 0x01) ) << 2 );//AAC Frequency Index
+    StandardHeader[2] |= ((initData[1] & 0x20) >> 5);
+    StandardHeader[3] = ((initData[1] & 0x18 ) << 3 );
+    StandardHeader[3] |= ( ( FrameLen & 0x00001800 ) >> 11 );
     StandardHeader[4] = ( ( FrameLen & 0x000007F8 ) >> 3 );
-    StandardHeader[5] = ( StandardHeader[5] & 0x3F ) + ( ( FrameLen & 0x00000007 ) << 5 );
+    StandardHeader[5] |= ( ( FrameLen & 0x00000007 ) << 5 );
     return std::string(StandardHeader,7);
   }
   

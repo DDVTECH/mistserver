@@ -99,7 +99,6 @@ void TS::Packet::PCR( int64_t NewVal ) {
   strBuf[4] = 0x07;
   strBuf[5] = (strBuf[5] | 0x10 );
   int64_t TmpVal = NewVal / 300;
-  fprintf( stderr, "\tSetting PCR_Base: %d\n", TmpVal );
   strBuf[6] = (((TmpVal>>1)>>24) & 0xFF);
   strBuf[7] = (((TmpVal>>1)>>16) & 0xFF);
   strBuf[8] = (((TmpVal>>1)>>8) & 0xFF);

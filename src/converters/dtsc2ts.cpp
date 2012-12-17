@@ -49,7 +49,6 @@ int main( ) {
         }
         if( IsKeyFrame ) {
           TimeStamp = ( DTSCStream.getPacket(0)["time"].asInt() * 27000 );
-          fprintf( stderr, "Keyframe, timeStamp: %llu (%llu)\n", TimeStamp, (TimeStamp / 27000) );
         }
         int TSType;
         bool FirstPic = true;
@@ -119,7 +118,7 @@ int main( ) {
       } else if( DTSCStream.lastType() == DTSC::AUDIO ) {
         WritePesHeader = true;
         DTMIData = DTSCStream.lastData();
-        ToPack = TS::GetAudioHeader( DTMIData.size() );
+        ToPack = TS::GetAudioHeader( DTMIData.size(), DTSCStream.metadata["audio"]["init"].asString() );
         ToPack += DTMIData;
         TimeStamp = DTSCStream.getPacket(0)["time"].asInt() * 81000;
         while( ToPack.size() ) {

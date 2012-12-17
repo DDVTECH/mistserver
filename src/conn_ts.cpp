@@ -1,5 +1,3 @@
-#define DEBUG 10
-
 /// \file conn_ts.cpp
 /// Contains the main code for the TS Connector
 
@@ -16,7 +14,6 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/types.h>
-#include <sys/epoll.h>
 #include <mist/socket.h>
 #include <mist/config.h>
 #include <mist/stream.h>
@@ -80,7 +77,6 @@ int TS_Handler( Socket::Connection conn, std::string streamname ) {
           }
           if( IsKeyFrame ) {
             TimeStamp = ( Strm.getPacket(0)["time"].asInt() * 27000 );
-            fprintf( stderr, "Keyframe, timeStamp: %llu (%llu)\n", TimeStamp, (TimeStamp / 27000) );
           }
           int TSType;
           bool FirstPic = true;
@@ -150,7 +146,7 @@ int TS_Handler( Socket::Connection conn, std::string streamname ) {
         } else if( Strm.lastType() == DTSC::AUDIO ) {
           WritePesHeader = true;
           DTMIData = Strm.lastData();
-          ToPack = TS::GetAudioHeader( DTMIData.size() );
+          ToPack = TS::GetAudioHeader( DTMIData.size(), Strm.metadata["audio"]["init"].asString() );
           ToPack += DTMIData;
           TimeStamp = Strm.getPacket(0)["time"].asInt() * 81000;
           while( ToPack.size() ) {

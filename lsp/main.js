@@ -278,7 +278,8 @@
 					 s = "";
 					 for (option in protocol) {
 						if ((option != 'connector') && (option != 'online')) {
-							s += option+': '+protocol[option]+', ';
+							u = 
+							s += option+': '+((protocol[option] == '') ? 'default' : protocol[option] )+', ';
 						}
 					 }
 					 s = s.slice(0,-2);
@@ -478,6 +479,9 @@
 									error = true;
 								}
 							});
+							$('input[type="number"]').each(function(){ //turn all numbers into integers
+								$(this).val(Math.floor($(this).val()));
+							});
 							$('input.uint').each(function(){ //check if all uints are actually uints
 								if ($(this).val() < 0) {
 									$(this).focus();
@@ -499,7 +503,12 @@
 						   $('input').each(function(){
 								newprotocol[$(this).attr('id').split('-')[2]] = $(this).val();;
 						   });
-                           settings.settings.config.protocols.push(newprotocol);
+						   if (streamname == 'new') {
+								settings.settings.config.protocols.push(newprotocol);
+						   }
+						   else {
+								settings.settings.config.protocols[streamname] = newprotocol;
+						   }
 
                            loadSettings(function()
                            {

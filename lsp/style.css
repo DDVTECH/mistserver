@@ -247,7 +247,8 @@ label
    width: 400px;
 }
 
-label input
+label input,
+label select
 {
    float: right;
    margin: -8px 0 0 0;
@@ -288,8 +289,11 @@ th,
 p,
 label,
 #page label input,
+#page label select,
 #page > button,
-#editserver > button, #forcesave > button
+#editserver > button, 
+#forcesave > button,
+#editprotocol > button
 {
    font: normal bold 11pt Arial, sans-serif;
    text-transform: uppercase;
@@ -341,8 +345,15 @@ td
    width: auto;
    padding: 0;
 }
-
-
+#protocoldesc p
+{
+   font-weight: normal;
+   text-transform: none;
+}
+#protocolfields 
+{
+	margin-top: 10px;
+}
 
 #forcesave
 {

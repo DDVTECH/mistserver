@@ -112,7 +112,8 @@
                {
                   'username': settings.credentials.username,
                   'password': (settings.credentials.authstring != "" ? MD5(MD5(settings.credentials.password) + settings.credentials.authstring) : "" )
-               }
+               },
+			   'capabilities': {}
             };
 
             $.ajax(
@@ -131,6 +132,7 @@
                   var ret = $.extend(true,
                   {
                      "streams": {},
+					 "capabilities": {},
                      "statistics": {}
                   }, d);
 
@@ -356,11 +358,11 @@
                            "version": ""
                         },
                         "streams": {},
+						"capabilities": {},
                         "log": {},
                         "statistics": {}
                      }, d);
                   }
-
                   if(callback)
                   {
                      callback(errorstr);

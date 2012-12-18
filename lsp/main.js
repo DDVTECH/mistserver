@@ -259,7 +259,7 @@
                case 'protocols':
 
                   $table = $('<table>');
-                  $table.html("<thead><th>Protocol</th><th>Port</th><th>Interface</th><th></th></thead>");
+                  $table.html("<thead><th>Protocol</th><th>Settings</th><th></th></thead>");
                   $tbody = $('<tbody>');
 
                   var tr, i, protocol,
@@ -274,11 +274,22 @@
                      tr = $('<tr>').attr('id', 'protocol-' + i);
 
                      tr.append( $('<td>').text( protocol.connector ) );
-                     tr.append( $('<td>').text( protocol.port ) );
+					 
+					 s = "";
+					 for (option in protocol) {
+						if ((option != 'connector') && (option != 'online')) {
+							s += option+': '+protocol[option]+', ';
+						}
+					 }
+					 s = s.slice(0,-2);
+					 
+					 tr.append( $('<td>').text( s ) ); 
 
-                     tr.append( $('<td>').text( protocol['interface'] ) );  // interface is a reserved JS keyword
-
-                     tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
+                     tr.append( $('<td>').attr('class', 'center').append( $('<button>').text('edit').click(function()
+						 {
+							id = $(this).parent().parent().attr('id').replace('protocol-', '');
+							showTab('editprotocol', id);
+						 }) ).append( $('<button>').click(function()
 		                 {
 		                    if(confirmDelete('Are you sure you want to delete this protocol?') == true)
 		                    {
@@ -292,61 +303,15 @@
                      $tbody.append(tr);
                   }
 
-
-                  // add new protocol!
-                  $nprot = $('<tr>').attr('class', 'outsidetable');
-                  // protocol select
-                  $pname = $('<select>').attr('id', 'new-protocol-name');
-                  $pname.append( $('<option>').attr('value', 'HTTP').text('HTTP') );
-                  $pname.append( $('<option>').attr('value', 'HTTPDynamic').text('HTTPDynamic') );
-                  $pname.append( $('<option>').attr('value', 'HTTPProgressive').text('HTTPProgressive') );
-                  $pname.append( $('<option>').attr('value', 'HTTPSmooth').text('HTTPSmooth') );
-                  $pname.append( $('<option>').attr('value', 'RTMP').text('RTMP') );
-
-                  $nprot.append( $('<td>').append($pname) );
-                  // the port value
-                  $nprot.append( $('<td>').append( $('<input>').attr('type', 'number').attr('id', 'new-protocol-val') ) );
-
-                  // interface
-                  $nprot.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-protocol-interface') ) );
-
-                  $nprot.append(
-                     $('<td>').attr('class', 'center').append(
-                        $('<button>').click(function()
-                        {
-                           if($('#new-protocol-val').val() == '')
-                           {
-                              $('#new-protocol-val').focus();
-                              return;
-                           }
-
-                           if(!settings.settings.config.protocols)
-                           {
-                              settings.settings.config.protocols = [];
-                           }
-
-                           var nobj =
-                           {
-                              connector: $('#new-protocol-name :selected').val(),
-                              port: Math.abs($('#new-protocol-val').val())
-                           };
-
-                           nobj['interface'] = $('#new-protocol-interface').val();
-
-                           settings.settings.config.protocols.push(nobj);
-
-                           loadSettings(function()
-                           {
-                              showTab('protocols');
-                           });
-
-                        }).text('add new')
-                     )
-                  );
-
-                  $tbody.append($nprot);
                   $table.append($tbody);
                   $('#page').append($table);
+				  
+				  $('#page').append(
+                     $('<button>').attr('class', 'floatright').click(function()
+                     {
+                        showTab('editprotocol', 'new');
+                     }).text('add new')
+                  );
 
                   break;
 
@@ -356,7 +321,209 @@
 
 
 
-               case 'streams':
+               case 'editprotocol':
+				   if (streamname != 'new') { currentdata = settings.settings.config.protocols[streamname]; }
+				   
+				   currentconnectors = [];
+				   for (var index in settings.settings.config.protocols) { //build a list of the current connectors to see if the dependencies are already configured
+						currentconnectors.push(settings.settings.config.protocols[index].connector);
+				   }
+				   
+				   function buildProtocolFields(selectedProtocol) 
+				   {
+						 data = settings.settings.capabilities.connectors[selectedProtocol];
+						 
+						 $t = $('<p>').text(data.desc);
+						 if ((typeof data.deps != 'undefined') && (data.deps))
+					  	 {
+							$t.append($('<p>').text('Dependencies:'));
+							$s = $('<ul>');
+							deps = data.deps.split(',');
+							for (var index in deps) 
+							{
+								t = deps[index];
+								if ($.inArray(deps[index],currentconnectors) < 0) {
+									$u = $('<span>').text(' (Not yet configured!)').addClass('red');
+								}
+								else {
+									$u = $('<span>').text(' (Configured)').addClass('green');
+								}
+								$s.append($('<li>').text(t).append($u));
+							}
+							$t.append($s);
+						 }						 
+						 $('#protocoldesc').html( $t );
+						 
+						 $protocolfields = $('<div>');
+						 if (typeof data.required != 'undefined') 
+						 {
+							 $protocolfields.append( $('<p>').text('Required parameters') );
+							 for(fieldname in data.required)
+							 {
+								switch (data.required[fieldname].type) 
+								{
+									case 'str':
+										var inputType = 'text'
+										break;
+									case 'uint':
+										var inputType = 'number'
+										var func = 'uint'
+										break;
+									case 'int':
+										var inputType = 'number'
+										break;
+									default:
+										
+										break;
+								}
+								$i = $('<input>').attr('type',inputType).attr('id','protocol-parameter-'+fieldname).addClass('required');
+								if (func == 'uint') {
+									$i.addClass('uint');
+								}
+								$protocolfields.append(
+									$('<label>').text(data.required[fieldname].name).attr('title',data.required[fieldname].help).append($i)
+								);
+							 }
+						 }
+						 if (typeof data.optional != 'undefined') 
+						 {
+							 $protocolfields.append( $('<p>').text('Optional parameters') );
+							 for(fieldname in data.optional)
+							 {
+								switch (data.optional[fieldname].type) 
+								{
+									case 'str':
+										var inputType = 'text'
+										break;
+									case 'uint':
+										var inputType = 'number'
+										var func = 'uint'
+										break;
+									case 'int':
+										var inputType = 'number'
+										break;
+									default:
+										
+										break;
+								}
+								$i = $('<input>').attr('type',inputType).attr('id','protocol-parameter-'+fieldname);
+								if (func == 'uint') {
+									$i.addClass('uint');
+								}
+								$protocolfields.append(
+									$('<label>').text(data.optional[fieldname].name).attr('title',data.optional[fieldname].help).append($i)
+								);
+							 }
+						 }
+						 $('#protocolfields').html($protocolfields);
+						 if (streamname != 'new') {
+							for (fieldname in currentdata) {
+								if ((fieldname != 'connector') && (fieldname != 'online')) { 
+									$('#protocol-parameter-'+fieldname).val(currentdata[fieldname]);
+								}								
+							}
+						 }
+				   }
+				   
+				   loadSettings(function()
+				   {					  
+					  if (streamname == 'new') { t = 'add new protocol'; }
+					  else { t = 'edit protocol'; }
+					  
+					  $('#page').append( $('<p>').text(t) );
+					  
+					  $selectprotocol = $('<select>').attr('id', 'edit-protocol').change(function()
+					  {
+						 buildProtocolFields($(this).children(':selected').val());						 
+					  });
+					  for(protocol in settings.settings.capabilities.connectors)
+					  {
+						 if ((streamname != 'new') && (currentdata.connector == protocol)) {
+							 $selectprotocol.append(
+								$('<option>').attr('value', protocol).attr('selected','selected').text(protocol)
+							 );
+						 }
+						 else {
+							 $selectprotocol.append(
+								$('<option>').attr('value', protocol).text(protocol)
+							 );
+						 }
+					  }
+					 
+					  $div = $('<div>').attr('id', 'editprotocol');
+					  $div.append( 
+					     $('<label>').attr('for', 'protocol-edit-protocol').text('protocol').append(
+						    $selectprotocol
+						 )
+					  );		  
+	
+					  	
+					  $('#page').append( $div );
+					  $('#editprotocol').append( $('<div>').attr('id','protocoldesc') );					  
+					  $('#editprotocol').append( $('<div>').attr('id', 'protocolfields') );
+					  $('#editprotocol').append(
+						$('<button>').text('cancel').addClass('floatright').click(function()
+						{
+							showTab('protocols');
+						})
+					  );
+					  $('#editprotocol').append(
+						$('<button>').text('save').addClass('floatright').click(function()
+						{
+							error = false;
+							$('input.required').each(function(){ //check if all required fields have contents
+								if ($(this).val() == '') {
+									$(this).focus();
+									$(this).parent().addClass('red');
+									error = true;
+								}
+							});
+							$('input.uint').each(function(){ //check if all uints are actually uints
+								if ($(this).val() < 0) {
+									$(this).focus();
+									$(this).parent().addClass('red');
+									error = true;
+								}
+							});
+						   if (error) { return; }
+                           if(!settings.settings.config.protocols)
+                           {
+                              settings.settings.config.protocols = [];
+                           }
+						   
+						   connectorval = $('#edit-protocol').val()
+                           var newprotocol =
+                           {
+								connector: connectorval
+                           };
+						   $('input').each(function(){
+								newprotocol[$(this).attr('id').split('-')[2]] = $(this).val();;
+						   });
+                           settings.settings.config.protocols.push(newprotocol);
+
+                           loadSettings(function()
+                           {
+                              showTab('protocols');
+                           });
+						})
+					  );
+
+				  buildProtocolFields($('select#edit-protocol :selected').val());
+
+				  });
+
+			   
+			   
+			   
+			      break;
+			   
+			   
+			   
+			   
+			   
+			   
+			   
+			   case 'streams':
 
                   // the filter element containr
                   $div = $('<div>').attr('id', 'streams-filter');

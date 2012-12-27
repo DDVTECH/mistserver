@@ -303,9 +303,9 @@ void TS::Packet::AddStuffing( int NumBytes ) {
   if( AdaptationField( ) == 3 ) {
     int Offset = strBuf[4];
     strBuf[4] = Offset + NumBytes - 1;
-    strBuf.resize(7+Offset+NumBytes-2);
+    strBuf.resize(5+Offset+NumBytes-2);
     for( int i = 0; i < ( NumBytes -2 ); i ++ ) {
-      strBuf[6+Offset+i] = 0xFF;
+      strBuf[5+Offset+i] = 0xFF;
     }
   } else {
     AdaptationField( 3 );

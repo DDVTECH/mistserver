@@ -57,30 +57,32 @@ int main( ) {
                           (DTMIData[2] << 8) + DTMIData[3];
           DTMIData.erase(0,4);//Erase the first four characters;
           TSType = (int)DTMIData[0] & 0x1F;
-          if( TSType == 0x05 ) {
-            if( FirstPic ) {
-              ToPack += avccbox.asAnnexB( );
-              FirstPic = false;
-            } 
-            if( IsKeyFrame ) {
-              if( !FirstKeyFrame && FirstIDRInKeyFrame ) {
+          if( !( TSType == 0x09 ) ) {// || TSType == 0x07 || TSType == 0x08 ) ) {
+            if( TSType == 0x05 ) {
+              if( FirstPic ) {
+                ToPack += avccbox.asAnnexB( );
+                FirstPic = false;
+              } 
+              if( IsKeyFrame ) {
+                if( !FirstKeyFrame && FirstIDRInKeyFrame ) {
+                  ToPack.append(TS::NalHeader,4);
+                  FirstIDRInKeyFrame = false;
+                } else {
+                  ToPack.append(TS::ShortNalHeader,3);
+                }
+              }
+            } else if ( TSType == 0x01 ) {
+              if( FirstPic ) {
                 ToPack.append(TS::NalHeader,4);
-                FirstIDRInKeyFrame = false;
+                FirstPic = false;
               } else {
                 ToPack.append(TS::ShortNalHeader,3);
               }
-            }
-          } else if ( TSType == 0x01 ) {
-            if( FirstPic ) {
-              ToPack.append(TS::NalHeader,4);
-              FirstPic = false;
             } else {
-              ToPack.append(TS::ShortNalHeader,3);
+              ToPack.append(TS::NalHeader,4);
             }
-          } else {
-            ToPack.append(TS::NalHeader,4);
+            ToPack.append(DTMIData,0,ThisNaluSize);
           }
-          ToPack.append(DTMIData,0,ThisNaluSize);
           DTMIData.erase(0,ThisNaluSize);
         }
         WritePesHeader = true;
@@ -135,7 +137,6 @@ int main( ) {
           AudioCounter ++;
           if( WritePesHeader ) {
             PackData.UnitStart( 1 );
-            PackData.RandomAccess( 1 );
             PackData.AddStuffing( 184 - (14 + ToPack.size()) );
             PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
             WritePesHeader = false;

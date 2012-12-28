@@ -117,6 +117,7 @@ button
    background-color: #505050;
    color: #fff;
    border: 0;
+   margin: 0 2px 0 2px;
 }
 
 
@@ -345,6 +346,20 @@ td
    width: auto;
    padding: 0;
 }
+.sortable th.sort-type-string, .sortable th.sort-type-int, .sortable th.sort-type-float
+{
+   background: transparent url('graphics/sort.png') no-repeat 5px 50%;
+}
+
+.sortable th.sortasc
+{
+   background-image: url('graphics/sort_asc.png');
+}
+
+.sortable th.sortdesc
+{
+   background-image: url('graphics/sort_desc.png');
+}
 #protocoldesc p
 {
    font-weight: normal;
@@ -352,7 +367,7 @@ td
 }
 #protocolfields 
 {
-	margin-top: 10px;
+   margin-top: 10px;
 }
 
 #forcesave

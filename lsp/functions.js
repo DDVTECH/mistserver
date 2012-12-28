@@ -1,18 +1,18 @@
 
-			/**
-			 * Show a confirm dialog
-			 * @param question the question displayed
-			 */
+         /**
+          * Show a confirm dialog
+          * @param question the question displayed
+          */
          function confirmDelete(question)
          {
             return confirm(question);
          }
 
 
-			/**
-			 * Format a date to mm/dd/yyyy hh:mm:ss format
-			 * @param date the date to format (timestamp)
-			 */
+         /**
+          * Format a date to mm/dd/yyyy hh:mm:ss format
+          * @param date the date to format (timestamp)
+          */
          function formatDate(date)
          {
             var d = new Date(date * 1000);
@@ -29,10 +29,10 @@
          }
 
 
-			/**
-			 * Find out what kind of resource an URI is
-			 * @param uri the URI to check. If it start with a protocol (ebut not file://) return 'Live', else 'Recorded'
-			 */
+         /**
+          * Find out what kind of resource an URI is
+          * @param uri the URI to check. If it start with a protocol (ebut not file://) return 'Live', else 'Recorded'
+          */
          function TypeofResource(uri)
          {
             var protocol = /([a-zA-Z]+):\/\//.exec(uri);
@@ -46,10 +46,10 @@
          }
 
 
-			/**
-			 * convert a short limit name to a long one using the table above
-			 * @param name the short name of a limit
-			 */
+         /**
+          * convert a short limit name to a long one using the table above
+          * @param name the short name of a limit
+          */
          function shortToLongLimit(name)
          {
             var i;
@@ -66,13 +66,13 @@
          }
 
 
-			/**
-			 * forse the server to save to the config file
-			 * @param callback function to call after the command is send
-			 */
+         /**
+          * forse the server to save to the config file
+          * @param callback function to call after the command is send
+          */
          function forceJSONSave(callback)
          {
-				// build the object to send to the server
+            // build the object to send to the server
             var data =
             {
                'authorize':
@@ -83,7 +83,7 @@
                'save': 1
             };
 
-				// make the XHR call
+            // make the XHR call
             $.ajax(
             {
                'url': settings.server,
@@ -99,11 +99,11 @@
          }
 
 
-			/**
-			 * retrieves data from the server ;)
-			 * note: does not authenticate first. Assumes user is logged in.
-			 * @param callback the function to call when the data has been retrieved. This callback has 1 parameter, the data retrieved.
-			 */
+         /**
+          * retrieves data from the server ;)
+          * note: does not authenticate first. Assumes user is logged in.
+          * @param callback the function to call when the data has been retrieved. This callback has 1 parameter, the data retrieved.
+          */
          function getData(callback)
          {
             var data =
@@ -113,7 +113,7 @@
                   'username': settings.credentials.username,
                   'password': (settings.credentials.authstring != "" ? MD5(MD5(settings.credentials.password) + settings.credentials.authstring) : "" )
                },
-			   'capabilities': {}
+            'capabilities': {}
             };
 
             $.ajax(
@@ -132,11 +132,12 @@
                   var ret = $.extend(true,
                   {
                      "streams": {},
-					 "capabilities": {},
+							"capabilities": {},
                      "statistics": {}
                   }, d);
-
-						console.log('[651] RECV', ret);
+                  
+                  //IE breaks if the console isn't opened, so keep commented when committing
+                  //console.log('[651] RECV', ret);
 
                   if(callback)
                   {
@@ -147,113 +148,113 @@
          }
 
 
-			/**
-			 * retrieved the status and number of viewers from all streams
-			 * @param callback function that is called when the data is collected. Has one parameter, the data retrieved
-			 */
-			function getStreamsData(callback)
-			{
+         /**
+          * retrieved the status and number of viewers from all streams
+          * @param callback function that is called when the data is collected. Has one parameter, the data retrieved
+          */
+         function getStreamsData(callback)
+         {
 
-				getData(function(data)
-				{
-					var streams = {};   // streamID: [status, numViewers];
-					var cnt = 0;
+            getData(function(data)
+            {
+               var streams = {};   // streamID: [status, numViewers];
+               var cnt = 0;
 
-					for(var stream in data.streams)
-					{
-						streams[stream] = [data.streams[stream].online, 0];
-						cnt++;
-					}
+               for(var stream in data.streams)
+               {
+                  streams[stream] = [data.streams[stream].online, 0];
+                  cnt++;
+               }
 
-					if(cnt === 0)
-					{
-						return;   // if there are no streams, don't collect data and just return
-					}
+               if(cnt === 0)
+               {
+                  return;   // if there are no streams, don't collect data and just return
+               }
 
-					for(stream in data.statistics)
-					{
-						if(data.statistics[stream].curr)
-						{
-							for(var viewer in data.statistics[stream].curr)
-							{
-								streams[stream][1]++;
-							}
-						}
-					}
+               for(stream in data.statistics)
+               {
+                  if(data.statistics[stream].curr)
+                  {
+                     for(var viewer in data.statistics[stream].curr)
+                     {
+                        streams[stream][1]++;
+                     }
+                  }
+               }
 
-					callback(streams);
-				});
-			}
+               callback(streams);
+            });
+         }
 
 
-			/**
-			 * parses an url and returns the parts of it.
-			 * @return object containing the parts of the URL: protocol, host and port.
-			 */
+         /**
+          * parses an url and returns the parts of it.
+          * @return object containing the parts of the URL: protocol, host and port.
+          */
          function parseURL(url)
-			{
-				var pattern = /(https?)\:\/\/([^:\/]+)\:(\d+)?/i;
-				
-				var retobj = {protocol: '', host: '', port: ''};
-				var results = url.match(pattern);
+         {
+            var pattern = /(https?)\:\/\/([^:\/]+)\:(\d+)?/i;
+            
+            var retobj = {protocol: '', host: '', port: ''};
+            var results = url.match(pattern);
 
-				if(results != null)
-				{
-			      retobj.protocol = results[1];
-					retobj.host = results[2];
-					retobj.port = results[3];
-				}
+            if(results != null)
+            {
+               retobj.protocol = results[1];
+               retobj.host = results[2];
+               retobj.port = results[3];
+            }
 
-				return retobj;
-			}
+            return retobj;
+         }
 
-			/**
-			 * go figure.
-			 * @return true if there is a HTTP connector... and false if there isn't.
-			 */
-			function isThereAHTTPConnector()
-			{
+         /**
+          * go figure.
+          * @return true if there is a HTTP connector... and false if there isn't.
+          */
+         function isThereAHTTPConnector()
+         {
             var i,
                 len = (settings.settings.config.protocols ? settings.settings.config.protocols.length : 0);
 
-				for(i = 0; i < len; i++)
-				{
-					if(settings.settings.config.protocols[i].connector == 'HTTP')
-					{
-						return true;
-					}
-				}
+            for(i = 0; i < len; i++)
+            {
+               if(settings.settings.config.protocols[i].connector == 'HTTP')
+               {
+                  return true;
+               }
+            }
 
-				return false;
-			}
+            return false;
+         }
 
 
-			/**
-			 * retrieve port of the http connector
-			 * @return the port number
-			 */
-			function getHTTPControllerPort()
-			{
+         /**
+          * retrieve port of the http connector
+          * @return the port number
+          */
+         function getHTTPControllerPort()
+         {
             var i,
                 len = (settings.settings.config.protocols ? settings.settings.config.protocols.length : 0);
 
-				for(i = 0; i < len; i++)
-				{
-					if(settings.settings.config.protocols[i].connector == 'HTTP')
-					{
-						return settings.settings.config.protocols[i].port;
-					}
-				}
+            for(i = 0; i < len; i++)
+            {
+               if(settings.settings.config.protocols[i].connector == 'HTTP')
+               {
+                  return settings.settings.config.protocols[i].port;
+               }
+            }
 
-				return 0;
-			}
+            return 0;
+         }
 
 
 
-			/**
-			 * retrieves the stream status (online and total number of streams) and viewer info (total number of viewers).
-			 * @param callback function that is called when data is retrieved. Has one parameter, the retrieved data.
-			 */
+         /**
+          * retrieves the stream status (online and total number of streams) and viewer info (total number of viewers).
+          * @param callback function that is called when data is retrieved. Has one parameter, the retrieved data.
+          */
          function getStatData(callback)
          {
             getData(function(data)
@@ -290,14 +291,14 @@
          }
 
 
-			/**
-			 * Connect to the server and retrieve the data
-			 * @param callback the function to call when connected. Has one parameter, an optional error string.
-			 */
+         /**
+          * Connect to the server and retrieve the data
+          * @param callback the function to call when connected. Has one parameter, an optional error string.
+          */
          function loadSettings(callback)
          {
-				// display 'loading, please wait' while retrieving data
-				$('body').append( $('<div>').attr('id', 'shield').text('Loading, please wait...') );
+            // display 'loading, please wait' while retrieving data
+            $('body').append( $('<div>').attr('id', 'shield').text('Loading, please wait...') );
 
             var errorstr = '',
                 data = $.extend(settings.settings,
@@ -311,8 +312,9 @@
 
             delete data.log;   // don't send the logs back to the server
             delete data.statistics;   // same goes for the stats
-
-            console.log('[763] SEND', data);
+            
+            //IE breaks if the console isn't opened, so keep commented when committing
+            //console.log('[763] SEND', data);
 
             $.ajax(
             {
@@ -328,13 +330,14 @@
                'error': function()
                {
                   showTab('disconnect');
-						$('#shield').remove();   // remove loading display
+                  $('#shield').remove();   // remove loading display
                },
                'success': function(d)
                {
-						$('#shield').remove();   // remove loading display
+                  $('#shield').remove();   // remove loading display
 
-                  console.log('[785] RECV', d);
+                  //IE breaks if the console isn't opened, so keep commented when committing
+                  //console.log('[785] RECV', d);
 
                   if(d && d['authorize'] && d['authorize']['challenge'])
                   {
@@ -358,7 +361,7 @@
                            "version": ""
                         },
                         "streams": {},
-						"capabilities": {},
+                  "capabilities": {},
                         "log": {},
                         "statistics": {}
                      }, d);
@@ -372,10 +375,10 @@
          }
 
 
-			/**
-			 * Sets the page's header text (loging in, connected, disconnected), title and pretty colors (!)
-			 * @param state the state of the header. Possible are 'logingin', 'disconnected' or 'connected'.
-			 */
+         /**
+          * Sets the page's header text (loging in, connected, disconnected), title and pretty colors (!)
+          * @param state the state of the header. Possible are 'logingin', 'disconnected' or 'connected'.
+          */
          function setHeaderState(state)
          {
             var text, cname, title;
@@ -396,22 +399,22 @@
 
 
 
-			/**
-			 * Formats the status property to a string (with colors!)
-			 * @param status, the status property of a stream
-			 */
+         /**
+          * Formats the status property to a string (with colors!)
+          * @param status, the status property of a stream
+          */
          function formatStatus(status)
          {
-				if(status == undefined)
-				{
-					return "<span>Unknown, checking...</span>";
-				}
+            if(status == undefined)
+            {
+               return "<span>Unknown, checking...</span>";
+            }
 
-				switch(status)
-				{
-					case 1:		return "<span class='green'>Running</span>";				break;
-					case 0:		return "<span class='red'>Offline</span>";				break;
-					default:		return "<span class='green'>" + status + "</span>";	break;
-				}
+            switch(status)
+            {
+               case 1:		return "<span class='green'>Running</span>";				break;
+               case 0:		return "<span class='red'>Offline</span>";				break;
+               default:		return "<span class='green'>" + status + "</span>";	break;
+            }
          }
 

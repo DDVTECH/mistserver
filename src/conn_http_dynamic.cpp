@@ -402,21 +402,6 @@ namespace Connector_HTTP {
     conn.close();
     ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
     ss.close();
-#if DEBUG >= 1
-    if (FLV::Parse_Error){
-      fprintf(stderr, "FLV Parser Error: %s\n", FLV::Error_Str.c_str());
-    }
-    fprintf(stderr, "User %i disconnected.\n", conn.getSocket());
-    if (inited){
-      fprintf(stderr, "Status was: inited\n");
-    }else{
-      if (ready4data){
-        fprintf(stderr, "Status was: ready4data\n");
-      }else{
-        fprintf(stderr, "Status was: connected\n");
-      }
-    }
-#endif
     return 0;
   } //Connector_HTTP_Dynamic main function
 

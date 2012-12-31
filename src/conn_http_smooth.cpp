@@ -383,18 +383,6 @@ namespace Connector_HTTP {
     conn.close();
     ss.SendNow(conn.getStats("HTTP_Smooth").c_str());
     ss.close();
-#if DEBUG >= 1
-    fprintf(stderr, "User %i disconnected.\n", conn.getSocket());
-    if (inited){
-      fprintf(stderr, "Status was: inited\n");
-    }else{
-      if (ready4data){
-        fprintf(stderr, "Status was: ready4data\n");
-      }else{
-        fprintf(stderr, "Status was: connected\n");
-      }
-    }
-#endif
     return 0;
   } //Connector_HTTP_Smooth main function
 

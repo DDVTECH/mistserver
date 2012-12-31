@@ -243,11 +243,11 @@ void TS::Packet::PESVideoLeadIn(int NewLen, long long unsigned int PTS){
   if (PTS != 1){
     strBuf += (char)0x80; //PTSOnlyFlag + Flags
     strBuf += (char)0x05; //PESHeaderDataLength
-    strBuf += (char)(0x20 + ((PTS & 0x1C0000000) >> 29) + 1); //PTS
-    strBuf += (char)((PTS & 0x03FC00000) >> 22); //PTS (Cont)
-    strBuf += (char)(((PTS & 0x0003F8000) >> 14) + 1); //PTS (Cont)
-    strBuf += (char)((PTS & 0x000007F80) >> 7); //PTS (Cont)
-    strBuf += (char)(((PTS & 0x00000007F) << 1) + 1); //PTS (Cont)
+    strBuf += (char)(0x20 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
+    strBuf += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
+    strBuf += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
+    strBuf += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
+    strBuf += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
   }else{
     strBuf += (char)0x00; //PTSOnlyFlag + Flags
     strBuf += (char)0x00; //PESHeaderDataLength
@@ -278,11 +278,11 @@ void TS::Packet::PESAudioLeadIn(int NewLen, uint64_t PTS){
   strBuf += (char)0x80; //Reserved + Flags
   strBuf += (char)0x80; //PTSOnlyFlag + Flags
   strBuf += (char)0x05; //PESHeaderDataLength
-  strBuf += (char)(0x20 + ((PTS & 0x1C0000000) >> 29) + 1); //PTS
-  strBuf += (char)((PTS & 0x03FC00000) >> 22); //PTS (Cont)
-  strBuf += (char)(((PTS & 0x0003F8000) >> 14) + 1); //PTS (Cont)
-  strBuf += (char)((PTS & 0x000007F80) >> 7); //PTS (Cont)
-  strBuf += (char)(((PTS & 0x00000007F) << 1) + 1); //PTS (Cont)
+  strBuf += (char)(0x20 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
+  strBuf += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
+  strBuf += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
+  strBuf += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
+  strBuf += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
 }
 
 /// Fills the free bytes of the TS::Packet.

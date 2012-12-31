@@ -13,6 +13,8 @@ HTTP::Parser::Parser(){
 void HTTP::Parser::Clean(){
   seenHeaders = false;
   seenReq = false;
+  getChunks = false;
+  doingChunk = 0;
   method = "GET";
   url = "/";
   protocol = "HTTP/1.1";
@@ -200,6 +202,10 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
               body.reserve(length);
             }
           }
+          if (GetHeader("Transfer-Encoding") == "chunked"){
+            getChunks = true;
+            doingChunk = 0;
+          }
         }else{
           f = tmpA.find(':');
           if (f == std::string::npos) continue;
@@ -223,7 +229,43 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
           return false;
         }
       }else{
-        return true;
+        if (getChunks){
+          if (doingChunk){
+            unsigned int toappend = HTTPbuffer.size();
+            if (toappend > doingChunk){
+              toappend = doingChunk;
+            }
+            body.append(HTTPbuffer, 0, toappend);
+            HTTPbuffer.erase(0, toappend);
+            doingChunk -= toappend;
+          }else{
+            f = HTTPbuffer.find('\n');
+            if (f == std::string::npos) return false;
+            tmpA = HTTPbuffer.substr(0, f);
+            while (tmpA.find('\r') != std::string::npos){
+              tmpA.erase(tmpA.find('\r'));
+            }
+            unsigned int chunkLen = 0;
+            if ( !tmpA.empty()){
+              for (int i = 0; i < tmpA.size(); ++i){
+                chunkLen = (chunkLen << 4) | unhex(tmpA[i]);
+              }
+              if (chunkLen == 0){
+                getChunks = false;
+                return true;
+              }
+              doingChunk = chunkLen;
+            }
+            if (f + 1 == HTTPbuffer.size()){
+              HTTPbuffer.clear();
+            }else{
+              HTTPbuffer.erase(0, f + 1);
+            }
+          }
+          return false;
+        }else{
+          return true;
+        }
       }
     }
   }

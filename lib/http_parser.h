@@ -36,6 +36,8 @@ namespace HTTP {
     private:
       bool seenHeaders;
       bool seenReq;
+      bool getChunks;
+      unsigned int doingChunk;
       bool parse(std::string & HTTPbuffer);
       void parseVars(std::string data);
       std::string builder;

@@ -334,6 +334,12 @@ namespace Connector_HTTP {
       H.SetVar("stream", streamname);
       return "smooth";
     }
+    if (url.find("/hls/") != std::string::npos && (url.find(".m3u") != std::string::npos || url.find(".ts") != std::string::npos)){
+      std::string streamname = url.substr(5, url.find("/", 5) - 5);
+      Util::Stream::sanitizeName(streamname);
+      H.SetVar("stream", streamname);
+      return "live";
+    }
     if (url.length() > 4){
       std::string ext = url.substr(url.length() - 4, 4);
       if (ext == ".flv" || ext == ".mp3"){

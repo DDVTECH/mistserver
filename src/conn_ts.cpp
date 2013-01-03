@@ -163,7 +163,7 @@ int TS_Handler( Socket::Connection conn, std::string streamname ) {
             AudioCounter ++;
             if( WritePesHeader ) {
               PackData.UnitStart( 1 );
-              PackData.RandomAccess( 1 );
+              PackData.RandomAccess( 0 );
               PackData.AddStuffing( 184 - (14 + ToPack.size()) );
               PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
               WritePesHeader = false;

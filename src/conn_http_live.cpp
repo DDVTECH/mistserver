@@ -171,16 +171,19 @@ namespace Connector_HTTP {
 #if DEBUG >= 4
             fprintf( stderr, "Fragment number %d\n", Segment);
             fprintf( stderr, "Fragment indices %d\n", fragIndices.size() );
+            fprintf( stderr, "Seeking to fragment %d\n", fragIndices[Segment-1] + 1 );
 #endif
 
             std::stringstream sstream;
-            sstream << "f " << Segment + 1 << "\n";
+            sstream << "f " << fragIndices[Segment-1] + 1 << "\n";
             int frameCount;
 
             if (Segment == fragIndices.size() - 1){
+fprintf( stderr, "Last Fragment\n" );
               frameCount = Strm.metadata["keytime"].size() - fragIndices[Segment];
             }else{
-              frameCount = Strm.metadata["keytime"][fragIndices[Segment+1]].asInt() - Strm.metadata["keytime"][fragIndices[Segment]].asInt();
+fprintf( stderr, "Not Last Fragment\n" );
+              frameCount = fragIndices[Segment+1] - fragIndices[Segment];
             }
 #if DEBUG >= 4
             fprintf( stderr, "Frame count %d\n", frameCount);
@@ -296,16 +299,16 @@ namespace Connector_HTTP {
                 HTTP_S.SetHeader("Content-Type", "video/MP2T");
                 HTTP_S.SetBody("");
                 HTTP_S.SetHeader("Content-Length", TSBuf.rdbuf()->in_avail());
-                conn.SendNow(HTTP_S.BuildResponse("200", "OK"));                
+                conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
                 conn.SendNow(TSBuf.str().c_str(),TSBuf.rdbuf()->in_avail());
-                TSBuf.clear();
+                TSBuf.str("");
                 Flash_RequestPending--;
                 PacketNumber = 0;
 #if DEBUG >= 3
                 fprintf(stderr, "Done\n");
 #endif
               }
-              TSBuf.clear();
+              TSBuf.str("");
             }
             if( !haveAvcc ) {
               avccbox.setPayload( Strm.metadata["video"]["init"].asString() );
@@ -315,6 +318,7 @@ namespace Connector_HTTP {
               if( Strm.lastType() == DTSC::VIDEO ) {
                 DTMIData = Strm.lastData();
                 if( Strm.getPacket(0).isMember("keyframe") ) {
+fprintf( stderr, "  Received Keyframe of size %d\n", Strm.lastData().size() );
                   IsKeyFrame = true;
                   FirstIDRInKeyFrame = true;
                 } else {
@@ -362,9 +366,9 @@ namespace Connector_HTTP {
                 while( ToPack.size() ) {
                   if (PacketNumber == 0) {
                     PackData.DefaultPAT();
-                    TSBuf << std::string(PackData.ToString(), 188);
+                    TSBuf.write(PackData.ToString(), 188);
                     PackData.DefaultPMT();
-                    TSBuf << std::string(PackData.ToString(), 188);
+                    TSBuf.write(PackData.ToString(), 188);
                     PacketNumber += 2;
                   }
                   PackData.Clear();
@@ -387,7 +391,7 @@ namespace Connector_HTTP {
                     PackData.AddStuffing( 184 - (ToPack.size()) );
                   }
                   PackData.FillFree( ToPack );
-                  TSBuf << std::string(PackData.ToString(), 188);
+                  TSBuf.write(PackData.ToString(), 188);
                   PacketNumber ++;
                 }
               } else if( Strm.lastType() == DTSC::AUDIO ) {

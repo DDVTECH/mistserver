@@ -57,7 +57,7 @@ int main( ) {
                           (DTMIData[2] << 8) + DTMIData[3];
           DTMIData.erase(0,4);//Erase the first four characters;
           TSType = (int)DTMIData[0] & 0x1F;
-          if( !( TSType == 0x09 ) ) {// || TSType == 0x07 || TSType == 0x08 ) ) {
+          if( !( TSType == 0x09 ) ) {
             if( TSType == 0x05 ) {
               if( FirstPic ) {
                 ToPack += avccbox.asAnnexB( );
@@ -142,7 +142,7 @@ int main( ) {
             WritePesHeader = false;
           } else {
             PackData.AdaptationField( 1 );
-            PackData.AddStuffing( 184 - (ToPack.size()) );
+            PackData.AddStuffing( 184 - ToPack.size() );
           }
           PackData.FillFree( ToPack );
           std::cout.write( PackData.ToString(), 188 );

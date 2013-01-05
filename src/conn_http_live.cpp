@@ -326,44 +326,36 @@ namespace Connector_HTTP {
                 }
                 int TSType;
                 bool FirstPic = true;
-                bool haveInit = false;
                 std::string videoBuffer;
                 while( DTMIData.size() ) {
                   ThisNaluSize =  (DTMIData[0] << 24) + (DTMIData[1] << 16) +
                                   (DTMIData[2] << 8) + DTMIData[3];
                   DTMIData.erase(0,4);//Erase the first four characters;
                   TSType = (int)DTMIData[0] & 0x1F;
-                  if( TSType == 0x09 ) {
-                    DTMIData.erase(0,ThisNaluSize);
-                    continue;
-                  }
-                  if( TSType == 0x07 || TSType == 0x08 ) {
-                    haveInit = true;
-                  }
-                  if( TSType == 0x05 ) {
-                    if( FirstPic ) {
-                      if( !haveInit ) {
+                  if( !( TSType == 0x09 ) ) {
+                    if( TSType == 0x05 ) {
+                      if( FirstPic ) {
                         ToPack += avccbox.asAnnexB( );
+                        FirstPic = false;
+                      } 
+                      if( IsKeyFrame ) {
+                        if( !FirstKeyFrame && FirstIDRInKeyFrame ) {
+                          ToPack += (char)0x00;
+                          FirstIDRInKeyFrame = false;
+                        }
+                        ToPack.append(TS::ShortNalHeader,3);
                       }
-                      FirstPic = false;
-                    } 
-                    if( IsKeyFrame ) {
-                      if( !FirstKeyFrame && FirstIDRInKeyFrame ) {
+                    } else if ( TSType == 0x01 ) {
+                      if( FirstPic ) {
                         ToPack += (char)0x00;
-                        FirstIDRInKeyFrame = false;
+                        FirstPic = false;
                       }
                       ToPack.append(TS::ShortNalHeader,3);
+                    } else {
+                      ToPack.append(TS::NalHeader,4);
                     }
-                  } else if ( TSType == 0x01 ) {
-                    if( FirstPic ) {
-                      ToPack += (char)0x00;
-                      FirstPic = false;
-                    }
-                    ToPack.append(TS::ShortNalHeader,3);
-                  } else {
-                    ToPack.append(TS::NalHeader,4);
+                    ToPack.append(DTMIData,0,ThisNaluSize);
                   }
-                  ToPack.append(DTMIData,0,ThisNaluSize);
                   DTMIData.erase(0,ThisNaluSize);
                 }
                 WritePesHeader = true;
@@ -400,15 +392,16 @@ namespace Connector_HTTP {
                 }
               } else if( Strm.lastType() == DTSC::AUDIO ) {
                 WritePesHeader = true;
-                std::string audioBuffer = TS::GetAudioHeader( DTMIData.size(), Strm.metadata["audio"]["init"].asString() );
-                int fullSize = Strm.lastData().size() + audioBuffer.size();
-                int currentOffset = 0;
-                while( fullSize ) {
-                  if ( PacketNumber == 0 ) {
+                DTMIData = Strm.lastData();
+                ToPack = TS::GetAudioHeader( DTMIData.size(), Strm.metadata["audio"]["init"].asString() );
+                ToPack += DTMIData;
+                TimeStamp = Strm.getPacket(0)["time"].asInt() * 81000;
+                while( ToPack.size() ) {
+                  if ( ( PacketNumber == 0 ) ) {
                     PackData.DefaultPAT();
-                    TSBuf << std::string(PackData.ToString(), 188);
+                    TSBuf.write(PackData.ToString(), 188);
                     PackData.DefaultPMT();
-                    TSBuf << std::string(PackData.ToString(), 188);
+                    TSBuf.write(PackData.ToString(), 188);
                     PacketNumber += 2;
                   }
                   PackData.Clear();
@@ -417,21 +410,16 @@ namespace Connector_HTTP {
                   AudioCounter ++;
                   if( WritePesHeader ) {
                     PackData.UnitStart( 1 );
-                    PackData.RandomAccess( 0 );
-                    PackData.AddStuffing( 184 - (14 + fullSize) );
-                    PackData.PESAudioLeadIn( fullSize, Strm.getPacket(0)["time"].asInt() * 81000 );
+                    PackData.AddStuffing( 184 - (14 + ToPack.size()) );
+                    PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
                     WritePesHeader = false;
                   } else {
                     PackData.AdaptationField( 1 );
-                    PackData.AddStuffing( 184 - fullSize );
+                    PackData.AddStuffing( 184 - ToPack.size() );
                   }
-                  PackData.FillFree( audioBuffer );
-                  if( PackData.BytesFree( ) ) {
-                    currentOffset += PackData.FillFree( Strm.lastData().c_str() + currentOffset, Strm.lastData().size() - currentOffset );
-                  }
-                  TSBuf << std::string(PackData.ToString(), 188);
+                  PackData.FillFree( ToPack );
+                  TSBuf.write(PackData.ToString(), 188);
                   PacketNumber ++;
-                  fullSize = audioBuffer.size() + (Strm.lastData().size() - currentOffset);
                 }
               }  
             }

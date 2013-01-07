@@ -23,7 +23,7 @@ MistConnTS_SOURCES=conn_ts.cpp ../VERSION
 MistPlayer_SOURCES=player.cpp
 MistPlayer_LDADD=$(MIST_LIBS)
 
-lspSOURCES=$(lspdir)/jquery.js $(lspdir)/placeholder.js $(lspdir)/md5.js $(lspdir)/main.js $(lspdir)/functions.js
+lspSOURCES=$(lspdir)/jquery.js $(lspdir)/placeholder.js $(lspdir)/md5.js $(lspdir)/main.js $(lspdir)/functions.js $(lspdir)/tablesort.js
 lspDATA=$(lspdir)/header.html $(lspdir)/style.css $(lspdir)/footer.html
 
 embed.js.h: $(srcdir)/embed.js

@@ -43,6 +43,7 @@ namespace TS {
       void PESVideoLeadIn(int NewLen, long long unsigned int PTS = 1);
       void PESAudioLeadIn(int NewLen, uint64_t PTS = 0);
       void FillFree(std::string & PackageData);
+      int FillFree(const char* PackageData, int maxLen);
       void AddStuffing(int NumBytes);
     private:
       //int Free;

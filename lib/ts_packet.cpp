@@ -48,6 +48,9 @@ int TS::Packet::PID(){
 /// Sets the Continuity Counter of a single TS::Packet.
 /// \param NewContinuity The new Continuity Counter of the packet.
 void TS::Packet::ContinuityCounter(int NewContinuity){
+  if (strBuf.size() < 4){
+    strBuf.resize(4);
+  }
   strBuf[3] = (strBuf[3] & 0xF0) + (NewContinuity & 0x0F);
 }
 
@@ -211,16 +214,16 @@ void TS::Packet::RandomAccess(int NewVal){
 void TS::Packet::DefaultPAT(){
   static int MyCntr = 0;
   strBuf = std::string(TS::PAT, 188);
-  ContinuityCounter(MyCntr);
-  MyCntr = ((MyCntr + 1) % 0x10);
+  ContinuityCounter(MyCntr++);
+  MyCntr %= 0x10;
 }
 
 /// Transforms the TS::Packet into a standard Program Mapping Table
 void TS::Packet::DefaultPMT(){
   static int MyCntr = 0;
   strBuf = std::string(TS::PMT, 188);
-  ContinuityCounter(MyCntr);
-  MyCntr = ((MyCntr + 1) % 0x10);
+  ContinuityCounter(MyCntr++);
+  MyCntr %= 0x10;
 }
 
 /// Generates a string from the contents of the TS::Packet
@@ -296,6 +299,15 @@ void TS::Packet::FillFree(std::string & NewVal){
   int toWrite = 188 - strBuf.size();
   strBuf += NewVal.substr(0, toWrite);
   NewVal.erase(0, toWrite);
+}
+
+/// Fills the free bytes of the TS::Packet.
+/// Stores as many bytes from NewVal as possible in the packet.
+/// \param NewVal The data to store in the packet.
+int TS::Packet::FillFree(const char* NewVal, int maxLen){
+  int toWrite = std::min((int)(188 - strBuf.size()), maxLen);
+  strBuf += std::string(NewVal, toWrite);
+  return toWrite;
 }
 
 /// Adds NumBytes of stuffing to the TS::Packet.

@@ -2055,6 +2055,7 @@ namespace MP4 {
 
   void AVCC::setPayload(std::string newPayload){
     if ( !reserve(0, payloadSize(), newPayload.size())){
+      std::cerr << "Cannot allocate enough memory for payload" << std::endl;
       return;
     }
     memcpy((char*)payload(), (char*)newPayload.c_str(), newPayload.size());

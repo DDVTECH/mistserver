@@ -27,9 +27,9 @@
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
   /// Parses the list of keyframes into 10 second fragments
-  std::vector<int> keyframesToFragments( JSON::Value & metadata ) {
+  std::vector<int> keyframesToFragments(JSON::Value & metadata){
     std::vector<int> result;
-    if( metadata.isNull() ) {
+    if (metadata.isNull()){
       return result;
     }
     result.push_back(0);
@@ -46,37 +46,36 @@ namespace Connector_HTTP {
   /// Returns a m3u or m3u8 index file
   std::string BuildIndex(std::string & MovieId, JSON::Value & metadata){
     std::stringstream Result;
-    std::vector<int> fragIndices = keyframesToFragments( metadata );
+    std::vector<int> fragIndices = keyframesToFragments(metadata);
     int longestFragment = 0;
     for (int i = 1; i < fragIndices.size(); i++){
-      int fragDuration = metadata["keytime"][fragIndices[i]].asInt() - metadata["keytime"][fragIndices[i-1]].asInt();
+      int fragDuration = metadata["keytime"][fragIndices[i]].asInt() - metadata["keytime"][fragIndices[i - 1]].asInt();
       if (fragDuration > longestFragment){
         longestFragment = fragDuration;
       }
     }
     if (metadata.isMember("length") && metadata["length"].asInt() > 0){
-      Result <<
-          "#EXTM3U\r\n"
-              //"#EXT-X-VERSION:1\r\n"
+      Result << "#EXTM3U\r\n"
+      //"#EXT-X-VERSION:1\r\n"
               "#EXT-X-MEDIA-SEQUENCE:1\r\n"
               //"#EXT-X-ALLOW-CACHE:YES\r\n"
               "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
-              //"#EXT-X-PLAYLIST-TYPE:VOD\r\n";
+      //"#EXT-X-PLAYLIST-TYPE:VOD\r\n";
       int lastDuration = 0;
       bool writeOffset = true;
-      fragIndices.push_back( metadata["keytime"][metadata["keytime"].size()-1].asInt() + 1 );
-      for (int i = 0; i < fragIndices.size() - 1; i++) {
-        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i]].asInt() - lastDuration) / 1000 << "." << std::setw(3) << std::setfill('0') << ((metadata["keytime"][fragIndices[i]].asInt() - lastDuration) % 1000) << ",\r\n"
-        << fragIndices[i] << "_" << fragIndices[i+1] - fragIndices[i] << ".ts\r\n";
+      fragIndices.push_back(metadata["keytime"][metadata["keytime"].size() - 1].asInt() + 1);
+      for (int i = 0; i < fragIndices.size() - 1; i++){
+        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i]].asInt() - lastDuration) / 1000 << "." << std::setw(3) << std::setfill('0')
+            << ((metadata["keytime"][fragIndices[i]].asInt() - lastDuration) % 1000) << ",\r\n" << fragIndices[i] << "_"
+            << fragIndices[i + 1] - fragIndices[i] << ".ts\r\n";
         lastDuration = metadata["keytime"][fragIndices[i]].asInt();
       }
       Result << "#EXT-X-ENDLIST";
     }else{
-      Result <<
-          "#EXTM3U\r\n"
-              "#EXT-X-VERSION:4\r\n"
-              "#EXT-X-MEDIA-SEQUENCE:1\r\n"
-              "#EXT-X-TARGETDURATION:" << ((metadata["video"]["keyms"].asInt() + metadata["video"]["keyvar"].asInt()) / 1000) + 1 << "\r\n";
+      Result << "#EXTM3U\r\n"
+          "#EXT-X-VERSION:4\r\n"
+          "#EXT-X-MEDIA-SEQUENCE:1\r\n"
+          "#EXT-X-TARGETDURATION:" << ((metadata["video"]["keyms"].asInt() + metadata["video"]["keyvar"].asInt()) / 1000) + 1 << "\r\n";
     }
 #if DEBUG >= 8
     std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
@@ -114,7 +113,7 @@ namespace Connector_HTTP {
     bool FirstIDRInKeyFrame;
     MP4::AVCC avccbox;
     bool haveAvcc = false;
-    
+
     std::vector<int> fragIndices;
 
     int Segment = -1;
@@ -162,11 +161,11 @@ namespace Connector_HTTP {
             temp = HTTP_R.url.find("_", temp) + 1;
             int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
             //if( !fragIndices.size() ) {
-              //fragIndices = keyframesToFragments( Strm.metadata );
+            //fragIndices = keyframesToFragments( Strm.metadata );
             //}
 
 #if DEBUG >= 4
-            fprintf( stderr, "Fragment number %d\n", Segment);
+            fprintf(stderr, "Fragment number %d\n", Segment);
             //fprintf( stderr, "Fragment indices %d\n", fragIndices.size() );
             //fprintf( stderr, "Seeking to fragment %d\n", fragIndices[Segment-1] + 1 );
 #endif
@@ -176,7 +175,7 @@ namespace Connector_HTTP {
             sstream << "f " << Segment + 1 << "\n";
 
 #if DEBUG >= 4
-            fprintf( stderr, "Frame count %d\n", frameCount);
+            fprintf(stderr, "Frame count %d\n", frameCount);
 #endif
             for (int i = 0; i < frameCount; i++){
               sstream << "o \n";
@@ -187,10 +186,10 @@ namespace Connector_HTTP {
             streamname = HTTP_R.url.substr(5, HTTP_R.url.find("/", 5) - 5);
             if ( !Strm.metadata.isNull()){
               HTTP_S.Clean();
-              if (HTTP_R.url.find(".m3u8") != std::string::npos) {
-                HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl");//m3u8
+              if (HTTP_R.url.find(".m3u8") != std::string::npos){
+                HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl"); //m3u8
               }else{
-                HTTP_S.SetHeader("Content-Type", "audio/mpegurl");//m3u
+                HTTP_S.SetHeader("Content-Type", "audio/mpegurl"); //m3u
               }
               HTTP_S.SetHeader("Cache-Control", "no-cache");
               if (Strm.metadata.isMember("length")){
@@ -262,10 +261,10 @@ namespace Connector_HTTP {
                 receive_marks = true;
               }
               std::string manifest = BuildIndex(streamname, Strm.metadata);
-              if (HTTP_R.url.find(".m3u8") != std::string::npos) {
-                HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl");//m3u8
+              if (HTTP_R.url.find(".m3u8") != std::string::npos){
+                HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl"); //m3u8
               }else{
-                HTTP_S.SetHeader("Content-Type", "audio/mpegurl");//m3u
+                HTTP_S.SetHeader("Content-Type", "audio/mpegurl"); //m3u
               }
               HTTP_S.SetBody(manifest);
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
@@ -291,10 +290,10 @@ namespace Connector_HTTP {
                 HTTP_S.SetBody("");
                 HTTP_S.SetHeader("Content-Length", TSBuf.str().size());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-                conn.SendNow(TSBuf.str().c_str(),TSBuf.str().size());
+                conn.SendNow(TSBuf.str().c_str(), TSBuf.str().size());
                 TSBuf.str("");
                 Flash_RequestPending--;
-fprintf( stderr, "Sent %d packets\n", PacketNumber );
+                fprintf(stderr, "Sent %d packets\n", PacketNumber);
                 PacketNumber = 0;
 #if DEBUG >= 3
                 fprintf(stderr, "Done\n");
@@ -302,93 +301,56 @@ fprintf( stderr, "Sent %d packets\n", PacketNumber );
               }
               TSBuf.str("");
             }
-            if( !haveAvcc ) {
-              avccbox.setPayload( Strm.metadata["video"]["init"].asString() );
+            if ( !haveAvcc){
+              avccbox.setPayload(Strm.metadata["video"]["init"].asString());
               haveAvcc = true;
             }
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
-              if( Strm.lastType() == DTSC::VIDEO ) {
+              if (Strm.lastType() == DTSC::VIDEO){
                 DTMIData = Strm.lastData();
-                if( Strm.getPacket(0).isMember("keyframe") ) {
-fprintf( stderr, "  Received Keyframe of size %d\n", Strm.lastData().size() );
+                if (Strm.getPacket(0).isMember("keyframe")){
+                  fprintf(stderr, "  Received Keyframe of size %d\n", Strm.lastData().size());
                   IsKeyFrame = true;
                   FirstIDRInKeyFrame = true;
-                } else {
+                }else{
                   IsKeyFrame = false;
                   FirstKeyFrame = false;
                 }
-                if( IsKeyFrame ) {
-                  TimeStamp = ( Strm.getPacket(0)["time"].asInt() * 27000 );
+                if (IsKeyFrame){
+                  TimeStamp = (Strm.getPacket(0)["time"].asInt() * 27000);
                 }
                 int TSType;
                 bool FirstPic = true;
-                while( DTMIData.size() ) {
-                  ThisNaluSize =  (DTMIData[0] << 24) + (DTMIData[1] << 16) +
-                                  (DTMIData[2] << 8) + DTMIData[3];
-                  DTMIData.erase(0,4);//Erase the first four characters;
+                while (DTMIData.size()){
+                  ThisNaluSize = (DTMIData[0] << 24) + (DTMIData[1] << 16) + (DTMIData[2] << 8) + DTMIData[3];
+                  DTMIData.erase(0, 4); //Erase the first four characters;
                   TSType = (int)DTMIData[0] & 0x1F;
-                  if( TSType == 0x05 ) {
-                    if( FirstPic ) {
-                      ToPack += avccbox.asAnnexB( );
+                  if (TSType == 0x05){
+                    if (FirstPic){
+                      ToPack += avccbox.asAnnexB();
                       FirstPic = false;
-                    } 
-                    if( IsKeyFrame ) {
+                    }
+                    if (IsKeyFrame){
                       //if( !FirstKeyFrame && FirstIDRInKeyFrame ) {
                       //  ToPack += (char)0x00;
                       //  FirstIDRInKeyFrame = false;
                       //}
-                      ToPack.append(TS::NalHeader,4);
+                      ToPack.append(TS::NalHeader, 4);
                     }
-                  } else if ( TSType == 0x01 ) {
-                    if( FirstPic ) {
+                  }else if (TSType == 0x01){
+                    if (FirstPic){
                       //ToPack += (char)0x00;
                       FirstPic = false;
                     }
-                    ToPack.append(TS::NalHeader,4);
-                  } else {
-                    ToPack.append(TS::NalHeader,4);
+                    ToPack.append(TS::NalHeader, 4);
+                  }else{
+                    ToPack.append(TS::NalHeader, 4);
                   }
-                  ToPack.append(DTMIData,0,ThisNaluSize);
-                  DTMIData.erase(0,ThisNaluSize);
+                  ToPack.append(DTMIData, 0, ThisNaluSize);
+                  DTMIData.erase(0, ThisNaluSize);
                 }
                 WritePesHeader = true;
-                while( ToPack.size() ) {
-                  if ((PacketNumber % 42) == 0) {
-                    PackData.DefaultPAT();
-                    TSBuf.write(PackData.ToString(), 188);
-                    PackData.DefaultPMT();
-                    TSBuf.write(PackData.ToString(), 188);
-                    PacketNumber += 2;
-                  }
-                  PackData.Clear();
-                  PackData.PID( 0x100 );
-                  PackData.ContinuityCounter( VideoCounter );
-                  VideoCounter ++;
-                  if( WritePesHeader ) {
-                    PackData.UnitStart( 1 );
-                    if( IsKeyFrame ) {
-                      PackData.RandomAccess( 1 );
-                      PackData.PCR( TimeStamp );
-                    } else {
-                      PackData.AdaptationField( 1 );
-                    }
-                    PackData.AddStuffing( 184 - (20+ToPack.size()) );
-                    PackData.PESVideoLeadIn( ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90 );
-                    WritePesHeader = false;
-                  } else {
-                    PackData.AdaptationField( 1 );
-                    PackData.AddStuffing( 184 - (ToPack.size()) );
-                  }
-                  PackData.FillFree( ToPack );
-                  TSBuf.write(PackData.ToString(), 188);
-                  PacketNumber ++;
-                }
-              } else if( Strm.lastType() == DTSC::AUDIO ) {
-                WritePesHeader = true;
-                DTMIData = Strm.lastData();
-                ToPack = TS::GetAudioHeader( DTMIData.size(), Strm.metadata["audio"]["init"].asString() );
-                ToPack += DTMIData;
-                while( ToPack.size() ) {
+                while (ToPack.size()){
                   if ((PacketNumber % 42) == 0){
                     PackData.DefaultPAT();
                     TSBuf.write(PackData.ToString(), 188);
@@ -397,23 +359,59 @@ fprintf( stderr, "  Received Keyframe of size %d\n", Strm.lastData().size() );
                     PacketNumber += 2;
                   }
                   PackData.Clear();
-                  PackData.PID( 0x101 );
-                  PackData.ContinuityCounter( AudioCounter );
-                  AudioCounter ++;
-                  if( WritePesHeader ) {
-                    PackData.UnitStart( 1 );
-                    PackData.AddStuffing( 184 - (14 + ToPack.size()) );
-                    PackData.PESAudioLeadIn( ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90 );
+                  PackData.PID(0x100);
+                  PackData.ContinuityCounter(VideoCounter);
+                  VideoCounter++;
+                  if (WritePesHeader){
+                    PackData.UnitStart(1);
+                    if (IsKeyFrame){
+                      PackData.RandomAccess(1);
+                      PackData.PCR(TimeStamp);
+                    }else{
+                      PackData.AdaptationField(1);
+                    }
+                    PackData.AddStuffing(184 - (20 + ToPack.size()));
+                    PackData.PESVideoLeadIn(ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90);
                     WritePesHeader = false;
-                  } else {
-                    PackData.AdaptationField( 1 );
-                    PackData.AddStuffing( 184 - ToPack.size() );
+                  }else{
+                    PackData.AdaptationField(1);
+                    PackData.AddStuffing(184 - (ToPack.size()));
                   }
-                  PackData.FillFree( ToPack );
+                  PackData.FillFree(ToPack);
                   TSBuf.write(PackData.ToString(), 188);
-                  PacketNumber ++;
+                  PacketNumber++;
                 }
-              }  
+              }else if (Strm.lastType() == DTSC::AUDIO){
+                WritePesHeader = true;
+                DTMIData = Strm.lastData();
+                ToPack = TS::GetAudioHeader(DTMIData.size(), Strm.metadata["audio"]["init"].asString());
+                ToPack += DTMIData;
+                while (ToPack.size()){
+                  if ((PacketNumber % 42) == 0){
+                    PackData.DefaultPAT();
+                    TSBuf.write(PackData.ToString(), 188);
+                    PackData.DefaultPMT();
+                    TSBuf.write(PackData.ToString(), 188);
+                    PacketNumber += 2;
+                  }
+                  PackData.Clear();
+                  PackData.PID(0x101);
+                  PackData.ContinuityCounter(AudioCounter);
+                  AudioCounter++;
+                  if (WritePesHeader){
+                    PackData.UnitStart(1);
+                    PackData.AddStuffing(184 - (14 + ToPack.size()));
+                    PackData.PESAudioLeadIn(ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90);
+                    WritePesHeader = false;
+                  }else{
+                    PackData.AdaptationField(1);
+                    PackData.AddStuffing(184 - ToPack.size());
+                  }
+                  PackData.FillFree(ToPack);
+                  TSBuf.write(PackData.ToString(), 188);
+                  PacketNumber++;
+                }
+              }
             }
           }
           if (pending_manifest && !Strm.metadata.isNull()){
@@ -422,10 +420,10 @@ fprintf( stderr, "  Received Keyframe of size %d\n", Strm.lastData().size() );
             if (Strm.metadata.isMember("length")){
               receive_marks = true;
             }
-            if (HTTP_R.url.find(".m3u8") != std::string::npos) {
-              HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl");//m3u8
+            if (HTTP_R.url.find(".m3u8") != std::string::npos){
+              HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl"); //m3u8
             }else{
-              HTTP_S.SetHeader("Content-Type", "audio/mpegurl");//m3u
+              HTTP_S.SetHeader("Content-Type", "audio/mpegurl"); //m3u
             }
             std::string manifest = BuildIndex(streamname, Strm.metadata);
             HTTP_S.SetBody(manifest);

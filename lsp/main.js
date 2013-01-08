@@ -136,7 +136,7 @@
                         }else{
                            setHeaderState('disconnected');
                            $('#header-host').text('');
-									$('#page').append($('<p>').text(errorstr));
+                           $('#page').append($('<p>').text(errorstr));
                         }
                      });
                   }).text('login');
@@ -187,7 +187,7 @@
                         )
                      ).append(
                         $('<label>').text('time').append(
-                           $('<span>').text( formatDate(settings.settings.config.time) )
+                           $('<span>').text( formatDateLong(settings.settings.config.time) )
                         )
                      ).append(
                         $('<label>').text('Streams').append(
@@ -1018,7 +1018,7 @@
                   
                case 'logs':
                   $table = $('<table>');
-                  $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
+                  $table.html("<thead><th>Date<span class='theadinfo'>(MMM DD YYYY)</span></th><th>Type</th><th>Message</th></thead>");
                   $tbody = $('<tbody>');
                   
                   if(!settings.settings.log)
@@ -1041,7 +1041,7 @@
                      cur = settings.settings.log[i];
                      
                      $tr = $('<tr>').append(
-                        $('<td>').text(formatDate(cur[0]))
+                        $('<td>').text(formatDateLong(cur[0]))
                      ).append(
                         $('<td>').text(cur[1])
                      ).append(

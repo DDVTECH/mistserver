@@ -16,9 +16,9 @@
          function formatDate(date)
          {
             var d = new Date(date * 1000);
-
+            // note: .getMonth() returns the month from 0-11
             return [
-               ('00' + d.getMonth()).slice(-2),
+               ('00' + (d.getMonth()+1)).slice(-2),
                ('00' + d.getDate()).slice(-2),
                d.getFullYear()
             ].join('/') + ' ' + [
@@ -27,6 +27,31 @@
                ('00' + d.getSeconds()).slice(-2)
             ].join(':');
          }
+			
+			 
+			 /**
+          * Format a date to mmm dd /yyyy hh:mm:ss format
+          * @param date the date to format (timestamp)
+          */
+			 months = Array('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+         function formatDateLong(date)
+         {
+            var d = new Date(date * 1000);
+            
+            return [
+               months[d.getMonth()],
+               ('00' + d.getDate()).slice(-2),
+               d.getFullYear()
+            ].join(' ') + ' ' + [
+               ('00' + d.getHours()).slice(-2),
+               ('00' + d.getMinutes()).slice(-2),
+               ('00' + d.getSeconds()).slice(-2)
+            ].join(':');
+         }
+			function nameMonth(monthNum) 
+			{
+				months = Array('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+			}
 
 
          /**

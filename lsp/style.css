@@ -245,7 +245,7 @@ label
    display: block;
    margin: 6px 0 9px 0;
    padding: 8px 0 0 0;
-   width: 400px;
+   width: 600px;
 }
 
 label input,
@@ -264,7 +264,7 @@ label span
 
 #editserver
 {
-   width: 400px;
+   width: 600px;
 
    float: left;
 }
@@ -372,9 +372,9 @@ td
 
 #forcesave
 {
-   width: 400px;
+   width: 600px;
    float: left;
-   margin: 0 0 0 100px;
+   margin-top:20px;
 }
 
 #forcesave button
@@ -385,6 +385,8 @@ td
 #forcesave p
 {
    text-transform: none;
+   width:500px;
+   float:right;
 }
 
 

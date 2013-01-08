@@ -1,4 +1,3 @@
-#define DEBUG 5
 /// \file conn_http_dynamic.cpp
 /// Contains the main code for the HTTP Dynamic Connector
 
@@ -160,23 +159,9 @@ namespace Connector_HTTP {
             Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("_", temp) - temp).c_str());
             temp = HTTP_R.url.find("_", temp) + 1;
             int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
-            //if( !fragIndices.size() ) {
-            //fragIndices = keyframesToFragments( Strm.metadata );
-            //}
-
-#if DEBUG >= 4
-            fprintf(stderr, "Fragment number %d\n", Segment);
-            //fprintf( stderr, "Fragment indices %d\n", fragIndices.size() );
-            //fprintf( stderr, "Seeking to fragment %d\n", fragIndices[Segment-1] + 1 );
-#endif
 
             std::stringstream sstream;
-            sstream << "f " << Segment + 1 + frameCount << "\n";
             sstream << "f " << Segment + 1 << "\n";
-
-#if DEBUG >= 4
-            fprintf(stderr, "Frame count %d\n", frameCount);
-#endif
             for (int i = 0; i < frameCount; i++){
               sstream << "o \n";
             }
@@ -293,7 +278,6 @@ namespace Connector_HTTP {
                 conn.SendNow(TSBuf.str().c_str(), TSBuf.str().size());
                 TSBuf.str("");
                 Flash_RequestPending--;
-                fprintf(stderr, "Sent %d packets\n", PacketNumber);
                 PacketNumber = 0;
 #if DEBUG >= 3
                 fprintf(stderr, "Done\n");
@@ -309,7 +293,6 @@ namespace Connector_HTTP {
               if (Strm.lastType() == DTSC::VIDEO){
                 DTMIData = Strm.lastData();
                 if (Strm.getPacket(0).isMember("keyframe")){
-                  fprintf(stderr, "  Received Keyframe of size %d\n", Strm.lastData().size());
                   IsKeyFrame = true;
                   FirstIDRInKeyFrame = true;
                 }else{
@@ -330,22 +313,8 @@ namespace Connector_HTTP {
                       ToPack += avccbox.asAnnexB();
                       FirstPic = false;
                     }
-                    if (IsKeyFrame){
-                      //if( !FirstKeyFrame && FirstIDRInKeyFrame ) {
-                      //  ToPack += (char)0x00;
-                      //  FirstIDRInKeyFrame = false;
-                      //}
-                      ToPack.append(TS::NalHeader, 4);
-                    }
-                  }else if (TSType == 0x01){
-                    if (FirstPic){
-                      //ToPack += (char)0x00;
-                      FirstPic = false;
-                    }
-                    ToPack.append(TS::NalHeader, 4);
-                  }else{
-                    ToPack.append(TS::NalHeader, 4);
                   }
+                  ToPack.append(TS::NalHeader, 4);
                   ToPack.append(DTMIData, 0, ThisNaluSize);
                   DTMIData.erase(0, ThisNaluSize);
                 }

@@ -207,6 +207,12 @@ namespace Controller {
     capa["connectors"]["HTTPSmooth"]["optional"]["username"]["help"] =
         "Username to drop privileges to - default if unprovided means do not drop privileges";
     capa["connectors"]["HTTPSmooth"]["optional"]["username"]["type"] = "str";
+    capa["connectors"]["HTTPLive"]["desc"] = "Enables HTTP protocol Apple-style live streaming.";
+    capa["connectors"]["HTTPLive"]["deps"] = "HTTP";
+    capa["connectors"]["HTTPLive"]["optional"]["username"]["name"] = "Username";
+    capa["connectors"]["HTTPLive"]["optional"]["username"]["help"] =
+        "Username to drop privileges to - default if unprovided means do not drop privileges";
+    capa["connectors"]["HTTPLive"]["optional"]["username"]["type"] = "str";
   }
 
 }

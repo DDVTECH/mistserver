@@ -148,7 +148,6 @@ int TS_Handler( Socket::Connection conn, std::string streamname ) {
           DTMIData = Strm.lastData();
           ToPack = TS::GetAudioHeader( DTMIData.size(), Strm.metadata["audio"]["init"].asString() );
           ToPack += DTMIData;
-          TimeStamp = Strm.getPacket(0)["time"].asInt() * 81000;
           while( ToPack.size() ) {
             if ( ( PacketNumber % 42 ) == 0 ) {
               PackData.DefaultPAT();
@@ -163,9 +162,8 @@ int TS_Handler( Socket::Connection conn, std::string streamname ) {
             AudioCounter ++;
             if( WritePesHeader ) {
               PackData.UnitStart( 1 );
-              PackData.RandomAccess( 0 );
               PackData.AddStuffing( 184 - (14 + ToPack.size()) );
-              PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
+              PackData.PESAudioLeadIn( ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90 );
               WritePesHeader = false;
             } else {
               PackData.AdaptationField( 1 );

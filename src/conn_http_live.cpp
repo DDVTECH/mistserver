@@ -57,22 +57,18 @@ namespace Connector_HTTP {
     if (metadata.isMember("length") && metadata["length"].asInt() > 0){
       Result <<
           "#EXTM3U\r\n"
-              "#EXT-X-VERSION:3\r\n"
+              //"#EXT-X-VERSION:1\r\n"
               "#EXT-X-MEDIA-SEQUENCE:1\r\n"
               //"#EXT-X-ALLOW-CACHE:YES\r\n"
-              "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
-              "#EXT-X-PLAYLIST-TYPE:VOD\r\n";
+              "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
+              //"#EXT-X-PLAYLIST-TYPE:VOD\r\n";
       int lastDuration = 0;
-      int lastBytePos = 0;
       bool writeOffset = true;
-      int j = 0;
-      for (int i = 0; i < fragIndices.size(); i++) {
-        if (lastDuration != 0){
-          Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i]].asInt() - lastDuration) / 1000 << "." << std::setw(3) << std::setfill('0') << ((metadata["keytime"][fragIndices[i]].asInt() - lastDuration) % 1000) << ",\r\n"
-          << ++j << ".ts\r\n";
-        }
+      fragIndices.push_back( metadata["keytime"][metadata["keytime"].size()-1].asInt() + 1 );
+      for (int i = 0; i < fragIndices.size() - 1; i++) {
+        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i]].asInt() - lastDuration) / 1000 << "." << std::setw(3) << std::setfill('0') << ((metadata["keytime"][fragIndices[i]].asInt() - lastDuration) % 1000) << ",\r\n"
+        << fragIndices[i] << "_" << fragIndices[i+1] - fragIndices[i] << ".ts\r\n";
         lastDuration = metadata["keytime"][fragIndices[i]].asInt();
-        lastBytePos = metadata["keybpos"][fragIndices[i]].asInt();
       }
       Result << "#EXT-X-ENDLIST";
     }else{
@@ -152,7 +148,6 @@ namespace Connector_HTTP {
 #if DEBUG >= 1
                 fprintf(stderr, "Could not connect to server!\n");
 #endif
-                ss.close();
                 HTTP_S.Clean();
                 HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
                 conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
@@ -163,28 +158,23 @@ namespace Connector_HTTP {
               inited = true;
             }
             temp = HTTP_R.url.find("/", 5) + 1;
-            Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
-            if( !fragIndices.size() ) {
-              fragIndices = keyframesToFragments( Strm.metadata );
-            }
+            Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("_", temp) - temp).c_str());
+            temp = HTTP_R.url.find("_", temp) + 1;
+            int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
+            //if( !fragIndices.size() ) {
+              //fragIndices = keyframesToFragments( Strm.metadata );
+            //}
 
 #if DEBUG >= 4
             fprintf( stderr, "Fragment number %d\n", Segment);
-            fprintf( stderr, "Fragment indices %d\n", fragIndices.size() );
-            fprintf( stderr, "Seeking to fragment %d\n", fragIndices[Segment-1] + 1 );
+            //fprintf( stderr, "Fragment indices %d\n", fragIndices.size() );
+            //fprintf( stderr, "Seeking to fragment %d\n", fragIndices[Segment-1] + 1 );
 #endif
 
             std::stringstream sstream;
-            sstream << "f " << fragIndices[Segment-1] + 1 << "\n";
-            int frameCount;
+            sstream << "f " << Segment + 1 + frameCount << "\n";
+            sstream << "f " << Segment + 1 << "\n";
 
-            if (Segment == fragIndices.size() - 1){
-fprintf( stderr, "Last Fragment\n" );
-              frameCount = Strm.metadata["keytime"].size() - fragIndices[Segment];
-            }else{
-fprintf( stderr, "Not Last Fragment\n" );
-              frameCount = fragIndices[Segment+1] - fragIndices[Segment];
-            }
 #if DEBUG >= 4
             fprintf( stderr, "Frame count %d\n", frameCount);
 #endif
@@ -288,21 +278,23 @@ fprintf( stderr, "Not Last Fragment\n" );
               receive_marks = true;
             }
             if ((Strm.getPacket(0).isMember("keyframe") && !receive_marks) || Strm.lastType() == DTSC::PAUSEMARK){
+              TSBuf.flush();
 #if DEBUG >= 4
-              fprintf(stderr, "Received a %s fragment of %i bytes.\n", Strm.getPacket(0)["datatype"].asString().c_str(), TSBuf.rdbuf()->in_avail());
+              fprintf(stderr, "Received a %s fragment of %i bytes.\n", Strm.getPacket(0)["datatype"].asString().c_str(), TSBuf.str().size());
 #endif
-              if (Flash_RequestPending > 0 && TSBuf.rdbuf()->in_avail()){
+              if (Flash_RequestPending > 0 && TSBuf.str().size()){
 #if DEBUG >= 3
                 fprintf(stderr, "Sending a fragment...");
 #endif
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "video/MP2T");
                 HTTP_S.SetBody("");
-                HTTP_S.SetHeader("Content-Length", TSBuf.rdbuf()->in_avail());
+                HTTP_S.SetHeader("Content-Length", TSBuf.str().size());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-                conn.SendNow(TSBuf.str().c_str(),TSBuf.rdbuf()->in_avail());
+                conn.SendNow(TSBuf.str().c_str(),TSBuf.str().size());
                 TSBuf.str("");
                 Flash_RequestPending--;
+fprintf( stderr, "Sent %d packets\n", PacketNumber );
                 PacketNumber = 0;
 #if DEBUG >= 3
                 fprintf(stderr, "Done\n");
@@ -330,41 +322,38 @@ fprintf( stderr, "  Received Keyframe of size %d\n", Strm.lastData().size() );
                 }
                 int TSType;
                 bool FirstPic = true;
-                std::string videoBuffer;
                 while( DTMIData.size() ) {
                   ThisNaluSize =  (DTMIData[0] << 24) + (DTMIData[1] << 16) +
                                   (DTMIData[2] << 8) + DTMIData[3];
                   DTMIData.erase(0,4);//Erase the first four characters;
                   TSType = (int)DTMIData[0] & 0x1F;
-                  if( !( TSType == 0x09 ) ) {
-                    if( TSType == 0x05 ) {
-                      if( FirstPic ) {
-                        ToPack += avccbox.asAnnexB( );
-                        FirstPic = false;
-                      } 
-                      if( IsKeyFrame ) {
-                        if( !FirstKeyFrame && FirstIDRInKeyFrame ) {
-                          ToPack += (char)0x00;
-                          FirstIDRInKeyFrame = false;
-                        }
-                        ToPack.append(TS::ShortNalHeader,3);
-                      }
-                    } else if ( TSType == 0x01 ) {
-                      if( FirstPic ) {
-                        ToPack += (char)0x00;
-                        FirstPic = false;
-                      }
-                      ToPack.append(TS::ShortNalHeader,3);
-                    } else {
+                  if( TSType == 0x05 ) {
+                    if( FirstPic ) {
+                      ToPack += avccbox.asAnnexB( );
+                      FirstPic = false;
+                    } 
+                    if( IsKeyFrame ) {
+                      //if( !FirstKeyFrame && FirstIDRInKeyFrame ) {
+                      //  ToPack += (char)0x00;
+                      //  FirstIDRInKeyFrame = false;
+                      //}
                       ToPack.append(TS::NalHeader,4);
                     }
-                    ToPack.append(DTMIData,0,ThisNaluSize);
+                  } else if ( TSType == 0x01 ) {
+                    if( FirstPic ) {
+                      //ToPack += (char)0x00;
+                      FirstPic = false;
+                    }
+                    ToPack.append(TS::NalHeader,4);
+                  } else {
+                    ToPack.append(TS::NalHeader,4);
                   }
+                  ToPack.append(DTMIData,0,ThisNaluSize);
                   DTMIData.erase(0,ThisNaluSize);
                 }
                 WritePesHeader = true;
                 while( ToPack.size() ) {
-                  if (PacketNumber == 0) {
+                  if ((PacketNumber % 42) == 0) {
                     PackData.DefaultPAT();
                     TSBuf.write(PackData.ToString(), 188);
                     PackData.DefaultPMT();
@@ -399,9 +388,8 @@ fprintf( stderr, "  Received Keyframe of size %d\n", Strm.lastData().size() );
                 DTMIData = Strm.lastData();
                 ToPack = TS::GetAudioHeader( DTMIData.size(), Strm.metadata["audio"]["init"].asString() );
                 ToPack += DTMIData;
-                TimeStamp = Strm.getPacket(0)["time"].asInt() * 81000;
                 while( ToPack.size() ) {
-                  if ( ( PacketNumber == 0 ) ) {
+                  if ((PacketNumber % 42) == 0){
                     PackData.DefaultPAT();
                     TSBuf.write(PackData.ToString(), 188);
                     PackData.DefaultPMT();
@@ -415,7 +403,7 @@ fprintf( stderr, "  Received Keyframe of size %d\n", Strm.lastData().size() );
                   if( WritePesHeader ) {
                     PackData.UnitStart( 1 );
                     PackData.AddStuffing( 184 - (14 + ToPack.size()) );
-                    PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
+                    PackData.PESAudioLeadIn( ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90 );
                     WritePesHeader = false;
                   } else {
                     PackData.AdaptationField( 1 );

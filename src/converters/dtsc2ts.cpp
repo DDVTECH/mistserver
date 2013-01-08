@@ -11,6 +11,9 @@
 #include <mist/dtsc.h> //DTSC support
 #include <mist/mp4.h> //For initdata conversion
 
+#define VIDEO_SCALING ( 27000000.0 / (double)DTSCStream.metadata["video"]["fpks"].asInt())
+#define AUDIO_SCALING ( 27000000.0 / (double)DTSCStream.metadata["audio"]["rate"].asInt())
+
 int main( ) {
   char charBuffer[1024*10];
   unsigned int charCount;
@@ -122,7 +125,6 @@ int main( ) {
         DTMIData = DTSCStream.lastData();
         ToPack = TS::GetAudioHeader( DTMIData.size(), DTSCStream.metadata["audio"]["init"].asString() );
         ToPack += DTMIData;
-        TimeStamp = DTSCStream.getPacket(0)["time"].asInt() * 81000;
         while( ToPack.size() ) {
           if ( ( PacketNumber % 42 ) == 0 ) {
             PackData.DefaultPAT();
@@ -138,7 +140,7 @@ int main( ) {
           if( WritePesHeader ) {
             PackData.UnitStart( 1 );
             PackData.AddStuffing( 184 - (14 + ToPack.size()) );
-            PackData.PESAudioLeadIn( ToPack.size(), TimeStamp );
+            PackData.PESAudioLeadIn( ToPack.size(), DTSCStream.getPacket(0)["time"].asInt() * 90 );
             WritePesHeader = false;
           } else {
             PackData.AdaptationField( 1 );

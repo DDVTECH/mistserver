@@ -996,7 +996,7 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
         metadata["video"]["height"] = (long long int)tmp->getContentP("height")->NumValue();
       }
       if (tmp->getContentP("framerate")){
-        metadata["video"]["fpks"] = (long long int)tmp->getContentP("framerate")->NumValue() * 1000;
+        metadata["video"]["fpks"] = (long long int)(tmp->getContentP("framerate")->NumValue() * 1000.0);
       }
       if (tmp->getContentP("videodatarate")){
         metadata["video"]["bps"] = (long long int)(tmp->getContentP("videodatarate")->NumValue() * 1024) / 8;

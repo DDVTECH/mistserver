@@ -41,10 +41,6 @@ AC_CHECK_FUNCS([dup2 gettimeofday memset mkdir socket strerror])
 
 AC_SUBST([global_CFLAGS], [-funsigned-char])
 
-#allow release names
-AC_ARG_VAR([RELEASE], [Sets a specific release name])
-AC_DEFINE_UNQUOTED([RELEASE], ["$RELEASE"])
-
 #allow verbose mode compiles
 AC_ARG_ENABLE([verbose], AC_HELP_STRING([--enable-verbose], [Compile with verbose messages]),
 	AC_DEFINE([DEBUG], [4]))

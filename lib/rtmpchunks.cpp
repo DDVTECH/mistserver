@@ -5,7 +5,10 @@
 #include "flv_tag.h"
 #include "timing.h"
 
-char versionstring[] = "WWW.DDVTECH.COM "; ///< String that is repeated in the RTMP handshake
+#ifndef FILLER_DATA
+#define FILLER_DATA "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent commodo vulputate urna eu commodo. Cras tempor velit nec nulla placerat volutpat. Proin eleifend blandit quam sit amet suscipit. Pellentesque vitae tristique lorem. Maecenas facilisis consequat neque, vitae iaculis eros vulputate ut. Suspendisse ut arcu non eros vestibulum pulvinar id sed erat. Nam dictum tellus vel tellus rhoncus ut mollis tellus fermentum. Fusce volutpat consectetur ante, in mollis nisi euismod vulputate. Curabitur vitae facilisis ligula. Sed sed gravida dolor. Integer eu eros a dolor lobortis ullamcorper. Mauris interdum elit non neque interdum dictum. Suspendisse imperdiet eros sed sapien cursus pulvinar. Vestibulum ut dolor lectus, id commodo elit. Cras convallis varius leo eu porta. Duis luctus sapien nec dui adipiscing quis interdum nunc congue. Morbi pharetra aliquet mauris vitae tristique. Etiam feugiat sapien quis augue elementum id ultricies magna vulputate. Phasellus luctus, leo id egestas consequat, eros tortor commodo neque, vitae hendrerit nunc sem ut odio."
+#endif
+
 std::string RTMPStream::handshake_in; ///< Input for the handshake.
 std::string RTMPStream::handshake_out; ///< Output for the handshake.
 
@@ -811,7 +814,7 @@ bool RTMPStream::doHandshake(){
   *((uint32_t*)Server) = 0; //time zero
   *(((uint32_t*)(Server + 4))) = htonl(0x01020304); //version 1 2 3 4
   for (int i = 8; i < 3072; ++i){
-    Server[i] = versionstring[i % 16];
+    Server[i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
   } //"random" data
 
   bool encrypted = (Version == 6);

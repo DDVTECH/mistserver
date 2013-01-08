@@ -3,6 +3,10 @@
 
 #include "ts_packet.h"
 
+#ifndef FILLER_DATA
+#define FILLER_DATA "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent commodo vulputate urna eu commodo. Cras tempor velit nec nulla placerat volutpat. Proin eleifend blandit quam sit amet suscipit. Pellentesque vitae tristique lorem. Maecenas facilisis consequat neque, vitae iaculis eros vulputate ut. Suspendisse ut arcu non eros vestibulum pulvinar id sed erat. Nam dictum tellus vel tellus rhoncus ut mollis tellus fermentum. Fusce volutpat consectetur ante, in mollis nisi euismod vulputate. Curabitur vitae facilisis ligula. Sed sed gravida dolor. Integer eu eros a dolor lobortis ullamcorper. Mauris interdum elit non neque interdum dictum. Suspendisse imperdiet eros sed sapien cursus pulvinar. Vestibulum ut dolor lectus, id commodo elit. Cras convallis varius leo eu porta. Duis luctus sapien nec dui adipiscing quis interdum nunc congue. Morbi pharetra aliquet mauris vitae tristique. Etiam feugiat sapien quis augue elementum id ultricies magna vulputate. Phasellus luctus, leo id egestas consequat, eros tortor commodo neque, vitae hendrerit nunc sem ut odio."
+#endif
+
 /// This constructor creates an empty TS::Packet, ready for use for either reading or writing.
 /// All this constructor does is call TS::Packet::Clear().
 TS::Packet::Packet(){
@@ -305,7 +309,7 @@ void TS::Packet::AddStuffing(int NumBytes){
     strBuf[4] = Offset + NumBytes - 1;
     strBuf.resize(5 + Offset + NumBytes - 2);
     for (int i = 0; i < (NumBytes - 2); i++){
-      strBuf[5 + Offset + i] = 0xFF;
+      strBuf[5 + Offset + i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
     }
   }else{
     AdaptationField(3);
@@ -313,7 +317,7 @@ void TS::Packet::AddStuffing(int NumBytes){
     strBuf[4] = (char)(NumBytes - 1);
     strBuf[5] = (char)0x00;
     for (int i = 0; i < (NumBytes - 2); i++){
-      strBuf += (char)0xFF;
+      strBuf += FILLER_DATA[i % sizeof(FILLER_DATA)];
     }
   }
 }

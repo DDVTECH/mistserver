@@ -1,9 +1,11 @@
-lspdir=$(srcdir)/../lsp
-CLOSUREJAR=$(lspdir)/closure-compiler.jar
+CLOSUREJAR=../lsp/closure-compiler.jar
 CLOSURE=java -jar $(CLOSUREJAR) --warning_level QUIET
 BUILT_SOURCES=server.html.h embed.js.h
+lspSOURCES=../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js ../lsp/functions.js ../lsp/tablesort.js
+lspDATA=../lsp/header.html ../lsp/style.css ../lsp/footer.html
+
 # Do not clean below files, build machines do not have closure installed
-EXTRA_DIST=server.html server.html.h embed.js.h
+EXTRA_DIST=server.html server.html.h embed.js.h $(lspSOURCES) $(lspDATA)
 
 RELEASE ?= "Generic_`getconf LONG_BIT`"
 
@@ -26,8 +28,6 @@ MistConnTS_SOURCES=conn_ts.cpp ../VERSION
 MistPlayer_SOURCES=player.cpp
 MistPlayer_LDADD=$(MIST_LIBS)
 
-lspSOURCES=$(lspdir)/jquery.js $(lspdir)/placeholder.js $(lspdir)/md5.js $(lspdir)/main.js $(lspdir)/functions.js $(lspdir)/tablesort.js
-lspDATA=$(lspdir)/header.html $(lspdir)/style.css $(lspdir)/footer.html
 
 embed.js.h: $(srcdir)/embed.js
 	$(CLOSURE) $< > embed.min.js
@@ -36,14 +36,14 @@ embed.js.h: $(srcdir)/embed.js
 
 server.html: $(lspDATA) $(lspSOURCES)
 	$(CLOSURE) $(lspSOURCES) > compressed.js
-	cat $(lspdir)/header.html > $@
+	cat ../lsp/header.html > $@
 	echo "<script>" >> $@
 	cat compressed.js >> $@
 	rm compressed.js
 	echo "</script><style>" >> $@
-	cat $(lspdir)/style.css >> $@
+	cat ../lsp/style.css >> $@
 	echo "</style>" >> $@
-	cat $(lspdir)/footer.html >> $@
+	cat ../lsp/footer.html >> $@
 
 server.html.h: server.html
 	xxd -i server.html server.html.h

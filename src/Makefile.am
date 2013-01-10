@@ -5,7 +5,7 @@ lspSOURCES=../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js .
 lspDATA=../lsp/header.html ../lsp/style.css ../lsp/footer.html
 
 # Do not clean below files, build machines do not have closure installed
-EXTRA_DIST=server.html server.html.h embed.js.h $(lspSOURCES) $(lspDATA)
+EXTRA_DIST=server.html server.html.h embed.js embed.js.h $(lspSOURCES) $(lspDATA)
 
 RELEASE ?= "Generic_`getconf LONG_BIT`"
 

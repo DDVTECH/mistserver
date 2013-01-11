@@ -83,7 +83,7 @@
       /**
        * Display a certain page. It contains a (giant) switch-statement, that builds a page depending on the tab requested
        * @param name the name of the tab
-       * @param streamname only used when editing streams, the name of the edited (or new) stream. Also used with the 'embed' tab
+       * @param streamname only used when editing streams or protocols, the name of the edited (or new) stream/protocol. Also used with the 'embed' tab
        */
          function showTab(name, streamname)
          {
@@ -187,7 +187,7 @@
                         )
                      ).append(
                         $('<label>').text('time').append(
-                           $('<span>').text( formatDateLong(settings.settings.config.time) )
+                           $('<span>').text( formatDate(settings.settings.config.time) )
                         )
                      ).append(
                         $('<label>').text('Streams').append(
@@ -298,8 +298,7 @@
                            var id = Number($(this).parent().parent().attr('id').replace('protocol-', ''));
                            var pid = pids.indexOf(id);
                            settings.settings.config.protocols.splice(pid, 1);
-                           $(this).parent().parent().remove();
-                           loadSettings();
+                           showTab('protocols');
                         }
                      }).text('delete') ) );
                      
@@ -320,22 +319,27 @@
                   {
                      getData(function(data)
                      {
-                        protocol = data.config.protocols;
-                        for (index in protocol) 
+                        $('tbody tr').each(function()
                         {
-                           var row = $('#protocol-' + index);
-                           var status = protocol[index].online;
-                          
-                           $(row.children()[1]).html( formatStatus(status) );
-                           
-                           if (status == undefined) 
-                           {
-                              setTimeout(function()
-                              {
-                                 refreshProtocolStatus();
-                              },1000);
+                           protocolstatus = null;
+                           pid = $(this).attr('id').split('-')[1];
+                           if (data.config.protocols[pid] == undefined) 
+                           { 
+                              protocolstatus = 'Protocol config missing.. reloading tab'; 
+                              showTab('protocol');
                            }
-                        }
+                           else {
+                              if (data.config.protocols[pid].online == undefined) 
+                              {
+                                 setTimeout(function()
+                                 {
+                                    refreshProtocolStatus();
+                                 },1000);
+                              }
+                              protocolstatus = data.config.protocols[pid].online;
+                           }
+                           $(this).children()[1].innerHTML = formatStatus( protocolstatus );
+                        });
                      });
                   }
                   
@@ -436,13 +440,13 @@
                            if ((fieldname != 'connector') && (fieldname != 'online')) 
                            { 
                               $('#protocol-parameter-'+fieldname).val(currentdata[fieldname]);
-                           }								
+                           }
                         }
                      }
                   }
                      
                   loadSettings(function()
-                  {					  
+                  {
                      if (streamname == 'new') { t = 'add new protocol'; }
                      else { t = 'edit protocol'; }
                      
@@ -473,7 +477,7 @@
                      );		
                      
                      $('#page').append( $div );
-                     $('#editprotocol').append( $('<div>').attr('id','protocoldesc') );					  
+                     $('#editprotocol').append( $('<div>').attr('id','protocoldesc') );
                      $('#editprotocol').append( $('<div>').attr('id', 'protocolfields') );
                      $('#editprotocol').append(
                         $('<button>').text('cancel').addClass('floatright').click(function()
@@ -495,10 +499,21 @@
                                  error = true;
                               }
                            });
-                           //turn all numbers into integers
+                           
                            $('input[type="number"]').each(function()
                            { 
-                              $(this).val(Math.floor($(this).val()));
+                              //make sure this is a number
+                              if (isNaN($(this).val())) 
+                              {
+                                 $(this).focus();
+                                 $(this).parent().addClass('red');
+                                 error = true;
+                              }
+                              else
+                              {
+                                 //turn all numbers into integers
+                                 $(this).val(Math.floor($(this).val()));
+                              }
                            });
                            //check if all uints are actually uints
                            $('input.uint').each(function()
@@ -611,21 +626,25 @@
                   // refresh every streams' data (status and viewer count)
                   function refreshStreams()
                   {
-                    getStreamsData(function(streams)
-                    {
-                      for(stream in streams)
-                      {
-                        if( $('stream-' + stream) )
+                     getStreamsData(function(streams)
+                     {
+                        $('tbody#streams-list-tbody tr').each(function()
                         {
-                          var row = $('#stream-' + stream);
-                          var status = streams[stream][0];
-                          
-                          $(row.children()[4]).html( formatStatus(status) );
-                          
-                          $(row.children()[5]).text(streams[stream][1]);
-                        }
-                      }
-                    });
+                           streamstatus = null;
+                           stream = $(this).attr('id').split('-')[1];
+                           if (streams[stream] == undefined) 
+                           { 
+                              streamstatus = 'Stream config missing - reloading tab'; 
+                              showTab('streams');
+                           }
+                           else
+                           {
+                              streamstatus = streams[stream][0];
+                           }
+                           $(this).children()[4].innerHTML = formatStatus(streamstatus);
+                           $(this).children()[5].innerHTML = streams[stream][1];
+                        });
+                     });
                   };
                   
                   sinterval = setInterval(function()
@@ -645,6 +664,22 @@
                   
                   for(stream in settings.settings.streams)
                   {
+                     
+                     //if sid does not yet exist, create it
+                     if (settings.settings.streams[stream].sid == undefined) 
+                     {
+                        sid = 0;
+                        for (strm in settings.settings.streams)
+                        {
+                           if (settings.settings.streams[strm].sid != undefined) 
+                           { 
+                              sid = Math.max(sid,settings.settings.streams[strm].sid); 
+                           }
+                        }
+                        sid += 1;
+                        settings.settings.streams[stream].sid = sid;
+                     }
+                     
                      var cstr = settings.settings.streams[stream];
                      
                      $tr = $('<tr>').attr('id', 'stream-' + stream);
@@ -1018,7 +1053,7 @@
                   
                case 'logs':
                   $table = $('<table>');
-                  $table.html("<thead><th>Date<span class='theadinfo'>(MMM DD YYYY)</span></th><th>Type</th><th>Message</th></thead>");
+                  $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
                   $tbody = $('<tbody>');
                   
                   if(!settings.settings.log)
@@ -1041,7 +1076,7 @@
                      cur = settings.settings.log[i];
                      
                      $tr = $('<tr>').append(
-                        $('<td>').text(formatDateLong(cur[0]))
+                        $('<td>').text(formatDate(cur[0]))
                      ).append(
                         $('<td>').text(cur[1])
                      ).append(

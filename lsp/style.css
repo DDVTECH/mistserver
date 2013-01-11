@@ -13,7 +13,8 @@ body
 
 #page
 {
-   overflow: hidden;
+   overflow-y: hidden;
+   overflow-x:auto;
    /*margin: 10px -170px 0 230px;   */
    padding: 0;
 

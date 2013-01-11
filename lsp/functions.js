@@ -27,13 +27,13 @@
                ('00' + d.getSeconds()).slice(-2)
             ].join(':');
          }
-			
-			 
-			 /**
+         
+          
+          /**
           * Format a date to mmm dd /yyyy hh:mm:ss format
           * @param date the date to format (timestamp)
           */
-			 months = Array('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+          months = Array('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
          function formatDateLong(date)
          {
             var d = new Date(date * 1000);
@@ -48,10 +48,10 @@
                ('00' + d.getSeconds()).slice(-2)
             ].join(':');
          }
-			function nameMonth(monthNum) 
-			{
-				months = Array('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
-			}
+         function nameMonth(monthNum) 
+         {
+            months = Array('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+         }
 
 
          /**
@@ -157,7 +157,7 @@
                   var ret = $.extend(true,
                   {
                      "streams": {},
-							"capabilities": {},
+                     "capabilities": {},
                      "statistics": {}
                   }, d);
                   
@@ -352,10 +352,11 @@
 
                'timeout': 5000,
 
-               'error': function()
+               'error': function(jqXHR,textStatus,errorThrown)
                {
                   showTab('disconnect');
                   $('#shield').remove();   // remove loading display
+                  alert('O dear! An error occurred while attempting to communicatie with the MistServer.\n\n'+textStatus+'\n'+errorThrown);
                },
                'success': function(d)
                {
@@ -439,7 +440,7 @@
             {
                case 1:		return "<span class='green'>Running</span>";				break;
                case 0:		return "<span class='red'>Offline</span>";				break;
-               default:		return "<span class='green'>" + status + "</span>";	break;
+               default:		return "<span class='red'>" + status + "</span>";		break;
             }
          }
 

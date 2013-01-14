@@ -468,12 +468,12 @@ pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int *
     return 0;
   }else{ //parent
 #if DEBUG >= 1
-    std::cerr << "Piped process " << name << " started";
-    if (fdin ) std::cerr << " in=" << (*fdin == -1 ? pipein [1] : *fdin );
-    if (fdout) std::cerr << " out=" << (*fdout == -1 ? pipeout[0] : *fdout);
-    if (fderr) std::cerr << " err=" << (*fderr == -1 ? pipeerr[0] : *fderr);
-    if (devnull != -1) std::cerr << " null=" << devnull;
-    std::cerr << ", PID " << pid << ": " << argv[0] << std::endl;
+  std::cerr << "Piped process " << name << " started";
+  if (fdin ) std::cerr << " in=" << (*fdin == -1 ? pipein [1] : *fdin );
+  if (fdout) std::cerr << " out=" << (*fdout == -1 ? pipeout[0] : *fdout);
+  if (fderr) std::cerr << " err=" << (*fderr == -1 ? pipeerr[0] : *fderr);
+  if (devnull != -1) std::cerr << " null=" << devnull;
+  std::cerr << ", PID " << pid << ": " << argv[0] << std::endl;
 #endif
     if (devnull != -1){
       close(devnull);
@@ -518,8 +518,9 @@ void Util::Procs::Stop(pid_t name){
 
 /// (Attempts to) stop all running child processes.
 void Util::Procs::StopAll(){
+  std::map<pid_t, std::string> listcopy = plist;
   std::map<pid_t, std::string>::iterator it;
-  for (it = plist.begin(); it != plist.end(); it++){
+  for (it = listcopy.begin(); it != listcopy.end(); it++){
     Stop(( *it).first);
   }
 }

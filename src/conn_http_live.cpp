@@ -56,18 +56,16 @@ namespace Connector_HTTP {
     if (metadata.isMember("length") && metadata["length"].asInt() > 0){
       Result << "#EXTM3U\r\n"
       //"#EXT-X-VERSION:1\r\n"
-              "#EXT-X-MEDIA-SEQUENCE:1\r\n"
               //"#EXT-X-ALLOW-CACHE:YES\r\n"
-              "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
+              "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
+              "#EXT-X-MEDIA-SEQUENCE:0\r\n";
       //"#EXT-X-PLAYLIST-TYPE:VOD\r\n";
       int lastDuration = 0;
       bool writeOffset = true;
-      fragIndices.push_back(metadata["keytime"][metadata["keytime"].size() - 1].asInt() + 1);
       for (int i = 0; i < fragIndices.size() - 1; i++){
-        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i]].asInt() - lastDuration) / 1000 << "." << std::setw(3) << std::setfill('0')
-            << ((metadata["keytime"][fragIndices[i]].asInt() - lastDuration) % 1000) << ",\r\n" << fragIndices[i] << "_"
+        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i+1]].asInt() - lastDuration) / 1000 << ", no desc\r\n" << fragIndices[i] << "_"
             << fragIndices[i + 1] - fragIndices[i] << ".ts\r\n";
-        lastDuration = metadata["keytime"][fragIndices[i]].asInt();
+        lastDuration = metadata["keytime"][fragIndices[i+1]].asInt();
       }
       Result << "#EXT-X-ENDLIST";
     }else{
@@ -114,6 +112,8 @@ namespace Connector_HTTP {
     bool haveAvcc = false;
 
     std::vector<int> fragIndices;
+    
+    std::string manifestType;
 
     int Segment = -1;
     int temp;
@@ -169,19 +169,21 @@ namespace Connector_HTTP {
             Flash_RequestPending++;
           }else{
             streamname = HTTP_R.url.substr(5, HTTP_R.url.find("/", 5) - 5);
+            if (HTTP_R.url.find(".m3u8") != std::string::npos){
+              manifestType = "audio/x-mpegurl";
+            } else {
+              manifestType = "audio/mpegurl";
+            }
             if ( !Strm.metadata.isNull()){
               HTTP_S.Clean();
-              if (HTTP_R.url.find(".m3u8") != std::string::npos){
-                HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl"); //m3u8
-              }else{
-                HTTP_S.SetHeader("Content-Type", "audio/mpegurl"); //m3u
-              }
+              HTTP_S.SetHeader("Content-Type", manifestType);
               HTTP_S.SetHeader("Cache-Control", "no-cache");
               if (Strm.metadata.isMember("length")){
                 receive_marks = true;
               }
               std::string manifest = BuildIndex(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
+fprintf( stderr, "%s\n", HTTP_S.GetHeader( "Content-Type" ).c_str() );
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
 #if DEBUG >= 3
               printf("Sent manifest\n");
@@ -246,12 +248,9 @@ namespace Connector_HTTP {
                 receive_marks = true;
               }
               std::string manifest = BuildIndex(streamname, Strm.metadata);
-              if (HTTP_R.url.find(".m3u8") != std::string::npos){
-                HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl"); //m3u8
-              }else{
-                HTTP_S.SetHeader("Content-Type", "audio/mpegurl"); //m3u
-              }
+              HTTP_S.SetHeader("Content-Type", manifestType);
               HTTP_S.SetBody(manifest);
+fprintf( stderr, "%s\n", HTTP_S.GetHeader( "Content-Type" ).c_str() );
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
 #if DEBUG >= 3
               printf("Sent manifest\n");
@@ -389,13 +388,10 @@ namespace Connector_HTTP {
             if (Strm.metadata.isMember("length")){
               receive_marks = true;
             }
-            if (HTTP_R.url.find(".m3u8") != std::string::npos){
-              HTTP_S.SetHeader("Content-Type", "application/vnd.apple.mpegurl"); //m3u8
-            }else{
-              HTTP_S.SetHeader("Content-Type", "audio/mpegurl"); //m3u
-            }
+            HTTP_S.SetHeader("Content-Type", manifestType);
             std::string manifest = BuildIndex(streamname, Strm.metadata);
             HTTP_S.SetBody(manifest);
+fprintf( stderr, "%s\n", HTTP_S.GetHeader( "Content-Type" ).c_str() );
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
 #if DEBUG >= 3
             printf("Sent manifest\n");

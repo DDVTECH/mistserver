@@ -89,7 +89,7 @@
     // ==================================================== //
     // Do sorting when THs are clicked
 
-    table.delegate("th", "click", function(){
+    table.delegate("th:not(.dontsort)", "click", function(){
 
    if($(this).text().replace(/ /g, '') == '')
    {

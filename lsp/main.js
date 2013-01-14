@@ -655,7 +655,7 @@
                   refreshStreams();
                   
                   $table = $('<table>');
-                  $table.html("<thead><th class=sort-type-int>Id</th><th class=sort-type-string>Type</th><th>Embed</th><th class='sort-type-string sortdesc'>Name</th><th class=sort-type-string>Status</th><th class=sort-type-int>Viewers</th><th>Edit</th></thead>");
+                  $table.html("<thead><th class=sort-type-int>Id</th><th class=sort-type-string>Type</th><th class=dontsort>Embed</th><th class='sort-type-string sortdesc'>Name</th><th class=sort-type-string>Status</th><th class=sort-type-int>Viewers</th><th class=dontsort>Edit</th></thead>");
                   $tbody = $('<tbody>');
                         
                   var stream, cstr, $tr;

@@ -388,6 +388,11 @@ namespace Connector_HTTP {
           std::cout << "Received request: " << Client.getUrl() << " (" << conn->getSocket() << ") => " << handler << " (" << Client.GetVar("stream")
               << ")" << std::endl;
 #endif
+          bool closeConnection = false;
+          if( Client.GetHeader( "Connection" ) == "close" ) {
+            closeConnection = true;
+          }
+
           if (handler == "none" || handler == "internal"){
             if (handler == "internal"){
               Handle_Internal(Client, conn);
@@ -400,6 +405,10 @@ namespace Connector_HTTP {
 #if DEBUG >= 4
           std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (Util::getMS() - startms) << " ms" << std::endl;
 #endif
+          if( closeConnection ) {
+fprintf( stderr, "Called for connection close\n" );
+            break;
+          }
           Client.Clean(); //clean for any possible next requests
         }
       }else{

@@ -339,7 +339,7 @@
             delete data.statistics;   // same goes for the stats
             
             //IE breaks if the console isn't opened, so keep commented when committing
-            //console.log('[763] SEND', data);
+            console.log('[763] SEND', data);
 
             $.ajax(
             {
@@ -363,7 +363,7 @@
                   $('#shield').remove();   // remove loading display
 
                   //IE breaks if the console isn't opened, so keep commented when committing
-                  //console.log('[785] RECV', d);
+                  console.log('[785] RECV', d);
 
                   if(d && d['authorize'] && d['authorize']['challenge'])
                   {
@@ -387,7 +387,7 @@
                            "version": ""
                         },
                         "streams": {},
-                  "capabilities": {},
+                        "capabilities": {},
                         "log": {},
                         "statistics": {}
                      }, d);

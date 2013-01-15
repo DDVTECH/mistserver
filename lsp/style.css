@@ -257,7 +257,7 @@ label select
    width: 225px;
 }
 
-label span
+label span, label button
 {
    float: right;
 }
@@ -290,6 +290,7 @@ th,
 #login > button,
 p,
 label,
+button,
 #page label input,
 #page label select,
 #page > button,
@@ -409,4 +410,17 @@ td
    padding: 50px 0 0 0;
 }
 
-      
+.datacont label span
+{
+	font-weight: normal;
+	text-transform: none;
+}
+.datacont label 
+{
+	padding-left: 25px;
+}
+.datacont p 
+{
+	margin-top: 25px;
+	margin-bottom: 0px;
+}

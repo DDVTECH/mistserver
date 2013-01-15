@@ -389,7 +389,7 @@ namespace Connector_HTTP {
               << ")" << std::endl;
 #endif
           bool closeConnection = false;
-          if( Client.GetHeader( "Connection" ) == "close" ) {
+          if (Client.GetHeader("Connection") == "close"){
             closeConnection = true;
           }
 
@@ -405,8 +405,7 @@ namespace Connector_HTTP {
 #if DEBUG >= 4
           std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (Util::getMS() - startms) << " ms" << std::endl;
 #endif
-          if( closeConnection ) {
-fprintf( stderr, "Called for connection close\n" );
+          if (closeConnection){
             break;
           }
           Client.Clean(); //clean for any possible next requests

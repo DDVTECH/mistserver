@@ -412,15 +412,15 @@ td
 
 .datacont label span
 {
-	font-weight: normal;
-	text-transform: none;
+   font-weight: normal;
+   text-transform: none;
 }
 .datacont label 
 {
-	padding-left: 25px;
+   padding-left: 25px;
 }
 .datacont p 
 {
-	margin-top: 25px;
-	margin-bottom: 0px;
+   margin-top: 25px;
+   margin-bottom: 0px;
 }

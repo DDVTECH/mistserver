@@ -187,7 +187,7 @@
 
                for(var stream in data.streams)
                {
-                  streams[stream] = [data.streams[stream].online, 0];
+                  streams[stream] = [data.streams[stream].online, 0, data.streams[stream].error];
                   cnt++;
                }
 
@@ -339,7 +339,7 @@
             delete data.statistics;   // same goes for the stats
             
             //IE breaks if the console isn't opened, so keep commented when committing
-            console.log('[763] SEND', data);
+            //console.log('[763] SEND', data);
 
             $.ajax(
             {
@@ -363,7 +363,7 @@
                   $('#shield').remove();   // remove loading display
 
                   //IE breaks if the console isn't opened, so keep commented when committing
-                  console.log('[785] RECV', d);
+                  //console.log('[785] RECV', d);
 
                   if(d && d['authorize'] && d['authorize']['challenge'])
                   {
@@ -435,12 +435,12 @@
             {
                return "<span>Unknown, checking...</span>";
             }
-
             switch(status)
             {
                case 1:		return "<span class='green'>Running</span>";				break;
                case 0:		return "<span class='red'>Offline</span>";				break;
-               default:		return "<span class='red'>" + status + "</span>";		break;
+					case -1:		return "<span>Unknown, checking...</span>";				break;
+               default:		return "<span class='green'>" + status + "</span>";	break;
             }
          }
 

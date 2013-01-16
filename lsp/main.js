@@ -79,8 +79,8 @@
          // what kind of streams should be displayed? Format is [recorded, live];
          var streamsdisplay = [true, true];
          
-			// used on the overview page to decide then to ask the controller for an update check
-			var updatelastchecked;
+         // used on the overview page to decide then to ask the controller for an update check
+         var updatelastchecked;
          
       /**
        * Display a certain page. It contains a (giant) switch-statement, that builds a page depending on the tab requested
@@ -174,117 +174,117 @@
                   
                case 'overview':
                   
-						
-						loadSettings(function(){
-						
-							$uptodate = null;
-							if (settings.settings.LTS == 1)
-							{
-								if ((settings.settings.update == undefined) || (updatelastchecked == undefined) || ((new Date()).getTime() - updatelastchecked > 3600000))
-								{
-									settings.settings.checkupdate = true;
-									settings.settings.update = {};
-									updatelastchecked = (new Date()).getTime();
-									loadSettings(function()
-									{ 
-										showTab('overview'); 
-									});
-								}
-								else
-								{
-									if (settings.settings.update.uptodate == 0)
-									{
-										$uptodate = $('<label>').text('version check').css('line-height','30px');
-										$uptodate.append(
-											$('<span>').attr('class','red').text('Outdated version!').append(
-												$('<button>').text('update').click(function(){
-													settings.settings.autoupdate = true;
-													loadSettings();
-												})
-											)
-										);
-									}
-								}
-							}
-						
-							$('#page').append(
-								$('<div>').attr('id', 'editserver').append(
-									$('<label>').attr('for', 'config-host').text('host').append(
-										$('<input>').attr('type', 'text').attr('placeholder', 'HOST').attr('id', 'config-host').attr('value', settings.settings.config.host)
-									)
-								).append(
-									$('<label>').attr('for', 'config-name').text('name').append(
-										$('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'config-name').attr('value', settings.settings.config.name)
-									)
-								).append(
-									$('<label>').text('version').append(
-										$('<span>').text(settings.settings.config.version)
-									).append($uptodate)
-								).append(
-									$('<label>').text('time').append(
-										$('<span>').text( formatDate(settings.settings.config.time) )
-									)
-								).append(
-									$('<label>').text('Streams').append(
-										$('<span>').attr('id', 'cur_streams_online').text('retrieving data...')
-									)
-								).append(
-									$('<label>').text('Viewers').append(
-										$('<span>').attr('id', 'cur_num_viewers').text('retrieving data...')
-									)
-								)
-							);
-						
                   
-							function showStats()
-							{
-								getStatData(function(data)
-								{
-									$('#cur_streams_online').html('').text(data.streams[0] + ' of ' + data.streams[1] + ' online');
-									$('#cur_num_viewers').html('').text(data.viewers);
-								});
-							}
-							
-							// refresh the stream status + viewers
-							sinterval = setInterval(function()
-							{
-								showStats();
-							}, 10000);
-							
-							showStats();
-							
-							$('#editserver').append(
-								$('<button>').attr('class', 'floatright').click(function()
-								{
-									var host = $('#config-host').val();
-									var name = $('#config-name').val();
-									
-									settings.settings.config.host = host;
-									settings.settings.config.name = name;
-									
-									loadSettings(function()
-									{
-										showTab('overview');
-									});
-								}).text( 'save' )
-							);
-							
-							var forcesave = $('<div>').attr('id', 'forcesave');
-							
-							forcesave.append(
-								$('<p>').text('Click the button below to force an immediate settings save. This differs from a regular save to memory and file save on exit by saving directly to file while operating. This may slow server processes for a short period of time.')
-							).append(
-								$('<button>').click(function()
-								{
-								  if(confirmDelete('Are you sure you want to force a JSON save?') == true)
-								  {
-									  forceJSONSave();
-								  }
-								}).text( 'force save to JSON file' )
-							);
-							
-							$('#page').append(forcesave);
-						});
+                  loadSettings(function(){
+                  
+                     $uptodate = null;
+                     if (settings.settings.LTS == 1)
+                     {
+                        if ((settings.settings.update == undefined) || (updatelastchecked == undefined) || ((new Date()).getTime() - updatelastchecked > 3600000))
+                        {
+                           settings.settings.checkupdate = true;
+                           settings.settings.update = {};
+                           updatelastchecked = (new Date()).getTime();
+                           loadSettings(function()
+                           { 
+                              showTab('overview'); 
+                           });
+                        }
+                        else
+                        {
+                           if (settings.settings.update.uptodate == 0)
+                           {
+                              $uptodate = $('<label>').text('version check').css('line-height','30px');
+                              $uptodate.append(
+                                 $('<span>').attr('class','red').text('Outdated version!').append(
+                                    $('<button>').text('update').click(function(){
+                                       settings.settings.autoupdate = true;
+                                       loadSettings();
+                                    })
+                                 )
+                              );
+                           }
+                        }
+                     }
+                  
+                     $('#page').append(
+                        $('<div>').attr('id', 'editserver').append(
+                           $('<label>').attr('for', 'config-host').text('host').append(
+                              $('<input>').attr('type', 'text').attr('placeholder', 'HOST').attr('id', 'config-host').attr('value', settings.settings.config.host)
+                           )
+                        ).append(
+                           $('<label>').attr('for', 'config-name').text('name').append(
+                              $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'config-name').attr('value', settings.settings.config.name)
+                           )
+                        ).append(
+                           $('<label>').text('version').append(
+                              $('<span>').text(settings.settings.config.version)
+                           ).append($uptodate)
+                        ).append(
+                           $('<label>').text('time').append(
+                              $('<span>').text( formatDate(settings.settings.config.time) )
+                           )
+                        ).append(
+                           $('<label>').text('Streams').append(
+                              $('<span>').attr('id', 'cur_streams_online').text('retrieving data...')
+                           )
+                        ).append(
+                           $('<label>').text('Viewers').append(
+                              $('<span>').attr('id', 'cur_num_viewers').text('retrieving data...')
+                           )
+                        )
+                     );
+                  
+                  
+                     function showStats()
+                     {
+                        getStatData(function(data)
+                        {
+                           $('#cur_streams_online').html('').text(data.streams[0] + ' of ' + data.streams[1] + ' online');
+                           $('#cur_num_viewers').html('').text(data.viewers);
+                        });
+                     }
+                     
+                     // refresh the stream status + viewers
+                     sinterval = setInterval(function()
+                     {
+                        showStats();
+                     }, 10000);
+                     
+                     showStats();
+                     
+                     $('#editserver').append(
+                        $('<button>').attr('class', 'floatright').click(function()
+                        {
+                           var host = $('#config-host').val();
+                           var name = $('#config-name').val();
+                           
+                           settings.settings.config.host = host;
+                           settings.settings.config.name = name;
+                           
+                           loadSettings(function()
+                           {
+                              showTab('overview');
+                           });
+                        }).text( 'save' )
+                     );
+                     
+                     var forcesave = $('<div>').attr('id', 'forcesave');
+                     
+                     forcesave.append(
+                        $('<p>').text('Click the button below to force an immediate settings save. This differs from a regular save to memory and file save on exit by saving directly to file while operating. This may slow server processes for a short period of time.')
+                     ).append(
+                        $('<button>').click(function()
+                        {
+                          if(confirmDelete('Are you sure you want to force a JSON save?') == true)
+                          {
+                             forceJSONSave();
+                          }
+                        }).text( 'force save to JSON file' )
+                     );
+                     
+                     $('#page').append(forcesave);
+                  });
                   
                   break;
                   
@@ -580,6 +580,7 @@
                            $('input').each(function(){
                               newprotocol[$(this).attr('id').split('-')[2]] = $(this).val();;
                            });
+                           newprotocol.online = -1;
                            if (streamname == 'new') {
                               settings.settings.config.protocols.push(newprotocol);
                            }else{
@@ -679,7 +680,14 @@
                            }
                            else
                            {
-                              streamstatus = streams[stream][0];
+                              if (streams[stream][2])
+                              {
+                                 streamstatus = streams[stream][2];
+                              }
+                              else
+                              {
+                                 streamstatus = streams[stream][0];
+                              }
                            }
                            $(this).children(':nth-child(5)').html(formatStatus(streamstatus));
                            $(this).children(':nth-child(6)').html(streams[stream][1]);
@@ -734,9 +742,14 @@
                         showTab('embed', sname);
                      }) ) );   // end function, end click(), end append(), end append(). Huzzah jQuery.
                      
-							if ( cstr.name == undefined ) { cstr.name = ''; }
-							
+                     if ( cstr.name == undefined ) { cstr.name = ''; }
+                     
                      $tr.append( $('<td>').text( cstr.name ) );
+                     
+                     if (cstr.error) 
+                     {
+                        cstr.online = cstr.error;
+                     }
                      
                      $tr.append( $('<td>').html( formatStatus( cstr.online ) ) );
                      
@@ -894,6 +907,8 @@
                         sdata.name = newname;
                         sdata.channel.URL = s.val();
                         sdata.preset.cmd = p.val();
+                        sdata.online = -1;
+                        sdata.error = null;
                         
                         if(streamname == 'new')
                         {
@@ -1144,65 +1159,63 @@
                   
                   break;
                   
-					case 'server stats':
-						loadSettings(function(){
-							serverstats = settings.settings.capabilities;
-							
-							console.log(serverstats); //weghalen
-							
-							if (serverstats.cpu !== undefined) 
-							{
-								$('#page').append(
-									$('<div>').attr('class','datacont').append(
-										$('<p>').text('CPU')
-									)
-								);
-								//be careful, only works if this is the first div to be constructed
-								for (property in serverstats.cpu[0]) 
-								{
-									$('#page div.datacont').append(
-										$('<label>').text(property).append(
-											$('<span>').text(serverstats.cpu[0][property])
-										)
-									);
-								}
-							}
-							if (serverstats.mem !== undefined) 
-							{
-								$('#page').append(
-									$('<div>').attr('class','datacont').append(
-										$('<p>').text('Memory')
-									).append(
-										$('<label>').text('Physical memory').append(
-											$('<span>').text(serverstats.mem.used+'MiB/'+serverstats.mem.total+'MiB ('+serverstats.mem.free+'MiB available)')
-										)
-									).append(
-										$('<label>').text('Swap memory').append(
-											$('<span>').text((serverstats.mem.swaptotal - serverstats.mem.swapfree)+'MiB/'+serverstats.mem.swaptotal+'MiB ('+serverstats.mem.swapfree+'MiB available)')
-										)
-									)								
-								);
-							}
-							if (serverstats.load !== undefined) 
-							{
-								$('#page').append(
-									$('<div>').attr('class','datacont').append(
-										$('<p>').text('Load')
-									).append(
-										$('<label>').text('Memory used').append(
-											$('<span>').text(serverstats.load.memory+'%')
-										)
-									).append(
-										$('<label>').text('Loading averages').append(
-											$('<span>').text('1 min: '+serverstats.load.one+'%, 5 min: '+serverstats.load.five+'%, 15 min: '+serverstats.load.fifteen+'%')
-										)
-									)
-								);
-							}
-						});
-						
-						break;
-					
+               case 'server stats':
+                  loadSettings(function(){
+                     serverstats = settings.settings.capabilities;
+                     
+                     if (serverstats.cpu !== undefined) 
+                     {
+                        $('#page').append(
+                           $('<div>').attr('class','datacont').append(
+                              $('<p>').text('CPU')
+                           )
+                        );
+                        //be careful, only works if this is the first div to be constructed
+                        for (property in serverstats.cpu[0]) 
+                        {
+                           $('#page div.datacont').append(
+                              $('<label>').text(property).append(
+                                 $('<span>').text(serverstats.cpu[0][property])
+                              )
+                           );
+                        }
+                     }
+                     if (serverstats.mem !== undefined) 
+                     {
+                        $('#page').append(
+                           $('<div>').attr('class','datacont').append(
+                              $('<p>').text('Memory')
+                           ).append(
+                              $('<label>').text('Physical memory').append(
+                                 $('<span>').text(serverstats.mem.used+'MiB/'+serverstats.mem.total+'MiB ('+serverstats.mem.free+'MiB available)')
+                              )
+                           ).append(
+                              $('<label>').text('Swap memory').append(
+                                 $('<span>').text((serverstats.mem.swaptotal - serverstats.mem.swapfree)+'MiB/'+serverstats.mem.swaptotal+'MiB ('+serverstats.mem.swapfree+'MiB available)')
+                              )
+                           )								
+                        );
+                     }
+                     if (serverstats.load !== undefined) 
+                     {
+                        $('#page').append(
+                           $('<div>').attr('class','datacont').append(
+                              $('<p>').text('Load')
+                           ).append(
+                              $('<label>').text('Memory used').append(
+                                 $('<span>').text(serverstats.load.memory+'%')
+                              )
+                           ).append(
+                              $('<label>').text('Loading averages').append(
+                                 $('<span>').text('1 min: '+serverstats.load.one+'%, 5 min: '+serverstats.load.five+'%, 15 min: '+serverstats.load.fifteen+'%')
+                              )
+                           )
+                        );
+                     }
+                  });
+                  
+                  break;
+               
                case 'disconnect':
                   showTab('login');
                   setHeaderState('disconnected');

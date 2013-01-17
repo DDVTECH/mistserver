@@ -75,6 +75,9 @@ namespace Controller {
 
   void CheckConfig(JSON::Value & in, JSON::Value & out){
     for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
+      if (jit->first == "version"){
+        continue;
+      }
       if (out.isMember(jit->first)){
         if (jit->second != out[jit->first]){
           if (jit->first != "time"){
@@ -86,7 +89,7 @@ namespace Controller {
       }
     }
     for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
-      if ( !in.isMember(jit->first)){
+      if ( !in.isMember(jit->first) || jit->first == "version"){
         Log("CONF", std::string("Deleted configuration value ") + jit->first);
       }
     }
@@ -346,9 +349,11 @@ int main(int argc, char ** argv){
               }else{
                 if (Request.isMember("config")){
                   Controller::CheckConfig(Request["config"], Controller::Storage["config"]);
+                  Controller::CheckProtocols(Controller::Storage["config"]["protocols"]);
                 }
                 if (Request.isMember("streams")){
                   Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
+                  Controller::CheckAllStreams(Controller::Storage["streams"]);
                 }
                 if (Request.isMember("clearstatlogs")){
                   Controller::Storage["log"].null();
@@ -371,9 +376,11 @@ int main(int argc, char ** argv){
                   //Parse config and streams from the request.
                   if (Request.isMember("config")){
                     Controller::CheckConfig(Request["config"], Controller::Storage["config"]);
+                    Controller::CheckProtocols(Controller::Storage["config"]["protocols"]);
                   }
                   if (Request.isMember("streams")){
                     Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
+                    Controller::CheckAllStreams(Controller::Storage["streams"]);
                   }
                   if (Request.isMember("capabilities")){
                     Controller::checkCapable(Response["capabilities"]);

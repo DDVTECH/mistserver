@@ -279,7 +279,6 @@ namespace Connector_HTTP {
                 MP4::MFHD mfhd_box;
                 for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
                   if (Strm.metadata["keytime"][i].asInt() >= (ReqFragment / 10000)){
-                    std::cerr << "Sequence Number: " << i + 1 << std::endl;
                     mfhd_box.setSequenceNumber(i + 1);
                     if (i != Strm.metadata["keytime"].size()){
                       myDuration = Strm.metadata["keytime"][i + 1].asInt() - Strm.metadata["keytime"][i].asInt();
@@ -298,8 +297,6 @@ namespace Connector_HTTP {
 
                 MP4::TRUN trun_box;
                 //maybe reinsert dataOffset
-                std::cerr << "Setting Flags: " << (MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize)
-                    << std::endl;
                 trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
                 trun_box.setDataOffset(42);
                 trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);

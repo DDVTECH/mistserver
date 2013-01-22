@@ -11,7 +11,7 @@ RELEASE ?= "Generic_`getconf LONG_BIT`"
 
 AM_CPPFLAGS = $(global_CFLAGS) $(MIST_CFLAGS) -DRELEASE=\"$(RELEASE)\"
 LDADD = $(MIST_LIBS)
-bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistConnHTTPSmooth MistConnHTTPLive MistConnTS MistPlayer MistDTSC2FLV MistFLV2DTSC MistDTSCFix MistDTSCMerge MistDTSC2TS MistSRT2DTSC MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF MistAnalyserMP4
+bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistConnHTTPSmooth MistConnHTTPLive MistConnTS MistPlayer MistDTSC2FLV MistFLV2DTSC MistDTSCFix MistDTSCMerge MistDTSC2TS MistSRT2DTSC MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF MistAnalyserMP4 MistInfo
 
 #buffer folder (MistBuffer, MistPlayer)
 MistBuffer_SOURCES=buffer/buffer.cpp buffer/buffer_user.h buffer/buffer_user.cpp buffer/buffer_stream.h buffer/buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
@@ -46,6 +46,7 @@ MistAnalyserFLV_SOURCES=analysers/flv_analyser.cpp
 MistAnalyserDTSC_SOURCES=analysers/dtsc_analyser.cpp
 MistAnalyserAMF_SOURCES=analysers/amf_analyser.cpp
 MistAnalyserMP4_SOURCES=analysers/mp4_analyser.cpp
+MistInfo_SOURCES=info.cpp
 
 
 connectors/embed.js.h: connectors/embed.js

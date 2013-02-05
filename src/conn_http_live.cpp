@@ -32,7 +32,7 @@ namespace Connector_HTTP {
       return result;
     }
     result.push_back(0);
-    int currentBase = 0;
+    int currentBase = metadata["keytime"][0u].asInt();
     for (int i = 0; i < metadata["keytime"].size(); i++){
       if ((metadata["keytime"][i].asInt() - currentBase) > 10000){
         currentBase = metadata["keytime"][i].asInt();
@@ -70,9 +70,8 @@ namespace Connector_HTTP {
       Result << "#EXT-X-ENDLIST";
     }else{
       Result << "#EXTM3U\r\n"
-          "#EXT-X-VERSION:4\r\n"
           "#EXT-X-MEDIA-SEQUENCE:0\r\n"
-          "#EXT-X-TARGETDURATION:" << ((metadata["video"]["keyms"].asInt() + metadata["video"]["keyvar"].asInt()) / 1000) + 1 << "\r\n";
+          "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
     }
 #if DEBUG >= 8
     std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
@@ -106,8 +105,6 @@ namespace Connector_HTTP {
     char AudioCounter = 0;
     bool WritePesHeader;
     bool IsKeyFrame;
-    bool FirstKeyFrame = true;
-    bool FirstIDRInKeyFrame;
     MP4::AVCC avccbox;
     bool haveAvcc = false;
 
@@ -293,13 +290,7 @@ namespace Connector_HTTP {
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
               if (Strm.lastType() == DTSC::VIDEO){
                 DTMIData = Strm.lastData();
-                if (Strm.getPacket(0).isMember("keyframe")){
-                  IsKeyFrame = true;
-                  FirstIDRInKeyFrame = true;
-                }else{
-                  IsKeyFrame = false;
-                  FirstKeyFrame = false;
-                }
+                IsKeyFrame = Strm.getPacket(0).isMember("keyframe");
                 if (IsKeyFrame){
                   TimeStamp = (Strm.getPacket(0)["time"].asInt() * 27000);
                 }

@@ -287,7 +287,6 @@ namespace Connector_HTTP {
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         conn->SendNow(H.BuildResponse("200", "OK"));
-        conn->flush();
       }else{
         //unknown length
         H.SetHeader("X-UID", uid);

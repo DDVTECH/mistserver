@@ -321,7 +321,7 @@ namespace Connector_HTTP {
                 }
                 WritePesHeader = true;
                 while (ToPack.size()){
-                  if ((PacketNumber % 42) == 0){
+                  if (PacketNumber == 0){
                     PackData.DefaultPAT();
                     TSBuf.write(PackData.ToString(), 188);
                     PackData.DefaultPMT();
@@ -340,12 +340,12 @@ namespace Connector_HTTP {
                     }else{
                       PackData.AdaptationField(1);
                     }
-                    PackData.AddStuffing(184 - (20 + ToPack.size()));
+                    PackData.AddStuffing(PackData.BytesFree( ) - (25 + ToPack.size()));
                     PackData.PESVideoLeadIn(ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90);
                     WritePesHeader = false;
                   }else{
                     PackData.AdaptationField(1);
-                    PackData.AddStuffing(184 - (ToPack.size()));
+                    PackData.AddStuffing(PackData.BytesFree( ) - (ToPack.size()));
                   }
                   PackData.FillFree(ToPack);
                   TSBuf.write(PackData.ToString(), 188);
@@ -357,7 +357,7 @@ namespace Connector_HTTP {
                 ToPack = TS::GetAudioHeader(DTMIData.size(), Strm.metadata["audio"]["init"].asString());
                 ToPack += DTMIData;
                 while (ToPack.size()){
-                  if ((PacketNumber % 42) == 0){
+                  if (PacketNumber == 0){
                     PackData.DefaultPAT();
                     TSBuf.write(PackData.ToString(), 188);
                     PackData.DefaultPMT();
@@ -370,12 +370,12 @@ namespace Connector_HTTP {
                   AudioCounter++;
                   if (WritePesHeader){
                     PackData.UnitStart(1);
-                    PackData.AddStuffing(184 - (14 + ToPack.size()));
+                    PackData.AddStuffing(PackData.BytesFree( ) - (14 + ToPack.size()));
                     PackData.PESAudioLeadIn(ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90);
                     WritePesHeader = false;
                   }else{
                     PackData.AdaptationField(1);
-                    PackData.AddStuffing(184 - ToPack.size());
+                    PackData.AddStuffing(PackData.BytesFree( ) - ToPack.size());
                   }
                   PackData.FillFree(ToPack);
                   TSBuf.write(PackData.ToString(), 188);

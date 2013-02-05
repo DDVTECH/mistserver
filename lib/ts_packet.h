@@ -4,7 +4,7 @@
 #pragma once
 #include <string>
 #include <cmath>
-#include <stdint.h> //for uint64_t
+#include <stdint.h>//for uint64_t
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -40,8 +40,8 @@ namespace TS {
 
       void Print();
       const char* ToString();
-      void PESVideoLeadIn(int NewLen, long long unsigned int PTS = 1);
-      void PESAudioLeadIn(int NewLen, uint64_t PTS = 0);
+      void PESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS = 1);
+      void PESAudioLeadIn(unsigned int NewLen, uint64_t PTS = 0);
       void FillFree(std::string & PackageData);
       int FillFree(const char* PackageData, int maxLen);
       void AddStuffing(int NumBytes);
@@ -62,7 +62,7 @@ namespace TS {
     StandardHeader[2] = ((((initData[0] >> 3) - 1) << 6) & 0xC0); //AAC Profile - 1 ( First two bits )
     StandardHeader[2] |= ((((initData[0] & 0x07) << 1) | ((initData[1] >> 7) & 0x01)) << 2); //AAC Frequency Index
     StandardHeader[2] |= ((initData[1] & 0x20) >> 5); //AAC Channel Config
-    StandardHeader[3] = ((initData[1] & 0x18) << 3); //AAC CHannel Config (cont.)
+    StandardHeader[3] = ((initData[1] & 0x18) << 3); //AAC Channel Config (cont.)
     StandardHeader[3] |= ((FrameLen & 0x00001800) >> 11);
     StandardHeader[4] = ((FrameLen & 0x000007F8) >> 3);
     StandardHeader[5] |= ((FrameLen & 0x00000007) << 5);

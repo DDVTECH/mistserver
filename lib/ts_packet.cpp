@@ -238,23 +238,29 @@ const char* TS::Packet::ToString(){
 /// Generates a PES Lead-in for a video frame.
 /// Starts at the first Free byte.
 /// \param NewLen The length of this video frame.
-void TS::Packet::PESVideoLeadIn(int NewLen, long long unsigned int PTS){
-  NewLen += (PTS == 1 ? 9 : 14);
+void TS::Packet::PESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS){
+  //NewLen += (PTS == 1 ? 9 : 19);
+  NewLen = 0;
   strBuf += (char)0x00; //PacketStartCodePrefix
   strBuf += (char)0x00; //PacketStartCodePrefix (Cont)
   strBuf += (char)0x01; //PacketStartCodePrefix (Cont)
   strBuf += (char)0xe0; //StreamType Video
   strBuf += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
   strBuf += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
-  strBuf += (char)0x80; //Reserved + Flags
+  strBuf += (char)0x84; //Reserved + Flags
   if (PTS != 1){
-    strBuf += (char)0x80; //PTSOnlyFlag + Flags
-    strBuf += (char)0x05; //PESHeaderDataLength
-    strBuf += (char)(0x20 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
+    strBuf += (char)0xC0; //PTSOnlyFlag + Flags
+    strBuf += (char)0x0A; //PESHeaderDataLength
+    strBuf += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + PTS 
     strBuf += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
     strBuf += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
     strBuf += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
     strBuf += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
+    strBuf += (char)(0x10 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + DTS 
+    strBuf += (char)((PTS & 0x03FC00000LL) >> 22); //DTS (Cont)
+    strBuf += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //DTS (Cont)
+    strBuf += (char)((PTS & 0x000007F80LL) >> 7); //DTS (Cont)
+    strBuf += (char)(((PTS & 0x00000007FLL) << 1) + 1); //DTS (Cont)
   }else{
     strBuf += (char)0x00; //PTSOnlyFlag + Flags
     strBuf += (char)0x00; //PESHeaderDataLength
@@ -273,7 +279,7 @@ void TS::Packet::PESVideoLeadIn(int NewLen, long long unsigned int PTS){
 /// Starts at the first Free byte.
 /// \param NewLen The length of this audio frame.
 /// \param PTS The timestamp of the audio frame.
-void TS::Packet::PESAudioLeadIn(int NewLen, uint64_t PTS){
+void TS::Packet::PESAudioLeadIn(unsigned int NewLen, uint64_t PTS){
   NewLen += 8;
   strBuf += (char)0x00; //PacketStartCodePrefix
   strBuf += (char)0x00; //PacketStartCodePrefix (Cont)

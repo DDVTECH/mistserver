@@ -323,19 +323,23 @@ void TS::Packet::AddStuffing(int NumBytes){
     return;
   }
   if (AdaptationField() == 3){
-    int Offset = strBuf[4];
-    strBuf[4] = Offset + NumBytes - 1;
-    strBuf.resize(5 + Offset + NumBytes - 2);
-    for (int i = 0; i < (NumBytes - 2); i++){
-      strBuf[5 + Offset + i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
+    strBuf.resize(5 + strBuf[4]);
+    strBuf[4] += NumBytes;
+    for (int i = 0; i < NumBytes; i++){
+      strBuf.append(FILLER_DATA + (i % sizeof(FILLER_DATA)), 1);
     }
   }else{
     AdaptationField(3);
-    strBuf.resize(6);
-    strBuf[4] = (char)(NumBytes - 1);
-    strBuf[5] = (char)0x00;
-    for (int i = 0; i < (NumBytes - 2); i++){
-      strBuf += FILLER_DATA[i % sizeof(FILLER_DATA)];
+    if (NumBytes > 1){
+      strBuf.resize(6);
+      strBuf[4] = (char)(NumBytes - 1);
+      strBuf[5] = (char)0x00;
+      for (int i = 0; i < (NumBytes - 2); i++){
+        strBuf += FILLER_DATA[i % sizeof(FILLER_DATA)];
+      }
+    }else{
+      strBuf.resize(5);
+      strBuf[4] = (char)(NumBytes - 1);
     }
   }
 }

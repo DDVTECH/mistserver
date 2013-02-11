@@ -63,8 +63,8 @@ namespace Connector_HTTP {
       int lastDuration = 0;
       bool writeOffset = true;
       for (int i = 0; i < fragIndices.size() - 1; i++){
-        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i + 1]].asInt() - lastDuration) / 1000 << ", no desc\r\n" << fragIndices[i] << "_"
-            << fragIndices[i + 1] - fragIndices[i] << ".ts\r\n";
+        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i + 1]].asInt() - lastDuration) / 1000 << ", no desc\r\n" << fragIndices[i] + 1
+            << "_" << fragIndices[i + 1] - fragIndices[i] << ".ts\r\n";
         lastDuration = metadata["keytime"][fragIndices[i + 1]].asInt();
       }
       Result << "#EXT-X-ENDLIST";
@@ -288,37 +288,34 @@ namespace Connector_HTTP {
               haveAvcc = true;
             }
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
+              if (PacketNumber == 0){
+                PackData.DefaultPAT();
+                TSBuf.write(PackData.ToString(), 188);
+                PackData.DefaultPMT();
+                TSBuf.write(PackData.ToString(), 188);
+                PacketNumber += 2;
+              }
               if (Strm.lastType() == DTSC::VIDEO){
                 DTMIData = Strm.lastData();
                 IsKeyFrame = Strm.getPacket(0).isMember("keyframe");
+                std::cout << Strm.getPacket(0)["time"].asInt() << std::endl;
                 if (IsKeyFrame){
                   TimeStamp = (Strm.getPacket(0)["time"].asInt() * 27000);
                 }
-                int TSType;
-                bool FirstPic = true;
+                ToPack += avccbox.asAnnexB();
                 while (DTMIData.size()){
                   ThisNaluSize = (DTMIData[0] << 24) + (DTMIData[1] << 16) + (DTMIData[2] << 8) + DTMIData[3];
-                  DTMIData.erase(0, 4); //Erase the first four characters;
-                  TSType = (int)DTMIData[0] & 0x1F;
-                  if (TSType == 0x05){
-                    if (FirstPic){
-                      ToPack += avccbox.asAnnexB();
-                      FirstPic = false;
-                    }
+                  DTMIData.replace(0, 4, TS::NalHeader, 4);
+                  if (ThisNaluSize + 4 == DTMIData.size()){
+                    ToPack.append(DTMIData);
+                    break;
+                  }else{
+                    ToPack.append(DTMIData, 0, ThisNaluSize + 4);
+                    DTMIData.erase(0, ThisNaluSize + 4);
                   }
-                  ToPack.append(TS::NalHeader, 4);
-                  ToPack.append(DTMIData, 0, ThisNaluSize);
-                  DTMIData.erase(0, ThisNaluSize);
                 }
                 WritePesHeader = true;
                 while (ToPack.size()){
-                  if (PacketNumber == 0){
-                    PackData.DefaultPAT();
-                    TSBuf.write(PackData.ToString(), 188);
-                    PackData.DefaultPMT();
-                    TSBuf.write(PackData.ToString(), 188);
-                    PacketNumber += 2;
-                  }
                   PackData.Clear();
                   PackData.PID(0x100);
                   PackData.ContinuityCounter(VideoCounter);
@@ -331,12 +328,12 @@ namespace Connector_HTTP {
                     }else{
                       PackData.AdaptationField(1);
                     }
-                    PackData.AddStuffing(PackData.BytesFree( ) - (25 + ToPack.size()));
+                    PackData.AddStuffing(PackData.BytesFree() - (25 + ToPack.size()));
                     PackData.PESVideoLeadIn(ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90);
                     WritePesHeader = false;
                   }else{
                     PackData.AdaptationField(1);
-                    PackData.AddStuffing(PackData.BytesFree( ) - (ToPack.size()));
+                    PackData.AddStuffing(PackData.BytesFree() - (ToPack.size()));
                   }
                   PackData.FillFree(ToPack);
                   TSBuf.write(PackData.ToString(), 188);
@@ -348,26 +345,20 @@ namespace Connector_HTTP {
                 ToPack = TS::GetAudioHeader(DTMIData.size(), Strm.metadata["audio"]["init"].asString());
                 ToPack += DTMIData;
                 while (ToPack.size()){
-                  if (PacketNumber == 0){
-                    PackData.DefaultPAT();
-                    TSBuf.write(PackData.ToString(), 188);
-                    PackData.DefaultPMT();
-                    TSBuf.write(PackData.ToString(), 188);
-                    PacketNumber += 2;
-                  }
                   PackData.Clear();
                   PackData.PID(0x101);
                   PackData.ContinuityCounter(AudioCounter);
                   AudioCounter++;
                   if (WritePesHeader){
                     PackData.UnitStart(1);
-                    PackData.AddStuffing(PackData.BytesFree( ) - (14 + ToPack.size()));
+                    PackData.AddStuffing(PackData.BytesFree() - (14 + ToPack.size()));
                     PackData.PESAudioLeadIn(ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90);
                     WritePesHeader = false;
                   }else{
                     PackData.AdaptationField(1);
-                    PackData.AddStuffing(PackData.BytesFree( ) - ToPack.size());
+                    PackData.AddStuffing(PackData.BytesFree() - ToPack.size());
                   }
+                  int before = ToPack.size();
                   PackData.FillFree(ToPack);
                   TSBuf.write(PackData.ToString(), 188);
                   PacketNumber++;

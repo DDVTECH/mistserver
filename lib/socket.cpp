@@ -57,7 +57,7 @@ void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize
       break;
     }
   }
-  if (data.size() > 1000){
+  if (data.size() > 5000){
     std::cerr << "Warning: After " << newdatasize << " new bytes, buffer has " << data.size() << " parts!" << std::endl;
   }
 }
@@ -359,7 +359,7 @@ bool Socket::Connection::spool(){
     iwrite(upbuffer.get());
   }
   /// \todo Provide better mechanism to prevent overbuffering.
-  if (downbuffer.size() > 1000){
+  if (downbuffer.size() > 10000){
     return true;
   }else{
     return iread(downbuffer);

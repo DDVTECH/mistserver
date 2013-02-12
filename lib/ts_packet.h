@@ -42,6 +42,9 @@ namespace TS {
       const char* ToString();
       void PESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS = 1);
       void PESAudioLeadIn(unsigned int NewLen, uint64_t PTS = 0);
+      static void PESAudioLeadIn(std::string & toSend, long long unsigned int PTS);
+      static void PESVideoLeadIn(std::string & toSend, long long unsigned int PTS);
+
       void FillFree(std::string & PackageData);
       int FillFree(const char* PackageData, int maxLen);
       void AddStuffing(int NumBytes);

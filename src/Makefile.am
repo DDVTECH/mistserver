@@ -30,7 +30,7 @@ MistPlayer_LDADD=$(MIST_LIBS)
 
 
 embed.js.h: $(srcdir)/embed.js
-	$(CLOSURE) $< > embed.min.js
+	$(CLOSURE) $(srcdir)/embed.js > embed.min.js
 	xxd -i embed.min.js | sed s/_min_/_/g > embed.js.h
 	rm embed.min.js
 

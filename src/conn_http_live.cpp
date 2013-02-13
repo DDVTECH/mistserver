@@ -97,7 +97,6 @@ namespace Connector_HTTP {
 
     std::string ToPack;
     TS::Packet PackData;
-    std::string DTMIData;
     int PacketNumber = 0;
     long long unsigned int TimeStamp = 0;
     int ThisNaluSize;
@@ -304,15 +303,15 @@ namespace Connector_HTTP {
                   TimeStamp = (Strm.getPacket(0)["time"].asInt() * 27000);
                 }
                 ToPack += avccbox.asAnnexB();
-                while (DTMIData.size()){
-                  ThisNaluSize = (DTMIData[0] << 24) + (DTMIData[1] << 16) + (DTMIData[2] << 8) + DTMIData[3];
-                  DTMIData.replace(0, 4, TS::NalHeader, 4);
-                  if (ThisNaluSize + 4 == DTMIData.size()){
-                    ToPack.append(DTMIData);
+                while (Strm.lastData().size()){
+                  ThisNaluSize = (Strm.lastData()[0] << 24) + (Strm.lastData()[1] << 16) + (Strm.lastData()[2] << 8) + Strm.lastData()[3];
+                  Strm.lastData().replace(0, 4, TS::NalHeader, 4);
+                  if (ThisNaluSize + 4 == Strm.lastData().size()){
+                    ToPack.append(Strm.lastData());
                     break;
                   }else{
-                    ToPack.append(DTMIData, 0, ThisNaluSize + 4);
-                    DTMIData.erase(0, ThisNaluSize + 4);
+                    ToPack.append(Strm.lastData(), 0, ThisNaluSize + 4);
+                    Strm.lastData().erase(0, ThisNaluSize + 4);
                   }
                 }
                 TS::Packet::PESVideoLeadIn(ToPack, Strm.getPacket(0)["time"].asInt() * 90);
@@ -320,7 +319,7 @@ namespace Connector_HTTP {
                 ContCounter = &VideoCounter;
               }else if (Strm.lastType() == DTSC::AUDIO){
                 ToPack = TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata["audio"]["init"].asString());
-                ToPack += DTMIData;
+                ToPack += Strm.lastData();
                 TS::Packet::PESAudioLeadIn(ToPack, Strm.getPacket(0)["time"].asInt() * 90);
                 PIDno = 0x101;
                 ContCounter = &AudioCounter;

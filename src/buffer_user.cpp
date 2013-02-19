@@ -42,7 +42,7 @@ void Buffer::user::Disconnect(std::string reason){
 /// Has a side effect of dropping the connection if send will never complete.
 bool Buffer::user::doSend(const char * ptr, int len){
   if ( !len){
-    return false;
+    return true;
   } //do not do empty sends
   int r = S.iwrite(ptr + currsend, len - currsend);
   if (r <= 0){

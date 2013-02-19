@@ -30,18 +30,14 @@ Buffer::Stream::Stream(){
 
 /// Do cleanup on delete.
 Buffer::Stream::~Stream(){
-  while (users.size() > 0){
-    stats_mutex.lock();
-    for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-      if (( * *usersIt).S.connected()){
-        ( * *usersIt).S.close();
-        printf("Closing user %s\n", ( * *usersIt).MyStr.c_str());
-      }
+  tthread::lock_guard<tthread::mutex> guard(stats_mutex);
+  for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
+    if (( * *usersIt).S.connected()){
+      ( * *usersIt).S.close();
+      printf("Closing user %s\n", ( * *usersIt).MyStr.c_str());
     }
-    stats_mutex.unlock();
-    moreData.notify_all();
-    cleanUsers();
   }
+  moreData.notify_all();
   delete Strm;
 }
 
@@ -50,7 +46,7 @@ std::string & Buffer::Stream::getStats(){
   static std::string ret;
   long long int now = Util::epoch();
   unsigned int tot_up = 0, tot_down = 0, tot_count = 0;
-  stats_mutex.lock();
+  tthread::lock_guard<tthread::mutex> guard(stats_mutex);
   if (users.size() > 0){
     for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
       tot_down += ( * *usersIt).curr_down;
@@ -72,7 +68,6 @@ std::string & Buffer::Stream::getStats(){
   }
   ret = Storage.toString();
   Storage["log"].null();
-  stats_mutex.unlock();
   return ret;
 }
 
@@ -123,19 +118,18 @@ Socket::Connection & Buffer::Stream::getIPInput(){
 
 /// Stores intermediate statistics.
 void Buffer::Stream::saveStats(std::string username, Stats & stats){
-  stats_mutex.lock();
+  tthread::lock_guard<tthread::mutex> guard(stats_mutex);
   Storage["curr"][username]["connector"] = stats.connector;
   Storage["curr"][username]["up"] = stats.up;
   Storage["curr"][username]["down"] = stats.down;
   Storage["curr"][username]["conntime"] = stats.conntime;
   Storage["curr"][username]["host"] = stats.host;
   Storage["curr"][username]["start"] = Util::epoch() - stats.conntime;
-  stats_mutex.unlock();
 }
 
 /// Stores final statistics.
 void Buffer::Stream::clearStats(std::string username, Stats & stats, std::string reason){
-  stats_mutex.lock();
+  tthread::lock_guard<tthread::mutex> guard(stats_mutex);
   if (Storage["curr"].isMember(username)){
     Storage["curr"].removeMember(username);
 #if DEBUG >= 4
@@ -149,13 +143,12 @@ void Buffer::Stream::clearStats(std::string username, Stats & stats, std::string
   Storage["log"][username]["conntime"] = stats.conntime;
   Storage["log"][username]["host"] = stats.host;
   Storage["log"][username]["start"] = Util::epoch() - stats.conntime;
-  stats_mutex.unlock();
 }
 
 /// Cleans up broken connections
 void Buffer::Stream::cleanUsers(){
   bool repeat = false;
-  stats_mutex.lock();
+  tthread::lock_guard<tthread::mutex> guard(stats_mutex);
   do{
     repeat = false;
     if (users.size() > 0){
@@ -177,7 +170,6 @@ void Buffer::Stream::cleanUsers(){
       }
     }
   }while (repeat);
-  stats_mutex.unlock();
 }
 
 /// Blocks until writing is safe.
@@ -231,14 +223,12 @@ void Buffer::Stream::setName(std::string n){
 
 /// Add a user to the userlist.
 void Buffer::Stream::addUser(user * new_user){
-  stats_mutex.lock();
+  tthread::lock_guard<tthread::mutex> guard(stats_mutex);
   users.push_back(new_user);
-  stats_mutex.unlock();
 }
 
 /// Blocks the thread until new data is available.
 void Buffer::Stream::waitForData(){
-  stats_mutex.lock();
+  tthread::lock_guard<tthread::mutex> guard(stats_mutex);
   moreData.wait(stats_mutex);
-  stats_mutex.unlock();
 }

@@ -58,69 +58,73 @@ namespace Buffer {
 #endif
 
     usr->myRing = thisStream->getRing();
-    if (thisStream->getHeader().size() > 0){
+    if (thisStream->getStream()->metadata && thisStream->getHeader().size() > 0){
       usr->S.SendNow(thisStream->getHeader());
     }
 
     while (usr->S.connected()){
       usleep(5000); //sleep 5ms
       usr->Send();
-      if (usr->S.spool() && usr->S.Received().size()){
-        //delete anything that doesn't end with a newline
-        if ( !usr->S.Received().get().empty() && *(usr->S.Received().get().rbegin()) != '\n'){
-          usr->S.Received().get().clear();
-          continue;
-        }
-        usr->S.Received().get().resize(usr->S.Received().get().size() - 1);
-        if ( !usr->S.Received().get().empty()){
-          switch (usr->S.Received().get()[0]){
-            case 'P': { //Push
-              std::cout << "Push attempt from IP " << usr->S.Received().get().substr(2) << std::endl;
-              if (thisStream->checkWaitingIP(usr->S.Received().get().substr(2))){
-                if (thisStream->setInput(usr->S)){
-                  std::cout << "Push accepted!" << std::endl;
-                  usr->S = Socket::Connection( -1);
-                  return;
+      if (usr->S.spool()){
+        while (usr->S.Received().size()){
+          //delete anything that doesn't end with a newline
+          if ( !usr->S.Received().get().empty() && *(usr->S.Received().get().rbegin()) != '\n'){
+            usr->S.Received().get().clear();
+            continue;
+          }
+          usr->S.Received().get().resize(usr->S.Received().get().size() - 1);
+          if ( !usr->S.Received().get().empty()){
+            switch (usr->S.Received().get()[0]){
+              case 'P': { //Push
+                std::cout << "Push attempt from IP " << usr->S.Received().get().substr(2) << std::endl;
+                if (thisStream->checkWaitingIP(usr->S.Received().get().substr(2))){
+                  usr->S.Received().get().clear();
+                  if (thisStream->setInput(usr->S)){
+                    std::cout << "Push accepted!" << std::endl;
+                    usr->S = Socket::Connection( -1);
+                    return;
+                  }else{
+                    usr->Disconnect("Push denied - push already in progress!");
+                  }
                 }else{
-                  usr->Disconnect("Push denied - push already in progress!");
+                  usr->Disconnect("Push denied - invalid IP address!");
                 }
-              }else{
-                usr->Disconnect("Push denied - invalid IP address!");
               }
-            }
-              break;
-            case 'S': { //Stats
-              usr->tmpStats = Stats(usr->S.Received().get().substr(2));
-              unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
-              if (secs < 1){
-                secs = 1;
+                break;
+              case 'S': { //Stats
+                usr->tmpStats = Stats(usr->S.Received().get().substr(2));
+                unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
+                if (secs < 1){
+                  secs = 1;
+                }
+                usr->curr_up = (usr->tmpStats.up - usr->lastStats.up) / secs;
+                usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
+                usr->lastStats = usr->tmpStats;
+                thisStream->saveStats(usr->MyStr, usr->tmpStats);
               }
-              usr->curr_up = (usr->tmpStats.up - usr->lastStats.up) / secs;
-              usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
-              usr->lastStats = usr->tmpStats;
-              thisStream->saveStats(usr->MyStr, usr->tmpStats);
+                break;
+              case 's': { //second-seek
+                //ignored for now
+              }
+                break;
+              case 'f': { //frame-seek
+                //ignored for now
+              }
+                break;
+              case 'p': { //play
+                //ignored for now
+              }
+                break;
+              case 'o': { //once-play
+                //ignored for now
+              }
+                break;
+              case 'q': { //quit-playing
+                //ignored for now
+              }
+                break;
             }
-              break;
-            case 's': { //second-seek
-              //ignored for now
-            }
-              break;
-            case 'f': { //frame-seek
-              //ignored for now
-            }
-              break;
-            case 'p': { //play
-              //ignored for now
-            }
-              break;
-            case 'o': { //once-play
-              //ignored for now
-            }
-              break;
-            case 'q': { //quit-playing
-              //ignored for now
-            }
-              break;
+            usr->S.Received().get().clear();
           }
         }
       }
@@ -163,7 +167,6 @@ namespace Buffer {
       }
     }
     buffer_running = false;
-    SS.close();
   }
 
   /// Loop reading DTSC data from an IP push address.
@@ -175,14 +178,18 @@ namespace Buffer {
     while (buffer_running){
       if (thisStream->getIPInput().connected()){
         if (thisStream->getIPInput().spool()){
-          thisStream->getWriteLock();
-          if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
-            //thisStream->getStream()->outPacket(0);
-            thisStream->dropWriteLock(true);
-          }else{
-            thisStream->dropWriteLock(false);
-            usleep(1000); //1ms wait
-          }
+          bool packed_parsed = false;
+          do {
+            thisStream->getWriteLock();
+            if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
+              thisStream->dropWriteLock(true);
+              packed_parsed = true;
+            }else{
+              thisStream->dropWriteLock(false);
+              packed_parsed = false;
+              usleep(1000); //1ms wait
+            }
+          } while(packed_parsed);
         }else{
           usleep(1000); //1ms wait
         }
@@ -190,7 +197,6 @@ namespace Buffer {
         usleep(1000000); //1s wait
       }
     }
-    SS.close();
   }
 
   /// Starts a loop, waiting for connections to send data to.

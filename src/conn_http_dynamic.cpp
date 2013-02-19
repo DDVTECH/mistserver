@@ -131,11 +131,10 @@ namespace Connector_HTTP {
               "<deliveryType>streaming</deliveryType>\n"
               "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0, 0))
               + "</bootstrapInfo>\n"
-                  "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId
-              + "/\">\n"
-                  "<metadata>AgAKb25NZXRhRGF0YQgAAAAAAAl0cmFja2luZm8KAAAAAgMACXRpbWVzY2FsZQBA+GoAAAAAAAAGbGVuZ3RoAEGMcHoQAAAAAAhsYW5ndWFnZQIAA2VuZwARc2FtcGxlZGVzY3JpcHRpb24KAAAAAQMACnNhbXBsZXR5cGUCAARhdmMxAAAJAAAJAwAJdGltZXNjYWxlAEDncAAAAAAAAAZsZW5ndGgAQXtNvTAAAAAACGxhbmd1YWdlAgADZW5nABFzYW1wbGVkZXNjcmlwdGlvbgoAAAABAwAKc2FtcGxldHlwZQIABG1wNGEAAAkAAAkADWF1ZGlvY2hhbm5lbHMAQAAAAAAAAAAAD2F1ZGlvc2FtcGxlcmF0ZQBA53AAAAAAAAAOdmlkZW9mcmFtZXJhdGUAQDf/gi5SciUABmFhY2FvdABAAAAAAAAAAAAIYXZjbGV2ZWwAQD8AAAAAAAAACmF2Y3Byb2ZpbGUAQFNAAAAAAAAADGF1ZGlvY29kZWNpZAIABG1wNGEADHZpZGVvY29kZWNpZAIABGF2YzEABXdpZHRoAECQ4AAAAAAAAAZoZWlnaHQAQIMAAAAAAAAACmZyYW1lV2lkdGgAQJDgAAAAAAAAC2ZyYW1lSGVpZ2h0AECDAAAAAAAAAAxkaXNwbGF5V2lkdGgAQJDgAAAAAAAADWRpc3BsYXlIZWlnaHQAQIMAAAAAAAAADG1vb3Zwb3NpdGlvbgBBmxq2uAAAAAAIZHVyYXRpb24AQIKjqW3oyhIAAAk=</metadata>\n"
-                  "</media>\n"
-                  "</manifest>\n";
+                  "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
+                "<metadata>AgAKb25NZXRhRGF0YQgAAAAAAAl0cmFja2luZm8KAAAAAgMACXRpbWVzY2FsZQBA+GoAAAAAAAAGbGVuZ3RoAEGMcHoQAAAAAAhsYW5ndWFnZQIAA2VuZwARc2FtcGxlZGVzY3JpcHRpb24KAAAAAQMACnNhbXBsZXR5cGUCAARhdmMxAAAJAAAJAwAJdGltZXNjYWxlAEDncAAAAAAAAAZsZW5ndGgAQXtNvTAAAAAACGxhbmd1YWdlAgADZW5nABFzYW1wbGVkZXNjcmlwdGlvbgoAAAABAwAKc2FtcGxldHlwZQIABG1wNGEAAAkAAAkADWF1ZGlvY2hhbm5lbHMAQAAAAAAAAAAAD2F1ZGlvc2FtcGxlcmF0ZQBA53AAAAAAAAAOdmlkZW9mcmFtZXJhdGUAQDf/gi5SciUABmFhY2FvdABAAAAAAAAAAAAIYXZjbGV2ZWwAQD8AAAAAAAAACmF2Y3Byb2ZpbGUAQFNAAAAAAAAADGF1ZGlvY29kZWNpZAIABG1wNGEADHZpZGVvY29kZWNpZAIABGF2YzEABXdpZHRoAECQ4AAAAAAAAAZoZWlnaHQAQIMAAAAAAAAACmZyYW1lV2lkdGgAQJDgAAAAAAAAC2ZyYW1lSGVpZ2h0AECDAAAAAAAAAAxkaXNwbGF5V2lkdGgAQJDgAAAAAAAADWRpc3BsYXlIZWlnaHQAQIMAAAAAAAAADG1vb3Zwb3NpdGlvbgBBmxq2uAAAAAAIZHVyYXRpb24AQIKjqW3oyhIAAAk=</metadata>\n"
+                "</media>\n"
+                "</manifest>\n";
     }else{
       Result = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
           "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"

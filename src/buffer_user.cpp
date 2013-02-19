@@ -66,11 +66,25 @@ bool Buffer::user::Send(){
   } //cancel if not connected
   if (myRing->waiting){
     Stream::get()->waitForData();
-    if( myRing->updated ) {
-      Stream::get()->getReadLock();
-      S.SendNow( Stream::get()->getStream()->metadata.toNetPacked() );
-      Stream::get()->dropReadLock();
-      myRing->updated = false;
+    if( !myRing->waiting ) {
+      if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
+        myRing->playCount --;
+        if (!myRing->playCount){
+          fprintf( stderr, "Sending Pausemark\n" );
+          JSON::Value pausemark;
+          pausemark["datatype"] = "pause_marker";
+          pausemark["time"] = Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt();
+          pausemark.toPacked();
+          S.SendNow(pausemark.toNetPacked());
+        }
+      }
+      if (myRing->updated){
+        fprintf( stderr, "Sent new metadata\n" );
+        Stream::get()->getReadLock();
+        S.SendNow( Stream::get()->getStream()->metadata.toNetPacked() );
+        Stream::get()->dropReadLock();
+        myRing->updated = false;
+      }
     }
     return false;
   } //still waiting for next buffer?
@@ -92,16 +106,28 @@ bool Buffer::user::Send(){
     } //no next buffer? go in waiting mode.
     myRing->b--;
     if( myRing->updated ) {
+      fprintf( stderr, "Sent new metadata\n" );
       Stream::get()->getReadLock();
       S.SendNow( Stream::get()->getStream()->metadata.toNetPacked() );
       Stream::get()->dropReadLock();
       myRing->updated = false;
     }
     Stream::get()->dropReadLock();
-    return true;
-  } //completed a send
+    if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
+      myRing->playCount --;
+      if (!myRing->playCount){
+        fprintf( stderr, "Sending Pausemark\n" );
+        JSON::Value pausemark;
+        pausemark["datatype"] = "pause_marker";
+        pausemark["time"] = Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt();
+        pausemark.toPacked();
+        S.SendNow(pausemark.toNetPacked());
+      }
+    }
+    return false;
+  }//completed a send
   Stream::get()->dropReadLock();
-  return false;
+  return true;
 } //send
 
 /// Default constructor - should not be in use.

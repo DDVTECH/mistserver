@@ -102,6 +102,7 @@ namespace DTSC {
       volatile bool waiting; ///< If true, this Ring is currently waiting for a buffer fill.
       volatile bool starved; ///< If true, this Ring can no longer receive valid data.
       volatile bool updated; ///< If true, this Ring should write a new header.
+      volatile int playCount;
   };
 
   /// Holds temporary data for a DTSC stream and provides functions to utilize it.
@@ -127,6 +128,7 @@ namespace DTSC {
       void dropRing(Ring * ptr);
       void updateHeaders();
       unsigned int msSeek(unsigned int ms);
+      void setBufferTime(unsigned int ms);
     private:
       std::deque<JSON::Value> buffers;
       std::set<DTSC::Ring *> rings;

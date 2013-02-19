@@ -206,6 +206,10 @@ bool DTSC::Stream::hasAudio(){
   return metadata.isMember("audio");
 }
 
+void DTSC::Stream::setBufferTime(unsigned int ms){
+  buffertime = ms;
+}
+
 /// Returns a packed DTSC packet, ready to sent over the network.
 std::string & DTSC::Stream::outPacket(unsigned int num){
   static std::string emptystring;
@@ -261,7 +265,7 @@ void DTSC::Stream::advanceRings(){
   //increase buffer size if no keyframes available or too little time available
     timeBuffered = buffers[keyframes[keyframes.size() - 1].b]["time"].asInt() - buffers[keyframes[0].b]["time"].asInt();
   }
-  if (((buffercount > 1) && (keyframes.size() < 2)) || (timeBuffered < buffertime)){
+  if (buffercount > 1 && (keyframes.size() < 2 || timeBuffered < buffertime)){
     buffercount++;
   }
 }
@@ -272,6 +276,8 @@ DTSC::Ring::Ring(unsigned int v){
   b = v;
   waiting = false;
   starved = false;
+  updated = false;
+  playCount = 0;
 }
 
 /// Requests a new Ring, which will be created and added to the internal Ring list.
@@ -316,13 +322,13 @@ void DTSC::Stream::updateRingHeaders(){
   }
 }
 
-unsigned int DSTSC::Stream::msSeek(unsigned int ms) {
+unsigned int DTSC::Stream::msSeek(unsigned int ms) {
   for( std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++ ) {
     if( buffers[it->b]["time"].asInt( ) < ms ) {
       return it->b;
     }
   }
-  ///\todo Send PauseMark
+  return keyframes[keyframes.size()-1].b;
 }
 
 /// Properly cleans up the object for erasing.

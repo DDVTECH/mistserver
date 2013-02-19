@@ -206,7 +206,11 @@
                            }
                         }
                      }
-                  
+                     if (settings.settings.config.basepath == undefined) 
+                     {
+                        settings.settings.config.basepath = "";
+                     }
+                     
                      $('#page').append(
                         $('<div>').attr('id', 'editserver').append(
                            $('<label>').attr('for', 'config-host').text('host').append(
@@ -217,9 +221,13 @@
                               $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'config-name').attr('value', settings.settings.config.name)
                            )
                         ).append(
-                           $('<label>').text('version').append(
+                           $('<label>').text('Version').append(
                               $('<span>').text(settings.settings.config.version)
                            ).append($uptodate)
+                        ).append(
+                           $('<label>').text('Base path').append(
+                              $('<input>').attr('type','text').attr('placeholder','BASE PATH').attr('id','config-basepath').val(settings.settings.config.basepath)
+                           )
                         ).append(
                            $('<label>').text('time').append(
                               $('<span>').text( formatDate(settings.settings.config.time) )
@@ -234,8 +242,7 @@
                            )
                         )
                      );
-                  
-                  
+                     
                      function showStats()
                      {
                         getStatData(function(data)
@@ -258,9 +265,11 @@
                         {
                            var host = $('#config-host').val();
                            var name = $('#config-name').val();
+                           var path = $('#config-basepath').val();
                            
                            settings.settings.config.host = host;
                            settings.settings.config.name = name;
+                           settings.settings.config.basepath = path;
                            
                            loadSettings(function()
                            {
@@ -682,11 +691,12 @@
                            {
                               if (streams[stream][2])
                               {
-                                 streamstatus = streams[stream][2];
+                                 //there is an error
+                                 streamstatus = formatStatus(streams[stream][0],streams[stream][2]);
                               }
                               else
                               {
-                                 streamstatus = streams[stream][0];
+                                 streamstatus = formatStatus(streams[stream][0]);
                               }
                            }
                            $(this).children(':nth-child(5)').html(formatStatus(streamstatus));
@@ -713,6 +723,7 @@
                   for(stream in settings.settings.streams)
                   {
                      
+                     //backwards compatibility
                      //if sid does not yet exist, create it
                      if (settings.settings.streams[stream].sid == undefined) 
                      {
@@ -748,10 +759,12 @@
                      
                      if (cstr.error) 
                      {
-                        cstr.online = cstr.error;
+                        $tr.append( $('<td>').html( formatStatus( cstr.online, cstr.error ) ) );
                      }
-                     
-                     $tr.append( $('<td>').html( formatStatus( cstr.online ) ) );
+                     else
+                     {
+                        $tr.append( $('<td>').html( formatStatus( cstr.online ) ) );
+                     }
                      
                      var cviewers = 0;
                      

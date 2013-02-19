@@ -140,7 +140,6 @@
                },
             'capabilities': {}
             };
-
             $.ajax(
             {
                'url': settings.server,
@@ -429,18 +428,33 @@
           * Formats the status property to a string (with colors!)
           * @param status, the status property of a stream
           */
-         function formatStatus(status)
+         function formatStatus(status,text)
          {
             if(status == undefined)
             {
                return "<span>Unknown, checking...</span>";
             }
-            switch(status)
+            if(text == undefined)
             {
-               case 1:		return "<span class='green'>Running</span>";				break;
-               case 0:		return "<span class='red'>Offline</span>";				break;
-					case -1:		return "<span>Unknown, checking...</span>";				break;
-               default:		return "<span class='green'>" + status + "</span>";	break;
+              switch(status)
+              {
+                 case -1:   return "<span>Unknown, checking...</span>";         break;
+                 case 0:    return "<span class='red'>Unavailable</span>";      break;
+                 case 1:    return "<span class='green'>Active</span>";         break;
+                 case 2:    return "<span class='orange'>Inactive</span>";      break;
+                 default:   return "<span>"+status+"</span>";                   break;
+              }
+            }
+            else
+            {
+              switch(status)
+              {
+                 case -1:   return "<span>Unknown, checking...</span>";         break;
+                 case 0:    return "<span class='red'>"+text+"</span>";         break;
+                 case 1:    return "<span class='green'>"+text+"</span>";       break;
+                 case 2:    return "<span class='orange'>"+text+"</span>";      break;
+                 default:   return "<span>"+text+"</span>";                     break;
+              }
             }
          }
 

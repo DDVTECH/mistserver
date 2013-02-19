@@ -97,6 +97,7 @@ namespace Socket {
   /// This class is for easily setting up listening socket, either TCP or Unix.
   class Server{
     private:
+      std::string errors; ///< Stores errors that may have occured.
       int sock; ///< Internally saved socket number.
       bool IPv6bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv6 socket
       bool IPv4bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv4 socket

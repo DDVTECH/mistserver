@@ -105,6 +105,7 @@ std::string Socket::Buffer::copy(unsigned int count){
   }
   unsigned int i = 0;
   std::string ret;
+  ret.reserve(count);
   for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
     if (i + ( *it).size() < count){
       ret.append( *it);
@@ -226,10 +227,9 @@ int Socket::Connection::getSocket(){
 }
 
 /// Returns a string describing the last error that occured.
-/// Simply calls strerror(errno) - not very reliable!
-/// \todo Improve getError at some point to be more reliable and only report socket errors.
+/// Only reports errors if an error actually occured - returns the host address or empty string otherwise.
 std::string Socket::Connection::getError(){
-  return strerror(errno);
+  return remotehost;
 }
 
 /// Create a new Unix Socket. This socket will (try to) connect to the given address right away.
@@ -240,8 +240,9 @@ Socket::Connection::Connection(std::string address, bool nonblock){
   pipes[1] = -1;
   sock = socket(PF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
+    remotehost = strerror(errno);
 #if DEBUG >= 1
-    fprintf(stderr, "Could not create socket! Error: %s\n", strerror(errno));
+    fprintf(stderr, "Could not create socket! Error: %s\n", remotehost.c_str());
 #endif
     return;
   }
@@ -261,8 +262,9 @@ Socket::Connection::Connection(std::string address, bool nonblock){
       fcntl(sock, F_SETFL, flags);
     }
   }else{
+    remotehost = strerror(errno);
 #if DEBUG >= 1
-    fprintf(stderr, "Could not connect to %s! Error: %s\n", address.c_str(), strerror(errno));
+    fprintf(stderr, "Could not connect to %s! Error: %s\n", address.c_str(), remotehost.c_str());
 #endif
     close();
   }
@@ -301,6 +303,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
     return;
   }
 
+  remotehost = "";
   for (rp = result; rp != NULL; rp = rp->ai_next){
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sock < 0){
@@ -309,13 +312,14 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
     if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0){
       break;
     }
+    remotehost += strerror(errno);
     ::close(sock);
   }
   freeaddrinfo(result);
 
   if (rp == 0){
 #if DEBUG >= 1
-    fprintf(stderr, "Could not connect to %s! Error: %s\n", host.c_str(), strerror(errno));
+    fprintf(stderr, "Could not connect to %s! Error: %s\n", host.c_str(), remotehost.c_str());
 #endif
     close();
   }else{
@@ -614,7 +618,7 @@ Socket::Server::Server(){
 /// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
 Socket::Server::Server(int port, std::string hostname, bool nonblock){
   if ( !IPv6bind(port, hostname, nonblock) && !IPv4bind(port, hostname, nonblock)){
-    fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, errors.c_str());
     sock = -1;
   }
 } //Socket::Server TCP Constructor
@@ -627,8 +631,9 @@ Socket::Server::Server(int port, std::string hostname, bool nonblock){
 bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET6, SOCK_STREAM, 0);
   if (sock < 0){
+    errors = strerror(errno);
 #if DEBUG >= 1
-    fprintf(stderr, "Could not create IPv6 socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "Could not create IPv6 socket %s:%i! Error: %s\n", hostname.c_str(), port, errors.c_str());
 #endif
     return false;
   }
@@ -656,15 +661,17 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
 #endif
       return true;
     }else{
+      errors = strerror(errno);
 #if DEBUG >= 1
-      fprintf(stderr, "IPv6 Listen failed! Error: %s\n", strerror(errno));
+      fprintf(stderr, "IPv6 Listen failed! Error: %s\n", errors.c_str());
 #endif
       close();
       return false;
     }
   }else{
+    errors = strerror(errno);
 #if DEBUG >= 1
-    fprintf(stderr, "IPv6 Binding %s:%i failed (%s)\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "IPv6 Binding %s:%i failed (%s)\n", hostname.c_str(), port, errors.c_str());
 #endif
     close();
     return false;
@@ -679,8 +686,9 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
 bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock < 0){
+    errors = strerror(errno);
 #if DEBUG >= 1
-    fprintf(stderr, "Could not create IPv4 socket %s:%i! Error: %s\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "Could not create IPv4 socket %s:%i! Error: %s\n", hostname.c_str(), port, errors.c_str());
 #endif
     return false;
   }
@@ -708,15 +716,17 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
 #endif
       return true;
     }else{
+      errors = strerror(errno);
 #if DEBUG >= 1
-      fprintf(stderr, "IPv4 Listen failed! Error: %s\n", strerror(errno));
+      fprintf(stderr, "IPv4 Listen failed! Error: %s\n", errors.c_str());
 #endif
       close();
       return false;
     }
   }else{
+    errors = strerror(errno);
 #if DEBUG >= 1
-    fprintf(stderr, "IPv4 binding %s:%i failed (%s)\n", hostname.c_str(), port, strerror(errno));
+    fprintf(stderr, "IPv4 binding %s:%i failed (%s)\n", hostname.c_str(), port, errors.c_str());
 #endif
     close();
     return false;
@@ -733,8 +743,9 @@ Socket::Server::Server(std::string address, bool nonblock){
   unlink(address.c_str());
   sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
+    errors = strerror(errno);
 #if DEBUG >= 1
-    fprintf(stderr, "Could not create socket! Error: %s\n", strerror(errno));
+    fprintf(stderr, "Could not create socket! Error: %s\n", errors.c_str());
 #endif
     return;
   }
@@ -752,15 +763,17 @@ Socket::Server::Server(std::string address, bool nonblock){
     if (ret == 0){
       return;
     }else{
+      errors = strerror(errno);
 #if DEBUG >= 1
-      fprintf(stderr, "Listen failed! Error: %s\n", strerror(errno));
+      fprintf(stderr, "Listen failed! Error: %s\n", errors.c_str());
 #endif
       close();
       return;
     }
   }else{
+    errors = strerror(errno);
 #if DEBUG >= 1
-    fprintf(stderr, "Binding failed! Error: %s\n", strerror(errno));
+    fprintf(stderr, "Binding failed! Error: %s\n", errors.c_str());
 #endif
     close();
     return;

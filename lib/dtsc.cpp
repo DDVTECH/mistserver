@@ -48,7 +48,9 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       unsigned int i = 0;
       metadata = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
       buffer.erase(0, len + 8);
-      return false;
+      if (buffer.length() <= 8){
+        return false;
+      }
     }
     if (memcmp(buffer.c_str(), DTSC::Magic_Packet, 4) == 0){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);
@@ -120,7 +122,10 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
       metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
-      return false;
+      if (!buffer.available(8)){
+        return false;
+      }
+      header_bytes = buffer.copy(8);
     }
     if (memcmp(header_bytes.c_str(), DTSC::Magic_Packet, 4) == 0){
       len = ntohl(((uint32_t *)header_bytes.c_str())[1]);

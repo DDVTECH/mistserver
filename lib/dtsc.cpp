@@ -13,17 +13,19 @@ DTSC::Stream::Stream(){
   datapointertype = DTSC::INVALID;
   datapointer = 0;
   buffercount = 1;
+  buffertime = 0;
 }
 
 /// Initializes a DTSC::Stream with a minimum of rbuffers packet buffers.
 /// The actual buffer count may not at all times be the requested amount.
-DTSC::Stream::Stream(unsigned int rbuffers){
+DTSC::Stream::Stream(unsigned int rbuffers, unsigned int bufferTime){
   datapointertype = DTSC::INVALID;
   datapointer = 0;
   if (rbuffers < 1){
     rbuffers = 1;
   }
   buffercount = rbuffers;
+  buffertime = bufferTime;
 }
 
 /// Returns the time in milliseconds of the last received packet.
@@ -47,6 +49,7 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       }
       unsigned int i = 0;
       metadata = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
+      metadata.removeMember( "moreheader" );
       buffer.erase(0, len + 8);
       if (buffer.length() <= 8){
         return false;
@@ -122,6 +125,7 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
       metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
+      metadata.removeMember( "moreheader" );
       if (!buffer.available(8)){
         return false;
       }
@@ -220,29 +224,44 @@ std::string & DTSC::Stream::outHeader(){
 void DTSC::Stream::advanceRings(){
   std::deque<DTSC::Ring>::iterator dit;
   std::set<DTSC::Ring *>::iterator sit;
-  for (sit = rings.begin(); sit != rings.end(); sit++){
-    ( *sit)->b++;
-    if (( *sit)->waiting){
-      ( *sit)->waiting = false;
-      ( *sit)->b = 0;
-    }
-    if (( *sit)->starved || (( *sit)->b >= buffers.size())){
-      ( *sit)->starved = true;
-      ( *sit)->b = 0;
+  if (rings.size()) {
+    for (sit = rings.begin(); sit != rings.end(); sit++){
+      ( *sit)->b++;
+      if (( *sit)->waiting){
+        ( *sit)->waiting = false;
+        ( *sit)->b = 0;
+      }
+      if (( *sit)->starved || (( *sit)->b >= buffers.size())){
+        ( *sit)->starved = true;
+        ( *sit)->b = 0;
+      }
     }
   }
-  for (dit = keyframes.begin(); dit != keyframes.end(); dit++){
-    dit->b++;
-    if (dit->b >= buffers.size()){
-      keyframes.erase(dit);
-      break;
+  if (keyframes.size()){
+    for (dit = keyframes.begin(); dit != keyframes.end(); dit++){
+      dit->b++;
     }
+    bool repeat;
+    do {
+      repeat = false;
+      for (dit = keyframes.begin(); dit != keyframes.end(); dit++){
+        if (dit->b >= buffers.size()){
+          keyframes.erase(dit);
+          repeat = true;
+          break;
+        }
+      }
+    } while( repeat );
   }
   if ((lastType() == VIDEO) && (buffers.front().isMember("keyframe"))){
     keyframes.push_front(DTSC::Ring(0));
   }
-  //increase buffer size if no keyframes available
-  if ((buffercount > 1) && (keyframes.size() < 1)){
+  int timeBuffered = 0;
+  if (keyframes.size() > 1){
+  //increase buffer size if no keyframes available or too little time available
+    timeBuffered = buffers[keyframes[keyframes.size() - 1].b]["time"].asInt() - buffers[keyframes[0].b]["time"].asInt();
+  }
+  if (((buffercount > 1) && (keyframes.size() < 2)) || (timeBuffered < buffertime)){
     buffercount++;
   }
 }
@@ -276,6 +295,34 @@ void DTSC::Stream::dropRing(DTSC::Ring * ptr){
     rings.erase(ptr);
     delete ptr;
   }
+}
+
+void DTSC::Stream::updateHeaders(){
+  if( keyframes.size() > 1 ) {
+    metadata["keytime"].shrink(keyframes.size() - 2);
+    metadata["keytime"].append(buffers[keyframes[1].b]["time"].asInt());
+    metadata.toPacked();
+    updateRingHeaders();
+  }
+}
+
+void DTSC::Stream::updateRingHeaders(){
+  std::set<DTSC::Ring *>::iterator sit;
+  if (!rings.size()){
+    return;
+  }
+  for (sit = rings.begin(); sit != rings.end(); sit++){
+    ( *sit)->updated = true;
+  }
+}
+
+unsigned int DSTSC::Stream::msSeek(unsigned int ms) {
+  for( std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++ ) {
+    if( buffers[it->b]["time"].asInt( ) < ms ) {
+      return it->b;
+    }
+  }
+  ///\todo Send PauseMark
 }
 
 /// Properly cleans up the object for erasing.
@@ -436,6 +483,11 @@ void DTSC::File::seekNext(){
     }
     strbuffer = "";
     jsonbuffer.null();
+    return;
+  }
+  if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
+    readHeader(lastreadpos);
+    jsonbuffer = metadata;
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Packet, 4) != 0){

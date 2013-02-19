@@ -56,6 +56,7 @@ namespace DTSC {
     VIDEO, ///< Stream Video data
     META, ///< Stream Metadata
     PAUSEMARK, ///< Pause marker
+    MODIFIEDHEADER, ///< Modified header data.
     INVALID ///< Anything else or no data available.
   };
 
@@ -100,6 +101,7 @@ namespace DTSC {
       volatile unsigned int b; ///< Holds current number of buffer. May and is intended to change unexpectedly!
       volatile bool waiting; ///< If true, this Ring is currently waiting for a buffer fill.
       volatile bool starved; ///< If true, this Ring can no longer receive valid data.
+      volatile bool updated; ///< If true, this Ring should write a new header.
   };
 
   /// Holds temporary data for a DTSC stream and provides functions to utilize it.
@@ -109,7 +111,7 @@ namespace DTSC {
     public:
       Stream();
       ~Stream();
-      Stream(unsigned int buffers);
+      Stream(unsigned int buffers, unsigned int bufferTime = 0);
       JSON::Value metadata;
       JSON::Value & getPacket(unsigned int num = 0);
       datatype lastType();
@@ -123,13 +125,17 @@ namespace DTSC {
       Ring * getRing();
       unsigned int getTime();
       void dropRing(Ring * ptr);
+      void updateHeaders();
+      unsigned int msSeek(unsigned int ms);
     private:
       std::deque<JSON::Value> buffers;
       std::set<DTSC::Ring *> rings;
       std::deque<DTSC::Ring> keyframes;
       void advanceRings();
+      void updateRingHeaders();
       std::string * datapointer;
       datatype datapointertype;
       unsigned int buffercount;
+      unsigned int buffertime;
   };
 }

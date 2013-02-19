@@ -57,23 +57,29 @@ bool Buffer::user::doSend(const char * ptr, int len){
 } //doSend
 
 /// Try to send data to this user. Disconnects if any problems occur.
-void Buffer::user::Send(){
+bool Buffer::user::Send(){
   if ( !myRing){
-    return;
+    return false;
   } //no ring!
   if ( !S.connected()){
-    return;
+    return false;
   } //cancel if not connected
   if (myRing->waiting){
     Stream::get()->waitForData();
-    return;
+    if( myRing->updated ) {
+      Stream::get()->getReadLock();
+      S.SendNow( Stream::get()->getStream()->metadata.toNetPacked() );
+      Stream::get()->dropReadLock();
+      myRing->updated = false;
+    }
+    return false;
   } //still waiting for next buffer?
   if (myRing->starved){
     //if corrupt data, warn and get new DTSC::Ring
     std::cout << "Warning: User " << MyNum << " was send corrupt video data and send to the next keyframe!" << std::endl;
     Stream::get()->dropRing(myRing);
     myRing = Stream::get()->getRing();
-    return;
+    return false;
   }
   //try to complete a send
   Stream::get()->getReadLock();
@@ -82,11 +88,20 @@ void Buffer::user::Send(){
     currsend = 0;
     if (myRing->b <= 0){
       myRing->waiting = true;
-      return;
+      return false;
     } //no next buffer? go in waiting mode.
     myRing->b--;
+    if( myRing->updated ) {
+      Stream::get()->getReadLock();
+      S.SendNow( Stream::get()->getStream()->metadata.toNetPacked() );
+      Stream::get()->dropReadLock();
+      myRing->updated = false;
+    }
+    Stream::get()->dropReadLock();
+    return true;
   } //completed a send
   Stream::get()->dropReadLock();
+  return false;
 } //send
 
 /// Default constructor - should not be in use.

@@ -64,7 +64,7 @@ namespace Buffer {
 
     while (usr->S.connected()){
       usleep(5000); //sleep 5ms
-      usr->Send();
+      if( !usr->Send()){
       if (usr->S.spool()){
         while (usr->S.Received().size()){
           //delete anything that doesn't end with a newline
@@ -89,8 +89,8 @@ namespace Buffer {
                 }else{
                   usr->Disconnect("Push denied - invalid IP address!");
                 }
-              }
                 break;
+              }
               case 'S': { //Stats
                 usr->tmpStats = Stats(usr->S.Received().get().substr(2));
                 unsigned int secs = usr->tmpStats.conntime - usr->lastStats.conntime;
@@ -101,30 +101,34 @@ namespace Buffer {
                 usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
                 usr->lastStats = usr->tmpStats;
                 thisStream->saveStats(usr->MyStr, usr->tmpStats);
-              }
                 break;
+              }
               case 's': { //second-seek
-                //ignored for now
-              }
+                unsigned int ms = JSON::Value(usr->S.Received().get().substr(2)).asInt();
+                usr->myRing.waiting = false;
+                usr->myRing.starved = false;
+                usr->myRing.b = thisStream->getStream()->msSeek(ms);
                 break;
+              }
               case 'f': { //frame-seek
                 //ignored for now
-              }
                 break;
+              }
               case 'p': { //play
                 //ignored for now
-              }
                 break;
+              }
               case 'o': { //once-play
                 //ignored for now
-              }
                 break;
+              }
               case 'q': { //quit-playing
                 //ignored for now
-              }
                 break;
+              }
             }
-            usr->S.Received().get().clear();
+			usr->S.Received().get().clear();
+			}
           }
         }
       }
@@ -148,22 +152,30 @@ namespace Buffer {
       //slow down packet receiving to real-time
       now = getNowMS();
       if ((now - timeDiff >= lastPacket) || (lastPacket - (now - timeDiff) > 15000)){
+        fprintf( stderr, "Obtaining write lock... " );
         thisStream->getWriteLock();
+        fprintf( stderr, "Done.\n" );
         if (thisStream->getStream()->parsePacket(inBuffer)){
+          fprintf( stderr, "Receiving a packet... " );
           thisStream->getStream()->outPacket(0);
           lastPacket = thisStream->getStream()->getTime();
           if ((now - timeDiff - lastPacket) > 15000 || (now - timeDiff - lastPacket < -15000)){
             timeDiff = now - lastPacket;
           }
           thisStream->dropWriteLock(true);
+          fprintf( stderr, "Done.\n" );
         }else{
+          fprintf( stderr, "Not receiving a packet... " );
           thisStream->dropWriteLock(false);
           std::cin.read(charBuffer, 1024 * 10);
           charCount = std::cin.gcount();
           inBuffer.append(charBuffer, charCount);
+          fprintf( stderr, "Done.\n" );
         }
       }else{
+        fprintf( stderr, "Sleeping: %d...", std::min(14999LL, lastPacket - (now - timeDiff)) * 1000 );
         usleep(std::min(14999LL, lastPacket - (now - timeDiff)) * 1000);
+        fprintf( stderr, "Done.\n" );
       }
     }
     buffer_running = false;

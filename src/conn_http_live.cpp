@@ -57,7 +57,7 @@ namespace Connector_HTTP {
       Result << "#EXTM3U\r\n"
       //"#EXT-X-VERSION:1\r\n"
       //"#EXT-X-ALLOW-CACHE:YES\r\n"
-              "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
+          "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
           "#EXT-X-MEDIA-SEQUENCE:0\r\n";
       //"#EXT-X-PLAYLIST-TYPE:VOD\r\n";
       int lastDuration = 0;

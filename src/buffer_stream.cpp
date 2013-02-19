@@ -184,6 +184,13 @@ void Buffer::Stream::getWriteLock(){
 
 /// Drops a previously gotten write lock.
 void Buffer::Stream::dropWriteLock(bool newpackets_available){
+  if (newpackets_available){
+    if (Strm->getPacket(0).isMember("keyframe")){
+      stats_mutex.lock();
+      Strm->updateHeaders();
+      stats_mutex.unlock();
+    }
+  }
   rw_mutex.lock();
   writers--;
   rw_mutex.unlock();

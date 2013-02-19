@@ -182,6 +182,7 @@ namespace Buffer {
           do {
             thisStream->getWriteLock();
             if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
+              thisStream->getStream()->outPacket(0);
               thisStream->dropWriteLock(true);
               packed_parsed = true;
             }else{

@@ -20,7 +20,7 @@ int main(int argc, char ** argv){
   } //read all of std::cin to temp
   temp.erase(temp.size() - 1, 1); //strip the invalid last character
   AMF::Object amfdata = AMF::parse(temp); //parse temp into an AMF::Object
-  amfdata.Print(); //pretty-print the object
+  std::cerr << amfdata.Print() << std::endl; //pretty-print the object
   return 0;
 }
 

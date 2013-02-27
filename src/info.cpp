@@ -6,6 +6,7 @@
 #include <mist/json.h>
 #include <mist/dtsc.h>
 #include <mist/procs.h>
+#include <mist/timing.h>
 
 namespace Info {
   int getInfo(int argc, char* argv[]) {
@@ -16,11 +17,13 @@ namespace Info {
     DTSC::File F(argv[1]);
     JSON::Value fileSpecs = F.getMeta();
     if( !fileSpecs ) {
-      std::vector<std::string> cmd;
-      cmd.push_back("ffprobe");
-      cmd.push_back(argv[1]);
+      char ** cmd = (char**)malloc(3*sizeof(char*));
+      cmd[0] = "ffprobe";
+      cmd[1] = argv[1];
+      cmd[2] = NULL;
       int outFD = -1;
       Util::Procs::StartPiped("FFProbe", cmd, 0, 0, &outFD);
+      while( Util::Procs::isActive("FFProbe")){ Util::sleep(100); }
       FILE * outFile = fdopen( outFD, "r" );
       char * fileBuf = 0;
       size_t fileBufLen = 0;

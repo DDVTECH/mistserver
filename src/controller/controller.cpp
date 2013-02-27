@@ -10,6 +10,7 @@
 #include <mist/procs.h>
 #include <mist/auth.h>
 #include <mist/timing.h>
+#include <mist/converter.h>
 #include "controller_storage.h"
 #include "controller_connectors.h"
 #include "controller_streams.h"
@@ -243,6 +244,10 @@ int main(int argc, char ** argv){
   Controller::ConnectedUser * uplink = 0;
   Controller::Log("CONF", "Controller started");
   conf.activate();
+  
+  //Create a converter class and automatically load in all encoders.
+  Converter::Converter myConverter;
+  
   while (API_Socket.connected() && conf.is_active){
     usleep(10000); //sleep for 10 ms - prevents 100% CPU time
 
@@ -450,6 +455,11 @@ int main(int argc, char ** argv){
                   if (Request.isMember("capabilities")){
                     Controller::checkCapable(Response["capabilities"]);
                   }
+                  if (Request.isMember("conversion")){
+                    if (Request["conversion"].isMember("encoders")) {
+                      Response["conversion"]["encoders"] = myConverter.getEncoders();
+                    }
+                  }
                   if (Request.isMember("save")){
                     Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString());
                     Controller::Log("CONF", "Config written to file on request through API");
@@ -472,6 +482,7 @@ int main(int argc, char ** argv){
                     Controller::Storage["log"].null();
                     Controller::Storage["statistics"].null();
                   }
+                  
                 }
                 jsonp = "";
                 if (it->H.GetVar("callback") != ""){

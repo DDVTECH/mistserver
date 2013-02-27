@@ -114,7 +114,14 @@ namespace Buffer {
                   break;
                 }
                 case 'f': { //frame-seek
-                  //ignored for now
+                  fprintf( stderr, "Received a frame-seek\n" );
+                  unsigned int frameno = JSON::Value(usr->S.Received().get().substr(2)).asInt();
+                  usr->myRing->waiting = false;
+                  usr->myRing->starved = false;
+                  usr->myRing->b = thisStream->getStream()->frameSeek(frameno);
+                  if (usr->myRing->playCount > 0 ) {
+                    usr->myRing->playCount = 0;
+                  }
                   break;
                 }
                 case 'p': { //play
@@ -122,6 +129,7 @@ namespace Buffer {
                   break;
                 }
                 case 'o': { //once-play
+                  fprintf( stderr, "Received a play-once\n" );
                   if (usr->myRing->playCount >= 0 ) {
                     usr->myRing->playCount++;
                   }
@@ -156,7 +164,7 @@ namespace Buffer {
     while (std::cin.good() && buffer_running){
       //slow down packet receiving to real-time
       now = getNowMS();
-      if ((now - timeDiff >= lastPacket) || (lastPacket - (now - timeDiff) > 15000)){
+      if (((now - timeDiff) >= lastPacket) || (lastPacket - (now - timeDiff) > 15000)){
         thisStream->getWriteLock();
         if (thisStream->getStream()->parsePacket(inBuffer)){
           thisStream->getStream()->outPacket(0);

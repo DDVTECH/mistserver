@@ -203,6 +203,7 @@ namespace Connector_HTTP {
   void Handle_Through_Connector(HTTP::Parser & H, Socket::Connection * conn, std::string & connector){
     //create a unique ID based on a hash of the user agent and host, followed by the stream name and connector
     std::string uid = Secure::md5(H.GetHeader("User-Agent") + conn->getHost()) + "_" + H.GetVar("stream") + "_" + connector;
+    H.SetHeader("X-Stream", H.GetVar("stream"));
     H.SetHeader("X-UID", uid); //add the UID to the headers before copying
     H.SetHeader("X-Origin", conn->getHost()); //add the UID to the headers before copying
     std::string request = H.BuildRequest(); //copy the request for later forwarding to the connector
@@ -321,8 +322,8 @@ namespace Connector_HTTP {
   /// - progressive (request fed from http_progressive connector)
   std::string getHTTPType(HTTP::Parser & H){
     std::string url = H.getUrl();
-    if ((url.find("f4m") != std::string::npos) || ((url.find("Seg") != std::string::npos) && (url.find("Frag") != std::string::npos))){
-      std::string streamname = url.substr(1, url.find("/", 1) - 1);
+    if (url.find("/dynamic/") != std::string::npos){
+      std::string streamname = url.substr(9, url.find("/", 9) - 9);
       Util::Stream::sanitizeName(streamname);
       H.SetVar("stream", streamname);
       return "dynamic";

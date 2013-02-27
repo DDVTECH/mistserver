@@ -31,12 +31,18 @@ namespace Connector_HTTP {
     if (metadata.isNull()){
       return result;
     }
-    result.push_back(0);
-    int currentBase = metadata["keytime"][0u].asInt();
-    for (int i = 0; i < metadata["keytime"].size(); i++){
-      if ((metadata["keytime"][i].asInt() - currentBase) > 10000){
-        currentBase = metadata["keytime"][i].asInt();
-        result.push_back(i);
+    if( metadata.isMember( "keynum" ) ) {
+      for (int i = 0; i < metadata["keynum"].size(); i++){
+        result.push_back(metadata["keynum"][i].asInt());
+      }
+    }else{
+      result.push_back(0);
+      int currentBase = metadata["keytime"][0u].asInt();
+      for (int i = 0; i < metadata["keytime"].size(); i++){
+        if ((metadata["keytime"][i].asInt() - currentBase) > 10000){
+          currentBase = metadata["keytime"][i].asInt();
+          result.push_back(i);
+        }
       }
     }
     return result;
@@ -61,7 +67,6 @@ namespace Connector_HTTP {
           "#EXT-X-MEDIA-SEQUENCE:0\r\n";
       //"#EXT-X-PLAYLIST-TYPE:VOD\r\n";
       int lastDuration = 0;
-      bool writeOffset = true;
       for (int i = 0; i < fragIndices.size() - 1; i++){
         Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i + 1]].asInt() - lastDuration) / 1000 << ", no desc\r\n" << fragIndices[i] + 1
             << "_" << fragIndices[i + 1] - fragIndices[i] << ".ts\r\n";
@@ -72,6 +77,12 @@ namespace Connector_HTTP {
       Result << "#EXTM3U\r\n"
           "#EXT-X-MEDIA-SEQUENCE:0\r\n"
           "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
+      int lastDuration = 0;
+      for (int i = 0; i < fragIndices.size() - 1; i++){
+        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i + 1]].asInt() - lastDuration) / 1000 << ", no desc\r\n" << fragIndices[i] + 1
+            << "_" << fragIndices[i + 1] - fragIndices[i] << ".ts\r\n";
+        lastDuration = metadata["keytime"][fragIndices[i + 1]].asInt();
+      }
     }
 #if DEBUG >= 8
     std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
@@ -133,23 +144,25 @@ namespace Connector_HTTP {
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
-          if (HTTP_R.url.find(".m3u") == std::string::npos){
-            streamname = HTTP_R.url.substr(5, HTTP_R.url.find("/", 5) - 5);
-            if ( !ss){
-              ss = Util::Stream::getStream(streamname);
-              if ( !ss.connected()){
+          streamname = HTTP_R.GetHeader("X-Stream");
+          if ( !ss){
+            ss = Util::Stream::getStream(streamname);
+            if ( !ss.connected()){
 #if DEBUG >= 1
-                fprintf(stderr, "Could not connect to server!\n");
+              fprintf(stderr, "Could not connect to server!\n");
 #endif
-                HTTP_S.Clean();
-                HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
-                conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
-                ready4data = false;
-                continue;
-              }
-              ss.setBlocking(false);
-              inited = true;
+              HTTP_S.Clean();
+              HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
+              conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
+              ready4data = false;
+              continue;
             }
+            ss.setBlocking(false);
+            inited = true;
+            while ( !ss.spool()){}
+            Strm.parsePacket(ss.Received());
+          }
+          if (HTTP_R.url.find(".m3u") == std::string::npos){
             temp = HTTP_R.url.find("/", 5) + 1;
             Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("_", temp) - temp).c_str());
             temp = HTTP_R.url.find("_", temp) + 1;
@@ -163,7 +176,9 @@ namespace Connector_HTTP {
             ss.SendNow(sstream.str().c_str());
             Flash_RequestPending++;
           }else{
-            streamname = HTTP_R.url.substr(5, HTTP_R.url.find("/", 5) - 5);
+            if ( ss.spool()){
+              Strm.parsePacket(ss.Received());
+            }
             if (HTTP_R.url.find(".m3u8") != std::string::npos){
               manifestType = "audio/x-mpegurl";
             }else{

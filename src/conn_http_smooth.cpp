@@ -29,8 +29,13 @@ namespace Connector_HTTP {
   std::string BuildManifest(std::string & MovieId, JSON::Value & metadata){
     std::stringstream Result;
     Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
-    Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"10000000\" Duration=\"" << metadata["lastms"].asInt()
-        << "\">\n";
+    Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"10000000\" ";
+    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
+      Result << "Duration=\"" << metadata["lastms"].asInt() << "\"";
+    } else {
+      Result << "Duration=\"0\" IsLive=\"TRUE\" LookAheadFragmentCount=\"2\" ";
+    }
+    Result << ">\n";
     if (metadata.isMember("audio")){
       Result << "  <StreamIndex Type=\"audio\" QualityLevels=\"1\" Name=\"audio\" Chunks=\"" << metadata["keytime"].size()
           << "\" Url=\"Q({bitrate})/A({start time})\">\n";
@@ -45,7 +50,7 @@ namespace Connector_HTTP {
       for (int i = 0; i < metadata["keytime"].size() - 1; i++){
         Result << "    <c ";
         if (i == 0){
-          Result << "t=\"0\" ";
+          Result << "t=\"" << metadata["keytime"][0u].asInt() * 10000 << "\" ";
         }
         Result << "d=\"" << 10000 * (metadata["keytime"][i + 1].asInt() - metadata["keytime"][i].asInt()) << "\" />\n";
       }
@@ -71,7 +76,7 @@ namespace Connector_HTTP {
       for (int i = 0; i < metadata["keytime"].size() - 1; i++){
         Result << "    <c ";
         if (i == 0){
-          Result << "t=\"0\" ";
+          Result << "t=\"" << metadata["keytime"][0u].asInt() * 10000 << "\" ";
         }
         Result << "d=\"" << 10000 * (metadata["keytime"][i + 1].asInt() - metadata["keytime"][i].asInt()) << "\" />\n";
       }

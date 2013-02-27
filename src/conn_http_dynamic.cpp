@@ -35,10 +35,10 @@ namespace Connector_HTTP {
     }else{
       asrt.setUpdate(true);
     }
-    asrt.setVersion(1);
-    asrt.setQualityEntry(empty, 0);
-    if ( !metadata.isMember("keytime") || metadata["keytime"].size() == 0){
-      asrt.setSegmentRun(1, 20000, 0);
+    asrt.setVersion(0);//1
+    //asrt.setQualityEntry(empty, 0);
+    if (metadata.isMember("keynum")){
+      asrt.setSegmentRun(1, -1, 0);
     }else{
       asrt.setSegmentRun(1, metadata["keytime"].size(), 0);
     }
@@ -49,19 +49,18 @@ namespace Connector_HTTP {
     }else{
       afrt.setUpdate(true);
     }
-    afrt.setVersion(1);
+    afrt.setVersion(0);//1
     afrt.setTimeScale(1000);
-    afrt.setQualityEntry(empty, 0);
+    //afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
-    if ( !metadata.isMember("keytime") || metadata["keytime"].size() == 0){
-      afrtrun.firstFragment = 1;
-      afrtrun.firstTimestamp = 0;
-      if ( !metadata.isMember("video") || !metadata["video"].isMember("keyms") || metadata["video"]["keyms"].asInt() == 0){
-        afrtrun.duration = 2000;
-      }else{
-        afrtrun.duration = metadata["video"]["keyms"].asInt();
+    if (metadata.isMember("keynum")){
+      unsigned long long int firstAvail = metadata["keynum"].size() / 2;
+      for (int i = firstAvail; i < metadata["keynum"].size() -2; i++ ) {
+        afrtrun.firstFragment = metadata["keynum"][i].asInt();
+        afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
+        afrtrun.duration = metadata["keytime"][i+1].asInt() - metadata["keytime"][i].asInt();
+        afrt.setFragmentRun(afrtrun, i - firstAvail);
       }
-      afrt.setFragmentRun(afrtrun, 0);
     }else{
       for (int i = 0; i < metadata["keytime"].size(); i++){
         afrtrun.firstFragment = i + 1;
@@ -80,8 +79,12 @@ namespace Connector_HTTP {
     }
 
     MP4::ABST abst;
-    abst.setVersion(1);
-    abst.setBootstrapinfoVersion(1);
+    abst.setVersion(0);
+    if( metadata.isMember("keynum") ) {
+      abst.setBootstrapinfoVersion(metadata["keynum"][0u].asInt());
+    }else{
+      abst.setBootstrapinfoVersion(1);
+    }
     abst.setProfile(0);
     if (starttime == 0){
       abst.setUpdate(false);
@@ -98,14 +101,14 @@ namespace Connector_HTTP {
       }
     }else{
       abst.setLive(true);
-      abst.setCurrentMediaTime(0xFFFFFFFF);
+      abst.setCurrentMediaTime(metadata["lastms"].asInt());
     }
     abst.setSmpteTimeCodeOffset(0);
     abst.setMovieIdentifier(MovieId);
-    abst.setServerEntry(empty, 0);
-    abst.setQualityEntry(empty, 0);
-    abst.setDrmData(empty);
-    abst.setMetaData(empty);
+    //abst.setServerEntry(empty, 0);
+    //abst.setQualityEntry(empty, 0);
+    //abst.setDrmData(empty);
+    //abst.setMetaData(empty);
     abst.setSegmentRunTable(asrt, 0);
     abst.setFragmentRunTable(afrt, 0);
 
@@ -118,7 +121,7 @@ namespace Connector_HTTP {
   /// Returns a F4M-format manifest file
   std::string BuildManifest(std::string & MovieId, JSON::Value & metadata){
     std::string Result;
-    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
+    if ( !metadata.isMember("keynum")){
       Result =
           "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
               "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
@@ -139,11 +142,14 @@ namespace Connector_HTTP {
       Result = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
           "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
           "<id>" + MovieId + "</id>\n"
+          "<duration>0.00</duration>\n"
           "<mimeType>video/mp4</mimeType>\n"
           "<streamType>live</streamType>\n"
           "<deliveryType>streaming</deliveryType>\n"
-          "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0, 0)) + "</bootstrapInfo>\n"
-          "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\"></media>\n"
+          "<bootstrapInfo profile=\"named\" id=\"bootstrap1\" url=\"" + MovieId + ".bootstrap\"></bootstrapInfo>\n"
+          "<media bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">"
+          "<metadata>AgAKb25NZXRhRGF0YQgAAAAAAA9tZXRhZGF0YWNyZWF0b3ICABBBbmV2aWEgVmlhTW90aW9uAAhoYXNBdWRpbwEBAAhoYXNWaWRlbwEBAAhkdXJhdGlvbgBBIWWYAAAAAAAPYXVkaW9zYW1wbGVyYXRlAEBIAAAAAAAAAA1hdWRpb2RhdGFyYXRlAEBgAAAAAAAAAAxhdWRpb2NvZGVjaWQCAARtcDRhAAZhYWNhb3QAQAAAAAAAAAAABXdpZHRoAECQAAAAAAAAAAZoZWlnaHQAQIIAAAAAAAAADXZpZGVvZGF0YXJhdGUAQJ9AAAAAAAAADHZpZGVvY29kZWNpZAIABEFWQzEACmF2Y3Byb2ZpbGUAQFNAAAAAAAAACGF2Y2xldmVsAEA/AAAAAAAAAAAJ</metadata>\n"
+          "</media>\n"
           "</manifest>\n";
     }
 #if DEBUG >= 8
@@ -193,27 +199,38 @@ namespace Connector_HTTP {
         if (HTTP_R.Read(conn.Received().get())){
 #if DEBUG >= 4
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
+          std::cout << "Received request: " << HTTP_R.BuildRequest() << std::endl;
 #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
-          if (HTTP_R.url.find("f4m") == std::string::npos){
-            streamname = HTTP_R.url.substr(1, HTTP_R.url.find("/", 1) - 1);
-            if ( !ss){
-              ss = Util::Stream::getStream(streamname);
-              if ( !ss.connected()){
+          streamname = HTTP_R.GetHeader("X-Stream");
+          if ( !ss){
+            ss = Util::Stream::getStream(streamname);
+            if ( !ss.connected()){
 #if DEBUG >= 1
-                fprintf(stderr, "Could not connect to server!\n");
+              fprintf(stderr, "Could not connect to server!\n");
 #endif
-                ss.close();
-                HTTP_S.Clean();
-                HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
-                conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
-                ready4data = false;
-                continue;
-              }
-              ss.setBlocking(false);
-              inited = true;
+              ss.close();
+              HTTP_S.Clean();
+              HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
+              conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
+              ready4data = false;
+              HTTP_R.Clean(); //clean for any possible next requests
+              continue;
             }
-            Quality = HTTP_R.url.substr(HTTP_R.url.find("/", 1) + 1);
+            ss.setBlocking(false);
+            inited = true;
+            while ( !ss.spool()){}
+            Strm.parsePacket(ss.Received());
+          }
+          if (HTTP_R.url.find(".bootstrap") != std::string::npos){
+            HTTP_S.Clean();
+            HTTP_S.SetBody(GenerateBootstrap(streamname, Strm.metadata, 1, 0, 0));
+            conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
+            HTTP_R.Clean(); //clean for any possible next requests
+            continue;
+          }
+          if (HTTP_R.url.find("f4m") == std::string::npos){
+            Quality = HTTP_R.url.substr(HTTP_R.url.find("/", 10) + 1);
             Quality = Quality.substr(0, Quality.find("Seg"));
             temp = HTTP_R.url.find("Seg") + 3;
             Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("-", temp) - temp).c_str());
@@ -227,7 +244,6 @@ namespace Connector_HTTP {
             ss.SendNow(sstream.str().c_str());
             Flash_RequestPending++;
           }else{
-            streamname = HTTP_R.url.substr(1, HTTP_R.url.find("/", 1) - 1);
             if ( !Strm.metadata.isNull()){
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type", "text/xml");
@@ -284,6 +300,7 @@ namespace Connector_HTTP {
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
+            /*
             if (Strm.getPacket(0).isMember("time")){
               if ( !Strm.metadata.isMember("firsttime")){
                 Strm.metadata["firsttime"] = Strm.getPacket(0)["time"];
@@ -294,6 +311,7 @@ namespace Connector_HTTP {
               }
               Strm.metadata["lasttime"] = Strm.getPacket(0)["time"];
             }
+            */
             if (pending_manifest){
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type", "text/xml");

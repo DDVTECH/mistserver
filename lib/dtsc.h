@@ -128,6 +128,7 @@ namespace DTSC {
       void dropRing(Ring * ptr);
       void updateHeaders();
       unsigned int msSeek(unsigned int ms);
+      unsigned int frameSeek(unsigned int frameno);
       void setBufferTime(unsigned int ms);
     private:
       std::deque<JSON::Value> buffers;

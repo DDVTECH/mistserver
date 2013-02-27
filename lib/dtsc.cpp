@@ -257,13 +257,17 @@ void DTSC::Stream::advanceRings(){
       }
     } while( repeat );
   }
+  static int fragNum = 1;
   if ((lastType() == VIDEO) && (buffers.front().isMember("keyframe"))){
     keyframes.push_front(DTSC::Ring(0));
+    if ( !buffers.front().isMember("fragnum")){
+      buffers.front()["fragnum"] = fragNum++;
+    }
   }
-  int timeBuffered = 0;
+  unsigned int timeBuffered = 0;
   if (keyframes.size() > 1){
-  //increase buffer size if no keyframes available or too little time available
-    timeBuffered = buffers[keyframes[keyframes.size() - 1].b]["time"].asInt() - buffers[keyframes[0].b]["time"].asInt();
+    //increase buffer size if no keyframes available or too little time available
+    timeBuffered = buffers[keyframes[0].b]["time"].asInt() - buffers[keyframes[keyframes.size() - 1].b]["time"].asInt();
   }
   if (buffercount > 1 && (keyframes.size() < 2 || timeBuffered < buffertime)){
     buffercount++;
@@ -304,9 +308,16 @@ void DTSC::Stream::dropRing(DTSC::Ring * ptr){
 }
 
 void DTSC::Stream::updateHeaders(){
-  if( keyframes.size() > 1 ) {
+  if( keyframes.size() > 2 ) {
     metadata["keytime"].shrink(keyframes.size() - 2);
+    metadata["keynum"].shrink(keyframes.size() - 2 );
     metadata["keytime"].append(buffers[keyframes[1].b]["time"].asInt());
+    if( metadata["keynum"].size() == 0 ) {
+      metadata["keynum"].append(1ll);
+    } else {
+      metadata["keynum"].append( metadata["keynum"][metadata["keynum"].size()-1].asInt() + 1 );
+    }
+    metadata["lastms"] =  buffers[keyframes[0].b]["time"].asInt();
     metadata.toPacked();
     updateRingHeaders();
   }
@@ -325,6 +336,15 @@ void DTSC::Stream::updateRingHeaders(){
 unsigned int DTSC::Stream::msSeek(unsigned int ms) {
   for( std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++ ) {
     if( buffers[it->b]["time"].asInt( ) < ms ) {
+      return it->b;
+    }
+  }
+  return keyframes[keyframes.size()-1].b;
+}
+
+unsigned int DTSC::Stream::frameSeek(unsigned int frameno) {
+  for( std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++ ) {
+    if( buffers[it->b]["fragnum"].asInt( ) == frameno ) {
       return it->b;
     }
   }

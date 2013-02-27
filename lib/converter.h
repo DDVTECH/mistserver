@@ -11,6 +11,7 @@ namespace Converter {
     public:
       Converter();
       converterInfo & getCodecs();
+      JSON::Value getEncoders();
     private:
       void fillFFMpegEncoders();
       converterInfo allCodecs;

@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <string>
 #include <map>
+#include <vector>
 
 /// Contains utility code, not directly related to streaming media
 namespace Util {

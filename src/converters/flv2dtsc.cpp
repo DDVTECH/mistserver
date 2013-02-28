@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <cstdlib>
@@ -40,17 +41,23 @@ namespace Converters {
           if (counter > 8){
             sending = true;
             meta_out["moreheader"] = 0LL;
-            std::cout << meta_out.toNetPacked();
-            std::cout << prebuffer.rdbuf();
+            std::string packed_header = meta_out.toNetPacked();
+            unsigned int size = htonl(packed_header.size());
+            output << std::string(DTSC::Magic_Header, 4) << std::string((char*) &size, 4) << packed_header;
+            output << prebuffer.rdbuf();
             prebuffer.str("");
             std::cerr << "Buffer done, starting real-time output..." << std::endl;
           }else{
-            prebuffer << pack_out.toNetPacked();
+            std::string packed_out = pack_out.toNetPacked();
+            unsigned int size = htonl(packed_out.size());
+            prebuffer << std::string(DTSC::Magic_Packet, 4) << std::string((char*) &size, 4) << packed_out;
             continue; //don't also write
           }
         }
         //simply write
-        std::cout << pack_out.toNetPacked();
+        std::string packed_out = pack_out.toNetPacked();
+        unsigned int size = htonl(packed_out.size());
+        output << std::string(DTSC::Magic_Packet, 4) << std::string((char*) &size, 4) << packed_out;
       }
     }
 
@@ -58,10 +65,12 @@ namespace Converters {
     if ( !sending){
       std::cerr << "EOF - outputting buffer..." << std::endl;
       meta_out["moreheader"] = 0LL;
-      std::cout << meta_out.toNetPacked();
-      std::cout << prebuffer.rdbuf();
+      std::string packed_header = meta_out.toNetPacked();
+      unsigned int size = htonl(packed_header.size());
+      output << std::string(DTSC::Magic_Header, 4) << std::string((char*) &size, 4) << packed_header;
+      output << prebuffer.rdbuf();
     }
-    std::cerr << "Done!" << std::endl;
+    std::cerr << "Done! If you output this data to a file, don't forget to run MistDTSCFix next." << std::endl;
 
     return 0;
   } //FLV2DTSC
@@ -71,6 +80,13 @@ namespace Converters {
 ///\brief Entry point for FLV2DTSC, simply calls Converters::FLV2DTSC().
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.addOption("output",
+      JSON::fromString(
+          "{\"long\":\"output\", \"value\":[\"stdout\"], \"short\":\"o\", \"arg\":\"string\", \"help\":\"Name of the outputfile or stdout for standard output.\"}"));
   conf.parseArgs(argc, argv);
-  return Converters::FLV2DTSC();
+  if (conf.getString("output") == "stdout"){
+    return Converters::FLV2DTSC(std::cout);
+  }
+  std::ofstream oFile(conf.getString("output").c_str());
+  return Converters::FLV2DTSC(oFile);
 } //main

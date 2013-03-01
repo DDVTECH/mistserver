@@ -835,7 +835,7 @@
                         preset:
                         {
                            cmd: ''
-                        }
+                        },
                      };
                      title = 'add new stream';
                   }else{
@@ -886,6 +886,18 @@
                      $('#stream-edit-preset-label').show();
                   }
                   
+                  if (sdata.DVR == undefined) 
+                  {
+                    var DVR = '';
+                  } else {
+                    var DVR = sdata.DVR;
+                  }
+                  $('#editserver').append(
+                    $('<label>').attr('id','stream-edit-buffer-label').attr('for','stream-edit-buffer').text('Buffer time [ms]').append(
+                      $('<input>').attr('type','text').attr('placeholder','2 keyframes').attr('id','stream-edit-buffer').attr('value', DVR)
+                    )
+                  );
+                  
                   $('#editserver').append(
                      $('<button>').attr('class', 'floatright').click(function()
                      {
@@ -911,9 +923,11 @@
                         var n = $('#stream-edit-name');
                         var s = $('#stream-edit-source');
                         var p = $('#stream-edit-preset');
+                        var b = $('#stream-edit-buffer');
                         
                         if(n.val() == ''){ n.focus(); return; }
                         if(s.val() == ''){ s.focus(); return; }
+                        if((b.val() != '') && ((b.val() < 0) || (isNaN(b.val)))){ b.focus(); return; }
                         
                         var newname = n.val().replace(/([^a-zA-Z0-9_])/g, '').toLowerCase();
                         
@@ -922,6 +936,7 @@
                         sdata.preset.cmd = p.val();
                         sdata.online = -1;
                         sdata.error = null;
+                        if (b.val() != '') { sdata.DVR = b.val(); }
                         
                         if(streamname == 'new')
                         {

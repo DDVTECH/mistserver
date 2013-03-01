@@ -17,8 +17,11 @@
 #include "server.html.h"
 
 #define UPLINK_INTERVAL 30
+
+#ifndef COMPILED_USERNAME
 #define COMPILED_USERNAME ""
 #define COMPILED_PASSWORD ""
+#endif
 
 namespace Controller {
 
@@ -151,7 +154,9 @@ int main(int argc, char ** argv){
   conf.addOption("account",
       JSON::fromString(
           "{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
-  conf.addOption("uplink", JSON::fromString("{\"default\":0, \"help\":\"Enable MistSteward uplink.\", \"short\":\"U\", \"long\":\"uplink\"}"));
+  conf.addOption("uplink", JSON::fromString("{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host and port.\", \"short\":\"U\", \"long\":\"uplink\"}"));
+  conf.addOption("uplink-name", JSON::fromString("{\"default\":\"" COMPILED_USERNAME "\", \"arg\":\"string\", \"help\":\"MistSteward uplink username.\", \"short\":\"N\", \"long\":\"uplink-name\"}"));
+  conf.addOption("uplink-pass", JSON::fromString("{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}"));
   conf.parseArgs(argc, argv);
 
   std::string account = conf.getString("account");
@@ -164,6 +169,19 @@ int main(int argc, char ** argv){
       Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
     }
   }
+  
+  std::string uplink_addr = conf.getString("uplink");
+  std::string uplink_host = "";
+  int uplink_port = 0;
+  if (uplink_addr.size() > 0){
+    size_t colon = uplink_addr.find(':');
+    if (colon != std::string::npos && colon != 0 && colon != uplink_addr.size()){
+      uplink_host = uplink_addr.substr(0, colon);
+      uplink_port = atoi(uplink_addr.substr(colon + 1, std::string::npos).c_str());
+      Controller::Log("CONF", "Connection to uplink enabled on host " + uplink_host + " and port " + uplink_addr.substr(colon + 1, std::string::npos));
+    }
+  }
+  
   time_t lastuplink = 0;
   time_t processchecker = 0;
   Socket::Server API_Socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"), true);
@@ -188,7 +206,7 @@ int main(int argc, char ** argv){
       Controller::CheckAllStreams(Controller::Storage["streams"]);
       Controller::CheckStats(Controller::Storage["statistics"]);
     }
-    if (conf.getBool("uplink") && Util::epoch() - lastuplink > UPLINK_INTERVAL){
+    if (uplink_port && Util::epoch() - lastuplink > UPLINK_INTERVAL){
       lastuplink = Util::epoch();
       bool gotUplink = false;
       if (users.size() > 0){
@@ -205,7 +223,7 @@ int main(int argc, char ** argv){
         }
       }
       if ( !gotUplink){
-        Incoming = Socket::Connection("gearbox.ddvtech.com", 4242, true);
+        Incoming = Socket::Connection(uplink_host, uplink_port, true);
         if (Incoming.connected()){
           users.push_back((Controller::ConnectedUser)Incoming);
           users.back().clientMode = true;
@@ -321,7 +339,7 @@ int main(int argc, char ** argv){
             if (it->clientMode){
               // In clientMode, requests are reversed. These are connections we initiated to GearBox.
               // They are assumed to be authorized, but authorization to gearbox is still done.
-              // This authorization uses the compiled-in username and password (account).
+              // This authorization uses the compiled-in or commandline username and password (account).
               Request = JSON::fromString(it->H.body);
               if (Request["authorize"]["status"] != "OK"){
                 if (Request["authorize"].isMember("challenge")){
@@ -334,10 +352,10 @@ int main(int argc, char ** argv){
                     Response["streams"] = Controller::Storage["streams"];
                     Response["log"] = Controller::Storage["log"];
                     Response["statistics"] = Controller::Storage["statistics"];
-                    Response["authorize"]["username"] = COMPILED_USERNAME;
+                    Response["authorize"]["username"] = conf.getString("uplink-name");
                     Controller::checkCapable(Response["capabilities"]);
                     Controller::Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
-                    Response["authorize"]["password"] = Secure::md5(COMPILED_PASSWORD + Request["authorize"]["challenge"].asString());
+                    Response["authorize"]["password"] = Secure::md5(conf.getString("uplink-pass") + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
                     it->H.SetBody("command=" + HTTP::Parser::urlencode(Response.toString()));
                     it->H.BuildRequest();

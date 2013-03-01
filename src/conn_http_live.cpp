@@ -31,7 +31,7 @@ namespace Connector_HTTP {
     if (metadata.isNull()){
       return result;
     }
-    if( metadata.isMember( "keynum" ) ) {
+    if (metadata.isMember("keynum")){
       for (int i = 0; i < metadata["keynum"].size(); i++){
         result.push_back(metadata["keynum"][i].asInt());
       }
@@ -63,7 +63,7 @@ namespace Connector_HTTP {
       Result << "#EXTM3U\r\n"
       //"#EXT-X-VERSION:1\r\n"
       //"#EXT-X-ALLOW-CACHE:YES\r\n"
-          "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
+              "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
           "#EXT-X-MEDIA-SEQUENCE:0\r\n";
       //"#EXT-X-PLAYLIST-TYPE:VOD\r\n";
       int lastDuration = 0;
@@ -159,7 +159,8 @@ namespace Connector_HTTP {
             }
             ss.setBlocking(false);
             inited = true;
-            while ( !ss.spool()){}
+            while ( !ss.spool()){
+            }
             Strm.parsePacket(ss.Received());
           }
           if (HTTP_R.url.find(".m3u") == std::string::npos){
@@ -176,7 +177,7 @@ namespace Connector_HTTP {
             ss.SendNow(sstream.str().c_str());
             Flash_RequestPending++;
           }else{
-            if ( ss.spool()){
+            if (ss.spool()){
               Strm.parsePacket(ss.Received());
             }
             if (HTTP_R.url.find(".m3u8") != std::string::npos){
@@ -340,12 +341,10 @@ namespace Connector_HTTP {
                 ContCounter = &AudioCounter;
               }
 
-
-
               //initial packet
               PackData.Clear();
               PackData.PID(PIDno);
-              PackData.ContinuityCounter((*ContCounter)++);
+              PackData.ContinuityCounter(( *ContCounter)++);
               PackData.UnitStart(1);
               if (IsKeyFrame){
                 PackData.RandomAccess(1);
@@ -360,14 +359,13 @@ namespace Connector_HTTP {
               while (ToPack.size()){
                 PackData.Clear();
                 PackData.PID(PIDno);
-                PackData.ContinuityCounter((*ContCounter)++);
+                PackData.ContinuityCounter(( *ContCounter)++);
                 PackData.AddStuffing(PackData.BytesFree() - ToPack.size());
                 PackData.FillFree(ToPack);
                 TSBuf.write(PackData.ToString(), 188);
                 PacketNumber++;
               }
-              
-              
+
             }
           }
           if (pending_manifest && !Strm.metadata.isNull()){

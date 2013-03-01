@@ -154,9 +154,15 @@ int main(int argc, char ** argv){
   conf.addOption("account",
       JSON::fromString(
           "{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
-  conf.addOption("uplink", JSON::fromString("{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host and port.\", \"short\":\"U\", \"long\":\"uplink\"}"));
-  conf.addOption("uplink-name", JSON::fromString("{\"default\":\"" COMPILED_USERNAME "\", \"arg\":\"string\", \"help\":\"MistSteward uplink username.\", \"short\":\"N\", \"long\":\"uplink-name\"}"));
-  conf.addOption("uplink-pass", JSON::fromString("{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}"));
+  conf.addOption("uplink",
+      JSON::fromString(
+          "{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host and port.\", \"short\":\"U\", \"long\":\"uplink\"}"));
+  conf.addOption("uplink-name",
+      JSON::fromString(
+          "{\"default\":\"" COMPILED_USERNAME "\", \"arg\":\"string\", \"help\":\"MistSteward uplink username.\", \"short\":\"N\", \"long\":\"uplink-name\"}"));
+  conf.addOption("uplink-pass",
+      JSON::fromString(
+          "{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}"));
   conf.parseArgs(argc, argv);
 
   std::string account = conf.getString("account");
@@ -169,7 +175,7 @@ int main(int argc, char ** argv){
       Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
     }
   }
-  
+
   std::string uplink_addr = conf.getString("uplink");
   std::string uplink_host = "";
   int uplink_port = 0;
@@ -178,10 +184,11 @@ int main(int argc, char ** argv){
     if (colon != std::string::npos && colon != 0 && colon != uplink_addr.size()){
       uplink_host = uplink_addr.substr(0, colon);
       uplink_port = atoi(uplink_addr.substr(colon + 1, std::string::npos).c_str());
-      Controller::Log("CONF", "Connection to uplink enabled on host " + uplink_host + " and port " + uplink_addr.substr(colon + 1, std::string::npos));
+      Controller::Log("CONF",
+          "Connection to uplink enabled on host " + uplink_host + " and port " + uplink_addr.substr(colon + 1, std::string::npos));
     }
   }
-  
+
   time_t lastuplink = 0;
   time_t processchecker = 0;
   Socket::Server API_Socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"), true);

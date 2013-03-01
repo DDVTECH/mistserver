@@ -32,7 +32,7 @@ namespace Connector_HTTP {
     Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"10000000\" ";
     if (metadata.isMember("length") && metadata["length"].asInt() > 0){
       Result << "Duration=\"" << metadata["lastms"].asInt() << "\"";
-    } else {
+    }else{
       Result << "Duration=\"0\" IsLive=\"TRUE\" LookAheadFragmentCount=\"2\" ";
     }
     Result << ">\n";

@@ -64,7 +64,7 @@ namespace Buffer {
 
     while (usr->S.connected()){
       usleep(5000); //sleep 5ms
-      if( !usr->myRing->playCount || !usr->Send()){
+      if ( !usr->myRing->playCount || !usr->Send()){
         if (usr->S.spool()){
           while (usr->S.Received().size()){
             //delete anything that doesn't end with a newline
@@ -108,18 +108,18 @@ namespace Buffer {
                   usr->myRing->waiting = false;
                   usr->myRing->starved = false;
                   usr->myRing->b = thisStream->getStream()->msSeek(ms);
-                  if (usr->myRing->playCount > 0 ) {
+                  if (usr->myRing->playCount > 0){
                     usr->myRing->playCount = 0;
                   }
                   break;
                 }
                 case 'f': { //frame-seek
-                  fprintf( stderr, "Received a frame-seek\n" );
+                  fprintf(stderr, "Received a frame-seek\n");
                   unsigned int frameno = JSON::Value(usr->S.Received().get().substr(2)).asInt();
                   usr->myRing->waiting = false;
                   usr->myRing->starved = false;
                   usr->myRing->b = thisStream->getStream()->frameSeek(frameno);
-                  if (usr->myRing->playCount > 0 ) {
+                  if (usr->myRing->playCount > 0){
                     usr->myRing->playCount = 0;
                   }
                   break;
@@ -129,8 +129,8 @@ namespace Buffer {
                   break;
                 }
                 case 'o': { //once-play
-                  fprintf( stderr, "Received a play-once\n" );
-                  if (usr->myRing->playCount >= 0 ) {
+                  fprintf(stderr, "Received a play-once\n");
+                  if (usr->myRing->playCount >= 0){
                     usr->myRing->playCount++;
                   }
                   break;
@@ -196,7 +196,7 @@ namespace Buffer {
       if (thisStream->getIPInput().connected()){
         if (thisStream->getIPInput().spool()){
           bool packed_parsed = false;
-          do {
+          do{
             thisStream->getWriteLock();
             if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
               thisStream->getStream()->outPacket(0);
@@ -207,7 +207,7 @@ namespace Buffer {
               packed_parsed = false;
               usleep(1000); //1ms wait
             }
-          } while(packed_parsed);
+          }while (packed_parsed);
         }else{
           usleep(1000); //1ms wait
         }
@@ -228,7 +228,8 @@ namespace Buffer {
     conf.addOption("reportstats",
         JSON::fromString("{\"default\":0, \"help\":\"Report stats to a controller process.\", \"short\":\"s\", \"long\":\"reportstats\"}"));
     conf.addOption("time",
-        JSON::fromString("{\"default\":0, \"arg\": \"integer\", \"help\":\"Buffer a specied amount of time in ms.\", \"short\":\"t\", \"long\":\"time\"}"));
+        JSON::fromString(
+            "{\"default\":0, \"arg\": \"integer\", \"help\":\"Buffer a specied amount of time in ms.\", \"short\":\"t\", \"long\":\"time\"}"));
     conf.parseArgs(argc, argv);
 
     std::string name = conf.getString("stream_name");
@@ -259,7 +260,7 @@ namespace Buffer {
     }
 
     while (buffer_running && SS.connected() && conf.is_active){
-      fprintf( stderr, "Still running\n" );
+      fprintf(stderr, "Still running\n");
       //check for new connections, accept them if there are any
       //starts a thread for every accepted connection
       incoming = SS.accept(true);

@@ -66,11 +66,11 @@ bool Buffer::user::Send(){
   } //cancel if not connected
   if (myRing->waiting){
     Stream::get()->waitForData();
-    if( !myRing->waiting ) {
+    if ( !myRing->waiting){
       if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
-        myRing->playCount --;
-        if (!myRing->playCount){
-          fprintf( stderr, "Sending Pausemark\n" );
+        myRing->playCount--;
+        if ( !myRing->playCount){
+          fprintf(stderr, "Sending Pausemark\n");
           JSON::Value pausemark;
           pausemark["datatype"] = "pause_marker";
           pausemark["time"] = Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt();
@@ -79,9 +79,9 @@ bool Buffer::user::Send(){
         }
       }
       if (myRing->updated){
-        fprintf( stderr, "Sent new metadata\n" );
+        fprintf(stderr, "Sent new metadata\n");
         Stream::get()->getReadLock();
-        S.SendNow( Stream::get()->getStream()->metadata.toNetPacked() );
+        S.SendNow(Stream::get()->getStream()->metadata.toNetPacked());
         Stream::get()->dropReadLock();
         myRing->updated = false;
       }
@@ -105,18 +105,18 @@ bool Buffer::user::Send(){
       return false;
     } //no next buffer? go in waiting mode.
     myRing->b--;
-    if( myRing->updated ) {
-      fprintf( stderr, "Sent new metadata\n" );
+    if (myRing->updated){
+      fprintf(stderr, "Sent new metadata\n");
       Stream::get()->getReadLock();
-      S.SendNow( Stream::get()->getStream()->metadata.toNetPacked() );
+      S.SendNow(Stream::get()->getStream()->metadata.toNetPacked());
       Stream::get()->dropReadLock();
       myRing->updated = false;
     }
     Stream::get()->dropReadLock();
     if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
-      myRing->playCount --;
-      if (!myRing->playCount){
-        fprintf( stderr, "Sending Pausemark\n" );
+      myRing->playCount--;
+      if ( !myRing->playCount){
+        fprintf(stderr, "Sending Pausemark\n");
         JSON::Value pausemark;
         pausemark["datatype"] = "pause_marker";
         pausemark["time"] = Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt();
@@ -125,7 +125,7 @@ bool Buffer::user::Send(){
       }
     }
     return false;
-  }//completed a send
+  } //completed a send
   Stream::get()->dropReadLock();
   return true;
 } //send

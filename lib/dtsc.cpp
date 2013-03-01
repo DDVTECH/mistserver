@@ -49,7 +49,7 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       }
       unsigned int i = 0;
       metadata = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
-      metadata.removeMember( "moreheader" );
+      metadata.removeMember("moreheader");
       buffer.erase(0, len + 8);
       if (buffer.length() <= 8){
         return false;
@@ -125,8 +125,8 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
       metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
-      metadata.removeMember( "moreheader" );
-      if (!buffer.available(8)){
+      metadata.removeMember("moreheader");
+      if ( !buffer.available(8)){
         return false;
       }
       header_bytes = buffer.copy(8);
@@ -228,7 +228,7 @@ std::string & DTSC::Stream::outHeader(){
 void DTSC::Stream::advanceRings(){
   std::deque<DTSC::Ring>::iterator dit;
   std::set<DTSC::Ring *>::iterator sit;
-  if (rings.size()) {
+  if (rings.size()){
     for (sit = rings.begin(); sit != rings.end(); sit++){
       ( *sit)->b++;
       if (( *sit)->waiting){
@@ -246,7 +246,7 @@ void DTSC::Stream::advanceRings(){
       dit->b++;
     }
     bool repeat;
-    do {
+    do{
       repeat = false;
       for (dit = keyframes.begin(); dit != keyframes.end(); dit++){
         if (dit->b >= buffers.size()){
@@ -255,7 +255,7 @@ void DTSC::Stream::advanceRings(){
           break;
         }
       }
-    } while( repeat );
+    }while (repeat);
   }
   static int fragNum = 1;
   if ((lastType() == VIDEO) && (buffers.front().isMember("keyframe"))){
@@ -308,16 +308,16 @@ void DTSC::Stream::dropRing(DTSC::Ring * ptr){
 }
 
 void DTSC::Stream::updateHeaders(){
-  if( keyframes.size() > 2 ) {
+  if (keyframes.size() > 2){
     metadata["keytime"].shrink(keyframes.size() - 2);
-    metadata["keynum"].shrink(keyframes.size() - 2 );
+    metadata["keynum"].shrink(keyframes.size() - 2);
     metadata["keytime"].append(buffers[keyframes[1].b]["time"].asInt());
-    if( metadata["keynum"].size() == 0 ) {
+    if (metadata["keynum"].size() == 0){
       metadata["keynum"].append(1ll);
-    } else {
-      metadata["keynum"].append( metadata["keynum"][metadata["keynum"].size()-1].asInt() + 1 );
+    }else{
+      metadata["keynum"].append(metadata["keynum"][metadata["keynum"].size() - 1].asInt() + 1);
     }
-    metadata["lastms"] =  buffers[keyframes[0].b]["time"].asInt();
+    metadata["lastms"] = buffers[keyframes[0].b]["time"].asInt();
     metadata.toPacked();
     updateRingHeaders();
   }
@@ -325,7 +325,7 @@ void DTSC::Stream::updateHeaders(){
 
 void DTSC::Stream::updateRingHeaders(){
   std::set<DTSC::Ring *>::iterator sit;
-  if (!rings.size()){
+  if ( !rings.size()){
     return;
   }
   for (sit = rings.begin(); sit != rings.end(); sit++){
@@ -333,22 +333,22 @@ void DTSC::Stream::updateRingHeaders(){
   }
 }
 
-unsigned int DTSC::Stream::msSeek(unsigned int ms) {
-  for( std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++ ) {
-    if( buffers[it->b]["time"].asInt( ) < ms ) {
+unsigned int DTSC::Stream::msSeek(unsigned int ms){
+  for (std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++){
+    if (buffers[it->b]["time"].asInt() < ms){
       return it->b;
     }
   }
-  return keyframes[keyframes.size()-1].b;
+  return keyframes[keyframes.size() - 1].b;
 }
 
-unsigned int DTSC::Stream::frameSeek(unsigned int frameno) {
-  for( std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++ ) {
-    if( buffers[it->b]["fragnum"].asInt( ) == frameno ) {
+unsigned int DTSC::Stream::frameSeek(unsigned int frameno){
+  for (std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++){
+    if (buffers[it->b]["fragnum"].asInt() == frameno){
       return it->b;
     }
   }
-  return keyframes[keyframes.size()-1].b;
+  return keyframes[keyframes.size() - 1].b;
 }
 
 /// Properly cleans up the object for erasing.

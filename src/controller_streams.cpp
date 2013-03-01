@@ -10,19 +10,20 @@ namespace Controller {
   std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
 
   bool streamsEqual(JSON::Value & one, JSON::Value & two){
-    if (one["channel"]["URL"] != two["channel"]["URL"]){
-      return false;
-    }
-    if (one["preset"]["cmd"] != two["preset"]["cmd"]){
+    if (one["source"] != two["source"]){
       return false;
     }
     return true;
   }
 
   void startStream(std::string name, JSON::Value & data){
-    std::string URL = data["channel"]["URL"];
-    std::string preset = data["preset"]["cmd"];
+    std::string URL = data["source"];
     std::string cmd1, cmd2, cmd3;
+    if (URL == ""){
+      Log("STRM", "Error for stream " + name + "! Source parameter missing.");
+      data["error"] = "Missing source parameter!";
+      return;
+    }
     if (URL.substr(0, 4) == "push"){
       std::string pusher = URL.substr(7);
       cmd2 = "MistBuffer -s " + name + " " + pusher;
@@ -40,7 +41,7 @@ namespace Controller {
         data["error"] = "Available";
         return; //MistPlayer handles VoD
       }else{
-        cmd1 = "ffmpeg -re -async 2 -i " + URL + " " + preset + " -f flv -";
+        cmd1 = "ffmpeg -re -async 2 -i " + URL + " -f flv -";
         cmd2 = "MistFLV2DTSC";
       }
       cmd3 = "MistBuffer -s " + name;
@@ -87,6 +88,8 @@ namespace Controller {
 
   void CheckStreams(JSON::Value & in, JSON::Value & out){
     bool changed = false;
+
+    //check for new streams and updates
     for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
       if (out.isMember(jit->first)){
         if ( !streamsEqual(jit->second, out[jit->first])){
@@ -99,12 +102,28 @@ namespace Controller {
         startStream(jit->first, jit->second);
       }
     }
+
+    //check for deleted streams
     for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
       if ( !in.isMember(jit->first)){
         Log("STRM", std::string("Deleted stream ") + jit->first);
         Util::Procs::Stop(jit->first);
       }
     }
+
+    //update old-style configurations to new-style
+    for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
+      if (jit->second.isMember("channel")){
+        if ( !jit->second.isMember("source")){
+          jit->second["source"] = jit->second["channel"]["URL"];
+        }
+        jit->second.removeMember("channel");
+      }
+      if (jit->second.isMember("preset")){
+        jit->second.removeMember("preset");
+      }
+    }
+
     out = in;
   }
 

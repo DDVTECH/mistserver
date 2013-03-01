@@ -826,16 +826,16 @@
                   {
                      sdata =
                      {
-                        name: '',
-                        channel:
+                        'name': '',
+                        'channel':
                         {
-                           URL: ''
+                           'URL': ''
                         },
-                        limits: [],
-                        preset:
+                        'limits': [],
+                        'preset':
                         {
-                           cmd: ''
-                        },
+                           'cmd': ''
+                        }
                      };
                      title = 'add new stream';
                   }else{

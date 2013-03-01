@@ -17,6 +17,8 @@ namespace Controller {
   }
 
   void startStream(std::string name, JSON::Value & data){
+    data["online"] = (std::string)"Checking...";
+    data.removeMember("error");
     std::string URL = data["source"];
     std::string cmd1, cmd2, cmd3;
     if (URL == ""){
@@ -35,16 +37,23 @@ namespace Controller {
         if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
           Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
           data["error"] = "Not found: " + URL;
+          data["online"] = 0;
           return;
         }
         cmd1 = "cat " + URL;
         data["error"] = "Available";
+        data["online"] = 2;
         return; //MistPlayer handles VoD
       }else{
         cmd1 = "ffmpeg -re -async 2 -i " + URL + " -f flv -";
         cmd2 = "MistFLV2DTSC";
       }
-      cmd3 = "MistBuffer -s " + name;
+      if (data.isMember("DVR") && data["DVR"].asInt() > 0){
+        data["DVR"] = data["DVR"].asInt();
+        cmd3 = "MistBuffer -t " + data["DVR"].asString() + " -s " + name;
+      }else{
+        cmd3 = "MistBuffer -s " + name;
+      }
       if (cmd2 != ""){
         Util::Procs::Start(name, cmd1, Util::getMyPath() + cmd2, Util::getMyPath() + cmd3);
         Log("BUFF", "(re)starting stream buffer " + name + " for ffmpeg data: " + cmd1);
@@ -62,12 +71,18 @@ namespace Controller {
         startStream(jit->first, jit->second);
       }
       if (currTime - lastBuffer[jit->first] > 5){
-        if (jit->second.isMember("error") && jit->second["error"].asString() != ""){
-          jit->second["online"] = jit->second["error"];
+        if (jit->second["source"].asString().substr(0, 1) == "/" && jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
+          jit->second["online"] = 2;
         }else{
+          if (jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
+            jit->second.removeMember("error");
+          }
           jit->second["online"] = 0;
         }
       }else{
+        if (jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
+          jit->second.removeMember("error");
+        }
         jit->second["online"] = 1;
       }
     }

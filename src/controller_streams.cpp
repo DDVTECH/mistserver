@@ -9,8 +9,8 @@ namespace Controller {
 
   std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
 
-  bool streamsEqual(JSON::Value & one, JSON::Value & two){
-    if (one["source"] != two["source"]){
+  bool streamsEqual(JSON::Value & one, JSON::Value & two){    
+    if (!one.isMember("source") || !two.isMember("source") || one["source"] != two["source"]){
       return false;
     }
     return true;
@@ -19,7 +19,13 @@ namespace Controller {
   void startStream(std::string name, JSON::Value & data){
     data["online"] = (std::string)"Checking...";
     data.removeMember("error");
-    std::string URL = data["source"];
+    std::string URL;
+    if (data.isMember("channel") && data["channel"].isMember("URL")){
+      URL = data["channel"]["URL"].asString();
+    }
+    if (data.isMember("source")){
+      URL = data["source"].asString();
+    }
     std::string cmd1, cmd2, cmd3;
     if (URL == ""){
       Log("STRM", "Error for stream " + name + "! Source parameter missing.");
@@ -71,7 +77,7 @@ namespace Controller {
         startStream(jit->first, jit->second);
       }
       if (currTime - lastBuffer[jit->first] > 5){
-        if (jit->second["source"].asString().substr(0, 1) == "/" && jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
+        if (jit->second.isMember("source") && jit->second["source"].asString().substr(0, 1) == "/" && jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
           jit->second["online"] = 2;
         }else{
           if (jit->second.isMember("error") && jit->second["error"].asString() == "Available"){

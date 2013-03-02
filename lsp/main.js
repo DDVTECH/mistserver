@@ -738,6 +738,11 @@
                         sid += 1;
                         settings.settings.streams[stream].sid = sid;
                      }
+                     //if .source does not exist, create it
+                     if (settings.settings.streams[stream].source == undefined) 
+                     {
+                        settings.settings.streams[stream].source = settings.settings.streams[stream].channel.URL;
+                     }
                      
                      var cstr = settings.settings.streams[stream];
                      
@@ -745,7 +750,7 @@
                      
                      $tr.append( $('<td>').text( cstr.sid ) );
                      
-                     $tr.append( $('<td>').text( TypeofResource( cstr.channel.URL ) ) );
+                     $tr.append( $('<td>').text( TypeofResource( cstr.source ) ) );
                      
                      $tr.append( $('<td>').append( $('<button>').text('embed').click(function()
                      {
@@ -827,10 +832,7 @@
                      sdata =
                      {
                         'name': '',
-                        'channel':
-                        {
-                           'URL': ''
-                        },
+                        'source': '',
                         'limits': [],
                         'preset':
                         {
@@ -852,7 +854,7 @@
                         )
                      ).append(
                         $('<label>').attr('for', 'stream-edit-source').text('source').append(
-                           $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'stream-edit-source').attr('value', sdata.channel.URL).keyup(function()
+                           $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'stream-edit-source').attr('value', sdata.source).keyup(function()
                            {
                               var text = $(this).val();
                      
@@ -861,9 +863,14 @@
                                  $('#stream-edit-preset').val('');
                                  $('#stream-edit-preset').hide();
                                  $('#stream-edit-preset-label').hide();
+                                 $('#stream-edit-buffer').val('');
+                                 $('#stream-edit-buffer').hide();
+                                 $('#stream-edit-buffer-label').hide();
                               }else{
                                  $('#stream-edit-preset').show();
                                  $('#stream-edit-preset-label').show();
+                                 $('#stream-edit-buffer').show();
+                                 $('#stream-edit-buffer-label').show();
                               }
                            })
                         )
@@ -874,18 +881,6 @@
                      )
                   );
                   
-                  // if the source is push or file, don't do a preset
-                  var text = $('#stream-edit-source').val();
-                  
-                  if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
-                  {
-                     $('#stream-edit-preset').hide();
-                     $('#stream-edit-preset-label').hide();
-                  }else{
-                     $('#stream-edit-preset').show();
-                     $('#stream-edit-preset-label').show();
-                  }
-                  
                   if (sdata.DVR == undefined) 
                   {
                     var DVR = '';
@@ -893,10 +888,27 @@
                     var DVR = sdata.DVR;
                   }
                   $('#editserver').append(
-                    $('<label>').attr('id','stream-edit-buffer-label').attr('for','stream-edit-buffer').text('Buffer time [ms]').append(
+                    $('<label>').attr('id','stream-edit-buffer-label').attr('for','stream-edit-buffer').attr('title','Only applies to live streams').text('Buffer time [ms]').append(
                       $('<input>').attr('type','text').attr('placeholder','2 keyframes').attr('id','stream-edit-buffer').attr('value', DVR)
                     )
                   );
+                  
+                  // if the source is push or file, don't do a preset and dvr
+                  var text = $('#stream-edit-source').val();
+                  
+                  if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
+                  {
+                     $('#stream-edit-preset').hide();
+                     $('#stream-edit-preset-label').hide();
+                     $('#stream-edit-buffer').hide();
+                     $('#stream-edit-buffer-label').hide();
+                  }else{
+                     $('#stream-edit-preset').show();
+                     $('#stream-edit-preset-label').show();
+                     $('#stream-edit-buffer').show();
+                     $('#stream-edit-buffer-label').show();
+
+                  }
                   
                   $('#editserver').append(
                      $('<button>').attr('class', 'floatright').click(function()
@@ -932,7 +944,7 @@
                         var newname = n.val().replace(/([^a-zA-Z0-9_])/g, '').toLowerCase();
                         
                         sdata.name = newname;
-                        sdata.channel.URL = s.val();
+                        sdata.source = s.val();
                         sdata.preset.cmd = p.val();
                         sdata.online = -1;
                         sdata.error = null;

@@ -739,7 +739,7 @@
                         settings.settings.streams[stream].sid = sid;
                      }
                      //if .source does not exist, create it
-                     if (settings.settings.streams[stream].source == undefined) 
+                     if ((settings.settings.streams[stream].source == undefined) && (settings.settings.streams[stream].channel != undefined))
                      {
                         settings.settings.streams[stream].source = settings.settings.streams[stream].channel.URL;
                      }
@@ -836,7 +836,7 @@
                         'limits': [],
                         'preset':
                         {
-                           'cmd': ''
+                           cmd: ''
                         }
                      };
                      title = 'add new stream';
@@ -844,6 +844,15 @@
                      sdata = settings.settings.streams[streamname];
                      title = 'edit stream "' + sdata.name + '"';
                   }
+									sdata = $.extend({
+										name: '',
+										source: '',
+										limits: [],
+										preset:
+										{
+											 cmd: ''
+										}
+									},sdata);
                      
                   $('#page').append( $('<p>').text(title) );
                      

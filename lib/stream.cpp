@@ -51,11 +51,11 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
   sanitizeName(streamname);
   JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
   if (ServConf["streams"].isMember(streamname)){
-    if (ServConf["streams"][streamname]["channel"]["URL"].asString()[0] == '/'){
+    if (ServConf["streams"][streamname]["source"].asString()[0] == '/'){
 #if DEBUG >= 4
-      std::cerr << "Opening VoD stream from file " << ServConf["streams"][streamname]["channel"]["URL"].asString() << std::endl;
+      std::cerr << "Opening VoD stream from file " << ServConf["streams"][streamname]["source"].asString() << std::endl;
 #endif
-      return getVod(ServConf["streams"][streamname]["channel"]["URL"].asString());
+      return getVod(ServConf["streams"][streamname]["source"].asString());
     }else{
 #if DEBUG >= 4
       std::cerr << "Opening live stream " << streamname << std::endl;

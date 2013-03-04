@@ -34,7 +34,12 @@ namespace Controller {
     }
     if (URL.substr(0, 4) == "push"){
       std::string pusher = URL.substr(7);
-      cmd2 = "MistBuffer -s " + name + " " + pusher;
+      if (data.isMember("DVR") && data["DVR"].asInt() > 0){
+        data["DVR"] = data["DVR"].asInt();
+        cmd2 = "MistBuffer -t " + data["DVR"].asString() + " -s " + name + " " + pusher;
+      }else{
+        cmd2 = "MistBuffer -s " + name + " " + pusher;
+      }
       Util::Procs::Start(name, Util::getMyPath() + cmd2);
       Log("BUFF", "(re)starting stream buffer " + name + " for push data from " + pusher);
     }else{

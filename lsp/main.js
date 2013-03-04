@@ -848,7 +848,7 @@
                         'limits': [],
                         'preset':
                         {
-                           cmd: ''
+                           'cmd': ''
                         }
                      };
                      title = 'add new stream';
@@ -857,12 +857,12 @@
                      title = 'edit stream "' + sdata.name + '"';
                   }
                   sdata = $.extend({
-                    name: '',
-                    source: '',
-                    limits: [],
-                    preset:
+                    'name': '',
+                    'source': '',
+                    'limits': [],
+                    'preset':
                     {
-                       cmd: ''
+                       'cmd': ''
                     }
                   },sdata);
                      
@@ -879,6 +879,7 @@
                            {
                               var text = $(this).val();
                               
+															/*
                               if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
                               {
                                  $('#stream-edit-preset').val('');
@@ -888,6 +889,8 @@
                                  $('#stream-edit-preset').show();
                                  $('#stream-edit-preset-label').show();
                               }
+															*/
+															
                               if(text.charAt(0) == '/')
                               {
                                  $('#stream-edit-buffer').val('');
@@ -899,11 +902,12 @@
                               }
                            })
                         )
-                     ).append(
+                     )
+										 /*.append(
                         $('<label>').attr('id', 'stream-edit-preset-label').attr('for', 'stream-edit-preset').text('preset').append(
                            $('<input>').attr('type', 'text').attr('placeholder', 'PRESET').attr('id', 'stream-edit-preset').attr('value', sdata.preset.cmd)
                         )
-                     )
+                     ) */
                   );
                   
                   if (sdata.DVR == undefined) 
@@ -920,7 +924,7 @@
                   
                   // if the source is push or file, don't do a preset
                   var text = $('#stream-edit-source').val();
-                  
+                  /*
                   if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
                   {
                      $('#stream-edit-preset').hide();
@@ -928,7 +932,7 @@
                   }else{
                      $('#stream-edit-preset').show();
                      $('#stream-edit-preset-label').show();
-                  }
+                  } */
                   //if the source is not live, don't do DVR buffer time
                   if(text.charAt(0) == '/')
                   {

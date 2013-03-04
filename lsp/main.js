@@ -287,7 +287,19 @@
                         {
                           if(confirmDelete('Are you sure you want to force a JSON save?') == true)
                           {
-                             forceJSONSave();
+                             var host = $('#config-host').val();
+                             var name = $('#config-name').val();
+                             var path = $('#config-basepath').val();
+                             
+                             settings.settings.config.host = host;
+                             settings.settings.config.name = name;
+                             settings.settings.config.basepath = path;
+                             
+                             loadSettings(function()
+                             {
+                                forceJSONSave();
+                                showTab('overview');
+                             });
                           }
                         }).text( 'force save to JSON file' )
                      );
@@ -844,15 +856,15 @@
                      sdata = settings.settings.streams[streamname];
                      title = 'edit stream "' + sdata.name + '"';
                   }
-									sdata = $.extend({
-										name: '',
-										source: '',
-										limits: [],
-										preset:
-										{
-											 cmd: ''
-										}
-									},sdata);
+                  sdata = $.extend({
+                    name: '',
+                    source: '',
+                    limits: [],
+                    preset:
+                    {
+                       cmd: ''
+                    }
+                  },sdata);
                      
                   $('#page').append( $('<p>').text(title) );
                      
@@ -866,18 +878,22 @@
                            $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'stream-edit-source').attr('value', sdata.source).keyup(function()
                            {
                               var text = $(this).val();
-                     
+                              
                               if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
                               {
                                  $('#stream-edit-preset').val('');
                                  $('#stream-edit-preset').hide();
                                  $('#stream-edit-preset-label').hide();
+                              }else{
+                                 $('#stream-edit-preset').show();
+                                 $('#stream-edit-preset-label').show();
+                              }
+                              if(text.charAt(0) == '/')
+                              {
                                  $('#stream-edit-buffer').val('');
                                  $('#stream-edit-buffer').hide();
                                  $('#stream-edit-buffer-label').hide();
                               }else{
-                                 $('#stream-edit-preset').show();
-                                 $('#stream-edit-preset-label').show();
                                  $('#stream-edit-buffer').show();
                                  $('#stream-edit-buffer-label').show();
                               }
@@ -902,21 +918,26 @@
                     )
                   );
                   
-                  // if the source is push or file, don't do a preset and dvr
+                  // if the source is push or file, don't do a preset
                   var text = $('#stream-edit-source').val();
                   
                   if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
                   {
                      $('#stream-edit-preset').hide();
                      $('#stream-edit-preset-label').hide();
-                     $('#stream-edit-buffer').hide();
-                     $('#stream-edit-buffer-label').hide();
                   }else{
                      $('#stream-edit-preset').show();
                      $('#stream-edit-preset-label').show();
+                  }
+                  //if the source is not live, don't do DVR buffer time
+                  if(text.charAt(0) == '/')
+                  {
+                     $('#stream-edit-buffer').val('');
+                     $('#stream-edit-buffer').hide();
+                     $('#stream-edit-buffer-label').hide();
+                  }else{
                      $('#stream-edit-buffer').show();
                      $('#stream-edit-buffer-label').show();
-
                   }
                   
                   $('#editserver').append(

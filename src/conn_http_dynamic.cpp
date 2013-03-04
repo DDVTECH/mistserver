@@ -30,32 +30,32 @@ namespace Connector_HTTP {
     std::string empty;
 
     MP4::ASRT asrt;
-    if (starttime == 0){
+    if (starttime == 0 && !metadata.isMember("keynum")){
       asrt.setUpdate(false);
     }else{
       asrt.setUpdate(true);
     }
-    asrt.setVersion(0); //1
+    asrt.setVersion(1);
     //asrt.setQualityEntry(empty, 0);
     if (metadata.isMember("keynum")){
-      asrt.setSegmentRun(1, -1, 0);
+      asrt.setSegmentRun(1, 4294967295, 0);
     }else{
       asrt.setSegmentRun(1, metadata["keytime"].size(), 0);
     }
 
     MP4::AFRT afrt;
-    if (starttime == 0){
+    if (starttime == 0 && !metadata.isMember("keynum")){
       afrt.setUpdate(false);
     }else{
       afrt.setUpdate(true);
     }
-    afrt.setVersion(0); //1
+    afrt.setVersion(1);
     afrt.setTimeScale(1000);
     //afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
     if (metadata.isMember("keynum")){
       unsigned long long int firstAvail = metadata["keynum"].size() / 2;
-      for (int i = firstAvail; i < metadata["keynum"].size() - 2; i++){
+      for (int i = firstAvail; i < metadata["keynum"].size() - 1; i++){
         afrtrun.firstFragment = metadata["keynum"][i].asInt();
         afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
         afrtrun.duration = metadata["keytime"][i + 1].asInt() - metadata["keytime"][i].asInt();
@@ -79,9 +79,9 @@ namespace Connector_HTTP {
     }
 
     MP4::ABST abst;
-    abst.setVersion(0);
+    abst.setVersion(1);
     if (metadata.isMember("keynum")){
-      abst.setBootstrapinfoVersion(metadata["keynum"][0u].asInt());
+      abst.setBootstrapinfoVersion(metadata["keynum"][metadata["keynum"].size() - 2].asInt());
     }else{
       abst.setBootstrapinfoVersion(1);
     }
@@ -100,8 +100,8 @@ namespace Connector_HTTP {
         abst.setCurrentMediaTime(1000 * metadata["length"].asInt());
       }
     }else{
-      abst.setLive(true);
-      abst.setCurrentMediaTime(metadata["lastms"].asInt());
+      abst.setLive(false);
+      abst.setCurrentMediaTime(metadata["keytime"][metadata["keytime"].size() - 2].asInt());
     }
     abst.setSmpteTimeCodeOffset(0);
     abst.setMovieIdentifier(MovieId);
@@ -202,7 +202,6 @@ namespace Connector_HTTP {
         if (HTTP_R.Read(conn.Received().get())){
 #if DEBUG >= 4
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
-          std::cout << "Received request: " << HTTP_R.BuildRequest() << std::endl;
 #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
           streamname = HTTP_R.GetHeader("X-Stream");
@@ -229,6 +228,8 @@ namespace Connector_HTTP {
           if (HTTP_R.url.find(".bootstrap") != std::string::npos){
             HTTP_S.Clean();
             HTTP_S.SetBody(GenerateBootstrap(streamname, Strm.metadata, 1, 0, 0));
+            HTTP_S.SetHeader("Content-Type", "binary/octet");
+            HTTP_S.SetHeader("Cache-Control", "no-cache");
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
             HTTP_R.Clean(); //clean for any possible next requests
             continue;

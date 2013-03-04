@@ -4,7 +4,7 @@
 #include "mp4.h"
 #include "json.h"
 
-#define Int64 long long int
+#define Int64 uint64_t
 
 /// Contains all MP4 format related code.
 namespace MP4 {
@@ -50,7 +50,7 @@ namespace MP4 {
     }
     if (newData.size() > 4){
       payloadOffset = 8;
-      long long int size = ntohl(((int*)newData.c_str())[0]);
+      uint64_t size = ntohl(((int*)newData.c_str())[0]);
       if (size == 1){
         if (newData.size() > 16){
           size = 0 + ntohl(((int*)newData.c_str())[2]);
@@ -77,16 +77,16 @@ namespace MP4 {
   }
 
   /// Returns the total boxed size of this box, including the header.
-  long long int Box::boxedSize(){
+  uint64_t Box::boxedSize(){
     if (payloadOffset == 16){
-      return ((long long int)ntohl(((int*)data)[2]) << 32) + ntohl(((int*)data)[3]);
+      return ((uint64_t)ntohl(((int*)data)[2]) << 32) + ntohl(((int*)data)[3]);
     }
     return ntohl(((int*)data)[0]);
   }
 
   /// Retruns the size of the payload of thix box, excluding the header.
   /// This value is defined as boxedSize() - 8.
-  long long int Box::payloadSize(){
+  uint64_t Box::payloadSize(){
     return boxedSize() - payloadOffset;
   }
 
@@ -217,7 +217,7 @@ namespace MP4 {
   /// Sets the 24 bits integer at the given index.
   /// Attempts to resize the data pointer if the index is out of range.
   /// Fails silently if resizing failed.
-  void Box::setInt24(long newData, size_t index){
+  void Box::setInt24(uint32_t newData, size_t index){
     index += payloadOffset;
     if (index + 2 >= boxedSize()){
       if ( !reserve(index, 0, 3)){
@@ -232,7 +232,7 @@ namespace MP4 {
   /// Gets the 24 bits integer at the given index.
   /// Attempts to resize the data pointer if the index is out of range.
   /// Returns zero if resizing failed.
-  long Box::getInt24(size_t index){
+  uint32_t Box::getInt24(size_t index){
     index += payloadOffset;
     if (index + 2 >= boxedSize()){
       if ( !reserve(index, 0, 3)){
@@ -240,7 +240,7 @@ namespace MP4 {
       }
       setInt24(0, index - payloadOffset);
     }
-    long result = data[index];
+    uint32_t result = data[index];
     result <<= 8;
     result += data[index + 1];
     result <<= 8;
@@ -251,7 +251,7 @@ namespace MP4 {
   /// Sets the 32 bits integer at the given index.
   /// Attempts to resize the data pointer if the index is out of range.
   /// Fails silently if resizing failed.
-  void Box::setInt32(long newData, size_t index){
+  void Box::setInt32(uint32_t newData, size_t index){
     index += payloadOffset;
     if (index + 3 >= boxedSize()){
       if ( !reserve(index, 0, 4)){
@@ -265,7 +265,7 @@ namespace MP4 {
   /// Gets the 32 bits integer at the given index.
   /// Attempts to resize the data pointer if the index is out of range.
   /// Returns zero if resizing failed.
-  long Box::getInt32(size_t index){
+  uint32_t Box::getInt32(size_t index){
     index += payloadOffset;
     if (index + 3 >= boxedSize()){
       if ( !reserve(index, 0, 4)){
@@ -273,7 +273,7 @@ namespace MP4 {
       }
       setInt32(0, index - payloadOffset);
     }
-    long result;
+    uint32_t result;
     memcpy((char*) &result, data + index, 4);
     return ntohl(result);
   }
@@ -463,19 +463,19 @@ namespace MP4 {
     return getInt8(0);
   }
 
-  void ABST::setFlags(long newFlags){
+  void ABST::setFlags(uint32_t newFlags){
     setInt24(newFlags, 1);
   }
 
-  long ABST::getFlags(){
+  uint32_t ABST::getFlags(){
     return getInt24(1);
   }
 
-  void ABST::setBootstrapinfoVersion(long newVersion){
+  void ABST::setBootstrapinfoVersion(uint32_t newVersion){
     setInt32(newVersion, 4);
   }
 
-  long ABST::getBootstrapinfoVersion(){
+  uint32_t ABST::getBootstrapinfoVersion(){
     return getInt32(4);
   }
 
@@ -507,11 +507,11 @@ namespace MP4 {
     return (getInt8(8) & 0x08);
   }
 
-  void ABST::setTimeScale(long newScale){
+  void ABST::setTimeScale(uint32_t newScale){
     setInt32(newScale, 9);
   }
 
-  long ABST::getTimeScale(){
+  uint32_t ABST::getTimeScale(){
     return getInt32(9);
   }
 
@@ -539,12 +539,12 @@ namespace MP4 {
     return getString(29);
   }
 
-  long ABST::getServerEntryCount(){
+  uint32_t ABST::getServerEntryCount(){
     int countLoc = 29 + getStringLen(29) + 1;
     return getInt8(countLoc);
   }
 
-  void ABST::setServerEntry(std::string & newEntry, long no){
+  void ABST::setServerEntry(std::string & newEntry, uint32_t no){
     int countLoc = 29 + getStringLen(29) + 1;
     int tempLoc = countLoc + 1;
     //attempt to reach the wanted position
@@ -568,7 +568,7 @@ namespace MP4 {
   }
 
   ///\return Empty string if no > serverEntryCount(), serverEntry[no] otherwise.
-  const char* ABST::getServerEntry(long no){
+  const char* ABST::getServerEntry(uint32_t no){
     if (no + 1 > getServerEntryCount()){
       return "";
     }
@@ -579,7 +579,7 @@ namespace MP4 {
     return getString(tempLoc);
   }
 
-  long ABST::getQualityEntryCount(){
+  uint32_t ABST::getQualityEntryCount(){
     int countLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       countLoc += getStringLen(countLoc) + 1;
@@ -587,7 +587,7 @@ namespace MP4 {
     return getInt8(countLoc);
   }
 
-  void ABST::setQualityEntry(std::string & newEntry, long no){
+  void ABST::setQualityEntry(std::string & newEntry, uint32_t no){
     int countLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       countLoc += getStringLen(countLoc) + 1;
@@ -613,7 +613,7 @@ namespace MP4 {
     setString(newEntry, tempLoc);
   }
 
-  const char* ABST::getQualityEntry(long no){
+  const char* ABST::getQualityEntry(uint32_t no){
     if (no > getQualityEntryCount()){
       return "";
     }
@@ -629,7 +629,7 @@ namespace MP4 {
   }
 
   void ABST::setDrmData(std::string newDrm){
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -641,7 +641,7 @@ namespace MP4 {
   }
 
   char* ABST::getDrmData(){
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -653,7 +653,7 @@ namespace MP4 {
   }
 
   void ABST::setMetaData(std::string newMetaData){
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -666,7 +666,7 @@ namespace MP4 {
   }
 
   char* ABST::getMetaData(){
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -678,8 +678,8 @@ namespace MP4 {
     return getString(tempLoc);
   }
 
-  long ABST::getSegmentRunTableCount(){
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+  uint32_t ABST::getSegmentRunTableCount(){
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -692,8 +692,8 @@ namespace MP4 {
     return getInt8(tempLoc);
   }
 
-  void ABST::setSegmentRunTable(ASRT & newSegment, long no){
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+  void ABST::setSegmentRunTable(ASRT & newSegment, uint32_t no){
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -728,13 +728,13 @@ namespace MP4 {
     setBox(newSegment, tempLoc);
   }
 
-  ASRT & ABST::getSegmentRunTable(long no){
+  ASRT & ABST::getSegmentRunTable(uint32_t no){
     static Box result;
     if (no > getSegmentRunTableCount()){
       static Box res;
       return (ASRT&)res;
     }
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -752,8 +752,8 @@ namespace MP4 {
     return (ASRT&)getBox(tempLoc);
   }
 
-  long ABST::getFragmentRunTableCount(){
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+  uint32_t ABST::getFragmentRunTableCount(){
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -769,8 +769,8 @@ namespace MP4 {
     return getInt8(tempLoc);
   }
 
-  void ABST::setFragmentRunTable(AFRT & newFragment, long no){
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+  void ABST::setFragmentRunTable(AFRT & newFragment, uint32_t no){
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -808,13 +808,13 @@ namespace MP4 {
     setBox(newFragment, tempLoc);
   }
 
-  AFRT & ABST::getFragmentRunTable(long no){
+  AFRT & ABST::getFragmentRunTable(uint32_t no){
     static Box result;
     if (no >= getFragmentRunTableCount()){
       static Box res;
       return (AFRT&)res;
     }
-    long tempLoc = 29 + getStringLen(29) + 1 + 1;
+    uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
     for (int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -835,7 +835,7 @@ namespace MP4 {
     return (AFRT&)getBox(tempLoc);
   }
 
-  std::string ABST::toPrettyString(long indent){
+  std::string ABST::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[abst] Bootstrap Info (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "Version " << (int)getVersion() << std::endl;
@@ -887,31 +887,31 @@ namespace MP4 {
     setInt8(newVersion, 0);
   }
 
-  long AFRT::getVersion(){
+  uint32_t AFRT::getVersion(){
     return getInt8(0);
   }
 
-  void AFRT::setUpdate(long newUpdate){
+  void AFRT::setUpdate(uint32_t newUpdate){
     setInt24(newUpdate, 1);
   }
 
-  long AFRT::getUpdate(){
+  uint32_t AFRT::getUpdate(){
     return getInt24(1);
   }
 
-  void AFRT::setTimeScale(long newScale){
+  void AFRT::setTimeScale(uint32_t newScale){
     setInt32(newScale, 4);
   }
 
-  long AFRT::getTimeScale(){
+  uint32_t AFRT::getTimeScale(){
     return getInt32(4);
   }
 
-  long AFRT::getQualityEntryCount(){
+  uint32_t AFRT::getQualityEntryCount(){
     return getInt8(8);
   }
 
-  void AFRT::setQualityEntry(std::string & newEntry, long no){
+  void AFRT::setQualityEntry(std::string & newEntry, uint32_t no){
     int countLoc = 8;
     int tempLoc = countLoc + 1;
     //attempt to reach the wanted position
@@ -934,7 +934,7 @@ namespace MP4 {
     setString(newEntry, tempLoc);
   }
 
-  const char* AFRT::getQualityEntry(long no){
+  const char* AFRT::getQualityEntry(uint32_t no){
     if (no + 1 > getQualityEntryCount()){
       return "";
     }
@@ -945,7 +945,7 @@ namespace MP4 {
     return getString(tempLoc);
   }
 
-  long AFRT::getFragmentRunCount(){
+  uint32_t AFRT::getFragmentRunCount(){
     int tempLoc = 9;
     for (int i = 0; i < getQualityEntryCount(); ++i){
       tempLoc += getStringLen(tempLoc) + 1;
@@ -953,7 +953,7 @@ namespace MP4 {
     return getInt32(tempLoc);
   }
 
-  void AFRT::setFragmentRun(afrt_runtable newRun, long no){
+  void AFRT::setFragmentRun(afrt_runtable newRun, uint32_t no){
     int tempLoc = 9;
     for (int i = 0; i < getQualityEntryCount(); ++i){
       tempLoc += getStringLen(tempLoc) + 1;
@@ -983,7 +983,7 @@ namespace MP4 {
     }
   }
 
-  afrt_runtable AFRT::getFragmentRun(long no){
+  afrt_runtable AFRT::getFragmentRun(uint32_t no){
     afrt_runtable res;
     if (no > getFragmentRunCount()){
       return res;
@@ -1050,23 +1050,23 @@ namespace MP4 {
     setInt8(newVersion, 0);
   }
 
-  long ASRT::getVersion(){
+  uint32_t ASRT::getVersion(){
     return getInt8(0);
   }
 
-  void ASRT::setUpdate(long newUpdate){
+  void ASRT::setUpdate(uint32_t newUpdate){
     setInt24(newUpdate, 1);
   }
 
-  long ASRT::getUpdate(){
+  uint32_t ASRT::getUpdate(){
     return getInt24(1);
   }
 
-  long ASRT::getQualityEntryCount(){
+  uint32_t ASRT::getQualityEntryCount(){
     return getInt8(4);
   }
 
-  void ASRT::setQualityEntry(std::string & newEntry, long no){
+  void ASRT::setQualityEntry(std::string & newEntry, uint32_t no){
     int countLoc = 4;
     int tempLoc = countLoc + 1;
     //attempt to reach the wanted position
@@ -1089,7 +1089,7 @@ namespace MP4 {
     setString(newEntry, tempLoc);
   }
 
-  const char* ASRT::getQualityEntry(long no){
+  const char* ASRT::getQualityEntry(uint32_t no){
     if (no > getQualityEntryCount()){
       return "";
     }
@@ -1100,7 +1100,7 @@ namespace MP4 {
     return getString(tempLoc);
   }
 
-  long ASRT::getSegmentRunEntryCount(){
+  uint32_t ASRT::getSegmentRunEntryCount(){
     int tempLoc = 5; //position of qualityentry count;
     for (int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
@@ -1108,7 +1108,7 @@ namespace MP4 {
     return getInt32(tempLoc);
   }
 
-  void ASRT::setSegmentRun(long firstSegment, long fragmentsPerSegment, long no){
+  void ASRT::setSegmentRun(uint32_t firstSegment, uint32_t fragmentsPerSegment, uint32_t no){
     int tempLoc = 5; //position of qualityentry count;
     for (int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
@@ -1122,7 +1122,7 @@ namespace MP4 {
     setInt32(fragmentsPerSegment, tempLoc + 4);
   }
 
-  asrt_runtable ASRT::getSegmentRun(long no){
+  asrt_runtable ASRT::getSegmentRun(uint32_t no){
     asrt_runtable res;
     if (no >= getSegmentRunEntryCount()){
       return res;
@@ -1164,11 +1164,11 @@ namespace MP4 {
     setInt32(0, 0);
   }
 
-  void MFHD::setSequenceNumber(long newSequenceNumber){
+  void MFHD::setSequenceNumber(uint32_t newSequenceNumber){
     setInt32(newSequenceNumber, 4);
   }
 
-  long MFHD::getSequenceNumber(){
+  uint32_t MFHD::getSequenceNumber(){
     return getInt32(4);
   }
 
@@ -1183,7 +1183,7 @@ namespace MP4 {
     memcpy(data + 4, "moof", 4);
   }
 
-  long MOOF::getContentCount(){
+  uint32_t MOOF::getContentCount(){
     int res = 0;
     int tempLoc = 0;
     while (tempLoc < boxedSize() - 8){
@@ -1193,7 +1193,7 @@ namespace MP4 {
     return res;
   }
 
-  void MOOF::setContent(Box & newContent, long no){
+  void MOOF::setContent(Box & newContent, uint32_t no){
     int tempLoc = 0;
     int contentCount = getContentCount();
     for (int i = 0; i < no; i++){
@@ -1211,7 +1211,7 @@ namespace MP4 {
     setBox(newContent, tempLoc);
   }
 
-  Box & MOOF::getContent(long no){
+  Box & MOOF::getContent(uint32_t no){
     static Box ret = Box((char*)"\000\000\000\010erro", false);
     if (no > getContentCount()){
       return ret;
@@ -1243,7 +1243,7 @@ namespace MP4 {
     memcpy(data + 4, "traf", 4);
   }
 
-  long TRAF::getContentCount(){
+  uint32_t TRAF::getContentCount(){
     int res = 0;
     int tempLoc = 0;
     while (tempLoc < boxedSize() - 8){
@@ -1253,7 +1253,7 @@ namespace MP4 {
     return res;
   }
 
-  void TRAF::setContent(Box & newContent, long no){
+  void TRAF::setContent(Box & newContent, uint32_t no){
     int tempLoc = 0;
     int contentCount = getContentCount();
     for (int i = 0; i < no; i++){
@@ -1271,7 +1271,7 @@ namespace MP4 {
     setBox(newContent, tempLoc);
   }
 
-  Box & TRAF::getContent(long no){
+  Box & TRAF::getContent(uint32_t no){
     static Box ret = Box((char*)"\000\000\000\010erro", false);
     if (no > getContentCount()){
       return ret;
@@ -1303,21 +1303,21 @@ namespace MP4 {
     memcpy(data + 4, "trun", 4);
   }
 
-  void TRUN::setFlags(long newFlags){
+  void TRUN::setFlags(uint32_t newFlags){
     setInt24(newFlags, 1);
   }
 
-  long TRUN::getFlags(){
+  uint32_t TRUN::getFlags(){
     return getInt24(1);
   }
 
-  void TRUN::setDataOffset(long newOffset){
+  void TRUN::setDataOffset(uint32_t newOffset){
     if (getFlags() & trundataOffset){
       setInt32(newOffset, 8);
     }
   }
 
-  long TRUN::getDataOffset(){
+  uint32_t TRUN::getDataOffset(){
     if (getFlags() & trundataOffset){
       return getInt32(8);
     }else{
@@ -1325,7 +1325,7 @@ namespace MP4 {
     }
   }
 
-  void TRUN::setFirstSampleFlags(long newSampleFlags){
+  void TRUN::setFirstSampleFlags(uint32_t newSampleFlags){
     if ( !(getFlags() & trunfirstSampleFlags)){
       return;
     }
@@ -1336,7 +1336,7 @@ namespace MP4 {
     }
   }
 
-  long TRUN::getFirstSampleFlags(){
+  uint32_t TRUN::getFirstSampleFlags(){
     if ( !(getFlags() & trunfirstSampleFlags)){
       return 0;
     }
@@ -1347,13 +1347,13 @@ namespace MP4 {
     }
   }
 
-  long TRUN::getSampleInformationCount(){
+  uint32_t TRUN::getSampleInformationCount(){
     return getInt32(4);
   }
 
-  void TRUN::setSampleInformation(trunSampleInformation newSample, long no){
-    long flags = getFlags();
-    long sampInfoSize = 0;
+  void TRUN::setSampleInformation(trunSampleInformation newSample, uint32_t no){
+    uint32_t flags = getFlags();
+    uint32_t sampInfoSize = 0;
     if (flags & trunsampleDuration){
       sampInfoSize += 4;
     }
@@ -1366,14 +1366,14 @@ namespace MP4 {
     if (flags & trunsampleOffsets){
       sampInfoSize += 4;
     }
-    long offset = 8;
+    uint32_t offset = 8;
     if (flags & trundataOffset){
       offset += 4;
     }
     if (flags & trunfirstSampleFlags){
       offset += 4;
     }
-    long innerOffset = 0;
+    uint32_t innerOffset = 0;
     if (flags & trunsampleDuration){
       setInt32(newSample.sampleDuration, offset + no * sampInfoSize + innerOffset);
       innerOffset += 4;
@@ -1395,7 +1395,7 @@ namespace MP4 {
     }
   }
 
-  trunSampleInformation TRUN::getSampleInformation(long no){
+  trunSampleInformation TRUN::getSampleInformation(uint32_t no){
     trunSampleInformation ret;
     ret.sampleDuration = 0;
     ret.sampleSize = 0;
@@ -1404,8 +1404,8 @@ namespace MP4 {
     if (getSampleInformationCount() < no + 1){
       return ret;
     }
-    long flags = getFlags();
-    long sampInfoSize = 0;
+    uint32_t flags = getFlags();
+    uint32_t sampInfoSize = 0;
     if (flags & trunsampleDuration){
       sampInfoSize += 4;
     }
@@ -1418,14 +1418,14 @@ namespace MP4 {
     if (flags & trunsampleOffsets){
       sampInfoSize += 4;
     }
-    long offset = 8;
+    uint32_t offset = 8;
     if (flags & trundataOffset){
       offset += 4;
     }
     if (flags & trunfirstSampleFlags){
       offset += 4;
     }
-    long innerOffset = 0;
+    uint32_t innerOffset = 0;
     if (flags & trunsampleDuration){
       ret.sampleDuration = getInt32(offset + no * sampInfoSize + innerOffset);
       innerOffset += 4;
@@ -1445,12 +1445,12 @@ namespace MP4 {
     return ret;
   }
 
-  std::string TRUN::toPrettyString(long indent){
+  std::string TRUN::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[trun] Track Fragment Run (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "Version " << (int)getInt8(0) << std::endl;
 
-    long flags = getFlags();
+    uint32_t flags = getFlags();
     r << std::string(indent + 1, ' ') << "Flags";
     if (flags & trundataOffset){
       r << " dataOffset";
@@ -1500,7 +1500,7 @@ namespace MP4 {
     return r.str();
   }
 
-  std::string prettySampleFlags(long flag){
+  std::string prettySampleFlags(uint32_t flag){
     std::stringstream r;
     if (flag & noIPicture){
       r << " noIPicture";
@@ -1532,29 +1532,29 @@ namespace MP4 {
     memcpy(data + 4, "tfhd", 4);
   }
 
-  void TFHD::setFlags(long newFlags){
+  void TFHD::setFlags(uint32_t newFlags){
     setInt24(newFlags, 1);
   }
 
-  long TFHD::getFlags(){
+  uint32_t TFHD::getFlags(){
     return getInt24(1);
   }
 
-  void TFHD::setTrackID(long newID){
+  void TFHD::setTrackID(uint32_t newID){
     setInt32(newID, 4);
   }
 
-  long TFHD::getTrackID(){
+  uint32_t TFHD::getTrackID(){
     return getInt32(4);
   }
 
-  void TFHD::setBaseDataOffset(long long newOffset){
+  void TFHD::setBaseDataOffset(uint64_t newOffset){
     if (getFlags() & tfhdBaseOffset){
       setInt64(newOffset, 8);
     }
   }
 
-  long long TFHD::getBaseDataOffset(){
+  uint64_t TFHD::getBaseDataOffset(){
     if (getFlags() & tfhdBaseOffset){
       return getInt64(8);
     }else{
@@ -1562,7 +1562,7 @@ namespace MP4 {
     }
   }
 
-  void TFHD::setSampleDescriptionIndex(long newIndex){
+  void TFHD::setSampleDescriptionIndex(uint32_t newIndex){
     if ( !(getFlags() & tfhdSampleDesc)){
       return;
     }
@@ -1573,7 +1573,7 @@ namespace MP4 {
     setInt32(newIndex, offset);
   }
 
-  long TFHD::getSampleDescriptionIndex(){
+  uint32_t TFHD::getSampleDescriptionIndex(){
     if ( !(getFlags() & tfhdSampleDesc)){
       return 0;
     }
@@ -1584,7 +1584,7 @@ namespace MP4 {
     return getInt32(offset);
   }
 
-  void TFHD::setDefaultSampleDuration(long newDuration){
+  void TFHD::setDefaultSampleDuration(uint32_t newDuration){
     if ( !(getFlags() & tfhdSampleDura)){
       return;
     }
@@ -1598,7 +1598,7 @@ namespace MP4 {
     setInt32(newDuration, offset);
   }
 
-  long TFHD::getDefaultSampleDuration(){
+  uint32_t TFHD::getDefaultSampleDuration(){
     if ( !(getFlags() & tfhdSampleDura)){
       return 0;
     }
@@ -1612,7 +1612,7 @@ namespace MP4 {
     return getInt32(offset);
   }
 
-  void TFHD::setDefaultSampleSize(long newSize){
+  void TFHD::setDefaultSampleSize(uint32_t newSize){
     if ( !(getFlags() & tfhdSampleSize)){
       return;
     }
@@ -1629,7 +1629,7 @@ namespace MP4 {
     setInt32(newSize, offset);
   }
 
-  long TFHD::getDefaultSampleSize(){
+  uint32_t TFHD::getDefaultSampleSize(){
     if ( !(getFlags() & tfhdSampleSize)){
       return 0;
     }
@@ -1646,7 +1646,7 @@ namespace MP4 {
     return getInt32(offset);
   }
 
-  void TFHD::setDefaultSampleFlags(long newFlags){
+  void TFHD::setDefaultSampleFlags(uint32_t newFlags){
     if ( !(getFlags() & tfhdSampleFlag)){
       return;
     }
@@ -1666,7 +1666,7 @@ namespace MP4 {
     setInt32(newFlags, offset);
   }
 
-  long TFHD::getDefaultSampleFlags(){
+  uint32_t TFHD::getDefaultSampleFlags(){
     if ( !(getFlags() & tfhdSampleFlag)){
       return 0;
     }
@@ -1686,12 +1686,12 @@ namespace MP4 {
     return getInt32(offset);
   }
 
-  std::string TFHD::toPrettyString(long indent){
+  std::string TFHD::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[tfhd] Track Fragment Header (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "Version " << (int)getInt8(0) << std::endl;
 
-    long flags = getFlags();
+    uint32_t flags = getFlags();
     r << std::string(indent + 1, ' ') << "Flags";
     if (flags & tfhdBaseOffset){
       r << " BaseOffset";
@@ -1740,19 +1740,19 @@ namespace MP4 {
     setFlags(0);
   }
 
-  void AFRA::setVersion(long newVersion){
+  void AFRA::setVersion(uint32_t newVersion){
     setInt8(newVersion, 0);
   }
 
-  long AFRA::getVersion(){
+  uint32_t AFRA::getVersion(){
     return getInt8(0);
   }
 
-  void AFRA::setFlags(long newFlags){
+  void AFRA::setFlags(uint32_t newFlags){
     setInt24(newFlags, 1);
   }
 
-  long AFRA::getFlags(){
+  uint32_t AFRA::getFlags(){
     return getInt24(1);
   }
 
@@ -1792,19 +1792,19 @@ namespace MP4 {
     return getInt8(4) & 0x20;
   }
 
-  void AFRA::setTimeScale(long newVal){
+  void AFRA::setTimeScale(uint32_t newVal){
     setInt32(newVal, 5);
   }
 
-  long AFRA::getTimeScale(){
+  uint32_t AFRA::getTimeScale(){
     return getInt32(5);
   }
 
-  long AFRA::getEntryCount(){
+  uint32_t AFRA::getEntryCount(){
     return getInt32(9);
   }
 
-  void AFRA::setEntry(afraentry newEntry, long no){
+  void AFRA::setEntry(afraentry newEntry, uint32_t no){
     int entrysize = 12;
     if (getLongOffsets()){
       entrysize = 16;
@@ -1820,7 +1820,7 @@ namespace MP4 {
     }
   }
 
-  afraentry AFRA::getEntry(long no){
+  afraentry AFRA::getEntry(uint32_t no){
     afraentry ret;
     int entrysize = 12;
     if (getLongOffsets()){
@@ -1835,7 +1835,7 @@ namespace MP4 {
     return ret;
   }
 
-  long AFRA::getGlobalEntryCount(){
+  uint32_t AFRA::getGlobalEntryCount(){
     if ( !getGlobalEntries()){
       return 0;
     }
@@ -1846,7 +1846,7 @@ namespace MP4 {
     return getInt32(13 + entrysize * getEntryCount());
   }
 
-  void AFRA::setGlobalEntry(globalafraentry newEntry, long no){
+  void AFRA::setGlobalEntry(globalafraentry newEntry, uint32_t no){
     int offset = 13 + 12 * getEntryCount() + 4;
     if (getLongOffsets()){
       offset = 13 + 16 * getEntryCount() + 4;
@@ -1880,7 +1880,7 @@ namespace MP4 {
     }
   }
 
-  globalafraentry AFRA::getGlobalEntry(long no){
+  globalafraentry AFRA::getGlobalEntry(uint32_t no){
     globalafraentry ret;
     int offset = 13 + 12 * getEntryCount() + 4;
     if (getLongOffsets()){
@@ -1912,7 +1912,7 @@ namespace MP4 {
     return ret;
   }
 
-  std::string AFRA::toPrettyString(long indent){
+  std::string AFRA::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[afra] Fragment Random Access (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "Version " << getVersion() << std::endl;
@@ -1922,9 +1922,9 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "Global Entries " << getGlobalEntries() << std::endl;
     r << std::string(indent + 1, ' ') << "TimeScale " << getTimeScale() << std::endl;
 
-    long count = getEntryCount();
+    uint32_t count = getEntryCount();
     r << std::string(indent + 1, ' ') << "Entries (" << count << ") " << std::endl;
-    for (long i = 0; i < count; ++i){
+    for (uint32_t i = 0; i < count; ++i){
       afraentry tmpent = getEntry(i);
       r << std::string(indent + 1, ' ') << i << ": Time " << tmpent.time << ", Offset " << tmpent.offset << std::endl;
     }
@@ -1932,7 +1932,7 @@ namespace MP4 {
     if (getGlobalEntries()){
       count = getGlobalEntryCount();
       r << std::string(indent + 1, ' ') << "Global Entries (" << count << ") " << std::endl;
-      for (long i = 0; i < count; ++i){
+      for (uint32_t i = 0; i < count; ++i){
         globalafraentry tmpent = getGlobalEntry(i);
         r << std::string(indent + 1, ' ') << i << ": T " << tmpent.time << ", S" << tmpent.segment << "F" << tmpent.fragment << ", "
             << tmpent.afraoffset << "/" << tmpent.offsetfromafra << std::endl;
@@ -1947,43 +1947,43 @@ namespace MP4 {
     setInt8(0xFF, 4); //reserved + 4-bytes NAL length
   }
 
-  void AVCC::setVersion(long newVersion){
+  void AVCC::setVersion(uint32_t newVersion){
     setInt8(newVersion, 0);
   }
 
-  long AVCC::getVersion(){
+  uint32_t AVCC::getVersion(){
     return getInt8(0);
   }
 
-  void AVCC::setProfile(long newProfile){
+  void AVCC::setProfile(uint32_t newProfile){
     setInt8(newProfile, 1);
   }
 
-  long AVCC::getProfile(){
+  uint32_t AVCC::getProfile(){
     return getInt8(1);
   }
 
-  void AVCC::setCompatibleProfiles(long newCompatibleProfiles){
+  void AVCC::setCompatibleProfiles(uint32_t newCompatibleProfiles){
     setInt8(newCompatibleProfiles, 2);
   }
 
-  long AVCC::getCompatibleProfiles(){
+  uint32_t AVCC::getCompatibleProfiles(){
     return getInt8(2);
   }
 
-  void AVCC::setLevel(long newLevel){
+  void AVCC::setLevel(uint32_t newLevel){
     setInt8(newLevel, 3);
   }
 
-  long AVCC::getLevel(){
+  uint32_t AVCC::getLevel(){
     return getInt8(3);
   }
 
-  void AVCC::setSPSNumber(long newSPSNumber){
+  void AVCC::setSPSNumber(uint32_t newSPSNumber){
     setInt8(newSPSNumber, 5);
   }
 
-  long AVCC::getSPSNumber(){
+  uint32_t AVCC::getSPSNumber(){
     return getInt8(5);
   }
 
@@ -1994,7 +1994,7 @@ namespace MP4 {
     } //not null-terminated
   }
 
-  long AVCC::getSPSLen(){
+  uint32_t AVCC::getSPSLen(){
     return getInt16(6);
   }
 
@@ -2002,12 +2002,12 @@ namespace MP4 {
     return payload() + 8;
   }
 
-  void AVCC::setPPSNumber(long newPPSNumber){
+  void AVCC::setPPSNumber(uint32_t newPPSNumber){
     int offset = 8 + getSPSLen();
     setInt8(newPPSNumber, offset);
   }
 
-  long AVCC::getPPSNumber(){
+  uint32_t AVCC::getPPSNumber(){
     int offset = 8 + getSPSLen();
     return getInt8(offset);
   }
@@ -2020,7 +2020,7 @@ namespace MP4 {
     } //not null-terminated
   }
 
-  long AVCC::getPPSLen(){
+  uint32_t AVCC::getPPSLen(){
     int offset = 8 + getSPSLen() + 1;
     return getInt16(offset);
   }
@@ -2030,7 +2030,7 @@ namespace MP4 {
     return payload() + offset;
   }
 
-  std::string AVCC::toPrettyString(long indent){
+  std::string AVCC::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[avcC] H.264 Init Data (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "Version: " << getVersion() << std::endl;
@@ -2065,19 +2065,19 @@ namespace MP4 {
     memcpy(data + 4, "sdtp", 4);
   }
 
-  void SDTP::setVersion(long newVersion){
+  void SDTP::setVersion(uint32_t newVersion){
     setInt8(newVersion, 0);
   }
 
-  long SDTP::getVersion(){
+  uint32_t SDTP::getVersion(){
     return getInt8(0);
   }
 
-  void SDTP::setValue(long newValue, size_t index){
+  void SDTP::setValue(uint32_t newValue, size_t index){
     setInt8(newValue, index);
   }
 
-  long SDTP::getValue(size_t index){
+  uint32_t SDTP::getValue(size_t index){
     getInt8(index);
   }
 }

@@ -19,8 +19,8 @@ namespace MP4 {
       std::string getType();
       bool isType(const char* boxType);
       bool read(std::string & newData);
-      long long int boxedSize();
-      long long int payloadSize();
+      uint64_t boxedSize();
+      uint64_t payloadSize();
       char * asBox();
       char * payload();
       void clear();
@@ -31,12 +31,12 @@ namespace MP4 {
       char getInt8(size_t index);
       void setInt16(short newData, size_t index);
       short getInt16(size_t index);
-      void setInt24(long newData, size_t index);
-      long getInt24(size_t index);
-      void setInt32(long newData, size_t index);
-      long getInt32(size_t index);
-      void setInt64(long long int newData, size_t index);
-      long long int getInt64(size_t index);
+      void setInt24(uint32_t newData, size_t index);
+      uint32_t getInt24(size_t index);
+      void setInt32(uint32_t newData, size_t index);
+      uint32_t getInt32(size_t index);
+      void setInt64(uint64_t newData, size_t index);
+      uint64_t getInt64(size_t index);
       //string functions
       void setString(std::string newData, size_t index);
       void setString(char* newData, size_t size, size_t index);
@@ -57,10 +57,10 @@ namespace MP4 {
   //Box Class
 
   struct afrt_runtable{
-      long firstFragment;
-      long long int firstTimestamp;
-      long duration;
-      long discontinuity;
+      uint32_t firstFragment;
+      uint64_t firstTimestamp;
+      uint32_t duration;
+      uint32_t discontinuity;
   };
   //fragmentRun
 
@@ -69,24 +69,24 @@ namespace MP4 {
     public:
       AFRT();
       void setVersion(char newVersion);
-      long getVersion();
-      void setUpdate(long newUpdate);
-      long getUpdate();
-      void setTimeScale(long newScale);
-      long getTimeScale();
-      long getQualityEntryCount();
-      void setQualityEntry(std::string & newQuality, long no);
-      const char * getQualityEntry(long no);
-      long getFragmentRunCount();
-      void setFragmentRun(afrt_runtable newRun, long no);
-      afrt_runtable getFragmentRun(long no);
+      uint32_t getVersion();
+      void setUpdate(uint32_t newUpdate);
+      uint32_t getUpdate();
+      void setTimeScale(uint32_t newScale);
+      uint32_t getTimeScale();
+      uint32_t getQualityEntryCount();
+      void setQualityEntry(std::string & newQuality, uint32_t no);
+      const char * getQualityEntry(uint32_t no);
+      uint32_t getFragmentRunCount();
+      void setFragmentRun(afrt_runtable newRun, uint32_t no);
+      afrt_runtable getFragmentRun(uint32_t no);
       std::string toPrettyString(int indent = 0);
   };
   //AFRT Box
 
   struct asrt_runtable{
-      long firstSegment;
-      long fragmentsPerSegment;
+      uint32_t firstSegment;
+      uint32_t fragmentsPerSegment;
   };
 
   /// ASRT Box class
@@ -94,15 +94,15 @@ namespace MP4 {
     public:
       ASRT();
       void setVersion(char newVersion);
-      long getVersion();
-      void setUpdate(long newUpdate);
-      long getUpdate();
-      long getQualityEntryCount();
-      void setQualityEntry(std::string & newQuality, long no);
-      const char* getQualityEntry(long no);
-      long getSegmentRunEntryCount();
-      void setSegmentRun(long firstSegment, long fragmentsPerSegment, long no);
-      asrt_runtable getSegmentRun(long no);
+      uint32_t getVersion();
+      void setUpdate(uint32_t newUpdate);
+      uint32_t getUpdate();
+      uint32_t getQualityEntryCount();
+      void setQualityEntry(std::string & newQuality, uint32_t no);
+      const char* getQualityEntry(uint32_t no);
+      uint32_t getSegmentRunEntryCount();
+      void setSegmentRun(uint32_t firstSegment, uint32_t fragmentsPerSegment, uint32_t no);
+      asrt_runtable getSegmentRun(uint32_t no);
       std::string toPrettyString(int indent = 0);
   };
   //ASRT Box
@@ -113,49 +113,49 @@ namespace MP4 {
       ABST();
       void setVersion(char newVersion);
       char getVersion();
-      void setFlags(long newFlags);
-      long getFlags();
-      void setBootstrapinfoVersion(long newVersion);
-      long getBootstrapinfoVersion();
+      void setFlags(uint32_t newFlags);
+      uint32_t getFlags();
+      void setBootstrapinfoVersion(uint32_t newVersion);
+      uint32_t getBootstrapinfoVersion();
       void setProfile(char newProfile);
       char getProfile();
       void setLive(bool newLive);
       bool getLive();
       void setUpdate(bool newUpdate);
       bool getUpdate();
-      void setTimeScale(long newTimeScale);
-      long getTimeScale();
-      void setCurrentMediaTime(long long int newTime);
-      long long int getCurrentMediaTime();
-      void setSmpteTimeCodeOffset(long long int newTime);
-      long long int getSmpteTimeCodeOffset();
+      void setTimeScale(uint32_t newTimeScale);
+      uint32_t getTimeScale();
+      void setCurrentMediaTime(uint64_t newTime);
+      uint64_t getCurrentMediaTime();
+      void setSmpteTimeCodeOffset(uint64_t newTime);
+      uint64_t getSmpteTimeCodeOffset();
       void setMovieIdentifier(std::string & newIdentifier);
       char * getMovieIdentifier();
-      long getServerEntryCount();
-      void setServerEntry(std::string & entry, long no);
-      const char * getServerEntry(long no);
-      long getQualityEntryCount();
-      void setQualityEntry(std::string & entry, long no);
-      const char * getQualityEntry(long no);
+      uint32_t getServerEntryCount();
+      void setServerEntry(std::string & entry, uint32_t no);
+      const char * getServerEntry(uint32_t no);
+      uint32_t getQualityEntryCount();
+      void setQualityEntry(std::string & entry, uint32_t no);
+      const char * getQualityEntry(uint32_t no);
       void setDrmData(std::string newDrm);
       char * getDrmData();
       void setMetaData(std::string newMetaData);
       char * getMetaData();
-      long getSegmentRunTableCount();
-      void setSegmentRunTable(ASRT & table, long no);
-      ASRT & getSegmentRunTable(long no);
-      long getFragmentRunTableCount();
-      void setFragmentRunTable(AFRT & table, long no);
-      AFRT & getFragmentRunTable(long no);
-      std::string toPrettyString(long indent = 0);
+      uint32_t getSegmentRunTableCount();
+      void setSegmentRunTable(ASRT & table, uint32_t no);
+      ASRT & getSegmentRunTable(uint32_t no);
+      uint32_t getFragmentRunTableCount();
+      void setFragmentRunTable(AFRT & table, uint32_t no);
+      AFRT & getFragmentRunTable(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   //ABST Box
 
   class MFHD: public Box{
     public:
       MFHD();
-      void setSequenceNumber(long newSequenceNumber);
-      long getSequenceNumber();
+      void setSequenceNumber(uint32_t newSequenceNumber);
+      uint32_t getSequenceNumber();
       std::string toPrettyString(int indent = 0);
   };
   //MFHD Box
@@ -163,9 +163,9 @@ namespace MP4 {
   class MOOF: public Box{
     public:
       MOOF();
-      long getContentCount();
-      void setContent(Box & newContent, long no);
-      Box & getContent(long no);
+      uint32_t getContentCount();
+      void setContent(Box & newContent, uint32_t no);
+      Box & getContent(uint32_t no);
       std::string toPrettyString(int indent = 0);
   };
   //MOOF Box
@@ -173,18 +173,18 @@ namespace MP4 {
   class TRAF: public Box{
     public:
       TRAF();
-      long getContentCount();
-      void setContent(Box & newContent, long no);
-      Box & getContent(long no);
+      uint32_t getContentCount();
+      void setContent(Box & newContent, uint32_t no);
+      Box & getContent(uint32_t no);
       std::string toPrettyString(int indent = 0);
   };
   //TRAF Box
 
   struct trunSampleInformation{
-      long sampleDuration;
-      long sampleSize;
-      long sampleFlags;
-      long sampleOffset;
+      uint32_t sampleDuration;
+      uint32_t sampleSize;
+      uint32_t sampleFlags;
+      uint32_t sampleOffset;
   };
   enum trunflags{
     trundataOffset = 0x00000001,
@@ -205,20 +205,20 @@ namespace MP4 {
     isKeySample = 0x00000000,
     MUST_BE_PRESENT = 0x1
   };
-  std::string prettySampleFlags(long flag);
+  std::string prettySampleFlags(uint32_t flag);
   class TRUN: public Box{
     public:
       TRUN();
-      void setFlags(long newFlags);
-      long getFlags();
-      void setDataOffset(long newOffset);
-      long getDataOffset();
-      void setFirstSampleFlags(long newSampleFlags);
-      long getFirstSampleFlags();
-      long getSampleInformationCount();
-      void setSampleInformation(trunSampleInformation newSample, long no);
-      trunSampleInformation getSampleInformation(long no);
-      std::string toPrettyString(long indent = 0);
+      void setFlags(uint32_t newFlags);
+      uint32_t getFlags();
+      void setDataOffset(uint32_t newOffset);
+      uint32_t getDataOffset();
+      void setFirstSampleFlags(uint32_t newSampleFlags);
+      uint32_t getFirstSampleFlags();
+      uint32_t getSampleInformationCount();
+      void setSampleInformation(trunSampleInformation newSample, uint32_t no);
+      trunSampleInformation getSampleInformation(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
   };
 
   enum tfhdflags{
@@ -232,91 +232,91 @@ namespace MP4 {
   class TFHD: public Box{
     public:
       TFHD();
-      void setFlags(long newFlags);
-      long getFlags();
-      void setTrackID(long newID);
-      long getTrackID();
-      void setBaseDataOffset(long long newOffset);
-      long long getBaseDataOffset();
-      void setSampleDescriptionIndex(long newIndex);
-      long getSampleDescriptionIndex();
-      void setDefaultSampleDuration(long newDuration);
-      long getDefaultSampleDuration();
-      void setDefaultSampleSize(long newSize);
-      long getDefaultSampleSize();
-      void setDefaultSampleFlags(long newFlags);
-      long getDefaultSampleFlags();
-      std::string toPrettyString(long indent = 0);
+      void setFlags(uint32_t newFlags);
+      uint32_t getFlags();
+      void setTrackID(uint32_t newID);
+      uint32_t getTrackID();
+      void setBaseDataOffset(uint64_t newOffset);
+      uint64_t getBaseDataOffset();
+      void setSampleDescriptionIndex(uint32_t newIndex);
+      uint32_t getSampleDescriptionIndex();
+      void setDefaultSampleDuration(uint32_t newDuration);
+      uint32_t getDefaultSampleDuration();
+      void setDefaultSampleSize(uint32_t newSize);
+      uint32_t getDefaultSampleSize();
+      void setDefaultSampleFlags(uint32_t newFlags);
+      uint32_t getDefaultSampleFlags();
+      std::string toPrettyString(uint32_t indent = 0);
   };
 
   struct afraentry{
-      long long time;
-      long long offset;
+      uint64_t time;
+      uint64_t offset;
   };
   struct globalafraentry{
-      long long time;
-      long segment;
-      long fragment;
-      long long afraoffset;
-      long long offsetfromafra;
+      uint64_t time;
+      uint32_t segment;
+      uint32_t fragment;
+      uint64_t afraoffset;
+      uint64_t offsetfromafra;
   };
   class AFRA: public Box{
     public:
       AFRA();
-      void setVersion(long newVersion);
-      long getVersion();
-      void setFlags(long newFlags);
-      long getFlags();
+      void setVersion(uint32_t newVersion);
+      uint32_t getVersion();
+      void setFlags(uint32_t newFlags);
+      uint32_t getFlags();
       void setLongIDs(bool newVal);
       bool getLongIDs();
       void setLongOffsets(bool newVal);
       bool getLongOffsets();
       void setGlobalEntries(bool newVal);
       bool getGlobalEntries();
-      void setTimeScale(long newVal);
-      long getTimeScale();
-      long getEntryCount();
-      void setEntry(afraentry newEntry, long no);
-      afraentry getEntry(long no);
-      long getGlobalEntryCount();
-      void setGlobalEntry(globalafraentry newEntry, long no);
-      globalafraentry getGlobalEntry(long no);
-      std::string toPrettyString(long indent = 0);
+      void setTimeScale(uint32_t newVal);
+      uint32_t getTimeScale();
+      uint32_t getEntryCount();
+      void setEntry(afraentry newEntry, uint32_t no);
+      afraentry getEntry(uint32_t no);
+      uint32_t getGlobalEntryCount();
+      void setGlobalEntry(globalafraentry newEntry, uint32_t no);
+      globalafraentry getGlobalEntry(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
   };
 
   class AVCC: public Box{
     public:
       AVCC();
-      void setVersion(long newVersion);
-      long getVersion();
-      void setProfile(long newProfile);
-      long getProfile();
-      void setCompatibleProfiles(long newCompatibleProfiles);
-      long getCompatibleProfiles();
-      void setLevel(long newLevel);
-      long getLevel();
-      void setSPSNumber(long newSPSNumber);
-      long getSPSNumber();
+      void setVersion(uint32_t newVersion);
+      uint32_t getVersion();
+      void setProfile(uint32_t newProfile);
+      uint32_t getProfile();
+      void setCompatibleProfiles(uint32_t newCompatibleProfiles);
+      uint32_t getCompatibleProfiles();
+      void setLevel(uint32_t newLevel);
+      uint32_t getLevel();
+      void setSPSNumber(uint32_t newSPSNumber);
+      uint32_t getSPSNumber();
       void setSPS(std::string newSPS);
-      long getSPSLen();
+      uint32_t getSPSLen();
       char* getSPS();
-      void setPPSNumber(long newPPSNumber);
-      long getPPSNumber();
+      void setPPSNumber(uint32_t newPPSNumber);
+      uint32_t getPPSNumber();
       void setPPS(std::string newPPS);
-      long getPPSLen();
+      uint32_t getPPSLen();
       char* getPPS();
       std::string asAnnexB();
       void setPayload(std::string newPayload);
-      std::string toPrettyString(long indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
 
   class SDTP: public Box{
     public:
       SDTP();
-      void setVersion(long newVersion);
-      long getVersion();
-      void setValue(long newValue, size_t index);
-      long getValue(size_t index);
+      void setVersion(uint32_t newVersion);
+      uint32_t getVersion();
+      void setValue(uint32_t newValue, size_t index);
+      uint32_t getValue(size_t index);
   };
 }
 

@@ -30,21 +30,21 @@ namespace Connector_HTTP {
     std::string empty;
 
     MP4::ASRT asrt;
-    if (starttime == 0 && !metadata.isMember("keynum")){
+    if (starttime == 0 && metadata.isMember("vod")){
       asrt.setUpdate(false);
     }else{
       asrt.setUpdate(true);
     }
     asrt.setVersion(1);
     //asrt.setQualityEntry(empty, 0);
-    if (metadata.isMember("keynum")){
+    if (metadata.isMember("live")){
       asrt.setSegmentRun(1, 4294967295, 0);
     }else{
       asrt.setSegmentRun(1, metadata["keytime"].size(), 0);
     }
 
     MP4::AFRT afrt;
-    if (starttime == 0 && !metadata.isMember("keynum")){
+    if (starttime == 0 && metadata.isMember("vod")){
       afrt.setUpdate(false);
     }else{
       afrt.setUpdate(true);
@@ -53,13 +53,12 @@ namespace Connector_HTTP {
     afrt.setTimeScale(1000);
     //afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
-    if (metadata.isMember("keynum")){
-      unsigned long long int firstAvail = metadata["keynum"].size() / 2;
-      for (int i = firstAvail; i < metadata["keynum"].size(); i++){
+    if (metadata.isMember("live")){
+      for (int i = 0; i < metadata["keynum"].size(); i++){
         afrtrun.firstFragment = metadata["keynum"][i].asInt();
         afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
         afrtrun.duration = metadata["keylen"][i].asInt();
-        afrt.setFragmentRun(afrtrun, i - firstAvail);
+        afrt.setFragmentRun(afrtrun, i);
       }
     }else{
       for (int i = 0; i < metadata["keytime"].size(); i++){
@@ -80,7 +79,7 @@ namespace Connector_HTTP {
 
     MP4::ABST abst;
     abst.setVersion(1);
-    if (metadata.isMember("keynum")){
+    if (metadata.isMember("live")){
       abst.setBootstrapinfoVersion(metadata["keynum"][metadata["keynum"].size() - 2].asInt());
     }else{
       abst.setBootstrapinfoVersion(1);
@@ -92,7 +91,7 @@ namespace Connector_HTTP {
       abst.setUpdate(true);
     }
     abst.setTimeScale(1000);
-    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
+    if (metadata.isMember("vod")){
       abst.setLive(false);
       if (metadata["lastms"].asInt()){
         abst.setCurrentMediaTime(metadata["lastms"].asInt());
@@ -121,7 +120,7 @@ namespace Connector_HTTP {
   /// Returns a F4M-format manifest file
   std::string BuildManifest(std::string & MovieId, JSON::Value & metadata){
     std::string Result;
-    if ( !metadata.isMember("keynum")){
+    if (metadata.isMember("vod")){
       Result =
           "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
               "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
@@ -142,6 +141,7 @@ namespace Connector_HTTP {
           "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
               "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
               "<id>" + MovieId + "</id>\n"
+              "<dvrInfo windowDuration=\"" + metadata["buffer_window"].asString().substr(0, metadata["buffer_window"].asString().size() - 3) + "\"></dvrInfo>"
               "<mimeType>video/mp4</mimeType>\n"
               "<streamType>live</streamType>\n"
               "<deliveryType>streaming</deliveryType>\n"

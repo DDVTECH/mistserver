@@ -260,7 +260,6 @@ namespace Buffer {
     }
 
     while (buffer_running && SS.connected() && conf.is_active){
-      fprintf(stderr, "Still running\n");
       //check for new connections, accept them if there are any
       //starts a thread for every accepted connection
       incoming = SS.accept(true);

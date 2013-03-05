@@ -321,6 +321,51 @@ void DTSC::Stream::updateHeaders(){
       metadata["keynum"].append(metadata["keynum"][metadata["keynum"].size() - 1].asInt() + 1);
     }
     metadata["keylen"].append(buffers[keyframes[0].b]["time"].asInt() - buffers[keyframes[1].b]["time"].asInt());
+    long long int firstFragNo = -1;
+    metadata["frags"].null();
+    long long int currFrag = metadata["keytime"][0u].asInt() / 10000;
+    if (currFrag == 0){
+      long long int fragLen = 1;
+      long long int fragDur = metadata["keylen"][0u].asInt();
+      for (unsigned int j = 1; j < metadata["keytime"].size(); j++){
+        if (metadata["keytime"][j].asInt() / 10000 > currFrag){
+          if (firstFragNo == -1){
+            firstFragNo = currFrag;
+          }
+          JSON::Value thisFrag;
+          thisFrag["num"] = metadata["keynum"][0u];
+          thisFrag["len"] = fragLen;
+          thisFrag["dur"] = fragDur;
+          metadata["frags"].append(thisFrag);
+          break;
+        }
+        fragLen++;
+        fragDur += metadata["keylen"][j].asInt();
+      }
+    }
+    for (unsigned int i = 1; i < metadata["keytime"].size(); i++){
+      if (metadata["keytime"][i].asInt() / 10000 > currFrag){
+        currFrag = metadata["keytime"][i].asInt() / 10000;
+        long long int fragLen = 1;
+        long long int fragDur = metadata["keylen"][i].asInt();
+        for (unsigned int j = i + 1; j < metadata["keytime"].size(); j++){
+          if (metadata["keytime"][j].asInt() / 10000 > currFrag){
+            if (firstFragNo == -1){
+              firstFragNo = currFrag;
+            }
+            JSON::Value thisFrag;
+            thisFrag["num"] = metadata["keynum"][i];
+            thisFrag["len"] = fragLen;
+            thisFrag["dur"] = fragDur;
+            metadata["frags"].append(thisFrag);
+            break;
+          }
+          fragLen++;
+          fragDur += metadata["keylen"][j].asInt();
+        }
+      }
+    }
+    metadata["missed_frags"] = firstFragNo;
     metadata["lastms"] = buffers[keyframes[0].b]["time"].asInt();
     metadata["buffer_window"] = (long long int)buffertime;
     metadata["live"] = true;

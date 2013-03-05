@@ -55,10 +55,10 @@ namespace Connector_HTTP {
     MP4::afrt_runtable afrtrun;
     if (metadata.isMember("keynum")){
       unsigned long long int firstAvail = metadata["keynum"].size() / 2;
-      for (int i = firstAvail; i < metadata["keynum"].size() - 1; i++){
+      for (int i = firstAvail; i < metadata["keynum"].size(); i++){
         afrtrun.firstFragment = metadata["keynum"][i].asInt();
         afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
-        afrtrun.duration = metadata["keytime"][i + 1].asInt() - metadata["keytime"][i].asInt();
+        afrtrun.duration = metadata["keylen"][i].asInt();
         afrt.setFragmentRun(afrtrun, i - firstAvail);
       }
     }else{
@@ -101,7 +101,7 @@ namespace Connector_HTTP {
       }
     }else{
       abst.setLive(false);
-      abst.setCurrentMediaTime(metadata["keytime"][metadata["keytime"].size() - 2].asInt());
+      abst.setCurrentMediaTime(metadata["lastms"].asInt());
     }
     abst.setSmpteTimeCodeOffset(0);
     abst.setMovieIdentifier(MovieId);
@@ -132,28 +132,24 @@ namespace Connector_HTTP {
               "<mimeType>video/mp4</mimeType>\n"
               "<streamType>recorded</streamType>\n"
               "<deliveryType>streaming</deliveryType>\n"
-              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0, 0))
-              + "</bootstrapInfo>\n"
-                  "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId
-              + "/\">\n"
-                  "<metadata>AgAKb25NZXRhRGF0YQgAAAAAAAl0cmFja2luZm8KAAAAAgMACXRpbWVzY2FsZQBA+GoAAAAAAAAGbGVuZ3RoAEGMcHoQAAAAAAhsYW5ndWFnZQIAA2VuZwARc2FtcGxlZGVzY3JpcHRpb24KAAAAAQMACnNhbXBsZXR5cGUCAARhdmMxAAAJAAAJAwAJdGltZXNjYWxlAEDncAAAAAAAAAZsZW5ndGgAQXtNvTAAAAAACGxhbmd1YWdlAgADZW5nABFzYW1wbGVkZXNjcmlwdGlvbgoAAAABAwAKc2FtcGxldHlwZQIABG1wNGEAAAkAAAkADWF1ZGlvY2hhbm5lbHMAQAAAAAAAAAAAD2F1ZGlvc2FtcGxlcmF0ZQBA53AAAAAAAAAOdmlkZW9mcmFtZXJhdGUAQDf/gi5SciUABmFhY2FvdABAAAAAAAAAAAAIYXZjbGV2ZWwAQD8AAAAAAAAACmF2Y3Byb2ZpbGUAQFNAAAAAAAAADGF1ZGlvY29kZWNpZAIABG1wNGEADHZpZGVvY29kZWNpZAIABGF2YzEABXdpZHRoAECQ4AAAAAAAAAZoZWlnaHQAQIMAAAAAAAAACmZyYW1lV2lkdGgAQJDgAAAAAAAAC2ZyYW1lSGVpZ2h0AECDAAAAAAAAAAxkaXNwbGF5V2lkdGgAQJDgAAAAAAAADWRpc3BsYXlIZWlnaHQAQIMAAAAAAAAADG1vb3Zwb3NpdGlvbgBBmxq2uAAAAAAIZHVyYXRpb24AQIKjqW3oyhIAAAk=</metadata>\n"
-                  "</media>\n"
-                  "</manifest>\n";
+              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0, 0)) + "</bootstrapInfo>\n"
+              "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
+              "<metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>\n"
+              "</media>\n"
+              "</manifest>\n";
     }else{
       Result =
           "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
               "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
               "<id>" + MovieId + "</id>\n"
-              "<duration>0.00</duration>\n"
               "<mimeType>video/mp4</mimeType>\n"
               "<streamType>live</streamType>\n"
               "<deliveryType>streaming</deliveryType>\n"
-              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\" url=\"" + MovieId + ".bootstrap\"></bootstrapInfo>\n"
-              "<media bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId
-              + "/\">"
-                  "<metadata>AgAKb25NZXRhRGF0YQgAAAAAAA9tZXRhZGF0YWNyZWF0b3ICABBBbmV2aWEgVmlhTW90aW9uAAhoYXNBdWRpbwEBAAhoYXNWaWRlbwEBAAhkdXJhdGlvbgBBIWWYAAAAAAAPYXVkaW9zYW1wbGVyYXRlAEBIAAAAAAAAAA1hdWRpb2RhdGFyYXRlAEBgAAAAAAAAAAxhdWRpb2NvZGVjaWQCAARtcDRhAAZhYWNhb3QAQAAAAAAAAAAABXdpZHRoAECQAAAAAAAAAAZoZWlnaHQAQIIAAAAAAAAADXZpZGVvZGF0YXJhdGUAQJ9AAAAAAAAADHZpZGVvY29kZWNpZAIABEFWQzEACmF2Y3Byb2ZpbGUAQFNAAAAAAAAACGF2Y2xldmVsAEA/AAAAAAAAAAAJ</metadata>\n"
-                  "</media>\n"
-                  "</manifest>\n";
+              "<media url=\"" + MovieId + "/\">\n"
+              "<metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>\n"
+              "</media>\n"
+              "<bootstrapInfo profile=\"named\" url=\"" + MovieId + ".abst\" />\n"
+              "</manifest>\n";
     }
 #if DEBUG >= 8
     std::cerr << "Sending this manifest:" << std::endl << Result << std::endl;
@@ -225,7 +221,7 @@ namespace Connector_HTTP {
             }
             Strm.parsePacket(ss.Received());
           }
-          if (HTTP_R.url.find(".bootstrap") != std::string::npos){
+          if (HTTP_R.url.find(".abst") != std::string::npos){
             HTTP_S.Clean();
             HTTP_S.SetBody(GenerateBootstrap(streamname, Strm.metadata, 1, 0, 0));
             HTTP_S.SetHeader("Content-Type", "binary/octet");
@@ -348,7 +344,8 @@ namespace Connector_HTTP {
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
                 HTTP_S.SetBody("");
-                HTTP_S.SetHeader("Content-Length", FlashBufSize + 8); //32+33+btstrp.size());
+                std::string new_strap = GenerateBootstrap(streamname, Strm.metadata, 1, 0, 0);
+                HTTP_S.SetHeader("Content-Length", FlashBufSize + 8 + new_strap.size()); //32+33+btstrp.size());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
                 //conn.SendNow("\x00\x00\x00\x21" "afra\x00\x00\x00\x00\x00\x00\x00\x03\xE8\x00\x00\x00\x01", 21);
                 //unsigned long tmptime = htonl(FlashBufTime << 32);
@@ -363,6 +360,7 @@ namespace Connector_HTTP {
                 //conn.SendNow("\x00\x00\x00\x18moof\x00\x00\x00\x10mfhd\x00\x00\x00\x00", 20);
                 //unsigned long fragno = htonl(ReqFragment);
                 //conn.SendNow((char*)&fragno, 4);
+                conn.SendNow(new_strap);
                 unsigned long size = htonl(FlashBufSize+8);
                 conn.SendNow((char*) &size, 4);
                 conn.SendNow("mdat", 4);

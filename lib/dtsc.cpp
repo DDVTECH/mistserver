@@ -322,6 +322,8 @@ void DTSC::Stream::updateHeaders(){
     }
     metadata["keylen"].append(buffers[keyframes[0].b]["time"].asInt() - buffers[keyframes[1].b]["time"].asInt());
     metadata["lastms"] = buffers[keyframes[0].b]["time"].asInt();
+    metadata["buffer_window"] = (long long int)buffertime;
+    metadata["live"] = true;
     metadata.toPacked();
     updateRingHeaders();
   }
@@ -496,6 +498,8 @@ void DTSC::File::readHeader(int pos){
       frames[i + 1] = metadata["keybpos"][i].asInt();
     }
   }
+  metadata["vod"] = true;
+  metadata.toPacked();
 }
 
 /// Reads the packet available at the current file position.

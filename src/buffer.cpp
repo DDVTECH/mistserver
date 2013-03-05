@@ -65,6 +65,12 @@ namespace Buffer {
     while (usr->S.connected()){
       usleep(5000); //sleep 5ms
       if ( !usr->myRing->playCount || !usr->Send()){
+        if (usr->myRing->updated){
+          Stream::get()->getReadLock();
+          usr->S.SendNow(Stream::get()->getStream()->metadata.toNetPacked());
+          Stream::get()->dropReadLock();
+          usr->myRing->updated = false;
+        }
         if (usr->S.spool()){
           while (usr->S.Received().size()){
             //delete anything that doesn't end with a newline

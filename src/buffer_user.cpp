@@ -67,6 +67,7 @@ bool Buffer::user::Send(){
   if (myRing->waiting){
     Stream::get()->waitForData();
     if ( !myRing->waiting){
+      Stream::get()->getReadLock();
       if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
         myRing->playCount--;
         if ( !myRing->playCount){
@@ -78,13 +79,7 @@ bool Buffer::user::Send(){
           S.SendNow(pausemark.toNetPacked());
         }
       }
-      if (myRing->updated){
-        fprintf(stderr, "Sent new metadata\n");
-        Stream::get()->getReadLock();
-        S.SendNow(Stream::get()->getStream()->metadata.toNetPacked());
-        Stream::get()->dropReadLock();
-        myRing->updated = false;
-      }
+      Stream::get()->dropReadLock();
     }
     return false;
   } //still waiting for next buffer?
@@ -105,14 +100,6 @@ bool Buffer::user::Send(){
       return false;
     } //no next buffer? go in waiting mode.
     myRing->b--;
-    if (myRing->updated){
-      fprintf(stderr, "Sent new metadata\n");
-      Stream::get()->getReadLock();
-      S.SendNow(Stream::get()->getStream()->metadata.toNetPacked());
-      Stream::get()->dropReadLock();
-      myRing->updated = false;
-    }
-    Stream::get()->dropReadLock();
     if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
       myRing->playCount--;
       if ( !myRing->playCount){
@@ -124,6 +111,7 @@ bool Buffer::user::Send(){
         S.SendNow(pausemark.toNetPacked());
       }
     }
+    Stream::get()->dropReadLock();
     return false;
   } //completed a send
   Stream::get()->dropReadLock();

@@ -71,7 +71,6 @@ bool Buffer::user::Send(){
       if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
         myRing->playCount--;
         if ( !myRing->playCount){
-          fprintf(stderr, "Sending Pausemark\n");
           JSON::Value pausemark;
           pausemark["datatype"] = "pause_marker";
           pausemark["time"] = Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt();
@@ -103,7 +102,6 @@ bool Buffer::user::Send(){
     if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
       myRing->playCount--;
       if ( !myRing->playCount){
-        fprintf(stderr, "Sending Pausemark\n");
         JSON::Value pausemark;
         pausemark["datatype"] = "pause_marker";
         pausemark["time"] = Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt();

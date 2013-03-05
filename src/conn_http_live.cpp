@@ -74,7 +74,6 @@ namespace Connector_HTTP {
       }
       Result << "#EXT-X-ENDLIST";
     }else{
-      std::cerr << metadata["frags"].toPrettyString() << std::endl;
       Result << "#EXTM3U\r\n"
           "#EXT-X-MEDIA-SEQUENCE:" << metadata["missed_frags"].asInt() <<"\r\n"
           "#EXT-X-TARGETDURATION:10\r\n";
@@ -82,9 +81,9 @@ namespace Connector_HTTP {
         Result << "#EXTINF:" << (*ai)["dur"].asInt() / 1000 << ", no desc\r\n" << (*ai)["num"].asInt() << "_" << (*ai)["len"].asInt() << ".ts\r\n";
       }
     }
-//#if DEBUG >= 8
+#if DEBUG >= 8
     std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
-//#endif
+#endif
     return Result.str();
   } //BuildIndex
 

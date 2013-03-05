@@ -34,7 +34,6 @@ Buffer::Stream::~Stream(){
   for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
     if (( * *usersIt).S.connected()){
       ( * *usersIt).S.close();
-      printf("Closing user %s\n", ( * *usersIt).MyStr.c_str());
     }
   }
   moreData.notify_all();
@@ -96,7 +95,7 @@ bool Buffer::Stream::checkWaitingIP(std::string ip){
   if (ip == waiting_ip || ip == "::ffff:" + waiting_ip){
     return true;
   }else{
-    std::cout << ip << " != " << waiting_ip << std::endl;
+    std::cout << ip << " != (::ffff:)" << waiting_ip << std::endl;
     return false;
   }
 }

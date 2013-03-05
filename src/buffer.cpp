@@ -120,7 +120,6 @@ namespace Buffer {
                   break;
                 }
                 case 'f': { //frame-seek
-                  fprintf(stderr, "Received a frame-seek\n");
                   unsigned int frameno = JSON::Value(usr->S.Received().get().substr(2)).asInt();
                   usr->myRing->waiting = false;
                   usr->myRing->starved = false;
@@ -135,7 +134,6 @@ namespace Buffer {
                   break;
                 }
                 case 'o': { //once-play
-                  fprintf(stderr, "Received a play-once\n");
                   if (usr->myRing->playCount >= 0){
                     usr->myRing->playCount++;
                   }

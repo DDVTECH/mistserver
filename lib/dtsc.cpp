@@ -307,6 +307,9 @@ void DTSC::Stream::dropRing(DTSC::Ring * ptr){
   }
 }
 
+/// Updates the headers for a live stream, keeping track of all available
+/// keyframes and their media times. The function MAY NOT be run at any other
+/// time than right after receiving a new keyframe, or there'll be raptors.
 void DTSC::Stream::updateHeaders(){
   if (keyframes.size() > 2){
     metadata["keytime"].shrink(keyframes.size() - 2);
@@ -317,6 +320,7 @@ void DTSC::Stream::updateHeaders(){
     }else{
       metadata["keynum"].append(metadata["keynum"][metadata["keynum"].size() - 1].asInt() + 1);
     }
+    metadata["keylen"].append(buffers[keyframes[0].b]["time"].asInt() - buffers[keyframes[1].b]["time"].asInt());
     metadata["lastms"] = buffers[keyframes[0].b]["time"].asInt();
     metadata.toPacked();
     updateRingHeaders();

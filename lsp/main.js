@@ -973,7 +973,7 @@
                         
                         if(n.val() == ''){ n.focus(); return; }
                         if(s.val() == ''){ s.focus(); return; }
-                        if((b.val() != '') && ((b.val() < 0) || (isNaN(b.val)))){ b.focus(); return; }
+                        if((b.val() != '') && ((b.val() < 0) || (isNaN(b.val())))){ b.focus(); return; }
                         
                         var newname = n.val().replace(/([^a-zA-Z0-9_])/g, '').toLowerCase();
                         

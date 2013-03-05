@@ -59,7 +59,7 @@ namespace Connector_HTTP {
         longestFragment = fragDuration;
       }
     }
-    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
+    if (metadata.isMember("vod")){
       Result << "#EXTM3U\r\n"
       //"#EXT-X-VERSION:1\r\n"
       //"#EXT-X-ALLOW-CACHE:YES\r\n"
@@ -74,19 +74,17 @@ namespace Connector_HTTP {
       }
       Result << "#EXT-X-ENDLIST";
     }else{
+      std::cerr << metadata["frags"].toPrettyString() << std::endl;
       Result << "#EXTM3U\r\n"
-          "#EXT-X-MEDIA-SEQUENCE:0\r\n"
-          "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
-      int lastDuration = 0;
-      for (int i = 0; i < fragIndices.size() - 1; i++){
-        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i + 1]].asInt() - lastDuration) / 1000 << ", no desc\r\n" << fragIndices[i] + 1
-            << "_" << fragIndices[i + 1] - fragIndices[i] << ".ts\r\n";
-        lastDuration = metadata["keytime"][fragIndices[i + 1]].asInt();
+          "#EXT-X-MEDIA-SEQUENCE:" << metadata["missed_frags"].asInt() <<"\r\n"
+          "#EXT-X-TARGETDURATION:10\r\n";
+      for (JSON::ArrIter ai = metadata["frags"].ArrBegin(); ai != metadata["frags"].ArrEnd(); ai++){
+        Result << "#EXTINF:" << (*ai)["dur"].asInt() / 1000 << ", no desc\r\n" << (*ai)["num"].asInt() << "_" << (*ai)["len"].asInt() << ".ts\r\n";
       }
     }
-#if DEBUG >= 8
+//#if DEBUG >= 8
     std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
-#endif
+//#endif
     return Result.str();
   } //BuildIndex
 
@@ -241,16 +239,6 @@ namespace Connector_HTTP {
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
-            if (Strm.getPacket(0).isMember("time")){
-              if ( !Strm.metadata.isMember("firsttime")){
-                Strm.metadata["firsttime"] = Strm.getPacket(0)["time"];
-              }else{
-                if ( !Strm.metadata.isMember("length") || Strm.metadata["length"].asInt() == 0){
-                  Strm.getPacket(0)["time"] = Strm.getPacket(0)["time"].asInt() - Strm.metadata["firsttime"].asInt();
-                }
-              }
-              Strm.metadata["lasttime"] = Strm.getPacket(0)["time"];
-            }
             if (pending_manifest){
               HTTP_S.Clean();
               HTTP_S.protocol = "HTTP/1.1";

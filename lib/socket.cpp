@@ -402,7 +402,7 @@ void Socket::Connection::SendNow(const char * data, size_t len){
   }
   int i = iwrite(data, len);
   while (i < len && connected()){
-    int j = iwrite(data + i, len - i);
+    int j = iwrite(data + i, std::min(len - i, (size_t)51200));
     if (j > 0){
       i += j;
     }else{

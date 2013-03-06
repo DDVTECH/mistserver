@@ -102,6 +102,9 @@ namespace Controller {
         Log("CONF", std::string("New configuration value ") + jit->first);
       }
     }
+    if (out["config"]["basepath"].asString()[out["config"]["basepath"].asString().size() - 1] == '/'){
+      out["config"]["basepath"] = out["config"]["basepath"].asString().substr(0, out["config"]["basepath"].asString().size() - 1);
+    }
     for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
       if (jit->first == "version" || jit->first == "time"){
         continue;
@@ -215,7 +218,10 @@ int main(int argc, char ** argv){
       Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
     }
   }
-
+  if ( !Controller::Storage["config"].isMember("basePath")){
+    Controller::Storage["config"]["basePath"] = Util::getMyPath();
+  }
+  
   std::string uplink_addr = conf.getString("uplink");
   std::string uplink_host = "";
   int uplink_port = 0;
@@ -256,6 +262,7 @@ int main(int argc, char ** argv){
       Controller::CheckProtocols(Controller::Storage["config"]["protocols"]);
       Controller::CheckAllStreams(Controller::Storage["streams"]);
       Controller::CheckStats(Controller::Storage["statistics"]);
+      myConverter.updateStatus();
     }
     if (uplink_port && Util::epoch() - lastuplink > UPLINK_INTERVAL){
       lastuplink = Util::epoch();
@@ -456,8 +463,26 @@ int main(int argc, char ** argv){
                     Controller::checkCapable(Response["capabilities"]);
                   }
                   if (Request.isMember("conversion")){
-                    if (Request["conversion"].isMember("encoders")) {
+                    if (Request["conversion"].isMember("encoders")){
                       Response["conversion"]["encoders"] = myConverter.getEncoders();
+                    }
+                    if (Request["conversion"].isMember("query")){
+                      if (Request["conversion"]["query"].isMember("path")){
+                        Response["conversion"]["query"] = myConverter.queryPath(Request["conversion"]["query"]["path"].asString());
+                      }else{
+                        Response["conversion"]["query"] = myConverter.queryPath("./");
+                      }
+                    }
+                    if (Request["conversion"].isMember("convert")){
+                      for (JSON::ObjIter it = Request["conversion"]["convert"].ObjBegin(); it != Request["conversion"]["convert"].ObjEnd(); it++){
+                        myConverter.startConversion(it->first,it->second);
+                      }
+                    }
+                    if (Request["conversion"].isMember("status") || Request["conversion"].isMember("convert")){
+                      Response["conversion"]["status"] = myConverter.getStatus();
+                      if (Request["conversion"].isMember("clear")){
+                        myConverter.clearStatus();
+                      }
                     }
                   }
                   if (Request.isMember("save")){

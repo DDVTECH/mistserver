@@ -18,7 +18,7 @@ namespace Info {
     JSON::Value fileSpecs = F.getMeta();
     if( !fileSpecs ) {
       char ** cmd = (char**)malloc(3*sizeof(char*));
-      cmd[0] = "ffprobe";
+      cmd[0] = (char*)"ffprobe";
       cmd[1] = argv[1];
       cmd[2] = NULL;
       int outFD = -1;
@@ -30,13 +30,12 @@ namespace Info {
       while ( !(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){
         std::string line = fileBuf;
         if (line.find("Input") != std::string::npos){
-          std::string tmp = line.substr(line.find("'") + 1);
-          fileSpecs["fileName"] = tmp.substr(0, tmp.find("'"));
+          std::string tmp = line.substr(line.find(", ") + 2);
+          fileSpecs["format"] = tmp.substr(0, tmp.find(","));
         }
-        if (line.find("Duration") != std::string::npos ){
+        if (line.find("Duration") != std::string::npos){
           std::string tmp = line.substr(line.find(": ", line.find("Duration")) + 2);
           tmp = tmp.substr(0, tmp.find(","));
-          fileSpecs["duration"] = tmp;
           int length = (((atoi(tmp.substr(0,2).c_str()) * 60) + atoi(tmp.substr(3,2).c_str())) * 60) + atoi(tmp.substr(6,2).c_str());
           fileSpecs["length"] = length;
           length *= 100;
@@ -51,16 +50,10 @@ namespace Info {
           std::string tmp = line.substr(line.find(" ", line.find("Stream")) + 1);
           int strmIdx = fileSpecs["streams"].size();
           int curPos = 0;
-          fileSpecs["streams"][strmIdx]["name"] = tmp.substr(curPos, tmp.find(": ", curPos) - curPos);
           curPos = tmp.find(": ", curPos) + 2;
-
-          //curPos = tmp.find("(", curPos) + 1;
-          //fileSpecs["streams"][strmIdx]["language"] = tmp.substr(curPos, tmp.find(")", curPos) - curPos);
-          //curPos = tmp.find(")", curPos) + 3;
-
           fileSpecs["streams"][strmIdx]["type"] = tmp.substr(curPos, tmp.find(":", curPos) - curPos);
           curPos = tmp.find(":", curPos) + 2;
-          fileSpecs["streams"][strmIdx]["codec"] = tmp.substr(curPos, tmp.find(" ", curPos) - curPos);
+          fileSpecs["streams"][strmIdx]["codec"] = tmp.substr(curPos, tmp.find_first_of(", ", curPos) - curPos);
           curPos = tmp.find(",", curPos) + 2;
           if (fileSpecs["streams"][strmIdx]["type"] == "Video"){
             fileSpecs["streams"][strmIdx]["encoding"] = tmp.substr(curPos, tmp.find(",", curPos) - curPos);
@@ -72,12 +65,8 @@ namespace Info {
             fileSpecs["streams"][strmIdx]["bps"] = atoi(tmp.substr(curPos, tmp.find(" ", curPos) - curPos).c_str()) * 128;
             curPos = tmp.find(",", curPos) + 2;
             fileSpecs["streams"][strmIdx]["fpks"] = (int)(atof(tmp.substr(curPos, tmp.find(" ", curPos) - curPos).c_str()) * 1000);
-            curPos = tmp.find(",", curPos) + 2;
-            fileSpecs["streams"][strmIdx]["tbr"] = (int)(atof(tmp.substr(curPos, tmp.find(" ", curPos) - curPos).c_str()) + 0.5);
-            curPos = tmp.find(",", curPos) + 2;
-            fileSpecs["streams"][strmIdx]["tbn"] = atoi(tmp.substr(curPos, tmp.find(" ", curPos) - curPos).c_str());
-            curPos = tmp.find(",", curPos) + 2;
-            fileSpecs["streams"][strmIdx]["tbc"] = atoi(tmp.substr(curPos, tmp.find(" ", curPos) - curPos).c_str());
+            fileSpecs["streams"][strmIdx].removeMember( "type" );
+            fileSpecs["video"] = fileSpecs["streams"][strmIdx];
           }else if (fileSpecs["streams"][strmIdx]["type"] == "Audio"){
             fileSpecs["streams"][strmIdx]["samplerate"] = atoi(tmp.substr(curPos, tmp.find(" ", curPos) - curPos).c_str());
             curPos = tmp.find(",", curPos) + 2;
@@ -92,10 +81,15 @@ namespace Info {
             fileSpecs["streams"][strmIdx]["samplewidth"] = tmp.substr(curPos, tmp.find(",", curPos) - curPos);
             curPos = tmp.find(",", curPos) + 2;
             fileSpecs["streams"][strmIdx]["bps"] = atoi(tmp.substr(curPos, tmp.find(" ", curPos) - curPos).c_str()) * 128;
+            fileSpecs["streams"][strmIdx].removeMember( "type" );
+            fileSpecs["audio"] = fileSpecs["streams"][strmIdx];
           }
         }
       }
       fclose( outFile );
+      fileSpecs.removeMember( "streams" );
+    } else {
+      fileSpecs["format"] = "dtsc";
     }
     if (fileSpecs.isMember("video")){
       fileSpecs["video"].removeMember("init");

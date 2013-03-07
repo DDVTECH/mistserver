@@ -37,6 +37,8 @@ namespace Connector_HTTP {
     unsigned int lastStats = 0;
     unsigned int seek_sec = 0; //seek position in ms
     unsigned int seek_byte = 0; //seek position in bytes
+    
+    bool isMP3 = false;
 
     while (conn.connected()){
       //only parse input if available or not yet init'ed
@@ -61,6 +63,9 @@ namespace Connector_HTTP {
             streamname = HTTP_R.getUrl().substr(1);
             size_t extDot = streamname.rfind('.');
             if (extDot != std::string::npos){
+              if (streamname.substr(extDot + 1) == "mp3"){
+                isMP3 = true;
+              }
               streamname.resize(extDot);
             }; //strip the extension
             int start = 0;
@@ -115,7 +120,7 @@ namespace Connector_HTTP {
               }
             }
             int byterate = 0;
-            if (Strm.metadata.isMember("video")){
+            if (Strm.metadata.isMember("video") && !isMP3){
               byterate += Strm.metadata["video"]["bps"].asInt();
             }
             if (Strm.metadata.isMember("audio")){
@@ -143,31 +148,43 @@ namespace Connector_HTTP {
           while (Strm.parsePacket(ss.Received())){
             if ( !progressive_has_sent_header){
               HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-              HTTP_S.SetHeader("Content-Type", "video/x-flv"); //Send the correct content-type for FLV files
+              if (!isMP3){
+                HTTP_S.SetHeader("Content-Type", "video/x-flv"); //Send the correct content-type for FLV files
+              }else{
+                HTTP_S.SetHeader("Content-Type", "audio/mpeg"); //Send the correct content-type for MP3 files
+              }
               //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
               HTTP_S.protocol = "HTTP/1.0";
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
-              conn.SendNow(FLV::Header, 13); //write FLV header
-              //write metadata
-              tag.DTSCMetaInit(Strm);
-              conn.SendNow(tag.data, tag.len);
-              //write video init data, if needed
-              if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
-                tag.DTSCVideoInit(Strm);
+              if ( !isMP3){
+                conn.SendNow(FLV::Header, 13); //write FLV header
+                //write metadata
+                tag.DTSCMetaInit(Strm);
                 conn.SendNow(tag.data, tag.len);
-              }
-              //write audio init data, if needed
-              if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
-                tag.DTSCAudioInit(Strm);
-                conn.SendNow(tag.data, tag.len);
+                //write video init data, if needed
+                if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
+                  tag.DTSCVideoInit(Strm);
+                  conn.SendNow(tag.data, tag.len);
+                }
+                //write audio init data, if needed
+                if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
+                  tag.DTSCAudioInit(Strm);
+                  conn.SendNow(tag.data, tag.len);
+                }
               }
               progressive_has_sent_header = true;
 #if DEBUG >= 1
               fprintf(stderr, "Sent progressive FLV header\n");
 #endif
             }
-            tag.DTSCLoader(Strm);
-            conn.SendNow(tag.data, tag.len); //write the tag contents
+            if ( !isMP3){
+              tag.DTSCLoader(Strm);
+              conn.SendNow(tag.data, tag.len); //write the tag contents
+            }else{
+              if(Strm.lastType() == DTSC::AUDIO){
+                conn.SendNow(Strm.lastData()); //write the MP3 contents
+              }
+            }
           }
         }else{
           Util::sleep(1);

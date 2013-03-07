@@ -631,7 +631,7 @@
                   {
                      $('#streams-list-tbody').children().each(function(k, v)
                      {
-                        var type = $($(v).children()[0]).text().toLowerCase();
+                        var type = $($(v).children()[1]).text().toLowerCase();
                         
                         $(v).show();
                         

@@ -528,6 +528,59 @@ pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int *
   return pid;
 }
 
+/// Starts a new process with given fds if the name is not already active.
+/// \return 0 if process was not started, process PID otherwise.
+/// \arg name Name for this process - only used internally.
+/// \arg cmd Command for this process.
+/// \arg fdin Standard input file descriptor. If null, /dev/null is assumed. Otherwise, if arg contains -1, a new fd is automatically allocated and written into this arg. Then the arg will be used as fd.
+/// \arg fdout Same as fdin, but for stdout.
+/// \arg fdout Same as fdin, but for stderr.
+pid_t Util::Procs::StartPiped(std::string name, std::string cmd, int * fdin, int * fdout, int * fderr){
+  //Convert the given command to a char * []
+  char * tmp = (char*)cmd.c_str();
+  char * tmp2 = 0;
+  char * args[21];
+  int i = 0;
+  tmp2 = strtok(tmp, " ");
+  args[0] = tmp2;
+  while (tmp2 != 0 && (i < 20)){
+    tmp2 = strtok(0, " ");
+    ++i;
+    args[i] = tmp2;
+  }
+  if (i == 20){
+    args[20] = 0;
+  }
+  return StartPiped(name,args,fdin,fdout,fderr);
+}
+
+
+pid_t Util::Procs::StartPiped2(std::string name, std::string cmd1, std::string cmd2, int * fdin, int * fdout, int * fderr1, int * fderr2){
+  int pfildes[2];
+  if (pipe(pfildes) == -1){
+#if DEBUG >= 1
+    std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
+#endif
+    return 0;
+  }
+  pid_t res1 = StartPiped(name, cmd1, fdin, &pfildes[1], fderr1);
+  if ( !res1){
+    close(pfildes[1]);
+    close(pfildes[0]);
+    return 0;
+  }
+  pid_t res2 = StartPiped(name+"receiving", cmd2, &pfildes[0], fdout, fderr2);
+  if ( !res2){
+    Stop(res1);
+    close(pfildes[1]);
+    close(pfildes[0]);
+    return 0;
+  }
+  //we can close these because the fork in StartPiped() copies them.
+  close(pfildes[1]);
+  close(pfildes[0]);
+  return res1;
+}
 /// Stops the named process, if running.
 /// \arg name (Internal) name of process to stop
 void Util::Procs::Stop(std::string name){

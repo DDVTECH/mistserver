@@ -161,7 +161,9 @@ namespace Converter {
       }
       encoderCommand << "-f flv -";
     }
-    Util::Procs::Start(name,encoderCommand.str(),Util::getMyPath() + "MistFLV2DTSC -o " + parameters["output"].asString());
+    int statusFD = -1;
+    Util::Procs::StartPiped2(name,encoderCommand.str(),Util::getMyPath() + "MistFLV2DTSC -o " + parameters["output"].asString(),0,0,&statusFD,0);
+    parameters["statusFD"] = statusFD;
     allConversions[name] = parameters;
   }
   
@@ -200,12 +202,50 @@ namespace Converter {
     }
   }
   
+  JSON::Value parseFFMpegStatus(std::string statusLine){
+    JSON::Value result;
+    int curOffset = statusLine.find("frame=") + 6;
+    result["frame"] = atoi(statusLine.substr(curOffset, statusLine.find("fps=") - curOffset).c_str() );
+    curOffset = statusLine.find("time=") + 5;
+    int myTime = 0;
+    myTime += atoi(statusLine.substr(curOffset, 2).c_str()) * 60 * 60 * 1000;
+    myTime += atoi(statusLine.substr(curOffset+3, 2).c_str()) * 60 * 1000;
+    myTime += atoi(statusLine.substr(curOffset+6, 2).c_str()) *1000;
+    myTime += atoi(statusLine.substr(curOffset+9, 2).c_str()) * 10;
+    result["time"] = myTime;
+    return result;
+  }
+  
   JSON::Value Converter::getStatus(){
     updateStatus();
     JSON::Value result;
     if (allConversions.size()){
       for (std::map<std::string,JSON::Value>::iterator cIt = allConversions.begin(); cIt != allConversions.end(); cIt++){
-        result[cIt->first] = "Converting";
+        int statusFD = dup(cIt->second["statusFD"].asInt());
+        fsync( statusFD );
+        FILE* statusFile = fdopen( statusFD, "r" );
+        char * fileBuf = 0;
+        size_t fileBufLen = 0;
+        fseek(statusFile,0,SEEK_END);
+        std::string line;
+        int totalTime = 0;
+        do{
+          getdelim(&fileBuf, &fileBufLen, '\r', statusFile);
+          line = fileBuf;
+          if (line.find("Duration") != std::string::npos){
+            int curOffset = line.find("Duration: ") + 10;
+            totalTime += atoi(line.substr(curOffset, 2).c_str()) * 60 * 60 * 1000;
+            totalTime += atoi(line.substr(curOffset+3, 2).c_str()) * 60 * 1000;
+            totalTime += atoi(line.substr(curOffset+6, 2).c_str()) *1000;
+            totalTime += atoi(line.substr(curOffset+9, 2).c_str()) * 10;
+            cIt->second["duration"] = totalTime;
+          }
+        }while(line.find("frame") != 0);//"frame" is the fist word on an actual status line of ffmpeg
+        result[cIt->first] = parseFFMpegStatus( line );
+        result[cIt->first]["duration"] = cIt->second["duration"];
+        result[cIt->first]["progress"] = (result[cIt->first]["time"].asInt() * 100) / cIt->second["duration"].asInt();
+        free(fileBuf);
+        fclose(statusFile);
       }
     }
     if (statusHistory.size()){

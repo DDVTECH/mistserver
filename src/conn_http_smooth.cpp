@@ -30,10 +30,10 @@ namespace Connector_HTTP {
     std::stringstream Result;
     Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
     Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"10000000\" ";
-    if (metadata.isMember("length") && metadata["length"].asInt() > 0){
+    if (metadata.isMember("vod")){
       Result << "Duration=\"" << metadata["lastms"].asInt() << "\"";
     }else{
-      Result << "Duration=\"0\" IsLive=\"TRUE\" LookAheadFragmentCount=\"2\" ";
+      Result << "Duration=\"0\" IsLive=\"TRUE\" LookAheadFragmentCount=\"2\" DVRWindowLength=\"" + metadata["buffer_window"].asString() + "0000\" CanSeek=\"TRUE\" CanPause=\"TRUE\" ";
     }
     Result << ">\n";
     if (metadata.isMember("audio")){
@@ -94,7 +94,6 @@ namespace Connector_HTTP {
   /// Main function for Connector_HTTP_Dynamic
   int Connector_HTTP_Dynamic(Socket::Connection conn){
     std::deque<std::string> FlashBuf;
-    std::vector<int> Timestamps;
     int FlashBufSize = 0;
     long long int FlashBufTime = 0;
 
@@ -103,7 +102,6 @@ namespace Connector_HTTP {
 
     bool ready4data = false; //Set to true when streaming is to begin.
     bool pending_manifest = false;
-    bool receive_marks = false; //when set to true, this stream will ignore keyframes and instead use pause marks
     bool inited = false;
     Socket::Connection ss( -1);
     std::string streamname;
@@ -170,7 +168,7 @@ namespace Connector_HTTP {
             tempStr = tempStr.substr(tempStr.find("(") + 1);
             ReqFragment = atoll(tempStr.substr(0, tempStr.find(")")).c_str());
 #if DEBUG >= 4
-            printf("Quality: %s, Frag %d\n", Quality.c_str(), (ReqFragment / 10000));
+            printf("Quality: %s, Time %d\n", Quality.c_str(), (ReqFragment / 10000));
 #endif
             std::stringstream sstream;
             sstream << "s " << (ReqFragment / 10000) << "\no \n";
@@ -182,9 +180,6 @@ namespace Connector_HTTP {
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type", "text/xml");
               HTTP_S.SetHeader("Cache-Control", "no-cache");
-              if (Strm.metadata.isMember("length")){
-                receive_marks = true;
-              }
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
@@ -234,23 +229,10 @@ namespace Connector_HTTP {
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
-            if (Strm.getPacket(0).isMember("time")){
-              if ( !Strm.metadata.isMember("firsttime")){
-                Strm.metadata["firsttime"] = Strm.getPacket(0)["time"];
-              }else{
-                if ( !Strm.metadata.isMember("length") || Strm.metadata["length"].asInt() == 0){
-                  Strm.getPacket(0)["time"] = Strm.getPacket(0)["time"].asInt() - Strm.metadata["firsttime"].asInt();
-                }
-              }
-              Strm.metadata["lasttime"] = Strm.getPacket(0)["time"];
-            }
             if (pending_manifest){
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type", "text/xml");
               HTTP_S.SetHeader("Cache-Control", "no-cache");
-              if (Strm.metadata.isMember("length")){
-                receive_marks = true;
-              }
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
@@ -259,13 +241,7 @@ namespace Connector_HTTP {
 #endif
               pending_manifest = false;
             }
-            if ( !receive_marks && Strm.metadata.isMember("length")){
-              receive_marks = true;
-            }
             if (Strm.lastType() == DTSC::PAUSEMARK){
-              Timestamps.push_back(Strm.getPacket(0)["time"].asInt());
-            }
-            if ((Strm.getPacket(0).isMember("keyframe") && !receive_marks) || Strm.lastType() == DTSC::PAUSEMARK){
 #if DEBUG >= 4
               fprintf(stderr, "Received a %s fragment of %i bytes.\n", Strm.getPacket(0)["datatype"].asString().c_str(), FlashBufSize);
 #endif
@@ -279,18 +255,27 @@ namespace Connector_HTTP {
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
                 HTTP_S.SetBody("");
 
-                int myDuration;
+                unsigned int myDuration;
+                
 
                 MP4::MFHD mfhd_box;
                 for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
                   if (Strm.metadata["keytime"][i].asInt() >= (ReqFragment / 10000)){
-                    mfhd_box.setSequenceNumber(i + 1);
-                    if (i != Strm.metadata["keytime"].size()){
-                      myDuration = Strm.metadata["keytime"][i + 1].asInt() - Strm.metadata["keytime"][i].asInt();
+                    if (Strm.metadata.isMember("keynum")){
+                      mfhd_box.setSequenceNumber(Strm.metadata["keynum"][i].asInt());
                     }else{
-                      myDuration = Strm.metadata["lastms"].asInt() - Strm.metadata["keytime"][i].asInt();
+                      mfhd_box.setSequenceNumber(i + 1);
                     }
-                    myDuration = myDuration * 10000;
+                    if (Strm.metadata.isMember("keylen")){
+                      myDuration = Strm.metadata["keylen"][i].asInt() * 10000;
+                    }else{
+                      if (i != Strm.metadata["keytime"].size()){
+                        myDuration = Strm.metadata["keytime"][i + 1].asInt() - Strm.metadata["keytime"][i].asInt();
+                      }else{
+                        myDuration = Strm.metadata["lastms"].asInt() - Strm.metadata["keytime"][i].asInt();
+                      }
+                      myDuration = myDuration * 10000;
+                    }
                     break;
                   }
                 }
@@ -308,7 +293,6 @@ namespace Connector_HTTP {
                 for (int i = 0; i < FlashBuf.size(); i++){
                   MP4::trunSampleInformation trunSample;
                   trunSample.sampleSize = FlashBuf[i].size();
-                  //trunSample.sampleDuration = (Timestamps[i+1]-Timestamps[i]) * 10000;
                   trunSample.sampleDuration = (((double)myDuration / FlashBuf.size()) * i) - (((double)myDuration / FlashBuf.size()) * (i - 1));
                   trun_box.setSampleInformation(trunSample, i);
                 }
@@ -318,11 +302,29 @@ namespace Connector_HTTP {
                 for (int i = 1; i < FlashBuf.size(); i++){
                   sdtp_box.setValue(0x14, 4 + i);
                 }
-
+                
                 MP4::TRAF traf_box;
                 traf_box.setContent(tfhd_box, 0);
                 traf_box.setContent(trun_box, 1);
                 traf_box.setContent(sdtp_box, 2);
+                
+                // if live, send fragref box if we can
+                if (Strm.metadata.isMember("live")){
+                  MP4::UUID_TrackFragmentReference fragref_box;
+                  fragref_box.setVersion(1);
+                  fragref_box.setFragmentCount(0);
+                  int fragCount = 0;
+                  for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
+                    if (Strm.metadata["keytime"][i].asInt() > (ReqFragment / 10000)){
+                      fragref_box.setTime(fragCount, Strm.metadata["keytime"][i].asInt() * 10000);
+                      fragref_box.setDuration(fragCount, Strm.metadata["keylen"][i].asInt() * 10000);
+                      fragCount++;
+                      fragref_box.setFragmentCount(fragCount);
+                    }
+                  }
+                  traf_box.setContent(fragref_box, 3);
+                  std::cout << fragref_box.toPrettyString(6) << std::endl;
+                }
 
                 MP4::MOOF moof_box;
                 moof_box.setContent(mfhd_box, 0);
@@ -358,16 +360,12 @@ namespace Connector_HTTP {
             if ((wantsAudio && Strm.lastType() == DTSC::AUDIO) || (wantsVideo && Strm.lastType() == DTSC::VIDEO)){
               FlashBuf.push_back(Strm.lastData());
               FlashBufSize += Strm.lastData().size();
-              Timestamps.push_back(Strm.getPacket(0)["time"].asInt());
             }
           }
           if (pending_manifest && !Strm.metadata.isNull()){
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type", "text/xml");
             HTTP_S.SetHeader("Cache-Control", "no-cache");
-            if (Strm.metadata.isMember("length")){
-              receive_marks = true;
-            }
             std::string manifest = BuildManifest(streamname, Strm.metadata);
             HTTP_S.SetBody(manifest);
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));

@@ -177,11 +177,9 @@ namespace Converter {
           if (Util::Procs::isActive(cIt->first)){
             continue;
           }
-          if (cIt->second["output"].asString().find(".dtsc") != std::string::npos){
-            statusHistory[cIt->first] = "Conversion succesful, running DTSCFix";
+          if (statusHistory.find( cIt->first ) == statusHistory.end()){
+            statusHistory[cIt->first] = "Conversion successful, running DTSCFix";
             Util::Procs::Start(cIt->first+"DTSCFix",Util::getMyPath() + "MistDTSCFix " + cIt->second["output"].asString());
-          }else{
-            statusHistory[cIt->first] = "Conversion succesful";
           }
           allConversions.erase(cIt);
           hasChanged = true;
@@ -196,7 +194,7 @@ namespace Converter {
           if (Util::Procs::isActive(sIt->first+"DTSCFIX")){
             continue;
           }
-          statusHistory[sIt->first] = "Conversion succesful";
+          statusHistory[sIt->first] = "Conversion successful";
         }
       }
     }
@@ -240,10 +238,17 @@ namespace Converter {
             totalTime += atoi(line.substr(curOffset+9, 2).c_str()) * 10;
             cIt->second["duration"] = totalTime;
           }
-        }while(line.find("frame") != 0);//"frame" is the fist word on an actual status line of ffmpeg
-        result[cIt->first] = parseFFMpegStatus( line );
-        result[cIt->first]["duration"] = cIt->second["duration"];
-        result[cIt->first]["progress"] = (result[cIt->first]["time"].asInt() * 100) / cIt->second["duration"].asInt();
+        }while ( !feof(statusFile) && line.find("frame") != 0);//"frame" is the fist word on an actual status line of ffmpeg
+        if ( !feof(statusFile)){
+          result[cIt->first] = parseFFMpegStatus( line );
+          result[cIt->first]["duration"] = cIt->second["duration"];
+          result[cIt->first]["progress"] = (result[cIt->first]["time"].asInt() * 100) / cIt->second["duration"].asInt();
+        }else{
+          line.erase(line.end()-1);
+          line = line.substr( line.rfind("\n") + 1 );
+          result[cIt->first] = line;
+          statusHistory[cIt->first] = line;
+        }
         free(fileBuf);
         fclose(statusFile);
       }

@@ -91,10 +91,27 @@ namespace Controller {
           jit->second["online"] = 0;
         }
       }else{
-        if (jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
-          jit->second.removeMember("error");
-        }
+        // assume all is fine
+        jit->second.removeMember("error");
         jit->second["online"] = 1;
+        // check if source is valid
+        if ( !jit->second.isMember("meta") || !jit->second["meta"]){
+          jit->second["online"] = 0;
+          jit->second["error"] = "No (valid) source connected";
+        }else{
+          // for live streams, keep track of activity
+          if (jit->second["meta"].isMember("live")){
+            if (jit->second["meta"]["lastms"] != jit->second["lastms"]){
+              jit->second["lastms"] = jit->second["meta"]["lastms"];
+              jit->second["last_active"] = currTime;
+            }
+            // mark stream as offline if no activity for 5 seconds
+            if (jit->second.isMember("last_active") && jit->second["last_active"].asInt() < currTime - 5){
+              jit->second["online"] = 0;
+              jit->second["error"] = "No (valid) source connected";
+            }
+          }
+        }
       }
     }
     static JSON::Value strlist;

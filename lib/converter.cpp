@@ -117,6 +117,16 @@ namespace Converter {
       statusHistory[name] = "Can not find encoder " + parameters["encoder"];
       return;
     }
+    if (parameters.isMember("video")){
+      if (parameters["video"].isMember("width") && !parameters["video"].isMember("height")){
+        statusHistory[name] = "No height parameter given";
+        return;
+      }
+      if (parameters["video"].isMember("height") && !parameters["video"].isMember("width")){
+        statusHistory[name] = "No width parameter given";
+        return;
+      }
+    }
     std::stringstream encoderCommand;
     if (parameters["encoder"] == "ffmpeg"){
       encoderCommand << "ffmpeg -i ";
@@ -133,6 +143,9 @@ namespace Converter {
           encoderCommand << "-vcodec " << vidCodec->first << " ";
           if (parameters["video"].isMember("kfps")){
             encoderCommand << "-r " << parameters["video"]["kfps"].asInt() / 1000 << " "; 
+          }
+          if (parameters["video"].isMember("width")){
+            encoderCommand << "-s " << parameters["video"]["width"].asInt() << "x" << parameters["video"]["height"].asInt() << " ";
           }
           ///\todo Keyframe interval (different in older and newer versions of ffmpeg?)
         }
@@ -175,14 +188,45 @@ namespace Converter {
         hasChanged = false;
         for (cIt = allConversions.begin(); cIt != allConversions.end(); cIt++){
           if (Util::Procs::isActive(cIt->first)){
-            continue;
+            int statusFD = dup(cIt->second["statusFD"].asInt());
+            fsync( statusFD );
+            FILE* statusFile = fdopen( statusFD, "r" );
+            char * fileBuf = 0;
+            size_t fileBufLen = 0;
+            fseek(statusFile,0,SEEK_END);
+            std::string line;
+            int totalTime = 0;
+            do{
+              getdelim(&fileBuf, &fileBufLen, '\r', statusFile);
+              line = fileBuf;
+              if (line.find("Duration") != std::string::npos){
+                int curOffset = line.find("Duration: ") + 10;
+                totalTime += atoi(line.substr(curOffset, 2).c_str()) * 60 * 60 * 1000;
+                totalTime += atoi(line.substr(curOffset+3, 2).c_str()) * 60 * 1000;
+                totalTime += atoi(line.substr(curOffset+6, 2).c_str()) *1000;
+                totalTime += atoi(line.substr(curOffset+9, 2).c_str()) * 10;
+                cIt->second["duration"] = totalTime;
+              }
+            }while ( !feof(statusFile) && line.find("frame") != 0);//"frame" is the fist word on an actual status line of ffmpeg
+            if ( !feof(statusFile)){
+              cIt->second["status"] = parseFFMpegStatus( line );
+              cIt->second["status"]["duration"] = cIt->second["duration"];
+              cIt->second["status"]["progress"] = (cIt->second["status"]["time"].asInt() * 100) / cIt->second["duration"].asInt();
+            }else{
+              line.erase(line.end()-1);
+              line = line.substr( line.rfind("\n") + 1 );
+              cIt->second["status"] = line;
+            }
+            free(fileBuf);
+            fclose(statusFile);
+          }else{
+            if (statusHistory.find( cIt->first ) == statusHistory.end()){
+              statusHistory[cIt->first] = "Conversion successful, running DTSCFix";
+              Util::Procs::Start(cIt->first+"DTSCFix",Util::getMyPath() + "MistDTSCFix " + cIt->second["output"].asString());
+            }
+            allConversions.erase(cIt);
+            hasChanged = true;
           }
-          if (statusHistory.find( cIt->first ) == statusHistory.end()){
-            statusHistory[cIt->first] = "Conversion successful, running DTSCFix";
-            Util::Procs::Start(cIt->first+"DTSCFix",Util::getMyPath() + "MistDTSCFix " + cIt->second["output"].asString());
-          }
-          allConversions.erase(cIt);
-          hasChanged = true;
           break;
         }
       }
@@ -200,7 +244,7 @@ namespace Converter {
     }
   }
   
-  JSON::Value parseFFMpegStatus(std::string statusLine){
+  JSON::Value Converter::parseFFMpegStatus(std::string statusLine){
     JSON::Value result;
     int curOffset = statusLine.find("frame=") + 6;
     result["frame"] = atoi(statusLine.substr(curOffset, statusLine.find("fps=") - curOffset).c_str() );
@@ -219,38 +263,7 @@ namespace Converter {
     JSON::Value result;
     if (allConversions.size()){
       for (std::map<std::string,JSON::Value>::iterator cIt = allConversions.begin(); cIt != allConversions.end(); cIt++){
-        int statusFD = dup(cIt->second["statusFD"].asInt());
-        fsync( statusFD );
-        FILE* statusFile = fdopen( statusFD, "r" );
-        char * fileBuf = 0;
-        size_t fileBufLen = 0;
-        fseek(statusFile,0,SEEK_END);
-        std::string line;
-        int totalTime = 0;
-        do{
-          getdelim(&fileBuf, &fileBufLen, '\r', statusFile);
-          line = fileBuf;
-          if (line.find("Duration") != std::string::npos){
-            int curOffset = line.find("Duration: ") + 10;
-            totalTime += atoi(line.substr(curOffset, 2).c_str()) * 60 * 60 * 1000;
-            totalTime += atoi(line.substr(curOffset+3, 2).c_str()) * 60 * 1000;
-            totalTime += atoi(line.substr(curOffset+6, 2).c_str()) *1000;
-            totalTime += atoi(line.substr(curOffset+9, 2).c_str()) * 10;
-            cIt->second["duration"] = totalTime;
-          }
-        }while ( !feof(statusFile) && line.find("frame") != 0);//"frame" is the fist word on an actual status line of ffmpeg
-        if ( !feof(statusFile)){
-          result[cIt->first] = parseFFMpegStatus( line );
-          result[cIt->first]["duration"] = cIt->second["duration"];
-          result[cIt->first]["progress"] = (result[cIt->first]["time"].asInt() * 100) / cIt->second["duration"].asInt();
-        }else{
-          line.erase(line.end()-1);
-          line = line.substr( line.rfind("\n") + 1 );
-          result[cIt->first] = line;
-          statusHistory[cIt->first] = line;
-        }
-        free(fileBuf);
-        fclose(statusFile);
+        result[cIt->first] = cIt->second["status"];
       }
     }
     if (statusHistory.size()){

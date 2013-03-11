@@ -17,6 +17,7 @@ namespace Converter {
       void updateStatus();
       JSON::Value getStatus();
       void clearStatus();
+      JSON::Value parseFFMpegStatus(std::string statusLine);
     private:
       void fillFFMpegEncoders();
       converterInfo allCodecs;

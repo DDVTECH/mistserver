@@ -67,11 +67,11 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
     }
     Socket.Received().remove(1536);
     RTMPStream::rec_cnt += 1536;
-#if DEBUG >= 4
+#if DEBUG >= 5
     fprintf(stderr, "Handshake succcess!\n");
 #endif
   }else{
-#if DEBUG >= 1
+#if DEBUG >= 5
     fprintf(stderr, "Handshake fail!\n");
 #endif
     return 0;
@@ -99,9 +99,6 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
           break;
         }
         SS.setBlocking(false);
-#if DEBUG >= 3
-        fprintf(stderr, "Everything connected, starting to send video data...\n");
-#endif
         SS.SendNow("p\n");
         inited = true;
       }
@@ -213,18 +210,18 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
         break; //happens when connection breaks unexpectedly
       case 1: //set chunk size
         RTMPStream::chunk_rec_max = ntohl(*(int*)next.data.c_str());
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "CTRL: Set chunk size: %i\n", RTMPStream::chunk_rec_max);
 #endif
         break;
       case 2: //abort message - we ignore this one
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "CTRL: Abort message\n");
 #endif
         //4 bytes of stream id to drop
         break;
       case 3: //ack
-#if DEBUG >= 4
+#if DEBUG >= 8
         fprintf(stderr, "CTRL: Acknowledgement\n");
 #endif
         RTMPStream::snd_window_at = ntohl(*(int*)next.data.c_str());
@@ -241,7 +238,7 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
         //6 = pingrequest, 4 bytes data
         //7 = pingresponse, 4 bytes data
         //we don't need to process this
-#if DEBUG >= 4
+#if DEBUG >= 5
         short int ucmtype = ntohs(*(short int*)next.data.c_str());
         switch (ucmtype){
           case 0:
@@ -273,7 +270,7 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
       }
         break;
       case 5: //window size of other end
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "CTRL: Window size\n");
 #endif
         RTMPStream::rec_window_size = ntohl(*(int*)next.data.c_str());
@@ -281,7 +278,7 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
         Socket.Send(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); //send ack (msg 3)
         break;
       case 6:
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "CTRL: Set peer bandwidth\n");
 #endif
         //4 bytes window size, 1 byte limit type (ignored)
@@ -311,34 +308,34 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
             }
           }
         }else{
-#if DEBUG >= 4
+#if DEBUG >= 5
           fprintf(stderr, "Received useless media data\n");
 #endif
           Socket.close();
         }
         break;
       case 15:
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "Received AFM3 data message\n");
 #endif
         break;
       case 16:
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "Received AFM3 shared object\n");
 #endif
         break;
       case 17: {
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "Received AFM3 command message\n");
 #endif
         if (next.data[0] != 0){
           next.data = next.data.substr(1);
           amf3data = AMF::parse3(next.data);
-#if DEBUG >= 4
+#if DEBUG >= 5
           amf3data.Print();
 #endif
         }else{
-#if DEBUG >= 4
+#if DEBUG >= 5
           fprintf(stderr, "Received AFM3-0 command message\n");
 #endif
           next.data = next.data.substr(1);
@@ -348,7 +345,7 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
       }
         break;
       case 19:
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "Received AFM0 shared object\n");
 #endif
         break;
@@ -358,7 +355,7 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
       }
         break;
       case 22:
-#if DEBUG >= 4
+#if DEBUG >= 5
         fprintf(stderr, "Received aggregate message\n");
 #endif
         break;
@@ -373,7 +370,7 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
 } //parseChunk
 
 void Connector_RTMP::sendCommand(AMF::Object & amfreply, int messagetype, int stream_id){
-#if DEBUG >= 4
+#if DEBUG >= 8
   std::cerr << amfreply.Print() << std::endl;
 #endif
   if (messagetype == 17){
@@ -384,10 +381,10 @@ void Connector_RTMP::sendCommand(AMF::Object & amfreply, int messagetype, int st
 } //sendCommand
 
 void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int stream_id){
-#if DEBUG >= 4
+#if DEBUG >= 5
   fprintf(stderr, "Received command: %s\n", amfdata.Print().c_str());
 #endif
-#if DEBUG >= 3
+#if DEBUG >= 8
   fprintf(stderr, "AMF0 command: %s\n", amfdata.getContentP(0)->StrValue().c_str());
 #endif
   if (amfdata.getContentP(0)->StrValue() == "connect"){
@@ -395,7 +392,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     if (amfdata.getContentP(2)->getContentP("objectEncoding")){
       objencoding = amfdata.getContentP(2)->getContentP("objectEncoding")->NumValue();
     }
-#if DEBUG >= 4
+#if DEBUG >= 6
     int tmpint;
     if (amfdata.getContentP(2)->getContentP("videoCodecs")){
       tmpint = (int)amfdata.getContentP(2)->getContentP("videoCodecs")->NumValue();
@@ -489,9 +486,6 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
       SS.Send(Socket.getHost().c_str());
       SS.Send("\n");
       nostats = true;
-#if DEBUG >= 4
-      fprintf(stderr, "Connected to buffer, starting to send data...\n");
-#endif
     }
     //send a _result reply
     AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
@@ -611,7 +605,7 @@ int main(int argc, char ** argv){
       if (myid == 0){ //if new child, start MAINHANDLER
         return Connector_RTMP::Connector_RTMP(S);
       }else{ //otherwise, do nothing or output debugging text
-#if DEBUG >= 3
+#if DEBUG >= 5
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
 #endif
       }

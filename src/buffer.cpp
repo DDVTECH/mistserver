@@ -53,7 +53,7 @@ namespace Buffer {
 
   void handleUser(void * v_usr){
     user * usr = (user*)v_usr;
-#if DEBUG >= 4
+#if DEBUG >= 5
     std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
 #endif
 

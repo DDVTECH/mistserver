@@ -166,9 +166,6 @@ int main(int argc, char** argv){
               }
               ++playing;
               in_out.setBlocking(false);
-#if DEBUG >= 4
-              std::cerr << "Playing one keyframe" << std::endl;
-#endif
               bench = Util::getMS();
             }
               break;
@@ -199,7 +196,7 @@ int main(int argc, char** argv){
       }
       if (playing == 0){
 #if DEBUG >= 4
-        std::cerr << "Sending pause_marker (" << (Util::getMS() - bench) << "ms)" << std::endl;
+        std::cerr << "Completed VoD request in MistPlayer (" << (Util::getMS() - bench) << "ms)" << std::endl;
 #endif
         pausemark["time"] = source.getJSON()["time"];
         pausemark.toPacked();
@@ -220,11 +217,11 @@ int main(int argc, char** argv){
   }
   StatsSocket.close();
   in_out.close();
-#if DEBUG >= 4
+#if DEBUG >= 5
   if (Util::epoch() - lasttime < 60){
-    std::cerr << "Player exited (disconnect)." << std::endl;
+    std::cerr << "MistPlayer exited (disconnect)." << std::endl;
   }else{
-    std::cerr << "Player exited (timeout)." << std::endl;
+    std::cerr << "MistPlayer exited (command timeout)." << std::endl;
   }
 #endif
   return 0;

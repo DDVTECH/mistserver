@@ -55,7 +55,7 @@ namespace Connector_HTTP {
             }
           }
           if (HTTP_R.Read(conn.Received().get())){
-#if DEBUG >= 4
+#if DEBUG >= 5
             std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
             conn.setHost(HTTP_R.GetHeader("X-Origin"));
@@ -133,9 +133,6 @@ namespace Connector_HTTP {
             cmd << "s " << seek_sec << "\n";
             ss.SendNow(cmd.str().c_str());
           }
-#if DEBUG >= 3
-          fprintf(stderr, "Everything connected, starting to send video data...\n");
-#endif
           ss.SendNow("p\n");
           inited = true;
         }
@@ -173,9 +170,6 @@ namespace Connector_HTTP {
                 }
               }
               progressive_has_sent_header = true;
-#if DEBUG >= 1
-              fprintf(stderr, "Sent progressive FLV header\n");
-#endif
             }
             if ( !isMP3){
               tag.DTSCLoader(Strm);
@@ -219,7 +213,7 @@ int main(int argc, char ** argv){
       if (myid == 0){ //if new child, start MAINHANDLER
         return Connector_HTTP::Connector_HTTP_Progressive(S);
       }else{ //otherwise, do nothing or output debugging text
-#if DEBUG >= 3
+#if DEBUG >= 5
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
 #endif
       }

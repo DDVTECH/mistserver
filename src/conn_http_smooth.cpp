@@ -132,7 +132,7 @@ namespace Connector_HTTP {
           }
         }
         if (HTTP_R.Read(conn.Received().get())){
-#if DEBUG >= 4
+#if DEBUG >= 5
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
@@ -167,9 +167,6 @@ namespace Connector_HTTP {
             }
             tempStr = tempStr.substr(tempStr.find("(") + 1);
             ReqFragment = atoll(tempStr.substr(0, tempStr.find(")")).c_str());
-#if DEBUG >= 4
-            printf("Quality: %s, Time %d\n", Quality.c_str(), (ReqFragment / 10000));
-#endif
             std::stringstream sstream;
             sstream << "s " << (ReqFragment / 10000) << "\no \n";
             ss.SendNow(sstream.str().c_str());
@@ -183,9 +180,6 @@ namespace Connector_HTTP {
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-#if DEBUG >= 3
-              printf("Sent manifest\n");
-#endif
               pending_manifest = false;
             }else{
               pending_manifest = true;
@@ -217,9 +211,6 @@ namespace Connector_HTTP {
             continue;
           }
           ss.setBlocking(false);
-#if DEBUG >= 3
-          fprintf(stderr, "Everything connected, starting to send video data...\n");
-#endif
           inited = true;
         }
         unsigned int now = Util::epoch();
@@ -236,9 +227,6 @@ namespace Connector_HTTP {
               std::string manifest = BuildManifest(streamname, Strm.metadata);
               HTTP_S.SetBody(manifest);
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-#if DEBUG >= 3
-              printf("Sent manifest\n");
-#endif
               pending_manifest = false;
             }
             if (Strm.lastType() == DTSC::PAUSEMARK){
@@ -246,9 +234,6 @@ namespace Connector_HTTP {
               fprintf(stderr, "Received a %s fragment of %i bytes.\n", Strm.getPacket(0)["datatype"].asString().c_str(), FlashBufSize);
 #endif
               if (Flash_RequestPending > 0 && FlashBufSize){
-#if DEBUG >= 3
-                fprintf(stderr, "Sending a fragment...");
-#endif
                 //static std::string btstrp;
                 //btstrp = GenerateBootstrap(streamname, Strm.metadata, ReqFragment, FlashBufTime, Strm.getPacket(0)["time"]);
                 HTTP_S.Clean();
@@ -350,9 +335,6 @@ namespace Connector_HTTP {
                   FlashBuf.pop_front();
                 }
                 Flash_RequestPending--;
-#if DEBUG >= 3
-                fprintf(stderr, "Done\n");
-#endif
               }
               FlashBuf.clear();
               FlashBufSize = 0;
@@ -369,9 +351,6 @@ namespace Connector_HTTP {
             std::string manifest = BuildManifest(streamname, Strm.metadata);
             HTTP_S.SetBody(manifest);
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-#if DEBUG >= 3
-            printf("Sent manifest\n");
-#endif
             pending_manifest = false;
           }
         }
@@ -405,7 +384,7 @@ int main(int argc, char ** argv){
       if (myid == 0){ //if new child, start MAINHANDLER
         return Connector_HTTP::Connector_HTTP_Dynamic(S);
       }else{ //otherwise, do nothing or output debugging text
-#if DEBUG >= 3
+#if DEBUG >= 5
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
 #endif
       }

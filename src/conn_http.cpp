@@ -90,24 +90,28 @@ namespace Connector_HTTP {
   }
 
   /// Handles requests without associated handler, displaying a nice friendly error message.
-  void Handle_None(HTTP::Parser & H, Socket::Connection * conn){
+  long long int Handle_None(HTTP::Parser & H, Socket::Connection * conn){
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody(
         "<!DOCTYPE html><html><head><title>Unsupported Media Type</title></head><body><h1>Unsupported Media Type</h1>The server isn't quite sure what you wanted to receive from it.</body></html>");
+    long long int ret = Util::getMS();
     conn->SendNow(H.BuildResponse("415", "Unsupported Media Type"));
+    return ret;
   }
 
-  void Handle_Timeout(HTTP::Parser & H, Socket::Connection * conn){
+  long long int Handle_Timeout(HTTP::Parser & H, Socket::Connection * conn){
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody(
         "<!DOCTYPE html><html><head><title>Gateway timeout</title></head><body><h1>Gateway timeout</h1>Though the server understood your request and attempted to handle it, somehow handling it took longer than it should. Your request has been cancelled - please try again later.</body></html>");
+    long long int ret = Util::getMS();
     conn->SendNow(H.BuildResponse("504", "Gateway Timeout"));
+    return ret;
   }
 
   /// Handles internal requests.
-  void Handle_Internal(HTTP::Parser & H, Socket::Connection * conn){
+  long long int Handle_Internal(HTTP::Parser & H, Socket::Connection * conn){
 
     std::string url = H.getUrl();
 
@@ -117,8 +121,9 @@ namespace Connector_HTTP {
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetBody(
           "<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
+      long long int ret = Util::getMS();
       conn->SendNow(H.BuildResponse("200", "OK"));
-      return;
+      return ret;
     } //crossdomain.xml
 
     if (url == "/clientaccesspolicy.xml"){
@@ -127,8 +132,9 @@ namespace Connector_HTTP {
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetBody(
           "<?xml version=\"1.0\" encoding=\"utf-8\"?><access-policy><cross-domain-access><policy><allow-from http-methods=\"*\" http-request-headers=\"*\"><domain uri=\"*\"/></allow-from><grant-to><resource path=\"/\" include-subpaths=\"true\"/></grant-to></policy></cross-domain-access></access-policy>");
+      long long int ret = Util::getMS();
       conn->SendNow(H.BuildResponse("200", "OK"));
-      return;
+      return ret;
     } //clientaccesspolicy.xml
 
     if ((url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js")
@@ -192,15 +198,16 @@ namespace Connector_HTTP {
         response.append("(\"" + streamname + "\"));\n");
       }
       H.SetBody(response);
+      long long int ret = Util::getMS();
       conn->SendNow(H.BuildResponse("200", "OK"));
-      return;
+      return ret;
     } //embed code generator
 
-    Handle_None(H, conn); //anything else doesn't get handled
+    return Handle_None(H, conn); //anything else doesn't get handled
   }
 
   /// Handles requests without associated handler, displaying a nice friendly error message.
-  void Handle_Through_Connector(HTTP::Parser & H, Socket::Connection * conn, std::string & connector){
+  long long int Handle_Through_Connector(HTTP::Parser & H, Socket::Connection * conn, std::string & connector){
     //create a unique ID based on a hash of the user agent and host, followed by the stream name and connector
     std::string uid = Secure::md5(H.GetHeader("User-Agent") + conn->getHost()) + "_" + H.GetVar("stream") + "_" + connector;
     H.SetHeader("X-Stream", H.GetVar("stream"));
@@ -222,7 +229,7 @@ namespace Connector_HTTP {
       std::cout << "Created new connection " << uid << std::endl;
 #endif
     }else{
-#if DEBUG >= 4
+#if DEBUG >= 5
       std::cout << "Re-using connection " << uid << std::endl;
 #endif
     }
@@ -241,8 +248,7 @@ namespace Connector_HTTP {
     tthread::lock_guard<tthread::mutex> guard(connconn[uid]->in_use);
     //if the server connection is dead, handle as timeout.
     if ( !connconn.count(uid) || !connconn[uid]->conn->connected()){
-      Handle_Timeout(H, conn);
-      return;
+      return Handle_Timeout(H, conn);
     }
     //forward the original request
     connconn[uid]->conn->SendNow(request);
@@ -270,8 +276,7 @@ namespace Connector_HTTP {
         //keep trying unless the timeout triggers
         if (timeout++ > 4000){
           std::cout << "[20s timeout triggered]" << std::endl;
-          Handle_Timeout(H, conn);
-          return;
+          return Handle_Timeout(H, conn);
         }else{
           Util::sleep(5);
         }
@@ -279,9 +284,9 @@ namespace Connector_HTTP {
     }
     if ( !connconn.count(uid) || !connconn[uid]->conn->connected() || !conn->connected()){
       //failure, disconnect and sent error to user
-      Handle_Timeout(H, conn);
-      return;
+      return Handle_Timeout(H, conn);
     }else{
+      long long int ret = Util::getMS();
       //success, check type of response
       if (H.GetHeader("Content-Length") != ""){
         //known length - simply re-send the request with added headers and continue
@@ -311,6 +316,7 @@ namespace Connector_HTTP {
         delete myConn;
         conn->close();
       }
+      return ret;
     }
   }
 
@@ -383,11 +389,12 @@ namespace Connector_HTTP {
         }
         if (Client.Read(conn->Received().get())){
           std::string handler = getHTTPType(Client);
-          long long int startms = Util::getMS();
 #if DEBUG >= 4
           std::cout << "Received request: " << Client.getUrl() << " (" << conn->getSocket() << ") => " << handler << " (" << Client.GetVar("stream")
               << ")" << std::endl;
+          long long int startms = Util::getMS();
 #endif
+          long long int midms = 0;
           bool closeConnection = false;
           if (Client.GetHeader("Connection") == "close"){
             closeConnection = true;
@@ -395,15 +402,16 @@ namespace Connector_HTTP {
 
           if (handler == "none" || handler == "internal"){
             if (handler == "internal"){
-              Handle_Internal(Client, conn);
+              midms = Handle_Internal(Client, conn);
             }else{
-              Handle_None(Client, conn);
+              midms = Handle_None(Client, conn);
             }
           }else{
-            Handle_Through_Connector(Client, conn, handler);
+            midms = Handle_Through_Connector(Client, conn, handler);
           }
 #if DEBUG >= 4
-          std::cout << "Completed request (" << conn->getSocket() << ") " << handler << " in " << (Util::getMS() - startms) << " ms" << std::endl;
+          long long int nowms = Util::getMS();
+          std::cout << "Completed request " << conn->getSocket() << " " << handler << " in " << (midms - startms) << " ms (processing) / " << (nowms - midms) << " ms (transfer)" << std::endl;
 #endif
           if (closeConnection){
             break;

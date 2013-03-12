@@ -54,9 +54,6 @@ int TS_Handler(Socket::Connection conn, std::string streamname){
         break;
       }
       ss.SendNow("p\n");
-#if DEBUG >= 3
-      fprintf(stderr, "Everything connected, starting to send video data...\n");
-#endif
       inited = true;
     }
     if (ss.spool()){
@@ -175,7 +172,6 @@ int TS_Handler(Socket::Connection conn, std::string streamname){
       }
     }
   }
-  fprintf(stderr, "Exiting\n");
   return 0;
 }
 
@@ -194,12 +190,11 @@ int main(int argc, char ** argv){
   while (server_socket.connected() && conf.is_active){
     Socket::Connection S = server_socket.accept();
     if (S.connected()){ //check if the new connection is valid
-      fprintf(stderr, "Incoming connection\n");
       pid_t myid = fork();
       if (myid == 0){ //if new child, start MAINHANDLER
         return TS_Handler(S, conf.getString("streamname"));
       }else{ //otherwise, do nothing or output debugging text
-#if DEBUG >= 3
+#if DEBUG >= 5
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
 #endif
       }

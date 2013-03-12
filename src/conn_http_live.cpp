@@ -74,6 +74,9 @@ namespace Connector_HTTP {
       }
       Result << "#EXT-X-ENDLIST";
     }else{
+      if (metadata["missed_frags"].asInt() < 0){
+        metadata["missed_frags"] = 0ll;
+      }
       Result << "#EXTM3U\r\n"
           "#EXT-X-MEDIA-SEQUENCE:" << metadata["missed_frags"].asInt() <<"\r\n"
           "#EXT-X-TARGETDURATION:30\r\n";
@@ -103,7 +106,6 @@ namespace Connector_HTTP {
     std::string streamname;
     std::string recBuffer = "";
 
-    std::string ToPack;
     TS::Packet PackData;
     int PacketNumber = 0;
     long long unsigned int TimeStamp = 0;
@@ -252,7 +254,7 @@ namespace Connector_HTTP {
             if ( !receive_marks && Strm.metadata.isMember("length")){
               receive_marks = true;
             }
-            if ((Strm.getPacket(0).isMember("keyframe") && !receive_marks) || Strm.lastType() == DTSC::PAUSEMARK){
+            if (Strm.lastType() == DTSC::PAUSEMARK){
               TSBuf.flush();
               if (Flash_RequestPending > 0 && TSBuf.str().size()){
                 HTTP_S.Clean();
@@ -274,6 +276,7 @@ namespace Connector_HTTP {
               haveAvcc = true;
             }
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
+              Socket::Buffer ToPack;
               //write PAT and PMT TS packets
               if (PacketNumber == 0){
                 PackData.DefaultPAT();
@@ -290,7 +293,7 @@ namespace Connector_HTTP {
                 if (IsKeyFrame){
                   TimeStamp = (Strm.getPacket(0)["time"].asInt() * 27000);
                 }
-                ToPack += avccbox.asAnnexB();
+                ToPack.append(avccbox.asAnnexB());
                 while (Strm.lastData().size()){
                   ThisNaluSize = (Strm.lastData()[0] << 24) + (Strm.lastData()[1] << 16) + (Strm.lastData()[2] << 8) + Strm.lastData()[3];
                   Strm.lastData().replace(0, 4, TS::NalHeader, 4);
@@ -298,17 +301,17 @@ namespace Connector_HTTP {
                     ToPack.append(Strm.lastData());
                     break;
                   }else{
-                    ToPack.append(Strm.lastData(), 0, ThisNaluSize + 4);
+                    ToPack.append(Strm.lastData().c_str(), ThisNaluSize + 4);
                     Strm.lastData().erase(0, ThisNaluSize + 4);
                   }
                 }
-                TS::Packet::PESVideoLeadIn(ToPack, Strm.getPacket(0)["time"].asInt() * 90);
+                ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket(0)["time"].asInt() * 90));
                 PIDno = 0x100;
                 ContCounter = &VideoCounter;
               }else if (Strm.lastType() == DTSC::AUDIO){
-                ToPack = TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata["audio"]["init"].asString());
-                ToPack += Strm.lastData();
-                TS::Packet::PESAudioLeadIn(ToPack, Strm.getPacket(0)["time"].asInt() * 90);
+                ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata["audio"]["init"].asString()));
+                ToPack.append(Strm.lastData());
+                ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket(0)["time"].asInt() * 90));
                 PIDno = 0x101;
                 ContCounter = &AudioCounter;
               }
@@ -322,8 +325,9 @@ namespace Connector_HTTP {
                 PackData.RandomAccess(1);
                 PackData.PCR(TimeStamp);
               }
-              PackData.AddStuffing(PackData.BytesFree() - ToPack.size());
-              PackData.FillFree(ToPack);
+              unsigned int toSend = PackData.AddStuffing(ToPack.bytes(184));
+              std::string gonnaSend = ToPack.remove(toSend);
+              PackData.FillFree(gonnaSend);
               TSBuf.write(PackData.ToString(), 188);
               PacketNumber++;
 
@@ -332,8 +336,9 @@ namespace Connector_HTTP {
                 PackData.Clear();
                 PackData.PID(PIDno);
                 PackData.ContinuityCounter(( *ContCounter)++);
-                PackData.AddStuffing(PackData.BytesFree() - ToPack.size());
-                PackData.FillFree(ToPack);
+                toSend = PackData.AddStuffing(ToPack.bytes(184));
+                gonnaSend = ToPack.remove(toSend);
+                PackData.FillFree(gonnaSend);
                 TSBuf.write(PackData.ToString(), 188);
                 PacketNumber++;
               }

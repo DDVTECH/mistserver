@@ -386,10 +386,11 @@ void DTSC::Stream::updateRingHeaders(){
 
 unsigned int DTSC::Stream::msSeek(unsigned int ms){
   for (std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++){
-    if (buffers[it->b]["time"].asInt() < ms){
+    if (buffers[it->b]["time"].asInt() <= ms){
       return it->b;
     }
   }
+  std::cerr << "Warning: seeking past buffer size! (" << ms << "ms < " << buffers[keyframes[keyframes.size() - 1].b]["time"].asInt() << "ms)" << std::endl;
   return keyframes[keyframes.size() - 1].b;
 }
 
@@ -399,6 +400,7 @@ unsigned int DTSC::Stream::frameSeek(unsigned int frameno){
       return it->b;
     }
   }
+  std::cerr << "Warning: seeking past buffer size! (F" << frameno << " < F" << buffers[keyframes[keyframes.size() - 1].b]["fragnum"].asInt() << ")" << std::endl;
   return keyframes[keyframes.size() - 1].b;
 }
 
@@ -442,9 +444,10 @@ DTSC::File::File(std::string filename, bool create){
   }
   readHeader(0);
   fseek(F, 8 + headerSize, SEEK_SET);
-  currframe = 1;
-  frames[1] = 8 + headerSize;
-  msframes[1] = 0;
+  currframe = 0;
+  //currframe = 1;
+  //frames[1] = 8 + headerSize;
+  //msframes[1] = 0;
 }
 
 /// Returns the header metadata for this file as JSON::Value.
@@ -628,7 +631,7 @@ JSON::Value & DTSC::File::getJSON(){
 bool DTSC::File::seek_frame(int frameno){
   if (frames.count(frameno) > 0){
     if (fseek(F, frames[frameno], SEEK_SET) == 0){
-#if DEBUG >= 4
+#if DEBUG >= 5
       std::cerr << "Seek direct from " << currframe << " @ " << frames[currframe] << " to " << frameno << " @ " << frames[frameno] << std::endl;
 #endif
       currframe = frameno;
@@ -642,7 +645,7 @@ bool DTSC::File::seek_frame(int frameno){
       }
     }
     if (fseek(F, frames[currframe], SEEK_SET) == 0){
-#if DEBUG >= 4
+#if DEBUG >= 5
       std::cerr << "Seeking from frame " << currframe << " @ " << frames[currframe] << " to " << frameno << std::endl;
 #endif
       while (currframe < frameno){
@@ -674,7 +677,7 @@ bool DTSC::File::seek_time(int ms){
     }
   }
   if (fseek(F, frames[currframe], SEEK_SET) == 0){
-#if DEBUG >= 4
+#if DEBUG >= 5
     std::cerr << "Seeking from frame " << currframe << " @ " << msframes[currframe] << "ms to " << ms << "ms" << std::endl;
 #endif
     while (currtime < ms){

@@ -51,15 +51,15 @@ namespace Connector_HTTP {
   /// Returns a m3u or m3u8 index file
   std::string BuildIndex(std::string & MovieId, JSON::Value & metadata){
     std::stringstream Result;
-    std::vector<int> fragIndices = keyframesToFragments(metadata);
-    int longestFragment = 0;
-    for (int i = 1; i < fragIndices.size(); i++){
-      int fragDuration = metadata["keytime"][fragIndices[i]].asInt() - metadata["keytime"][fragIndices[i - 1]].asInt();
-      if (fragDuration > longestFragment){
-        longestFragment = fragDuration;
+    if ( !metadata.isMember("live")){
+      std::vector<int> fragIndices = keyframesToFragments(metadata);
+      int longestFragment = 0;
+      for (int i = 1; i < fragIndices.size(); i++){
+        int fragDuration = metadata["keytime"][fragIndices[i]].asInt() - metadata["keytime"][fragIndices[i - 1]].asInt();
+        if (fragDuration > longestFragment){
+          longestFragment = fragDuration;
+        }
       }
-    }
-    if (metadata.isMember("vod")){
       Result << "#EXTM3U\r\n"
       //"#EXT-X-VERSION:1\r\n"
       //"#EXT-X-ALLOW-CACHE:YES\r\n"
@@ -76,7 +76,7 @@ namespace Connector_HTTP {
     }else{
       Result << "#EXTM3U\r\n"
           "#EXT-X-MEDIA-SEQUENCE:" << metadata["missed_frags"].asInt() <<"\r\n"
-          "#EXT-X-TARGETDURATION:10\r\n";
+          "#EXT-X-TARGETDURATION:30\r\n";
       for (JSON::ArrIter ai = metadata["frags"].ArrBegin(); ai != metadata["frags"].ArrEnd(); ai++){
         Result << "#EXTINF:" << (*ai)["dur"].asInt() / 1000 << ", no desc\r\n" << (*ai)["num"].asInt() << "_" << (*ai)["len"].asInt() << ".ts\r\n";
       }
@@ -167,7 +167,7 @@ namespace Connector_HTTP {
             int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
 
             std::stringstream sstream;
-            sstream << "f " << Segment + 1 << "\n";
+            sstream << "f " << Segment << "\n";
             for (int i = 0; i < frameCount; i++){
               sstream << "o \n";
             }

@@ -136,6 +136,20 @@ namespace Connector_HTTP {
       conn->SendNow(H.BuildResponse("200", "OK"));
       return ret;
     } //clientaccesspolicy.xml
+    
+    // send logo icon
+    if (url.length() > 4 && url.substr(url.length() - 4, 4) == ".ico"){
+      H.Clean();
+#include "icon.h"
+      H.SetHeader("Content-Type", "image/x-icon");
+      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+      H.SetHeader("Content-Length", icon_len);
+      H.SetBody("");
+      long long int ret = Util::getMS();
+      conn->SendNow(H.BuildResponse("200", "OK"));
+      conn->SendNow((const char*)icon_data, icon_len);
+      return ret;
+    }
 
     if ((url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js")
         || (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(url.length() - 3, 3) == ".js")){
@@ -353,6 +367,9 @@ namespace Connector_HTTP {
         Util::Stream::sanitizeName(streamname);
         H.SetVar("stream", streamname);
         return "progressive";
+      }
+      if (ext == ".ico"){
+        return "internal";
       }
     }
     if (url == "/crossdomain.xml"){

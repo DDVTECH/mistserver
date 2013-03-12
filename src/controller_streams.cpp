@@ -95,7 +95,7 @@ namespace Controller {
         jit->second.removeMember("error");
         jit->second["online"] = 1;
         // check if source is valid
-        if ( !jit->second.isMember("meta") || !jit->second["meta"]){
+        if ( jit->second.isMember("live") && !jit->second.isMember("meta") || !jit->second["meta"]){
           jit->second["online"] = 0;
           jit->second["error"] = "No (valid) source connected";
         }else{

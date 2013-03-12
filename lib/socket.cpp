@@ -32,6 +32,18 @@ unsigned int Socket::Buffer::size(){
   return data.size();
 }
 
+/// Returns either the amount of total bytes available in the buffer or max, whichever is smaller.
+unsigned int Socket::Buffer::bytes(unsigned int max){
+  unsigned int i = 0;
+  for (std::deque<std::string>::iterator it = data.begin(); it != data.end(); ++it){
+    i += ( *it).size();
+    if (i >= max){
+      return max;
+    }
+  }
+  return i;
+}
+
 /// Appends this string to the internal std::deque of std::string objects.
 /// It is automatically split every BUFFER_BLOCKSIZE bytes.
 void Socket::Buffer::append(const std::string & newdata){
@@ -60,6 +72,18 @@ void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize
   if (data.size() > 5000){
     std::cerr << "Warning: After " << newdatasize << " new bytes, buffer has " << data.size() << " parts!" << std::endl;
   }
+}
+
+/// Prepends this data block to the internal std::deque of std::string objects.
+/// It is _not_ automatically split every BUFFER_BLOCKSIZE bytes.
+void Socket::Buffer::prepend(const std::string & newdata){
+  data.push_back(newdata);
+}
+
+/// Prepends this data block to the internal std::deque of std::string objects.
+/// It is _not_ automatically split every BUFFER_BLOCKSIZE bytes.
+void Socket::Buffer::prepend(const char * newdata, const unsigned int newdatasize){
+  data.push_back(std::string(newdata, (size_t)newdatasize));
 }
 
 /// Returns true if at least count bytes are available in this buffer.

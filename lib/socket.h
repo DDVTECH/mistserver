@@ -30,8 +30,11 @@ namespace Socket {
       std::deque<std::string> data;
     public:
       unsigned int size();
+      unsigned int bytes(unsigned int max);
       void append(const std::string & newdata);
       void append(const char * newdata, const unsigned int newdatasize);
+      void prepend(const std::string & newdata);
+      void prepend(const char * newdata, const unsigned int newdatasize);
       std::string & get();
       bool available(unsigned int count);
       std::string remove(unsigned int count);

@@ -334,30 +334,81 @@ void TS::Packet::PESAudioLeadIn(std::string & toSend, long long unsigned int PTS
   toSend.insert(0, tmpStr);
 }
 
+/// Generates a PES Lead-in for a video frame.
+/// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
+/// \param NewLen The length of this frame.
+/// \param PTS The timestamp of the frame.
+std::string & TS::Packet::getPESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS){
+  static std::string tmpStr;
+  tmpStr.clear();
+  tmpStr.reserve(25);
+  tmpStr.append("\000\000\001\340\000\000\204\300\012", 9);
+  tmpStr += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + PTS
+  tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
+  tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
+  tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
+  tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
+  tmpStr += (char)(0x10 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + DTS
+  tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //DTS (Cont)
+  tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //DTS (Cont)
+  tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //DTS (Cont)
+  tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //DTS (Cont)
+  tmpStr.append("\000\000\000\001\011\360", 6);
+  return tmpStr;
+}
+
+/// Generates a PES Lead-in for an audio frame.
+/// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
+/// \param NewLen The length of this frame.
+/// \param PTS The timestamp of the frame.
+std::string & TS::Packet::getPESAudioLeadIn(unsigned int NewLen, long long unsigned int PTS){
+  static std::string tmpStr;
+  tmpStr.clear();
+  tmpStr.reserve(14);
+  NewLen = NewLen + 8;
+  tmpStr.append("\000\000\001\300", 4);
+  tmpStr += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
+  tmpStr += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
+  tmpStr.append("\200\200\005", 3);
+  tmpStr += (char)(0x20 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
+  tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
+  tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
+  tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
+  tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
+  return tmpStr;
+}
+
 /// Fills the free bytes of the TS::Packet.
 /// Stores as many bytes from NewVal as possible in the packet.
 /// \param NewVal The data to store in the packet.
 void TS::Packet::FillFree(std::string & NewVal){
-  int toWrite = 188 - strBuf.size();
-  strBuf += NewVal.substr(0, toWrite);
-  NewVal.erase(0, toWrite);
+  int toWrite = BytesFree();
+  if (toWrite == NewVal.size()){
+    strBuf += NewVal;
+    NewVal.clear();
+  }else{
+    strBuf += NewVal.substr(0, toWrite);
+    NewVal.erase(0, toWrite);
+  }
 }
 
 /// Fills the free bytes of the TS::Packet.
 /// Stores as many bytes from NewVal as possible in the packet.
 /// \param NewVal The data to store in the packet.
 int TS::Packet::FillFree(const char* NewVal, int maxLen){
-  int toWrite = std::min((int)(188 - strBuf.size()), maxLen);
+  int toWrite = std::min((int)BytesFree(), maxLen);
   strBuf += std::string(NewVal, toWrite);
   return toWrite;
 }
 
-/// Adds NumBytes of stuffing to the TS::Packet.
-/// \param NumBytes the amount of stuffing bytes.
-void TS::Packet::AddStuffing(int NumBytes){
-  if (NumBytes <= 0){
-    return;
+/// Adds stuffing to the TS::Packet depending on how much content you want to send.
+/// \param NumBytes the amount of non-stuffing content bytes you want to send.
+/// \return The amount of content bytes that can be send.
+unsigned int TS::Packet::AddStuffing(int NumBytes){
+  if (BytesFree() <= NumBytes){
+    return BytesFree();
   }
+  NumBytes = BytesFree() - NumBytes;
   if (AdaptationField() == 3){
     strBuf.resize(5 + strBuf[4]);
     strBuf[4] += NumBytes;
@@ -378,4 +429,5 @@ void TS::Packet::AddStuffing(int NumBytes){
       strBuf[4] = (char)(NumBytes - 1);
     }
   }
+  return BytesFree();
 }

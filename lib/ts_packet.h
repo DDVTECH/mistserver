@@ -44,10 +44,12 @@ namespace TS {
       void PESAudioLeadIn(unsigned int NewLen, uint64_t PTS = 0);
       static void PESAudioLeadIn(std::string & toSend, long long unsigned int PTS);
       static void PESVideoLeadIn(std::string & toSend, long long unsigned int PTS);
-
+      static std::string & getPESAudioLeadIn(unsigned int NewLen, long long unsigned int PTS);
+      static std::string & getPESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS);
+      
       void FillFree(std::string & PackageData);
       int FillFree(const char* PackageData, int maxLen);
-      void AddStuffing(int NumBytes);
+      unsigned int AddStuffing(int NumBytes);
     private:
       //int Free;
       std::string strBuf;

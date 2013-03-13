@@ -63,4 +63,5 @@ controller/server.html: $(lspDATA) $(lspSOURCES)
 	cat ../lsp/footer.html >> $@
 
 controller/server.html.h: $(srcdir)/controller/server.html
-	xxd -i $(srcdir)/controller/server.html $(srcdir)/controller/server.html.h
+	cd $(srcdir)/controller; xxd -i server.html server.html.h
+

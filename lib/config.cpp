@@ -5,7 +5,7 @@
 #include <string.h>
 #include <signal.h>
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__)
 #include <sys/wait.h>
 #else
 #include <wait.h>

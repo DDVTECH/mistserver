@@ -4,6 +4,23 @@
 #include "timing.h"
 #include <sys/time.h>//for gettimeofday
 #include <time.h>//for time and nanosleep
+
+//emulate clock_gettime() for OSX compatibility
+#if defined(__APPLE__) || defined(__MACH__)
+#include <mach/clock.h>
+#include <mach/mach.h>
+#define CLOCK_REALTIME 0
+void clock_gettime(int ign, struct timespec * ts){
+  clock_serv_t cclock;
+  mach_timespec_t mts;
+  host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+  clock_get_time(cclock, &mts);
+  mach_port_deallocate(mach_task_self(), cclock);
+  ts->tv_sec = mts.tv_sec;
+  ts->tv_nsec = mts.tv_nsec;
+}
+#endif
+
 /// Sleeps for the indicated amount of milliseconds or longer.
 void Util::sleep(int ms){
   if (ms < 0){

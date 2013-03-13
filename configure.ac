@@ -16,7 +16,7 @@ AC_PROG_CC
 
 # Checks for libraries.
 AC_DEFINE(_GNU_SOURCE)
-#AC_CHECK_LIB(ssl, RC4)
+PKG_CHECK_MODULES(DEPS, openssl)
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/socket.h sys/time.h unistd.h])
@@ -37,6 +37,9 @@ AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([dup2 gettimeofday memset mkdir socket strerror])
+
+AC_CHECK_FUNCS([clock_gettime], [CLOCK_LIB=], [AC_CHECK_LIB([rt], [clock_gettime], [CLOCK_LIB=-lrt], [CLOCK_LIB=])])
+AC_SUBST([CLOCK_LIB])
 
 # Fix chars to unsigned
 AC_SUBST([global_CFLAGS], [-funsigned-char])

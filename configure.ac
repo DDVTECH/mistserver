@@ -5,9 +5,9 @@ AC_PREREQ([2.60])
 AC_INIT([MistServer],
 	m4_esyscmd([git rev-parse 2>/dev/null&&git describe --tags > VERSION;tr -d '\n' < VERSION]),
 	[contact@ddvtech.com])
-AC_CONFIG_SRCDIR([src/buffer.cpp])
+AC_CONFIG_SRCDIR([src/tinythread.cpp])
 # foreign: no need for NEWS or INSTALL files
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign subdir-objects])
 LT_INIT
 
 # Checks for programs.
@@ -45,8 +45,5 @@ AC_SUBST([global_CFLAGS], [-funsigned-char])
 AC_ARG_ENABLE([verbose], AC_HELP_STRING([--enable-verbose], [Compile with verbose messages]),
 	AC_DEFINE([DEBUG], [4]))
 
-AC_CONFIG_FILES([Makefile
-                 src/converters/Makefile
-                 src/analysers/Makefile
-                 src/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile])
 AC_OUTPUT

@@ -46,9 +46,9 @@ MistAnalyserAMF_SOURCES=analysers/amf_analyser.cpp
 MistAnalyserMP4_SOURCES=analysers/mp4_analyser.cpp
 
 
-connectors/embed.js.h: $(srcdir)/connectors/embed.js
-	$(CLOSURE) $(srcdir)/embed.js > embed.min.js
-	xxd -i embed.min.js | sed s/_min_/_/g > embed.js.h
+connectors/embed.js.h: connectors/embed.js
+	$(CLOSURE) $(srcdir)/connectors/embed.js > embed.min.js
+	xxd -i embed.min.js | sed s/_min_/_/g > $(srcdir)/connectors/embed.js.h
 	rm embed.min.js
 
 controller/server.html: $(lspDATA) $(lspSOURCES)
@@ -62,6 +62,6 @@ controller/server.html: $(lspDATA) $(lspSOURCES)
 	echo "</style>" >> $@
 	cat ../lsp/footer.html >> $@
 
-controller/server.html.h: $(srcdir)/controller/server.html
+controller/server.html.h: controller/server.html
 	cd $(srcdir)/controller; xxd -i server.html server.html.h
 

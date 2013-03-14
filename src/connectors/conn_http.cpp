@@ -262,6 +262,7 @@ namespace Connector_HTTP {
     tthread::lock_guard<tthread::mutex> guard(connconn[uid]->in_use);
     //if the server connection is dead, handle as timeout.
     if ( !connconn.count(uid) || !connconn[uid]->conn->connected()){
+      connconn[uid]->conn->close();
       return Handle_Timeout(H, conn);
     }
     //forward the original request
@@ -290,6 +291,7 @@ namespace Connector_HTTP {
         //keep trying unless the timeout triggers
         if (timeout++ > 4000){
           std::cout << "[20s timeout triggered]" << std::endl;
+          connconn[uid]->conn->close();
           return Handle_Timeout(H, conn);
         }else{
           Util::sleep(5);
@@ -298,6 +300,7 @@ namespace Connector_HTTP {
     }
     if ( !connconn.count(uid) || !connconn[uid]->conn->connected() || !conn->connected()){
       //failure, disconnect and sent error to user
+      connconn[uid]->conn->close();
       return Handle_Timeout(H, conn);
     }else{
       long long int ret = Util::getMS();

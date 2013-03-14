@@ -1,5 +1,6 @@
 CLOSUREJAR=../lsp/closure-compiler.jar
 CLOSURE=java -jar $(CLOSUREJAR) --warning_level QUIET
+BUILT_SOURCES=controller/server.html.h connectors/embed.js.h
 lspSOURCES=../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js ../lsp/functions.js ../lsp/tablesort.js
 lspDATA=../lsp/header.html ../lsp/style.css ../lsp/footer.html
 

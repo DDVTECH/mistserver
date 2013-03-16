@@ -205,8 +205,13 @@ void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
     switch (next.msg_type_id){
       case 0: //does not exist
 #if DEBUG >= 2
-        fprintf(stderr, "UNKN: Received a zero-type message. This is an error.\n");
+        fprintf(stderr, "UNKN: Received a zero-type message. Possible data corruption? Aborting!\n");
 #endif
+        while (inbuffer.size()){
+          inbuffer.get().clear();
+        }
+        SS.close();
+        Socket.close();
         break; //happens when connection breaks unexpectedly
       case 1: //set chunk size
         RTMPStream::chunk_rec_max = ntohl(*(int*)next.data.c_str());
@@ -460,6 +465,10 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     }
     return;
   }
+  if ((amfdata.getContentP(0)->StrValue() == "FCPublish") || (amfdata.getContentP(0)->StrValue() == "releaseStream")){
+    // ignored
+    return;
+  }
   if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){
     //send a _result reply
     AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
@@ -584,7 +593,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
   } //seek
 
 #if DEBUG >= 2
-  fprintf(stderr, "AMF0 command not processed! :(\n");
+  fprintf(stderr, "AMF0 command not processed!\n%s\n", amfdata.Print().c_str());
 #endif
 } //parseAMFCommand
 

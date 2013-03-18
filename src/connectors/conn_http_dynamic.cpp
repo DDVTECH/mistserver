@@ -54,11 +54,12 @@ namespace Connector_HTTP {
     //afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
     if (metadata.isMember("live")){
-      for (int i = 0; i < metadata["keynum"].size(); i++){
+      int count = 0;
+      for (int i = std::max(0u, metadata["keynum"].size() - 3); i < metadata["keynum"].size(); i++){
         afrtrun.firstFragment = metadata["keynum"][i].asInt();
         afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
         afrtrun.duration = metadata["keylen"][i].asInt();
-        afrt.setFragmentRun(afrtrun, i);
+        afrt.setFragmentRun(afrtrun, count++);
       }
     }else{
       for (int i = 0; i < metadata["keytime"].size(); i++){

@@ -465,7 +465,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     }
     return;
   }
-  if ((amfdata.getContentP(0)->StrValue() == "FCPublish") || (amfdata.getContentP(0)->StrValue() == "releaseStream")){
+  if ((amfdata.getContentP(0)->StrValue() == "FCPublish") || (amfdata.getContentP(0)->StrValue() == "FCUnpublish") || (amfdata.getContentP(0)->StrValue() == "releaseStream")){
     // ignored
     return;
   }

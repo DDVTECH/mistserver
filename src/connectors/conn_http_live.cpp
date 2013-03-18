@@ -99,9 +99,6 @@ namespace Connector_HTTP {
     HTTP::Parser HTTP_R, HTTP_S; //HTTP Receiver en HTTP Sender.
 
     bool ready4data = false; //Set to true when streaming is to begin.
-    bool pending_manifest = false;
-    bool receive_marks = false; //when set to true, this stream will ignore keyframes and instead use pause marks
-    bool inited = false;
     Socket::Connection ss( -1);
     std::string streamname;
     std::string recBuffer = "";
@@ -122,7 +119,6 @@ namespace Connector_HTTP {
 
     int Segment = -1;
     int temp;
-    int Flash_RequestPending = 0;
     unsigned int lastStats = 0;
     conn.setBlocking(false); //do not block on conn.spool() when no data is available
 
@@ -147,9 +143,9 @@ namespace Connector_HTTP {
           if ( !ss){
             ss = Util::Stream::getStream(streamname);
             if ( !ss.connected()){
-#if DEBUG >= 1
+              #if DEBUG >= 1
               fprintf(stderr, "Could not connect to server!\n");
-#endif
+              #endif
               HTTP_S.Clean();
               HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
               conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
@@ -157,10 +153,14 @@ namespace Connector_HTTP {
               continue;
             }
             ss.setBlocking(false);
-            inited = true;
-            while ( !ss.spool()){
+            //make sure metadata is received
+            while ( !Strm.metadata){
+              if (ss.spool()){
+                while (Strm.parsePacket(ss.Received())){
+                  //do nothing
+                }
+              }
             }
-            Strm.parsePacket(ss.Received());
           }
           if (HTTP_R.url.find(".m3u") == std::string::npos){
             temp = HTTP_R.url.find("/", 5) + 1;
@@ -174,62 +174,26 @@ namespace Connector_HTTP {
               sstream << "o \n";
             }
             ss.SendNow(sstream.str().c_str());
-            Flash_RequestPending++;
           }else{
-            if (ss.spool()){
-              Strm.parsePacket(ss.Received());
-            }
             if (HTTP_R.url.find(".m3u8") != std::string::npos){
               manifestType = "audio/x-mpegurl";
             }else{
               manifestType = "audio/mpegurl";
             }
-            if ( !Strm.metadata.isNull()){
-              HTTP_S.Clean();
-              HTTP_S.SetHeader("Content-Type", manifestType);
-              HTTP_S.SetHeader("Cache-Control", "no-cache");
-              if (Strm.metadata.isMember("length")){
-                receive_marks = true;
-              }
-              std::string manifest = BuildIndex(streamname, Strm.metadata);
-              HTTP_S.SetBody(manifest);
-              conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-              pending_manifest = false;
-            }else{
-              pending_manifest = true;
-            }
+            HTTP_S.Clean();
+            HTTP_S.SetHeader("Content-Type", manifestType);
+            HTTP_S.SetHeader("Cache-Control", "no-cache");
+            std::string manifest = BuildIndex(streamname, Strm.metadata);
+            HTTP_S.SetBody(manifest);
+            conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
           }
           ready4data = true;
           HTTP_R.Clean(); //clean for any possible next requests
         }
       }else{
-        if (Flash_RequestPending){
-          usleep(1000); //sleep 1ms
-        }else{
-          usleep(10000); //sleep 10ms
-        }
+        Util::sleep(1);
       }
       if (ready4data){
-        if ( !inited){
-          //we are ready, connect the socket!
-          ss = Util::Stream::getStream(streamname);
-          if ( !ss.connected()){
-#if DEBUG >= 1
-            fprintf(stderr, "Could not connect to server!\n");
-#endif
-            ss.close();
-            HTTP_S.Clean();
-            HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
-            conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
-            ready4data = false;
-            continue;
-          }
-          ss.setBlocking(false);
-#if DEBUG >= 5
-          fprintf(stderr, "Everything connected, starting to send video data...\n");
-#endif
-          inited = true;
-        }
         unsigned int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
@@ -237,26 +201,9 @@ namespace Connector_HTTP {
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
-            if (pending_manifest){
-              HTTP_S.Clean();
-              HTTP_S.protocol = "HTTP/1.1";
-              HTTP_S.SetHeader("Cache-Control", "no-cache");
-              if (Strm.metadata.isMember("length")){
-                receive_marks = true;
-              }
-              std::string manifest = BuildIndex(streamname, Strm.metadata);
-              HTTP_S.SetHeader("Content-Type", manifestType);
-              HTTP_S.SetHeader("Connection", "keep-alive");
-              HTTP_S.SetBody(manifest);
-              conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-              pending_manifest = false;
-            }
-            if ( !receive_marks && Strm.metadata.isMember("length")){
-              receive_marks = true;
-            }
             if (Strm.lastType() == DTSC::PAUSEMARK){
               TSBuf.flush();
-              if (Flash_RequestPending > 0 && TSBuf.str().size()){
+              if (TSBuf.str().size()){
                 HTTP_S.Clean();
                 HTTP_S.protocol = "HTTP/1.1";
                 HTTP_S.SetHeader("Content-Type", "video/mp2t");
@@ -266,7 +213,6 @@ namespace Connector_HTTP {
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
                 conn.SendNow(TSBuf.str().c_str(), TSBuf.str().size());
                 TSBuf.str("");
-                Flash_RequestPending--;
                 PacketNumber = 0;
               }
               TSBuf.str("");
@@ -344,20 +290,6 @@ namespace Connector_HTTP {
               }
 
             }
-          }
-          if (pending_manifest && !Strm.metadata.isNull()){
-            HTTP_S.Clean();
-            HTTP_S.protocol = "HTTP/1.1";
-            HTTP_S.SetHeader("Cache-Control", "no-cache");
-            if (Strm.metadata.isMember("length")){
-              receive_marks = true;
-            }
-            HTTP_S.SetHeader("Content-Type", manifestType);
-            HTTP_S.SetHeader("Connection", "keep-alive");
-            std::string manifest = BuildIndex(streamname, Strm.metadata);
-            HTTP_S.SetBody(manifest);
-            conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-            pending_manifest = false;
           }
         }
         if ( !ss.connected()){

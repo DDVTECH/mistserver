@@ -261,7 +261,7 @@ bool ValidateClientScheme(uint8_t * pBuffer, uint8_t scheme){
   uint8_t *pTempHash = new uint8_t[512];
   HMACsha256(pTempBuffer, 1536 - 32, genuineFPKey, 30, pTempHash);
   bool result = (memcmp(pBuffer + clientDigestOffset, pTempHash, 32) == 0);
-#if DEBUG >= 4
+#if DEBUG >= 5
   fprintf(stderr, "Client scheme validation %hhi %s\n", scheme, result?"success":"failed");
 #endif
   delete[] pTempBuffer;
@@ -818,14 +818,14 @@ bool RTMPStream::doHandshake(){
   } //"random" data
 
   bool encrypted = (Version == 6);
-#if DEBUG >= 4
+#if DEBUG >= 8
   fprintf(stderr, "Handshake version is %hhi\n", Version);
 #endif
   uint8_t _validationScheme = 5;
   if (ValidateClientScheme(Client, 0)) _validationScheme = 0;
   if (ValidateClientScheme(Client, 1)) _validationScheme = 1;
 
-#if DEBUG >= 4
+#if DEBUG >= 8
   fprintf(stderr, "Handshake type is %hhi, encryption is %s\n", _validationScheme, encrypted?"on":"off");
 #endif
 

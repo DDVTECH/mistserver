@@ -127,6 +127,8 @@ namespace DTSC {
       unsigned int getTime();
       void dropRing(Ring * ptr);
       void updateHeaders();
+      int canSeekms(unsigned int ms);
+      int canSeekFrame(unsigned int frameno);
       unsigned int msSeek(unsigned int ms);
       unsigned int frameSeek(unsigned int frameno);
       void setBufferTime(unsigned int ms);

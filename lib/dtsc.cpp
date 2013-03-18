@@ -384,7 +384,39 @@ void DTSC::Stream::updateRingHeaders(){
   }
 }
 
+/// Returns 0 if seeking is possible, -1 if the wanted frame is too old, 1 if the wanted frame is too new.
+int DTSC::Stream::canSeekms(unsigned int ms){
+  if ( !metadata["keytime"].size()){
+    return 1;
+  }
+  if (ms > metadata["keytime"][metadata["keytime"].size() - 1].asInt()){
+    return 1;
+  }
+  if (ms < metadata["keytime"][0u].asInt()){
+    return -1;
+  }
+  return 0;
+}
+
+/// Returns 0 if seeking is possible, -1 if the wanted frame is too old, 1 if the wanted frame is too new.
+int DTSC::Stream::canSeekFrame(unsigned int frameno){
+  if ( !metadata["keynum"].size()){
+    return 1;
+  }
+  if (frameno > metadata["keynum"][metadata["keynum"].size() - 1].asInt()){
+    return 1;
+  }
+  if (frameno < metadata["keynum"][0u].asInt()){
+    return -1;
+  }
+  return 0;
+}
+
 unsigned int DTSC::Stream::msSeek(unsigned int ms){
+  if (ms > buffers[keyframes[0u].b]["time"].asInt()){
+    std::cerr << "Warning: seeking past ingest! (" << ms << "ms > " << buffers[keyframes[0u].b]["time"].asInt() << "ms)" << std::endl;
+    return keyframes[0u].b;
+  }
   for (std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++){
     if (buffers[it->b]["time"].asInt() <= ms){
       return it->b;
@@ -395,6 +427,10 @@ unsigned int DTSC::Stream::msSeek(unsigned int ms){
 }
 
 unsigned int DTSC::Stream::frameSeek(unsigned int frameno){
+  if (frameno > buffers[keyframes[0u].b]["fragnum"].asInt()){
+    std::cerr << "Warning: seeking past ingest! (F" << frameno << " > F" << buffers[keyframes[0u].b]["fragnum"].asInt() << ")" << std::endl;
+    return keyframes[0u].b;
+  }
   for (std::deque<DTSC::Ring>::iterator it = keyframes.begin(); it != keyframes.end(); it++){
     if (buffers[it->b]["fragnum"].asInt() == frameno){
       return it->b;

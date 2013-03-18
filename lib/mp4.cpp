@@ -2180,7 +2180,7 @@ namespace MP4 {
       if (uuid_string[j] == '-'){
         continue;
       }
-      data[8+i/2] |= (c2hex(uuid_string[j]) << (4-(4*(i%2))));
+      data[8+i/2] |= (c2hex(uuid_string[j]) << ((~i & 1) << 2));
       ++i;
     }
   }

@@ -269,6 +269,7 @@ namespace Connector_HTTP {
     connconn[uid]->conn->SendNow(request);
     connconn[uid]->lastuse = 0;
     unsigned int timeout = 0;
+    unsigned int retries = 0;
     //wait for a response
     while (connconn.count(uid) && connconn[uid]->conn->connected() && conn->connected()){
       conn->spool();
@@ -285,6 +286,20 @@ namespace Connector_HTTP {
         }
         //check if the whole response was received
         if (H.Read(connconn[uid]->conn->Received().get())){
+          //208 means the fragment is too new, retry in 2000ms
+          if (H.url == "208"){
+            retries++;
+            if (retries >= 5){
+              std::cout << "[5 retry-laters, cancelled]" << std::endl;
+              connconn[uid]->conn->close();
+              return Handle_Timeout(H, conn);
+            }
+            connconn[uid]->lastuse = 0;
+            timeout = 0;
+            Util::sleep(2000);
+            connconn[uid]->conn->SendNow(request);
+            continue;
+          }
           break; //continue down below this while loop
         }
       }else{

@@ -167,7 +167,25 @@ namespace Connector_HTTP {
             Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("_", temp) - temp).c_str());
             temp = HTTP_R.url.find("_", temp) + 1;
             int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
-
+            if (Strm.metadata.isMember("live")){
+              int seekable = Strm.canSeekFrame(Segment);
+              if (seekable < 0){
+                HTTP_S.Clean();
+                HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+                conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
+                HTTP_R.Clean(); //clean for any possible next requests
+                std::cout << "Fragment @ F" << Segment << " too old (F" << Strm.metadata["keynum"][0u].asInt() << " - " << Strm.metadata["keynum"][Strm.metadata["keynum"].size() - 1].asInt() << ")" << std::endl;
+                continue;
+              }
+              if (seekable > 0){
+                HTTP_S.Clean();
+                HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
+                HTTP_R.Clean(); //clean for any possible next requests
+                std::cout << "Fragment @ F" << Segment << " not available yet (F" << Strm.metadata["keynum"][0u].asInt() << " - " << Strm.metadata["keynum"][Strm.metadata["keynum"].size() - 1].asInt() << ")" << std::endl;
+                continue;
+              }
+            }
             std::stringstream sstream;
             sstream << "f " << Segment << "\n";
             for (int i = 0; i < frameCount; i++){

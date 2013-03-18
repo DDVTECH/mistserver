@@ -166,6 +166,25 @@ namespace Connector_HTTP {
             }
             tempStr = tempStr.substr(tempStr.find("(") + 1);
             ReqFragment = atoll(tempStr.substr(0, tempStr.find(")")).c_str());
+            if (Strm.metadata.isMember("live")){
+              int seekable = Strm.canSeekms(ReqFragment / 10000);
+              if (seekable < 0){
+                HTTP_S.Clean();
+                HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+                conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
+                HTTP_R.Clean(); //clean for any possible next requests
+                std::cout << "Fragment @ " << ReqFragment / 10000 << "ms too old (" << Strm.metadata["keytime"][0u].asInt() << " - " << Strm.metadata["keytime"][Strm.metadata["keytime"].size() - 1].asInt() << " ms)" << std::endl;
+                continue;
+              }
+              if (seekable > 0){
+                HTTP_S.Clean();
+                HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
+                HTTP_R.Clean(); //clean for any possible next requests
+                std::cout << "Fragment @ " << ReqFragment / 10000 << "ms not available yet (" << Strm.metadata["keytime"][0u].asInt() << " - " << Strm.metadata["keytime"][Strm.metadata["keytime"].size() - 1].asInt() << " ms)" << std::endl;
+                continue;
+              }
+            }
             std::stringstream sstream;
             sstream << "s " << (ReqFragment / 10000) << "\no \n";
             ss.SendNow(sstream.str().c_str());

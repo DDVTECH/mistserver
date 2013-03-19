@@ -18,10 +18,72 @@
 #include <pwd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "timing.h"
 
 std::map<pid_t, std::string> Util::Procs::plist;
 std::map<pid_t, Util::TerminationNotifier> Util::Procs::exitHandlers;
 bool Util::Procs::handler_set = false;
+
+/// Called at exit of any program that used a Start* function.
+/// Waits up to 2.5 seconds, then sends SIGINT signal to all managed processes.
+/// After that waits up to 10 seconds for children to exit, then sends SIGKILL to
+/// all remaining children. Waits one more second for cleanup to finish, then exits.
+void Util::Procs::exit_handler(){
+  int waiting = 0;
+  while ( !plist.empty()){
+    Util::sleep(500);
+    if (++waiting > 5){
+      break;
+    }
+  }
+  
+  if ( !plist.empty()){
+    std::map<pid_t, std::string> listcopy = plist;
+    std::map<pid_t, std::string>::iterator it;
+    for (it = listcopy.begin(); it != listcopy.end(); it++){
+      kill(( *it).first, SIGINT);
+    }
+  }
+
+  waiting = 0;
+  while ( !plist.empty()){
+    Util::sleep(500);
+    if (++waiting > 10){
+      break;
+    }
+  }
+
+  if ( !plist.empty()){
+    std::map<pid_t, std::string> listcopy = plist;
+    std::map<pid_t, std::string>::iterator it;
+    for (it = listcopy.begin(); it != listcopy.end(); it++){
+      kill(( *it).first, SIGKILL);
+    }
+  }
+
+  waiting = 0;
+  while ( !plist.empty()){
+    Util::sleep(100);
+    if (++waiting > 10){
+      break;
+    }
+  }
+  
+}
+
+/// Sets up exit and childsig handlers.
+/// Called by every Start* function.
+void Util::Procs::setHandler(){
+  if ( !handler_set){
+    struct sigaction new_action;
+    new_action.sa_handler = childsig_handler;
+    sigemptyset( &new_action.sa_mask);
+    new_action.sa_flags = 0;
+    sigaction(SIGCHLD, &new_action, NULL);
+    atexit(exit_handler);
+    handler_set = true;
+  }
+}
 
 /// Used internally to capture child signals and update plist.
 void Util::Procs::childsig_handler(int signum){
@@ -107,14 +169,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd){
   if (isActive(name)){
     return getPid(name);
   }
-  if ( !handler_set){
-    struct sigaction new_action;
-    new_action.sa_handler = Util::Procs::childsig_handler;
-    sigemptyset( &new_action.sa_mask);
-    new_action.sa_flags = 0;
-    sigaction(SIGCHLD, &new_action, NULL);
-    handler_set = true;
-  }
+  setHandler();
   pid_t ret = fork();
   if (ret == 0){
     runCmd(cmd);
@@ -143,14 +198,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
   if (isActive(name)){
     return getPid(name);
   }
-  if ( !handler_set){
-    struct sigaction new_action;
-    new_action.sa_handler = Util::Procs::childsig_handler;
-    sigemptyset( &new_action.sa_mask);
-    new_action.sa_flags = 0;
-    sigaction(SIGCHLD, &new_action, NULL);
-    handler_set = true;
-  }
+  setHandler();
   int pfildes[2];
   if (pipe(pfildes) == -1){
 #if DEBUG >= 1
@@ -220,15 +268,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
   if (isActive(name)){
     return getPid(name);
   }
-  if ( !handler_set){
-    struct sigaction new_action;
-    new_action.sa_handler = Util::Procs::childsig_handler;
-    sigemptyset( &new_action.sa_mask);
-    new_action.sa_flags = 0;
-    sigaction(SIGCHLD, &new_action, NULL);
-    handler_set = true;
-  }
-
+  setHandler();
   int pfildes[2];
   int pfildes2[2];
   if (pipe(pfildes) == -1){
@@ -346,14 +386,7 @@ pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int *
   }
   pid_t pid;
   int pipein[2], pipeout[2], pipeerr[2];
-  if ( !handler_set){
-    struct sigaction new_action;
-    new_action.sa_handler = Util::Procs::childsig_handler;
-    sigemptyset( &new_action.sa_mask);
-    new_action.sa_flags = 0;
-    sigaction(SIGCHLD, &new_action, NULL);
-    handler_set = true;
-  }
+  setHandler();
   if (fdin && *fdin == -1 && pipe(pipein) < 0){
 #if DEBUG >= 1
     std::cerr << "Pipe (in) creation failed for " << name << std::endl;

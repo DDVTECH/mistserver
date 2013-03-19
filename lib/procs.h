@@ -18,8 +18,10 @@ namespace Util {
       static std::map<pid_t, TerminationNotifier> exitHandlers; ///< termination function, if any
       static bool handler_set; ///< If true, the sigchld handler has been setup.
       static void childsig_handler(int signum);
+      static void exit_handler();
       static void runCmd(std::string & cmd);
-    public:
+      static void setHandler();
+  public:
       static pid_t Start(std::string name, std::string cmd);
       static pid_t Start(std::string name, std::string cmd, std::string cmd2);
       static pid_t Start(std::string name, std::string cmd, std::string cmd2, std::string cmd3);

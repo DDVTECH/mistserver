@@ -83,9 +83,8 @@ int main(int argc, char** argv){
     while (Util::Procs::isActive("Fixer")){
       Util::sleep(5000);
     }
-    std::cerr << "Done!" << std::endl;
-    source = DTSC::File(conf.getString("filename"));
-    meta = source.getMeta();
+    std::cerr << "Done! Aborting this request to make sure all goes well." << std::endl;
+    return 1;
   }
   
   JSON::Value pausemark;

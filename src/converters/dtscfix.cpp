@@ -39,7 +39,9 @@ namespace Converters {
 
     F.seekNext();
     while ( !F.getJSON().isNull()){
-      nowpack = F.getJSON()["time"].asInt();
+      if (F.getJSON()["time"].asInt() >= nowpack){
+        nowpack = F.getJSON()["time"].asInt();
+      }
       if ( !meta.isMember("firstms")){
         meta["firstms"] = nowpack;
       }

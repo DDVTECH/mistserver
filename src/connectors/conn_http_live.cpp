@@ -25,52 +25,22 @@
 
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
-  /// Parses the list of keyframes into 10 second fragments
-  std::vector<int> keyframesToFragments(JSON::Value & metadata){
-    std::vector<int> result;
-    if (metadata.isNull()){
-      return result;
-    }
-    if (metadata.isMember("keynum")){
-      for (int i = 0; i < metadata["keynum"].size(); i++){
-        result.push_back(metadata["keynum"][i].asInt());
-      }
-    }else{
-      result.push_back(0);
-      int currentBase = metadata["keytime"][0u].asInt();
-      for (int i = 0; i < metadata["keytime"].size(); i++){
-        if ((metadata["keytime"][i].asInt() - currentBase) > 10000){
-          currentBase = metadata["keytime"][i].asInt();
-          result.push_back(i);
-        }
-      }
-    }
-    return result;
-  }
 
   /// Returns a m3u or m3u8 index file
   std::string BuildIndex(std::string & MovieId, JSON::Value & metadata){
     std::stringstream Result;
     if ( !metadata.isMember("live")){
-      std::vector<int> fragIndices = keyframesToFragments(metadata);
       int longestFragment = 0;
-      for (int i = 1; i < fragIndices.size(); i++){
-        int fragDuration = metadata["keytime"][fragIndices[i]].asInt() - metadata["keytime"][fragIndices[i - 1]].asInt();
-        if (fragDuration > longestFragment){
-          longestFragment = fragDuration;
+      for (JSON::ArrIter ai = metadata["frags"].ArrBegin(); ai != metadata["frags"].ArrEnd(); ai++){
+        if ((*ai)["dur"].asInt() > longestFragment){
+          longestFragment = (*ai)["dur"].asInt();
         }
       }
       Result << "#EXTM3U\r\n"
-      //"#EXT-X-VERSION:1\r\n"
-      //"#EXT-X-ALLOW-CACHE:YES\r\n"
-              "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
+          "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
           "#EXT-X-MEDIA-SEQUENCE:0\r\n";
-      //"#EXT-X-PLAYLIST-TYPE:VOD\r\n";
-      int lastDuration = 0;
-      for (int i = 0; i < fragIndices.size() - 1; i++){
-        Result << "#EXTINF:" << (metadata["keytime"][fragIndices[i + 1]].asInt() - lastDuration) / 1000 << ", no desc\r\n" << fragIndices[i] + 1
-            << "_" << fragIndices[i + 1] - fragIndices[i] << ".ts\r\n";
-        lastDuration = metadata["keytime"][fragIndices[i + 1]].asInt();
+      for (JSON::ArrIter ai = metadata["frags"].ArrBegin(); ai != metadata["frags"].ArrEnd(); ai++){
+        Result << "#EXTINF:" << (*ai)["dur"].asInt() / 1000 << ", no desc\r\n" << (*ai)["num"].asInt() << "_" << (*ai)["len"].asInt() << ".ts\r\n";
       }
       Result << "#EXT-X-ENDLIST";
     }else{

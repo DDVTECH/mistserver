@@ -68,7 +68,7 @@ namespace Converters {
       std::cout << std::string(DTSC::Magic_Header, 4) << std::string((char*) &size, 4) << packed_header;
       std::cout << prebuffer.rdbuf();
     }
-    std::cerr << "Done! If you output this data to a file, don't forget to run MistDTSCFix next." << std::endl;
+    std::cerr << "Done!" << std::endl;
 
     return 0;
   } //FLV2DTSC

@@ -62,18 +62,10 @@ namespace Connector_HTTP {
         afrt.setFragmentRun(afrtrun, count++);
       }
     }else{
-      for (int i = 0; i < metadata["keytime"].size(); i++){
-        afrtrun.firstFragment = i + 1;
+      for (int i = 0; i < metadata["keynum"].size(); i++){
+        afrtrun.firstFragment = metadata["keynum"][i].asInt();
         afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
-        if (i + 1 < metadata["keytime"].size()){
-          afrtrun.duration = metadata["keytime"][i + 1].asInt() - metadata["keytime"][i].asInt();
-        }else{
-          if (metadata["lastms"].asInt()){
-            afrtrun.duration = metadata["lastms"].asInt() - metadata["keytime"][i].asInt();
-          }else{
-            afrtrun.duration = 3000; //guess 3 seconds if unknown
-          }
-        }
+        afrtrun.duration = metadata["keylen"][i].asInt();
         afrt.setFragmentRun(afrtrun, i);
       }
     }
@@ -92,23 +84,10 @@ namespace Connector_HTTP {
       abst.setUpdate(true);
     }
     abst.setTimeScale(1000);
-    if (metadata.isMember("vod")){
-      abst.setLive(false);
-      if (metadata["lastms"].asInt()){
-        abst.setCurrentMediaTime(metadata["lastms"].asInt());
-      }else{
-        abst.setCurrentMediaTime(1000 * metadata["length"].asInt());
-      }
-    }else{
-      abst.setLive(false);
-      abst.setCurrentMediaTime(metadata["lastms"].asInt());
-    }
+    abst.setLive(false);
+    abst.setCurrentMediaTime(metadata["lastms"].asInt());
     abst.setSmpteTimeCodeOffset(0);
     abst.setMovieIdentifier(MovieId);
-    //abst.setServerEntry(empty, 0);
-    //abst.setQualityEntry(empty, 0);
-    //abst.setDrmData(empty);
-    //abst.setMetaData(empty);
     abst.setSegmentRunTable(asrt, 0);
     abst.setFragmentRunTable(afrt, 0);
 

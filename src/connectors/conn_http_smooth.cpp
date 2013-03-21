@@ -222,21 +222,8 @@ namespace Connector_HTTP {
                 MP4::MFHD mfhd_box;
                 for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
                   if (Strm.metadata["keytime"][i].asInt() >= (ReqFragment / 10000)){
-                    if (Strm.metadata.isMember("keynum")){
-                      mfhd_box.setSequenceNumber(Strm.metadata["keynum"][i].asInt());
-                    }else{
-                      mfhd_box.setSequenceNumber(i + 1);
-                    }
-                    if (Strm.metadata.isMember("keylen")){
-                      myDuration = Strm.metadata["keylen"][i].asInt() * 10000;
-                    }else{
-                      if (i != Strm.metadata["keytime"].size()){
-                        myDuration = Strm.metadata["keytime"][i + 1].asInt() - Strm.metadata["keytime"][i].asInt();
-                      }else{
-                        myDuration = Strm.metadata["lastms"].asInt() - Strm.metadata["keytime"][i].asInt();
-                      }
-                      myDuration = myDuration * 10000;
-                    }
+                    mfhd_box.setSequenceNumber(Strm.metadata["keynum"][i].asInt());
+                    myDuration = Strm.metadata["keylen"][i].asInt() * 10000;
                     break;
                   }
                 }

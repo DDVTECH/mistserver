@@ -10,6 +10,7 @@
 #include <mist/config.h>
 #include <mist/socket.h>
 #include <mist/timing.h>
+#include <mist/procs.h>
 
 //under cygwin, recv blocks for ~15ms if no data is available.
 //This is a hack to keep performance decent with that bug present.
@@ -70,9 +71,23 @@ int main(int argc, char** argv){
   conf.activate();
   int playing = 0;
 
-  DTSC::File source = DTSC::File(conf.getString("filename"));
   Socket::Connection in_out = Socket::Connection(fileno(stdout), fileno(stdin));
+
+  DTSC::File source = DTSC::File(conf.getString("filename"));
   JSON::Value meta = source.getMeta();
+  
+  if ( !(meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags")) && meta.isMember("video")){
+    //file needs to be DTSCFix'ed! Run MistDTSCFix executable on it first
+    std::cerr << "Calculating / writing / updating VoD metadata..." << std::endl;
+    Util::Procs::Start("Fixer", Util::getMyPath() + "MistDTSCFix "+conf.getString("filename"));
+    while (Util::Procs::isActive("Fixer")){
+      Util::sleep(5000);
+    }
+    std::cerr << "Done!" << std::endl;
+    source = DTSC::File(conf.getString("filename"));
+    meta = source.getMeta();
+  }
+  
   JSON::Value pausemark;
   pausemark["datatype"] = "pause_marker";
   pausemark["time"] = (long long int)0;
@@ -83,6 +98,8 @@ int main(int argc, char** argv){
   //send the header
   std::string meta_str = meta.toNetPacked();
   in_out.Send(meta_str);
+  
+  if (meta.isMember("keytime"))
 
   if (meta["video"]["keyms"].asInt() < 11){
     meta["video"]["keyms"] = (long long int)1000;

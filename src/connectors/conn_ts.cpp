@@ -62,113 +62,81 @@ int TS_Handler(Socket::Connection conn, std::string streamname){
           avccbox.setPayload(Strm.metadata["video"]["init"].asString());
           haveAvcc = true;
         }
+        std::stringstream TSBuf;
+        Socket::Buffer ToPack;
+        //write PAT and PMT TS packets
+        if (PacketNumber == 0){
+          PackData.DefaultPAT();
+          TSBuf.write(PackData.ToString(), 188);
+          PackData.DefaultPMT();
+          TSBuf.write(PackData.ToString(), 188);
+          PacketNumber += 2;
+        }
+
+        int PIDno = 0;
+        char * ContCounter = 0;
         if (Strm.lastType() == DTSC::VIDEO){
-          DTMIData = Strm.lastData();
-          if (Strm.getPacket(0).isMember("keyframe")){
-            IsKeyFrame = true;
-            FirstIDRInKeyFrame = true;
-          }else{
-            IsKeyFrame = false;
-            FirstKeyFrame = false;
-          }
+          IsKeyFrame = Strm.getPacket(0).isMember("keyframe");
           if (IsKeyFrame){
             TimeStamp = (Strm.getPacket(0)["time"].asInt() * 27000);
           }
-          int TSType;
-          bool FirstPic = true;
-          while (DTMIData.size()){
-            ThisNaluSize = (DTMIData[0] << 24) + (DTMIData[1] << 16) + (DTMIData[2] << 8) + DTMIData[3];
-            DTMIData.erase(0, 4); //Erase the first four characters;
-            TSType = (int)DTMIData[0] & 0x1F;
-            if (TSType == 0x05){
-              if (FirstPic){
-                ToPack += avccbox.asAnnexB();
-                FirstPic = false;
-              }
-              if (IsKeyFrame){
-                if ( !FirstKeyFrame && FirstIDRInKeyFrame){
-                  ToPack.append(TS::NalHeader, 4);
-                  FirstIDRInKeyFrame = false;
-                }else{
-                  ToPack.append(TS::ShortNalHeader, 3);
-                }
-              }
-            }else if (TSType == 0x01){
-              if (FirstPic){
-                ToPack.append(TS::NalHeader, 4);
-                FirstPic = false;
-              }else{
-                ToPack.append(TS::ShortNalHeader, 3);
-              }
+          ToPack.append(avccbox.asAnnexB());
+          while (Strm.lastData().size()){
+            ThisNaluSize = (Strm.lastData()[0] << 24) + (Strm.lastData()[1] << 16) + (Strm.lastData()[2] << 8) + Strm.lastData()[3];
+            Strm.lastData().replace(0, 4, TS::NalHeader, 4);
+            if (ThisNaluSize + 4 == Strm.lastData().size()){
+              ToPack.append(Strm.lastData());
+              break;
             }else{
-              ToPack.append(TS::NalHeader, 4);
+              ToPack.append(Strm.lastData().c_str(), ThisNaluSize + 4);
+              Strm.lastData().erase(0, ThisNaluSize + 4);
             }
-            ToPack.append(DTMIData, 0, ThisNaluSize);
-            DTMIData.erase(0, ThisNaluSize);
           }
-          WritePesHeader = true;
-          while (ToPack.size()){
-            if ((PacketNumber % 42) == 0){
-              PackData.DefaultPAT();
-              conn.SendNow(PackData.ToString(), 188);
-              PackData.DefaultPMT();
-              conn.SendNow(PackData.ToString(), 188);
-              PacketNumber += 2;
-            }
-            PackData.Clear();
-            PackData.PID(0x100);
-            PackData.ContinuityCounter(VideoCounter);
-            VideoCounter++;
-            if (WritePesHeader){
-              PackData.UnitStart(1);
-              if (IsKeyFrame){
-                PackData.RandomAccess(1);
-                PackData.PCR(TimeStamp);
-              }else{
-                PackData.AdaptationField(1);
-              }
-              PackData.AddStuffing(184 - (20 + ToPack.size()));
-              PackData.PESVideoLeadIn(ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90);
-              WritePesHeader = false;
-            }else{
-              PackData.AdaptationField(1);
-              PackData.AddStuffing(184 - (ToPack.size()));
-            }
-            PackData.FillFree(ToPack);
-            conn.SendNow(PackData.ToString(), 188);
-            PacketNumber++;
-          }
+          ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket(0)["time"].asInt() * 90));
+          PIDno = 0x100;
+          ContCounter = &VideoCounter;
         }else if (Strm.lastType() == DTSC::AUDIO){
-          WritePesHeader = true;
-          DTMIData = Strm.lastData();
-          ToPack = TS::GetAudioHeader(DTMIData.size(), Strm.metadata["audio"]["init"].asString());
-          ToPack += DTMIData;
-          while (ToPack.size()){
-            if ((PacketNumber % 42) == 0){
-              PackData.DefaultPAT();
-              conn.SendNow(PackData.ToString(), 188);
-              PackData.DefaultPMT();
-              conn.SendNow(PackData.ToString(), 188);
-              PacketNumber += 2;
-            }
-            PackData.Clear();
-            PackData.PID(0x101);
-            PackData.ContinuityCounter(AudioCounter);
-            AudioCounter++;
-            if (WritePesHeader){
-              PackData.UnitStart(1);
-              PackData.AddStuffing(184 - (14 + ToPack.size()));
-              PackData.PESAudioLeadIn(ToPack.size(), Strm.getPacket(0)["time"].asInt() * 90);
-              WritePesHeader = false;
-            }else{
-              PackData.AdaptationField(1);
-              PackData.AddStuffing(184 - (ToPack.size()));
-            }
-            PackData.FillFree(ToPack);
-            conn.SendNow(PackData.ToString(), 188);
-            PacketNumber++;
-          }
+          ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata["audio"]["init"].asString()));
+          ToPack.append(Strm.lastData());
+          ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket(0)["time"].asInt() * 90));
+          PIDno = 0x101;
+          ContCounter = &AudioCounter;
         }
+
+        //initial packet
+        PackData.Clear();
+        PackData.PID(PIDno);
+        PackData.ContinuityCounter(( *ContCounter)++);
+        PackData.UnitStart(1);
+        if (IsKeyFrame){
+          PackData.RandomAccess(1);
+          PackData.PCR(TimeStamp);
+        }
+        unsigned int toSend = PackData.AddStuffing(ToPack.bytes(184));
+        std::string gonnaSend = ToPack.remove(toSend);
+        PackData.FillFree(gonnaSend);
+        TSBuf.write(PackData.ToString(), 188);
+        PacketNumber++;
+
+        //rest of packets
+        while (ToPack.size()){
+          PackData.Clear();
+          PackData.PID(PIDno);
+          PackData.ContinuityCounter(( *ContCounter)++);
+          toSend = PackData.AddStuffing(ToPack.bytes(184));
+          gonnaSend = ToPack.remove(toSend);
+          PackData.FillFree(gonnaSend);
+          TSBuf.write(PackData.ToString(), 188);
+          PacketNumber++;
+        }
+
+        TSBuf.flush();
+        if (TSBuf.str().size()){
+          conn.SendNow(TSBuf.str().c_str(), TSBuf.str().size());
+          TSBuf.str("");
+        }
+        TSBuf.str("");
+        PacketNumber = 0;
       }
     }
   }

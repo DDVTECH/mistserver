@@ -69,6 +69,7 @@ namespace DTSC {
       File(std::string filename, bool create = false);
       ~File();
       JSON::Value & getMeta();
+      JSON::Value & getFirstMeta();
       long long int getLastReadPos();
       bool writeHeader(std::string & header, bool force = false);
       long long int addHeader(std::string & header);
@@ -82,6 +83,7 @@ namespace DTSC {
       std::string strbuffer;
       JSON::Value jsonbuffer;
       JSON::Value metadata;
+      JSON::Value firstmetadata;
       std::map<int, long> frames;
       std::map<int, long> msframes;
       long long int currtime;

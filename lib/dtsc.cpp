@@ -323,26 +323,7 @@ void DTSC::Stream::updateHeaders(){
     metadata["keylen"].append(buffers[keyframes[0].b]["time"].asInt() - buffers[keyframes[1].b]["time"].asInt());
     long long int firstFragNo = -1;
     metadata["frags"].null();
-    long long int currFrag = metadata["keytime"][0u].asInt() / 10000;
-    if (currFrag == 0){
-      long long int fragLen = 1;
-      long long int fragDur = metadata["keylen"][0u].asInt();
-      for (unsigned int j = 1; j < metadata["keytime"].size(); j++){
-        if (metadata["keytime"][j].asInt() / 10000 > currFrag){
-          if (firstFragNo == -1){
-            firstFragNo = currFrag;
-          }
-          JSON::Value thisFrag;
-          thisFrag["num"] = metadata["keynum"][0u];
-          thisFrag["len"] = fragLen;
-          thisFrag["dur"] = fragDur;
-          metadata["frags"].append(thisFrag);
-          break;
-        }
-        fragLen++;
-        fragDur += metadata["keylen"][j].asInt();
-      }
-    }
+    long long int currFrag = -1;
     for (unsigned int i = 1; i < metadata["keytime"].size(); i++){
       if (metadata["keytime"][i].asInt() / 10000 > currFrag){
         currFrag = metadata["keytime"][i].asInt() / 10000;
@@ -491,6 +472,11 @@ JSON::Value & DTSC::File::getMeta(){
   return metadata;
 }
 
+/// Returns the header metadata for this file as JSON::Value.
+JSON::Value & DTSC::File::getFirstMeta(){
+  return firstmetadata;
+}
+
 /// (Re)writes the given string to the header area if the size is the same as the existing header.
 /// Forces a write if force is set to true.
 bool DTSC::File::writeHeader(std::string & header, bool force){
@@ -565,6 +551,9 @@ void DTSC::File::readHeader(int pos){
     return;
   }
   metadata = JSON::fromDTMI(strbuffer);
+  if (pos == 0){
+    firstmetadata = metadata;
+  }
   //if there is another header, read it and replace metadata with that one.
   if (metadata.isMember("moreheader") && metadata["moreheader"].asInt() > 0){
     readHeader(metadata["moreheader"].asInt());

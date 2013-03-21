@@ -75,7 +75,11 @@ int main(int argc, char** argv){
 
   DTSC::File source = DTSC::File(conf.getString("filename"));
   JSON::Value meta = source.getMeta();
-  
+
+  //send the header
+  std::string meta_str = meta.toNetPacked();
+  in_out.Send(meta_str);
+
   if ( !(meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags")) && meta.isMember("video")){
     //file needs to be DTSCFix'ed! Run MistDTSCFix executable on it first
     std::cerr << "Calculating / writing / updating VoD metadata..." << std::endl;
@@ -93,12 +97,6 @@ int main(int argc, char** argv){
 
   Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
   int lasttime = Util::epoch(); //time last packet was sent
-
-  //send the header
-  std::string meta_str = meta.toNetPacked();
-  in_out.Send(meta_str);
-  
-  if (meta.isMember("keytime"))
 
   if (meta["video"]["keyms"].asInt() < 11){
     meta["video"]["keyms"] = (long long int)1000;

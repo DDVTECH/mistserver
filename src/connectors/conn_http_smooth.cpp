@@ -23,7 +23,7 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 
-/// Holds everything unique to HTTP Dynamic Connector.
+/// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
   /// Returns a Smooth-format manifest file
   std::string BuildManifest(std::string & MovieId, JSON::Value & metadata){
@@ -31,7 +31,7 @@ namespace Connector_HTTP {
     Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
     Result << "<SmoothStreamingMedia MajorVersion=\"2\" MinorVersion=\"0\" TimeScale=\"10000000\" ";
     if (metadata.isMember("vod")){
-      Result << "Duration=\"" << metadata["lastms"].asInt() << "\"";
+      Result << "Duration=\"" << metadata["lastms"].asInt() << "0000\"";
     }else{
       Result << "Duration=\"0\" IsLive=\"TRUE\" LookAheadFragmentCount=\"2\" DVRWindowLength=\"" + metadata["buffer_window"].asString() + "0000\" CanSeek=\"TRUE\" CanPause=\"TRUE\" ";
     }
@@ -47,14 +47,13 @@ namespace Connector_HTTP {
       Result << std::dec;
       Result << "\" SamplingRate=\"" << metadata["audio"]["rate"].asInt()
           << "\" Channels=\"2\" BitsPerSample=\"16\" PacketSize=\"4\" AudioTag=\"255\" FourCC=\"AACL\"  />\n";
-      for (int i = 0; i < metadata["keytime"].size() - 1; i++){
+      for (unsigned int i = 0; i < metadata["keylen"].size(); i++){
         Result << "    <c ";
         if (i == 0){
-          Result << "t=\"" << metadata["keytime"][0u].asInt() * 10000 << "\" ";
+          Result << "t=\"" << metadata["keytime"][i].asInt() * 10000 << "\" ";
         }
-        Result << "d=\"" << 10000 * (metadata["keytime"][i + 1].asInt() - metadata["keytime"][i].asInt()) << "\" />\n";
+        Result << "d=\"" << metadata["keylen"][i].asInt() * 10000 << "\" />\n";
       }
-      Result << "    <c d=\"" << 10000 * (metadata["lastms"].asInt() - metadata["keytime"][metadata["keytime"].size() - 1].asInt()) << "\" />\n";
       Result << "   </StreamIndex>\n";
     }
     if (metadata.isMember("video")){
@@ -73,14 +72,13 @@ namespace Connector_HTTP {
       Result << std::dec;
       Result << "\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\"" << metadata["video"]["height"].asInt()
           << "\" FourCC=\"AVC1\" />\n";
-      for (int i = 0; i < metadata["keytime"].size() - 1; i++){
+      for (unsigned int i = 0; i < metadata["keylen"].size(); i++){
         Result << "    <c ";
         if (i == 0){
-          Result << "t=\"" << metadata["keytime"][0u].asInt() * 10000 << "\" ";
+          Result << "t=\"" << metadata["keytime"][i].asInt() * 10000 << "\" ";
         }
-        Result << "d=\"" << 10000 * (metadata["keytime"][i + 1].asInt() - metadata["keytime"][i].asInt()) << "\" />\n";
+        Result << "d=\"" << metadata["keylen"][i].asInt() * 10000 << "\" />\n";
       }
-      Result << "    <c d=\"" << 10000 * (metadata["lastms"].asInt() - metadata["keytime"][metadata["keytime"].size() - 1].asInt()) << "\" />\n";
       Result << "   </StreamIndex>\n";
     }
     Result << "</SmoothStreamingMedia>\n";
@@ -168,6 +166,17 @@ namespace Connector_HTTP {
             ReqFragment = atoll(tempStr.substr(0, tempStr.find(")")).c_str());
             if (Strm.metadata.isMember("live")){
               int seekable = Strm.canSeekms(ReqFragment / 10000);
+              if (seekable == 0){
+                // iff the fragment in question is available, check if the next is available too
+                for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
+                  if (Strm.metadata["keytime"][i].asInt() >= (ReqFragment / 10000)){
+                    if (i + 1 == Strm.metadata["keytime"].size()){
+                      seekable = 1;
+                    }
+                    break;
+                  }
+                }
+              }
               if (seekable < 0){
                 HTTP_S.Clean();
                 HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
@@ -266,8 +275,7 @@ namespace Connector_HTTP {
                     if (Strm.metadata["keytime"][i].asInt() > (ReqFragment / 10000)){
                       fragref_box.setTime(fragCount, Strm.metadata["keytime"][i].asInt() * 10000);
                       fragref_box.setDuration(fragCount, Strm.metadata["keylen"][i].asInt() * 10000);
-                      fragCount++;
-                      fragref_box.setFragmentCount(fragCount);
+                      fragref_box.setFragmentCount(++fragCount);
                     }
                   }
                   traf_box.setContent(fragref_box, 3);

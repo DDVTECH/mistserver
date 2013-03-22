@@ -26,15 +26,11 @@
 /// Holds everything unique to HTTP Dynamic Connector.
 namespace Connector_HTTP {
 
-  std::string GenerateBootstrap(std::string & MovieId, JSON::Value & metadata, int fragnum, int starttime, int endtime){
+  std::string GenerateBootstrap(std::string & MovieId, JSON::Value & metadata, int fragnum = 0){
     std::string empty;
 
     MP4::ASRT asrt;
-    if (starttime == 0 && metadata.isMember("vod")){
-      asrt.setUpdate(false);
-    }else{
-      asrt.setUpdate(true);
-    }
+    asrt.setUpdate(false);
     asrt.setVersion(1);
     //asrt.setQualityEntry(empty, 0);
     if (metadata.isMember("live")){
@@ -44,18 +40,19 @@ namespace Connector_HTTP {
     }
 
     MP4::AFRT afrt;
-    if (starttime == 0 && metadata.isMember("vod")){
-      afrt.setUpdate(false);
-    }else{
-      afrt.setUpdate(true);
-    }
+    afrt.setUpdate(false);
     afrt.setVersion(1);
     afrt.setTimeScale(1000);
     //afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
     if (metadata.isMember("live")){
+      // restrict data to last 2 fragments, unless an earlier fragment was expressly requested.
       int count = 0;
-      for (int i = std::max(0u, metadata["keynum"].size() - 3); i < metadata["keynum"].size(); i++){
+      unsigned int begin = std::max(0u, metadata["keynum"].size() - 3);
+      while (begin > 0 && fragnum && metadata["keynum"][begin].asInt() > fragnum){
+        begin--;
+      }
+      for (int i = begin; i < metadata["keynum"].size(); i++){
         afrtrun.firstFragment = metadata["keynum"][i].asInt();
         afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
         afrtrun.duration = metadata["keylen"][i].asInt();
@@ -72,17 +69,9 @@ namespace Connector_HTTP {
 
     MP4::ABST abst;
     abst.setVersion(1);
-    if (metadata.isMember("live")){
-      abst.setBootstrapinfoVersion(metadata["keynum"][metadata["keynum"].size() - 2].asInt());
-    }else{
-      abst.setBootstrapinfoVersion(1);
-    }
+    abst.setBootstrapinfoVersion(1);
     abst.setProfile(0);
-    if (starttime == 0){
-      abst.setUpdate(false);
-    }else{
-      abst.setUpdate(true);
-    }
+    abst.setUpdate(false);
     abst.setTimeScale(1000);
     abst.setLive(false);
     abst.setCurrentMediaTime(metadata["lastms"].asInt());
@@ -111,7 +100,7 @@ namespace Connector_HTTP {
               "<mimeType>video/mp4</mimeType>\n"
               "<streamType>recorded</streamType>\n"
               "<deliveryType>streaming</deliveryType>\n"
-              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata, 1, 0, 0)) + "</bootstrapInfo>\n"
+              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata)) + "</bootstrapInfo>\n"
               "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
               "<metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>\n"
               "</media>\n"
@@ -195,7 +184,7 @@ namespace Connector_HTTP {
           }
           if (HTTP_R.url.find(".abst") != std::string::npos){
             HTTP_S.Clean();
-            HTTP_S.SetBody(GenerateBootstrap(streamname, Strm.metadata, 1, 0, 0));
+            HTTP_S.SetBody(GenerateBootstrap(streamname, Strm.metadata));
             HTTP_S.SetHeader("Content-Type", "binary/octet");
             HTTP_S.SetHeader("Cache-Control", "no-cache");
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
@@ -215,6 +204,10 @@ namespace Connector_HTTP {
 #endif
             if (Strm.metadata.isMember("live")){
               int seekable = Strm.canSeekFrame(ReqFragment);
+              if (seekable == 0){
+                // iff the fragment in question is available, check if the next is available too
+                seekable = Strm.canSeekFrame(ReqFragment + 1);
+              }
               if (seekable < 0){
                 HTTP_S.Clean();
                 HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
@@ -261,7 +254,7 @@ namespace Connector_HTTP {
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
                 HTTP_S.SetBody("");
-                std::string new_strap = GenerateBootstrap(streamname, Strm.metadata, 1, 0, 0);
+                std::string new_strap = GenerateBootstrap(streamname, Strm.metadata, ReqFragment);
                 HTTP_S.SetHeader("Content-Length", FlashBufSize + 8 + new_strap.size()); //32+33+btstrp.size());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
                 conn.SendNow(new_strap);

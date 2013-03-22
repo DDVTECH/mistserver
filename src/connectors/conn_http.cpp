@@ -296,7 +296,7 @@ namespace Connector_HTTP {
             }
             connconn[uid]->lastuse = 0;
             timeout = 0;
-            Util::sleep(2000);
+            Util::sleep(5000);
             connconn[uid]->conn->SendNow(request);
             continue;
           }

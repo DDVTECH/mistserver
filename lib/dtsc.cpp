@@ -314,6 +314,7 @@ void DTSC::Stream::updateHeaders(){
   if (keyframes.size() > 2){
     metadata["keytime"].shrink(keyframes.size() - 2);
     metadata["keynum"].shrink(keyframes.size() - 2);
+    metadata["keylen"].shrink(keyframes.size() - 2);
     metadata["keytime"].append(buffers[keyframes[1].b]["time"].asInt());
     if (metadata["keynum"].size() == 0){
       metadata["keynum"].append(1ll);

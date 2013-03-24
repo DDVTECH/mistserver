@@ -312,15 +312,32 @@ void DTSC::Stream::dropRing(DTSC::Ring * ptr){
 /// time than right after receiving a new keyframe, or there'll be raptors.
 void DTSC::Stream::updateHeaders(){
   if (keyframes.size() > 2){
+    if (buffers[keyframes[0].b]["time"].asInt() < buffers[keyframes[keyframes.size() - 1].b]["time"].asInt()){
+      std::cerr << "Detected new video - resetting all buffers and metadata - hold on, this ride might get bumpy!" << std::endl;
+      keyframes.clear();
+      buffers.clear();
+      std::set<DTSC::Ring *>::iterator sit;
+      if ( !rings.size()){
+        return;
+      }
+      for (sit = rings.begin(); sit != rings.end(); sit++){
+        ( *sit)->updated = true;
+        ( *sit)->b = 0;
+        ( *sit)->starved = true;
+      }
+      metadata.removeMember("keytime");
+      metadata.removeMember("keynum");
+      metadata.removeMember("keylen");
+      metadata.removeMember("frags");
+      metadata.removeMember("lastms");
+      metadata.removeMember("missed_frags");
+      return;
+    }
     metadata["keytime"].shrink(keyframes.size() - 2);
     metadata["keynum"].shrink(keyframes.size() - 2);
     metadata["keylen"].shrink(keyframes.size() - 2);
     metadata["keytime"].append(buffers[keyframes[1].b]["time"].asInt());
-    if (metadata["keynum"].size() == 0){
-      metadata["keynum"].append(1ll);
-    }else{
-      metadata["keynum"].append(metadata["keynum"][metadata["keynum"].size() - 1].asInt() + 1);
-    }
+    metadata["keynum"].append(buffers[keyframes[1].b]["fragnum"].asInt());
     metadata["keylen"].append(buffers[keyframes[0].b]["time"].asInt() - buffers[keyframes[1].b]["time"].asInt());
     long long int firstFragNo = -1;
     metadata["frags"].null();

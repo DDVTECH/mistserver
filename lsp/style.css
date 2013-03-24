@@ -376,6 +376,10 @@ td
 {
    margin-top: 10px;
 }
+#page label input#protocol-parameter-username
+{
+   text-transform: none;
+}
 
 #forcesave
 {

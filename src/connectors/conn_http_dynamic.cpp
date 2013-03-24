@@ -159,7 +159,7 @@ namespace Connector_HTTP {
           }
         }
         if (HTTP_R.Read(conn.Received().get())){
-#if DEBUG >= 4
+#if DEBUG >= 5
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));

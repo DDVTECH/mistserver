@@ -174,36 +174,70 @@ namespace Connector_HTTP {
       if (ServConf["streams"].isMember(streamname) && ServConf["config"]["protocols"].size() > 0){
         json_resp["width"] = ServConf["streams"][streamname]["meta"]["video"]["width"].asInt();
         json_resp["height"] = ServConf["streams"][streamname]["meta"]["video"]["height"].asInt();
+        if (json_resp["width"].asInt() < 1 || json_resp["height"].asInt() < 1){
+          json_resp["width"] = 640ll;
+          json_resp["height"] = 480ll;
+        }
+        //find out which connectors are enabled
+        std::set<std::string> conns;
+        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
+          conns.insert(( *it)["connector"].asString());
+        }
         //first, see if we have RTMP working and output all the RTMP.
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
           if (( *it)["connector"].asString() == "RTMP"){
+            if (( *it)["port"].asInt() == 0){
+              ( *it)["port"] = 1935ll;
+            }
             JSON::Value tmp;
             tmp["type"] = "rtmp";
             tmp["url"] = "rtmp://" + host + ":" + ( *it)["port"].asString() + "/play/" + streamname;
             json_resp["source"].append(tmp);
           }
         }
-        //then, see if we have HTTP working and output all the dynamic.
+        /// \todo Add raw MPEG2 TS support here?
+        //then, see if we have HTTP working and output all the HTTP.
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
           if (( *it)["connector"].asString() == "HTTP"){
-            JSON::Value tmp;
-            tmp["type"] = "f4v";
-            tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/" + streamname + "/manifest.f4m";
-            json_resp["source"].append(tmp);
-          }
-        }
-        //and all the progressive.
-        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          if (( *it)["connector"].asString() == "HTTP"){
-            JSON::Value tmp;
-            tmp["type"] = "flv";
-            tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/" + streamname + ".flv";
-            json_resp["source"].append(tmp);
+            if (( *it)["port"].asInt() == 0){
+              ( *it)["port"] = 8080ll;
+            }
+            // check for dynamic
+            if (conns.count("HTTPDynamic")){
+              JSON::Value tmp;
+              tmp["type"] = "f4v";
+              tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/dynamic/" + streamname + "/manifest.f4m";
+              tmp["relurl"] = "/dynamic/" + streamname + "/manifest.f4m";
+              json_resp["source"].append(tmp);
+            }
+            // check for smooth
+            if (conns.count("HTTPSmooth")){
+              JSON::Value tmp;
+              tmp["type"] = "ism";
+              tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/smooth/" + streamname + ".ism/Manifest";
+              tmp["relurl"] = "/smooth/" + streamname + ".ism/Manifest";
+              json_resp["source"].append(tmp);
+            }
+            // check for HLS
+            if (conns.count("HTTPLive")){
+              JSON::Value tmp;
+              tmp["type"] = "hls";
+              tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/hls/" + streamname + "/index.m3u8";
+              tmp["relurl"] = "/hls/" + streamname + "/index.m3u8";
+              json_resp["source"].append(tmp);
+            }
+            // check for progressive
+            if (conns.count("HTTPProgressive")){
+              JSON::Value tmp;
+              tmp["type"] = "flv";
+              tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/" + streamname + ".flv";
+              tmp["relurl"] = "/" + streamname + ".flv";
+              json_resp["source"].append(tmp);
+            }
           }
         }
       }else{
         json_resp["error"] = "The specified stream is not available on this server.";
-        json_resp["bbq"] = "sauce"; //for legacy purposes ^_^
       }
       response += "mistvideo['" + streamname + "'] = " + json_resp.toString() + ";\n";
       if (url.substr(0, 6) != "/info_" && !json_resp.isMember("error")){

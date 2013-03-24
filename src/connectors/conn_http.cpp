@@ -286,7 +286,7 @@ namespace Connector_HTTP {
         }
         //check if the whole response was received
         if (H.Read(connconn[uid]->conn->Received().get())){
-          //208 means the fragment is too new, retry in 2000ms
+          //208 means the fragment is too new, retry in 3s
           if (H.url == "208"){
             retries++;
             if (retries >= 5){
@@ -296,8 +296,9 @@ namespace Connector_HTTP {
             }
             connconn[uid]->lastuse = 0;
             timeout = 0;
-            Util::sleep(5000);
+            Util::sleep(3000);
             connconn[uid]->conn->SendNow(request);
+            H.Clean();
             continue;
           }
           break; //continue down below this while loop

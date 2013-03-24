@@ -31,8 +31,8 @@ bool Util::Procs::handler_set = false;
 void Util::Procs::exit_handler(){
   int waiting = 0;
   while ( !plist.empty()){
-    Util::sleep(500);
-    if (++waiting > 5){
+    Util::sleep(100);
+    if (++waiting > 25){
       break;
     }
   }
@@ -47,8 +47,8 @@ void Util::Procs::exit_handler(){
 
   waiting = 0;
   while ( !plist.empty()){
-    Util::sleep(500);
-    if (++waiting > 10){
+    Util::sleep(200);
+    if (++waiting > 25){
       break;
     }
   }

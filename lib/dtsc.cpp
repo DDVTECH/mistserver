@@ -258,7 +258,7 @@ void DTSC::Stream::advanceRings(){
     }while (repeat);
   }
   static int fragNum = 1;
-  if ((lastType() == VIDEO) && (buffers.front().isMember("keyframe"))){
+  if ((lastType() == VIDEO && buffers.front().isMember("keyframe")) || (!metadata.isMember("video") && lastType() == AUDIO)){
     keyframes.push_front(DTSC::Ring(0));
     if ( !buffers.front().isMember("fragnum")){
       buffers.front()["fragnum"] = fragNum++;

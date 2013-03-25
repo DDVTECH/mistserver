@@ -36,7 +36,7 @@ namespace Connector_HTTP {
       Result << "Duration=\"0\" IsLive=\"TRUE\" LookAheadFragmentCount=\"2\" DVRWindowLength=\"" + metadata["buffer_window"].asString() + "0000\" CanSeek=\"TRUE\" CanPause=\"TRUE\" ";
     }
     Result << ">\n";
-    if (metadata.isMember("audio")){
+    if (metadata.isMember("audio") && metadata["audio"]["codec"].asString() == "AAC"){
       Result << "  <StreamIndex Type=\"audio\" QualityLevels=\"1\" Name=\"audio\" Chunks=\"" << metadata["keytime"].size()
           << "\" Url=\"Q({bitrate})/A({start time})\">\n";
       Result << "    <QualityLevel Index=\"0\" Bitrate=\"" << metadata["audio"]["bps"].asInt() * 8 << "\" CodecPrivateData=\"";
@@ -56,7 +56,7 @@ namespace Connector_HTTP {
       }
       Result << "   </StreamIndex>\n";
     }
-    if (metadata.isMember("video")){
+    if (metadata.isMember("video") && metadata["video"]["codec"].asString() == "H264"){
       Result << "  <StreamIndex Type=\"video\" QualityLevels=\"1\" Name=\"video\" Chunks=\"" << metadata["keytime"].size()
           << "\" Url=\"Q({bitrate})/V({start time})\" MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" MaxHeight=\""
           << metadata["video"]["height"].asInt() << "\" DisplayWidth=\"" << metadata["video"]["width"].asInt() << "\" DisplayHeight=\""

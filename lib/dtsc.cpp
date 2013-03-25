@@ -317,13 +317,12 @@ void DTSC::Stream::updateHeaders(){
       keyframes.clear();
       buffers.clear();
       std::set<DTSC::Ring *>::iterator sit;
-      if ( !rings.size()){
-        return;
-      }
-      for (sit = rings.begin(); sit != rings.end(); sit++){
-        ( *sit)->updated = true;
-        ( *sit)->b = 0;
-        ( *sit)->starved = true;
+      if (rings.size()){
+        for (sit = rings.begin(); sit != rings.end(); sit++){
+          ( *sit)->updated = true;
+          ( *sit)->b = 0;
+          ( *sit)->starved = true;
+        }
       }
       metadata.removeMember("keytime");
       metadata.removeMember("keynum");
@@ -331,6 +330,7 @@ void DTSC::Stream::updateHeaders(){
       metadata.removeMember("frags");
       metadata.removeMember("lastms");
       metadata.removeMember("missed_frags");
+      metadata.toPacked();
       return;
     }
     metadata["keytime"].shrink(keyframes.size() - 2);

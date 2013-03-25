@@ -4,6 +4,7 @@
 #include "amf.h"
 #include "rtmpchunks.h"
 #include "flv_tag.h"
+#include "timing.h"
 #include <stdio.h> //for Tag::FileLoader
 #include <unistd.h> //for Tag::FileLoader
 #include <fcntl.h> //for Tag::FileLoader
@@ -913,6 +914,8 @@ bool FLV::Tag::FileLoader(FILE * f){
             Error_Str = "Invalid header received.";
             return false;
           }
+        }else{
+          Util::sleep(100);//sleep 100ms
         }
       }else{
         //if a tag header, calculate length and read tag body
@@ -933,6 +936,8 @@ bool FLV::Tag::FileLoader(FILE * f){
         }
         done = false;
       }
+    }else{
+      Util::sleep(100);//sleep 100ms
     }
   }else{
     //read tag body
@@ -947,6 +952,8 @@ bool FLV::Tag::FileLoader(FILE * f){
       sofar = 0;
       fcntl(fileno(f), F_SETFL, preflags);
       return true;
+    }else{
+      Util::sleep(100);//sleep 100ms
     }
   }
   fcntl(fileno(f), F_SETFL, preflags);

@@ -298,7 +298,8 @@ int main(int argc, char ** argv){
             if (Request.isMember("vod")){
               std::string thisfile = Request["vod"]["filename"];
               for (JSON::ObjIter oit = Controller::Storage["streams"].ObjBegin(); oit != Controller::Storage["streams"].ObjEnd(); ++oit){
-                if ((oit->second.isMember("source") && oit->second["source"].asString() == thisfile) || (oit->second.isMember("channel") && oit->second["channel"]["URL"].asString() == thisfile)){
+                if ((oit->second.isMember("source") && oit->second["source"].asString() == thisfile)
+                    || (oit->second.isMember("channel") && oit->second["channel"]["URL"].asString() == thisfile)){
                   Controller::lastBuffer[oit->first] = Util::epoch();
                   if (Request["vod"].isMember("meta")){
                     Controller::Storage["streams"][oit->first]["meta"] = Request["vod"]["meta"];

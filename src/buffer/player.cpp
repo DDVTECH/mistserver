@@ -80,17 +80,18 @@ int main(int argc, char** argv){
   std::string meta_str = meta.toNetPacked();
   in_out.Send(meta_str);
 
-  if ( !(meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags")) && meta.isMember("video")){
+  if ( !(meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags"))
+      && meta.isMember("video")){
     //file needs to be DTSCFix'ed! Run MistDTSCFix executable on it first
     std::cerr << "Calculating / writing / updating VoD metadata..." << std::endl;
-    Util::Procs::Start("Fixer", Util::getMyPath() + "MistDTSCFix "+conf.getString("filename"));
+    Util::Procs::Start("Fixer", Util::getMyPath() + "MistDTSCFix " + conf.getString("filename"));
     while (Util::Procs::isActive("Fixer")){
       Util::sleep(5000);
     }
     std::cerr << "Done! Aborting this request to make sure all goes well." << std::endl;
     return 1;
   }
-  
+
   JSON::Value pausemark;
   pausemark["datatype"] = "pause_marker";
   pausemark["time"] = (long long int)0;

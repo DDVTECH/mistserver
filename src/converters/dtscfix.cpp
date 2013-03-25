@@ -21,7 +21,8 @@ namespace Converters {
       return 1;
     }
     if (oriheader["moreheader"].asInt() > 0){
-      if ((meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags")) || !meta.isMember("video")){
+      if ((meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags"))
+          || !meta.isMember("video")){
         std::cerr << "This file was already fixed or doesn't need fixing - cancelling." << std::endl;
         return 0;
       }
@@ -53,7 +54,7 @@ namespace Converters {
         if (F.getJSON()["keyframe"].asInt() != 0){
           meta["keytime"].append(F.getJSON()["time"]);
           meta["keybpos"].append(F.getLastReadPos());
-          meta["keynum"].append(++keynum);
+          meta["keynum"].append( ++keynum);
           if (meta["keytime"].size() > 1){
             meta["keylen"].append(F.getJSON()["time"].asInt() - meta["keytime"][meta["keytime"].size() - 2].asInt());
           }
@@ -87,7 +88,7 @@ namespace Converters {
           long long int fragLen = 1;
           long long int fragDur = meta["keylen"][i].asInt();
           for (unsigned int j = i; j < meta["keytime"].size(); j++){
-            if (meta["keytime"][j].asInt() / 10000 > currFrag || j == meta["keytime"].size()-1){
+            if (meta["keytime"][j].asInt() / 10000 > currFrag || j == meta["keytime"].size() - 1){
               JSON::Value thisFrag;
               thisFrag["num"] = meta["keynum"][i];
               thisFrag["len"] = fragLen;
@@ -101,7 +102,7 @@ namespace Converters {
         }
       }
     }
-    
+
     //append the revised header
     std::string loader = meta.toPacked();
     long long int newHPos = F.addHeader(loader);

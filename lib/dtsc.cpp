@@ -258,11 +258,13 @@ void DTSC::Stream::advanceRings(){
     }while (repeat);
   }
   static int fragNum = 1;
-  if ((lastType() == VIDEO && buffers.front().isMember("keyframe")) || (!metadata.isMember("video") && lastType() == AUDIO)){
+  static unsigned int lastkeytime = 4242;
+  if ((lastType() == VIDEO && buffers.front().isMember("keyframe")) || (!metadata.isMember("video") && buffers.front()["time"].asInt() / 2000 != lastkeytime)){
     keyframes.push_front(DTSC::Ring(0));
     if ( !buffers.front().isMember("fragnum")){
       buffers.front()["fragnum"] = fragNum++;
     }
+    lastkeytime = buffers.front()["time"].asInt() / 2000;
   }
   unsigned int timeBuffered = 0;
   if (keyframes.size() > 1){

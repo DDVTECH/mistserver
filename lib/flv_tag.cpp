@@ -360,6 +360,7 @@ FLV::Tag & FLV::Tag::operator=(const FLV::Tag& O){
 /// FLV loader function from DTSC.
 /// Takes the DTSC data and makes it into FLV.
 bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
+  std::string meta_str;
   switch (S.lastType()){
     case DTSC::VIDEO:
       len = S.lastData().length() + 16;
@@ -377,9 +378,21 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
         }
       }
       break;
-    case DTSC::META:
-      len = S.lastData().length() + 15;
+    case DTSC::META:{
+      AMF::Object amfdata("root", AMF::AMF0_DDV_CONTAINER);
+      amfdata.addContent(AMF::Object("", "onMetaData"));
+      amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
+      for (JSON::ObjIter it = S.getPacket()["data"].ObjBegin(); it != S.getPacket()["data"].ObjEnd(); it++){
+        if (it->second.asInt()){
+          amfdata.getContentP(1)->addContent(AMF::Object(it->first, it->second.asInt(), AMF::AMF0_NUMBER));
+        }else{
+          amfdata.getContentP(1)->addContent(AMF::Object(it->first, it->second.asString(), AMF::AMF0_STRING));
+        }
+      }
+      meta_str = amfdata.Pack();
+      len = meta_str.length() + 15;
       break;
+    }
     default: //ignore all other types (there are currently no other types...)
       break;
   }
@@ -457,7 +470,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
         break;
       }
       case DTSC::META:
-        memcpy(data + 11, S.lastData().c_str(), S.lastData().length());
+        memcpy(data + 11, meta_str.c_str(), meta_str.length());
         break;
       default:
         break;
@@ -1023,6 +1036,22 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
         }else{
           metadata["audio"]["channels"] = 1;
         }
+      }
+      for (int i = 0; i < tmp->hasContent(); ++i){
+        if (tmp->getContentP(i)->Indice() == "videocodecid" || tmp->getContentP(i)->Indice() == "audiocodecid" || tmp->getContentP(i)->Indice() == "width" || tmp->getContentP(i)->Indice() == "height" || tmp->getContentP(i)->Indice() == "framerate" || tmp->getContentP(i)->Indice() == "videodatarate" || tmp->getContentP(i)->Indice() == "audiodatarate" || tmp->getContentP(i)->Indice() == "audiosamplerate" || tmp->getContentP(i)->Indice() == "audiosamplesize" || tmp->getContentP(i)->Indice() == "audiochannels"){
+          continue;
+        }
+        if (tmp->getContentP(i)->NumValue()){
+          pack_out["data"][tmp->getContentP(i)->Indice()] = (long long)tmp->getContentP(i)->NumValue();
+        }else{
+          if (tmp->getContentP(i)->StrValue() != ""){
+            pack_out["data"][tmp->getContentP(i)->Indice()] = tmp->getContentP(i)->StrValue();
+          }
+        }
+      }
+      if (pack_out){
+        pack_out["datatype"] = "meta";
+        pack_out["time"] = tagTime();
       }
     }
     if ( !metadata.isMember("length")){

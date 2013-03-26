@@ -178,6 +178,12 @@ namespace Connector_HTTP {
           json_resp["width"] = 640ll;
           json_resp["height"] = 480ll;
         }
+        if (ServConf["streams"][streamname]["meta"].isMember("vod")){
+          json_resp["type"] = "vod";
+        }
+        if (ServConf["streams"][streamname]["meta"].isMember("live")){
+          json_resp["type"] = "live";
+        }
         //find out which connectors are enabled
         std::set<std::string> conns;
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){

@@ -62,6 +62,10 @@
                   // show correct tab
                   showTab($(this).text());
                });
+               
+               if (($(this).text() == "limits") && (settings.settings.LTS != 1)) {
+                  $(this).remove();
+               }
             });
             
             // show login 'tab' and hide menu
@@ -879,7 +883,7 @@
                            {
                               var text = $(this).val();
                               
-															/*
+                              /*
                               if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
                               {
                                  $('#stream-edit-preset').val('');
@@ -889,8 +893,8 @@
                                  $('#stream-edit-preset').show();
                                  $('#stream-edit-preset-label').show();
                               }
-															*/
-															
+                              */
+                              
                               if(text.charAt(0) == '/')
                               {
                                  $('#stream-edit-buffer').val('');
@@ -903,7 +907,7 @@
                            })
                         )
                      )
-										 /*.append(
+                     /*.append(
                         $('<label>').attr('id', 'stream-edit-preset-label').attr('for', 'stream-edit-preset').text('preset').append(
                            $('<input>').attr('type', 'text').attr('placeholder', 'PRESET').attr('id', 'stream-edit-preset').attr('value', sdata.preset.cmd)
                         )
@@ -1052,6 +1056,11 @@
                   break;
                   
                case 'limits':
+                  if (settings.settings.LTS != 1) {
+                    $('#page').html('Limits are not supported in your version. Buy the LTS! :)');
+                    return;
+                  } 
+               
                   $table = $('<table>');
                   $table.html("<thead><th>Type</th><th>Hard/soft</th><th>Value</th><th>applies to</th><th>Action</th></thead>");
                   $tbody = $('<tbody>');

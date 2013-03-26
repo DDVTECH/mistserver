@@ -126,6 +126,7 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       std::string wholepacket = buffer.remove(len + 8);
       metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
       metadata.removeMember("moreheader");
+      metadata.netPrepare();
       if ( !buffer.available(8)){
         return false;
       }
@@ -332,7 +333,7 @@ void DTSC::Stream::updateHeaders(){
       metadata.removeMember("frags");
       metadata.removeMember("lastms");
       metadata.removeMember("missed_frags");
-      metadata.toPacked();
+      metadata.netPrepare();
       return;
     }
     metadata["keytime"].shrink(keyframes.size() - 2);
@@ -370,7 +371,7 @@ void DTSC::Stream::updateHeaders(){
     metadata["lastms"] = buffers[keyframes[0].b]["time"].asInt();
     metadata["buffer_window"] = (long long int)buffertime;
     metadata["live"] = true;
-    metadata.toPacked();
+    metadata.netPrepare();
     updateRingHeaders();
   }
 }
@@ -592,7 +593,7 @@ void DTSC::File::readHeader(int pos){
     }
   }
   metadata["vod"] = true;
-  metadata.toPacked();
+  metadata.netPrepare();
 }
 
 /// Reads the packet available at the current file position.

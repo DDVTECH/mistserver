@@ -70,6 +70,7 @@ namespace JSON {
       Value & operator[](unsigned int i);
       //handy functions and others
       std::string toPacked();
+      void netPrepare();
       std::string & toNetPacked();
       std::string toString();
       std::string toPrettyString(int indentation = 0);

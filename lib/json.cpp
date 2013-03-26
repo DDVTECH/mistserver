@@ -464,13 +464,36 @@ std::string JSON::Value::toPacked(){
   }
   return r;
 }
-;
 //toPacked
+
+/// Pre-packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
+/// Non-object-types will print an error to stderr.
+/// The internal buffer is guaranteed to be up-to-date after this function is called.
+void JSON::Value::netPrepare(){
+  if (myType != OBJECT){
+    fprintf(stderr, "Error: Only objects may be NetPacked!\n");
+    return;
+  }
+  std::string packed = toPacked();
+  strVal.resize(packed.size() + 8);
+  //insert proper header for this type of data
+  if (isMember("datatype")){
+    memcpy((void*)strVal.c_str(), "DTPD", 4);
+  }else{
+    memcpy((void*)strVal.c_str(), "DTSC", 4);
+  }
+  //insert the packet length at bytes 4-7
+  unsigned int size = htonl(packed.size());
+  memcpy((void*)(strVal.c_str() + 4), (void*) &size, 4);
+  //copy the rest of the string
+  memcpy((void*)(strVal.c_str() + 8), packed.c_str(), packed.size());
+}
 
 /// Packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
 /// Non-object-types will print an error to stderr and return an empty string.
 /// This function returns a reference to an internal buffer where the prepared data is kept.
-/// The internal buffer is *not* made stale if any changes occur inside the object - subsequent calls to toPacked() will clear the buffer.
+/// The internal buffer is *not* made stale if any changes occur inside the object - subsequent calls to toPacked() will clear the buffer,
+/// calls to netPrepare will guarantee it is up-to-date.
 std::string & JSON::Value::toNetPacked(){
   static std::string emptystring;
   //check if this is legal
@@ -480,19 +503,7 @@ std::string & JSON::Value::toNetPacked(){
   }
   //if sneaky storage doesn't contain correct data, re-calculate it
   if (strVal.size() == 0 || strVal[0] != 'D' || strVal[1] != 'T'){
-    std::string packed = toPacked();
-    strVal.resize(packed.size() + 8);
-    //insert proper header for this type of data
-    if (isMember("datatype")){
-      memcpy((void*)strVal.c_str(), "DTPD", 4);
-    }else{
-      memcpy((void*)strVal.c_str(), "DTSC", 4);
-    }
-    //insert the packet length at bytes 4-7
-    unsigned int size = htonl(packed.size());
-    memcpy((void*)(strVal.c_str() + 4), (void*) &size, 4);
-    //copy the rest of the string
-    memcpy((void*)(strVal.c_str() + 8), packed.c_str(), packed.size());
+    netPrepare();
   }
   return strVal;
 }

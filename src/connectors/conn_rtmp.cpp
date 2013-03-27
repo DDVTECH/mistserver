@@ -45,8 +45,10 @@ namespace Connector_RTMP {
   int Connector_RTMP(Socket::Connection conn);
 } //Connector_RTMP namespace;
 
-/// Main Connector_RTMP function
-int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
+  ///\brief Main Connector_RTMP function
+  ///\param conn A socket describing the connection the client.
+  ///\return The exit code of the connector.
+  int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   Socket = conn;
   Socket.setBlocking(false);
   FLV::Tag tag, init_tag;
@@ -179,7 +181,8 @@ int Connector_RTMP::Connector_RTMP(Socket::Connection conn){
   return 0;
 } //Connector_RTMP
 
-/// Tries to get and parse one RTMP chunk at a time.
+///\brief Tries to get and parse one RTMP chunk at a time.
+///\param inbuffer A buffer filled with chunk data.
 void Connector_RTMP::parseChunk(Socket::Buffer & inbuffer){
   //for DTSC conversion
   static JSON::Value meta_out;
@@ -597,6 +600,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
 #endif
 } //parseAMFCommand
 
+///\brief The standard process-spawning main function.
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   conf.addConnectorOptions(1935);

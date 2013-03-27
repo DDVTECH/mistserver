@@ -23,10 +23,14 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 
-/// Holds everything unique to HTTP Dynamic Connector.
+/// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
-
-  std::string GenerateBootstrap(std::string & MovieId, JSON::Value & metadata, int fragnum = 0){
+  ///\brief Builds a bootstrap for use in HTTP Dynamic streaming.
+  ///\param MovieId The name of the movie.
+  ///\param metadata The current metadata, used to generate the index.
+  ///\param fragnum The index of the current fragment
+  ///\return The generated bootstrap.
+  std::string dynamicBootstrap(std::string & MovieId, JSON::Value & metadata, int fragnum = 0){
     std::string empty;
 
     MP4::ASRT asrt;
@@ -86,8 +90,11 @@ namespace Connector_HTTP {
     return std::string((char*)abst.asBox(), (int)abst.boxedSize());
   }
 
-  /// Returns a F4M-format manifest file
-  std::string BuildManifest(std::string & MovieId, JSON::Value & metadata){
+  ///\brief Builds an index file for HTTP Dynamic streaming.
+  ///\param MovieId The name of the movie.
+  ///\param metadata The current metadata, used to generate the index.
+  ///\return The index file for HTTP Dynamic Streaming.
+  std::string dynamicIndex(std::string & MovieId, JSON::Value & metadata){
     std::string Result;
     if (metadata.isMember("vod")){
       Result =
@@ -100,7 +107,7 @@ namespace Connector_HTTP {
               "<mimeType>video/mp4</mimeType>\n"
               "<streamType>recorded</streamType>\n"
               "<deliveryType>streaming</deliveryType>\n"
-              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(GenerateBootstrap(MovieId, metadata)) + "</bootstrapInfo>\n"
+              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(dynamicBootstrap(MovieId, metadata)) + "</bootstrapInfo>\n"
               "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
               "<metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>\n"
               "</media>\n"
@@ -126,8 +133,10 @@ namespace Connector_HTTP {
     return Result;
   } //BuildManifest
 
-  /// Main function for Connector_HTTP_Dynamic
-  int Connector_HTTP_Dynamic(Socket::Connection conn){
+  ///\brief Main function for the HTTP Dynamic Connector
+  ///\param conn A socket describing the connection the client.
+  ///\return The exit code of the connector.
+  int dynamicConnector(Socket::Connection conn){
     std::deque<std::string> FlashBuf;
     int FlashBufSize = 0;
     long long int FlashBufTime = 0;
@@ -184,7 +193,7 @@ namespace Connector_HTTP {
           }
           if (HTTP_R.url.find(".abst") != std::string::npos){
             HTTP_S.Clean();
-            HTTP_S.SetBody(GenerateBootstrap(streamname, Strm.metadata));
+            HTTP_S.SetBody(dynamicBootstrap(streamname, Strm.metadata));
             HTTP_S.SetHeader("Content-Type", "binary/octet");
             HTTP_S.SetHeader("Cache-Control", "no-cache");
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
@@ -232,7 +241,7 @@ namespace Connector_HTTP {
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type", "text/xml");
             HTTP_S.SetHeader("Cache-Control", "no-cache");
-            std::string manifest = BuildManifest(streamname, Strm.metadata);
+            std::string manifest = dynamicIndex(streamname, Strm.metadata);
             HTTP_S.SetBody(manifest);
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
           }
@@ -254,7 +263,7 @@ namespace Connector_HTTP {
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
                 HTTP_S.SetBody("");
-                std::string new_strap = GenerateBootstrap(streamname, Strm.metadata, ReqFragment);
+                std::string new_strap = dynamicBootstrap(streamname, Strm.metadata, ReqFragment);
                 HTTP_S.SetHeader("Content-Length", FlashBufSize + 8 + new_strap.size()); //32+33+btstrp.size());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
                 conn.SendNow(new_strap);
@@ -305,6 +314,7 @@ namespace Connector_HTTP {
 
 } //Connector_HTTP_Dynamic namespace
 
+///\brief The standard process-spawning main function.
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   conf.addConnectorOptions(1935);
@@ -320,7 +330,7 @@ int main(int argc, char ** argv){
     if (S.connected()){ //check if the new connection is valid
       pid_t myid = fork();
       if (myid == 0){ //if new child, start MAINHANDLER
-        return Connector_HTTP::Connector_HTTP_Dynamic(S);
+        return Connector_HTTP::dynamicConnector(S);
       }else{ //otherwise, do nothing or output debugging text
 #if DEBUG >= 3
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());

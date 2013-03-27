@@ -25,9 +25,11 @@
 
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
-
-  /// Returns a m3u or m3u8 index file
-  std::string BuildIndex(std::string & MovieId, JSON::Value & metadata){
+  ///\brief Builds an index file for HTTP Live streaming.
+  ///\param MovieId The name of the movie.
+  ///\param metadata The current metadata, used to generate the index.
+  ///\return The index file for HTTP Live Streaming.
+  std::string liveIndex(std::string & MovieId, JSON::Value & metadata){
     std::stringstream Result;
     if ( !metadata.isMember("live")){
       int longestFragment = 0;
@@ -58,10 +60,12 @@ namespace Connector_HTTP {
     std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
 #endif
     return Result.str();
-  } //BuildIndex
+  } //liveIndex
 
-  /// Main function for Connector_HTTP_Live
-  int Connector_HTTP_Live(Socket::Connection conn){
+  ///\brief Main function for the HTTP HLS Connector
+  ///\param conn A socket describing the connection the client.
+  ///\return The exit code of the connector.
+  int liveConnector(Socket::Connection conn){
     std::stringstream TSBuf;
     long long int TSBufTime = 0;
 
@@ -171,7 +175,7 @@ namespace Connector_HTTP {
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type", manifestType);
             HTTP_S.SetHeader("Cache-Control", "no-cache");
-            std::string manifest = BuildIndex(streamname, Strm.metadata);
+            std::string manifest = liveIndex(streamname, Strm.metadata);
             HTTP_S.SetBody(manifest);
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
           }
@@ -292,10 +296,11 @@ namespace Connector_HTTP {
     fprintf(stderr, "HLS: User %i disconnected.\n", conn.getSocket());
 #endif
     return 0;
-  } //Connector_HTTP_Dynamic main function
+  } //HLS_Connector main function
 
-} //Connector_HTTP_Dynamic namespace
+} //Connector_HTTP namespace
 
+///\brief The standard process-spawning main function.
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   conf.addConnectorOptions(1935);
@@ -311,7 +316,7 @@ int main(int argc, char ** argv){
     if (S.connected()){ //check if the new connection is valid
       pid_t myid = fork();
       if (myid == 0){ //if new child, start MAINHANDLER
-        return Connector_HTTP::Connector_HTTP_Live(S);
+        return Connector_HTTP::liveConnector(S);
       }else{ //otherwise, do nothing or output debugging text
 #if DEBUG >= 5
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());

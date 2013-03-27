@@ -1,8 +1,10 @@
-/// \file conn_http_progressive.cpp
-/// Contains the main code for the HTTP Progressive Connector
+///\file conn_http_progressive.cpp
+///\brief Contains the main code for the HTTP Progressive Connector
 
 #include <iostream>
 #include <queue>
+#include <sstream>
+
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
@@ -10,7 +12,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <getopt.h>
-#include <sstream>
+
 #include <mist/socket.h>
 #include <mist/http_parser.h>
 #include <mist/dtsc.h>
@@ -20,28 +22,29 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 
-/// Holds everything unique to HTTP Progressive Connector.
+///\brief Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
+  ///\brief Main function for the HTTP Progressive Connector
+  ///\param conn A socket describing the connection the client.
+  ///\return The exit code of the connector.
+  int progressiveConnector(Socket::Connection conn){
+    bool progressive_has_sent_header = false;//Indicates whether we have sent a header.
+    bool ready4data = false; //Set to true when streaming is to begin.
+    DTSC::Stream Strm; //Incoming stream buffer.
+    HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
+    bool inited = false;//Whether the stream is initialized
+    Socket::Connection ss( -1);//The Stream Socket, used to connect to the desired stream.
+    std::string streamname;//Will contain the name of the stream.
+    FLV::Tag tag;//Temporary tag buffer.
 
-  /// Main function for Connector_HTTP_Progressive
-  int Connector_HTTP_Progressive(Socket::Connection conn){
-    bool progressive_has_sent_header = false;
-    bool ready4data = false; ///< Set to true when streaming is to begin.
-    DTSC::Stream Strm; ///< Incoming stream buffer.
-    HTTP::Parser HTTP_R, HTTP_S; ///<HTTP Receiver en HTTP Sender.
-    bool inited = false;
-    Socket::Connection ss( -1);
-    std::string streamname;
-    FLV::Tag tag; ///< Temporary tag buffer.
-
-    unsigned int lastStats = 0;
-    unsigned int seek_sec = 0; //seek position in ms
-    unsigned int seek_byte = 0; //seek position in bytes
+    unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
+    unsigned int seek_sec = 0;//Seek position in ms
+    unsigned int seek_byte = 0;//Seek position in bytes
     
-    bool isMP3 = false;
+    bool isMP3 = false;//Indicates whether the request is audio-only mp3.
 
     while (conn.connected()){
-      //only parse input if available or not yet init'ed
+      //Only attempt to parse input when not yet init'ed.
       if ( !inited){
         if (conn.Received().size() || conn.spool()){
           //make sure it ends in a \n
@@ -192,10 +195,11 @@ namespace Connector_HTTP {
     ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
     ss.close();
     return 0;
-  } //Connector_HTTP main function
+  } //Progressive_Connector main function
 
 } //Connector_HTTP namespace
 
+///\brief The standard process-spawning main function.
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   conf.addConnectorOptions(1935);
@@ -211,7 +215,7 @@ int main(int argc, char ** argv){
     if (S.connected()){ //check if the new connection is valid
       pid_t myid = fork();
       if (myid == 0){ //if new child, start MAINHANDLER
-        return Connector_HTTP::Connector_HTTP_Progressive(S);
+        return Connector_HTTP::progressiveConnector(S);
       }else{ //otherwise, do nothing or output debugging text
 #if DEBUG >= 5
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());

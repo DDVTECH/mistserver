@@ -6,10 +6,12 @@
 #include <mist/json.h>
 #include <mist/config.h>
 
-/// Holds all code that converts filetypes to/from to DTSC.
+///\brief Holds everything unique to converters.
 namespace Converters {
 
-  /// Reads an DTSC file and attempts to fix the metadata in it.
+  ///\brief Reads a DTSC file and attempts to fix the metadata in it.
+  ///\param conf The current configuration of the program.
+  ///\return The return code for the fixed program.
   int DTSCFix(Util::Config & conf){
     DTSC::File F(conf.getString("filename"));
     JSON::Value oriheader = F.getFirstMeta();
@@ -124,7 +126,7 @@ namespace Converters {
 
 }
 
-/// Entry point for FLV2DTSC, simply calls Converters::FLV2DTSC().
+/// Entry point for DTSCFix, simply calls Converters::DTSCFix().
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
   conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Filename of the file to attempt to fix.\"}"));

@@ -10,149 +10,127 @@
 #include <mist/ts_packet.h> //TS support
 #include <mist/dtsc.h> //DTSC support
 #include <mist/mp4.h> //For initdata conversion
-#define VIDEO_SCALING ( 27000000.0 / (double)DTSCStream.metadata["video"]["fpks"].asInt())
-#define AUDIO_SCALING ( 27000000.0 / (double)DTSCStream.metadata["audio"]["rate"].asInt())
+#include <mist/config.h>
 
-int main(){
-  char charBuffer[1024 * 10];
-  unsigned int charCount;
-  std::string StrData;
-  std::string ToPack;
-  std::string DTMIData;
-  TS::Packet PackData;
-  DTSC::Stream DTSCStream;
-  int PacketNumber = 0;
-  long long unsigned int TimeStamp = 0;
-  int ThisNaluSize;
-  char VideoCounter = 0;
-  char AudioCounter = 0;
-  bool WritePesHeader;
-  bool IsKeyFrame;
-  bool FirstKeyFrame = true;
-  bool FirstIDRInKeyFrame;
-  MP4::AVCC avccbox;
-  bool haveAvcc = false;
+///\brief Holds everything unique to converters.
+namespace Converters {
+  ///\brief Converts DTSC from stdin to TS on stdout.
+  ///\return The return code for the converter.
+  int DTSC2TS(){
+    char charBuffer[1024 * 10];
+    unsigned int charCount;
+    std::string StrData;
+    TS::Packet PackData;
+    DTSC::Stream Strm;
+    int PacketNumber = 0;
+    long long unsigned int TimeStamp = 0;
+    int ThisNaluSize;
+    char VideoCounter = 0;
+    char AudioCounter = 0;
+    bool WritePesHeader;
+    bool IsKeyFrame;
+    MP4::AVCC avccbox;
+    bool haveAvcc = false;
+    std::stringstream TSBuf;
 
-  while (std::cin.good()){
-    if (DTSCStream.parsePacket(StrData)){
-      if ( !haveAvcc){
-        avccbox.setPayload(DTSCStream.metadata["video"]["init"].asString());
-        haveAvcc = true;
-      }
-      if (DTSCStream.lastType() == DTSC::VIDEO){
-        DTMIData = DTSCStream.lastData();
-        if (DTSCStream.getPacket(0).isMember("keyframe")){
-          IsKeyFrame = true;
-          FirstIDRInKeyFrame = true;
-        }else{
-          IsKeyFrame = false;
-          FirstKeyFrame = false;
-        }
-        if (IsKeyFrame){
-          TimeStamp = (DTSCStream.getPacket(0)["time"].asInt() * 27000);
-        }
-        int TSType;
-        bool FirstPic = true;
-        while (DTMIData.size()){
-          ThisNaluSize = (DTMIData[0] << 24) + (DTMIData[1] << 16) + (DTMIData[2] << 8) + DTMIData[3];
-          DTMIData.erase(0, 4); //Erase the first four characters;
-          TSType = (int)DTMIData[0] & 0x1F;
-          if ( !(TSType == 0x09)){
-            if (TSType == 0x05){
-              if (FirstPic){
-                ToPack += avccbox.asAnnexB();
-                FirstPic = false;
-              }
-              if (IsKeyFrame){
-                if ( !FirstKeyFrame && FirstIDRInKeyFrame){
-                  ToPack.append(TS::NalHeader, 4);
-                  FirstIDRInKeyFrame = false;
-                }else{
-                  ToPack.append(TS::ShortNalHeader, 3);
-                }
-              }
-            }else if (TSType == 0x01){
-              if (FirstPic){
-                ToPack.append(TS::NalHeader, 4);
-                FirstPic = false;
-              }else{
-                ToPack.append(TS::ShortNalHeader, 3);
-              }
-            }else{
-              ToPack.append(TS::NalHeader, 4);
-            }
-            ToPack.append(DTMIData, 0, ThisNaluSize);
+
+    while (std::cin.good()){
+      if (Strm.parsePacket(StrData)){
+        if (Strm.lastType() == DTSC::PAUSEMARK){
+          TSBuf.flush();
+          if (TSBuf.str().size()){
+            std::cout << TSBuf.str();
+            TSBuf.str("");
+            PacketNumber = 0;
           }
-          DTMIData.erase(0, ThisNaluSize);
+          TSBuf.str("");
         }
-        WritePesHeader = true;
-        while (ToPack.size()){
-          if ((PacketNumber % 42) == 0){
+        if ( !haveAvcc){
+          avccbox.setPayload(Strm.metadata["video"]["init"].asString());
+          haveAvcc = true;
+        }
+        if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
+          Socket::Buffer ToPack;
+          //write PAT and PMT TS packets
+          if (PacketNumber == 0){
             PackData.DefaultPAT();
-            std::cout.write(PackData.ToString(), 188);
+            TSBuf.write(PackData.ToString(), 188);
             PackData.DefaultPMT();
-            std::cout.write(PackData.ToString(), 188);
+            TSBuf.write(PackData.ToString(), 188);
             PacketNumber += 2;
           }
-          PackData.Clear();
-          PackData.PID(0x100);
-          PackData.ContinuityCounter(VideoCounter);
-          VideoCounter++;
-          if (WritePesHeader){
-            PackData.UnitStart(1);
+
+          int PIDno = 0;
+          char * ContCounter = 0;
+          if (Strm.lastType() == DTSC::VIDEO){
+            IsKeyFrame = Strm.getPacket(0).isMember("keyframe");
             if (IsKeyFrame){
-              PackData.RandomAccess(1);
-              PackData.PCR(TimeStamp);
-            }else{
-              PackData.AdaptationField(1);
+              TimeStamp = (Strm.getPacket(0)["time"].asInt() * 27000);
             }
-            PackData.AddStuffing(184 - (20 + ToPack.size()));
-            PackData.PESVideoLeadIn(ToPack.size(), DTSCStream.getPacket(0)["time"].asInt() * 90);
-            WritePesHeader = false;
-          }else{
-            PackData.AdaptationField(1);
-            PackData.AddStuffing(184 - (ToPack.size()));
+            ToPack.append(avccbox.asAnnexB());
+            while (Strm.lastData().size()){
+              ThisNaluSize = (Strm.lastData()[0] << 24) + (Strm.lastData()[1] << 16) + (Strm.lastData()[2] << 8) + Strm.lastData()[3];
+              Strm.lastData().replace(0, 4, TS::NalHeader, 4);
+              if (ThisNaluSize + 4 == Strm.lastData().size()){
+                ToPack.append(Strm.lastData());
+                break;
+              }else{
+                ToPack.append(Strm.lastData().c_str(), ThisNaluSize + 4);
+                Strm.lastData().erase(0, ThisNaluSize + 4);
+              }
+            }
+            ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket(0)["time"].asInt() * 90));
+            PIDno = 0x100;
+            ContCounter = &VideoCounter;
+          }else if (Strm.lastType() == DTSC::AUDIO){
+            ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata["audio"]["init"].asString()));
+            ToPack.append(Strm.lastData());
+            ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket(0)["time"].asInt() * 90));
+            PIDno = 0x101;
+            ContCounter = &AudioCounter;
           }
-          PackData.FillFree(ToPack);
-          std::cout.write(PackData.ToString(), 188);
-          PacketNumber++;
-        }
-      }else if (DTSCStream.lastType() == DTSC::AUDIO){
-        WritePesHeader = true;
-        DTMIData = DTSCStream.lastData();
-        ToPack = TS::GetAudioHeader(DTMIData.size(), DTSCStream.metadata["audio"]["init"].asString());
-        ToPack += DTMIData;
-        while (ToPack.size()){
-          if ((PacketNumber % 42) == 0){
-            PackData.DefaultPAT();
-            std::cout.write(PackData.ToString(), 188);
-            PackData.DefaultPMT();
-            std::cout.write(PackData.ToString(), 188);
-            PacketNumber += 2;
-          }
+
+          //initial packet
           PackData.Clear();
-          PackData.PID(0x101);
-          PackData.ContinuityCounter(AudioCounter);
-          AudioCounter++;
-          if (WritePesHeader){
-            PackData.UnitStart(1);
-            PackData.AddStuffing(184 - (14 + ToPack.size()));
-            PackData.PESAudioLeadIn(ToPack.size(), DTSCStream.getPacket(0)["time"].asInt() * 90);
-            WritePesHeader = false;
-          }else{
-            PackData.AdaptationField(1);
-            PackData.AddStuffing(184 - ToPack.size());
+          PackData.PID(PIDno);
+          PackData.ContinuityCounter(( *ContCounter)++);
+          PackData.UnitStart(1);
+          if (IsKeyFrame){
+            PackData.RandomAccess(1);
+            PackData.PCR(TimeStamp);
           }
-          PackData.FillFree(ToPack);
-          std::cout.write(PackData.ToString(), 188);
+          unsigned int toSend = PackData.AddStuffing(ToPack.bytes(184));
+          std::string gonnaSend = ToPack.remove(toSend);
+          PackData.FillFree(gonnaSend);
+          TSBuf.write(PackData.ToString(), 188);
           PacketNumber++;
+
+          //rest of packets
+          while (ToPack.size()){
+            PackData.Clear();
+            PackData.PID(PIDno);
+            PackData.ContinuityCounter(( *ContCounter)++);
+            toSend = PackData.AddStuffing(ToPack.bytes(184));
+            gonnaSend = ToPack.remove(toSend);
+            PackData.FillFree(gonnaSend);
+            TSBuf.write(PackData.ToString(), 188);
+            PacketNumber++;
+          }
+
         }
+      }else{
+        std::cin.read(charBuffer, 1024 * 10);
+        charCount = std::cin.gcount();
+        StrData.append(charBuffer, charCount);
       }
-    }else{
-      std::cin.read(charBuffer, 1024 * 10);
-      charCount = std::cin.gcount();
-      StrData.append(charBuffer, charCount);
     }
+    return 0;
   }
-  return 0;
+}
+
+///\brief Entry point for DTSC2TS, simply calls Converters::DTSC2TS().
+int main(int argc, char* argv[]){
+  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.parseArgs(argc, argv);
+  return Converters::DTSC2TS();
 }

@@ -16,10 +16,11 @@
 #include <mist/amf.h>
 #include <mist/config.h>
 
-/// Holds all code that converts filetypes to/from to DTSC.
+///\brief Holds everything unique to converters.
 namespace Converters {
 
-  /// Reads FLV from STDIN, outputs DTSC to STDOUT.
+  ///\brief Converts FLV from stdin to DTSC on stdout.
+  ///\return The return code for the converter.
   int FLV2DTSC(){
     FLV::Tag FLV_in; // Temporary storage for incoming FLV data.
     JSON::Value meta_out; // Storage for outgoing header data.
@@ -75,7 +76,7 @@ namespace Converters {
 
 }
 
-/// Entry point for FLV2DTSC, simply calls Converters::FLV2DTSC().
+///\brief Entry point for FLV2DTSC, simply calls Converters::FLV2DTSC().
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
   conf.parseArgs(argc, argv);

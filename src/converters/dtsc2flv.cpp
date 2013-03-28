@@ -15,10 +15,11 @@
 #include <mist/amf.h> //AMF support
 #include <mist/config.h>
 
-/// Holds all code that converts filetypes to/from DTSC.
+///\brief Holds everything unique to converters.
 namespace Converters {
 
-  /// Reads DTSC from STDIN, outputs FLV to STDOUT.
+  ///\brief Converts DTSC from stdin to FLV on stdout.
+  ///\return The return code for the converter.
   int DTSC2FLV(){
     FLV::Tag FLV_out; // Temporary storage for outgoing FLV data.
     DTSC::Stream Strm;

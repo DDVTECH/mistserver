@@ -4,15 +4,18 @@
 #include <set>
 #include "controller_capabilities.h"
 
+///\brief Holds everything unique to the controller.
 namespace Controller {
-
+  ///\brief A class storing information about the cpu the server is running on.
   class cpudata{
     public:
-      std::string model;
-      int cores;
-      int threads;
-      int mhz;
-      int id;
+      std::string model;///<A string describing the model of the cpu.
+      int cores;///<The amount of cores in the cpu.
+      int threads;///<The amount of threads this cpu can run.
+      int mhz;///<The speed of the cpu in mhz.
+      int id;///<The id of the cpu in the system.
+      
+      ///\brief The default constructor
       cpudata(){
         model = "Unknown";
         cores = 1;
@@ -21,6 +24,9 @@ namespace Controller {
         id = 0;
       }
       ;
+      
+      ///\brief Fills the structure by parsing a given description.
+      ///\param data A description of the cpu.
       void fill(char * data){
         int i;
         i = 0;
@@ -43,6 +49,8 @@ namespace Controller {
       ;
   };
 
+  ///\brief Checks the capabilities of the system.
+  ///\param capa The location to store the capabilities.
   void checkCapable(JSON::Value & capa){
     capa.null();
     std::ifstream cpuinfo("/proc/cpuinfo");

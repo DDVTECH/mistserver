@@ -5,14 +5,16 @@
 #include "controller_storage.h"
 #include "controller_connectors.h"
 
+///\brief Holds everything unique to the controller.
 namespace Controller {
 
-  static std::map<std::string, std::string> current_connectors;
+  static std::map<std::string, std::string> currentConnectors; ///<The currently running connectors.
 
-  /// Checks if the binary mentioned in the protocol argument is currently active, if so, restarts it.
+  ///\brief Checks if the binary mentioned in the protocol argument is currently active, if so, restarts it.
+  ///\param protocol The protocol to check.
   void UpdateProtocol(std::string protocol){
     std::map<std::string, std::string>::iterator iter;
-    for (iter = current_connectors.begin(); iter != current_connectors.end(); iter++){
+    for (iter = currentConnectors.begin(); iter != currentConnectors.end(); iter++){
       if (iter->second.substr(0, protocol.size()) == protocol){
         Log("CONF", "Restarting connector for update: " + iter->second);
         Util::Procs::Stop(iter->first);
@@ -30,7 +32,8 @@ namespace Controller {
     }
   }
 
-  /// Checks current protocol configuration, updates state of enabled connectors if neccesary.
+  ///\brief Checks current protocol configuration, updates state of enabled connectors if neccesary.
+  ///\param p An object containing all protocols.
   void CheckProtocols(JSON::Value & p){
     std::map<std::string, std::string> new_connectors;
     std::map<std::string, std::string>::iterator iter;
@@ -79,7 +82,7 @@ namespace Controller {
     }
 
     //shut down deleted/changed connectors
-    for (iter = current_connectors.begin(); iter != current_connectors.end(); iter++){
+    for (iter = currentConnectors.begin(); iter != currentConnectors.end(); iter++){
       if (new_connectors.count(iter->first) != 1 || new_connectors[iter->first] != iter->second){
         Log("CONF", "Stopping connector: " + iter->second);
         Util::Procs::Stop(iter->first);
@@ -88,7 +91,7 @@ namespace Controller {
 
     //start up new/changed connectors
     for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
-      if (current_connectors.count(iter->first) != 1 || current_connectors[iter->first] != iter->second || !Util::Procs::isActive(iter->first)){
+      if (currentConnectors.count(iter->first) != 1 || currentConnectors[iter->first] != iter->second || !Util::Procs::isActive(iter->first)){
         Log("CONF", "Starting connector: " + iter->second);
         Util::Procs::Start(iter->first, Util::getMyPath() + iter->second);
       }
@@ -102,7 +105,7 @@ namespace Controller {
     }
 
     //store new state
-    current_connectors = new_connectors;
+    currentConnectors = new_connectors;
   }
 
 }

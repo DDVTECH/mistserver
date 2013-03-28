@@ -23,18 +23,23 @@
 #define COMPILED_PASSWORD ""
 #endif
 
+///\brief Holds everything unique to the controller.
 namespace Controller {
 
   Secure::Auth keychecker; ///< Checks key authorization.
 
+  ///\brief A class storing information about a connected user.
   class ConnectedUser{
     public:
-      Socket::Connection C;
-      HTTP::Parser H;
-      bool Authorized;
-      bool clientMode;
-      int logins;
-      std::string Username;
+      Socket::Connection C;///<The socket through which the user is connected.
+      HTTP::Parser H;///<The HTTP::Parser associated to this user, for the lsp.
+      bool Authorized;///<Indicates whether the current user is authorized.
+      bool clientMode;///<Indicates how to parse the commands.
+      int logins;///<Keeps track of the amount of login-tries.
+      std::string Username;///<The username of the user.
+      
+      ///\brief Construct a new user from a connection.
+      ///\param c The socket through which the user is connected.
       ConnectedUser(Socket::Connection c){
         C = c;
         H.Clean();
@@ -44,6 +49,10 @@ namespace Controller {
       }
   };
 
+  ///\brief Checks an authorization request for a given user.
+  ///\param Request The request to be parsed.
+  ///\param Response The location to store the generated response.
+  ///\param conn The user to be checked for authorization.
   void Authorize(JSON::Value & Request, JSON::Value & Response, ConnectedUser & conn){
     time_t Time = time(0);
     tm * TimeInfo = localtime( &Time);
@@ -76,6 +85,9 @@ namespace Controller {
     return;
   }
 
+  ///\brief Check the submitted configuration and handle things accordingly.
+  ///\param in The new configuration.
+  ///\param out The location to store the resulting configuration.
   void CheckConfig(JSON::Value & in, JSON::Value & out){
     for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
       if (jit->first == "version"){
@@ -99,6 +111,8 @@ namespace Controller {
     out = in;
   }
 
+  ///\brief Parse received statistics.
+  ///\param stats The statistics to be parsed.
   void CheckStats(JSON::Value & stats){
     long long int currTime = Util::epoch();
     for (JSON::ObjIter jit = stats.ObjBegin(); jit != stats.ObjEnd(); jit++){
@@ -121,9 +135,9 @@ namespace Controller {
       }
     }
   }
-
 } //Controller namespace
 
+///\brief The main entry point for the controller.
 int main(int argc, char ** argv){
   Controller::Storage = JSON::fromFile("config.json");
   JSON::Value stored_port = JSON::fromString("{\"long\":\"port\", \"short\":\"p\", \"arg\":\"integer\", \"help\":\"TCP port to listen on.\"}");

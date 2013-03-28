@@ -5,6 +5,7 @@
 #include "controller_storage.h"
 #include <sys/stat.h>
 
+///\brief Holds everything unique to the controller.
 namespace Controller {
 
   std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.

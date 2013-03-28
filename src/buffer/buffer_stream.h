@@ -50,7 +50,7 @@ namespace Buffer {
       /// Sets the buffer name.
       void setName(std::string n);
       /// Add a user to the userlist.
-      void addUser(user * new_user);
+      void addUser(user * newUser);
       /// Blocks the thread until new data is available.
       void waitForData();
       /// Cleanup function

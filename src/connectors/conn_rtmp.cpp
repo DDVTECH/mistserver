@@ -465,10 +465,32 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     }
     return;
   }
-  if ((amfdata.getContentP(0)->StrValue() == "FCPublish") || (amfdata.getContentP(0)->StrValue() == "FCUnpublish") || (amfdata.getContentP(0)->StrValue() == "releaseStream")){
+  if ((amfdata.getContentP(0)->StrValue() == "FCUnpublish") || (amfdata.getContentP(0)->StrValue() == "releaseStream")){
     // ignored
     return;
   }
+  if ((amfdata.getContentP(0)->StrValue() == "FCPublish")){
+    //send a FCPublic reply
+    amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+    amfreply.addContent(AMF::Object("", "onFCPublish")); //status reply
+    amfreply.addContent(AMF::Object("", 0, AMF::AMF0_NUMBER)); //same transaction ID
+    amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+    amfreply.addContent(AMF::Object("")); //info
+    amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Start"));
+    amfreply.getContentP(3)->addContent(AMF::Object("description", "Please followup with publish command..."));
+    sendCommand(amfreply, messagetype, stream_id);
+    return;
+  } //FCPublish
+  if (amfdata.getContentP(0)->StrValue() == "releaseStream"){
+    //send a _result reply
+    AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+    amfreply.addContent(AMF::Object("", "_result")); //result success
+    amfreply.addContent(amfdata.getContent(1)); //same transaction ID
+    amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+    amfreply.addContent(AMF::Object("", AMF0_UNDEFINED)); //stream ID?
+    sendCommand(amfreply, messagetype, stream_id);
+    return;
+  }//releaseStream
   if ((amfdata.getContentP(0)->StrValue() == "getStreamLength") || (amfdata.getContentP(0)->StrValue() == "getMovLen")){
     //send a _result reply
     AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
@@ -516,7 +538,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
     sendCommand(amfreply, messagetype, stream_id);
     return;
-  } //getStreamLength
+  } //publish
   if (amfdata.getContentP(0)->StrValue() == "checkBandwidth"){
     //send a _result reply
     AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);

@@ -28,10 +28,9 @@
 ///\brief Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
   ///\brief Builds an index file for HTTP Smooth streaming.
-  ///\param MovieId The name of the movie.
   ///\param metadata The current metadata, used to generate the index.
   ///\return The index file for HTTP Smooth Streaming.
-  std::string smoothIndex(std::string & MovieId, JSON::Value & metadata){
+  std::string smoothIndex(JSON::Value & metadata){
     std::stringstream Result;
     Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
     Result << "<SmoothStreamingMedia "
@@ -245,7 +244,7 @@ namespace Connector_HTTP {
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type", "text/xml");
             HTTP_S.SetHeader("Cache-Control", "no-cache");
-            std::string manifest = smoothIndex(streamname, Strm.metadata);
+            std::string manifest = smoothIndex(Strm.metadata);
             HTTP_S.SetBody(manifest);
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
           }

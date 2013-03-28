@@ -26,10 +26,9 @@
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
   ///\brief Builds an index file for HTTP Live streaming.
-  ///\param MovieId The name of the movie.
   ///\param metadata The current metadata, used to generate the index.
   ///\return The index file for HTTP Live Streaming.
-  std::string liveIndex(std::string & MovieId, JSON::Value & metadata){
+  std::string liveIndex(JSON::Value & metadata){
     std::stringstream Result;
     if ( !metadata.isMember("live")){
       int longestFragment = 0;
@@ -62,7 +61,7 @@ namespace Connector_HTTP {
     return Result.str();
   } //liveIndex
 
-  ///\brief Main function for the HTTP HLS Connector
+  ///\brief Main function for the HTTP Live Connector
   ///\param conn A socket describing the connection the client.
   ///\return The exit code of the connector.
   int liveConnector(Socket::Connection conn){
@@ -175,7 +174,7 @@ namespace Connector_HTTP {
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type", manifestType);
             HTTP_S.SetHeader("Cache-Control", "no-cache");
-            std::string manifest = liveIndex(streamname, Strm.metadata);
+            std::string manifest = liveIndex(Strm.metadata);
             HTTP_S.SetBody(manifest);
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
           }

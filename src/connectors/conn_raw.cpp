@@ -8,9 +8,10 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 
-/// Contains the main code for the RAW connector.
-/// Expects a single commandline argument telling it which stream to connect to,
-/// then outputs the raw stream to stdout.
+///\brief Contains the main code for the RAW connector.
+///
+///Expects a single commandline argument telling it which stream to connect to,
+///then outputs the raw stream to stdout.
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   conf.addOption("stream_name", JSON::fromString("{\"arg_num\":1, \"help\":\"Name of the stream to write to stdout.\"}"));

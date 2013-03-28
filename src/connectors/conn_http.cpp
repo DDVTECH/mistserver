@@ -30,18 +30,18 @@ namespace Connector_HTTP {
   class ConnConn{
     public:
       Socket::Connection * conn; ///< The socket of this connection
-      unsigned int lastuse; ///< Seconds since last use of this connection.
-      tthread::mutex in_use; ///< Mutex for this connection.
-      /// Constructor that sets the socket and lastuse to 0.
+      unsigned int lastUse; ///< Seconds since last use of this connection.
+      tthread::mutex inUse; ///< Mutex for this connection.
+      /// Constructor that sets the socket and lastUse to 0.
       ConnConn(){
         conn = 0;
-        lastuse = 0;
+        lastUse = 0;
       }
       ;
-      /// Constructor that sets lastuse to 0, but socket to s.
+      /// Constructor that sets lastUse to 0, but socket to s.
       ConnConn(Socket::Connection * s){
         conn = s;
-        lastuse = 0;
+        lastUse = 0;
       }
       ;
       /// Destructor that deletes the socket if non-null.
@@ -55,44 +55,51 @@ namespace Connector_HTTP {
       ;
   };
 
-  std::map<std::string, ConnConn *> connconn; ///< Connections to connectors
-  std::set<tthread::thread *> active_threads; ///< Holds currently active threads
-  std::set<tthread::thread *> done_threads; ///< Holds threads that are done and ready to be joined.
-  tthread::mutex thread_mutex; ///< Mutex for adding/removing threads.
-  tthread::mutex conn_mutex; ///< Mutex for adding/removing connector connections.
-  tthread::mutex timeout_mutex; ///< Mutex for timeout thread.
+  std::map<std::string, ConnConn *> connectorConnections; ///< Connections to connectors
+  std::set<tthread::thread *> activeThreads; ///< Holds currently active threads
+  std::set<tthread::thread *> doneThreads; ///< Holds threads that are done and ready to be joined.
+  tthread::mutex threadMutex; ///< Mutex for adding/removing threads.
+  tthread::mutex connMutex; ///< Mutex for adding/removing connector connections.
+  tthread::mutex timeoutMutex; ///< Mutex for timeout thread.
   tthread::thread * timeouter = 0; ///< Thread that times out connections to connectors.
 
+  ///\brief Function run as a thread to timeout requests on the proxy.
+  ///\param n A NULL-pointer
   void proxyTimeoutThread(void * n){
     n = 0; //prevent unused variable warning
-    tthread::lock_guard<tthread::mutex> guard(timeout_mutex);
+    tthread::lock_guard<tthread::mutex> guard(timeoutMutex);
     while (true){
       {
-        tthread::lock_guard<tthread::mutex> guard(conn_mutex);
-        if (connconn.empty()){
+        tthread::lock_guard<tthread::mutex> guard(connMutex);
+        if (connectorConnections.empty()){
           return;
         }
         std::map<std::string, ConnConn*>::iterator it;
-        for (it = connconn.begin(); it != connconn.end(); it++){
-          if ( !it->second->conn->connected() || it->second->lastuse++ > 15){
-            if (it->second->in_use.try_lock()){
-              it->second->in_use.unlock();
+        for (it = connectorConnections.begin(); it != connectorConnections.end(); it++){
+          if ( !it->second->conn->connected() || it->second->lastUse++ > 15){
+            if (it->second->inUse.try_lock()){
+              it->second->inUse.unlock();
               delete it->second;
-              connconn.erase(it);
-              it = connconn.begin(); //get a valid iterator
-              if (it == connconn.end()){
+              connectorConnections.erase(it);
+              it = connectorConnections.begin(); //get a valid iterator
+              if (it == connectorConnections.end()){
                 return;
               }
             }
           }
         }
-        conn_mutex.unlock();
+        connMutex.unlock();
       }
       usleep(1000000); //sleep 1 second and re-check
     }
   }
 
-  /// Handles requests without associated handler, displaying a nice friendly error message.
+  ///\brief Handles requests without associated handler.
+  ///
+  ///Displays a friendly error message.
+  ///\param H The request to be handled.
+  ///\param conn The connection to the client that issued the request.
+  ///\return A timestamp indicating when the request was parsed.
   long long int proxyHandleUnsupported(HTTP::Parser & H, Socket::Connection * conn){
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
@@ -103,6 +110,12 @@ namespace Connector_HTTP {
     return ret;
   }
 
+  ///\brief Handles requests that have timed out.
+  ///
+  ///Displays a friendly error message.
+  ///\param H The request that was being handled upon timeout.
+  ///\param conn The connection to the client that issued the request.
+  ///\return A timestamp indicating when the request was parsed.
   long long int proxyHandleTimeout(HTTP::Parser & H, Socket::Connection * conn){
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
@@ -113,7 +126,19 @@ namespace Connector_HTTP {
     return ret;
   }
 
-  /// Handles internal requests.
+  ///\brief Handles requests within the proxy.
+  ///
+  ///Currently supported urls:
+  /// - /crossdomain.xml
+  /// - /clientaccesspolicy.xml
+  /// - *.ico (for favicon)
+  /// - /info_[streamname].js (stream info)
+  /// - /embed_[streamname].js (embed info)
+  ///
+  ///Unsupported urls default to proxyHandleUnsupported( ).
+  ///\param H The request to be handled.
+  ///\param conn The connection to the client that issued the request.
+  ///\return A timestamp indicating when the request was parsed.
   long long int proxyHandleInternal(HTTP::Parser & H, Socket::Connection * conn){
 
     std::string url = H.getUrl();
@@ -263,7 +288,11 @@ namespace Connector_HTTP {
     return proxyHandleUnsupported(H, conn); //anything else doesn't get handled
   }
 
-  /// Handles requests without associated handler, displaying a nice friendly error message.
+  ///\brief Handles requests by dispatching them to the corresponding connector.
+  ///\param H The request to be handled.
+  ///\param conn The connection to the client that issued the request.
+  ///\param connector The type of connector to be invoked.
+  ///\return A timestamp indicating when the request was parsed.
   long long int proxyHandleThroughConnector(HTTP::Parser & H, Socket::Connection * conn, std::string & connector){
     //create a unique ID based on a hash of the user agent and host, followed by the stream name and connector
     std::string uid = Secure::md5(H.GetHeader("User-Agent") + conn->getHost()) + "_" + H.GetVar("stream") + "_" + connector;
@@ -275,13 +304,13 @@ namespace Connector_HTTP {
     H.Clean();
 
     //check if a connection exists, and if not create one
-    conn_mutex.lock();
-    if ( !connconn.count(uid) || !connconn[uid]->conn->connected()){
-      if (connconn.count(uid)){
-        connconn.erase(uid);
+    connMutex.lock();
+    if ( !connectorConnections.count(uid) || !connectorConnections[uid]->conn->connected()){
+      if (connectorConnections.count(uid)){
+        connectorConnections.erase(uid);
       }
-      connconn[uid] = new ConnConn(new Socket::Connection("/tmp/mist/http_" + connector));
-      connconn[uid]->conn->setBlocking(false); //do not block on spool() with no data
+      connectorConnections[uid] = new ConnConn(new Socket::Connection("/tmp/mist/http_" + connector));
+      connectorConnections[uid]->conn->setBlocking(false); //do not block on spool() with no data
 #if DEBUG >= 4
       std::cout << "Created new connection " << uid << std::endl;
 #endif
@@ -291,56 +320,56 @@ namespace Connector_HTTP {
 #endif
     }
     //start a new timeout thread, if neccesary
-    if (timeout_mutex.try_lock()){
+    if (timeoutMutex.try_lock()){
       if (timeouter){
         timeouter->join();
         delete timeouter;
       }
       timeouter = new tthread::thread(Connector_HTTP::proxyTimeoutThread, 0);
-      timeout_mutex.unlock();
+      timeoutMutex.unlock();
     }
-    conn_mutex.unlock();
+    connMutex.unlock();
 
     //lock the mutex for this connection, and handle the request
-    tthread::lock_guard<tthread::mutex> guard(connconn[uid]->in_use);
+    tthread::lock_guard<tthread::mutex> guard(connectorConnections[uid]->inUse);
     //if the server connection is dead, handle as timeout.
-    if ( !connconn.count(uid) || !connconn[uid]->conn->connected()){
-      connconn[uid]->conn->close();
+    if ( !connectorConnections.count(uid) || !connectorConnections[uid]->conn->connected()){
+      connectorConnections[uid]->conn->close();
       return proxyHandleTimeout(H, conn);
     }
     //forward the original request
-    connconn[uid]->conn->SendNow(request);
-    connconn[uid]->lastuse = 0;
+    connectorConnections[uid]->conn->SendNow(request);
+    connectorConnections[uid]->lastUse = 0;
     unsigned int timeout = 0;
     unsigned int retries = 0;
     //wait for a response
-    while (connconn.count(uid) && connconn[uid]->conn->connected() && conn->connected()){
+    while (connectorConnections.count(uid) && connectorConnections[uid]->conn->connected() && conn->connected()){
       conn->spool();
-      if (connconn[uid]->conn->Received().size() || connconn[uid]->conn->spool()){
+      if (connectorConnections[uid]->conn->Received().size() || connectorConnections[uid]->conn->spool()){
         //make sure we end in a \n
-        if ( *(connconn[uid]->conn->Received().get().rbegin()) != '\n'){
-          std::string tmp = connconn[uid]->conn->Received().get();
-          connconn[uid]->conn->Received().get().clear();
-          if (connconn[uid]->conn->Received().size()){
-            connconn[uid]->conn->Received().get().insert(0, tmp);
+        if ( *(connectorConnections[uid]->conn->Received().get().rbegin()) != '\n'){
+          std::string tmp = connectorConnections[uid]->conn->Received().get();
+          connectorConnections[uid]->conn->Received().get().clear();
+          if (connectorConnections[uid]->conn->Received().size()){
+            connectorConnections[uid]->conn->Received().get().insert(0, tmp);
           }else{
-            connconn[uid]->conn->Received().append(tmp);
+            connectorConnections[uid]->conn->Received().append(tmp);
           }
         }
         //check if the whole response was received
-        if (H.Read(connconn[uid]->conn->Received().get())){
+        if (H.Read(connectorConnections[uid]->conn->Received().get())){
           //208 means the fragment is too new, retry in 3s
           if (H.url == "208"){
             retries++;
             if (retries >= 5){
               std::cout << "[5 retry-laters, cancelled]" << std::endl;
-              connconn[uid]->conn->close();
+              connectorConnections[uid]->conn->close();
               return proxyHandleTimeout(H, conn);
             }
-            connconn[uid]->lastuse = 0;
+            connectorConnections[uid]->lastUse = 0;
             timeout = 0;
             Util::sleep(3000);
-            connconn[uid]->conn->SendNow(request);
+            connectorConnections[uid]->conn->SendNow(request);
             H.Clean();
             continue;
           }
@@ -350,16 +379,16 @@ namespace Connector_HTTP {
         //keep trying unless the timeout triggers
         if (timeout++ > 4000){
           std::cout << "[20s timeout triggered]" << std::endl;
-          connconn[uid]->conn->close();
+          connectorConnections[uid]->conn->close();
           return proxyHandleTimeout(H, conn);
         }else{
           Util::sleep(5);
         }
       }
     }
-    if ( !connconn.count(uid) || !connconn[uid]->conn->connected() || !conn->connected()){
+    if ( !connectorConnections.count(uid) || !connectorConnections[uid]->conn->connected() || !conn->connected()){
       //failure, disconnect and sent error to user
-      connconn[uid]->conn->close();
+      connectorConnections[uid]->conn->close();
       return proxyHandleTimeout(H, conn);
     }else{
       long long int ret = Util::getMS();
@@ -375,9 +404,9 @@ namespace Connector_HTTP {
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         conn->SendNow(H.BuildResponse("200", "OK"));
         //switch out the connection for an empty one - it makes no sense to keep these globally
-        Socket::Connection * myConn = connconn[uid]->conn;
-        connconn[uid]->conn = new Socket::Connection();
-        connconn[uid]->in_use.unlock();
+        Socket::Connection * myConn = connectorConnections[uid]->conn;
+        connectorConnections[uid]->conn = new Socket::Connection();
+        connectorConnections[uid]->inUse.unlock();
         //continue sending data from this socket and keep it permanently in use
         while (myConn->connected() && conn->connected()){
           if (myConn->Received().size() || myConn->spool()){
@@ -396,12 +425,16 @@ namespace Connector_HTTP {
     }
   }
 
-  /// Returns the name of the HTTP connector the given request should be served by.
-  /// Can currently return:
-  /// - none (request not supported)
-  /// - internal (request fed from information internal to this connector)
-  /// - dynamic (request fed from http_dynamic connector)
-  /// - progressive (request fed from http_progressive connector)
+  ///\brief Determines the type of connector to be used for handling a request.
+  ///\param H The request to be handled..
+  ///\return A string indicating the type of connector.
+  ///Possible values are:
+  /// - "none" The request is not supported.
+  /// - "internal" The request should be handled by the proxy itself.
+  /// - "dynamic" The request should be dispatched to the HTTP Dynamic Connector
+  /// - "progressive" The request should be dispatched to the HTTP Progressive Connector
+  /// - "smooth" The request should be dispatched to the HTTP Smooth Connector
+  /// - "live" The request should be dispatched to the HTTP Live Connector
   std::string proxyGetHandleType(HTTP::Parser & H){
     std::string url = H.getUrl();
     if (url.find("/dynamic/") != std::string::npos){
@@ -449,7 +482,8 @@ namespace Connector_HTTP {
     return "none";
   }
 
-  /// Thread for handling a single HTTP connection
+  ///\brief Function run as a thread to handle a single HTTP connection.
+  ///\param pointer A Socket::Connection* indicating the connection to th client.
   void proxyHandleHTTPConnection(void * pointer){
     Socket::Connection * conn = (Socket::Connection *)pointer;
     conn->setBlocking(false); //do not block on conn.spool() when no data is available
@@ -504,17 +538,17 @@ namespace Connector_HTTP {
     //close and remove the connection
     conn->close();
     delete conn;
-    //remove this thread from active_threads and add it to done_threads.
-    thread_mutex.lock();
-    for (std::set<tthread::thread *>::iterator it = active_threads.begin(); it != active_threads.end(); it++){
+    //remove this thread from activeThreads and add it to doneThreads.
+    threadMutex.lock();
+    for (std::set<tthread::thread *>::iterator it = activeThreads.begin(); it != activeThreads.end(); it++){
       if (( *it)->get_id() == tthread::this_thread::get_id()){
         tthread::thread * T = ( *it);
-        active_threads.erase(T);
-        done_threads.insert(T);
+        activeThreads.erase(T);
+        doneThreads.insert(T);
         break;
       }
     }
-    thread_mutex.unlock();
+    threadMutex.unlock();
   }
 
 } //Connector_HTTP namespace
@@ -533,17 +567,17 @@ int main(int argc, char ** argv){
     Socket::Connection S = server_socket.accept();
     if (S.connected()){ //check if the new connection is valid
       //lock the thread mutex and spawn a new thread for this connection
-      Connector_HTTP::thread_mutex.lock();
+      Connector_HTTP::threadMutex.lock();
       tthread::thread * T = new tthread::thread(Connector_HTTP::proxyHandleHTTPConnection, (void *)(new Socket::Connection(S)));
-      Connector_HTTP::active_threads.insert(T);
+      Connector_HTTP::activeThreads.insert(T);
       //clean up any threads that may have finished
-      while ( !Connector_HTTP::done_threads.empty()){
-        T = *Connector_HTTP::done_threads.begin();
+      while ( !Connector_HTTP::doneThreads.empty()){
+        T = *Connector_HTTP::doneThreads.begin();
         T->join();
-        Connector_HTTP::done_threads.erase(T);
+        Connector_HTTP::doneThreads.erase(T);
         delete T;
       }
-      Connector_HTTP::thread_mutex.unlock();
+      Connector_HTTP::threadMutex.unlock();
     }else{
       Util::sleep(10); //sleep 10ms
     }
@@ -553,16 +587,16 @@ int main(int argc, char ** argv){
   //wait for existing connections to drop
   bool repeat = true;
   while (repeat){
-    Connector_HTTP::thread_mutex.lock();
-    repeat = !Connector_HTTP::active_threads.empty();
+    Connector_HTTP::threadMutex.lock();
+    repeat = !Connector_HTTP::activeThreads.empty();
     //clean up any threads that may have finished
-    while ( !Connector_HTTP::done_threads.empty()){
-      tthread::thread * T = *Connector_HTTP::done_threads.begin();
+    while ( !Connector_HTTP::doneThreads.empty()){
+      tthread::thread * T = *Connector_HTTP::doneThreads.begin();
       T->join();
-      Connector_HTTP::done_threads.erase(T);
+      Connector_HTTP::doneThreads.erase(T);
       delete T;
     }
-    Connector_HTTP::thread_mutex.unlock();
+    Connector_HTTP::threadMutex.unlock();
     if (repeat){
       Util::sleep(100); //sleep 100ms
     }

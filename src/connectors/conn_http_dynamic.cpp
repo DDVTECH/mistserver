@@ -26,11 +26,11 @@
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
   ///\brief Builds a bootstrap for use in HTTP Dynamic streaming.
-  ///\param MovieId The name of the movie.
+  ///\param streamName The name of the stream.
   ///\param metadata The current metadata, used to generate the index.
   ///\param fragnum The index of the current fragment
   ///\return The generated bootstrap.
-  std::string dynamicBootstrap(std::string & MovieId, JSON::Value & metadata, int fragnum = 0){
+  std::string dynamicBootstrap(std::string & streamName, JSON::Value & metadata, int fragnum = 0){
     std::string empty;
 
     MP4::ASRT asrt;
@@ -80,7 +80,7 @@ namespace Connector_HTTP {
     abst.setLive(false);
     abst.setCurrentMediaTime(metadata["lastms"].asInt());
     abst.setSmpteTimeCodeOffset(0);
-    abst.setMovieIdentifier(MovieId);
+    abst.setMovieIdentifier(streamName);
     abst.setSegmentRunTable(asrt, 0);
     abst.setFragmentRunTable(afrt, 0);
 
@@ -91,24 +91,24 @@ namespace Connector_HTTP {
   }
 
   ///\brief Builds an index file for HTTP Dynamic streaming.
-  ///\param MovieId The name of the movie.
+  ///\param streamName The name of the stream.
   ///\param metadata The current metadata, used to generate the index.
   ///\return The index file for HTTP Dynamic Streaming.
-  std::string dynamicIndex(std::string & MovieId, JSON::Value & metadata){
+  std::string dynamicIndex(std::string & streamName, JSON::Value & metadata){
     std::string Result;
     if (metadata.isMember("vod")){
       Result =
           "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
               "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
-              "<id>" + MovieId + "</id>\n"
+              "<id>" + streamName + "</id>\n"
               "<width>" + metadata["video"]["width"].asString() + "</width>\n"
               "<height>" + metadata["video"]["height"].asString() + "</height>\n"
               "<duration>" + metadata["length"].asString() + ".000</duration>\n"
               "<mimeType>video/mp4</mimeType>\n"
               "<streamType>recorded</streamType>\n"
               "<deliveryType>streaming</deliveryType>\n"
-              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(dynamicBootstrap(MovieId, metadata)) + "</bootstrapInfo>\n"
-              "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + MovieId + "/\">\n"
+              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(dynamicBootstrap(streamName, metadata)) + "</bootstrapInfo>\n"
+              "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + streamName + "/\">\n"
               "<metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>\n"
               "</media>\n"
               "</manifest>\n";
@@ -116,15 +116,15 @@ namespace Connector_HTTP {
       Result =
           "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
               "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
-              "<id>" + MovieId + "</id>\n"
+              "<id>" + streamName + "</id>\n"
               "<dvrInfo windowDuration=\"" + metadata["buffer_window"].asString().substr(0, metadata["buffer_window"].asString().size() - 3) + "\"></dvrInfo>"
               "<mimeType>video/mp4</mimeType>\n"
               "<streamType>live</streamType>\n"
               "<deliveryType>streaming</deliveryType>\n"
-              "<media url=\"" + MovieId + "/\">\n"
+              "<media url=\"" + streamName + "/\">\n"
               "<metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>\n"
               "</media>\n"
-              "<bootstrapInfo profile=\"named\" url=\"" + MovieId + ".abst\" />\n"
+              "<bootstrapInfo profile=\"named\" url=\"" + streamName + ".abst\" />\n"
               "</manifest>\n";
     }
 #if DEBUG >= 8

@@ -471,7 +471,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
   }
   if ((amfdata.getContentP(0)->StrValue() == "FCPublish")){
     //send a FCPublic reply
-    amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+    AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
     amfreply.addContent(AMF::Object("", "onFCPublish")); //status reply
     amfreply.addContent(AMF::Object("", 0, AMF::AMF0_NUMBER)); //same transaction ID
     amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
@@ -487,7 +487,7 @@ void Connector_RTMP::parseAMFCommand(AMF::Object & amfdata, int messagetype, int
     amfreply.addContent(AMF::Object("", "_result")); //result success
     amfreply.addContent(amfdata.getContent(1)); //same transaction ID
     amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
-    amfreply.addContent(AMF::Object("", AMF0_UNDEFINED)); //stream ID?
+    amfreply.addContent(AMF::Object("", AMF::AMF0_UNDEFINED)); //stream ID?
     sendCommand(amfreply, messagetype, stream_id);
     return;
   }//releaseStream

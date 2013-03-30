@@ -1,6 +1,6 @@
 lib_LTLIBRARIES=libmist-1.0.la
 libmist_1_0_la_SOURCES=amf.h amf.cpp auth.h auth.cpp base64.h base64.cpp config.h config.cpp dtsc.h dtsc.cpp flv_tag.h flv_tag.cpp http_parser.h http_parser.cpp json.h json.cpp procs.h procs.cpp rtmpchunks.h rtmpchunks.cpp socket.h socket.cpp mp4.h mp4.cpp ftp.h ftp.cpp filesystem.h filesystem.cpp stream.h stream.cpp timing.h timing.cpp ts_packet.cpp ts_packet.h
-libmist_1_0_la_LDFLAGS = -version-info 4:0:1
+libmist_1_0_la_LDFLAGS = -version-info 5:0:2
 libmist_1_0_la_CPPFLAGS=$(DEPS_CFLAGS) $(global_CFLAGS)
 libmist_1_0_la_LIBADD=$(DEPS_LIBS) $(CLOCK_LIB)
 

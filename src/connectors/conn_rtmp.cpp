@@ -141,10 +141,32 @@ namespace Connector_RTMP {
       }
       return;
     }
-    if ((amfData.getContentP(0)->StrValue() == "FCPublish") || (amfData.getContentP(0)->StrValue() == "FCUnpublish") || (amfData.getContentP(0)->StrValue() == "releaseStream")){
+    if ((amfData.getContentP(0)->StrValue() == "FCUnpublish") || (amfData.getContentP(0)->StrValue() == "releaseStream")){
       // ignored
       return;
     }
+    if ((amfData.getContentP(0)->StrValue() == "FCPublish")){
+      //send a FCPublic reply
+      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+      amfReply.addContent(AMF::Object("", "onFCPublish")); //status reply
+      amfReply.addContent(AMF::Object("", 0, AMF::AMF0_NUMBER)); //same transaction ID
+      amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+      amfReply.addContent(AMF::Object("")); //info
+      amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Start"));
+      amfReply.getContentP(3)->addContent(AMF::Object("description", "Please followup with publish command..."));
+      sendCommand(amfReply, messageType, streamId);
+      return;
+    } //FCPublish
+    if (amfData.getContentP(0)->StrValue() == "releaseStream"){
+      //send a _result reply
+      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+      amfReply.addContent(AMF::Object("", "_result")); //result success
+      amfReply.addContent(amfData.getContent(1)); //same transaction ID
+      amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+      amfReply.addContent(AMF::Object("", AMF::AMF0_UNDEFINED)); //stream ID?
+      sendCommand(amfReply, messageType, streamId);
+      return;
+    }//releaseStream
     if ((amfData.getContentP(0)->StrValue() == "getStreamLength") || (amfData.getContentP(0)->StrValue() == "getMovLen")){
       //send a _result reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);

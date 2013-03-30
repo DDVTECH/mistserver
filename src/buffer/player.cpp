@@ -24,21 +24,27 @@
 #define CYG_LOOP 
 #endif
 
-/// Copy of stats from buffer_user.cpp
+///Converts a stats line to up, down, host, connector and conntime values.
 class Stats{
   public:
-    unsigned int up;
-    unsigned int down;
-    std::string host;
-    std::string connector;
-    unsigned int conntime;
+    unsigned int up;///<The amount of bytes sent upstream.
+    unsigned int down;///<The amount of bytes received downstream.
+    std::string host;///<The connected host.
+    std::string connector;///<The connector the user is connected with.
+    unsigned int conntime;///<The amount of time the user is connected.
+    ///\brief Default stats constructor.
+    ///
+    ///Should not be used.
     Stats(){
       up = 0;
       down = 0;
       conntime = 0;
     }
     ;
-    /// Reads a stats string and parses it to the internal representation.
+    ///\brief Stats constructor reading a string.
+    ///
+    ///Reads a stats string and parses it to the internal representation.
+    ///\param s The string of stats.
     Stats(std::string s){
       size_t f = s.find(' ');
       if (f != std::string::npos){

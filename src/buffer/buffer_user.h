@@ -11,17 +11,19 @@ namespace Buffer {
   /// Converts a stats line to up, down, host, connector and conntime values.
   class Stats{
     public:
-      unsigned int up;
-      unsigned int down;
-      std::string host;
-      std::string connector;
-      unsigned int conntime;
+      unsigned int up;///<The amount of bytes sent upstream.
+      unsigned int down;///<The amount of bytes received downstream.
+      std::string host;///<The connected host.
+      std::string connector;///<The connector the user is connected with.
+      unsigned int conntime;///<The amount of time the user is connected.
       Stats();
       Stats(std::string s);
   };
 
-  /// Holds connected users.
-  /// Keeps track of what buffer users are using and the connection status.
+  ///\brief Keeps track of connected users.
+  ///
+  ///Keeps track of which buffer the user currently uses,
+  ///and its connection status.
   class user{
     public:
       tthread::thread * Thread; ///< Holds the thread dealing with this user.

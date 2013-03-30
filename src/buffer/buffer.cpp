@@ -23,13 +23,16 @@ namespace Buffer {
   Stream * thisStream = 0;
   Socket::Server SS; ///< The server socket.
 
-  /// Gets the current system time in milliseconds.
+  ///\brief Gets the current system time in milliseconds.
+  ///\return The current timestamp in milliseconds.
   long long int getNowMS(){
     timeval t;
     gettimeofday( &t, 0);
     return t.tv_sec * 1000 + t.tv_usec / 1000;
   } //getNowMS
 
+  ///\brief A function running in a thread to send all statistics.
+  ///\param empty A null pointer.
   void handleStats(void * empty){
     if (empty != 0){
       return;
@@ -51,6 +54,8 @@ namespace Buffer {
     StatsSocket.close();
   }
 
+  ///\brief A function running in a thread to handle a new user connection.
+  ///\param v_usr The user that is connected.
   void handleUser(void * v_usr){
     user * usr = (user*)v_usr;
 #if DEBUG >= 5
@@ -153,7 +158,10 @@ namespace Buffer {
     usr->Disconnect("Socket closed.");
   }
 
-  /// Loop reading DTSC data from stdin and processing it at the correct speed.
+  ///\brief A function running a thread to handle input data through stdin.
+  ///
+  ///Automatically slows down to realtime playback.
+  ///\param empty A null pointer.
   void handleStdin(void * empty){
     if (empty != 0){
       return;
@@ -190,8 +198,8 @@ namespace Buffer {
     buffer_running = false;
   }
 
-  /// Loop reading DTSC data from an IP push address.
-  /// No changes to the speed are made.
+  ///\brief A function running a thread to handle input data through rtmp push.
+  ///\param empty A null pointer.
   void handlePushin(void * empty){
     if (empty != 0){
       return;
@@ -221,7 +229,10 @@ namespace Buffer {
     }
   }
 
-  /// Starts a loop, waiting for connections to send data to.
+  ///\brief Starts a loop, waiting for connections to send data to.
+  ///\param argc The number of arguments to the program.
+  ///\param argv The arguments to the program.
+  ///\return The return code of the buffer.
   int Start(int argc, char ** argv){
     Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
     conf.addOption("stream_name",
@@ -295,7 +306,7 @@ namespace Buffer {
 ;
 //Buffer namespace
 
-/// Entry point for Buffer, simply calls Buffer::Start().
+///\brief Entry point for Buffer, simply calls Buffer::Start().
 int main(int argc, char ** argv){
   return Buffer::Start(argc, argv);
 } //main

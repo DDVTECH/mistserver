@@ -9,7 +9,11 @@
 namespace Controller {
 
   std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
-
+  
+  ///\brief Checks whether two streams are equal.
+  ///\param one The first stream for the comparison.
+  ///\param two The second stream for the comparison.
+  ///\return True if the streams are equal, false otherwise.
   bool streamsEqual(JSON::Value & one, JSON::Value & two){
     if ( !one.isMember("source") || !two.isMember("source") || one["source"] != two["source"]){
       return false;
@@ -17,6 +21,9 @@ namespace Controller {
     return true;
   }
 
+  ///\brief Starts a single stream
+  ///\param name The name of the stream
+  ///\param data The corresponding configuration values.
   void startStream(std::string name, JSON::Value & data){
     data["online"] = (std::string)"Checking...";
     data.removeMember("error");
@@ -76,6 +83,8 @@ namespace Controller {
     }
   }
 
+  ///\brief Checks all streams, restoring if needed.
+  ///\param data The stream configuration for the server.
   void CheckAllStreams(JSON::Value & data){
     long long int currTime = Util::epoch();
     for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
@@ -131,6 +140,9 @@ namespace Controller {
     }
   }
 
+  ///\brief Parse a given stream configuration.
+  ///\param in The requested configuration.
+  ///\param out The new configuration after parsing.
   void CheckStreams(JSON::Value & in, JSON::Value & out){
     bool changed = false;
 

@@ -978,8 +978,15 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
 
   if (data[0] == 0x12){
     AMF::Object meta_in = AMF::parse((unsigned char*)data + 11, len - 15);
-    if (meta_in.getContentP(0) && (meta_in.getContentP(0)->StrValue() == "onMetaData") && meta_in.getContentP(1)){
-      AMF::Object * tmp = meta_in.getContentP(1);
+    AMF::Object * tmp = 0;
+    if (meta_in.getContentP(1) && meta_in.getContentP(0) && (meta_in.getContentP(0)->StrValue() == "onMetaData")){
+      tmp = meta_in.getContentP(1);
+    }else{
+      if (meta_in.getContentP(2) && meta_in.getContentP(1) && (meta_in.getContentP(1)->StrValue() == "onMetaData")){
+        tmp = meta_in.getContentP(2);
+      }
+    }
+    if (tmp){
       if (tmp->getContentP("videocodecid")){
         switch ((unsigned int)tmp->getContentP("videocodecid")->NumValue()){
           case 2:

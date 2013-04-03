@@ -31,14 +31,15 @@
             ['kb_total', 'Total bandwidth'],
             ['kbps_max', 'Current bandwidth'],
             ['users', 'Concurrent users'],
-            ['streams', 'Cocurrent streams'],
             ['geo', 'Geolimited'],
-            ['host', 'Hostlimited'],
-            ['time', 'Timelimited'],
+            ['host', 'Hostlimited']
+         ];
+         
+         /* Not currently supported but may return at a later time:
             ['duration', 'Duration'],
             ['str_kbps_min', 'Minimum bitrate'],
             ['str_kbps_max', 'Maximum bitrate']
-         ];
+         /*
          
          
       /**
@@ -63,9 +64,6 @@
                   showTab($(this).text());
                });
                
-               if (($(this).text() == "limits") && (settings.settings.LTS != 1)) {
-                  $(this).remove();
-               }
             });
             
             // show login 'tab' and hide menu

@@ -389,7 +389,10 @@
                         "capabilities": {},
                         "log": {},
                         "statistics": {}
-                     }, d);
+                     }, d)
+                     if (settings.settings.LTS != 1) {
+                        $('.LTSonly').remove();
+                     }
                   }
                   if(callback)
                   {

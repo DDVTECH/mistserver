@@ -46,9 +46,10 @@ namespace Buffer {
         StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
       }
       if (StatsSocket.connected()){
+        Stream::get()->getReadLock();
         StatsSocket.Send(Stream::get()->getStats());
-        StatsSocket.Send(double_newline);
-        StatsSocket.flush();
+        Stream::get()->dropReadLock();
+        StatsSocket.SendNow(double_newline);
       }
     }
     StatsSocket.close();
@@ -62,10 +63,12 @@ namespace Buffer {
     std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
 #endif
 
+    Stream::get()->getReadLock();
     usr->myRing = thisStream->getRing();
     if (thisStream->getStream()->metadata && thisStream->getHeader().size() > 0){
       usr->S.SendNow(thisStream->getHeader());
     }
+    Stream::get()->dropReadLock();
 
     while (usr->S.connected()){
       usleep(5000); //sleep 5ms

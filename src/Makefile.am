@@ -17,7 +17,6 @@ bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP Mis
 MistBuffer_SOURCES=buffer/buffer.cpp buffer/buffer_user.h buffer/buffer_user.cpp buffer/buffer_stream.h buffer/buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
 MistBuffer_LDADD=$(MIST_LIBS) -lpthread
 MistPlayer_SOURCES=buffer/player.cpp
-MistPlayer_LDADD=$(MIST_LIBS)
 
 #controller folder (MistController)
 MistController_SOURCES=controller/controller.cpp controller/controller_connectors.h controller/controller_connectors.cpp controller/controller_storage.h controller/controller_storage.cpp controller/controller_streams.h controller/controller_streams.cpp controller/controller_capabilities.h controller/controller_capabilities.cpp ../VERSION controller/server.html.h

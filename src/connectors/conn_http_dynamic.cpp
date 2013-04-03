@@ -38,7 +38,7 @@ namespace Connector_HTTP {
     asrt.setVersion(1);
     //asrt.setQualityEntry(empty, 0);
     if (metadata.isMember("live")){
-      asrt.setSegmentRun(1, 4294967295, 0);
+      asrt.setSegmentRun(1, 4294967295ul, 0);
     }else{
       asrt.setSegmentRun(1, metadata["keytime"].size(), 0);
     }

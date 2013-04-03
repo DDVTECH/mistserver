@@ -76,11 +76,12 @@ namespace Connector_HTTP {
         }
         std::map<std::string, ConnConn*>::iterator it;
         for (it = connectorConnections.begin(); it != connectorConnections.end(); it++){
-          if ( !it->second->conn->connected() || it->second->lastUse++ > 15){
-            if (it->second->inUse.try_lock()){
-              it->second->inUse.unlock();
-              delete it->second;
+          ConnConn* ccPointer = it->second;
+          if ( !ccPointer->conn->connected() || ccPointer->lastUse++ > 15){
+            if (ccPointer->inUse.try_lock()){
               connectorConnections.erase(it);
+              ccPointer->inUse.unlock();
+              delete ccPointer;
               it = connectorConnections.begin(); //get a valid iterator
               if (it == connectorConnections.end()){
                 return;
@@ -328,12 +329,12 @@ namespace Connector_HTTP {
       timeouter = new tthread::thread(Connector_HTTP::proxyTimeoutThread, 0);
       timeoutMutex.unlock();
     }
-    connMutex.unlock();
 
     //lock the mutex for this connection, and handle the request
     tthread::lock_guard<tthread::mutex> guard(connectorConnections[uid]->inUse);
+    connMutex.unlock();
     //if the server connection is dead, handle as timeout.
-    if ( !connectorConnections.count(uid) || !connectorConnections[uid]->conn->connected()){
+    if ( !connectorConnections[uid]->conn->connected()){
       connectorConnections[uid]->conn->close();
       return proxyHandleTimeout(H, conn);
     }

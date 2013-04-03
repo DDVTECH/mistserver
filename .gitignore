@@ -30,4 +30,10 @@ libtool
 *.json
 server.html*
 *.js.h
+.dirstamp
+*.orig
+*.lock
+.settings
+.cproject
+.project
 

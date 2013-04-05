@@ -335,6 +335,16 @@ FLV::Tag::Tag(const RTMPStream::Chunk& O){
   ChunkLoader(O);
 }
 
+/// Generic destructor that frees the allocated memory in the internal data variable, if any.
+FLV::Tag::~Tag(){
+  if (data){
+    free(data);
+    data = 0;
+    buf = 0;
+    len = 0;
+  }
+}
+
 /// Assignment operator - works exactly like the copy constructor.
 /// This operator checks for self-assignment.
 FLV::Tag & FLV::Tag::operator=(const FLV::Tag& O){
@@ -759,13 +769,14 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
 bool FLV::Tag::ChunkLoader(const RTMPStream::Chunk& O){
   len = O.len + 15;
   if (len > 0){
-    if ( !data){
-      data = (char*)malloc(len);
-      buf = len;
-    }else{
-      if (buf < len){
-        data = (char*)realloc(data, len);
+    if (buf < len || !data){
+      char * newdata = (char*)realloc(data, len);
+      // on realloc fail, retain the old data
+      if (newdata != 0){
+        data = newdata;
         buf = len;
+      }else{
+        return false;
       }
     }
     memcpy(data + 11, &(O.data[0]), O.len);

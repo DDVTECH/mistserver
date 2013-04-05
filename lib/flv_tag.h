@@ -39,6 +39,7 @@ namespace FLV {
       Tag(const Tag& O); ///< Copy constructor, copies the contents of an existing tag.
       Tag & operator=(const Tag& O); ///< Assignment operator - works exactly like the copy constructor.
       Tag(const RTMPStream::Chunk& O); ///<Copy constructor from a RTMP chunk.
+      ~Tag(); ///< Generic destructor.
       //loader functions
       bool ChunkLoader(const RTMPStream::Chunk& O);
       bool DTSCLoader(DTSC::Stream & S);

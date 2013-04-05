@@ -305,7 +305,7 @@ namespace Connector_RTMP {
     static unsigned int counter = 0;
     //for chunk parsing
     static RTMPStream::Chunk next;
-    FLV::Tag F;
+    static FLV::Tag F;
     static AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
     static AMF::Object amfelem("empty", AMF::AMF0_DDV_CONTAINER);
     static AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);

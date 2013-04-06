@@ -305,6 +305,7 @@ namespace Connector_HTTP {
     connMutex.lock();
     if ( !connectorConnections.count(uid) || !connectorConnections[uid]->conn->connected()){
       if (connectorConnections.count(uid)){
+        delete connectorConnections[uid];
         connectorConnections.erase(uid);
       }
       connectorConnections[uid] = new ConnConn(new Socket::Connection("/tmp/mist/http_" + connector));
@@ -557,10 +558,15 @@ int main(int argc, char ** argv){
       tthread::thread * T = new tthread::thread(Connector_HTTP::proxyHandleHTTPConnection, (void *)(new Socket::Connection(S)));
       //detach it, no need to keep track of it anymore
       T->detach();
+      delete T;
     }else{
       Util::sleep(10); //sleep 10ms
     }
   } //while connected and not requested to stop
   server_socket.close();
+  if (Connector_HTTP::timeouter){
+    Connector_HTTP::timeouter->detach();
+    delete Connector_HTTP::timeouter;
+  }
   return 0;
 } //main

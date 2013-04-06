@@ -56,9 +56,6 @@ namespace Connector_HTTP {
   };
 
   std::map<std::string, ConnConn *> connectorConnections; ///< Connections to connectors
-  std::set<tthread::thread *> activeThreads; ///< Holds currently active threads
-  std::set<tthread::thread *> doneThreads; ///< Holds threads that are done and ready to be joined.
-  tthread::mutex threadMutex; ///< Mutex for adding/removing threads.
   tthread::mutex connMutex; ///< Mutex for adding/removing connector connections.
   tthread::mutex timeoutMutex; ///< Mutex for timeout thread.
   tthread::thread * timeouter = 0; ///< Thread that times out connections to connectors.
@@ -539,17 +536,6 @@ namespace Connector_HTTP {
     //close and remove the connection
     conn->close();
     delete conn;
-    //remove this thread from activeThreads and add it to doneThreads.
-    threadMutex.lock();
-    for (std::set<tthread::thread *>::iterator it = activeThreads.begin(); it != activeThreads.end(); it++){
-      if (( *it)->get_id() == tthread::this_thread::get_id()){
-        tthread::thread * T = ( *it);
-        activeThreads.erase(T);
-        doneThreads.insert(T);
-        break;
-      }
-    }
-    threadMutex.unlock();
   }
 
 } //Connector_HTTP namespace
@@ -567,41 +553,14 @@ int main(int argc, char ** argv){
   while (server_socket.connected() && conf.is_active){
     Socket::Connection S = server_socket.accept();
     if (S.connected()){ //check if the new connection is valid
-      //lock the thread mutex and spawn a new thread for this connection
-      Connector_HTTP::threadMutex.lock();
+      //spawn a new thread for this connection
       tthread::thread * T = new tthread::thread(Connector_HTTP::proxyHandleHTTPConnection, (void *)(new Socket::Connection(S)));
-      Connector_HTTP::activeThreads.insert(T);
-      //clean up any threads that may have finished
-      while ( !Connector_HTTP::doneThreads.empty()){
-        T = *Connector_HTTP::doneThreads.begin();
-        T->join();
-        Connector_HTTP::doneThreads.erase(T);
-        delete T;
-      }
-      Connector_HTTP::threadMutex.unlock();
+      //detach it, no need to keep track of it anymore
+      T->detach();
     }else{
       Util::sleep(10); //sleep 10ms
     }
   } //while connected and not requested to stop
   server_socket.close();
-
-  //wait for existing connections to drop
-  bool repeat = true;
-  while (repeat){
-    Connector_HTTP::threadMutex.lock();
-    repeat = !Connector_HTTP::activeThreads.empty();
-    //clean up any threads that may have finished
-    while ( !Connector_HTTP::doneThreads.empty()){
-      tthread::thread * T = *Connector_HTTP::doneThreads.begin();
-      T->join();
-      Connector_HTTP::doneThreads.erase(T);
-      delete T;
-    }
-    Connector_HTTP::threadMutex.unlock();
-    if (repeat){
-      Util::sleep(100); //sleep 100ms
-    }
-  }
-
   return 0;
 } //main

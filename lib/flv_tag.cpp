@@ -115,6 +115,62 @@ bool FLV::Tag::isInitData(){
   return false;
 }
 
+const char * FLV::Tag::getVideoCodec(){
+  switch (data[11] & 0x0F){
+    case 1:
+      return "JPEG";
+    case 2:
+      return "H263";
+    case 3:
+      return "ScreenVideo1";
+    case 4:
+      return "VP6";
+    case 5:
+      return "VP6Alpha";
+    case 6:
+      return "ScreenVideo2";
+    case 7:
+      return "H264";
+    default:
+      return "unknown";
+  }
+}
+
+const char * FLV::Tag::getAudioCodec(){
+  switch (data[11] & 0xF0){
+    case 0x00:
+      return "linear PCM PE";
+    case 0x10:
+      return "ADPCM";
+    case 0x20:
+      return "MP3";
+    case 0x30:
+      return "linear PCM LE";
+    case 0x40:
+      return "Nelly16kHz";
+    case 0x50:
+      return "Nelly8kHz";
+    case 0x60:
+      return "Nelly";
+    case 0x70:
+      return "G711A-law";
+    case 0x80:
+      return "G711mu-law";
+    case 0x90:
+      return "reserved";
+    case 0xA0:
+      return "AAC";
+    case 0xB0:
+      return "Speex";
+    case 0xE0:
+      return "MP38kHz";
+    case 0xF0:
+      return "DeviceSpecific";
+    default:
+      return "unknown";
+  }
+}
+
 /// Returns a std::string describing the tag in detail.
 /// The string includes information about whether the tag is
 /// audio, video or metadata, what encoding is used, and the details
@@ -124,33 +180,7 @@ std::string FLV::Tag::tagType(){
   R << len << " bytes of ";
   switch (data[0]){
     case 0x09:
-      switch (data[11] & 0x0F){
-        case 1:
-          R << "JPEG";
-          break;
-        case 2:
-          R << "H263";
-          break;
-        case 3:
-          R << "ScreenVideo1";
-          break;
-        case 4:
-          R << "VP6";
-          break;
-        case 5:
-          R << "VP6Alpha";
-          break;
-        case 6:
-          R << "ScreenVideo2";
-          break;
-        case 7:
-          R << "H264";
-          break;
-        default:
-          R << "unknown";
-          break;
-      }
-      R << " video ";
+      R << getVideoCodec() << " video ";
       switch (data[11] & 0xF0){
         case 0x10:
           R << "keyframe";
@@ -183,53 +213,7 @@ std::string FLV::Tag::tagType(){
       }
       break;
     case 0x08:
-      switch (data[11] & 0xF0){
-        case 0x00:
-          R << "linear PCM PE";
-          break;
-        case 0x10:
-          R << "ADPCM";
-          break;
-        case 0x20:
-          R << "MP3";
-          break;
-        case 0x30:
-          R << "linear PCM LE";
-          break;
-        case 0x40:
-          R << "Nelly16kHz";
-          break;
-        case 0x50:
-          R << "Nelly8kHz";
-          break;
-        case 0x60:
-          R << "Nelly";
-          break;
-        case 0x70:
-          R << "G711A-law";
-          break;
-        case 0x80:
-          R << "G711mu-law";
-          break;
-        case 0x90:
-          R << "reserved";
-          break;
-        case 0xA0:
-          R << "AAC";
-          break;
-        case 0xB0:
-          R << "Speex";
-          break;
-        case 0xE0:
-          R << "MP38kHz";
-          break;
-        case 0xF0:
-          R << "DeviceSpecific";
-          break;
-        default:
-          R << "unknown";
-          break;
-      }
+      R << getAudioCodec();
       switch (data[11] & 0x0C){
         case 0x0:
           R << " 5.5kHz";
@@ -1109,15 +1093,8 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
     }
     pack_out["datatype"] = "audio";
     pack_out["time"] = tagTime();
-    if ( !metadata["audio"].isMember("codec") || metadata["audio"]["size"].asString() == ""){
-      switch (audiodata & 0xF0){
-        case 0x20:
-          metadata["audio"]["codec"] = "MP3";
-          break;
-        case 0xA0:
-          metadata["audio"]["codec"] = "AAC";
-          break;
-      }
+    if ( !metadata["audio"].isMember("codec") || metadata["audio"]["codec"].asString() == "?" || metadata["audio"]["codec"].asString() == ""){
+      metadata["audio"]["codec"] = getAudioCodec();
     }
     if ( !metadata["audio"].isMember("rate") || metadata["audio"]["rate"].asInt() < 1){
       switch (audiodata & 0x0C){
@@ -1184,18 +1161,8 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
       }
       return pack_out; //skip rest of parsing, get next tag.
     }
-    if ( !metadata["video"].isMember("codec") || metadata["video"]["codec"].asString() == ""){
-      switch (videodata & 0x0F){
-        case 2:
-          metadata["video"]["codec"] = "H263";
-          break;
-        case 4:
-          metadata["video"]["codec"] = "VP6";
-          break;
-        case 7:
-          metadata["video"]["codec"] = "H264";
-          break;
-      }
+    if ( !metadata["video"].isMember("codec") || metadata["video"]["codec"].asString() == "?" || metadata["video"]["codec"].asString() == ""){
+      metadata["video"]["codec"] = getVideoCodec();
     }
     pack_out["datatype"] = "video";
     switch (videodata & 0xF0){

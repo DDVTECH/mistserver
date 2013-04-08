@@ -32,6 +32,8 @@ namespace FLV {
       char * data; ///< Pointer to tag buffer.
       bool needsInitData(); ///< True if this media type requires init data.
       bool isInitData(); ///< True if current tag is init data for this media type.
+      const char * getAudioCodec(); ///< Returns a c-string with the audio codec name.
+      const char * getVideoCodec(); ///< Returns a c-string with the video codec name.
       std::string tagType(); ///< Returns a std::string describing the tag in detail.
       unsigned int tagTime(); ///< Returns the 32-bit timestamp of this tag.
       void tagTime(unsigned int T); ///< Sets the 32-bit timestamp of this tag.

@@ -64,6 +64,7 @@ table th
 table td
 {
    color: #505050;
+   vertical-align:top;
 }
 
 
@@ -432,4 +433,16 @@ td
 {
    margin-top: 25px;
    margin-bottom: 0px;
+}
+
+#tooltip 
+{
+	position: absolute;
+	border: 1px solid black;
+	display: none;
+	padding: 2px;
+	background-color: #fee;
+	opacity: 0.8;
+	color: black;
+	font: normal normal 11pt Arial, sans-serif;
 }

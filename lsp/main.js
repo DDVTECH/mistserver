@@ -1060,7 +1060,7 @@
                   } 
                
                   $table = $('<table>');
-                  $table.html("<thead><th>Type</th><th>Hard/soft</th><th>Value</th><th>applies to</th><th>Action</th></thead>");
+                  $table.html("<thead><th>Hard/soft</th><th>Type</th><th>Value</th><th>Applies to</th><th>Action</th></thead>");
                   $tbody = $('<tbody>');
                   
                   var i, tr, limit, stream, clims,
@@ -1084,108 +1084,70 @@
                   // remove old items
                   $tbody.html('');
                   
+                  //build current limits
                   for(i = 0; i < len; i++)
                   {
-                     tr = $('<tr>').attr('id', 'limits-' + i);
                      limit = alllimits[i];
-                     
-                     tr.append( $('<td>').text( shortToLongLimit(limit.name) ) );
-                     tr.append( $('<td>').text( limit.type ) );
-                     tr.append( $('<td>').text( limit.val ) );
-                     
-                     if(limit.appliesto)
-                     {
-                        tr.append( $('<td>').text( settings.settings.streams[limit.appliesto].name ).attr('id', 'limit-at-' + limit.appliesto + '-' + limit.appliesi) );
-                     }else{
-                        tr.append( $('<td>').text( 'server' ) );
-                     }
-                     
-                     delete limit.appliesto;
-                     delete limit.appliesi;
-                     
-                     tr.append( $('<td>').attr('class', 'center').append( $('<button>').click(function()
-                     {
-                       if(confirmDelete('Are you sure you want to delete this limit?') == true)
-                       {
-                          var id = $(this).parent().parent().attr('id').replace('limits-', '');
-                          var at = $($(this).parent().parent().children()[3]).attr('id');
-                          
-                          if(at == undefined)
-                          {
-                             settings.settings.config.limits.splice(id, 1);
-                          }else{
-                             var data = at.replace('limit-at-', '').split('-');
-                             var loc = data.pop();
-                             data = data.join('-');
-                             
-                             settings.settings.streams[data].limits.splice(loc, 1);
-                          }
-                          
-                          $(this).parent().parent().remove();
-                          
-                          loadSettings();
-                       }
-                     }).text('delete') ) );
-                                
-                     $tbody.append(tr);
+                     $tbody.append(BuildLimitRow(limit));
                   }
-                  
-                  // add new limit
-                  $nltr = $('<tr>').attr('class', 'outsidetable');
-                  
-                  // type selector
-                  $ltype = $('<select>').attr('id', 'new-limit-type');
-                  for(i = 0; i < ltypes.length; i++)
-                  {
-                     $ltype.append( $('<option>').attr('value', ltypes[i][0]).text(ltypes[i][1]) );
-                  }
-                  $nltr.append( $('<td>').append( $ltype ) );
-                  // hard/soft limit
-                  $nltr.append( $('<td>').append( $('<select>').attr('id', 'new-limit-hs').append( $('<option>').attr('value', 'hard').text('Hard limit') ).append( $('<option>').attr('value', 'soft').text('Soft limit') ) ) );
-                  // value
-                  $nltr.append( $('<td>').append( $('<input>').attr('type', 'text').attr('id', 'new-limit-val') ) );
-                  
-                  // applies to (stream)
-                  var $appliesto = $('<select>').attr('id', 'new-limit-appliesto').append( $('<option>').attr('value', 'server').text('Server') );
-                  
-                  for(var strm in settings.settings.streams)
-                  {
-                     $appliesto.append(
-                        $('<option>').attr('value', strm).text(settings.settings.streams[strm].name)
-                     );
-                  }
-                  $nltr.append( $('<td>').append( $appliesto ) );
-                  
-                  $nltr.append(
-                     $('<td>').attr('class', 'center').append(
-                        $('<button>').click(function()
-                        {
-                           var obj =
-                           {
-                              name: $('#new-limit-type :selected').val(),
-                              type: $('#new-limit-hs :selected').val(),
-                              val:  $('#new-limit-val').val()
-                           };
-                           
-                           if( $('#new-limit-appliesto').val() == 'server')
-                           {
-                              settings.settings.config.limits.push(obj);
-                           }else{
-                              settings.settings.streams[ $('#new-limit-appliesto').val() ].limits.push(obj);
-                           }
-                           
-                           loadSettings(function()
-                           {
-                              showTab('limits');
-                           });
-                           
-                        }).text('add new')
-                     )
-                  );
-                  $tbody.append($nltr);
-                  
+                   
                   $table.append($tbody);
-                  $('#page').append($table);
+                  $('#page').append($table); 
+                  
+                  //build buttons
+                  $('#page').append(
+                    $('<button>').text('Add limit').click(function(){
+                      $tbody.append(BuildLimitRow({"name":"kb_total", "val":0, "type":"soft"}));
+                    })
+                  ).append($('<br>')).append(
+                    $('<button>').text('Save all').click(function(){
+                      //clear current limits
+                      settings.settings.config.limits = Array();
+                      for (str in settings.settings.streams) {
+                        settings.settings.streams[str].limits = Array();
+                      }
+                      
+                      //add new limits
+                      $tbody.children('tr').each(function(){
+                        var newval = null;
+                        switch ($(this).find(".limits_name").val()) {
+                          case 'geo':
+                            var entries = Array();
+                            $(this).find('.limit_listentry').each(function(){
+                              var t = $(this).children(':selected').val();
+                              if (t != ''){
+                                entries.push(t);
+                              }
+                            });
+                            if (entries.length > 0) {
+                              newval = $(this).find('.limit_listtype').children(':selected').val() + entries.join(' ');
+                            }
+                          break;
+                          case 'host':
+                          case 'time':
+                            var t = $(this).find('.limit_listentry').val();
+                            if ((t != undefined) && (t.toString().split(' ').length > 0)) {
+                              newval = $(this).find('.limit_listtype').children(':selected').val() + t;
+                            }
+                          break;
+                          default:
+                            newval = $(this).find(".limits_val").val();
+                          break;
+                        }
+                        if (newval){
+                          obj = {"type": $(this).find(".limits_type").val(), "name":$(this).find(".limits_name").val(), "val":newval};
+                        }
+                        if($(this).find('.new-limit-appliesto').val() == 'server') {
+                          settings.settings.config.limits.push(obj);
+                        }else{
+                          settings.settings.streams[$(this).find('.new-limit-appliesto').val()].limits.push(obj);
+                        }
+                      });
+                      loadSettings(function(){
+                        showTab('limits');
+                      });
+                    })
+                  );
                   
                   break;
                   

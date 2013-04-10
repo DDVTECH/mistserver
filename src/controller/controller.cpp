@@ -473,8 +473,8 @@ int main(int argc, char ** argv){
   }
   API_Socket.close();
   Controller::Log("CONF", "Controller shutting down");
-  Util::Procs::StopAll();
   Controller::WriteFile("config.json", Controller::Storage.toString());
+  Util::Procs::StopAll();
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
   return 0;
 }

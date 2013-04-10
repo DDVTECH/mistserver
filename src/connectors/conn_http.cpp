@@ -329,46 +329,48 @@ namespace Connector_HTTP {
     }
 
     //lock the mutex for this connection, and handle the request
-    tthread::lock_guard<tthread::mutex> guard(connectorConnections[uid]->inUse);
+    ConnConn * myCConn = connectorConnections[uid];
+    myCConn->inUse.lock();
     connMutex.unlock();
     //if the server connection is dead, handle as timeout.
-    if ( !connectorConnections[uid]->conn->connected()){
-      connectorConnections[uid]->conn->close();
+    if ( !myCConn->conn->connected()){
+      myCConn->conn->close();
       return proxyHandleTimeout(H, conn);
     }
     //forward the original request
-    connectorConnections[uid]->conn->SendNow(request);
-    connectorConnections[uid]->lastUse = 0;
+    myCConn->conn->SendNow(request);
+    myCConn->lastUse = 0;
     unsigned int timeout = 0;
     unsigned int retries = 0;
     //wait for a response
-    while (connectorConnections.count(uid) && connectorConnections[uid]->conn->connected() && conn->connected()){
+    while (myCConn->conn->connected() && conn->connected()){
       conn->spool();
-      if (connectorConnections[uid]->conn->Received().size() || connectorConnections[uid]->conn->spool()){
+      if (myCConn->conn->Received().size() || myCConn->conn->spool()){
         //make sure we end in a \n
-        if ( *(connectorConnections[uid]->conn->Received().get().rbegin()) != '\n'){
-          std::string tmp = connectorConnections[uid]->conn->Received().get();
-          connectorConnections[uid]->conn->Received().get().clear();
-          if (connectorConnections[uid]->conn->Received().size()){
-            connectorConnections[uid]->conn->Received().get().insert(0, tmp);
+        if ( *(myCConn->conn->Received().get().rbegin()) != '\n'){
+          std::string tmp = myCConn->conn->Received().get();
+          myCConn->conn->Received().get().clear();
+          if (myCConn->conn->Received().size()){
+            myCConn->conn->Received().get().insert(0, tmp);
           }else{
-            connectorConnections[uid]->conn->Received().append(tmp);
+            myCConn->conn->Received().append(tmp);
           }
         }
         //check if the whole response was received
-        if (H.Read(connectorConnections[uid]->conn->Received().get())){
+        if (H.Read(myCConn->conn->Received().get())){
           //208 means the fragment is too new, retry in 3s
           if (H.url == "208"){
             retries++;
             if (retries >= 5){
               std::cout << "[5 retry-laters, cancelled]" << std::endl;
-              connectorConnections[uid]->conn->close();
+              myCConn->conn->close();
+              myCConn->inUse.unlock();
               return proxyHandleTimeout(H, conn);
             }
-            connectorConnections[uid]->lastUse = 0;
+            myCConn->lastUse = 0;
             timeout = 0;
             Util::sleep(3000);
-            connectorConnections[uid]->conn->SendNow(request);
+            myCConn->conn->SendNow(request);
             H.Clean();
             continue;
           }
@@ -378,16 +380,18 @@ namespace Connector_HTTP {
         //keep trying unless the timeout triggers
         if (timeout++ > 4000){
           std::cout << "[20s timeout triggered]" << std::endl;
-          connectorConnections[uid]->conn->close();
+          myCConn->conn->close();
+          myCConn->inUse.unlock();
           return proxyHandleTimeout(H, conn);
         }else{
           Util::sleep(5);
         }
       }
     }
-    if ( !connectorConnections.count(uid) || !connectorConnections[uid]->conn->connected() || !conn->connected()){
+    if ( !myCConn->conn->connected() || !conn->connected()){
       //failure, disconnect and sent error to user
-      connectorConnections[uid]->conn->close();
+      myCConn->conn->close();
+      myCConn->inUse.unlock();
       return proxyHandleTimeout(H, conn);
     }else{
       long long int ret = Util::getMS();
@@ -397,15 +401,16 @@ namespace Connector_HTTP {
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         conn->SendNow(H.BuildResponse("200", "OK"));
+        myCConn->inUse.unlock();
       }else{
         //unknown length
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         conn->SendNow(H.BuildResponse("200", "OK"));
         //switch out the connection for an empty one - it makes no sense to keep these globally
-        Socket::Connection * myConn = connectorConnections[uid]->conn;
-        connectorConnections[uid]->conn = new Socket::Connection();
-        connectorConnections[uid]->inUse.unlock();
+        Socket::Connection * myConn = myCConn->conn;
+        myCConn->conn = new Socket::Connection();
+        myCConn->inUse.unlock();
         //continue sending data from this socket and keep it permanently in use
         while (myConn->connected() && conn->connected()){
           if (myConn->Received().size() || myConn->spool()){
@@ -555,10 +560,9 @@ int main(int argc, char ** argv){
     Socket::Connection S = server_socket.accept();
     if (S.connected()){ //check if the new connection is valid
       //spawn a new thread for this connection
-      tthread::thread * T = new tthread::thread(Connector_HTTP::proxyHandleHTTPConnection, (void *)(new Socket::Connection(S)));
+      tthread::thread T(Connector_HTTP::proxyHandleHTTPConnection, (void *)(new Socket::Connection(S)));
       //detach it, no need to keep track of it anymore
-      T->detach();
-      delete T;
+      T.detach();
     }else{
       Util::sleep(10); //sleep 10ms
     }

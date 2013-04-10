@@ -109,6 +109,7 @@ namespace Socket {
       Server(int port, std::string hostname = "0.0.0.0", bool nonblock = false); ///< Create a new TCP Server.
       Server(std::string adres, bool nonblock = false); ///< Create a new Unix Server.
       Connection accept(bool nonblock = false); ///< Accept any waiting connections.
+      void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
       bool connected() const; ///< Returns the connected-state for this socket.
       void close(); ///< Close connection.
       int getSocket(); ///< Returns internal socket number.

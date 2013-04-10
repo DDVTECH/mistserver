@@ -855,6 +855,13 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   return tmp;
 }
 
+/// Set this socket to be blocking (true) or nonblocking (false).
+void Socket::Server::setBlocking(bool blocking){
+  if (sock >= 0){
+    setFDBlocking(sock, blocking);
+  }
+}
+
 /// Close connection. The internal socket is closed and then set to -1.
 /// If the connection is already closed, nothing happens.
 void Socket::Server::close(){

@@ -35,8 +35,6 @@ namespace Buffer {
       void saveStats(std::string username, Stats & stats);
       /// Stores final statistics.
       void clearStats(std::string username, Stats & stats, std::string reason);
-      /// Cleans up broken connections
-      void cleanUsers();
       /// Blocks until writing is safe.
       void getWriteLock();
       /// Drops a previously gotten write lock.
@@ -51,6 +49,8 @@ namespace Buffer {
       void setName(std::string n);
       /// Add a user to the userlist.
       void addUser(user * newUser);
+      /// Delete a user from the userlist.
+      void removeUser(user * oldUser);
       /// Blocks the thread until new data is available.
       void waitForData();
       /// Cleanup function
@@ -67,8 +67,8 @@ namespace Buffer {
       std::string waiting_ip; ///< IP address for media push.
       Socket::Connection ip_input; ///< Connection used for media push.
       tthread::mutex stats_mutex; ///< Mutex for stats/users modifications.
-      std::vector<user*> users; ///< All connected users.
-      std::vector<user*>::iterator usersIt; ///< Iterator for all connected users.
+      std::set<user*> users; ///< All connected users.
+      std::set<user*>::iterator usersIt; ///< Iterator for all connected users.
       std::string name; ///< Name for this buffer.
       tthread::condition_variable moreData; ///< Triggered when more data becomes available.
   };

@@ -26,7 +26,6 @@ namespace Buffer {
   ///and its connection status.
   class user{
     public:
-      tthread::thread * Thread; ///< Holds the thread dealing with this user.
       DTSC::Ring * myRing; ///< Ring of the buffer for this user.
       int MyNum; ///< User ID of this user.
       std::string MyStr; ///< User ID of this user as a string.

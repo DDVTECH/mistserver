@@ -33,9 +33,11 @@ namespace Buffer {
   ///\brief Do cleanup on delete.
   Stream::~Stream(){
     tthread::lock_guard<tthread::mutex> guard(stats_mutex);
-    for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-      if (( * *usersIt).S.connected()){
-        ( * *usersIt).S.close();
+    if (users.size() > 0){
+      for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
+        if (( * *usersIt).S.connected()){
+          ( * *usersIt).S.close();
+        }
       }
     }
     moreData.notify_all();
@@ -161,33 +163,6 @@ namespace Buffer {
     Storage["log"][username]["start"] = Util::epoch() - stats.conntime;
   }
 
-  ///\brief Clean up broken connections
-  void Stream::cleanUsers(){
-    bool repeat = false;
-    tthread::lock_guard<tthread::mutex> guard(stats_mutex);
-    do{
-      repeat = false;
-      if (users.size() > 0){
-        for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-          if (( * *usersIt).Thread == 0 && !( * *usersIt).S.connected()){
-            delete *usersIt;
-            users.erase(usersIt);
-            repeat = true;
-            break;
-          }else{
-            if ( !( * *usersIt).S.connected()){
-              if (( * *usersIt).Thread->joinable()){
-                ( * *usersIt).Thread->join();
-                delete ( * *usersIt).Thread;
-                ( * *usersIt).Thread = 0;
-              }
-            }
-          }
-        }
-      }
-    }while (repeat);
-  }
-
   ///\brief Ask to obtain a write lock.
   ///
   /// Blocks until writing is safe.
@@ -255,9 +230,16 @@ namespace Buffer {
   ///\param newUser The user to be added.
   void Stream::addUser(user * newUser){
     tthread::lock_guard<tthread::mutex> guard(stats_mutex);
-    users.push_back(newUser);
+    users.insert(newUser);
   }
 
+  ///\brief Add a user to the userlist.
+  ///\param newUser The user to be added.
+  void Stream::removeUser(user * oldUser){
+    tthread::lock_guard<tthread::mutex> guard(stats_mutex);
+    users.erase(oldUser);
+  }
+  
   ///\brief Blocks the thread until new data is available.
   void Stream::waitForData(){
     tthread::lock_guard<tthread::mutex> guard(stats_mutex);

@@ -23,7 +23,6 @@ namespace Buffer {
     curr_down = 0;
     currsend = 0;
     myRing = 0;
-    Thread = 0;
     gotproperaudio = false;
     lastpointer = 0;
   } //constructor

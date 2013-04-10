@@ -34,7 +34,6 @@ namespace Buffer {
     Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
     while (buffer_running){
       Util::sleep(1000); //sleep one second
-      Stream::get()->cleanUsers();
       if ( !StatsSocket.connected()){
         StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
       }
@@ -52,6 +51,7 @@ namespace Buffer {
   ///\param v_usr The user that is connected.
   void handleUser(void * v_usr){
     user * usr = (user*)v_usr;
+    thisStream->addUser(usr);
 #if DEBUG >= 5
     std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
 #endif
@@ -152,6 +152,7 @@ namespace Buffer {
       }
     }
     usr->Disconnect("Socket closed.");
+    thisStream->removeUser(usr);
   }
 
   ///\brief A function running a thread to handle input data through stdin.
@@ -277,9 +278,8 @@ namespace Buffer {
       //starts a thread for every accepted connection
       incoming = SS.accept(true);
       if (incoming.connected()){
-        user * usr_ptr = new user(incoming);
-        thisStream->addUser(usr_ptr);
-        usr_ptr->Thread = new tthread::thread(handleUser, (void *)usr_ptr);
+        tthread::thread thisUser(handleUser, (void *)new user(incoming));
+        thisUser.detach();
       }else{
         Util::sleep(50);//sleep 50ms
       }

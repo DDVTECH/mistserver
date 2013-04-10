@@ -487,7 +487,7 @@ function BuildLimitRow(l)
              ['kbps_max', 'Current bandwidth', 'Current bandwidth in bytes/s.'],
              ['users', 'Concurrent users','Maximum concurrent users.'],
              ['geo', 'Geolimited', 'Either a blacklist or whitelist containing country codes.'],
-             ['host', 'Hostlimited', 'Either a blacklist or whitelist containing hosts seperated by spaces.'],
+             ['host', 'Hostlimited', 'Either a blacklist or whitelist containing hosts seperated by spaces.']
           ],
           ['type', 'name']
        ];

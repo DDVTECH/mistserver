@@ -56,6 +56,7 @@ namespace FLV {
       bool done; ///< Body reading done?
       unsigned int sofar; ///< How many bytes are read sofar?
       void setLen();
+      bool checkBufferSize();
       //loader helper functions
       bool MemReadUntil(char * buffer, unsigned int count, unsigned int & sofar, char * D, unsigned int S, unsigned int & P);
       bool FileReadUntil(char * buffer, unsigned int count, unsigned int & sofar, FILE * f);

@@ -294,11 +294,11 @@ FLV::Tag::Tag(){
 FLV::Tag::Tag(const Tag& O){
   done = true;
   sofar = 0;
-  buf = O.len;
-  len = buf;
+  len = O.len;
   if (len > 0){
-    data = (char*)malloc(len);
-    memcpy(data, O.data, len);
+    if (checkBufferSize()){
+      memcpy(data, O.data, len);
+    }
   }else{
     data = 0;
   }
@@ -335,16 +335,11 @@ FLV::Tag & FLV::Tag::operator=(const FLV::Tag& O){
   if (this != &O){ //no self-assignment
     len = O.len;
     if (len > 0){
-      if ( !data){
-        data = (char*)malloc(len);
-        buf = len;
+      if (checkBufferSize()){
+        memcpy(data, O.data, len);
       }else{
-        if (buf < len){
-          data = (char*)realloc(data, len);
-          buf = len;
-        }
+        len = buf;
       }
-      memcpy(data, O.data, len);
     }
     isKeyframe = O.isKeyframe;
   }
@@ -391,14 +386,8 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
       break;
   }
   if (len > 0){
-    if ( !data){
-      data = (char*)malloc(len);
-      buf = len;
-    }else{
-      if (buf < len){
-        data = (char*)realloc(data, len);
-        buf = len;
-      }
+    if ( !checkBufferSize()){
+      return false;
     }
     switch (S.lastType()){
       case DTSC::VIDEO:
@@ -519,14 +508,8 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Stream & S){
     len = S.metadata["video"]["init"].asString().length() + 20;
   }
   if (len > 0){
-    if ( !data){
-      data = (char*)malloc(len);
-      buf = len;
-    }else{
-      if (buf < len){
-        data = (char*)realloc(data, len);
-        buf = len;
-      }
+    if ( !checkBufferSize()){
+      return false;
     }
     memcpy(data + 16, S.metadata["video"]["init"].asString().c_str(), len - 20);
     data[12] = 0; //H264 sequence header
@@ -560,14 +543,8 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
     len = S.metadata["audio"]["init"].asString().length() + 17;
   }
   if (len > 0){
-    if ( !data){
-      data = (char*)malloc(len);
-      buf = len;
-    }else{
-      if (buf < len){
-        data = (char*)realloc(data, len);
-        buf = len;
-      }
+    if ( !checkBufferSize()){
+      return false;
     }
     memcpy(data + 13, S.metadata["audio"]["init"].asString().c_str(), len - 17);
     data[12] = 0; //AAC sequence header
@@ -725,16 +702,11 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
   std::string tmp = amfdata.Pack();
   len = tmp.length() + 15;
   if (len > 0){
-    if ( !data){
-      data = (char*)malloc(len);
-      buf = len;
+    if (checkBufferSize()){
+      memcpy(data + 11, tmp.c_str(), len - 15);
     }else{
-      if (buf < len){
-        data = (char*)realloc(data, len);
-        buf = len;
-      }
+      return false;
     }
-    memcpy(data + 11, tmp.c_str(), len - 15);
   }
   setLen();
   data[0] = 0x12;
@@ -753,15 +725,8 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
 bool FLV::Tag::ChunkLoader(const RTMPStream::Chunk& O){
   len = O.len + 15;
   if (len > 0){
-    if (buf < len || !data){
-      char * newdata = (char*)realloc(data, len);
-      // on realloc fail, retain the old data
-      if (newdata != 0){
-        data = newdata;
-        buf = len;
-      }else{
-        return false;
-      }
+    if ( !checkBufferSize()){
+      return false;
     }
     memcpy(data + 11, &(O.data[0]), O.len);
   }
@@ -812,9 +777,11 @@ bool FLV::Tag::MemReadUntil(char * buffer, unsigned int count, unsigned int & so
 /// \param P The current position in the data buffer. Will be updated to reflect new position.
 /// \return True if a whole tag is succesfully read, false otherwise.
 bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
-  if (buf < 15){
-    data = (char*)realloc(data, 15);
-    buf = 15;
+  if (len < 15){
+    len = 15;
+  }
+  if ( !checkBufferSize()){
+    return false;
   }
   if (done){
     //read a header
@@ -836,9 +803,8 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P){
         len = data[3] + 15;
         len += (data[2] << 8);
         len += (data[1] << 16);
-        if (buf < len){
-          data = (char*)realloc(data, len);
-          buf = len;
+        if ( !checkBufferSize()){
+          return false;
         }
         if (data[0] > 0x12){
           data[0] += 32;
@@ -903,9 +869,10 @@ bool FLV::Tag::FileLoader(FILE * f){
   int preflags = fcntl(fileno(f), F_GETFL, 0);
   int postflags = preflags | O_NONBLOCK;
   fcntl(fileno(f), F_SETFL, postflags);
-  if (buf < 15){
-    data = (char*)realloc(data, 15);
-    buf = 15;
+  
+  if (len < 15){len = 15;}
+  if ( !checkBufferSize()){
+    return false;
   }
 
   if (done){
@@ -930,9 +897,8 @@ bool FLV::Tag::FileLoader(FILE * f){
         len = data[3] + 15;
         len += (data[2] << 8);
         len += (data[1] << 16);
-        if (buf < len){
-          data = (char*)realloc(data, len);
-          buf = len;
+        if ( !checkBufferSize()){
+          return false;
         }
         if (data[0] > 0x12){
           data[0] += 32;
@@ -1209,3 +1175,21 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
   }
   return pack_out; //should never get here
 } //FLV::Tag::toJSON
+
+/// Checks if buf is large enough to contain len.
+/// Attempts to resize data buffer if not/
+/// \returns True if buffer is large enough, false otherwise.
+bool FLV::Tag::checkBufferSize(){
+  if (buf < len || !data){
+    char * newdata = (char*)realloc(data, len);
+    // on realloc fail, retain the old data
+    if (newdata != 0){
+      data = newdata;
+      buf = len;
+    }else{
+      len = buf;
+      return false;
+    }
+  }
+  return true;
+}

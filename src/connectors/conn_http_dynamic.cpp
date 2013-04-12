@@ -183,7 +183,7 @@ namespace Connector_HTTP {
             }
             ss.setBlocking(false);
             //make sure metadata is received
-            while ( !Strm.metadata){
+            while ( !Strm.metadata && ss.connected()){
               if (ss.spool()){
                 while (Strm.parsePacket(ss.Received())){
                   //do nothing

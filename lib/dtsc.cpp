@@ -342,32 +342,54 @@ void DTSC::Stream::updateHeaders(){
     metadata["keytime"].append(buffers[keyframes[1].b]["time"].asInt());
     metadata["keynum"].append(buffers[keyframes[1].b]["fragnum"].asInt());
     metadata["keylen"].append(buffers[keyframes[0].b]["time"].asInt() - buffers[keyframes[1].b]["time"].asInt());
-    long long int firstFragNo = -1;
-    metadata["frags"].null();
-    long long int currFrag = -1;
-    for (unsigned int i = 1; i < metadata["keytime"].size(); i++){
-      if (metadata["keytime"][i].asInt() / 10000 > currFrag){
-        currFrag = metadata["keytime"][i].asInt() / 10000;
+    unsigned int fragStart = 0;
+    if ( !metadata["frags"]){
+      // this means that if we have < ~10 seconds in the buffer, fragmenting goes horribly wrong.
+      if ( !metadata.isMember("missed_frags")){
+        metadata["missed_frags"] = 0ll;
+      }
+    }else{
+      // delete fragments of which the beginning can no longer be reached
+      while (metadata["frags"][0u]["num"].asInt() < metadata["keynum"][0u].asInt()){
+        metadata["frags"].shrink(metadata["frags"].size() - 1);
+        // increase the missed fragments counter
+        metadata["missed_frags"] = metadata["missed_frags"].asInt() + 1;
+      }
+      if (metadata["frags"].size() > 0){
+        // set oldestFrag to the first keynum outside any current fragment
+        long long unsigned int oldestFrag = metadata["frags"][metadata["frags"].size() - 1]["num"].asInt() + metadata["frags"][metadata["frags"].size() - 1]["len"].asInt();
+        // seek fragStart to the first keynum >= oldestFrag
+        while (metadata["keynum"][fragStart].asInt() < oldestFrag){
+          fragStart++;
+        }
+      }
+    }
+    for (unsigned int i = fragStart; i < metadata["keytime"].size(); i++){
+      if (i == fragStart){
+        long long int currFrag = metadata["keytime"][i].asInt() / 10000;
         long long int fragLen = 1;
         long long int fragDur = metadata["keylen"][i].asInt();
         for (unsigned int j = i + 1; j < metadata["keytime"].size(); j++){
-          if (metadata["keytime"][j].asInt() / 10000 > currFrag){
-            if (firstFragNo == -1){
-              firstFragNo = currFrag;
-            }
+          // if we are now 10+ seconds, finish the fragment
+          if (fragDur >= 10000){
+            // construct and append the fragment
             JSON::Value thisFrag;
             thisFrag["num"] = metadata["keynum"][i];
             thisFrag["len"] = fragLen;
             thisFrag["dur"] = fragDur;
             metadata["frags"].append(thisFrag);
+            // next fragment starts fragLen fragments up
+            fragStart += fragLen;
+            // skip that many - no unneeded looping
+            i += fragLen - 1;
             break;
           }
+          // otherwise, +1 the length and add up the duration
           fragLen++;
           fragDur += metadata["keylen"][j].asInt();
         }
       }
     }
-    metadata["missed_frags"] = firstFragNo;
     metadata["lastms"] = buffers[keyframes[0].b]["time"].asInt();
     metadata["buffer_window"] = (long long int)buffertime;
     metadata["live"] = true;

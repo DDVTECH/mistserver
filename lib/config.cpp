@@ -28,7 +28,7 @@ std::string Util::Config::libver = PACKAGE_VERSION;
 /// Creates a new configuration manager.
 Util::Config::Config(std::string cmd, std::string version){
   vals.null();
-  long_count = 0;
+  long_count = 2;
   vals["cmd"]["value"].append(cmd);
   vals["version"]["long"] = "version";
   vals["version"]["short"] = "v";
@@ -173,38 +173,40 @@ void Util::Config::parseArgs(int argc, char ** argv){
   struct option * longOpts = (struct option*)calloc(long_count + 1, sizeof(struct option));
   int long_i = 0;
   int arg_count = 0;
-  for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
-    if (it->second.isMember("short")){
-      shortopts += it->second["short"].asString();
-      if (it->second.isMember("arg")){
-        shortopts += ":";
+  if (vals.size()){
+    for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
+      if (it->second.isMember("short")){
+        shortopts += it->second["short"].asString();
+        if (it->second.isMember("arg")){
+          shortopts += ":";
+        }
       }
-    }
-    if (it->second.isMember("short_off")){
-      shortopts += it->second["short_off"].asString();
-      if (it->second.isMember("arg")){
-        shortopts += ":";
+      if (it->second.isMember("short_off")){
+        shortopts += it->second["short_off"].asString();
+        if (it->second.isMember("arg")){
+          shortopts += ":";
+        }
       }
-    }
-    if (it->second.isMember("long")){
-      longOpts[long_i].name = it->second["long"].asString().c_str();
-      longOpts[long_i].val = it->second["short"].asString()[0];
-      if (it->second.isMember("arg")){
-        longOpts[long_i].has_arg = 1;
+      if (it->second.isMember("long")){
+        longOpts[long_i].name = it->second["long"].asString().c_str();
+        longOpts[long_i].val = it->second["short"].asString()[0];
+        if (it->second.isMember("arg")){
+          longOpts[long_i].has_arg = 1;
+        }
+        long_i++;
       }
-      long_i++;
-    }
-    if (it->second.isMember("long_off")){
-      longOpts[long_i].name = it->second["long_off"].asString().c_str();
-      longOpts[long_i].val = it->second["short_off"].asString()[0];
-      if (it->second.isMember("arg")){
-        longOpts[long_i].has_arg = 1;
+      if (it->second.isMember("long_off")){
+        longOpts[long_i].name = it->second["long_off"].asString().c_str();
+        longOpts[long_i].val = it->second["short_off"].asString()[0];
+        if (it->second.isMember("arg")){
+          longOpts[long_i].has_arg = 1;
+        }
+        long_i++;
       }
-      long_i++;
-    }
-    if (it->second.isMember("arg_num") && !(it->second.isMember("value") && it->second["value"].size())){
-      if (it->second["arg_num"].asInt() > arg_count){
-        arg_count = it->second["arg_num"].asInt();
+      if (it->second.isMember("arg_num") && !(it->second.isMember("value") && it->second["value"].size())){
+        if (it->second["arg_num"].asInt() > arg_count){
+          arg_count = it->second["arg_num"].asInt();
+        }
       }
     }
   }

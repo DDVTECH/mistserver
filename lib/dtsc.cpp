@@ -601,8 +601,12 @@ void DTSC::File::readHeader(int pos){
   if (pos == 0){
     firstmetadata = metadata;
   }
+  if (fread(buffer, 4, 1, F) != 1){
+    metadata["isFixed"] = true;
+  }
   //if there is another header, read it and replace metadata with that one.
   if (metadata.isMember("moreheader") && metadata["moreheader"].asInt() > 0){
+    metadata.removeMember("isFixed");
     readHeader(metadata["moreheader"].asInt());
     return;
   }

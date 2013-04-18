@@ -67,18 +67,21 @@ namespace Converters {
             meta["tracks"][currentID] = meta["video"];
             meta.removeMember("video");
           }
-        }
-        if (F.getJSON()["datatype"].asString() == "audio"){
-          currentID = "audio0";
-          trackData[currentID].packetID = 0;
-          if (meta.isMember("audio")){
-            meta["tracks"][currentID] = meta["audio"];
-            meta.removeMember("audio");
+          trackData[currentID].type = F.getJSON()["datatype"].asString();
+        }else{
+          if (F.getJSON()["datatype"].asString() == "audio"){
+            currentID = "audio0";
+            trackData[currentID].packetID = 0;
+            if (meta.isMember("audio")){
+              meta["tracks"][currentID] = meta["audio"];
+              meta.removeMember("audio");
+            }
+            trackData[currentID].type = F.getJSON()["datatype"].asString();
+          }else{
+            F.seekNext();
+            continue;
           }
         }
-      }
-      if (trackData[currentID].type == ""){
-        trackData[currentID].type = F.getJSON()["datatype"].asString();
       }
       if (F.getJSON()["time"].asInt() >= nowpack){
         nowpack = F.getJSON()["time"].asInt();

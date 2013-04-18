@@ -40,23 +40,17 @@ namespace Converters {
           if (counter > 8){
             sending = true;
             meta_out["moreheader"] = 0LL;
-            std::string packed_header = meta_out.toPacked();
-            unsigned int size = htonl(packed_header.size());
-            std::cout << std::string(DTSC::Magic_Header, 4) << std::string((char*) &size, 4) << packed_header;
+            std::cout << meta_out.toNetPacked();
             std::cout << prebuffer.rdbuf();
             prebuffer.str("");
             std::cerr << "Buffer done, starting real-time output..." << std::endl;
           }else{
-            std::string packed_out = pack_out.toPacked();
-            unsigned int size = htonl(packed_out.size());
-            prebuffer << std::string(DTSC::Magic_Packet, 4) << std::string((char*) &size, 4) << packed_out;
+            prebuffer << pack_out.toNetPacked();
             continue; //don't also write
           }
         }
         //simply write
-        std::string packed_out = pack_out.toPacked();
-        unsigned int size = htonl(packed_out.size());
-        std::cout << std::string(DTSC::Magic_Packet, 4) << std::string((char*) &size, 4) << packed_out;
+        std::cout << pack_out.toNetPacked();
       }
     }
 
@@ -64,9 +58,7 @@ namespace Converters {
     if ( !sending){
       std::cerr << "EOF - outputting buffer..." << std::endl;
       meta_out["moreheader"] = 0LL;
-      std::string packed_header = meta_out.toPacked();
-      unsigned int size = htonl(packed_header.size());
-      std::cout << std::string(DTSC::Magic_Header, 4) << std::string((char*) &size, 4) << packed_header;
+      std::cout << meta_out.toNetPacked();
       std::cout << prebuffer.rdbuf();
     }
     std::cerr << "Done!" << std::endl;

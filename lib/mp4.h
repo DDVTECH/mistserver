@@ -55,7 +55,17 @@ namespace MP4 {
       int payloadOffset; ///<The offset of the payload with regards to the data
   };
   //Box Class
-
+  
+  class containerBox: public Box{
+    public:
+      //containerBox();
+      uint32_t getContentCount();
+      void setContent(Box & newContent, uint32_t no);
+      Box & getContent(uint32_t no);
+      std::string toPrettyString(int indent = 0);
+      std::string toPrettyContainerString(int indent, std::string boxName);
+  };
+  
   struct afrt_runtable{
       uint32_t firstFragment;
       uint64_t firstTimestamp;
@@ -160,12 +170,18 @@ namespace MP4 {
   };
   //MFHD Box
 
-  class MOOF: public Box{
+  /*class MOOF: public Box{
     public:
       MOOF();
       uint32_t getContentCount();
       void setContent(Box & newContent, uint32_t no);
       Box & getContent(uint32_t no);
+      std::string toPrettyString(int indent = 0);
+  };*/
+  
+  class MOOF: public containerBox{
+    public:
+      MOOF();
       std::string toPrettyString(int indent = 0);
   };
   //MOOF Box
@@ -319,7 +335,60 @@ namespace MP4 {
       uint32_t getValue(size_t index);
       std::string toPrettyString(uint32_t indent = 0);
   };
-
+  
+  class FTYP: public Box{
+    public:
+      FTYP();
+      void setMajorBrand(uint32_t newMajorBrand);
+      uint32_t getMajorBrand();
+      void setMinorVersion(uint32_t newMinorVersion);
+      uint32_t getMinorVersion();
+      uint32_t getCompatibleBrandsCount();
+      void setCompatibleBrands(uint32_t newCompatibleBrand, size_t index);
+      uint32_t getCompatibleBrands(size_t index);
+      std::string toPrettyString(int indent = 0);
+  };
+  
+  class MOOV: public containerBox{
+    public:
+      MOOV();
+      std::string toPrettyString(int indent = 0);
+  };
+  
+  class MVEX: public containerBox{
+    public:
+      MVEX();
+      std::string toPrettyString(int indent = 0);
+  };
+  
+  class TREX: public Box{
+    public:
+      TREX();
+      void setTrackID(uint32_t newTrackID);
+      uint32_t getTrackID();
+      void setDefaultSampleDescriptionIndex(uint32_t newDefaultSampleDescriptionIndex);
+      uint32_t getDefaultSampleDescriptionIndex();
+      void setDefaultSampleDuration(uint32_t newDefaultSampleDuration);
+      uint32_t getDefaultSampleDuration();
+      void setDefaultSampleSize(uint32_t newDefaultSampleSize);
+      uint32_t getDefaultSampleSize();
+      void setDefaultSampleFlags(uint32_t newDefaultSampleFlags);
+      uint32_t getDefaultSampleFlags();
+      std::string toPrettyString(int indent = 0);
+  };
+  
+  
+  class MFRA: public containerBox{
+    public:
+      MFRA();
+      std::string toPrettyString(int indent = 0);
+  };
+  
+  /*class MDAT: public Box{
+    public:
+      MDAT();
+  };*/
+  
   class UUID: public Box{
     public:
       UUID();

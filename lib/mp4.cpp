@@ -154,6 +154,21 @@ namespace MP4 {
       case 0x73647470:
         return ((SDTP*)this)->toPrettyString(indent);
         break;
+      case 0x66747970:
+        return ((FTYP*)this)->toPrettyString(indent);
+        break;
+      case 0x6D6F6F76:
+        return ((MOOV*)this)->toPrettyString(indent);
+        break;
+      case 0x6D766578:
+        return ((MVEX*)this)->toPrettyString(indent);
+        break;
+      case 0x74726578:
+        return ((TREX*)this)->toPrettyString(indent);
+        break;
+      case 0x6D667261:
+        return ((MFRA*)this)->toPrettyString(indent);
+        break;
       case 0x75756964:
         return ((UUID*)this)->toPrettyString(indent);
         break;
@@ -445,6 +460,62 @@ namespace MP4 {
     return true;
   }
 
+  uint32_t containerBox::getContentCount(){
+    int res = 0;
+    int tempLoc = 0;
+    while (tempLoc < boxedSize() - 8){
+      res++;
+      tempLoc += getBoxLen(tempLoc);
+    }
+    return res;
+  }
+
+  void containerBox::setContent(Box & newContent, uint32_t no){
+    int tempLoc = 0;
+    int contentCount = getContentCount();
+    for (int i = 0; i < no; i++){
+      if (i < contentCount){
+        tempLoc += getBoxLen(tempLoc);
+      }else{
+        if ( !reserve(tempLoc, 0, (no - contentCount) * 8)){
+          return;
+        };
+        memset(data + tempLoc, 0, (no - contentCount) * 8);
+        tempLoc += (no - contentCount) * 8;
+        break;
+      }
+    }
+    setBox(newContent, tempLoc);
+  }
+
+  Box & containerBox::getContent(uint32_t no){
+    static Box ret = Box((char*)"\000\000\000\010erro", false);
+    if (no > getContentCount()){
+      return ret;
+    }
+    int i = 0;
+    int tempLoc = 0;
+    while (i < no){
+      tempLoc += getBoxLen(tempLoc);
+      i++;
+    }
+    return getBox(tempLoc);
+  }
+  
+  std::string containerBox::toPrettyContainerString(int indent, std::string boxName){
+    std::stringstream r;
+    r << std::string(indent, ' ') << boxName <<" (" << boxedSize() << ")" << std::endl;
+    Box curBox;
+    int tempLoc = 0;
+    int contentCount = getContentCount();
+    for (int i = 0; i < contentCount; i++){
+      curBox = getContent(i);
+      r << curBox.toPrettyString(indent + 1);
+      tempLoc += getBoxLen(tempLoc);
+    }
+    return r.str();
+  }
+  
   ABST::ABST(){
     memcpy(data + 4, "abst", 4);
     setVersion(0);
@@ -1192,60 +1263,8 @@ namespace MP4 {
     memcpy(data + 4, "moof", 4);
   }
 
-  uint32_t MOOF::getContentCount(){
-    int res = 0;
-    int tempLoc = 0;
-    while (tempLoc < boxedSize() - 8){
-      res++;
-      tempLoc += getBoxLen(tempLoc);
-    }
-    return res;
-  }
-
-  void MOOF::setContent(Box & newContent, uint32_t no){
-    int tempLoc = 0;
-    int contentCount = getContentCount();
-    for (int i = 0; i < no; i++){
-      if (i < contentCount){
-        tempLoc += getBoxLen(tempLoc);
-      }else{
-        if ( !reserve(tempLoc, 0, (no - contentCount) * 8)){
-          return;
-        };
-        memset(data + tempLoc, 0, (no - contentCount) * 8);
-        tempLoc += (no - contentCount) * 8;
-        break;
-      }
-    }
-    setBox(newContent, tempLoc);
-  }
-
-  Box & MOOF::getContent(uint32_t no){
-    static Box ret = Box((char*)"\000\000\000\010erro", false);
-    if (no > getContentCount()){
-      return ret;
-    }
-    int i = 0;
-    int tempLoc = 0;
-    while (i < no){
-      tempLoc += getBoxLen(tempLoc);
-      i++;
-    }
-    return getBox(tempLoc);
-  }
-
   std::string MOOF::toPrettyString(int indent){
-    std::stringstream r;
-    r << std::string(indent, ' ') << "[moof] Movie Fragment Box (" << boxedSize() << ")" << std::endl;
-    Box curBox;
-    int tempLoc = 0;
-    int contentCount = getContentCount();
-    for (int i = 0; i < contentCount; i++){
-      curBox = getContent(i);
-      r << curBox.toPrettyString(indent + 1);
-      tempLoc += getBoxLen(tempLoc);
-    }
-    return r.str();
+    return toPrettyContainerString(indent, std::string("[moof] Movie Fragment Box"));
   }
 
   TRAF::TRAF(){
@@ -2145,11 +2164,137 @@ namespace MP4 {
     return r.str();
   }
   
+  FTYP::FTYP(){
+    memcpy(data + 4, "ftyp", 4);
+  }
+  
+  void FTYP::setMajorBrand(uint32_t newMajorBrand){
+    setInt32(newMajorBrand, 0);
+  }
+  
+  uint32_t FTYP::getMajorBrand(){
+    return getInt32(0);
+  }
+  
+  void FTYP::setMinorVersion(uint32_t newMinorVersion){
+    setInt32(newMinorVersion, 4);
+  }
+  
+  uint32_t FTYP::getMinorVersion(){
+    return getInt32(4);
+  }
+  
+  uint32_t FTYP::getCompatibleBrandsCount(){
+    return (payloadSize() - 8) / 4;
+  }
+  
+  void FTYP::setCompatibleBrands(uint32_t newCompatibleBrand, size_t index){
+    setInt32(newCompatibleBrand, 8 + (index * 4));
+  }
+  
+  uint32_t FTYP::getCompatibleBrands(size_t index){
+    if (index >= getCompatibleBrandsCount()){
+      return 0;
+    }
+    return getInt32(8 + (index * 4));
+  }
+  
+  std::string FTYP::toPrettyString(int indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[ftyp] File Type (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "MajorBrand: 0x" << std::hex << getMajorBrand() << std::dec << std::endl;
+    r << std::string(indent + 1, ' ') << "MinorVersion: " << getMinorVersion() << std::endl;
+    r << std::string(indent + 1, ' ') << "CompatibleBrands (" << getCompatibleBrandsCount() << "):" << std::endl;
+    for (int i = 0; i < getCompatibleBrandsCount(); i++){
+      r << std::string(indent + 2, ' ') << "[" << i << "] CompatibleBrand: 0x" << std::hex << getCompatibleBrands(i) << std::dec << std::endl;
+    }
+    return r.str();
+  }
+  
+  MOOV::MOOV(){
+    memcpy(data + 4, "moov", 4);
+  }
+  
+  std::string MOOV::toPrettyString(int indent){
+    return toPrettyContainerString(indent, std::string("[moov] Movie Box"));
+  }
+  
+  MVEX::MVEX(){
+    memcpy(data + 4, "mvex", 4);
+  }
+  
+  std::string MVEX::toPrettyString(int indent){
+    return toPrettyContainerString(indent, std::string("[mvex] Movie Extends Header Box"));
+  }
+  
+  TREX::TREX(){
+    memcpy(data + 4, "ftyp", 4);
+  }
+  
+  void TREX::setTrackID(uint32_t newTrackID){
+    setInt32(newTrackID, 0);
+  }
+  
+  uint32_t TREX::getTrackID(){
+    return getInt32(0);
+  }
+  
+  void TREX::setDefaultSampleDescriptionIndex(uint32_t newDefaultSampleDescriptionIndex){
+    setInt32(newDefaultSampleDescriptionIndex,4);
+  }
+  
+  uint32_t TREX::getDefaultSampleDescriptionIndex(){
+    return getInt32(4);
+  }
+  
+  void TREX::setDefaultSampleDuration(uint32_t newDefaultSampleDuration){
+    setInt32(newDefaultSampleDuration,8);
+  }
+  
+  uint32_t TREX::getDefaultSampleDuration(){
+    getInt32(8);
+  }
+  
+  void TREX::setDefaultSampleSize(uint32_t newDefaultSampleSize){
+    setInt32(newDefaultSampleSize,12);
+  }
+  
+  uint32_t TREX::getDefaultSampleSize(){
+    getInt32(12);
+  }
+  
+  void TREX::setDefaultSampleFlags(uint32_t newDefaultSampleFlags){
+    setInt32(newDefaultSampleFlags,16);
+  }
+  
+  uint32_t TREX::getDefaultSampleFlags(){
+    getInt32(16);
+  }
+  
+  std::string TREX::toPrettyString(int indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[trex] Track Extends (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "TrackID: " << getTrackID() << std::endl;
+    r << std::string(indent + 1, ' ') << "DefaultSampleDescriptionIndex : " << getDefaultSampleDescriptionIndex() << std::endl;
+    r << std::string(indent + 1, ' ') << "DefaultSampleDuration : " << getDefaultSampleDuration() << std::endl;
+    r << std::string(indent + 1, ' ') << "DefaultSampleSize : " << getDefaultSampleSize() << std::endl;
+    r << std::string(indent + 1, ' ') << "DefaultSampleFlags : " << getDefaultSampleFlags() << std::endl;
+    return r.str();
+  }
+        
   static char c2hex(int c){
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
     return 0;
+  }
+  
+  MFRA::MFRA(){
+    memcpy(data + 4, "mfra", 4);
+  }
+  
+  std::string MFRA::toPrettyString(int indent){
+    return toPrettyContainerString(indent, std::string("[mfra] Movie Fragment Random Acces Box"));
   }
   
   UUID::UUID(){

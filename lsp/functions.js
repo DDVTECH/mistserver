@@ -266,7 +266,12 @@
             {
                if(settings.settings.config.protocols[i].connector == 'HTTP')
                {
-                  return settings.settings.config.protocols[i].port;
+                  if (settings.settings.config.protocols[i].port == 0) {
+                     return 8080;
+                  }
+                  else {
+                     return settings.settings.config.protocols[i].port;
+                  }
                }
             }
 

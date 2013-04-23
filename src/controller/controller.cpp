@@ -90,21 +90,22 @@ namespace Controller {
   ///\param out The location to store the resulting configuration.
   void CheckConfig(JSON::Value & in, JSON::Value & out){
     for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
-      if (jit->first == "version"){
+      if (jit->first == "version" || jit->first == "time"){
         continue;
       }
       if (out.isMember(jit->first)){
         if (jit->second != out[jit->first]){
-          if (jit->first != "time"){
-            Log("CONF", std::string("Updated configuration value ") + jit->first);
-          }
+          Log("CONF", std::string("Updated configuration value ") + jit->first);
         }
       }else{
         Log("CONF", std::string("New configuration value ") + jit->first);
       }
     }
     for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
-      if ( !in.isMember(jit->first) || jit->first == "version"){
+      if (jit->first == "version" || jit->first == "time"){
+        continue;
+      }
+      if ( !in.isMember(jit->first)){
         Log("CONF", std::string("Deleted configuration value ") + jit->first);
       }
     }

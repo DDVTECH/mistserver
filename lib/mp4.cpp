@@ -1490,20 +1490,21 @@ namespace MP4 {
 
     r << std::string(indent + 1, ' ') << "SampleInformation (" << getSampleInformationCount() << "):" << std::endl;
     for (int i = 0; i < getSampleInformationCount(); ++i){
-      r << std::string(indent + 2, ' ') << "[" << i << "]" << std::endl;
+      r << std::string(indent + 2, ' ') << "[" << i << "] ";
       trunSampleInformation samp = getSampleInformation(i);
       if (flags & trunsampleDuration){
-        r << std::string(indent + 2, ' ') << "Duration " << samp.sampleDuration << std::endl;
+        r << "Duration=" << samp.sampleDuration << " ";
       }
       if (flags & trunsampleSize){
-        r << std::string(indent + 2, ' ') << "Size " << samp.sampleSize << std::endl;
+        r << "Size=" << samp.sampleSize << " ";
       }
       if (flags & trunsampleFlags){
-        r << std::string(indent + 2, ' ') << "Flags " << prettySampleFlags(samp.sampleFlags) << std::endl;
+        r << "Flags=" << prettySampleFlags(samp.sampleFlags) << " ";
       }
       if (flags & trunsampleOffsets){
-        r << std::string(indent + 2, ' ') << "Offset " << samp.sampleOffset << std::endl;
+        r << "Offset=" << samp.sampleOffset << " ";
       }
+      r << std::endl;
     }
 
     return r.str();

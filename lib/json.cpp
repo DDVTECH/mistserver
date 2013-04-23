@@ -581,11 +581,11 @@ std::string JSON::Value::toPrettyString(int indentation){
     }
     case ARRAY: {
       if (arrVal.size() > 0){
-        std::string tmp = "[\n";
+        std::string tmp = "[\n" + std::string(indentation + 2, ' ');
         for (ArrIter it = ArrBegin(); it != ArrEnd(); it++){
-          tmp += std::string(indentation + 2, ' ') + it->toPrettyString(indentation + 2);
+          tmp += it->toPrettyString(indentation + 2);
           if (it + 1 != ArrEnd()){
-            tmp += ",\n";
+            tmp += ", ";
           }
         }
         tmp += "\n" + std::string(indentation, ' ') + "]";
@@ -597,17 +597,21 @@ std::string JSON::Value::toPrettyString(int indentation){
     }
     case OBJECT: {
       if (objVal.size() > 0){
-        std::string tmp2 = "{\n";
+        bool shortMode = false;
+        if (size() <= 3 && isMember("len")){
+          shortMode = true;
+        }
+        std::string tmp2 = "{" + std::string((shortMode ? "" : "\n"));
         ObjIter it3 = ObjEnd();
         --it3;
         for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
-          tmp2 += std::string(indentation + 2, ' ') + "\"" + it2->first + "\":";
+          tmp2 += (shortMode ? std::string("") : std::string(indentation + 2, ' ')) + "\"" + it2->first + "\":";
           tmp2 += it2->second.toPrettyString(indentation + 2);
           if (it2 != it3){
-            tmp2 += ",\n";
+            tmp2 += "," + std::string((shortMode ? " " : "\n"));
           }
         }
-        tmp2 += "\n" + std::string(indentation, ' ') + "}";
+        tmp2 += (shortMode ? std::string("") : "\n" + std::string(indentation, ' ')) + "}";
         return tmp2;
       }else{
         return "{}";

@@ -28,7 +28,6 @@
        */
          var ltypes =
          [
-            ['kb_total', 'Total bandwidth'],
             ['kbps_max', 'Current bandwidth'],
             ['users', 'Concurrent users'],
             ['geo', 'Geolimited'],
@@ -36,6 +35,7 @@
          ];
          
          /* Not currently supported but may return at a later time:
+            ['kb_total', 'Total bandwidth'],
             ['duration', 'Duration'],
             ['str_kbps_min', 'Minimum bitrate'],
             ['str_kbps_max', 'Maximum bitrate']
@@ -1063,20 +1063,19 @@
                   $table.html("<thead><th>Hard/soft</th><th>Type</th><th>Value</th><th>Applies to</th><th>Action</th></thead>");
                   $tbody = $('<tbody>');
                   
-                  var i, tr, limit, stream, clims,
+                  var i, tr, limit, stream, currentlims,
                       alllimits = settings.settings.config.limits;
                       
                   for(stream in settings.settings.streams)
                   {
-                     clims = settings.settings.streams[stream].limits;
+                     currentlims = settings.settings.streams[stream].limits;
                      
-                     $.each(clims, function(k, v)
-                     {
-                        this.appliesto = stream;
-                        this.appliesi = k;
-                     });
+                     for (index in currentlims) {
+                       currentlims[index].appliesto = stream;
+                       currentlims[index].appliesi = index;
+                     }
                      
-                     alllimits = alllimits.concat(clims);
+                     alllimits = alllimits.concat(currentlims);
                   }
                   
                   len = alllimits.length;
@@ -1090,14 +1089,42 @@
                      limit = alllimits[i];
                      $tbody.append(BuildLimitRow(limit));
                   }
+                  for (stream in settings.settings.streams) {
+                     for (limit in settings.settings.streams[stream].limits) {
+                        delete settings.settings.streams[stream].limits[limit].appliesto;
+                        delete settings.settings.streams[stream].limits[limit].appliesi
+                     }
+                  }
                    
                   $table.append($tbody);
                   $('#page').append($table); 
                   
+                  //tooltip
+                  $('.limits_type').add('.limits_name').hover(function(e){
+                     removeTooltip();
+                     showTooltip(e,undefined,$(this).children(':selected').data('desc'));
+                  },function(){
+                     removeTooltip();
+                  });
+                  
+                  //change limit value box on type change
+                  $('.limits_name').change(function(){
+                     var value = $(this).parents('.limits_row').find(".limits_val").val();
+                    $(this).parents('.limits_row').children('.limit_input_container').html('');
+                    BuildLimitRowInput(
+                      $(this).parents('.limits_row').children('.limit_input_container'),
+                      {
+                        'name': $(this).parents('.limits_row').find(".limits_name").val(),
+                        'type': $(this).parents('.limits_row').find(".limits_type").val(),
+                        'val': value
+                      }
+                    );
+                  });
+                  
                   //build buttons
                   $('#page').append(
                     $('<button>').text('Add limit').click(function(){
-                      $tbody.append(BuildLimitRow({"name":"kb_total", "val":0, "type":"soft"}));
+                      $tbody.append(BuildLimitRow({"name":"kbps_max", "val":0, "type":"soft"}));
                     })
                   ).append($('<br>')).append(
                     $('<button>').text('Save all').click(function(){
@@ -1139,8 +1166,10 @@
                         }
                         if($(this).find('.new-limit-appliesto').val() == 'server') {
                           settings.settings.config.limits.push(obj);
+                          console.log('new server limit',obj);
                         }else{
                           settings.settings.streams[$(this).find('.new-limit-appliesto').val()].limits.push(obj);
+                          console.log('new stream limit',$(this).find('.new-limit-appliesto').val(),obj);
                         }
                       });
                       loadSettings(function(){

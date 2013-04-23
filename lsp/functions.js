@@ -475,7 +475,7 @@
 function BuildLimitRow(l)
 {
    l['type'] = l['type'] || 'soft';
-   l['name'] = l['name'] || 'kb_total';
+   l['name'] = l['name'] || 'kbps_max';
    l['val']  = l['val']  || 0;
 
    var i, j, lv, db,
@@ -488,7 +488,6 @@ function BuildLimitRow(l)
              ['hard', 'Hardlimit','Do not allow this limit to be passed.']
           ],
           [
-             ['kb_total', 'Total bandwidth','Total bandwidth in bytes.'],
              ['kbps_max', 'Current bandwidth', 'Current bandwidth in bytes/s.'],
              ['users', 'Concurrent users','Maximum concurrent users.'],
              ['geo', 'Geolimited', 'Either a blacklist or whitelist containing country codes.'],
@@ -498,6 +497,7 @@ function BuildLimitRow(l)
        ];
        /*
        Limits that are currently not in use but may return later:
+             ['kb_total', 'Total bandwidth','Total bandwidth in bytes.'],
              ['duration', 'Duration', 'Maximum duration a user may be connected in seconds.'],
              ['str_kbps_min', 'Minimum bitrate','Minimum bitrate in bytes/s.'],
              ['str_kbps_max', 'Maximum bitrate','Maximum bitrate in bytes/s.']
@@ -512,46 +512,25 @@ function BuildLimitRow(l)
             $('<option>').val(options[i][j][0]).text(options[i][j][1]).data('desc',options[i][j][2])
          );
       }
-      
-      selects[i].val(l[options[2][i]]).change(function(){
-        removeTooltip();
-        var pos = $(this).offset();
-        showTooltip({'pageX':pos.left,'pageY':pos.top+16},undefined,$(this).children(':selected').data('desc'));
-        $(this).parents('.limits_row').children('.limit_input_container').html('');
-        BuildLimitRowInput(
-          $(this).parents('.limits_row').children('.limit_input_container'),
-          {
-            'name':$(this).parents('.limits_row').find(".limits_name").val(),
-            'type':$(this).parents('.limits_row').find(".limits_type").val(),
-            'val':$(this).parents('.limits_row').find(".limits_val").val()
-          }
-        );
-      }).focus(function(){
-        var pos = $(this).offset();
-        showTooltip({'pageX':pos.left,'pageY':pos.top+16},undefined,$(this).children(':selected').data('desc'));
-      }).blur(function(){
-        removeTooltip();
-      });
+      selects[i].val(l[options[2][i]]);
       output.append($('<td>').html(selects[i]));
    }
 
    lv = $('<td>').addClass('limit_input_container');
    BuildLimitRowInput(lv,l);
-	 
-	 appliesto = $('<td>');
-	 var appliesselect = $('<select>').attr('class', 'new-limit-appliesto').append( $('<option>').attr('value', 'server').text('Server') );
-	 for(var strm in settings.settings.streams) {
-		appliesselect.append(
-			$('<option>').attr('value', strm).text(settings.settings.streams[strm].name)
-		);
-	 }
-	 if (l.appliesto) {
-		appliesselect.val(l.appliesto);
-	 }
-	 appliesto.append(appliesselect);
-	 
-	 
-  
+   
+   appliesto = $('<td>');
+   var appliesselect = $('<select>').attr('class', 'new-limit-appliesto').append( $('<option>').attr('value', 'server').text('Server') );
+   for(var strm in settings.settings.streams) {
+    appliesselect.append(
+      $('<option>').attr('value', strm).text(settings.settings.streams[strm].name)
+    );
+   }
+   if (l.appliesto) {
+      appliesselect.val(l.appliesto);
+   }
+   appliesto.append(appliesselect);
+     
    db = $('<td>').html(
      $('<button>').addClass('limit_delete_button').text('Delete').click(function(){$(this).parent().parent().remove();})
    );
@@ -570,9 +549,10 @@ function BuildLimitRow(l)
  */
  function BuildLimitRowInput(target,l) {
   if (!l.val) { l.val=0; }
+  console.log(l);
   switch (l.name) {
     case 'geo':
-      var countrylist = [['AF','Afghanistan'],['AX','Åland Islands'],['AL','Albania'],['DZ','Algeria'],['AS','American Samoa'],['AD','Andorra'],['AO','Angola'],['AI','Anguilla'],['AQ','Antarctica'],['AG','Antigua and Barbuda'],['AR','Argentina'],['AM','Armenia'],['AW','Aruba'],['AU','Australia'],['AT','Austria'],['AZ','Azerbaijan'],['BS','Bahamas'],['BH','Bahrain'],['BD','Bangladesh'],['BB','Barbados'],['BY','Belarus'],['BE','Belgium'],['BZ','Belize'],['BJ','Benin'],['BM','Bermuda'],['BT','Bhutan'],['BO','Bolivia, Plurinational State of'],['BQ','Bonaire, Sint Eustatius and Saba'],['BA','Bosnia and Herzegovina'],['BW','Botswana'],['BV','Bouvet Island'],['BR','Brazil'],['IO','British Indian Ocean Territory'],['BN','Brunei Darussalam'],['BG','Bulgaria'],['BF','Burkina Faso'],['BI','Burundi'],['KH','Cambodia'],['CM','Cameroon'],['CA','Canada'],['CV','Cape Verde'],['KY','Cayman Islands'],['CF','Central African Republic'],['TD','Chad'],['CL','Chile'],['CN','China'],['CX','Christmas Island'],['CC','Cocos (Keeling) Islands'],['CO','Colombia'],['KM','Comoros'],['CG','Congo'],['CD','Congo, the Democratic Republic of the'],['CK','Cook Islands'],['CR','Costa Rica'],['CI','Côte d\'Ivoire'],['HR','Croatia'],['CU','Cuba'],['CW','Curaçao'],['CY','Cyprus'],['CZ','Czech Republic'],['DK','Denmark'],['DJ','Djibouti'],['DM','Dominica'],['DO','Dominican Republic'],['EC','Ecuador'],['EG','Egypt'],['SV','El Salvador'],['GQ','Equatorial Guinea'],['ER','Eritrea'],['EE','Estonia'],['ET','Ethiopia'],['FK','Falkland Islands (Malvinas)'],['FO','Faroe Islands'],['FJ','Fiji'],['FI','Finland'],['FR','France'],['GF','French Guiana'],['PF','French Polynesia'],['TF','French Southern Territories'],['GA','Gabon'],['GM','Gambia'],['GE','Georgia'],['DE','Germany'],['GH','Ghana'],['GI','Gibraltar'],['GR','Greece'],['GL','Greenland'],['GD','Grenada'],['GP','Guadeloupe'],['GU','Guam'],['GT','Guatemala'],['GG','Guernsey'],['GN','Guinea'],['GW','Guinea-Bissau'],['GY','Guyana'],['HT','Haiti'],['HM','Heard Island and McDonald Islands'],['VA','Holy See (Vatican City State)'],['HN','Honduras'],['HK','Hong Kong'],['HU','Hungary'],['IS','Iceland'],['IN','India'],['ID','Indonesia'],['IR','Iran, Islamic Republic of'],['IQ','Iraq'],['IE','Ireland'],['IM','Isle of Man'],['IL','Israel'],['IT','Italy'],['JM','Jamaica'],['JP','Japan'],['JE','Jersey'],['JO','Jordan'],['KZ','Kazakhstan'],['KE','Kenya'],['KI','Kiribati'],['KP','Korea, Democratic People\'s Republic of'],['KR','Korea, Republic of'],['KW','Kuwait'],['KG','Kyrgyzstan'],['LA','Lao People\'s Democratic Republic'],['LV','Latvia'],['LB','Lebanon'],['LS','Lesotho'],['LR','Liberia'],['LY','Libya'],['LI','Liechtenstein'],['LT','Lithuania'],['LU','Luxembourg'],['MO','Macao'],['MK','Macedonia, the former Yugoslav Republic of'],['MG','Madagascar'],['MW','Malawi'],['MY','Malaysia'],['MV','Maldives'],['ML','Mali'],['MT','Malta'],['MH','Marshall Islands'],['MQ','Martinique'],['MR','Mauritania'],['MU','Mauritius'],['YT','Mayotte'],['MX','Mexico'],['FM','Micronesia, Federated States of'],['MD','Moldova, Republic of'],['MC','Monaco'],['MN','Mongolia'],['ME','Montenegro'],['MS','Montserrat'],['MA','Morocco'],['MZ','Mozambique'],['MM','Myanmar'],['NA','Namibia'],['NR','Nauru'],['NP','Nepal'],['NL','Netherlands'],['NC','New Caledonia'],['NZ','New Zealand'],['NI','Nicaragua'],['NE','Niger'],['NG','Nigeria'],['NU','Niue'],['NF','Norfolk Island'],['MP','Northern Mariana Islands'],['NO','Norway'],['OM','Oman'],['PK','Pakistan'],['PW','Palau'],['PS','Palestine, State of'],['PA','Panama'],['PG','Papua New Guinea'],['PY','Paraguay'],['PE','Peru'],['PH','Philippines'],['PN','Pitcairn'],['PL','Poland'],['PT','Portugal'],['PR','Puerto Rico'],['QA','Qatar'],['RE','Réunion'],['RO','Romania'],['RU','Russian Federation'],['RW','Rwanda'],['BL','Saint Barthélemy'],['SH','Saint Helena, Ascension and Tristan da Cunha'],['KN','Saint Kitts and Nevis'],['LC','Saint Lucia'],['MF','Saint Martin (French part)'],['PM','Saint Pierre and Miquelon'],['VC','Saint Vincent and the Grenadines'],['WS','Samoa'],['SM','San Marino'],['ST','Sao Tome and Principe'],['SA','Saudi Arabia'],['SN','Senegal'],['RS','Serbia'],['SC','Seychelles'],['SL','Sierra Leone'],['SG','Singapore'],['SX','Sint Maarten (Dutch part)'],['SK','Slovakia'],['SI','Slovenia'],['SB','Solomon Islands'],['SO','Somalia'],['ZA','South Africa'],['GS','South Georgia and the South Sandwich Islands'],['SS','South Sudan'],['ES','Spain'],['LK','Sri Lanka'],['SD','Sudan'],['SR','Suriname'],['SJ','Svalbard and Jan Mayen'],['SZ','Swaziland'],['SE','Sweden'],['CH','Switzerland'],['SY','Syrian Arab Republic'],['TW','Taiwan, Province of China'],['TJ','Tajikistan'],['TZ','Tanzania, United Republic of'],['TH','Thailand'],['TL','Timor-Leste'],['TG','Togo'],['TK','Tokelau'],['TO','Tonga'],['TT','Trinidad and Tobago'],['TN','Tunisia'],['TR','Turkey'],['TM','Turkmenistan'],['TC','Turks and Caicos Islands'],['TV','Tuvalu'],['UG','Uganda'],['UA','Ukraine'],['AE','United Arab Emirates'],['GB','United Kingdom'],['US','United States'],['UM','United States Minor Outlying Islands'],['UY','Uruguay'],['UZ','Uzbekistan'],['VU','Vanuatu'],['VE','Venezuela, Bolivarian Republic of'],['VN','Viet Nam'],['VG','Virgin Islands, British'],['VI','Virgin Islands, U.S.'],['WF','Wallis and Futuna'],['EH','Western Sahara'],['YE','Yemen'],['ZM','Zambia'],['ZW','Zimbabwe']];
+      var countrylist = [['AF','Afghanistan'],['AX','&Aring;land Islands'],['AL','Albania'],['DZ','Algeria'],['AS','American Samoa'],['AD','Andorra'],['AO','Angola'],['AI','Anguilla'],['AQ','Antarctica'],['AG','Antigua and Barbuda'],['AR','Argentina'],['AM','Armenia'],['AW','Aruba'],['AU','Australia'],['AT','Austria'],['AZ','Azerbaijan'],['BS','Bahamas'],['BH','Bahrain'],['BD','Bangladesh'],['BB','Barbados'],['BY','Belarus'],['BE','Belgium'],['BZ','Belize'],['BJ','Benin'],['BM','Bermuda'],['BT','Bhutan'],['BO','Bolivia, Plurinational State of'],['BQ','Bonaire, Sint Eustatius and Saba'],['BA','Bosnia and Herzegovina'],['BW','Botswana'],['BV','Bouvet Island'],['BR','Brazil'],['IO','British Indian Ocean Territory'],['BN','Brunei Darussalam'],['BG','Bulgaria'],['BF','Burkina Faso'],['BI','Burundi'],['KH','Cambodia'],['CM','Cameroon'],['CA','Canada'],['CV','Cape Verde'],['KY','Cayman Islands'],['CF','Central African Republic'],['TD','Chad'],['CL','Chile'],['CN','China'],['CX','Christmas Island'],['CC','Cocos (Keeling) Islands'],['CO','Colombia'],['KM','Comoros'],['CG','Congo'],['CD','Congo, the Democratic Republic of the'],['CK','Cook Islands'],['CR','Costa Rica'],['CI','C&ocirc;te d\'Ivoire'],['HR','Croatia'],['CU','Cuba'],['CW','Cura&ccedil;ao'],['CY','Cyprus'],['CZ','Czech Republic'],['DK','Denmark'],['DJ','Djibouti'],['DM','Dominica'],['DO','Dominican Republic'],['EC','Ecuador'],['EG','Egypt'],['SV','El Salvador'],['GQ','Equatorial Guinea'],['ER','Eritrea'],['EE','Estonia'],['ET','Ethiopia'],['FK','Falkland Islands (Malvinas)'],['FO','Faroe Islands'],['FJ','Fiji'],['FI','Finland'],['FR','France'],['GF','French Guiana'],['PF','French Polynesia'],['TF','French Southern Territories'],['GA','Gabon'],['GM','Gambia'],['GE','Georgia'],['DE','Germany'],['GH','Ghana'],['GI','Gibraltar'],['GR','Greece'],['GL','Greenland'],['GD','Grenada'],['GP','Guadeloupe'],['GU','Guam'],['GT','Guatemala'],['GG','Guernsey'],['GN','Guinea'],['GW','Guinea-Bissau'],['GY','Guyana'],['HT','Haiti'],['HM','Heard Island and McDonald Islands'],['VA','Holy See (Vatican City State)'],['HN','Honduras'],['HK','Hong Kong'],['HU','Hungary'],['IS','Iceland'],['IN','India'],['ID','Indonesia'],['IR','Iran, Islamic Republic of'],['IQ','Iraq'],['IE','Ireland'],['IM','Isle of Man'],['IL','Israel'],['IT','Italy'],['JM','Jamaica'],['JP','Japan'],['JE','Jersey'],['JO','Jordan'],['KZ','Kazakhstan'],['KE','Kenya'],['KI','Kiribati'],['KP','Korea, Democratic People\'s Republic of'],['KR','Korea, Republic of'],['KW','Kuwait'],['KG','Kyrgyzstan'],['LA','Lao People\'s Democratic Republic'],['LV','Latvia'],['LB','Lebanon'],['LS','Lesotho'],['LR','Liberia'],['LY','Libya'],['LI','Liechtenstein'],['LT','Lithuania'],['LU','Luxembourg'],['MO','Macao'],['MK','Macedonia, the former Yugoslav Republic of'],['MG','Madagascar'],['MW','Malawi'],['MY','Malaysia'],['MV','Maldives'],['ML','Mali'],['MT','Malta'],['MH','Marshall Islands'],['MQ','Martinique'],['MR','Mauritania'],['MU','Mauritius'],['YT','Mayotte'],['MX','Mexico'],['FM','Micronesia, Federated States of'],['MD','Moldova, Republic of'],['MC','Monaco'],['MN','Mongolia'],['ME','Montenegro'],['MS','Montserrat'],['MA','Morocco'],['MZ','Mozambique'],['MM','Myanmar'],['NA','Namibia'],['NR','Nauru'],['NP','Nepal'],['NL','Netherlands'],['NC','New Caledonia'],['NZ','New Zealand'],['NI','Nicaragua'],['NE','Niger'],['NG','Nigeria'],['NU','Niue'],['NF','Norfolk Island'],['MP','Northern Mariana Islands'],['NO','Norway'],['OM','Oman'],['PK','Pakistan'],['PW','Palau'],['PS','Palestine, State of'],['PA','Panama'],['PG','Papua New Guinea'],['PY','Paraguay'],['PE','Peru'],['PH','Philippines'],['PN','Pitcairn'],['PL','Poland'],['PT','Portugal'],['PR','Puerto Rico'],['QA','Qatar'],['RE','R&eacute;union'],['RO','Romania'],['RU','Russian Federation'],['RW','Rwanda'],['BL','Saint Barth&eacute;lemy'],['SH','Saint Helena, Ascension and Tristan da Cunha'],['KN','Saint Kitts and Nevis'],['LC','Saint Lucia'],['MF','Saint Martin (French part)'],['PM','Saint Pierre and Miquelon'],['VC','Saint Vincent and the Grenadines'],['WS','Samoa'],['SM','San Marino'],['ST','Sao Tome and Principe'],['SA','Saudi Arabia'],['SN','Senegal'],['RS','Serbia'],['SC','Seychelles'],['SL','Sierra Leone'],['SG','Singapore'],['SX','Sint Maarten (Dutch part)'],['SK','Slovakia'],['SI','Slovenia'],['SB','Solomon Islands'],['SO','Somalia'],['ZA','South Africa'],['GS','South Georgia and the South Sandwich Islands'],['SS','South Sudan'],['ES','Spain'],['LK','Sri Lanka'],['SD','Sudan'],['SR','Suriname'],['SJ','Svalbard and Jan Mayen'],['SZ','Swaziland'],['SE','Sweden'],['CH','Switzerland'],['SY','Syrian Arab Republic'],['TW','Taiwan, Province of China'],['TJ','Tajikistan'],['TZ','Tanzania, United Republic of'],['TH','Thailand'],['TL','Timor-Leste'],['TG','Togo'],['TK','Tokelau'],['TO','Tonga'],['TT','Trinidad and Tobago'],['TN','Tunisia'],['TR','Turkey'],['TM','Turkmenistan'],['TC','Turks and Caicos Islands'],['TV','Tuvalu'],['UG','Uganda'],['UA','Ukraine'],['AE','United Arab Emirates'],['GB','United Kingdom'],['US','United States'],['UM','United States Minor Outlying Islands'],['UY','Uruguay'],['UZ','Uzbekistan'],['VU','Vanuatu'],['VE','Venezuela, Bolivarian Republic of'],['VN','Viet Nam'],['VG','Virgin Islands, British'],['VI','Virgin Islands, U.S.'],['WF','Wallis and Futuna'],['EH','Western Sahara'],['YE','Yemen'],['ZM','Zambia'],['ZW','Zimbabwe']];
       var entrylist = l.val.toString();
       
       //build the template country selectbox
@@ -582,20 +562,20 @@ function BuildLimitRow(l)
       );
       for (i in countrylist) {
         geoselect.append(
-          $('<option>').val(countrylist[i][0]).text(countrylist[i][1])
+          $('<option>').val(countrylist[i][0]).html(countrylist[i][1])
         );
       }
       
       //build the blacklist or whitelist selectbox
       var selectbox = $('<select>').addClass('limit_listtype');
-      if (entrylist.charAt(0) == '+') {
-        selectbox.html($('<option>').val('+').text('Whitelist'));
-      }
-      else {
-        selectbox.html($('<option>').val('-').text('Blacklist'));
-      }
       selectbox.append($('<option>').val('-').text('Blacklist'));
       selectbox.append($('<option>').val('+').text('Whitelist'));
+      if (entrylist.charAt(0) == '+') {
+        selectbox.val('+');
+      }
+      else {
+        selectbox.val('-');
+      }
       var inputfields = $('<table>').addClass('limit_inputfields').append(
         $('<tbody>').append(
           $('<tr>').append(
@@ -613,15 +593,7 @@ function BuildLimitRow(l)
         if (entrylist[i] == "") { continue; }
         //make a new country selectbox based on the template
         var newgeoselect = geoselect.clone();
-        var code = entrylist[i];
-        var country = '[Country code not recognized]';
-        for (j in countrylist) {
-          if (countrylist[j][0] == code) {
-            country = countrylist[j][1];
-            break;
-          }
-        }
-        newgeoselect.prepend($('<option>').val(code).text(country));
+        newgeoselect.val(entrylist[i]);
 
         if (firstfieldused) {
           inputfields.children('tbody').append(
@@ -670,16 +642,16 @@ function BuildLimitRow(l)
     case 'time':
       var entrylist = l.val.toString();
       
-      //add blacklist/whitelist select box
+      //build the blacklist or whitelist selectbox
       var selectbox = $('<select>').addClass('limit_listtype');
-      if (entrylist.charAt(0) == '+') {
-        selectbox.html($('<option>').val('+').text('Whitelist'));
-      }
-      else {
-        selectbox.html($('<option>').val('-').text('Blacklist'));
-      }
       selectbox.append($('<option>').val('-').text('Blacklist'));
       selectbox.append($('<option>').val('+').text('Whitelist'));
+      if (entrylist.charAt(0) == '+') {
+        selectbox.val('+');
+      }
+      else {
+        selectbox.val('-');
+      }
       target.html(
         $('<span>').addClass('limit_inputfields').append(
           selectbox
@@ -710,13 +682,13 @@ function showTooltip(position,appendto,contents,debug) {
   if (contents == null) { contents = 'Empty'; }
   var css = {};
   if (position.pageX > window.innerWidth / 2) {
-    css.right = appendto.offset().left + appendto.width() - position.pageX + 10;
+    css.right = window.innerWidth - position.pageX + 10;
   }
   else {
     css.left = position.pageX - appendto.offset().left + 10;
   }
   if (position.pageY > window.innerHeight / 2) {
-    css.bottom = appendto.offset().top + appendto.height() - position.pageY + 10;
+    css.bottom = window.innerHeight - position.pageY + 10;
   }
   else {
     css.top = position.pageY - appendto.offset().top + 10;
@@ -727,7 +699,5 @@ function showTooltip(position,appendto,contents,debug) {
   if (debug) { console.log('Tooltip.. position:',position,'appendto:',appendto,'contents:',contents,'css:',css); }
 }
 function removeTooltip() {
-  $('#tooltip').fadeOut("fast",function(){
-    $('#tooltip').remove();
-  }); 
+   $('#tooltip').remove();
 }

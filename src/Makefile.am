@@ -11,7 +11,7 @@ RELEASE ?= "Generic_`getconf LONG_BIT`"
 
 AM_CPPFLAGS = $(global_CFLAGS) $(MIST_CFLAGS) -DRELEASE=\"$(RELEASE)\"
 LDADD = $(MIST_LIBS)
-bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistConnHTTPSmooth MistConnHTTPLive MistConnTS MistPlayer MistDTSC2FLV MistFLV2DTSC MistDTSCFix MistDTSC2TS MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF MistAnalyserMP4
+bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistConnHTTPSmooth MistConnHTTPLive MistConnTS MistPlayer MistDTSC2FLV MistFLV2DTSC MistDTSCFix MistDTSCMerge MistDTSC2TS MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF MistAnalyserMP4
 
 #buffer folder (MistBuffer, MistPlayer)
 MistBuffer_SOURCES=buffer/buffer.cpp buffer/buffer_user.h buffer/buffer_user.cpp buffer/buffer_stream.h buffer/buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
@@ -36,6 +36,7 @@ MistConnTS_SOURCES=connectors/conn_ts.cpp ../VERSION
 MistDTSC2FLV_SOURCES=converters/dtsc2flv.cpp
 MistFLV2DTSC_SOURCES=converters/flv2dtsc.cpp
 MistDTSCFix_SOURCES=converters/dtscfix.cpp
+MistDTSCMerge_SOURCES=converters/dtscmerge.cpp
 MistDTSC2TS_SOURCES=converters/dtsc2ts.cpp
 
 #analysers directory (MistAnalyser*)

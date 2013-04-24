@@ -48,11 +48,6 @@ namespace Converters {
     std::map<std::string,HeaderEntryDTSC> trackData;
 
     long long int nowpack = 0;
-//    long long int lastaudio = 0;
-//    long long int lastvideo = 0;
-//    long long unsigned int totalvideo = 0;
-//    long long unsigned int totalaudio = 0;
-//    long long int keynum = 0;
     
     std::string currentID;
     int nextFreeID = 0;

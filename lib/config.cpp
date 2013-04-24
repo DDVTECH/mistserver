@@ -167,7 +167,7 @@ void Util::Config::printHelp(std::ostream & output){
 
 /// Parses commandline arguments.
 /// Calls exit if an unknown option is encountered, printing a help message.
-void Util::Config::parseArgs(int argc, char ** argv){
+void Util::Config::parseArgs(int & argc, char ** & argv){
   int opt = 0;
   std::string shortopts;
   struct option * longOpts = (struct option*)calloc(long_count + 1, sizeof(struct option));

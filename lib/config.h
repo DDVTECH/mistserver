@@ -27,7 +27,7 @@ namespace Util {
       Config(std::string cmd, std::string version);
       void addOption(std::string optname, JSON::Value option);
       void printHelp(std::ostream & output);
-      void parseArgs(int argc, char ** argv);
+      void parseArgs(int & argc, char ** & argv);
       JSON::Value & getOption(std::string optname, bool asArray = false);
       std::string getString(std::string optname);
       long long int getInteger(std::string optname);

@@ -7,6 +7,7 @@
 #include <arpa/inet.h> //for htonl/ntohl
 char DTSC::Magic_Header[] = "DTSC";
 char DTSC::Magic_Packet[] = "DTPD";
+char DTSC::Magic_Packet2[] = "DTP2";
 
 /// Initializes a DTSC::Stream with only one packet buffer.
 DTSC::Stream::Stream(){
@@ -92,6 +93,49 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       syncing = false;
       return true;
     }
+    if (memcmp(buffer.c_str(), DTSC::Magic_Packet2, 4) == 0){
+      len = ntohl(((uint32_t *)buffer.c_str())[1]);
+      if (buffer.length() < len + 20){
+        return false;
+      }
+      buffers.push_front(JSON::Value());
+      unsigned int i = 0;
+      long long int tmpTrackID = ntohl(((int*)(buffer.c_str() + 8))[0]);
+      long long int tmpTime = ntohl(((int*)(buffer.c_str() + 12))[0]);
+      tmpTime << 32;
+      tmpTime += ntohl(((int*)(buffer.c_str() + 16))[0]);
+      buffers.front() = JSON::fromDTMI((unsigned char*)buffer.c_str() + 20, len, i);
+      buffers.front()["time"] = tmpTime;
+      buffers.front()["trackid"] = tmpTrackID;
+      datapointertype = INVALID;
+      if (buffers.front().isMember("data")){
+        datapointer = &(buffers.front()["data"].strVal);
+      }else{
+        datapointer = 0;
+      }
+      if (buffers.front().isMember("datatype")){
+        std::string tmp = buffers.front()["datatype"].asString();
+        if (tmp == "video"){
+          datapointertype = VIDEO;
+        }
+        if (tmp == "audio"){
+          datapointertype = AUDIO;
+        }
+        if (tmp == "meta"){
+          datapointertype = META;
+        }
+        if (tmp == "pause_marker"){
+          datapointertype = PAUSEMARK;
+        }
+      }
+      buffer.erase(0, len + 20);
+      while (buffers.size() > buffercount){
+        buffers.pop_back();
+      }
+      advanceRings();
+      syncing = false;
+      return true;
+    }
 #if DEBUG >= 2
     if (!syncing){
       std::cerr << "Error: Invalid DTMI data detected - re-syncing" << std::endl;
@@ -99,10 +143,15 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
     }
 #endif
     size_t magic_search = buffer.find(Magic_Packet);
-    if (magic_search == std::string::npos){
-      buffer.clear();
+    size_t magic_search2 = buffer.find(Magic_Packet2);
+    if (magic_search2 == std::string::npos){
+      if (magic_search == std::string::npos){
+        buffer.clear();
+      }else{
+        buffer.erase(0, magic_search);
+      }
     }else{
-      buffer.erase(0, magic_search);
+      buffer.erase(0, magic_search2);
     }
   }
   return false;
@@ -141,6 +190,49 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
       buffers.front() = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
+      datapointertype = INVALID;
+      if (buffers.front().isMember("data")){
+        datapointer = &(buffers.front()["data"].strVal);
+      }else{
+        datapointer = 0;
+      }
+      if (buffers.front().isMember("datatype")){
+        std::string tmp = buffers.front()["datatype"].asString();
+        if (tmp == "video"){
+          datapointertype = VIDEO;
+        }
+        if (tmp == "audio"){
+          datapointertype = AUDIO;
+        }
+        if (tmp == "meta"){
+          datapointertype = META;
+        }
+        if (tmp == "pause_marker"){
+          datapointertype = PAUSEMARK;
+        }
+      }
+      while (buffers.size() > buffercount){
+        buffers.pop_back();
+      }
+      advanceRings();
+      syncing = false;
+      return true;
+    }
+    if (memcmp(header_bytes.c_str(), DTSC::Magic_Packet2, 4) == 0){
+      len = ntohl(((uint32_t *)header_bytes.c_str())[1]);
+      if ( !buffer.available(len + 20)){
+        return false;
+      }
+      buffers.push_front(JSON::Value());
+      unsigned int i = 0;
+      std::string wholepacket = buffer.remove(len + 20);
+      long long int tmpTrackID = ntohl(((int*)(wholepacket.c_str() + 8))[0]);
+      long long int tmpTime = ntohl(((int*)(wholepacket.c_str() + 12))[0]);
+      tmpTime << 32;
+      tmpTime += ntohl(((int*)(wholepacket.c_str() + 16))[0]);
+      buffers.front() = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 20, len, i);
+      buffers.front()["time"] = tmpTime;
+      buffers.front()["trackid"] = tmpTrackID;
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
         datapointer = &(buffers.front()["data"].strVal);
@@ -648,8 +740,15 @@ void DTSC::File::seekNext(){
     jsonbuffer = metadata;
     return;
   }
-  if (memcmp(buffer, DTSC::Magic_Packet, 4) != 0){
-    fprintf(stderr, "Invalid header - %.4s != %.4s\n", buffer, DTSC::Magic_Packet);
+  long long unsigned int version = 0;
+  if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0){
+    version = 1;
+  }
+  if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0){
+    version = 2;
+  }
+  if (version == 0){
+    fprintf(stderr, "Invalid header - %.4s != %.4s\n", buffer, DTSC::Magic_Packet2);
     strbuffer = "";
     jsonbuffer.null();
     return;
@@ -661,13 +760,16 @@ void DTSC::File::seekNext(){
     return;
   }
   uint32_t * ubuffer = (uint32_t *)buffer;
-  long packSize = ntohl(ubuffer[0]);
+  long packSize = ntohl(ubuffer[0]) + (version == 2 ? 12 : 0);
   strbuffer.resize(packSize);
   if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
     fprintf(stderr, "Could not read packet\n");
     strbuffer = "";
     jsonbuffer.null();
     return;
+  }
+  if (version == 2){
+    strbuffer.erase(0,12);
   }
   jsonbuffer = JSON::fromDTMI(strbuffer);
   if (jsonbuffer.isMember("keyframe")){

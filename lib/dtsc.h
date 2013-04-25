@@ -62,6 +62,7 @@ namespace DTSC {
 
   extern char Magic_Header[]; ///< The magic bytes for a DTSC header
   extern char Magic_Packet[]; ///< The magic bytes for a DTSC packet
+  extern char Magic_Packet2[]; ///< The magic bytes for a DTSC packet version 2
 
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
   class File{

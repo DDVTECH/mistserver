@@ -475,18 +475,53 @@ void JSON::Value::netPrepare(){
     return;
   }
   std::string packed = toPacked();
-  strVal.resize(packed.size() + 8);
   //insert proper header for this type of data
+  int packID = -1;
+  long long unsigned int time = objVal["time"].asInt();
+  std::string dataType = objVal["datatype"].asString();
   if (isMember("datatype")){
-    memcpy((void*)strVal.c_str(), "DTPD", 4);
+    if (isMember("trackid")){
+      packID = objVal["trackid"].asInt();
+    }else{
+      if (objVal["datatype"].asString() == "video"){
+        packID = 1;
+      }
+      if (objVal["datatype"].asString() == "audio"){
+        packID = 2;
+      }
+      if (objVal["datatype"].asString() == "meta"){
+        packID = 3;
+      }
+      if (packID == -1){
+        packID = 0;
+      }
+    }
+    removeMember("time");
+    removeMember("datatype");
+    packed = toPacked();
+    objVal["time"] = (long long int)time;
+    objVal["datatype"] = dataType;
+    strVal.resize(packed.size() + 20);
+    memcpy((void*)strVal.c_str(), "DTP2", 4);
   }else{
+    strVal.resize(packed.size() + 8);
     memcpy((void*)strVal.c_str(), "DTSC", 4);
   }
   //insert the packet length at bytes 4-7
   unsigned int size = htonl(packed.size());
   memcpy((void*)(strVal.c_str() + 4), (void*) &size, 4);
   //copy the rest of the string
-  memcpy((void*)(strVal.c_str() + 8), packed.c_str(), packed.size());
+  if (packID != -1){
+    packID = htonl((int)packID);
+    memcpy((void*)(strVal.c_str() + 8), (void*) &packID, 4);
+    int tmpHalf = htonl((int)(time >> 32));
+    memcpy((void*)(strVal.c_str() + 12), (void*) &tmpHalf, 4);
+    tmpHalf = htonl((int)(time & 0xFFFFFFFF));
+    memcpy((void*)(strVal.c_str() + 16), (void*) &tmpHalf, 4);
+    memcpy((void*)(strVal.c_str() + 20), packed.c_str(), packed.size());
+  }else{
+    memcpy((void*)(strVal.c_str() + 8), packed.c_str(), packed.size());
+  }
 }
 
 /// Packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.

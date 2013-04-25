@@ -534,11 +534,70 @@ namespace MP4 {
       uint32_t getRate();
       void setVolume(uint16_t newVolume);
       uint16_t getVolume();
+      ///\todo fix default values
       uint32_t getMatrixCount();
       void setMatrix(int32_t newMatrix, size_t index);
       int32_t getMatrix(size_t index);
       void setTrackID(uint32_t newTrackID);
       uint32_t getTrackID();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  struct TFRAEntry{
+    uint64_t time;
+    uint64_t moofOffset;
+    uint32_t trafNumber;
+    uint32_t trunNumber;
+    uint32_t sampleNumber;
+  };
+  
+  class TFRA: public fullBox{
+    public:
+      TFRA();
+      void setTrackID(uint32_t newTrackID);
+      uint32_t getTrackID();
+      void setLengthSizeOfTrafNum(char newVal);
+      char getLengthSizeOfTrafNum();
+      void setLengthSizeOfTrunNum(char newVal);
+      char getLengthSizeOfTrunNum();
+      void setLengthSizeOfSampleNum(char newVal);
+      char getLengthSizeOfSampleNum();
+      void setNumberOfEntry(uint32_t newNumberOfEntry);
+      uint32_t getNumberOfEntry();
+      void setTFRAEntry(TFRAEntry newTFRAEntry, uint32_t no);
+      TFRAEntry & getTFRAEntry(uint32_t no);
+      uint32_t getTFRAEntrySize();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class TKHD: public fullBox{
+    public:
+      TKHD();
+      void setCreationTime(uint64_t newCreationTime);
+      uint64_t getCreationTime();
+      void setModificationTime(uint64_t newModificationTime);
+      uint64_t getModificationTime();
+      void setTrackID(uint32_t newTrackID);
+      uint32_t getTrackID();
+      void setDuration(uint64_t newDuration);
+      uint64_t getDuration();
+
+      void setLayer(uint16_t newLayer);
+      uint16_t getLayer();
+      void setAlternateGroup(uint16_t newAlternateGroup);
+      uint16_t getAlternateGroup();
+
+      void setVolume(uint16_t newVolume);
+      uint16_t getVolume();
+      ///\todo fix default values
+      uint32_t getMatrixCount();
+      void setMatrix(int32_t newMatrix, size_t index);
+      int32_t getMatrix(size_t index);
+
+      void setWidth(uint32_t newWidth);
+      uint32_t getWidth();
+      void setHeight(uint32_t newHeight);
+      uint32_t getHeight();
       std::string toPrettyString(uint32_t indent = 0);
   };
   

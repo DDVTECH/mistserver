@@ -217,6 +217,12 @@ namespace MP4 {
       case 0x6D766864:
         return ((MVHD*)this)->toPrettyString(indent);
         break;
+      case 0x74667261:
+        return ((TFRA*)this)->toPrettyString(indent);
+        break;
+      case 0x746B6864:
+        return ((TKHD*)this)->toPrettyString(indent);
+        break;
       case 0x75756964:
         return ((UUID*)this)->toPrettyString(indent);
         break;
@@ -2717,7 +2723,7 @@ namespace MP4 {
   }
   
   MVHD::MVHD(){
-    memcpy(data + 4, "dref", 4);
+    memcpy(data + 4, "mvhd", 4);
   }
   
   void MVHD::setCreationTime(uint64_t newCreationTime){
@@ -2878,7 +2884,409 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "TrackID: " << getTrackID() << std::endl;
     return r.str();
   }
-      
+  
+  TFRA::TFRA(){
+    memcpy(data + 4, "dref", 4);
+  }
+  
+  //note, fullbox starts at byte 4
+  void TFRA::setTrackID(uint32_t newTrackID){
+    setInt32(newTrackID, 4);
+  }
+  
+  uint32_t TFRA::getTrackID(){
+    getInt32(4);
+  }
+  
+  void TFRA::setLengthSizeOfTrafNum(char newVal){
+    char part = getInt8(11);
+    setInt8(((newVal & 0x03)<<4) + (part & 0xCF),11);
+  }
+  
+  char TFRA::getLengthSizeOfTrafNum(){
+    return (getInt8(11)>>4) & 0x03;
+  }
+  
+  void TFRA::setLengthSizeOfTrunNum(char newVal){
+    char part = getInt8(11);
+    setInt8(((newVal & 0x03)<<2) + (part & 0xF3),11);
+  }
+  
+  char TFRA::getLengthSizeOfTrunNum(){
+    return (getInt8(11)>>2) & 0x03;
+  }
+  
+  void TFRA::setLengthSizeOfSampleNum(char newVal){
+    char part = getInt8(11);
+    setInt8(((newVal & 0x03)) + (part & 0xFC),11);
+  }
+  
+  char TFRA::getLengthSizeOfSampleNum(){
+    return (getInt8(11)) & 0x03;
+  }
+  
+  void TFRA::setNumberOfEntry(uint32_t newNumberOfEntry){
+    setInt32(newNumberOfEntry,12);
+  }
+  
+  uint32_t TFRA::getNumberOfEntry(){
+    return getInt32(12);
+  }
+  
+  uint32_t TFRA::getTFRAEntrySize(){
+    int EntrySize= (getVersion()==1 ? 16 : 8);
+    EntrySize += getLengthSizeOfTrafNum()+1;
+    EntrySize += getLengthSizeOfTrunNum()+1;
+    EntrySize += getLengthSizeOfSampleNum()+1;
+    return EntrySize;
+  }
+  
+  void TFRA::setTFRAEntry(TFRAEntry newTFRAEntry, uint32_t no){
+    if (no + 1 > getNumberOfEntry()){//if a new entry is issued
+      uint32_t offset = 16 + getTFRAEntrySize() * getNumberOfEntry();//start of filler in bytes
+      uint32_t fillsize = (no + 1 - getNumberOfEntry())*getTFRAEntrySize();//filler in bytes
+      if ( !reserve(offset, 0, fillsize)){//filling space
+        return;
+      }
+      setNumberOfEntry(no+1);
+    }
+    uint32_t loc = 16 + no * getTFRAEntrySize();
+    if (getVersion() == 1){
+      setInt64(newTFRAEntry.time, loc);
+      setInt64(newTFRAEntry.moofOffset, loc+8);
+      loc += 16;
+    }else{
+      setInt32(newTFRAEntry.time, loc);
+      setInt32(newTFRAEntry.moofOffset, loc+4);
+      loc += 8;
+    }
+    switch (getLengthSizeOfTrafNum()){
+      case 0:
+        setInt8(newTFRAEntry.trafNumber, loc);        
+        break;
+      case 1:
+        setInt16(newTFRAEntry.trafNumber, loc);        
+        break;
+      case 2:
+        setInt24(newTFRAEntry.trafNumber, loc);        
+        break;
+      case 3:
+        setInt32(newTFRAEntry.trafNumber, loc);        
+        break;
+    }
+    loc += getLengthSizeOfTrafNum() + 1;
+    switch (getLengthSizeOfTrunNum()){
+      case 0:
+        setInt8(newTFRAEntry.trunNumber, loc);        
+        break;
+      case 1:
+        setInt16(newTFRAEntry.trunNumber, loc);        
+        break;
+      case 2:
+        setInt24(newTFRAEntry.trunNumber, loc);        
+        break;
+      case 3:
+        setInt32(newTFRAEntry.trunNumber, loc);        
+        break;
+    }
+    loc += getLengthSizeOfTrunNum() + 1;
+    switch (getLengthSizeOfSampleNum()){
+      case 0:
+        setInt8(newTFRAEntry.sampleNumber, loc);        
+        break;
+      case 1:
+        setInt16(newTFRAEntry.sampleNumber, loc);        
+        break;
+      case 2:
+        setInt24(newTFRAEntry.sampleNumber, loc);        
+        break;
+      case 3:
+        setInt32(newTFRAEntry.sampleNumber, loc);        
+        break;
+    }
+  }
+  
+  TFRAEntry & TFRA::getTFRAEntry(uint32_t no){
+    static TFRAEntry retval;
+    if (no >= getNumberOfEntry()){
+      static TFRAEntry inval;
+      return inval;
+    }
+    uint32_t loc = 16 + no * getTFRAEntrySize();
+    if (getVersion() == 1){
+      retval.time = getInt64(loc);
+      retval.moofOffset = getInt64(loc + 8);
+      loc += 16;
+    }else{
+      retval.time = getInt32(loc);
+      retval.moofOffset = getInt32(loc + 4);
+      loc += 8;
+    }
+    switch (getLengthSizeOfTrafNum()){
+      case 0:
+        retval.trafNumber = getInt8(loc);        
+        break;
+      case 1:
+        retval.trafNumber = getInt16(loc);        
+        break;
+      case 2:
+        retval.trafNumber = getInt24(loc);        
+        break;
+      case 3:
+        retval.trafNumber = getInt32(loc);        
+        break;
+    }
+    loc += getLengthSizeOfTrafNum() + 1;
+    switch (getLengthSizeOfTrunNum()){
+      case 0:
+        retval.trunNumber = getInt8(loc);        
+        break;
+      case 1:
+        retval.trunNumber = getInt16(loc);        
+        break;
+      case 2:
+        retval.trunNumber = getInt24(loc);        
+        break;
+      case 3:
+        retval.trunNumber = getInt32(loc);        
+        break;
+    }
+    loc += getLengthSizeOfTrunNum() + 1;
+    switch (getLengthSizeOfSampleNum()){
+      case 0:
+        retval.sampleNumber = getInt8(loc);        
+        break;
+      case 1:
+        retval.sampleNumber = getInt16(loc);        
+        break;
+      case 2:
+        retval.sampleNumber = getInt24(loc);        
+        break;
+      case 3:
+        retval.sampleNumber = getInt32(loc);        
+        break;
+    }
+    return retval;
+  }
+       
+  std::string TFRA::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[tfra] Track Fragment Random Access Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "TrackID: " << getTrackID() << std::endl;
+    r << std::string(indent + 1, ' ') << "lengthSizeOfTrafNum: " << (int)getLengthSizeOfTrafNum() << std::endl;
+    r << std::string(indent + 1, ' ') << "lengthSizeOfTrunNum: " << (int)getLengthSizeOfTrunNum() << std::endl;
+    r << std::string(indent + 1, ' ') << "lengthSizeOfSampleNum: " << (int)getLengthSizeOfSampleNum() << std::endl;
+    r << std::string(indent + 1, ' ') << "NumberOfEntry: " << getNumberOfEntry() << std::endl;
+    for (int i = 0; i < getNumberOfEntry(); i++){
+      static TFRAEntry temp;
+      temp = getTFRAEntry(i);
+      r << std::string(indent + 1, ' ') << "Entry[" << i <<"]:"<< std::endl;
+      r << std::string(indent + 2, ' ') << "Time: " << temp.time << std::endl;
+      r << std::string(indent + 2, ' ') << "MoofOffset: " << temp.moofOffset << std::endl;
+      r << std::string(indent + 2, ' ') << "TrafNumber: " << temp.trafNumber << std::endl;
+      r << std::string(indent + 2, ' ') << "TrunNumber: " << temp.trunNumber << std::endl;
+      r << std::string(indent + 2, ' ') << "SampleNumber: " << temp.sampleNumber << std::endl;
+    }
+    return r.str();
+  }
+
+  TKHD::TKHD(){
+    memcpy(data + 4, "tkhd", 4);
+  }
+  
+  void TKHD::setCreationTime(uint64_t newCreationTime){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newCreationTime, 4);
+    }else{
+      setInt64(newCreationTime, 4);
+    }
+  }
+  
+  uint64_t TKHD::getCreationTime(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(4);
+    }else{
+      return getInt64(4);
+    }
+  }
+  
+  void TKHD::setModificationTime(uint64_t newModificationTime){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newModificationTime, 8);
+    }else{
+      setInt64(newModificationTime, 12);
+    }
+  }
+  
+  uint64_t TKHD::getModificationTime(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(8);
+    }else{
+      return getInt64(12);
+    }
+  }
+  
+  void TKHD::setTrackID(uint32_t newTrackID){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newTrackID, 12);
+    }else{
+      setInt32(newTrackID, 20);
+    }
+  }
+  
+  uint32_t TKHD::getTrackID(){
+    if (getVersion() == 0){
+      return getInt32(12);
+    }else{
+      return getInt32(20);
+    }
+  }
+  //note 4 bytes reserved in between
+  void TKHD::setDuration(uint64_t newDuration){
+    if (getVersion() == 0){
+      setInt32(newDuration, 20);
+    }else{
+      setInt64(newDuration, 28);
+    }
+  }
+  
+  uint64_t TKHD::getDuration(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(20);
+    }else{
+      return getInt64(28);
+    }
+  }
+  //8 bytes reserved in between
+  void TKHD::setLayer(uint16_t newLayer){
+    if (getVersion() == 0){
+      setInt16(newLayer, 32);
+    }else{
+      setInt16(newLayer, 44);
+    }
+  }
+  
+  uint16_t TKHD::getLayer(){
+    if (getVersion() == 0){
+      return getInt16(32);
+    }else{
+      return getInt16(44);
+    }
+  }
+  
+  void TKHD::setAlternateGroup(uint16_t newAlternateGroup){
+    if (getVersion() == 0){
+      setInt16(newAlternateGroup, 34);
+    }else{
+      setInt16(newAlternateGroup, 46);
+    }
+  }
+  
+  uint16_t TKHD::getAlternateGroup(){
+    if (getVersion() == 0){
+      return getInt16(34);
+    }else{
+      return getInt16(46);
+    }
+  }
+  
+  void TKHD::setVolume(uint16_t newVolume){
+    if (getVersion() == 0){
+      setInt16(newVolume, 36);
+    }else{
+      setInt16(newVolume, 48);
+    }
+  }
+  
+  uint16_t TKHD::getVolume(){
+    if (getVersion() == 0){
+      return getInt16(36);
+    }else{
+      return getInt16(48);
+    }
+  }
+  //2 bytes reserved in between
+  uint32_t TKHD::getMatrixCount(){
+    return 9;
+  }
+  
+  void TKHD::setMatrix(int32_t newMatrix, size_t index){
+    int offset = 0;
+    if (getVersion() == 0){
+      offset = 36 + 2 + 2;
+    }else{
+      offset = 48 + 2 + 2;
+    }
+    setInt32(newMatrix, offset + index * 4);
+  }
+  
+  int32_t TKHD::getMatrix(size_t index){
+    int offset = 0;
+    if (getVersion() == 0){
+      offset = 36 + 2 + 2;
+    }else{
+      offset = 48 + 2 + 2;
+    }
+    return getInt32(offset + index * 4);
+  }
+  
+  void TKHD::setWidth(uint32_t newWidth){
+    if (getVersion() == 0){
+      setInt32(newWidth, 76);
+    }else{
+      setInt32(newWidth, 88);
+    }
+  }
+  
+  uint32_t TKHD::getWidth(){
+    if (getVersion() == 0){
+      return getInt32(76);
+    }else{
+      return getInt32(88);
+    }
+  }
+  
+  void TKHD::setHeight(uint32_t newHeight){
+    if (getVersion() == 0){
+      setInt32(newHeight, 80);
+    }else{
+      setInt32(newHeight, 92);
+    }
+  }
+  
+  uint32_t TKHD::getHeight(){
+    if (getVersion() == 0){
+      return getInt32(80);
+    }else{
+      return getInt32(92);
+    }
+  }
+        
+  std::string TKHD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[tkhd] Track Header Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "CreationTime: " << getCreationTime() << std::endl;
+    r << std::string(indent + 1, ' ') << "ModificationTime: " << getModificationTime() << std::endl;
+    r << std::string(indent + 1, ' ') << "TrackID: " << getTrackID() << std::endl;
+    r << std::string(indent + 1, ' ') << "Duration: " << getDuration() << std::endl;
+    r << std::string(indent + 1, ' ') << "Layer: " << getLayer() << std::endl;
+    r << std::string(indent + 1, ' ') << "AlternateGroup: " << getAlternateGroup() << std::endl;
+    r << std::string(indent + 1, ' ') << "Volume: " << getVolume() << std::endl;
+    r << std::string(indent + 1, ' ') << "Matrix: ";
+    for (int32_t i = 0; i< getMatrixCount(); i++){
+      r << getMatrix(i);
+      if (i!=getMatrixCount()-1){
+        r << ", ";
+      }
+    }
+    r << std::endl;
+    r << std::string(indent + 1, ' ') << "Width: " << (getWidth() >> 16) << "." << (getWidth() & 0xFFFF) << std::endl;
+    r << std::string(indent + 1, ' ') << "Height: " << (getHeight() >> 16) << "." << (getHeight() & 0xFFFF) << std::endl;
+    return r.str();
+  }
+  
   static char c2hex(int c){
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;

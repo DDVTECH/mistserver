@@ -119,7 +119,7 @@ namespace MP4 {
 
   /// Attempts to typecast this Box to a more specific type and call the toPrettyString() function of that type.
   /// If this failed, it will print out a message saying pretty-printing is not implemented for <boxtype>.
-  std::string Box::toPrettyString(int indent){
+  std::string Box::toPrettyString(uint32_t indent){
     switch (ntohl( *((int*)(data + 4)))){ //type is at this address
       case 0x6D666864:
         return ((MFHD*)this)->toPrettyString(indent);
@@ -168,6 +168,54 @@ namespace MP4 {
         break;
       case 0x6D667261:
         return ((MFRA*)this)->toPrettyString(indent);
+        break;
+      case 0x7472616B:
+        return ((TRAK*)this)->toPrettyString(indent);
+        break;
+      case 0x6D646961:
+        return ((MDIA*)this)->toPrettyString(indent);
+        break;
+      case 0x6D696E66:
+        return ((MINF*)this)->toPrettyString(indent);
+        break;
+      case 0x64696E66:
+        return ((DINF*)this)->toPrettyString(indent);
+        break;
+      case 0x6D66726F:
+        return ((MFRO*)this)->toPrettyString(indent);
+        break;
+      case 0x68646C72:
+        return ((HDLR*)this)->toPrettyString(indent);
+        break;
+      case 0x766D6864:
+        return ((VMHD*)this)->toPrettyString(indent);
+        break;
+      case 0x736D6864:
+        return ((SMHD*)this)->toPrettyString(indent);
+        break;
+      case 0x686D6864:
+        return ((HMHD*)this)->toPrettyString(indent);
+        break;
+      case 0x6E6D6864:
+        return ((NMHD*)this)->toPrettyString(indent);
+        break;
+      case 0x6D656864:
+        return ((MEHD*)this)->toPrettyString(indent);
+        break;
+      case 0x7374626C:
+        return ((STBL*)this)->toPrettyString(indent);
+        break;
+      case 0x64726566:
+        return ((DREF*)this)->toPrettyString(indent);
+        break;
+      case 0x75726C20:
+        return ((URL*)this)->toPrettyString(indent);
+        break;
+      case 0x75726E20:
+        return ((URN*)this)->toPrettyString(indent);
+        break;
+      case 0x6D766864:
+        return ((MVHD*)this)->toPrettyString(indent);
         break;
       case 0x75756964:
         return ((UUID*)this)->toPrettyString(indent);
@@ -459,7 +507,22 @@ namespace MP4 {
     }
     return true;
   }
+  
+  void fullBox::setVersion(char newVersion){
+    setInt8(newVersion, 0);
+  }
 
+  char fullBox::getVersion(){
+    return getInt8(0);
+  }
+
+  void fullBox::setFlags(uint32_t newFlags){
+    setInt24(newFlags, 1);
+  }
+
+  uint32_t fullBox::getFlags(){
+    return getInt24(1);
+  }
   uint32_t containerBox::getContentCount(){
     int res = 0;
     int tempLoc = 0;
@@ -468,6 +531,13 @@ namespace MP4 {
       tempLoc += getBoxLen(tempLoc);
     }
     return res;
+  }
+
+  std::string fullBox::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent + 1, ' ') << "Version: " << (int)getVersion() << std::endl;
+    r << std::string(indent + 1, ' ') << "Flags: " << getFlags() << std::endl;
+    return r.str();
   }
 
   void containerBox::setContent(Box & newContent, uint32_t no){
@@ -502,7 +572,7 @@ namespace MP4 {
     return getBox(tempLoc);
   }
   
-  std::string containerBox::toPrettyContainerString(int indent, std::string boxName){
+  std::string containerBox::toPrettyContainerString(uint32_t indent, std::string boxName){
     std::stringstream r;
     r << std::string(indent, ' ') << boxName <<" (" << boxedSize() << ")" << std::endl;
     Box curBox;
@@ -1092,7 +1162,7 @@ namespace MP4 {
     return res;
   }
 
-  std::string AFRT::toPrettyString(int indent){
+  std::string AFRT::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[afrt] Fragment Run Table (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "Version " << (int)getVersion() << std::endl;
@@ -1218,7 +1288,7 @@ namespace MP4 {
     return res;
   }
 
-  std::string ASRT::toPrettyString(int indent){
+  std::string ASRT::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[asrt] Segment Run Table (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "Version " << getVersion() << std::endl;
@@ -1252,7 +1322,7 @@ namespace MP4 {
     return getInt32(4);
   }
 
-  std::string MFHD::toPrettyString(int indent){
+  std::string MFHD::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[mfhd] Movie Fragment Header (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "SequenceNumber " << getSequenceNumber() << std::endl;
@@ -1263,7 +1333,7 @@ namespace MP4 {
     memcpy(data + 4, "moof", 4);
   }
 
-  std::string MOOF::toPrettyString(int indent){
+  std::string MOOF::toPrettyString(uint32_t indent){
     return toPrettyContainerString(indent, std::string("[moof] Movie Fragment Box"));
   }
 
@@ -1313,7 +1383,7 @@ namespace MP4 {
     return getBox(tempLoc);
   }
 
-  std::string TRAF::toPrettyString(int indent){
+  std::string TRAF::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[traf] Track Fragment Box (" << boxedSize() << ")" << std::endl;
     Box curBox;
@@ -2199,7 +2269,7 @@ namespace MP4 {
     return getInt32(8 + (index * 4));
   }
   
-  std::string FTYP::toPrettyString(int indent){
+  std::string FTYP::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[ftyp] File Type (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "MajorBrand: 0x" << std::hex << getMajorBrand() << std::dec << std::endl;
@@ -2215,7 +2285,7 @@ namespace MP4 {
     memcpy(data + 4, "moov", 4);
   }
   
-  std::string MOOV::toPrettyString(int indent){
+  std::string MOOV::toPrettyString(uint32_t indent){
     return toPrettyContainerString(indent, std::string("[moov] Movie Box"));
   }
   
@@ -2223,12 +2293,12 @@ namespace MP4 {
     memcpy(data + 4, "mvex", 4);
   }
   
-  std::string MVEX::toPrettyString(int indent){
+  std::string MVEX::toPrettyString(uint32_t indent){
     return toPrettyContainerString(indent, std::string("[mvex] Movie Extends Header Box"));
   }
   
   TREX::TREX(){
-    memcpy(data + 4, "ftyp", 4);
+    memcpy(data + 4, "trex", 4);
   }
   
   void TREX::setTrackID(uint32_t newTrackID){
@@ -2271,7 +2341,7 @@ namespace MP4 {
     getInt32(16);
   }
   
-  std::string TREX::toPrettyString(int indent){
+  std::string TREX::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[trex] Track Extends (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "TrackID: " << getTrackID() << std::endl;
@@ -2281,20 +2351,539 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "DefaultSampleFlags : " << getDefaultSampleFlags() << std::endl;
     return r.str();
   }
-        
+
+  TRAK::TRAK(){
+    memcpy(data + 4, "trak", 4);
+  }
+  
+  std::string TRAK::toPrettyString(uint32_t indent){
+    return toPrettyContainerString(indent, std::string("[trak] Track Structure"));
+  }
+
+  MDIA::MDIA(){
+    memcpy(data + 4, "mdia", 4);
+  }
+  
+  std::string MDIA::toPrettyString(uint32_t indent){
+    return toPrettyContainerString(indent, std::string("[mdia] Track Media Structure"));
+  }
+
+  MINF::MINF(){
+    memcpy(data + 4, "minf", 4);
+  }
+  
+  std::string MINF::toPrettyString(uint32_t indent){
+    return toPrettyContainerString(indent, std::string("[minf] Media Information"));
+  }
+
+  DINF::DINF(){
+    memcpy(data + 4, "dinf", 4);
+  }
+  
+  std::string DINF::toPrettyString(uint32_t indent){
+    return toPrettyContainerString(indent, std::string("[dinf] Data Information"));
+  }
+
+  MFRA::MFRA(){
+    memcpy(data + 4, "mfra", 4);
+  }
+  
+  std::string MFRA::toPrettyString(uint32_t indent){
+    return toPrettyContainerString(indent, std::string("[mfra] Movie Fragment Random Acces Box"));
+  }
+  
+  MFRO::MFRO(){
+    memcpy(data + 4, "mfro", 4);
+  }
+
+  void MFRO::setSize(uint32_t newSize){
+    setInt32(newSize,0);
+  }
+  
+  uint32_t MFRO::getSize(){
+    getInt32(0);
+  }
+  
+  std::string MFRO::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[mfro] Movie Fragment Random Access Offset (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "Size: " << getSize() << std::endl;
+    return r.str();
+  }
+  
+  HDLR::HDLR(){
+    memcpy(data + 4, "hdlr", 4);
+  }
+  
+  void HDLR::setSize(uint32_t newSize){
+    setInt32(newSize,0);
+  }
+  
+  uint32_t HDLR::getSize(){
+    return getInt32(0);
+  }
+  
+  void HDLR::setPreDefined(uint32_t newPreDefined){
+    setInt32(newPreDefined,4);
+  }
+  
+  uint32_t HDLR::getPreDefined(){
+    return getInt32(4);
+  }
+  
+  void HDLR::setHandlerType(uint32_t newHandlerType){
+    setInt32(newHandlerType, 8);
+  }
+  
+  uint32_t HDLR::getHandlerType(){
+    return getInt32(8);
+  }
+  
+  void HDLR::setName(std::string newName){
+    setString(newName, 24);
+  }
+  
+  std::string HDLR::getName(){
+    return getString(24);
+  }
+  
+  std::string HDLR::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[hdlr] Handler Reference (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
+    r << std::string(indent + 1, ' ') << "HandlerType: " << getHandlerType() << std::endl;
+    r << std::string(indent + 1, ' ') << "Name: " << getName() << std::endl;
+    return r.str();
+  }
+  
+  //Note: next 4 headers inherit from fullBox, start at byte 4.
+  VMHD::VMHD(){
+    memcpy(data + 4, "vmhd", 4);
+  }
+  
+  void VMHD::setGraphicsMode(uint16_t newGraphicsMode){
+    setInt16(newGraphicsMode,4);
+  }
+  
+  uint16_t VMHD::getGraphicsMode(){
+    return getInt16(4);
+  }
+  
+  uint32_t VMHD::getOpColorCount(){
+    return 3;
+  }
+  
+  void VMHD::setOpColor(uint16_t newOpColor, size_t index){
+    if (index <3){
+      setInt16(newOpColor, 6 + (2 * index));
+    }
+  }
+  
+  uint16_t VMHD::getOpColor(size_t index){
+    if (index < 3){
+      return getInt16(6 + (index * 2));
+    }else{
+      return 0;
+    }
+  }
+  
+  std::string VMHD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[vmhd] Video Media Header Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "GraphicsMode: " << getGraphicsMode() << std::endl;
+    for (int i = 0; i < getOpColorCount(); i++){
+      r << std::string(indent + 1, ' ') << "OpColor["<<i<<"]: " << getOpColor(i) << std::endl;
+    }
+    return r.str();
+  }
+    
+  SMHD::SMHD(){
+    memcpy(data + 4, "smhd", 4);
+  }
+  
+  void SMHD::setBalance(int16_t newBalance){
+    setInt16(newBalance,4);
+  }
+  
+  int16_t SMHD::getBalance(){
+    return getInt16(4);
+  }
+  
+  std::string SMHD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[smhd] Sound Media Header Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "Balance: " << getBalance() << std::endl;
+    return r.str();
+  }
+
+  HMHD::HMHD(){
+    memcpy(data + 4, "hmhd", 4);
+  }
+  
+  void HMHD::setMaxPDUSize(uint16_t newMaxPDUSize){
+    setInt16(newMaxPDUSize,4);
+  }
+  
+  uint16_t HMHD::getMaxPDUSize(){
+    return getInt16(4);
+  }
+  
+  void HMHD::setAvgPDUSize(uint16_t newAvgPDUSize){
+    setInt16(newAvgPDUSize,6);
+  }
+  
+  uint16_t HMHD::getAvgPDUSize(){
+    return getInt16(6);
+  }
+  
+  void HMHD::setMaxBitRate(uint32_t newMaxBitRate){
+    setInt32(newMaxBitRate,8);
+  }
+  
+  uint32_t HMHD::getMaxBitRate(){
+    return getInt32(8);
+  }
+  
+  void HMHD::setAvgBitRate(uint32_t newAvgBitRate){
+    setInt32(newAvgBitRate,12);
+  }
+  
+  uint32_t HMHD::getAvgBitRate(){
+    return getInt32(12);
+  }
+  
+  std::string HMHD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[hmhd] Hint Media Header Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "maxPDUSize: " << getMaxPDUSize() << std::endl;
+    r << std::string(indent + 1, ' ') << "avgPDUSize: " << getAvgPDUSize() << std::endl;
+    r << std::string(indent + 1, ' ') << "maxBitRate: " << getMaxBitRate() << std::endl;
+    r << std::string(indent + 1, ' ') << "avgBitRate: " << getAvgBitRate() << std::endl;
+    return r.str();
+  }
+  
+  NMHD::NMHD(){
+    memcpy(data + 4, "nmhd", 4);
+  }
+  
+  std::string NMHD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[nmhd] Null Media Header Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    return r.str();
+  }
+  
+  MEHD::MEHD(){
+    memcpy(data + 4, "mehd", 4);
+  }
+  
+  void MEHD::setFragmentDuration(uint64_t newFragmentDuration){
+    if (getVersion() == 0){
+      setInt32(newFragmentDuration,4);
+    }else{
+      setInt64(newFragmentDuration,4);
+    }
+  }
+  
+  uint64_t MEHD::getFragmentDuration(){
+    if(getVersion() == 0){
+      return getInt32(4);
+    }else{
+      return getInt64(4);
+    }
+  }
+  
+  std::string MEHD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[mehd] Movie Extends Header Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "FragmentDuration: " << getFragmentDuration() << std::endl;
+    return r.str();
+  }
+  
+  STBL::STBL(){
+    memcpy(data + 4, "stbl", 4);
+  }
+  
+  std::string STBL::toPrettyString(uint32_t indent){
+    return toPrettyContainerString(indent, std::string("[stbl] Sample Table"));
+  }
+  
+  URL::URL(){
+    memcpy(data + 4, "url ", 4);
+  }
+  
+  void URL::setLocation(std::string newLocation){
+    setString(newLocation, 4);
+  }
+  
+  std::string URL::getLocation(){
+    return std::string(getString(4),getStringLen(4));
+  }
+  
+  std::string URL::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[url ] URL Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "Location: " << getLocation() << std::endl;
+    return r.str();
+  }
+  
+
+  URN::URN(){
+    memcpy(data + 4, "urn ", 4);
+  }
+  
+  void URN::setName(std::string newName){
+    setString(newName, 4);
+  }
+  
+  std::string URN::getName(){
+    return std::string(getString(4),getStringLen(4));
+  }
+  
+  void URN::setLocation(std::string newLocation){
+    setString(newLocation, 4 + getStringLen(4) + 1);
+  }
+  
+  std::string URN::getLocation(){
+    int loc = 4 + getStringLen(4) + 1;
+    return std::string(getString(loc),getStringLen(loc));
+  }
+  
+  std::string URN::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[urn ] URN Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "Name: " << getName() << std::endl;
+    r << std::string(indent + 1, ' ') << "Location: " << getLocation() << std::endl;
+    return r.str();
+  }
+  
+
+  DREF::DREF(){
+    memcpy(data + 4, "dref", 4);
+  }
+  
+  uint32_t DREF::getEntryCount(){
+    return getInt32(4);
+  }
+  
+  void DREF::setDataEntry(fullBox & newDataEntry, size_t index){
+    int i;
+    uint32_t offset = 8; //start of boxes
+    for (i=0; i< getEntryCount() && i < index; i++){
+      offset += getBoxLen(offset);
+    }
+    if (index+1 > getEntryCount()){
+      int amount = index + 1 - getEntryCount();
+      if ( !reserve(payloadOffset + offset, 0, amount * 8)){
+        return;
+      }
+      for (int j = 0; j < amount; ++j){
+        memcpy(data + payloadOffset + offset + j * 8, "\000\000\000\010erro", 8);
+      }
+      setInt32(index + 1, 4);
+      offset += (index - i) * 8;
+    }
+    setBox(newDataEntry, offset);
+  }
+  
+  Box & DREF::getDataEntry(size_t index){
+    uint32_t offset = 8;
+    if (index > getEntryCount()){
+      static Box res;
+      return (Box &)res;
+    }
+    
+    for (int i=0; i < index; i++){
+      offset += getBoxLen(offset);
+    }
+    return (Box &)getBox(offset);
+  }
+  
+  std::string DREF::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[dref] Data Reference Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    for (int32_t i = 0; i< getEntryCount(); i++){
+      r << getDataEntry(i).toPrettyString(indent+1);
+    }
+    return r.str();
+  }
+  
+  MVHD::MVHD(){
+    memcpy(data + 4, "dref", 4);
+  }
+  
+  void MVHD::setCreationTime(uint64_t newCreationTime){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newCreationTime, 4);
+    }else{
+      setInt64(newCreationTime, 4);
+    }
+  }
+  
+  uint64_t MVHD::getCreationTime(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(4);
+    }else{
+      return getInt64(4);
+    }
+  }
+  
+  void MVHD::setModificationTime(uint64_t newModificationTime){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newModificationTime, 8);
+    }else{
+      setInt64(newModificationTime, 12);
+    }
+  }
+  
+  uint64_t MVHD::getModificationTime(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(8);
+    }else{
+      return getInt64(12);
+    }
+  }
+  
+  void MVHD::setTimeScale(uint32_t newTimeScale){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newTimeScale, 12);
+    }else{
+      setInt32(newTimeScale, 20);
+    }
+  }
+  
+  uint32_t MVHD::getTimeScale(){
+    if (getVersion() == 0){
+      return getInt32(12);
+    }else{
+      return getInt32(20);
+    }
+  }
+  
+  void MVHD::setDuration(uint64_t newDuration){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newDuration, 16);
+    }else{
+      setInt64(newDuration, 24);
+    }
+  }
+  
+  uint64_t MVHD::getDuration(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(16);
+    }else{
+      return getInt64(24);
+    }
+  }
+  
+  void MVHD::setRate(uint32_t newRate){
+    if (getVersion() == 0){
+      setInt32( newRate, 20);
+    }else{
+      setInt32(newRate, 32);
+    }
+  }
+  
+  uint32_t MVHD::getRate(){
+    if (getVersion() == 0){
+      return getInt32(20);
+    }else{
+      return getInt32(32);
+    }
+  }
+  
+  void MVHD::setVolume(uint16_t newVolume){
+    if (getVersion() == 0){
+      setInt16(newVolume, 24);
+    }else{
+      setInt16(newVolume, 36);
+    }
+  }
+  
+  uint16_t MVHD::getVolume(){
+    if (getVersion() == 0){
+      return getInt16(24);
+    }else{
+      return getInt16(36);
+    }
+  }
+  //10 bytes reserverd in between
+  uint32_t MVHD::getMatrixCount(){
+    return 9;
+  }
+  
+  void MVHD::setMatrix(int32_t newMatrix, size_t index){
+    int offset = 0;
+    if (getVersion() == 0){
+      offset = 24 + 2 + 10;
+    }else{
+      offset = 36 + 2 + 10;
+    }
+    setInt32(newMatrix, offset + index * 4);
+  }
+  
+  int32_t MVHD::getMatrix(size_t index){
+    int offset = 0;
+    if (getVersion() == 0){
+      offset = 24 + 2 + 10;
+    }else{
+      offset = 36 + 2 + 10;
+    }
+    return getInt32(offset + index * 4);
+  }
+  
+  //24 bytes of pre-defined in between
+  void MVHD::setTrackID(uint32_t newTrackID){
+    if (getVersion() == 0){
+      setInt32(newTrackID, 86);
+    }else{
+      setInt32(newTrackID, 98);
+    }
+  }
+  
+  uint32_t MVHD::getTrackID(){
+    if (getVersion() == 0){
+      return getInt32(86);
+    }else{
+      return getInt32(98);
+    }
+  }
+  
+  std::string MVHD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[mvhd] Movie Header Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "CreationTime: " << getCreationTime() << std::endl;
+    r << std::string(indent + 1, ' ') << "ModificationTime: " << getModificationTime() << std::endl;
+    r << std::string(indent + 1, ' ') << "TimeScale: " << getTimeScale() << std::endl;
+    r << std::string(indent + 1, ' ') << "Duration: " << getDuration() << std::endl;
+    r << std::string(indent + 1, ' ') << "Rate: " << getRate() << std::endl;
+    r << std::string(indent + 1, ' ') << "Volume: " << getVolume() << std::endl;
+    r << std::string(indent + 1, ' ') << "Matrix: ";
+    for (int32_t i = 0; i< getMatrixCount(); i++){
+      r << getMatrix(i);
+      if (i!=getMatrixCount()-1){
+        r << ", ";
+      }
+    }
+    r << std::endl;
+    r << std::string(indent + 1, ' ') << "TrackID: " << getTrackID() << std::endl;
+    return r.str();
+  }
+      
   static char c2hex(int c){
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
     return 0;
-  }
-  
-  MFRA::MFRA(){
-    memcpy(data + 4, "mfra", 4);
-  }
-  
-  std::string MFRA::toPrettyString(int indent){
-    return toPrettyContainerString(indent, std::string("[mfra] Movie Fragment Random Acces Box"));
   }
   
   UUID::UUID(){

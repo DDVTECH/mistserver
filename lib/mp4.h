@@ -24,7 +24,7 @@ namespace MP4 {
       char * asBox();
       char * payload();
       void clear();
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
     protected:
       //integer functions
       void setInt8(char newData, size_t index);
@@ -56,16 +56,25 @@ namespace MP4 {
   };
   //Box Class
   
+  class fullBox: public Box{
+    public:
+      void setVersion(char newVersion);
+      char getVersion();
+      void setFlags(uint32_t newFlags);
+      uint32_t getFlags();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
   class containerBox: public Box{
     public:
       //containerBox();
       uint32_t getContentCount();
       void setContent(Box & newContent, uint32_t no);
       Box & getContent(uint32_t no);
-      std::string toPrettyString(int indent = 0);
-      std::string toPrettyContainerString(int indent, std::string boxName);
+      std::string toPrettyString(uint32_t indent = 0);
+      std::string toPrettyContainerString(uint32_t indent, std::string boxName);
   };
-  
+
   struct afrt_runtable{
       uint32_t firstFragment;
       uint64_t firstTimestamp;
@@ -90,7 +99,7 @@ namespace MP4 {
       uint32_t getFragmentRunCount();
       void setFragmentRun(afrt_runtable newRun, uint32_t no);
       afrt_runtable getFragmentRun(uint32_t no);
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   //AFRT Box
 
@@ -113,7 +122,7 @@ namespace MP4 {
       uint32_t getSegmentRunEntryCount();
       void setSegmentRun(uint32_t firstSegment, uint32_t fragmentsPerSegment, uint32_t no);
       asrt_runtable getSegmentRun(uint32_t no);
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   //ASRT Box
 
@@ -166,7 +175,7 @@ namespace MP4 {
       MFHD();
       void setSequenceNumber(uint32_t newSequenceNumber);
       uint32_t getSequenceNumber();
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   //MFHD Box
 
@@ -176,13 +185,13 @@ namespace MP4 {
       uint32_t getContentCount();
       void setContent(Box & newContent, uint32_t no);
       Box & getContent(uint32_t no);
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };*/
   
   class MOOF: public containerBox{
     public:
       MOOF();
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   //MOOF Box
 
@@ -192,7 +201,7 @@ namespace MP4 {
       uint32_t getContentCount();
       void setContent(Box & newContent, uint32_t no);
       Box & getContent(uint32_t no);
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   //TRAF Box
 
@@ -346,19 +355,19 @@ namespace MP4 {
       uint32_t getCompatibleBrandsCount();
       void setCompatibleBrands(uint32_t newCompatibleBrand, size_t index);
       uint32_t getCompatibleBrands(size_t index);
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   
   class MOOV: public containerBox{
     public:
       MOOV();
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   
   class MVEX: public containerBox{
     public:
       MVEX();
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   
   class TREX: public Box{
@@ -374,20 +383,164 @@ namespace MP4 {
       uint32_t getDefaultSampleSize();
       void setDefaultSampleFlags(uint32_t newDefaultSampleFlags);
       uint32_t getDefaultSampleFlags();
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   
   
   class MFRA: public containerBox{
     public:
       MFRA();
-      std::string toPrettyString(int indent = 0);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class TRAK: public containerBox{
+    public:
+      TRAK();
+      std::string toPrettyString(uint32_t indent = 0);
   };
   
-  /*class MDAT: public Box{
+  class MDIA: public containerBox{
     public:
-      MDAT();
-  };*/
+      MDIA();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class MINF: public containerBox{
+    public:
+      MINF();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class DINF: public containerBox{
+    public:
+      DINF();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class MFRO: public Box{
+    public:
+      MFRO();
+      void setSize(uint32_t newSize);
+      uint32_t getSize();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class HDLR: public Box{
+    public:
+      HDLR();
+      void setSize(uint32_t newSize);
+      uint32_t getSize();
+      void setPreDefined(uint32_t newPreDefined);
+      uint32_t getPreDefined();
+      void setHandlerType(uint32_t newHandlerType);
+      uint32_t getHandlerType();
+      void setName(std::string newName);
+      std::string getName();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class VMHD: public fullBox{
+    public:
+      VMHD();
+      void setGraphicsMode(uint16_t newGraphicsMode);
+      uint16_t getGraphicsMode();
+      uint32_t getOpColorCount();
+      void setOpColor(uint16_t newOpColor, size_t index);
+      uint16_t getOpColor(size_t index);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class SMHD: public fullBox{
+    public:
+      SMHD();
+      void setBalance(int16_t newBalance);
+      int16_t getBalance();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class HMHD: public fullBox{
+    public:
+      HMHD();
+      void setMaxPDUSize(uint16_t newMaxPDUSize);
+      uint16_t getMaxPDUSize();
+      void setAvgPDUSize(uint16_t newAvgPDUSize);
+      uint16_t getAvgPDUSize();
+      void setMaxBitRate(uint32_t newMaxBitRate);
+      uint32_t getMaxBitRate();
+      void setAvgBitRate(uint32_t newAvgBitRate);
+      uint32_t getAvgBitRate();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class NMHD: public fullBox{
+    public:
+      NMHD();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class MEHD: public fullBox{
+    public:
+      MEHD();
+      void setFragmentDuration(uint64_t newFragmentDuration);
+      uint64_t getFragmentDuration();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class STBL: public containerBox{
+    public:
+      STBL();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class URL: public fullBox{
+    public:
+      URL();
+      void setLocation(std::string newLocation);
+      std::string getLocation();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class URN: public fullBox{
+    public:
+      URN();
+      void setName(std::string newName);
+      std::string getName();
+      void setLocation(std::string newLocation);
+      std::string getLocation();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class DREF: public fullBox{
+    public:
+      DREF();
+      uint32_t getEntryCount();
+      void setDataEntry(fullBox & newDataEntry, size_t index);
+      Box & getDataEntry(size_t index);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class MVHD: public fullBox{
+    public:
+      MVHD();
+      void setCreationTime(uint64_t newCreationTime);
+      uint64_t getCreationTime();
+      void setModificationTime(uint64_t newModificationTime);
+      uint64_t getModificationTime();
+      void setTimeScale(uint32_t newTimeScale);
+      uint32_t getTimeScale();
+      void setDuration(uint64_t newDuration);
+      uint64_t getDuration();
+      void setRate(uint32_t newRate);
+      uint32_t getRate();
+      void setVolume(uint16_t newVolume);
+      uint16_t getVolume();
+      uint32_t getMatrixCount();
+      void setMatrix(int32_t newMatrix, size_t index);
+      int32_t getMatrix(size_t index);
+      void setTrackID(uint32_t newTrackID);
+      uint32_t getTrackID();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
   
   class UUID: public Box{
     public:

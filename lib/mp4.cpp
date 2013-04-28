@@ -223,6 +223,24 @@ namespace MP4 {
       case 0x746B6864:
         return ((TKHD*)this)->toPrettyString(indent);
         break;
+      case 0x6D646864:
+        return ((MDHD*)this)->toPrettyString(indent);
+        break;
+      case 0x73747473:
+        return ((STTS*)this)->toPrettyString(indent);
+        break;
+      case 0x63747473:
+        return ((CTTS*)this)->toPrettyString(indent);
+        break;
+      case 0x73747363:
+        return ((STSC*)this)->toPrettyString(indent);
+        break;
+      case 0x7374636F:
+        return ((STCO*)this)->toPrettyString(indent);
+        break;
+      case 0x7374737A:
+        return ((STSZ*)this)->toPrettyString(indent);
+        break;
       case 0x75756964:
         return ((UUID*)this)->toPrettyString(indent);
         break;
@@ -3286,7 +3304,341 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "Height: " << (getHeight() >> 16) << "." << (getHeight() & 0xFFFF) << std::endl;
     return r.str();
   }
+
+  MDHD::MDHD(){
+    memcpy(data + 4, "mdhd", 4);
+  }
   
+  void MDHD::setCreationTime(uint64_t newCreationTime){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newCreationTime, 4);
+    }else{
+      setInt64(newCreationTime, 4);
+    }
+  }
+  
+  uint64_t MDHD::getCreationTime(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(4);
+    }else{
+      return getInt64(4);
+    }
+  }
+  
+  void MDHD::setModificationTime(uint64_t newModificationTime){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newModificationTime, 8);
+    }else{
+      setInt64(newModificationTime, 12);
+    }
+  }
+  
+  uint64_t MDHD::getModificationTime(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(8);
+    }else{
+      return getInt64(12);
+    }
+  }
+  
+  void MDHD::setTimeScale(uint32_t newTimeScale){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newTimeScale, 12);
+    }else{
+      setInt32(newTimeScale, 20);
+    }
+  }
+  
+  uint32_t MDHD::getTimeScale(){
+    if (getVersion() == 0){
+      return getInt32(12);
+    }else{
+      return getInt32(20);
+    }
+  }
+  
+  void MDHD::setDuration(uint64_t newDuration){
+    if (getVersion() == 0){
+      setInt32((uint32_t) newDuration, 16);
+    }else{
+      setInt64(newDuration, 24);
+    }
+  }
+  
+  uint64_t MDHD::getDuration(){
+    if (getVersion() == 0){
+      return (uint64_t)getInt32(16);
+    }else{
+      return getInt64(24);
+    }
+  }
+
+  void MDHD::setLanguage (uint16_t newLanguage){
+    if (getVersion() == 0){
+      setInt16(newLanguage & 0x7F, 20);
+    }else{
+      setInt16(newLanguage & 0x7F, 20);
+    }
+  }
+  
+  uint16_t MDHD::getLanguage(){
+    if (getVersion() == 0){
+      return getInt16(20) & 0x7F;
+    }else{
+      return getInt16(20) & 0x7F;
+    }
+  }
+  
+  std::string MDHD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[mdhd] Media Header Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "CreationTime: " << getCreationTime() << std::endl;
+    r << std::string(indent + 1, ' ') << "ModificationTime: " << getModificationTime() << std::endl;
+    r << std::string(indent + 1, ' ') << "TimeScale: " << getTimeScale() << std::endl;
+    r << std::string(indent + 1, ' ') << "Duration: " << getDuration() << std::endl;
+    r << std::string(indent + 1, ' ') << "Language: 0x" << std::hex << getLanguage() << std::dec<< std::endl;
+    return r.str();
+  }
+  
+  STTS::STTS(){
+    memcpy(data + 4, "stts", 4);
+  }
+  
+  void STTS::setEntryCount(uint32_t newEntryCount){
+    setInt32(newEntryCount, 4);
+  }
+  
+  uint32_t STTS::getEntryCount(){
+    return getInt32(4);
+  }
+  
+  void STTS::setSTTSEntry(STTSEntry newSTTSEntry, uint32_t no){
+    if(no + 1 > getEntryCount()){
+      for (int i = getEntryCount(); i < no; i++){
+        setInt64(0, 8 + (i * 8));//filling up undefined entries of 64 bits
+      }
+    }
+    setInt32(newSTTSEntry.sampleCount, 8 + no * 8);
+    setInt32(newSTTSEntry.sampleDelta, 8 + (no * 8) + 4);
+  }
+  
+  STTSEntry STTS::getSTTSEntry(uint32_t no){
+    static STTSEntry retval;
+    if (no >= getEntryCount()){
+      static STTSEntry inval;
+      return inval;
+    }
+    retval.sampleCount = getInt32(8 + (no * 8));
+    retval.sampleDelta = getInt32(8 + (no * 8) + 4);
+    return retval;
+  }
+  
+  std::string STTS::toPrettyString(uint32_t indent){
+      std::stringstream r;
+    r << std::string(indent, ' ') << "[stts] Sample Table Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    for (int i = 0; i < getEntryCount(); i++){
+      static STTSEntry temp;
+      temp = getSTTSEntry(i);
+      r << std::string(indent + 1, ' ') << "Entry[" << i <<"]:"<< std::endl;
+      r << std::string(indent + 2, ' ') << "SampleCount: " << temp.sampleCount << std::endl;
+      r << std::string(indent + 2, ' ') << "SampleDelta: " << temp.sampleDelta << std::endl;
+    }
+    return r.str();
+
+  }
+  
+  CTTS::CTTS(){
+    memcpy(data + 4, "ctts", 4);
+  }
+  
+  void CTTS::setEntryCount(uint32_t newEntryCount){
+    setInt32(newEntryCount, 4);
+  }
+  
+  uint32_t CTTS::getEntryCount(){
+    return getInt32(4);
+  }
+  
+  void CTTS::setCTTSEntry(CTTSEntry newCTTSEntry, uint32_t no){
+    if(no + 1 > getEntryCount()){
+      for (int i = getEntryCount(); i < no; i++){
+        setInt64(0, 8 + (i * 8));//filling up undefined entries of 64 bits
+      }
+    }
+    setInt32(newCTTSEntry.sampleCount, 8 + no * 8);
+    setInt32(newCTTSEntry.sampleOffset, 8 + (no * 8) + 4);
+  }
+  
+  CTTSEntry CTTS::getCTTSEntry(uint32_t no){
+    static CTTSEntry retval;
+    if (no >= getEntryCount()){
+      static CTTSEntry inval;
+      return inval;
+    }
+    retval.sampleCount = getInt32(8 + (no * 8));
+    retval.sampleOffset = getInt32(8 + (no * 8) + 4);
+    return retval;
+  }
+  
+  std::string CTTS::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[stts] Sample Table Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    for (int i = 0; i < getEntryCount(); i++){
+      static CTTSEntry temp;
+      temp = getCTTSEntry(i);
+      r << std::string(indent + 1, ' ') << "Entry[" << i <<"]:"<< std::endl;
+      r << std::string(indent + 2, ' ') << "SampleCount: " << temp.sampleCount << std::endl;
+      r << std::string(indent + 2, ' ') << "SampleOffset: " << temp.sampleOffset << std::endl;
+    }
+    return r.str();
+
+  }
+
+  STSC::STSC(){
+    memcpy(data + 4, "stsc", 4);
+  }
+  
+  void STSC::setEntryCount(uint32_t newEntryCount){
+    setInt32(newEntryCount, 4);
+  }
+  
+  uint32_t STSC::getEntryCount(){
+    return getInt32(4);
+  }
+  
+  void STSC::setSTSCEntry(STSCEntry newSTSCEntry, uint32_t no){
+    if(no + 1 > getEntryCount()){
+      for (int i = getEntryCount(); i < no; i++){
+        setInt64(0, 8 + (i * 12));//filling up undefined entries of 64 bits
+        setInt32(0, 8 + (i * 12) + 8);
+      }
+    }
+    setInt32(newSTSCEntry.firstChunk, 8 + no * 12);
+    setInt32(newSTSCEntry.samplesPerChunk, 8 + (no * 12) + 4);
+    setInt32(newSTSCEntry.sampleDescriptionIndex, 8 + (no * 12) + 8);
+  }
+  
+  STSCEntry STSC::getSTSCEntry(uint32_t no){
+    static STSCEntry retval;
+    if (no >= getEntryCount()){
+      static STSCEntry inval;
+      return inval;
+    }
+    retval.firstChunk = getInt32(8 + (no * 12));
+    retval.samplesPerChunk = getInt32(8 + (no * 12) + 4);
+    retval.sampleDescriptionIndex = getInt32(8 + (no * 12) + 8);
+    return retval;
+  }
+  
+  std::string STSC::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[stsc] Sample To Chunk Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    for (int i = 0; i < getEntryCount(); i++){
+      static STSCEntry temp;
+      temp = getSTSCEntry(i);
+      r << std::string(indent + 1, ' ') << "Entry[" << i <<"]:"<< std::endl;
+      r << std::string(indent + 2, ' ') << "FirstChunk: " << temp.firstChunk << std::endl;
+      r << std::string(indent + 2, ' ') << "SamplesPerChunk: " << temp.samplesPerChunk << std::endl;
+      r << std::string(indent + 2, ' ') << "SampleDescriptionIndex: " << temp.sampleDescriptionIndex << std::endl;
+    }
+    return r.str();
+  }
+  
+  STCO::STCO(){
+    memcpy(data + 4, "stco", 4);
+  }
+  
+  void STCO::setEntryCount(uint32_t newEntryCount){
+    setInt32(newEntryCount, 4);
+  }
+  
+  uint32_t STCO::getEntryCount(){
+    return getInt32(4);
+  }
+  
+  void STCO::setChunkOffset(uint32_t newChunkOffset, uint32_t no){
+    if (no + 1 > getEntryCount()){
+      for (int i = getEntryCount(); i < no; i++){
+        setInt32(0, 8 + i * 4);//filling undefined entries
+      }
+    }
+    setInt32(newChunkOffset, 8 + no * 4);  
+  }
+  
+  uint32_t STCO::getChunkOffset(uint32_t no){
+    if (no + 1 >= getEntryCount()){
+      return 0;
+    }
+    return getInt32(8 + no * 4);
+  }
+  
+  std::string STCO::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[stco] Chunk Offset Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    for (int i = 0; i < getEntryCount(); i++){
+      r << std::string(indent + 1, ' ') << "ChunkOffset[" << i <<"]: " << getChunkOffset(i) << std::endl;
+    }
+    return r.str();
+  }
+
+  STSZ::STSZ(){
+    memcpy(data + 4, "stco", 4);
+  }
+
+  void STSZ::setSampleSize(uint32_t newSampleSize){
+    setInt32(newSampleSize, 4);
+  }
+  
+  uint32_t STSZ::getSampleSize(){
+    return getInt32(4);
+  }
+
+  
+  void STSZ::setSampleCount(uint32_t newSampleCount){
+    setInt32(newSampleCount, 8);
+  }
+  
+  uint32_t STSZ::getSampleCount(){
+    return getInt32(8);
+  }
+  
+  void STSZ::setEntrySize(uint32_t newEntrySize, uint32_t no){
+    if (no + 1 > getSampleCount()){
+      for (int i = getSampleCount(); i < no; i++){
+        setInt32(0, 12 + i * 4);//filling undefined entries
+      }
+    }
+    setInt32(newEntrySize, 12 + no * 4);  
+  }
+  
+  uint32_t STSZ::getEntrySize(uint32_t no){
+    if (no + 1 >= getSampleCount()){
+      return 0;
+    }
+    return getInt32(12 + no * 4);
+  }
+  
+  std::string STSZ::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[stsz] Sample Size Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "SampleSize: " << getSampleSize() << std::endl;
+    r << std::string(indent + 1, ' ') << "SampleCount: " << getSampleCount() << std::endl;
+    for (int i = 0; i < getSampleCount(); i++){
+      r << std::string(indent + 1, ' ') << "EntrySize[" << i <<"]: " << getEntrySize(i) << std::endl;
+    }
+    return r.str();
+  }
+
   static char c2hex(int c){
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;

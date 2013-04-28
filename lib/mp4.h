@@ -601,6 +601,91 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
   
+  class MDHD: public fullBox{
+    public:
+      MDHD();
+      void setCreationTime(uint64_t newCreationTime);
+      uint64_t getCreationTime();
+      void setModificationTime(uint64_t newModificationTime);
+      uint64_t getModificationTime();
+      void setTimeScale(uint32_t newTimeScale);
+      uint32_t getTimeScale();
+      void setDuration(uint64_t newDuration);
+      uint64_t getDuration();
+      ///\todo return language properly
+      void setLanguage(uint16_t newLanguage);
+      uint16_t getLanguage();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  struct STTSEntry{
+    uint32_t sampleCount;
+    uint32_t sampleDelta;
+  };
+  
+  class STTS: public fullBox{
+    public:
+      STTS();
+      void setEntryCount(uint32_t newEntryCount);
+      uint32_t getEntryCount();
+      void setSTTSEntry(STTSEntry newSTTSEntry, uint32_t no);
+      STTSEntry getSTTSEntry(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  struct CTTSEntry{
+    uint32_t sampleCount;
+    uint32_t sampleOffset;
+  };
+
+  class CTTS: public fullBox{
+    public:
+      CTTS();
+      void setEntryCount(uint32_t newEntryCount);
+      uint32_t getEntryCount();
+      void setCTTSEntry(CTTSEntry newCTTSEntry, uint32_t no);
+      CTTSEntry getCTTSEntry(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  struct STSCEntry{
+    uint32_t firstChunk;
+    uint32_t samplesPerChunk;
+    uint32_t sampleDescriptionIndex;
+  };
+  
+  class STSC: public fullBox{
+    public:
+      STSC();
+      void setEntryCount(uint32_t newEntryCount);
+      uint32_t getEntryCount();
+      void setSTSCEntry(STSCEntry newSTSCEntry, uint32_t no);
+      STSCEntry getSTSCEntry(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class STCO: public fullBox{
+    public:
+      STCO();
+      void setEntryCount(uint32_t newEntryCount);
+      uint32_t getEntryCount();
+      void setChunkOffset(uint32_t newChunkOffset, uint32_t no);
+      uint32_t getChunkOffset(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class STSZ: public fullBox{
+    public:
+      STSZ();
+      void setSampleSize(uint32_t newSampleSize);
+      uint32_t getSampleSize();
+      void setSampleCount(uint32_t newSampleCount);
+      uint32_t getSampleCount();
+      void setEntrySize(uint32_t newEntrySize, uint32_t no);
+      uint32_t getEntrySize(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+   
   class UUID: public Box{
     public:
       UUID();

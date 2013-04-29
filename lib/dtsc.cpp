@@ -769,9 +769,10 @@ void DTSC::File::seekNext(){
     return;
   }
   if (version == 2){
-    strbuffer.erase(0,12);
+    jsonbuffer = JSON::fromDTMI2(strbuffer);
+  }else{
+    jsonbuffer = JSON::fromDTMI(strbuffer);
   }
-  jsonbuffer = JSON::fromDTMI(strbuffer);
   if (jsonbuffer.isMember("keyframe")){
     if (frames[currframe] != lastreadpos){
       currframe++;

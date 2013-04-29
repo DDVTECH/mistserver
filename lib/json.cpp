@@ -478,11 +478,12 @@ void JSON::Value::netPrepare(){
   //insert proper header for this type of data
   int packID = -1;
   long long unsigned int time = objVal["time"].asInt();
-  std::string dataType = objVal["datatype"].asString();
+  std::string dataType;
   if (isMember("datatype")){
+    dataType = objVal["datatype"].asString();
     if (isMember("trackid")){
       packID = objVal["trackid"].asInt();
-    }else{
+    }else{ 
       if (objVal["datatype"].asString() == "video"){
         packID = 1;
       }
@@ -498,12 +499,15 @@ void JSON::Value::netPrepare(){
     }
     removeMember("time");
     removeMember("datatype");
+    removeMember("trackid");
     packed = toPacked();
     objVal["time"] = (long long int)time;
     objVal["datatype"] = dataType;
+    objVal["trackid"] = packID;
     strVal.resize(packed.size() + 20);
     memcpy((void*)strVal.c_str(), "DTP2", 4);
   }else{
+    packID = -1;
     strVal.resize(packed.size() + 8);
     memcpy((void*)strVal.c_str(), "DTSC", 4);
   }
@@ -512,7 +516,7 @@ void JSON::Value::netPrepare(){
   memcpy((void*)(strVal.c_str() + 4), (void*) &size, 4);
   //copy the rest of the string
   if (packID != -1){
-    packID = htonl((int)packID);
+    packID = htonl(packID);
     memcpy((void*)(strVal.c_str() + 8), (void*) &packID, 4);
     int tmpHalf = htonl((int)(time >> 32));
     memcpy((void*)(strVal.c_str() + 12), (void*) &tmpHalf, 4);
@@ -863,3 +867,14 @@ JSON::Value JSON::fromDTMI(std::string data){
   unsigned int i = 0;
   return fromDTMI((const unsigned char*)data.c_str(), data.size(), i);
 } //fromDTMI
+
+JSON::Value JSON::fromDTMI2(std::string data){
+  JSON::Value tmp = fromDTMI(data.substr(12));
+  long long int tmpTrackID = ntohl(((int*)(data.c_str()))[0]);
+  long long int tmpTime = ntohl(((int*)(data.c_str() + 4))[0]);
+  tmpTime << 32;
+  tmpTime += ntohl(((int*)(data.c_str() + 8))[0]);
+  tmp["time"] = tmpTime;
+  tmp["trackid"] = tmpTrackID;
+  return tmp;
+}

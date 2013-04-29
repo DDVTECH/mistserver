@@ -685,7 +685,17 @@ namespace MP4 {
       uint32_t getEntrySize(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
   };
-   
+  
+  class STSD: public fullBox{
+    public:
+      STSD();
+      void setEntryCount (uint32_t newEntryCount);
+      uint32_t getEntryCount();
+      void setEntry(Box & newContent, uint32_t no);
+      Box & getEntry(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
   class UUID: public Box{
     public:
       UUID();

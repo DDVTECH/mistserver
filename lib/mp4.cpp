@@ -241,6 +241,9 @@ namespace MP4 {
       case 0x7374737A:
         return ((STSZ*)this)->toPrettyString(indent);
         break;
+      case 0x73747364:
+        return ((STSD*)this)->toPrettyString(indent);
+        break;
       case 0x75756964:
         return ((UUID*)this)->toPrettyString(indent);
         break;
@@ -3635,6 +3638,69 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "SampleCount: " << getSampleCount() << std::endl;
     for (int i = 0; i < getSampleCount(); i++){
       r << std::string(indent + 1, ' ') << "EntrySize[" << i <<"]: " << getEntrySize(i) << std::endl;
+    }
+    return r.str();
+  }
+
+  STSD::STSD(){
+    memcpy(data + 4, "stsd", 4);
+  }
+
+  void STSD::setEntryCount (uint32_t newEntryCount){
+    setInt32(newEntryCount, 4);
+  }
+  
+  uint32_t STSD::getEntryCount(){
+    return getInt32(4);
+  }
+  
+  void STSD::setEntry(Box & newContent, uint32_t no){
+  int tempLoc = 8;
+    int entryCount = getEntryCount();
+    for (int i = 0; i < no; i++){
+      if (i < entryCount){
+        tempLoc += getBoxLen(tempLoc);
+      }else{
+        if ( !reserve(tempLoc, 0, (no - entryCount) * 8)){
+          return;
+        }
+        memset(data + tempLoc, 0, (no - entryCount) * 8);
+        tempLoc += (no - entryCount) * 8;
+        break;
+      }
+    }
+    setBox(newContent, tempLoc);
+    if (getEntryCount() < no){
+      setEntryCount(no);
+    }
+  }
+  
+  Box & STSD::getEntry(uint32_t no){
+    static Box ret = Box((char*)"\000\000\000\010erro", false);
+    if (no > getEntryCount()){
+      return ret;
+    }
+    int i = 0;
+    int tempLoc = 8;
+    while (i < no){
+      tempLoc += getBoxLen(tempLoc);
+      i++;
+    }
+    return getBox(tempLoc);
+  }
+
+  std::string STSD::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[stsd] Sample Description Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "EntrySize: " << getEntryCount() << std::endl;
+    Box curBox;
+    int tempLoc = 0;
+    int contentCount = getEntryCount();
+    for (int i = 0; i < contentCount; i++){
+      curBox = getEntry(i);
+      r << curBox.toPrettyString(indent + 1);
+      tempLoc += getBoxLen(tempLoc);
     }
     return r.str();
   }

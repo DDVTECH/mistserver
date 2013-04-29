@@ -1100,15 +1100,27 @@
                   $('#page').append($table); 
                   
                   //tooltip
-                  $('.limits_type').add('.limits_name').hover(function(e){
-                     removeTooltip();
-                     showTooltip(e,undefined,$(this).children(':selected').data('desc'));
-                  },function(){
-                     removeTooltip();
+                  $('.limits_type').live({
+                     "mouseover": function(e){
+                        removeTooltip();
+                        showTooltip(e,undefined,$(this).children(':selected').data('desc'));
+                     },
+                     "mouseout": function(){
+                        removeTooltip();
+                     }
+                  });
+                  $('.limits_name').live({
+                     "mouseover": function(e){
+                        removeTooltip();
+                        showTooltip(e,undefined,$(this).children(':selected').data('desc'));
+                     },
+                     "mouseout": function(){
+                        removeTooltip();
+                     }
                   });
                   
                   //change limit value box on type change
-                  $('.limits_name').change(function(){
+                  $('.limits_name').live("change", function(){
                      var value = $(this).parents('.limits_row').find(".limits_val").val();
                     $(this).parents('.limits_row').children('.limit_input_container').html('');
                     BuildLimitRowInput(
@@ -1138,38 +1150,36 @@
                       $tbody.children('tr').each(function(){
                         var newval = null;
                         switch ($(this).find(".limits_name").val()) {
-                          case 'geo':
-                            var entries = Array();
-                            $(this).find('.limit_listentry').each(function(){
-                              var t = $(this).children(':selected').val();
-                              if (t != ''){
-                                entries.push(t);
-                              }
-                            });
-                            if (entries.length > 0) {
+                           case 'geo':
+                              var entries = Array();
+                              $(this).find('.limit_listentry').each(function(){
+                                 var t = $(this).children(':selected').val();
+                                 if (t != ''){
+                                    entries.push(t);
+                                 }
+                              });
                               newval = $(this).find('.limit_listtype').children(':selected').val() + entries.join(' ');
-                            }
-                          break;
-                          case 'host':
-                          case 'time':
-                            var t = $(this).find('.limit_listentry').val();
-                            if ((t != undefined) && (t.toString().split(' ').length > 0)) {
-                              newval = $(this).find('.limit_listtype').children(':selected').val() + t;
-                            }
-                          break;
-                          default:
-                            newval = $(this).find(".limits_val").val();
-                          break;
+                              break;
+                           case 'host':
+                           case 'time':
+                              var t = $(this).find('.limit_listentry').val();
+                              if ((t != undefined) && (t.toString().split(' ').length > 0)) {
+                                 newval = $(this).find('.limit_listtype').children(':selected').val() + t;
+                              }
+                              break;
+                           default:
+                              newval = $(this).find(".limits_val").val();
+                              break;
                         }
                         if (newval){
-                          obj = {"type": $(this).find(".limits_type").val(), "name":$(this).find(".limits_name").val(), "val":newval};
-                        }
-                        if($(this).find('.new-limit-appliesto').val() == 'server') {
-                          settings.settings.config.limits.push(obj);
-                          console.log('new server limit',obj);
-                        }else{
-                          settings.settings.streams[$(this).find('.new-limit-appliesto').val()].limits.push(obj);
-                          console.log('new stream limit',$(this).find('.new-limit-appliesto').val(),obj);
+                           obj = {"type": $(this).find(".limits_type").val(), "name":$(this).find(".limits_name").val(), "val":newval};
+                           if($(this).find('.new-limit-appliesto').val() == 'server') {
+                             settings.settings.config.limits.push(obj);
+                             //console.log('new server limit',obj);
+                           }else{
+                             settings.settings.streams[$(this).find('.new-limit-appliesto').val()].limits.push(obj);
+                             //console.log('new stream limit',$(this).find('.new-limit-appliesto').val(),obj);
+                           }
                         }
                       });
                       loadSettings(function(){
@@ -1181,44 +1191,25 @@
                   break;
                   
                case 'logs':
-                  $table = $('<table>');
-                  $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
-                  $tbody = $('<tbody>');
-                  
-                  if(!settings.settings.log)
-                  {
-                     return;  // no logs, so just bail
-                  }
-                  var i, cur, $tr,
-                      logs = settings.settings.log,
-                      len = logs.length;
-                      
-                  if(len >= 2 && settings.settings.log[0][0] < settings.settings.log[len - 1][0])
-                  {
-                     logs.reverse();
-                  }
-                  
-                  $tbody.html('');
-                  
-                  for(i = 0; i < len; i++)
-                  {
-                     cur = settings.settings.log[i];
-                     
-                     $tr = $('<tr>').append(
-                        $('<td>').text(formatDate(cur[0]))
-                     ).append(
-                        $('<td>').text(cur[1])
-                     ).append(
-                        $('<td>').text(cur[2])
-                     );
-                     
-                     $tbody.append($tr);
-                  }
-                  
-                  $table.append($tbody);
-                  $('#page').append($table);
-                  
                   $('#page').append(
+                     $('<input>').attr('type','checkbox').addClass('logs_refresh')
+                  ).append(
+                     $('<span>').text(' Refresh logs every ')
+                  ).append(
+                     $('<select>').addClass('logs_refresh_every').append(
+                        $('<option>').val(10000).text('10 seconds')
+                     ).append(
+                        $('<option>').val(30000).text('30 seconds')
+                     ).append(
+                        $('<option>').val(60000).text('minute')
+                     ).append(
+                        $('<option>').val(300000).text('5 minutes')
+                     ).append(
+                        $('<option>').val(600000).text('10 minutes')
+                     ).append(
+                        $('<option>').val(1800000).text('30 minutes')
+                     )
+                  ).append(
                      $('<button>').attr('class', 'floatright').click(function()
                      {
                         settings.settings.clearstatlogs = 1;
@@ -1227,7 +1218,76 @@
                            showTab('logs');
                         });
                      }).text('Purge logs')
+                  ).append(
+                     buildLogsTable()
                   );
+                  
+                  var logsinterval; 
+                  $('.logs_refresh').change(function(){
+                     if ($(this).is(':checked')) {
+                        var delay = $('.logs_refresh_every').val();
+                        logsinterval = setInterval(function(){getLogsdata();},delay);
+                        getLogsdata();
+                     }
+                     else {
+                        clearInterval(logsinterval);
+                     }
+                  });
+                  $('.logs_refresh_every').change(function(){
+                     if ($('.logs_refresh').is(':checked')) {
+                        var delay = $(this).val();
+                        clearInterval(logsinterval);
+                        logsinterval = setInterval(function(){getLogsdata();},delay);
+                     }
+                  });
+                  
+                  function getLogsdata(){
+                     getData(function(data){
+                       settings.settings.log = data.log;
+                       
+                       $('#page table').remove();
+                       $('#page').append(buildLogsTable());
+                     });
+                  }
+                  
+                  function buildLogsTable(){
+                     $table = $('<table>');
+                     $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
+                     $tbody = $('<tbody>');
+                     
+                     if(!settings.settings.log)
+                     {
+                        return;  // no logs, so just bail
+                     }
+                     var i, cur, $tr,
+                         logs = settings.settings.log,
+                         len = logs.length;
+                         
+                     if(len >= 2 && settings.settings.log[0][0] < settings.settings.log[len - 1][0])
+                     {
+                        logs.reverse();
+                     }
+                     
+                     $tbody.html('');
+                     
+                     for(i = 0; i < len; i++)
+                     {
+                        cur = settings.settings.log[i];
+                        
+                        $tr = $('<tr>').append(
+                           $('<td>').text(formatDate(cur[0]))
+                        ).append(
+                           $('<td>').text(cur[1])
+                        ).append(
+                           $('<td>').text(cur[2])
+                        );
+                        
+                        $tbody.append($tr);
+                     }
+                     
+                     $table.append($tbody);
+                     return $table;
+                  }
                   
                   break;
                   

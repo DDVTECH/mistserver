@@ -488,7 +488,7 @@ function BuildLimitRow(l)
              ['hard', 'Hardlimit','Do not allow this limit to be passed.']
           ],
           [
-             ['kbps_max', 'Current bandwidth', 'Current bandwidth in bytes/s.'],
+             ['kbps_max', 'Current bandwidth', 'In bytes/s. Refuses new connections after current bandwidth limit is reached.'],
              ['users', 'Concurrent users','Maximum concurrent users.'],
              ['geo', 'Geolimited', 'Either a blacklist or whitelist containing country codes.'],
              ['host', 'Hostlimited', 'Either a blacklist or whitelist containing hosts seperated by spaces.']

@@ -47,14 +47,22 @@ namespace Converters {
     std::map<std::string,int> trackIDs;
     std::map<std::string,HeaderEntryDTSC> trackData;
 
+
     long long int nowpack = 0;
     
     std::string currentID;
     int nextFreeID = 0;
 
+    for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++){
+      trackIDs.insert(std::pair<std::string,int>(it->first,it->second["trackid"].asInt()));
+      if (it->second["trackid"].asInt() >= nextFreeID){
+        nextFreeID = it->second["trackid"].asInt() + 1;
+      }
+    }
+
     F.seekNext();
     while ( !F.getJSON().isNull()){
-      if (F.getJSON()["packetid"].asInt() == 0){
+      if (F.getJSON()["trackid"].asInt() == 0){
         if (F.getJSON()["datatype"].asString() == "video"){
           currentID = "video0";
           trackData[currentID].packetID = 0;
@@ -73,10 +81,13 @@ namespace Converters {
             }
             trackData[currentID].type = F.getJSON()["datatype"].asString();
           }else{
+            fprintf(stderr, "Found an unknown package with packetid 0 and datatype %s\n",F.getJSON()["datatype"].asString().c_str());
             F.seekNext();
             continue;
           }
         }
+      }else{
+        fprintf(stderr, "Found a v2 packet\n");
       }
       if (F.getJSON()["time"].asInt() >= nowpack){
         nowpack = F.getJSON()["time"].asInt();

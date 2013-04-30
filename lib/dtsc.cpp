@@ -56,14 +56,26 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
         return false;
       }
     }
+    int version = 0;
     if (memcmp(buffer.c_str(), DTSC::Magic_Packet, 4) == 0){
+      version = 1;
+    }
+    if (memcmp(buffer.c_str(), DTSC::Magic_Packet2, 4) == 0){
+      version = 2;
+    }
+    if (version){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);
       if (buffer.length() < len + 8){
         return false;
       }
       buffers.push_front(JSON::Value());
       unsigned int i = 0;
-      buffers.front() = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
+      if (version == 1){
+        buffers.front() = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
+      }
+      if (version == 2){
+        buffers.front() = JSON::fromDTMI2(buffer.substr(8));
+      }
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
         datapointer = &(buffers.front()["data"].strVal);
@@ -86,49 +98,6 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
         }
       }
       buffer.erase(0, len + 8);
-      while (buffers.size() > buffercount){
-        buffers.pop_back();
-      }
-      advanceRings();
-      syncing = false;
-      return true;
-    }
-    if (memcmp(buffer.c_str(), DTSC::Magic_Packet2, 4) == 0){
-      len = ntohl(((uint32_t *)buffer.c_str())[1]);
-      if (buffer.length() < len + 20){
-        return false;
-      }
-      buffers.push_front(JSON::Value());
-      unsigned int i = 0;
-      long long int tmpTrackID = ntohl(((int*)(buffer.c_str() + 8))[0]);
-      long long int tmpTime = ntohl(((int*)(buffer.c_str() + 12))[0]);
-      tmpTime << 32;
-      tmpTime += ntohl(((int*)(buffer.c_str() + 16))[0]);
-      buffers.front() = JSON::fromDTMI((unsigned char*)buffer.c_str() + 20, len, i);
-      buffers.front()["time"] = tmpTime;
-      buffers.front()["trackid"] = tmpTrackID;
-      datapointertype = INVALID;
-      if (buffers.front().isMember("data")){
-        datapointer = &(buffers.front()["data"].strVal);
-      }else{
-        datapointer = 0;
-      }
-      if (buffers.front().isMember("datatype")){
-        std::string tmp = buffers.front()["datatype"].asString();
-        if (tmp == "video"){
-          datapointertype = VIDEO;
-        }
-        if (tmp == "audio"){
-          datapointertype = AUDIO;
-        }
-        if (tmp == "meta"){
-          datapointertype = META;
-        }
-        if (tmp == "pause_marker"){
-          datapointertype = PAUSEMARK;
-        }
-      }
-      buffer.erase(0, len + 20);
       while (buffers.size() > buffercount){
         buffers.pop_back();
       }
@@ -181,7 +150,14 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       }
       header_bytes = buffer.copy(8);
     }
+    int version = 0;
     if (memcmp(header_bytes.c_str(), DTSC::Magic_Packet, 4) == 0){
+      version = 1;
+    }
+    if (memcmp(header_bytes.c_str(), DTSC::Magic_Packet2, 4) == 0){
+      version = 2;
+    }
+    if (version){
       len = ntohl(((uint32_t *)header_bytes.c_str())[1]);
       if ( !buffer.available(len + 8)){
         return false;
@@ -189,50 +165,12 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       buffers.push_front(JSON::Value());
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
-      buffers.front() = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
-      datapointertype = INVALID;
-      if (buffers.front().isMember("data")){
-        datapointer = &(buffers.front()["data"].strVal);
-      }else{
-        datapointer = 0;
+      if (version == 1){
+        buffers.front() = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
       }
-      if (buffers.front().isMember("datatype")){
-        std::string tmp = buffers.front()["datatype"].asString();
-        if (tmp == "video"){
-          datapointertype = VIDEO;
-        }
-        if (tmp == "audio"){
-          datapointertype = AUDIO;
-        }
-        if (tmp == "meta"){
-          datapointertype = META;
-        }
-        if (tmp == "pause_marker"){
-          datapointertype = PAUSEMARK;
-        }
+      if (version == 2){
+        buffers.front() = JSON::fromDTMI2(wholepacket.substr(8));
       }
-      while (buffers.size() > buffercount){
-        buffers.pop_back();
-      }
-      advanceRings();
-      syncing = false;
-      return true;
-    }
-    if (memcmp(header_bytes.c_str(), DTSC::Magic_Packet2, 4) == 0){
-      len = ntohl(((uint32_t *)header_bytes.c_str())[1]);
-      if ( !buffer.available(len + 20)){
-        return false;
-      }
-      buffers.push_front(JSON::Value());
-      unsigned int i = 0;
-      std::string wholepacket = buffer.remove(len + 20);
-      long long int tmpTrackID = ntohl(((int*)(wholepacket.c_str() + 8))[0]);
-      long long int tmpTime = ntohl(((int*)(wholepacket.c_str() + 12))[0]);
-      tmpTime << 32;
-      tmpTime += ntohl(((int*)(wholepacket.c_str() + 16))[0]);
-      buffers.front() = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 20, len, i);
-      buffers.front()["time"] = tmpTime;
-      buffers.front()["trackid"] = tmpTrackID;
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
         datapointer = &(buffers.front()["data"].strVal);
@@ -693,12 +631,8 @@ void DTSC::File::readHeader(int pos){
   if (pos == 0){
     firstmetadata = metadata;
   }
-  if (fread(buffer, 4, 1, F) != 1){
-    metadata["isFixed"] = true;
-  }
   //if there is another header, read it and replace metadata with that one.
   if (metadata.isMember("moreheader") && metadata["moreheader"].asInt() > 0){
-    metadata.removeMember("isFixed");
     readHeader(metadata["moreheader"].asInt());
     return;
   }

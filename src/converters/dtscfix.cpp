@@ -10,10 +10,10 @@
 namespace Converters {
   class HeaderEntryDTSC {
     public:
-      HeaderEntryDTSC() : totalSize(0), keyNum(0), packetID(0), firstms(-1), lastms(0), keynum(0) {}
+      HeaderEntryDTSC() : totalSize(0), keyNum(0), trackID(0), firstms(-1), lastms(0), keynum(0) {}
       long long unsigned int totalSize;
       long long int keyNum;
-      long long int packetID;
+      long long int trackID;
       long long int firstms;
       long long int lastms;
       long long int keynum;
@@ -34,9 +34,17 @@ namespace Converters {
       return 1;
     }
     if (oriheader["moreheader"].asInt() > 0){
-      if (meta.isMember("tracks") && meta.isMember("isFixed") && meta["isFixed"]){
-        std::cerr << "This file was already fixed or doesn't need fixing - cancelling." << std::endl;
-        return 0;
+      if (meta.isMember("tracks") && meta["tracks"].size() > 0){
+        bool isFixed = true;
+        for ( JSON::ObjIter trackIt = meta["tracks"].ObjBegin(); trackIt != meta["tracks"].ObjEnd(); trackIt ++) {
+          if ( !trackIt->second.isMember("frags") || !trackIt->second.isMember("keynum")){
+            isFixed = false;
+          }
+        }
+        if (isFixed){
+          std::cerr << "This file was already fixed or doesn't need fixing - cancelling." << std::endl;
+          return 0;
+        }
       }
     }
     meta.removeMember("isFixed");
@@ -55,6 +63,8 @@ namespace Converters {
 
     for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++){
       trackIDs.insert(std::pair<std::string,int>(it->first,it->second["trackid"].asInt()));
+      trackData[it->first].type = it->second["type"].asString();
+      trackData[it->first].trackID = it->second["trackid"].asInt();
       if (it->second["trackid"].asInt() >= nextFreeID){
         nextFreeID = it->second["trackid"].asInt() + 1;
       }
@@ -62,10 +72,13 @@ namespace Converters {
 
     F.seekNext();
     while ( !F.getJSON().isNull()){
+      currentID = "";
       if (F.getJSON()["trackid"].asInt() == 0){
         if (F.getJSON()["datatype"].asString() == "video"){
           currentID = "video0";
-          trackData[currentID].packetID = 0;
+          if (trackData[currentID].trackID == 0){
+            trackData[currentID].trackID = nextFreeID++;
+          }
           if (meta.isMember("video")){
             meta["tracks"][currentID] = meta["video"];
             meta.removeMember("video");
@@ -74,7 +87,9 @@ namespace Converters {
         }else{
           if (F.getJSON()["datatype"].asString() == "audio"){
             currentID = "audio0";
-            trackData[currentID].packetID = 0;
+            if (trackData[currentID].trackID == 0){
+              trackData[currentID].trackID = nextFreeID++;
+            }
             if (meta.isMember("audio")){
               meta["tracks"][currentID] = meta["audio"];
               meta.removeMember("audio");
@@ -87,7 +102,18 @@ namespace Converters {
           }
         }
       }else{
-        fprintf(stderr, "Found a v2 packet\n");
+        for( std::map<std::string,int>::iterator it = trackIDs.begin(); it != trackIDs.end(); it++ ) {
+          if( it->second == F.getJSON()["trackid"].asInt() ) {
+            currentID = it->first;
+            break;
+          }
+        }
+        if( currentID == "" ) {
+          fprintf(stderr, "Found a v2 packet with id %d\n", F.getJSON()["trackid"].asInt());
+          F.seekNext();
+          continue;
+          //should create new track but this shouldnt be needed...
+        }
       }
       if (F.getJSON()["time"].asInt() >= nowpack){
         nowpack = F.getJSON()["time"].asInt();
@@ -97,7 +123,7 @@ namespace Converters {
       }
       trackData[currentID].totalSize += F.getJSON()["data"].asString().size();
       trackData[currentID].lastms = nowpack;
-      if (F.getJSON()["datatype"].asString() == "video"){
+      if (trackData[currentID].type == "video"){
         if (F.getJSON()["keyframe"].asInt() != 0){
           meta["tracks"][currentID]["keytime"].append(F.getJSON()["time"]);
           meta["tracks"][currentID]["keybpos"].append(F.getLastReadPos());
@@ -126,40 +152,37 @@ namespace Converters {
       if ( !meta["tracks"][it->first].isMember("bps")){
         meta["tracks"][it->first]["bps"] = (long long int)(it->second.lastms / ((it->second.lastms - it->second.firstms) / 1000));
       }
-      meta["tracks"][it->first]["packetid"] = it->second.packetID;
-      if (it->second.packetID != 0){
+      if (it->second.trackID != 0){
         meta["tracks"][it->first]["trackid"] = trackIDs[it->first];
       }else{
         meta["tracks"][it->first]["trackid"] = nextFreeID ++;
       }
       meta["tracks"][it->first]["type"] = it->second.type;
-      if (it->second.type == "video"){
-        int tmp = meta["tracks"][it->first]["keytime"].size();
-        if (tmp > 0){
-          meta["tracks"][it->first]["keylen"].append(it->second.lastms - meta["tracks"][it->first]["keytime"][tmp - 1].asInt());
-        }else{
-          meta["tracks"][it->first]["keylen"].append(it->second.lastms);
-        }
-        //calculate fragments
-        meta["tracks"][it->first]["frags"].null();
-        long long int currFrag = -1;
-        for (unsigned int i = 0; i < meta["tracks"][it->first]["keytime"].size(); i++){
-          if (meta["tracks"][it->first]["keytime"][i].asInt() / 10000 > currFrag){
-            currFrag = meta["tracks"][it->first]["keytime"][i].asInt() / 10000;
-            long long int fragLen = 1;
-            long long int fragDur = meta["tracks"][it->first]["keylen"][i].asInt();
-            for (unsigned int j = i; j < meta["tracks"][it->first]["keytime"].size(); j++){
-              if (meta["tracks"][it->first]["keytime"][j].asInt() / 10000 > currFrag || j == meta["tracks"][it->first]["keytime"].size() - 1){
-                JSON::Value thisFrag;
-                thisFrag["num"] = meta["tracks"][it->first]["keynum"][i];
-                thisFrag["len"] = fragLen;
-                thisFrag["dur"] = fragDur;
-                meta["tracks"][it->first]["frags"].append(thisFrag);
-                break;
-              }
-              fragLen++;
-              fragDur += meta["tracks"][it->first]["keylen"][j].asInt();
+      int tmp = meta["tracks"][it->first]["keytime"].size();
+      if (tmp > 0){
+        meta["tracks"][it->first]["keylen"].append(it->second.lastms - meta["tracks"][it->first]["keytime"][tmp - 1].asInt());
+      }else{
+        meta["tracks"][it->first]["keylen"].append(it->second.lastms);
+      }
+      //calculate fragments
+      meta["tracks"][it->first]["frags"].null();
+      long long int currFrag = -1;
+      for (unsigned int i = 0; i < meta["tracks"][it->first]["keytime"].size(); i++){
+        if (meta["tracks"][it->first]["keytime"][i].asInt() / 10000 > currFrag){
+          currFrag = meta["tracks"][it->first]["keytime"][i].asInt() / 10000;
+          long long int fragLen = 1;
+          long long int fragDur = meta["tracks"][it->first]["keylen"][i].asInt();
+          for (unsigned int j = i; j < meta["tracks"][it->first]["keytime"].size(); j++){
+            if (meta["tracks"][it->first]["keytime"][j].asInt() / 10000 > currFrag || j == meta["tracks"][it->first]["keytime"].size() - 1){
+              JSON::Value thisFrag;
+              thisFrag["num"] = meta["tracks"][it->first]["keynum"][i];
+              thisFrag["len"] = fragLen;
+              thisFrag["dur"] = fragDur;
+              meta["tracks"][it->first]["frags"].append(thisFrag);
+              break;
             }
+            fragLen++;
+            fragDur += meta["tracks"][it->first]["keylen"][j].asInt();
           }
         }
       }

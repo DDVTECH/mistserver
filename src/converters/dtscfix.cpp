@@ -10,9 +10,9 @@
 namespace Converters {
   class HeaderEntryDTSC {
     public:
-      HeaderEntryDTSC() : totalSize(0), keyNum(0), trackID(0), firstms(-1), lastms(0), keynum(0) {}
+      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-1000), trackID(0), firstms(-1), lastms(0), keynum(0) {}
       long long unsigned int totalSize;
-      long long int keyNum;
+      long long int lastKeyTime;
       long long int trackID;
       long long int firstms;
       long long int lastms;
@@ -125,6 +125,16 @@ namespace Converters {
       trackData[currentID].lastms = nowpack;
       if (trackData[currentID].type == "video"){
         if (F.getJSON()["keyframe"].asInt() != 0){
+          meta["tracks"][currentID]["keytime"].append(F.getJSON()["time"]);
+          meta["tracks"][currentID]["keybpos"].append(F.getLastReadPos());
+          meta["tracks"][currentID]["keynum"].append( ++trackData[currentID].keynum);
+          if (meta["tracks"][currentID]["keytime"].size() > 1){
+            meta["tracks"][currentID]["keylen"].append(F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keytime"][meta["tracks"][currentID]["keytime"].size() - 2].asInt());
+          }
+        }
+      }else{
+        if ((F.getJSON()["time"].asInt() - trackData[currentID].lastKeyTime) > 1000){
+          trackData[currentID].lastKeyTime = F.getJSON()["time"].asInt();
           meta["tracks"][currentID]["keytime"].append(F.getJSON()["time"]);
           meta["tracks"][currentID]["keybpos"].append(F.getLastReadPos());
           meta["tracks"][currentID]["keynum"].append( ++trackData[currentID].keynum);

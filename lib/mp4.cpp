@@ -244,6 +244,12 @@ namespace MP4 {
       case 0x73747364:
         return ((STSD*)this)->toPrettyString(indent);
         break;
+      case 0x6D703461:
+        return ((MP4A*)this)->toPrettyString(indent);
+        break;
+      case 0x61766331:
+        return ((AVC1*)this)->toPrettyString(indent);
+        break;
       case 0x75756964:
         return ((UUID*)this)->toPrettyString(indent);
         break;
@@ -3594,7 +3600,7 @@ namespace MP4 {
   }
 
   STSZ::STSZ(){
-    memcpy(data + 4, "stco", 4);
+    memcpy(data + 4, "stsz", 4);
   }
 
   void STSZ::setSampleSize(uint32_t newSampleSize){
@@ -3640,6 +3646,257 @@ namespace MP4 {
       r << std::string(indent + 1, ' ') << "EntrySize[" << i <<"]: " << getEntrySize(i) << std::endl;
     }
     return r.str();
+  }
+
+  SampleEntry::SampleEntry(){
+    memcpy(data + 4, "erro", 4);
+  }
+  
+  void SampleEntry::setDataReferenceIndex(uint16_t newDataReferenceIndex){
+    setInt16(newDataReferenceIndex, 6);
+  }
+  
+  uint16_t SampleEntry::getDataReferenceIndex(){
+    return getInt16(6);
+  }
+  
+  std::string SampleEntry::toPrettySampleString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent + 1, ' ') << "DataReferenceIndex: " << getDataReferenceIndex() << std::endl;
+    return r.str();  
+  }
+
+  CLAP::CLAP(){
+  
+  }
+  
+  void CLAP::setCleanApertureWidthN(uint32_t newVal){
+  
+  }
+  
+  uint32_t CLAP::getCleanApertureWidthN(){
+  
+  }
+  
+  void CLAP::setCleanApertureWidthD(uint32_t newVal){
+  
+  }
+  
+  uint32_t CLAP::getCleanApertureWidthD(){
+  
+  }
+  
+  void CLAP::setCleanApertureHeightN(uint32_t newVal){
+  
+  }
+  
+  uint32_t CLAP::getCleanApertureHeightN(){
+  
+  }
+  
+  void CLAP::setCleanApertureHeightD(uint32_t newVal){
+  
+  }
+  
+  uint32_t CLAP::getCleanApertureHeightD(){
+  
+  }
+  
+  void CLAP::setHorizOffN(uint32_t newVal){
+  
+  }
+  
+  uint32_t CLAP::getHorizOffN(){
+  
+  }
+  
+  void CLAP::setHorizOffD(uint32_t newVal){
+  
+  }
+  
+  uint32_t CLAP::getHorizOffD(){
+  
+  }
+  
+  void CLAP::setVertOffN(uint32_t newVal){
+  
+  }
+  
+  uint32_t CLAP::getVertOffN(){
+  
+  }
+  
+  void CLAP::setVertOffD(uint32_t newVal){
+  
+  }
+  
+  uint32_t CLAP::getVertOffD(){
+  
+  }
+  
+  std::string CLAP::toPrettyString(uint32_t indent = 0){
+  
+  }
+  
+  PASP::PASP(){
+  
+  }
+  
+  void PASP::setHSpacing(uint32_t newVal){
+  
+  }
+  
+  uint32_t PASP::getHSpacing(){
+  
+  }
+  
+  void PASP::setVSpacing(uint32_t newVal){
+  
+  }
+  
+  uint32_t PASP::getVSpacing(){
+  
+  }
+  
+  std::string PASP::toPrettyString(uint32_t indent = 0){
+  
+  }
+
+  VisualSampleEntry::VisualSampleEntry(){
+    memcpy(data + 4, "erro", 4);
+  }
+  
+  void VisualSampleEntry::setWidth(uint16_t newWidth){
+    setInt16(newWidth,24);
+  }
+  
+  uint16_t VisualSampleEntry::getWidth(){
+    return getInt16(24);
+  }
+  
+  void VisualSampleEntry::setHeight(uint16_t newHeight){
+    setInt16(newHeight, 26);
+  }
+  
+  uint16_t VisualSampleEntry::getHeight(){
+    return getInt16(26);
+  }
+  
+  void VisualSampleEntry::setHorizResolution (uint32_t newHorizResolution){
+    setInt32(newHorizResolution, 28);
+  }
+  
+  uint32_t VisualSampleEntry::getHorizResolution(){
+    return getInt32(28);
+  }
+  
+  void VisualSampleEntry::setVertResolution (uint32_t newVertResolution){
+    setInt32(newVertResolution,32);
+  }
+  
+  uint32_t VisualSampleEntry::getVertResolution(){
+    return getInt32(32);
+  }
+  
+  void VisualSampleEntry::setFrameCount(uint16_t newFrameCount){
+    setInt16(newFrameCount, 40);
+  }
+  
+  uint16_t VisualSampleEntry::getFrameCount(){
+    return getInt16(40);
+  }
+
+  void VisualSampleEntry::setCompressorName(std::string newCompressorName){
+    setString(newCompressorName,42);
+  }
+  
+  std::string VisualSampleEntry::getCompressorName(){
+    return getString(42);
+  }
+
+  void VisualSampleEntry::setDepth(uint16_t newDepth){
+    setInt16(newDepth, 74);
+  }
+  
+  uint16_t VisualSampleEntry::getDepth(){
+    getInt16(74);
+  }
+  
+  std::string VisualSampleEntry::toPrettyVisualString(uint32_t indent, std::string name){
+    std::stringstream r;
+    r << std::string(indent, ' ') << name << " (" << boxedSize() << ")" << std::endl;
+    r << toPrettySampleString(indent);
+    r << std::string(indent + 1, ' ') << "Width: " << getWidth() << std::endl;
+    r << std::string(indent + 1, ' ') << "Height: " << getHeight() << std::endl;
+    r << std::string(indent + 1, ' ') << "HorizResolution: " << getHorizResolution() << std::endl;
+    r << std::string(indent + 1, ' ') << "VertResolution: " << getVertResolution() << std::endl;
+    r << std::string(indent + 1, ' ') << "FrameCount: " << getFrameCount() << std::endl;
+    r << std::string(indent + 1, ' ') << "CompressorName: " << getCompressorName() << std::endl;
+    r << std::string(indent + 1, ' ') << "Depth: " << getDepth() << std::endl;
+    return r.str();
+  }
+
+  AudioSampleEntry::AudioSampleEntry(){
+    memcpy(data + 4, "erro", 4);
+  }
+  
+  void AudioSampleEntry::setChannelCount(uint16_t newChannelCount){
+    setInt16(newChannelCount,16);
+  }
+  
+  uint16_t AudioSampleEntry::getChannelCount(){
+    return getInt16(16);
+  }
+  
+  void AudioSampleEntry::setSampleSize(uint16_t newSampleSize){
+    setInt16(newSampleSize,18);
+  }
+  
+  uint16_t AudioSampleEntry::getSampleSize(){
+    return getInt16(18);
+  }
+  
+  void AudioSampleEntry::setPreDefined(uint16_t newPreDefined){
+    setInt16(newPreDefined,20);
+  }
+  
+  uint16_t AudioSampleEntry::getPreDefined(){
+    return getInt16(20);
+  }
+  
+  void AudioSampleEntry::setSampleRate(uint32_t newSampleRate){
+    setInt32(newSampleRate,24);
+  }
+  
+  uint32_t AudioSampleEntry::getSampleRate(){
+    return getInt32(24);
+  }
+  
+  std::string AudioSampleEntry::toPrettyAudioString(uint32_t indent, std::string name){
+    std::stringstream r;
+    r << std::string(indent, ' ') << name << " (" << boxedSize() << ")" << std::endl;
+    r << toPrettySampleString(indent);
+    r << std::string(indent + 1, ' ') << "ChannelCount: " << getChannelCount() << std::endl;
+    r << std::string(indent + 1, ' ') << "SampleSize: " << getSampleSize() << std::endl;
+    r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
+    r << std::string(indent + 1, ' ') << "SampleRate: " << getSampleRate() << std::endl;
+    return r.str();
+  }
+
+  MP4A::MP4A(){
+    memcpy(data + 4, "mp4a", 4);
+  }
+  
+  std::string MP4A::toPrettyString(uint32_t indent){
+    return toPrettyAudioString(indent, "[mp4a] MPEG 4 Audio");
+  }
+
+  AVC1::AVC1(){
+    memcpy(data + 4, "avc1", 4);
+  }
+  
+  std::string AVC1::toPrettyString(uint32_t indent){
+    return toPrettyVisualString(indent, "[avc1] Advanced Video Codec 1");
   }
 
   STSD::STSD(){

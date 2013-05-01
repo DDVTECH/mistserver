@@ -686,6 +686,94 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
   
+  class SampleEntry: public Box{
+    public:
+      SampleEntry();
+      void setDataReferenceIndex(uint16_t newDataReferenceIndex);
+      uint16_t getDataReferenceIndex();
+      std::string toPrettySampleString(uint32_t index);
+  };
+  
+  class CLAP: public Box{//CleanApertureBox
+    public:
+      CLAP();
+      void setCleanApertureWidthN(uint32_t newVal);
+      uint32_t getCleanApertureWidthN();
+      void setCleanApertureWidthD(uint32_t newVal);
+      uint32_t getCleanApertureWidthD();
+      void setCleanApertureHeightN(uint32_t newVal);
+      uint32_t getCleanApertureHeightN();
+      void setCleanApertureHeightD(uint32_t newVal);
+      uint32_t getCleanApertureHeightD();
+      void setHorizOffN(uint32_t newVal);
+      uint32_t getHorizOffN();
+      void setHorizOffD(uint32_t newVal);
+      uint32_t getHorizOffD();
+      void setVertOffN(uint32_t newVal);
+      uint32_t getVertOffN();
+      void setVertOffD(uint32_t newVal);
+      uint32_t getVertOffD();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class PASP: public Box{ //PixelAspectRatioBox
+    public:
+      PASP();
+      void setHSpacing(uint32_t newVal);
+      uint32_t getHSpacing();
+      void setVSpacing(uint32_t newVal);
+      uint32_t getVSpacing();
+      std::string toPrettyString(uint32_t indent = 0);
+  }
+  
+  class VisualSampleEntry: public SampleEntry{
+    ///\todo set default values
+    public:
+      VisualSampleEntry();
+      void setWidth(uint16_t newWidth);
+      uint16_t getWidth();
+      void setHeight(uint16_t newHeight);
+      uint16_t getHeight();
+      void setHorizResolution (uint32_t newHorizResolution);
+      uint32_t getHorizResolution();
+      void setVertResolution (uint32_t newVertResolution);
+      uint32_t getVertResolution();
+      void setFrameCount(uint16_t newFrameCount);
+      uint16_t getFrameCount();
+      void setCompressorName(std::string newCompressorName);
+      std::string getCompressorName();
+      void setDepth(uint16_t newDepth);
+      uint16_t getDepth();
+      std::string toPrettyVisualString(uint32_t index = 0, std::string = "");
+  };
+  
+  class AudioSampleEntry: public SampleEntry{
+    public:
+      ///\todo set default values
+      AudioSampleEntry();
+      void setChannelCount(uint16_t newChannelCount);
+      uint16_t getChannelCount();
+      void setSampleSize(uint16_t newSampleSize);
+      uint16_t getSampleSize();
+      void setPreDefined(uint16_t newPreDefined);
+      uint16_t getPreDefined();
+      void setSampleRate(uint32_t newSampleRate);
+      uint32_t getSampleRate();    
+      std::string toPrettyAudioString(uint32_t indent = 0, std::string name = "");
+  };
+  
+  class MP4A: public AudioSampleEntry{
+    public:
+      MP4A();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class AVC1: public VisualSampleEntry{
+    public:
+      AVC1();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
   class STSD: public fullBox{
     public:
       STSD();

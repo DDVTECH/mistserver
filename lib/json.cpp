@@ -479,7 +479,7 @@ void JSON::Value::netPrepare(){
   int packID = -1;
   long long unsigned int time = objVal["time"].asInt();
   std::string dataType;
-  if (isMember("datatype")){
+  if (isMember("datatype") || isMember("trackid")){
     dataType = objVal["datatype"].asString();
     if (isMember("trackid")){
       packID = objVal["trackid"].asInt();

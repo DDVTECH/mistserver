@@ -309,6 +309,11 @@ button,
    text-transform: uppercase;
 }
 
+span {
+   font-weight: normal;
+   text-transform: none ;
+}
+
 
 .nocapitals
 {

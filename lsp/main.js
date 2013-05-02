@@ -1241,54 +1241,6 @@
                      }
                   });
                   
-                  function getLogsdata(){
-                     getData(function(data){
-                       settings.settings.log = data.log;
-                       
-                       $('#page table').remove();
-                       $('#page').append(buildLogsTable());
-                     });
-                  }
-                  
-                  function buildLogsTable(){
-                     $table = $('<table>');
-                     $table.html("<thead><th>Date<span class='theadinfo'>(MM/DD/YYYY)</span></th><th>Type</th><th>Message</th></thead>");
-                     $tbody = $('<tbody>');
-                     
-                     if(!settings.settings.log)
-                     {
-                        return;  // no logs, so just bail
-                     }
-                     var i, cur, $tr,
-                         logs = settings.settings.log,
-                         len = logs.length;
-                         
-                     if(len >= 2 && settings.settings.log[0][0] < settings.settings.log[len - 1][0])
-                     {
-                        logs.reverse();
-                     }
-                     
-                     $tbody.html('');
-                     
-                     for(i = 0; i < len; i++)
-                     {
-                        cur = settings.settings.log[i];
-                        
-                        $tr = $('<tr>').append(
-                           $('<td>').text(formatDate(cur[0]))
-                        ).append(
-                           $('<td>').text(cur[1])
-                        ).append(
-                           $('<td>').text(cur[2])
-                        );
-                        
-                        $tbody.append($tr);
-                     }
-                     
-                     $table.append($tbody);
-                     return $table;
-                  }
-                  
                   break;
                   
                case 'server stats':

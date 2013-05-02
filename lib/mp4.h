@@ -724,7 +724,7 @@ namespace MP4 {
       void setVSpacing(uint32_t newVal);
       uint32_t getVSpacing();
       std::string toPrettyString(uint32_t indent = 0);
-  }
+  };
   
   class VisualSampleEntry: public SampleEntry{
     ///\todo set default values
@@ -744,6 +744,8 @@ namespace MP4 {
       std::string getCompressorName();
       void setDepth(uint16_t newDepth);
       uint16_t getDepth();
+      Box & getCLAP();
+      Box & getPASP();
       std::string toPrettyVisualString(uint32_t index = 0, std::string = "");
   };
   

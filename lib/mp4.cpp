@@ -3667,99 +3667,113 @@ namespace MP4 {
   }
 
   CLAP::CLAP(){
-  
+    memcpy(data + 4, "clap", 4);
   }
   
   void CLAP::setCleanApertureWidthN(uint32_t newVal){
-  
+    setInt32(newVal,0);  
   }
   
   uint32_t CLAP::getCleanApertureWidthN(){
-  
+    return getInt32(0);
   }
   
   void CLAP::setCleanApertureWidthD(uint32_t newVal){
-  
+    setInt32(newVal,4);
   }
   
   uint32_t CLAP::getCleanApertureWidthD(){
-  
+    return getInt32(4);
   }
   
   void CLAP::setCleanApertureHeightN(uint32_t newVal){
-  
+    setInt32(newVal,8);
   }
   
   uint32_t CLAP::getCleanApertureHeightN(){
-  
+    return getInt32(8);
   }
   
   void CLAP::setCleanApertureHeightD(uint32_t newVal){
-  
+    setInt32(newVal, 12);
   }
   
   uint32_t CLAP::getCleanApertureHeightD(){
-  
+    return getInt32(12);
   }
   
   void CLAP::setHorizOffN(uint32_t newVal){
-  
+    setInt32(newVal, 16);
   }
   
   uint32_t CLAP::getHorizOffN(){
-  
+    return getInt32(16);
   }
   
   void CLAP::setHorizOffD(uint32_t newVal){
-  
+    setInt32(newVal, 20);
   }
   
   uint32_t CLAP::getHorizOffD(){
-  
+    return getInt32(20);
   }
   
   void CLAP::setVertOffN(uint32_t newVal){
-  
+    setInt32(newVal, 24);
   }
   
   uint32_t CLAP::getVertOffN(){
-  
+    return getInt32(24);
   }
   
   void CLAP::setVertOffD(uint32_t newVal){
-  
+    setInt32(newVal, 28);
   }
   
   uint32_t CLAP::getVertOffD(){
-  
+    return getInt32(32);
   }
   
-  std::string CLAP::toPrettyString(uint32_t indent = 0){
-  
+  std::string CLAP::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[clap] Clean Aperture Box (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "CleanApertureWidthN: " << getCleanApertureWidthN() << std::endl;
+    r << std::string(indent + 1, ' ') << "CleanApertureWidthD: " << getCleanApertureWidthD() << std::endl;
+    r << std::string(indent + 1, ' ') << "CleanApertureHeightN: " << getCleanApertureHeightN() << std::endl;
+    r << std::string(indent + 1, ' ') << "CleanApertureHeightD: " << getCleanApertureHeightD() << std::endl;
+    r << std::string(indent + 1, ' ') << "HorizOffN: " << getHorizOffN() << std::endl;
+    r << std::string(indent + 1, ' ') << "HorizOffD: " << getHorizOffD() << std::endl;
+    r << std::string(indent + 1, ' ') << "VertOffN: " << getVertOffN() << std::endl;
+    r << std::string(indent + 1, ' ') << "VertOffD: " << getVertOffD() << std::endl;
+    return r.str();
   }
   
   PASP::PASP(){
-  
+    memcpy(data + 4, "pasp", 4);
   }
   
   void PASP::setHSpacing(uint32_t newVal){
-  
+    setInt32(newVal, 0);
   }
   
   uint32_t PASP::getHSpacing(){
-  
+    return getInt32(0);
   }
   
   void PASP::setVSpacing(uint32_t newVal){
-  
+    setInt32(newVal, 4);
   }
   
   uint32_t PASP::getVSpacing(){
-  
+    return getInt32(4);
   }
   
-  std::string PASP::toPrettyString(uint32_t indent = 0){
-  
+  std::string PASP::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[pasp] Pixel Aspect Ratio Box (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "HSpacing: " << getHSpacing() << std::endl;
+    r << std::string(indent + 1, ' ') << "VSpacing: " << getVSpacing() << std::endl;
+    return r.str();
   }
 
   VisualSampleEntry::VisualSampleEntry(){
@@ -3821,6 +3835,38 @@ namespace MP4 {
   uint16_t VisualSampleEntry::getDepth(){
     getInt16(74);
   }
+
+  Box & VisualSampleEntry::getCLAP(){
+    static Box ret = Box((char*)"\000\000\000\010erro", false);
+    if(payloadSize() <84){//if the EntryBox is not big enough to hold a CLAP/PASP
+      return ret;
+    }
+    if (getBox(76).isType("clap")){
+      return getBox(76);
+    }else{
+      return ret;
+    }
+  }
+  
+  Box & VisualSampleEntry::getPASP(){
+    static Box ret = Box((char*)"\000\000\000\010erro", false);
+    if(payloadSize() <84){//if the EntryBox is not big enough to hold a CLAP/PASP
+      return ret;
+    }
+    if (getBox(76).isType("pasp")){
+      return getBox(76);
+    }else{
+      if (payloadSize() < 76 + getBoxLen(76) + 8){
+        return ret;
+      }else{
+        if (getBox(76+getBoxLen(76)).isType("pasp")){
+          return getBox(76+getBoxLen(76));
+        }else{
+          return ret;
+        }
+      }
+    }
+  }
   
   std::string VisualSampleEntry::toPrettyVisualString(uint32_t indent, std::string name){
     std::stringstream r;
@@ -3833,6 +3879,12 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "FrameCount: " << getFrameCount() << std::endl;
     r << std::string(indent + 1, ' ') << "CompressorName: " << getCompressorName() << std::endl;
     r << std::string(indent + 1, ' ') << "Depth: " << getDepth() << std::endl;
+    if (getCLAP().isType("clap")){
+      r << getCLAP().toPrettyString(indent+1);
+    }
+    if (getPASP().isType("pasp")){
+      r << getPASP().toPrettyString(indent+1);
+    }
     return r.str();
   }
 
@@ -3865,11 +3917,11 @@ namespace MP4 {
   }
   
   void AudioSampleEntry::setSampleRate(uint32_t newSampleRate){
-    setInt32(newSampleRate,24);
+    setInt32(newSampleRate << 16, 24);
   }
   
   uint32_t AudioSampleEntry::getSampleRate(){
-    return getInt32(24);
+    return getInt32(24) >> 16;
   }
   
   std::string AudioSampleEntry::toPrettyAudioString(uint32_t indent, std::string name){

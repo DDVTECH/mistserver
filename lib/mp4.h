@@ -786,6 +786,28 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
   
+  class EDTS: public containerBox{
+    public:
+      EDTS();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class UDTA: public containerBox{
+    public:
+      UDTA();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class STSS: public fullBox{
+    public:
+      STSS();
+      void setEntryCount(uint32_t newVal);
+      uint32_t getEntryCount();
+      void setSampleNumber(uint32 newVal, uint32_t index);
+      uint32_t getSampleNumber(uint32_t index);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+      
   class UUID: public Box{
     public:
       UUID();

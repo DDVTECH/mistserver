@@ -250,6 +250,15 @@ namespace MP4 {
       case 0x61766331:
         return ((AVC1*)this)->toPrettyString(indent);
         break;
+      case 0x65647473:
+        return ((EDTS*)this)->toPrettyString(indent);
+        break;
+      case 0x73747373:
+        return ((STSS*)this)->toPrettyString(indent);
+        break;
+      case 0x75647461:
+        return ((UDTA*)this)->toPrettyString(indent);
+        break;
       case 0x75756964:
         return ((UUID*)this)->toPrettyString(indent);
         break;
@@ -4010,6 +4019,59 @@ namespace MP4 {
       curBox = getEntry(i);
       r << curBox.toPrettyString(indent + 1);
       tempLoc += getBoxLen(tempLoc);
+    }
+    return r.str();
+  }
+
+  EDTS::EDTS(){
+    memcpy(data + 4, "edts", 4);
+  }
+
+  std::string EDTS::toPrettyString(uint32_t indent){
+    return toPrettyContainerString(indent, std::string("[edts] Edit Box"));
+  }
+  
+  UDTA::UDTA(){
+    memcpy(data + 4, "udta", 4);
+  }
+
+  std::string UDTA::toPrettyString(uint32_t indent){
+    return toPrettyContainerString(indent, std::string("[udta] User Data Box"));
+  }
+
+  STSS::STSS(){
+    memcpy(data + 4, "stss", 4);
+  }
+  
+  void STSS::setEntryCount(uint32_t newVal){
+    setInt32(newVal, 4);
+  }
+  
+  uint32_t STSS::getEntryCount(){
+    getInt32(4);
+  }
+  
+  void STSS::setSampleNumber(uint32 newVal, uint32_t index){
+    if (index+1 > getEntryCount()){
+      setEntryCount(index);
+    }
+    setInt32(newVal, 8 + (index * 4));
+  }
+  
+  uint32_t STSS::getSampleNumber(uint32_t index){
+    if (index >= getEntryCount()){
+      return 0;
+    }
+    return getInt32(8 + (index * 4));
+  }
+  
+  std::string STSS::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[stss] Sync Sample Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    for (int i = 0; i < getEntryCount(); i++){
+      r << std::string(indent + 1, ' ') << "SampleNumber[" << i <<"] : " << getSampleNumber(i) << std::endl;
     }
     return r.str();
   }

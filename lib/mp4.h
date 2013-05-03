@@ -74,6 +74,14 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
       std::string toPrettyContainerString(uint32_t indent, std::string boxName);
   };
+  
+  class containerFullBox: public fullBox{
+    public:
+      uint32_t getContentCount();
+      void setContent(Box & newContent, uint32_t no);
+      Box & getContent(uint32_t no);
+      std::string toPrettyCFBString(uint32_t indent, std::string boxName);
+  };
 
   struct afrt_runtable{
       uint32_t firstFragment;
@@ -803,8 +811,28 @@ namespace MP4 {
       STSS();
       void setEntryCount(uint32_t newVal);
       uint32_t getEntryCount();
-      void setSampleNumber(uint32 newVal, uint32_t index);
+      void setSampleNumber(uint32_t newVal, uint32_t index);
       uint32_t getSampleNumber(uint32_t index);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class META: public containerFullBox{
+    public:
+      META();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+  
+  class ELST: public fullBox{
+    public:
+      ELST();
+      void setSegmentDuration(uint64_t newVal);
+      uint64_t getSegmentDuration();
+      void setMediaTime(uint64_t newVal);
+      uint64_t getMediaTime();
+      void setMediaRateInteger(uint16_t newVal);
+      uint16_t getMediaRateInteger();
+      void setMediaRateFraction(uint16_t newVal);
+      uint16_t getMediaRateFraction();
       std::string toPrettyString(uint32_t indent = 0);
   };
       

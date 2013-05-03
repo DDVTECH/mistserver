@@ -256,6 +256,12 @@ namespace MP4 {
       case 0x73747373:
         return ((STSS*)this)->toPrettyString(indent);
         break;
+      case 0x6D657461:
+        return ((META*)this)->toPrettyString(indent);
+        break;
+      case 0x656C7374:
+        return ((ELST*)this)->toPrettyString(indent);
+        break;
       case 0x75647461:
         return ((UDTA*)this)->toPrettyString(indent);
         break;
@@ -565,6 +571,14 @@ namespace MP4 {
   uint32_t fullBox::getFlags(){
     return getInt24(1);
   }
+  
+  std::string fullBox::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent + 1, ' ') << "Version: " << (int)getVersion() << std::endl;
+    r << std::string(indent + 1, ' ') << "Flags: " << getFlags() << std::endl;
+    return r.str();
+  }
+
   uint32_t containerBox::getContentCount(){
     int res = 0;
     int tempLoc = 0;
@@ -573,13 +587,6 @@ namespace MP4 {
       tempLoc += getBoxLen(tempLoc);
     }
     return res;
-  }
-
-  std::string fullBox::toPrettyString(uint32_t indent){
-    std::stringstream r;
-    r << std::string(indent + 1, ' ') << "Version: " << (int)getVersion() << std::endl;
-    r << std::string(indent + 1, ' ') << "Flags: " << getFlags() << std::endl;
-    return r.str();
   }
 
   void containerBox::setContent(Box & newContent, uint32_t no){
@@ -619,6 +626,63 @@ namespace MP4 {
     r << std::string(indent, ' ') << boxName <<" (" << boxedSize() << ")" << std::endl;
     Box curBox;
     int tempLoc = 0;
+    int contentCount = getContentCount();
+    for (int i = 0; i < contentCount; i++){
+      curBox = getContent(i);
+      r << curBox.toPrettyString(indent + 1);
+      tempLoc += getBoxLen(tempLoc);
+    }
+    return r.str();
+  }
+
+  uint32_t containerFullBox::getContentCount(){
+    int res = 0;
+    int tempLoc = 4;
+    while (tempLoc < boxedSize() - 8){
+      res++;
+      tempLoc += getBoxLen(tempLoc);
+    }
+    return res;
+  }
+  
+  void containerFullBox::setContent(Box & newContent, uint32_t no){
+    int tempLoc = 4;
+    int contentCount = getContentCount();
+    for (int i = 0; i < no; i++){
+      if (i < contentCount){
+        tempLoc += getBoxLen(tempLoc);
+      }else{
+        if ( !reserve(tempLoc, 0, (no - contentCount) * 8)){
+          return;
+        };
+        memset(data + tempLoc, 0, (no - contentCount) * 8);
+        tempLoc += (no - contentCount) * 8;
+        break;
+      }
+    }
+    setBox(newContent, tempLoc);
+  }
+  
+  Box & containerFullBox::getContent(uint32_t no){
+    static Box ret = Box((char*)"\000\000\000\010erro", false);
+    if (no > getContentCount()){
+      return ret;
+    }
+    int i = 0;
+    int tempLoc = 4;
+    while (i < no){
+      tempLoc += getBoxLen(tempLoc);
+      i++;
+    }
+    return getBox(tempLoc);
+  }
+  
+  std::string containerFullBox::toPrettyCFBString(uint32_t indent, std::string boxName){
+    std::stringstream r;
+    r << std::string(indent, ' ') << boxName <<" (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    Box curBox;
+    int tempLoc = 4;
     int contentCount = getContentCount();
     for (int i = 0; i < contentCount; i++){
       curBox = getContent(i);
@@ -4051,7 +4115,7 @@ namespace MP4 {
     getInt32(4);
   }
   
-  void STSS::setSampleNumber(uint32 newVal, uint32_t index){
+  void STSS::setSampleNumber(uint32_t newVal, uint32_t index){
     if (index+1 > getEntryCount()){
       setEntryCount(index);
     }
@@ -4073,6 +4137,93 @@ namespace MP4 {
     for (int i = 0; i < getEntryCount(); i++){
       r << std::string(indent + 1, ' ') << "SampleNumber[" << i <<"] : " << getSampleNumber(i) << std::endl;
     }
+    return r.str();
+  }
+
+  META::META(){
+    memcpy(data + 4, "meta", 4);
+  }
+  
+  std::string META::toPrettyString(uint32_t indent){
+    return toPrettyCFBString(indent, "[meta] Meta Box");
+  }
+
+  ELST::ELST(){
+    memcpy(data + 4, "elst", 4);
+  }
+  
+  void ELST::setSegmentDuration(uint64_t newVal){
+    if (getVersion() == 1){
+      setInt64(newVal, 4);
+    }else{
+      setInt32(newVal, 4);
+    }
+  }
+  
+  uint64_t ELST::getSegmentDuration(){
+    if (getVersion() == 1){
+      return getInt64(4);
+    }else{
+      return getInt32(4);
+    }
+  }
+  
+  void ELST::setMediaTime(uint64_t newVal){
+    if (getVersion() == 1){
+      setInt64(newVal, 12);
+    }else{
+      setInt32(newVal, 8);
+    }
+  }
+  
+  uint64_t ELST::getMediaTime(){
+    if (getVersion() == 1){
+      return getInt64(12);
+    }else{
+      return getInt32(8);
+    }
+  }
+  
+  void ELST::setMediaRateInteger(uint16_t newVal){
+    if (getVersion() == 1){
+      setInt16(newVal, 20);
+    }else{
+      setInt16(newVal, 12);
+    }
+  }
+  
+  uint16_t ELST::getMediaRateInteger(){
+    if (getVersion() == 1){
+      return getInt16(20);
+    }else{
+      return getInt16(12);
+    }
+  }
+  
+  void ELST::setMediaRateFraction(uint16_t newVal){
+    if (getVersion() == 1){
+      setInt16(newVal, 22);
+    }else{
+      setInt16(newVal, 14);
+    }
+  }
+  
+  uint16_t ELST::getMediaRateFraction(){
+    if (getVersion() == 1){
+      return getInt16(22);
+    }else{
+      return getInt16(14);
+    }
+  }
+  
+  std::string ELST::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[elst] Edit List Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "SegmentDuration: " << getSegmentDuration() << std::endl;
+    r << std::string(indent + 1, ' ') << "MediaTime: " << getMediaTime() << std::endl;
+    r << std::string(indent + 1, ' ') << "MediaRateInteger: " << getMediaRateInteger() << std::endl;
+    r << std::string(indent + 1, ' ') << "MediaRateFraction: " << getMediaRateFraction() << std::endl;
     return r.str();
   }
 

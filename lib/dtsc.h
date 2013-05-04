@@ -67,18 +67,27 @@ namespace DTSC {
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
   class File{
     public:
+      File();
+      File(const File & rhs);
       File(std::string filename, bool create = false);
+      File & operator = (const File & rhs);
       ~File();
       JSON::Value & getMeta();
       JSON::Value & getFirstMeta();
       long long int getLastReadPos();
       bool writeHeader(std::string & header, bool force = false);
       long long int addHeader(std::string & header);
+      long int getBytePosEOF();
+      long int getBytePos();
+      bool reachedEOF();
       void seekNext();
       std::string & getPacket();
       JSON::Value & getJSON();
       bool seek_frame(int frameno);
       bool seek_time(int seconds);
+      bool seek_bpos(int bpos);
+      void writePacket(std::string & newPacket);
+      void writePacket(JSON::Value & newPacket);
     private:
       void readHeader(int pos);
       std::string strbuffer;
@@ -93,6 +102,7 @@ namespace DTSC {
       FILE * F;
       unsigned long headerSize;
       char buffer[4];
+      bool created;
   };
   //FileWriter
 

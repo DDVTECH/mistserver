@@ -507,6 +507,35 @@ DTSC::Stream::~Stream(){
   }
 }
 
+DTSC::File::File(){
+  F = 0;
+}
+
+DTSC::File::File(const File & rhs){
+  *this = rhs;
+}
+
+DTSC::File & DTSC::File::operator =(const File & rhs){
+  created = rhs.created;
+  if (rhs.F){
+    int tmpFd = fileno(rhs.F);
+    int newFd = dup(tmpFd);
+    F = fdopen( newFd, (created ? "w+b": "r+b"));
+  }else{
+    F = 0;
+  }
+  strbuffer = rhs.strbuffer;
+  jsonbuffer = rhs.jsonbuffer;
+  metadata = rhs.metadata;
+  firstmetadata = rhs.firstmetadata;
+  frames = rhs.frames;
+  msframes = rhs.msframes;
+  currtime = rhs.currtime;
+  lastreadpos = rhs.lastreadpos;
+  headerSize = rhs.headerSize;
+  memcpy(buffer, rhs.buffer, 4);
+}
+
 /// Open a filename for DTSC reading/writing.
 /// If create is true and file does not exist, attempt to create.
 DTSC::File::File(std::string filename, bool create){
@@ -521,6 +550,7 @@ DTSC::File::File(std::string filename, bool create){
   }else{
     F = fopen(filename.c_str(), "r+b");
   }
+  created = create;
   if ( !F){
     fprintf(stderr, "Could not open file %s\n", filename.c_str());
     return;
@@ -562,6 +592,12 @@ bool DTSC::File::writeHeader(std::string & header, bool force){
     return false;
   }
   headerSize = header.size();
+  int pSize = htonl(header.size());
+  fseek(F, 4, SEEK_SET);
+  int tmpret = fwrite((void*)( &pSize), 4, 1, F);
+  if (tmpret != 1){
+    return false;
+  }
   fseek(F, 8, SEEK_SET);
   int ret = fwrite(header.c_str(), headerSize, 1, F);
   fseek(F, 8 + headerSize, SEEK_SET);
@@ -621,13 +657,15 @@ void DTSC::File::readHeader(int pos){
   uint32_t * ubuffer = (uint32_t *)buffer;
   long packSize = ntohl(ubuffer[0]);
   strbuffer.resize(packSize);
-  if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
-    fprintf(stderr, "Could not read packet (H%i)\n", pos);
-    strbuffer = "";
-    metadata.null();
-    return;
+  if (packSize){
+    if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
+      fprintf(stderr, "Could not read packet (H%i)\n", pos);
+      strbuffer = "";
+      metadata.null();
+      return;
+    }
+    metadata = JSON::fromDTMI(strbuffer);
   }
-  metadata = JSON::fromDTMI(strbuffer);
   if (pos == 0){
     firstmetadata = metadata;
   }
@@ -650,6 +688,19 @@ void DTSC::File::readHeader(int pos){
   }
   metadata["vod"] = true;
   metadata.netPrepare();
+}
+
+long int DTSC::File::getBytePosEOF(){
+  fseek(F, 0, SEEK_END);
+  return ftell(F);
+}
+
+long int DTSC::File::getBytePos(){
+  return ftell(F);
+}
+
+bool DTSC::File::reachedEOF(){
+  return feof(F);
 }
 
 /// Reads the packet available at the current file position.
@@ -682,7 +733,7 @@ void DTSC::File::seekNext(){
     version = 2;
   }
   if (version == 0){
-    fprintf(stderr, "Invalid header - %.4s != %.4s\n", buffer, DTSC::Magic_Packet2);
+    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", getBytePos(), buffer, DTSC::Magic_Packet2);
     strbuffer = "";
     jsonbuffer.null();
     return;
@@ -805,6 +856,22 @@ bool DTSC::File::seek_time(int ms){
     return true;
   }
   return false;
+}
+
+bool DTSC::File::seek_bpos(int bpos){
+  if (fseek(F, bpos, SEEK_SET) == 0){
+    return true;
+  }
+  return false;
+}
+
+void DTSC::File::writePacket(std::string & newPacket){
+  fseek(F, 0, SEEK_END);
+  fwrite(newPacket.c_str(), newPacket.size(), 1, F); //write contents
+}
+
+void DTSC::File::writePacket(JSON::Value & newPacket){
+  writePacket(newPacket.toNetPacked());
 }
 
 /// Close the file if open

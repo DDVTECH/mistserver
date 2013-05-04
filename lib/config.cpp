@@ -248,6 +248,8 @@ void Util::Config::parseArgs(int & argc, char ** & argv){
         break;
       }
     }
+    optind++;
+    long_i++;
   }
   if (long_i <= arg_count){
     std::cerr << "Usage error: missing argument(s)." << std::endl;

@@ -94,7 +94,7 @@ function mistembed(streamname)
       case 'f4v':
       case 'rtmp':
       case 'flv':
-        container.innerHTML = '<object width="' + videowidth + '" height="' + videoheight + '"><param name="movie" value="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf"></param><param name="flashvars" value="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10' + lappend + '"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + videowidth + '" height="' + videoheight + '" flashvars="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10"></embed></object>';
+        container.innerHTML = '<object width="' + videowidth + '" height="' + videoheight + '"><param name="movie" value="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf"></param><param name="flashvars" value="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10' + lappend + '"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + videowidth + '" height="' + videoheight + '" flashvars="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10' + lappend + '"></embed></object>';
       break;
 
 

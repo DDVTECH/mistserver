@@ -43,25 +43,29 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
   uint32_t len;
   static bool syncing = false;
   if (buffer.length() > 8){
-    if (memcmp(buffer.c_str(), DTSC::Magic_Header, 4) == 0){
-      len = ntohl(((uint32_t *)buffer.c_str())[1]);
-      if (buffer.length() < len + 8){
-        return false;
-      }
-      unsigned int i = 0;
-      metadata = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
-      metadata.removeMember("moreheader");
-      buffer.erase(0, len + 8);
-      if (buffer.length() <= 8){
-        return false;
-      }
-    }
     int version = 0;
     if (memcmp(buffer.c_str(), DTSC::Magic_Packet, 4) == 0){
       version = 1;
     }
     if (memcmp(buffer.c_str(), DTSC::Magic_Packet2, 4) == 0){
       version = 2;
+    }
+    if (memcmp(buffer.c_str(), DTSC::Magic_Header, 4) == 0){
+      len = ntohl(((uint32_t *)buffer.c_str())[1]);
+      if (buffer.length() < len + 8){
+        return false;
+      }
+      unsigned int i = 0;
+      if (version == 1){
+        metadata = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
+      }else{
+        metadata = JSON::fromDTMI2(buffer.substr(8));
+      }
+      metadata.removeMember("moreheader");
+      buffer.erase(0, len + 8);
+      if (buffer.length() <= 8){
+        return false;
+      }
     }
     if (version){
       len = ntohl(((uint32_t *)buffer.c_str())[1]);

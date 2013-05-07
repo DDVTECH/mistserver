@@ -152,10 +152,13 @@ int main(int argc, char** argv){
                 json_sts["vod"]["start"] = Util::epoch() - sts.conntime;
                 if ( !meta_sent){
                   json_sts["vod"]["meta"] = meta;
-                  json_sts["vod"]["meta"]["audio"].removeMember("init");
-                  json_sts["vod"]["meta"]["video"].removeMember("init");
-                  json_sts["vod"]["meta"].removeMember("keytime");
-                  json_sts["vod"]["meta"].removeMember("keybpos");
+                  for (JSON::ObjIter oIt = json_sts["vod"]["meta"]["tracks"].ObjBegin(); oIt != json_sts["vod"]["meta"]["tracks"].ObjEnd(); oIt++){
+                    oIt->second.removeMember("init");
+                    oIt->second.removeMember("keytime");
+                    oIt->second.removeMember("keybpos");
+                    oIt->second.removeMember("keynum");
+                    oIt->second.removeMember("frags");
+                  }
                   meta_sent = true;
                 }
                 StatsSocket.Send(json_sts.toString().c_str());
@@ -226,7 +229,7 @@ int main(int argc, char** argv){
       }else{
         lasttime = Util::epoch();
         //insert proper header for this type of data
-        in_out.Send("DTPD");
+        in_out.Send("DTP2");
         //insert the packet length
         unsigned int size = htonl(source.getPacket().size());
         in_out.Send((char*) &size, 4);

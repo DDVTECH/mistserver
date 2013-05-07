@@ -48,71 +48,93 @@ namespace Connector_HTTP {
                 "CanPause=\"TRUE\" ";
     }
     Result << ">\n";
+    JSON::Value allAudio;
+    JSON::Value allVideo;
+    long long int maxWidth = 0;
+    long long int maxHeight = 0;
+    long long int minWidth = 99999999;
+    long long int minHeight = 99999999;
+    for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
+      if (oIt->second["type"].asString() == "audio"){
+        allAudio[oIt->first] = oIt->second;
+      }
+      if (oIt->second["type"].asString() == "video"){
+        allVideo[oIt->first] = oIt->second;
+        if (oIt->second["width"].asInt() > maxWidth){ maxWidth = oIt->second["width"].asInt(); }
+        if (oIt->second["width"].asInt() < minWidth){ minWidth = oIt->second["width"].asInt(); }
+        if (oIt->second["height"].asInt() > maxHeight){ maxHeight = oIt->second["height"].asInt(); }
+        if (oIt->second["height"].asInt() < minHeight){ minHeight = oIt->second["height"].asInt(); }
+      }
+    }
+
     //Add audio entries
-    if (metadata.isMember("audio") && metadata["audio"]["codec"].asString() == "AAC"){
+    if (allAudio.size()){
       Result << "<StreamIndex "
                 "Type=\"audio\" "
-                "QualityLevels=\"1\" "
+                "QualityLevels=\"" << allAudio.size() << "\" "
                 "Name=\"audio\" "
-                "Chunks=\"" << metadata["keytime"].size() << "\" "
+                "Chunks=\"" << allAudio.ObjBegin()->second["keytime"].size() << "\" "
                 "Url=\"Q({bitrate})/A({start time})\">\n";
-      //Add audio qualities
-      Result << "<QualityLevel "
-                "Index=\"0\" "
-                "Bitrate=\"" << metadata["audio"]["bps"].asInt() * 8 << "\" "
-                "CodecPrivateData=\"" << std::hex;
-      for (int i = 0; i < metadata["audio"]["init"].asString().size(); i++){
-        Result << std::setfill('0') << std::setw(2) << std::right << (int)metadata["audio"]["init"].asString()[i];
+      for (JSON::ObjIter oIt = allAudio.ObjBegin(); oIt != allAudio.ObjEnd(); oIt++){
+        Result << "<QualityLevel "
+                  "Index=\"" << oIt->second["trackid"].asInt() << "\" "
+                  "Bitrate=\"" << oIt->second["bps"].asInt() * 8 << "\" "
+                  "CodecPrivateData=\"" << std::hex;
+        for (int i = 0; i < oIt->second["init"].asString().size(); i++){
+          Result << std::setfill('0') << std::setw(2) << std::right << (int)oIt->second["init"].asString()[i];
+        }
+        Result << std::dec << "\" "
+                  "SamplingRate=\"" << oIt->second["rate"].asInt() << "\" "
+                  "Channels=\"2\" "
+                  "BitsPerSample=\"16\" "
+                  "PacketSize=\"4\" "
+                  "AudioTag=\"255\" "
+                  "FourCC=\"AACL\" />\n";
       }
-      Result << std::dec << "\" "
-                "SamplingRate=\"" << metadata["audio"]["rate"].asInt() << "\" "
-                "Channels=\"2\" "
-                "BitsPerSample=\"16\" "
-                "PacketSize=\"4\" "
-                "AudioTag=\"255\" "
-                "FourCC=\"AACL\" />\n";
-      for (unsigned int i = 0; i < metadata["keylen"].size(); i++){
+      for (unsigned int i = 0; i < allAudio.ObjBegin()->second["keylen"].size(); i++){
         Result << "<c ";
         if (i == 0){
-          Result << "t=\"" << metadata["keytime"][i].asInt() * 10000 << "\" ";
+          Result << "t=\"" << allAudio.ObjBegin()->second["keytime"][i].asInt() * 10000 << "\" ";
         }
-        Result << "d=\"" << metadata["keylen"][i].asInt() * 10000 << "\" />\n";
+        Result << "d=\"" << allAudio.ObjBegin()->second["keylen"][i].asInt() * 10000 << "\" />\n";
       }
-      Result << "   </StreamIndex>\n";
+      Result << "</StreamIndex>\n";
     }
     //Add video entries
-    if (metadata.isMember("video") && metadata["video"]["codec"].asString() == "H264"){
+    if (allVideo.size()){
       Result << "<StreamIndex "
                 "Type=\"video\" "
-                "QualityLevels=\"1\" "
+                "QualityLevels=\"" << allVideo.size() << "\" "
                 "Name=\"video\" "
-                "Chunks=\"" << metadata["keytime"].size() << "\" "
+                "Chunks=\"" << allVideo.ObjBegin()->second["keytime"].size() << "\" "
                 "Url=\"Q({bitrate})/V({start time})\" "
-                "MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" "
-                "MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" "
-                "DisplayWidth=\"" << metadata["video"]["width"].asInt() << "\" "
-                "DisplayHeight=\"" << metadata["video"]["height"].asInt() << "\">\n";
+                "MaxWidth=\"" << maxWidth << "\" "
+                "MaxHeight=\"" << maxHeight << "\" "
+                "DisplayWidth=\"" << maxWidth << "\" "
+                "DisplayHeight=\"" << maxHeight << "\">\n";
+      for (JSON::ObjIter oIt = allVideo.ObjBegin(); oIt != allVideo.ObjEnd(); oIt++){
       //Add video qualities
-      Result << "<QualityLevel "
-                "Index=\"0\" "
-                "Bitrate=\"" << metadata["video"]["bps"].asInt() * 8 << "\" "
-                "CodecPrivateData=\"" << std::hex;
-      MP4::AVCC avccbox;
-      avccbox.setPayload(metadata["video"]["init"].asString());
-      std::string tmpString = avccbox.asAnnexB();
-      for (int i = 0; i < tmpString.size(); i++){
-        Result << std::setfill('0') << std::setw(2) << std::right << (int)tmpString[i];
+        Result << "<QualityLevel "
+                  "Index=\"" << oIt->second["trackid"].asInt() << "\" "
+                  "Bitrate=\"" << oIt->second["bps"].asInt() * 8 << "\" "
+                  "CodecPrivateData=\"" << std::hex;
+        MP4::AVCC avccbox;
+        avccbox.setPayload(oIt->second["init"].asString());
+        std::string tmpString = avccbox.asAnnexB();
+        for (int i = 0; i < tmpString.size(); i++){
+          Result << std::setfill('0') << std::setw(2) << std::right << (int)tmpString[i];
+        }
+        Result << std::dec << "\" "
+                  "MaxWidth=\"" << oIt->second["width"].asInt() << "\" "
+                  "MaxHeight=\"" << oIt->second["height"].asInt() << "\" "
+                  "FourCC=\"AVC1\" />\n";
       }
-      Result << std::dec << "\" "
-                "MaxWidth=\"" << metadata["video"]["width"].asInt() << "\" "
-                "MaxHeight=\"" << metadata["video"]["height"].asInt() << "\" "
-                "FourCC=\"AVC1\" />\n";
-      for (unsigned int i = 0; i < metadata["keylen"].size(); i++){
+      for (unsigned int i = 0; i < allVideo.ObjBegin()->second["keylen"].size(); i++){
         Result << "<c ";
         if (i == 0){
-          Result << "t=\"" << metadata["keytime"][i].asInt() * 10000 << "\" ";
+          Result << "t=\"" << allVideo.ObjBegin()->second["keytime"][i].asInt() * 10000 << "\" ";
         }
-        Result << "d=\"" << metadata["keylen"][i].asInt() * 10000 << "\" />\n";
+        Result << "d=\"" << allVideo.ObjBegin()->second["keylen"][i].asInt() * 10000 << "\" />\n";
       }
       Result << "</StreamIndex>\n";
     }

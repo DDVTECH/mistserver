@@ -40,7 +40,7 @@ function mistembed(streamname)
   supports =
   {
     flashversion:	flash_version(),
-    hls:				html5_video_type('application/vnd.apple.mpegURL'),
+    hls:				html5_video_type('application/vnd.apple.mpegurl'),
     ism:				html5_video_type('application/vnd.ms-ss')
   };
 

@@ -88,14 +88,15 @@ namespace DTSC {
       bool seek_bpos(int bpos);
       void writePacket(std::string & newPacket);
       void writePacket(JSON::Value & newPacket);
+      void selectTracks(std::vector<std::string> & trackIDs);
     private:
       void readHeader(int pos);
       std::string strbuffer;
       JSON::Value jsonbuffer;
       JSON::Value metadata;
       JSON::Value firstmetadata;
-      std::map<int, long> frames;
-      std::map<int, long> msframes;
+      //std::map<int, long> frames;
+      //std::map<int, long> msframes;
       long long int currtime;
       long long int lastreadpos;
       int currframe;
@@ -103,6 +104,7 @@ namespace DTSC {
       unsigned long headerSize;
       char buffer[4];
       bool created;
+      std::vector<std::string> selectedTracks;
   };
   //FileWriter
 

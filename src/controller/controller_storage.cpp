@@ -15,7 +15,7 @@ namespace Controller {
     //if last log message equals this one, do not log.
     if (Storage["log"].size() > 0){
       JSON::ArrIter it = Storage["log"].ArrEnd() - 1;
-      if (( *it)[2] == message){
+      if (( *it)[2] == message && ( *it)[1] == kind){
         return;
       }
     }

@@ -78,6 +78,9 @@
          // and this one is used on the protocols page.
          var pinterval = null;
          
+         // ..and the logs page.
+         var logsinterval = null;
+         
          // what kind of streams should be displayed? Format is [recorded, live];
          var streamsdisplay = [true, true];
          
@@ -95,6 +98,7 @@
             $('#page').html('');
             clearInterval(sinterval);
             clearInterval(pinterval);
+            clearInterval(logsinterval);
             
             switch(name)
             {

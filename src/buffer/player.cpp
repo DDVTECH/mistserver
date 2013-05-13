@@ -133,8 +133,8 @@ int main(int argc, char** argv){
               std::cerr << "Received push - ignoring (" << in_out.Received().get() << ")" << std::endl;
 #endif
               in_out.close(); //pushing to VoD makes no sense
-            }
               break;
+            }
             case 'S': { //Stats
               if ( !StatsSocket.connected()){
                 StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
@@ -165,25 +165,25 @@ int main(int argc, char** argv){
                 StatsSocket.Send("\n\n");
                 StatsSocket.flush();
               }
-            }
               break;
+            }
             case 's': { //second-seek
               int ms = JSON::Value(in_out.Received().get().substr(2)).asInt();
               bool ret = source.seek_time(ms);
               lastTime = 0;
-            }
               break;
+            }
             case 'f': { //frame-seek
               bool ret = source.seek_frame(JSON::Value(in_out.Received().get().substr(2)).asInt());
               lastTime = 0;
-            }
               break;
+            }
             case 'p': { //play
               playing = -1;
               lastTime = 0;
               in_out.setBlocking(false);
-            }
               break;
+            }
             case 'o': { //once-play
               if (playing <= 0){
                 playing = 1;
@@ -191,13 +191,25 @@ int main(int argc, char** argv){
               ++playing;
               in_out.setBlocking(false);
               bench = Util::getMS();
-            }
               break;
+            }
             case 'q': { //quit-playing
               playing = 0;
               in_out.setBlocking(true);
-            }
               break;
+            }
+            case 't': {
+              std::vector<std::string> selected;
+              selected.push_back(in_out.Received().get().substr(2));
+              source.selectTracks(selected);
+              break;
+            }
+#if DEBUG >= 4
+            default: {
+              std::cerr << "MistPlayer received an unknown command: " << in_out.Received().get() << std::endl;
+              break;
+            }
+#endif
           }
           in_out.Received().get().clear();
         }

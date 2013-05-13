@@ -170,6 +170,9 @@ namespace Connector_HTTP {
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     conn.setBlocking(false);//Set the client socket to non-blocking
 
+    JSON::Value allAudio;
+    JSON::Value allVideo;
+
     while (conn.connected()){
       if (conn.spool() || conn.Received().size()){
         //Make sure the received data ends in a newline (\n).
@@ -211,7 +214,18 @@ namespace Connector_HTTP {
                 }
               }
             }
-          }
+            for (JSON::ObjIter oIt = Strm.metadata["tracks"].ObjBegin(); oIt != Strm.metadata["tracks"].ObjEnd(); oIt++){
+              if (oIt->second["type"].asString() == "audio"){
+                allAudio[oIt->first] = oIt->second;
+              }
+              if (oIt->second["type"].asString() == "video"){
+                allVideo[oIt->first] = oIt->second;
+              }
+            }
+          };
+    
+
+
           if (HTTP_R.url.find("Manifest") == std::string::npos){
             //We have a non-manifest request, parse it.
             Quality = HTTP_R.url.substr(HTTP_R.url.find("/Q(", 8) + 3);
@@ -259,6 +273,12 @@ namespace Connector_HTTP {
             }
             //Seek to the right place and send a play-once for a single fragment.
             std::stringstream sstream;
+            if (wantsVideo){
+              sstream << "t " << allVideo.ObjBegin()->first << "\n";
+            }
+            if (wantsAudio){
+              sstream << "t " << allAudio.ObjBegin()->first << "\n";
+            }
             sstream << "s " << (requestedTime / 10000) << "\no \n";
             ss.SendNow(sstream.str().c_str());
           }else{

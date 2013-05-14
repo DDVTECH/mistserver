@@ -1226,7 +1226,6 @@
                      buildLogsTable()
                   );
                   
-                  var logsinterval; 
                   $('.logs_refresh').change(function(){
                      if ($(this).is(':checked')) {
                         var delay = $('.logs_refresh_every').val();

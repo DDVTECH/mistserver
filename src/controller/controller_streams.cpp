@@ -60,8 +60,13 @@ namespace Controller {
           return;
         }
         cmd1 = "cat " + URL;
-        data["error"] = "Available";
-        data["online"] = 2;
+        if (Util::epoch() - lastBuffer[name] > 5){
+          data["error"] = "Available";
+          data["online"] = 2;
+        }else{
+          data["online"] = 1;
+          data.removeMember("error");
+        }
         return; //MistPlayer handles VoD
       }else{
         cmd1 = "ffmpeg -re -async 2 -i " + URL + " -f flv -";

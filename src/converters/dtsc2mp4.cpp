@@ -13,7 +13,6 @@
 #include <mist/json.h>
 #include <mist/dtsc.h> //DTSC support
 #include <mist/mp4.h> //MP4 support
-#include <mist/ts_packet.h> //TS support ff
 #include <mist/config.h>
 
 ///\brief Holds everything unique to converters.

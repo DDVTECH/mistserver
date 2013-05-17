@@ -89,14 +89,14 @@ namespace DTSC {
       void writePacket(std::string & newPacket);
       void writePacket(JSON::Value & newPacket);
       void selectTracks(std::vector<std::string> & trackIDs);
+      bool atKeyframe();
     private:
       void readHeader(int pos);
       std::string strbuffer;
       JSON::Value jsonbuffer;
       JSON::Value metadata;
       JSON::Value firstmetadata;
-      //std::map<int, long> frames;
-      //std::map<int, long> msframes;
+      std::map<int,std::string> trackMapping;
       long long int currtime;
       long long int lastreadpos;
       int currframe;
@@ -157,5 +157,6 @@ namespace DTSC {
       datatype datapointertype;
       unsigned int buffercount;
       unsigned int buffertime;
+      std::map<int,std::string> trackMapping;
   };
 }

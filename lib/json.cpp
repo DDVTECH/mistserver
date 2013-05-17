@@ -493,12 +493,15 @@ void JSON::Value::netPrepare(){
       if (objVal["datatype"].asString() == "meta"){
         packID = 3;
       }
+      //endmark and the likes...
       if (packID == -1){
         packID = 0;
       }
     }
     removeMember("time");
-    removeMember("datatype");
+    if (packID != 0){
+      removeMember("datatype");
+    }
     removeMember("trackid");
     packed = toPacked();
     objVal["time"] = (long long int)time;
@@ -512,20 +515,24 @@ void JSON::Value::netPrepare(){
     memcpy((void*)strVal.c_str(), "DTSC", 4);
   }
   //insert the packet length at bytes 4-7
-  unsigned int size = htonl(packed.size());
+  unsigned int size = packed.size();
+  if (packID != -1){
+    size += 12;
+  }
+  size = htonl(size);
   memcpy((void*)(strVal.c_str() + 4), (void*) &size, 4);
   //copy the rest of the string
-  if (packID != -1){
-    packID = htonl(packID);
-    memcpy((void*)(strVal.c_str() + 8), (void*) &packID, 4);
-    int tmpHalf = htonl((int)(time >> 32));
-    memcpy((void*)(strVal.c_str() + 12), (void*) &tmpHalf, 4);
-    tmpHalf = htonl((int)(time & 0xFFFFFFFF));
-    memcpy((void*)(strVal.c_str() + 16), (void*) &tmpHalf, 4);
-    memcpy((void*)(strVal.c_str() + 20), packed.c_str(), packed.size());
-  }else{
+  if (packID == -1){
     memcpy((void*)(strVal.c_str() + 8), packed.c_str(), packed.size());
+    return;
   }
+  packID = htonl(packID);
+  memcpy((void*)(strVal.c_str() + 8), (void*) &packID, 4);
+  int tmpHalf = htonl((int)(time >> 32));
+  memcpy((void*)(strVal.c_str() + 12), (void*) &tmpHalf, 4);
+  tmpHalf = htonl((int)(time & 0xFFFFFFFF));
+  memcpy((void*)(strVal.c_str() + 16), (void*) &tmpHalf, 4);
+  memcpy((void*)(strVal.c_str() + 20), packed.c_str(), packed.size());
 }
 
 /// Packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
@@ -869,8 +876,8 @@ JSON::Value JSON::fromDTMI(std::string data){
 } //fromDTMI
 
 JSON::Value JSON::fromDTMI2(std::string data){
-  JSON::Value tmp = fromDTMI(data.substr(12));
   long long int tmpTrackID = ntohl(((int*)(data.c_str()))[0]);
+  JSON::Value tmp = fromDTMI(data.substr(12));
   long long int tmpTime = ntohl(((int*)(data.c_str() + 4))[0]);
   tmpTime << 32;
   tmpTime += ntohl(((int*)(data.c_str() + 8))[0]);

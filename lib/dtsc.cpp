@@ -62,6 +62,12 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
         metadata = JSON::fromDTMI2(buffer.substr(8));
       }
       metadata.removeMember("moreheader");
+      trackMapping.clear();
+      if (metadata.isMember("tracks")){
+        for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+          trackMapping.insert(std::pair<int,std::string>(it->second["trackid"].asInt(),it->first));
+        }
+      }
       buffer.erase(0, len + 8);
       if (buffer.length() <= 8){
         return false;
@@ -79,6 +85,9 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       }
       if (version == 2){
         buffers.front() = JSON::fromDTMI2(buffer.substr(8));
+        if (!buffers.front().isMember("datatype")){
+          buffers.front()["datatype"] = metadata["tracks"][trackMapping[buffers.front()["trackid"].asInt()]]["type"];
+        }
       }
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
@@ -149,6 +158,12 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
       metadata.removeMember("moreheader");
       metadata.netPrepare();
+      trackMapping.clear();
+      if (metadata.isMember("tracks")){
+        for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+          trackMapping.insert(std::pair<int,std::string>(it->second["trackid"].asInt(),it->first));
+        }
+      }
       if ( !buffer.available(8)){
         return false;
       }
@@ -174,6 +189,9 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       }
       if (version == 2){
         buffers.front() = JSON::fromDTMI2(wholepacket.substr(8));
+        if (!buffers.front().isMember("datatype")){
+          buffers.front()["datatype"] = metadata["tracks"][trackMapping[buffers.front()["trackid"].asInt()]]["type"];
+        }
       }
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
@@ -535,6 +553,7 @@ DTSC::File & DTSC::File::operator =(const File & rhs){
   currtime = rhs.currtime;
   lastreadpos = rhs.lastreadpos;
   headerSize = rhs.headerSize;
+  trackMapping = rhs.trackMapping;
   memcpy(buffer, rhs.buffer, 4);
 }
 
@@ -569,11 +588,14 @@ DTSC::File::File(std::string filename, bool create){
     headerSize = ntohl(ubuffer[0]);
   }
   readHeader(0);
+  trackMapping.clear();
+  if (metadata.isMember("tracks")){
+    for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+      trackMapping.insert(std::pair<int,std::string>(it->second["trackid"].asInt(),it->first));
+    }
+  }
   fseek(F, 8 + headerSize, SEEK_SET);
   currframe = 0;
-  //currframe = 1;
-  //frames[1] = 8 + headerSize;
-  //msframes[1] = 0;
 }
 
 /// Returns the header metadata for this file as JSON::Value.
@@ -723,7 +745,7 @@ void DTSC::File::seekNext(){
     version = 2;
   }
   if (version == 0){
-    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", getBytePos(), buffer, DTSC::Magic_Packet2);
+    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", lastreadpos, buffer, DTSC::Magic_Packet2);
     strbuffer = "";
     jsonbuffer.null();
     return;
@@ -735,7 +757,7 @@ void DTSC::File::seekNext(){
     return;
   }
   uint32_t * ubuffer = (uint32_t *)buffer;
-  long packSize = ntohl(ubuffer[0]) + (version == 2 ? 12 : 0);
+  long packSize = ntohl(ubuffer[0]);
   strbuffer.resize(packSize);
   if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
     fprintf(stderr, "Could not read packet\n");
@@ -745,20 +767,25 @@ void DTSC::File::seekNext(){
   }
   if (version == 2){
     jsonbuffer = JSON::fromDTMI2(strbuffer);
+    if (!jsonbuffer.isMember("datatype")){
+      jsonbuffer["datatype"] = metadata["tracks"][trackMapping[jsonbuffer["trackid"].asInt()]]["type"];
+    }
   }else{
     jsonbuffer = JSON::fromDTMI(strbuffer);
   }
   if (jsonbuffer.isMember("keyframe")){
-    if (metadata["tracks"][selectedTracks[0]]["keybpos"][currframe].asInt() != lastreadpos){
-      currframe++;
-      currtime = jsonbuffer["time"].asInt();
-#if DEBUG >= 6
+    if (selectedTracks.size()){
       if (metadata["tracks"][selectedTracks[0]]["keybpos"][currframe].asInt() != lastreadpos){
-        std::cerr << "Found a new frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
-      } else{
-        std::cerr << "Passing frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
-      }
+        currframe++;
+        currtime = jsonbuffer["time"].asInt();
+#if DEBUG >= 6
+        if (metadata["tracks"][selectedTracks[0]]["keybpos"][currframe].asInt() != lastreadpos){
+          std::cerr << "Found a new frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
+        } else{
+          std::cerr << "Passing frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
+        }
 #endif
+      }
     }
   }
 }
@@ -847,6 +874,22 @@ void DTSC::File::writePacket(JSON::Value & newPacket){
 
 void DTSC::File::selectTracks(std::vector<std::string> & trackIDs){
   selectedTracks = trackIDs;
+}
+
+bool DTSC::File::atKeyframe(){
+  if (getJSON().isMember("keyframe")){
+    return true;
+  }
+  bool inHeader = false;
+  for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
+    for (JSON::ArrIter aIt = oIt->second["keynum"].ArrBegin(); aIt != oIt->second["keynum"].ArrEnd(); aIt++){
+      if ((*aIt).asInt() == getBytePos()){
+        inHeader = true;
+        break;
+      }
+    }
+  }
+  return inHeader;
 }
 
 /// Close the file if open

@@ -221,7 +221,7 @@ int main(int argc, char** argv){
       if ( !source.getJSON()){
         playing = 0;
       }
-      if (source.getJSON().isMember("keyframe")){
+      if (source.atKeyframe()){
         if (playing == -1 && meta["video"]["keyms"].asInt() > now - lastTime){
           Util::sleep(meta["video"]["keyms"].asInt() - (now - lastTime));
         }
@@ -243,7 +243,7 @@ int main(int argc, char** argv){
         //insert proper header for this type of data
         in_out.Send("DTP2");
         //insert the packet length
-        unsigned int size = htonl(source.getPacket().size());
+        unsigned int size = htonl( source.getPacket().size());
         in_out.Send((char*) &size, 4);
         in_out.SendNow(source.getPacket());
       }

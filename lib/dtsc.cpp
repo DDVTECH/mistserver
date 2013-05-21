@@ -189,6 +189,10 @@ std::string & DTSC::Stream::lastData(){
 /// Returns the packet in this buffer number.
 /// \arg num Buffer number.
 JSON::Value & DTSC::Stream::getPacket(unsigned int num){
+  static JSON::Value empty;
+  if (num >= buffers.size()){
+    return empty;
+  }
   return buffers[num];
 }
 

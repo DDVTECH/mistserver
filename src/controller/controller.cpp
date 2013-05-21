@@ -169,6 +169,9 @@ int main(int argc, char ** argv){
   conf.addOption("account",
       JSON::fromString(
           "{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
+  conf.addOption("configFile",
+      JSON::fromString(
+          "{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" \"default\":\"config.json\", \"help\":\"Specify a config file other than default.\"}"));
   conf.addOption("uplink",
       JSON::fromString(
           "{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host and port.\", \"short\":\"U\", \"long\":\"uplink\"}"));
@@ -180,6 +183,27 @@ int main(int argc, char ** argv){
           "{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}"));
   conf.parseArgs(argc, argv);
 
+  //Input custom config here
+  Controller::Storage = JSON::fromFile(conf.getString("configFile"));
+  //check for port, interface and username in arguments
+  
+  //if they are not there, take them from config file, if there
+  if (conf.getOption("listen_port", true).size() <= 1){
+    if (Controller::Storage["config"]["controller"]["port"]){
+      conf.getOption("listen_port") = Controller::Storage["config"]["controller"]["port"];
+    }
+  }
+  if (conf.getOption("listen_interface", true).size() <= 1){
+    if (Controller::Storage["config"]["controller"]["interface"]){
+      conf.getOption("listen_interface") = Controller::Storage["config"]["controller"]["interface"];
+    }
+  }
+  if (conf.getOption("username", true).size() <= 1){
+    if (Controller::Storage["config"]["controller"]["username"]){
+      conf.getOption("username") = Controller::Storage["config"]["controller"]["username"];
+    }
+  }
+  
   std::string account = conf.getString("account");
   if (account.size() > 0){
     size_t colon = account.find(':');
@@ -427,7 +451,7 @@ int main(int argc, char ** argv){
                     Controller::checkCapable(Response["capabilities"]);
                   }
                   if (Request.isMember("save")){
-                    Controller::WriteFile("config.json", Controller::Storage.toString());
+                    Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString());
                     Controller::Log("CONF", "Config written to file on request through API");
                   }
                   //sent current configuration, no matter if it was changed or not
@@ -474,7 +498,7 @@ int main(int argc, char ** argv){
   }
   API_Socket.close();
   Controller::Log("CONF", "Controller shutting down");
-  Controller::WriteFile("config.json", Controller::Storage.toString());
+  Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString());
   Util::Procs::StopAll();
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
   return 0;

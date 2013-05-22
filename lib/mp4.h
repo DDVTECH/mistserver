@@ -58,6 +58,7 @@ namespace MP4 {
   
   class fullBox: public Box{
     public:
+      fullBox();
       void setVersion(char newVersion);
       char getVersion();
       void setFlags(uint32_t newFlags);
@@ -67,7 +68,7 @@ namespace MP4 {
   
   class containerBox: public Box{
     public:
-      //containerBox();
+      containerBox();
       uint32_t getContentCount();
       void setContent(Box & newContent, uint32_t no);
       Box & getContent(uint32_t no);
@@ -520,7 +521,7 @@ namespace MP4 {
   
   class DREF: public fullBox{
     public:
-      DREF();
+      DREF(char v = 1, uint32_t = 0);
       uint32_t getEntryCount();
       void setDataEntry(fullBox & newDataEntry, size_t index);
       Box & getDataEntry(size_t index);
@@ -529,7 +530,7 @@ namespace MP4 {
   
   class MVHD: public fullBox{
     public:
-      MVHD();
+      MVHD(char v = 1, uint32_t f = 0);
       void setCreationTime(uint64_t newCreationTime);
       uint64_t getCreationTime();
       void setModificationTime(uint64_t newModificationTime);
@@ -580,7 +581,7 @@ namespace MP4 {
   
   class TKHD: public fullBox{
     public:
-      TKHD();
+      TKHD(char v = 1, uint32_t f = 0);
       void setCreationTime(uint64_t newCreationTime);
       uint64_t getCreationTime();
       void setModificationTime(uint64_t newModificationTime);
@@ -611,7 +612,7 @@ namespace MP4 {
   
   class MDHD: public fullBox{
     public:
-      MDHD();
+      MDHD(char v = 1, uint32_t f = 0);
       void setCreationTime(uint64_t newCreationTime);
       uint64_t getCreationTime();
       void setModificationTime(uint64_t newModificationTime);
@@ -664,7 +665,7 @@ namespace MP4 {
   
   class STSC: public fullBox{
     public:
-      STSC();
+      STSC(char v = 1, uint32_t f = 0);
       void setEntryCount(uint32_t newEntryCount);
       uint32_t getEntryCount();
       void setSTSCEntry(STSCEntry newSTSCEntry, uint32_t no);
@@ -674,7 +675,7 @@ namespace MP4 {
   
   class STCO: public fullBox{
     public:
-      STCO();
+      STCO(char v = 1, uint32_t f = 0);
       void setEntryCount(uint32_t newEntryCount);
       uint32_t getEntryCount();
       void setChunkOffset(uint32_t newChunkOffset, uint32_t no);
@@ -786,7 +787,7 @@ namespace MP4 {
   
   class STSD: public fullBox{
     public:
-      STSD();
+      STSD(char v = 1, uint32_t f = 0);
       void setEntryCount (uint32_t newEntryCount);
       uint32_t getEntryCount();
       void setEntry(Box & newContent, uint32_t no);
@@ -808,7 +809,7 @@ namespace MP4 {
   
   class STSS: public fullBox{
     public:
-      STSS();
+      STSS(char v = 1, uint32_t f = 0);
       void setEntryCount(uint32_t newVal);
       uint32_t getEntryCount();
       void setSampleNumber(uint32_t newVal, uint32_t index);

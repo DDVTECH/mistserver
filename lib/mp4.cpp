@@ -556,6 +556,9 @@ namespace MP4 {
     return true;
   }
   
+  fullBox::fullBox(){
+  }
+  
   void fullBox::setVersion(char newVersion){
     setInt8(newVersion, 0);
   }
@@ -579,6 +582,10 @@ namespace MP4 {
     return r.str();
   }
 
+  containerBox::containerBox(){
+    
+  }
+  
   uint32_t containerBox::getContentCount(){
     int res = 0;
     int tempLoc = 0;
@@ -2342,6 +2349,8 @@ namespace MP4 {
   
   FTYP::FTYP(){
     memcpy(data + 4, "ftyp", 4);
+    setMajorBrand(0);
+    setMinorVersion(0);
   }
   
   void FTYP::setMajorBrand(uint32_t newMajorBrand){
@@ -2519,6 +2528,7 @@ namespace MP4 {
   
   HDLR::HDLR(){
     memcpy(data + 4, "hdlr", 4);
+    setName("");
   }
   
   void HDLR::setSize(uint32_t newSize){
@@ -2770,8 +2780,11 @@ namespace MP4 {
   }
   
 
-  DREF::DREF(){
+  DREF::DREF(char v, uint32_t f){
     memcpy(data + 4, "dref", 4);
+    setVersion(v);
+    setFlags(f);
+    setInt32(0,4);
   }
   
   uint32_t DREF::getEntryCount(){
@@ -2822,8 +2835,27 @@ namespace MP4 {
     return r.str();
   }
   
-  MVHD::MVHD(){
+  MVHD::MVHD(char v, uint32_t f){
     memcpy(data + 4, "mvhd", 4);
+    setVersion(v);
+    setFlags(f);
+    setCreationTime(0);
+    setModificationTime(0);
+    setTimeScale(1000);
+    setDuration(0);
+    setRate(0x00010000);
+    setVolume(0x0100);
+    setMatrix(0x00010000,0);
+    /*setMatrix(0,1);
+    setMatrix(0,2);
+    setMatrix(0,3);*/
+    setMatrix(0x00010000,4);
+    /*setMatrix(0,5);
+    setMatrix(0,6);
+    setMatrix(0,7);*/
+    //fills automatically with zero's
+    setMatrix(0x40000000,8);
+    setTrackID(0);
   }
   
   void MVHD::setCreationTime(uint64_t newCreationTime){
@@ -3191,8 +3223,23 @@ namespace MP4 {
     return r.str();
   }
 
-  TKHD::TKHD(){
+  TKHD::TKHD(char v, uint32_t f){
     memcpy(data + 4, "tkhd", 4);
+    setVersion(v);
+    setFlags(f);
+    setCreationTime(0);
+    setModificationTime(0);
+    setTrackID(0);
+    setDuration(0);
+    setLayer(0);
+    setAlternateGroup(0);
+    setVolume(0x0100);
+    setMatrix(0x00010000,0);
+    setMatrix(0x00010000,4);
+    //fills automatically with zero's
+    setMatrix(0x40000000,8);
+    setWidth(0);
+    setHeight(0);
   }
   
   void TKHD::setCreationTime(uint64_t newCreationTime){
@@ -3387,8 +3434,20 @@ namespace MP4 {
     return r.str();
   }
 
-  MDHD::MDHD(){
+  MDHD::MDHD(char v, uint32_t f){
     memcpy(data + 4, "mdhd", 4);
+    setVersion(v);
+    setFlags(f);
+    setCreationTime(0);
+    setModificationTime(0);
+    setTimeScale(1000);
+    setDuration(0);
+    setLanguage(0);
+    if (v==0){
+      setInt16(0,22);
+    }else{
+      setInt16(0,34);
+    }
   }
   
   void MDHD::setCreationTime(uint64_t newCreationTime){
@@ -3459,7 +3518,7 @@ namespace MP4 {
     if (getVersion() == 0){
       setInt16(newLanguage & 0x7F, 20);
     }else{
-      setInt16(newLanguage & 0x7F, 20);
+      setInt16(newLanguage & 0x7F, 32);
     }
   }
   
@@ -3467,7 +3526,7 @@ namespace MP4 {
     if (getVersion() == 0){
       return getInt16(20) & 0x7F;
     }else{
-      return getInt16(20) & 0x7F;
+      return getInt16(32) & 0x7F;
     }
   }
   
@@ -3485,6 +3544,7 @@ namespace MP4 {
   
   STTS::STTS(){
     memcpy(data + 4, "stts", 4);
+    setEntryCount(0);
   }
   
   void STTS::setEntryCount(uint32_t newEntryCount){
@@ -3581,8 +3641,11 @@ namespace MP4 {
 
   }
 
-  STSC::STSC(){
+  STSC::STSC(char v, uint32_t f){
     memcpy(data + 4, "stsc", 4);
+    setVersion(v);
+    setFlags(f);
+    setEntryCount(0);
   }
   
   void STSC::setEntryCount(uint32_t newEntryCount){
@@ -3633,8 +3696,11 @@ namespace MP4 {
     return r.str();
   }
   
-  STCO::STCO(){
+  STCO::STCO(char v, uint32_t f){
     memcpy(data + 4, "stco", 4);
+    setVersion(v);
+    setFlags(f);
+    setEntryCount(0);
   }
   
   void STCO::setEntryCount(uint32_t newEntryCount){
@@ -4024,8 +4090,11 @@ namespace MP4 {
     return toPrettyVisualString(indent, "[avc1] Advanced Video Codec 1");
   }
 
-  STSD::STSD(){
+  STSD::STSD(char v, uint32_t f){
     memcpy(data + 4, "stsd", 4);
+    setVersion(v);
+    setFlags(f);
+    setEntryCount(0);
   }
 
   void STSD::setEntryCount (uint32_t newEntryCount){
@@ -4103,8 +4172,11 @@ namespace MP4 {
     return toPrettyContainerString(indent, std::string("[udta] User Data Box"));
   }
 
-  STSS::STSS(){
+  STSS::STSS(char v, uint32_t f){
     memcpy(data + 4, "stss", 4);
+    setVersion(v);
+    setFlags(f);
+    setEntryCount(0);
   }
   
   void STSS::setEntryCount(uint32_t newVal){

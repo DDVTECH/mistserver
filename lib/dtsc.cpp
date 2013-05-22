@@ -719,6 +719,9 @@ bool DTSC::File::reachedEOF(){
 /// If the packet could not be read for any reason, the reason is printed to stderr.
 /// Reading the packet means the file position is increased to the next packet.
 void DTSC::File::seekNext(){
+  fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
+  seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
+  currentPositions.erase(currentPositions.begin());
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1){
     if (feof(F)){
@@ -773,21 +776,6 @@ void DTSC::File::seekNext(){
   }else{
     jsonbuffer = JSON::fromDTMI(strbuffer);
   }
-  if (jsonbuffer.isMember("keyframe")){
-    if (selectedTracks.size()){
-      if (metadata["tracks"][selectedTracks[0]]["keybpos"][currframe].asInt() != lastreadpos){
-        currframe++;
-        currtime = jsonbuffer["time"].asInt();
-#if DEBUG >= 6
-        if (metadata["tracks"][selectedTracks[0]]["keybpos"][currframe].asInt() != lastreadpos){
-          std::cerr << "Found a new frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
-        } else{
-          std::cerr << "Passing frame " << currframe << " @ " << lastreadpos << "b/" << currtime << "ms" << std::endl;
-        }
-#endif
-      }
-    }
-  }
 }
 
 /// Returns the byte positon of the start of the last packet that was read.
@@ -805,55 +793,54 @@ JSON::Value & DTSC::File::getJSON(){
   return jsonbuffer;
 }
 
-/// Attempts to seek to the given frame number within the file.
-/// Returns true if successful, false otherwise.
-bool DTSC::File::seek_frame(int frameno){
-  int bytePos = -1;
-  int replaceBytePos = -1;
-  for (int i = 0; i < metadata["tracks"][selectedTracks[0]]["keynum"].size(); i++){
-    if (metadata["tracks"][selectedTracks[0]]["keynum"][i].asInt() == frameno){
-      bytePos = metadata["tracks"][selectedTracks[0]]["keybpos"][i].asInt();
+bool DTSC::File::seek_time(int ms, int trackNo){
+  seekPos tmpPos;
+  tmpPos.trackID = trackNo;
+  for (int i = 0; i < metadata["tracks"][trackMapping[trackNo]]["keynum"].size(); i++){
+    if (metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt() > ms){
       break;
     }
-    if (metadata["tracks"][selectedTracks[0]]["keynum"][i].asInt() < frameno){
-      replaceBytePos = metadata["tracks"][selectedTracks[0]]["keybpos"][i].asInt();
+    tmpPos.seekTime = metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt();
+    tmpPos.seekPos = metadata["tracks"][trackMapping[trackNo]]["keybpos"][i].asInt();
+  }
+  bool foundPacket = false;
+  while ( !foundPacket){
+    //Seek to first packet after ms.
+    seek_bpos(tmpPos.seekPos);
+    //read the header
+    char header[20];
+    fread((void*)header, 20, 1, F);
+    //check if packetID matches, if not, skip size + 8 bytes.
+    int packSize = ntohl(((int*)header)[1]);
+    int packID = ntohl(((int*)header)[2]);
+    if (packID != trackNo){
+      tmpPos.seekPos += 8 + packSize;
+      continue;
+    }
+    //get timestamp of packet, if too large, break, if not, skip size bytes.
+    long long unsigned int myTime = ((long long unsigned int)ntohl(((int*)header)[3]) << 32);
+    myTime += ntohl(((int*)header)[4]);
+    if (myTime >= ms){
+      tmpPos.seekTime = myTime;
+      foundPacket = true;
+    }else{
+      tmpPos.seekPos += 8 + packSize;
+      continue;
     }
   }
-  if (bytePos == -1){
-    bytePos = replaceBytePos;
-  }
-  if (bytePos > -1){
-    if (fseek(F, bytePos, SEEK_SET) == 0){
-#if DEBUG >= 5
-      std::cerr << "Seek direct from " << currframe << " @ " << metadata["tracks"][selectedTracks[0]]["keybpos"][currframe].asInt() << " to " << frameno << " @ " << bytePos << std::endl;
-#endif
-      currframe = frameno;
-      return true;
-    }
-  }
-  return false;
+  currentPositions.insert(tmpPos);
+  fprintf(stderr, "TrackID %d, Time seek %d -- retrieved bytepos %d, timestamp %d\n", trackNo, ms, tmpPos.seekPos, tmpPos.seekTime);
 }
 
 /// Attempts to seek to the given time in ms within the file.
 /// Returns true if successful, false otherwise.
 bool DTSC::File::seek_time(int ms){
-  currtime = 0;
-  currframe = 1;
-  int bytePos = -1;
-  for (int i = 0; i < metadata["tracks"][selectedTracks[0]]["keynum"].size(); i++){
-    if (metadata["tracks"][selectedTracks[0]]["keytime"][i].asInt() > ms){
-      break;
-    }
-    if (metadata["tracks"][selectedTracks[0]]["keytime"][i].asInt() > currtime){
-      currtime = metadata["tracks"][selectedTracks[0]]["keytime"][i].asInt();
-      currframe = i + 1;
-    }
-    bytePos = metadata["tracks"][selectedTracks[0]]["keybpos"][i].asInt();
+  currentPositions.clear();
+  seekPos tmpPos;
+  for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    seek_time(ms,(*it));
   }
-  if (fseek(F, bytePos, SEEK_SET) == 0){
-    return true;
-  }
-  return false;
+  return true;
 }
 
 bool DTSC::File::seek_bpos(int bpos){
@@ -872,10 +859,6 @@ void DTSC::File::writePacket(JSON::Value & newPacket){
   writePacket(newPacket.toNetPacked());
 }
 
-void DTSC::File::selectTracks(std::vector<std::string> & trackIDs){
-  selectedTracks = trackIDs;
-}
-
 bool DTSC::File::atKeyframe(){
   if (getJSON().isMember("keyframe")){
     return true;
@@ -890,6 +873,11 @@ bool DTSC::File::atKeyframe(){
     }
   }
   return inHeader;
+}
+
+void DTSC::File::selectTracks(std::set<int> & tracks){
+  currentPositions.clear();
+  selectedTracks = tracks;
 }
 
 /// Close the file if open

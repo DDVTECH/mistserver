@@ -64,6 +64,29 @@ namespace DTSC {
   extern char Magic_Packet[]; ///< The magic bytes for a DTSC packet
   extern char Magic_Packet2[]; ///< The magic bytes for a DTSC packet version 2
 
+  /// A simple structure used for ordering byte seek positions.
+  struct seekPos {
+    bool operator < (const seekPos& rhs) const {
+      if (seekTime < rhs.seekTime){
+        return true;
+      }else{
+        if (seekTime == rhs.seekTime){
+          if (seekPos < rhs.seekPos){
+            return true;
+          }else{
+            if (trackID < rhs.trackID){
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+    long long unsigned int seekTime;
+    long long unsigned int seekPos;
+    unsigned int trackID;
+  };
+
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
   class File{
     public:
@@ -83,13 +106,13 @@ namespace DTSC {
       void seekNext();
       std::string & getPacket();
       JSON::Value & getJSON();
-      bool seek_frame(int frameno);
       bool seek_time(int seconds);
+      bool seek_time(int seconds, int trackNo);
       bool seek_bpos(int bpos);
       void writePacket(std::string & newPacket);
       void writePacket(JSON::Value & newPacket);
-      void selectTracks(std::vector<std::string> & trackIDs);
       bool atKeyframe();
+      void selectTracks(std::set<int> & tracks);
     private:
       void readHeader(int pos);
       std::string strbuffer;
@@ -104,7 +127,8 @@ namespace DTSC {
       unsigned long headerSize;
       char buffer[4];
       bool created;
-      std::vector<std::string> selectedTracks;
+      std::set<seekPos> currentPositions;
+      std::set<int> selectedTracks;
   };
   //FileWriter
 

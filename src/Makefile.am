@@ -30,6 +30,7 @@ bin_PROGRAMS+=MistDTSCFix
 bin_PROGRAMS+=MistDTSCMerge 
 bin_PROGRAMS+=MistDTSC2TS 
 bin_PROGRAMS+=MistDTSC2OGG 
+bin_PROGRAMS+=MistDTSC2MP4
 bin_PROGRAMS+=MistSRT2DTSC 
 bin_PROGRAMS+=MistOGG2DTSC 
 bin_PROGRAMS+=MistAnalyserRTMP 
@@ -70,6 +71,7 @@ MistDTSCFix_SOURCES=converters/dtscfix.cpp
 MistDTSCMerge_SOURCES=converters/dtscmerge.cpp
 MistDTSC2TS_SOURCES=converters/dtsc2ts.cpp
 MistSRT2DTSC_SOURCES=converters/srt2dtsc.cpp
+MistDTSC2MP4_SOURCES=converters/dtsc2mp4.cpp
 
 #analysers directory (MistAnalyser*)
 MistAnalyserRTMP_SOURCES=analysers/rtmp_analyser.cpp

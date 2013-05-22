@@ -199,9 +199,17 @@ int main(int argc, char** argv){
               break;
             }
             case 't': {
-              std::vector<std::string> selected;
-              selected.push_back(in_out.Received().get().substr(2));
-              source.selectTracks(selected);
+              std::set<int> newSelect;
+              std::string tmp = in_out.Received().get().substr(2);
+              while (tmp != ""){
+                newSelect.insert(atoi(tmp.substr(0,tmp.find(' ')).c_str()));
+                if (tmp.find(' ') != std::string::npos){
+                  tmp.erase(0,tmp.find(' ')+1);
+                }else{
+                  tmp = "";
+                }
+              }
+              source.selectTracks(newSelect);
               break;
             }
 #if DEBUG >= 4

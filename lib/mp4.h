@@ -634,7 +634,7 @@ namespace MP4 {
   
   class STTS: public fullBox{
     public:
-      STTS();
+      STTS(char v = 1, uint32_t f = 0);
       void setEntryCount(uint32_t newEntryCount);
       uint32_t getEntryCount();
       void setSTTSEntry(STTSEntry newSTTSEntry, uint32_t no);
@@ -685,7 +685,7 @@ namespace MP4 {
   
   class STSZ: public fullBox{
     public:
-      STSZ();
+      STSZ(char v = 1, uint32_t f = 0);
       void setSampleSize(uint32_t newSampleSize);
       uint32_t getSampleSize();
       void setSampleCount(uint32_t newSampleCount);

@@ -3542,8 +3542,10 @@ namespace MP4 {
     return r.str();
   }
   
-  STTS::STTS(){
+  STTS::STTS(char v, uint32_t f){
     memcpy(data + 4, "stts", 4);
+    setVersion(v);
+    setFlags(f);
     setEntryCount(0);
   }
   
@@ -3557,6 +3559,7 @@ namespace MP4 {
   
   void STTS::setSTTSEntry(STTSEntry newSTTSEntry, uint32_t no){
     if(no + 1 > getEntryCount()){
+      setEntryCount(no + 1);
       for (int i = getEntryCount(); i < no; i++){
         setInt64(0, 8 + (i * 8));//filling up undefined entries of 64 bits
       }
@@ -3738,8 +3741,11 @@ namespace MP4 {
     return r.str();
   }
 
-  STSZ::STSZ(){
+  STSZ::STSZ(char v, uint32_t f){
     memcpy(data + 4, "stsz", 4);
+    setVersion(v);
+    setFlags(f);
+    setSampleCount(0);
   }
 
   void STSZ::setSampleSize(uint32_t newSampleSize){
@@ -3761,11 +3767,12 @@ namespace MP4 {
   
   void STSZ::setEntrySize(uint32_t newEntrySize, uint32_t no){
     if (no + 1 > getSampleCount()){
+      setSampleCount(no + 1);
       for (int i = getSampleCount(); i < no; i++){
         setInt32(0, 12 + i * 4);//filling undefined entries
       }
     }
-    setInt32(newEntrySize, 12 + no * 4);  
+    setInt32(newEntrySize, 12 + no * 4);
   }
   
   uint32_t STSZ::getEntrySize(uint32_t no){
@@ -4121,8 +4128,8 @@ namespace MP4 {
       }
     }
     setBox(newContent, tempLoc);
-    if (getEntryCount() < no){
-      setEntryCount(no);
+    if (getEntryCount() < no+1){
+      setEntryCount(no+1);
     }
   }
   

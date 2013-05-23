@@ -31,7 +31,7 @@ namespace Converters {
       MP4::MVHD mvhdBox;
       moovBox.setContent(mvhdBox, 0);
       
-      //start arbitrary
+      //start arbitrary track addition
       int boxOffset = 1;
       for (JSON::ObjIter it = input.getMeta()["tracks"].ObjBegin(); it != input.getMeta()["tracks"].ObjEnd(); it++){
         MP4::TRAK trakBox;
@@ -39,10 +39,8 @@ namespace Converters {
           std::cerr << it->second["trackid"].asInt() << std::endl;
           tkhdBox.setTrackID(it->second["trackid"].asInt());
           
-          if (it->second.isMember("width")){
+          if (it->second["type"].asString() == "video"){
             tkhdBox.setWidth(it->second["width"].asInt() << 16);
-          }
-          if (it->second.isMember("height")){
             tkhdBox.setHeight(it->second["height"].asInt() << 16);
           }
           trakBox.setContent(tkhdBox, 0);
@@ -61,16 +59,36 @@ namespace Converters {
               
               MP4::STBL stblBox;
                 MP4::STSD stsdBox;
+                  std::string tmpStr = it->second["type"].asString();
+                  if (tmpStr == "video"){//boxname = codec
+                    MP4::VisualSampleEntry vse;
+                    stsdBox.setEntry(vse,0);
+                  }else if(tmpStr == "audio"){//boxname = codec
+                    MP4::AudioSampleEntry ase;
+                    stsdBox.setEntry(ase,0);
+                  }
                 stblBox.setContent(stsdBox,0);
 
-                MP4::STSS stssBox;
-                stblBox.setContent(stssBox,1);
+                MP4::STTS sttsBox;
+                for (int i = 0; i < it->second["frags"].size(); i++){
+                  MP4::STTSEntry newEntry;
+                  newEntry.sampleCount = it->second["frags"][i]["len"].asInt();
+                  newEntry.sampleDelta = it->second["frags"][i]["dur"].asInt() / newEntry.sampleCount;
+                  sttsBox.setSTTSEntry(newEntry, i);
+                }
+                stblBox.setContent(sttsBox,1);
 
                 MP4::STSC stscBox;
                 stblBox.setContent(stscBox,2);
 
+                MP4::STSZ stszBox;
+                for (int i = 0; i < it->second["keylen"].size(); i++){
+                  stszBox.setEntrySize(it->second["keylen"][i].asInt(), i);
+                }
+                stblBox.setContent(stszBox,3);
+
                 MP4::STCO stcoBox;
-                stblBox.setContent(stcoBox,3);
+                stblBox.setContent(stcoBox,4);
               minfBox.setContent(stblBox,1);
             mdiaBox.setContent(minfBox, 2);
           trakBox.setContent(mdiaBox, 1);

@@ -703,8 +703,12 @@ void DTSC::File::readHeader(int pos){
 }
 
 long int DTSC::File::getBytePosEOF(){
-  fseek(F, 0, SEEK_END);
-  return ftell(F);
+  static long int endPos = 0;
+  if ( !endPos){
+    fseek(F, 0, SEEK_END);
+    endPos = ftell(F);
+  }
+  return endPos;
 }
 
 long int DTSC::File::getBytePos(){
@@ -719,8 +723,13 @@ bool DTSC::File::reachedEOF(){
 /// If the packet could not be read for any reason, the reason is printed to stderr.
 /// Reading the packet means the file position is increased to the next packet.
 void DTSC::File::seekNext(){
-  fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
+  if ( !currentPositions.size()){
+    strbuffer = "";
+    jsonbuffer.null();
+    return;
+  }
   seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
+  fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
   currentPositions.erase(currentPositions.begin());
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1){
@@ -796,6 +805,8 @@ JSON::Value & DTSC::File::getJSON(){
 bool DTSC::File::seek_time(int ms, int trackNo){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
+  tmpPos.seekTime = metadata["tracks"][trackMapping[trackNo]]["keytime"][0u].asInt();
+  tmpPos.seekPos = metadata["tracks"][trackMapping[trackNo]]["keybpos"][0u].asInt();
   for (int i = 0; i < metadata["tracks"][trackMapping[trackNo]]["keynum"].size(); i++){
     if (metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt() > ms){
       break;
@@ -805,6 +816,9 @@ bool DTSC::File::seek_time(int ms, int trackNo){
   }
   bool foundPacket = false;
   while ( !foundPacket){
+    if (tmpPos.seekPos == getBytePosEOF()){
+      return false;
+    }
     //Seek to first packet after ms.
     seek_bpos(tmpPos.seekPos);
     //read the header
@@ -829,7 +843,6 @@ bool DTSC::File::seek_time(int ms, int trackNo){
     }
   }
   currentPositions.insert(tmpPos);
-  fprintf(stderr, "TrackID %d, Time seek %d -- retrieved bytepos %d, timestamp %d\n", trackNo, ms, tmpPos.seekPos, tmpPos.seekTime);
 }
 
 /// Attempts to seek to the given time in ms within the file.
@@ -865,7 +878,7 @@ bool DTSC::File::atKeyframe(){
   }
   bool inHeader = false;
   for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
-    for (JSON::ArrIter aIt = oIt->second["keynum"].ArrBegin(); aIt != oIt->second["keynum"].ArrEnd(); aIt++){
+    for (JSON::ArrIter aIt = oIt->second["keybpos"].ArrBegin(); aIt != oIt->second["keybpos"].ArrEnd(); aIt++){
       if ((*aIt).asInt() == getBytePos()){
         inHeader = true;
         break;
@@ -878,6 +891,8 @@ bool DTSC::File::atKeyframe(){
 void DTSC::File::selectTracks(std::set<int> & tracks){
   currentPositions.clear();
   selectedTracks = tracks;
+  for (std::set<int>::iterator it = tracks.begin(); it != tracks.end(); it++){
+  }
 }
 
 /// Close the file if open

@@ -274,10 +274,10 @@ namespace Connector_HTTP {
             //Seek to the right place and send a play-once for a single fragment.
             std::stringstream sstream;
             if (wantsVideo){
-              sstream << "t " << allVideo.ObjBegin()->first << "\n";
+              sstream << "t " << allVideo.ObjBegin()->second["trackid"].asInt() << "\n";
             }
             if (wantsAudio){
-              sstream << "t " << allAudio.ObjBegin()->first << "\n";
+              sstream << "t " << allAudio.ObjBegin()->second["trackid"].asInt() << "\n";
             }
             sstream << "s " << (requestedTime / 10000) << "\no \n";
             ss.SendNow(sstream.str().c_str());

@@ -61,7 +61,10 @@ namespace Converters {
     std::string currentID;
     int nextFreeID = 0;
 
+    std::set<int> tmp;
+
     for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++){
+      tmp.insert(it->second["trackid"].asInt());
       trackIDs.insert(std::pair<std::string,int>(it->first,it->second["trackid"].asInt()));
       trackData[it->first].type = it->second["type"].asString();
       trackData[it->first].trackID = it->second["trackid"].asInt();
@@ -69,6 +72,9 @@ namespace Converters {
         nextFreeID = it->second["trackid"].asInt() + 1;
       }
     }
+
+    F.selectTracks(tmp);
+    F.seek_time(0);
 
     F.seekNext();
     while ( !F.getJSON().isNull()){

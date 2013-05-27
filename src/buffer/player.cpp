@@ -173,11 +173,13 @@ int main(int argc, char** argv){
               lastTime = 0;
               break;
             }
+            /*
             case 'f': { //frame-seek
               bool ret = source.seek_frame(JSON::Value(in_out.Received().get().substr(2)).asInt());
               lastTime = 0;
               break;
             }
+            */
             case 'p': { //play
               playing = -1;
               lastTime = 0;

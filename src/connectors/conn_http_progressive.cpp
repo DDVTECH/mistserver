@@ -42,6 +42,11 @@ namespace Connector_HTTP {
     unsigned int seek_byte = 0;//Seek position in bytes
     
     bool isMP3 = false;//Indicates whether the request is audio-only mp3.
+    
+    std::string videoName;
+    int videoID = -1;
+    std::string audioName;
+    int audioID = -1;
 
     while (conn.connected()){
       //Only attempt to parse input when not yet init'ed.
@@ -123,19 +128,36 @@ namespace Connector_HTTP {
               }
             }
             int byterate = 0;
-            if (Strm.metadata.isMember("video") && !isMP3){
-              byterate += Strm.metadata["video"]["bps"].asInt();
+            for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
+              if (videoID == -1 && objIt->second["type"].asString() == "video"){
+                videoID = objIt->second["trackid"].asInt();
+                videoName = objIt->first;
+              }
+              if (audioID == -1 && objIt->second["type"].asString() == "audio"){
+                audioID = objIt->second["trackid"].asInt();
+                audioName = objIt->first;
+              }
             }
-            if (Strm.metadata.isMember("audio")){
-              byterate += Strm.metadata["audio"]["bps"].asInt();
+            if (videoID != -1 && !isMP3){
+              byterate += Strm.metadata["tracks"][videoName]["bps"].asInt();
+            }
+            if (audioID != -1){
+              byterate += Strm.metadata["tracks"][audioName]["bps"].asInt();
             }
             seek_sec = (seek_byte / byterate) * 1000;
           }
-          if (seek_sec){
-            std::stringstream cmd;
-            cmd << "s " << seek_sec << "\n";
-            ss.SendNow(cmd.str().c_str());
+          std::stringstream cmd;
+          cmd << "t";
+          if (videoID != -1){
+            cmd << " " << videoID;
           }
+          if (audioID != -1){
+            cmd << " " << audioID;
+          }
+          ss.SendNow(cmd.str().c_str());
+          cmd.str() = "";
+          cmd << "s " << seek_sec << "\n";
+          ss.SendNow(cmd.str().c_str());
           ss.SendNow("p\n");
           inited = true;
         }
@@ -144,6 +166,7 @@ namespace Connector_HTTP {
           lastStats = now;
           ss.SendNow(conn.getStats("HTTP_Progressive").c_str());
         }
+        ///\todo UPDATE THIS TO DTSCv2 too
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             if ( !progressive_has_sent_header){
@@ -159,16 +182,16 @@ namespace Connector_HTTP {
               if ( !isMP3){
                 conn.SendNow(FLV::Header, 13); //write FLV header
                 //write metadata
-                tag.DTSCMetaInit(Strm);
+                tag.DTSCMetaInit(Strm,videoName, audioName);
                 conn.SendNow(tag.data, tag.len);
                 //write video init data, if needed
-                if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
-                  tag.DTSCVideoInit(Strm);
+                if (videoID != -1 && Strm.metadata["video"].isMember("init")){
+                  tag.DTSCVideoInit(Strm.metadata["tracks"][videoName]);
                   conn.SendNow(tag.data, tag.len);
                 }
                 //write audio init data, if needed
-                if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
-                  tag.DTSCAudioInit(Strm);
+                if (audioID != -1 && Strm.metadata["audio"].isMember("init")){
+                  tag.DTSCAudioInit(Strm.metadata["tracks"][audioName]);
                   conn.SendNow(tag.data, tag.len);
                 }
               }

@@ -56,6 +56,13 @@ namespace Converters {
       
       //start arbitrary track addition
       int boxOffset = 1;
+      input.getMeta()["tracks"]["audio0"] = input.getMeta()["audio"];
+      input.getMeta()["tracks"]["audio0"]["type"] = "audio";
+      input.getMeta()["tracks"]["audio0"]["trackid"] = 1;
+      input.getMeta()["tracks"]["video0"] = input.getMeta()["video"];
+      input.getMeta()["tracks"]["video0"]["keylen"] = input.getMeta()["keylen"];
+      input.getMeta()["tracks"]["video0"]["trackid"] = 2;
+      input.getMeta()["tracks"]["video0"]["type"] = "video";
       for (JSON::ObjIter it = input.getMeta()["tracks"].ObjBegin(); it != input.getMeta()["tracks"].ObjEnd(); it++){
         int timescale = 0;
         MP4::TRAK trakBox;
@@ -172,7 +179,7 @@ namespace Converters {
                       esdsBox.setSLValue(2);
                       ase.setCodecBox(esdsBox);
                     stsdBox.setEntry(ase,0);
-                  }
+                  }*/
                 stblBox.setContent(stsdBox,0);
                 
                 /// \todo update following stts lines
@@ -293,7 +300,7 @@ namespace Converters {
       }
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());
 
-    //mdat box a lot
+    //mdat box alot
     //video
     //while() 
     //for(input.seekNext(); input.getJSON(); input.seekNext())

@@ -33,7 +33,7 @@ namespace Converters {
       std::cerr << "This file is too old to fix - please reconvert." << std::endl;
       return 1;
     }
-    if (oriheader["moreheader"].asInt() > 0){
+    if (oriheader["moreheader"].asInt() > 0 && !conf.getBool("force")){
       if (meta.isMember("tracks") && meta["tracks"].size() > 0){
         bool isFixed = true;
         for ( JSON::ObjIter trackIt = meta["tracks"].ObjBegin(); trackIt != meta["tracks"].ObjEnd(); trackIt ++) {
@@ -71,6 +71,11 @@ namespace Converters {
       if (it->second["trackid"].asInt() >= nextFreeID){
         nextFreeID = it->second["trackid"].asInt() + 1;
       }
+      it->second.removeMember("keylen");
+      it->second.removeMember("keybpos");
+      it->second.removeMember("frags");
+      it->second.removeMember("keytime");
+      it->second.removeMember("keynum");
     }
 
     F.selectTracks(tmp);
@@ -139,7 +144,7 @@ namespace Converters {
           }
         }
       }else{
-        if ((F.getJSON()["time"].asInt() - trackData[currentID].lastKeyTime) > 1000){
+        if ((F.getJSON()["time"].asInt() - trackData[currentID].lastKeyTime) > 5000){
           trackData[currentID].lastKeyTime = F.getJSON()["time"].asInt();
           meta["tracks"][currentID]["keytime"].append(F.getJSON()["time"]);
           meta["tracks"][currentID]["keybpos"].append(F.getLastReadPos());
@@ -188,7 +193,7 @@ namespace Converters {
           currFrag = meta["tracks"][it->first]["keytime"][i].asInt() / 10000;
           long long int fragLen = 1;
           long long int fragDur = meta["tracks"][it->first]["keylen"][i].asInt();
-          for (unsigned int j = i; j < meta["tracks"][it->first]["keytime"].size(); j++){
+          for (unsigned int j = i + 1; j < meta["tracks"][it->first]["keytime"].size(); j++){
             if (meta["tracks"][it->first]["keytime"][j].asInt() / 10000 > currFrag || j == meta["tracks"][it->first]["keytime"].size() - 1){
               JSON::Value thisFrag;
               thisFrag["num"] = meta["tracks"][it->first]["keynum"][i];
@@ -233,6 +238,7 @@ namespace Converters {
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
   conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Filename of the file to attempt to fix.\"}"));
+  conf.addOption("force", JSON::fromString("{\"short\":\"f\", \"long\":\"force\", \"default\":0, \"help\":\"Force fixing.\"}"));
   conf.parseArgs(argc, argv);
   return Converters::DTSCFix(conf);
 } //main

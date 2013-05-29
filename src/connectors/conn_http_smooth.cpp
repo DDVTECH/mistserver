@@ -94,7 +94,7 @@ namespace Connector_HTTP {
       for (unsigned int i = 0; i < allAudio.ObjBegin()->second["keylen"].size(); i++){
         Result << "<c ";
         if (i == 0){
-          Result << "t=\"" << allAudio.ObjBegin()->second["keytime"][i].asInt() * 10000 << "\" ";
+          Result << "t=\"" << allAudio.ObjBegin()->second["keytime"][0u].asInt() * 10000 << "\" ";
         }
         Result << "d=\"" << allAudio.ObjBegin()->second["keylen"][i].asInt() * 10000 << "\" />\n";
       }
@@ -318,10 +318,17 @@ namespace Connector_HTTP {
                 
                 //Wrap everything in mp4 boxes
                 MP4::MFHD mfhd_box;
-                for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
-                  if (Strm.metadata["keytime"][i].asInt() >= (requestedTime / 10000)){
-                    mfhd_box.setSequenceNumber(Strm.metadata["keynum"][i].asInt());
-                    myDuration = Strm.metadata["keylen"][i].asInt() * 10000;
+                JSON::Value trackRef;
+                if (wantsVideo){
+                  trackRef = allVideo.ObjBegin()->second;
+                }
+                if (wantsAudio){
+                  trackRef = allAudio.ObjBegin()->second;
+                }
+                for (int i = 0; i < trackRef["keytime"].size(); i++){
+                  if (trackRef["keytime"][i].asInt() >= (requestedTime / 10000)){
+                    mfhd_box.setSequenceNumber(trackRef["keynum"][i].asInt());
+                    myDuration = trackRef["keylen"][i].asInt() * 10000;
                     break;
                   }
                 }
@@ -391,11 +398,12 @@ namespace Connector_HTTP {
                   conn.SendNow(dataBuffer.front());
                   dataBuffer.pop_front();
                 }
+                conn.SendNow("\r\n",2);
               }
               dataBuffer.clear();
               dataSize = 0;
             }
-            if ((wantsAudio && Strm.lastType() == DTSC::AUDIO) || (wantsVideo && Strm.lastType() == DTSC::VIDEO)){
+            if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               //Select only the data that the client has requested.
               dataBuffer.push_back(Strm.lastData());
               dataSize += Strm.lastData().size();

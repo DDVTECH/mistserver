@@ -728,6 +728,7 @@ void DTSC::File::seekNext(){
     jsonbuffer.null();
     return;
   }
+  fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
   seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
   fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
   currentPositions.erase(currentPositions.begin());
@@ -805,14 +806,16 @@ JSON::Value & DTSC::File::getJSON(){
 bool DTSC::File::seek_time(int ms, int trackNo){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
-  tmpPos.seekTime = metadata["tracks"][trackMapping[trackNo]]["keytime"][0u].asInt();
-  tmpPos.seekPos = metadata["tracks"][trackMapping[trackNo]]["keybpos"][0u].asInt();
+  tmpPos.seekTime = jsonbuffer["time"].asInt();
+  tmpPos.seekPos = getBytePos();
   for (int i = 0; i < metadata["tracks"][trackMapping[trackNo]]["keynum"].size(); i++){
     if (metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt() > ms){
       break;
     }
-    tmpPos.seekTime = metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt();
-    tmpPos.seekPos = metadata["tracks"][trackMapping[trackNo]]["keybpos"][i].asInt();
+    if (metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt() > jsonbuffer["time"].asInt()){
+      tmpPos.seekTime = metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt();
+      tmpPos.seekPos = metadata["tracks"][trackMapping[trackNo]]["keybpos"][i].asInt();
+    }
   }
   bool foundPacket = false;
   while ( !foundPacket){
@@ -891,8 +894,6 @@ bool DTSC::File::atKeyframe(){
 void DTSC::File::selectTracks(std::set<int> & tracks){
   currentPositions.clear();
   selectedTracks = tracks;
-  for (std::set<int>::iterator it = tracks.begin(); it != tracks.end(); it++){
-  }
 }
 
 /// Close the file if open

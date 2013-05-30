@@ -10,7 +10,7 @@
 namespace Converters {
   class HeaderEntryDTSC {
     public:
-      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-1000), trackID(0), firstms(-1), lastms(0), keynum(0) {}
+      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-5000), trackID(0), firstms(-1), lastms(0), keynum(0) {}
       long long unsigned int totalSize;
       long long int lastKeyTime;
       long long int trackID;
@@ -68,6 +68,7 @@ namespace Converters {
       trackIDs.insert(std::pair<std::string,int>(it->first,it->second["trackid"].asInt()));
       trackData[it->first].type = it->second["type"].asString();
       trackData[it->first].trackID = it->second["trackid"].asInt();
+      trackData[it->first].type = it->second["type"].asString();
       if (it->second["trackid"].asInt() >= nextFreeID){
         nextFreeID = it->second["trackid"].asInt() + 1;
       }
@@ -120,7 +121,7 @@ namespace Converters {
           }
         }
         if( currentID == "" ) {
-          fprintf(stderr, "Found a v2 packet with id %d\n", F.getJSON()["trackid"].asInt());
+          fprintf(stderr, "Found an unknown v2 packet with id %d\n", F.getJSON()["trackid"].asInt());
           F.seekNext();
           continue;
           //should create new track but this shouldnt be needed...

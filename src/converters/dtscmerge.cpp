@@ -117,23 +117,22 @@ namespace Converters {
       outFile.writeHeader(tmpWrite,true);
     }
 
+    std::set<int> trackSelector;
     for (std::multimap<int,keyframeInfo>::iterator sortIt = allSorted.begin(); sortIt != allSorted.end(); sortIt++){
-      inFiles[sortIt->second.fileName].seek_bpos(sortIt->second.keyBPos);
-      while (inFiles[sortIt->second.fileName].getBytePos() < sortIt->second.endBPos){
-        JSON::Value translate = inFiles[sortIt->second.fileName].getJSON();
-        if (translate["trackid"].asInt() == sortIt->second.trackID){ 
-          translate["trackid"] = trackMapping[sortIt->second.fileName][translate["trackid"].asInt()];
-          outFile.writePacket(translate);
-        }
+      trackSelector.clear();
+      trackSelector.insert(sortIt->second.trackID);
+      inFiles[sortIt->second.fileName].selectTracks(trackSelector);
+      inFiles[sortIt->second.fileName].seek_time(sortIt->second.keyTime);
+      inFiles[sortIt->second.fileName].seekNext();
+      while (inFiles[sortIt->second.fileName].getJSON() && inFiles[sortIt->second.fileName].getBytePos() < sortIt->second.endBPos && !inFiles[sortIt->second.fileName].reachedEOF()){
+        inFiles[sortIt->second.fileName].getJSON()["trackid"] = trackMapping[sortIt->second.fileName][inFiles[sortIt->second.fileName].getJSON()["trackid"].asInt()];
+        outFile.writePacket(inFiles[sortIt->second.fileName].getJSON());
         inFiles[sortIt->second.fileName].seekNext();
       }
     }
 
-    fprintf(stderr, "%s\n", newMeta.toPrettyString().c_str());    
-    fprintf(stderr, "Oldheader (%d):\n%s\n", meta.toPacked().size(), meta.toPrettyString().c_str());
     std::string writeMeta = newMeta.toPacked();
     meta["moreheader"] = outFile.addHeader(writeMeta);
-    fprintf(stderr, "Newheader (%d):\n%s\n", meta.toPacked().size(), meta.toPrettyString().c_str());
     writeMeta = meta.toPacked();
     outFile.writeHeader(writeMeta);
 

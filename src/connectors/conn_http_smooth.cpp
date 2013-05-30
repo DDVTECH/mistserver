@@ -75,9 +75,10 @@ namespace Connector_HTTP {
                 "Name=\"audio\" "
                 "Chunks=\"" << allAudio.ObjBegin()->second["keytime"].size() << "\" "
                 "Url=\"Q({bitrate})/A({start time})\">\n";
+      int index = 1;
       for (JSON::ObjIter oIt = allAudio.ObjBegin(); oIt != allAudio.ObjEnd(); oIt++){
         Result << "<QualityLevel "
-                  "Index=\"" << oIt->second["trackid"].asInt() << "\" "
+                  "Index=\"" << index << "\" "
                   "Bitrate=\"" << oIt->second["bps"].asInt() * 8 << "\" "
                   "CodecPrivateData=\"" << std::hex;
         for (int i = 0; i < oIt->second["init"].asString().size(); i++){
@@ -90,6 +91,7 @@ namespace Connector_HTTP {
                   "PacketSize=\"4\" "
                   "AudioTag=\"255\" "
                   "FourCC=\"AACL\" />\n";
+        index++;
       }
       for (unsigned int i = 0; i < allAudio.ObjBegin()->second["keylen"].size(); i++){
         Result << "<c ";
@@ -112,10 +114,11 @@ namespace Connector_HTTP {
                 "MaxHeight=\"" << maxHeight << "\" "
                 "DisplayWidth=\"" << maxWidth << "\" "
                 "DisplayHeight=\"" << maxHeight << "\">\n";
+      int index = 1;
       for (JSON::ObjIter oIt = allVideo.ObjBegin(); oIt != allVideo.ObjEnd(); oIt++){
       //Add video qualities
         Result << "<QualityLevel "
-                  "Index=\"" << oIt->second["trackid"].asInt() << "\" "
+                  "Index=\"" << index << "\" "
                   "Bitrate=\"" << oIt->second["bps"].asInt() * 8 << "\" "
                   "CodecPrivateData=\"" << std::hex;
         MP4::AVCC avccbox;
@@ -128,6 +131,7 @@ namespace Connector_HTTP {
                   "MaxWidth=\"" << oIt->second["width"].asInt() << "\" "
                   "MaxHeight=\"" << oIt->second["height"].asInt() << "\" "
                   "FourCC=\"AVC1\" />\n";
+        index++;
       }
       for (unsigned int i = 0; i < allVideo.ObjBegin()->second["keylen"].size(); i++){
         Result << "<c ";
@@ -273,11 +277,22 @@ namespace Connector_HTTP {
             }
             //Seek to the right place and send a play-once for a single fragment.
             std::stringstream sstream;
+            long long int selectedQuality = atoll(Quality.c_str()) / 8;
             if (wantsVideo){
-              sstream << "t " << allVideo.ObjBegin()->second["trackid"].asInt() << "\n";
+              //Select the correct track ID
+              for (JSON::ObjIter vIt = allVideo.ObjBegin(); vIt != allVideo.ObjEnd(); vIt++){
+                if (vIt->second["bps"].asInt() == selectedQuality){
+                  sstream << "t " << vIt->second["trackid"].asInt() << "\n";
+                }
+              }
             }
             if (wantsAudio){
-              sstream << "t " << allAudio.ObjBegin()->second["trackid"].asInt() << "\n";
+              //Select the correct track ID
+              for (JSON::ObjIter aIt = allAudio.ObjBegin(); aIt != allAudio.ObjEnd(); aIt++){
+                if (aIt->second["bps"].asInt() == selectedQuality){
+                  sstream << "t " << aIt->second["trackid"].asInt() << "\n";
+                }
+              }
             }
             sstream << "s " << (requestedTime / 10000) << "\no \n";
             ss.SendNow(sstream.str().c_str());

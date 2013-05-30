@@ -10,8 +10,9 @@
 namespace Converters {
   class HeaderEntryDTSC {
     public:
-      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-5000), trackID(0), firstms(-1), lastms(0), keynum(0) {}
-      long long unsigned int totalSize;
+      HeaderEntryDTSC() : totalSize(0), parts(0), lastKeyTime(-5000), trackID(0), firstms(-1), lastms(0), keynum(0) {}
+      long long int totalSize;
+      long long int parts;
       long long int lastKeyTime;
       long long int trackID;
       long long int firstms;
@@ -77,6 +78,8 @@ namespace Converters {
       it->second.removeMember("frags");
       it->second.removeMember("keytime");
       it->second.removeMember("keynum");
+      it->second.removeMember("keydata");
+      it->second.removeMember("keyparts");
     }
 
     F.selectTracks(tmp);
@@ -133,10 +136,14 @@ namespace Converters {
       if (trackData[currentID].firstms == -1){
         trackData[currentID].firstms = nowpack;
       }
-      trackData[currentID].totalSize += F.getJSON()["data"].asString().size();
-      trackData[currentID].lastms = nowpack;
       if (trackData[currentID].type == "video"){
-        if (F.getJSON()["keyframe"].asInt() != 0){
+        if (F.getJSON().isMember("keyframe")){
+          if (trackData[currentID].totalSize){
+            meta["tracks"][currentID]["keydata"].append(trackData[currentID].totalSize);
+            trackData[currentID].totalSize = 0;
+            meta["tracks"][currentID]["keyparts"].append(trackData[currentID].parts);
+            trackData[currentID].parts = 0;
+          }
           meta["tracks"][currentID]["keytime"].append(F.getJSON()["time"]);
           meta["tracks"][currentID]["keybpos"].append(F.getLastReadPos());
           meta["tracks"][currentID]["keynum"].append( ++trackData[currentID].keynum);
@@ -147,6 +154,12 @@ namespace Converters {
       }else{
         if ((F.getJSON()["time"].asInt() - trackData[currentID].lastKeyTime) > 5000){
           trackData[currentID].lastKeyTime = F.getJSON()["time"].asInt();
+          if (trackData[currentID].totalSize){
+            meta["tracks"][currentID]["keydata"].append(trackData[currentID].totalSize);
+            trackData[currentID].totalSize = 0;
+            meta["tracks"][currentID]["keyparts"].append(trackData[currentID].parts);
+            trackData[currentID].parts = 0;
+          }
           meta["tracks"][currentID]["keytime"].append(F.getJSON()["time"]);
           meta["tracks"][currentID]["keybpos"].append(F.getLastReadPos());
           meta["tracks"][currentID]["keynum"].append( ++trackData[currentID].keynum);
@@ -155,6 +168,9 @@ namespace Converters {
           }
         }
       }
+      trackData[currentID].totalSize += F.getJSON()["data"].asString().size();
+      trackData[currentID].lastms = nowpack;
+      trackData[currentID].parts ++;
       F.seekNext();
     }
 
@@ -162,6 +178,10 @@ namespace Converters {
     long long int lastms = -1;
 
     for (std::map<std::string,HeaderEntryDTSC>::iterator it = trackData.begin(); it != trackData.end(); it++){
+      meta["tracks"][it->first]["keydata"].append(it->second.totalSize);
+      it->second.totalSize = 0;
+      meta["tracks"][it->first]["keyparts"].append(it->second.parts);
+      it->second.parts = 0;
       if (it->second.firstms < firstms){
         firstms = it->second.firstms;
       }

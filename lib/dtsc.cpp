@@ -729,6 +729,11 @@ void DTSC::File::seekNext(){
     return;
   }
   fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
+  if ( reachedEOF()){
+    strbuffer = "";
+    jsonbuffer.null();
+    return;
+  }
   seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
   fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
   currentPositions.erase(currentPositions.begin());
@@ -819,7 +824,7 @@ bool DTSC::File::seek_time(int ms, int trackNo){
   }
   bool foundPacket = false;
   while ( !foundPacket){
-    if (tmpPos.seekPos == getBytePosEOF()){
+    if (reachedEOF()){
       return false;
     }
     //Seek to first packet after ms.
@@ -854,6 +859,7 @@ bool DTSC::File::seek_time(int ms){
   currentPositions.clear();
   seekPos tmpPos;
   for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    seek_bpos(0);
     seek_time(ms,(*it));
   }
   return true;
@@ -881,8 +887,8 @@ bool DTSC::File::atKeyframe(){
   }
   bool inHeader = false;
   for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
-    for (JSON::ArrIter aIt = oIt->second["keybpos"].ArrBegin(); aIt != oIt->second["keybpos"].ArrEnd(); aIt++){
-      if ((*aIt).asInt() == getBytePos()){
+    for (JSON::ArrIter aIt = oIt->second["keytime"].ArrBegin(); aIt != oIt->second["keytime"].ArrEnd(); aIt++){
+      if ((*aIt).asInt() == jsonbuffer["time"].asInt()){
         inHeader = true;
         break;
       }

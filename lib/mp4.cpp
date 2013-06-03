@@ -247,8 +247,14 @@ namespace MP4 {
       case 0x6D703461:
         return ((MP4A*)this)->toPrettyString(indent);
         break;
+      case 0x61616320:
+        return ((AAC*)this)->toPrettyString(indent);
+        break;
       case 0x61766331:
         return ((AVC1*)this)->toPrettyString(indent);
+        break;
+      case 0x68323634:
+        return ((H264*)this)->toPrettyString(indent);
         break;
       case 0x65647473:
         return ((EDTS*)this)->toPrettyString(indent);
@@ -3661,6 +3667,7 @@ namespace MP4 {
   
   void STSC::setSTSCEntry(STSCEntry newSTSCEntry, uint32_t no){
     if(no + 1 > getEntryCount()){
+      setEntryCount(no+1);
       for (int i = getEntryCount(); i < no; i++){
         setInt64(0, 8 + (i * 12));//filling up undefined entries of 64 bits
         setInt32(0, 8 + (i * 12) + 8);
@@ -3716,6 +3723,7 @@ namespace MP4 {
   
   void STCO::setChunkOffset(uint32_t newChunkOffset, uint32_t no){
     if (no + 1 > getEntryCount()){
+      setEntryCount(no+1);
       for (int i = getEntryCount(); i < no; i++){
         setInt32(0, 8 + i * 4);//filling undefined entries
       }
@@ -3924,6 +3932,15 @@ namespace MP4 {
 
   VisualSampleEntry::VisualSampleEntry(){
     memcpy(data + 4, "erro", 4);
+    setHorizResolution(0x00480000);
+    setVertResolution(0x00480000);
+    setFrameCount(1);
+    setCompressorName("");
+    setDepth(0x0018);
+  }
+  
+  void VisualSampleEntry::setCodec(char* newCodec){
+    memcpy(data + 4, newCodec, 4);
   }
   
   void VisualSampleEntry::setWidth(uint16_t newWidth){
@@ -3967,6 +3984,7 @@ namespace MP4 {
   }
 
   void VisualSampleEntry::setCompressorName(std::string newCompressorName){
+    newCompressorName.resize(32, ' ');
     setString(newCompressorName,42);
   }
   
@@ -4036,6 +4054,13 @@ namespace MP4 {
 
   AudioSampleEntry::AudioSampleEntry(){
     memcpy(data + 4, "erro", 4);
+    setChannelCount(2);
+    setSampleSize(16);
+    setSampleRate(44100);
+  }
+
+  void AudioSampleEntry::setCodec(char* newCodec){
+    memcpy(data + 4, newCodec, 4);
   }
   
   void AudioSampleEntry::setChannelCount(uint16_t newChannelCount){
@@ -4086,7 +4111,15 @@ namespace MP4 {
   }
   
   std::string MP4A::toPrettyString(uint32_t indent){
-    return toPrettyAudioString(indent, "[mp4a] MPEG 4 Audio");
+    return toPrettyAudioString(indent, "[mp4a] MPEG-4 Audio");
+  }
+
+  AAC::AAC(){
+    memcpy(data + 4, "aac ", 4);
+  }
+  
+  std::string AAC::toPrettyString(uint32_t indent){
+    return toPrettyAudioString(indent, "[aac ] Advanced Audio Codec");
   }
 
   AVC1::AVC1(){
@@ -4095,6 +4128,14 @@ namespace MP4 {
   
   std::string AVC1::toPrettyString(uint32_t indent){
     return toPrettyVisualString(indent, "[avc1] Advanced Video Codec 1");
+  }
+
+  H264::H264(){
+    memcpy(data + 4, "h264", 4);
+  }
+  
+  std::string H264::toPrettyString(uint32_t indent){
+    return toPrettyVisualString(indent, "[h264] H.264/MPEG-4 AVC");
   }
 
   STSD::STSD(char v, uint32_t f){

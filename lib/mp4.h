@@ -739,6 +739,7 @@ namespace MP4 {
     ///\todo set default values
     public:
       VisualSampleEntry();
+      void setCodec(char* newCodec);
       void setWidth(uint16_t newWidth);
       uint16_t getWidth();
       void setHeight(uint16_t newHeight);
@@ -762,6 +763,7 @@ namespace MP4 {
     public:
       ///\todo set default values
       AudioSampleEntry();
+      void setCodec(char* newCodec);
       void setChannelCount(uint16_t newChannelCount);
       uint16_t getChannelCount();
       void setSampleSize(uint16_t newSampleSize);
@@ -779,9 +781,21 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class AAC: public AudioSampleEntry{
+    public:
+      AAC();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class AVC1: public VisualSampleEntry{
     public:
       AVC1();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class H264: public VisualSampleEntry{
+    public:
+      H264();
       std::string toPrettyString(uint32_t indent = 0);
   };
   

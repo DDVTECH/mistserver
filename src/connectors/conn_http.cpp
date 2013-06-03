@@ -335,6 +335,7 @@ namespace Connector_HTTP {
     //if the server connection is dead, handle as timeout.
     if ( !myCConn->conn->connected()){
       myCConn->conn->close();
+      myCConn->inUse.unlock();
       return proxyHandleTimeout(H, conn);
     }
     //forward the original request
@@ -342,6 +343,8 @@ namespace Connector_HTTP {
     myCConn->lastUse = 0;
     unsigned int timeout = 0;
     unsigned int retries = 0;
+    //set to only read headers
+    H.headerOnly = true;
     //wait for a response
     while (myCConn->conn->connected() && conn->connected()){
       conn->spool();
@@ -356,7 +359,7 @@ namespace Connector_HTTP {
             myCConn->conn->Received().append(tmp);
           }
         }
-        //check if the whole response was received
+        //check if the whole header was received
         if (H.Read(myCConn->conn->Received().get())){
           //208 means the fragment is too new, retry in 3s
           if (H.url == "208"){
@@ -365,6 +368,8 @@ namespace Connector_HTTP {
               std::cout << "[5 retry-laters, cancelled]" << std::endl;
               myCConn->conn->close();
               myCConn->inUse.unlock();
+              //unset to only read headers
+              H.headerOnly = false;
               return proxyHandleTimeout(H, conn);
             }
             myCConn->lastUse = 0;
@@ -382,12 +387,16 @@ namespace Connector_HTTP {
           std::cout << "[20s timeout triggered]" << std::endl;
           myCConn->conn->close();
           myCConn->inUse.unlock();
+          //unset to only read headers
+          H.headerOnly = false;
           return proxyHandleTimeout(H, conn);
         }else{
           Util::sleep(5);
         }
       }
     }
+    //unset to only read headers
+    H.headerOnly = false;
     if ( !myCConn->conn->connected() || !conn->connected()){
       //failure, disconnect and sent error to user
       myCConn->conn->close();
@@ -400,7 +409,24 @@ namespace Connector_HTTP {
         //known length - simply re-send the request with added headers and continue
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+        H.body = "";
         conn->SendNow(H.BuildResponse("200", "OK"));
+        unsigned int bodyLen = H.length;
+        while (bodyLen > 0 && conn->connected() && myCConn->conn->connected()){
+          if (myCConn->conn->Received().size() || myCConn->conn->spool()){
+            if (myCConn->conn->Received().get().size() <= bodyLen){
+              conn->SendNow(myCConn->conn->Received().get());
+              bodyLen -= myCConn->conn->Received().get().size();
+              myCConn->conn->Received().get().clear();
+            }else{
+              conn->SendNow(myCConn->conn->Received().get().c_str(), bodyLen);
+              myCConn->conn->Received().get().erase(0, bodyLen);
+              bodyLen = 0;
+            }
+          }else{
+            Util::sleep(5);
+          }
+        }
         myCConn->inUse.unlock();
       }else{
         //unknown length

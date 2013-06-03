@@ -3972,6 +3972,7 @@ namespace MP4 {
   
   void STCO::setChunkOffset(uint32_t newChunkOffset, uint32_t no){
     if (no + 1 > getEntryCount()){
+      setEntryCount(no+1);
       for (int i = getEntryCount(); i < no; i++){
         setInt32(0, 8 + i * 4);//filling undefined entries
       }
@@ -4236,6 +4237,7 @@ namespace MP4 {
   }
 
   void VisualSampleEntry::setCompressorName(std::string newCompressorName){
+    newCompressorName.resize(32, ' ');
     setString(newCompressorName,42);
   }
   

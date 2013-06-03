@@ -6,6 +6,7 @@
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().
 HTTP::Parser::Parser(){
+  headerOnly = false;
   Clean();
 }
 
@@ -217,6 +218,9 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
     }
     if (seenHeaders){
       if (length > 0){
+        if (headerOnly){
+          return true;
+        }
         unsigned int toappend = length - body.length();
         if (toappend > 0){
           body.append(HTTPbuffer, 0, toappend);

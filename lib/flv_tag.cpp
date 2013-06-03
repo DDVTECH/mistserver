@@ -587,11 +587,11 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Stream & S){
 /// Assumes metadata is available - so check before calling!
 bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S){
   //Unknown? Assume AAC.
-  if (S.metadata["audio"]["codec"].asString() == "?"){
+  if (S.metadata.isMember("audio") && S.metadata["audio"]["codec"].asString() == "?"){
     S.metadata["audio"]["codec"] = "AAC";
   }
   //Unknown? Assume H264.
-  if (S.metadata["video"]["codec"].asString() == "?"){
+  if (S.metadata.isMember("video") && S.metadata["video"]["codec"].asString() == "?"){
     S.metadata["video"]["codec"] = "H264";
   }
 

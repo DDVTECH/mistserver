@@ -33,6 +33,7 @@ namespace HTTP {
       std::string url;
       std::string protocol;
       unsigned int length;
+      bool headerOnly; ///< If true, do not parse body if the length is a known size.
     private:
       bool seenHeaders;
       bool seenReq;

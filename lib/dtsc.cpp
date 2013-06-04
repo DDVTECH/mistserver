@@ -811,15 +811,21 @@ JSON::Value & DTSC::File::getJSON(){
 bool DTSC::File::seek_time(int ms, int trackNo){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
-  tmpPos.seekTime = jsonbuffer["time"].asInt();
-  tmpPos.seekPos = getBytePos();
-  for (int i = 0; i < metadata["tracks"][trackMapping[trackNo]]["keynum"].size(); i++){
-    if (metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt() > ms){
+  //if (jsonbuffer && ms > jsonbuffer["time"].asInt()){
+  //  tmpPos.seekTime = jsonbuffer["time"].asInt();
+  //  tmpPos.seekPos = getBytePos();
+  //}else{
+    tmpPos.seekTime = 0;
+    tmpPos.seekPos = 0;
+  //  jsonbuffer["time"] = 0u;
+  //}
+  for (JSON::ArrIter keyIt = metadata["tracks"][trackMapping[trackNo]]["keys"].ArrBegin(); keyIt != metadata["tracks"][trackMapping[trackNo]]["keys"].ArrEnd(); keyIt++){
+    if ((*keyIt)["time"].asInt() > ms){
       break;
     }
-    if (metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt() > jsonbuffer["time"].asInt()){
-      tmpPos.seekTime = metadata["tracks"][trackMapping[trackNo]]["keytime"][i].asInt();
-      tmpPos.seekPos = metadata["tracks"][trackMapping[trackNo]]["keybpos"][i].asInt();
+    if ((*keyIt)["time"].asInt() > jsonbuffer["time"].asInt()){
+      tmpPos.seekTime = (*keyIt)["time"].asInt();
+      tmpPos.seekPos = (*keyIt)["bpos"].asInt();
     }
   }
   bool foundPacket = false;
@@ -835,7 +841,7 @@ bool DTSC::File::seek_time(int ms, int trackNo){
     //check if packetID matches, if not, skip size + 8 bytes.
     int packSize = ntohl(((int*)header)[1]);
     int packID = ntohl(((int*)header)[2]);
-    if (packID != trackNo){
+    if (memcmp(header,Magic_Packet2,4) != 0 || packID != trackNo){
       tmpPos.seekPos += 8 + packSize;
       continue;
     }
@@ -886,11 +892,15 @@ bool DTSC::File::atKeyframe(){
     return true;
   }
   bool inHeader = false;
-  for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
-    for (JSON::ArrIter aIt = oIt->second["keytime"].ArrBegin(); aIt != oIt->second["keytime"].ArrEnd(); aIt++){
-      if ((*aIt).asInt() == jsonbuffer["time"].asInt()){
-        inHeader = true;
-        break;
+  for (std::set<int>::iterator selectIt = selectedTracks.begin(); selectIt != selectedTracks.end(); selectIt++){
+    for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
+      if (oIt->second["trackid"].asInt() == (*selectIt)){
+        for (JSON::ArrIter aIt = oIt->second["keys"].ArrBegin(); aIt != oIt->second["keys"].ArrEnd(); aIt++){
+          if ((*aIt)["time"].asInt() == jsonbuffer["time"].asInt()){
+            inHeader = true;
+            break;
+          }
+        }
       }
     }
   }

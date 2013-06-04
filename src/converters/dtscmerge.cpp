@@ -84,26 +84,22 @@ namespace Converters {
           long long int mappedID = getNextFree(trackMapping);
           trackMapping[it->first].insert(std::pair<int,int>(oldID,mappedID));
           trackIt->second["trackid"] = mappedID;
-          for (int i = 0; i < trackIt->second["keytime"].size(); i++){
-            ///\todo Update to new struct.
+          for (JSON::ArrIter keyIt = trackIt->second["keys"].ArrBegin(); keyIt != trackIt->second["keys"].ArrEnd(); keyIt++){
             keyframeInfo tmpInfo;
             tmpInfo.fileName = it->first;
             tmpInfo.trackID = oldID;
-            tmpInfo.keyTime = trackIt->second["keytime"][i].asInt();
-            tmpInfo.keyBPos = trackIt->second["keybpos"][i].asInt();
-            tmpInfo.keyNum = trackIt->second["keynum"][i].asInt();
-            tmpInfo.keyLen = trackIt->second["keylen"][i].asInt();
-            if ( i < trackIt->second["keytime"].size() - 1 ){
-              tmpInfo.endBPos = trackIt->second["keybpos"][i + 1].asInt();
+            tmpInfo.keyTime = (*keyIt)["time"].asInt();
+            tmpInfo.keyBPos = (*keyIt)["bpos"].asInt();
+            tmpInfo.keyNum = (*keyIt)["num"].asInt();
+            tmpInfo.keyLen = (*keyIt)["len"].asInt();
+            if ((keyIt + 1) != trackIt->second["keys"].ArrEnd()){
+              tmpInfo.endBPos = (*(keyIt + 1))["bpos"].asInt();
             }else{
               tmpInfo.endBPos = it->second.getBytePosEOF();
             }
-            allSorted.insert(std::pair<int,keyframeInfo>(trackIt->second["keytime"][i].asInt(),tmpInfo));
+            allSorted.insert(std::pair<int,keyframeInfo>((*keyIt)["time"].asInt(),tmpInfo));
           }
-          trackIt->second.removeMember("keytime");
-          trackIt->second.removeMember("keybpos");
-          trackIt->second.removeMember("keynum");
-          trackIt->second.removeMember("keylen");
+          trackIt->second.removeMember("keys");
           trackIt->second.removeMember("frags");
           newMeta["tracks"][JSON::Value(mappedID).asString()] = trackIt->second;
         }

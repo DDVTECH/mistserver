@@ -154,9 +154,7 @@ int main(int argc, char** argv){
                   json_sts["vod"]["meta"] = meta;
                   for (JSON::ObjIter oIt = json_sts["vod"]["meta"]["tracks"].ObjBegin(); oIt != json_sts["vod"]["meta"]["tracks"].ObjEnd(); oIt++){
                     oIt->second.removeMember("init");
-                    oIt->second.removeMember("keytime");
-                    oIt->second.removeMember("keybpos");
-                    oIt->second.removeMember("keynum");
+                    oIt->second.removeMember("keys");
                     oIt->second.removeMember("frags");
                   }
                   meta_sent = true;
@@ -232,6 +230,7 @@ int main(int argc, char** argv){
         playing = 0;
       }
       if (source.atKeyframe()){
+        ///\todo Fix auto-delay on playing == -1.
         if (playing == -1 && meta["video"]["keyms"].asInt() > now - lastTime){
           Util::sleep(meta["video"]["keyms"].asInt() - (now - lastTime));
         }

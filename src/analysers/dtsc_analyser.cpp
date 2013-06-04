@@ -38,11 +38,21 @@ namespace Analysers {
     long long unsigned int bfrm_min = 0xffffffff;
     long long unsigned int bfrm_max = 0;
     long long unsigned int bps = 0;
+    
+    std::set<int> selector;
+    for (JSON::ObjIter trackIt = meta["tracks"].ObjBegin(); trackIt != meta["tracks"].ObjEnd(); trackIt++){
+      selector.insert(trackIt->second["trackid"].asInt());
+    }
+    F.selectTracks(selector);
+
+    F.getMeta().null();
+
+    F.seek_time(0);
 
     F.seekNext();
-    while ( !F.getJSON().isNull()){
-      std::cout << F.getJSON().toPrettyString() << std::endl;
+    while (F.getJSON()){
       nowpack = F.getJSON()["time"].asInt();
+      std::cout << F.getJSON().toPrettyString() << std::endl;
       if (firstpack == 0){
         firstpack = nowpack;
       }

@@ -10,9 +10,9 @@
 namespace Converters {
   class HeaderEntryDTSC {
     public:
-      HeaderEntryDTSC() : totalSize(0), parts(0), lastKeyTime(-5000), trackID(0), firstms(-1), lastms(0), keynum(0) {}
+      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-5000), trackID(0), firstms(-1), lastms(0), keynum(0) {}
       long long int totalSize;
-      long long int parts;
+      std::vector<long long int> parts;
       long long int lastKeyTime;
       long long int trackID;
       long long int firstms;
@@ -80,6 +80,7 @@ namespace Converters {
       it->second.removeMember("keynum");
       it->second.removeMember("keydata");
       it->second.removeMember("keyparts");
+      it->second.removeMember("keys");
     }
 
     F.selectTracks(tmp);
@@ -138,39 +139,41 @@ namespace Converters {
       }
       if (trackData[currentID].type == "video"){
         if (F.getJSON().isMember("keyframe")){
-          if (trackData[currentID].totalSize){
-            meta["tracks"][currentID]["keydata"].append(trackData[currentID].totalSize);
+          int newNum = meta["tracks"][currentID]["keys"].size();
+          meta["tracks"][currentID]["keys"][newNum]["num"] = ++trackData[currentID].keynum;
+          meta["tracks"][currentID]["keys"][newNum]["time"] = F.getJSON()["time"];
+          meta["tracks"][currentID]["keys"][newNum]["bpos"] = F.getLastReadPos();
+          if (meta["tracks"][currentID]["keys"].size() > 1){
+            meta["tracks"][currentID]["keys"][newNum - 1]["len"] = F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keys"][newNum - 1]["time"].asInt();
+            meta["tracks"][currentID]["keys"][newNum - 1]["size"] = trackData[currentID].totalSize;
             trackData[currentID].totalSize = 0;
-            meta["tracks"][currentID]["keyparts"].append(trackData[currentID].parts);
-            trackData[currentID].parts = 0;
-          }
-          meta["tracks"][currentID]["keytime"].append(F.getJSON()["time"]);
-          meta["tracks"][currentID]["keybpos"].append(F.getLastReadPos());
-          meta["tracks"][currentID]["keynum"].append( ++trackData[currentID].keynum);
-          if (meta["tracks"][currentID]["keytime"].size() > 1){
-            meta["tracks"][currentID]["keylen"].append(F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keytime"][meta["tracks"][currentID]["keytime"].size() - 2].asInt());
+            for (int i = 0; i < trackData[currentID].parts.size(); i++){
+              meta["tracks"][currentID]["keys"][newNum - 1]["parts"].append(trackData[currentID].parts[i]);
+            }
+            trackData[currentID].parts.clear();
           }
         }
       }else{
         if ((F.getJSON()["time"].asInt() - trackData[currentID].lastKeyTime) > 5000){
           trackData[currentID].lastKeyTime = F.getJSON()["time"].asInt();
-          if (trackData[currentID].totalSize){
-            meta["tracks"][currentID]["keydata"].append(trackData[currentID].totalSize);
+          int newNum = meta["tracks"][currentID]["keys"].size();
+          meta["tracks"][currentID]["keys"][newNum]["num"] = ++trackData[currentID].keynum;
+          meta["tracks"][currentID]["keys"][newNum]["time"] = F.getJSON()["time"];
+          meta["tracks"][currentID]["keys"][newNum]["bpos"] = F.getLastReadPos();
+          if (meta["tracks"][currentID]["keys"].size() > 1){
+            meta["tracks"][currentID]["keys"][newNum - 1]["len"] = F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keys"][newNum - 1]["time"].asInt();
+            meta["tracks"][currentID]["keys"][newNum - 1]["size"] = trackData[currentID].totalSize;
             trackData[currentID].totalSize = 0;
-            meta["tracks"][currentID]["keyparts"].append(trackData[currentID].parts);
-            trackData[currentID].parts = 0;
-          }
-          meta["tracks"][currentID]["keytime"].append(F.getJSON()["time"]);
-          meta["tracks"][currentID]["keybpos"].append(F.getLastReadPos());
-          meta["tracks"][currentID]["keynum"].append( ++trackData[currentID].keynum);
-          if (meta["tracks"][currentID]["keytime"].size() > 1){
-            meta["tracks"][currentID]["keylen"].append(F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keytime"][meta["tracks"][currentID]["keytime"].size() - 2].asInt());
+            for (int i = 0; i < trackData[currentID].parts.size(); i++){
+              meta["tracks"][currentID]["keys"][newNum - 1]["parts"].append(trackData[currentID].parts[i]);
+            }
+            trackData[currentID].parts.clear();
           }
         }
       }
       trackData[currentID].totalSize += F.getJSON()["data"].asString().size();
       trackData[currentID].lastms = nowpack;
-      trackData[currentID].parts ++;
+      trackData[currentID].parts.push_back(F.getJSON()["data"].asString().size());
       F.seekNext();
     }
 
@@ -178,10 +181,6 @@ namespace Converters {
     long long int lastms = -1;
 
     for (std::map<std::string,HeaderEntryDTSC>::iterator it = trackData.begin(); it != trackData.end(); it++){
-      meta["tracks"][it->first]["keydata"].append(it->second.totalSize);
-      it->second.totalSize = 0;
-      meta["tracks"][it->first]["keyparts"].append(it->second.parts);
-      it->second.parts = 0;
       if (it->second.firstms < firstms){
         firstms = it->second.firstms;
       }
@@ -200,31 +199,39 @@ namespace Converters {
         meta["tracks"][it->first]["trackid"] = nextFreeID ++;
       }
       meta["tracks"][it->first]["type"] = it->second.type;
-      int tmp = meta["tracks"][it->first]["keytime"].size();
+      int tmp = meta["tracks"][it->first]["keys"].size();
       if (tmp > 0){
-        meta["tracks"][it->first]["keylen"].append(it->second.lastms - meta["tracks"][it->first]["keytime"][tmp - 1].asInt());
+        meta["tracks"][it->first]["keys"][tmp - 1]["len"] = it->second.lastms - meta["tracks"][it->first]["keys"][tmp - 2]["time"].asInt();
+        meta["tracks"][it->first]["keys"][tmp - 1]["size"] = it->second.totalSize;
+        for (int i = 0; i < trackData[it->first].parts.size(); i++){
+          meta["tracks"][it->first]["keys"][tmp - 1]["parts"].append(trackData[currentID].parts[i]);
+        }
       }else{
-        meta["tracks"][it->first]["keylen"].append(it->second.lastms);
+        meta["tracks"][it->first]["keys"][tmp]["len"] = it->second.lastms;
+        meta["tracks"][it->first]["keys"][tmp]["size"] = it->second.totalSize;
+        for (int i = 0; i < trackData[it->first].parts.size(); i++){
+          meta["tracks"][it->first]["keys"][tmp]["parts"].append(trackData[currentID].parts[i]);
+        }
       }
       //calculate fragments
       meta["tracks"][it->first]["frags"].null();
       long long int currFrag = -1;
-      for (unsigned int i = 0; i < meta["tracks"][it->first]["keytime"].size(); i++){
-        if (meta["tracks"][it->first]["keytime"][i].asInt() / 10000 > currFrag){
-          currFrag = meta["tracks"][it->first]["keytime"][i].asInt() / 10000;
+      for (JSON::ArrIter arrIt = meta["tracks"][it->first]["keys"].ArrBegin(); arrIt != meta["tracks"][it->first]["keys"].ArrEnd(); arrIt++) {
+        if ((*arrIt)["time"].asInt() / 10000 > currFrag){
+          currFrag = (*arrIt)["time"].asInt() / 10000;
           long long int fragLen = 1;
-          long long int fragDur = meta["tracks"][it->first]["keylen"][i].asInt();
-          for (unsigned int j = i + 1; j < meta["tracks"][it->first]["keytime"].size(); j++){
-            if (meta["tracks"][it->first]["keytime"][j].asInt() / 10000 > currFrag || j == meta["tracks"][it->first]["keytime"].size() - 1){
+          long long int fragDur = (*arrIt)["len"].asInt();
+          for (JSON::ArrIter it2 = arrIt; it2 != meta["tracks"][it->first]["keys"].ArrEnd(); it2++){
+            if ((*it2)["time"].asInt() / 10000 > currFrag || (it2 + 1) == meta["tracks"][it->first]["keys"].ArrEnd()){
               JSON::Value thisFrag;
-              thisFrag["num"] = meta["tracks"][it->first]["keynum"][i];
+              thisFrag["num"] = (*arrIt)["num"].asInt();
               thisFrag["len"] = fragLen;
               thisFrag["dur"] = fragDur;
               meta["tracks"][it->first]["frags"].append(thisFrag);
               break;
             }
-            fragLen++;
-            fragDur += meta["tracks"][it->first]["keylen"][j].asInt();
+            fragLen ++;
+            fragDur += (*it2)["len"].asInt();
           }
         }
       }

@@ -734,6 +734,7 @@ void DTSC::File::seekNext(){
     jsonbuffer.null();
     return;
   }
+  clearerr(F);
   seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
   fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
   currentPositions.erase(currentPositions.begin());
@@ -811,19 +812,18 @@ JSON::Value & DTSC::File::getJSON(){
 bool DTSC::File::seek_time(int ms, int trackNo){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
-  //if (jsonbuffer && ms > jsonbuffer["time"].asInt()){
-  //  tmpPos.seekTime = jsonbuffer["time"].asInt();
-  //  tmpPos.seekPos = getBytePos();
-  //}else{
+  if (jsonbuffer && ms > jsonbuffer["time"].asInt() && trackNo >= jsonbuffer["trackid"].asInt()){
+    tmpPos.seekTime = jsonbuffer["time"].asInt();
+    tmpPos.seekPos = getBytePos();
+  }else{
     tmpPos.seekTime = 0;
     tmpPos.seekPos = 0;
-  //  jsonbuffer["time"] = 0u;
-  //}
+  }
   for (JSON::ArrIter keyIt = metadata["tracks"][trackMapping[trackNo]]["keys"].ArrBegin(); keyIt != metadata["tracks"][trackMapping[trackNo]]["keys"].ArrEnd(); keyIt++){
     if ((*keyIt)["time"].asInt() > ms){
       break;
     }
-    if ((*keyIt)["time"].asInt() > jsonbuffer["time"].asInt()){
+    if ((*keyIt)["time"].asInt() > tmpPos.seekTime){
       tmpPos.seekTime = (*keyIt)["time"].asInt();
       tmpPos.seekPos = (*keyIt)["bpos"].asInt();
     }

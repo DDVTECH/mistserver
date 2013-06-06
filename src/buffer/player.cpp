@@ -111,8 +111,10 @@ int main(int argc, char** argv){
   JSON::Value last_pack;
 
   bool meta_sent = false;
+  int playUntil = -1;
   long long now, lastTime = 0; //for timing of sending packets
   long long bench = 0; //for benchmarking
+  std::set<int> newSelect;
   Stats sts;
   CYG_DEFI
 
@@ -182,6 +184,11 @@ int main(int argc, char** argv){
               playing = -1;
               lastTime = 0;
               in_out.setBlocking(false);
+              if (in_out.Received().get().size() >= 2){
+                playUntil = atoi(in_out.Received().get().substr(2).c_str());
+              }else{
+                playUntil = 0;
+              }
               break;
             }
             case 'o': { //once-play
@@ -199,7 +206,7 @@ int main(int argc, char** argv){
               break;
             }
             case 't': {
-              std::set<int> newSelect;
+              newSelect.clear();
               std::string tmp = in_out.Received().get().substr(2);
               while (tmp != ""){
                 newSelect.insert(atoi(tmp.substr(0,tmp.find(' ')).c_str()));
@@ -238,6 +245,9 @@ int main(int argc, char** argv){
         if (playing > 0){
           --playing;
         }
+      }
+      if ( playUntil && playUntil < source.getJSON()["time"].asInt()){
+        playing = 0;
       }
       if (playing == 0){
 #if DEBUG >= 4

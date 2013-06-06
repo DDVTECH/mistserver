@@ -216,25 +216,34 @@ namespace Converters {
       //calculate fragments
       meta["tracks"][it->first]["frags"].null();
       long long int currFrag = -1;
+      long long int maxBps = 0;
       for (JSON::ArrIter arrIt = meta["tracks"][it->first]["keys"].ArrBegin(); arrIt != meta["tracks"][it->first]["keys"].ArrEnd(); arrIt++) {
         if ((*arrIt)["time"].asInt() / 10000 > currFrag){
           currFrag = (*arrIt)["time"].asInt() / 10000;
           long long int fragLen = 1;
           long long int fragDur = (*arrIt)["len"].asInt();
-          for (JSON::ArrIter it2 = arrIt; it2 != meta["tracks"][it->first]["keys"].ArrEnd(); it2++){
+          long long int fragSize = (*arrIt)["size"].asInt();
+          for (JSON::ArrIter it2 = arrIt + 1; it2 != meta["tracks"][it->first]["keys"].ArrEnd(); it2++){
             if ((*it2)["time"].asInt() / 10000 > currFrag || (it2 + 1) == meta["tracks"][it->first]["keys"].ArrEnd()){
               JSON::Value thisFrag;
               thisFrag["num"] = (*arrIt)["num"].asInt();
               thisFrag["len"] = fragLen;
               thisFrag["dur"] = fragDur;
+              thisFrag["size"] = fragSize;
+              thisFrag["bps"] = fragSize / (fragDur / 1000);
+              if (maxBps < (fragSize / (fragDur / 1000))){
+                maxBps = (fragSize / (fragDur / 1000));
+              }
               meta["tracks"][it->first]["frags"].append(thisFrag);
               break;
             }
             fragLen ++;
             fragDur += (*it2)["len"].asInt();
+            fragSize += (*it2)["size"].asInt();
           }
         }
       }
+      meta["tracks"][it->first]["maxbps"] = maxBps;
     }
 
     meta["firstms"] = firstms;

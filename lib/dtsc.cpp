@@ -248,6 +248,15 @@ JSON::Value & DTSC::Stream::getPacket(unsigned int num){
   return buffers[num];
 }
 
+/// Returns a track element by giving the id.
+JSON::Value & DTSC::Stream::getTrackById(int trackNo){
+  static JSON::Value empty;
+  if (trackMapping.find(trackNo) != trackMapping.end()){
+    return metadata["tracks"][trackMapping[trackNo]];
+  }
+  return empty;
+}
+
 /// Returns the type of the last received packet.
 DTSC::datatype DTSC::Stream::lastType(){
   return datapointertype;
@@ -809,6 +818,15 @@ JSON::Value & DTSC::File::getJSON(){
   return jsonbuffer;
 }
 
+/// Returns a track element by giving the id.
+JSON::Value & DTSC::File::getTrackById(int trackNo){
+  static JSON::Value empty;
+  if (trackMapping.find(trackNo) != trackMapping.end()){
+    return metadata["tracks"][trackMapping[trackNo]];
+  }
+  return empty;
+}
+
 bool DTSC::File::seek_time(int ms, int trackNo){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
@@ -908,8 +926,12 @@ bool DTSC::File::atKeyframe(){
 }
 
 void DTSC::File::selectTracks(std::set<int> & tracks){
-  currentPositions.clear();
   selectedTracks = tracks;
+  if ( !currentPositions.size()){
+    seek_time(0);
+  }else{
+    currentPositions.clear();
+  }
 }
 
 /// Close the file if open

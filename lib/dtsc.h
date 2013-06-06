@@ -106,6 +106,7 @@ namespace DTSC {
       void seekNext();
       std::string & getPacket();
       JSON::Value & getJSON();
+      JSON::Value & getTrackById(int trackNo);
       bool seek_time(int seconds);
       bool seek_time(int seconds, int trackNo);
       bool seek_bpos(int bpos);
@@ -154,6 +155,7 @@ namespace DTSC {
       Stream(unsigned int buffers, unsigned int bufferTime = 0);
       JSON::Value metadata;
       JSON::Value & getPacket(unsigned int num = 0);
+      JSON::Value & getTrackById(int trackNo);
       datatype lastType();
       std::string & lastData();
       bool hasVideo();

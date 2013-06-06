@@ -28,7 +28,10 @@ namespace OGG{
       std::deque<unsigned int> getSegmentTableDeque();
       bool setSegmentTable(std::vector<unsigned int> layout);
       void setSegmentTable(char* newVal, unsigned int length);
+      unsigned long int getPageSize();
       char* getFullPayload();
+      char* getSegment(long unsigned int);
+      
       std::string toPrettyString();
     private:
       long unsigned int calcChecksum();

@@ -15,7 +15,7 @@ namespace OGG{
 
   bool Page::read(std::string & newData){
     dataSum = 0;
-    datasize = 0;
+    //datasize = 0;
     if (newData.size()<27){
       return false;
     }
@@ -36,7 +36,7 @@ namespace OGG{
       return false;
     }
     memcpy(data + 27 + getPageSegments(), newData.c_str() + 27 + getPageSegments(), dataSum);
-    newData.erase(0, datasize);
+    newData.erase(0, getPageSize());
     return true;
   }
   
@@ -167,13 +167,17 @@ namespace OGG{
     }
   }
   
+  unsigned long int Page::getPageSize(){
+    return 27 + getPageSegments()+dataSum;
+  }
+
   char* Page::getFullPayload(){
     return data + 27 + getPageSegments();
   }
   
   std::string Page::toPrettyString(){
     std::stringstream r;
-    r << "Size(" << datasize << ")(" << dataSum << ")" << std::endl;
+    r << "Size(" << getPageSize() << ")(" << dataSum << ")" << std::endl;
     r << "Magic_Number: " << std::string(data, 4) << std::endl;
     r << "Version: " << (int)getVersion() << std::endl;
     r << "Header_type: " << std::hex << (int)getHeaderType() << std::dec;
@@ -224,7 +228,7 @@ namespace OGG{
     long unsigned int retVal = 0;
     long unsigned int oldChecksum = getCRCChecksum();
     setCRCChecksum (0);
-    retVal = Compute(data, datasize);
+    retVal = Compute(data, getPageSize());
     setCRCChecksum (oldChecksum);
     return retVal;
   }

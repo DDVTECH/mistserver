@@ -85,9 +85,6 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       }
       if (version == 2){
         buffers.front() = JSON::fromDTMI2(buffer.substr(8));
-        if (!buffers.front().isMember("datatype")){
-          buffers.front()["datatype"] = metadata["tracks"][trackMapping[buffers.front()["trackid"].asInt()]]["type"];
-        }
       }
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
@@ -95,20 +92,24 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       }else{
         datapointer = 0;
       }
+      std::string tmp = "";
+      if (buffers.front().isMember("trackid")){
+        tmp = getTrackById(buffers.front()["trackid"].asInt())["type"].asString();
+      }
       if (buffers.front().isMember("datatype")){
-        std::string tmp = buffers.front()["datatype"].asString();
-        if (tmp == "video"){
-          datapointertype = VIDEO;
-        }
-        if (tmp == "audio"){
-          datapointertype = AUDIO;
-        }
-        if (tmp == "meta"){
-          datapointertype = META;
-        }
-        if (tmp == "pause_marker"){
-          datapointertype = PAUSEMARK;
-        }
+        tmp = buffers.front()["datatype"].asString();
+      }
+      if (tmp == "video"){
+        datapointertype = VIDEO;
+      }
+      if (tmp == "audio"){
+        datapointertype = AUDIO;
+      }
+      if (tmp == "meta"){
+        datapointertype = META;
+      }
+      if (tmp == "pause_marker"){
+        datapointertype = PAUSEMARK;
       }
       buffer.erase(0, len + 8);
       while (buffers.size() > buffercount){
@@ -189,9 +190,6 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       }
       if (version == 2){
         buffers.front() = JSON::fromDTMI2(wholepacket.substr(8));
-        if (!buffers.front().isMember("datatype")){
-          buffers.front()["datatype"] = metadata["tracks"][trackMapping[buffers.front()["trackid"].asInt()]]["type"];
-        }
       }
       datapointertype = INVALID;
       if (buffers.front().isMember("data")){
@@ -199,20 +197,24 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       }else{
         datapointer = 0;
       }
+      std::string tmp = "";
+      if (buffers.front().isMember("trackid")){
+        tmp = getTrackById(buffers.front()["trackid"].asInt())["type"].asString();
+      }
       if (buffers.front().isMember("datatype")){
-        std::string tmp = buffers.front()["datatype"].asString();
-        if (tmp == "video"){
-          datapointertype = VIDEO;
-        }
-        if (tmp == "audio"){
-          datapointertype = AUDIO;
-        }
-        if (tmp == "meta"){
-          datapointertype = META;
-        }
-        if (tmp == "pause_marker"){
-          datapointertype = PAUSEMARK;
-        }
+        tmp = buffers.front()["datatype"].asString();
+      }
+      if (tmp == "video"){
+        datapointertype = VIDEO;
+      }
+      if (tmp == "audio"){
+        datapointertype = AUDIO;
+      }
+      if (tmp == "meta"){
+        datapointertype = META;
+      }
+      if (tmp == "pause_marker"){
+        datapointertype = PAUSEMARK;
       }
       while (buffers.size() > buffercount){
         buffers.pop_back();
@@ -795,9 +797,6 @@ void DTSC::File::seekNext(){
   }
   if (version == 2){
     jsonbuffer = JSON::fromDTMI2(strbuffer);
-    if (!jsonbuffer.isMember("datatype")){
-      jsonbuffer["datatype"] = metadata["tracks"][trackMapping[jsonbuffer["trackid"].asInt()]]["type"];
-    }
   }else{
     jsonbuffer = JSON::fromDTMI(strbuffer);
   }

@@ -350,19 +350,20 @@ FLV::Tag & FLV::Tag::operator=(const FLV::Tag& O){
 /// Takes the DTSC data and makes it into FLV.
 bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
   std::string meta_str;
+  JSON::Value & track = S.getTrackById(S.getPacket()["trackid"].asInt());
   switch (S.lastType()){
     case DTSC::VIDEO:
       len = S.lastData().length() + 16;
-      if (S.metadata.isMember("video") && S.metadata["video"].isMember("codec")){
-        if (S.metadata["video"]["codec"].asString() == "H264"){
+      if (track && track.isMember("codec")){
+        if (track["codec"].asString() == "H264"){
           len += 4;
         }
       }
       break;
     case DTSC::AUDIO:
       len = S.lastData().length() + 16;
-      if (S.metadata.isMember("audio") && S.metadata["audio"].isMember("codec")){
-        if (S.metadata["audio"]["codec"].asString() == "AAC"){
+      if (track && track.isMember("codec")){
+        if (track["codec"].asString() == "AAC"){
           len += 1;
         }
       }
@@ -406,10 +407,10 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
           data[15] = offset & 0xFF;
         }
         data[11] = 0;
-        if (S.metadata["video"]["codec"].asString() == "H264"){
+        if (track.isMember("codec") && track["codec"].asString() == "H264"){
           data[11] += 7;
         }
-        if (S.metadata["video"]["codec"].asString() == "H263"){
+        if (track.isMember("codec") && track["codec"].asString() == "H263"){
           data[11] += 2;
         }
         if (S.getPacket().isMember("keyframe")){
@@ -430,13 +431,13 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
           data[12] = 1; //raw AAC data, not sequence header
         }
         data[11] = 0;
-        if (S.metadata["audio"]["codec"].asString() == "AAC"){
+        if (track.isMember("codec") && track["codec"].asString() == "AAC"){
           data[11] += 0xA0;
         }
-        if (S.metadata["audio"]["codec"].asString() == "MP3"){
+        if (track.isMember("codec") && track["codec"].asString() == "MP3"){
           data[11] += 0x20;
         }
-        unsigned int datarate = S.metadata["audio"]["rate"].asInt();
+        unsigned int datarate = track["rate"].asInt();
         if (datarate >= 44100){
           data[11] += 0x0C;
         }else if (datarate >= 22050){
@@ -444,10 +445,10 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
         }else if (datarate >= 11025){
           data[11] += 0x04;
         }
-        if (S.metadata["audio"]["size"].asInt() == 16){
+        if (track["size"].asInt() == 16){
           data[11] += 0x02;
         }
-        if (S.metadata["audio"]["channels"].asInt() > 1){
+        if (track["channels"].asInt() > 1){
           data[11] += 0x01;
         }
         break;
@@ -594,9 +595,7 @@ bool FLV::Tag::DTSCAudioInit(JSON::Value & audio){
 /// FLV metadata loader function from DTSC.
 /// Takes the DTSC metadata and makes it into FLV.
 /// Assumes metadata is available - so check before calling!
-bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, std::string vidName, std::string audName){
-  JSON::Value & videoRef = S.metadata["tracks"][vidName];
-  JSON::Value & audioRef = S.metadata["tracks"][audName];
+bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, JSON::Value & videoRef, JSON::Value & audioRef){
   //Unknown? Assume AAC.
   if (audioRef["codec"].asString() == "?"){
     audioRef["codec"] = "AAC";
@@ -617,10 +616,10 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, std::string vidName, std::string a
     keys.addContent(AMF::Object("filepositions", AMF::AMF0_STRICT_ARRAY));
     keys.addContent(AMF::Object("times", AMF::AMF0_STRICT_ARRAY));
     int total_byterate = 0;
-    if (vidName != ""){
+    if (videoRef){
       total_byterate += videoRef["bps"].asInt();
     }
-    if (audName != ""){
+    if (audioRef){
       total_byterate += audioRef["bps"].asInt();
     }
     for (int i = 0; i < S.metadata["length"].asInt(); ++i){ //for each second in the file
@@ -629,7 +628,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, std::string vidName, std::string a
     }
     amfdata.getContentP(1)->addContent(keys);
   }
-  if (vidName != ""){
+  if (videoRef){
     amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
     if (videoRef["codec"].asString() == "H264"){
       amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", (std::string)"avc1"));
@@ -653,7 +652,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, std::string vidName, std::string a
       amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", (double)videoRef["bps"].asInt() * 128.0, AMF::AMF0_NUMBER));
     }
   }
-  if (audName != ""){
+  if (audioRef){
     amfdata.getContentP(1)->addContent(AMF::Object("hasAudio", 1, AMF::AMF0_BOOL));
     amfdata.getContentP(1)->addContent(AMF::Object("audiodelay", 0, AMF::AMF0_NUMBER));
     if (audioRef["codec"].asString() == "AAC"){
@@ -677,7 +676,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, std::string vidName, std::string a
   }
   AMF::Object trinfo = AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY);
   int i = 0;
-  if (audName != ""){
+  if (audioRef){
     trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
     trinfo.getContentP(i)->addContent(
         AMF::Object("length", ((double)S.metadata["length"].asInt()) * ((double)audioRef["rate"].asInt()), AMF::AMF0_NUMBER));
@@ -691,7 +690,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, std::string vidName, std::string a
     }
     ++i;
   }
-  if (vidName != ""){
+  if (videoRef){
     trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
     trinfo.getContentP(i)->addContent(
         AMF::Object("length", ((double)S.metadata["length"].asInt()) * ((double)videoRef["fkps"].asInt() / 1000.0), AMF::AMF0_NUMBER));

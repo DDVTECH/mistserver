@@ -114,7 +114,7 @@ namespace Converter {
       return;
     }
     if (allCodecs.find(parameters["encoder"]) == allCodecs.end()){
-      statusHistory[name] = "Can not find encoder " + parameters["encoder"];
+      statusHistory[name] = "Can not find encoder " + parameters["encoder"].asString();
       return;
     }
     if (parameters.isMember("video")){

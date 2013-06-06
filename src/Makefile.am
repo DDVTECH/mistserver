@@ -11,7 +11,7 @@ RELEASE ?= "Generic_`getconf LONG_BIT`"
 
 AM_CPPFLAGS = $(global_CFLAGS) $(MIST_CFLAGS) -DRELEASE=\"$(RELEASE)\"
 LDADD = $(MIST_LIBS)
-bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistConnHTTPSmooth MistConnHTTPLive MistConnTS MistPlayer MistDTSC2FLV MistFLV2DTSC MistDTSCFix MistDTSCMerge MistDTSC2TS MistSRT2DTSC MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF MistAnalyserMP4 MistInfo
+bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistConnHTTPSmooth MistConnHTTPLive MistConnTS MistPlayer MistDTSC2FLV MistFLV2DTSC MistDTSCFix MistDTSC2TS MistOGG2DTSC MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF MistAnalyserMP4 MistAnalyserOGG MistOGG2DTSC
 
 #buffer folder (MistBuffer, MistPlayer)
 MistBuffer_SOURCES=buffer/buffer.cpp buffer/buffer_user.h buffer/buffer_user.cpp buffer/buffer_stream.h buffer/buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
@@ -35,6 +35,7 @@ MistConnTS_SOURCES=connectors/conn_ts.cpp ../VERSION
 #converters directory (Mist*2*)
 MistDTSC2FLV_SOURCES=converters/dtsc2flv.cpp
 MistFLV2DTSC_SOURCES=converters/flv2dtsc.cpp
+MistOGG2DTSC_SOURCES=converters/ogg2dtsc.cpp
 MistDTSCFix_SOURCES=converters/dtscfix.cpp
 MistDTSCMerge_SOURCES=converters/dtscmerge.cpp
 MistDTSC2TS_SOURCES=converters/dtsc2ts.cpp
@@ -46,8 +47,8 @@ MistAnalyserFLV_SOURCES=analysers/flv_analyser.cpp
 MistAnalyserDTSC_SOURCES=analysers/dtsc_analyser.cpp
 MistAnalyserAMF_SOURCES=analysers/amf_analyser.cpp
 MistAnalyserMP4_SOURCES=analysers/mp4_analyser.cpp
+MistAnalyserOGG_SOURCES=analysers/ogg_analyser.cpp
 MistInfo_SOURCES=info.cpp
-
 
 connectors/embed.js.h: connectors/embed.js
 	$(CLOSURE) $(srcdir)/connectors/embed.js > embed.min.js

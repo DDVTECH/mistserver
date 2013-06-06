@@ -22,7 +22,7 @@ namespace Converters {
 
   ///\brief Converts FLV from stdin to DTSC on stdout.
   ///\return The return code for the converter.
-  int FLV2DTSC(){
+  int FLV2DTSC(std::ostream & output){
     FLV::Tag FLV_in; // Temporary storage for incoming FLV data.
     JSON::Value meta_out; // Storage for outgoing header data.
     JSON::Value pack_out; // Storage for outgoing data.

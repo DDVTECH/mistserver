@@ -43,9 +43,7 @@ namespace Connector_HTTP {
     
     bool isMP3 = false;//Indicates whether the request is audio-only mp3.
     
-    std::string videoName;
     int videoID = -1;
-    std::string audioName;
     int audioID = -1;
 
     while (conn.connected()){
@@ -118,34 +116,31 @@ namespace Connector_HTTP {
             ready4data = false;
             continue;
           }
-          if (seek_byte){
-            //wait until we have a header
-            while ( !Strm.metadata){
-              if (ss.spool()){
-                Strm.parsePacket(ss.Received()); //read the metadata
-              }else{
-                Util::sleep(5);
-              }
+          //wait until we have a header
+          while ( !Strm.metadata){
+            if (ss.spool()){
+              Strm.parsePacket(ss.Received()); //read the metadata
+            }else{
+              Util::sleep(5);
             }
-            int byterate = 0;
-            for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-              if (videoID == -1 && objIt->second["type"].asString() == "video"){
-                videoID = objIt->second["trackid"].asInt();
-                videoName = objIt->first;
-              }
-              if (audioID == -1 && objIt->second["type"].asString() == "audio"){
-                audioID = objIt->second["trackid"].asInt();
-                audioName = objIt->first;
-              }
-            }
-            if (videoID != -1 && !isMP3){
-              byterate += Strm.metadata["tracks"][videoName]["bps"].asInt();
-            }
-            if (audioID != -1){
-              byterate += Strm.metadata["tracks"][audioName]["bps"].asInt();
-            }
-            seek_sec = (seek_byte / byterate) * 1000;
           }
+          int byterate = 0;
+          for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
+            std::cerr << objIt->second["type"].asString() << " => " << objIt->second["trackid"].asInt() << std::endl;
+            if (videoID == -1 && objIt->second["type"].asString() == "video"){
+              videoID = objIt->second["trackid"].asInt();
+            }
+            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
+              audioID = objIt->second["trackid"].asInt();
+            }
+          }
+          if (videoID != -1 && !isMP3){
+            byterate += Strm.getTrackById(videoID)["bps"].asInt();
+          }
+          if (audioID != -1){
+            byterate += Strm.getTrackById(audioID)["bps"].asInt();
+          }
+          seek_sec = (seek_byte / byterate) * 1000;
           std::stringstream cmd;
           cmd << "t";
           if (videoID != -1){
@@ -154,11 +149,8 @@ namespace Connector_HTTP {
           if (audioID != -1){
             cmd << " " << audioID;
           }
+          cmd << "\ns " << seek_sec << "\np\n";
           ss.SendNow(cmd.str().c_str());
-          cmd.str() = "";
-          cmd << "s " << seek_sec << "\n";
-          ss.SendNow(cmd.str().c_str());
-          ss.SendNow("p\n");
           inited = true;
         }
         unsigned int now = Util::epoch();
@@ -182,16 +174,16 @@ namespace Connector_HTTP {
               if ( !isMP3){
                 conn.SendNow(FLV::Header, 13); //write FLV header
                 //write metadata
-                tag.DTSCMetaInit(Strm,videoName, audioName);
+                tag.DTSCMetaInit(Strm, Strm.getTrackById(videoID), Strm.getTrackById(audioID));
                 conn.SendNow(tag.data, tag.len);
                 //write video init data, if needed
-                if (videoID != -1 && Strm.metadata["video"].isMember("init")){
-                  tag.DTSCVideoInit(Strm.metadata["tracks"][videoName]);
+                if (videoID != -1 && Strm.getTrackById(videoID).isMember("init")){
+                  tag.DTSCVideoInit(Strm.getTrackById(videoID));
                   conn.SendNow(tag.data, tag.len);
                 }
                 //write audio init data, if needed
-                if (audioID != -1 && Strm.metadata["audio"].isMember("init")){
-                  tag.DTSCAudioInit(Strm.metadata["tracks"][audioName]);
+                if (audioID != -1 && Strm.getTrackById(audioID).isMember("init")){
+                  tag.DTSCAudioInit(Strm.getTrackById(audioID));
                   conn.SendNow(tag.data, tag.len);
                 }
               }

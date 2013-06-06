@@ -27,20 +27,31 @@ namespace Converters {
     char charBuffer[1024 * 10];
     unsigned int charCount;
     bool doneheader = false;
+    int videoID = -1, audioID = -1;
 
     while (std::cin.good()){
       if (Strm.parsePacket(inBuffer)){
         if ( !doneheader){
+          //find first audio and video tracks
+          for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
+            if (videoID == -1 && objIt->second["type"].asString() == "video"){
+              videoID = objIt->second["trackid"].asInt();
+            }
+            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
+              audioID = objIt->second["trackid"].asInt();
+            }
+          }
+          
           doneheader = true;
           std::cout.write(FLV::Header, 13);
-          FLV_out.DTSCMetaInit(Strm);
+          FLV_out.DTSCMetaInit(Strm, Strm.getTrackById(videoID), Strm.getTrackById(audioID));
           std::cout.write(FLV_out.data, FLV_out.len);
-          if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
-            FLV_out.DTSCVideoInit(Strm);
+          if (videoID && Strm.getTrackById(videoID).isMember("init")){
+            FLV_out.DTSCVideoInit(Strm.getTrackById(videoID));
             std::cout.write(FLV_out.data, FLV_out.len);
           }
-          if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
-            FLV_out.DTSCAudioInit(Strm);
+          if (audioID && Strm.getTrackById(audioID).isMember("init")){
+            FLV_out.DTSCAudioInit(Strm.getTrackById(audioID));
             std::cout.write(FLV_out.data, FLV_out.len);
           }
         }

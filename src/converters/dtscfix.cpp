@@ -177,7 +177,7 @@ namespace Converters {
       F.seekNext();
     }
 
-    long long int firstms = 9999999999;
+    long long int firstms = 0x7fffffff;
     long long int lastms = -1;
 
     for (std::map<std::string,HeaderEntryDTSC>::iterator it = trackData.begin(); it != trackData.end(); it++){

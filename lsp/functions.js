@@ -157,7 +157,8 @@
                   {
                      "streams": {},
                      "capabilities": {},
-                     "statistics": {}
+                     "statistics": {},
+                     "conversion": {}
                   }, d);
                   
                   //IE breaks if the console isn't opened, so keep commented when committing
@@ -393,7 +394,8 @@
                         "streams": {},
                         "capabilities": {},
                         "log": {},
-                        "statistics": {}
+                        "statistics": {},
+                        "conversion": {}
                      }, d)
                      if (settings.settings.LTS == 1) {
                         $('.LTSonly').show();
@@ -722,6 +724,23 @@ function buildLogsTable(){
    $table.append($tbody);
    return $table;
 }
+
+/**
+ * At the conversion page, does a directory query to obtain input files
+ @params: - query: the directory query
+ */
+ function conversionDirQuery(query) {
+  getData(function(data){
+    var c = data.conversion.arrayoffilenamesreturnedbyquery
+    //todo change this ^
+    
+    for (var i in c) {
+      $('#conv-edit-input').append(
+        $('<option>').value(c[i])
+      );
+    }
+  });
+ }
 
 /**
  * Tooltip creator - creates a tooltip near the cursor

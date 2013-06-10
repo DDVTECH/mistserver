@@ -9,7 +9,7 @@
 namespace Analysers{
   int analyseOGG(){
     std::string oggBuffer;
-    //Read all of std::cin to mp4Buffer
+    //Read all of std::cin to oggBuffer
     while (std::cin.good()){
       oggBuffer += std::cin.get();
     }

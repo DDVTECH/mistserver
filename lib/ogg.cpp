@@ -14,11 +14,11 @@ namespace OGG{
   }
 
   bool Page::read(std::string & newData){
-    dataSum = 0;
     //datasize = 0;
     if (newData.size()<27){
       return false;
     }
+    dataSum = 0;
     if (!checkDataSize(27)){
       return false;
     }
@@ -175,19 +175,47 @@ namespace OGG{
     return data + 27 + getPageSegments();
   }
   
+  bool Page::typeBOS(){
+    if (getHeaderType() & 0x02){
+      return true;
+    }
+    return false;
+  }
+  
+  bool Page::typeEOS(){
+    if (getHeaderType() & 0x04){
+      return true;
+    }
+    return false;
+  }
+  
+  bool Page::typeContinue(){
+    if (getHeaderType() & 0x01){
+      return true;
+    }
+    return false;
+  }
+  
+  bool Page::typeNone(){
+    if (getHeaderType() & 0x07 == 0x00){
+      return true;
+    }
+    return false;
+  }
+  
   std::string Page::toPrettyString(){
     std::stringstream r;
     r << "Size(" << getPageSize() << ")(" << dataSum << ")" << std::endl;
     r << "Magic_Number: " << std::string(data, 4) << std::endl;
     r << "Version: " << (int)getVersion() << std::endl;
     r << "Header_type: " << std::hex << (int)getHeaderType() << std::dec;
-    if (getHeaderType() & 0x01){
+    if (typeContinue()){
       r << " continued";
     }
-    if (getHeaderType() & 0x02){
+    if (typeBOS()){
       r << " bos";
     }
-    if (getHeaderType() & 0x04){
+    if (typeEOS()){
       r << " eos";
     }
     r << std::endl;

@@ -1,7 +1,7 @@
 #include<string>
 #include<vector>
 #include<deque>
-#include<mist/
+#include"dtsc.h"
 
 namespace OGG{
   class Page{
@@ -31,7 +31,10 @@ namespace OGG{
       unsigned long int getPageSize();
       char* getFullPayload();
       char* getSegment(long unsigned int);
-      
+      bool typeBOS();
+      bool typeEOS();
+      bool typeContinue();
+      bool typeNone();
       std::string toPrettyString();
     private:
       long unsigned int calcChecksum();

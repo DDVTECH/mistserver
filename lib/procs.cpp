@@ -621,7 +621,9 @@ bool Util::Procs::isActive(std::string name){
   std::map<pid_t, std::string>::iterator it;
   for (it = plist.begin(); it != plist.end(); it++){
     if (( *it).second == name){
-      return true;
+      if (kill(( *it).first, 0) == 0){
+        return true;
+      }
     }
   }
   return false;
@@ -629,7 +631,7 @@ bool Util::Procs::isActive(std::string name){
 
 /// Returns true if a process with this PID is currently active.
 bool Util::Procs::isActive(pid_t name){
-  return (plist.count(name) == 1);
+  return (plist.count(name) == 1) && (kill(name, 0) == 0);
 }
 
 /// Gets PID for this named process, if active.

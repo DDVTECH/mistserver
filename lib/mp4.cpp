@@ -2573,7 +2573,9 @@ namespace MP4 {
     std::stringstream r;
     r << std::string(indent, ' ') << "[hdlr] Handler Reference (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
-    r << std::string(indent + 1, ' ') << "HandlerType: " << getHandlerType() << std::endl;
+    r << std::string(indent + 1, ' ') << "HandlerType: " << 
+      (char)((getHandlerType() & 0xFF000000) >> 24) << (char)((getHandlerType() & 0x00FF0000) >> 16) <<
+      (char)((getHandlerType() & 0x0000FF00) >> 8) << (char)(getHandlerType() & 0x000000FF) << std::endl;
     r << std::string(indent + 1, ' ') << "Name: " << getName() << std::endl;
     return r.str();
   }

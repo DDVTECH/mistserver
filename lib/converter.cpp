@@ -141,8 +141,8 @@ namespace Converter {
             return;
           }
           encoderCommand << "-vcodec " << vidCodec->first << " ";
-          if (parameters["video"].isMember("kfps")){
-            encoderCommand << "-r " << parameters["video"]["kfps"].asInt() / 1000 << " "; 
+          if (parameters["video"].isMember("fpks")){
+            encoderCommand << "-r " << parameters["video"]["fpks"].asInt() / 1000 << " "; 
           }
           if (parameters["video"].isMember("width")){
             encoderCommand << "-s " << parameters["video"]["width"].asInt() << "x" << parameters["video"]["height"].asInt() << " ";

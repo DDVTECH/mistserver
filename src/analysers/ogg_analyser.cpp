@@ -9,15 +9,17 @@
 namespace Analysers{
   int analyseOGG(){
     std::string oggBuffer;
+    OGG::Page oggPage;
     //Read all of std::cin to oggBuffer
+    //while stream busy
     while (std::cin.good()){
-      oggBuffer += std::cin.get();
-    }
-    oggBuffer.erase(oggBuffer.size() - 1, 1);
-
-    OGG::Page oggData;
-    while (oggData.read(oggBuffer)){
-      std::cerr << oggData.toPrettyString() << std::endl;
+      for (unsigned int i = 0; (i < 1024) && (std::cin.good()); i++){
+        oggBuffer += std::cin.get();
+      }
+      //while OGG::page check function read
+      while (oggPage.read(oggBuffer)){//reading ogg to string
+        std::cout << oggPage.toPrettyString() << std::endl;
+      }
     }
     return 0;
   }

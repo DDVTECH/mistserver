@@ -33,6 +33,19 @@ namespace theora{
     memcpy((char*) &result, data + index, 4);
     return ntohl(result);
   }
+
+  uint16_t header::getInt16(size_t index){
+    /*if (index + 3 >= datasize){
+      if ( !reserve(index, 0, 4)){
+        return 0;
+      }
+      setInt32(0, index);
+    }*/
+    uint16_t result;
+    memcpy((char*) &result, data + index, 2);
+    return ntohs(result);
+  }
+
   
   header::header(){
     data = NULL;
@@ -81,6 +94,13 @@ namespace theora{
         return -1;
         break;
     };
+  }
+  
+  char header::getKFGShift(){
+    if (getHeaderType() == 0){
+      return (getInt16(40) >> 5) & 0x1F;
+    }
+    return 0;
   }
   
   long unsigned int header::getFRN(){

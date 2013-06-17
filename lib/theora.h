@@ -7,10 +7,12 @@ namespace theora{
       header();
       bool read(char* newData, unsigned int length);
       int getHeaderType();
-      long unsigned int getFRN();
-      long unsigned int getFRD();
+      char getKFGShift();
+      long unsigned int getFRN();//frame rate numerator
+      long unsigned int getFRD();//frame rate denominator
     protected:
       uint32_t getInt32(size_t index);
+      uint16_t getInt16(size_t index);
     private:
       char* data;
       unsigned int datasize;

@@ -133,12 +133,31 @@ namespace DTSC {
   };
   //FileWriter
 
+  /// A simple structure used for ordering byte seek positions.
+  struct livePos {
+    bool operator < (const livePos& rhs) const {
+      if (seekTime < rhs.seekTime){
+        return true;
+      }else{
+        if (seekTime == rhs.seekTime){
+          if (trackID < rhs.trackID){
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    long long unsigned int seekTime;
+    unsigned int trackID;
+  };
+
   /// A part from the DTSC::Stream ringbuffer.
   /// Holds information about a buffer that will stay consistent
   class Ring{
     public:
       Ring(unsigned int v);
-      volatile unsigned int b; ///< Holds current number of buffer. May and is intended to change unexpectedly!
+      volatile livePos b;
+      //volatile unsigned int b; ///< Holds current number of buffer. May and is intended to change unexpectedly!
       volatile bool waiting; ///< If true, this Ring is currently waiting for a buffer fill.
       volatile bool starved; ///< If true, this Ring can no longer receive valid data.
       volatile bool updated; ///< If true, this Ring should write a new header.
@@ -154,7 +173,7 @@ namespace DTSC {
       ~Stream();
       Stream(unsigned int buffers, unsigned int bufferTime = 0);
       JSON::Value metadata;
-      JSON::Value & getPacket(unsigned int num = 0);
+      JSON::Value & getPacket(livePos num);
       JSON::Value & getTrackById(int trackNo);
       datatype lastType();
       std::string & lastData();
@@ -162,7 +181,7 @@ namespace DTSC {
       bool hasAudio();
       bool parsePacket(std::string & buffer);
       bool parsePacket(Socket::Buffer & buffer);
-      std::string & outPacket(unsigned int num);
+      std::string & outPacket(livePos num);
       std::string & outHeader();
       Ring * getRing();
       unsigned int getTime();
@@ -174,11 +193,11 @@ namespace DTSC {
       unsigned int frameSeek(unsigned int frameno);
       void setBufferTime(unsigned int ms);
     private:
-      std::deque<JSON::Value> buffers;
-      std::set<DTSC::Ring *> rings;
-      std::deque<DTSC::Ring> keyframes;
+      std::map<livePos,JSON::Value> buffers;
+      std::map<int,std::set<livePos> > keyframes;
       void advanceRings();
       void updateRingHeaders();
+      void addPacket(JSON::Value & newPack);
       std::string * datapointer;
       datatype datapointertype;
       unsigned int buffercount;

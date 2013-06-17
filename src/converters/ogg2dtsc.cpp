@@ -2,7 +2,8 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <string.h>
+#include <sstream>
+//#include <string.h>
 #include <map>
 #include <mist/dtsc.h>
 #include <mist/ogg.h>
@@ -19,6 +20,10 @@ namespace Converters{
     codecType codec;
     long long unsigned int dtscID;
     long long signed int fpks; //frames per kilo second
+    char KFGShift;
+    int width;
+    int height;
+    int bps;
     DTSC::datatype type; //type of stream in DTSC
   };
 
@@ -30,6 +35,9 @@ namespace Converters{
     
     //while stream busy
     JSON::Value DTSCOut;
+    JSON::Value DTSCHeader;
+    DTSCHeader.null();
+    DTSCHeader["moreheader"] = 0ll;
     std::map<long unsigned int, oggTrack> trackData;
     long long int lastTrackID = 1;
     while (std::cin.good()){
@@ -82,11 +90,18 @@ namespace Converters{
                   switch(tHead.getHeaderType()){
                     case 0: //identification header
                       trackData[sNum].fpks = ((long long int)tHead.getFRN() * 1000) / tHead.getFRD();
-                      std::cerr << trackData[sNum].fpks << std::endl;
+                      trackData[sNum].KFGShift = tHead.getKFGShift();
+                      //std::cerr << trackData[sNum].fpks << std::endl;
                     break;
                     case 1: //comment header
                     break;
-                    case 2: //setup header
+                    case 2: //setup header, also the point to start writing the header
+                    std::stringstream tID; 
+                    tID << "track" << trackData[sNum].dtscID;
+                    DTSCHeader["tracks"][tID.str()]["codec"] = "THEORA";
+                    DTSCHeader["tracks"][tID.str()]["fpks"] = (long long)trackData[sNum].fpks;
+                    DTSCHeader["tracks"][tID.str()]["trackid"] = (long long)trackData[sNum].dtscID;
+                    std::cout << DTSCHeader.toNetPacked();
                     break;
                   }
                   
@@ -95,11 +110,20 @@ namespace Converters{
                   //output DTSC packet
                   DTSCOut.null();//clearing DTSC buffer
                   DTSCOut["trackid"] = (long long)trackData[sNum].dtscID;
-                  DTSCOut["time"] = 0; //timestamp
+                  long long unsigned int temp = oggPage.getGranulePosition();
+                  //std::cerr << std::hex << temp << std::dec << " " << (temp >> trackData[sNum].KFGShift) << " " << (temp & (trackData[sNum].KFGShift * 2 -1));
+                  //std::cerr << " " << (unsigned int)trackData[sNum].KFGShift << std::endl;
+                  DTSCOut["time"] = (long long)(((temp >> trackData[sNum].KFGShift) + (temp & (trackData[sNum].KFGShift * 2 -1))) * 1000000 / trackData[sNum].fpks);
+                  //std::cerr << DTSCOut["time"].asInt() << std::endl;
+                  //timestamp calculated by frames * FPS. Amount of frames is calculated by:
+                  // granule position using keyframe (bitshift) and distance from keyframe (mask)
                   DTSCOut["data"] = std::string(curSeg + curPlace, curLength); //segment content put in JSON
-                  //DTSCOut["keyframe"] = "x"; //Aanmaken als eerste segment = keyframe
-                  //else DTSCOut["interframe"] = "x";                  
-                  std::cout << DTSCOut.toString();
+                  if ((temp & (trackData[sNum].KFGShift * 2 -1)) == 0){ //granule mask equals zero when on keyframe
+                    DTSCOut["keyframe"] = 1;
+                  }else{
+                    DTSCOut["interframe"] = 1;
+                  }
+                  std::cout << DTSCOut.toNetPacked();
                 }
                 curPlace += curLength;
               }

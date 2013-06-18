@@ -88,21 +88,28 @@ namespace Converters{
                   std::cerr << "Theora Header Segment " << tHead.getHeaderType() << std::endl;
                   //fillDTSC header
                   switch(tHead.getHeaderType()){
-                    case 0: //identification header
+                    case 0:{ //identification header
+                      std::stringstream tID; 
+                      tID << "track" << trackData[sNum].dtscID;
                       trackData[sNum].fpks = ((long long int)tHead.getFRN() * 1000) / tHead.getFRD();
+                      DTSCHeader["tracks"][tID.str()]["fpks"] = trackData[sNum].fpks;
+                      DTSCHeader["identification"] = std::string(curSeg+curPlace, curLength);
+                      DTSCHeader["tracks"][tID.str()]["height"] = (long long)tHead.getPICH();
+                      DTSCHeader["tracks"][tID.str()]["width"] = (long long)tHead.getPICW();
                       trackData[sNum].KFGShift = tHead.getKFGShift();
                       //std::cerr << trackData[sNum].fpks << std::endl;
-                    break;
+                    break;}
                     case 1: //comment header
                     break;
-                    case 2: //setup header, also the point to start writing the header
-                    std::stringstream tID; 
-                    tID << "track" << trackData[sNum].dtscID;
-                    DTSCHeader["tracks"][tID.str()]["codec"] = "THEORA";
-                    DTSCHeader["tracks"][tID.str()]["fpks"] = (long long)trackData[sNum].fpks;
-                    DTSCHeader["tracks"][tID.str()]["trackid"] = (long long)trackData[sNum].dtscID;
-                    std::cout << DTSCHeader.toNetPacked();
-                    break;
+                    case 2:{ //setup header, also the point to start writing the header
+                      std::stringstream tID; 
+                      tID << "track" << trackData[sNum].dtscID;
+                      DTSCHeader["tracks"][tID.str()]["codec"] = "THEORA";
+                      DTSCHeader["tracks"][tID.str()]["type"] = "video";
+                      //DTSCHeader["tracks"][tID.str()]["fpks"] = (long long)trackData[sNum].fpks;
+                      DTSCHeader["tracks"][tID.str()]["trackid"] = (long long)trackData[sNum].dtscID;
+                      std::cout << DTSCHeader.toNetPacked();
+                    break;}
                   }
                   
                 }else{//if the current segment is a movie part

@@ -34,6 +34,21 @@ namespace theora{
     return ntohl(result);
   }
 
+  uint32_t header::getInt24(size_t index){
+    /*if (index + 3 >= datasize){
+      if ( !reserve(index, 0, 4)){
+        return 0;
+      }
+      setInt32(0, index);
+    }*/
+    uint32_t result = 0;
+    //memcpy(((char*) &result)+1, data + index, 3);
+    result += data[index] << 16;
+    result += data[index+1] << 8;
+    result += data[index+2];
+    return result;
+  }
+
   uint16_t header::getInt16(size_t index){
     /*if (index + 3 >= datasize){
       if ( !reserve(index, 0, 4)){
@@ -109,6 +124,20 @@ namespace theora{
     }
     return 0;
   }
+ 
+   long unsigned int header::getPICH(){
+    if (getHeaderType() == 0){
+      return getInt24(17);
+    }
+    return 0;
+  }
+ 
+  long unsigned int header::getPICW(){
+    if (getHeaderType() == 0){
+      return getInt24(14);
+    }
+    return 0;
+  } 
   
   long unsigned int header::getFRD(){
     if (getHeaderType() == 0){

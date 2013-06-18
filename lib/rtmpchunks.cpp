@@ -391,7 +391,7 @@ RTMPStream::Chunk::Chunk(){
 std::string & RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data){
   static RTMPStream::Chunk ch;
   ch.cs_id = cs_id;
-  ch.timestamp = Util::epoch();
+  ch.timestamp = Util::getMS();
   ch.len = data.size();
   ch.real_len = data.size();
   ch.len_left = 0;
@@ -438,7 +438,7 @@ std::string & RTMPStream::SendMedia(FLV::Tag & tag){
 std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = Util::epoch();
+  ch.timestamp = Util::getMS();
   ch.len = 4;
   ch.real_len = 4;
   ch.len_left = 0;
@@ -453,7 +453,7 @@ std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data){
 std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned char data2){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = Util::epoch();
+  ch.timestamp = Util::getMS();
   ch.len = 5;
   ch.real_len = 5;
   ch.len_left = 0;
@@ -469,7 +469,7 @@ std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigne
 std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = Util::epoch();
+  ch.timestamp = Util::getMS();
   ch.len = 6;
   ch.real_len = 6;
   ch.len_left = 0;
@@ -486,7 +486,7 @@ std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data){
 std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned int data2){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = Util::epoch();
+  ch.timestamp = Util::getMS();
   ch.len = 10;
   ch.real_len = 10;
   ch.len_left = 0;

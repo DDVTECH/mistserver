@@ -158,7 +158,7 @@ int main(int argc, char ** argv){
     stored_interface["default"] = "0.0.0.0";
   }
   JSON::Value stored_user = JSON::fromString(
-      "{\"long\":\"username\", \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to drop privileges to, or root to not drop provileges.\"}");
+      "{\"long\":\"username\", \"short\":\"u\", \"arg\":\"string\", \"help\":\"Username to transfer privileges to, default is root.\"}");
   stored_user["default"] = Controller::Storage["config"]["controller"]["username"];
   if ( !stored_user["default"]){
     stored_user["default"] = "root";
@@ -169,7 +169,7 @@ int main(int argc, char ** argv){
   conf.addOption("username", stored_user);
   conf.addOption("daemonize",
       JSON::fromString(
-          "{\"long\":\"daemon\", \"short\":\"d\", \"default\":1, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Whether or not to daemonize the process after starting.\"}"));
+          "{\"long\":\"daemon\", \"short\":\"d\", \"default\":1, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Turns deamon mode on (-d) or off (-n). -d (default) runs quietly in background, -n enables verbose in foreground.\"}"));
   conf.addOption("account",
       JSON::fromString(
           "{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));

@@ -120,7 +120,6 @@ namespace Analysers {
             if (Detail & (DETAIL_EXPLICIT | DETAIL_RECONSTRUCT)){
               F.ChunkLoader(next);
               if (Detail & DETAIL_EXPLICIT){
-                fprintf(stderr, "Received %i bytes audio data\n", next.len);
                 std::cerr << "Got a " << F.len << " bytes " << F.tagType() << " FLV tag of time " << F.tagTime() << "." << std::endl;
               }
               if (Detail & DETAIL_RECONSTRUCT){
@@ -132,7 +131,6 @@ namespace Analysers {
             if (Detail & (DETAIL_EXPLICIT | DETAIL_RECONSTRUCT)){
               F.ChunkLoader(next);
               if (Detail & DETAIL_EXPLICIT){
-                fprintf(stderr, "Received %i bytes video data\n", next.len);
                 std::cerr << "Got a " << F.len << " bytes " << F.tagType() << " FLV tag of time " << F.tagTime() << "." << std::endl;
               }
               if (Detail & DETAIL_RECONSTRUCT){

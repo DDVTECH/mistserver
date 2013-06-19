@@ -41,23 +41,16 @@ namespace Converters {
           if (counter > 8){
             sending = true;
             meta_out["moreheader"] = 0LL;
-            std::string packed_header = meta_out.toNetPacked();
-            unsigned int size = htonl(packed_header.size());
-            output << std::string(DTSC::Magic_Header, 4) << std::string((char*) &size, 4) << packed_header;
-            output << prebuffer.rdbuf();
+            output << meta_out.toNetPacked();
             prebuffer.str("");
             std::cerr << "Buffer done, starting real-time output..." << std::endl;
           }else{
-            std::string packed_out = pack_out.toNetPacked();
-            unsigned int size = htonl(packed_out.size());
-            prebuffer << std::string(DTSC::Magic_Packet, 4) << std::string((char*) &size, 4) << packed_out;
+            prebuffer << pack_out.toNetPacked();
             continue; //don't also write
           }
         }
         //simply write
-        std::string packed_out = pack_out.toNetPacked();
-        unsigned int size = htonl(packed_out.size());
-        output << std::string(DTSC::Magic_Packet, 4) << std::string((char*) &size, 4) << packed_out;
+        output << pack_out.toNetPacked();
       }
     }
 
@@ -65,9 +58,7 @@ namespace Converters {
     if ( !sending){
       std::cerr << "EOF - outputting buffer..." << std::endl;
       meta_out["moreheader"] = 0LL;
-      std::string packed_header = meta_out.toNetPacked();
-      unsigned int size = htonl(packed_header.size());
-      output << std::string(DTSC::Magic_Header, 4) << std::string((char*) &size, 4) << packed_header;
+      output << meta_out.toNetPacked();
       output << prebuffer.rdbuf();
     }
     std::cerr << "Done! If you output this data to a file, don't forget to run MistDTSCFix next." << std::endl;

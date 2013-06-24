@@ -1,7 +1,9 @@
+#pragma once
 #include<string>
 #include<vector>
 #include<deque>
 #include"dtsc.h"
+#include "theora.h"
 
 namespace OGG{
   class Page{
@@ -30,17 +32,19 @@ namespace OGG{
       void setSegmentTable(char* newVal, unsigned int length);
       unsigned long int getPageSize();
       char* getFullPayload();
-      char* getSegment(long unsigned int);
+      int getPayloadSize();
       bool typeBOS();
       bool typeEOS();
       bool typeContinue();
       bool typeNone();
-      std::string toPrettyString();
+      std::string toPrettyString(size_t indent = 0);
+      void setInternalCodec(std::string myCodec);
     private:
       long unsigned int calcChecksum();
       char* data;
       unsigned int datasize;
       unsigned int dataSum;
       bool checkDataSize(unsigned int size);
+      std::string codec;
   };
 }

@@ -251,13 +251,17 @@ namespace OGG{
     }
     return false;
   }
+
+  void Page::setInternalCodec(std::string myCodec){
+    codec = myCodec;
+  }
   
-  std::string Page::toPrettyString(){
+  std::string Page::toPrettyString(size_t indent){
     std::stringstream r;
-    r << "Size(" << getPageSize() << ")(" << dataSum << ")" << std::endl;
-    r << "Magic_Number: " << std::string(data, 4) << std::endl;
-    r << "Version: " << (int)getVersion() << std::endl;
-    r << "Header_type: " << std::hex << (int)getHeaderType() << std::dec;
+    r << std::string(indent,' ') << "OGG Page (" << getPageSize() << ")" << std::endl;
+    r << std::string(indent + 2,' ') << "Magic Number: " << std::string(data, 4) << std::endl;
+    r << std::string(indent + 2,' ') << "Version: " << (int)getVersion() << std::endl;
+    r << std::string(indent + 2,' ') << "Headertype: " << std::hex << (int)getHeaderType() << std::dec;
     if (typeContinue()){
       r << " continued";
     }
@@ -268,19 +272,33 @@ namespace OGG{
       r << " eos";
     }
     r << std::endl;
-    r << "Granule_position: " <<std::hex<< getGranulePosition() <<std::dec<< std::endl;
-    r << "Bitstream_SN: " << getBitstreamSerialNumber() << std::endl;
-    r << "Page_sequence_number: " << getPageSequenceNumber() << std::endl;
-    r << "CRC_checksum: " << std::hex << getCRCChecksum()<< std::dec << std::endl;
+    r << std::string(indent + 2,' ') << "Granule Position: " <<std::hex<< getGranulePosition() <<std::dec<< std::endl;
+    r << std::string(indent + 2,' ') << "Bitstream Number: " << getBitstreamSerialNumber() << std::endl;
+    r << std::string(indent + 2,' ') << "Sequence Number: " << getPageSequenceNumber() << std::endl;
+    r << std::string(indent + 2,' ') << "Checksum: " << std::hex << getCRCChecksum()<< std::dec << std::endl;
     //r << "  Calced Checksum: " << std::hex << calcChecksum() << std::dec << std::endl;
     //r << "CRC_checksum write: " << std::hex << getCRCChecksum()<< std::dec << std::endl;
-    r << "Page_segments: " << (int)getPageSegments() << std::endl;
-    r << "SegmentTable: ";
+    r << std::string(indent + 2,' ') << "Segments: " << (int)getPageSegments() << std::endl;
     std::deque<unsigned int> temp = getSegmentTableDeque();
     for (std::deque<unsigned int>::iterator i = temp.begin(); i != temp.end(); i++){
-      r << (*i) << " ";
+      r << std::string(indent + 4,' ') << (*i) << std::endl;
     }
-    r << std::endl;
+    r << std::string(indent + 2,' ') << "Payloadsize: " << dataSum << std::endl;
+    if (codec == "theora"){
+      int offset = 0;
+      for (int i = 0; i < getSegmentTableDeque().size(); i++){
+        theora::header tmpHeader;
+        int len = getSegmentTableDeque()[i];
+        if (tmpHeader.read(getFullPayload()+offset,len)){
+          r << tmpHeader.toPrettyString(indent + 4);
+        }
+        theora::frame tmpFrame;
+        if (tmpFrame.read(getFullPayload()+offset,len)){
+          r << tmpFrame.toPrettyString(indent + 4);
+        }
+        offset += len;
+      }
+    }
     return r.str();
   }
   
@@ -383,5 +401,9 @@ namespace OGG{
     }else{
       return true;
     }
+  }
+
+  int Page::getPayloadSize(){
+    return dataSum;
   }
 }

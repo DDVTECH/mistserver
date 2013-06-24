@@ -1,6 +1,8 @@
 /// \file controller.cpp
 /// Contains all code for the controller executable.
 
+#include <stdio.h>
+//#include <io.h>
 #include <iostream>
 #include <vector>
 #include <sys/stat.h>
@@ -142,6 +144,36 @@ namespace Controller {
   }
 } //Controller namespace
 
+/// the following function is a simple check if the user wants to proceed to fix (y), ignore (n) or abort on (a) a question
+char yna(std::string user_input){
+  if(user_input == "y" || user_input == "Y"){
+    return 'y';
+  }else if(user_input == "n" || user_input == "N"){
+    return 'n';
+  }else if(user_input == "a" || user_input == "A"){
+    return 'a';
+  }else{
+    return 'x';//when no valid option is found, yna returns x
+  }
+}
+
+/// createAccount accepts a string in the form of username:account
+/// and creates an account.
+void createAccount (std::string account){
+  if (account.size() > 0){
+    size_t colon = account.find(':');
+    if (colon != std::string::npos && colon != 0 && colon != account.size()){
+      std::string uname = account.substr(0, colon);
+      std::string pword = account.substr(colon + 1, std::string::npos);
+      Controller::Log("CONF", "Created account " + uname + " through commandline option");
+      Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
+    }
+  }
+  if ( !Controller::Storage["config"].isMember("basePath")){
+    Controller::Storage["config"]["basePath"] = Util::getMyPath();
+  }
+}
+
 ///\brief The main entry point for the controller.
 int main(int argc, char ** argv){
   Controller::Storage = JSON::fromFile("config.json");
@@ -208,18 +240,58 @@ int main(int argc, char ** argv){
     }
   }
   
-  std::string account = conf.getString("account");
-  if (account.size() > 0){
-    size_t colon = account.find(':');
-    if (colon != std::string::npos && colon != 0 && colon != account.size()){
-      std::string uname = account.substr(0, colon);
-      std::string pword = account.substr(colon + 1, std::string::npos);
-      Controller::Log("CONF", "Created account " + uname + " through commandline option");
-      Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
+  createAccount(conf.getString("account"));
+  
+  /// User friendliness input added at this line
+  if (isatty(fileno(stdin))){
+    std::cerr << "User i/o detected, checking for sane config" << std::endl;
+    //check for username
+    if (Controller::Storage.isMember("account") && Controller::Storage["account"].size() > 0){
+      std::cerr << "Account set" << std::endl;
+    }else{
+      std::string in_string = "";
+      while(yna(in_string) == 'x'){
+        std::cerr << "Account not set, do you want to create an account? (y)es, (n)o, (a)bort: ";
+        std::getline(std::cin, in_string);
+        if (yna(in_string) == 'y'){
+          //create account
+          std::string usr_string = "";
+          while(!(Controller::Storage.isMember("account") && Controller::Storage["account"].size() > 0)){
+            std::cerr << "Please type in the username, a colon and a password in the following format; username:password" << std::endl << ": ";
+            std::getline(std::cin, usr_string);
+            createAccount(usr_string);
+          }
+        }else if(yna(in_string) == 'a'){
+          //abort controller startup
+          return 0;
+        }
+      }
     }
-  }
-  if ( !Controller::Storage["config"].isMember("basePath")){
-    Controller::Storage["config"]["basePath"] = Util::getMyPath();
+    //check for protocols
+    if (Controller::Storage.isMember("config") && Controller::Storage["config"].isMember("protocols") && Controller::Storage["config"]["protocols"].size() > 0){
+      std::cerr << "Protocols set" << std::endl;
+    }else{
+      std::string in_string = "";
+      while(yna(in_string) == 'x'){
+        std::cerr << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, (a)bort: ";
+        std::getline(std::cin, in_string);
+        if (yna(in_string) == 'y'){
+          //create protocols
+          Controller::Storage["config"]["protocols"] = JSON::fromString( "[{\"connector\":\"HTTP\",\"interface\":\"\",\"online\":1,\"port\":\"0\",\"username\":\"\"},{\"connector\":\"HTTPDynamic\",\"online\":1,\"username\":\"\"},{\"connector\":\"HTTPLive\",\"online\":1,\"username\":\"\"},{\"connector\":\"HTTPProgressive\",\"online\":1,\"username\":\"\"},{\"connector\":\"HTTPSmooth\",\"online\":1,\"username\":\"\"},{\"connector\":\"RTMP\",\"interface\":\"\",\"online\":1,\"port\":\"0\",\"username\":\"\"}]");
+        }else if(yna(in_string) == 'a'){
+          //abort controller startup
+          return 0;
+        }
+      }
+    }
+    //check for streams
+    if (Controller::Storage.isMember("streams") && Controller::Storage["streams"].size() > 0){
+      std::cerr << "Streams set" << std::endl;
+    }else{
+      std::cerr << "Streams not set, please set up streams through local settings page on port 4242 or per JSON request." << std::endl;
+    }
+  }else{
+    std::cerr << "No user i/o detected" << std::endl;
   }
   
   std::string uplink_addr = conf.getString("uplink");

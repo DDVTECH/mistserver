@@ -165,7 +165,8 @@ namespace Connector_HTTP {
             temp = HTTP_R.url.find("_", temp) + 1;
             int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
             if (Strm.metadata.isMember("live")){
-              int seekable = Strm.canSeekFrame(Segment);
+              /// \todo Update to MS seeking.
+              int seekable = Strm.canSeekms(Segment);
               if (seekable < 0){
                 HTTP_S.Clean();
                 HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
@@ -262,9 +263,9 @@ namespace Connector_HTTP {
               int PIDno = 0;
               char * ContCounter = 0;
               if (Strm.lastType() == DTSC::VIDEO){
-                IsKeyFrame = Strm.getPacket(0).isMember("keyframe");
+                IsKeyFrame = Strm.getPacket().isMember("keyframe");
                 if (IsKeyFrame){
-                  TimeStamp = (Strm.getPacket(0)["time"].asInt() * 27000);
+                  TimeStamp = (Strm.getPacket()["time"].asInt() * 27000);
                 }
                 ToPack.append(avccbox.asAnnexB());
                 while (Strm.lastData().size()){
@@ -278,13 +279,13 @@ namespace Connector_HTTP {
                     Strm.lastData().erase(0, ThisNaluSize + 4);
                   }
                 }
-                ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket(0)["time"].asInt() * 90));
+                ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket()["time"].asInt() * 90));
                 PIDno = 0x100;
                 ContCounter = &VideoCounter;
               }else if (Strm.lastType() == DTSC::AUDIO){
                 ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.getTrackById(audioTrackID)["init"].asString()));
                 ToPack.append(Strm.lastData());
-                ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket(0)["time"].asInt() * 90));
+                ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket()["time"].asInt() * 90));
                 PIDno = 0x101;
                 ContCounter = &AudioCounter;
               }

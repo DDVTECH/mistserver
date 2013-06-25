@@ -50,6 +50,7 @@ namespace Buffer {
   ///\brief A function running in a thread to handle a new user connection.
   ///\param v_usr The user that is connected.
   void handleUser(void * v_usr){
+    std::set<int> newSelect;
     user * usr = (user*)v_usr;
     thisStream->addUser(usr);
 #if DEBUG >= 5
@@ -65,7 +66,7 @@ namespace Buffer {
 
     while (usr->S.connected()){
       Util::sleep(5); //sleep 5ms
-      if ( !usr->myRing->playCount || !usr->Send()){
+      if ( !usr->myRing->playCount || !usr->Send(newSelect)){
         if (usr->myRing->updated){
           Stream::get()->getReadLock();
           usr->S.SendNow(Stream::get()->getStream()->metadata.toNetPacked());
@@ -110,21 +111,24 @@ namespace Buffer {
                   thisStream->saveStats(usr->MyStr, usr->tmpStats);
                   break;
                 }
+                case 't': {
+                  newSelect.clear();
+                  std::string tmp = usr->S.Received().get().substr(2);
+                  while (tmp != ""){
+                    newSelect.insert(atoi(tmp.substr(0,tmp.find(' ')).c_str()));
+                    if (tmp.find(' ') != std::string::npos){
+                      tmp.erase(0,tmp.find(' ')+1);
+                    }else{
+                      tmp = "";
+                    }
+                  }
+                  break;
+                }
                 case 's': { //second-seek
                   unsigned int ms = JSON::Value(usr->S.Received().get().substr(2)).asInt();
                   usr->myRing->waiting = false;
                   usr->myRing->starved = false;
-                  usr->myRing->b = thisStream->getStream()->msSeek(ms);
-                  if (usr->myRing->playCount > 0){
-                    usr->myRing->playCount = 0;
-                  }
-                  break;
-                }
-                case 'f': { //frame-seek
-                  unsigned int frameno = JSON::Value(usr->S.Received().get().substr(2)).asInt();
-                  usr->myRing->waiting = false;
-                  usr->myRing->starved = false;
-                  usr->myRing->b = thisStream->getStream()->frameSeek(frameno);
+                  usr->myRing->b = thisStream->getStream()->msSeek(ms, newSelect);
                   if (usr->myRing->playCount > 0){
                     usr->myRing->playCount = 0;
                   }
@@ -176,7 +180,6 @@ namespace Buffer {
       if (((now - timeDiff) >= lastPacket) || (lastPacket - (now - timeDiff) > 15000)){
         thisStream->getWriteLock();
         if (thisStream->getStream()->parsePacket(inBuffer)){
-          thisStream->getStream()->outPacket(0);
           lastPacket = thisStream->getStream()->getTime();
           if ((now - timeDiff - lastPacket) > 15000 || (now - timeDiff - lastPacket < -15000)){
             timeDiff = now - lastPacket;
@@ -208,7 +211,6 @@ namespace Buffer {
           do{
             thisStream->getWriteLock();
             if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
-              thisStream->getStream()->outPacket(0);
               thisStream->dropWriteLock(true);
               packed_parsed = true;
             }else{

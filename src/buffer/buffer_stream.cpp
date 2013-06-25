@@ -178,13 +178,6 @@ namespace Buffer {
   ///\brief Drops a previously obtained write lock.
   ///\param newPacketsAvailable Whether new packets are available to update the index.
   void Stream::dropWriteLock(bool newPacketsAvailable){
-    if (newPacketsAvailable){
-      if (Strm->getPacket(0).isMember("keyframe")){
-        stats_mutex.lock();
-        Strm->updateHeaders();
-        stats_mutex.unlock();
-      }
-    }
     rw_mutex.lock();
     writers--;
     rw_mutex.unlock();

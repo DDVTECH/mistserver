@@ -51,6 +51,6 @@ namespace Buffer {
       /// Has a side effect of dropping the connection if send will never complete.
       bool doSend(const char * ptr, int len);
       /// Try to send data to this user. Disconnects if any problems occur.
-      bool Send();
+      bool Send(std::set<int> & allowedTracks);
   };
 }

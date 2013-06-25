@@ -212,10 +212,11 @@ namespace Connector_HTTP {
             printf("Quality: %s, Seg %d Frag %d\n", Quality.c_str(), Segment, ReqFragment);
 #endif
             if (Strm.metadata.isMember("live")){
-              int seekable = Strm.canSeekFrame(ReqFragment);
+              /// \todo Convert to MS seeking
+              int seekable = -1;//Strm.canSeekFrame(ReqFragment);
               if (seekable == 0){
                 // iff the fragment in question is available, check if the next is available too
-                seekable = Strm.canSeekFrame(ReqFragment + 1);
+                //seekable = Strm.canSeekFrame(ReqFragment + 1);
               }
               if (seekable < 0){
                 HTTP_S.Clean();
@@ -283,17 +284,17 @@ namespace Connector_HTTP {
                 //fill buffer with init data, if needed.
                 if (Strm.metadata.isMember("audio") && Strm.metadata["audio"].isMember("init")){
                   tmp.DTSCAudioInit(Strm);
-                  tmp.tagTime(Strm.getPacket(0)["time"].asInt());
+                  tmp.tagTime(Strm.getPacket()["time"].asInt());
                   FlashBuf.push_back(std::string(tmp.data, tmp.len));
                   FlashBufSize += tmp.len;
                 }
                 if (Strm.metadata.isMember("video") && Strm.metadata["video"].isMember("init")){
                   tmp.DTSCVideoInit(Strm);
-                  tmp.tagTime(Strm.getPacket(0)["time"].asInt());
+                  tmp.tagTime(Strm.getPacket()["time"].asInt());
                   FlashBuf.push_back(std::string(tmp.data, tmp.len));
                   FlashBufSize += tmp.len;
                 }
-                FlashBufTime = Strm.getPacket(0)["time"].asInt();
+                FlashBufTime = Strm.getPacket()["time"].asInt();
               }
               tmp.DTSCLoader(Strm);
               FlashBuf.push_back(std::string(tmp.data, tmp.len));

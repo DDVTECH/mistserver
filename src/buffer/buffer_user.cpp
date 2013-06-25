@@ -68,7 +68,7 @@ namespace Buffer {
   ///\brief Try to send the current buffer.
   ///
   ///\return True if the send was succesful, false otherwise.
-  bool user::Send(){
+  bool user::Send(std::set<int> & allowedTracks){
     if ( !myRing){
       return false;
     } //no ring!
@@ -105,11 +105,11 @@ namespace Buffer {
     if (doSend(Stream::get()->getStream()->outPacket(myRing->b).c_str(), Stream::get()->getStream()->outPacket(myRing->b).length())){
       //switch to next buffer
       currsend = 0;
-      if (myRing->b <= 0){
+      if (Stream::get()->getStream()->isNewest(myRing->b)){
         myRing->waiting = true;
         return false;
       } //no next buffer? go in waiting mode.
-      myRing->b--;
+      myRing->b = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
       if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
         myRing->playCount--;
         if ( !myRing->playCount){

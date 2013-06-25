@@ -38,17 +38,11 @@ namespace Converters {
     //moov box
     MP4::MOOV moovBox;
       MP4::MVHD mvhdBox;
+      //todo: set movie header box
       moovBox.setContent(mvhdBox, 0);
       
       //start arbitrary track addition
       int boxOffset = 1;
-      input.getMeta()["tracks"]["audio0"] = input.getMeta()["audio"];
-      input.getMeta()["tracks"]["audio0"]["type"] = "audio";
-      input.getMeta()["tracks"]["audio0"]["trackid"] = 1;
-      input.getMeta()["tracks"]["video0"] = input.getMeta()["video"];
-      input.getMeta()["tracks"]["video0"]["keylen"] = input.getMeta()["keylen"];
-      input.getMeta()["tracks"]["video0"]["trackid"] = 2;
-      input.getMeta()["tracks"]["video0"]["type"] = "video";
       for (JSON::ObjIter it = input.getMeta()["tracks"].ObjBegin(); it != input.getMeta()["tracks"].ObjEnd(); it++){
         MP4::TRAK trakBox;
           MP4::TKHD tkhdBox;
@@ -63,19 +57,22 @@ namespace Converters {
           
           MP4::MDIA mdiaBox;
             MP4::MDHD mdhdBox;
+            // todo: MDHD content
             mdiaBox.setContent(mdhdBox, 0);
             
             MP4::HDLR hdlrBox;
+            // todo: HDLR content
             mdiaBox.setContent(hdlrBox, 1);
             MP4::MINF minfBox;
               MP4::DINF dinfBox;
                 MP4::DREF drefBox;
+                // todo: DREF content
                 dinfBox.setContent(drefBox,0);
               minfBox.setContent(dinfBox,0);
               
               MP4::STBL stblBox;
                 MP4::STSD stsdBox;
-                  /*std::string tmpStr = it->second["type"].asString();
+                  std::string tmpStr = it->second["type"].asString();
                   if (tmpStr == "video"){//boxname = codec
                     MP4::VisualSampleEntry vse;
                     std::string tmpStr2 = it->second["codec"];
@@ -89,13 +86,13 @@ namespace Converters {
                     MP4::AudioSampleEntry ase;
                     std::string tmpStr2 = it->second["codec"];
                     if (tmpStr2 == "AAC"){
-                      ase.setCodec("aac ");
+                      ase.setCodec("mp4a");
                     }
                     ase.setSampleRate(it->second["rate"].asInt());
                     ase.setChannelCount(it->second["channels"].asInt());
                     ase.setSampleSize(it->second["length"].asInt());
                     stsdBox.setEntry(ase,0);
-                  }*/
+                  }
                 stblBox.setContent(stsdBox,0);
 
                 MP4::STTS sttsBox;
@@ -108,26 +105,27 @@ namespace Converters {
                 stblBox.setContent(sttsBox,1);
 
                 MP4::STSC stscBox;
-                for (int i = 0; i < it->second["keylen"].size(); i++){
+                
+                for (int i = 0; i < it->second["keys"].size(); i++){
                   MP4::STSCEntry newEntry;
-                  newEntry.firstChunk = i;
-                  newEntry.samplesPerChunk = 1;
+                  newEntry.firstChunk = i;//["keys
+                  newEntry.samplesPerChunk = 1;//["keys"]["parts"].size
                   newEntry.sampleDescriptionIndex = i;
                   stscBox.setSTSCEntry(newEntry, i);
                 }
-                  
                 stblBox.setContent(stscBox,2);
 
                 MP4::STSZ stszBox;
                 /// \todo calculate byte position of DTSCkeyframes in MP4Sample
+                // in it->second["keys"]["parts"]
                 stszBox.setSampleSize(0);
-                for (int i = 0; i < it->second["keylen"].size(); i++){
+                for (int i = 0; i < it->second["keys"].size(); i++){
                   stszBox.setEntrySize(0, i);
                 }
                 stblBox.setContent(stszBox,3);
                   
                 MP4::STCO stcoBox;
-                for (int i = 0; i < it->second["keylen"].size(); i++){
+                for (int i = 0; i < it->second["keys"].size(); i++){
                   stcoBox.setChunkOffset(0, i);
                 }
                 stblBox.setContent(stcoBox,4);
@@ -146,17 +144,22 @@ namespace Converters {
     //for(input.seekNext(); input.getJSON(); input.seekNext())
     //cout << input.getJSON["data"].asString()
   
-    //audio
-//    ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata["audio"]["init"].asString()));
-//    ToPack.append(Strm.lastData());
+    
     printf("%c%c%c%cmdat", 0x00,0x00,0x01,0x00);
     //std::cout << "\200\000\000\010mdat";
-    for(input.seekNext(); input.getJSON(); input.seekNext()){
-      if(input.getJSON()["datatype"] == "video" /*|| input.getJSON()["datatype"] == "audio"*/){
-        std::cout << input.getJSON()["data"].asString();
-      }
+    std::set<int> selector;
+    for (JSON::ObjIter trackIt = meta["tracks"].ObjBegin(); trackIt != meta["tracks"].ObjEnd(); trackIt++){
+      selector.insert(trackIt->second["trackid"].asInt());
     }
+    input.selectTracks(selector);
 
+    input.seek_time(0);
+
+    input.seekNext();
+    while (input.getJSON()){
+      //blaat
+      input.seekNext();
+    }
     return 0;
   } //DTSC2MP4
 

@@ -243,8 +243,6 @@ void Util::Config::parseArgs(int & argc, char ** & argv){
     for (JSON::ObjIter it = vals.ObjBegin(); it != vals.ObjEnd(); it++){
       if (it->second.isMember("arg_num") && it->second["arg_num"].asInt() == long_i){
         it->second["value"].append((std::string)argv[optind]);
-        optind++;
-        long_i++;
         break;
       }
     }

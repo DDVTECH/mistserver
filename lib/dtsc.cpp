@@ -708,6 +708,60 @@ void DTSC::File::seekNext(){
   }
 }
 
+
+void DTSC::File::parseNext(){
+  if (fread(buffer, 4, 1, F) != 1){
+    if (feof(F)){
+#if DEBUG >= 4
+      fprintf(stderr, "End of file reached.\n");
+#endif
+    }else{
+      fprintf(stderr, "Could not read header\n");
+    }
+    strbuffer = "";
+    jsonbuffer.null();
+    return;
+  }
+  if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
+    readHeader(lastreadpos);
+    jsonbuffer = metadata;
+    return;
+  }
+  long long unsigned int version = 0;
+  if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0){
+    version = 1;
+  }
+  if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0){
+    version = 2;
+  }
+  if (version == 0){
+    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", lastreadpos, buffer, DTSC::Magic_Packet2);
+    strbuffer = "";
+    jsonbuffer.null();
+    return;
+  }
+  if (fread(buffer, 4, 1, F) != 1){
+    fprintf(stderr, "Could not read size\n");
+    strbuffer = "";
+    jsonbuffer.null();
+    return;
+  }
+  uint32_t * ubuffer = (uint32_t *)buffer;
+  long packSize = ntohl(ubuffer[0]);
+  strbuffer.resize(packSize);
+  if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
+    fprintf(stderr, "Could not read packet\n");
+    strbuffer = "";
+    jsonbuffer.null();
+    return;
+  }
+  if (version == 2){
+    jsonbuffer = JSON::fromDTMI2(strbuffer);
+  }else{
+    jsonbuffer = JSON::fromDTMI(strbuffer);
+  }
+}
+
 /// Returns the byte positon of the start of the last packet that was read.
 long long int DTSC::File::getLastReadPos(){
   return lastreadpos;

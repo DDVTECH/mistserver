@@ -104,6 +104,7 @@ namespace DTSC {
       long int getBytePos();
       bool reachedEOF();
       void seekNext();
+      void parseNext();
       std::string & getPacket();
       JSON::Value & getJSON();
       JSON::Value & getTrackById(int trackNo);

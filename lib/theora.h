@@ -30,7 +30,10 @@ namespace theora{
       std::string getVendor();
       long unsigned int getNComments();
       std::string getUserComment(size_t index);
+      char getLFLIMS(size_t index);
       std::string toPrettyString(size_t indent = 0);
+      long long unsigned int parseGranuleUpper(long long unsigned int granPos);
+      long long unsigned int parseGranuleLower(long long unsigned int granPos);
     protected:
       uint32_t getInt32(size_t index);
       uint32_t getInt24(size_t index);

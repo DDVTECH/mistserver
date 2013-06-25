@@ -46,6 +46,7 @@ namespace OGG{
   }
 
   bool Page::read(std::string & newData){
+    segmentTableDeque.clear();
     //datasize = 0;
     if (newData.size()<27){
       return false;
@@ -178,18 +179,18 @@ namespace OGG{
     return data+27;
   }
   
-  std::deque<unsigned int> Page::getSegmentTableDeque(){
-    std::deque<unsigned int> retVal;
-    unsigned int temp = 0;
-    char* segmentTable = getSegmentTable();
-    for (unsigned int i = 0; i < getPageSegments(); i++){
-      temp += segmentTable[i];
-      if (segmentTable[i] < 255){
-        retVal.push_back(temp);
-        temp = 0;
+  std::deque<unsigned int> & Page::getSegmentTableDeque(){
+    if ( !segmentTableDeque.size()){
+      unsigned int temp = 0;
+      for (unsigned int i = 0; i < getPageSegments(); i++){
+        temp += getSegmentTable()[i];
+        if (getSegmentTable()[i] < 255){
+          segmentTableDeque.push_back(temp);
+          temp = 0;
+        }
       }
     }
-    return retVal;
+    return segmentTableDeque;
   }
 
   bool Page::setSegmentTable(std::vector<unsigned int> layout){
@@ -272,10 +273,10 @@ namespace OGG{
       r << " eos";
     }
     r << std::endl;
-    r << std::string(indent + 2,' ') << "Granule Position: " <<std::hex<< getGranulePosition() <<std::dec<< std::endl;
+    r << std::string(indent + 2,' ') << "Granule Position: " << std::hex << getGranulePosition() << std::dec << std::endl;
     r << std::string(indent + 2,' ') << "Bitstream Number: " << getBitstreamSerialNumber() << std::endl;
     r << std::string(indent + 2,' ') << "Sequence Number: " << getPageSequenceNumber() << std::endl;
-    r << std::string(indent + 2,' ') << "Checksum: " << std::hex << getCRCChecksum()<< std::dec << std::endl;
+    r << std::string(indent + 2,' ') << "Checksum: " << std::hex << getCRCChecksum() << std::dec << std::endl;
     //r << "  Calced Checksum: " << std::hex << calcChecksum() << std::dec << std::endl;
     //r << "CRC_checksum write: " << std::hex << getCRCChecksum()<< std::dec << std::endl;
     r << std::string(indent + 2,' ') << "Segments: " << (int)getPageSegments() << std::endl;

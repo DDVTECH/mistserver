@@ -203,6 +203,13 @@ namespace theora{
     return commentLen(offset);
   }
 
+  char header::getLFLIMS(size_t index){
+    if (getHeaderType() != 2){return 0;}
+    if (index >= 64){return 0;}
+    char NBITS = (data[0] >> 5) & 0x07;
+    return NBITS;
+  }
+
   std::string header::getUserComment(size_t index){
     if (index >= getNComments()){return "";}
     int len;
@@ -244,6 +251,8 @@ namespace theora{
           result << std::string(indent+4,' ') << "[" << i << "] " << getUserComment(i) << std::endl;
         }
         break;
+      case 2:
+        result << std::string(indent+2,' ') << "NBITS: " << (int)getLFLIMS(0) << std::endl;
     }
     return result.str();
   }
@@ -294,6 +303,14 @@ namespace theora{
   char frame::getQIS(size_t index){
     if (index >= 3){return 0;}
     return 0;
+  }
+
+  long long unsigned int header::parseGranuleUpper(long long unsigned int granPos){
+    return granPos >> getKFGShift();
+  }
+
+  long long unsigned int header::parseGranuleLower(long long unsigned int granPos){
+    return (granPos & ((1 << getKFGShift()) - 1));
   }
 
   std::string frame::toPrettyString(size_t indent){

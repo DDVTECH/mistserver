@@ -179,7 +179,7 @@ namespace Converters {
                       esdsBox.setSLValue(2);
                       ase.setCodecBox(esdsBox);
                     stsdBox.setEntry(ase,0);
-                  }*/
+                  }
                 stblBox.setContent(stsdBox,0);
                 
                 /// \todo update following stts lines

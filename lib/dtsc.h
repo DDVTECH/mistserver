@@ -202,9 +202,11 @@ namespace DTSC {
       void dropRing(Ring * ptr);
       void updateHeaders();
       int canSeekms(unsigned int ms);
-      livePos msSeek(unsigned int ms, std::set<int> allowedTracks);
+      livePos msSeek(unsigned int ms, std::set<int> & allowedTracks);
       void setBufferTime(unsigned int ms);
-    private:
+      bool isNewest(DTSC::livePos & pos);
+      DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
+  private:
       std::map<livePos,JSON::Value> buffers;
       std::map<int,std::set<livePos> > keyframes;
       void addPacket(JSON::Value & newPack);

@@ -179,6 +179,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
   buffers[newPos] = newPack;
+  buffers[newPos].toNetPacked();//make sure package is packed and ready
   datapointertype = INVALID;
   ///\todo Save keyframes when they arrive.
   if (newPack.isMember("data")){
@@ -285,10 +286,10 @@ void DTSC::Stream::setBufferTime(unsigned int ms){
 
 std::string & DTSC::Stream::outPacket(){
   static std::string emptystring;
-  if (!buffers.size() || !buffers.begin()->second.isObject()){
+  if (!buffers.size() || !buffers.rbegin()->second.isObject()){
     return emptystring;
   }
-  return buffers.begin()->second.toNetPacked();
+  return buffers.rbegin()->second.toNetPacked();
 }
 
 /// Returns a packed DTSC packet, ready to sent over the network.
@@ -406,7 +407,7 @@ int DTSC::Stream::canSeekms(unsigned int ms){
   if ( !buffers.size()){
     return 1;
   }
-  if (ms > (buffers.end()--)->second["time"].asInt()){
+  if (ms > buffers.rbegin()->second["time"].asInt()){
     return 1;
   }
   if (ms < buffers.begin()->second["time"].asInt()){
@@ -415,7 +416,7 @@ int DTSC::Stream::canSeekms(unsigned int ms){
   return 0;
 }
 
-DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> allowedTracks){
+DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> & allowedTracks){
   livePos result = buffers.begin()->first;
   for (std::map<livePos,JSON::Value>::iterator bIt = buffers.begin(); bIt != buffers.end(); bIt++){
     if (allowedTracks.find(bIt->first.trackID) != allowedTracks.end()){
@@ -426,6 +427,18 @@ DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> allowedTracks)
     }
   }
   return result;
+}
+
+bool DTSC::Stream::isNewest(DTSC::livePos & pos){
+  return (buffers.upper_bound(pos) == buffers.end());
+}
+
+DTSC::livePos DTSC::Stream::getNext(DTSC::livePos & pos, std::set<int> & allowedTracks){
+  if (!isNewest(pos)){
+    return (buffers.upper_bound(pos))->first;
+  }else{
+    return livePos();
+  }
 }
 
 /// Properly cleans up the object for erasing.

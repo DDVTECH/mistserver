@@ -38,7 +38,11 @@ namespace Converters {
     //moov box
     MP4::MOOV moovBox;
       MP4::MVHD mvhdBox;
-      //todo: set movie header box
+      mvhdBox.setCreationTime(0);
+      mvhdBox.setModificationTime(0);
+      mvhdBox.setTimeScale(1000);
+      mvhdBox.setDuration(input.getMeta()["lastms"].asInt());
+      /// \todo mvhd setTrackID automatic fix (next track ID)
       moovBox.setContent(mvhdBox, 0);
       
       //start arbitrary track addition
@@ -56,23 +60,35 @@ namespace Converters {
           trakBox.setContent(tkhdBox, 0);
           
           MP4::MDIA mdiaBox;
-            MP4::MDHD mdhdBox;
-            // todo: MDHD content
+            MP4::MDHD mdhdBox;/// \todo fix constructor mdhd in lib
+            mdhdBox.setCreationTime(0);
+            mdhdBox.setModificationTime(0);
+            mdhdBox.setTimeScale(1000);
+            mdhdBox.setDuration(input.getMeta()["lastms"].asInt());
             mdiaBox.setContent(mdhdBox, 0);
             
-            MP4::HDLR hdlrBox;
-            // todo: HDLR content
+            std::string tmpStr = it->second["type"].asString();
+            MP4::HDLR hdlrBox;/// \todo fix constructor hdlr in lib
+            if (tmpStr == "video"){
+              hdlrBox.setHandlerType(0x76696465);//vide
+            }else if (tmpStr == "audio"){
+              hdlrBox.setHandlerType(0x736F756E);//soun
+            }
+            hdlrBox.setName(it->first);
             mdiaBox.setContent(hdlrBox, 1);
+            
             MP4::MINF minfBox;
               MP4::DINF dinfBox;
-                MP4::DREF drefBox;
-                // todo: DREF content
+                MP4::DREF drefBox;/// \todo fix constructor dref in lib
+                  MP4::URN urnBox;
+                  urnBox.setName("Name Here");
+                  urnBox.setLocation("Location Here");
+                  drefBox.setDataEntry(urnBox,0);
                 dinfBox.setContent(drefBox,0);
               minfBox.setContent(dinfBox,0);
               
               MP4::STBL stblBox;
                 MP4::STSD stsdBox;
-                  std::string tmpStr = it->second["type"].asString();
                   if (tmpStr == "video"){//boxname = codec
                     MP4::VisualSampleEntry vse;
                     std::string tmpStr2 = it->second["codec"];
@@ -96,39 +112,38 @@ namespace Converters {
                 stblBox.setContent(stsdBox,0);
 
                 MP4::STTS sttsBox;
-                for (int i = 0; i < it->second["keylen"].size(); i++){
+                for (int i = 0; i < it->second["keys"].size(); i++){
                   MP4::STTSEntry newEntry;
-                  newEntry.sampleCount = 1;
-                  newEntry.sampleDelta = it->second["keylen"][i].asInt();
+                  newEntry.sampleCount = it->second["keys"][i]["parts"].size();
+                  newEntry.sampleDelta = it->second["keys"][i]["len"].asInt();
                   sttsBox.setSTTSEntry(newEntry, i);
                 }
                 stblBox.setContent(sttsBox,1);
 
-                MP4::STSC stscBox;
-                
+                MP4::STSC stscBox;//probably wrong
                 for (int i = 0; i < it->second["keys"].size(); i++){
                   MP4::STSCEntry newEntry;
-                  newEntry.firstChunk = i;//["keys
-                  newEntry.samplesPerChunk = 1;//["keys"]["parts"].size
-                  newEntry.sampleDescriptionIndex = i;
+                  newEntry.firstChunk = it->second["keys"][i]["num"].asInt();
+                  newEntry.samplesPerChunk = it->second["keys"][i]["parts"].size();
+                  newEntry.sampleDescriptionIndex = 1;
                   stscBox.setSTSCEntry(newEntry, i);
                 }
                 stblBox.setContent(stscBox,2);
 
-                MP4::STSZ stszBox;
+                /*MP4::STSZ stszBox;
                 /// \todo calculate byte position of DTSCkeyframes in MP4Sample
                 // in it->second["keys"]["parts"]
                 stszBox.setSampleSize(0);
                 for (int i = 0; i < it->second["keys"].size(); i++){
-                  stszBox.setEntrySize(0, i);
+                  stszBox.setEntrySize(it->second["keys"][i]["size"], i);
                 }
-                stblBox.setContent(stszBox,3);
+                stblBox.setContent(stszBox,3);*/
                   
                 MP4::STCO stcoBox;
                 for (int i = 0; i < it->second["keys"].size(); i++){
-                  stcoBox.setChunkOffset(0, i);
+                  stcoBox.setChunkOffset(it->second["keys"][i]["size"].asInt(), i);//in bytes in file
                 }
-                stblBox.setContent(stcoBox,4);
+                stblBox.setContent(stcoBox,3);
               minfBox.setContent(stblBox,1);
             mdiaBox.setContent(minfBox, 2);
           trakBox.setContent(mdiaBox, 1);
@@ -136,6 +151,9 @@ namespace Converters {
         boxOffset++;
       }
       //end arbitrary
+      //initial offset lengte ftyp, length moov + 8
+      
+      //update all STCO
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());
 
     //mdat box alot
@@ -146,9 +164,8 @@ namespace Converters {
   
     
     printf("%c%c%c%cmdat", 0x00,0x00,0x01,0x00);
-    //std::cout << "\200\000\000\010mdat";
     std::set<int> selector;
-    for (JSON::ObjIter trackIt = meta["tracks"].ObjBegin(); trackIt != meta["tracks"].ObjEnd(); trackIt++){
+    for (JSON::ObjIter trackIt = input.getMeta()["tracks"].ObjBegin(); trackIt != input.getMeta()["tracks"].ObjEnd(); trackIt++){
       selector.insert(trackIt->second["trackid"].asInt());
     }
     input.selectTracks(selector);

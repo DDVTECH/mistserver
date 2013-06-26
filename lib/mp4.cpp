@@ -2863,7 +2863,7 @@ namespace MP4 {
     setMatrix(0,7);*/
     //fills automatically with zero's
     setMatrix(0x40000000,8);
-    setTrackID(0);
+    setTrackID(1);
   }
   
   void MVHD::setCreationTime(uint64_t newCreationTime){

@@ -306,7 +306,7 @@ namespace Converters {
     //for(input.seekNext(); input.getJSON(); input.seekNext())
     //cout << input.getJSON["data"].asString()
   
-    
+
     std::set<int> selector;
     for (JSON::ObjIter trackIt = input.getMeta()["tracks"].ObjBegin(); trackIt != input.getMeta()["tracks"].ObjEnd(); trackIt++){
       selector.insert(trackIt->second["trackid"].asInt());

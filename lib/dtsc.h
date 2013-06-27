@@ -207,7 +207,7 @@ namespace DTSC {
       void setBufferTime(unsigned int ms);
       bool isNewest(DTSC::livePos & pos);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
-  private:
+    private:
       std::map<livePos,JSON::Value> buffers;
       std::map<int,std::set<livePos> > keyframes;
       void addPacket(JSON::Value & newPack);

@@ -212,15 +212,16 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     JSON::Value key;
     key["time"] = newPack["time"];
     if (keySize){
-      key["num"] = (*(metadata["tracks"][trackMapping[newPos.trackID]]["keys"].ArrEnd()--))["num"].asInt() + 1;
+      key["num"] = metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize -1]["num"].asInt() + 1;
     }else{
       key["num"] = 1;
     }
+    metadata["tracks"][trackMapping[newPos.trackID]]["keys"].append(key);
   }
   unsigned int timeBuffered = 0;
   if (keySize > 1){
     //increase buffer size if no keyframes available or too little time available
-    timeBuffered = (buffers.end()--)->second["time"].asInt() - buffers.begin()->second["time"].asInt();
+    timeBuffered = buffers.rbegin()->second["time"].asInt() - buffers.begin()->second["time"].asInt();
   }
   if (buffercount > 1 && (keyframes.size() < 2 || timeBuffered < buffertime)){
     buffercount++;
@@ -612,8 +613,10 @@ void DTSC::File::readHeader(int pos){
   }
   //if there is another header, read it and replace metadata with that one.
   if (metadata.isMember("moreheader") && metadata["moreheader"].asInt() > 0){
-    readHeader(metadata["moreheader"].asInt());
-    return;
+    if (metadata["moreheader"].asInt() < getBytePosEOF()){
+      readHeader(metadata["moreheader"].asInt());
+      return;
+    }
   }
   metadata["vod"] = true;
   metadata.netPrepare();

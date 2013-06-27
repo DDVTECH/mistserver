@@ -717,9 +717,9 @@
                 {
                   streamstatus = formatStatus(streams[stream][0]);
                 }
+                $(this).children(':nth-child(5)').html(formatStatus(streamstatus));
+                $(this).children(':nth-child(6)').html(streams[stream][1]);
               }
-              $(this).children(':nth-child(5)').html(formatStatus(streamstatus));
-              $(this).children(':nth-child(6)').html(streams[stream][1]);
             });
           });
         };
@@ -1363,7 +1363,7 @@
           )
         );
         
-        conversionDirQuery(c.query);
+        conversionDirQuery('./');
         for (var i in c.encoders) {
           $('#conv-edit-encoder').append(
             $('<option>').value(c.encoders[i])

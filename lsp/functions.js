@@ -730,8 +730,9 @@ function buildLogsTable(){
  @params: - query: the directory query
  */
  function conversionDirQuery(query) {
+  settings.settings.conversion.query = query;
   getData(function(data){
-    var c = data.conversion.arrayoffilenamesreturnedbyquery
+    var c = data.conversion.arrayoffilenamesreturnedbyquery;
     //todo change this ^
     
     for (var i in c) {

@@ -62,10 +62,7 @@ namespace Converters {
     std::string currentID;
     int nextFreeID = 0;
 
-    std::set<int> tmp;
-
     for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++){
-      tmp.insert(it->second["trackid"].asInt());
       trackIDs.insert(std::pair<std::string,int>(it->first,it->second["trackid"].asInt()));
       trackData[it->first].type = it->second["type"].asString();
       trackData[it->first].trackID = it->second["trackid"].asInt();
@@ -83,10 +80,7 @@ namespace Converters {
       it->second.removeMember("keys");
     }
 
-    F.selectTracks(tmp);
-    F.seek_time(0);
-
-    F.seekNext();
+    F.parseNext();
     while ( !F.getJSON().isNull()){
       currentID = "";
       if (F.getJSON()["trackid"].asInt() == 0){
@@ -113,7 +107,7 @@ namespace Converters {
             trackData[currentID].type = F.getJSON()["datatype"].asString();
           }else{
             fprintf(stderr, "Found an unknown package with packetid 0 and datatype %s\n",F.getJSON()["datatype"].asString().c_str());
-            F.seekNext();
+            F.parseNext();
             continue;
           }
         }

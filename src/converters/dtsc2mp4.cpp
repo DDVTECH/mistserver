@@ -25,14 +25,20 @@ namespace Converters {
     DTSC::File input(conf.getString("filename"));
     //ftyp box
     /// \todo fill ftyp with non hardcoded values from file
-    MP4::FTYP ftypBox;
+    /*MP4::FTYP ftypBox;
     ftypBox.setMajorBrand(0x69736f6d);
     ftypBox.setMinorVersion(512);
     ftypBox.setCompatibleBrands(0x69736f6d,0);
     ftypBox.setCompatibleBrands(0x69736f32,1);
     ftypBox.setCompatibleBrands(0x61766331,2);
     ftypBox.setCompatibleBrands(0x6d703431,3);
+    std::cout << std::string(ftypBox.asBox(),ftypBox.boxedSize());*/
+    MP4::FTYP ftypBox;
+    ftypBox.setMajorBrand(0x6D703431);//mp41
+    ftypBox.setMinorVersion(0);
+    ftypBox.setCompatibleBrands(0x6D703431,0);
     std::cout << std::string(ftypBox.asBox(),ftypBox.boxedSize());
+
     
     
     //moov box
@@ -94,6 +100,7 @@ namespace Converters {
                     std::string tmpStr2 = it->second["codec"];
                     if (tmpStr2 == "H264"){
                       vse.setCodec("avc1");
+                      
                     }
                     vse.setWidth(it->second["width"].asInt());
                     vse.setHeight(it->second["height"].asInt());
@@ -138,12 +145,17 @@ namespace Converters {
                   stszBox.setEntrySize(it->second["keys"][i]["size"], i);
                 }
                 stblBox.setContent(stszBox,3);*/
+                MP4::STSZ stszBox;
+                for (int i = 0; i < it->second["keys"].size(); i++){
+                  stszBox.setEntrySize(it->second["keys"][i]["size"].asInt(), i);//in bytes in file
+                }
+                stblBox.setContent(stszBox,3);
                   
                 MP4::STCO stcoBox;
                 for (int i = 0; i < it->second["keys"].size(); i++){
                   stcoBox.setChunkOffset(it->second["keys"][i]["size"].asInt(), i);//in bytes in file
                 }
-                stblBox.setContent(stcoBox,3);
+                stblBox.setContent(stcoBox,4);
               minfBox.setContent(stblBox,1);
             mdiaBox.setContent(minfBox, 2);
           trakBox.setContent(mdiaBox, 1);
@@ -152,8 +164,31 @@ namespace Converters {
       }
       //end arbitrary
       //initial offset lengte ftyp, length moov + 8
-      
+      unsigned long long int byteOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
       //update all STCO
+      //for tracks
+      for (unsigned int i = 1; i < moovBox.getContentCount(); i++){
+        //10 lines to get the STCO box.
+        MP4::TRAK checkTrakBox;
+        MP4::MDIA checkMdiaBox;
+        MP4::MINF checkMinfBox;
+        MP4::STBL checkStblBox;
+        MP4::STCO checkStcoBox;
+        checkTrakBox = ((MP4::TRAK&)moovBox.getContent(i));
+        checkMdiaBox = ((MP4::MDIA&)checkTrakBox.getContent(1));
+        checkMinfBox = ((MP4::MINF&)checkMdiaBox.getContent(2));
+        checkStblBox = ((MP4::STBL&)checkMinfBox.getContent(1));
+        checkStcoBox = ((MP4::STCO&)checkStblBox.getContent(4));
+        
+        //std::cerr << std::string(checkStcoBox.asBox(),checkStcoBox.boxedSize()) << std::endl;
+        for (unsigned int o = 0; o < checkStcoBox.getEntryCount(); o++){
+          uint64_t temp;
+          temp = checkStcoBox.getChunkOffset(o);
+          checkStcoBox.setChunkOffset(byteOffset, o);
+          byteOffset += temp;
+          //std::cerr << "FNURF "<< byteOffset << ", " << temp << std::endl;
+        }
+      }
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());
 
     //mdat box alot
@@ -163,7 +198,6 @@ namespace Converters {
     //cout << input.getJSON["data"].asString()
   
     
-    printf("%c%c%c%cmdat", 0x00,0x00,0x01,0x00);
     std::set<int> selector;
     for (JSON::ObjIter trackIt = input.getMeta()["tracks"].ObjBegin(); trackIt != input.getMeta()["tracks"].ObjEnd(); trackIt++){
       selector.insert(trackIt->second["trackid"].asInt());
@@ -173,9 +207,24 @@ namespace Converters {
     input.seek_time(0);
 
     input.seekNext();
+    std::vector<std::string> dataParts;
     while (input.getJSON()){
-      //blaat
+      //if not in vector, create;
+      if (dataParts.size() < input.getJSON()["trackid"].asInt()){
+        dataParts.resize(input.getJSON()["trackid"].asInt());
+      }
+      //putting everything in its place
+      dataParts[input.getJSON()["trackid"].asInt()-1] += input.getJSON()["data"].asString();
       input.seekNext();
+    }
+    uint32_t mdatSize = 0;
+    for (unsigned int x = 0; x < dataParts.size(); x++){
+      mdatSize += dataParts[x].size();
+    }
+    //std::cerr << "Total Data size: " << mdatSize << std::endl;
+    printf("%c%c%c%cmdat", (mdatSize>>24) & 0x000000FF,(mdatSize>>16) & 0x000000FF,(mdatSize>>8) & 0x000000FF,mdatSize & 0x000000FF);
+    for (unsigned int x = 0; x < dataParts.size(); x++){
+      std::cout << dataParts[x];
     }
     return 0;
   } //DTSC2MP4

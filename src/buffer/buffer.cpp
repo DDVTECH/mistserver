@@ -56,7 +56,6 @@ namespace Buffer {
 #if DEBUG >= 5
     std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
 #endif
-
     Stream::get()->getReadLock();
     usr->myRing = thisStream->getRing();
     if (thisStream->getStream()->metadata && thisStream->getHeader().size() > 0){
@@ -67,12 +66,14 @@ namespace Buffer {
     while (usr->S.connected()){
       Util::sleep(5); //sleep 5ms
       if ( !usr->myRing->playCount || !usr->Send(newSelect)){
-        if (usr->myRing->updated){
+    //    if (usr->myRing->updated){
           Stream::get()->getReadLock();
-          usr->S.SendNow(Stream::get()->getStream()->metadata.toNetPacked());
+          usr->S.SendNow(thisStream->getHeader());
+     //     std::cerr << "Sending updated header: " << std::endl;
+     //     std::cerr << Stream::get()->getStream()->metadata.toPrettyString() << std::endl;
           Stream::get()->dropReadLock();
-          usr->myRing->updated = false;
-        }
+    //      usr->myRing->updated = false;
+    //    }
         if (usr->S.spool()){
           while (usr->S.Received().size()){
             //delete anything that doesn't end with a newline

@@ -2,6 +2,7 @@
 /// Contains the main code for the HTTP Dynamic Connector
 
 #include <iostream>
+#include <sstream>
 #include <queue>
 #include <cstdlib>
 #include <cstdio>
@@ -30,7 +31,7 @@ namespace Connector_HTTP {
   ///\param metadata The current metadata, used to generate the index.
   ///\param fragnum The index of the current fragment
   ///\return The generated bootstrap.
-  std::string dynamicBootstrap(std::string & streamName, JSON::Value & metadata, int fragnum = 0){
+  std::string dynamicBootstrap(std::string & streamName, JSON::Value & metadata, bool isLive = false, int fragnum = 0){
     std::string empty;
 
     MP4::ASRT asrt;
@@ -49,17 +50,18 @@ namespace Connector_HTTP {
     afrt.setTimeScale(1000);
     //afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
-    if (metadata.isMember("live")){
+    if (isLive){
+      fprintf(stderr,"Generating bootstrap for live stream\n");
       // restrict data to last 2 fragments, unless an earlier fragment was expressly requested.
       int count = 0;
-      unsigned int begin = std::max(0u, metadata["keynum"].size() - 3);
-      while (begin > 0 && fragnum && metadata["keynum"][begin].asInt() > fragnum){
+      unsigned int begin = std::max(0u, metadata["keys"].size() - 3);
+      while (begin > 0 && fragnum && metadata["keys"][begin]["num"].asInt() > fragnum){
         begin--;
       }
-      for (int i = begin; i < metadata["keynum"].size(); i++){
-        afrtrun.firstFragment = metadata["keynum"][i].asInt();
-        afrtrun.firstTimestamp = metadata["keytime"][i].asInt();
-        afrtrun.duration = metadata["keylen"][i].asInt();
+      for (int i = begin; i < metadata["keys"].size(); i++){
+        afrtrun.firstFragment = metadata["keys"][i]["num"].asInt();
+        afrtrun.firstTimestamp = metadata["keys"][i]["time"].asInt();
+        afrtrun.duration = metadata["keys"][i]["len"].asInt();
         afrt.setFragmentRun(afrtrun, count++);
       }
     }else{
@@ -95,42 +97,55 @@ namespace Connector_HTTP {
   ///\param metadata The current metadata, used to generate the index.
   ///\return The index file for HTTP Dynamic Streaming.
   std::string dynamicIndex(std::string & streamName, JSON::Value & metadata){
-    std::string Result;
-    if (metadata.isMember("vod")){
-      Result =
-          "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-              "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
-              "<id>" + streamName + "</id>\n"
-              "<width>" + metadata["video"]["width"].asString() + "</width>\n"
-              "<height>" + metadata["video"]["height"].asString() + "</height>\n"
-              "<duration>" + metadata["length"].asString() + ".000</duration>\n"
-              "<mimeType>video/mp4</mimeType>\n"
-              "<streamType>recorded</streamType>\n"
-              "<deliveryType>streaming</deliveryType>\n"
-              "<bootstrapInfo profile=\"named\" id=\"bootstrap1\">" + Base64::encode(dynamicBootstrap(streamName, metadata)) + "</bootstrapInfo>\n"
-              "<media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" + streamName + "/\">\n"
-              "<metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>\n"
-              "</media>\n"
-              "</manifest>\n";
-    }else{
-      Result =
-          "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-              "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
-              "<id>" + streamName + "</id>\n"
-              "<dvrInfo windowDuration=\"" + metadata["buffer_window"].asString().substr(0, metadata["buffer_window"].asString().size() - 3) + "\"></dvrInfo>"
-              "<mimeType>video/mp4</mimeType>\n"
-              "<streamType>live</streamType>\n"
-              "<deliveryType>streaming</deliveryType>\n"
-              "<media url=\"" + streamName + "/\">\n"
-              "<metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>\n"
-              "</media>\n"
-              "<bootstrapInfo profile=\"named\" url=\"" + streamName + ".abst\" />\n"
-              "</manifest>\n";
+    std::set<std::string> videoTracks;
+    for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+      if (it->second["type"] == "video"){
+        videoTracks.insert(it->first);
+      }
     }
-#if DEBUG >= 8
-    std::cerr << "Sending this manifest:" << std::endl << Result << std::endl;
-#endif
-    return Result;
+
+    std::stringstream Result;
+    Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>" << std::endl;
+    Result << "  <manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">" << std::endl;
+    Result << "  <id>" << streamName << "</id>" << std::endl;
+    Result << "  <mimeType>video/mp4</mimeType>" << std::endl;
+    Result << "  <deliveryType>streaming</deliveryType>" << std::endl;
+    if (metadata.isMember("vod")){
+      ///\todo Update VoD manifest generation.
+      Result << "  <width>" << metadata["video"]["width"].asInt() << "</width>" << std::endl;
+      Result << "  <height>" << metadata["video"]["height"].asInt() << "</height>" << std::endl;
+      Result << "  <duration>" << metadata["length"].asInt() << ".000</duration>" << std::endl;
+      Result << "  <streamType>recorded</streamType>" << std::endl;
+      Result << "  <bootstrapInfo profile=\"named\" id=\"bootstrap1\">" << Base64::encode(dynamicBootstrap(streamName, metadata, false)) << "</bootstrapInfo>" << std::endl;
+      Result << "  <media streamId=\"1\" bootstrapInfoId=\"bootstrap1\" url=\"" << streamName << "/\">" << std::endl;
+      Result << "    <metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>" << std::endl;
+      Result << "  </media>" << std::endl;
+    }else{
+      Result << "  <duration>0.00</duration>" << std::endl;
+      Result << "  <streamType>live</streamType>" << std::endl;
+      for (std::set<std::string>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
+        Result << "  <bootstrapInfo "
+                  "profile=\"named\" "
+                  "id=\"boot" << metadata["tracks"][(*it)]["trackid"].asInt() << "\" "
+                  "url=\"" << metadata["tracks"][(*it)]["trackid"].asInt() << ".abst\">"
+                  "</bootstrapInfo>" << std::endl;
+      }
+      for (std::set<std::string>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
+        Result << "  <media "
+                  "url=\"" << metadata["tracks"][(*it)]["trackid"].asInt() << "-\" "
+                  "bitrate=\"" << metadata["tracks"][(*it)]["bps"].asInt() * 8 << "\" "
+                  "bootstrapInfoId=\"boot" << metadata["tracks"][(*it)]["trackid"].asInt() << "\" "
+                  "width=\"" << metadata["tracks"][(*it)]["width"].asInt() << "\" "
+                  "height=\"" << metadata["tracks"][(*it)]["height"].asInt() << "\">" << std::endl;
+        Result << "    <metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>" << std::endl;
+        Result << "  </media>" << std::endl;
+      }
+    }
+    Result << "</manifest>" << std::endl;
+//#if DEBUG >= 8
+    std::cerr << "Sending this manifest:" << std::endl << Result.str() << std::endl;
+//#endif
+    return Result.str();
   } //BuildManifest
 
   ///\brief Main function for the HTTP Dynamic Connector
@@ -190,10 +205,14 @@ namespace Connector_HTTP {
                 }
               }
             }
+            fprintf(stderr, "%s\n", Strm.metadata.toPrettyString().c_str());
           }
           if (HTTP_R.url.find(".abst") != std::string::npos){
+            std::string streamID = HTTP_R.url.substr(HTTP_R.url.find(streamname) + streamname.size() + 1);
+            streamID = streamID.substr(0, streamID.find(".abst"));
+            std::cerr << "Requesting bootstrap for stream " << streamID << std::endl;
             HTTP_S.Clean();
-            HTTP_S.SetBody(dynamicBootstrap(streamname, Strm.metadata));
+            HTTP_S.SetBody(dynamicBootstrap(streamname, Strm.getTrackById(atoll(streamID.c_str())),Strm.metadata.isMember("live")));
             HTTP_S.SetHeader("Content-Type", "binary/octet");
             HTTP_S.SetHeader("Cache-Control", "no-cache");
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
@@ -264,7 +283,7 @@ namespace Connector_HTTP {
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
                 HTTP_S.SetBody("");
-                std::string new_strap = dynamicBootstrap(streamname, Strm.metadata, ReqFragment);
+                std::string new_strap = dynamicBootstrap(streamname, Strm.metadata, Strm.metadata.isMember("live"), ReqFragment);
                 HTTP_S.SetHeader("Content-Length", FlashBufSize + 8 + new_strap.size()); //32+33+btstrp.size());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
                 conn.SendNow(new_strap);

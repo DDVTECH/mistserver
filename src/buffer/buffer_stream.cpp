@@ -63,7 +63,8 @@ namespace Buffer {
     Storage["totals"]["count"] = tot_count;
     Storage["totals"]["now"] = now;
     Storage["buffer"] = name;
-    Storage["meta"] = Strm->metadata;
+    ///\todo Fixme
+//    Storage["meta"] = Strm->metadata;
     if (Storage["meta"].isMember("audio")){
       Storage["meta"]["audio"].removeMember("init");
     }

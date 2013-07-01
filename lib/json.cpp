@@ -442,10 +442,12 @@ std::string JSON::Value::toPacked(){
     r += 0xE0;
     if (objVal.size() > 0){
       for (JSON::ObjIter it = objVal.begin(); it != objVal.end(); it++){
-        r += it->first.size() / 256;
-        r += it->first.size() % 256;
-        r += it->first;
-        r += it->second.toPacked();
+        if (it->first.size() > 0){
+          r += it->first.size() / 256;
+          r += it->first.size() % 256;
+          r += it->first;
+          r += it->second.toPacked();
+        }
       }
     }
     r += (char)0x0;

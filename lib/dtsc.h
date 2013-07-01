@@ -201,7 +201,6 @@ namespace DTSC {
       Ring * getRing();
       unsigned int getTime();
       void dropRing(Ring * ptr);
-      void updateHeaders();
       int canSeekms(unsigned int ms);
       livePos msSeek(unsigned int ms, std::set<int> & allowedTracks);
       void setBufferTime(unsigned int ms);

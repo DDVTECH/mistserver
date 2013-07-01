@@ -207,16 +207,29 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     datapointertype = PAUSEMARK;
   }
   int keySize = metadata["tracks"][trackMapping[newPos.trackID]]["keys"].size();
-  if (newPack.isMember("keyframe") || (keySize && ((newPack["time"].asInt() - 2000) > metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["time"].asInt())) || (!keySize)){
-    keyframes[newPos.trackID].insert(newPos);
-    JSON::Value key;
-    key["time"] = newPack["time"];
-    if (keySize){
-      key["num"] = metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize -1]["num"].asInt() + 1;
-    }else{
-      key["num"] = 1;
+  if (buffercount > 1){
+    if (newPack.isMember("keyframe") || (keySize && ((newPack["time"].asInt() - 2000) > metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["time"].asInt())) || (!keySize)){
+      keyframes[newPos.trackID].insert(newPos);
+      JSON::Value key;
+      key["time"] = newPack["time"];
+      if (keySize){
+        key["num"] = metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize -1]["num"].asInt() + 1;
+        metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["len"] = newPack["time"].asInt() - metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["time"].asInt();
+        int size = 0;
+        for (JSON::ArrIter it = metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["parts"].ArrBegin(); it != metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["parts"].ArrEnd(); it++){
+          size += it->asInt();
+        }
+        metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize -1]["size"] = size;
+      }else{
+        key["num"] = 1;
+      }
+      metadata["tracks"][trackMapping[newPos.trackID]]["keys"].append(key);
+      keySize = metadata["tracks"][trackMapping[newPos.trackID]]["keys"].size();
     }
-    metadata["tracks"][trackMapping[newPos.trackID]]["keys"].append(key);
+    if (keySize){
+      metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["parts"].append((long long int)newPack["data"].asString().size());
+    }
+    metadata["live"] = true;
   }
   unsigned int timeBuffered = 0;
   if (keySize > 1){
@@ -227,7 +240,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     buffercount++;
   }
   while (buffers.size() > buffercount){
-    if (buffers.begin()->second.isMember("keyframe")){
+    if (keyframes[buffers.begin()->first.trackID].count(buffers.begin()->first)){
       std::string track = trackMapping[buffers.begin()->first.trackID];
       keyframes[buffers.begin()->first.trackID].erase(buffers.begin()->first);
       int keySize = metadata["tracks"][track]["keys"].size();
@@ -235,6 +248,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     }
     buffers.erase(buffers.begin());
   }
+  metadata.netPrepare();
 }
 
 /// Returns a direct pointer to the data attribute of the last received packet, if available.
@@ -325,82 +339,6 @@ DTSC::Ring * DTSC::Stream::getRing(){
 /// Deletes a given out Ring class from memory and internal Ring list.
 /// Checks for NULL pointers and invalid pointers, silently discarding them.
 void DTSC::Stream::dropRing(DTSC::Ring * ptr){
-}
-
-/// Updates the headers for a live stream, keeping track of all available
-/// keyframes and their media times. The function MAY NOT be run at any other
-/// time than right after receiving a new keyframe, or there'll be raptors.
-void DTSC::Stream::updateHeaders(){
-  if (buffers.size() > 2){
-    if (buffers.begin()->second["time"].asInt() < (buffers.end()--)->second["time"].asInt()){
-      std::cerr << "Detected new video - resetting all buffers and metadata - hold on, this ride might get bumpy!" << std::endl;
-      keyframes.clear();
-      buffers.clear();
-      metadata.removeMember("keytime");
-      metadata.removeMember("keynum");
-      metadata.removeMember("keylen");
-      metadata.removeMember("frags");
-      metadata.removeMember("lastms");
-      metadata.removeMember("missed_frags");
-      metadata.netPrepare();
-      return;
-    }
-    for (JSON::ObjIter trIt = metadata["tracks"].ObjBegin(); trIt != metadata["tracks"].ObjEnd(); trIt++){
-      trIt->second["keys"].shrink(keyframes[trIt->second["trackid"].asInt()].size() - 2);
-    }
-    unsigned int fragStart = 0;
-    if ( !metadata["frags"]){
-      // this means that if we have < ~10 seconds in the buffer, fragmenting goes horribly wrong.
-      if ( !metadata.isMember("missed_frags")){
-        metadata["missed_frags"] = 0ll;
-      }
-    }else{
-      // delete fragments of which the beginning can no longer be reached
-      while (metadata["frags"][0u]["num"].asInt() < metadata["keynum"][0u].asInt()){
-        metadata["frags"].shrink(metadata["frags"].size() - 1);
-        // increase the missed fragments counter
-        metadata["missed_frags"] = metadata["missed_frags"].asInt() + 1;
-      }
-      if (metadata["frags"].size() > 0){
-        // set oldestFrag to the first keynum outside any current fragment
-        long long unsigned int oldestFrag = metadata["frags"][metadata["frags"].size() - 1]["num"].asInt() + metadata["frags"][metadata["frags"].size() - 1]["len"].asInt();
-        // seek fragStart to the first keynum >= oldestFrag
-        while (metadata["keynum"][fragStart].asInt() < oldestFrag){
-          fragStart++;
-        }
-      }
-    }
-    for (unsigned int i = fragStart; i < metadata["keytime"].size(); i++){
-      if (i == fragStart){
-        long long int currFrag = metadata["keytime"][i].asInt() / 10000;
-        long long int fragLen = 1;
-        long long int fragDur = metadata["keylen"][i].asInt();
-        for (unsigned int j = i + 1; j < metadata["keytime"].size(); j++){
-          // if we are now 10+ seconds, finish the fragment
-          if (fragDur >= 10000){
-            // construct and append the fragment
-            JSON::Value thisFrag;
-            thisFrag["num"] = metadata["keynum"][i];
-            thisFrag["len"] = fragLen;
-            thisFrag["dur"] = fragDur;
-            metadata["frags"].append(thisFrag);
-            // next fragment starts fragLen fragments up
-            fragStart += fragLen;
-            // skip that many - no unneeded looping
-            i += fragLen - 1;
-            break;
-          }
-          // otherwise, +1 the length and add up the duration
-          fragLen++;
-          fragDur += metadata["keylen"][j].asInt();
-        }
-      }
-    }
-    //metadata["lastms"] = buffers[keyframes[0].b]["time"].asInt();
-    metadata["buffer_window"] = (long long int)buffertime;
-    metadata["live"] = true;
-    metadata.netPrepare();
-  }
 }
 
 /// Returns 0 if seeking is possible, -1 if the wanted frame is too old, 1 if the wanted frame is too new.

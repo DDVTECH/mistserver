@@ -141,6 +141,7 @@ namespace Converters {
                     std::string tmpStr2 = it->second["codec"];
                     if (tmpStr2 == "H264"){
                       vse.setCodec("avc1");
+                      
                     }
                     vse.setDataReferenceIndex(1);
                     vse.setWidth(it->second["width"].asInt());
@@ -306,7 +307,6 @@ namespace Converters {
     //for(input.seekNext(); input.getJSON(); input.seekNext())
     //cout << input.getJSON["data"].asString()
   
-
     std::set<int> selector;
     for (JSON::ObjIter trackIt = input.getMeta()["tracks"].ObjBegin(); trackIt != input.getMeta()["tracks"].ObjEnd(); trackIt++){
       selector.insert(trackIt->second["trackid"].asInt());

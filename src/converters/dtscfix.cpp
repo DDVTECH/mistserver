@@ -168,7 +168,7 @@ namespace Converters {
       trackData[currentID].totalSize += F.getJSON()["data"].asString().size();
       trackData[currentID].lastms = nowpack;
       trackData[currentID].parts.push_back(F.getJSON()["data"].asString().size());
-      F.seekNext();
+      F.parseNext();
     }
 
     long long int firstms = 0x7fffffff;
@@ -224,9 +224,13 @@ namespace Converters {
               thisFrag["len"] = fragLen;
               thisFrag["dur"] = fragDur;
               thisFrag["size"] = fragSize;
-              thisFrag["bps"] = fragSize / (fragDur / 1000);
-              if (maxBps < (fragSize / (fragDur / 1000))){
-                maxBps = (fragSize / (fragDur / 1000));
+              if (fragDur / 1000){
+                thisFrag["bps"] = fragSize / (fragDur / 1000);
+                if (maxBps < (fragSize / (fragDur / 1000))){
+                  maxBps = (fragSize / (fragDur / 1000));
+                }
+              } else {
+                thisFrag["bps"] = 1;
               }
               meta["tracks"][it->first]["frags"].append(thisFrag);
               break;

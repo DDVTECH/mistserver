@@ -42,6 +42,7 @@ namespace Converters {
             sending = true;
             meta_out["moreheader"] = 0LL;
             output << meta_out.toNetPacked();
+            output << prebuffer.rdbuf();
             prebuffer.str("");
             std::cerr << "Buffer done, starting real-time output..." << std::endl;
           }else{

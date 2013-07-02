@@ -84,6 +84,13 @@ namespace Converters {
             mdiaBox.setContent(hdlrBox, 1);
             
             MP4::MINF minfBox;
+              if (tmpStr == "video"){
+                MP4::VMHD vmhdBox;
+                minfBox.setContent(vmhdBox,0);
+              }else if (tmpStr == "audio"){
+                MP4::SMHD smhdBox;
+                minfBox.setContent(smhdBox,0);
+              }
               MP4::DINF dinfBox;
                 MP4::DREF drefBox;/// \todo fix constructor dref in lib
                   MP4::URN urnBox;
@@ -91,7 +98,7 @@ namespace Converters {
                   urnBox.setLocation("Location Here");
                   drefBox.setDataEntry(urnBox,0);
                 dinfBox.setContent(drefBox,0);
-              minfBox.setContent(dinfBox,0);
+              minfBox.setContent(dinfBox,1);
               
               MP4::STBL stblBox;
                 MP4::STSD stsdBox;
@@ -104,6 +111,9 @@ namespace Converters {
                     }
                     vse.setWidth(it->second["width"].asInt());
                     vse.setHeight(it->second["height"].asInt());
+                      MP4::AVCC avccBox;
+                      avccBox.setPayload(it->second["init"].asString());
+                      vse.setCLAP(avccBox);
                     stsdBox.setEntry(vse,0);
                   }else if(tmpStr == "audio"){//boxname = codec
                     MP4::AudioSampleEntry ase;
@@ -117,16 +127,19 @@ namespace Converters {
                     stsdBox.setEntry(ase,0);
                   }
                 stblBox.setContent(stsdBox,0);
-
-                MP4::STTS sttsBox;
+                
+                /// \todo update following stts lines
+                MP4::STTS sttsBox;//current version probably causes problems
                 for (int i = 0; i < it->second["keys"].size(); i++){
                   MP4::STTSEntry newEntry;
                   newEntry.sampleCount = it->second["keys"][i]["parts"].size();
-                  newEntry.sampleDelta = it->second["keys"][i]["len"].asInt();
+                  newEntry.sampleDelta = it->second["keys"][i]["len"].asInt() / it->second["keys"][i]["parts"].size();
                   sttsBox.setSTTSEntry(newEntry, i);
                 }
                 stblBox.setContent(sttsBox,1);
-
+                
+                //STSS Box here
+                
                 MP4::STSC stscBox;//probably wrong
                 for (int i = 0; i < it->second["keys"].size(); i++){
                   MP4::STSCEntry newEntry;
@@ -137,26 +150,26 @@ namespace Converters {
                 }
                 stblBox.setContent(stscBox,2);
 
-                /*MP4::STSZ stszBox;
-                /// \todo calculate byte position of DTSCkeyframes in MP4Sample
-                // in it->second["keys"]["parts"]
-                stszBox.setSampleSize(0);
-                for (int i = 0; i < it->second["keys"].size(); i++){
-                  stszBox.setEntrySize(it->second["keys"][i]["size"], i);
-                }
-                stblBox.setContent(stszBox,3);*/
                 MP4::STSZ stszBox;
+                uint32_t total = 0;
                 for (int i = 0; i < it->second["keys"].size(); i++){
-                  stszBox.setEntrySize(it->second["keys"][i]["size"].asInt(), i);//in bytes in file
+                  for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
+                    stszBox.setEntrySize(it->second["keys"][i]["parts"][o].asInt(), total);//in bytes in file
+                    total++;
+                  }
                 }
                 stblBox.setContent(stszBox,3);
                   
                 MP4::STCO stcoBox;
+                total = 0;
                 for (int i = 0; i < it->second["keys"].size(); i++){
-                  stcoBox.setChunkOffset(it->second["keys"][i]["size"].asInt(), i);//in bytes in file
+                  for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
+                    stcoBox.setChunkOffset(it->second["keys"][i]["parts"][o].asInt(), total);//in bytes in file
+                    total++;
+                  }
                 }
                 stblBox.setContent(stcoBox,4);
-              minfBox.setContent(stblBox,1);
+              minfBox.setContent(stblBox,2);
             mdiaBox.setContent(minfBox, 2);
           trakBox.setContent(mdiaBox, 1);
         moovBox.setContent(trakBox, boxOffset);
@@ -177,7 +190,7 @@ namespace Converters {
         checkTrakBox = ((MP4::TRAK&)moovBox.getContent(i));
         checkMdiaBox = ((MP4::MDIA&)checkTrakBox.getContent(1));
         checkMinfBox = ((MP4::MINF&)checkMdiaBox.getContent(2));
-        checkStblBox = ((MP4::STBL&)checkMinfBox.getContent(1));
+        checkStblBox = ((MP4::STBL&)checkMinfBox.getContent(2));
         checkStcoBox = ((MP4::STCO&)checkStblBox.getContent(4));
         
         //std::cerr << std::string(checkStcoBox.asBox(),checkStcoBox.boxedSize()) << std::endl;

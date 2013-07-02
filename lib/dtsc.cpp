@@ -12,7 +12,6 @@ char DTSC::Magic_Packet2[] = "DTP2";
 /// Initializes a DTSC::Stream with only one packet buffer.
 DTSC::Stream::Stream(){
   datapointertype = DTSC::INVALID;
-  datapointer = 0;
   buffercount = 1;
   buffertime = 0;
 }
@@ -21,7 +20,6 @@ DTSC::Stream::Stream(){
 /// The actual buffer count may not at all times be the requested amount.
 DTSC::Stream::Stream(unsigned int rbuffers, unsigned int bufferTime){
   datapointertype = DTSC::INVALID;
-  datapointer = 0;
   if (rbuffers < 1){
     rbuffers = 1;
   }
@@ -182,11 +180,6 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   buffers[newPos].toNetPacked();//make sure package is packed and ready
   datapointertype = INVALID;
   ///\todo Save keyframes when they arrive.
-  if (newPack.isMember("data")){
-    datapointer = &(buffers[newPos]["data"].strVal);
-  }else{
-    datapointer = 0;
-  }
   std::string tmp = "";
   if (newPack.isMember("trackid")){
     tmp = getTrackById(newPack["trackid"].asInt())["type"].asString();
@@ -229,7 +222,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     if (keySize){
       metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["parts"].append((long long int)newPack["data"].asString().size());
     }
-    metadata["live"] = true;
+    metadata["live"] = 1ll;
   }
   unsigned int timeBuffered = 0;
   if (keySize > 1){
@@ -254,7 +247,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
 /// Returns a direct pointer to the data attribute of the last received packet, if available.
 /// Returns NULL if no valid pointer or packet is available.
 std::string & DTSC::Stream::lastData(){
-  return *datapointer;
+  return buffers.rbegin()->second["data"].strVal;
 }
 
 /// Returns the packet in this buffer number.

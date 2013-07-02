@@ -210,7 +210,6 @@ namespace DTSC {
       std::map<livePos,JSON::Value> buffers;
       std::map<int,std::set<livePos> > keyframes;
       void addPacket(JSON::Value & newPack);
-      std::string * datapointer;
       datatype datapointertype;
       unsigned int buffercount;
       unsigned int buffertime;

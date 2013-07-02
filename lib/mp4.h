@@ -755,6 +755,7 @@ namespace MP4 {
       void setDepth(uint16_t newDepth);
       uint16_t getDepth();
       Box & getCLAP();
+      void setCLAP(Box& clap);
       Box & getPASP();
       std::string toPrettyVisualString(uint32_t index = 0, std::string = "");
   };

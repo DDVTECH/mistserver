@@ -2583,6 +2583,10 @@ namespace MP4 {
   //Note: next 4 headers inherit from fullBox, start at byte 4.
   VMHD::VMHD(){
     memcpy(data + 4, "vmhd", 4);
+    setGraphicsMode(0);
+    setOpColor(0,0);
+    setOpColor(0,1);
+    setOpColor(0,2);
   }
   
   void VMHD::setGraphicsMode(uint16_t newGraphicsMode){
@@ -2624,6 +2628,7 @@ namespace MP4 {
     
   SMHD::SMHD(){
     memcpy(data + 4, "smhd", 4);
+    setBalance(0);
   }
   
   void SMHD::setBalance(int16_t newBalance){
@@ -3765,7 +3770,6 @@ namespace MP4 {
   uint32_t STSZ::getSampleSize(){
     return getInt32(4);
   }
-
   
   void STSZ::setSampleCount(uint32_t newSampleCount){
     setInt32(newSampleCount, 8);
@@ -3824,6 +3828,10 @@ namespace MP4 {
 
   CLAP::CLAP(){
     memcpy(data + 4, "clap", 4);
+    setHorizOffN(0);
+    setHorizOffD(0);
+    setVertOffN(0);
+    setVertOffD(0);
   }
   
   void CLAP::setCleanApertureWidthN(uint32_t newVal){
@@ -4002,16 +4010,16 @@ namespace MP4 {
     getInt16(74);
   }
 
+  void VisualSampleEntry::setCLAP(Box& clap){
+    setBox(clap,78);
+  }
+
   Box & VisualSampleEntry::getCLAP(){
     static Box ret = Box((char*)"\000\000\000\010erro", false);
     if(payloadSize() <84){//if the EntryBox is not big enough to hold a CLAP/PASP
       return ret;
     }
-    if (getBox(76).isType("clap")){
-      return getBox(76);
-    }else{
-      return ret;
-    }
+    return getBox(78);
   }
   
   Box & VisualSampleEntry::getPASP(){
@@ -4019,19 +4027,12 @@ namespace MP4 {
     if(payloadSize() <84){//if the EntryBox is not big enough to hold a CLAP/PASP
       return ret;
     }
-    if (getBox(76).isType("pasp")){
-      return getBox(76);
+    if (payloadSize() < 78 + getBoxLen(78) + 8){
+      return ret;
     }else{
-      if (payloadSize() < 76 + getBoxLen(76) + 8){
-        return ret;
-      }else{
-        if (getBox(76+getBoxLen(76)).isType("pasp")){
-          return getBox(76+getBoxLen(76));
-        }else{
-          return ret;
-        }
-      }
+      return getBox(78+getBoxLen(78));
     }
+    
   }
   
   std::string VisualSampleEntry::toPrettyVisualString(uint32_t indent, std::string name){
@@ -4045,10 +4046,10 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "FrameCount: " << getFrameCount() << std::endl;
     r << std::string(indent + 1, ' ') << "CompressorName: " << getCompressorName() << std::endl;
     r << std::string(indent + 1, ' ') << "Depth: " << getDepth() << std::endl;
-    if (getCLAP().isType("clap")){
+    if (!getCLAP().isType("erro")){
       r << getCLAP().toPrettyString(indent+1);
     }
-    if (getPASP().isType("pasp")){
+    if (!getPASP().isType("erro")){
       r << getPASP().toPrettyString(indent+1);
     }
     return r.str();

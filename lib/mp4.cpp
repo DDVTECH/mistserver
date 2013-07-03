@@ -2278,7 +2278,159 @@ namespace MP4 {
     }
     memcpy((char*)payload(), (char*)newPayload.c_str(), newPayload.size());
   }
-
+  
+  //fullbox, start at 4
+  ESDS::ESDS(){
+    memcpy(data + 4, "esds", 4);
+    setESDescriptorType(0x03);
+    setExtendedDescriptorType(0x8000FE);
+    
+  }
+  
+  char ESDS::getESDescriptorType(){
+    return getInt8(4);
+  }
+  
+  void ESDS::setESDescriptorType(char newVal){
+    setInt8(newVal,4);
+  }
+  
+  uint32_t ESDS::getExtendedDescriptorType(){
+    return getInt24(5);
+  }
+  //3 bytes
+  void ESDS::setExtendedDescriptorType(uint32_t newVal){
+    setInt24(newVal,5);
+  }
+  //3 bytes
+  char ESDS::getESDescriptorTypeLength(){
+    return getInt8(8);  
+  }
+  
+  void ESDS::setESDescriptorTypeLength(char newVal){
+    setInt8(newVal,8);
+  }
+  
+  char ESDS::getByteObjectTypeID(){
+    return getInt8(9);  
+  }
+  
+  void ESDS::setByteObjectTypeID(char newVal){
+    setInt8(newVal,9);
+  }
+  
+  char ESDS::getStreamType(){
+    return getInt8(10) >> 2;  
+  }
+  //6 bits
+  void ESDS::setStreamType(char newVal){
+    setInt8(newVal<<2 + ((uint8_t)getUpstreamFlag() << 1) + (uint8_t)getReservedFlag() , 10);
+  }
+  //6 bits
+  bool ESDS::getUpstreamFlag(){
+    return (((getInt8(10) >> 1) & 0x01) == 1);  
+  }
+  
+  void ESDS::setUpstreamFlag(bool newVal){
+    setInt8(getStreamType()<<2 + ((uint8_t)newVal << 1) + (uint8_t)getReservedFlag() , 10);
+  }
+  
+  bool ESDS::getReservedFlag(){
+    return ((getInt8(10) & 0x01) == 1);  
+  }
+  
+  void ESDS::setReservedFlag(bool newVal){
+    setInt8((getStreamType()<<2) + ((uint8_t)getUpstreamFlag() << 1) + (uint8_t)newVal , 10);
+  }
+  
+  uint32_t ESDS::getBufferSize(){
+    return getInt24(11);  
+  }
+  //3 bytes
+  void ESDS::setBufferSize(uint32_t newVal){
+    setInt24(newVal,11);
+  }
+  //3 bytes
+  uint32_t ESDS::getMaximumBitRate(){
+    return getInt32(14);  
+  }
+  
+  void ESDS::getMaximumBitRate(uint32_t newVal){
+    setInt32(newVal,14);
+  }
+  
+  uint32_t ESDS::getAverageBitRate(){
+    return getInt32(18);  
+  }
+  
+  void ESDS::setAverageBitRate(uint32_t newVal){
+    setInt32(newVal,18);
+  }
+  
+  char ESDS::getDescriptorTypeTag(){
+    return getInt8(22);
+  }
+  
+  void ESDS::setDescriptorTypeTag(char newVal){
+    setInt8(newVal,22);
+  }
+  
+  uint32_t ESDS::getExtendedDescriptorTypeTag(){
+    return getInt24(23);
+  }
+  //3 bytes
+  void ESDS::setExtendedDescriptorTypeTag(uint32_t newVal){
+    setInt24(newVal, 23);
+  }
+  //3 bytes
+  char ESDS::getConfigDescriptorTypeLength(){
+    return getInt8(26);
+  }
+  
+  void ESDS::setConfigDescriptorTypeLength(char newVal){
+    setInt8(newVal, 26);
+  }
+  
+  uint16_t ESDS::getESHeaderStartCodes(){
+    return getInt16(27);
+  }
+  
+  void ESDS::setESHeaderStartCodes(uint16_t newVal){
+    setInt16(newVal,27);
+  }
+  
+  char ESDS::getSLConfigDescriptorTypeTag(){
+    return getInt16(29);  
+  }
+  
+  void ESDS::setSLConfigDescriptorTypeTag(char newVal){
+    setInt16(newVal, 29);
+  }
+  
+  uint32_t ESDS::getSLConfigExtendedDescriptorTypeTag(){
+    return getInt24(31);  
+  }
+  //3 bytes
+  void ESDS::setSLConfigExtendedDescriptorTypeTag(uint32_t newVal){
+    setInt24(newVal, 31);
+  }
+  //3 bytes
+  char ESDS::getSLDescriptorTypeLength(){
+    return getInt8(34);
+  }
+  
+  void ESDS::setSLDescriptorTypeLength(char newVal){
+    setInt8(newVal, 34);
+  }
+  
+  char ESDS::getSLValue(){
+    return getInt8(35);
+  }
+  
+  void ESDS::setSLValue(char newVal){
+    setInt8(newVal, 35);
+  }
+  
   SDTP::SDTP(){
     memcpy(data + 4, "sdtp", 4);
   }

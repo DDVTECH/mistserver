@@ -343,7 +343,49 @@ namespace MP4 {
       void setPayload(std::string newPayload);
       std::string toPrettyString(uint32_t indent = 0);
   };
-
+  
+  ///\todo : ESDS is filthy implemented, clean up when optimising
+  class ESDS: public fullBox{
+    public:
+      ESDS();
+      char getESDescriptorType();
+      void setESDescriptorType(char newVal);
+      uint32_t getExtendedDescriptorType();//3 bytes
+      void setExtendedDescriptorType(uint32_t newVal);//3 bytes
+      char getESDescriptorTypeLength();
+      void setESDescriptorTypeLength(char newVal);
+      char getByteObjectTypeID();
+      void setByteObjectTypeID(char newVal);
+      char getStreamType();//6 bits
+      void setStreamType(char newVal);//6 bits
+      bool getUpstreamFlag();
+      void setUpstreamFlag(bool newVal);
+      bool getReservedFlag();
+      void setReservedFlag(bool newVal);
+      uint32_t getBufferSize();//3 bytes
+      void setBufferSize(uint32_t newVal);//3 bytes
+      uint32_t getMaximumBitRate();
+      void getMaximumBitRate(uint32_t newVal);
+      uint32_t getAverageBitRate();
+      void setAverageBitRate(uint32_t newVal);
+      char getDescriptorTypeTag();
+      void setDescriptorTypeTag(char newVal);
+      uint32_t getExtendedDescriptorTypeTag();//3 bytes
+      void setExtendedDescriptorTypeTag(uint32_t newVal);//3 bytes
+      char getConfigDescriptorTypeLength();
+      void setConfigDescriptorTypeLength(char newVal);
+      uint16_t getESHeaderStartCodes();
+      void setESHeaderStartCodes(uint16_t newVal);
+      char getSLConfigDescriptorTypeTag();
+      void setSLConfigDescriptorTypeTag(char newVal);
+      uint32_t getSLConfigExtendedDescriptorTypeTag();//3 bytes
+      void setSLConfigExtendedDescriptorTypeTag(uint32_t newVal);//3 bytes
+      char getSLDescriptorTypeLength();
+      void setSLDescriptorTypeLength(char newVal);
+      char getSLValue();
+      void setSLValue(char newVal);
+  };
+  
   class SDTP: public Box{
     public:
       SDTP();

@@ -94,6 +94,7 @@ namespace JSON {
   };
 
   Value fromDTMI2(std::string data);
+  Value fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i);
   Value fromDTMI(std::string data);
   Value fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i);
   Value fromString(std::string json);

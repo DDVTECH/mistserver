@@ -79,7 +79,7 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
         newPack = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
       }
       if (version == 2){
-        newPack = JSON::fromDTMI2(buffer.substr(8));
+        newPack = JSON::fromDTMI2((unsigned char*)buffer.c_str() + 8, len, i);
       }
       addPacket(newPack);
       syncing = false;
@@ -124,17 +124,17 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       std::string wholepacket = buffer.remove(len + 8);
       metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
       metadata.removeMember("moreheader");
-      metadata.netPrepare();
-      trackMapping.clear();
+      if (buffercount > 1){
+        metadata.netPrepare();
+      }
       if (metadata.isMember("tracks")){
+        trackMapping.clear();
         for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
           trackMapping.insert(std::pair<int,std::string>(it->second["trackid"].asInt(),it->first));
         }
       }
-      if ( !buffer.available(8)){
-        return false;
-      }
-      header_bytes = buffer.copy(8);
+      //recursively calls itself until failure or data packet instead of header
+      return parsePacket(buffer);
     }
     int version = 0;
     if (memcmp(header_bytes.c_str(), DTSC::Magic_Packet, 4) == 0){
@@ -155,7 +155,7 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
         newPack = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
       }
       if (version == 2){
-        newPack = JSON::fromDTMI2(wholepacket.substr(8));
+        newPack = JSON::fromDTMI2((unsigned char*)wholepacket.c_str() + 8, len, i);
       }
       addPacket(newPack);
       syncing = false;
@@ -229,11 +229,17 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     //increase buffer size if no keyframes available or too little time available
     timeBuffered = buffers.rbegin()->second["time"].asInt() - buffers.begin()->second["time"].asInt();
   }
-  if (buffercount > 1 && (keyframes.size() < 2 || timeBuffered < buffertime)){
+  if (buffercount > 1 && timeBuffered < buffertime){
     buffercount++;
   }
   while (buffers.size() > buffercount){
     if (keyframes[buffers.begin()->first.trackID].count(buffers.begin()->first)){
+      //if there are < 3 keyframes, throwing one away would mean less than 2 left.
+      if (keyframes[buffers.begin()->first.trackID].size() < 3){
+        //so, we don't throw it away but instead increase the buffer size
+        buffercount++;
+        break;
+      }
       std::string track = trackMapping[buffers.begin()->first.trackID];
       keyframes[buffers.begin()->first.trackID].erase(buffers.begin()->first);
       int keySize = metadata["tracks"][track]["keys"].size();

@@ -66,14 +66,6 @@ namespace Buffer {
     while (usr->S.connected()){
       Util::sleep(5); //sleep 5ms
       if ( !usr->myRing->playCount || !usr->Send(newSelect)){
-    //    if (usr->myRing->updated){
-          Stream::get()->getReadLock();
-          usr->S.SendNow(thisStream->getHeader());
-     //     std::cerr << "Sending updated header: " << std::endl;
-     //     std::cerr << Stream::get()->getStream()->metadata.toPrettyString() << std::endl;
-          Stream::get()->dropReadLock();
-    //      usr->myRing->updated = false;
-    //    }
         if (usr->S.spool()){
           while (usr->S.Received().size()){
             //delete anything that doesn't end with a newline
@@ -110,6 +102,9 @@ namespace Buffer {
                   usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
                   usr->lastStats = usr->tmpStats;
                   thisStream->saveStats(usr->MyStr, usr->tmpStats);
+                  Stream::get()->getReadLock();
+                  usr->S.SendNow(thisStream->getHeader());
+                  Stream::get()->dropReadLock();
                   break;
                 }
                 case 't': {

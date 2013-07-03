@@ -77,8 +77,10 @@ namespace Buffer {
     } //cancel if not connected
     if (myRing->waiting){
       Stream::get()->waitForData();
-      if ( !myRing->waiting){
+      if (!Stream::get()->getStream()->isNewest(myRing->b)){
+        myRing->waiting = false;
         Stream::get()->getReadLock();
+        myRing->b = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
         if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
           myRing->playCount--;
           if ( !myRing->playCount){

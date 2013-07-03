@@ -122,8 +122,12 @@ namespace Converters {
                       ase.setCodec("mp4a");
                     }
                     ase.setSampleRate(it->second["rate"].asInt());
-                    ase.setChannelCount(it->second["channels"].asInt());
-                    ase.setSampleSize(it->second["length"].asInt());
+                    //ase.setChannelCount(it->second["channels"].asInt());
+                    ase.setChannelCount(2);
+                    ase.setSampleSize(it->second["size"].asInt());
+                      MP4::ESDS esdsBox;
+                      esdsBox.setPayload(it->second["init"].asString());
+                      ase.setCLAP(esdsBox);
                     stsdBox.setEntry(ase,0);
                   }
                 stblBox.setContent(stsdBox,0);
@@ -133,7 +137,7 @@ namespace Converters {
                 for (int i = 0; i < it->second["keys"].size(); i++){
                   MP4::STTSEntry newEntry;
                   newEntry.sampleCount = it->second["keys"][i]["parts"].size();
-                  newEntry.sampleDelta = it->second["keys"][i]["len"].asInt() / it->second["keys"][i]["parts"].size();
+                  newEntry.sampleDelta = it->second["keys"][i]["len"].asInt(); // it->second["keys"][i]["parts"].size();
                   sttsBox.setSTTSEntry(newEntry, i);
                 }
                 stblBox.setContent(sttsBox,1);
@@ -141,17 +145,26 @@ namespace Converters {
                 //STSS Box here
                 
                 MP4::STSC stscBox;//probably wrong
+                uint32_t total = 0;
                 for (int i = 0; i < it->second["keys"].size(); i++){
-                  MP4::STSCEntry newEntry;
+                  /*MP4::STSCEntry newEntry;
                   newEntry.firstChunk = it->second["keys"][i]["num"].asInt();
                   newEntry.samplesPerChunk = it->second["keys"][i]["parts"].size();
                   newEntry.sampleDescriptionIndex = 1;
-                  stscBox.setSTSCEntry(newEntry, i);
+                  stscBox.setSTSCEntry(newEntry, i);*/
+                  for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
+                    MP4::STSCEntry newEntry;
+                    newEntry.firstChunk = total+1;
+                    newEntry.samplesPerChunk = 1;
+                    newEntry.sampleDescriptionIndex = 1;
+                    stscBox.setSTSCEntry(newEntry, total);
+                    total++;
+                  }
                 }
                 stblBox.setContent(stscBox,2);
 
                 MP4::STSZ stszBox;
-                uint32_t total = 0;
+                total = 0;
                 for (int i = 0; i < it->second["keys"].size(); i++){
                   for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
                     stszBox.setEntrySize(it->second["keys"][i]["parts"][o].asInt(), total);//in bytes in file

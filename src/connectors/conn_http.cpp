@@ -177,6 +177,19 @@ namespace Connector_HTTP {
       return ret;
     }
 
+    // send logo icon
+    if (url.length() > 6 && url.substr(url.length() - 5, 5) == ".html"){
+      std::string streamname = url.substr(1, url.length() - 6);
+      Util::Stream::sanitizeName(streamname);
+      H.Clean();
+      H.SetHeader("Content-Type", "text/html");
+      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+      H.SetBody("<!DOCTYPE html><html><head><title>Stream "+streamname+"</title><style>BODY{color:white;background:black;}</style></head><body><script src=\"embed_"+streamname+".js\"></script></body></html>");
+      long long int ret = Util::getMS();
+      conn->SendNow(H.BuildResponse("200", "OK"));
+      return ret;
+    }
+    
     if ((url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js")
         || (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(url.length() - 3, 3) == ".js")){
       std::string streamname;
@@ -494,6 +507,9 @@ namespace Connector_HTTP {
         return "progressive";
       }
       if (ext == ".ico"){
+        return "internal";
+      }
+      if (url.length() > 6 && url.substr(url.length() - 5, 5) == ".html"){
         return "internal";
       }
     }

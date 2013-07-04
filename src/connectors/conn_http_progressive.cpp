@@ -126,7 +126,6 @@ namespace Connector_HTTP {
           }
           int byterate = 0;
           for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            std::cerr << objIt->second["type"].asString() << " => " << objIt->second["trackid"].asInt() << std::endl;
             if (videoID == -1 && objIt->second["type"].asString() == "video"){
               videoID = objIt->second["trackid"].asInt();
             }
@@ -140,6 +139,7 @@ namespace Connector_HTTP {
           if (audioID != -1){
             byterate += Strm.getTrackById(audioID)["bps"].asInt();
           }
+          if ( !byterate){byterate = 1;}
           seek_sec = (seek_byte / byterate) * 1000;
           std::stringstream cmd;
           cmd << "t";
@@ -150,7 +150,7 @@ namespace Connector_HTTP {
             cmd << " " << audioID;
           }
           cmd << "\ns " << seek_sec << "\np\n";
-          ss.SendNow(cmd.str().c_str());
+          ss.SendNow(cmd.str().c_str(), cmd.str().size());
           inited = true;
         }
         unsigned int now = Util::epoch();
@@ -158,7 +158,6 @@ namespace Connector_HTTP {
           lastStats = now;
           ss.SendNow(conn.getStats("HTTP_Progressive").c_str());
         }
-        ///\todo UPDATE THIS TO DTSCv2 too
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             if ( !progressive_has_sent_header){

@@ -108,9 +108,10 @@ namespace Buffer {
       //switch to next buffer
       currsend = 0;
       if (Stream::get()->getStream()->isNewest(myRing->b)){
+        //no next buffer? go in waiting mode.
         myRing->waiting = true;
         return false;
-      } //no next buffer? go in waiting mode.
+      }
       myRing->b = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
       if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
         myRing->playCount--;

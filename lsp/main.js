@@ -879,7 +879,7 @@
           
         $('#page').append(
           $('<div>').attr('id', 'editserver').append(
-            $('<label>').attr('for', 'stream-edit-name').text('name').append(
+            $('<label>').attr('for', 'stream-edit-name').text('name [case insensitive, no special chars]').append(
               $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'stream-edit-name').attr('value', sdata.name)
             )
           ).append(

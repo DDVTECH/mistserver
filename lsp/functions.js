@@ -138,8 +138,10 @@
                   'username': settings.credentials.username,
                   'password': (settings.credentials.authstring != "" ? MD5(MD5(settings.credentials.password) + settings.credentials.authstring) : "" )
                },
-            'capabilities': {}
+              'capabilities': {},
+              'conversion': {'query': settings.settings.conversion.query}
             };
+            console.log('sending data:',data);
             $.ajax(
             {
                'url': settings.server,
@@ -152,7 +154,7 @@
                'error': function(){},
                'success': function(d)
                {
-
+                  console.log('receiving data:',d);
                   var ret = $.extend(true,
                   {
                      "streams": {},

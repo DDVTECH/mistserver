@@ -318,7 +318,7 @@ namespace Connector_HTTP {
 
         // show ALL the meta datas!
         json_resp["meta"] = ServConf["streams"][streamname]["meta"];
-        
+
         //create a set for storing source information
         std::set<JSON::Value, sourceCompare> sources;
 

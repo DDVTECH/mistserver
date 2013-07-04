@@ -1033,8 +1033,15 @@
         {
           var embedbase = 'http://' + parseURL(settings.server).host + ':' + getHTTPControllerPort() + '/';
           
-          $('#page').append( $('<p>').attr('class', 'nocapitals').text('The info embed URL is "' + embedbase + 'info_' + streamname + '.js".') );
-          $('#page').append( $('<p>').attr('class', 'nocapitals').text('The embed embed URL is "' + embedbase + 'embed_' + streamname + '.js".') );
+          // TODO   .attr().html()   doesn't work... make this work in 2 lines again
+          var iem = $('<p>').attr('class', 'nocapitals');
+              iem.html('The info embed URL is <code>' + embedbase + 'info_' + streamname + '.js</code>');
+
+          var eem = $('<p>').attr('class', 'nocapitals');
+              eem.html('The embed embed URL is <code>' + embedbase + 'embed_' + streamname + '.js</code>');
+
+          $('#page').append( iem );
+          $('#page').append( eem );
           
           $('#page').append( $('<button>').text('preview').click(function()
           {

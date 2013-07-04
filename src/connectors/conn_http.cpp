@@ -223,6 +223,10 @@ namespace Connector_HTTP {
         if (ServConf["streams"][streamname]["meta"].isMember("live")){
           json_resp["type"] = "live";
         }
+
+        // show ALL the meta datas!
+        json_resp["meta"] = ServConf["streams"][streamname]["meta"];
+
         //find out which connectors are enabled
         std::set<std::string> conns;
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){

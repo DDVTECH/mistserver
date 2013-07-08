@@ -176,6 +176,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
+  while (buffers.count(newPos) > 0){
+    newPos.seekTime++;
+  }
   buffers[newPos] = newPack;
   buffers[newPos].toNetPacked();//make sure package is packed and ready
   datapointertype = INVALID;
@@ -224,21 +227,18 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     }
     metadata["live"] = 1ll;
   }
-  unsigned int timeBuffered = 0;
-  if (keySize > 1){
-    //increase buffer size if no keyframes available or too little time available
-    timeBuffered = buffers.rbegin()->second["time"].asInt() - buffers.begin()->second["time"].asInt();
-  }
+  //increase buffer size if too little time available
+  unsigned int timeBuffered = buffers.rbegin()->second["time"].asInt() - buffers.begin()->second["time"].asInt();
   if (buffercount > 1 && timeBuffered < buffertime){
-    buffercount++;
+    buffercount = buffers.size();
+    if (buffercount < 2){buffercount = 2;}
   }
+  //std::cout << buffers.size() << " - " << buffercount << std::endl;
   while (buffers.size() > buffercount){
     if (keyframes[buffers.begin()->first.trackID].count(buffers.begin()->first)){
       //if there are < 3 keyframes, throwing one away would mean less than 2 left.
       if (keyframes[buffers.begin()->first.trackID].size() < 3){
-        //so, we don't throw it away but instead increase the buffer size
-        buffercount++;
-        break;
+        std::cout << "Warning - track " << buffers.begin()->first.trackID << " doesn't have enough keyframes to be reliably served." << std::endl;
       }
       std::string track = trackMapping[buffers.begin()->first.trackID];
       keyframes[buffers.begin()->first.trackID].erase(buffers.begin()->first);
@@ -332,7 +332,14 @@ DTSC::Ring::Ring(livePos v){
 /// This Ring will be kept updated so it always points to valid data or has the starved boolean set.
 /// Don't forget to call dropRing() for all requested Ring classes that are no longer neccessary!
 DTSC::Ring * DTSC::Stream::getRing(){
-  return new DTSC::Ring(buffers.begin()->first);
+  livePos tmp = buffers.begin()->first;
+  std::map<int,std::set<livePos> >::iterator it;
+  for (it = keyframes.begin(); it != keyframes.end(); it++){
+    if ((*it->second.begin()).seekTime > tmp.seekTime){
+      tmp = *it->second.begin();
+    }
+  }
+  return new DTSC::Ring(tmp);
 }
 
 /// Deletes a given out Ring class from memory and internal Ring list.
@@ -355,13 +362,24 @@ int DTSC::Stream::canSeekms(unsigned int ms){
 }
 
 DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> & allowedTracks){
+  std::set<int> seekTracks = allowedTracks;
   livePos result = buffers.begin()->first;
+  for (std::set<int>::iterator it = allowedTracks.begin(); it != allowedTracks.end(); it++){
+    if (getTrackById(*it).isMember("type") && getTrackById(*it)["type"].asString() == "video"){
+      int trackNo = *it;
+      seekTracks.clear();
+      seekTracks.insert(trackNo);
+      break;
+    }
+  }
   for (std::map<livePos,JSON::Value>::iterator bIt = buffers.begin(); bIt != buffers.end(); bIt++){
-    if (allowedTracks.find(bIt->first.trackID) != allowedTracks.end()){
-      if (bIt->first.seekTime > ms){
-        break;
+    if (seekTracks.find(bIt->first.trackID) != seekTracks.end()){
+      if (bIt->second.isMember("keyframe")){
+        result = bIt->first;
+        if (bIt->first.seekTime >= ms){
+          return result;
+        }
       }
-      result = bIt->first;
     }
   }
   return result;

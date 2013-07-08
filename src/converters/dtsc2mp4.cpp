@@ -126,8 +126,9 @@ namespace Converters {
                     ase.setChannelCount(2);
                     ase.setSampleSize(it->second["size"].asInt());
                       MP4::ESDS esdsBox;
-                      esdsBox.setPayload(it->second["init"].asString());
-                      ase.setCLAP(esdsBox);
+                      esdsBox.setMaximumBitRate(it->second["rate"].asInt());
+                      esdsBox.setAverageBitRate(it->second["rate"].asInt());
+                      ase.setCodecBox(esdsBox);
                     stsdBox.setEntry(ase,0);
                   }
                 stblBox.setContent(stsdBox,0);

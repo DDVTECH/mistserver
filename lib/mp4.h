@@ -350,10 +350,25 @@ namespace MP4 {
       ESDS();
       char getESDescriptorType();
       void setESDescriptorType(char newVal);
-      uint32_t getExtendedDescriptorType();//3 bytes
-      void setExtendedDescriptorType(uint32_t newVal);//3 bytes
+      uint32_t getExtendedESDescriptorType();//3 bytes
+      void setExtendedESDescriptorType(uint32_t newVal);//3 bytes
       char getESDescriptorTypeLength();
       void setESDescriptorTypeLength(char newVal);
+      //ESID 2 bytes
+      uint16_t getESID();
+      void setESID(uint16_t newVal);
+      //stream priority 1 byte
+      char getStreamPriority();
+      void setStreamPriority(char newVal);
+      //decoder config descriptor tag 1byte
+      char getDecoderConfigDescriptorTag();
+      void setDecoderConfigDescriptorTag(char newVal);
+      //extended decoder config descriptor tag 3 bytes
+      uint32_t getExtendedDecoderConfigDescriptorTag();
+      void setExtendedDecoderConfigDescriptorTag(uint32_t newVal);//3 bytes
+      //decoder config descriptor type length
+      char getDecoderConfigDescriptorTypeLength();
+      void setDecoderConfigDescriptorTypeLength(char newVal);
       char getByteObjectTypeID();
       void setByteObjectTypeID(char newVal);
       char getStreamType();//6 bits
@@ -365,13 +380,13 @@ namespace MP4 {
       uint32_t getBufferSize();//3 bytes
       void setBufferSize(uint32_t newVal);//3 bytes
       uint32_t getMaximumBitRate();
-      void getMaximumBitRate(uint32_t newVal);
+      void setMaximumBitRate(uint32_t newVal);
       uint32_t getAverageBitRate();
       void setAverageBitRate(uint32_t newVal);
-      char getDescriptorTypeTag();
-      void setDescriptorTypeTag(char newVal);
-      uint32_t getExtendedDescriptorTypeTag();//3 bytes
-      void setExtendedDescriptorTypeTag(uint32_t newVal);//3 bytes
+      char getDecoderDescriptorTypeTag();
+      void setDecoderDescriptorTypeTag(char newVal);
+      uint32_t getExtendedDecoderDescriptorTypeTag();//3 bytes
+      void setExtendedDecoderDescriptorTypeTag(uint32_t newVal);//3 bytes
       char getConfigDescriptorTypeLength();
       void setConfigDescriptorTypeLength(char newVal);
       uint16_t getESHeaderStartCodes();
@@ -384,6 +399,7 @@ namespace MP4 {
       void setSLDescriptorTypeLength(char newVal);
       char getSLValue();
       void setSLValue(char newVal);
+      std::string toPrettyString(uint32_t indent = 0);
   };
   
   class SDTP: public Box{
@@ -814,7 +830,9 @@ namespace MP4 {
       void setPreDefined(uint16_t newPreDefined);
       uint16_t getPreDefined();
       void setSampleRate(uint32_t newSampleRate);
-      uint32_t getSampleRate();    
+      uint32_t getSampleRate();
+      void setCodecBox(Box& newBox);
+      Box & getCodecBox();
       std::string toPrettyAudioString(uint32_t indent = 0, std::string name = "");
   };
   

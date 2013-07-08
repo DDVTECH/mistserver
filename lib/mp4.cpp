@@ -268,6 +268,9 @@ namespace MP4 {
       case 0x656C7374:
         return ((ELST*)this)->toPrettyString(indent);
         break;
+      case 0x65736473:
+        return ((ESDS*)this)->toPrettyString(indent);
+        break;
       case 0x75647461:
         return ((UDTA*)this)->toPrettyString(indent);
         break;
@@ -2283,8 +2286,16 @@ namespace MP4 {
   ESDS::ESDS(){
     memcpy(data + 4, "esds", 4);
     setESDescriptorType(0x03);
-    setExtendedDescriptorType(0x8000FE);
-    
+    setExtendedESDescriptorType(0x808080);
+    setStreamPriority(16);
+    setDecoderConfigDescriptorTag(0x04);
+    setExtendedDecoderConfigDescriptorTag(0x808080);
+    setReservedFlag(true);
+    setDecoderDescriptorTypeTag(0x05);
+    setExtendedDecoderDescriptorTypeTag(0x808080);
+    setSLConfigDescriptorTypeTag(0x06);
+    setSLConfigExtendedDescriptorTypeTag(0x808010);
+    setSLValue(0x02);
   }
   
   char ESDS::getESDescriptorType(){
@@ -2295,11 +2306,11 @@ namespace MP4 {
     setInt8(newVal,4);
   }
   
-  uint32_t ESDS::getExtendedDescriptorType(){
+  uint32_t ESDS::getExtendedESDescriptorType(){
     return getInt24(5);
   }
   //3 bytes
-  void ESDS::setExtendedDescriptorType(uint32_t newVal){
+  void ESDS::setExtendedESDescriptorType(uint32_t newVal){
     setInt24(newVal,5);
   }
   //3 bytes
@@ -2310,125 +2321,220 @@ namespace MP4 {
   void ESDS::setESDescriptorTypeLength(char newVal){
     setInt8(newVal,8);
   }
+  //ESID 2 bytes
+  uint16_t ESDS::getESID(){
+    return getInt16(9);
+  }
   
+  void ESDS::setESID(uint16_t newVal){
+    setInt16(newVal, 9);
+  }
+  
+  //stream priority 1 byte
+  char ESDS::getStreamPriority(){
+    return getInt8(11);
+  }
+  
+  void ESDS::setStreamPriority(char newVal){
+    setInt8(newVal, 11);
+  }
+  
+  //decoder config descriptor tag 1byte
+  char ESDS::getDecoderConfigDescriptorTag(){
+    return getInt8(12);
+  }
+  
+  void ESDS::setDecoderConfigDescriptorTag(char newVal){
+    setInt8(newVal, 12);
+  }
+  
+  //extended decoder config descriptor tag 3 bytes
+  uint32_t ESDS::getExtendedDecoderConfigDescriptorTag(){
+    return getInt24(13);
+  }
+  //3 bytes
+  void ESDS::setExtendedDecoderConfigDescriptorTag(uint32_t newVal){
+    setInt24(newVal, 13);
+  }
+  //3 bytes
+  //decoder config descriptor type length
+  char ESDS::getDecoderConfigDescriptorTypeLength(){
+    return getInt8(16);
+  }
+  
+  void ESDS::setDecoderConfigDescriptorTypeLength(char newVal){
+    setInt8(newVal, 16);
+  }
+  //Note: tel 8 bytes op bij de volgende functies
   char ESDS::getByteObjectTypeID(){
-    return getInt8(9);  
+    return getInt8(17);  
   }
   
   void ESDS::setByteObjectTypeID(char newVal){
-    setInt8(newVal,9);
+    setInt8(newVal,17);
   }
   
   char ESDS::getStreamType(){
-    return getInt8(10) >> 2;  
+    return getInt8(18) >> 2;  
   }
   //6 bits
   void ESDS::setStreamType(char newVal){
-    setInt8(newVal<<2 + ((uint8_t)getUpstreamFlag() << 1) + (uint8_t)getReservedFlag() , 10);
+    setInt8(newVal<<2 + ((uint8_t)getUpstreamFlag() << 1) + (uint8_t)getReservedFlag() , 18);
   }
   //6 bits
   bool ESDS::getUpstreamFlag(){
-    return (((getInt8(10) >> 1) & 0x01) == 1);  
+    return (((getInt8(18) >> 1) & 0x01) == 1);  
   }
   
   void ESDS::setUpstreamFlag(bool newVal){
-    setInt8(getStreamType()<<2 + ((uint8_t)newVal << 1) + (uint8_t)getReservedFlag() , 10);
+    setInt8(getStreamType()<<2 + ((uint8_t)newVal << 1) + (uint8_t)getReservedFlag() , 18);
   }
   
   bool ESDS::getReservedFlag(){
-    return ((getInt8(10) & 0x01) == 1);  
+    return ((getInt8(18) & 0x01) == 1);  
   }
   
   void ESDS::setReservedFlag(bool newVal){
-    setInt8((getStreamType()<<2) + ((uint8_t)getUpstreamFlag() << 1) + (uint8_t)newVal , 10);
+    setInt8((getStreamType()<<2) + ((uint8_t)getUpstreamFlag() << 1) + (uint8_t)newVal , 18);
   }
   
   uint32_t ESDS::getBufferSize(){
-    return getInt24(11);  
+    return getInt24(19);  
   }
   //3 bytes
   void ESDS::setBufferSize(uint32_t newVal){
-    setInt24(newVal,11);
+    setInt24(newVal,19);
   }
   //3 bytes
   uint32_t ESDS::getMaximumBitRate(){
-    return getInt32(14);  
+    return getInt32(22);  
   }
   
-  void ESDS::getMaximumBitRate(uint32_t newVal){
-    setInt32(newVal,14);
+  void ESDS::setMaximumBitRate(uint32_t newVal){
+    setInt32(newVal,22);
   }
   
   uint32_t ESDS::getAverageBitRate(){
-    return getInt32(18);  
+    return getInt32(26);  
   }
   
   void ESDS::setAverageBitRate(uint32_t newVal){
-    setInt32(newVal,18);
+    setInt32(newVal,26);
   }
   
-  char ESDS::getDescriptorTypeTag(){
-    return getInt8(22);
+  char ESDS::getDecoderDescriptorTypeTag(){
+    return getInt8(30);
   }
   
-  void ESDS::setDescriptorTypeTag(char newVal){
-    setInt8(newVal,22);
+  void ESDS::setDecoderDescriptorTypeTag(char newVal){
+    setInt8(newVal,30);
   }
   
-  uint32_t ESDS::getExtendedDescriptorTypeTag(){
-    return getInt24(23);
+  uint32_t ESDS::getExtendedDecoderDescriptorTypeTag(){
+    return getInt24(31);
   }
   //3 bytes
-  void ESDS::setExtendedDescriptorTypeTag(uint32_t newVal){
-    setInt24(newVal, 23);
-  }
-  //3 bytes
-  char ESDS::getConfigDescriptorTypeLength(){
-    return getInt8(26);
-  }
-  
-  void ESDS::setConfigDescriptorTypeLength(char newVal){
-    setInt8(newVal, 26);
-  }
-  
-  uint16_t ESDS::getESHeaderStartCodes(){
-    return getInt16(27);
-  }
-  
-  void ESDS::setESHeaderStartCodes(uint16_t newVal){
-    setInt16(newVal,27);
-  }
-  
-  char ESDS::getSLConfigDescriptorTypeTag(){
-    return getInt16(29);  
-  }
-  
-  void ESDS::setSLConfigDescriptorTypeTag(char newVal){
-    setInt16(newVal, 29);
-  }
-  
-  uint32_t ESDS::getSLConfigExtendedDescriptorTypeTag(){
-    return getInt24(31);  
-  }
-  //3 bytes
-  void ESDS::setSLConfigExtendedDescriptorTypeTag(uint32_t newVal){
+  void ESDS::setExtendedDecoderDescriptorTypeTag(uint32_t newVal){
     setInt24(newVal, 31);
   }
   //3 bytes
-  char ESDS::getSLDescriptorTypeLength(){
+  char ESDS::getConfigDescriptorTypeLength(){
     return getInt8(34);
   }
   
-  void ESDS::setSLDescriptorTypeLength(char newVal){
+  void ESDS::setConfigDescriptorTypeLength(char newVal){
     setInt8(newVal, 34);
   }
   
+  uint16_t ESDS::getESHeaderStartCodes(){
+    return getInt16(35);
+  }
+  
+  void ESDS::setESHeaderStartCodes(uint16_t newVal){
+    setInt16(newVal,35);
+  }
+  
+  char ESDS::getSLConfigDescriptorTypeTag(){
+    return getInt16(37);  
+  }
+  
+  void ESDS::setSLConfigDescriptorTypeTag(char newVal){
+    setInt16(newVal, 37);
+  }
+  
+  uint32_t ESDS::getSLConfigExtendedDescriptorTypeTag(){
+    return getInt24(39);  
+  }
+  //3 bytes
+  void ESDS::setSLConfigExtendedDescriptorTypeTag(uint32_t newVal){
+    setInt24(newVal, 39);
+  }
+  //3 bytes
+  char ESDS::getSLDescriptorTypeLength(){
+    return getInt8(42);
+  }
+  
+  void ESDS::setSLDescriptorTypeLength(char newVal){
+    setInt8(newVal, 42);
+  }
+  
   char ESDS::getSLValue(){
-    return getInt8(35);
+    return getInt8(43);
   }
   
   void ESDS::setSLValue(char newVal){
-    setInt8(newVal, 35);
+    setInt8(newVal, 43);
+  }
+  
+  std::string ESDS::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[esds] ES Descriptor Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    //char getESDescriptorType();
+    r << std::string(indent + 1, ' ') << "ESDescriptorType: 0x" << std::hex << getESDescriptorType() << std::dec << std::endl;    
+    //uint32_t getExtendedESDescriptorType();//3 bytes
+    r << std::string(indent + 1, ' ') << "ExtendedESDescriptorType: 0x" << std::hex << getExtendedESDescriptorType() << std::dec << std::endl;
+    //char getESDescriptorTypeLength();
+    r << std::string(indent + 1, ' ') << "ESDescriptorTypeLength:"  << getESDescriptorTypeLength() << std::endl;
+    //uint16_t getESID();
+    r << std::string(indent + 1, ' ') << "ESID: 0x" << std::hex << getESID() << std::dec << std::endl;
+    //char getStreamPriority();
+    r << std::string(indent + 1, ' ') << "StreamPriority:"  << getStreamPriority() << std::endl;
+    //char getDecoderConfigDescriptorTag();
+    r << std::string(indent + 1, ' ') << "DecoderConfigDescriptorTag: 0x" << std::hex << getDecoderConfigDescriptorTag() << std::dec << std::endl;
+    //uint32_t getExtendedDecoderConfigDescriptorTag();
+    r << std::string(indent + 1, ' ') << "ExtendedDecoderConfigDescriptorTag: 0x" << std::hex << getExtendedDecoderConfigDescriptorTag() << std::dec << std::endl;
+    //char getDecoderConfigDescriptorTypeLength();
+    r << std::string(indent + 1, ' ') << "DecoderConfigDescriptorTag: 0x" << std::hex << getDecoderConfigDescriptorTag() << std::dec << std::endl;
+    //char getByteObjectTypeID();
+    r << std::string(indent + 1, ' ') << "ByteObjectTypeID: 0x" << std::hex << getByteObjectTypeID() << std::dec << std::endl;
+    //char getStreamType();//6 bits
+    r << std::string(indent + 1, ' ') << "StreamType: 0x" << std::hex << getStreamType() << std::dec << std::endl;
+    //bool getUpstreamFlag();
+    r << std::string(indent + 1, ' ') << "UpstreamFlag: 0x" << getUpstreamFlag() << std::endl;
+    //uint32_t getBufferSize();//3 bytes
+    r << std::string(indent + 1, ' ') << "BufferSize: 0x" << std::hex << getBufferSize() << std::dec << std::endl;
+    //uint32_t getMaximumBitRate();
+    r << std::string(indent + 1, ' ') << "MaximumBitRate: 0x" << std::hex << getMaximumBitRate() << std::dec << std::endl;
+    //uint32_t getAverageBitRate();
+    r << std::string(indent + 1, ' ') << "AverageBitRate: 0x" << std::hex << getAverageBitRate() << std::dec << std::endl;
+    //char getDecoderDescriptorTypeTag();
+    r << std::string(indent + 1, ' ') << "DecoderDescriptorTypeTag: 0x" << std::hex << getDecoderDescriptorTypeTag() << std::dec << std::endl;
+    //uint32_t getExtendedDecoderDescriptorTypeTag();//3 bytes
+    r << std::string(indent + 1, ' ') << "ExtendedDecoderDescriptorTypeTag: 0x" << std::hex << getExtendedDecoderDescriptorTypeTag() << std::dec << std::endl;
+    //char getConfigDescriptorTypeLength();
+    r << std::string(indent + 1, ' ') << "ConfigDescriptorTypeLength: 0x" << std::hex << getConfigDescriptorTypeLength() << std::dec << std::endl;
+    //uint16_t getESHeaderStartCodes();
+    r << std::string(indent + 1, ' ') << "ESHeaderStartCodes: 0x" << std::hex << getESHeaderStartCodes() << std::dec << std::endl;
+    //char getSLConfigDescriptorTypeTag();
+    r << std::string(indent + 1, ' ') << "SLConfigDescriptorTypeTag: 0x" << std::hex << getSLConfigDescriptorTypeTag() << std::dec << std::endl;
+    //uint32_t getSLConfigExtendedDescriptorTypeTag();//3 bytes
+    r << std::string(indent + 1, ' ') << "SLConfigExtendedDescriptorTypeTag: 0x" << std::hex << getSLConfigExtendedDescriptorTypeTag() << std::dec << std::endl;
+    //char getSLDescriptorTypeLength();
+    r << std::string(indent + 1, ' ') << "SLDescriptorTypeLength: 0x" << std::hex << getSLDescriptorTypeLength() << std::dec << std::endl;
+    //char getSLValue();
+    r << std::string(indent + 1, ' ') << "SLValue: 0x" << std::hex << getSLValue() << std::dec << std::endl;
+    return r.str();
   }
   
   SDTP::SDTP(){
@@ -4250,6 +4356,14 @@ namespace MP4 {
     return getInt32(24) >> 16;
   }
   
+  void AudioSampleEntry::setCodecBox(Box& newBox){
+    setBox(newBox, 28);
+  }
+  
+  Box & AudioSampleEntry::getCodecBox(){
+    return getBox(28);
+  }
+  
   std::string AudioSampleEntry::toPrettyAudioString(uint32_t indent, std::string name){
     std::stringstream r;
     r << std::string(indent, ' ') << name << " (" << boxedSize() << ")" << std::endl;
@@ -4258,6 +4372,7 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "SampleSize: " << getSampleSize() << std::endl;
     r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
     r << std::string(indent + 1, ' ') << "SampleRate: " << getSampleRate() << std::endl;
+    r << getCodecBox().toPrettyString(indent + 1) << std::endl;
     return r.str();
   }
 

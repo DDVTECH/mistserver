@@ -180,7 +180,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     newPos.seekTime++;
   }
   buffers[newPos] = newPack;
-  buffers[newPos].toNetPacked();//make sure package is packed and ready
+  if (buffercount > 1){
+    buffers[newPos].toNetPacked();//make sure package is packed and ready
+  }
   datapointertype = INVALID;
   ///\todo Save keyframes when they arrive.
   std::string tmp = "";
@@ -247,7 +249,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     }
     buffers.erase(buffers.begin());
   }
-  metadata.netPrepare();
+  if (buffercount > 1){
+    metadata.netPrepare();
+  }
 }
 
 /// Returns a direct pointer to the data attribute of the last received packet, if available.

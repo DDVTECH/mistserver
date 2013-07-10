@@ -171,6 +171,7 @@ int main(int argc, char** argv){
               int ms = JSON::Value(in_out.Received().get().substr(2)).asInt();
               bool ret = source.seek_time(ms);
               lasttime = 0;
+              lastTime = 0;
               break;
             }
             case 'p': { //play
@@ -238,8 +239,8 @@ int main(int argc, char** argv){
       if (lastTime == 0){
         lastTime = now - source.getJSON()["time"].asInt();
       }
-      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - lastTime + 2500){
-        std::cerr << (source.getJSON()["time"].asInt() - (now - lastTime)) << " sleepytimes" << std::endl;
+      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - lastTime + 1000){
+        //std::cerr << (source.getJSON()["time"].asInt() - (now - lastTime)) << " ms sleep" << std::endl;
         Util::sleep(source.getJSON()["time"].asInt() - (now - lastTime));
       }
       if ( playUntil && playUntil < source.getJSON()["time"].asInt()){

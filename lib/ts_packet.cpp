@@ -1,6 +1,7 @@
 /// \file ts_packet.cpp
 /// Holds all code for the TS namespace.
 
+#include <sstream>
 #include "ts_packet.h"
 
 #ifndef FILLER_DATA
@@ -142,18 +143,23 @@ int TS::Packet::AdaptationFieldLen(){
 }
 
 /// Prints a packet to stdout, for analyser purposes.
-void TS::Packet::Print(){
-  std::cout << "TS Packet: " << (strBuf[0] == 0x47) << "\n\tNewUnit: " << UnitStart() << "\n\tPID: " << PID() << "\n\tContinuity Counter: "
-      << ContinuityCounter() << "\n\tAdaption Field: " << AdaptationField() << "\n";
+std::string TS::Packet::toPrettyString(size_t indent){
+  std::stringstream output;
+  output << std::string(indent,' ') << "TS Packet: " << (strBuf[0] == 0x47) << std::endl;
+  output << std::string(indent+2,' ') << "NewUnit: " << UnitStart() << std::endl;
+  output << std::string(indent+2,' ') << "PID: " << PID() << std::endl;
+  output << std::string(indent+2,' ') << "Continuity Counter: " << ContinuityCounter() << std::endl;
+  output << std::string(indent+2,' ') << "Adaption Field: " << AdaptationField() << std::endl;
   if (AdaptationField()){
-    std::cout << "\t\tAdaption Field Length: " << AdaptationFieldLen() << "\n";
+    output << std::string(indent+4,' ') << "Adaptation Length: " << AdaptationFieldLen() << std::endl;;
     if (AdaptationFieldLen()){
-      std::cout << "\t\tRandom Access: " << RandomAccess() << "\n";
+      output << std::string(indent+4,' ') << "Random Access: " << RandomAccess() << std::endl;
     }
     if (PCR() != -1){
-      std::cout << "\t\tPCR: " << PCR() << "( " << (double)PCR() / 27000000 << " s )\n";
+      output << std::string(indent+4,' ') << "PCR: " << PCR() << "( " << (double)PCR() / 27000000 << " s )" << std::endl;
     }
   }
+  return output.str();
 }
 
 /// Gets whether a new unit starts in this TS::Packet.
@@ -275,17 +281,17 @@ void TS::Packet::PESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS)
 /// \param NewLen The length of this frame.
 /// \param PTS The timestamp of the frame.
 void TS::Packet::PESAudioLeadIn(unsigned int NewLen, uint64_t PTS){
-  NewLen += 8;
+  NewLen += 5;
   strBuf += (char)0x00; //PacketStartCodePrefix
   strBuf += (char)0x00; //PacketStartCodePrefix (Cont)
   strBuf += (char)0x01; //PacketStartCodePrefix (Cont)
   strBuf += (char)0xc0; //StreamType Audio
   strBuf += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
   strBuf += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
-  strBuf += (char)0x80; //Reserved + Flags
+  strBuf += (char)0x84; //Reserved + Flags
   strBuf += (char)0x80; //PTSOnlyFlag + Flags
   strBuf += (char)0x05; //PESHeaderDataLength
-  strBuf += (char)(0x20 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
+  strBuf += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
   strBuf += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
   strBuf += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
   strBuf += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
@@ -321,12 +327,12 @@ void TS::Packet::PESVideoLeadIn(std::string & toSend, long long unsigned int PTS
 void TS::Packet::PESAudioLeadIn(std::string & toSend, long long unsigned int PTS){
   std::string tmpStr;
   tmpStr.reserve(14);
-  unsigned int NewLen = toSend.size() + 8;
+  unsigned int NewLen = toSend.size() + 5;
   tmpStr.append("\000\000\001\300", 4);
   tmpStr += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
   tmpStr += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
-  tmpStr.append("\200\200\005", 3);
-  tmpStr += (char)(0x20 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
+  tmpStr.append("\204\200\005", 3);
+  tmpStr += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
   tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
   tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
   tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
@@ -369,7 +375,7 @@ std::string & TS::Packet::getPESAudioLeadIn(unsigned int NewLen, long long unsig
   tmpStr.append("\000\000\001\300", 4);
   tmpStr += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
   tmpStr += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
-  tmpStr.append("\200\200\005", 3);
+  tmpStr.append("\204\200\005", 3);
   tmpStr += (char)(0x20 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
   tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
   tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)

@@ -1071,6 +1071,7 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
     }
     pack_out["datatype"] = "audio";
     pack_out["time"] = tagTime();
+    pack_out["trackid"] = 2;
     metadata["tracks"]["track2"]["trackid"] = 2;
     metadata["tracks"]["track2"]["type"] = "audio";
     if ( !metadata["tracks"]["track2"].isMember("codec") || metadata["tracks"]["track2"]["codec"].asString() == "?" || metadata["tracks"]["track2"]["codec"].asString() == ""){
@@ -1145,6 +1146,7 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
       metadata["tracks"]["track1"]["codec"] = getVideoCodec();
     }
     pack_out["datatype"] = "video";
+    pack_out["trackid"] = 1;
     switch (videodata & 0xF0){
       case 0x10:
         pack_out["keyframe"] = 1;

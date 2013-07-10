@@ -81,6 +81,7 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       if (version == 2){
         newPack = JSON::fromDTMI2((unsigned char*)buffer.c_str() + 8, len, i);
       }
+      buffer.erase(0, len + 8);
       addPacket(newPack);
       syncing = false;
       return true;
@@ -173,6 +174,7 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
 }
 
 void DTSC::Stream::addPacket(JSON::Value & newPack){
+  long long unsigned int now = Util::getMS();
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
@@ -614,7 +616,6 @@ void DTSC::File::seekNext(){
     return;
   }
   clearerr(F);
-  seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
   fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
   currentPositions.erase(currentPositions.begin());
   lastreadpos = ftell(F);
@@ -668,10 +669,33 @@ void DTSC::File::seekNext(){
   }else{
     jsonbuffer = JSON::fromDTMI(strbuffer);
   }
+  int tempLoc = getBytePos();
+  char newHeader[20];
+  if (fread((void*)newHeader, 20, 1, F) == 1){
+    if (memcmp(newHeader, DTSC::Magic_Packet2, 4) == 0){
+      seekPos tmpPos;
+      tmpPos.seekPos = tempLoc;
+      tmpPos.trackID = ntohl(((int*)newHeader)[2]);
+      if (selectedTracks.find(tmpPos.trackID) != selectedTracks.end()){
+        tmpPos.seekTime = ((long long unsigned int)ntohl(((int*)newHeader)[3])) << 32;
+        tmpPos.seekTime += ntohl(((int*)newHeader)[4]);
+      }else{
+        for (JSON::ArrIter it = getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrBegin(); it != getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrEnd(); it++){
+          if ((*it)["time"].asInt() > jsonbuffer["time"].asInt()){
+            tmpPos.seekTime = (*it)["time"].asInt();
+            tmpPos.seekPos = (*it)["bpos"].asInt();
+            break;
+          }
+        }
+      }
+      currentPositions.insert(tmpPos);
+    }
+  }
 }
 
 
 void DTSC::File::parseNext(){
+  lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1){
     if (feof(F)){
 #if DEBUG >= 4
@@ -769,6 +793,7 @@ bool DTSC::File::seek_time(int ms, int trackNo){
   }
   bool foundPacket = false;
   while ( !foundPacket){
+    lastreadpos = ftell(F);
     if (reachedEOF()){
       return false;
     }
@@ -787,8 +812,8 @@ bool DTSC::File::seek_time(int ms, int trackNo){
     //get timestamp of packet, if too large, break, if not, skip size bytes.
     long long unsigned int myTime = ((long long unsigned int)ntohl(((int*)header)[3]) << 32);
     myTime += ntohl(((int*)header)[4]);
+    tmpPos.seekTime = myTime;
     if (myTime >= ms){
-      tmpPos.seekTime = myTime;
       foundPacket = true;
     }else{
       tmpPos.seekPos += 8 + packSize;

@@ -38,7 +38,7 @@ namespace TS {
       void RandomAccess(int NewVal);
       int BytesFree();
 
-      void Print();
+      std::string toPrettyString(size_t indent = 0);
       const char* ToString();
       void PESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS = 1);
       void PESAudioLeadIn(unsigned int NewLen, uint64_t PTS = 0);

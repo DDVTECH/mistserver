@@ -11,6 +11,7 @@
 #include <stdio.h> //for FILE
 #include "json.h"
 #include "socket.h"
+#include "timing.h"
 
 /// Holds all DDVTECH Stream Container classes and parsers.
 ///length (int, length in seconds, if available)

@@ -42,6 +42,7 @@ bin_PROGRAMS+=MistAnalyserAMF
 bin_PROGRAMS+=MistAnalyserMP4 
 bin_PROGRAMS+=MistInfo
 bin_PROGRAMS+=MistDTSC2MP4
+bin_PROGRAMS+=MistDTSC2SRT
 
 #buffer folder (MistBuffer, MistPlayer)
 MistBuffer_SOURCES=buffer/buffer.cpp buffer/buffer_user.h buffer/buffer_user.cpp buffer/buffer_stream.h buffer/buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
@@ -75,6 +76,7 @@ MistDTSCMerge_SOURCES=converters/dtscmerge.cpp
 MistDTSC2TS_SOURCES=converters/dtsc2ts.cpp
 MistSRT2DTSC_SOURCES=converters/srt2dtsc.cpp
 MistDTSC2MP4_SOURCES=converters/dtsc2mp4.cpp
+MistDTSC2SRT_SOURCES=converters/dtsc2srt.cpp
 
 #analysers directory (MistAnalyser*)
 MistAnalyserRTMP_SOURCES=analysers/rtmp_analyser.cpp

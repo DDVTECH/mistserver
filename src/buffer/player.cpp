@@ -112,7 +112,7 @@ int main(int argc, char** argv){
 
   bool meta_sent = false;
   int playUntil = -1;
-  long long now = 0; //for timing of sending packets
+  long long now, lastTime = 0; //for timing of sending packets
   long long bench = 0; //for benchmarking
   std::set<int> newSelect;
   Stats sts;
@@ -170,13 +170,16 @@ int main(int argc, char** argv){
             case 's': { //second-seek
               int ms = JSON::Value(in_out.Received().get().substr(2)).asInt();
               bool ret = source.seek_time(ms);
+              lasttime = 0;
               break;
             }
             case 'p': { //play
               playing = -1;
+              lasttime = 0;
               in_out.setBlocking(false);
               if (in_out.Received().get().size() >= 2){
                 playUntil = atoi(in_out.Received().get().substr(2).c_str());
+                bench = Util::getMS();
               }else{
                 playUntil = 0;
               }
@@ -232,7 +235,14 @@ int main(int argc, char** argv){
           --playing;
         }
       }
-      if ( playUntil && playUntil <= source.getJSON()["time"].asInt()){
+      if (lastTime == 0){
+        lastTime = now - source.getJSON()["time"].asInt();
+      }
+      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - lastTime + 2500){
+        std::cerr << (source.getJSON()["time"].asInt() - (now - lastTime)) << " sleepytimes" << std::endl;
+        Util::sleep(source.getJSON()["time"].asInt() - (now - lastTime));
+      }
+      if ( playUntil && playUntil < source.getJSON()["time"].asInt()){
         playing = 0;
       }
       if (playing == 0){

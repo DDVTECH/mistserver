@@ -48,7 +48,7 @@ namespace Connector_HTTP {
           if (audioId != -1){
             bWidth += (metadata["tracks"][audioName]["maxbps"].asInt() * 2);
           }
-          result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << bWidth * 8 << "\r\n";
+          result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << bWidth * 10 << "\r\n";
           result << trackIt->second["trackid"].asInt();
           if (audioId != -1){
             result << "_" << audioId;
@@ -66,9 +66,9 @@ namespace Connector_HTTP {
       }
       result << "#EXTM3U\r\n"
           "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
-          "#EXT-X-MEDIA-SEQUENCE:" << metadata["trackid"].asInt() << "\r\n";
+          "#EXT-X-MEDIA-SEQUENCE:0\r\n";
       for (JSON::ArrIter ai = metadata["frags"].ArrBegin(); ai != metadata["frags"].ArrEnd(); ai++){
-        result << "#EXTINF:" << (*ai)["dur"].asInt() / 1000 << ", no desc\r\n"
+        result << "#EXTINF:" << (((*ai)["dur"].asInt() + 500) / 1000) << ", no desc\r\n"
             << metadata["keys"][(*ai)["num"].asInt() - 1]["time"].asInt() << "_" << (*ai)["dur"].asInt() + metadata["keys"][(*ai)["num"].asInt() - 1]["time"].asInt() << ".ts\r\n";
       }
       result << "#EXT-X-ENDLIST";
@@ -100,6 +100,7 @@ namespace Connector_HTTP {
     int ThisNaluSize;
     char VideoCounter = 0;
     char AudioCounter = 0;
+    long long unsigned int lastVid = 0;
     bool IsKeyFrame;
     MP4::AVCC avccbox;
     bool haveAvcc = false;
@@ -162,6 +163,7 @@ namespace Connector_HTTP {
             audioTrackID = atoi(allTracks.substr(allTracks.find("_")+1).c_str());
             temp = HTTP_R.url.find("/", temp) + 1;
             Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("_", temp) - temp).c_str());
+            lastVid = Segment * 90;
             temp = HTTP_R.url.find("_", temp) + 1;
             int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
             if (Strm.metadata.isMember("live")){
@@ -252,7 +254,7 @@ namespace Connector_HTTP {
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
               Socket::Buffer ToPack;
               //write PAT and PMT TS packets
-              if (PacketNumber == 0){
+              if (PacketNumber % 42 == 0){
                 PackData.DefaultPAT();
                 TSBuf.write(PackData.ToString(), 188);
                 PackData.DefaultPMT();
@@ -268,7 +270,7 @@ namespace Connector_HTTP {
                   TimeStamp = (Strm.getPacket()["time"].asInt() * 27000);
                 }
                 ToPack.append(avccbox.asAnnexB());
-                while (Strm.lastData().size()){
+                while (Strm.lastData().size() > 4){
                   ThisNaluSize = (Strm.lastData()[0] << 24) + (Strm.lastData()[1] << 16) + (Strm.lastData()[2] << 8) + Strm.lastData()[3];
                   Strm.lastData().replace(0, 4, TS::NalHeader, 4);
                   if (ThisNaluSize + 4 == Strm.lastData().size()){
@@ -279,15 +281,16 @@ namespace Connector_HTTP {
                     Strm.lastData().erase(0, ThisNaluSize + 4);
                   }
                 }
-                ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket()["time"].asInt() * 90));
+                  ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket()["time"].asInt() * 90));
                 PIDno = 0x100;
                 ContCounter = &VideoCounter;
               }else if (Strm.lastType() == DTSC::AUDIO){
                 ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.getTrackById(audioTrackID)["init"].asString()));
                 ToPack.append(Strm.lastData());
-                ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket()["time"].asInt() * 90));
+                  ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), lastVid));
                 PIDno = 0x101;
                 ContCounter = &AudioCounter;
+                IsKeyFrame = false;
               }
 
               //initial packet

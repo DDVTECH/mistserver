@@ -120,7 +120,7 @@ namespace Converters {
         }
         if( currentID == "" ) {
           fprintf(stderr, "Found an unknown v2 packet with id %d\n", F.getJSON()["trackid"].asInt());
-          F.seekNext();
+          F.parseNext();
           continue;
           //should create new track but this shouldnt be needed...
         }
@@ -198,13 +198,13 @@ namespace Converters {
         meta["tracks"][it->first]["keys"][tmp - 1]["len"] = it->second.lastms - meta["tracks"][it->first]["keys"][tmp - 2]["time"].asInt();
         meta["tracks"][it->first]["keys"][tmp - 1]["size"] = it->second.totalSize;
         for (int i = 0; i < trackData[it->first].parts.size(); i++){
-          meta["tracks"][it->first]["keys"][tmp - 1]["parts"].append(trackData[currentID].parts[i]);
+          meta["tracks"][it->first]["keys"][tmp - 1]["parts"].append(trackData[it->first].parts[i]);
         }
       }else{
         meta["tracks"][it->first]["keys"][tmp]["len"] = it->second.lastms;
         meta["tracks"][it->first]["keys"][tmp]["size"] = it->second.totalSize;
         for (int i = 0; i < trackData[it->first].parts.size(); i++){
-          meta["tracks"][it->first]["keys"][tmp]["parts"].append(trackData[currentID].parts[i]);
+          meta["tracks"][it->first]["keys"][tmp]["parts"].append(trackData[it->first].parts[i]);
         }
       }
       //calculate fragments

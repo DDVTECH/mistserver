@@ -112,13 +112,13 @@ int main(int argc, char** argv){
 
   bool meta_sent = false;
   int playUntil = -1;
-  long long now, lastTime = 0; //for timing of sending packets
+  long long now = 0; //for timing of sending packets
   long long bench = 0; //for benchmarking
   std::set<int> newSelect;
   Stats sts;
   CYG_DEFI
 
-  while (in_out.connected() && (Util::epoch() - lasttime < 60)){
+  while (in_out.connected() && (Util::epoch() - lasttime < 60) && conf.is_active){
     CYG_INCR
     if (CYG_LOOP in_out.spool()){
       while (in_out.Received().size()){
@@ -170,19 +170,10 @@ int main(int argc, char** argv){
             case 's': { //second-seek
               int ms = JSON::Value(in_out.Received().get().substr(2)).asInt();
               bool ret = source.seek_time(ms);
-              lastTime = 0;
               break;
             }
-            /*
-            case 'f': { //frame-seek
-              bool ret = source.seek_frame(JSON::Value(in_out.Received().get().substr(2)).asInt());
-              lastTime = 0;
-              break;
-            }
-            */
             case 'p': { //play
               playing = -1;
-              lastTime = 0;
               in_out.setBlocking(false);
               if (in_out.Received().get().size() >= 2){
                 playUntil = atoi(in_out.Received().get().substr(2).c_str());
@@ -237,16 +228,11 @@ int main(int argc, char** argv){
         playing = 0;
       }
       if (source.atKeyframe()){
-        ///\todo Fix auto-delay on playing == -1.
-        if (playing == -1 && meta["video"]["keyms"].asInt() > now - lastTime){
-          Util::sleep(meta["video"]["keyms"].asInt() - (now - lastTime));
-        }
-        lastTime = now;
         if (playing > 0){
           --playing;
         }
       }
-      if ( playUntil && playUntil < source.getJSON()["time"].asInt()){
+      if ( playUntil && playUntil <= source.getJSON()["time"].asInt()){
         playing = 0;
       }
       if (playing == 0){
@@ -254,7 +240,7 @@ int main(int argc, char** argv){
         std::cerr << "Completed VoD request in MistPlayer (" << (Util::getMS() - bench) << "ms)" << std::endl;
 #endif
         pausemark["time"] = source.getJSON()["time"];
-        pausemark.toPacked();
+        pausemark.netPrepare();
         in_out.SendNow(pausemark.toNetPacked());
         in_out.setBlocking(true);
       }else{

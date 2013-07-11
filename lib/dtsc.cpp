@@ -178,6 +178,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
+  std::string newTrack = trackMapping[newPos.trackID];
   while (buffers.count(newPos) > 0){
     newPos.seekTime++;
   }
@@ -186,7 +187,6 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     buffers[newPos].toNetPacked();//make sure package is packed and ready
   }
   datapointertype = INVALID;
-  ///\todo Save keyframes when they arrive.
   std::string tmp = "";
   if (newPack.isMember("trackid")){
     tmp = getTrackById(newPack["trackid"].asInt())["type"].asString();
@@ -206,38 +206,82 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   if (tmp == "pause_marker"){
     datapointertype = PAUSEMARK;
   }
-  int keySize = metadata["tracks"][trackMapping[newPos.trackID]]["keys"].size();
+  int keySize = metadata["tracks"][newTrack]["keys"].size();
   if (buffercount > 1){
-    if (newPack.isMember("keyframe") || (keySize && ((newPack["time"].asInt() - 2000) > metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["time"].asInt())) || (!keySize)){
+    #define prevKey metadata["tracks"][newTrack]["keys"][keySize - 1]
+    if (newPack.isMember("keyframe") || !keySize || newPack["time"].asInt() - 2000 > prevKey["time"].asInt()){
       keyframes[newPos.trackID].insert(newPos);
       JSON::Value key;
       key["time"] = newPack["time"];
       if (keySize){
-        key["num"] = metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize -1]["num"].asInt() + 1;
-        metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["len"] = newPack["time"].asInt() - metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["time"].asInt();
+        key["num"] = prevKey["num"].asInt() + 1;
+        prevKey["len"] = newPack["time"].asInt() - prevKey["time"].asInt();
         int size = 0;
-        for (JSON::ArrIter it = metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["parts"].ArrBegin(); it != metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["parts"].ArrEnd(); it++){
+        for (JSON::ArrIter it = prevKey["parts"].ArrBegin(); it != prevKey["parts"].ArrEnd(); it++){
           size += it->asInt();
         }
-        metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize -1]["size"] = size;
+        prevKey["size"] = size;
+        long long int bps = (double)prevKey["size"].asInt() / ((double)prevKey["len"].asInt() / 1000.0);
+        if (bps > metadata["tracks"][newTrack]["maxbps"].asInt()){
+          metadata["tracks"][newTrack]["maxbps"] = (long long int)(bps * 1.2);
+        }
       }else{
         key["num"] = 1;
       }
-      metadata["tracks"][trackMapping[newPos.trackID]]["keys"].append(key);
-      keySize = metadata["tracks"][trackMapping[newPos.trackID]]["keys"].size();
+      metadata["tracks"][newTrack]["keys"].append(key);
+      keySize = metadata["tracks"][newTrack]["keys"].size();
+
+      //find the last fragment
+      JSON::Value lastFrag;
+      if (metadata["tracks"][newTrack]["frags"].size() > 0){
+        lastFrag = metadata["tracks"][newTrack]["frags"][metadata["tracks"][newTrack]["frags"].size() - 1];
+      }
+      //find the first keyframe past the last fragment
+      JSON::ArrIter fragIt = metadata["tracks"][newTrack]["keys"].ArrBegin();
+      while (fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() && fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() - 1 && (*fragIt)["num"].asInt() < lastFrag["num"].asInt() + lastFrag["len"].asInt()){
+        fragIt++;
+      }
+      //continue only if a keyframe was found
+      if (fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() && fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() - 1){
+        //calculate the variables of the new fragment
+        JSON::Value newFrag;
+        newFrag["num"] = (*fragIt)["num"];
+        newFrag["time"] = (*fragIt)["time"];
+        newFrag["len"] = 1ll;
+        newFrag["dur"] = (*fragIt)["len"];
+        fragIt++;
+        //keep calculating until 10+ seconds or no more keyframes
+        while (fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() && fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() - 1){
+          newFrag["len"] = newFrag["len"].asInt() + 1;
+          newFrag["dur"] = newFrag["dur"].asInt() + (*fragIt)["len"].asInt();
+          //more than 10 seconds? store the new fragment
+          if (newFrag["dur"].asInt() >= 10000){
+            /// \todo Make this variable instead of hardcoded 10 seconds?
+            metadata["tracks"][newTrack]["frags"].append(newFrag);
+            break;
+          }
+          fragIt++;
+        }
+      }
     }
     if (keySize){
-      metadata["tracks"][trackMapping[newPos.trackID]]["keys"][keySize - 1]["parts"].append((long long int)newPack["data"].asString().size());
+      metadata["tracks"][newTrack]["keys"][keySize - 1]["parts"].append((long long int)newPack["data"].asString().size());
     }
     metadata["live"] = 1ll;
   }
+  
   //increase buffer size if too little time available
   unsigned int timeBuffered = buffers.rbegin()->second["time"].asInt() - buffers.begin()->second["time"].asInt();
-  if (buffercount > 1 && timeBuffered < buffertime){
-    buffercount = buffers.size();
-    if (buffercount < 2){buffercount = 2;}
+  if (buffercount > 1){
+    if (timeBuffered < buffertime){
+      buffercount = buffers.size();
+      if (buffercount < 2){buffercount = 2;}
+    }
+    if (metadata["buffer_window"].asInt() < timeBuffered){
+      metadata["buffer_window"] = (long long int)timeBuffered;
+    }
   }
-  //std::cout << buffers.size() << " - " << buffercount << std::endl;
+
   while (buffers.size() > buffercount){
     if (keyframes[buffers.begin()->first.trackID].count(buffers.begin()->first)){
       //if there are < 3 keyframes, throwing one away would mean less than 2 left.
@@ -248,6 +292,14 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
       keyframes[buffers.begin()->first.trackID].erase(buffers.begin()->first);
       int keySize = metadata["tracks"][track]["keys"].size();
       metadata["tracks"][track]["keys"].shrink(keySize - 1);
+      if (metadata["tracks"][track]["frags"].size() > 0){
+        // delete fragments of which the beginning can no longer be reached
+        while (metadata["tracks"][track]["frags"][0u]["num"].asInt() < metadata["tracks"][track]["keys"][0u]["num"].asInt()){
+          metadata["tracks"][track]["frags"].shrink(metadata["tracks"][track]["frags"].size() - 1);
+          // increase the missed fragments counter
+          metadata["tracks"][track]["missed_frags"] = metadata["tracks"][track]["missed_frags"].asInt() + 1;
+        }
+      }
     }
     buffers.erase(buffers.begin());
   }
@@ -354,17 +406,26 @@ void DTSC::Stream::dropRing(DTSC::Ring * ptr){
 }
 
 /// Returns 0 if seeking is possible, -1 if the wanted frame is too old, 1 if the wanted frame is too new.
+/// This function looks in the header - not in the buffered data itself.
 int DTSC::Stream::canSeekms(unsigned int ms){
-  if ( !buffers.size()){
+  bool too_late = false;
+  //no tracks? Frame too new by definition.
+  if ( !metadata.isMember("tracks") || metadata["tracks"].size() < 1){
     return 1;
   }
-  if (ms > buffers.rbegin()->second["time"].asInt()){
-    return 1;
+  //loop trough all the tracks
+  for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+    if (it->second.isMember("keys") && it->second["keys"].size() > 0){
+      if (it->second["keys"][0u]["time"].asInt() <= ms && it->second["keys"][it->second["keys"].size() - 1]["time"].asInt() >= ms){
+        return 0;
+      }
+      if (it->second["keys"][0u]["time"].asInt() > ms){too_late = true;}
+    }
   }
-  if (ms < buffers.begin()->second["time"].asInt()){
-    return -1;
-  }
-  return 0;
+  //did we spot a track already past this point? return too late.
+  if (too_late){return -1;}
+  //otherwise, assume not available yet
+  return 1;
 }
 
 DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> & allowedTracks){

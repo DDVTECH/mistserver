@@ -132,6 +132,11 @@ namespace Buffer {
                 }
                 case 'p': { //play
                   usr->myRing->playCount = -1;
+                  if (usr->S.Received().get().size() >= 2){
+                    usr->playUntil = atoi(usr->S.Received().get().substr(2).c_str());
+                  }else{
+                    usr->playUntil = 0;
+                  }
                   break;
                 }
                 case 'o': { //once-play
@@ -203,20 +208,18 @@ namespace Buffer {
     while (buffer_running){
       if (thisStream->getIPInput().connected()){
         if (thisStream->getIPInput().spool()){
-          bool packed_parsed = false;
-          do{
+          while (true){
             thisStream->getWriteLock();
             if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
               thisStream->dropWriteLock(true);
-              packed_parsed = true;
             }else{
               thisStream->dropWriteLock(false);
-              packed_parsed = false;
-              Util::sleep(1); //1ms wait
+              Util::sleep(10); //10ms wait
+              break;
             }
-          }while (packed_parsed);
+          }
         }else{
-          Util::sleep(1); //1ms wait
+          Util::sleep(10); //10ms wait
         }
       }else{
         Util::sleep(1000); //1s wait

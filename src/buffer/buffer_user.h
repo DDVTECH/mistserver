@@ -28,6 +28,7 @@ namespace Buffer {
     public:
       DTSC::Ring * myRing; ///< Ring of the buffer for this user.
       int MyNum; ///< User ID of this user.
+      unsigned int playUntil; ///< Time until where is being played or zero if undefined.
       std::string MyStr; ///< User ID of this user as a string.
       std::string inbuffer; ///< Used to buffer input data.
       int currsend; ///< Current amount of bytes sent.

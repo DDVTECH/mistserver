@@ -81,9 +81,10 @@ namespace Buffer {
         myRing->waiting = false;
         Stream::get()->getReadLock();
         myRing->b = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
-        if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
+        if ((Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && (myRing->playCount > 0)) || (playUntil && playUntil <= Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt())){
           myRing->playCount--;
-          if ( !myRing->playCount){
+          if (myRing->playCount < 1 || playUntil <= Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt()){
+            myRing->playCount = 0;
             JSON::Value pausemark;
             pausemark["datatype"] = "pause_marker";
             pausemark["time"] = Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt();
@@ -113,9 +114,10 @@ namespace Buffer {
         return false;
       }
       myRing->b = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
-      if (Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && myRing->playCount > 0){
+      if ((Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && (myRing->playCount > 0)) || (playUntil && playUntil <= Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt())){
         myRing->playCount--;
-        if ( !myRing->playCount){
+        if (myRing->playCount < 1 || playUntil <= Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt()){
+          myRing->playCount = 0;
           JSON::Value pausemark;
           pausemark["datatype"] = "pause_marker";
           pausemark["time"] = Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt();

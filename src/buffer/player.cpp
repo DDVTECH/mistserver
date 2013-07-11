@@ -240,7 +240,6 @@ int main(int argc, char** argv){
         lastTime = now - source.getJSON()["time"].asInt();
       }
       if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - lastTime + 1000){
-        //std::cerr << (source.getJSON()["time"].asInt() - (now - lastTime)) << " ms sleep" << std::endl;
         Util::sleep(source.getJSON()["time"].asInt() - (now - lastTime));
       }
       if ( playUntil && playUntil < source.getJSON()["time"].asInt()){

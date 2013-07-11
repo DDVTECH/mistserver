@@ -244,11 +244,8 @@ int main(int argc, char ** argv){
   
   /// User friendliness input added at this line
   if (isatty(fileno(stdin))){
-    std::cerr << "User i/o detected, checking for sane config" << std::endl;
     //check for username
-    if (Controller::Storage.isMember("account") && Controller::Storage["account"].size() > 0){
-      std::cerr << "Account set" << std::endl;
-    }else{
+    if ( !Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
       std::string in_string = "";
       while(yna(in_string) == 'x'){
         std::cerr << "Account not set, do you want to create an account? (y)es, (n)o, (a)bort: ";
@@ -268,9 +265,7 @@ int main(int argc, char ** argv){
       }
     }
     //check for protocols
-    if (Controller::Storage.isMember("config") && Controller::Storage["config"].isMember("protocols") && Controller::Storage["config"]["protocols"].size() > 0){
-      std::cerr << "Protocols set" << std::endl;
-    }else{
+    if ( !Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") || Controller::Storage["config"]["protocols"].size() < 1){
       std::string in_string = "";
       while(yna(in_string) == 'x'){
         std::cerr << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, (a)bort: ";
@@ -285,13 +280,9 @@ int main(int argc, char ** argv){
       }
     }
     //check for streams
-    if (Controller::Storage.isMember("streams") && Controller::Storage["streams"].size() > 0){
-      std::cerr << "Streams set" << std::endl;
-    }else{
-      std::cerr << "Streams not set, please set up streams through local settings page on port 4242 or per JSON request." << std::endl;
+    if ( !Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1){
+      std::cerr << "No streams configured, remember to set up streams through local settings page on port " << conf.getInteger("listen_port") << " or using the API." << std::endl;
     }
-  }else{
-    std::cerr << "No user i/o detected" << std::endl;
   }
   
   std::string uplink_addr = conf.getString("uplink");

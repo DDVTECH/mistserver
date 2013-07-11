@@ -66,10 +66,19 @@ namespace Connector_HTTP {
       }
       result << "#EXTM3U\r\n"
           "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
-          "#EXT-X-MEDIA-SEQUENCE:0\r\n";
+          "#EXT-X-MEDIA-SEQUENCE:" << metadata["missed_frags"].asInt() << "\r\n";
       for (JSON::ArrIter ai = metadata["frags"].ArrBegin(); ai != metadata["frags"].ArrEnd(); ai++){
+        long long int starttime = 0;
+        JSON::ArrIter fi = metadata["keys"].ArrBegin();
+        while (fi != metadata["keys"].ArrEnd() && (*fi)["num"].asInt() < (*ai)["num"].asInt()){
+          fi++;
+        }
+        if (fi != metadata["keys"].ArrEnd()){
+          starttime = (*fi)["time"].asInt();
+        }
+        
         result << "#EXTINF:" << (((*ai)["dur"].asInt() + 500) / 1000) << ", no desc\r\n"
-            << metadata["keys"][(*ai)["num"].asInt() - 1]["time"].asInt() << "_" << (*ai)["dur"].asInt() + metadata["keys"][(*ai)["num"].asInt() - 1]["time"].asInt() << ".ts\r\n";
+            << starttime << "_" << (*ai)["dur"].asInt() + starttime << ".ts\r\n";
       }
       result << "#EXT-X-ENDLIST";
     }
@@ -90,6 +99,7 @@ namespace Connector_HTTP {
     HTTP::Parser HTTP_R, HTTP_S; //HTTP Receiver en HTTP Sender.
 
     bool ready4data = false; //Set to true when streaming is to begin.
+    bool AppleCompat = false; //Set to true when Apple device detected.
     Socket::Connection ss( -1);
     std::string streamname;
     std::string recBuffer = "";
@@ -133,6 +143,7 @@ namespace Connector_HTTP {
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
+          AppleCompat = (HTTP_R.GetHeader("User-Agent").find("Apple") != std::string::npos);
           streamname = HTTP_R.GetHeader("X-Stream");
           if ( !ss){
             ss = Util::Stream::getStream(streamname);
@@ -174,7 +185,7 @@ namespace Connector_HTTP {
                 HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
                 conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
                 HTTP_R.Clean(); //clean for any possible next requests
-                std::cout << "Fragment @ F" << Segment << " too old (F" << Strm.metadata["keynum"][0u].asInt() << " - " << Strm.metadata["keynum"][Strm.metadata["keynum"].size() - 1].asInt() << ")" << std::endl;
+                std::cout << "Fragment @ " << Segment << " too old" << std::endl;
                 continue;
               }
               if (seekable > 0){
@@ -182,7 +193,7 @@ namespace Connector_HTTP {
                 HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
                 conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
                 HTTP_R.Clean(); //clean for any possible next requests
-                std::cout << "Fragment @ F" << Segment << " not available yet (F" << Strm.metadata["keynum"][0u].asInt() << " - " << Strm.metadata["keynum"][Strm.metadata["keynum"].size() - 1].asInt() << ")" << std::endl;
+                std::cout << "Fragment @ " << Segment << " not available yet" << std::endl;
                 continue;
               }
             }
@@ -281,13 +292,17 @@ namespace Connector_HTTP {
                     Strm.lastData().erase(0, ThisNaluSize + 4);
                   }
                 }
-                  ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket()["time"].asInt() * 90));
+                ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket()["time"].asInt() * 90));
                 PIDno = 0x100;
                 ContCounter = &VideoCounter;
               }else if (Strm.lastType() == DTSC::AUDIO){
                 ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.getTrackById(audioTrackID)["init"].asString()));
                 ToPack.append(Strm.lastData());
+                if (AppleCompat){
                   ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), lastVid));
+                }else{
+                  ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket()["time"].asInt() * 90));
+                }
                 PIDno = 0x101;
                 ContCounter = &AudioCounter;
                 IsKeyFrame = false;

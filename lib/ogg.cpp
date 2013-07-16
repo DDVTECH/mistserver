@@ -299,6 +299,17 @@ namespace OGG{
         }
         offset += len;
       }
+    }else if(codec == "vorbis"){
+      r << "Vorbis Data" << std::endl;
+      int offset = 0;
+      for (int i = 0; i < getSegmentTableDeque().size(); i++){
+        vorbis::header tmpHeader;
+        int len = getSegmentTableDeque()[i];
+        if (tmpHeader.read(getFullPayload()+offset,len)){
+          r << tmpHeader.toPrettyString(indent + 4);
+        }
+        offset += len;
+      }
     }
     return r.str();
   }

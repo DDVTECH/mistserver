@@ -4,6 +4,7 @@
 #include<deque>
 #include"dtsc.h"
 #include "theora.h"
+#include "vorbis.h"
 
 namespace OGG{
   class Page{

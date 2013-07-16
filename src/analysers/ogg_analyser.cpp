@@ -27,6 +27,9 @@ namespace Analysers{
           if (memcmp("theora",oggPage.getFullPayload() + 1,6) == 0){
             sn2Codec[oggPage.getBitstreamSerialNumber()] = "theora";
           }
+          if (memcmp("vorbis",oggPage.getFullPayload() + 1,6) == 0){
+            sn2Codec[oggPage.getBitstreamSerialNumber()] = "vorbis";
+          }
         }
         oggPage.setInternalCodec(sn2Codec[oggPage.getBitstreamSerialNumber()]);
         std::cout << oggPage.toPrettyString() << std::endl;

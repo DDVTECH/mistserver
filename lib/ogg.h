@@ -40,13 +40,16 @@ namespace OGG{
       bool typeNone();
       std::string toPrettyString(size_t indent = 0);
       void setInternalCodec(std::string myCodec);
+      long unsigned int calcChecksum();
+      void clear();
+      
+      bool setPayload(char* newData, unsigned int length);
     private:
       std::deque<unsigned int> segmentTableDeque;
-      long unsigned int calcChecksum();
-      char* data;
-      unsigned int datasize;
-      unsigned int dataSum;
+      char* data;//pointer to the beginning of the Page data
+      unsigned int datasize;//size of the complete page
+      unsigned int dataSum;//size of the total segments
       bool checkDataSize(unsigned int size);
-      std::string codec;
+      std::string codec;//codec in the page
   };
 }

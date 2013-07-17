@@ -193,21 +193,35 @@ namespace OGG{
     return segmentTableDeque;
   }
 
+  static void STerrMSG(){
+    std::cerr << "Segments too big, create a continue page" << std::endl;
+  }
+
   bool Page::setSegmentTable(std::vector<unsigned int> layout){
     unsigned int place = 0;
     char table[255];
     for (unsigned int i = 0; i < layout.size(); i++){
       while (layout[i]>=255){
-        if (place >= 255) return false;
+        if (place >= 255){ 
+          STerrMSG();
+          return false;
+        }
         table[place] = 255;
         layout[i] -= 255;
         place++;
       }
-      if (place >= 255) return false;
+      if (place >= 255){ 
+        STerrMSG();
+        return false;
+      }
       table[place] = layout[i];
       place++;
     }
     setSegmentTable(table,place);
+    dataSum=0;
+    for (unsigned int i = 0; i < layout.size(); i++){
+      dataSum += layout[i];
+    }
     return true;
   }
   
@@ -418,4 +432,20 @@ namespace OGG{
   int Page::getPayloadSize(){
     return dataSum;
   }
+  
+  void Page::clear(){
+    memset(data,0,27);
+    datasize = 0;
+    dataSum = 0;
+    codec = "";
+    segmentTableDeque.clear();
+  }
+
+  bool Page::setPayload(char* newData, unsigned int length){
+     if(!checkDataSize(27 + getPageSegments() + length)){//check if size available in memory
+      return false;
+    }
+    memcpy(data + 27 + getPageSegments(), newData, length);
+    return true;
+ }
 }

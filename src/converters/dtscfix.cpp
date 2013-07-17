@@ -195,7 +195,11 @@ namespace Converters {
       meta["tracks"][it->first]["type"] = it->second.type;
       int tmp = meta["tracks"][it->first]["keys"].size();
       if (tmp > 0){
-        meta["tracks"][it->first]["keys"][tmp - 1]["len"] = it->second.lastms - meta["tracks"][it->first]["keys"][tmp - 2]["time"].asInt();
+        if (tmp > 1){
+          meta["tracks"][it->first]["keys"][tmp - 1]["len"] = it->second.lastms - meta["tracks"][it->first]["keys"][tmp - 2]["time"].asInt();
+        }else{
+          meta["tracks"][it->first]["keys"][tmp - 1]["len"] = it->second.lastms;
+        }
         meta["tracks"][it->first]["keys"][tmp - 1]["size"] = it->second.totalSize;
         for (int i = 0; i < trackData[it->first].parts.size(); i++){
           meta["tracks"][it->first]["keys"][tmp - 1]["parts"].append(trackData[it->first].parts[i]);

@@ -65,17 +65,16 @@ namespace Converters{
             std::cerr << "Unknown Codec, skipping" << std::endl;
             continue;
           }
+          trackData[sNum].dtscID = lastTrackID++;
           std::stringstream tID;
           tID << "track" << trackData[sNum].dtscID;
           trackData[sNum].name = tID.str();
-          trackData[sNum].dtscID = lastTrackID++;
         }
         //if Serial number is available in mapping
         if(trackData.find(sNum)!=trackData.end()){
           int offset = 0;
           for (std::deque<unsigned int>::iterator it = oggPage.getSegmentTableDeque().begin(); it != oggPage.getSegmentTableDeque().end(); it++){
             if (trackData[sNum].parsedHeaders){
-              //todo output segment
               //output DTSC packet
               DTSCOut.null();//clearing DTSC buffer
               DTSCOut["trackid"] = (long long)trackData[sNum].dtscID;
@@ -120,7 +119,6 @@ namespace Converters{
                         break;
                       }
                     }
-                  }else{//if the current segment is a movie part
                   }
                   break;
                 }

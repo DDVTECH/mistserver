@@ -106,12 +106,12 @@ namespace vorbis{
   bool header::validate(){
     switch(getHeaderType()){
       case 1://ID header
-        if (datasize!=29) return false;
-        //if (getVorbisVersion()!=0) return false;
-        //if (getAudioChannels()<=0) return false;
-        //if (getAudioSampleRate()<=0) return false;
-        //if (getBlockSize0()>getBlockSize1()) return false;
-        //if (getFramingFlag()!=1) return false;
+        if (datasize!=30) return false;
+        if (getVorbisVersion()!=0) return false;
+        if (getAudioChannels()<=0) return false;
+        if (getAudioSampleRate()<=0) return false;
+        if (getBlockSize0()>getBlockSize1()) return false;
+        if (getFramingFlag()!=1) return false;
       break;      
       case 3://comment header
       break;      

@@ -103,7 +103,7 @@ namespace Converters{
                         trackData[sNum].idHeader = tHead;
                         DTSCHeader["tracks"][trackData[sNum].name]["height"] = (long long)tHead.getPICH();
                         DTSCHeader["tracks"][trackData[sNum].name]["width"] = (long long)tHead.getPICW();
-                        DTSCHeader["tracks"][trackData[sNum].name]["theoraID"] = std::string(oggPage.getFullPayload()+offset, (*it));
+                        DTSCHeader["tracks"][trackData[sNum].name]["IDHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                         break;
                       }
                       case 1: //comment header
@@ -129,6 +129,7 @@ namespace Converters{
                         case 1:{
                           std::cerr << "Vorbis ID header" << std::endl;
                           DTSCHeader["tracks"][trackData[sNum].name]["channels"] = (long long)vHead.getAudioChannels();
+                          DTSCHeader["tracks"][trackData[sNum].name]["IDHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                           break;
                         }
                         case 5:{
@@ -167,8 +168,8 @@ namespace Converters{
         //write section
         if (oggPage.typeEOS()){//ending page
           std::cerr << oggPage.getBitstreamSerialNumber() << "  ending" << std::endl;
-          trackData.erase(sNum);
           //remove from trackdata
+          trackData.erase(sNum);
         }
       }
     }

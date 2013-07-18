@@ -149,6 +149,12 @@ namespace DTSC {
       seekTime = rhs.seekTime;
       trackID = rhs.trackID;
     }
+    bool operator == (const livePos& rhs) {
+      return seekTime == rhs.seekTime && trackID == rhs.trackID;
+    }
+    bool operator != (const livePos& rhs) {
+      return seekTime != rhs.seekTime || trackID != rhs.trackID;
+    }
     bool operator < (const livePos& rhs) const {
       if (seekTime < rhs.seekTime){
         return true;
@@ -207,6 +213,7 @@ namespace DTSC {
       void setBufferTime(unsigned int ms);
       bool isNewest(DTSC::livePos & pos);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
+      void endStream();
     private:
       std::map<livePos,JSON::Value> buffers;
       std::map<int,std::set<livePos> > keyframes;

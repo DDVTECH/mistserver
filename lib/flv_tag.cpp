@@ -1075,7 +1075,7 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
     metadata["tracks"]["track2"]["trackid"] = 2;
     metadata["tracks"]["track2"]["type"] = "audio";
     if ( !metadata["tracks"]["track2"].isMember("codec") || metadata["tracks"]["track2"]["codec"].asString() == "?" || metadata["tracks"]["track2"]["codec"].asString() == ""){
-      metadata["audio"]["codec"] = getAudioCodec();
+      metadata["tracks"]["track2"]["codec"] = getAudioCodec();
     }
     if ( !metadata["tracks"]["track2"].isMember("rate") || metadata["tracks"]["track2"]["rate"].asInt() < 1){
       switch (audiodata & 0x0C){

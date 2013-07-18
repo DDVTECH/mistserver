@@ -28,7 +28,7 @@ namespace Connector_HTTP {
   ///\brief Builds an index file for HTTP Live streaming.
   ///\param metadata The current metadata, used to generate the index.
   ///\return The index file for HTTP Live Streaming.
-  std::string liveIndex(JSON::Value & metadata){
+  std::string liveIndex(JSON::Value & metadata, bool isLive){
     std::stringstream result;
     if (metadata.isMember("tracks")){
       result << "#EXTM3U\r\n";
@@ -80,7 +80,9 @@ namespace Connector_HTTP {
         result << "#EXTINF:" << (((*ai)["dur"].asInt() + 500) / 1000) << ", no desc\r\n"
             << starttime << "_" << (*ai)["dur"].asInt() + starttime << ".ts\r\n";
       }
-      result << "#EXT-X-ENDLIST";
+      if ( !isLive){
+        result << "#EXT-X-ENDLIST\r\n";
+      }
     }
 #if DEBUG >= 8
     std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
@@ -207,7 +209,6 @@ namespace Connector_HTTP {
             sstream << "s " << Segment << "\n";
             sstream << "p " << frameCount << "\n";
             ss.SendNow(sstream.str().c_str());
-            fprintf(stderr,"Sending %s to player\n", sstream.str().c_str());
           }else{
             std::string request = HTTP_R.url.substr(HTTP_R.url.find("/", 5) + 1);
             if (HTTP_R.url.find(".m3u8") != std::string::npos){
@@ -220,10 +221,10 @@ namespace Connector_HTTP {
             HTTP_S.SetHeader("Cache-Control", "no-cache");
             std::string manifest;
             if (request.find("/") == std::string::npos){
-              manifest = liveIndex(Strm.metadata);
+              manifest = liveIndex(Strm.metadata, Strm.metadata.isMember("live"));
             }else{
               int selectId = atoi(request.substr(0,request.find("/")).c_str());
-              manifest = liveIndex(Strm.getTrackById(selectId));
+              manifest = liveIndex(Strm.getTrackById(selectId), Strm.metadata.isMember("live"));
             }
             HTTP_S.SetBody(manifest);
             conn.SendNow(HTTP_S.BuildResponse("200", "OK"));

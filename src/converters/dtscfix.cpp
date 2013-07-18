@@ -205,13 +205,13 @@ namespace Converters {
         }
         meta["tracks"][it->first]["keys"][tmp - 1]["size"] = it->second.totalSize;
         for (int i = 0; i < trackData[it->first].parts.size(); i++){
-          meta["tracks"][it->first]["keys"][tmp - 1]["parts"].append(trackData[it->first].parts[i]);
+          meta["tracks"][it->first]["keys"][tmp - 1]["parts"].append(it->second.parts[i]);
         }
       }else{
         meta["tracks"][it->first]["keys"][tmp]["len"] = it->second.lastms;
         meta["tracks"][it->first]["keys"][tmp]["size"] = it->second.totalSize;
         for (int i = 0; i < trackData[it->first].parts.size(); i++){
-          meta["tracks"][it->first]["keys"][tmp]["parts"].append(trackData[it->first].parts[i]);
+          meta["tracks"][it->first]["keys"][tmp]["parts"].append(it->second.parts[i]);
         }
       }
       //calculate fragments
@@ -228,6 +228,7 @@ namespace Converters {
             if ((*it2)["time"].asInt() / 10000 > currFrag || (it2 + 1) == meta["tracks"][it->first]["keys"].ArrEnd()){
               JSON::Value thisFrag;
               thisFrag["num"] = (*arrIt)["num"].asInt();
+              thisFrag["time"] = (*arrIt)["time"].asInt();
               thisFrag["len"] = fragLen;
               thisFrag["dur"] = fragDur;
               thisFrag["size"] = fragSize;

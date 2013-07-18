@@ -25,14 +25,6 @@ namespace Converters {
     DTSC::File input(conf.getString("filename"));
     //ftyp box
     /// \todo fill ftyp with non hardcoded values from file
-    /*MP4::FTYP ftypBox;
-    ftypBox.setMajorBrand(0x69736f6d);
-    ftypBox.setMinorVersion(512);
-    ftypBox.setCompatibleBrands(0x69736f6d,0);
-    ftypBox.setCompatibleBrands(0x69736f32,1);
-    ftypBox.setCompatibleBrands(0x61766331,2);
-    ftypBox.setCompatibleBrands(0x6d703431,3);
-    std::cout << std::string(ftypBox.asBox(),ftypBox.boxedSize());*/
     MP4::FTYP ftypBox;
     ftypBox.setMajorBrand(0x6D703431);//mp41
     ftypBox.setMinorVersion(0);
@@ -44,33 +36,67 @@ namespace Converters {
     //moov box
     MP4::MOOV moovBox;
       MP4::MVHD mvhdBox;
+      mvhdBox.setVersion(0);
       mvhdBox.setCreationTime(0);
       mvhdBox.setModificationTime(0);
       mvhdBox.setTimeScale(1000);
-      mvhdBox.setDuration(input.getMeta()["lastms"].asInt());
-      /// \todo mvhd setTrackID automatic fix (next track ID)
+      mvhdBox.setRate(0x10000);
+      mvhdBox.setDuration(input.getMeta()["lastms"].asInt() + input.getMeta()["firstms"].asInt());
+      mvhdBox.setTrackID(0);
+      mvhdBox.setVolume(256);
+      mvhdBox.setMatrix(0x00010000,0);
+      mvhdBox.setMatrix(0,1);
+      mvhdBox.setMatrix(0,2);
+      mvhdBox.setMatrix(0,3);
+      mvhdBox.setMatrix(0x00010000,4);
+      mvhdBox.setMatrix(0,5);
+      mvhdBox.setMatrix(0,6);
+      mvhdBox.setMatrix(0,7);
+      mvhdBox.setMatrix(0x40000000,8);
       moovBox.setContent(mvhdBox, 0);
       
       //start arbitrary track addition
       int boxOffset = 1;
       for (JSON::ObjIter it = input.getMeta()["tracks"].ObjBegin(); it != input.getMeta()["tracks"].ObjEnd(); it++){
+        int timescale = 0;
         MP4::TRAK trakBox;
           MP4::TKHD tkhdBox;
           //std::cerr << it->second["trackid"].asInt() << std::endl;
+          tkhdBox.setVersion(0);
+          tkhdBox.setFlags(15);
           tkhdBox.setTrackID(it->second["trackid"].asInt());
+          tkhdBox.setDuration(it->second["lastms"].asInt() + it->second["firsms"].asInt());
           
           if (it->second["type"].asString() == "video"){
             tkhdBox.setWidth(it->second["width"].asInt() << 16);
             tkhdBox.setHeight(it->second["height"].asInt() << 16);
+            tkhdBox.setVolume(0);
+          }else{
+            tkhdBox.setVolume(256);
+            tkhdBox.setAlternateGroup(1);
           }
+          tkhdBox.setMatrix(0x00010000,0);
+          tkhdBox.setMatrix(0,1);
+          tkhdBox.setMatrix(0,2);
+          tkhdBox.setMatrix(0,3);
+          tkhdBox.setMatrix(0x00010000,4);
+          tkhdBox.setMatrix(0,5);
+          tkhdBox.setMatrix(0,6);
+          tkhdBox.setMatrix(0,7);
+          tkhdBox.setMatrix(0x40000000,8);
           trakBox.setContent(tkhdBox, 0);
           
           MP4::MDIA mdiaBox;
-            MP4::MDHD mdhdBox;/// \todo fix constructor mdhd in lib
+            MP4::MDHD mdhdBox(0);/// \todo fix constructor mdhd in lib
             mdhdBox.setCreationTime(0);
             mdhdBox.setModificationTime(0);
-            mdhdBox.setTimeScale(1000);
-            mdhdBox.setDuration(input.getMeta()["lastms"].asInt());
+            if(it->second["type"].asString() == "video"){
+              timescale = 11988;
+            }else{
+              timescale = 48000;
+            }
+            mdhdBox.setTimeScale(timescale);
+            mdhdBox.setDuration(((it->second["lastms"].asInt() + it->second["firsms"].asInt()) * ((double)timescale / 1000)));
             mdiaBox.setContent(mdhdBox, 0);
             
             std::string tmpStr = it->second["type"].asString();
@@ -86,6 +112,7 @@ namespace Converters {
             MP4::MINF minfBox;
               if (tmpStr == "video"){
                 MP4::VMHD vmhdBox;
+                vmhdBox.setFlags(1);
                 minfBox.setContent(vmhdBox,0);
               }else if (tmpStr == "audio"){
                 MP4::SMHD smhdBox;
@@ -93,22 +120,23 @@ namespace Converters {
               }
               MP4::DINF dinfBox;
                 MP4::DREF drefBox;/// \todo fix constructor dref in lib
-                  MP4::URN urnBox;
-                  urnBox.setName("Name Here");
-                  urnBox.setLocation("Location Here");
-                  drefBox.setDataEntry(urnBox,0);
+                  drefBox.setVersion(0);
+                  MP4::URL urlBox;
+                  urlBox.setFlags(1);
+                  drefBox.setDataEntry(urlBox,0);
                 dinfBox.setContent(drefBox,0);
               minfBox.setContent(dinfBox,1);
               
               MP4::STBL stblBox;
                 MP4::STSD stsdBox;
+                  stsdBox.setVersion(0);
                   if (tmpStr == "video"){//boxname = codec
                     MP4::VisualSampleEntry vse;
                     std::string tmpStr2 = it->second["codec"];
                     if (tmpStr2 == "H264"){
                       vse.setCodec("avc1");
-                      
                     }
+                    vse.setDataReferenceIndex(1);
                     vse.setWidth(it->second["width"].asInt());
                     vse.setHeight(it->second["height"].asInt());
                       MP4::AVCC avccBox;
@@ -120,14 +148,29 @@ namespace Converters {
                     std::string tmpStr2 = it->second["codec"];
                     if (tmpStr2 == "AAC"){
                       ase.setCodec("mp4a");
+                      ase.setDataReferenceIndex(1);
                     }
                     ase.setSampleRate(it->second["rate"].asInt());
                     //ase.setChannelCount(it->second["channels"].asInt());
                     ase.setChannelCount(2);
                     ase.setSampleSize(it->second["size"].asInt());
                       MP4::ESDS esdsBox;
-                      esdsBox.setMaximumBitRate(it->second["rate"].asInt());
-                      esdsBox.setAverageBitRate(it->second["rate"].asInt());
+                      esdsBox.setESDescriptorTypeLength(37);
+                      esdsBox.setESID(2);
+                      esdsBox.setStreamPriority(0);
+                      esdsBox.setDecoderConfigDescriptorTypeLength(23);
+                      esdsBox.setByteObjectTypeID(0x40);
+                      esdsBox.setStreamType(5);
+                      esdsBox.setReservedFlag(1);
+                      esdsBox.setBufferSize(1250000);
+                      esdsBox.setMaximumBitRate(10000000);
+                      esdsBox.setAverageBitRate(it->second["bps"].asInt() * 8);
+                      esdsBox.setConfigDescriptorTypeLength(5);
+                      esdsBox.setESHeaderStartCodes(it->second["init"].asString());
+                      esdsBox.setSLConfigDescriptorTypeTag(0x6);
+                      esdsBox.setSLConfigExtendedDescriptorTypeTag(0x808080);
+                      esdsBox.setSLDescriptorTypeLength(1);
+                      esdsBox.setSLValue(2);
                       ase.setCodecBox(esdsBox);
                     stsdBox.setEntry(ase,0);
                   }
@@ -135,36 +178,46 @@ namespace Converters {
                 
                 /// \todo update following stts lines
                 MP4::STTS sttsBox;//current version probably causes problems
-                for (int i = 0; i < it->second["keys"].size(); i++){
-                  MP4::STTSEntry newEntry;
-                  newEntry.sampleCount = it->second["keys"][i]["parts"].size();
-                  newEntry.sampleDelta = it->second["keys"][i]["len"].asInt(); // it->second["keys"][i]["parts"].size();
-                  sttsBox.setSTTSEntry(newEntry, i);
+                sttsBox.setVersion(0);
+                int tmpParts = 0;
+                for (JSON::ArrIter tmpIt = it->second["keys"].ArrBegin(); tmpIt != it->second["keys"].ArrEnd(); tmpIt++){
+                  tmpParts += (*tmpIt)["parts"].size();
                 }
+                  MP4::STTSEntry newEntry;
+                  newEntry.sampleCount = tmpParts;
+                  newEntry.sampleDelta = ((it->second["lastms"].asInt() / tmpParts) * ((double)timescale / 1000));
+                  sttsBox.setSTTSEntry(newEntry, 0);
                 stblBox.setContent(sttsBox,1);
                 
-                //STSS Box here
+                if (it->second["type"] == "video"){
+                  //STSS Box here
+                  MP4::STSS stssBox;
+                    stssBox.setVersion(0);
+                    int tmpCount = 1;
+                    for (int i = 0; i < it->second["keys"].size(); i++){
+                      stssBox.setSampleNumber(tmpCount,i);
+                      tmpCount += it->second["keys"][i]["parts"].size();
+                    }
+                  stblBox.setContent(stssBox,2);
+                }
+
+                int offset = (it->second["type"] == "video");
+
                 
                 MP4::STSC stscBox;//probably wrong
+                stscBox.setVersion(0);
                 uint32_t total = 0;
-                for (int i = 0; i < it->second["keys"].size(); i++){
-                  /*MP4::STSCEntry newEntry;
-                  newEntry.firstChunk = it->second["keys"][i]["num"].asInt();
-                  newEntry.samplesPerChunk = it->second["keys"][i]["parts"].size();
-                  newEntry.sampleDescriptionIndex = 1;
-                  stscBox.setSTSCEntry(newEntry, i);*/
-                  for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
-                    MP4::STSCEntry newEntry;
-                    newEntry.firstChunk = total+1;
-                    newEntry.samplesPerChunk = 1;
-                    newEntry.sampleDescriptionIndex = 1;
-                    stscBox.setSTSCEntry(newEntry, total);
-                    total++;
-                  }
-                }
-                stblBox.setContent(stscBox,2);
+//                for (int i = 0; i < it->second["keys"].size(); i++){
+                  MP4::STSCEntry stscEntry;
+                  stscEntry.firstChunk = 1;
+                  stscEntry.samplesPerChunk = 1;
+                  stscEntry.sampleDescriptionIndex = 1;
+                  stscBox.setSTSCEntry(stscEntry, 0);
+ //               }
+                stblBox.setContent(stscBox,2 + offset);
 
                 MP4::STSZ stszBox;
+                stszBox.setVersion(0);
                 total = 0;
                 for (int i = 0; i < it->second["keys"].size(); i++){
                   for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
@@ -172,17 +225,20 @@ namespace Converters {
                     total++;
                   }
                 }
-                stblBox.setContent(stszBox,3);
+                stblBox.setContent(stszBox,3 + offset);
                   
                 MP4::STCO stcoBox;
+                stcoBox.setVersion(0);
                 total = 0;
+                //Inserting wrong values on purpose here, will be fixed later.
                 for (int i = 0; i < it->second["keys"].size(); i++){
                   for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
-                    stcoBox.setChunkOffset(it->second["keys"][i]["parts"][o].asInt(), total);//in bytes in file
+                    stcoBox.setChunkOffset(it->second["keys"][i]["parts"][o].asInt(), total);
                     total++;
                   }
                 }
-                stblBox.setContent(stcoBox,4);
+                stblBox.setContent(stcoBox,4 + offset);
+
               minfBox.setContent(stblBox,2);
             mdiaBox.setContent(minfBox, 2);
           trakBox.setContent(mdiaBox, 1);
@@ -202,10 +258,30 @@ namespace Converters {
         MP4::STBL checkStblBox;
         MP4::STCO checkStcoBox;
         checkTrakBox = ((MP4::TRAK&)moovBox.getContent(i));
-        checkMdiaBox = ((MP4::MDIA&)checkTrakBox.getContent(1));
-        checkMinfBox = ((MP4::MINF&)checkMdiaBox.getContent(2));
-        checkStblBox = ((MP4::STBL&)checkMinfBox.getContent(2));
-        checkStcoBox = ((MP4::STCO&)checkStblBox.getContent(4));
+        for (int j = 0; j < checkTrakBox.getContentCount(); j++){
+          if (checkTrakBox.getContent(j).isType("mdia")){
+            checkMdiaBox = ((MP4::MDIA&)checkTrakBox.getContent(j));
+            break;
+          }
+        }
+        for (int j = 0; j < checkMdiaBox.getContentCount(); j++){
+          if (checkMdiaBox.getContent(j).isType("minf")){
+            checkMinfBox = ((MP4::MINF&)checkMdiaBox.getContent(j));
+            break;
+          }
+        }
+        for (int j = 0; j < checkMinfBox.getContentCount(); j++){
+          if (checkMinfBox.getContent(j).isType("stbl")){
+            checkStblBox = ((MP4::STBL&)checkMinfBox.getContent(j));
+            break;
+          }
+        }
+        for (int j = 0; j < checkStblBox.getContentCount(); j++){
+          if (checkStblBox.getContent(j).isType("stco")){
+            checkStcoBox = ((MP4::STCO&)checkStblBox.getContent(j));
+            break;
+          }
+        }
         
         //std::cerr << std::string(checkStcoBox.asBox(),checkStcoBox.boxedSize()) << std::endl;
         for (unsigned int o = 0; o < checkStcoBox.getEntryCount(); o++){
@@ -213,7 +289,6 @@ namespace Converters {
           temp = checkStcoBox.getChunkOffset(o);
           checkStcoBox.setChunkOffset(byteOffset, o);
           byteOffset += temp;
-          //std::cerr << "FNURF "<< byteOffset << ", " << temp << std::endl;
         }
       }
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());

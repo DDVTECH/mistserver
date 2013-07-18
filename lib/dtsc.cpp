@@ -173,11 +173,31 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
   return false;
 }
 
+/// Adds a keyframe packet to all tracks, so the stream can be fully played.
+void DTSC::Stream::endStream(){
+  if (metadata.isMember("tracks")){
+    for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+      JSON::Value newPack;
+      newPack["time"] = it->second["lastms"];
+      newPack["trackid"] = it->second["trackid"];
+      newPack["keyframe"] = 1ll;
+      newPack["data"] = "";
+      addPacket(newPack);
+    }
+  }
+}
+
 void DTSC::Stream::addPacket(JSON::Value & newPack){
   long long unsigned int now = Util::getMS();
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
+  if (buffers.size() > 0){
+    livePos lastPos = buffers.rbegin()->first;
+    if (newPos < lastPos){
+      newPos.seekTime = lastPos.seekTime+1;
+    }
+  }
   std::string newTrack = trackMapping[newPos.trackID];
   while (buffers.count(newPos) > 0){
     newPos.seekTime++;
@@ -208,8 +228,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   }
   int keySize = metadata["tracks"][newTrack]["keys"].size();
   if (buffercount > 1){
+    metadata["tracks"][newTrack]["lastms"] = newPack["time"];
     #define prevKey metadata["tracks"][newTrack]["keys"][keySize - 1]
-    if (newPack.isMember("keyframe") || !keySize || newPack["time"].asInt() - 2000 > prevKey["time"].asInt()){
+    if (newPack.isMember("keyframe") || !keySize || (datapointertype != VIDEO && newPack["time"].asInt() - 2000 > prevKey["time"].asInt())){
       keyframes[newPos.trackID].insert(newPos);
       JSON::Value key;
       key["time"] = newPack["time"];

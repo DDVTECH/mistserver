@@ -79,7 +79,7 @@ namespace Converters{
               DTSCOut.null();//clearing DTSC buffer
               DTSCOut["trackid"] = (long long)trackData[sNum].dtscID;
               long long unsigned int temp = oggPage.getGranulePosition();
-              DTSCOut["granule"] = temp;
+              DTSCOut["granule"] = (long long)temp;
               DTSCOut["time"] = (long long)trackData[sNum].lastTime ++;
               DTSCOut["data"] = std::string(oggPage.getFullPayload()+offset, (*it)); //segment content put in JSON
               if (trackData[sNum].codec == THEORA){

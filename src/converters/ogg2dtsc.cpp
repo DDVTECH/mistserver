@@ -79,6 +79,7 @@ namespace Converters{
               DTSCOut.null();//clearing DTSC buffer
               DTSCOut["trackid"] = (long long)trackData[sNum].dtscID;
               long long unsigned int temp = oggPage.getGranulePosition();
+              DTSCOut["granule"] = temp;
               DTSCOut["time"] = (long long)trackData[sNum].lastTime ++;
               DTSCOut["data"] = std::string(oggPage.getFullPayload()+offset, (*it)); //segment content put in JSON
               if (trackData[sNum].codec == THEORA){
@@ -108,6 +109,7 @@ namespace Converters{
                       }
                       case 1: //comment header
                         std::cerr << "Theora comment header found" << std::endl;
+                        DTSCHeader["tracks"][trackData[sNum].name]["CommentHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                         break;
                       case 2:{ //setup header, also the point to start writing the header
                         DTSCHeader["tracks"][trackData[sNum].name]["codec"] = "theora";
@@ -130,6 +132,10 @@ namespace Converters{
                           std::cerr << "Vorbis ID header" << std::endl;
                           DTSCHeader["tracks"][trackData[sNum].name]["channels"] = (long long)vHead.getAudioChannels();
                           DTSCHeader["tracks"][trackData[sNum].name]["IDHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
+                          break;
+                        }
+                        case 3:{
+                          DTSCHeader["tracks"][trackData[sNum].name]["CommentHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                           break;
                         }
                         case 5:{

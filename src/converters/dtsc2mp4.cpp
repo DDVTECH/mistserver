@@ -141,7 +141,6 @@ namespace Converters {
                     std::string tmpStr2 = it->second["codec"];
                     if (tmpStr2 == "H264"){
                       vse.setCodec("avc1");
-                      
                     }
                     vse.setDataReferenceIndex(1);
                     vse.setWidth(it->second["width"].asInt());

@@ -389,8 +389,8 @@ namespace MP4 {
       void setExtendedDecoderDescriptorTypeTag(uint32_t newVal);//3 bytes
       char getConfigDescriptorTypeLength();
       void setConfigDescriptorTypeLength(char newVal);
-      uint16_t getESHeaderStartCodes();
-      void setESHeaderStartCodes(uint16_t newVal);
+      std::string getESHeaderStartCodes();
+      void setESHeaderStartCodes(std::string newVal);
       char getSLConfigDescriptorTypeTag();
       void setSLConfigDescriptorTypeTag(char newVal);
       uint32_t getSLConfigExtendedDescriptorTypeTag();//3 bytes

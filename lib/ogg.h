@@ -31,8 +31,10 @@ namespace OGG{
       std::deque<unsigned int> & getSegmentTableDeque();
       bool setSegmentTable(std::vector<unsigned int> layout);
       void setSegmentTable(char* newVal, unsigned int length);
+      
+      char* getPage();//returns complete page with header
       unsigned long int getPageSize();
-      char* getFullPayload();
+      char* getFullPayload();//returns all segments in the page
       int getPayloadSize();
       bool typeBOS();
       bool typeEOS();
@@ -41,8 +43,7 @@ namespace OGG{
       std::string toPrettyString(size_t indent = 0);
       void setInternalCodec(std::string myCodec);
       long unsigned int calcChecksum();
-      void clear();
-      
+      bool clear();
       bool setPayload(char* newData, unsigned int length);
     private:
       std::deque<unsigned int> segmentTableDeque;

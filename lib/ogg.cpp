@@ -198,6 +198,11 @@ namespace OGG{
   }
 
   bool Page::setSegmentTable(std::vector<unsigned int> layout){
+    dataSum=0;
+    for (unsigned int i = 0; i < layout.size(); i++){
+      dataSum += layout[i];
+    }
+    std::cerr << "dataSum size: " << dataSum << std::endl;
     unsigned int place = 0;
     char table[255];
     for (unsigned int i = 0; i < layout.size(); i++){
@@ -217,11 +222,8 @@ namespace OGG{
       table[place] = layout[i];
       place++;
     }
+    setPageSegments(place);
     setSegmentTable(table,place);
-    dataSum=0;
-    for (unsigned int i = 0; i < layout.size(); i++){
-      dataSum += layout[i];
-    }
     return true;
   }
   
@@ -234,7 +236,11 @@ namespace OGG{
   unsigned long int Page::getPageSize(){
     return 27 + getPageSegments()+dataSum;
   }
-
+  
+  char* Page::getPage(){
+    return data;
+  }
+  
   char* Page::getFullPayload(){
     return data + 27 + getPageSegments();
   }
@@ -433,18 +439,24 @@ namespace OGG{
     return dataSum;
   }
   
-  void Page::clear(){
+  bool Page::clear(){
+    if(!checkDataSize(27)){//check if size available in memory
+      return false;
+    }
     memset(data,0,27);
     datasize = 0;
     dataSum = 0;
     codec = "";
+    setMagicNumber();
     segmentTableDeque.clear();
+    return true;
   }
 
   bool Page::setPayload(char* newData, unsigned int length){
-     if(!checkDataSize(27 + getPageSegments() + length)){//check if size available in memory
+    if(!checkDataSize(27 + getPageSegments() + length)){//check if size available in memory
       return false;
     }
+    std::cerr << "Payload length: " << length << std::endl;
     memcpy(data + 27 + getPageSegments(), newData, length);
     return true;
  }

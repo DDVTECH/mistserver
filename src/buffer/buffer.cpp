@@ -64,7 +64,6 @@ namespace Buffer {
     Stream::get()->dropReadLock();
 
     while (usr->S.connected()){
-      Util::sleep(5); //sleep 5ms
       if ( !usr->myRing->playCount || !usr->Send(newSelect)){
         if (usr->S.spool()){
           while (usr->S.Received().size()){
@@ -154,6 +153,7 @@ namespace Buffer {
             }
           }
         }
+        Util::sleep(5); //sleep 5ms
       }
     }
     usr->Disconnect("Socket closed.");
@@ -202,11 +202,13 @@ namespace Buffer {
   ///\brief A function running a thread to handle input data through rtmp push.
   ///\param empty A null pointer.
   void handlePushin(void * empty){
+    bool connected = false;
     if (empty != 0){
       return;
     }
     while (buffer_running){
       if (thisStream->getIPInput().connected()){
+        connected = true;
         if (thisStream->getIPInput().spool()){
           while (true){
             thisStream->getWriteLock();
@@ -222,6 +224,12 @@ namespace Buffer {
           Util::sleep(10); //10ms wait
         }
       }else{
+        if (connected){
+          connected = false;
+          thisStream->getWriteLock();
+          thisStream->getStream()->endStream();
+          thisStream->dropWriteLock(true);
+        }
         Util::sleep(1000); //1s wait
       }
     }

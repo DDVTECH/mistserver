@@ -706,6 +706,9 @@ void DTSC::File::seekNext(){
     return;
   }
   clearerr(F);
+  if ( !metadata.isMember("merged") || !metadata["merged"]){
+    seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
+  }
   fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
   currentPositions.erase(currentPositions.begin());
   lastreadpos = ftell(F);
@@ -759,26 +762,28 @@ void DTSC::File::seekNext(){
   }else{
     jsonbuffer = JSON::fromDTMI(strbuffer);
   }
-  int tempLoc = getBytePos();
-  char newHeader[20];
-  if (fread((void*)newHeader, 20, 1, F) == 1){
-    if (memcmp(newHeader, DTSC::Magic_Packet2, 4) == 0){
-      seekPos tmpPos;
-      tmpPos.seekPos = tempLoc;
-      tmpPos.trackID = ntohl(((int*)newHeader)[2]);
-      if (selectedTracks.find(tmpPos.trackID) != selectedTracks.end()){
-        tmpPos.seekTime = ((long long unsigned int)ntohl(((int*)newHeader)[3])) << 32;
-        tmpPos.seekTime += ntohl(((int*)newHeader)[4]);
-      }else{
-        for (JSON::ArrIter it = getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrBegin(); it != getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrEnd(); it++){
-          if ((*it)["time"].asInt() > jsonbuffer["time"].asInt()){
-            tmpPos.seekTime = (*it)["time"].asInt();
-            tmpPos.seekPos = (*it)["bpos"].asInt();
-            break;
+  if (metadata.isMember("merged") && metadata["merged"]){
+    int tempLoc = getBytePos();
+    char newHeader[20];
+    if (fread((void*)newHeader, 20, 1, F) == 1){
+      if (memcmp(newHeader, DTSC::Magic_Packet2, 4) == 0){
+        seekPos tmpPos;
+        tmpPos.seekPos = tempLoc;
+        tmpPos.trackID = ntohl(((int*)newHeader)[2]);
+        if (selectedTracks.find(tmpPos.trackID) != selectedTracks.end()){
+          tmpPos.seekTime = ((long long unsigned int)ntohl(((int*)newHeader)[3])) << 32;
+          tmpPos.seekTime += ntohl(((int*)newHeader)[4]);
+        }else{
+          for (JSON::ArrIter it = getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrBegin(); it != getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrEnd(); it++){
+            if ((*it)["time"].asInt() > jsonbuffer["time"].asInt()){
+              tmpPos.seekTime = (*it)["time"].asInt();
+              tmpPos.seekPos = (*it)["bpos"].asInt();
+              break;
+            }
           }
         }
+        currentPositions.insert(tmpPos);
       }
-      currentPositions.insert(tmpPos);
     }
   }
 }

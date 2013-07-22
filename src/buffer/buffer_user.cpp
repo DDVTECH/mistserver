@@ -110,6 +110,7 @@ namespace Buffer {
       if (Stream::get()->getStream()->isNewest(myRing->b)){
         //no next buffer? go in waiting mode.
         myRing->waiting = true;
+        Stream::get()->dropReadLock();
         return false;
       }
       myRing->b = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
@@ -128,6 +129,7 @@ namespace Buffer {
       return false;
     } //completed a send
     Stream::get()->dropReadLock();
+    Util::sleep(300);
     return true;
   } //send
 

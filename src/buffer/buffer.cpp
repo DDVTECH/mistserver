@@ -107,14 +107,16 @@ namespace Buffer {
                   break;
                 }
                 case 't': {
-                  newSelect.clear();
-                  std::string tmp = usr->S.Received().get().substr(2);
-                  while (tmp != ""){
-                    newSelect.insert(atoi(tmp.substr(0,tmp.find(' ')).c_str()));
-                    if (tmp.find(' ') != std::string::npos){
-                      tmp.erase(0,tmp.find(' ')+1);
-                    }else{
-                      tmp = "";
+                  if (usr->S.Received().get().size() >= 3){
+                    newSelect.clear();
+                    std::string tmp = usr->S.Received().get().substr(2);
+                    while (tmp != ""){
+                      newSelect.insert(atoi(tmp.substr(0,tmp.find(' ')).c_str()));
+                      if (tmp.find(' ') != std::string::npos){
+                        tmp.erase(0,tmp.find(' ')+1);
+                      }else{
+                        tmp = "";
+                      }
                     }
                   }
                   break;
@@ -153,7 +155,9 @@ namespace Buffer {
             }
           }
         }
-        Util::sleep(5); //sleep 5ms
+        if (usr->myRing->waiting){
+          Util::sleep(300); //sleep 5ms
+        }
       }
     }
     usr->Disconnect("Socket closed.");
@@ -221,12 +225,12 @@ namespace Buffer {
               thisStream->dropWriteLock(true);
             }else{
               thisStream->dropWriteLock(false);
-              Util::sleep(10); //10ms wait
+              Util::sleep(25); //10ms wait
               break;
             }
           }
         }else{
-          Util::sleep(10); //10ms wait
+          Util::sleep(1000); //10ms wait
         }
       }else{
         if (connected){

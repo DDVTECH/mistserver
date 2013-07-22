@@ -284,7 +284,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
           newFrag["len"] = newFrag["len"].asInt() + 1;
           newFrag["dur"] = newFrag["dur"].asInt() + (*fragIt)["len"].asInt();
           //more than 10 seconds? store the new fragment
-          if (newFrag["dur"].asInt() >= 10000){
+          if (newFrag["dur"].asInt() >= 10000 || (*fragIt)["len"].asInt() < 2){
             /// \todo Make this variable instead of hardcoded 10 seconds?
             metadata["tracks"][newTrack]["frags"].append(newFrag);
             break;

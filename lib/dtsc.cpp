@@ -188,6 +188,7 @@ void DTSC::Stream::endStream(){
 }
 
 void DTSC::Stream::addPacket(JSON::Value & newPack){
+  bool updateMeta = false;
   long long unsigned int now = Util::getMS();
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
@@ -195,7 +196,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   if (buffers.size() > 0){
     livePos lastPos = buffers.rbegin()->first;
     if (newPos < lastPos){
-      if (newPos.seekTime < lastPos.seekTime - 1000){
+      if ((lastPos.seekTime > 1000) && newPos.seekTime < lastPos.seekTime - 1000){
         metadata.null();
         metadata["reset"] = 1LL;
         buffers.clear();
@@ -239,6 +240,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     metadata["tracks"][newTrack]["lastms"] = newPack["time"];
     #define prevKey metadata["tracks"][newTrack]["keys"][keySize - 1]
     if (newPack.isMember("keyframe") || !keySize || (datapointertype != VIDEO && newPack["time"].asInt() - 2000 > prevKey["time"].asInt())){
+      updateMeta = true;
       keyframes[newPos.trackID].insert(newPos);
       JSON::Value key;
       key["time"] = newPack["time"];
@@ -306,13 +308,14 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
       buffercount = buffers.size();
       if (buffercount < 2){buffercount = 2;}
     }
-    if (metadata["buffer_window"].asInt() < timeBuffered){
+    if (updateMeta && metadata["buffer_window"].asInt() < timeBuffered){
       metadata["buffer_window"] = (long long int)timeBuffered;
     }
   }
 
   while (buffers.size() > buffercount){
     if (keyframes[buffers.begin()->first.trackID].count(buffers.begin()->first)){
+      updateMeta = true;
       //if there are < 3 keyframes, throwing one away would mean less than 2 left.
       if (keyframes[buffers.begin()->first.trackID].size() < 3){
         std::cout << "Warning - track " << buffers.begin()->first.trackID << " doesn't have enough keyframes to be reliably served." << std::endl;
@@ -332,7 +335,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     }
     buffers.erase(buffers.begin());
   }
-  if (buffercount > 1){
+  if (updateMeta){
     metadata.netPrepare();
   }
 }

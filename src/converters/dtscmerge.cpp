@@ -127,6 +127,11 @@ namespace Converters {
       }
     }
 
+    if (fullSort || (meta.isMember("merged") && meta["merged"])){
+      newMeta["tracks"]["merged"] = true;
+    }else{
+      newMeta["tracks"].removeMember("merged");
+    }
     std::string writeMeta = newMeta.toPacked();
     meta["moreheader"] = outFile.addHeader(writeMeta);
     writeMeta = meta.toPacked();

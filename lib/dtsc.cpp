@@ -195,7 +195,15 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   if (buffers.size() > 0){
     livePos lastPos = buffers.rbegin()->first;
     if (newPos < lastPos){
-      newPos.seekTime = lastPos.seekTime+1;
+      if (newPos.seekTime < lastPos.seekTime - 1000){
+        metadata.null();
+        metadata["reset"] = 1LL;
+        buffers.clear;
+        keyframes.clear();
+        trackMapping.clear();
+      }else{
+        newPos.seekTime = lastPos.seekTime+1;
+      }
     }
   }
   std::string newTrack = trackMapping[newPos.trackID];

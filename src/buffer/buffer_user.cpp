@@ -29,7 +29,6 @@ namespace Buffer {
 
   ///\brief Drops held DTSC::Ring class, if one is held.
   user::~user(){
-    Stream::get()->dropRing(myRing);
   } //destructor
 
   ///\brief Disconnects the current user. Doesn't do anything if already disconnected.

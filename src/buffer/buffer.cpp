@@ -213,6 +213,11 @@ namespace Buffer {
           while (true){
             thisStream->getWriteLock();
             if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
+              if (thisStream->getStream()->metadata.isMember("reset")){
+                thisStream->disconnectUsers();
+                thisStream->getStream()->metadata.removeMember("reset");
+                thisStream->getStream()->metadata.netPrepare();
+              }
               thisStream->dropWriteLock(true);
             }else{
               thisStream->dropWriteLock(false);

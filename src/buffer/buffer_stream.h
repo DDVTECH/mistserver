@@ -51,6 +51,8 @@ namespace Buffer {
       void addUser(user * newUser);
       /// Delete a user from the userlist.
       void removeUser(user * oldUser);
+      /// Disconnects all users.
+      void disconnectUsers();
       /// Blocks the thread until new data is available.
       void waitForData();
       /// Cleanup function

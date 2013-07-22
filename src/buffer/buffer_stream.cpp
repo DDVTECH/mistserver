@@ -227,11 +227,19 @@ namespace Buffer {
     users.insert(newUser);
   }
 
-  ///\brief Add a user to the userlist.
-  ///\param newUser The user to be added.
+  ///\brief Removes a user to the userlist.
+  ///\param newUser The user to be removed.
   void Stream::removeUser(user * oldUser){
     tthread::lock_guard<tthread::mutex> guard(stats_mutex);
     users.erase(oldUser);
+  }
+
+  ///\brief Disconnects all users.
+  void Stream::disconnectUsers(){
+    tthread::lock_guard<tthread::mutex> guard(stats_mutex);
+    for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
+      (*usersIt)->Disconnect("Stream reset");
+    }
   }
   
   ///\brief Blocks the thread until new data is available.

@@ -95,6 +95,10 @@ void Util::Procs::childsig_handler(int signum){
   if (ret == 0){ //ignore, would block otherwise
     return;
   }else if (ret < 0){
+    if (errno == EINTR){
+      childsig_handler(signum);
+      return;
+    }
 #if DEBUG >= 3
     std::cerr << "SIGCHLD received, but no child died";
 #endif

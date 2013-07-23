@@ -3969,16 +3969,16 @@ namespace MP4 {
   
   void STCO::setChunkOffset(uint32_t newChunkOffset, uint32_t no){
     if (no + 1 > getEntryCount()){
-      setEntryCount(no+1);
       for (int i = getEntryCount(); i < no; i++){
         setInt32(0, 8 + i * 4);//filling undefined entries
       }
+      setEntryCount(no+1);
     }
     setInt32(newChunkOffset, 8 + no * 4);  
   }
   
   uint32_t STCO::getChunkOffset(uint32_t no){
-    if (no + 1 >= getEntryCount()){
+    if (no >= getEntryCount()){
       return 0;
     }
     return getInt32(8 + no * 4);
@@ -4029,7 +4029,7 @@ namespace MP4 {
   }
   
   uint32_t STSZ::getEntrySize(uint32_t no){
-    if (no + 1 >= getSampleCount()){
+    if (no >= getSampleCount()){
       return 0;
     }
     return getInt32(12 + no * 4);

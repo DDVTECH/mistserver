@@ -193,7 +193,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
-  if (buffers.size() > 0){
+  if (buffercount > 1 && buffers.size() > 0){
     livePos lastPos = buffers.rbegin()->first;
     if (newPos < lastPos){
       if ((lastPos.seekTime > 1000) && newPos.seekTime < lastPos.seekTime - 1000){
@@ -314,11 +314,11 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   }
 
   while (buffers.size() > buffercount){
-    if (keyframes[buffers.begin()->first.trackID].count(buffers.begin()->first)){
+    if (buffercount > 1 && keyframes[buffers.begin()->first.trackID].count(buffers.begin()->first)){
       updateMeta = true;
       //if there are < 3 keyframes, throwing one away would mean less than 2 left.
       if (keyframes[buffers.begin()->first.trackID].size() < 3){
-        std::cout << "Warning - track " << buffers.begin()->first.trackID << " doesn't have enough keyframes to be reliably served." << std::endl;
+        std::cerr << "Warning - track " << buffers.begin()->first.trackID << " doesn't have enough keyframes to be reliably served." << std::endl;
       }
       std::string track = trackMapping[buffers.begin()->first.trackID];
       keyframes[buffers.begin()->first.trackID].erase(buffers.begin()->first);

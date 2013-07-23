@@ -91,17 +91,9 @@ void Util::Procs::childsig_handler(int signum){
     return;
   }
   int status;
-  pid_t ret = waitpid( -1, &status, WNOHANG);
-  if (ret == 0){ //ignore, would block otherwise
-    return;
-  }else if (ret < 0){
-    if (errno == EINTR){
-      childsig_handler(signum);
-      return;
-    }
-#if DEBUG >= 3
-    std::cerr << "SIGCHLD received, but no child died";
-#endif
+  pid_t ret = waitpid( -1, &status, 0);
+  if (ret <= 0){
+    childsig_handler(signum);
     return;
   }
   int exitcode;

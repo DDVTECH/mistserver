@@ -206,6 +206,8 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
         newPos.seekTime = lastPos.seekTime+1;
       }
     }
+  }else{
+    buffers.clear();
   }
   std::string newTrack = trackMapping[newPos.trackID];
   while (buffers.count(newPos) > 0){
@@ -237,10 +239,10 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   }
   int keySize = metadata["tracks"][newTrack]["keys"].size();
   if (buffercount > 1){
-    metadata["tracks"][newTrack]["lastms"] = newPack["time"];
     #define prevKey metadata["tracks"][newTrack]["keys"][keySize - 1]
     if (newPack.isMember("keyframe") || !keySize || (datapointertype != VIDEO && newPack["time"].asInt() - 2000 > prevKey["time"].asInt())){
       updateMeta = true;
+      metadata["tracks"][newTrack]["lastms"] = newPack["time"];
       keyframes[newPos.trackID].insert(newPos);
       JSON::Value key;
       key["time"] = newPack["time"];

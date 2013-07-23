@@ -91,40 +91,44 @@ void Util::Procs::childsig_handler(int signum){
     return;
   }
   int status;
-  pid_t ret = waitpid( -1, &status, 0);
-  if (ret <= 0){
-    childsig_handler(signum);
-    return;
-  }
-  int exitcode;
-  if (WIFEXITED(status)){
-    exitcode = WEXITSTATUS(status);
-  }else if (WIFSIGNALED(status)){
-    exitcode = -WTERMSIG(status);
-  }else{/* not possible */
-    return;
-  }
+  pid_t ret = -1;
+  while (ret != 0){
+    ret = waitpid( -1, &status, WNOHANG);
+    if (ret <= 0){ //ignore, would block otherwise
+      if (ret == 0 || errno != EINTR){
+        return;
+      }
+    }
+    int exitcode;
+    if (WIFEXITED(status)){
+      exitcode = WEXITSTATUS(status);
+    }else if (WIFSIGNALED(status)){
+      exitcode = -WTERMSIG(status);
+    }else{/* not possible */
+      return;
+    }
 
 #if DEBUG >= 1
-  std::string pname = plist[ret];
+    std::string pname = plist[ret];
 #endif
-  plist.erase(ret);
+    plist.erase(ret);
 #if DEBUG >= 1
-  if (isActive(pname)){
-    Stop(pname);
-  } else{
-    //can this ever happen?
-    std::cerr << "Process " << pname << " fully terminated." << std::endl;
-  }
+    if (isActive(pname)){
+      Stop(pname);
+    } else{
+      //can this ever happen?
+      std::cerr << "Process " << pname << " fully terminated." << std::endl;
+    }
 #endif
 
-  if (exitHandlers.count(ret) > 0){
-    TerminationNotifier tn = exitHandlers[ret];
-    exitHandlers.erase(ret);
+    if (exitHandlers.count(ret) > 0){
+      TerminationNotifier tn = exitHandlers[ret];
+      exitHandlers.erase(ret);
 #if DEBUG >= 2
-    std::cerr << "Calling termination handler for " << pname << std::endl;
+      std::cerr << "Calling termination handler for " << pname << std::endl;
 #endif
-    tn(ret, exitcode);
+      tn(ret, exitcode);
+    }
   }
 }
 

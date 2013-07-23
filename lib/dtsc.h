@@ -117,6 +117,7 @@ namespace DTSC {
       bool atKeyframe();
       void selectTracks(std::set<int> & tracks);
     private:
+      long int endPos;
       void readHeader(int pos);
       std::string strbuffer;
       JSON::Value jsonbuffer;

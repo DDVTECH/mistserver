@@ -507,6 +507,7 @@ DTSC::Stream::~Stream(){
 
 DTSC::File::File(){
   F = 0;
+  endPos = 0;
 }
 
 DTSC::File::File(const File & rhs){
@@ -522,6 +523,7 @@ DTSC::File & DTSC::File::operator =(const File & rhs){
   }else{
     F = 0;
   }
+  endPos = rhs.endPos;
   strbuffer = rhs.strbuffer;
   jsonbuffer = rhs.jsonbuffer;
   metadata = rhs.metadata;
@@ -552,6 +554,8 @@ DTSC::File::File(std::string filename, bool create){
     fprintf(stderr, "Could not open file %s\n", filename.c_str());
     return;
   }
+  fseek(F, 0, SEEK_END);
+  endPos = ftell(F);
 
   //we now know the first 4 bytes are DTSC::Magic_Header and we have a valid file
   fseek(F, 4, SEEK_SET);
@@ -622,6 +626,8 @@ long long int DTSC::File::addHeader(std::string & header){
   if (ret != 1){
     return 0;
   }
+  fseek(F, 0, SEEK_END);
+  endPos = ftell(F);
   return writePos; //return position written at
 }
 
@@ -681,11 +687,6 @@ void DTSC::File::readHeader(int pos){
 }
 
 long int DTSC::File::getBytePosEOF(){
-  static long int endPos = 0;
-  if ( !endPos){
-    fseek(F, 0, SEEK_END);
-    endPos = ftell(F);
-  }
   return endPos;
 }
 
@@ -923,6 +924,7 @@ bool DTSC::File::seek_time(int ms, int trackNo){
     }
   }
   currentPositions.insert(tmpPos);
+  fprintf(stderr,"Seek_time to %d on track %d, time %d on track %d found\n", ms, trackNo, tmpPos.seekTime,tmpPos.trackID);
 }
 
 /// Attempts to seek to the given time in ms within the file.
@@ -947,6 +949,8 @@ bool DTSC::File::seek_bpos(int bpos){
 void DTSC::File::writePacket(std::string & newPacket){
   fseek(F, 0, SEEK_END);
   fwrite(newPacket.c_str(), newPacket.size(), 1, F); //write contents
+  fseek(F, 0, SEEK_END);
+  endPos = ftell(F);
 }
 
 void DTSC::File::writePacket(JSON::Value & newPacket){

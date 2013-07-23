@@ -380,8 +380,11 @@ namespace Connector_HTTP {
         if (H.Read(myCConn->conn->Received().get())){
           //208 means the fragment is too new, retry in 3s
           if (H.url == "208"){
+            while (myCConn->conn->Received().size() > 0){
+              myCConn->conn->Received().get().clear();
+            }
             retries++;
-            if (retries >= 5){
+            if (retries >= 10){
               std::cout << "[5 retry-laters, cancelled]" << std::endl;
               myCConn->conn->close();
               myCConn->inUse.unlock();

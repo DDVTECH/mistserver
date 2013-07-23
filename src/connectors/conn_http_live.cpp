@@ -180,7 +180,6 @@ namespace Connector_HTTP {
             temp = HTTP_R.url.find("_", temp) + 1;
             int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
             if (Strm.metadata.isMember("live")){
-              /// \todo Update to MS seeking.
               int seekable = Strm.canSeekms(Segment);
               if (seekable < 0){
                 HTTP_S.Clean();

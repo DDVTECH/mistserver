@@ -170,13 +170,13 @@ int main(int argc, char** argv){
             case 's': { //second-seek
               int ms = JSON::Value(in_out.Received().get().substr(2)).asInt();
               bool ret = source.seek_time(ms);
-              lasttime = 0;
+              lasttime = Util::epoch();
               lastTime = 0;
               break;
             }
             case 'p': { //play
               playing = -1;
-              lasttime = 0;
+              lasttime = Util::epoch();
               in_out.setBlocking(false);
               if (in_out.Received().get().size() >= 2){
                 playUntil = atoi(in_out.Received().get().substr(2).c_str());

@@ -212,7 +212,10 @@ namespace Buffer {
     }
     while (buffer_running){
       if (thisStream->getIPInput().connected()){
-        connected = true;
+        if (!connected){
+          connected = true;
+          thisStream->getIPInput().setBlocking(false);
+        }
         if (thisStream->getIPInput().spool()){
           while (true){
             thisStream->getWriteLock();
@@ -225,12 +228,12 @@ namespace Buffer {
               thisStream->dropWriteLock(true);
             }else{
               thisStream->dropWriteLock(false);
-              Util::sleep(25); //10ms wait
+              //Util::sleep(10); //10ms wait
               break;
             }
           }
-        }else{
-          Util::sleep(1000); //10ms wait
+        //}else{
+          //Util::sleep(500); //500ms wait
         }
       }else{
         if (connected){

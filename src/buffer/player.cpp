@@ -239,8 +239,8 @@ int main(int argc, char** argv){
       if (lastTime == 0){
         lastTime = now - source.getJSON()["time"].asInt();
       }
-      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - lastTime + 1000){
-        Util::sleep(source.getJSON()["time"].asInt() - (now - lastTime));
+      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - lastTime + 7500){
+        Util::sleep(source.getJSON()["time"].asInt() - (now - lastTime + 5000));
       }
       if ( playUntil && playUntil < source.getJSON()["time"].asInt()){
         playing = 0;

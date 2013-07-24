@@ -296,8 +296,43 @@ namespace Connector_HTTP {
                 }
               }
             }
+            
+            long long mstime = 0;
+            long long mslen = 0;
+            if (myRef.isMember("keys")){
+              for (JSON::ArrIter it = myRef["keys"].ArrBegin(); it != myRef["keys"].ArrEnd(); it++){
+                if ((*it)["time"].asInt() >= (requestedTime / 10000)){
+                  mstime = (*it)["time"].asInt();
+                  mslen = (*it)["len"].asInt();
+                  if (Strm.metadata.isMember("live")){
+                    if (it == myRef["keys"].ArrEnd() - 2){
+                      HTTP_S.Clean();
+                      HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                      conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
+                      HTTP_R.Clean(); //clean for any possible next requests
+                      std::cout << "Fragment after fragment @ " << (requestedTime / 10000) << " not available yet" << std::endl;
+                    }
+                  }
+                  break;
+                }
+              }
+            }
+            if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
+            if (Strm.metadata.isMember("live")){
+              if (mstime == 0 && (requestedTime / 10000) > 1){
+                HTTP_S.Clean();
+                HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+                conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
+                HTTP_R.Clean(); //clean for any possible next requests
+                std::cout << "Fragment @ " << (requestedTime / 10000) << " too old" << std::endl;
+                continue;
+              }
+            }
+            
+            
             sstream << "t " << myRef["trackid"].asInt() << "\n";
-            sstream << "s " << (requestedTime / 10000) << "\no \n";
+            sstream << "s " << (requestedTime / 10000) << "\np " << (mstime + mslen) <<"\n";
+            std::cout << "Sending: " << sstream.str() << std::endl;
             ss.SendNow(sstream.str().c_str());
 
             HTTP_S.Clean();

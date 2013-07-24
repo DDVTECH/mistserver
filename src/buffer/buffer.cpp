@@ -262,7 +262,7 @@ namespace Buffer {
         JSON::fromString("{\"default\":0, \"help\":\"Report stats to a controller process.\", \"short\":\"s\", \"long\":\"reportstats\"}"));
     conf.addOption("time",
         JSON::fromString(
-            "{\"default\":0, \"arg\": \"integer\", \"help\":\"Buffer a specied amount of time in ms.\", \"short\":\"t\", \"long\":\"time\"}"));
+            "{\"default\":20000, \"arg\": \"integer\", \"help\":\"Buffer a specied amount of time in ms.\", \"short\":\"t\", \"long\":\"time\"}"));
     conf.parseArgs(argc, argv);
 
     std::string name = conf.getString("stream_name");

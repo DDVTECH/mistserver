@@ -175,14 +175,16 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
 
 /// Adds a keyframe packet to all tracks, so the stream can be fully played.
 void DTSC::Stream::endStream(){
-  if (metadata.isMember("tracks")){
+  if (metadata.isMember("tracks") && metadata["tracks"].size() > 0){
     for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
-      JSON::Value newPack;
-      newPack["time"] = it->second["lastms"];
-      newPack["trackid"] = it->second["trackid"];
-      newPack["keyframe"] = 1ll;
-      newPack["data"] = "";
-      addPacket(newPack);
+      if(it->second.isMember("lastms") && it->second.isMember("trackid")){	// TODO
+        JSON::Value newPack;
+        newPack["time"] = it->second["lastms"];
+        newPack["trackid"] = it->second["trackid"];
+        newPack["keyframe"] = 1ll;
+        newPack["data"] = "";
+        addPacket(newPack);
+      }
     }
   }
 }
@@ -328,7 +330,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
       metadata["tracks"][track]["keys"].shrink(keySize - 1);
       if (metadata["tracks"][track]["frags"].size() > 0){
         // delete fragments of which the beginning can no longer be reached
-        while (metadata["tracks"][track]["frags"][0u]["num"].asInt() < metadata["tracks"][track]["keys"][0u]["num"].asInt()){
+        while (metadata["tracks"][track]["frags"].size() > 0 && metadata["tracks"][track]["frags"][0u]["num"].asInt() < metadata["tracks"][track]["keys"][0u]["num"].asInt()){
           metadata["tracks"][track]["frags"].shrink(metadata["tracks"][track]["frags"].size() - 1);
           // increase the missed fragments counter
           metadata["tracks"][track]["missed_frags"] = metadata["tracks"][track]["missed_frags"].asInt() + 1;
@@ -338,7 +340,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     buffers.erase(buffers.begin());
   }
   if (updateMeta){
-    metadata.netPrepare();
+    //metadata.netPrepare();
   }
 }
 

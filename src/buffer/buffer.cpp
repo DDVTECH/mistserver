@@ -214,26 +214,22 @@ namespace Buffer {
       if (thisStream->getIPInput().connected()){
         if (!connected){
           connected = true;
-          thisStream->getIPInput().setBlocking(false);
+          thisStream->getIPInput().setBlocking(true);
         }
         if (thisStream->getIPInput().spool()){
-          while (true){
-            thisStream->getWriteLock();
-            if (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
+
+           thisStream->getWriteLock();
+           bool newPackets = false;
+            while (thisStream->getStream()->parsePacket(thisStream->getIPInput().Received())){
               if (thisStream->getStream()->metadata.isMember("reset")){
                 thisStream->disconnectUsers();
                 thisStream->getStream()->metadata.removeMember("reset");
                 thisStream->getStream()->metadata.netPrepare();
               }
-              thisStream->dropWriteLock(true);
-            }else{
-              thisStream->dropWriteLock(false);
-              //Util::sleep(10); //10ms wait
-              break;
+              newPackets = true;
             }
-          }
-        //}else{
-          //Util::sleep(500); //500ms wait
+            thisStream->dropWriteLock(newPackets);
+
         }
       }else{
         if (connected){

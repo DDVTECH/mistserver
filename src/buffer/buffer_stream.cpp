@@ -179,6 +179,9 @@ namespace Buffer {
   ///\brief Drops a previously obtained write lock.
   ///\param newPacketsAvailable Whether new packets are available to update the index.
   void Stream::dropWriteLock(bool newPacketsAvailable){
+    if (newPacketsAvailable){
+      Strm->metadata.netPrepare();
+    }
     rw_mutex.lock();
     writers--;
     rw_mutex.unlock();

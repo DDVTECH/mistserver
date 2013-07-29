@@ -551,7 +551,7 @@ namespace Connector_RTMP {
           ss.setBlocking(false);
 
           //assure metadata is received
-          while ( !Strm.metadata){
+          while ( !Strm.metadata && ss.connected()){
             if (ss.spool()){
               Strm.parsePacket(ss.Received()); //read the metadata
             }else{

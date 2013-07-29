@@ -117,7 +117,7 @@ namespace Connector_HTTP {
             continue;
           }
           //wait until we have a header
-          while ( !Strm.metadata){
+          while ( !Strm.metadata && ss.connected()){
             if (ss.spool()){
               Strm.parsePacket(ss.Received()); //read the metadata
             }else{

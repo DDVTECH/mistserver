@@ -63,14 +63,17 @@ namespace Buffer {
     Storage["totals"]["count"] = tot_count;
     Storage["totals"]["now"] = now;
     Storage["buffer"] = name;
-    ///\todo Fixme
-//    Storage["meta"] = Strm->metadata;
-    if (Storage["meta"].isMember("audio")){
-      Storage["meta"]["audio"].removeMember("init");
+
+    Storage["meta"] = Strm->metadata;
+
+    if(Storage["meta"].isMember("tracks") && Storage["meta"]["tracks"].size() > 0){
+      for(JSON::ObjIter it = Storage["meta"]["tracks"].ObjBegin(); it != Storage["meta"]["tracks"].ObjEnd(); it++){
+        it->second.removeMember("init");
+        it->second.removeMember("keys");
+        it->second.removeMember("frags");
+      }
     }
-    if (Storage["meta"].isMember("video")){
-      Storage["meta"]["video"].removeMember("init");
-    }
+
     ret = Storage.toString();
     Storage["log"].null();
     return ret;

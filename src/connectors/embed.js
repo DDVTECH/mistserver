@@ -139,10 +139,10 @@ function mistembed(streamname)
   }else{
     // no error, and sources found. Check the video types and output the best
     // available video player.
-    var i, video, 
-          vtype = video.type ? video.type : 'unknown';
-       foundPlayer = false,
-       len = video.source.length;
+    var i,
+        vtype = (video.type ? video.type : 'unknown'),
+        foundPlayer = false,
+        len = video.source.length;
 
     for(i = 0; i < len; i++)
     {

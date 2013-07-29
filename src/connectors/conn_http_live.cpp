@@ -293,7 +293,7 @@ namespace Connector_HTTP {
                   }
                 }
                 ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket()["time"].asInt() * 90));
-                PIDno = 0x100;
+            	PIDno = 0x100 - 1 + Strm.getPacket()["trackid"].asInt();
                 ContCounter = &VideoCounter;
               }else if (Strm.lastType() == DTSC::AUDIO){
                 ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.getTrackById(audioTrackID)["init"].asString()));
@@ -303,7 +303,7 @@ namespace Connector_HTTP {
                 }else{
                   ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket()["time"].asInt() * 90));
                 }
-                PIDno = 0x101;
+            	PIDno = 0x100 - 1 + Strm.getPacket()["trackid"].asInt();
                 ContCounter = &AudioCounter;
                 IsKeyFrame = false;
               }

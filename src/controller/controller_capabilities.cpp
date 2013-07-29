@@ -184,6 +184,9 @@ namespace Controller {
     capa["connectors"]["TS"]["optional"]["username"]["name"] = "Username";
     capa["connectors"]["TS"]["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
     capa["connectors"]["TS"]["optional"]["username"]["type"] = "str";
+    capa["connectors"]["TS"]["optional"]["tracks"]["name"] = "Tracks";
+    capa["connectors"]["TS"]["optional"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
+    capa["connectors"]["TS"]["optional"]["tracks"]["type"] = "str";
     capa["connectors"]["HTTP"]["desc"] =
         "Enables the generic HTTP listener, required by all other HTTP protocols. Needs other HTTP protocols enabled to do much of anything.";
     capa["connectors"]["HTTP"]["deps"] = "";

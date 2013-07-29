@@ -100,7 +100,7 @@ namespace Connector_TS {
           } // if isMember("tracks")
         } // if trackIDs == ""
 
-        std::string cmd = "t " + trackIDs + "\np\n";
+        std::string cmd = "t " + trackIDs + "\ns 0\np\n";
         ss.SendNow( cmd );
         inited = true;
       }
@@ -189,6 +189,9 @@ namespace Connector_TS {
           TSBuf.str("");
           PacketNumber = 0;
         }
+      }else{
+        Util::sleep(1000);
+        conn.spool();
       }
     }
     return 0;

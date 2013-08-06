@@ -89,6 +89,11 @@ namespace Converters{
                   DTSCOut["interframe"] = 1;
                 }
               }
+              // Ending packet
+              if (oggPage.typeEOS()){//ending page
+                DTSCOut["OggEOS"] = 1;
+              }
+
               std::cout << DTSCOut.toNetPacked();
             }else{
               //switch on codec

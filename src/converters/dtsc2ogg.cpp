@@ -9,8 +9,6 @@
 #include <mist/config.h>
 #include <mist/json.h>
 
-///\todo FIX SEQUENCE NUMBERS!
-
 namespace Converters{
   int DTSC2OGG(Util::Config & conf){
     DTSC::File DTSCFile(conf.getString("filename"));
@@ -20,7 +18,7 @@ namespace Converters{
     std::vector<unsigned int> curSegTable;
     char* curNewPayload;
     std::map <long long unsigned int, unsigned int> DTSCID2OGGSerial;
-    unsigned int seqNum = 0;
+    std::map <long long unsigned int, unsigned int> DTSCID2seqNum;
     //Creating ID headers for theora and vorbis
     for ( JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it ++) {
       curOggPage.clear();
@@ -29,12 +27,13 @@ namespace Converters{
       curOggPage.setGranulePosition(0);
       DTSCID2OGGSerial[it->second["trackid"].asInt()] = rand() % 0xFFFFFFFE +1; //initialising on a random not 0 number
       curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[it->second["trackid"].asInt()]);
-      curOggPage.setPageSequenceNumber(seqNum++);
+      DTSCID2seqNum[it->second["trackid"].asInt()] = 0;
+      curOggPage.setPageSequenceNumber(DTSCID2seqNum[it->second["trackid"].asInt()]++);
       curSegTable.clear();
       curSegTable.push_back(it->second["IDHeader"].asString().size());
       curOggPage.setSegmentTable(curSegTable);
       curOggPage.setPayload((char*)it->second["IDHeader"].asString().c_str(), it->second["IDHeader"].asString().size());
-      curOggPage.calcChecksum();
+      curOggPage.setCRCChecksum(curOggPage.calcChecksum());
       std::cout << std::string(curOggPage.getPage(), curOggPage.getPageSize());
     }
     //Creating remaining headers for theora and vorbis
@@ -46,15 +45,16 @@ namespace Converters{
       curOggPage.setHeaderType(0);//headertype 0 = normal
       curOggPage.setGranulePosition(0);
       curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[it->second["trackid"].asInt()]);
-      curOggPage.setPageSequenceNumber(seqNum++);
+      curOggPage.setPageSequenceNumber(DTSCID2seqNum[it->second["trackid"].asInt()]++);
       curSegTable.clear();
       curSegTable.push_back(it->second["CommentHeader"].asString().size());
       curSegTable.push_back(it->second["init"].asString().size());
       curOggPage.setSegmentTable(curSegTable);
       std::string fullHeader = it->second["CommentHeader"].asString() + it->second["init"].asString();
-      std::cerr << fullHeader.size() << std::endl;
-      std::cerr << "setPayload: " << curOggPage.setPayload((char*)fullHeader.c_str(), fullHeader.size()) << std::endl;
-      curOggPage.calcChecksum();
+      curOggPage.setPayload((char*)fullHeader.c_str(),fullHeader.size());
+      //std::cerr << fullHeader.size() << std::endl;
+      //std::cerr << "setPayload: " << curOggPage.setPayload((char*)fullHeader.c_str(), fullHeader.size()) << std::endl;
+      curOggPage.setCRCChecksum(curOggPage.calcChecksum());
       std::cout << std::string(curOggPage.getPage(), curOggPage.getPageSize());
     }
     //create DTSC in OGG pages
@@ -62,28 +62,41 @@ namespace Converters{
     curSegTable.clear();
     long long int prevID = DTSCFile.getJSON()["trackid"].asInt();
     long long int prevGran = DTSCFile.getJSON()["granule"].asInt();
+    bool OggEOS = false;
+    //bool IDChange = false;
+    //bool GranChange = false;
     std::string pageBuffer;
     
     while(DTSCFile.getJSON()){
       if(DTSCFile.getJSON()["trackid"].asInt()!=prevID || DTSCFile.getJSON()["granule"].asInt()!=prevGran){
         curOggPage.clear();
         curOggPage.setVersion();
-        curOggPage.setHeaderType(0);//headertype 0 = normal
+        if (OggEOS){
+          curOggPage.setHeaderType(4);//headertype 4 = end of stream
+        }else{
+          curOggPage.setHeaderType(0);//headertype 0 = normal
+        }
         curOggPage.setGranulePosition(prevGran);
         curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[prevID]);
-        curOggPage.setPageSequenceNumber(seqNum++);
+        curOggPage.setPageSequenceNumber(DTSCID2seqNum[prevID]++);
         curOggPage.setSegmentTable(curSegTable);
         curOggPage.setPayload((char*)pageBuffer.c_str(), pageBuffer.size());
-        curOggPage.calcChecksum();
+        curOggPage.setCRCChecksum(curOggPage.calcChecksum());
         std::cout << std::string(curOggPage.getPage(), curOggPage.getPageSize());
         pageBuffer = "";
         curSegTable.clear();
         //write one pagebuffer as Ogg page
       }
+      
       pageBuffer += DTSCFile.getJSON()["data"].asString();
       curSegTable.push_back(DTSCFile.getJSON()["data"].asString().size());
       prevID = DTSCFile.getJSON()["trackid"].asInt();
       prevGran = DTSCFile.getJSON()["granule"].asInt();
+      if (DTSCFile.getJSON()["OggEOS"]){
+        OggEOS=true;
+      }else{
+        OggEOS=false;
+      }
       DTSCFile.parseNext();
     }
     return 0;   

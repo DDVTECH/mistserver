@@ -128,8 +128,7 @@ namespace OGG{
 
   void Page::setGranulePosition(long long unsigned int newVal){
     if(checkDataSize(14)){
-      ((long unsigned*)(data+6))[1] = htonl(newVal & 0xFFFFFFFF);
-      ((long unsigned*)(data+6))[0] = htonl((newVal >> 32) & 0xFFFFFFFF);
+      set_64(data+6, newVal);
     }
   }
   
@@ -202,7 +201,6 @@ namespace OGG{
     for (unsigned int i = 0; i < layout.size(); i++){
       dataSum += layout[i];
     }
-    std::cerr << "dataSum size: " << dataSum << std::endl;
     unsigned int place = 0;
     char table[255];
     for (unsigned int i = 0; i < layout.size(); i++){
@@ -456,7 +454,6 @@ namespace OGG{
     if(!checkDataSize(27 + getPageSegments() + length)){//check if size available in memory
       return false;
     }
-    std::cerr << "Payload length: " << length << std::endl;
     memcpy(data + 27 + getPageSegments(), newData, length);
     return true;
  }

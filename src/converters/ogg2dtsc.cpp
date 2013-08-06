@@ -90,6 +90,9 @@ namespace Converters{
                 }
               }
               // Ending packet
+              if (oggPage.typeContinue()){//Continuing page
+                DTSCOut["OggCont"] = 1;
+              }
               if (oggPage.typeEOS()){//ending page
                 DTSCOut["OggEOS"] = 1;
               }

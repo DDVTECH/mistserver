@@ -63,15 +63,18 @@ namespace Converters{
     long long int prevID = DTSCFile.getJSON()["trackid"].asInt();
     long long int prevGran = DTSCFile.getJSON()["granule"].asInt();
     bool OggEOS = false;
-    //bool IDChange = false;
-    //bool GranChange = false;
+    bool OggCont = false;
+    bool IDChange = false;
+    bool GranChange = false;
     std::string pageBuffer;
     
     while(DTSCFile.getJSON()){
       if(DTSCFile.getJSON()["trackid"].asInt()!=prevID || DTSCFile.getJSON()["granule"].asInt()!=prevGran){
         curOggPage.clear();
         curOggPage.setVersion();
-        if (OggEOS){
+        if (OggCont){
+          curOggPage.setHeaderType(1);//headertype 1 = Continue Page
+        }else if (OggEOS){
           curOggPage.setHeaderType(4);//headertype 4 = end of stream
         }else{
           curOggPage.setHeaderType(0);//headertype 0 = normal
@@ -97,8 +100,29 @@ namespace Converters{
       }else{
         OggEOS=false;
       }
+      if (DTSCFile.getJSON()["OggCont"]){
+        OggCont=true;
+      }else{
+        OggCont=false;
+      }
       DTSCFile.parseNext();
     }
+    //quick copy-paste fix to output the last ogg page
+      curOggPage.clear();
+      curOggPage.setVersion();
+      curOggPage.setHeaderType(4);//headertype 4 = end of stream
+      curOggPage.setGranulePosition(prevGran);
+      curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[prevID]);
+      curOggPage.setPageSequenceNumber(DTSCID2seqNum[prevID]++);
+      curOggPage.setSegmentTable(curSegTable);
+      curOggPage.setPayload((char*)pageBuffer.c_str(), pageBuffer.size());
+      curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+      std::cout << std::string(curOggPage.getPage(), curOggPage.getPageSize());
+      pageBuffer = "";
+      curSegTable.clear();
+      //write one pagebuffer as Ogg page
+    //end quick fix
+
     return 0;   
   }
 }

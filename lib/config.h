@@ -27,18 +27,22 @@ namespace Util {
       Config(std::string cmd, std::string version);
       void addOption(std::string optname, JSON::Value option);
       void printHelp(std::ostream & output);
-      void parseArgs(int & argc, char ** & argv);
+      bool parseArgs(int & argc, char ** & argv);
       JSON::Value & getOption(std::string optname, bool asArray = false);
       std::string getString(std::string optname);
       long long int getInteger(std::string optname);
       bool getBool(std::string optname);
       void activate();
-      void addConnectorOptions(int port);
+      void addBasicConnectorOptions(JSON::Value & capabilities);
+      void addConnectorOptions(int port, JSON::Value & capabilities);
   };
 
   /// Gets directory the current executable is stored in.
   std::string getMyPath();
 
+  /// Gets all executables in getMyPath that start with "Mist".
+  void getMyExec(std::deque<std::string> & execs);
+  
   /// Will set the active user to the named username.
   void setUser(std::string user);
 

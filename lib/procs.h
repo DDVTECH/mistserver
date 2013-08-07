@@ -23,6 +23,8 @@ namespace Util {
       static void runCmd(std::string & cmd);
       static void setHandler();
   public:
+      static std::string getOutputOf(char * argv[]);
+      static std::string getOutputOf(std::string cmd);
       static pid_t Start(std::string name, std::string cmd);
       static pid_t Start(std::string name, std::string cmd, std::string cmd2);
       static pid_t Start(std::string name, std::string cmd, std::string cmd2, std::string cmd3);

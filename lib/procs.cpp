@@ -132,6 +132,40 @@ void Util::Procs::childsig_handler(int signum){
   }
 }
 
+
+/// Runs the given command and returns the stdout output as a string.
+std::string Util::Procs::getOutputOf(char * argv[]){
+  std::string ret;
+  int fin = 0, fout = -1, ferr = 0;
+  StartPiped("output_getter", argv, &fin, &fout, &ferr);
+  while (isActive("output_getter")){Util::sleep(100);}
+  FILE * outFile = fdopen(fout, "r");
+  char * fileBuf = 0;
+  size_t fileBufLen = 0;
+  while ( !(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){
+    ret += fileBuf;
+  }
+  fclose(outFile);
+  return ret;
+}
+
+/// Runs the given command and returns the stdout output as a string.
+std::string Util::Procs::getOutputOf(std::string cmd){
+  std::string ret;
+  int fin = 0, fout = -1, ferr = 0;
+  StartPiped("output_getter", cmd, &fin, &fout, &ferr);
+  while (isActive("output_getter")){Util::sleep(100);}
+  FILE * outFile = fdopen(fout, "r");
+  char * fileBuf = 0;
+  size_t fileBufLen = 0;
+  while ( !(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){
+    ret += fileBuf;
+  }
+  fclose(outFile);
+  return ret;
+}
+
+
 /// Attempts to run the command cmd.
 /// Replaces the current process - use after forking first!
 /// This function will never return - it will either run the given

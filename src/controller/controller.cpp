@@ -221,8 +221,8 @@ int main(int argc, char ** argv){
 
   //Input custom config here
   Controller::Storage = JSON::fromFile(conf.getString("configFile"));
+
   //check for port, interface and username in arguments
-  
   //if they are not there, take them from config file, if there
   if (conf.getOption("listen_port", true).size() <= 1){
     if (Controller::Storage["config"]["controller"]["port"]){
@@ -239,6 +239,28 @@ int main(int argc, char ** argv){
       conf.getOption("username") = Controller::Storage["config"]["controller"]["username"];
     }
   }
+  
+  
+  JSON::Value capabilities;
+  //list available protocols and report about them
+  std::deque<std::string> execs;
+  Util::getMyExec(execs);
+  std::string arg_one;
+  char const * conn_args[] = {0, "-j", 0};
+  for (std::deque<std::string>::iterator it = execs.begin(); it != execs.end(); it++){
+    if ((*it).substr(0, 8) == "MistConn"){
+      std::cout << "Exec: '" << (*it) << "'" << std::endl;
+      arg_one = Util::getMyPath() + (*it);
+      conn_args[0] = arg_one.c_str();
+      capabilities["connectors"][(*it).substr(8)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+      if (capabilities["connectors"][(*it).substr(8)].size() < 1){
+        capabilities["connectors"].removeMember((*it).substr(8));
+      }
+    }
+  }
+  std::cout << capabilities.toPrettyString() << std::endl;
+
+  
   
   createAccount(conf.getString("account"));
   
@@ -272,7 +294,13 @@ int main(int argc, char ** argv){
         std::getline(std::cin, in_string);
         if (yna(in_string) == 'y'){
           //create protocols
-          Controller::Storage["config"]["protocols"] = JSON::fromString( "[{\"connector\":\"HTTP\",\"interface\":\"\",\"online\":1,\"port\":\"0\",\"username\":\"\"},{\"connector\":\"HTTPDynamic\",\"online\":1,\"username\":\"\"},{\"connector\":\"HTTPLive\",\"online\":1,\"username\":\"\"},{\"connector\":\"HTTPProgressive\",\"online\":1,\"username\":\"\"},{\"connector\":\"HTTPSmooth\",\"online\":1,\"username\":\"\"},{\"connector\":\"RTMP\",\"interface\":\"\",\"online\":1,\"port\":\"0\",\"username\":\"\"}]");
+          for (JSON::ObjIter it = capabilities["connectors"].ObjBegin(); it != capabilities["connectors"].ObjEnd(); it++){
+            if ( !it->second.isMember("required")){
+              JSON::Value newProtocol;
+              newProtocol["connector"] = it->first;
+              Controller::Storage["config"]["protocols"].append(newProtocol);
+            }
+          }
         }else if(yna(in_string) == 'a'){
           //abort controller startup
           return 0;
@@ -475,7 +503,8 @@ int main(int argc, char ** argv){
                     Response["log"] = Controller::Storage["log"];
                     Response["statistics"] = Controller::Storage["statistics"];
                     Response["authorize"]["username"] = conf.getString("uplink-name");
-                    Controller::checkCapable(Response["capabilities"]);
+                    Controller::checkCapable(capabilities);
+                    Response["capabilities"] = capabilities;
                     Controller::Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
                     Response["authorize"]["password"] = Secure::md5(conf.getString("uplink-pass") + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
@@ -523,7 +552,8 @@ int main(int argc, char ** argv){
                     Controller::CheckAllStreams(Controller::Storage["streams"]);
                   }
                   if (Request.isMember("capabilities")){
-                    Controller::checkCapable(Response["capabilities"]);
+                    Controller::checkCapable(capabilities);
+                    Response["capabilities"] = capabilities;
                   }
                   if (Request.isMember("conversion")){
                     if (Request["conversion"].isMember("encoders")){

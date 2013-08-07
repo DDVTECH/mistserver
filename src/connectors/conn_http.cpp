@@ -597,8 +597,16 @@ namespace Connector_HTTP {
 
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
-  conf.addConnectorOptions(8080);
+  JSON::Value capa;
+  capa["desc"] = "Enables the generic HTTP listener, required by all other HTTP protocols. Needs other HTTP protocols enabled to do much of anything.";
+  capa["deps"] = "";
+  conf.addConnectorOptions(8080, capa);
   conf.parseArgs(argc, argv);
+  if (conf.getBool("json")){
+    std::cout << capa.toString() << std::endl;
+    return -1;
+  }
+  
   Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));
   if ( !server_socket.connected()){
     return 1;

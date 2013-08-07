@@ -338,8 +338,17 @@ namespace Connector_HTTP {
 ///\brief The standard process-spawning main function.
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
-  conf.addConnectorOptions(1935);
+  JSON::Value capa;
+  capa["desc"] = "Enables HTTP protocol Adobe-specific dynamic streaming (also known as HDS).";
+  capa["deps"] = "HTTP";
+  conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
+  
+  if (conf.getBool("json")){
+    std::cout << capa.toString() << std::endl;
+    return -1;
+  }
+
   Socket::Server server_socket = Socket::Server("/tmp/mist/http_dynamic");
   if ( !server_socket.connected()){
     return 1;

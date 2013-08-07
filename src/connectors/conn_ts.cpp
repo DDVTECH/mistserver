@@ -200,12 +200,31 @@ namespace Connector_TS {
 
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
+  JSON::Value capa;
+  capa["desc"] = "Enables the raw MPEG Transport Stream protocol over TCP.";
+  capa["deps"] = "";
+  capa["required"]["args"]["name"] = "Stream";
+  capa["required"]["args"]["help"] = "What streamname to serve. For multiple streams, add this protocol multiple times using different ports.";
+  capa["required"]["args"]["type"] = "str";
+  capa["optional"]["tracks"]["name"] = "Tracks";
+  capa["optional"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
+  capa["optional"]["tracks"]["type"] = "str";
   conf.addOption("streamname",
       JSON::fromString("{\"arg\":\"string\",\"arg_num\":1,\"help\":\"The name of the stream that this connector will transmit.\"}"));
   conf.addOption("tracks",
       JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\": \"t\",\"long\":\"tracks\",\"help\":\"The track IDs of the stream that this connector will transmit separated by spaces.\"}"));
-  conf.addConnectorOptions(8888);
-  conf.parseArgs(argc, argv);
+  conf.addConnectorOptions(8888, capa);
+  bool ret = conf.parseArgs(argc, argv);
+  if (conf.getBool("json")){
+    std::cout << capa.toString() << std::endl;
+    return -1;
+  }
+  if (!ret){
+    std::cerr << "Usage error: missing argument(s)." << std::endl;
+    conf.printHelp(std::cout);
+    return 1;
+  }
+  
   Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));
   if ( !server_socket.connected()){
     return 1;

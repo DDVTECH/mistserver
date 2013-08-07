@@ -661,8 +661,16 @@ namespace Connector_RTMP {
 ///\brief The standard process-spawning main function.
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
-  conf.addConnectorOptions(1935);
+  JSON::Value capa;
+  capa["desc"] = "Enables the RTMP protocol which is used by Adobe Flash Player.";
+  capa["deps"] = "";
+  conf.addConnectorOptions(1935, capa);
   conf.parseArgs(argc, argv);
+  if (conf.getBool("json")){
+    std::cout << capa.toString() << std::endl;
+    return -1;
+  }
+  
   Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));
   if ( !server_socket.connected()){
     return 1;

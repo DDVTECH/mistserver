@@ -83,7 +83,6 @@ namespace Converters {
           long long int oldID = trackIt->second["trackid"].asInt();
           long long int mappedID = getNextFree(trackMapping);
           trackMapping[it->first].insert(std::pair<int,int>(oldID,mappedID));
-          trackIt->second["trackid"] = mappedID;
           for (JSON::ArrIter keyIt = trackIt->second["keys"].ArrBegin(); keyIt != trackIt->second["keys"].ArrEnd(); keyIt++){
             keyframeInfo tmpInfo;
             tmpInfo.fileName = it->first;
@@ -99,12 +98,15 @@ namespace Converters {
             }
             allSorted.insert(std::pair<int,keyframeInfo>((*keyIt)["time"].asInt(),tmpInfo));
           }
-          trackIt->second.removeMember("keys");
-          trackIt->second.removeMember("frags");
-          newMeta["tracks"][JSON::Value(mappedID).asString()] = trackIt->second;
+          std::cerr << it->first << "::" << oldID << ":\n" << trackIt->second.toPrettyString() << std::endl << std::endl;
+          newMeta["tracks"][it->first + JSON::Value(mappedID).asString()] = trackIt->second;
+          newMeta["tracks"][it->first + JSON::Value(mappedID).asString()]["trackid"] = mappedID;
+          newMeta["tracks"][it->first + JSON::Value(mappedID).asString()].removeMember("keys");
+          newMeta["tracks"][it->first + JSON::Value(mappedID).asString()].removeMember("frags");
         }
       }
     }
+    newMeta["allsortedsize"] = (long long int)allSorted.size();
 
     if (fullSort){
       meta.null();
@@ -121,16 +123,18 @@ namespace Converters {
       inFiles[sortIt->second.fileName].seek_time(sortIt->second.keyTime);
       inFiles[sortIt->second.fileName].seekNext();
       while (inFiles[sortIt->second.fileName].getJSON() && inFiles[sortIt->second.fileName].getBytePos() < sortIt->second.endBPos && !inFiles[sortIt->second.fileName].reachedEOF()){
-        inFiles[sortIt->second.fileName].getJSON()["trackid"] = trackMapping[sortIt->second.fileName][inFiles[sortIt->second.fileName].getJSON()["trackid"].asInt()];
-        outFile.writePacket(inFiles[sortIt->second.fileName].getJSON());
-        inFiles[sortIt->second.fileName].seekNext();
+        if (inFiles[sortIt->second.fileName].getJSON()["trackid"].asInt() == sortIt->second.trackID){
+          inFiles[sortIt->second.fileName].getJSON()["trackid"] = trackMapping[sortIt->second.fileName][inFiles[sortIt->second.fileName].getJSON()["trackid"].asInt()];
+          outFile.writePacket(inFiles[sortIt->second.fileName].getJSON());
+          inFiles[sortIt->second.fileName].seekNext();
+        }
       }
     }
 
     if (fullSort || (meta.isMember("merged") && meta["merged"])){
-      newMeta["tracks"]["merged"] = true;
+      newMeta["merged"] = true;
     }else{
-      newMeta["tracks"].removeMember("merged");
+      newMeta.removeMember("merged");
     }
     std::string writeMeta = newMeta.toPacked();
     meta["moreheader"] = outFile.addHeader(writeMeta);

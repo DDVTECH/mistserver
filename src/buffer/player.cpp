@@ -172,6 +172,7 @@ int main(int argc, char** argv){
               bool ret = source.seek_time(ms);
               lasttime = Util::epoch();
               lastTime = 0;
+              playUntil = 0;
               break;
             }
             case 'p': { //play

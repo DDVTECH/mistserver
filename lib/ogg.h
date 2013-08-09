@@ -5,6 +5,7 @@
 #include"dtsc.h"
 #include "theora.h"
 #include "vorbis.h"
+#include "json.h"
 
 namespace OGG{
   class Page{
@@ -31,7 +32,6 @@ namespace OGG{
       std::deque<unsigned int> & getSegmentTableDeque();
       bool setSegmentTable(std::vector<unsigned int> layout);
       void setSegmentTable(char* newVal, unsigned int length);
-      
       char* getPage();//returns complete page with header
       unsigned long int getPageSize();
       char* getFullPayload();//returns all segments in the page
@@ -45,6 +45,7 @@ namespace OGG{
       long unsigned int calcChecksum();
       bool clear();
       bool setPayload(char* newData, unsigned int length);
+      void readDTSCVector(std::vector <JSON::Value> DTSCVec, unsigned int serial, unsigned int sequence);
     private:
       std::deque<unsigned int> segmentTableDeque;
       char* data;//pointer to the beginning of the Page data

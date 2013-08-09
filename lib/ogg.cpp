@@ -456,5 +456,31 @@ namespace OGG{
     }
     memcpy(data + 27 + getPageSegments(), newData, length);
     return true;
- }
+  }
+ 
+  void Page::readDTSCVector(std::vector <JSON::Value> DTSCVec, unsigned int serial, unsigned int sequence){
+    clear();
+    setVersion();
+    if (DTSCVec[0]["OggCont"]){
+      setHeaderType(1);//headertype 1 = Continue Page
+    }else if (DTSCVec[0]["OggEOS"]){
+      setHeaderType(4);//headertype 4 = end of stream
+    }else{
+      setHeaderType(0);//headertype 0 = normal
+    }
+    setGranulePosition(DTSCVec[0]["granule"].asInt());
+    setBitstreamSerialNumber(serial);
+    setPageSequenceNumber(sequence);
+    
+    std::vector<unsigned int> curSegTable;
+    std::string pageBuffer;
+
+    for (unsigned int i = 0; i < DTSCVec.size(); i++){
+      curSegTable.push_back(DTSCVec[i]["data"].asString().size());
+      pageBuffer += DTSCVec[i]["data"].asString();
+    }
+    setSegmentTable(curSegTable);
+    setPayload((char*)pageBuffer.c_str(), pageBuffer.size());
+    setCRCChecksum(calcChecksum());
+  }
 }

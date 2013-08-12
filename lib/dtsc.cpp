@@ -222,10 +222,10 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   datapointertype = INVALID;
   std::string tmp = "";
   if (newPack.isMember("trackid")){
-    tmp = getTrackById(newPack["trackid"].asInt())["type"].asString();
+    tmp = getTrackById(newPack["trackid"].asInt())["type"].asStringRef();
   }
   if (newPack.isMember("datatype")){
-    tmp = newPack["datatype"].asString();
+    tmp = newPack["datatype"].asStringRef();
   }
   if (tmp == "video"){
     datapointertype = VIDEO;
@@ -300,7 +300,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
       }
     }
     if (keySize){
-      metadata["tracks"][newTrack]["keys"][keySize - 1]["parts"].append((long long int)newPack["data"].asString().size());
+      metadata["tracks"][newTrack]["keys"][keySize - 1]["parts"].append((long long int)newPack["data"].asStringRef().size());
     }
     metadata["live"] = 1ll;
   }
@@ -468,7 +468,7 @@ DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> & allowedTrack
   std::set<int> seekTracks = allowedTracks;
   livePos result = buffers.begin()->first;
   for (std::set<int>::iterator it = allowedTracks.begin(); it != allowedTracks.end(); it++){
-    if (getTrackById(*it).isMember("type") && getTrackById(*it)["type"].asString() == "video"){
+    if (getTrackById(*it).isMember("type") && getTrackById(*it)["type"].asStringRef() == "video"){
       int trackNo = *it;
       seekTracks.clear();
       seekTracks.insert(trackNo);

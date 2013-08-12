@@ -348,6 +348,7 @@ void Util::Config::addConnectorOptions(int port, JSON::Value & capabilities){
   capabilities["optional"]["port"]["name"] = "TCP port";
   capabilities["optional"]["port"]["help"] = "TCP port to listen on - default if unprovided is "+option["value"][0u].asString();
   capabilities["optional"]["port"]["type"] = "uint";
+  capabilities["optional"]["port"]["option"] = "--port";
   capabilities["optional"]["port"]["default"] = option["value"][0u];
   
   option.null();
@@ -359,6 +360,7 @@ void Util::Config::addConnectorOptions(int port, JSON::Value & capabilities){
   addOption("listen_interface", option);
   capabilities["optional"]["interface"]["name"] = "Interface";
   capabilities["optional"]["interface"]["help"] = "Address of the interface to listen on - default if unprovided is all interfaces";
+  capabilities["optional"]["interface"]["option"] = "--interface";
   capabilities["optional"]["interface"]["type"] = "str";
   
   addBasicConnectorOptions(capabilities);
@@ -376,6 +378,7 @@ void Util::Config::addBasicConnectorOptions(JSON::Value & capabilities){
   addOption("username", option);
   capabilities["optional"]["username"]["name"] = "Username";
   capabilities["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
+  capabilities["optional"]["username"]["option"] = "--username";
   capabilities["optional"]["username"]["type"] = "str";
   
   option.null();

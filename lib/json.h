@@ -64,6 +64,8 @@ namespace JSON {
       const std::string asString();
       const long long int asInt();
       const bool asBool();
+      const std::string & asStringRef();
+      const char * c_str();
       //array operator for maps and arrays
       Value & operator[](const std::string i);
       Value & operator[](const char * i);

@@ -380,6 +380,29 @@ const bool JSON::Value::asBool(){
   return (bool) *this;
 }
 
+/// Explicit conversion to std::string reference.
+/// Returns a direct reference for string type JSON::Value objects,
+/// but a reference to a static empty string otherwise.
+/// \warning Only save to use when the JSON::Value is a string type!
+const std::string & JSON::Value::asStringRef(){
+  static std::string ugly_buffer;
+  if (myType == STRING){
+    return strVal;
+  }
+  return ugly_buffer;
+}
+
+/// Explicit conversion to c-string.
+/// Returns a direct reference for string type JSON::Value objects,
+/// a reference to an empty string otherwise.
+/// \warning Only save to use when the JSON::Value is a string type!
+const char * JSON::Value::c_str(){
+  if (myType == STRING){
+    return strVal.c_str();
+  }
+  return "";
+}
+
 /// Retrieves or sets the JSON::Value at this position in the object.
 /// Converts destructively to object if not already an object.
 JSON::Value & JSON::Value::operator[](const std::string i){

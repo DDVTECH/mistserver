@@ -355,7 +355,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
     case DTSC::VIDEO:
       len = S.lastData().length() + 16;
       if (track && track.isMember("codec")){
-        if (track["codec"].asString() == "H264"){
+        if (track["codec"].asStringRef() == "H264"){
           len += 4;
         }
       }
@@ -363,7 +363,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
     case DTSC::AUDIO:
       len = S.lastData().length() + 16;
       if (track && track.isMember("codec")){
-        if (track["codec"].asString() == "AAC"){
+        if (track["codec"].asStringRef() == "AAC"){
           len += 1;
         }
       }
@@ -407,10 +407,10 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
           data[15] = offset & 0xFF;
         }
         data[11] = 0;
-        if (track.isMember("codec") && track["codec"].asString() == "H264"){
+        if (track.isMember("codec") && track["codec"].asStringRef() == "H264"){
           data[11] += 7;
         }
-        if (track.isMember("codec") && track["codec"].asString() == "H263"){
+        if (track.isMember("codec") && track["codec"].asStringRef() == "H263"){
           data[11] += 2;
         }
         if (S.getPacket().isMember("keyframe")){

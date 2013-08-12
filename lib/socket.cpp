@@ -477,7 +477,7 @@ void Socket::Connection::Send(const char * data){
 /// Will not buffer anything but always send right away. Blocks.
 /// This will send the upbuffer (if non-empty) first, then the data.
 /// Any data that could not be send will block until it can be send or the connection is severed.
-void Socket::Connection::SendNow(std::string & data){
+void Socket::Connection::SendNow(const std::string & data){
   SendNow(data.c_str(), data.size());
 }
 

@@ -350,7 +350,7 @@ int main(int argc, char ** argv){
 
     if (Util::epoch() - processchecker > 10){
       processchecker = Util::epoch();
-      Controller::CheckProtocols(Controller::Storage["config"]["protocols"]);
+      Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
       Controller::CheckAllStreams(Controller::Storage["streams"]);
       Controller::CheckStats(Controller::Storage["statistics"]);
       myConverter.updateStatus();
@@ -518,7 +518,7 @@ int main(int argc, char ** argv){
               }else{
                 if (Request.isMember("config")){
                   Controller::CheckConfig(Request["config"], Controller::Storage["config"]);
-                  Controller::CheckProtocols(Controller::Storage["config"]["protocols"]);
+                  Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
                 }
                 if (Request.isMember("streams")){
                   Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
@@ -545,7 +545,7 @@ int main(int argc, char ** argv){
                   //Parse config and streams from the request.
                   if (Request.isMember("config")){
                     Controller::CheckConfig(Request["config"], Controller::Storage["config"]);
-                    Controller::CheckProtocols(Controller::Storage["config"]["protocols"]);
+                    Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
                   }
                   if (Request.isMember("streams")){
                     Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);

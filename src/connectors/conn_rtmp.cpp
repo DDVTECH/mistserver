@@ -560,10 +560,10 @@ namespace Connector_RTMP {
           }
           //find first audio and video tracks
           for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["type"].asString() == "video"){
+            if (videoID == -1 && objIt->second["type"].asStringRef() == "video"){
               videoID = objIt->second["trackid"].asInt();
             }
-            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
+            if (audioID == -1 && objIt->second["type"].asStringRef() == "audio"){
               audioID = objIt->second["trackid"].asInt();
             }
           }

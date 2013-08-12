@@ -36,14 +36,14 @@ namespace Connector_HTTP {
       std::string audioName;
       bool defAudio = false;//set default audio track;
       for (JSON::ObjIter trackIt = metadata["tracks"].ObjBegin(); trackIt != metadata["tracks"].ObjEnd(); trackIt++){
-        if (trackIt->second["type"].asString() == "audio"){
+        if (trackIt->second["type"].asStringRef() == "audio"){
           audioId = trackIt->second["trackid"].asInt();
           audioName = trackIt->first;
           break;
         }
       }
       for (JSON::ObjIter trackIt = metadata["tracks"].ObjBegin(); trackIt != metadata["tracks"].ObjEnd(); trackIt++){
-        if (trackIt->second["type"].asString() == "video"){
+        if (trackIt->second["type"].asStringRef() == "video"){
           int bWidth = trackIt->second["maxbps"].asInt();
           if (audioId != -1){
             bWidth += (metadata["tracks"][audioName]["maxbps"].asInt() * 2);

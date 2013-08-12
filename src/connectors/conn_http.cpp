@@ -230,11 +230,11 @@ namespace Connector_HTTP {
         //find out which connectors are enabled
         std::set<std::string> conns;
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          conns.insert(( *it)["connector"].asString());
+          conns.insert(( *it)["connector"].asStringRef());
         }
         //first, see if we have RTMP working and output all the RTMP.
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          if (( *it)["connector"].asString() == "RTMP"){
+          if (( *it)["connector"].asStringRef() == "RTMP"){
             if (( *it)["port"].asInt() == 0){
               ( *it)["port"] = 1935ll;
             }
@@ -247,7 +247,7 @@ namespace Connector_HTTP {
         /// \todo Add raw MPEG2 TS support here?
         //then, see if we have HTTP working and output all the HTTP.
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          if (( *it)["connector"].asString() == "HTTP"){
+          if (( *it)["connector"].asStringRef() == "HTTP"){
             if (( *it)["port"].asInt() == 0){
               ( *it)["port"] = 8080ll;
             }

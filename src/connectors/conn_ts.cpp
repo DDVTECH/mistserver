@@ -203,14 +203,16 @@ int main(int argc, char ** argv){
   JSON::Value capa;
   capa["desc"] = "Enables the raw MPEG Transport Stream protocol over TCP.";
   capa["deps"] = "";
-  capa["required"]["args"]["name"] = "Stream";
-  capa["required"]["args"]["help"] = "What streamname to serve. For multiple streams, add this protocol multiple times using different ports.";
-  capa["required"]["args"]["type"] = "str";
-  capa["optional"]["tracks"]["name"] = "Tracks";
-  capa["optional"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
-  capa["optional"]["tracks"]["type"] = "str";
+  capa["required"]["streamname"]["name"] = "Stream";
+  capa["required"]["streamname"]["help"] = "What streamname to serve. For multiple streams, add this protocol multiple times using different ports.";
+  capa["required"]["streamname"]["type"] = "str";
+  capa["required"]["streamname"]["option"] = "--stream";
+  capa["required"]["tracks"]["name"] = "Tracks";
+  capa["required"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
+  capa["required"]["tracks"]["type"] = "str";
+  capa["required"]["tracks"]["option"] = "--tracks";
   conf.addOption("streamname",
-      JSON::fromString("{\"arg\":\"string\",\"arg_num\":1,\"help\":\"The name of the stream that this connector will transmit.\"}"));
+      JSON::fromString("{\"arg\":\"string\",\"arg_num\":1,\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
   conf.addOption("tracks",
       JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\": \"t\",\"long\":\"tracks\",\"help\":\"The track IDs of the stream that this connector will transmit separated by spaces.\"}"));
   conf.addConnectorOptions(8888, capa);

@@ -112,7 +112,7 @@ void Util::Procs::childsig_handler(int signum){
     std::string pname = plist[ret];
 #endif
     plist.erase(ret);
-#if DEBUG >= 1
+#if DEBUG >= 5
     if (isActive(pname)){
       Stop(pname);
     } else{
@@ -124,7 +124,7 @@ void Util::Procs::childsig_handler(int signum){
     if (exitHandlers.count(ret) > 0){
       TerminationNotifier tn = exitHandlers[ret];
       exitHandlers.erase(ret);
-#if DEBUG >= 2
+#if DEBUG >= 5
       std::cerr << "Calling termination handler for " << pname << std::endl;
 #endif
       tn(ret, exitcode);
@@ -209,7 +209,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd){
     runCmd(cmd);
   }else{
     if (ret > 0){
-#if DEBUG >= 1
+#if DEBUG >= 5
       std::cerr << "Process " << name << " started, PID " << ret << ": " << cmd << std::endl;
 #endif
       plist.insert(std::pair<pid_t, std::string>(ret, name));
@@ -273,7 +273,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
     runCmd(cmd2);
   }else{
     if (ret2 > 0){
-#if DEBUG >= 1
+#if DEBUG >= 5
       std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << "): " << cmd << " | " << cmd2 << std::endl;
 #endif
       plist.insert(std::pair<pid_t, std::string>(ret2, name));
@@ -356,7 +356,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     runCmd(cmd2);
   }else{
     if (ret2 > 0){
-#if DEBUG >= 1
+#if DEBUG >= 5
       std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << "): " << cmd << " | " << cmd2 << std::endl;
 #endif
       plist.insert(std::pair<pid_t, std::string>(ret2, name));
@@ -387,7 +387,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     runCmd(cmd3);
   }else{
     if (ret3 > 0){
-#if DEBUG >= 1
+#if DEBUG >= 5
       std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << ", " << ret3 << "): " << cmd << " | " << cmd2 << " | " << cmd3 << std::endl;
 #endif
       plist.insert(std::pair<pid_t, std::string>(ret3, name));
@@ -416,6 +416,9 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
 /// \arg fdout Same as fdin, but for stderr.
 pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int * fdout, int * fderr){
   if (isActive(name)){
+    #if DEBUG >= 1
+    std::cerr << name << " already active - skipping start" << std::endl;
+    #endif
     return getPid(name);
   }
   pid_t pid;
@@ -534,7 +537,7 @@ pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int *
     }
     return 0;
   }else{ //parent
-#if DEBUG >= 1
+#if DEBUG >= 5
   std::cerr << "Piped process " << name << " started";
   if (fdin ) std::cerr << " in=" << (*fdin == -1 ? pipein [1] : *fdin );
   if (fdout) std::cerr << " out=" << (*fdout == -1 ? pipeout[0] : *fdout);

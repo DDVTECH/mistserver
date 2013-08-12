@@ -54,4 +54,12 @@ namespace OGG{
       bool checkDataSize(unsigned int size);
       std::string codec;//codec in the page
   };
+  
+  class headerPages{
+    public:
+      void readDTSCHeader(JSON::Value meta);
+      std::map <long long unsigned int, unsigned int> DTSCID2OGGSerial;
+      std::map <long long unsigned int, unsigned int> DTSCID2seqNum;
+      std::string parsedPages;
+  };
 }

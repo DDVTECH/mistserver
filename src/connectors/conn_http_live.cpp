@@ -360,6 +360,11 @@ int main(int argc, char ** argv){
   JSON::Value capa;
   capa["desc"] = "Enables HTTP protocol Apple-specific streaming (also known as HLS).";
   capa["deps"] = "HTTP";
+  capa["url_rel"] = "/hls/$/index.m3u8";
+  capa["url_prefix"] = "/hls/$/";
+  capa["url_handler"] = "http";
+  capa["url_type"] = "hls";
+  capa["socket"] = "http_live";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

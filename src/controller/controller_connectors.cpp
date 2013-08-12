@@ -18,7 +18,7 @@ namespace Controller {
 
 
   static inline std::string toConn(long long i){
-    return std::string("Conn") + JSON::Value(i).asStringRef();
+    return std::string("Conn") + JSON::Value(i).asString();
   }
 
   ///\brief Checks if the binary mentioned in the protocol argument is currently active, if so, restarts it.
@@ -71,12 +71,6 @@ namespace Controller {
     JSON::Value & pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
     if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
     if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
-    for (int i = 0; i < argnum; ++i){
-      if (argarr[i] > 0){
-        std::cerr << argarr[i] << " ";
-      }
-    }
-    std::cerr << std::endl;
   }
 
   ///\brief Checks current protocol coguration, updates state of enabled connectors if neccesary.

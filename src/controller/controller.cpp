@@ -249,7 +249,6 @@ int main(int argc, char ** argv){
   char const * conn_args[] = {0, "-j", 0};
   for (std::deque<std::string>::iterator it = execs.begin(); it != execs.end(); it++){
     if ((*it).substr(0, 8) == "MistConn"){
-      std::cout << "Exec: '" << (*it) << "'" << std::endl;
       arg_one = Util::getMyPath() + (*it);
       conn_args[0] = arg_one.c_str();
       capabilities["connectors"][(*it).substr(8)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
@@ -258,9 +257,6 @@ int main(int argc, char ** argv){
       }
     }
   }
-  std::cout << capabilities.toPrettyString() << std::endl;
-
-  
   
   createAccount(conf.getString("account"));
   

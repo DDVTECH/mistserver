@@ -664,6 +664,9 @@ int main(int argc, char ** argv){
   JSON::Value capa;
   capa["desc"] = "Enables the RTMP protocol which is used by Adobe Flash Player.";
   capa["deps"] = "";
+  capa["url_rel"] = "/play/$";
+  capa["url_handler"] = "rtmp";
+  capa["url_type"] = "flash";
   conf.addConnectorOptions(1935, capa);
   conf.parseArgs(argc, argv);
   if (conf.getBool("json")){

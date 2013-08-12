@@ -341,6 +341,11 @@ int main(int argc, char ** argv){
   JSON::Value capa;
   capa["desc"] = "Enables HTTP protocol Adobe-specific dynamic streaming (also known as HDS).";
   capa["deps"] = "HTTP";
+  capa["url_rel"] = "/dynamic/$/manifest.f4m";
+  capa["url_prefix"] = "/dynamic/$/";
+  capa["url_handler"] = "http";
+  capa["url_type"] = "flash";
+  capa["socket"] = "http_dynamic";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

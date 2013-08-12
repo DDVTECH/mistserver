@@ -219,6 +219,11 @@ int main(int argc, char ** argv){
   JSON::Value capa;
   capa["desc"] = "Enables HTTP protocol progressive streaming.";
   capa["deps"] = "HTTP";
+  capa["url_rel"] = "/$.flv";
+  capa["url_match"] = "/$.flv";
+  capa["url_handler"] = "http";
+  capa["url_type"] = "flash";
+  capa["socket"] = "http_progressive";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

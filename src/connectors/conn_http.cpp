@@ -19,6 +19,7 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/auth.h>
+#include <mist/procs.h>
 
 #include "tinythread.h"
 #include "embed.js.h"
@@ -59,6 +60,7 @@ namespace Connector_HTTP {
   tthread::mutex connMutex; ///< Mutex for adding/removing connector connections.
   tthread::mutex timeoutMutex; ///< Mutex for timeout thread.
   tthread::thread * timeouter = 0; ///< Thread that times out connections to connectors.
+  JSON::Value capabilities; ///< Holds a list of all HTTP connectors and their properties
 
   ///\brief Function run as a thread to timeout requests on the proxy.
   ///\param n A NULL-pointer
@@ -232,56 +234,42 @@ namespace Connector_HTTP {
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
           conns.insert(( *it)["connector"].asStringRef());
         }
-        //first, see if we have RTMP working and output all the RTMP.
+        //loop over the connectors.
         for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          if (( *it)["connector"].asStringRef() == "RTMP"){
-            if (( *it)["port"].asInt() == 0){
-              ( *it)["port"] = 1935ll;
-            }
-            JSON::Value tmp;
-            tmp["type"] = "rtmp";
-            tmp["url"] = "rtmp://" + host + ":" + ( *it)["port"].asString() + "/play/" + streamname;
-            json_resp["source"].append(tmp);
-          }
-        }
-        /// \todo Add raw MPEG2 TS support here?
-        //then, see if we have HTTP working and output all the HTTP.
-        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          if (( *it)["connector"].asStringRef() == "HTTP"){
-            if (( *it)["port"].asInt() == 0){
-              ( *it)["port"] = 8080ll;
-            }
-            // check for dynamic
-            if (conns.count("HTTPDynamic")){
+          const std::string & cName = ( *it)["connector"].asStringRef();
+          //if the connector has a port,
+          if (capabilities.isMember(cName) && capabilities[cName].isMember("optional") && capabilities[cName]["optional"].isMember("port")){
+            //and a URL - then list the URL
+            if (capabilities[cName].isMember("url_type") && capabilities[cName].isMember("url_handler") && capabilities[cName].isMember("url_rel")){
+              if (( *it)["port"].asInt() == 0){
+                ( *it)["port"] = capabilities[cName]["optional"]["port"]["default"];
+              }
               JSON::Value tmp;
-              tmp["type"] = "f4v";
-              tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/dynamic/" + streamname + "/manifest.f4m";
-              tmp["relurl"] = "/dynamic/" + streamname + "/manifest.f4m";
+              tmp["type"] = capabilities[cName]["url_type"];
+              size_t found = capabilities[cName]["url_rel"].asStringRef().find('$');
+              if (found != std::string::npos){
+                tmp["relurl"] = capabilities[cName]["url_rel"].asStringRef().substr(0, found) + streamname + capabilities[cName]["url_rel"].asStringRef().substr(found+1);
+              }else{
+                tmp["relurl"] = "/";
+              }
+              tmp["url"] = capabilities[cName]["url_handler"].asStringRef() + "://" + host + ":" + ( *it)["port"].asString() + tmp["relurl"].asStringRef();
               json_resp["source"].append(tmp);
             }
-            // check for smooth
-            if (conns.count("HTTPSmooth")){
-              JSON::Value tmp;
-              tmp["type"] = "ism";
-              tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/smooth/" + streamname + ".ism/Manifest";
-              tmp["relurl"] = "/smooth/" + streamname + ".ism/Manifest";
-              json_resp["source"].append(tmp);
-            }
-            // check for HLS
-            if (conns.count("HTTPLive")){
-              JSON::Value tmp;
-              tmp["type"] = "hls";
-              tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/hls/" + streamname + "/index.m3u8";
-              tmp["relurl"] = "/hls/" + streamname + "/index.m3u8";
-              json_resp["source"].append(tmp);
-            }
-            // check for progressive
-            if (conns.count("HTTPProgressive")){
-              JSON::Value tmp;
-              tmp["type"] = "flv";
-              tmp["url"] = "http://" + host + ":" + ( *it)["port"].asString() + "/" + streamname + ".flv";
-              tmp["relurl"] = "/" + streamname + ".flv";
-              json_resp["source"].append(tmp);
+            //check each enabled protocol separately to see if it depends on this connector
+            for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
+              //if it depends on this connector and has a URL, list it
+              if (conns.count(oit->first) && oit->second["deps"].asStringRef() == cName && oit->second.isMember("url_type") && oit->second.isMember("url_handler") && oit->second.isMember("url_rel")){
+                JSON::Value tmp;
+                tmp["type"] = oit->second["url_type"];
+                size_t found = oit->second["url_rel"].asStringRef().find('$');
+                if (found != std::string::npos){
+                  tmp["relurl"] = oit->second["url_rel"].asStringRef().substr(0, found) + streamname + oit->second["url_rel"].asStringRef().substr(found+1);
+                }else{
+                  tmp["relurl"] = "/";
+                }
+                tmp["url"] =  oit->second["url_handler"].asStringRef() + "://" + host + ":" + ( *it)["port"].asString() + tmp["relurl"].asStringRef();
+                json_resp["source"].append(tmp);
+              }
             }
           }
         }
@@ -325,7 +313,7 @@ namespace Connector_HTTP {
         delete connectorConnections[uid];
         connectorConnections.erase(uid);
       }
-      connectorConnections[uid] = new ConnConn(new Socket::Connection("/tmp/mist/http_" + connector));
+      connectorConnections[uid] = new ConnConn(new Socket::Connection("/tmp/mist/" + connector));
       connectorConnections[uid]->conn->setBlocking(false); //do not block on spool() with no data
 #if DEBUG >= 4
       std::cout << "Created new connection " << uid << std::endl;
@@ -481,38 +469,46 @@ namespace Connector_HTTP {
   ///Possible values are:
   /// - "none" The request is not supported.
   /// - "internal" The request should be handled by the proxy itself.
-  /// - "dynamic" The request should be dispatched to the HTTP Dynamic Connector
-  /// - "progressive" The request should be dispatched to the HTTP Progressive Connector
-  /// - "smooth" The request should be dispatched to the HTTP Smooth Connector
-  /// - "live" The request should be dispatched to the HTTP Live Connector
+  /// - anything else: The request should be dispatched to a connector on the named socket.
   std::string proxyGetHandleType(HTTP::Parser & H){
     std::string url = H.getUrl();
-    if (url.find("/dynamic/") != std::string::npos){
-      std::string streamname = url.substr(9, url.find("/", 9) - 9);
-      Util::Stream::sanitizeName(streamname);
-      H.SetVar("stream", streamname);
-      return "dynamic";
+    
+    //loop over the connectors
+    for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
+      //if it depends on HTTP and has a match or prefix...
+      if (oit->second["deps"].asStringRef() == "HTTP" && oit->second.isMember("socket") && (oit->second.isMember("url_match") || oit->second.isMember("url_prefix"))){
+        //if there is a matcher, try to match
+        if (oit->second.isMember("url_match")){
+          size_t found = oit->second["url_match"].asStringRef().find('$');
+          if (found != std::string::npos){
+            if (oit->second["url_match"].asStringRef().substr(0, found) == url.substr(0, found) && oit->second["url_match"].asStringRef().substr(found+1) == url.substr(url.size() - (oit->second["url_match"].asStringRef().size() - found) + 1)){
+              //it matched - handle it now
+              std::string streamname = url.substr(found, url.size() - oit->second["url_match"].asStringRef().size() + 1);
+              Util::Stream::sanitizeName(streamname);
+              H.SetVar("stream", streamname);
+              return oit->second["socket"];
+            }
+          }
+        }
+        //if there is a prefix, try to match
+        if (oit->second.isMember("url_prefix")){
+          size_t found = oit->second["url_prefix"].asStringRef().find('$');
+          if (found != std::string::npos){
+            size_t found_suf = url.find(oit->second["url_prefix"].asStringRef().substr(found+1), found);
+            if (oit->second["url_prefix"].asStringRef().substr(0, found) == url.substr(0, found) && found_suf != std::string::npos){
+              //it matched - handle it now
+              std::string streamname = url.substr(found, found_suf - found);
+              Util::Stream::sanitizeName(streamname);
+              H.SetVar("stream", streamname);
+              return oit->second["socket"];
+            }
+          }
+        }
+      }
     }
-    if (url.find("/smooth/") != std::string::npos && url.find(".ism") != std::string::npos){
-      std::string streamname = url.substr(8, url.find("/", 8) - 12);
-      Util::Stream::sanitizeName(streamname);
-      H.SetVar("stream", streamname);
-      return "smooth";
-    }
-    if (url.find("/hls/") != std::string::npos && (url.find(".m3u") != std::string::npos || url.find(".ts") != std::string::npos)){
-      std::string streamname = url.substr(5, url.find("/", 5) - 5);
-      Util::Stream::sanitizeName(streamname);
-      H.SetVar("stream", streamname);
-      return "live";
-    }
+  
     if (url.length() > 4){
       std::string ext = url.substr(url.length() - 4, 4);
-      if (ext == ".flv" || ext == ".mp3"){
-        std::string streamname = url.substr(1, url.length() - 5);
-        Util::Stream::sanitizeName(streamname);
-        H.SetVar("stream", streamname);
-        return "progressive";
-      }
       if (ext == ".ico"){
         return "internal";
       }
@@ -605,6 +601,22 @@ int main(int argc, char ** argv){
   if (conf.getBool("json")){
     std::cout << capa.toString() << std::endl;
     return -1;
+  }
+  
+  //list available protocols and report about them
+  std::deque<std::string> execs;
+  Util::getMyExec(execs);
+  std::string arg_one;
+  char const * conn_args[] = {0, "-j", 0};
+  for (std::deque<std::string>::iterator it = execs.begin(); it != execs.end(); it++){
+    if ((*it).substr(0, 8) == "MistConn"){
+      arg_one = Util::getMyPath() + (*it);
+      conn_args[0] = arg_one.c_str();
+      Connector_HTTP::capabilities[(*it).substr(8)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+      if (Connector_HTTP::capabilities[(*it).substr(8)].size() < 1){
+        Connector_HTTP::capabilities.removeMember((*it).substr(8));
+      }
+    }
   }
   
   Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));

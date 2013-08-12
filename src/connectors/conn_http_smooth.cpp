@@ -476,6 +476,11 @@ int main(int argc, char ** argv){
   JSON::Value capa;
   capa["desc"] = "Enables HTTP protocol Microsoft-specific smooth streaming through silverlight (also known as HSS).";
   capa["deps"] = "HTTP";
+  capa["url_rel"] = "/smooth/$.ism/Manifest";
+  capa["url_prefix"] = "/smooth/$.ism/";
+  capa["url_handler"] = "http";
+  capa["url_type"] = "ism";
+  capa["socket"] = "http_smooth";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

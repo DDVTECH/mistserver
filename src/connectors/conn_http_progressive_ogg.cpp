@@ -173,12 +173,9 @@ namespace Connector_HTTP {
               conn.SendNow((char*)oggMeta.parsedPages.c_str(), oggMeta.parsedPages.size());
               progressive_has_sent_header = true;
             }
-            std::cerr << "Parsing DTSC to Ogg" << std::endl;
             //parse DTSC to Ogg here
             long long unsigned int temp = Strm.getPacket()["trackid"].asInt();
-            if(prevGran[temp] != Strm.getPacket()["granule"].asInt()){
-              std::cerr << "Sending Ogg over connection" << std::endl;
-              curOggPage.clear();
+            if(prevGran[temp] != Strm.getPacket()["granule"].asInt() && DTSCBuffer[temp].size() != 0){
               curOggPage.readDTSCVector(DTSCBuffer[temp], oggMeta.DTSCID2OGGSerial[temp], oggMeta.DTSCID2seqNum[temp]);
               conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
               DTSCBuffer[temp].clear();

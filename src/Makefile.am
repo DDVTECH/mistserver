@@ -11,7 +11,31 @@ RELEASE ?= "Generic_`getconf LONG_BIT`"
 
 AM_CPPFLAGS = $(global_CFLAGS) $(MIST_CFLAGS) -DRELEASE=\"$(RELEASE)\"
 LDADD = $(MIST_LIBS)
-bin_PROGRAMS=MistBuffer MistController MistConnRAW MistConnRTMP MistConnHTTP MistConnHTTPProgressive MistConnHTTPDynamic MistConnHTTPSmooth MistConnHTTPLive MistConnTS MistPlayer MistDTSC2FLV MistFLV2DTSC MistDTSCFix MistDTSC2TS MistOGG2DTSC MistDTSC2OGG MistAnalyserRTMP MistAnalyserFLV MistAnalyserDTSC MistAnalyserAMF MistAnalyserMP4 MistAnalyserOGG
+bin_PROGRAMS=MistBuffer 
+bin_PROGRAMS+=MistController 
+bin_PROGRAMS+=MistConnRAW 
+bin_PROGRAMS+=MistConnRTMP
+bin_PROGRAMS+=MistConnHTTP 
+bin_PROGRAMS+=MistConnHTTPProgressiveFLV 
+bin_PROGRAMS+=MistConnHTTPProgressiveMP3 
+bin_PROGRAMS+=MistConnHTTPProgressiveOGG 
+bin_PROGRAMS+=MistConnHTTPDynamic 
+bin_PROGRAMS+=MistConnHTTPSmooth 
+bin_PROGRAMS+=MistConnHTTPLive 
+bin_PROGRAMS+=MistConnTS 
+bin_PROGRAMS+=MistPlayer 
+bin_PROGRAMS+=MistDTSC2FLV
+bin_PROGRAMS+=MistFLV2DTSC
+bin_PROGRAMS+=MistDTSCFix 
+bin_PROGRAMS+=MistDTSCMerge 
+bin_PROGRAMS+=MistDTSC2TS 
+bin_PROGRAMS+=MistSRT2DTSC 
+bin_PROGRAMS+=MistAnalyserRTMP 
+bin_PROGRAMS+=MistAnalyserFLV 
+bin_PROGRAMS+=MistAnalyserDTSC 
+bin_PROGRAMS+=MistAnalyserAMF 
+bin_PROGRAMS+=MistAnalyserMP4 
+bin_PROGRAMS+=MistInfo
 
 #buffer folder (MistBuffer, MistPlayer)
 MistBuffer_SOURCES=buffer/buffer.cpp buffer/buffer_user.h buffer/buffer_user.cpp buffer/buffer_stream.h buffer/buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
@@ -26,7 +50,9 @@ MistConnRAW_SOURCES=connectors/conn_raw.cpp ../VERSION
 MistConnRTMP_SOURCES=connectors/conn_rtmp.cpp ../VERSION
 MistConnHTTP_SOURCES=connectors/conn_http.cpp tinythread.cpp tinythread.h ../VERSION connectors/embed.js.h connectors/icon.h
 MistConnHTTP_LDADD=$(MIST_LIBS) -lpthread
-MistConnHTTPProgressive_SOURCES=connectors/conn_http_progressive.cpp ../VERSION
+MistConnHTTPProgressiveFLV_SOURCES=connectors/conn_http_progressive_flv.cpp ../VERSION
+MistConnHTTPProgressiveMP3_SOURCES=connectors/conn_http_progressive_mp3.cpp ../VERSION
+MistConnHTTPProgressiveOGG_SOURCES=connectors/conn_http_progressive_ogg.cpp ../VERSION
 MistConnHTTPDynamic_SOURCES=connectors/conn_http_dynamic.cpp ../VERSION
 MistConnHTTPSmooth_SOURCES=connectors/conn_http_smooth.cpp ../VERSION
 MistConnHTTPLive_SOURCES=connectors/conn_http_live.cpp ../VERSION
@@ -50,6 +76,7 @@ MistAnalyserAMF_SOURCES=analysers/amf_analyser.cpp
 MistAnalyserMP4_SOURCES=analysers/mp4_analyser.cpp
 MistAnalyserOGG_SOURCES=analysers/ogg_analyser.cpp
 MistInfo_SOURCES=info.cpp
+
 
 connectors/embed.js.h: connectors/embed.js
 	$(CLOSURE) $(srcdir)/connectors/embed.js > embed.min.js

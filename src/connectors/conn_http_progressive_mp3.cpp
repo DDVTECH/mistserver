@@ -11,7 +11,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <getopt.h>
 
 #include <mist/socket.h>
 #include <mist/http_parser.h>
@@ -41,8 +40,6 @@ namespace Connector_HTTP {
     unsigned int seek_sec = 0;//Seek position in ms
     unsigned int seek_byte = 0;//Seek position in bytes
     
-    bool isMP3 = false;//Indicates whether the request is audio-only mp3.
-    
     int videoID = -1;
     int audioID = -1;
 
@@ -69,9 +66,6 @@ namespace Connector_HTTP {
             streamname = HTTP_R.getUrl().substr(1);
             size_t extDot = streamname.rfind('.');
             if (extDot != std::string::npos){
-              if (streamname.substr(extDot + 1) == "mp3"){
-                isMP3 = true;
-              }
               streamname.resize(extDot);
             }; //strip the extension
             int start = 0;
@@ -126,15 +120,12 @@ namespace Connector_HTTP {
           }
           int byterate = 0;
           for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["type"].asStringRef() == "video"){
+            if (videoID == -1 && objIt->second["type"].asString() == "video"){
               videoID = objIt->second["trackid"].asInt();
             }
-            if (audioID == -1 && objIt->second["type"].asStringRef() == "audio"){
+            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
               audioID = objIt->second["trackid"].asInt();
             }
-          }
-          if (videoID != -1 && !isMP3){
-            byterate += Strm.getTrackById(videoID)["bps"].asInt();
           }
           if (audioID != -1){
             byterate += Strm.getTrackById(audioID)["bps"].asInt();
@@ -162,39 +153,14 @@ namespace Connector_HTTP {
           while (Strm.parsePacket(ss.Received())){
             if ( !progressive_has_sent_header){
               HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-              if (!isMP3){
-                HTTP_S.SetHeader("Content-Type", "video/x-flv"); //Send the correct content-type for FLV files
-              }else{
-                HTTP_S.SetHeader("Content-Type", "audio/mpeg"); //Send the correct content-type for MP3 files
-              }
+              HTTP_S.SetHeader("Content-Type", "audio/mpeg"); //Send the correct content-type for MP3 files
               //HTTP_S.SetHeader("Transfer-Encoding", "chunked");
               HTTP_S.protocol = "HTTP/1.0";
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
-              if ( !isMP3){
-                conn.SendNow(FLV::Header, 13); //write FLV header
-                //write metadata
-                tag.DTSCMetaInit(Strm, Strm.getTrackById(videoID), Strm.getTrackById(audioID));
-                conn.SendNow(tag.data, tag.len);
-                //write video init data, if needed
-                if (videoID != -1 && Strm.getTrackById(videoID).isMember("init")){
-                  tag.DTSCVideoInit(Strm.getTrackById(videoID));
-                  conn.SendNow(tag.data, tag.len);
-                }
-                //write audio init data, if needed
-                if (audioID != -1 && Strm.getTrackById(audioID).isMember("init")){
-                  tag.DTSCAudioInit(Strm.getTrackById(audioID));
-                  conn.SendNow(tag.data, tag.len);
-                }
-              }
               progressive_has_sent_header = true;
             }
-            if ( !isMP3){
-              tag.DTSCLoader(Strm);
-              conn.SendNow(tag.data, tag.len); //write the tag contents
-            }else{
-              if(Strm.lastType() == DTSC::AUDIO){
-                conn.SendNow(Strm.lastData()); //write the MP3 contents
-              }
+            if(Strm.lastType() == DTSC::AUDIO){
+              conn.SendNow(Strm.lastData()); //write the MP3 contents
             }
           }
         }else{
@@ -219,11 +185,11 @@ int main(int argc, char ** argv){
   JSON::Value capa;
   capa["desc"] = "Enables HTTP protocol progressive streaming.";
   capa["deps"] = "HTTP";
-  capa["url_rel"] = "/$.flv";
-  capa["url_match"] = "/$.flv";
+  capa["url_rel"] = "/$.mp3";
+  capa["url_match"] = "/$.mp3";
   capa["url_handler"] = "http";
-  capa["url_type"] = "flash/7";
-  capa["socket"] = "http_progressive";
+  capa["url_type"] = "mp3";
+  capa["socket"] = "http_progressive_mp3";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   
@@ -232,7 +198,7 @@ int main(int argc, char ** argv){
     return -1;
   }
   
-  Socket::Server server_socket = Socket::Server("/tmp/mist/http_progressive");
+  Socket::Server server_socket = Socket::Server("/tmp/mist/http_progressive_mp3");
   if ( !server_socket.connected()){
     return 1;
   }

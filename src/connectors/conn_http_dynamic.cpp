@@ -344,7 +344,7 @@ int main(int argc, char ** argv){
   capa["url_rel"] = "/dynamic/$/manifest.f4m";
   capa["url_prefix"] = "/dynamic/$/";
   capa["url_handler"] = "http";
-  capa["url_type"] = "flash";
+  capa["url_type"] = "flash/11";
   capa["socket"] = "http_dynamic";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);

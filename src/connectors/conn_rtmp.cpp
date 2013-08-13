@@ -666,7 +666,7 @@ int main(int argc, char ** argv){
   capa["deps"] = "";
   capa["url_rel"] = "/play/$";
   capa["url_handler"] = "rtmp";
-  capa["url_type"] = "flash";
+  capa["url_type"] = "flash/10";
   conf.addConnectorOptions(1935, capa);
   conf.parseArgs(argc, argv);
   if (conf.getBool("json")){

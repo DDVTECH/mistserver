@@ -14,8 +14,15 @@
 ///then outputs the raw stream to stdout.
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
+  JSON::Value capa;
+  conf.addBasicConnectorOptions(capa);
   conf.addOption("stream_name", JSON::fromString("{\"arg_num\":1, \"help\":\"Name of the stream to write to stdout.\"}"));
   conf.parseArgs(argc, argv);
+
+  if (conf.getBool("json")){
+    std::cout << "null" << std::endl;
+    return -1;
+  }
 
   //connect to the proper stream
   Socket::Connection S = Util::Stream::getStream(conf.getString("stream_name"));

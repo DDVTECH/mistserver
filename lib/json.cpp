@@ -52,6 +52,7 @@ std::string JSON::Value::read_string(int separator, std::istream & fromstream){
           out += (char)c;
           break;
       }
+      escaped = false;
     }else{
       if (c == separator){
         return out;
@@ -613,7 +614,7 @@ std::string JSON::Value::toString(){
         ObjIter it3 = ObjEnd();
         --it3;
         for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
-          tmp2 += "\"" + it2->first + "\":";
+          tmp2 += string_escape(it2->first)+":";
           tmp2 += it2->second.toString();
           if (it2 != it3){
             tmp2 += ",";
@@ -676,7 +677,7 @@ std::string JSON::Value::toPrettyString(int indentation){
         ObjIter it3 = ObjEnd();
         --it3;
         for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
-          tmp2 += (shortMode ? std::string("") : std::string(indentation + 2, ' ')) + "\"" + it2->first + "\":";
+          tmp2 += (shortMode ? std::string("") : std::string(indentation + 2, ' ')) + string_escape(it2->first) + ":";
           tmp2 += it2->second.toPrettyString(indentation + 2);
           if (it2 != it3){
             tmp2 += "," + std::string((shortMode ? " " : "\n"));
@@ -859,8 +860,8 @@ JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigne
       i += 9; //skip 8(an uint64_t)+1 forwards
       uint64_t * d = (uint64_t*)tmpdbl;
       return JSON::Value((long long int) *d);
-    }
       break;
+    }
     case 0x02: { //string
       if (i+4 >= len){
         return JSON::Value();
@@ -872,8 +873,8 @@ JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigne
       }
       i += tmpi + 5; //skip length+size+1 forwards
       return JSON::Value(tmpstr);
-    }
       break;
+    }
     case 0xFF: //also object
     case 0xE0: { //object
       ++i;
@@ -889,8 +890,8 @@ JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigne
       }
       i += 3; //skip 0x0000EE
       return ret;
-    }
       break;
+    }
     case 0x0A: { //array
       JSON::Value ret;
       ++i;
@@ -899,8 +900,8 @@ JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigne
       }
       i += 3; //skip 0x0000EE
       return ret;
-    }
       break;
+    }
   }
 #if DEBUG >= 2
   fprintf(stderr, "Error: Unimplemented DTMI type %hhx, @ %i / %i - returning.\n", data[i], i, len);

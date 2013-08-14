@@ -590,6 +590,7 @@
                       $(this).val('');
                     }
                   }
+                  }
                 }
               });
               //check if all uints are actually uints

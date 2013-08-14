@@ -100,6 +100,10 @@
     clearInterval(pinterval);
     clearInterval(logsinterval);
     
+    $('#page').removeClass('LTS-only');
+    $('#page').off('mouseenter mouseleave');
+    removeTooltip();
+    
     switch(name)
     {
       case 'login':
@@ -522,7 +526,7 @@
           
           $selectprotocol = $('<select>').attr('id', 'edit-protocol').change(function()
           {
-            buildProtocolFields($(this).children(':selected').val());						 
+            buildProtocolFields($(this).children(':selected').val());
           });
           for(protocol in settings.settings.capabilities.connectors)
           {
@@ -542,11 +546,11 @@
             $('<label>').attr('for', 'protocol-edit-protocol').text('protocol').append(
               $selectprotocol
             )
-          );		
+          );
           
           $('#page').append( $div );
           $('#editprotocol').append( $('<div>').attr('id','protocoldesc') );
-          $('#editprotocol').append( $('<div>').attr('id', 'protocolfields') );
+          $('#editprotocol').append( $('<div>').attr('id','protocolfields') );
           $('#editprotocol').append(
             $('<button>').text('cancel').addClass('floatright').click(function()
             {
@@ -570,17 +574,19 @@
               
               $('input[type="number"]').each(function()
               { 
-                //make sure this is a number
-                if (isNaN($(this).val())) 
-                {
-                  $(this).focus();
-                  $(this).parent().addClass('red');
-                  error = true;
-                }
-                else
-                {
-                  //turn all numbers into integers
-                  $(this).val(Math.floor($(this).val()));
+                if ($(this).val() != '') {
+                  //make sure this is a number
+                  if (isNaN($(this).val())) 
+                  {
+                    $(this).focus();
+                    $(this).parent().addClass('red');
+                    error = true;
+                  }
+                  else
+                  {
+                    //turn all numbers into integers
+                    $(this).val(Math.floor($(this).val()));
+                  }
                 }
               });
               //check if all uints are actually uints
@@ -884,73 +890,48 @@
             )
           ).append(
             $('<label>').attr('for', 'stream-edit-source').text('source').append(
-              $('<input>').attr('type', 'text').attr('placeholder', 'SOURCE').attr('id', 'stream-edit-source').attr('value', sdata.source).keyup(function()
-              {
+              $('<input>').attr('type', 'text').attr('placeholder', '/path/name.dtsc or push://host/name').attr('id', 'stream-edit-source').attr('value', sdata.source).keyup(function(){
                 var text = $(this).val();
-                
-                /*
-                if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
-                {
-                  $('#stream-edit-preset').val('');
-                  $('#stream-edit-preset').hide();
-                  $('#stream-edit-preset-label').hide();
-                }else{
-                  $('#stream-edit-preset').show();
-                  $('#stream-edit-preset-label').show();
+                if(text.charAt(0) == '/'){
+                  $('.live-only').hide();
+                  $('.live-only').children('label').children('input').val('');
                 }
-                */
-                
-                if(text.charAt(0) == '/')
-                {
-                  $('#stream-edit-buffer').val('');
-                  $('#stream-edit-buffer').hide();
-                  $('#stream-edit-buffer-label').hide();
-                }else{
-                  $('#stream-edit-buffer').show();
-                  $('#stream-edit-buffer-label').show();
+                else{
+                  $('.live-only').show();
                 }
               })
             )
           )
-          /*.append(
-            $('<label>').attr('id', 'stream-edit-preset-label').attr('for', 'stream-edit-preset').text('preset').append(
-              $('<input>').attr('type', 'text').attr('placeholder', 'PRESET').attr('id', 'stream-edit-preset').attr('value', sdata.preset.cmd)
-            )
-          ) */
         );
         
-        if (sdata.DVR == undefined) 
-        {
-          var DVR = '';
-        } else {
-          var DVR = sdata.DVR;
-        }
+        // BUFFER
+        if (sdata.DVR == undefined) { var DVR = ''; } else { var DVR = sdata.DVR; }
         $('#editserver').append(
-          $('<label>').attr('id','stream-edit-buffer-label').attr('for','stream-edit-buffer').attr('title','Only applies to live streams').text('Buffer time [ms]').append(
-           $('<input>').attr('type','text').attr('placeholder','2 keyframes').attr('id','stream-edit-buffer').attr('value', DVR)
+          $('<span>').addClass('live-only').append(
+            $('<label>').attr('id','stream-edit-buffer-label').attr('for','stream-edit-buffer').attr('title','Only applies to live streams').text('Buffer time [ms]').append(
+             $('<input>').attr('type','text').attr('placeholder','2 keyframes').attr('id','stream-edit-buffer').attr('value', DVR)
+            )
           )
         );
         
-        // if the source is push or file, don't do a preset
+        // RECORD
+        if (sdata.record == undefined) { var record = ''; } else { var record = sdata.record; }
+        $('#editserver').append(
+          $('<span>').addClass('live-only').addClass('LTS-only').append(
+            $('<label>').attr('id','stream-edit-record-label').attr('for','stream-edit-record').attr('title','Only applies to live streams').text('Record to:').append(
+             $('<input>').attr('type','text').attr('placeholder','2 keyframes').attr('id','stream-edit-record').attr('value', record).attr('placeholder','/path/to/filename.dtsc')
+            )
+          )
+        );
+        
         var text = $('#stream-edit-source').val();
-        /*
-        if(text.charAt(0) == '/' || text.substr(0, 7) == 'push://')
-        {
-          $('#stream-edit-preset').hide();
-          $('#stream-edit-preset-label').hide();
-        }else{
-          $('#stream-edit-preset').show();
-          $('#stream-edit-preset-label').show();
-        } */
-        //if the source is not live, don't do DVR buffer time
+        //if the source is not live, show any stuff marked as live-only
         if(text.charAt(0) == '/')
         {
-          $('#stream-edit-buffer').val('');
-          $('#stream-edit-buffer').hide();
-          $('#stream-edit-buffer-label').hide();
+          $('.live-only').hide();
+          $('.live-only').children('label').children('input').val('');
         }else{
-          $('#stream-edit-buffer').show();
-          $('#stream-edit-buffer-label').show();
+          $('.live-only').show();
         }
         
         $('#editserver').append(
@@ -979,6 +960,7 @@
             var s = $('#stream-edit-source');
             var p = $('#stream-edit-preset');
             var b = $('#stream-edit-buffer');
+            var r = $('#stream-edit-record');
             
             if(n.val() == ''){ n.focus(); return; }
             if(s.val() == ''){ s.focus(); return; }
@@ -991,6 +973,7 @@
             sdata.preset.cmd = p.val();
             sdata.online = -1;
             sdata.error = null;
+            sdata.record = r.val();
             if (b.val() != '') { sdata.DVR = b.val(); }
             
             if(streamname == 'new')
@@ -1068,10 +1051,12 @@
         break;
         
       case 'limits':
-        if (settings.settings.LTS != 1) {
+        /*if (settings.settings.LTS != 1) {
           $('#page').html('Limits are not supported in your version. Buy the LTS! :)');
           return;
-        } 
+        } */
+        $cont = $('<span>').addClass('LTS-only');
+        $('#page').append($cont);
       
         $table = $('<table>');
         $table.html("<thead><th>Hard/soft</th><th>Type</th><th>Value</th><th>Applies to</th><th>Action</th></thead>");
@@ -1111,7 +1096,7 @@
         }
          
         $table.append($tbody);
-        $('#page').append($table); 
+        $cont.append($table); 
         
         //tooltip
         $('.limits_type').live({
@@ -1148,7 +1133,7 @@
         });
         
         //build buttons
-        $('#page').append(
+        $cont.append(
           $('<button>').text('Add limit').click(function(){
            $tbody.append(BuildLimitRow({"name":"kbps_max", "val":0, "type":"soft"}));
           })
@@ -1537,5 +1522,17 @@
     //placeholder for older browsers
     $('input[placeholder]').placeholder();
     
+    if (settings.settings.LTS != 1) {
+      $('.LTS-only input').add('.LTS-only select').add('.LTS-only button').attr('disabled','disabled');
+      $('.LTS-only').hover(function(e){
+        removeTooltip();
+        showTooltip(e,undefined,'This is feature is only available in the LTS version.');
+      },function(){
+        removeTooltip();
+      });
+      
+      $('.LTS-only').add('.LTS-only p').add('.LTS-only label').add('.LTS-only button').css('color','#b4b4b4');
+    }
   }
+
 

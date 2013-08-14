@@ -346,7 +346,7 @@
             delete data.statistics;   // same goes for the stats
             
             //IE breaks if the console isn't opened, so keep commented when committing
-            //console.log('[763] SEND', data);
+            console.log('[763] SEND', data);
 
             $.ajax(
             {

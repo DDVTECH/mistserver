@@ -155,15 +155,15 @@ namespace Converters {
                     ase.setChannelCount(2);
                     ase.setSampleSize(it->second["size"].asInt());
                       MP4::ESDS esdsBox;
-                      esdsBox.setESDescriptorTypeLength(37);
+                      esdsBox.setESDescriptorTypeLength(32+it->second["init"].asString().size());
                       esdsBox.setESID(2);
                       esdsBox.setStreamPriority(0);
-                      esdsBox.setDecoderConfigDescriptorTypeLength(23);
+                      esdsBox.setDecoderConfigDescriptorTypeLength(18+it->second["init"].asString().size());
                       esdsBox.setByteObjectTypeID(0x40);
                       esdsBox.setStreamType(5);
                       esdsBox.setReservedFlag(1);
                       esdsBox.setBufferSize(1250000);
-                      esdsBox.setMaximumBitRate(10000000);
+                      esdsBox.setMaximumBitRate(it->second["bps"].asInt() * 8);
                       esdsBox.setAverageBitRate(it->second["bps"].asInt() * 8);
                       esdsBox.setConfigDescriptorTypeLength(5);
                       esdsBox.setESHeaderStartCodes(it->second["init"].asString());
@@ -231,8 +231,8 @@ namespace Converters {
                 stcoBox.setVersion(0);
                 total = 0;
                 //Inserting wrong values on purpose here, will be fixed later.
-                for (int i = 0; i < it->second["keys"].size(); i++){
-                  for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
+                for (unsigned int i = 0; i < it->second["keys"].size(); i++){
+                  for (unsigned int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
                     stcoBox.setChunkOffset(it->second["keys"][i]["parts"][o].asInt(), total);
                     total++;
                   }
@@ -284,6 +284,7 @@ namespace Converters {
         }
         
         //std::cerr << std::string(checkStcoBox.asBox(),checkStcoBox.boxedSize()) << std::endl;
+        //editing STCO box
         for (unsigned int o = 0; o < checkStcoBox.getEntryCount(); o++){
           uint64_t temp;
           temp = checkStcoBox.getChunkOffset(o);
@@ -293,7 +294,7 @@ namespace Converters {
       }
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());
 
-    //mdat box alot
+    //mdat box a lot
     //video
     //while() 
     //for(input.seekNext(); input.getJSON(); input.seekNext())

@@ -20,6 +20,8 @@ bin_PROGRAMS+=MistConnHTTPProgressiveFLV
 bin_PROGRAMS+=MistConnHTTPProgressiveMP3 
 bin_PROGRAMS+=MistConnHTTPProgressiveMP4 
 bin_PROGRAMS+=MistConnHTTPProgressiveOGG 
+bin_PROGRAMS+=MistConnHTTPSRT
+bin_PROGRAMS+=MistConnHTTPJSON
 bin_PROGRAMS+=MistConnHTTPDynamic 
 bin_PROGRAMS+=MistConnHTTPSmooth 
 bin_PROGRAMS+=MistConnHTTPLive 
@@ -61,10 +63,12 @@ MistConnHTTPProgressiveFLV_SOURCES=connectors/conn_http_progressive_flv.cpp ../V
 MistConnHTTPProgressiveMP3_SOURCES=connectors/conn_http_progressive_mp3.cpp ../VERSION
 MistConnHTTPProgressiveMP4_SOURCES=connectors/conn_http_progressive_mp4.cpp ../VERSION
 MistConnHTTPProgressiveOGG_SOURCES=connectors/conn_http_progressive_ogg.cpp ../VERSION
-MistConnHTTPDynamic_SOURCES=connectors/conn_http_dynamic.cpp ../VERSION
+MistConnHTTPSRT_SOURCES=connectors/conn_http_srt.cpp ../VERSIONMistConnHTTPDynamic_SOURCES=connectors/conn_http_dynamic.cpp ../VERSION
 MistConnHTTPSmooth_SOURCES=connectors/conn_http_smooth.cpp ../VERSION
 MistConnHTTPLive_SOURCES=connectors/conn_http_live.cpp ../VERSION
 MistConnTS_SOURCES=connectors/conn_ts.cpp ../VERSION
+MistConnHTTPSRT_SOURCES=connectors/conn_http_srt.cpp ../VERSION
+MistConnHTTPJSON_SOURCES=connectors/conn_http_json.cpp ../VERSION
 
 #converters directory (Mist*2*)
 MistDTSC2FLV_SOURCES=converters/dtsc2flv.cpp

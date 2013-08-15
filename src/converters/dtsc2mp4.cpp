@@ -300,7 +300,7 @@ namespace Converters {
       }
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());
 
-    //mdat box alot
+    //mdat box a lot
     //video
     //while() 
     //for(input.seekNext(); input.getJSON(); input.seekNext())

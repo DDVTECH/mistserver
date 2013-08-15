@@ -2516,7 +2516,10 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "DecoderDescriptorTypeTag: 0x" << std::hex << (int)getDecoderDescriptorTypeTag() << std::dec << std::endl;
     r << std::string(indent + 1, ' ') << "ExtendedDecoderDescriptorTypeTag: 0x" << std::hex << (int)getExtendedDecoderDescriptorTypeTag() << std::dec << std::endl;
     r << std::string(indent + 1, ' ') << "ConfigDescriptorTypeLength: 0x" << std::hex << (int)getConfigDescriptorTypeLength() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "ESHeaderStartCodes: " << getESHeaderStartCodes() << std::endl;
+    r << std::string(indent + 1, ' ') << "ESHeaderStartCodes: 0x";
+    for (unsigned int i = 0; i<getESHeaderStartCodes().size(); i++){
+      r << std::hex << (int)getESHeaderStartCodes()[i] << std::dec << std::endl;
+    }
     r << std::string(indent + 1, ' ') << "SLConfigDescriptorTypeTag: 0x" << std::hex << (int)getSLConfigDescriptorTypeTag() << std::dec << std::endl;
     r << std::string(indent + 1, ' ') << "SLConfigExtendedDescriptorTypeTag: 0x" << std::hex << (int)getSLConfigExtendedDescriptorTypeTag() << std::dec << std::endl;
     r << std::string(indent + 1, ' ') << "SLDescriptorTypeLength: 0x" << std::hex << (int)getSLDescriptorTypeLength() << std::dec << std::endl;

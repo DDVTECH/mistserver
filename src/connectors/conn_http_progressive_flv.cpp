@@ -207,7 +207,7 @@ int main(int argc, char ** argv){
   capa["url_match"] = "/$.flv";
   capa["url_handler"] = "http";
   capa["url_type"] = "flash/7";
-  capa["socket"] = "http_progressive";
+  capa["socket"] = "http_progressive_flv";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

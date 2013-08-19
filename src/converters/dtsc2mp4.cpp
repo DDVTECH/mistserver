@@ -255,6 +255,7 @@ namespace Converters {
       //initial offset lengte ftyp, length moov + 8
       unsigned long long int byteOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
       //update all STCO
+      std::map <int, MP4::STCO&> STCOFix; 
       //for tracks
       for (unsigned int i = 1; i < moovBox.getContentCount(); i++){
         //10 lines to get the STCO box.
@@ -262,7 +263,6 @@ namespace Converters {
         MP4::MDIA checkMdiaBox;
         MP4::MINF checkMinfBox;
         MP4::STBL checkStblBox;
-        MP4::STCO checkStcoBox;
         checkTrakBox = ((MP4::TRAK&)moovBox.getContent(i));
         for (int j = 0; j < checkTrakBox.getContentCount(); j++){
           if (checkTrakBox.getContent(j).isType("mdia")){
@@ -284,22 +284,28 @@ namespace Converters {
         }
         for (int j = 0; j < checkStblBox.getContentCount(); j++){
           if (checkStblBox.getContent(j).isType("stco")){
-            checkStcoBox = ((MP4::STCO&)checkStblBox.getContent(j));
+            std::cerr << "Part 1: " << ((MP4::TKHD&)(checkTrakBox.getContent(0))).getTrackID();
+            std::cerr << " Part 2: " << ((MP4::STCO&)(checkStblBox.getContent(j))).getEntryCount() << std::endl;
+            STCOFix.insert( std::pair<int, MP4::STCO&>(((MP4::TKHD&)(checkTrakBox.getContent(0))).getTrackID(),(MP4::STCO&)(checkStblBox.getContent(j))));
             break;
           }
         }
-        
-        //std::cerr << std::string(checkStcoBox.asBox(),checkStcoBox.boxedSize()) << std::endl;
-        //editing STCO box
-        for (unsigned int o = 0; o < checkStcoBox.getEntryCount(); o++){
-          uint64_t temp;
-          temp = checkStcoBox.getChunkOffset(o);
-          checkStcoBox.setChunkOffset(byteOffset, o);
-          byteOffset += temp;
-        }
       }
+    
+    std::cerr << "Ik ben hier" << std::endl;
+    for (std::map<int, MP4::STCO&>::iterator i = STCOFix.begin(); i != STCOFix.end(); i++){
+      std::cerr << "Hier wil ik heen: " << i->first << ", " << i->second.getEntryCount() << std::endl;
+      std::cerr << (i->second).boxedSize() << std::endl;
+      for (unsigned int o = 0; o < i->second.getEntryCount(); o++){
+        //std::cerr <<  " " << o ;
+        uint64_t temp;
+        temp = i->second.getChunkOffset(o);
+        i->second.setChunkOffset(byteOffset, o);
+        byteOffset += temp;
+      }
+    }
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());
-
+    //end of header
     //mdat box a lot
     //video
     //while() 

@@ -924,7 +924,7 @@ bool DTSC::File::seek_time(int ms, int trackNo){
     }
   }
   currentPositions.insert(tmpPos);
-  fprintf(stderr,"Seek_time to %d on track %d, time %d on track %d found\n", ms, trackNo, tmpPos.seekTime,tmpPos.trackID);
+  //fprintf(stderr,"Seek_time to %d on track %d, time %d on track %d found\n", ms, trackNo, tmpPos.seekTime,tmpPos.trackID);
 }
 
 /// Attempts to seek to the given time in ms within the file.

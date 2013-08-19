@@ -2464,35 +2464,35 @@ namespace MP4 {
   }
   
   char ESDS::getSLConfigDescriptorTypeTag(){
-    return getInt16(34 + getInt8(34));  
+    return getInt16(35 + getInt8(34));  
   }
   
   void ESDS::setSLConfigDescriptorTypeTag(char newVal){
-    setInt16(newVal, 34 + getInt8(34));
+    setInt16(newVal, 35 + getInt8(34));
   }
   
   uint32_t ESDS::getSLConfigExtendedDescriptorTypeTag(){
-    return getInt24(36 + getInt8(34));  
+    return getInt24(37 + getInt8(34));  
   }
   //3 bytes
   void ESDS::setSLConfigExtendedDescriptorTypeTag(uint32_t newVal){
-    setInt24(newVal, 36 + getInt8(34));
+    setInt24(newVal, 37 + getInt8(34));
   }
   //3 bytes
   char ESDS::getSLDescriptorTypeLength(){
-    return getInt8(39 + getInt8(34));
-  }
-  
-  void ESDS::setSLDescriptorTypeLength(char newVal){
-    setInt8(newVal, 39 + getInt8(34));
-  }
-  
-  char ESDS::getSLValue(){
     return getInt8(40 + getInt8(34));
   }
   
-  void ESDS::setSLValue(char newVal){
+  void ESDS::setSLDescriptorTypeLength(char newVal){
     setInt8(newVal, 40 + getInt8(34));
+  }
+  
+  char ESDS::getSLValue(){
+    return getInt8(41 + getInt8(34));
+  }
+  
+  void ESDS::setSLValue(char newVal){
+    setInt8(newVal, 41 + getInt8(34));
   }
   
   std::string ESDS::toPrettyString(uint32_t indent){

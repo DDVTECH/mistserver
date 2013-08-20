@@ -2,6 +2,7 @@
 /// Contains the code that will transform any valid DTSC input into valid MP4s.
 
 #include <iostream>
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -17,7 +18,27 @@
 
 ///\brief Holds everything unique to converters.
 namespace Converters {
-
+  struct keyPart{
+    long long int trackID;
+    long long int size;
+    long long int time;
+    long long int len;
+    JSON::Value parts;
+  };
+  
+  
+  bool keyPartSort(keyPart i, keyPart j){
+    return (i.time < j.time);
+  }
+  
+  struct mdatBuffer{
+    long long int trackID;
+    long long int curLength;
+    std::string buffer;
+  };
+  
+  
+  
   ///\brief Converts DTSC from file to MP4 on stdout.
   ///\return The return code for the converter.
   int DTSC2MP4(Util::Config & conf){
@@ -54,7 +75,24 @@ namespace Converters {
       mvhdBox.setMatrix(0x40000000,8);
       moovBox.setContent(mvhdBox, 0);
       
-      //start arbitrary track addition
+      //calculate interleaving
+      //putting all metadata in a huge vector
+      std::vector <keyPart> keyParts;
+      for (JSON::ObjIter trackIt = input.getMeta()["tracks"].ObjBegin(); trackIt != input.getMeta()["tracks"].ObjEnd(); trackIt++){
+        for (unsigned int keyIt = 0; keyIt != trackIt->second["keys"].size(); keyIt++){
+          keyPart temp;
+          temp.trackID = trackIt->second["trackid"].asInt();
+          temp.size = trackIt->second["keys"][keyIt]["size"].asInt();
+          temp.time = trackIt->second["keys"][keyIt]["time"].asInt();
+          temp.len = trackIt->second["keys"][keyIt]["len"].asInt();
+          temp.parts = trackIt->second["keys"][keyIt]["parts"];
+          keyParts.push_back(temp);
+        }
+      }
+      //sort by time on keyframes for interleaving
+      std::sort(keyParts.begin(), keyParts.end(), keyPartSort);
+      
+      //start arbitrary track addition for header
       int boxOffset = 1;
       input.getMeta()["tracks"]["audio0"] = input.getMeta()["audio"];
       input.getMeta()["tracks"]["audio0"]["type"] = "audio";
@@ -236,11 +274,24 @@ namespace Converters {
                 MP4::STCO stcoBox;
                 stcoBox.setVersion(0);
                 total = 0;
+                uint64_t totalByteOffset = 0;
                 //Inserting wrong values on purpose here, will be fixed later.
-                for (unsigned int i = 0; i < it->second["keys"].size(); i++){
+                //Current values are actual byte offset without header-sized offset
+                /*for (unsigned int i = 0; i < it->second["keys"].size(); i++){
                   for (unsigned int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
                     stcoBox.setChunkOffset(it->second["keys"][i]["parts"][o].asInt(), total);
                     total++;
+                  }
+                }*/
+                for (unsigned int i = 0; i < keyParts.size(); i++){//for all keypart size
+                  if(keyParts[i].trackID == it->second["trackid"].asInt()){//if keypart is of current trackID
+                    for (unsigned int o = 0; o < keyParts[i].parts.size(); o++){//add all parts to STCO
+                      stcoBox.setChunkOffset(totalByteOffset, total);
+                      total++;
+                      totalByteOffset += keyParts[i].parts[o].asInt();
+                    }
+                  }else{
+                    totalByteOffset += keyParts[i].size;
                   }
                 }
                 stblBox.setContent(stcoBox,4 + offset);
@@ -290,9 +341,13 @@ namespace Converters {
             break;
           }
         }
+        //got the STCO box, fixing values with MP4 header offset
+        for (int j = 0; j < checkStcoBox.getEntryCount(); j++){
+          checkStcoBox.setChunkOffset(checkStcoBox.getChunkOffset(j) + byteOffset, j);
+        }
       }
     
-    std::cerr << "Ik ben hier" << std::endl;
+    /*std::cerr << "Ik ben hier" << std::endl;
     for (std::map<int, MP4::STCO&>::iterator i = STCOFix.begin(); i != STCOFix.end(); i++){
       std::cerr << "Hier wil ik heen: " << i->first << ", " << i->second.getEntryCount() << std::endl;
       std::cerr << (i->second).boxedSize() << std::endl;
@@ -303,7 +358,7 @@ namespace Converters {
         i->second.setChunkOffset(byteOffset, o);
         byteOffset += temp;
       }
-    }
+    }*/
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());
     //end of header
     //mdat box a lot
@@ -339,7 +394,7 @@ namespace Converters {
     printf("%c%c%c%cmdat", (mdatSize>>24) & 0x000000FF,(mdatSize>>16) & 0x000000FF,(mdatSize>>8) & 0x000000FF,mdatSize & 0x000000FF);
     for (unsigned int x = 0; x < dataParts.size(); x++){
       std::cout << dataParts[x];
-    }
+    }*/
     return 0;
   } //DTSC2MP4
 

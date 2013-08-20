@@ -126,7 +126,8 @@ namespace Connector_HTTP {
 
           if (Strm.metadata["tracks"].size()){
             for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-              if ( objIt->second["type"].asStringRef() != "video" && objIt->second["type"].asStringRef() != "audio"){
+              if ( objIt->second["type"].asStringRef() == "meta" ){
+                std::cout << "selecting track " << objIt->second["trackid"].asInt() << std::endl;
                 cmd << " " <<  objIt->second["trackid"].asInt();
               }
             }
@@ -141,7 +142,7 @@ namespace Connector_HTTP {
           
           cmd << "\ns " << seek_sec << "\np " << maxTime << "\n";
           ss.SendNow(cmd.str().c_str(), cmd.str().size());
-          
+          std::cout << "sending command " << cmd.str() << std::endl;
           inited = true;
         
 
@@ -160,7 +161,7 @@ namespace Connector_HTTP {
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
               
-              if(Strm.lastType() != DTSC::PAUSEMARK){
+              if(Strm.lastType() == DTSC::META){
                 if(jsondata.str().length() > 1)
                 {
                   jsondata << ",";
@@ -168,7 +169,7 @@ namespace Connector_HTTP {
                 
                 jsondata << Strm.getPacket().toString();
                 
-              }else{
+              }else if(Strm.lastType() == DTSC::PAUSEMARK){
                 HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
                 HTTP_S.SetHeader("Content-Type", "application/json"); //Send the correct content-type for FLV files
                 jsondata << "]";

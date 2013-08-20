@@ -19,6 +19,28 @@ function mistembed(streamname)
     return parseInt(version, 10);
   };
 
+  // return true if silverlight is installed
+  function silverlight_installed()
+  {
+    var plugin;
+    
+    try
+    {
+      // check in the mimeTypes
+      plugin = navigator.plugins["Silverlight Plug-In"];
+      return true;
+    }catch(e){}
+    try
+    {
+      // for our special friend IE
+      plugin = new ActiveXObject('AgControl.AgControl');
+      return true;
+    }catch(e){}
+
+    return false;
+  };
+
+  // return true if the browser thinks it can play the mimetype
   function html5_video_type(type)
   {
     var support = false;
@@ -29,7 +51,7 @@ function mistembed(streamname)
 
       if( v && v.canPlayType(type) != "" )
       {
-        support = true;
+        support = true; // true-ish, anyway
       }
     }catch(e){}
 
@@ -39,24 +61,37 @@ function mistembed(streamname)
   // what does the browser support - used in hasSupport()
   supports =
   {
-    flashversion:	flash_version(),
+    flashversion:	                flash_version(),
     hls:				html5_video_type('application/vnd.apple.mpegurl'),
-    ism:				html5_video_type('application/vnd.ms-ss')
-  };
+    ism_html5:                          html5_video_type('application/vnd.ms-ss'),
+    ism:				html5_video_type('application/vnd.ms-ss') || silverlight_installed(),
+    mp4:                                html5_video_type('video/mp4'),
+    ogg:                                html5_video_type('video/ogg')
+  }
 
   // return true if a type is supported
   function hasSupport(type)
   {
     switch(type)
     {
-      case 'f4v':		return supports.flashversion >= 11;		break;
-      case 'rtmp':	return supports.flashversion >= 10;		break;
-      case 'flv':		return supports.flashversion >= 7;		break;
-
+      case 'flash':             return supports.flashversion != 0;                                      break;
       case 'hls':		return supports.hls;							break;
       case 'ism':		return supports.ism;							break;
+      case 'mp4':               return supports.mp4;                                                    break;
+      case 'ogg':               return supports.ogg;                                                    break;
 
-      default:			return false;
+      default:
+        // check for flash/# type
+        var flashver = parseInt( type.replace('flash/', ''), 10);
+
+        if( flashver != NaN )
+        {
+          return supports.flashversion >= flashver;
+        }
+        
+        // unknown type
+        return false;
+      break;
     }
   };
 
@@ -86,29 +121,92 @@ function mistembed(streamname)
       videoheight /= ratio;
     }
 
-    // if the video type is 'live', 
-    lappend = vtype == 'live' ? "&streamType=live" : "";
-
-    switch(src.type)
+    var flashplayer,
+        url = encodeURIComponent(src.url) + '&controlBarMode=floating&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3' + (vtype == 'live' ? "&streamType=live" : ""),
+        maintype = src.type.split('/');
+    
+    switch(maintype[0])
     {
-      case 'f4v':
-      case 'rtmp':
-      case 'flv':
-        container.innerHTML = '<object width="' + videowidth + '" height="' + videoheight + '"><param name="movie" value="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf"></param><param name="flashvars" value="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10' + lappend + '"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + videowidth + '" height="' + videoheight + '" flashvars="src=' + encodeURI(src.url) + '&controlBarMode=floating&expandedBufferTime=4&minContinuousPlaybackTime=10' + lappend + '"></embed></object>';
+      case 'flash':
+        
+        // maintype[1] is already checked (i.e. user has version > maintype[1])
+        if( parseInt(maintype[1], 10) >= 10 )
+        {
+          flashplayer = 'http://fpdownload.adobe.com/strobe/FlashMediaPlayback_101.swf';
+        }else{
+          flashplayer = 'http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf';
+        }
+        
+        container.innerHTML = '<object width="' + videowidth + '" height="' + videoheight + '">' +
+                                '<param name="movie" value="' + flashplayer + '"></param>' + 
+                                '<param name="flashvars" value="src=' + url + '"></param>' +
+                                '<param name="allowFullScreen" value="true"></param>' +
+                                '<param name="allowscriptaccess" value="always"></param>' + 
+                                '<param name="wmode" value="direct"></param>' +
+                                '<embed src="' + flashplayer + '" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + videowidth + '" height="' + videoheight + '" flashvars="src=' + url + '"></embed>' + 
+                              '</object>';
       break;
 
-
-      case 'hls':
       case 'ism':
+        if( supports.ism_html5 )
+        {
+          container.innerHTML = '<video width="' + videowidth + '" height="' + videoheight + '" src="' + encodeURI(src.url) + '" controls="controls" ><strong>No HTML5 video support</strong></video>';
+        }else{
+          container.innerHTML = '<object data="data:application/x-silverlight," type="application/x-silverlight" width="' + videowidth + '" height="' + videoheight + '"><param name="source" value="SmoothStreamingSamplePlayer.xap"/><param name="onerror" value="onSilverlightError" /><param name="autoUpgrade" value="true" /><param name="background" value="white" /><param name="enableHtmlAccess" value="true" /><param name="minRuntimeVersion" value="3.0.40624.0" /><param name="initparams" value =\'autoload=false,autoplay=true,displaytimecode=false,enablecaptions=true,joinLive=true,muted=false,playlist=<playList><playListItems><playListItem title="Test" description="testing" mediaSource="' + encodeURI(src.url) + '" adaptiveStreaming="true" thumbSource="" frameRate="25.0" width="" height=""></playListItem></playListItems></playList>\' /><a href="http://go.microsoft.com/fwlink/?LinkID=124807" style="text-decoration: none;"> <img src="http://go.microsoft.com/fwlink/?LinkId=108181" alt="Get Microsoft Silverlight" style="border-style: none" /></a></object>';
+        }
+      
+      case 'ogg':
+      case 'mp4':
+      case 'hls':
         container.innerHTML = '<video width="' + videowidth + '" height="' + videoheight + '" src="' + encodeURI(src.url) + '" controls="controls" ><strong>No HTML5 video support</strong></video>';
       break;
 
 
       case 'fallback':
         container.innerHTML = '<strong>No support for any player found</strong>';
-      break;
+      break;         
     }
 
+  };
+  
+  
+  // sort the videos
+  function priority_sort( videos )
+  {
+    var i, p,
+        len = videos.length;
+    
+    for( i = 0; i < len; i++ )
+    {
+      switch( videos[i].type.split('/')[0] )
+      {
+        case 'flash':           p = 3;          break;  // we'll rather have something else
+        
+        case 'mp4':
+        case 'ogg':             p = 8;          break;
+        
+        case 'hls':             p = 9;          break;  // hls html5 > other html5
+        
+        case 'ism':
+          if( supports.ism_html5 )
+          {
+            p = 9;
+          }else{
+            p = 2;  // ism is either not supported (in hasSupport), or will play over silverlight (and we rather not have that)
+          }
+        break;
+        
+        default:                p = 0;          break;  // anything else (subtitle and json for example) are not videos
+      }
+      
+      videos[i].priority = p;
+    }
+    
+    // sort (in reverse; highest is [0], lowest is [len])
+    videos.sort(function(a, b)
+    {
+      return b.priority - a.priority;
+    });
   };
 
 
@@ -143,6 +241,8 @@ function mistembed(streamname)
         vtype = (video.type ? video.type : 'unknown'),
         foundPlayer = false,
         len = video.source.length;
+        
+    priority_sort( video.source );
 
     for(i = 0; i < len; i++)
     {

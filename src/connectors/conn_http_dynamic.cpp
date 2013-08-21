@@ -40,7 +40,7 @@ namespace Connector_HTTP {
       }
     }
   }
-
+  
   
   ///\brief Builds a bootstrap for use in HTTP Dynamic streaming.
   ///\param streamName The name of the stream.
@@ -49,7 +49,7 @@ namespace Connector_HTTP {
   ///\return The generated bootstrap.
   std::string dynamicBootstrap(std::string & streamName, JSON::Value & metadata, bool isLive = false, int fragnum = 0){
     std::string empty;
-
+    
     MP4::ASRT asrt;
     asrt.setUpdate(false);
     asrt.setVersion(1);
@@ -59,7 +59,7 @@ namespace Connector_HTTP {
     }else{
       asrt.setSegmentRun(1, metadata["keys"].size(), 0);
     }
-
+    
     MP4::AFRT afrt;
     afrt.setUpdate(false);
     afrt.setVersion(1);
@@ -76,7 +76,7 @@ namespace Connector_HTTP {
         afrt.setFragmentRun(afrtrun, i);
       }
     }
-
+    
     MP4::ABST abst;
     abst.setVersion(1);
     abst.setBootstrapinfoVersion(1);
@@ -89,13 +89,13 @@ namespace Connector_HTTP {
     abst.setMovieIdentifier(streamName);
     abst.setSegmentRunTable(asrt, 0);
     abst.setFragmentRunTable(afrt, 0);
-
-#if DEBUG >= 8
+    
+    #if DEBUG >= 8
     std::cout << "Sending bootstrap:" << std::endl << abst.toPrettyString(0) << std::endl;
-#endif
+    #endif
     return std::string((char*)abst.asBox(), (int)abst.boxedSize());
   }
-
+  
   ///\brief Builds an index file for HTTP Dynamic streaming.
   ///\param streamName The name of the stream.
   ///\param metadata The current metadata, used to generate the index.
@@ -117,44 +117,41 @@ namespace Connector_HTTP {
     }
     for (std::set<std::string>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
       Result << "  <bootstrapInfo "
-                "profile=\"named\" "
-                "id=\"boot" << metadata["tracks"][(*it)]["trackid"].asInt() << "\" "
-                "url=\"" << metadata["tracks"][(*it)]["trackid"].asInt() << ".abst\">"
-                "</bootstrapInfo>" << std::endl;
+      "profile=\"named\" "
+      "id=\"boot" << metadata["tracks"][(*it)]["trackid"].asInt() << "\" "
+      "url=\"" << metadata["tracks"][(*it)]["trackid"].asInt() << ".abst\">"
+      "</bootstrapInfo>" << std::endl;
     }
     for (std::set<std::string>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
       Result << "  <media "
-                "url=\"" << metadata["tracks"][(*it)]["trackid"].asInt() << "-\" "
-                "bitrate=\"" << metadata["tracks"][(*it)]["bps"].asInt() * 8 << "\" "
-                "bootstrapInfoId=\"boot" << metadata["tracks"][(*it)]["trackid"].asInt() << "\" "
-                "width=\"" << metadata["tracks"][(*it)]["width"].asInt() << "\" "
-                "height=\"" << metadata["tracks"][(*it)]["height"].asInt() << "\">" << std::endl;
+      "url=\"" << metadata["tracks"][(*it)]["trackid"].asInt() << "-\" "
+      "bitrate=\"" << metadata["tracks"][(*it)]["bps"].asInt() * 8 << "\" "
+      "bootstrapInfoId=\"boot" << metadata["tracks"][(*it)]["trackid"].asInt() << "\" "
+      "width=\"" << metadata["tracks"][(*it)]["width"].asInt() << "\" "
+      "height=\"" << metadata["tracks"][(*it)]["height"].asInt() << "\">" << std::endl;
       Result << "    <metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>" << std::endl;
       Result << "  </media>" << std::endl;
     }
     Result << "</manifest>" << std::endl;
-#if DEBUG >= 8
+    #if DEBUG >= 8
     std::cerr << "Sending this manifest:" << std::endl << Result.str() << std::endl;
-#endif
+    #endif
     return Result.str();
   } //BuildManifest
-
+  
   ///\brief Main function for the HTTP Dynamic Connector
   ///\param conn A socket describing the connection the client.
   ///\return The exit code of the connector.
   int dynamicConnector(Socket::Connection conn){
-    std::deque<std::string> FlashBuf;
-    int FlashBufSize = 0;
-    long long int FlashBufTime = 0;
     FLV::Tag tmp; //temporary tag
-
+    
     DTSC::Stream Strm; //Incoming stream buffer.
     HTTP::Parser HTTP_R, HTTP_S; //HTTP Receiver en HTTP Sender.
-
+    
     Socket::Connection ss( -1);
     std::string streamname;
     std::string recBuffer = "";
-
+    
     int Quality = 0;
     int Segment = -1;
     int ReqFragment = -1;
@@ -162,23 +159,13 @@ namespace Connector_HTTP {
     long long mslen = 0;
     unsigned int lastStats = 0;
     conn.setBlocking(false); //do not block on conn.spool() when no data is available
-
+    
     while (conn.connected()){
       if (conn.spool() || conn.Received().size()){
-        //make sure it ends in a \n
-        if ( *(conn.Received().get().rbegin()) != '\n'){
-          std::string tmp = conn.Received().get();
-          conn.Received().get().clear();
-          if (conn.Received().size()){
-            conn.Received().get().insert(0, tmp);
-          }else{
-            conn.Received().append(tmp);
-          }
-        }
-        if (HTTP_R.Read(conn.Received().get())){
-#if DEBUG >= 5
+        if (HTTP_R.Read(conn)){
+          #if DEBUG >= 5
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
-#endif
+          #endif
           conn.setHost(HTTP_R.GetHeader("X-Origin"));
           streamname = HTTP_R.GetHeader("X-Stream");
           if ( !ss){
@@ -219,9 +206,9 @@ namespace Connector_HTTP {
             Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("-", temp) - temp).c_str());
             temp = HTTP_R.url.find("Frag") + 4;
             ReqFragment = atoi(HTTP_R.url.substr(temp).c_str());
-#if DEBUG >= 5
+            #if DEBUG >= 5
             printf("Video track %d, segment %d, fragment %d\n", Quality, Segment, ReqFragment);
-#endif
+            #endif
             if (!audioTrack){getTracks(Strm.metadata);}
             JSON::Value & vidTrack = Strm.getTrackById(Quality);
             mstime = 0;
@@ -258,6 +245,28 @@ namespace Connector_HTTP {
             std::stringstream sstream;
             sstream << "t " << Quality << " " << audioTrack << "\ns " << mstime << "\np " << (mstime + mslen) << "\n";
             ss.SendNow(sstream.str().c_str());
+            std::cout << sstream.str() << std::endl;
+            
+            HTTP_S.Clean();
+            HTTP_S.protocol = "HTTP/1.1";
+            HTTP_S.SetHeader("Content-Type", "video/mp4");
+            HTTP_S.SetBody("");
+            std::string new_strap = dynamicBootstrap(streamname, Strm.getTrackById(Quality), Strm.metadata.isMember("live"), ReqFragment);
+            HTTP_S.SetHeader("Transfer-Encoding", "chunked");
+            HTTP_S.SendResponse("200", "OK", conn);
+            HTTP_S.Chunkify(new_strap, conn);
+            HTTP_S.Chunkify("\000\000\000\000mdat", 8, conn);
+            //fill buffer with init data, if needed.
+            if (audioTrack > 0 && Strm.getTrackById(audioTrack).isMember("init")){
+              tmp.DTSCAudioInit(Strm.getTrackById(audioTrack));
+              tmp.tagTime(mstime);
+              HTTP_S.Chunkify(tmp.data, tmp.len, conn);
+            }
+            if (Quality > 0 && Strm.getTrackById(Quality).isMember("init")){
+              tmp.DTSCVideoInit(Strm.getTrackById(Quality));
+              tmp.tagTime(mstime);
+              HTTP_S.Chunkify(tmp.data, tmp.len, conn);
+            }
           }else{
             HTTP_S.Clean();
             HTTP_S.SetHeader("Content-Type", "text/xml");
@@ -280,45 +289,15 @@ namespace Connector_HTTP {
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             if (Strm.lastType() == DTSC::PAUSEMARK){
-              if (FlashBufSize){
-                HTTP_S.Clean();
-                HTTP_S.SetHeader("Content-Type", "video/mp4");
-                HTTP_S.SetBody("");
-                std::string new_strap = dynamicBootstrap(streamname, Strm.getTrackById(Quality), Strm.metadata.isMember("live"), ReqFragment);
-                HTTP_S.SetHeader("Content-Length", FlashBufSize + 8 + new_strap.size()); //32+33+btstrp.size());
-                conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-                conn.SendNow(new_strap);
-                unsigned long size = htonl(FlashBufSize+8);
-                conn.SendNow((char*) &size, 4);
-                conn.SendNow("mdat", 4);
-                while (FlashBuf.size() > 0){
-                  conn.SendNow(FlashBuf.front());
-                  FlashBuf.pop_front();
-                }
-              }
-              FlashBuf.clear();
-              FlashBufSize = 0;
+              //send an empty chunk to signify request is done
+              std::string empty = "";
+              HTTP_S.Chunkify(empty, conn);
+              std::cout << "Finito!" << std::endl;
             }
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
-              if (FlashBufSize == 0){
-                //fill buffer with init data, if needed.
-                if (audioTrack > 0 && Strm.getTrackById(audioTrack).isMember("init")){
-                  tmp.DTSCAudioInit(Strm.getTrackById(audioTrack));
-                  tmp.tagTime(mstime);
-                  FlashBuf.push_back(std::string(tmp.data, tmp.len));
-                  FlashBufSize += tmp.len;
-                }
-                if (Quality > 0 && Strm.getTrackById(Quality).isMember("init")){
-                  tmp.DTSCVideoInit(Strm.getTrackById(Quality));
-                  tmp.tagTime(mstime);
-                  FlashBuf.push_back(std::string(tmp.data, tmp.len));
-                  FlashBufSize += tmp.len;
-                }
-                FlashBufTime = mstime;
-              }
+              //send a chunk with the new data
               tmp.DTSCLoader(Strm);
-              FlashBuf.push_back(std::string(tmp.data, tmp.len));
-              FlashBufSize += tmp.len;
+              HTTP_S.Chunkify(tmp.data, tmp.len, conn);
             }
           }
         }
@@ -332,7 +311,7 @@ namespace Connector_HTTP {
     ss.close();
     return 0;
   } //Connector_HTTP_Dynamic main function
-
+  
 } //Connector_HTTP_Dynamic namespace
 
 ///\brief The standard process-spawning main function.
@@ -353,13 +332,13 @@ int main(int argc, char ** argv){
     std::cout << capa.toString() << std::endl;
     return -1;
   }
-
+  
   Socket::Server server_socket = Socket::Server("/tmp/mist/http_dynamic");
   if ( !server_socket.connected()){
     return 1;
   }
   conf.activate();
-
+  
   while (server_socket.connected() && conf.is_active){
     Socket::Connection S = server_socket.accept();
     if (S.connected()){ //check if the new connection is valid
@@ -367,9 +346,9 @@ int main(int argc, char ** argv){
       if (myid == 0){ //if new child, start MAINHANDLER
         return Connector_HTTP::dynamicConnector(S);
       }else{ //otherwise, do nothing or output debugging text
-#if DEBUG >= 3
+        #if DEBUG >= 3
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
-#endif
+        #endif
       }
     }
   } //while connected

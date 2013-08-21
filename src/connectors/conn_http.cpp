@@ -354,18 +354,8 @@ namespace Connector_HTTP {
     while (myCConn->conn->connected() && conn->connected()){
       conn->spool();
       if (myCConn->conn->Received().size() || myCConn->conn->spool()){
-        //make sure we end in a \n
-        if ( *(myCConn->conn->Received().get().rbegin()) != '\n'){
-          std::string tmp = myCConn->conn->Received().get();
-          myCConn->conn->Received().get().clear();
-          if (myCConn->conn->Received().size()){
-            myCConn->conn->Received().get().insert(0, tmp);
-          }else{
-            myCConn->conn->Received().append(tmp);
-          }
-        }
         //check if the whole header was received
-        if (H.Read(myCConn->conn->Received().get())){
+        if (H.Read(*(myCConn->conn))){
           //208 means the fragment is too new, retry in 3s
           if (H.url == "208"){
             while (myCConn->conn->Received().size() > 0){
@@ -413,30 +403,18 @@ namespace Connector_HTTP {
     }else{
       long long int ret = Util::getMS();
       //success, check type of response
-      if (H.GetHeader("Content-Length") != ""){
+      std::cout << "Response headers for " << orig_url << " received...";
+      if (H.GetHeader("Content-Length") != "" || H.GetHeader("Transfer-Encoding") == "chunked"){
         //known length - simply re-send the request with added headers and continue
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         H.body = "";
-        conn->SendNow(H.BuildResponse("200", "OK"));
-        unsigned int bodyLen = H.length;
-        while (bodyLen > 0 && conn->connected() && myCConn->conn->connected()){
-          if (myCConn->conn->Received().size() || myCConn->conn->spool()){
-            if (myCConn->conn->Received().get().size() <= bodyLen){
-              conn->SendNow(myCConn->conn->Received().get());
-              bodyLen -= myCConn->conn->Received().get().size();
-              myCConn->conn->Received().get().clear();
-            }else{
-              conn->SendNow(myCConn->conn->Received().get().c_str(), bodyLen);
-              myCConn->conn->Received().get().erase(0, bodyLen);
-              bodyLen = 0;
-            }
-          }else{
-            Util::sleep(5);
-          }
-        }
+        std::cout << "proxying..." << std::endl;
+        H.Proxy(*(myCConn->conn), *conn);
+        std::cout << "Proxying " << orig_url << " completed!" << std::endl;
         myCConn->inUse.unlock();
       }else{
+        std::cout << "progressin'..." << std::endl;
         //unknown length
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
@@ -539,17 +517,7 @@ namespace Connector_HTTP {
     HTTP::Parser Client;
     while (conn->connected()){
       if (conn->spool() || conn->Received().size()){
-        //make sure it ends in a \n
-        if ( *(conn->Received().get().rbegin()) != '\n'){
-          std::string tmp = conn->Received().get();
-          conn->Received().get().clear();
-          if (conn->Received().size()){
-            conn->Received().get().insert(0, tmp);
-          }else{
-            conn->Received().append(tmp);
-          }
-        }
-        if (Client.Read(conn->Received().get())){
+        if (Client.Read(*conn)){
           std::string handler = proxyGetHandleType(Client);
 #if DEBUG >= 4
           std::cout << "Received request: " << Client.getUrl() << " (" << conn->getSocket() << ") => " << handler << " (" << Client.GetVar("stream")

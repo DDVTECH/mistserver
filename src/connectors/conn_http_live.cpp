@@ -130,17 +130,7 @@ namespace Connector_HTTP {
 
     while (conn.connected()){
       if (conn.spool() || conn.Received().size()){
-        //make sure it ends in a \n
-        if ( *(conn.Received().get().rbegin()) != '\n'){
-          std::string tmp = conn.Received().get();
-          conn.Received().get().clear();
-          if (conn.Received().size()){
-            conn.Received().get().insert(0, tmp);
-          }else{
-            conn.Received().append(tmp);
-          }
-        }
-        if (HTTP_R.Read(conn.Received().get())){
+        if (HTTP_R.Read(conn)){
 #if DEBUG >= 5
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif

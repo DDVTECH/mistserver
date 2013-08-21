@@ -179,17 +179,7 @@ namespace Connector_HTTP {
 
     while (conn.connected()){
       if (conn.spool() || conn.Received().size()){
-        //Make sure the received data ends in a newline (\n).
-        if ( *(conn.Received().get().rbegin()) != '\n'){
-          std::string tmp = conn.Received().get();
-          conn.Received().get().clear();
-          if (conn.Received().size()){
-            conn.Received().get().insert(0, tmp);
-          }else{
-            conn.Received().append(tmp);
-          }
-        }
-        if (HTTP_R.Read(conn.Received().get())){
+        if (HTTP_R.Read(conn)){
 #if DEBUG >= 5
           std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
@@ -332,7 +322,6 @@ namespace Connector_HTTP {
             
             sstream << "t " << myRef["trackid"].asInt() << "\n";
             sstream << "s " << (requestedTime / 10000) << "\np " << (mstime + mslen) <<"\n";
-            std::cout << "Sending: " << sstream.str() << std::endl;
             ss.SendNow(sstream.str().c_str());
 
             HTTP_S.Clean();

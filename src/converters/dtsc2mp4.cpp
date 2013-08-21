@@ -127,11 +127,12 @@ namespace Converters {
             MP4::MDHD mdhdBox(0);/// \todo fix constructor mdhd in lib
             mdhdBox.setCreationTime(0);
             mdhdBox.setModificationTime(0);
-            if(it->second["type"].asString() == "video"){
-              timescale = it->second["fpks"].asInt()/10;
-            }else{
-              timescale = it->second["rate"].asInt();
+            //Calculating media time based on sampledelta. Probably cheating, but it works...
+            int tmpParts = 0;
+            for (JSON::ArrIter tmpIt = it->second["keys"].ArrBegin(); tmpIt != it->second["keys"].ArrEnd(); tmpIt++){
+              tmpParts += (*tmpIt)["parts"].size();
             }
+            timescale = ((double)(42 * tmpParts) / (it->second["lastms"].asInt() + it->second["firstms"].asInt())) *  1000;
             mdhdBox.setTimeScale(timescale);
             mdhdBox.setDuration(((it->second["lastms"].asInt() + it->second["firsms"].asInt()) * ((double)timescale / 1000)));
             mdiaBox.setContent(mdhdBox, 0);
@@ -199,7 +200,7 @@ namespace Converters {
                       esdsBox.setStreamType(5);
                       esdsBox.setReservedFlag(1);
                       esdsBox.setBufferSize(1250000);
-                      esdsBox.setMaximumBitRate(it->second["bps"].asInt() * 8);
+                      esdsBox.setMaximumBitRate(10000000);
                       esdsBox.setAverageBitRate(it->second["bps"].asInt() * 8);
                       esdsBox.setConfigDescriptorTypeLength(5);
                       esdsBox.setESHeaderStartCodes(it->second["init"].asString());
@@ -214,14 +215,11 @@ namespace Converters {
                 
                 /// \todo update following stts lines
                 MP4::STTS sttsBox;//current version probably causes problems
-                sttsBox.setVersion(0);
-                int tmpParts = 0;
-                for (JSON::ArrIter tmpIt = it->second["keys"].ArrBegin(); tmpIt != it->second["keys"].ArrEnd(); tmpIt++){
-                  tmpParts += (*tmpIt)["parts"].size();
-                }
+                  sttsBox.setVersion(0);
                   MP4::STTSEntry newEntry;
                   newEntry.sampleCount = tmpParts;
-                  newEntry.sampleDelta = (((double)it->second["lastms"].asInt() / tmpParts) * ((double)timescale / 1000));
+                  //42, because of reasons.
+                  newEntry.sampleDelta = 42;
                   sttsBox.setSTTSEntry(newEntry, 0);
                 stblBox.setContent(sttsBox,1);
                 

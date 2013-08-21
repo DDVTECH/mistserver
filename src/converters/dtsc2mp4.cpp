@@ -30,15 +30,6 @@ namespace Converters {
   bool keyPartSort(keyPart i, keyPart j){
     return (i.time < j.time);
   }
-  
-  struct mdatBuffer{
-    long long int trackID;
-    long long int curLength;
-    std::string buffer;
-  };
-  
-  
-  
   ///\brief Converts DTSC from file to MP4 on stdout.
   ///\return The return code for the converter.
   int DTSC2MP4(Util::Config & conf){
@@ -50,9 +41,8 @@ namespace Converters {
     ftypBox.setMinorVersion(0);
     ftypBox.setCompatibleBrands(0x6D703431,0);
     std::cout << std::string(ftypBox.asBox(),ftypBox.boxedSize());
-
     
-    
+    uint64_t mdatSize = 0;
     //moov box
     MP4::MOOV moovBox;
       MP4::MVHD mvhdBox;
@@ -135,9 +125,9 @@ namespace Converters {
             mdhdBox.setCreationTime(0);
             mdhdBox.setModificationTime(0);
             if(it->second["type"].asString() == "video"){
-              timescale = 11988;
+              timescale = it->second["fpks"].asInt()/10;
             }else{
-              timescale = 48000;
+              timescale = it->second["rate"].asInt();
             }
             mdhdBox.setTimeScale(timescale);
             mdhdBox.setDuration(((it->second["lastms"].asInt() + it->second["firsms"].asInt()) * ((double)timescale / 1000)));
@@ -195,8 +185,7 @@ namespace Converters {
                       ase.setDataReferenceIndex(1);
                     }
                     ase.setSampleRate(it->second["rate"].asInt());
-                    //ase.setChannelCount(it->second["channels"].asInt());
-                    ase.setChannelCount(2);
+                    ase.setChannelCount(it->second["channels"].asInt());
                     ase.setSampleSize(it->second["size"].asInt());
                       MP4::ESDS esdsBox;
                       esdsBox.setESDescriptorTypeLength(32+it->second["init"].asString().size());
@@ -277,12 +266,6 @@ namespace Converters {
                 uint64_t totalByteOffset = 0;
                 //Inserting wrong values on purpose here, will be fixed later.
                 //Current values are actual byte offset without header-sized offset
-                /*for (unsigned int i = 0; i < it->second["keys"].size(); i++){
-                  for (unsigned int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
-                    stcoBox.setChunkOffset(it->second["keys"][i]["parts"][o].asInt(), total);
-                    total++;
-                  }
-                }*/
                 for (unsigned int i = 0; i < keyParts.size(); i++){//for all keypart size
                   if(keyParts[i].trackID == it->second["trackid"].asInt()){//if keypart is of current trackID
                     for (unsigned int o = 0; o < keyParts[i].parts.size(); o++){//add all parts to STCO
@@ -294,6 +277,7 @@ namespace Converters {
                     totalByteOffset += keyParts[i].size;
                   }
                 }
+                mdatSize = totalByteOffset;
                 stblBox.setContent(stcoBox,4 + offset);
 
               minfBox.setContent(stblBox,2);
@@ -347,54 +331,62 @@ namespace Converters {
         }
       }
     
-    /*std::cerr << "Ik ben hier" << std::endl;
-    for (std::map<int, MP4::STCO&>::iterator i = STCOFix.begin(); i != STCOFix.end(); i++){
-      std::cerr << "Hier wil ik heen: " << i->first << ", " << i->second.getEntryCount() << std::endl;
-      std::cerr << (i->second).boxedSize() << std::endl;
-      for (unsigned int o = 0; o < i->second.getEntryCount(); o++){
-        //std::cerr <<  " " << o ;
-        uint64_t temp;
-        temp = i->second.getChunkOffset(o);
-        i->second.setChunkOffset(byteOffset, o);
-        byteOffset += temp;
-      }
-    }*/
     std::cout << std::string(moovBox.asBox(),moovBox.boxedSize());
+    std::cerr << "Header Written" << std::endl;
     //end of header
-    //mdat box a lot
-    //video
-    //while() 
-    //for(input.seekNext(); input.getJSON(); input.seekNext())
-    //cout << input.getJSON["data"].asString()
-  
+
+    //mdat box making it interleaved
+    printf("%c%c%c%cmdat", (mdatSize>>24) & 0x000000FF,(mdatSize>>16) & 0x000000FF,(mdatSize>>8) & 0x000000FF,mdatSize & 0x000000FF);
+    std::map <long long unsigned int, std::deque<JSON::Value> > trackBuffer;
+    long long unsigned int curKey = 0;//the key chunk we are currently searching for in keyParts
+    long long unsigned int curPart = 0;//current part in current key
+    
+    //initialising JSON input
     std::set<int> selector;
     for (JSON::ObjIter trackIt = input.getMeta()["tracks"].ObjBegin(); trackIt != input.getMeta()["tracks"].ObjEnd(); trackIt++){
       selector.insert(trackIt->second["trackid"].asInt());
     }
     input.selectTracks(selector);
-
     input.seek_time(0);
-
     input.seekNext();
-    std::vector<std::string> dataParts;
+
     while (input.getJSON()){
-      //if not in vector, create;
-      if (dataParts.size() < input.getJSON()["trackid"].asInt()){
-        dataParts.resize(input.getJSON()["trackid"].asInt());
+      //std::cerr << "DataSize: " << input.getJSON()["data"].asString().size() << std::endl;
+      //mdat output here
+      //output cleanout buffer first
+      //while there are requested packets in the trackBuffer:...
+      while (!trackBuffer[keyParts[curKey].trackID].empty()){
+        //output requested packages
+        if(keyParts[curKey].parts[curPart].asInt() != trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size()){
+          std::cerr << "Size discrepancy in buffer packet. Size: " << input.getJSON()["data"].asString().size() << " Expected:" << keyParts[curKey].parts[curPart].asInt() << std::endl;
+        }
+        std::cout << trackBuffer[keyParts[curKey].trackID].front()["data"].asString();
+        trackBuffer[keyParts[curKey].trackID].pop_front();
+        curPart++;
+        if(curPart >= keyParts[curKey].parts.size()){
+          curPart = 0;
+          curKey++;
+        }
       }
-      //putting everything in its place
-      dataParts[input.getJSON()["trackid"].asInt()-1] += input.getJSON()["data"].asString();
+      //after that, try to put out the JSON data directly
+      if(keyParts[curKey].trackID == input.getJSON()["trackid"].asInt()){
+        //output JSON packet
+        if(keyParts[curKey].parts[curPart].asInt() != input.getJSON()["data"].asString().size()){
+          std::cerr << "Size discrepancy in JSON packet. Size: " << input.getJSON()["data"].asString().size() << " Expected:" << keyParts[curKey].parts[curPart].asInt() << std::endl;
+        }
+        std::cout << input.getJSON()["data"].asString();
+        curPart++;
+        if(curPart >= keyParts[curKey].parts.size()){
+          curPart = 0;
+          curKey++;
+        }
+      }else{
+        //buffer for later
+        trackBuffer[input.getJSON()["trackid"].asInt()].push_back(input.getJSON());
+      }
       input.seekNext();
     }
-    uint32_t mdatSize = 0;
-    for (unsigned int x = 0; x < dataParts.size(); x++){
-      mdatSize += dataParts[x].size();
-    }
-    //std::cerr << "Total Data size: " << mdatSize << std::endl;
-    printf("%c%c%c%cmdat", (mdatSize>>24) & 0x000000FF,(mdatSize>>16) & 0x000000FF,(mdatSize>>8) & 0x000000FF,mdatSize & 0x000000FF);
-    for (unsigned int x = 0; x < dataParts.size(); x++){
-      std::cout << dataParts[x];
-    }*/
+    //output remaining buffer
     return 0;
   } //DTSC2MP4
 

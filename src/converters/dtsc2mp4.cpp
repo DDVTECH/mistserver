@@ -39,7 +39,10 @@ namespace Converters {
     MP4::FTYP ftypBox;
     ftypBox.setMajorBrand(0x6D703431);//mp41
     ftypBox.setMinorVersion(0);
-    ftypBox.setCompatibleBrands(0x6D703431,0);
+    ftypBox.setCompatibleBrands(0x69736f6d,0);
+    ftypBox.setCompatibleBrands(0x69736f32,1);
+    ftypBox.setCompatibleBrands(0x61766331,2);
+    ftypBox.setCompatibleBrands(0x6D703431,3);
     std::cout << std::string(ftypBox.asBox(),ftypBox.boxedSize());
     
     uint64_t mdatSize = 0;
@@ -218,7 +221,7 @@ namespace Converters {
                 }
                   MP4::STTSEntry newEntry;
                   newEntry.sampleCount = tmpParts;
-                  newEntry.sampleDelta = ((it->second["lastms"].asInt() / tmpParts) * ((double)timescale / 1000));
+                  newEntry.sampleDelta = (((double)it->second["lastms"].asInt() / tmpParts) * ((double)timescale / 1000));
                   sttsBox.setSTTSEntry(newEntry, 0);
                 stblBox.setContent(sttsBox,1);
                 

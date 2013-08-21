@@ -6,6 +6,7 @@
 #include <string>
 #include <stdlib.h>
 #include <stdio.h>
+#include "socket.h"
 
 /// Holds all HTTP processing related code.
 namespace HTTP {
@@ -13,6 +14,7 @@ namespace HTTP {
   class Parser{
     public:
       Parser();
+      bool Read(Socket::Connection & conn);
       bool Read(std::string & strbuf);
       std::string GetHeader(std::string i);
       std::string GetVar(std::string i);
@@ -24,7 +26,12 @@ namespace HTTP {
       void SetBody(char * buffer, int len);
       std::string & BuildRequest();
       std::string & BuildResponse(std::string code, std::string message);
+      void SendRequest(Socket::Connection & conn);
+      void SendResponse(std::string code, std::string message, Socket::Connection & conn);
       void Chunkify(std::string & bodypart);
+      void Chunkify(std::string & bodypart, Socket::Connection & conn);
+      void Chunkify(const char * data, unsigned int size, Socket::Connection & conn);
+      void Proxy(Socket::Connection & from, Socket::Connection & to);
       void Clean();
       static std::string urlunescape(const std::string & in);
       static std::string urlencode(const std::string & in);

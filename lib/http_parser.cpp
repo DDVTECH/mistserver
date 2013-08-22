@@ -124,29 +124,37 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 void HTTP::Parser::Proxy(Socket::Connection & from, Socket::Connection & to){
   SendResponse("200", "OK", to);
   if (getChunks){
-    int proxyingChunk = 0;
+    unsigned int proxyingChunk = 0;
     while (to.connected() && from.connected()){
-      if ((from.Received().size() && (from.Received().size() > 2 || *(from.Received().get().rbegin()) == '\n')) || from.spool()){
+      if ((from.Received().size() && (from.Received().size() > 1 || *(from.Received().get().rbegin()) == '\n')) || from.spool()){
         if (proxyingChunk){
-          unsigned int toappend = from.Received().get().size();
-          if (toappend > proxyingChunk){
-            toappend = proxyingChunk;
-            to.SendNow(from.Received().get().c_str(), toappend);
-            from.Received().get().erase(0, toappend);
-          }else{
-            to.SendNow(from.Received().get());
-            from.Received().get().clear();
+          while (proxyingChunk && from.Received().size()){
+            unsigned int toappend = from.Received().get().size();
+            if (toappend > proxyingChunk){
+              toappend = proxyingChunk;
+              to.SendNow(from.Received().get().c_str(), toappend);
+              from.Received().get().erase(0, toappend);
+            }else{
+              to.SendNow(from.Received().get());
+              from.Received().get().clear();
+            }
+            proxyingChunk -= toappend;
           }
-          proxyingChunk -= toappend;
         }else{
           //Make sure the received data ends in a newline (\n).
           if ( *(from.Received().get().rbegin()) != '\n'){
             if (from.Received().size() > 1){
+              //make a copy of the first part
               std::string tmp = from.Received().get();
+              //clear the first part, wiping it from the partlist
               from.Received().get().clear();
+              from.Received().size();
+              //take the now first (was second) part, insert the stored part in front of it
               from.Received().get().insert(0, tmp);
             }else{
               Util::sleep(100);
+            }
+            if ( *(from.Received().get().rbegin()) != '\n'){
               continue;
             }
           }
@@ -274,10 +282,14 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 /// \return True if a whole request or response was read, false otherwise.
 bool HTTP::Parser::Read(Socket::Connection & conn){
   //Make sure the received data ends in a newline (\n).
-  if ( *(conn.Received().get().rbegin()) != '\n'){
+  while ( *(conn.Received().get().rbegin()) != '\n'){
     if (conn.Received().size() > 1){
+      //make a copy of the first part
       std::string tmp = conn.Received().get();
+      //clear the first part, wiping it from the partlist
       conn.Received().get().clear();
+      conn.Received().size();
+      //take the now first (was second) part, insert the stored part in front of it
       conn.Received().get().insert(0, tmp);
     }else{
       return false;

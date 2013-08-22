@@ -150,7 +150,7 @@ namespace Connector_HTTP {
     
     Socket::Connection ss( -1);
     std::string streamname;
-    std::string recBuffer = "";
+    bool handlingRequest = false;
     
     int Quality = 0;
     int Segment = -1;
@@ -161,124 +161,125 @@ namespace Connector_HTTP {
     conn.setBlocking(false); //do not block on conn.spool() when no data is available
     
     while (conn.connected()){
-      if (conn.spool() || conn.Received().size()){
-        if (HTTP_R.Read(conn)){
-          #if DEBUG >= 5
-          std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
-          #endif
-          conn.setHost(HTTP_R.GetHeader("X-Origin"));
-          streamname = HTTP_R.GetHeader("X-Stream");
-          if ( !ss){
-            ss = Util::Stream::getStream(streamname);
-            if ( !ss.connected()){
-              HTTP_S.Clean();
-              HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
-              conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
-              continue;
-            }
-            ss.setBlocking(false);
-            //make sure metadata is received
-            while ( !Strm.metadata && ss.connected()){
-              if (ss.spool()){
-                while (Strm.parsePacket(ss.Received())){
-                  //do nothing
-                }
-              }
-            }
-          }
-          if (HTTP_R.url.find(".abst") != std::string::npos){
-            std::string streamID = HTTP_R.url.substr(HTTP_R.url.find(streamname) + streamname.size() + 1);
-            streamID = streamID.substr(0, streamID.find(".abst"));
-            std::cerr << "Requesting bootstrap for stream " << streamID << std::endl;
-            HTTP_S.Clean();
-            HTTP_S.SetBody(dynamicBootstrap(streamname, Strm.getTrackById(atoll(streamID.c_str())),Strm.metadata.isMember("live")));
-            HTTP_S.SetHeader("Content-Type", "binary/octet");
-            HTTP_S.SetHeader("Cache-Control", "no-cache");
-            conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
-            HTTP_R.Clean(); //clean for any possible next requests
-            continue;
-          }
-          if (HTTP_R.url.find("f4m") == std::string::npos){
-            std::string tmp_qual = HTTP_R.url.substr(HTTP_R.url.find("/", 10) + 1);
-            Quality = atoi(tmp_qual.substr(0, tmp_qual.find("Seg") - 1).c_str());
-            int temp;
-            temp = HTTP_R.url.find("Seg") + 3;
-            Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("-", temp) - temp).c_str());
-            temp = HTTP_R.url.find("Frag") + 4;
-            ReqFragment = atoi(HTTP_R.url.substr(temp).c_str());
+      if ( !handlingRequest){
+        if (conn.spool() || conn.Received().size()){
+          if (HTTP_R.Read(conn)){
             #if DEBUG >= 5
-            printf("Video track %d, segment %d, fragment %d\n", Quality, Segment, ReqFragment);
+            std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
             #endif
-            if (!audioTrack){getTracks(Strm.metadata);}
-            JSON::Value & vidTrack = Strm.getTrackById(Quality);
-            mstime = 0;
-            mslen = 0;
-            if (vidTrack.isMember("keys")){
-              for (JSON::ArrIter it = vidTrack["keys"].ArrBegin(); it != vidTrack["keys"].ArrEnd(); it++){
-                if ((*it)["num"].asInt() >= ReqFragment){
-                  mstime = (*it)["time"].asInt();
-                  mslen = (*it)["len"].asInt();
-                  if (Strm.metadata.isMember("live")){
-                    if (it == vidTrack["keys"].ArrEnd() - 2){
-                      HTTP_S.Clean();
-                      HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-                      conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
-                      HTTP_R.Clean(); //clean for any possible next requests
-                      std::cout << "Fragment after fragment " << ReqFragment << " not available yet" << std::endl;
-                    }
-                  }
-                  break;
-                }
-              }
-            }
-            if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
-            if (Strm.metadata.isMember("live")){
-              if (mstime == 0 && ReqFragment > 1){
+            conn.setHost(HTTP_R.GetHeader("X-Origin"));
+            streamname = HTTP_R.GetHeader("X-Stream");
+            if ( !ss){
+              ss = Util::Stream::getStream(streamname);
+              if ( !ss.connected()){
                 HTTP_S.Clean();
-                HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-                conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
-                HTTP_R.Clean(); //clean for any possible next requests
-                std::cout << "Fragment " << ReqFragment << " too old" << std::endl;
+                HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
+                HTTP_S.SendResponse("404", "Not found", conn);
                 continue;
               }
+              ss.setBlocking(false);
+              //make sure metadata is received
+              while ( !Strm.metadata && ss.connected()){
+                if (ss.spool()){
+                  while (Strm.parsePacket(ss.Received())){
+                    //do nothing
+                  }
+                }
+              }
             }
-            std::stringstream sstream;
-            sstream << "t " << Quality << " " << audioTrack << "\ns " << mstime << "\np " << (mstime + mslen) << "\n";
-            ss.SendNow(sstream.str().c_str());
-            std::cout << sstream.str() << std::endl;
-            
-            HTTP_S.Clean();
-            HTTP_S.protocol = "HTTP/1.1";
-            HTTP_S.SetHeader("Content-Type", "video/mp4");
-            HTTP_S.SetBody("");
-            std::string new_strap = dynamicBootstrap(streamname, Strm.getTrackById(Quality), Strm.metadata.isMember("live"), ReqFragment);
-            HTTP_S.SetHeader("Transfer-Encoding", "chunked");
-            HTTP_S.SendResponse("200", "OK", conn);
-            HTTP_S.Chunkify(new_strap, conn);
-            HTTP_S.Chunkify("\000\000\000\000mdat", 8, conn);
-            //fill buffer with init data, if needed.
-            if (audioTrack > 0 && Strm.getTrackById(audioTrack).isMember("init")){
-              tmp.DTSCAudioInit(Strm.getTrackById(audioTrack));
-              tmp.tagTime(mstime);
-              HTTP_S.Chunkify(tmp.data, tmp.len, conn);
+            if (HTTP_R.url.find(".abst") != std::string::npos){
+              std::string streamID = HTTP_R.url.substr(HTTP_R.url.find(streamname) + streamname.size() + 1);
+              streamID = streamID.substr(0, streamID.find(".abst"));
+              std::cerr << "Requesting bootstrap for stream " << streamID << std::endl;
+              HTTP_S.Clean();
+              HTTP_S.SetBody(dynamicBootstrap(streamname, Strm.getTrackById(atoll(streamID.c_str())),Strm.metadata.isMember("live")));
+              HTTP_S.SetHeader("Content-Type", "binary/octet");
+              HTTP_S.SetHeader("Cache-Control", "no-cache");
+              HTTP_S.SendResponse("200", "OK", conn);
+              HTTP_R.Clean(); //clean for any possible next requests
+              continue;
             }
-            if (Quality > 0 && Strm.getTrackById(Quality).isMember("init")){
-              tmp.DTSCVideoInit(Strm.getTrackById(Quality));
-              tmp.tagTime(mstime);
-              HTTP_S.Chunkify(tmp.data, tmp.len, conn);
+            if (HTTP_R.url.find("f4m") == std::string::npos){
+              std::string tmp_qual = HTTP_R.url.substr(HTTP_R.url.find("/", 10) + 1);
+              Quality = atoi(tmp_qual.substr(0, tmp_qual.find("Seg") - 1).c_str());
+              int temp;
+              temp = HTTP_R.url.find("Seg") + 3;
+              Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("-", temp) - temp).c_str());
+              temp = HTTP_R.url.find("Frag") + 4;
+              ReqFragment = atoi(HTTP_R.url.substr(temp).c_str());
+              #if DEBUG >= 5
+              printf("Video track %d, segment %d, fragment %d\n", Quality, Segment, ReqFragment);
+              #endif
+              if (!audioTrack){getTracks(Strm.metadata);}
+              JSON::Value & vidTrack = Strm.getTrackById(Quality);
+              mstime = 0;
+              mslen = 0;
+              if (vidTrack.isMember("keys")){
+                for (JSON::ArrIter it = vidTrack["keys"].ArrBegin(); it != vidTrack["keys"].ArrEnd(); it++){
+                  if ((*it)["num"].asInt() >= ReqFragment){
+                    mstime = (*it)["time"].asInt();
+                    mslen = (*it)["len"].asInt();
+                    if (Strm.metadata.isMember("live")){
+                      if (it == vidTrack["keys"].ArrEnd() - 2){
+                        HTTP_S.Clean();
+                        HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                        HTTP_S.SendResponse("208", "Ask again later", conn);
+                        HTTP_R.Clean(); //clean for any possible next requests
+                        std::cout << "Fragment after fragment " << ReqFragment << " not available yet" << std::endl;
+                      }
+                    }
+                    break;
+                  }
+                }
+              }
+              if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
+              if (Strm.metadata.isMember("live")){
+                if (mstime == 0 && ReqFragment > 1){
+                  HTTP_S.Clean();
+                  HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+                  HTTP_S.SendResponse("412", "Fragment out of range", conn);
+                  HTTP_R.Clean(); //clean for any possible next requests
+                  std::cout << "Fragment " << ReqFragment << " too old" << std::endl;
+                  continue;
+                }
+              }
+              std::stringstream sstream;
+              sstream << "t " << Quality << " " << audioTrack << "\ns " << mstime << "\np " << (mstime + mslen) << "\n";
+              ss.SendNow(sstream.str().c_str());
+              
+              HTTP_S.Clean();
+              HTTP_S.SetHeader("Content-Type", "video/mp4");
+              HTTP_S.StartResponse(HTTP_R, conn);
+              //send the bootstrap
+              std::string bootstrap = dynamicBootstrap(streamname, Strm.getTrackById(Quality), Strm.metadata.isMember("live"), ReqFragment);
+              HTTP_S.Chunkify(bootstrap, conn);
+              //send a zero-size mdat, meaning it stretches until end of file.
+              HTTP_S.Chunkify("\000\000\000\000mdat", 8, conn);
+              //send init data, if needed.
+              if (audioTrack > 0 && Strm.getTrackById(audioTrack).isMember("init")){
+                tmp.DTSCAudioInit(Strm.getTrackById(audioTrack));
+                tmp.tagTime(mstime);
+                HTTP_S.Chunkify(tmp.data, tmp.len, conn);
+              }
+              if (Quality > 0 && Strm.getTrackById(Quality).isMember("init")){
+                tmp.DTSCVideoInit(Strm.getTrackById(Quality));
+                tmp.tagTime(mstime);
+                HTTP_S.Chunkify(tmp.data, tmp.len, conn);
+              }
+              handlingRequest = true;
+            }else{
+              HTTP_S.Clean();
+              HTTP_S.SetHeader("Content-Type", "text/xml");
+              HTTP_S.SetHeader("Cache-Control", "no-cache");
+              HTTP_S.SetBody(dynamicIndex(streamname, Strm.metadata));
+              HTTP_S.SendResponse("200", "OK", conn);
             }
-          }else{
-            HTTP_S.Clean();
-            HTTP_S.SetHeader("Content-Type", "text/xml");
-            HTTP_S.SetHeader("Cache-Control", "no-cache");
-            std::string manifest = dynamicIndex(streamname, Strm.metadata);
-            HTTP_S.SetBody(manifest);
-            conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
+            HTTP_R.Clean(); //clean for any possible next requests
           }
-          HTTP_R.Clean(); //clean for any possible next requests
+        }else{
+          //sleep for 250ms before next attempt
+          Util::sleep(250);
         }
-      }else{
-        Util::sleep(1);
       }
       if (ss.connected()){
         unsigned int now = Util::epoch();
@@ -286,13 +287,12 @@ namespace Connector_HTTP {
           lastStats = now;
           ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
         }
-        if (ss.spool()){
+        if (handlingRequest && ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             if (Strm.lastType() == DTSC::PAUSEMARK){
               //send an empty chunk to signify request is done
-              std::string empty = "";
-              HTTP_S.Chunkify(empty, conn);
-              std::cout << "Finito!" << std::endl;
+              HTTP_S.Chunkify("", 0, conn);
+              handlingRequest = false;
             }
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
               //send a chunk with the new data

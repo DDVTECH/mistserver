@@ -403,18 +403,14 @@ namespace Connector_HTTP {
     }else{
       long long int ret = Util::getMS();
       //success, check type of response
-      std::cout << "Response headers for " << orig_url << " received...";
       if (H.GetHeader("Content-Length") != "" || H.GetHeader("Transfer-Encoding") == "chunked"){
         //known length - simply re-send the request with added headers and continue
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         H.body = "";
-        std::cout << "proxying..." << std::endl;
         H.Proxy(*(myCConn->conn), *conn);
-        std::cout << "Proxying " << orig_url << " completed!" << std::endl;
         myCConn->inUse.unlock();
       }else{
-        std::cout << "progressin'..." << std::endl;
         //unknown length
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);

@@ -54,12 +54,7 @@ namespace Connector_HTTP {
             std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
             conn.setHost(HTTP_R.GetHeader("X-Origin"));
-            //we assume the URL is the stream name with a 3 letter extension
-            streamname = HTTP_R.getUrl().substr(1);
-            size_t extDot = streamname.rfind('.');
-            if (extDot != std::string::npos){
-              streamname.resize(extDot);
-            }; //strip the extension
+            streamname = HTTP_R.GetHeader("X-Stream");
             int start = 0;
             if ( !HTTP_R.GetVar("start").empty()){
               start = atoi(HTTP_R.GetVar("start").c_str());
@@ -126,7 +121,9 @@ namespace Connector_HTTP {
             byterate += Strm.getTrackById(audioID)["bps"].asInt();
           }
           if ( !byterate){byterate = 1;}
-          seek_sec = (seek_byte / byterate) * 1000;
+          if (seek_byte){
+            seek_sec = (seek_byte / byterate) * 1000;
+          }
           std::stringstream cmd;
           cmd << "t";
           if (videoID != -1){

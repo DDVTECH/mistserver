@@ -475,7 +475,7 @@ void HTTP::Parser::parseVars(std::string data){
 /// \param bodypart The data to convert - will be converted in-place.
 void HTTP::Parser::Chunkify(std::string & bodypart){
   if (protocol == "HTTP/1.1"){
-    static char len[10];
+    char len[10];
     int sizelen = snprintf(len, 10, "%x\r\n", (unsigned int)bodypart.size());
     //prepend the chunk size and \r\n
     bodypart.insert(0, len, sizelen);
@@ -494,7 +494,7 @@ void HTTP::Parser::Chunkify(std::string & bodypart, Socket::Connection & conn){
 /// \param bodypart The data to convert - will be converted in-place.
 void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connection & conn){
   if (protocol == "HTTP/1.1"){
-    static char len[10];
+    char len[10];
     int sizelen = snprintf(len, 10, "%x\r\n", size);
     //prepend the chunk size and \r\n
     conn.SendNow(len, sizelen);

@@ -124,20 +124,20 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 void HTTP::Parser::Proxy(Socket::Connection & from, Socket::Connection & to){
   SendResponse("200", "OK", to);
   if (getChunks){
-    int doingChunk = 0;
+    int proxyingChunk = 0;
     while (to.connected() && from.connected()){
-      if (from.Received().size() || from.spool()){
-        if (doingChunk){
+      if ((from.Received().size() && (from.Received().size() > 2 || *(from.Received().get().rbegin()) == '\n')) || from.spool()){
+        if (proxyingChunk){
           unsigned int toappend = from.Received().get().size();
-          if (toappend > doingChunk){
-            toappend = doingChunk;
+          if (toappend > proxyingChunk){
+            toappend = proxyingChunk;
             to.SendNow(from.Received().get().c_str(), toappend);
             from.Received().get().erase(0, toappend);
           }else{
             to.SendNow(from.Received().get());
             from.Received().get().clear();
           }
-          doingChunk -= toappend;
+          proxyingChunk -= toappend;
         }else{
           //Make sure the received data ends in a newline (\n).
           if ( *(from.Received().get().rbegin()) != '\n'){
@@ -167,7 +167,7 @@ void HTTP::Parser::Proxy(Socket::Connection & from, Socket::Connection & to){
               to.SendNow("\r\n", 2);
               return;
             }
-            doingChunk = chunkLen;
+            proxyingChunk = chunkLen;
           }
           from.Received().get().clear();
         }

@@ -46,6 +46,7 @@ namespace Converters {
     std::cout << std::string(ftypBox.asBox(),ftypBox.boxedSize());
     
     uint64_t mdatSize = 0;
+    //std::vector<uint64_t> stcoOffsets;
     //moov box
     MP4::MOOV moovBox;
       MP4::MVHD mvhdBox;
@@ -262,7 +263,7 @@ namespace Converters {
                 stblBox.setContent(stszBox,3 + offset);
                   
                 MP4::STCO stcoBox;
-                stcoBox.setVersion(0);
+                stcoBox.setVersion(1);
                 total = 0;
                 uint64_t totalByteOffset = 0;
                 //Inserting wrong values on purpose here, will be fixed later.
@@ -278,9 +279,17 @@ namespace Converters {
                     totalByteOffset += keyParts[i].size;
                   }
                 }
+                //calculating the offset where the STCO box will be in the main MOOV box
+                //needed for probable optimise
+                /*stcoOffsets.push_back(
+                  moovBox.payloadSize() +
+                  trakBox.boxedSize() +
+                  mdiaBox.boxedSize() +
+                  minfBox.boxedSize() +
+                  stblBox.boxedSize()
+                );*/
                 mdatSize = totalByteOffset;
                 stblBox.setContent(stcoBox,4 + offset);
-
               minfBox.setContent(stblBox,2);
             mdiaBox.setContent(minfBox, 2);
           trakBox.setContent(mdiaBox, 1);
@@ -288,10 +297,10 @@ namespace Converters {
         boxOffset++;
       }
       //end arbitrary
-      //initial offset lengte ftyp, length moov + 8
+      //initial offset length ftyp, length moov + 8
       unsigned long long int byteOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
       //update all STCO
-      std::map <int, MP4::STCO&> STCOFix; 
+      //std::map <int, MP4::STCO&> STCOFix; 
       //for tracks
       for (unsigned int i = 1; i < moovBox.getContentCount(); i++){
         //10 lines to get the STCO box.
@@ -326,6 +335,9 @@ namespace Converters {
             break;
           }
         }
+        /*MP4::Box temp = MP4::Box((moovBox.payload()+stcoOffsets[i]),false);
+        MP4::STCO & checkStcoBox = *((MP4::STCO*)(&temp));
+        std::cerr << checkStcoBox.toPrettyString() << std::endl;*/
         //got the STCO box, fixing values with MP4 header offset
         for (int j = 0; j < checkStcoBox.getEntryCount(); j++){
           checkStcoBox.setChunkOffset(checkStcoBox.getChunkOffset(j) + byteOffset, j);

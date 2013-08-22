@@ -28,7 +28,8 @@ namespace HTTP {
       std::string & BuildResponse(std::string code, std::string message);
       void SendRequest(Socket::Connection & conn);
       void SendResponse(std::string code, std::string message, Socket::Connection & conn);
-      void Chunkify(std::string & bodypart);
+      void StartResponse(std::string code, std::string message, Parser & request, Socket::Connection & conn);
+      void StartResponse(Parser & request, Socket::Connection & conn);
       void Chunkify(std::string & bodypart, Socket::Connection & conn);
       void Chunkify(const char * data, unsigned int size, Socket::Connection & conn);
       void Proxy(Socket::Connection & from, Socket::Connection & to);

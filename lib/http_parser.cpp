@@ -114,6 +114,35 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
     }
   }
   conn.SendNow("\r\n", 2);
+  conn.SendNow(body);
+}
+
+/// Creates and sends a valid HTTP 1.0 or 1.1 response, based on the given request.
+/// The headers must be set before this call is made.
+/// This call sets up chunked transfer encoding if the request was protocol HTTP/1.1, otherwise uses a zero-content-length HTTP/1.0 response.
+/// \param code The HTTP response code. Usually you want 200.
+/// \param message The HTTP response message. Usually you want "OK".
+/// \param request The HTTP request to respond to.
+/// \param conn The connection to send over.
+void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Parser & request, Socket::Connection & conn){
+  protocol = request.protocol;
+  body = "";
+  if (protocol == "HTTP/1.1"){
+    SetHeader("Transfer-Encoding", "chunked");
+  }else{
+    SetBody("");
+  }
+  SendResponse(code, message, conn);
+}
+
+/// Creates and sends a valid HTTP 1.0 or 1.1 response, based on the given request.
+/// The headers must be set before this call is made.
+/// This call sets up chunked transfer encoding if the request was protocol HTTP/1.1, otherwise uses a zero-content-length HTTP/1.0 response.
+/// This call simply calls StartResponse("200", "OK", request, conn)
+/// \param request The HTTP request to respond to.
+/// \param conn The connection to send over.
+void HTTP::Parser::StartResponse(HTTP::Parser & request, Socket::Connection & conn){
+  StartResponse("200", "OK", request, conn);
 }
 
 /// After receiving a header with this object, this function call will:
@@ -483,27 +512,17 @@ void HTTP::Parser::parseVars(std::string data){
   }
 }
 
-/// Converts a string to chunked format if protocol is HTTP/1.1 - does nothing otherwise.
-/// \param bodypart The data to convert - will be converted in-place.
-void HTTP::Parser::Chunkify(std::string & bodypart){
-  if (protocol == "HTTP/1.1"){
-    char len[10];
-    int sizelen = snprintf(len, 10, "%x\r\n", (unsigned int)bodypart.size());
-    //prepend the chunk size and \r\n
-    bodypart.insert(0, len, sizelen);
-    //append \r\n
-    bodypart.append("\r\n", 2);
-  }
-}
-
-/// Converts a string to chunked format if protocol is HTTP/1.1 - does nothing otherwise.
-/// \param bodypart The data to convert - will be converted in-place.
+/// Sends a string in chunked format if protocol is HTTP/1.1, sends as-is otherwise.
+/// \param bodypart The data to send.
+/// \param conn The connection to use for sending.
 void HTTP::Parser::Chunkify(std::string & bodypart, Socket::Connection & conn){
   Chunkify(bodypart.c_str(), bodypart.size(), conn);
 }
 
-/// Converts a string to chunked format if protocol is HTTP/1.1 - does nothing otherwise.
-/// \param bodypart The data to convert - will be converted in-place.
+/// Sends a string in chunked format if protocol is HTTP/1.1, sends as-is otherwise.
+/// \param data The data to send.
+/// \param size The size of the data to send.
+/// \param conn The connection to use for sending.
 void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connection & conn){
   if (protocol == "HTTP/1.1"){
     char len[10];
@@ -515,8 +534,15 @@ void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connec
     //append \r\n
     conn.SendNow("\r\n", 2);
     if ( !size){
-      //append \r\n again!
+      //append \r\n again if this was the end of the file (required by chunked transfer encoding according to spec)
       conn.SendNow("\r\n", 2);
+    }
+  }else{
+    //just send the chunk itself
+    conn.SendNow(data, size);
+    //close the connection if this was the end of the file
+    if ( !size){
+      conn.close();
     }
   }
 }

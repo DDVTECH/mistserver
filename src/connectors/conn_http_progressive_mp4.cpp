@@ -15,7 +15,7 @@
 #include <mist/socket.h>
 #include <mist/http_parser.h>
 #include <mist/dtsc.h>
-#include <mist/ogg.h>
+#include <mist/mp4.h>
 #include <mist/amf.h>
 #include <mist/config.h>
 #include <mist/stream.h>
@@ -36,13 +36,7 @@ namespace Connector_HTTP {
     std::string streamname;//Will contain the name of the stream.
 
     //MP4 specific variables
-
-    //OGG specific variables
-    /*OGG::headerPages oggMeta;
-    OGG::Page curOggPage;
-    std::map <long long unsigned int, std::vector<JSON::Value> > DTSCBuffer;
-    std::map <long long unsigned int, long long unsigned int> prevGran;*/
-    
+    MP4::DTSC2MP4Converter Conv;
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     unsigned int seek_sec = 0;//Seek position in ms
@@ -158,20 +152,25 @@ namespace Connector_HTTP {
         unsigned int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
-          ss.SendNow(conn.getStats("HTTP_Progressive_Ogg").c_str());
+          ss.SendNow(conn.getStats("HTTP_Progressive_MP4").c_str());
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             
             if ( !progressive_has_sent_header){
               HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-              HTTP_S.SetHeader("Content-Type", "video/ogg"); //Send the correct content-type for FLV files
+              HTTP_S.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for FLV files
               HTTP_S.protocol = "HTTP/1.0";
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
               //Fill in header here
+              ss.SendNow(Conv.DTSCMeta2MP4Header(Strm.metadata));//SENDING MP4HADER
               progressive_has_sent_header = true;
             }
             //parse DTSC to MP4 here
+            Conv.parseDTSC(Strm.getPacket());//parse 1 file DTSC packet
+            if(Conv.sendReady()){//if the converter has a part to send out
+              ss.SendNow(Conv.sendString());//send out and clear Convverter buffer
+            }
           }
         }else{
           Util::sleep(1);

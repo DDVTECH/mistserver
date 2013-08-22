@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include <iostream>
 #include <iomanip>
 #include <cstdio>
@@ -11,7 +12,29 @@
 
 /// Contains all MP4 format related code.
 namespace MP4 {
+  struct keyPart{
+    long long int trackID;
+    long long int size;
+    long long int time;
+    long long int len;
+    JSON::Value parts;
+  };
 
+  class DTSC2MP4Converter{
+    public:
+      std::string DTSCMeta2MP4Header(JSON::Value metaData);
+      void parseDTSC(JSON::Value mediaPart);
+      bool sendReady();
+      std::string sendString();
+    private:
+      std::vector <keyPart> keyParts;
+      //std::vector<MP4::keyPart> keyParts = Conv.keyParts;
+      std::map <long long unsigned int, std::deque<JSON::Value> > trackBuffer;
+      long long unsigned int curKey;//the key chunk we are currently searching for in keyParts
+      long long unsigned int curPart;//current part in current key
+      std::string stringBuffer;
+  };
+  
   class Box{
     public:
       Box(char * datapointer = 0, bool manage = true);

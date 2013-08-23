@@ -459,9 +459,15 @@ int main(int argc, char ** argv){
   capa["deps"] = "HTTP";
   capa["url_rel"] = "/smooth/$.ism/Manifest";
   capa["url_prefix"] = "/smooth/$.ism/";
-  capa["url_handler"] = "http";
-  capa["url_type"] = "ism";
   capa["socket"] = "http_smooth";
+  capa["codecs"][0u][0u].append("H264");
+  capa["codecs"][0u][1u].append("AAC");
+  capa["methods"][0u]["handler"] = "http";
+  capa["methods"][0u]["type"] = "html5/application/vnd.ms-ss";
+  capa["methods"][0u]["priority"] = 9ll;
+  capa["methods"][1u]["handler"] = "http";
+  capa["methods"][1u]["type"] = "silverlight";
+  capa["methods"][1u]["priority"] = 1ll;
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

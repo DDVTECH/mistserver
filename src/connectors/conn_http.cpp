@@ -125,6 +125,63 @@ namespace Connector_HTTP {
     conn->SendNow(H.BuildResponse("504", "Gateway Timeout"));
     return ret;
   }
+  
+  
+  void addSource(const std::string & rel, JSON::Value & sources, std::string & host, const std::string & port, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches){
+    JSON::Value tmp;
+    tmp["type"] = conncapa["type"];
+    tmp["relurl"] = rel;
+    tmp["priority"] = conncapa["priority"];
+    tmp["simul_tracks"] = most_simul;
+    tmp["total_matches"] = total_matches;
+    tmp["url"] = conncapa["handler"].asStringRef() + "://" + host + ":" + port + rel;
+    sources.append(tmp);
+  }
+  
+  void addSources(std::string & streamname, const std::string & rel, JSON::Value & sources, std::string & host, const std::string & port, JSON::Value & conncapa, JSON::Value & strmMeta){
+    unsigned int most_simul = 0;
+    unsigned int total_matches = 0;
+    if (conncapa.isMember("codecs") && conncapa["codecs"].size() > 0){
+      for (JSON::ArrIter it = conncapa["codecs"].ArrBegin(); it != conncapa["codecs"].ArrEnd(); it++){
+        unsigned int simul = 0;
+        if ((*it).size() > 0){
+          for (JSON::ArrIter itb = (*it).ArrBegin(); itb != (*it).ArrEnd(); itb++){
+            unsigned int matches = 0;
+            if ((*itb).size() > 0){
+              for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd(); itc++){
+                for (JSON::ObjIter trit = strmMeta["tracks"].ObjBegin(); trit != strmMeta["tracks"].ObjEnd(); trit++){
+                  if (trit->second["codec"].asStringRef() == (*itc).asStringRef()){
+                    matches++;
+                    total_matches++;
+                  }
+                }
+              }
+            }
+            if (matches){
+              simul++;
+            }
+          }
+        }
+        if (simul > most_simul){
+          most_simul = simul;
+        }
+      }
+    }
+    std::cout << streamname << ", " << most_simul << "sim, " << total_matches << " match" << std::endl;
+    if (conncapa.isMember("methods") && conncapa["methods"].size() > 0){
+      std::string relurl;
+      size_t found = rel.find('$');
+      if (found != std::string::npos){
+        relurl = rel.substr(0, found) + streamname + rel.substr(found+1);
+      }else{
+        relurl = "/";
+      }
+      for (JSON::ArrIter it = conncapa["methods"].ArrBegin(); it != conncapa["methods"].ArrEnd(); it++){
+        addSource(relurl, sources, host, port, *it, most_simul, total_matches);
+      }
+    }
+  }
+  
 
   ///\brief Handles requests within the proxy.
   ///
@@ -240,35 +297,17 @@ namespace Connector_HTTP {
           //if the connector has a port,
           if (capabilities.isMember(cName) && capabilities[cName].isMember("optional") && capabilities[cName]["optional"].isMember("port")){
             //and a URL - then list the URL
-            if (capabilities[cName].isMember("url_type") && capabilities[cName].isMember("url_handler") && capabilities[cName].isMember("url_rel")){
+            if (capabilities[cName].isMember("url_rel")){
               if (( *it)["port"].asInt() == 0){
                 ( *it)["port"] = capabilities[cName]["optional"]["port"]["default"];
               }
-              JSON::Value tmp;
-              tmp["type"] = capabilities[cName]["url_type"];
-              size_t found = capabilities[cName]["url_rel"].asStringRef().find('$');
-              if (found != std::string::npos){
-                tmp["relurl"] = capabilities[cName]["url_rel"].asStringRef().substr(0, found) + streamname + capabilities[cName]["url_rel"].asStringRef().substr(found+1);
-              }else{
-                tmp["relurl"] = "/";
-              }
-              tmp["url"] = capabilities[cName]["url_handler"].asStringRef() + "://" + host + ":" + ( *it)["port"].asString() + tmp["relurl"].asStringRef();
-              json_resp["source"].append(tmp);
+              addSources(streamname, capabilities[cName]["url_rel"].asStringRef(), json_resp["source"], host, ( *it)["port"].asString(), capabilities[cName], ServConf["streams"][streamname]["meta"]);
             }
             //check each enabled protocol separately to see if it depends on this connector
             for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
               //if it depends on this connector and has a URL, list it
-              if (conns.count(oit->first) && oit->second["deps"].asStringRef() == cName && oit->second.isMember("url_type") && oit->second.isMember("url_handler") && oit->second.isMember("url_rel")){
-                JSON::Value tmp;
-                tmp["type"] = oit->second["url_type"];
-                size_t found = oit->second["url_rel"].asStringRef().find('$');
-                if (found != std::string::npos){
-                  tmp["relurl"] = oit->second["url_rel"].asStringRef().substr(0, found) + streamname + oit->second["url_rel"].asStringRef().substr(found+1);
-                }else{
-                  tmp["relurl"] = "/";
-                }
-                tmp["url"] =  oit->second["url_handler"].asStringRef() + "://" + host + ":" + ( *it)["port"].asString() + tmp["relurl"].asStringRef();
-                json_resp["source"].append(tmp);
+              if (conns.count(oit->first) && oit->second["deps"].asStringRef() == cName && oit->second.isMember("methods")){
+                addSources(streamname, oit->second["url_rel"].asStringRef(), json_resp["source"], host, ( *it)["port"].asString(), oit->second, ServConf["streams"][streamname]["meta"]);
               }
             }
           }

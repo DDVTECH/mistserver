@@ -185,9 +185,15 @@ int main(int argc, char ** argv){
   capa["deps"] = "HTTP";
   capa["url_rel"] = "/$.flv";
   capa["url_match"] = "/$.flv";
-  capa["url_handler"] = "http";
-  capa["url_type"] = "flash/7";
   capa["socket"] = "http_progressive_flv";
+  capa["codecs"][0u][0u].append("H264");
+  capa["codecs"][0u][0u].append("H263");
+  capa["codecs"][0u][0u].append("VP6");
+  capa["codecs"][0u][1u].append("AAC");
+  capa["codecs"][0u][1u].append("MP3");
+  capa["methods"][0u]["handler"] = "http";
+  capa["methods"][0u]["type"] = "flash/7";
+  capa["methods"][0u]["priority"] = 5ll;
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

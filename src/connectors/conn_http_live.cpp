@@ -338,9 +338,12 @@ int main(int argc, char ** argv){
   capa["deps"] = "HTTP";
   capa["url_rel"] = "/hls/$/index.m3u8";
   capa["url_prefix"] = "/hls/$/";
-  capa["url_handler"] = "http";
-  capa["url_type"] = "hls";
   capa["socket"] = "http_live";
+  capa["codecs"][0u][0u].append("H264");
+  capa["codecs"][0u][1u].append("AAC");
+  capa["methods"][0u]["handler"] = "http";
+  capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
+  capa["methods"][0u]["priority"] = 9ll;
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

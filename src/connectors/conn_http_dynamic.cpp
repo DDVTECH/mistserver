@@ -315,9 +315,15 @@ int main(int argc, char ** argv){
   capa["deps"] = "HTTP";
   capa["url_rel"] = "/dynamic/$/manifest.f4m";
   capa["url_prefix"] = "/dynamic/$/";
-  capa["url_handler"] = "http";
-  capa["url_type"] = "flash/11";
   capa["socket"] = "http_dynamic";
+  capa["codecs"][0u][0u].append("H264");
+  capa["codecs"][0u][0u].append("H263");
+  capa["codecs"][0u][0u].append("VP6");
+  capa["codecs"][0u][1u].append("AAC");
+  capa["codecs"][0u][1u].append("MP3");
+  capa["methods"][0u]["handler"] = "http";
+  capa["methods"][0u]["type"] = "flash/11";
+  capa["methods"][0u]["priority"] = 7ll;
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

@@ -188,9 +188,12 @@ int main(int argc, char ** argv){
   capa["deps"] = "HTTP";
   capa["url_rel"] = "/$.ogg";
   capa["url_match"] = "/$.ogg";
-  capa["url_handler"] = "http";
-  capa["url_type"] = "ogg";
   capa["socket"] = "http_progressive_ogg";
+  capa["codecs"][0u][0u].append("theora");
+  capa["codecs"][0u][1u].append("vorbis");
+  capa["methods"][0u]["handler"] = "http";
+  capa["methods"][0u]["type"] = "html5/video/ogg";
+  capa["methods"][0u]["priority"] = 8ll;
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

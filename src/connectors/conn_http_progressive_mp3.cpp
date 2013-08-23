@@ -165,11 +165,13 @@ int main(int argc, char ** argv){
   JSON::Value capa;
   capa["desc"] = "Enables HTTP protocol progressive streaming.";
   capa["deps"] = "HTTP";
+  capa["codecs"][0u][0u].append("MP3");
   capa["url_rel"] = "/$.mp3";
   capa["url_match"] = "/$.mp3";
-  capa["url_handler"] = "http";
-  capa["url_type"] = "mp3";
   capa["socket"] = "http_progressive_mp3";
+  capa["methods"][0u]["handler"] = "http";
+  capa["methods"][0u]["type"] = "mp3";
+  capa["methods"][0u]["priority"] = 8ll;
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

@@ -657,8 +657,14 @@ int main(int argc, char ** argv){
   capa["desc"] = "Enables the RTMP protocol which is used by Adobe Flash Player.";
   capa["deps"] = "";
   capa["url_rel"] = "/play/$";
-  capa["url_handler"] = "rtmp";
-  capa["url_type"] = "flash/10";
+  capa["codecs"][0u][0u].append("H264");
+  capa["codecs"][0u][0u].append("H263");
+  capa["codecs"][0u][0u].append("VP6");
+  capa["codecs"][0u][1u].append("AAC");
+  capa["codecs"][0u][1u].append("MP3");
+  capa["methods"][0u]["handler"] = "rtmp";
+  capa["methods"][0u]["type"] = "flash/10";
+  capa["methods"][0u]["priority"] = 6ll;
   conf.addConnectorOptions(1935, capa);
   conf.parseArgs(argc, argv);
   if (conf.getBool("json")){

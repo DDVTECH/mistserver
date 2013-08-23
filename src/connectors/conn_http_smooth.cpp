@@ -75,7 +75,7 @@ namespace Connector_HTTP {
                 "Name=\"audio\" "
                 "Chunks=\"" << allAudio.ObjBegin()->second["keys"].size() << "\" "
                 "Url=\"Q({bitrate})/A({start time})\">\n";
-      int index = 1;
+      int index = 0;
       for (JSON::ObjIter oIt = allAudio.ObjBegin(); oIt != allAudio.ObjEnd(); oIt++){
         Result << "<QualityLevel "
                   "Index=\"" << index << "\" "
@@ -114,7 +114,7 @@ namespace Connector_HTTP {
                 "MaxHeight=\"" << maxHeight << "\" "
                 "DisplayWidth=\"" << maxWidth << "\" "
                 "DisplayHeight=\"" << maxHeight << "\">\n";
-      int index = 1;
+      int index = 0;
       for (JSON::ObjIter oIt = allVideo.ObjBegin(); oIt != allVideo.ObjEnd(); oIt++){
       //Add video qualities
         Result << "<QualityLevel "
@@ -400,7 +400,9 @@ namespace Connector_HTTP {
               HTTP_S.SetHeader("Content-Type", "video/mp4");
               HTTP_S.StartResponse(HTTP_R, conn);
               HTTP_S.Chunkify(moof_box.asBox(), moof_box.boxedSize(), conn);
-              HTTP_S.Chunkify("\000\000\000\000mdat", 8, conn);
+              int size = htonl(keyObj["size"].asInt() + 8);
+              HTTP_S.Chunkify((char*)&size, 4, conn);
+              HTTP_S.Chunkify("mdat", 4, conn);
               handlingRequest = true;
             }else{
               //We have a request for a Manifest, generate and send it.

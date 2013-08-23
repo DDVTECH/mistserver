@@ -26,12 +26,11 @@ namespace MP4 {
       void parseDTSC(JSON::Value mediaPart);
       bool sendReady();
       std::string sendString();
-    private:
       std::vector <keyPart> keyParts;
-      //std::vector<MP4::keyPart> keyParts = Conv.keyParts;
-      std::map <long long unsigned int, std::deque<JSON::Value> > trackBuffer;
+    private:
       long long unsigned int curKey;//the key chunk we are currently searching for in keyParts
       long long unsigned int curPart;//current part in current key
+      std::map <long long unsigned int, std::deque<JSON::Value> > trackBuffer;
       std::string stringBuffer;
   };
   

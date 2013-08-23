@@ -313,7 +313,7 @@ namespace MP4{
 
     //printf("%c%c%c%cmdat", (mdatSize>>24) & 0x000000FF,(mdatSize>>16) & 0x000000FF,(mdatSize>>8) & 0x000000FF,mdatSize & 0x000000FF);
     header << (char)((mdatSize>>24) & 0x000000FF) << (char)((mdatSize>>16) & 0x000000FF) << (char)((mdatSize>>8) & 0x000000FF) << (char)(mdatSize & 0x000000FF) << "mdat";
-    std::cerr << "Header Written" << std::endl;
+    //std::cerr << "Header Written" << std::endl;
     //end of header
     std::map <long long unsigned int, std::deque<JSON::Value> > trackBuffer;
     long long unsigned int curKey = 0;//the key chunk we are currently searching for in keyParts

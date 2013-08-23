@@ -74,8 +74,10 @@ namespace Connector_HTTP {
             //under 3 hours we assume seconds, otherwise byte position
             if (start < 10800){
               seek_sec = start * 1000; //ms, not s
+              seek_byte = 0;
             }else{
               seek_byte = start; //divide by 1mbit, then *1000 for ms.
+              seek_sec = 0;
             }
             ready4data = true;
             HTTP_R.Clean(); //clean for any possible next requests
@@ -158,8 +160,16 @@ namespace Connector_HTTP {
               }
               progressive_has_sent_header = true;
             }
-            tag.DTSCLoader(Strm);
-            conn.SendNow(tag.data, tag.len); //write the tag contents
+            if (Strm.lastType() == DTSC::PAUSEMARK){
+              conn.close();
+            }
+            if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
+              std::string codec = Strm.getTrackById(Strm.getPacket()["trackid"].asInt())["codec"].asString();
+              if (codec == "AAC" || codec == "MP3" || codec == "H264"){
+                tag.DTSCLoader(Strm);
+                conn.SendNow(tag.data, tag.len); //write the tag contents
+              }
+            }
           }
         }else{
           Util::sleep(1);

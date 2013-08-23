@@ -40,7 +40,6 @@ namespace Connector_HTTP {
     unsigned int seek_sec = 0;//Seek position in ms
     unsigned int seek_byte = 0;//Seek position in bytes
     
-    int videoID = -1;
     int audioID = -1;
 
     while (conn.connected()){
@@ -98,10 +97,7 @@ namespace Connector_HTTP {
           Strm.waitForMeta(ss);
           int byterate = 0;
           for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["type"].asString() == "video"){
-              videoID = objIt->second["trackid"].asInt();
-            }
-            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
+            if (audioID == -1 && objIt->second["codec"].asString() == "MP3"){
               audioID = objIt->second["trackid"].asInt();
             }
           }
@@ -114,9 +110,6 @@ namespace Connector_HTTP {
           }
           std::stringstream cmd;
           cmd << "t";
-          if (videoID != -1){
-            cmd << " " << videoID;
-          }
           if (audioID != -1){
             cmd << " " << audioID;
           }
@@ -138,6 +131,9 @@ namespace Connector_HTTP {
               HTTP_S.protocol = "HTTP/1.0";
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
               progressive_has_sent_header = true;
+            }
+            if(Strm.lastType() == DTSC::PAUSEMARK){
+              conn.close();
             }
             if(Strm.lastType() == DTSC::AUDIO){
               conn.SendNow(Strm.lastData()); //write the MP3 contents

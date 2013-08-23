@@ -46,8 +46,6 @@ namespace Connector_HTTP {
     unsigned int seek_sec = 0;//Seek position in ms
     unsigned int seek_byte = 0;//Seek position in bytes
     
-    bool isMP3 = false;//Indicates whether the request is audio-only mp3.
-    
     int videoID = -1;
     int audioID = -1;
 
@@ -106,10 +104,10 @@ namespace Connector_HTTP {
           Strm.waitForMeta(ss);
           int byterate = 0;
           for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["type"].asString() == "video"){
+            if (videoID == -1 && objIt->second["codec"].asString() == "THEORA"){
               videoID = objIt->second["trackid"].asInt();
             }
-            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
+            if (audioID == -1 && objIt->second["codec"].asString() == "VORBIS"){
               audioID = objIt->second["trackid"].asInt();
             }
           }
@@ -160,9 +158,14 @@ namespace Connector_HTTP {
               conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
               DTSCBuffer[temp].clear();
             }
-            //long long unsigned int prevID = Strm.getPacket()["trackid"].asInt();
-            DTSCBuffer[temp].push_back(Strm.getPacket());
-            prevGran[temp] = Strm.getPacket()["granule"].asInt();
+            if (Strm.lastType() == DTSC::PAUSEMARK){
+              conn.close();
+            }
+            if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
+              //long long unsigned int prevID = Strm.getPacket()["trackid"].asInt();
+              DTSCBuffer[temp].push_back(Strm.getPacket());
+              prevGran[temp] = Strm.getPacket()["granule"].asInt();
+            }
           }
         }else{
           Util::sleep(1);

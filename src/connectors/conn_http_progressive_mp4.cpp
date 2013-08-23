@@ -37,6 +37,7 @@ namespace Connector_HTTP {
 
     //MP4 specific variables
     MP4::DTSC2MP4Converter Conv;
+    std::vector<MP4::keyPart>::iterator keyPartIt;
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     unsigned int seek_sec = 0;//Seek position in ms
@@ -101,6 +102,21 @@ namespace Connector_HTTP {
         if ( !inited){
           //we are ready, connect the socket!
           ss = Util::Stream::getStream(streamname);
+          Strm.waitForMeta(ss);
+          //build header here and set iterator
+          HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
+          HTTP_S.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for FLV files
+          HTTP_S.protocol = "HTTP/1.0";
+          conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
+          conn.SendNow(Conv.DTSCMeta2MP4Header(Strm.metadata));//SENDING MP4HEADER
+          keyPartIt = Conv.keyParts.begin();
+          {//using scope to have cmd not declared after action
+            std::stringstream cmd;
+            cmd << "t "<< (*keyPartIt).trackID;
+            cmd << "\ns " << (*keyPartIt).time;
+            cmd << "\np "<< (*keyPartIt).time + (*keyPartIt).len<<"\n";
+            ss.SendNow(cmd.str());
+          }
           if ( !ss.connected()){
 #if DEBUG >= 1
             fprintf(stderr, "Could not connect to server for %s!\n", streamname.c_str());
@@ -137,16 +153,7 @@ namespace Connector_HTTP {
           }
           if ( !byterate){byterate = 1;}
           seek_sec = (seek_byte / byterate) * 1000;
-          std::stringstream cmd;
-          cmd << "t";
-          if (videoID != -1){
-            cmd << " " << videoID;
-          }
-          if (audioID != -1){
-            cmd << " " << audioID;
-          }
-          cmd << "\ns " << seek_sec << "\np\n";
-          ss.SendNow(cmd.str().c_str(), cmd.str().size());
+          
           inited = true;
         }
         unsigned int now = Util::epoch();
@@ -156,20 +163,24 @@ namespace Connector_HTTP {
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
-            
-            if ( !progressive_has_sent_header){
-              HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-              HTTP_S.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for FLV files
-              HTTP_S.protocol = "HTTP/1.0";
-              conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
-              //Fill in header here
-              ss.SendNow(Conv.DTSCMeta2MP4Header(Strm.metadata));//SENDING MP4HADER
-              progressive_has_sent_header = true;
-            }
-            //parse DTSC to MP4 here
-            Conv.parseDTSC(Strm.getPacket());//parse 1 file DTSC packet
-            if(Conv.sendReady()){//if the converter has a part to send out
-              ss.SendNow(Conv.sendString());//send out and clear Convverter buffer
+            if (Strm.lastType() == DTSC::PAUSEMARK){
+              keyPartIt++;
+              if (keyPartIt != Conv.keyParts.end()){
+                //Schop player
+                //t trackID
+                //s (*keyPartIt).time
+                //p time+len
+                std::stringstream cmd;
+                cmd << "t "<< (*keyPartIt).trackID;
+                cmd << "\ns " << (*keyPartIt).time;
+                cmd << "\np " << (*keyPartIt).time + (*keyPartIt).len<<"\n";
+                //std::cerr << cmd.str() << std::endl;
+                ss.SendNow(cmd.str());
+              }
+            }else if(Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
+              //std::cerr << "send data" << std::endl;
+              //parse DTSC to MP4 here
+              conn.SendNow(Strm.lastData());//send out and clear Convverter buffer
             }
           }
         }else{

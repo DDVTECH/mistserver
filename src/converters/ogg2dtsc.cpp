@@ -192,5 +192,7 @@ namespace Converters{
 }
 
 int main(int argc, char ** argv){
+  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.parseArgs(argc,argv);
   return Converters::OGG2DTSC();
 }

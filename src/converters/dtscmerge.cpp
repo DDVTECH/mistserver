@@ -122,12 +122,12 @@ namespace Converters {
       inFiles[sortIt->second.fileName].selectTracks(trackSelector);
       inFiles[sortIt->second.fileName].seek_time(sortIt->second.keyTime);
       inFiles[sortIt->second.fileName].seekNext();
-      while (inFiles[sortIt->second.fileName].getJSON() && inFiles[sortIt->second.fileName].getBytePos() < sortIt->second.endBPos && !inFiles[sortIt->second.fileName].reachedEOF()){
+      while (inFiles[sortIt->second.fileName].getJSON() && inFiles[sortIt->second.fileName].getBytePos() <= sortIt->second.endBPos && !inFiles[sortIt->second.fileName].reachedEOF()){
         if (inFiles[sortIt->second.fileName].getJSON()["trackid"].asInt() == sortIt->second.trackID){
-          inFiles[sortIt->second.fileName].getJSON()["trackid"] = trackMapping[sortIt->second.fileName][inFiles[sortIt->second.fileName].getJSON()["trackid"].asInt()];
+          inFiles[sortIt->second.fileName].getJSON()["trackid"] = trackMapping[sortIt->second.fileName][sortIt->second.trackID];
           outFile.writePacket(inFiles[sortIt->second.fileName].getJSON());
-          inFiles[sortIt->second.fileName].seekNext();
         }
+        inFiles[sortIt->second.fileName].seekNext();
       }
     }
 

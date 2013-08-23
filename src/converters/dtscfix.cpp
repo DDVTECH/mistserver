@@ -10,7 +10,7 @@
 namespace Converters {
   class HeaderEntryDTSC {
     public:
-      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-5000), trackID(0), firstms(-1), lastms(0), keynum(0) {}
+      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-5000), trackID(0), firstms(0x7FFFFFFF), lastms(0), keynum(0) {}
       long long int totalSize;
       std::vector<long long int> parts;
       long long int lastKeyTime;
@@ -125,11 +125,11 @@ namespace Converters {
           //should create new track but this shouldnt be needed...
         }
       }
+      if (F.getJSON()["time"].asInt() < trackData[currentID].firstms){
+        trackData[currentID].firstms = F.getJSON()["time"].asInt();
+      }
       if (F.getJSON()["time"].asInt() >= nowpack){
         nowpack = F.getJSON()["time"].asInt();
-      }
-      if (trackData[currentID].firstms == -1){
-        trackData[currentID].firstms = nowpack;
       }
       if (trackData[currentID].type == "video"){
         if (F.getJSON().isMember("keyframe")){
@@ -231,7 +231,7 @@ namespace Converters {
               if (fragDur / 1000){
                 thisFrag["bps"] = fragSize / (fragDur / 1000);
                 if (maxBps < (fragSize / (fragDur / 1000))){
-                  maxBps = (fragSize / (fragDur / 1000));
+                  maxBps = (fragSize / (fragDur / 999));
                 }
               } else {
                 thisFrag["bps"] = 1;

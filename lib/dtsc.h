@@ -215,6 +215,7 @@ namespace DTSC {
       bool isNewest(DTSC::livePos & pos);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
       void endStream();
+      void waitForMeta(Socket::Connection & sourceSocket);
     private:
       std::map<livePos,JSON::Value> buffers;
       std::map<int,std::set<livePos> > keyframes;

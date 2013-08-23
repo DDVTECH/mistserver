@@ -189,6 +189,29 @@ void DTSC::Stream::endStream(){
   }
 }
 
+/// Blocks until either the stream has metadata available or the sourceSocket errors.
+/// This function is intended to be run before any commands are sent and thus will not throw away anything important.
+void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket){
+  while ( !metadata && sourceSocket.connected()){
+    //we have data? attempt to read header
+    if (sourceSocket.Received().size()){
+      //return value is ignore because we're not interested in data packets, just metadata.
+      parsePacket(sourceSocket.Received());
+    }
+    //still no header? check for more data
+    if ( !metadata){
+      if (sourceSocket.spool()){
+        //more received? attempt to read
+        //return value is ignore because we're not interested in data packets, just metadata.
+        parsePacket(sourceSocket.Received());
+      }else{
+        //nothing extra to receive? wait a bit and retry
+        Util::sleep(5);
+      }
+    }
+  }
+}
+
 void DTSC::Stream::addPacket(JSON::Value & newPack){
   bool updateMeta = false;
   long long unsigned int now = Util::getMS();

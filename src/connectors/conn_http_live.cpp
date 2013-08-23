@@ -149,14 +149,7 @@ namespace Connector_HTTP {
                 continue;
               }
               ss.setBlocking(false);
-              //make sure metadata is received
-              while ( !Strm.metadata && ss.connected()){
-                if (ss.spool()){
-                  while (Strm.parsePacket(ss.Received())){
-                    //do nothing
-                  }
-                }
-              }
+              Strm.waitForMeta(ss);
             }
             if (HTTP_R.url.find(".m3u") == std::string::npos){
               temp = HTTP_R.url.find("/", 5) + 1;

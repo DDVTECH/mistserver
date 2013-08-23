@@ -103,14 +103,7 @@ namespace Connector_HTTP {
             ready4data = false;
             continue;
           }
-          //wait until we have a header
-          while ( !Strm.metadata && ss.connected()){
-            if (ss.spool()){
-              Strm.parsePacket(ss.Received()); //read the metadata
-            }else{
-              Util::sleep(5);
-            }
-          }
+          Strm.waitForMeta(ss);
           int byterate = 0;
           for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
             if (videoID == -1 && objIt->second["type"].asString() == "video"){

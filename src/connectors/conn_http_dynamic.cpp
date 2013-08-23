@@ -178,14 +178,7 @@ namespace Connector_HTTP {
                 continue;
               }
               ss.setBlocking(false);
-              //make sure metadata is received
-              while ( !Strm.metadata && ss.connected()){
-                if (ss.spool()){
-                  while (Strm.parsePacket(ss.Received())){
-                    //do nothing
-                  }
-                }
-              }
+              Strm.waitForMeta(ss);
             }
             if (HTTP_R.url.find(".abst") != std::string::npos){
               std::string streamID = HTTP_R.url.substr(HTTP_R.url.find(streamname) + streamname.size() + 1);

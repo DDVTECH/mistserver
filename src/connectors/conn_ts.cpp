@@ -65,15 +65,8 @@ namespace Connector_TS {
           int videoID = -1;
           int audioID = -1;
 
-          //make sure metadata is received
-          while ( !Strm.metadata && ss.connected()){
-            if (ss.spool()){
-              while (Strm.parsePacket(ss.Received())){
-                //do nothing
-              }
-            }
-          }
-
+          Strm.waitForMeta(ss);
+          
           if (Strm.metadata.isMember("tracks")){
 
             for (JSON::ObjIter trackIt = Strm.metadata["tracks"].ObjBegin(); trackIt != Strm.metadata["tracks"].ObjEnd(); trackIt++){

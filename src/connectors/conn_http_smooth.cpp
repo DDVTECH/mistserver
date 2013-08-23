@@ -202,14 +202,7 @@ namespace Connector_HTTP {
                 continue;
               }
               ss.setBlocking(false);
-              //Do nothing until metadata has been received.
-              while ( !Strm.metadata && ss.connected()){
-                if (ss.spool()){
-                  while (Strm.parsePacket(ss.Received())){
-                    //do nothing
-                  }
-                }
-              }
+              Strm.waitForMeta(ss);
               for (JSON::ObjIter oIt = Strm.metadata["tracks"].ObjBegin(); oIt != Strm.metadata["tracks"].ObjEnd(); oIt++){
                 if (oIt->second["type"].asString() == "audio"){
                   allAudio[oIt->first] = oIt->second;

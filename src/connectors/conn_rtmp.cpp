@@ -549,15 +549,7 @@ namespace Connector_RTMP {
             break;
           }
           ss.setBlocking(false);
-
-          //assure metadata is received
-          while ( !Strm.metadata && ss.connected()){
-            if (ss.spool()){
-              Strm.parsePacket(ss.Received()); //read the metadata
-            }else{
-              Util::sleep(5);
-            }
-          }
+          Strm.waitForMeta(ss);
           //find first audio and video tracks
           for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
             if (videoID == -1 && objIt->second["type"].asStringRef() == "video"){

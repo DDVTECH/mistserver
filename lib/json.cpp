@@ -64,7 +64,7 @@ std::string JSON::Value::read_string(int separator, std::istream & fromstream){
   return out;
 }
 
-std::string JSON::Value::string_escape(std::string val){
+std::string JSON::Value::string_escape(const std::string val){
   std::string out = "\"";
   for (unsigned int i = 0; i < val.size(); ++i){
     switch (val[i]){
@@ -320,7 +320,7 @@ JSON::Value & JSON::Value::operator=(const unsigned int &rhs){
 }
 
 /// Automatic conversion to long long int - returns 0 if not convertable.
-JSON::Value::operator long long int(){
+JSON::Value::operator long long int() const{
   if (myType == INTEGER){
     return intVal;
   }
@@ -332,7 +332,7 @@ JSON::Value::operator long long int(){
 
 /// Automatic conversion to std::string.
 /// Returns the raw string value if available, otherwise calls toString().
-JSON::Value::operator std::string(){
+JSON::Value::operator std::string() const{
   if (myType == STRING){
     return strVal;
   }else{
@@ -346,7 +346,7 @@ JSON::Value::operator std::string(){
 
 /// Automatic conversion to bool.
 /// Returns true if there is anything meaningful stored into this value.
-JSON::Value::operator bool(){
+JSON::Value::operator bool() const{
   if (myType == STRING){
     return strVal != "";
   }
@@ -369,15 +369,15 @@ JSON::Value::operator bool(){
 }
 
 /// Explicit conversion to std::string.
-const std::string JSON::Value::asString(){
+const std::string JSON::Value::asString() const{
   return (std::string) *this;
 }
 /// Explicit conversion to long long int.
-const long long int JSON::Value::asInt(){
+const long long int JSON::Value::asInt() const{
   return (long long int) *this;
 }
 /// Explicit conversion to bool.
-const bool JSON::Value::asBool(){
+const bool JSON::Value::asBool() const{
   return (bool) *this;
 }
 
@@ -385,7 +385,7 @@ const bool JSON::Value::asBool(){
 /// Returns a direct reference for string type JSON::Value objects,
 /// but a reference to a static empty string otherwise.
 /// \warning Only save to use when the JSON::Value is a string type!
-const std::string & JSON::Value::asStringRef(){
+const std::string & JSON::Value::asStringRef() const{
   static std::string ugly_buffer;
   if (myType == STRING){
     return strVal;
@@ -397,7 +397,7 @@ const std::string & JSON::Value::asStringRef(){
 /// Returns a direct reference for string type JSON::Value objects,
 /// a reference to an empty string otherwise.
 /// \warning Only save to use when the JSON::Value is a string type!
-const char * JSON::Value::c_str(){
+const char * JSON::Value::c_str() const{
   if (myType == STRING){
     return strVal.c_str();
   }
@@ -434,6 +434,24 @@ JSON::Value & JSON::Value::operator[](unsigned int i){
   while (i >= arrVal.size()){
     append(JSON::Value());
   }
+  return arrVal[i];
+}
+
+/// Retrieves the JSON::Value at this position in the object.
+/// Fails horribly if that values does not exist.
+JSON::Value const & JSON::Value::operator[](const std::string i) const{
+  return objVal.at(i);
+}
+
+/// Retrieves the JSON::Value at this position in the object.
+/// Fails horribly if that values does not exist.
+JSON::Value const & JSON::Value::operator[](const char * i) const{
+  return objVal.at(i);
+}
+
+/// Retrieves the JSON::Value at this position in the array.
+/// Fails horribly if that values does not exist.
+JSON::Value const & JSON::Value::operator[](unsigned int i) const{
   return arrVal[i];
 }
 
@@ -582,7 +600,7 @@ std::string & JSON::Value::toNetPacked(){
 
 /// Converts this JSON::Value to valid JSON notation and returns it.
 /// Makes absolutely no attempts to pretty-print anything. :-)
-std::string JSON::Value::toString(){
+std::string JSON::Value::toString() const{
   switch (myType){
     case INTEGER: {
       std::stringstream st;
@@ -597,7 +615,7 @@ std::string JSON::Value::toString(){
     case ARRAY: {
       std::string tmp = "[";
       if (arrVal.size() > 0){
-        for (ArrIter it = ArrBegin(); it != ArrEnd(); it++){
+        for (ArrConstIter it = ArrBegin(); it != ArrEnd(); it++){
           tmp += it->toString();
           if (it + 1 != ArrEnd()){
             tmp += ",";
@@ -611,9 +629,9 @@ std::string JSON::Value::toString(){
     case OBJECT: {
       std::string tmp2 = "{";
       if (objVal.size() > 0){
-        ObjIter it3 = ObjEnd();
+        ObjConstIter it3 = ObjEnd();
         --it3;
-        for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
+        for (ObjConstIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
           tmp2 += string_escape(it2->first)+":";
           tmp2 += it2->second.toString();
           if (it2 != it3){
@@ -634,7 +652,7 @@ std::string JSON::Value::toString(){
 
 /// Converts this JSON::Value to valid JSON notation and returns it.
 /// Makes an attempt at pretty-printing.
-std::string JSON::Value::toPrettyString(int indentation){
+std::string JSON::Value::toPrettyString(int indentation) const{
   switch (myType){
     case INTEGER: {
       std::stringstream st;
@@ -654,7 +672,7 @@ std::string JSON::Value::toPrettyString(int indentation){
     case ARRAY: {
       if (arrVal.size() > 0){
         std::string tmp = "[\n" + std::string(indentation + 2, ' ');
-        for (ArrIter it = ArrBegin(); it != ArrEnd(); it++){
+        for (ArrConstIter it = ArrBegin(); it != ArrEnd(); it++){
           tmp += it->toPrettyString(indentation + 2);
           if (it + 1 != ArrEnd()){
             tmp += ", ";
@@ -674,9 +692,9 @@ std::string JSON::Value::toPrettyString(int indentation){
           shortMode = true;
         }
         std::string tmp2 = "{" + std::string((shortMode ? "" : "\n"));
-        ObjIter it3 = ObjEnd();
+        ObjConstIter it3 = ObjEnd();
         --it3;
-        for (ObjIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
+        for (ObjConstIter it2 = ObjBegin(); it2 != ObjEnd(); it2++){
           tmp2 += (shortMode ? std::string("") : std::string(indentation + 2, ' ')) + string_escape(it2->first) + ":";
           tmp2 += it2->second.toPrettyString(indentation + 2);
           if (it2 != it3){
@@ -800,8 +818,28 @@ JSON::ArrIter JSON::Value::ArrEnd(){
   return arrVal.end();
 }
 
+/// Returns an iterator to the begin of the object map, if any.
+JSON::ObjConstIter JSON::Value::ObjBegin() const{
+  return objVal.begin();
+}
+
+/// Returns an iterator to the end of the object map, if any.
+JSON::ObjConstIter JSON::Value::ObjEnd() const{
+  return objVal.end();
+}
+
+/// Returns an iterator to the begin of the array, if any.
+JSON::ArrConstIter JSON::Value::ArrBegin() const{
+  return arrVal.begin();
+}
+
+/// Returns an iterator to the end of the array, if any.
+JSON::ArrConstIter JSON::Value::ArrEnd() const{
+  return arrVal.end();
+}
+
 /// Returns the total of the objects and array size combined.
-unsigned int JSON::Value::size(){
+unsigned int JSON::Value::size() const{
   return objVal.size() + arrVal.size();
 }
 

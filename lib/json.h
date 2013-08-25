@@ -24,7 +24,9 @@ namespace JSON {
 
   typedef std::map<std::string, Value>::iterator ObjIter;
   typedef std::deque<Value>::iterator ArrIter;
-
+  typedef std::map<std::string, Value>::const_iterator ObjConstIter;
+  typedef std::deque<Value>::const_iterator ArrConstIter;
+  
   /// A JSON::Value is either a string or an integer, but may also be an object, array or null.
   class Value{
     private:
@@ -34,7 +36,7 @@ namespace JSON {
       std::deque<Value> arrVal;
       std::map<std::string, Value> objVal;
       std::string read_string(int separator, std::istream & fromstream);
-      std::string string_escape(std::string val);
+      static std::string string_escape(const std::string val);
       int c2hex(int c);
       static void skipToEnd(std::istream & fromstream);
     public:
@@ -58,24 +60,27 @@ namespace JSON {
       Value & operator=(const unsigned int &rhs);
       Value & operator=(const bool &rhs);
       //converts to basic types
-      operator long long int();
-      operator std::string();
-      operator bool();
-      const std::string asString();
-      const long long int asInt();
-      const bool asBool();
-      const std::string & asStringRef();
-      const char * c_str();
+      operator long long int() const;
+      operator std::string() const;
+      operator bool() const;
+      const std::string asString() const;
+      const long long int asInt() const;
+      const bool asBool() const;
+      const std::string & asStringRef() const;
+      const char * c_str() const;
       //array operator for maps and arrays
       Value & operator[](const std::string i);
       Value & operator[](const char * i);
       Value & operator[](unsigned int i);
+      Value const & operator[](const std::string i) const;
+      Value const & operator[](const char * i) const;
+      Value const & operator[](unsigned int i) const;
       //handy functions and others
       std::string toPacked();
       void netPrepare();
       std::string & toNetPacked();
-      std::string toString();
-      std::string toPrettyString(int indentation = 0);
+      std::string toString() const;
+      std::string toPrettyString(int indentation = 0) const;
       void append(const Value & rhs);
       void prepend(const Value & rhs);
       void shrink(unsigned int size);
@@ -91,7 +96,11 @@ namespace JSON {
       ObjIter ObjEnd();
       ArrIter ArrBegin();
       ArrIter ArrEnd();
-      unsigned int size();
+      ObjConstIter ObjBegin() const;
+      ObjConstIter ObjEnd() const;
+      ArrConstIter ArrBegin() const;
+      ArrConstIter ArrEnd() const;
+      unsigned int size() const;
       void null();
   };
 

@@ -154,6 +154,9 @@ namespace Converters {
           meta["tracks"][currentID]["keys"][newNum]["num"] = ++trackData[currentID].keynum;
           meta["tracks"][currentID]["keys"][newNum]["time"] = F.getJSON()["time"];
           meta["tracks"][currentID]["keys"][newNum]["bpos"] = F.getLastReadPos();
+          if (newNum == 0){
+            trackData[currentID].firstms = F.getJSON()["time"].asInt();
+          }
           if (meta["tracks"][currentID]["keys"].size() > 1){
             meta["tracks"][currentID]["keys"][newNum - 1]["len"] = F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keys"][newNum - 1]["time"].asInt();
             meta["tracks"][currentID]["keys"][newNum - 1]["size"] = trackData[currentID].totalSize;
@@ -263,14 +266,12 @@ namespace Converters {
     oriheader["moreheader"] = newHPos;
     loader = oriheader.toPacked();
     if (F.writeHeader(loader)){
-      std::cerr << "Metadata is now: " << meta.toPrettyString(0) << std::endl;
       return 0;
     }else{
       std::cerr << "Failure rewriting header." << std::endl;
       return -1;
     }
   } //DTSCFix
-
 }
 
 /// Entry point for DTSCFix, simply calls Converters::DTSCFix().

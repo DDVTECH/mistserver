@@ -317,7 +317,8 @@ namespace Connector_HTTP {
               
               sstream << "t " << myRef["trackid"].asInt() << "\n";
               sstream << "s " << (requestedTime / 10000) << "\n";
-			  sstream << "p " << (mstime + mslen) <<"\n";
+              sstream << "o\n";
+
               ss.SendNow(sstream.str().c_str());
 
               unsigned int myDuration;

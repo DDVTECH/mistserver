@@ -25,47 +25,66 @@ std::map<pid_t, Util::TerminationNotifier> Util::Procs::exitHandlers;
 bool Util::Procs::handler_set = false;
 
 /// Called at exit of any program that used a Start* function.
-/// Waits up to 2.5 seconds, then sends SIGINT signal to all managed processes.
-/// After that waits up to 10 seconds for children to exit, then sends SIGKILL to
+/// Waits up to 1 second, then sends SIGINT signal to all managed processes.
+/// After that waits up to 5 seconds for children to exit, then sends SIGKILL to
 /// all remaining children. Waits one more second for cleanup to finish, then exits.
 void Util::Procs::exit_handler(){
   int waiting = 0;
-  while ( !plist.empty()){
-    Util::sleep(100);
-    if (++waiting > 25){
-      break;
+  std::map<pid_t, std::string> listcopy = plist;
+  std::map<pid_t, std::string>::iterator it;
+
+  //wait up to 1 second for applications to shut down 
+  while ( !listcopy.empty() && waiting <= 50){
+    for (it = listcopy.begin(); it != listcopy.end(); it++){
+      if (kill(( *it).first, 0) == 0){
+        Util::sleep(20);
+        ++waiting;
+      }else{
+        listcopy.erase(it);
+        break;
+      }
     }
   }
   
-  if ( !plist.empty()){
-    std::map<pid_t, std::string> listcopy = plist;
-    std::map<pid_t, std::string>::iterator it;
+  //send sigint to all remaining
+  if ( !listcopy.empty()){
     for (it = listcopy.begin(); it != listcopy.end(); it++){
       kill(( *it).first, SIGINT);
     }
   }
 
   waiting = 0;
-  while ( !plist.empty()){
-    Util::sleep(200);
-    if (++waiting > 25){
-      break;
+  //wait up to 5 seconds for applications to shut down 
+  while ( !listcopy.empty() && waiting <= 50){
+    for (it = listcopy.begin(); it != listcopy.end(); it++){
+      if (kill(( *it).first, 0) == 0){
+        Util::sleep(100);
+        ++waiting;
+      }else{
+        listcopy.erase(it);
+        break;
+      }
     }
   }
-
+  
+  //send sigkill to all remaining
   if ( !plist.empty()){
-    std::map<pid_t, std::string> listcopy = plist;
-    std::map<pid_t, std::string>::iterator it;
     for (it = listcopy.begin(); it != listcopy.end(); it++){
       kill(( *it).first, SIGKILL);
     }
   }
 
   waiting = 0;
-  while ( !plist.empty()){
-    Util::sleep(100);
-    if (++waiting > 10){
-      break;
+  //wait up to 1 second for applications to shut down 
+  while ( !listcopy.empty() && waiting <= 50){
+    for (it = listcopy.begin(); it != listcopy.end(); it++){
+      if (kill(( *it).first, 0) == 0){
+        Util::sleep(20);
+        ++waiting;
+      }else{
+        listcopy.erase(it);
+        break;
+      }
     }
   }
   

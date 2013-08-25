@@ -126,8 +126,42 @@ namespace Connector_HTTP {
     return ret;
   }
   
+  /// Sorts the JSON::Value objects that hold source information by preference.
+  struct sourceCompare {
+    bool operator() (const JSON::Value& lhs, const JSON::Value& rhs) const {
+      //first compare simultaneous tracks
+      if (lhs["simul_tracks"].asInt() > rhs["simul_tracks"].asInt()){
+        //more tracks = higher priority = true.
+        return true;
+      }
+      if (lhs["simul_tracks"].asInt() < rhs["simul_tracks"].asInt()){
+        //less tracks = lower priority = false
+        return false;
+      }
+      //same amount of tracks - compare "hardcoded" priorities
+      if (lhs["priority"].asInt() > rhs["priority"].asInt()){
+        //higher priority = true.
+        return true;
+      }
+      if (lhs["priority"].asInt() < rhs["priority"].asInt()){
+        //lower priority = false
+        return false;
+      }
+      //same priority - compare total matches
+      if (lhs["total_matches"].asInt() > rhs["total_matches"].asInt()){
+        //more matches = higher priority = true.
+        return true;
+      }
+      if (lhs["total_matches"].asInt() < rhs["total_matches"].asInt()){
+        //less matches = lower priority = false
+        return false;
+      }
+      //also same amount of matches? just compare the URL then.
+      return lhs["url"].asStringRef() < rhs["url"].asStringRef();
+    }
+  };
   
-  void addSource(const std::string & rel, JSON::Value & sources, std::string & host, const std::string & port, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches){
+  void addSource(const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches){
     JSON::Value tmp;
     tmp["type"] = conncapa["type"];
     tmp["relurl"] = rel;
@@ -135,10 +169,10 @@ namespace Connector_HTTP {
     tmp["simul_tracks"] = most_simul;
     tmp["total_matches"] = total_matches;
     tmp["url"] = conncapa["handler"].asStringRef() + "://" + host + ":" + port + rel;
-    sources.append(tmp);
+    sources.insert(tmp);
   }
   
-  void addSources(std::string & streamname, const std::string & rel, JSON::Value & sources, std::string & host, const std::string & port, JSON::Value & conncapa, JSON::Value & strmMeta){
+  void addSources(std::string & streamname, const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, JSON::Value & strmMeta){
     unsigned int most_simul = 0;
     unsigned int total_matches = 0;
     if (conncapa.isMember("codecs") && conncapa["codecs"].size() > 0){
@@ -167,7 +201,6 @@ namespace Connector_HTTP {
         }
       }
     }
-    std::cout << streamname << ", " << most_simul << "sim, " << total_matches << " match" << std::endl;
     if (conncapa.isMember("methods") && conncapa["methods"].size() > 0){
       std::string relurl;
       size_t found = rel.find('$');
@@ -285,6 +318,9 @@ namespace Connector_HTTP {
 
         // show ALL the meta datas!
         json_resp["meta"] = ServConf["streams"][streamname]["meta"];
+        
+        //create a set for storing source information
+        std::set<JSON::Value, sourceCompare> sources;
 
         //find out which connectors are enabled
         std::set<std::string> conns;
@@ -301,15 +337,22 @@ namespace Connector_HTTP {
               if (( *it)["port"].asInt() == 0){
                 ( *it)["port"] = capabilities[cName]["optional"]["port"]["default"];
               }
-              addSources(streamname, capabilities[cName]["url_rel"].asStringRef(), json_resp["source"], host, ( *it)["port"].asString(), capabilities[cName], ServConf["streams"][streamname]["meta"]);
+              addSources(streamname, capabilities[cName]["url_rel"].asStringRef(), sources, host, ( *it)["port"].asString(), capabilities[cName], ServConf["streams"][streamname]["meta"]);
             }
             //check each enabled protocol separately to see if it depends on this connector
             for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
               //if it depends on this connector and has a URL, list it
               if (conns.count(oit->first) && oit->second["deps"].asStringRef() == cName && oit->second.isMember("methods")){
-                addSources(streamname, oit->second["url_rel"].asStringRef(), json_resp["source"], host, ( *it)["port"].asString(), oit->second, ServConf["streams"][streamname]["meta"]);
+                addSources(streamname, oit->second["url_rel"].asStringRef(), sources, host, ( *it)["port"].asString(), oit->second, ServConf["streams"][streamname]["meta"]);
               }
             }
+          }
+        }
+        
+        //loop over the added sources, add them to json_resp["sources"]
+        for (std::set<JSON::Value, sourceCompare>::iterator it = sources.begin(); it != sources.end(); it++){
+          if ((*it)["simul_tracks"].asInt() > 0){
+            json_resp["source"].append(*it);
           }
         }
       }else{

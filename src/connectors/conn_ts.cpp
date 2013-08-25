@@ -205,7 +205,7 @@ int main(int argc, char ** argv){
   capa["required"]["tracks"]["type"] = "str";
   capa["required"]["tracks"]["option"] = "--tracks";
   conf.addOption("streamname",
-      JSON::fromString("{\"arg\":\"string\",\"arg_num\":1,\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
+      JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
   conf.addOption("tracks",
       JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\": \"t\",\"long\":\"tracks\",\"help\":\"The track IDs of the stream that this connector will transmit separated by spaces.\"}"));
   conf.addConnectorOptions(8888, capa);

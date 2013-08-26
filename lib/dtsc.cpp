@@ -806,6 +806,7 @@ void DTSC::File::seekNext(){
           tmpPos.seekTime = ((long long unsigned int)ntohl(((int*)newHeader)[3])) << 32;
           tmpPos.seekTime += ntohl(((int*)newHeader)[4]);
         }else{
+          tmpPos.seekTime = -1;
           for (JSON::ArrIter it = getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrBegin(); it != getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrEnd(); it++){
             if ((*it)["time"].asInt() > jsonbuffer["time"].asInt()){
               tmpPos.seekTime = (*it)["time"].asInt();
@@ -814,7 +815,20 @@ void DTSC::File::seekNext(){
             }
           }
         }
-        currentPositions.insert(tmpPos);
+        if (tmpPos.seekTime != -1){
+          bool insert = true;
+          for (std::set<seekPos>::iterator curPosIter = currentPositions.begin(); curPosIter != currentPositions.end(); curPosIter++){
+            if ((*curPosIter).trackID == tmpPos.trackID && (*curPosIter).seekTime >= tmpPos.seekTime){
+              insert = false;
+              break;
+            }
+          }
+          if (insert){
+            currentPositions.insert(tmpPos);
+          }else{
+            seek_time(jsonbuffer["time"].asInt() + 1, jsonbuffer["trackid"].asInt());
+          }
+        }
       }
     }
   }

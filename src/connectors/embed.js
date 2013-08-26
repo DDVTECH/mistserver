@@ -58,11 +58,24 @@ function mistembed(streamname)
     return support;
   }
 
+  // parse a "type" string from the controller. Format:
+  // xxx/# (e.g. flash/3) or xxx/xxx/xxx (e.g. html5/application/ogg)
+  function parseType(type)
+  {
+    var split = type.split('/');
+    
+    if( split.length > 2 )
+    {
+      split[1] += '/' + split[2];
+    }
+    
+    return split;
+  }
   
   // return true if a type is supported
   function hasSupport(type)
   {
-    var typemime = type.split('/');
+    var typemime = parseType(type);
     
     switch(typemime[0])
     {
@@ -101,14 +114,14 @@ function mistembed(streamname)
       videoheight /= ratio;
     }
 
-    var maintype = src.type.split('/');
+    var maintype = parseType(src.type);
     
     switch(maintype[0])
     {
       case 'flash':
         // maintype[1] is already checked (i.e. user has version > maintype[1])
         var flashplayer,
-            url = encodeURIComponent(src.url) + '&controlBarMode=floating&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3' + (vtype == 'live' ? "&streamType=live" : ""),
+            url = encodeURIComponent(src.url) + '&controlBarMode=floating&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3' + (vtype == 'live' ? "&streamType=live" : "");
         
         if( parseInt(maintype[1], 10) >= 10 )
         {
@@ -177,6 +190,7 @@ function mistembed(streamname)
 
     for(i = 0; i < len; i++)
     {
+      //console.log("trying support for type " + video.source[i].type + " (" + parseType(video.source[i].type)[0] + "  -  " + parseType(video.source[i].type)[1] + ")");
       if( hasSupport( video.source[i].type ) )
       {
         // we support this kind of video, so build it.

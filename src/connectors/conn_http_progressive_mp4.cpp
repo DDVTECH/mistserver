@@ -114,7 +114,7 @@ namespace Connector_HTTP {
             std::stringstream cmd;
             cmd << "t "<< (*keyPartIt).trackID;
             cmd << "\ns " << (*keyPartIt).time;
-            cmd << "\np "<< (*keyPartIt).time + (*keyPartIt).len<<"\n";
+            cmd << "\no\n";
             ss.SendNow(cmd.str());
           }
           if ( !ss.connected()){
@@ -173,7 +173,7 @@ namespace Connector_HTTP {
                 std::stringstream cmd;
                 cmd << "t "<< (*keyPartIt).trackID;
                 cmd << "\ns " << (*keyPartIt).time;
-                cmd << "\np " << (*keyPartIt).time + (*keyPartIt).len<<"\n";
+                cmd << "\no\n";
                 //std::cerr << cmd.str() << std::endl;
                 ss.SendNow(cmd.str());
               }

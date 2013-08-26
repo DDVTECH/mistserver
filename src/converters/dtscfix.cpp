@@ -10,7 +10,7 @@
 namespace Converters {
   class HeaderEntryDTSC {
     public:
-      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-5000), trackID(0), firstms(0x7FFFFFFF), lastms(0), keynum(0) {}
+      HeaderEntryDTSC() : totalSize(0), lastKeyTime(-5001), trackID(0), firstms(0x7FFFFFFF), lastms(0), keynum(0) {}
       long long int totalSize;
       std::vector<long long int> parts;
       long long int lastKeyTime;
@@ -154,9 +154,6 @@ namespace Converters {
           meta["tracks"][currentID]["keys"][newNum]["num"] = ++trackData[currentID].keynum;
           meta["tracks"][currentID]["keys"][newNum]["time"] = F.getJSON()["time"];
           meta["tracks"][currentID]["keys"][newNum]["bpos"] = F.getLastReadPos();
-          if (newNum == 0){
-            trackData[currentID].firstms = F.getJSON()["time"].asInt();
-          }
           if (meta["tracks"][currentID]["keys"].size() > 1){
             meta["tracks"][currentID]["keys"][newNum - 1]["len"] = F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keys"][newNum - 1]["time"].asInt();
             meta["tracks"][currentID]["keys"][newNum - 1]["size"] = trackData[currentID].totalSize;

@@ -586,6 +586,9 @@
                   {
                     //turn all numbers into integers
                     $(this).val(Math.floor($(this).val()));
+                    if ($(this).val() == 0) {
+                      $(this).val('');
+                    }
                   }
                 }
               });

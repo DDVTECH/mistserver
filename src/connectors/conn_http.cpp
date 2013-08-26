@@ -332,11 +332,12 @@ namespace Connector_HTTP {
           const std::string & cName = ( *it)["connector"].asStringRef();
           //if the connector has a port,
           if (capabilities.isMember(cName) && capabilities[cName].isMember("optional") && capabilities[cName]["optional"].isMember("port")){
+            //get the default port if none is set
+            if (( *it)["port"].asInt() == 0){
+              ( *it)["port"] = capabilities[cName]["optional"]["port"]["default"];
+            }
             //and a URL - then list the URL
             if (capabilities[cName].isMember("url_rel")){
-              if (( *it)["port"].asInt() == 0){
-                ( *it)["port"] = capabilities[cName]["optional"]["port"]["default"];
-              }
               addSources(streamname, capabilities[cName]["url_rel"].asStringRef(), sources, host, ( *it)["port"].asString(), capabilities[cName], ServConf["streams"][streamname]["meta"]);
             }
             //check each enabled protocol separately to see if it depends on this connector

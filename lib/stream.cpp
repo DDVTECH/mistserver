@@ -39,9 +39,9 @@ Socket::Connection Util::Stream::getLive(std::string streamname){
 Socket::Connection Util::Stream::getVod(std::string filename){
   std::string name = "MistPlayer " + filename;
   std::string player_bin = Util::getMyPath() + "MistPlayer";
-  const char *argv[] = {player_bin.c_str(), filename.c_str(), NULL};
+  char* const argv[] = {(char*)player_bin.c_str(), (char*)filename.c_str(), NULL};
   int fdin = -1, fdout = -1, fderr = fileno(stderr);
-  Util::Procs::StartPiped(name, (char **)argv, &fdin, &fdout, &fderr);
+  Util::Procs::StartPiped(name, argv, &fdin, &fdout, &fderr);
   // if StartPiped fails then fdin and fdout will be unmodified (-1)
   return Socket::Connection(fdin, fdout);
 }

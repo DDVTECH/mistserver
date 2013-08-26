@@ -61,12 +61,9 @@ namespace Converter {
   }
   
   JSON::Value Converter::queryPath(std::string myPath){
-    std::vector<char*> cmd;
-    cmd.reserve(3);
+    char const * cmd[3] = {0, 0, 0};
     std::string mistPath = Util::getMyPath() + "MistInfo";
-    cmd.push_back((char*)mistPath.c_str());
-    cmd.push_back(NULL);
-    cmd.push_back(NULL);
+    cmd[0] = mistPath.c_str();
     fprintf( stderr, "Querying %s\n", myPath.c_str());
     JSON::Value result;
     DIR * Dirp = opendir(myPath.c_str());
@@ -82,20 +79,8 @@ namespace Converter {
         }
         std::string fileName = entry->d_name;
         std::string mijnPad = std::string(myPath + (myPath[myPath.size()-1] == '/' ? "" : "/") +  entry->d_name);
-        cmd[1] = (char*)mijnPad.c_str();
-        int outFD = -1;
-        Util::Procs::StartPiped("MistInfo", &cmd[0], 0, &outFD, 0);
-        while( Util::Procs::isActive("MistInfo")){ Util::sleep(10); }
-        FILE * outFile = fdopen( outFD, "r" );
-        char * fileBuf = 0;
-        size_t fileBufLen = 0;
-        getline(&fileBuf, &fileBufLen, outFile);
-        std::string line = fileBuf;
-        result[fileName] = JSON::fromString(std::string(fileBuf));
-        if ( !result[fileName]){
-          result.removeMember(fileName);
-        }
-        fclose( outFile );
+        cmd[1] = mijnPad.c_str();
+        result[fileName] = JSON::fromString(Util::Procs::getOutputOf((char* const*)cmd));
       }
     }
     return result;

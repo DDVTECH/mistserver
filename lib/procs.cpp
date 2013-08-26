@@ -153,7 +153,7 @@ void Util::Procs::childsig_handler(int signum){
 
 
 /// Runs the given command and returns the stdout output as a string.
-std::string Util::Procs::getOutputOf(char * argv[]){
+std::string Util::Procs::getOutputOf(char* const* argv){
   std::string ret;
   int fin = 0, fout = -1, ferr = 0;
   StartPiped("output_getter", argv, &fin, &fout, &ferr);
@@ -433,7 +433,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
 /// \arg fdin Standard input file descriptor. If null, /dev/null is assumed. Otherwise, if arg contains -1, a new fd is automatically allocated and written into this arg. Then the arg will be used as fd.
 /// \arg fdout Same as fdin, but for stdout.
 /// \arg fdout Same as fdin, but for stderr.
-pid_t Util::Procs::StartPiped(std::string name, char * argv[], int * fdin, int * fdout, int * fderr){
+pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, int * fdout, int * fderr){
   if (isActive(name)){
     #if DEBUG >= 1
     std::cerr << name << " already active - skipping start" << std::endl;

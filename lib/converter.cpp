@@ -81,8 +81,8 @@ namespace Converter {
           continue;
         }
         std::string fileName = entry->d_name;
-        std::string myPath = std::string(myPath + (myPath[myPath.size()-1] == '/' ? "" : "/") +  entry->d_name);
-        cmd[1] = (char*)myPath.c_str();
+        std::string mijnPad = std::string(myPath + (myPath[myPath.size()-1] == '/' ? "" : "/") +  entry->d_name);
+        cmd[1] = (char*)mijnPad.c_str();
         int outFD = -1;
         Util::Procs::StartPiped("MistInfo", &cmd[0], 0, &outFD, 0);
         while( Util::Procs::isActive("MistInfo")){ Util::sleep(10); }

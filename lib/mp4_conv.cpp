@@ -48,7 +48,7 @@ namespace MP4{
       //putting all metadata in a huge vector 'keyParts'
       keyParts.clear();
       for (JSON::ObjIter trackIt = metaData["tracks"].ObjBegin(); trackIt != metaData["tracks"].ObjEnd(); trackIt++){
-        for (JSON::ObjArrIter keyIt = trackIt->second["keys"].ArrBegin(); keyIt != trackIt->second["keys"].ArrEnd(); keyIt++){
+        for (JSON::ArrIter keyIt = trackIt->second["keys"].ArrBegin(); keyIt != trackIt->second["keys"].ArrEnd(); keyIt++){
           keyPart temp;
           temp.trackID = trackIt->second["trackid"].asInt();
           temp.size = (*keyIt)["size"].asInt();

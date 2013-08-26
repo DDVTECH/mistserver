@@ -4191,7 +4191,7 @@ namespace MP4 {
     setDepth(0x0018);
   }
   
-  void VisualSampleEntry::setCodec(char* newCodec){
+  void VisualSampleEntry::setCodec(const char* newCodec){
     memcpy(data + 4, newCodec, 4);
   }
   
@@ -4304,7 +4304,7 @@ namespace MP4 {
     setSampleRate(44100);
   }
 
-  void AudioSampleEntry::setCodec(char* newCodec){
+  void AudioSampleEntry::setCodec(const char* newCodec){
     memcpy(data + 4, newCodec, 4);
   }
   

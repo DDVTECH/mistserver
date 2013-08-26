@@ -176,7 +176,8 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
 /// Adds a keyframe packet to all tracks, so the stream can be fully played.
 void DTSC::Stream::endStream(){
   if (metadata.isMember("tracks") && metadata["tracks"].size() > 0){
-    for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+    JSON::Value trackData = metadata["tracks"];
+    for (JSON::ObjIter it = trackData.ObjBegin(); it != trackData.ObjEnd(); it++){
       if(it->second.isMember("lastms") && it->second.isMember("trackid")){	// TODO
         JSON::Value newPack;
         newPack["time"] = it->second["lastms"];

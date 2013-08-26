@@ -63,7 +63,8 @@ namespace Converter {
   JSON::Value Converter::queryPath(std::string myPath){
     std::vector<char*> cmd;
     cmd.reserve(3);
-    cmd.push_back((char*)"MistInfo");
+    std::string mistPath = Util::getMyPath() + "MistInfo";
+    cmd.push_back((char*)mistPath.c_str());
     cmd.push_back(NULL);
     cmd.push_back(NULL);
     fprintf( stderr, "Querying %s\n", myPath.c_str());

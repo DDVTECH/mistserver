@@ -72,7 +72,7 @@ namespace DTSC {
         return true;
       }else{
         if (seekTime == rhs.seekTime){
-          if (seekPos < rhs.seekPos){
+          if (bytePos < rhs.bytePos){
             return true;
           }else{
             if (trackID < rhs.trackID){
@@ -84,7 +84,7 @@ namespace DTSC {
       return false;
     }
     long long unsigned int seekTime;
-    long long unsigned int seekPos;
+    long long unsigned int bytePos;
     unsigned int trackID;
   };
 

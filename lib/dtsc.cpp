@@ -731,7 +731,7 @@ void DTSC::File::seekNext(){
     jsonbuffer.null();
     return;
   }
-  fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
+  fseek(F,currentPositions.begin()->bytePos, SEEK_SET);
   if ( reachedEOF()){
     strbuffer = "";
     jsonbuffer.null();
@@ -741,7 +741,7 @@ void DTSC::File::seekNext(){
   if ( !metadata.isMember("merged") || !metadata["merged"]){
     seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
   }
-  fseek(F,currentPositions.begin()->seekPos, SEEK_SET);
+  fseek(F,currentPositions.begin()->bytePos, SEEK_SET);
   currentPositions.erase(currentPositions.begin());
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1){
@@ -800,7 +800,7 @@ void DTSC::File::seekNext(){
     if (fread((void*)newHeader, 20, 1, F) == 1){
       if (memcmp(newHeader, DTSC::Magic_Packet2, 4) == 0){
         seekPos tmpPos;
-        tmpPos.seekPos = tempLoc;
+        tmpPos.bytePos = tempLoc;
         tmpPos.trackID = ntohl(((int*)newHeader)[2]);
         if (selectedTracks.find(tmpPos.trackID) != selectedTracks.end()){
           tmpPos.seekTime = ((long long unsigned int)ntohl(((int*)newHeader)[3])) << 32;
@@ -810,7 +810,7 @@ void DTSC::File::seekNext(){
           for (JSON::ArrIter it = getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrBegin(); it != getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrEnd(); it++){
             if ((*it)["time"].asInt() > jsonbuffer["time"].asInt()){
               tmpPos.seekTime = (*it)["time"].asInt();
-              tmpPos.seekPos = (*it)["bpos"].asInt();
+              tmpPos.bytePos = (*it)["bpos"].asInt();
               tmpPos.trackID = jsonbuffer["trackid"].asInt();
               break;
             }
@@ -919,10 +919,10 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
   tmpPos.trackID = trackNo;
   if (!forceSeek && jsonbuffer && ms > jsonbuffer["time"].asInt() && trackNo >= jsonbuffer["trackid"].asInt()){
     tmpPos.seekTime = jsonbuffer["time"].asInt();
-    tmpPos.seekPos = getBytePos();
+    tmpPos.bytePos = getBytePos();
   }else{
     tmpPos.seekTime = 0;
-    tmpPos.seekPos = 0;
+    tmpPos.bytePos = 0;
   }
   for (JSON::ArrIter keyIt = metadata["tracks"][trackMapping[trackNo]]["keys"].ArrBegin(); keyIt != metadata["tracks"][trackMapping[trackNo]]["keys"].ArrEnd(); keyIt++){
     if ((*keyIt)["time"].asInt() > ms){
@@ -930,7 +930,7 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
     }
     if ((*keyIt)["time"].asInt() > tmpPos.seekTime){
       tmpPos.seekTime = (*keyIt)["time"].asInt();
-      tmpPos.seekPos = (*keyIt)["bpos"].asInt();
+      tmpPos.bytePos = (*keyIt)["bpos"].asInt();
     }
   }
   bool foundPacket = false;
@@ -940,7 +940,7 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
       return false;
     }
     //Seek to first packet after ms.
-    seek_bpos(tmpPos.seekPos);
+    seek_bpos(tmpPos.bytePos);
     //read the header
     char header[20];
     fread((void*)header, 20, 1, F);
@@ -948,7 +948,7 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
     int packSize = ntohl(((int*)header)[1]);
     int packID = ntohl(((int*)header)[2]);
     if (memcmp(header,Magic_Packet2,4) != 0 || packID != trackNo){
-      tmpPos.seekPos += 8 + packSize;
+      tmpPos.bytePos += 8 + packSize;
       continue;
     }
     //get timestamp of packet, if too large, break, if not, skip size bytes.
@@ -958,7 +958,7 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
     if (myTime >= ms){
       foundPacket = true;
     }else{
-      tmpPos.seekPos += 8 + packSize;
+      tmpPos.bytePos += 8 + packSize;
       continue;
     }
   }

@@ -90,6 +90,18 @@ namespace Info {
       fileSpecs.removeMember( "streams" );
     } else {
       fileSpecs["format"] = "dtsc";
+      JSON::Value tracks = fileSpecs["tracks"];
+      for(JSON::ObjIter trackIt = tracks.ObjBegin(); trackIt != tracks.ObjEnd(); trackIt++){
+        if (fileSpecs["tracks"][trackIt->first].isMember("init")){
+          fileSpecs["tracks"][trackIt->first].removeMember("init");
+        }
+        if (fileSpecs["tracks"][trackIt->first].isMember("frags")){
+          fileSpecs["tracks"][trackIt->first].removeMember("frags");
+        }
+        if (fileSpecs["tracks"][trackIt->first].isMember("keys")){
+          fileSpecs["tracks"][trackIt->first].removeMember("keys");
+        }
+      }
     }
     if (fileSpecs.isMember("video")){
       fileSpecs["video"].removeMember("init");
@@ -97,8 +109,6 @@ namespace Info {
     if (fileSpecs.isMember("audio")){
       fileSpecs["audio"].removeMember("init");
     }
-    fileSpecs.removeMember("keybpos");
-    fileSpecs.removeMember("keytime");
     printf( "%s", fileSpecs.toString().c_str() );
     return 0;
   }

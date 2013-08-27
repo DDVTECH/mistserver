@@ -37,28 +37,18 @@ namespace Connector_HTTP {
     std::string streamname;//Will contain the name of the stream.
 
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
-    unsigned int seek_sec = 0;//Seek position in ms
-    unsigned int seek_byte = 0;//Seek position in bytes
-        
-    int curIndex;
+    unsigned int seek_time = 0;//Seek position in ms
+    int trackID = -1; // the track to be selected
+    int curIndex; // SRT index
+    bool subtitleTrack = false; // check whether the requested track is a srt track
     
-   std::stringstream srtdata;
+   std::stringstream srtdata;   // ss output data
        
     while (conn.connected()){
       //Only attempt to parse input when not yet init'ed.
       if ( !inited){
         if (conn.Received().size() || conn.spool()){
-          //make sure it ends in a \n
-          if ( *(conn.Received().get().rbegin()) != '\n'){
-            std::string tmp = conn.Received().get();
-            conn.Received().get().clear();
-            if (conn.Received().size()){
-              conn.Received().get().insert(0, tmp);
-            }else{
-              conn.Received().append(tmp);
-            }
-          }
-          if (HTTP_R.Read(conn.Received().get())){
+          if (HTTP_R.Read(conn)){
 #if DEBUG >= 5
             std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
@@ -81,11 +71,14 @@ namespace Connector_HTTP {
             if ( !HTTP_R.GetVar("fs").empty()){
               start = atoi(HTTP_R.GetVar("fs").c_str());
             }
+            if ( !HTTP_R.GetVar("trackid").empty()){
+              trackID = atoi(HTTP_R.GetVar("trackid").c_str());
+            }
             //under 3 hours we assume seconds, otherwise byte position
             if (start < 10800){
-              seek_byte = start * 1000; //ms, not s
+              seek_time = start * 1000; //ms, not s
             }else{
-              seek_byte = start * 1000; //divide by 1mbit, then *1000 for ms.
+              seek_time = start * 1000; //divide by 1mbit, then *1000 for ms.
             }
 
             //we are ready, connect the socket!
@@ -104,75 +97,72 @@ namespace Connector_HTTP {
               //std::cout << "CONTINUE? Y/N J/K" << std::endl;
               continue;
             }
-            //wait until we have a header
-            while ( !Strm.metadata && ss.connected()){
-              if (ss.spool()){
-                Strm.parsePacket(ss.Received()); //read the metadata
-              }else{
-                Util::sleep(5);
-              }
-              
-            }
             
-            int subtrackID = -1;
+            Strm.waitForMeta(ss);
 
-                
-            for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-              if (subtrackID == -1 && objIt->second["type"].asStringRef() == "meta" && objIt->second["codec"].asStringRef() == "srt"){
-                subtrackID = objIt->second["trackid"].asInt();
+            if(trackID == -1){
+              // no track was given. Fetch the first track that has SRT data
+              for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
+                if (objIt->second["codec"].asStringRef() == "srt"){
+                  trackID = objIt->second["trackid"].asInt();
+                  subtitleTrack = true;
+                  break;
+                }
+              }
+            }else{
+              std::cout << "TRACKID YO " << trackID << std::endl;
+              // track *was* given, but we have to check whether it's an actual srt track
+              for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
+                if (objIt->second["trackid"].asInt() == trackID){
+                  std::cout << "   trackID matches with objIt, codec = srt" << std::endl;
+                  subtitleTrack = (objIt->second["codec"].asStringRef() == "srt");
+                  break;
+                }else{
+                  subtitleTrack = false;
+                }
               }
             }
-            seek_sec = seek_byte;
-            
-            std::stringstream cmd;
-            
-            cmd << "t";
-            if (subtrackID != -1){
-              cmd << " " << subtrackID;
-            }
-            
-            if( cmd.str() == "t" ){
-              // no srt track: build http error
-              std::cout << "srt: no track, sending 404" << std::endl;
-              ss.close();
+
+            if(!subtitleTrack){
               HTTP_S.Clean();
-              HTTP_S.SetBody("No subtitles found for this stream.\n");
+              HTTP_S.SetBody("# This track doesn't contain subtitle data.\n");
               conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
-				
+              subtitleTrack = false;
+              HTTP_R.Clean();
+              continue;
             }
+
+            std::stringstream cmd;
+ 
+            cmd << "t " << trackID;
 
             int maxTime = Strm.metadata["lastms"].asInt();
             
-            cmd << "\ns " << seek_sec << "\np " << maxTime << "\n";
+            cmd << "\ns " << seek_time << "\np " << maxTime << "\n";
             ss.SendNow(cmd.str().c_str(), cmd.str().size());
             
             inited = true;
-            
-            
-            
+
             HTTP_R.Clean(); //clean for any possible next requests
             srtdata.clear();
             curIndex = 1;   // set to 1, first srt 'track'
           }
         }
       }
+
+      unsigned int now = Util::epoch();
+      if (now != lastStats){
+        lastStats = now;
+        ss.SendNow(conn.getStats("HTTP_SRT").c_str());
+      }
+      
       if (inited){
 
-        unsigned int now = Util::epoch();
-        if (now != lastStats){
-          lastStats = now;
-          ss.SendNow(conn.getStats("HTTP_SRT").c_str());
-        }
-        
-      
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
 
-              
-              
               if(Strm.lastType() == DTSC::META){
-                             
-                
+
                 srtdata << curIndex++ << std::endl;
                 long long unsigned int time = Strm.getPacket()["time"].asInt();
                 srtdata << std::setfill('0') << std::setw(2) << (time / 3600000) << ":";
@@ -185,9 +175,7 @@ namespace Connector_HTTP {
                 srtdata << std::setfill('0') << std::setw(2) << (((time % 3600000) % 60000) / 1000) << ",";
                 srtdata << std::setfill('0') << std::setw(3) << time % 1000 << std::endl;
                 srtdata << Strm.lastData() << std::endl;
-                
               }              
-              
               
               if( Strm.lastType() == DTSC::PAUSEMARK){
                 HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
@@ -197,16 +185,11 @@ namespace Connector_HTTP {
                 inited = false;
                 
                 srtdata.str("");
-                srtdata.clear();   // :)
-                //conn.close();
-                //ss.close();
+                srtdata.clear();
               }
-              
-
-              
           }
         }else{
-          Util::sleep(1);
+          Util::sleep(200);
         }
         if ( !ss.connected()){
           break;

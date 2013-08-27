@@ -90,98 +90,88 @@ namespace Connector_HTTP {
             jsondata.clear();
             jsondata << "[";
 
-      //if (ready4data){
-       // if ( !inited){
             //we are ready, connect the socket!
             if ( !ss.connected()){
               ss = Util::Stream::getStream(streamname);
             }
             if ( !ss.connected()){
-#if DEBUG >= 1
-            fprintf(stderr, "Could not connect to server for %s!\n", streamname.c_str());
-#endif
-            ss.close();
-            HTTP_S.Clean();
-            HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
-            conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
-            //ready4data = false;
-            inited = false;
-            continue;
-          }
-          //wait until we have a header
-          while ( !Strm.metadata && ss.connected()){
-            if (ss.spool()){
-              Strm.parsePacket(ss.Received()); //read the metadata
-            }else{
-              Util::sleep(5);
+  #if DEBUG >= 1
+              fprintf(stderr, "Could not connect to server for %s!\n", streamname.c_str());
+  #endif
+              ss.close();
+              HTTP_S.Clean();
+              HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
+              conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
+              //ready4data = false;
+              inited = false;
+              continue;
             }
             
-          }
-          
-
-           seek_sec = seek_byte;
-           
-          std::stringstream cmd;
-          cmd << "t";
-
-          if (Strm.metadata["tracks"].size()){
-            for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-              if ( objIt->second["type"].asStringRef() == "meta" ){
-                std::cout << "selecting track " << objIt->second["trackid"].asInt() << std::endl;
-                cmd << " " <<  objIt->second["trackid"].asInt();
+            //wait until we have a header
+            while ( !Strm.metadata && ss.connected()){
+              if (ss.spool()){
+                Strm.parsePacket(ss.Received()); //read the metadata
+              }else{
+                Util::sleep(5);
               }
             }
-          }
-                    
-          if( cmd.str() == "t" ){
-            cmd.str("");
-            cmd.clear();
-          }
 
-          int maxTime = Strm.metadata["lastms"].asInt();
+            seek_sec = seek_byte;
+           
+            std::stringstream cmd;
+            cmd << "t";
+
+            if (Strm.metadata["tracks"].size()){
+              for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
+                if ( objIt->second["type"].asStringRef() == "meta" ){
+                  std::cout << "selecting track " << objIt->second["trackid"].asInt() << std::endl;
+                  cmd << " " <<  objIt->second["trackid"].asInt();
+                }
+              }        
+            }
+
+            if( cmd.str() == "t" ){
+              cmd.str("");
+              cmd.clear();
+            }
+
+            int maxTime = Strm.metadata["lastms"].asInt();
+            
+            cmd << "\ns " << seek_sec << "\np " << maxTime << "\n";
+            ss.SendNow(cmd.str().c_str(), cmd.str().size());
+            std::cout << "sending command " << cmd.str() << std::endl;
+            inited = true;
           
-          cmd << "\ns " << seek_sec << "\np " << maxTime << "\n";
-          ss.SendNow(cmd.str().c_str(), cmd.str().size());
-          std::cout << "sending command " << cmd.str() << std::endl;
-          inited = true;
-        
-
           }
         }
       }
       if (inited){
 
-        unsigned int now = Util::epoch();
+      unsigned int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
           ss.SendNow(conn.getStats("HTTP_JSON").c_str());
         }
         
-      
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
+            if(Strm.lastType() == DTSC::PAUSEMARK){
+              HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
+              HTTP_S.SetHeader("Content-Type", "application/json"); //Send the correct content-type for FLV files
+              jsondata << "]";
+              HTTP_S.SetBody(jsondata.str());
+              conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
+              inited = false;
+              jsondata.str(""); // totally do this
+              jsondata.clear();
+              break;
+            }
               
-              if(Strm.lastType() == DTSC::META){
-                if(jsondata.str().length() > 1)
-                {
-                  jsondata << ",";
-                }
-                
-                jsondata << Strm.getPacket().toString();
-                
-              }else if(Strm.lastType() == DTSC::PAUSEMARK){
-                HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-                HTTP_S.SetHeader("Content-Type", "application/json"); //Send the correct content-type for FLV files
-                jsondata << "]";
-                HTTP_S.SetBody(jsondata.str());
-                conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
-                inited = false;
-                jsondata.str(""); // totally do this
-                jsondata.clear();
-              }
-              
-
-              
+            if (jsondata.str().length() > 1){
+              jsondata << ",";
+            }
+            
+            jsondata << Strm.getPacket().toString();
           }
         }else{
           Util::sleep(1);
@@ -189,7 +179,7 @@ namespace Connector_HTTP {
         if ( !ss.connected()){
           break;
         }
-    }
+      }
      
     }
     conn.close();

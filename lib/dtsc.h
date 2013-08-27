@@ -110,7 +110,7 @@ namespace DTSC {
       JSON::Value & getJSON();
       JSON::Value & getTrackById(int trackNo);
       bool seek_time(int seconds);
-      bool seek_time(int seconds, int trackNo);
+      bool seek_time(int seconds, int trackNo, bool forceSeek = false);
       bool seek_bpos(int bpos);
       void writePacket(std::string & newPacket);
       void writePacket(JSON::Value & newPacket);

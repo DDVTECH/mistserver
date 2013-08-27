@@ -811,6 +811,7 @@ void DTSC::File::seekNext(){
             if ((*it)["time"].asInt() > jsonbuffer["time"].asInt()){
               tmpPos.seekTime = (*it)["time"].asInt();
               tmpPos.seekPos = (*it)["bpos"].asInt();
+              tmpPos.trackID = jsonbuffer["trackid"].asInt();
               break;
             }
           }
@@ -826,7 +827,7 @@ void DTSC::File::seekNext(){
           if (insert){
             currentPositions.insert(tmpPos);
           }else{
-            seek_time(jsonbuffer["time"].asInt() + 1, jsonbuffer["trackid"].asInt());
+            seek_time(jsonbuffer["time"].asInt() + 1, jsonbuffer["trackid"].asInt(), true);
           }
         }
       }
@@ -913,10 +914,10 @@ JSON::Value & DTSC::File::getTrackById(int trackNo){
   return empty;
 }
 
-bool DTSC::File::seek_time(int ms, int trackNo){
+bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
-  if (jsonbuffer && ms > jsonbuffer["time"].asInt() && trackNo >= jsonbuffer["trackid"].asInt()){
+  if (!forceSeek && jsonbuffer && ms > jsonbuffer["time"].asInt() && trackNo >= jsonbuffer["trackid"].asInt()){
     tmpPos.seekTime = jsonbuffer["time"].asInt();
     tmpPos.seekPos = getBytePos();
   }else{

@@ -235,6 +235,9 @@ li#logoutbutton
 {
    color: #cc3333;
 }
+#nav li a {
+   color: inherit;
+}
 
 
 p, label
@@ -451,6 +454,9 @@ td
 	opacity: 0.8;
 	color: black;
 	font: normal normal 11pt Arial, sans-serif;
+}
+.comment {
+  font-size: 0.8em;
 }
 
 code

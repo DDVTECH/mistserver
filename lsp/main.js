@@ -463,7 +463,7 @@
               $i.addClass('required');
             }
             $protocolfields.append(
-              $('<label>').text(data[fieldname].name).attr('title',data[fieldname].help).append($i)
+              $('<label>').text(data[fieldname].name).attr('title',data[fieldname].help+'.').append($i)
             );
           }
         }
@@ -572,8 +572,7 @@
                 }
               });
               
-              $('input[type="number"]').each(function()
-              { 
+              $('input[type="number"]').each(function(){
                 if ($(this).val() != '') {
                   //make sure this is a number
                   if (isNaN($(this).val())) 
@@ -589,7 +588,6 @@
                     if ($(this).val() == 0) {
                       $(this).val('');
                     }
-                  }
                   }
                 }
               });
@@ -889,7 +887,7 @@
           
         $('#page').append(
           $('<div>').attr('id', 'editserver').append(
-            $('<label>').attr('for', 'stream-edit-name').text('name [case insensitive, no special chars]').append(
+            $('<label>').attr('for', 'stream-edit-name').text('name*').append(
               $('<input>').attr('type', 'text').attr('placeholder', 'NAME').attr('id', 'stream-edit-name').attr('value', sdata.name)
             )
           ).append(
@@ -912,7 +910,7 @@
         if (sdata.DVR == undefined) { var DVR = ''; } else { var DVR = sdata.DVR; }
         $('#editserver').append(
           $('<span>').addClass('live-only').append(
-            $('<label>').attr('id','stream-edit-buffer-label').attr('for','stream-edit-buffer').attr('title','Only applies to live streams').text('Buffer time [ms]').append(
+            $('<label>').attr('id','stream-edit-buffer-label').attr('for','stream-edit-buffer').attr('title','Only applies to live streams.').text('Buffer time [ms]').append(
              $('<input>').attr('type','text').attr('placeholder','2 keyframes').attr('id','stream-edit-buffer').attr('value', DVR)
             )
           )
@@ -922,7 +920,7 @@
         if (sdata.record == undefined) { var record = ''; } else { var record = sdata.record; }
         $('#editserver').append(
           $('<span>').addClass('live-only').addClass('LTS-only').append(
-            $('<label>').attr('id','stream-edit-record-label').attr('for','stream-edit-record').attr('title','Only applies to live streams').text('Record to:').append(
+            $('<label>').attr('id','stream-edit-record-label').attr('for','stream-edit-record').attr('title','Only applies to live streams.').text('Record to:').append(
              $('<input>').attr('type','text').attr('placeholder','2 keyframes').attr('id','stream-edit-record').attr('value', record).attr('placeholder','/path/to/filename.dtsc')
             )
           )
@@ -1010,6 +1008,10 @@
             });
               
           }).text('save')
+        );
+        
+        $('#editserver').append(
+          $('<span>').addClass('comment').text('* Case insensitive, no special characters allowed')
         );
         
         break;
@@ -1528,12 +1530,22 @@
     
     if (settings.settings.LTS != 1) {
       $('.LTS-only input').add('.LTS-only select').add('.LTS-only button').attr('disabled','disabled');
+      
+      $('.LTS-only').children().each(function(){
+        var t = $(this).attr('title');
+        if (t) { t += ' '; }
+        else { t = ''; }
+        t += 'This is feature is only available in the LTS version.';
+        $(this).attr('title',t);
+      });
+      /*
       $('.LTS-only').hover(function(e){
         removeTooltip();
         showTooltip(e,undefined,'This is feature is only available in the LTS version.');
       },function(){
         removeTooltip();
       });
+      */
       
       $('.LTS-only').add('.LTS-only p').add('.LTS-only label').add('.LTS-only button').css('color','#b4b4b4');
     }

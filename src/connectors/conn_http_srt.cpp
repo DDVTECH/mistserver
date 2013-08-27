@@ -41,6 +41,7 @@ namespace Connector_HTTP {
     int trackID = -1; // the track to be selected
     int curIndex; // SRT index
     bool subtitleTrack = false; // check whether the requested track is a srt track
+    bool isWebVTT = false;
     
    std::stringstream srtdata;   // ss output data
        
@@ -74,6 +75,11 @@ namespace Connector_HTTP {
             if ( !HTTP_R.GetVar("trackid").empty()){
               trackID = atoi(HTTP_R.GetVar("trackid").c_str());
             }
+            if ( !HTTP_R.GetVar("webvtt").empty()){
+              isWebVTT = true;
+            }else{
+              isWebVTT = false;
+            }
             //under 3 hours we assume seconds, otherwise byte position
             if (start < 10800){
               seek_time = start * 1000; //ms, not s
@@ -94,7 +100,6 @@ namespace Connector_HTTP {
               HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
               conn.SendNow(HTTP_S.BuildResponse("404", "Not found"));
               inited = false;
-              //std::cout << "CONTINUE? Y/N J/K" << std::endl;
               continue;
             }
             
@@ -110,11 +115,9 @@ namespace Connector_HTTP {
                 }
               }
             }else{
-              std::cout << "TRACKID YO " << trackID << std::endl;
               // track *was* given, but we have to check whether it's an actual srt track
               for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
                 if (objIt->second["trackid"].asInt() == trackID){
-                  std::cout << "   trackID matches with objIt, codec = srt" << std::endl;
                   subtitleTrack = (objIt->second["codec"].asStringRef() == "srt");
                   break;
                 }else{
@@ -163,7 +166,10 @@ namespace Connector_HTTP {
 
               if(Strm.lastType() == DTSC::META){
 
-                srtdata << curIndex++ << std::endl;
+                if(!isWebVTT)
+                {
+                  srtdata << curIndex++ << std::endl;
+                }
                 long long unsigned int time = Strm.getPacket()["time"].asInt();
                 srtdata << std::setfill('0') << std::setw(2) << (time / 3600000) << ":";
                 srtdata << std::setfill('0') << std::setw(2) <<  ((time % 3600000) / 60000) << ":";
@@ -180,7 +186,7 @@ namespace Connector_HTTP {
               if( Strm.lastType() == DTSC::PAUSEMARK){
                 HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
                 HTTP_S.SetHeader("Content-Type", "text/plain"); //Send the correct content-type for FLV files
-                HTTP_S.SetBody(srtdata.str());
+                HTTP_S.SetBody( (isWebVTT ? "WEBVTT\n\n" : "") + srtdata.str());
                 conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
                 inited = false;
                 

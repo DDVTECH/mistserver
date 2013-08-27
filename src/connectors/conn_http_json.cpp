@@ -124,7 +124,6 @@ namespace Connector_HTTP {
             if (Strm.metadata["tracks"].size()){
               for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
                 if ( objIt->second["type"].asStringRef() == "meta" ){
-                  std::cout << "selecting track " << objIt->second["trackid"].asInt() << std::endl;
                   cmd << " " <<  objIt->second["trackid"].asInt();
                 }
               }        
@@ -139,7 +138,6 @@ namespace Connector_HTTP {
             
             cmd << "\ns " << seek_sec << "\np " << maxTime << "\n";
             ss.SendNow(cmd.str().c_str(), cmd.str().size());
-            std::cout << "sending command " << cmd.str() << std::endl;
             inited = true;
           
           }

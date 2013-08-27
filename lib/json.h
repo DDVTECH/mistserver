@@ -72,9 +72,9 @@ namespace JSON {
       Value & operator[](const std::string i);
       Value & operator[](const char * i);
       Value & operator[](unsigned int i);
-      Value const & operator[](const std::string i) const;
-      Value const & operator[](const char * i) const;
-      Value const & operator[](unsigned int i) const;
+      const Value & operator[](const std::string i) const;
+      const Value & operator[](const char * i) const;
+      const Value & operator[](unsigned int i) const;
       //handy functions and others
       std::string toPacked();
       void netPrepare();

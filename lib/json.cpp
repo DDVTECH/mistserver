@@ -439,19 +439,19 @@ JSON::Value & JSON::Value::operator[](unsigned int i){
 
 /// Retrieves the JSON::Value at this position in the object.
 /// Fails horribly if that values does not exist.
-JSON::Value const & JSON::Value::operator[](const std::string i) const{
-  return objVal.at(i);
+const JSON::Value & JSON::Value::operator[](const std::string i) const{
+  return objVal.find(i)->second;
 }
 
 /// Retrieves the JSON::Value at this position in the object.
 /// Fails horribly if that values does not exist.
-JSON::Value const & JSON::Value::operator[](const char * i) const{
-  return objVal.at(i);
+const JSON::Value & JSON::Value::operator[](const char * i) const{
+  return objVal.find(i)->second;
 }
 
 /// Retrieves the JSON::Value at this position in the array.
 /// Fails horribly if that values does not exist.
-JSON::Value const & JSON::Value::operator[](unsigned int i) const{
+const JSON::Value & JSON::Value::operator[](unsigned int i) const{
   return arrVal[i];
 }
 

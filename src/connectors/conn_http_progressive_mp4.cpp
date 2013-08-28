@@ -208,7 +208,7 @@ int main(int argc, char ** argv){
   capa["url_rel"] = "/$.mp4";
   capa["url_match"] = "/$.mp4";
   capa["url_handler"] = "http";
-  capa["url_type"] = "mp4";
+  capa["url_type"] = "html5/video/mp4";
   capa["socket"] = "http_progressive_mp4";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);

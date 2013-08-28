@@ -1302,14 +1302,17 @@
         break;
       case 'addconversion':
         var c = settings.settings.conversion;
+        var dir = settings.settings.config.basepath || './';
         
         $('#page').append(
             $('<label>').attr('for', 'conv-edit-query').text('Directory').append(
-              $('<input>').attr('type', 'text').attr('id', 'conv-edit-query').attr('value','./')
+              $('<input>').addClass('nocapitals').attr('type', 'text').attr('id', 'conv-edit-query').attr('value',dir)
             )
         ).append(
+          $('<input>').attr('type','hidden').attr('id','conv-edit-dir')
+        ).append(
           $('<button>').text('search for input files').click(function(){
-            conversionDirQuery($('#conv-edit-query').value);
+            conversionDirQuery($('#conv-edit-query').val());
           })
         ).append(
           $('<div>').attr('id', 'editconversion')
@@ -1318,18 +1321,13 @@
         
         $('#editconversion').append(
           $('<label>').attr('for', 'conv-edit-input').text('Input file').append(
-            $('<select>').attr('id', 'conv-edit-input').width(237).change(function(){
-              //get the input filename, remove the extension, add the dtsc extension
-              var filename = $(this).value().split();
-              filename.pop();
-              filename = filename.join('.');
-              filename += '.dtsc';
-              $('#conv-edit-output').text(filename);
+            $('<select>').attr('id', 'conv-edit-input').addClass('nocapitals').width(237).change(function(){
+              conversionSelectInput($(this).val());
             })
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-output').text('Output file').append(
-            $('<input>').attr('type', 'text').attr('id', 'conv-edit-output')
+            $('<input>').attr('type', 'text').attr('id', 'conv-edit-output').addClass('nocapitals')
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-encoder').text('Encoder').append(
@@ -1344,12 +1342,12 @@
             $('<input>').attr('type', 'text').attr('placeholder', 'default').attr('id', 'conv-edit-video-fps')
           )
         ).append(
-          $('<label>').attr('for', 'conv-edit-video-fps').text('Video size').append(
-            $('<input>').attr('type', 'text').attr('placeholder', 'width').attr('id', 'conv-edit-video-width').width(100)
-          ).append(
-            $('<span>').text('x').width(13).css('text-align','center')
-          ).append(
-            $('<input>').attr('type', 'text').attr('placeholder', 'height').attr('id', 'conv-edit-video-height').width(100)
+          $('<label>').attr('for', 'conv-edit-video-height').text('Video height*').append(
+            $('<input>').attr('type', 'text').attr('placeholder', 'height').attr('id', 'conv-edit-video-height')
+          )
+        ).append(
+          $('<label>').attr('for', 'conv-edit-video-width').text('Video width*').append(
+            $('<input>').attr('type', 'text').attr('placeholder', 'width').attr('id', 'conv-edit-video-width')
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-audio-codec').text('Audio codec').append(
@@ -1359,9 +1357,12 @@
           $('<label>').attr('for', 'conv-edit-audio-samplerate').text('Audio samplerate').append(
             $('<input>').attr('type', 'text').attr('placeholder', 'default').attr('id', 'conv-edit-audio-samplerate')
           )
+        ).append(
+          $('<span>').addClass('comment').text('*Fill in either the width or the height. Aspect ratio will be preserved.')
         );
         
-        conversionDirQuery('./');
+        conversionDirQuery(dir);
+        
         for (var i in c.encoders) {
           $('#conv-edit-encoder').append(
             $('<option>').value(c.encoders[i])
@@ -1373,16 +1374,19 @@
           $('<button>').text('Save').click(function(){
             var cobj = {}; //he object we will save
             
-            cobj.input = $('#conv-edit-input').value();
-            cobj.output =  $('#conv-edit-output').value();
-            cobj.encoder =  $('#conv-edit-encoder').value();
-            cobj.video.codec =  $('#conv-edit-video-codec').value();
-            cobj.video.fpks =  $('#conv-edit-video-fps').value() * 1000; //todo: is this correct?
-            cobj.video.width =  $('#conv-edit-video-width').value();
-            cobj.video.height =  $('#conv-edit-video-height').value();
-            cobj.audio.codec =  $('#conv-edit-audio-codec').value();
-            cobj.audio.samplerate =  $('#conv-edit-audio-samplerate').value();
+            cobj.input = $('#conv-edit-input').val();
+            cobj.output =  $('#conv-edit-output').val();
+            cobj.encoder =  $('#conv-edit-encoder').val();
+            cobj.video = {};
+            cobj.video.codec =  $('#conv-edit-video-codec').val();
+            cobj.video.fpks =  $('#conv-edit-video-fps').val() * 1000; //todo: is this correct?
+            cobj.video.width =  $('#conv-edit-video-width').val();
+            cobj.video.height =  $('#conv-edit-video-height').val();
+            cobj.audio = {};
+            cobj.audio.codec =  $('#conv-edit-audio-codec').val();
+            cobj.audio.samplerate =  $('#conv-edit-audio-samplerate').val();
             
+            if (!c.convert) { c.convert = Array(); }
             c.convert.push(cobj);
             
             loadSettings(function(){

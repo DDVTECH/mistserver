@@ -733,16 +733,33 @@ function buildLogsTable(){
  */
  function conversionDirQuery(query) {
   settings.settings.conversion.query = query;
+  $('#conv-edit-dir').val(query);
   getData(function(data){
-    var c = data.conversion.arrayoffilenamesreturnedbyquery;
-    //todo change this ^
-    
+    var c = data.conversion.query;
+    var j = 0;
+    $('#conv-edit-input').html('');
     for (var i in c) {
-      $('#conv-edit-input').append(
-        $('<option>').value(c[i])
-      );
+      if (c[i]) {
+        $('#conv-edit-input').append(
+          $('<option>').val($('#conv-edit-dir').val()+'/'+i).text(i)
+        );
+        j++;
+      }
     }
+    if (j == 0) {
+      $('#conv-edit-input').append(
+        $('<option>').val('').text('- No suitable files found -')
+      )
+    }
+    conversionSelectInput($('#conv-edit-input').val());
   });
+ }
+ function conversionSelectInput(filename) {
+  var filename = filename.split('.');
+  filename.pop();
+  filename = filename.join('.');
+  filename += '.dtsc';
+  $('#conv-edit-output').val(filename);
  }
 
 /**

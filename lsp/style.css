@@ -120,6 +120,7 @@ button
    color: #fff;
    border: 0;
    margin: 0 2px 0 2px;
+   cursor: pointer;
 }
 
 
@@ -320,7 +321,7 @@ span {
 
 .nocapitals
 {
-   text-transform: none ;
+   text-transform: none !important;
 }
 
 #editserver label input

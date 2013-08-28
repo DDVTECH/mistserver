@@ -104,10 +104,10 @@ namespace Connector_HTTP {
           Strm.waitForMeta(ss);
           int byterate = 0;
           for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["codec"].asString() == "THEORA"){
+            if (videoID == -1 && objIt->second["codec"].asString() == "theora"){
               videoID = objIt->second["trackid"].asInt();
             }
-            if (audioID == -1 && objIt->second["codec"].asString() == "VORBIS"){
+            if (audioID == -1 && objIt->second["codec"].asString() == "vorbis"){
               audioID = objIt->second["trackid"].asInt();
             }
           }
@@ -120,6 +120,13 @@ namespace Connector_HTTP {
           if ( !byterate){byterate = 1;}
           if (seek_byte){
             seek_sec = (seek_byte / byterate) * 1000;
+          }
+          if (videoID == -1 && audioID == -1){
+            HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
+            HTTP_S.SetBody("This stream contains no OGG compatible codecs");
+            HTTP_S.SendResponse("406", "Not acceptable",conn); 
+            HTTP_R.Clean();
+            continue;
           }
           std::stringstream cmd;
           cmd << "t";

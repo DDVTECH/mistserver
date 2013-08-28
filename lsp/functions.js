@@ -732,7 +732,8 @@ function buildLogsTable(){
  @params: - query: the directory query
  */
  function conversionDirQuery(query) {
-  settings.settings.conversion.query = query;
+  if (!settings.settings.conversion.query) { settings.settings.conversion.query = {}; }
+  settings.settings.conversion.query.path = query;
   $('#conv-edit-dir').val(query);
   getData(function(data){
     var c = data.conversion.query;

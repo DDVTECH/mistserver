@@ -614,8 +614,13 @@
               };
               
               $('input').each(function(){
-                newprotocol[$(this).attr('id').split('-')[2]] = $(this).val();;
+                
+                if($(this).val() != '')
+                {
+                  newprotocol[$(this).attr('id').split('-')[2]] = $(this).val();
+                }
               });
+              
               newprotocol.online = -1;
               if (streamname == 'new') {
                 settings.settings.config.protocols.push(newprotocol);

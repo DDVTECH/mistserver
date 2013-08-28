@@ -391,7 +391,7 @@ namespace Connector_HTTP {
 
     //check if a connection exists, and if not create one
     connMutex.lock();
-    if ( !connectorConnections.count(uid) || !connectorConnections[uid]->conn->connected()){
+    if ( !connectorConnections.count(uid) || (!connectorConnections[uid]->conn->spool() && !connectorConnections[uid]->conn->connected())){
       if (connectorConnections.count(uid)){
         delete connectorConnections[uid];
         connectorConnections.erase(uid);
@@ -462,18 +462,17 @@ namespace Connector_HTTP {
           }
           break; //continue down below this while loop
         }
+      }
+      //keep trying unless the timeout triggers
+      if (timeout++ > 4000){
+        std::cout << "[20s timeout triggered]" << std::endl;
+        myCConn->conn->close();
+        myCConn->inUse.unlock();
+        //unset to only read headers
+        H.headerOnly = false;
+        return proxyHandleTimeout(H, conn);
       }else{
-        //keep trying unless the timeout triggers
-        if (timeout++ > 4000){
-          std::cout << "[20s timeout triggered]" << std::endl;
-          myCConn->conn->close();
-          myCConn->inUse.unlock();
-          //unset to only read headers
-          H.headerOnly = false;
-          return proxyHandleTimeout(H, conn);
-        }else{
-          Util::sleep(5);
-        }
+        Util::sleep(5);
       }
     }
     //unset to only read headers

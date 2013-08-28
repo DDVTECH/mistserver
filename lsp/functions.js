@@ -246,7 +246,7 @@
 
             for(i = 0; i < len; i++)
             {
-               if(settings.settings.config.protocols[i].connector == 'HTTP')
+               if(settings.settings.config.protocols[i].connector == 'HTTP.exe')
                {
                   return true;
                }
@@ -267,7 +267,7 @@
 
             for(i = 0; i < len; i++)
             {
-               if(settings.settings.config.protocols[i].connector == 'HTTP')
+               if(settings.settings.config.protocols[i].connector == 'HTTP.exe')
                {
                   if (settings.settings.config.protocols[i].port == 0) {
                      return 8080;
@@ -738,6 +738,7 @@ function buildLogsTable(){
   getData(function(data){
     var c = data.conversion.query;
     var j = 0;
+    delete settings.settings.conversion.query;
     $('#conv-edit-input').html('');
     for (var i in c) {
       if (c[i]) {

@@ -96,7 +96,8 @@ namespace Connector_HTTP {
       for (JSON::ArrIter keyIt = allAudio.ObjBegin()->second["keys"].ArrBegin(); keyIt != allAudio.ObjBegin()->second["keys"].ArrEnd(); keyIt++){
         Result << "<c ";
         if (keyIt == allAudio.ObjBegin()->second["keys"].ArrBegin()){
-          Result << "t=\"" << allAudio.ObjBegin()->second["firstms"].asInt() * 10000 << "\" ";
+          // ensure proper audio start time (yes, this is video :D)
+          Result << "t=\"" << allVideo.ObjBegin()->second["firstms"].asInt() * 10000 << "\" ";
         }
         Result << "d=\"" << (*keyIt)["len"].asInt() * 10000 << "\" />\n";
       }

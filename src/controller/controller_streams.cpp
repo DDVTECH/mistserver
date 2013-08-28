@@ -59,7 +59,13 @@ namespace Controller {
           data["online"] = 0;
           return;
         }
-        cmd1 = "cat " + URL;
+        if ( !data.isMember("meta") || !data["meta"].isMember("tracks")){
+          char * tmp_cmd[3] = {0, 0, 0};
+          std::string mistinfo = Util::getMyPath() + "MistInfo";
+          tmp_cmd[0] = (char*)mistinfo.c_str();
+          tmp_cmd[1] = (char*)URL.c_str();
+          data["meta"] = JSON::fromString(Util::Procs::getOutputOf(tmp_cmd));
+        }
         if (Util::epoch() - lastBuffer[name] > 5){
           data["error"] = "Available";
           data["online"] = 2;

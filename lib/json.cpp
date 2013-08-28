@@ -7,14 +7,21 @@
 #include <stdint.h> //for uint64_t
 #include <string.h> //for memcpy
 #include <arpa/inet.h> //for htonl
-int JSON::Value::c2hex(int c){
+
+static int c2hex(char c){
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return c - 'a' + 10;
   if (c >= 'A' && c <= 'F') return c - 'A' + 10;
   return 0;
 }
 
-std::string JSON::Value::read_string(int separator, std::istream & fromstream){
+static char hex2c(char c){
+  if (c < 10){return '0' + c;}
+  if (c < 16){return 'A' + (c - 10);}
+  return '0';
+}
+
+static std::string read_string(int separator, std::istream & fromstream){
   std::string out;
   bool escaped = false;
   while (fromstream.good()){
@@ -64,7 +71,7 @@ std::string JSON::Value::read_string(int separator, std::istream & fromstream){
   return out;
 }
 
-std::string JSON::Value::string_escape(const std::string val){
+static std::string string_escape(const std::string val){
   std::string out = "\"";
   for (unsigned int i = 0; i < val.size(); ++i){
     switch (val[i]){
@@ -90,7 +97,13 @@ std::string JSON::Value::string_escape(const std::string val){
         out += "\\t";
         break;
       default:
-        out += val[i];
+        if (val[i] < 32 || val[i] > 126){
+          out += "\\u00";
+          out += hex2c((val[i] >> 4) & 0xf);
+          out += hex2c(val[i] & 0xf);
+        }else{
+          out += val[i];
+        }
         break;
     }
   }
@@ -99,7 +112,7 @@ std::string JSON::Value::string_escape(const std::string val){
 }
 
 /// Skips an std::istream forward until any of the following characters is seen: ,]}
-void JSON::Value::skipToEnd(std::istream & fromstream){
+static void skipToEnd(std::istream & fromstream){
   while (fromstream.good()){
     char peek = fromstream.peek();
     if (peek == ','){

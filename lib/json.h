@@ -35,10 +35,6 @@ namespace JSON {
       std::string strVal;
       std::deque<Value> arrVal;
       std::map<std::string, Value> objVal;
-      std::string read_string(int separator, std::istream & fromstream);
-      static std::string string_escape(const std::string val);
-      int c2hex(int c);
-      static void skipToEnd(std::istream & fromstream);
     public:
       //friends
       friend class DTSC::Stream; //for access to strVal

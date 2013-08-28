@@ -214,211 +214,228 @@ namespace Connector_HTTP {
             };
       
 
-
-            if (HTTP_R.url.find("Manifest") == std::string::npos){
-              //We have a non-manifest request, parse it.
-              Quality = HTTP_R.url.substr(HTTP_R.url.find("/Q(", 8) + 3);
-              Quality = Quality.substr(0, Quality.find(")"));
-              parseString = HTTP_R.url.substr(HTTP_R.url.find(")/") + 2);
-              wantsAudio = false;
-              wantsVideo = false;
-              if (parseString[0] == 'A'){
-                wantsAudio = true;
-              }
-              if (parseString[0] == 'V'){
-                wantsVideo = true;
-              }
-              parseString = parseString.substr(parseString.find("(") + 1);
-              requestedTime = atoll(parseString.substr(0, parseString.find(")")).c_str());
-              if (Strm.metadata.isMember("live")){
-                ///\todo Fix this for live stuff
-                int seekable = Strm.canSeekms(requestedTime / 10000);
-                if (seekable == 0){
-                  // iff the fragment in question is available, check if the next is available too
-                  for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
-                    if (Strm.metadata["keytime"][i].asInt() >= (requestedTime / 10000)){
-                      if (i + 1 == Strm.metadata["keytime"].size()){
-                        seekable = 1;
+            if (HTTP_R.url.find(".xap") != std::string::npos){
+#include "xap.h"
+              
+              std::cout << "! sending xap player file" << std::endl;
+              HTTP_S.Clean();
+              HTTP_S.SetHeader("Content-Type", "application/siverlight");
+              HTTP_S.SetHeader("Cache-Control", "cache");
+              HTTP_S.SetBody("");
+              HTTP_S.SetHeader("Content-Length", xap_len);
+              HTTP_S.SendResponse("200", "OK", conn);
+              conn.SendNow((const char *)xap_data, xap_len);
+            }else{
+              if (HTTP_R.url.find("Manifest") == std::string::npos){
+                //We have a non-manifest request, parse it.
+                std::cout << "! NON manifest sauce file" << std::endl;
+                
+                Quality = HTTP_R.url.substr(HTTP_R.url.find("/Q(", 8) + 3);
+                Quality = Quality.substr(0, Quality.find(")"));
+                parseString = HTTP_R.url.substr(HTTP_R.url.find(")/") + 2);
+                wantsAudio = false;
+                wantsVideo = false;
+                if (parseString[0] == 'A'){
+                  wantsAudio = true;
+                }
+                if (parseString[0] == 'V'){
+                  wantsVideo = true;
+                }
+                parseString = parseString.substr(parseString.find("(") + 1);
+                requestedTime = atoll(parseString.substr(0, parseString.find(")")).c_str());
+                if (Strm.metadata.isMember("live")){
+                  ///\todo Fix this for live stuff
+                  int seekable = Strm.canSeekms(requestedTime / 10000);
+                  if (seekable == 0){
+                    // iff the fragment in question is available, check if the next is available too
+                    for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
+                      if (Strm.metadata["keytime"][i].asInt() >= (requestedTime / 10000)){
+                        if (i + 1 == Strm.metadata["keytime"].size()){
+                          seekable = 1;
+                        }
+                        break;
+                      }
+                    }
+                  }
+                  if (seekable < 0){
+                    HTTP_S.Clean();
+                    HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+                    conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
+                    HTTP_R.Clean(); //clean for any possible next requests
+                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms too old (" << Strm.metadata["keytime"][0u].asInt() << " - " << Strm.metadata["keytime"][Strm.metadata["keytime"].size() - 1].asInt() << " ms)" << std::endl;
+                    continue;
+                  }
+                  if (seekable > 0){
+                    HTTP_S.Clean();
+                    HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                    conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
+                    HTTP_R.Clean(); //clean for any possible next requests
+                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms not available yet (" << Strm.metadata["keytime"][0u].asInt() << " - " << Strm.metadata["keytime"][Strm.metadata["keytime"].size() - 1].asInt() << " ms)" << std::endl;
+                    continue;
+                  }
+                }
+                //Seek to the right place and send a play-once for a single fragment.
+                std::stringstream sstream;
+                JSON::Value myRef;
+                long long int selectedQuality = atoll(Quality.c_str()) / 8;
+                if (wantsVideo){
+                  //Select the correct track ID
+                  for (JSON::ObjIter vIt = allVideo.ObjBegin(); vIt != allVideo.ObjEnd(); vIt++){
+                    if (vIt->second["bps"].asInt() == selectedQuality){
+                      myRef = vIt->second;
+                    }
+                  }
+                }
+                if (wantsAudio){
+                  //Select the correct track ID
+                  for (JSON::ObjIter aIt = allAudio.ObjBegin(); aIt != allAudio.ObjEnd(); aIt++){
+                    if (aIt->second["bps"].asInt() == selectedQuality){
+                      myRef = aIt->second;
+                    }
+                  }
+                }
+                
+                long long mstime = 0;
+                long long mslen = 0;
+                if (myRef.isMember("keys")){
+                  for (JSON::ArrIter it = myRef["keys"].ArrBegin(); it != myRef["keys"].ArrEnd(); it++){
+                    if ((*it)["time"].asInt() >= (requestedTime / 10000)){
+                      mstime = (*it)["time"].asInt();
+                      mslen = (*it)["len"].asInt();
+                      if (Strm.metadata.isMember("live")){
+                        if (it == myRef["keys"].ArrEnd() - 2){
+                          HTTP_S.Clean();
+                          HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                          conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
+                          HTTP_R.Clean(); //clean for any possible next requests
+                          std::cout << "Fragment after fragment @ " << (requestedTime / 10000) << " not available yet" << std::endl;
+                        }
                       }
                       break;
                     }
                   }
                 }
-                if (seekable < 0){
-                  HTTP_S.Clean();
-                  HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-                  conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
-                  HTTP_R.Clean(); //clean for any possible next requests
-                  std::cout << "Fragment @ " << requestedTime / 10000 << "ms too old (" << Strm.metadata["keytime"][0u].asInt() << " - " << Strm.metadata["keytime"][Strm.metadata["keytime"].size() - 1].asInt() << " ms)" << std::endl;
-                  continue;
-                }
-                if (seekable > 0){
-                  HTTP_S.Clean();
-                  HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-                  conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
-                  HTTP_R.Clean(); //clean for any possible next requests
-                  std::cout << "Fragment @ " << requestedTime / 10000 << "ms not available yet (" << Strm.metadata["keytime"][0u].asInt() << " - " << Strm.metadata["keytime"][Strm.metadata["keytime"].size() - 1].asInt() << " ms)" << std::endl;
-                  continue;
-                }
-              }
-              //Seek to the right place and send a play-once for a single fragment.
-              std::stringstream sstream;
-              JSON::Value myRef;
-              long long int selectedQuality = atoll(Quality.c_str()) / 8;
-              if (wantsVideo){
-                //Select the correct track ID
-                for (JSON::ObjIter vIt = allVideo.ObjBegin(); vIt != allVideo.ObjEnd(); vIt++){
-                  if (vIt->second["bps"].asInt() == selectedQuality){
-                    myRef = vIt->second;
+                if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
+                if (Strm.metadata.isMember("live")){
+                  if (mstime == 0 && (requestedTime / 10000) > 1){
+                    HTTP_S.Clean();
+                    HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+                    conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
+                    HTTP_R.Clean(); //clean for any possible next requests
+                    std::cout << "Fragment @ " << (requestedTime / 10000) << " too old" << std::endl;
+                    continue;
                   }
                 }
-              }
-              if (wantsAudio){
-                //Select the correct track ID
-                for (JSON::ObjIter aIt = allAudio.ObjBegin(); aIt != allAudio.ObjEnd(); aIt++){
-                  if (aIt->second["bps"].asInt() == selectedQuality){
-                    myRef = aIt->second;
-                  }
+                
+                
+                sstream << "t " << myRef["trackid"].asInt() << "\n";
+                sstream << "s " << (requestedTime / 10000) << "\n";
+                sstream << "o\n";
+
+                ss.SendNow(sstream.str().c_str());
+
+                unsigned int myDuration;
+                
+                //Wrap everything in mp4 boxes
+                MP4::MFHD mfhd_box;
+                JSON::Value trackRef;
+                if (wantsVideo){
+                  trackRef = allVideo.ObjBegin()->second;
                 }
-              }
-              
-              long long mstime = 0;
-              long long mslen = 0;
-              if (myRef.isMember("keys")){
-                for (JSON::ArrIter it = myRef["keys"].ArrBegin(); it != myRef["keys"].ArrEnd(); it++){
-                  if ((*it)["time"].asInt() >= (requestedTime / 10000)){
-                    mstime = (*it)["time"].asInt();
-                    mslen = (*it)["len"].asInt();
-                    if (Strm.metadata.isMember("live")){
-                      if (it == myRef["keys"].ArrEnd() - 2){
-                        HTTP_S.Clean();
-                        HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-                        conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
-                        HTTP_R.Clean(); //clean for any possible next requests
-                        std::cout << "Fragment after fragment @ " << (requestedTime / 10000) << " not available yet" << std::endl;
-                      }
-                    }
+                if (wantsAudio){
+                  trackRef = allAudio.ObjBegin()->second;
+                }
+                //Also obtain the associated keyframe;
+                JSON::Value keyObj;
+                for (JSON::ArrIter keyIt = trackRef["keys"].ArrBegin(); keyIt != trackRef["keys"].ArrEnd(); keyIt++){
+                  if ((*keyIt)["time"].asInt() >= (requestedTime / 10000)){
+                    keyObj = (*keyIt);
+                    mfhd_box.setSequenceNumber((*keyIt)["num"].asInt());
+                    myDuration = (*keyIt)["len"].asInt() * 10000;
                     break;
                   }
                 }
-              }
-              if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
-              if (Strm.metadata.isMember("live")){
-                if (mstime == 0 && (requestedTime / 10000) > 1){
-                  HTTP_S.Clean();
-                  HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-                  conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
-                  HTTP_R.Clean(); //clean for any possible next requests
-                  std::cout << "Fragment @ " << (requestedTime / 10000) << " too old" << std::endl;
-                  continue;
+                
+                MP4::TFHD tfhd_box;
+                tfhd_box.setFlags(MP4::tfhdSampleFlag);
+                tfhd_box.setTrackID(1);
+                tfhd_box.setDefaultSampleFlags(0x000000C0 | MP4::noIPicture | MP4::noDisposable | MP4::noKeySample);
+                
+                MP4::TRUN trun_box;
+                trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
+                trun_box.setDataOffset(42);
+                trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);
+                for (int i = 0; i < keyObj["parts"].size(); i++){
+                  MP4::trunSampleInformation trunSample;
+                  trunSample.sampleSize = keyObj["parts"][i].asInt();
+                  //Guesstimate sample duration.
+                  trunSample.sampleDuration = ((double)(keyObj["len"].asInt() * 10000) / keyObj["parts"].size());
+                  trun_box.setSampleInformation(trunSample, i);
                 }
-              }
-              
-              
-              sstream << "t " << myRef["trackid"].asInt() << "\n";
-              sstream << "s " << (requestedTime / 10000) << "\n";
-              sstream << "o\n";
-
-              ss.SendNow(sstream.str().c_str());
-
-              unsigned int myDuration;
-              
-              //Wrap everything in mp4 boxes
-              MP4::MFHD mfhd_box;
-              JSON::Value trackRef;
-              if (wantsVideo){
-                trackRef = allVideo.ObjBegin()->second;
-              }
-              if (wantsAudio){
-                trackRef = allAudio.ObjBegin()->second;
-              }
-              //Also obtain the associated keyframe;
-              JSON::Value keyObj;
-              for (JSON::ArrIter keyIt = trackRef["keys"].ArrBegin(); keyIt != trackRef["keys"].ArrEnd(); keyIt++){
-                if ((*keyIt)["time"].asInt() >= (requestedTime / 10000)){
-                  keyObj = (*keyIt);
-                  mfhd_box.setSequenceNumber((*keyIt)["num"].asInt());
-                  myDuration = (*keyIt)["len"].asInt() * 10000;
-                  break;
+                
+                MP4::SDTP sdtp_box;
+                sdtp_box.setVersion(0);
+                sdtp_box.setValue(0x24, 4);
+                for (int i = 1; i < keyObj["parts"].size(); i++){
+                  sdtp_box.setValue(0x14, 4 + i);
                 }
-              }
-              
-              MP4::TFHD tfhd_box;
-              tfhd_box.setFlags(MP4::tfhdSampleFlag);
-              tfhd_box.setTrackID(1);
-              tfhd_box.setDefaultSampleFlags(0x000000C0 | MP4::noIPicture | MP4::noDisposable | MP4::noKeySample);
-              
-              MP4::TRUN trun_box;
-              trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
-              trun_box.setDataOffset(42);
-              trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);
-              for (int i = 0; i < keyObj["parts"].size(); i++){
-                MP4::trunSampleInformation trunSample;
-                trunSample.sampleSize = keyObj["parts"][i].asInt();
-                //Guesstimate sample duration.
-                trunSample.sampleDuration = ((double)(keyObj["len"].asInt() * 10000) / keyObj["parts"].size());
-                trun_box.setSampleInformation(trunSample, i);
-              }
-              
-              MP4::SDTP sdtp_box;
-              sdtp_box.setVersion(0);
-              sdtp_box.setValue(0x24, 4);
-              for (int i = 1; i < keyObj["parts"].size(); i++){
-                sdtp_box.setValue(0x14, 4 + i);
-              }
-              
-              MP4::TRAF traf_box;
-              traf_box.setContent(tfhd_box, 0);
-              traf_box.setContent(trun_box, 1);
-              traf_box.setContent(sdtp_box, 2);
-              
-              //If the stream is live, we want to have a fragref box if possible
-              if (Strm.metadata.isMember("live")){
-                ///\todo Fix this for live
-                MP4::UUID_TrackFragmentReference fragref_box;
-                fragref_box.setVersion(1);
-                fragref_box.setFragmentCount(0);
-                int fragCount = 0;
-                for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
-                  if (Strm.metadata["keytime"][i].asInt() > (requestedTime / 10000)){
-                    fragref_box.setTime(fragCount, Strm.metadata["keytime"][i].asInt() * 10000);
-                    fragref_box.setDuration(fragCount, Strm.metadata["keylen"][i].asInt() * 10000);
-                    fragref_box.setFragmentCount(++fragCount);
+                
+                MP4::TRAF traf_box;
+                traf_box.setContent(tfhd_box, 0);
+                traf_box.setContent(trun_box, 1);
+                traf_box.setContent(sdtp_box, 2);
+                
+                //If the stream is live, we want to have a fragref box if possible
+                if (Strm.metadata.isMember("live")){
+                  ///\todo Fix this for live
+                  MP4::UUID_TrackFragmentReference fragref_box;
+                  fragref_box.setVersion(1);
+                  fragref_box.setFragmentCount(0);
+                  int fragCount = 0;
+                  for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
+                    if (Strm.metadata["keytime"][i].asInt() > (requestedTime / 10000)){
+                      fragref_box.setTime(fragCount, Strm.metadata["keytime"][i].asInt() * 10000);
+                      fragref_box.setDuration(fragCount, Strm.metadata["keylen"][i].asInt() * 10000);
+                      fragref_box.setFragmentCount(++fragCount);
+                    }
                   }
+                  traf_box.setContent(fragref_box, 3);
                 }
-                traf_box.setContent(fragref_box, 3);
+
+                MP4::MOOF moof_box;
+                moof_box.setContent(mfhd_box, 0);
+                moof_box.setContent(traf_box, 1);
+
+                //Setting the correct offsets.
+                trun_box.setDataOffset(moof_box.boxedSize() + 8);
+                traf_box.setContent(trun_box, 1);
+                moof_box.setContent(traf_box, 1);
+
+                HTTP_S.Clean();
+                HTTP_S.SetHeader("Content-Type", "video/mp4");
+                HTTP_S.StartResponse(HTTP_R, conn);
+                HTTP_S.Chunkify(moof_box.asBox(), moof_box.boxedSize(), conn);
+                int size = htonl(keyObj["size"].asInt() + 8);
+                HTTP_S.Chunkify((char*)&size, 4, conn);
+                HTTP_S.Chunkify("mdat", 4, conn);
+                handlingRequest = true;
+              }else{
+                //We have a request for a Manifest, generate and send it.
+                
+                std::cout << "! sending manifest player file" << std::endl;
+                HTTP_S.Clean();
+                HTTP_S.SetHeader("Content-Type", "text/xml");
+                HTTP_S.SetHeader("Cache-Control", "no-cache");
+                std::string manifest = smoothIndex(Strm.metadata);
+                HTTP_S.SetBody(manifest);
+                HTTP_S.SendResponse("200", "OK", conn);
               }
-
-              MP4::MOOF moof_box;
-              moof_box.setContent(mfhd_box, 0);
-              moof_box.setContent(traf_box, 1);
-
-              //Setting the correct offsets.
-              trun_box.setDataOffset(moof_box.boxedSize() + 8);
-              traf_box.setContent(trun_box, 1);
-              moof_box.setContent(traf_box, 1);
-
-              HTTP_S.Clean();
-              HTTP_S.SetHeader("Content-Type", "video/mp4");
-              HTTP_S.StartResponse(HTTP_R, conn);
-              HTTP_S.Chunkify(moof_box.asBox(), moof_box.boxedSize(), conn);
-              int size = htonl(keyObj["size"].asInt() + 8);
-              HTTP_S.Chunkify((char*)&size, 4, conn);
-              HTTP_S.Chunkify("mdat", 4, conn);
-              handlingRequest = true;
-            }else{
-              //We have a request for a Manifest, generate and send it.
-              HTTP_S.Clean();
-              HTTP_S.SetHeader("Content-Type", "text/xml");
-              HTTP_S.SetHeader("Cache-Control", "no-cache");
-              std::string manifest = smoothIndex(Strm.metadata);
-              HTTP_S.SetBody(manifest);
-              conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
             }
             ready4data = true;
             //Clean for any possible next requests
             HTTP_R.Clean();
           }
+          
         }else{
           //Wait 250ms before checking for new data.
           Util::sleep(250);

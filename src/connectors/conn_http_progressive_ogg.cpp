@@ -168,10 +168,10 @@ namespace Connector_HTTP {
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
             }
-            //if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
+            if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               DTSCBuffer[temp].push_back(Strm.getPacket());
               prevGran[temp] = Strm.getPacket()["granule"].asInt();
-            //}
+            }
           }
         }else{
           Util::sleep(1);

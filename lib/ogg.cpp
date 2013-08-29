@@ -188,6 +188,9 @@ namespace OGG{
           temp = 0;
         }
       }
+      if (temp!=0){
+        segmentTableDeque.push_back(temp);
+      }
     }
     return segmentTableDeque;
   }
@@ -196,6 +199,7 @@ namespace OGG{
     std::cerr << "Segments too big, create a continue page" << std::endl;
   }
 
+  ///\TODO MAKE FIX HERE
   bool Page::setSegmentTable(std::vector<unsigned int> layout){
     dataSum=0;
     for (unsigned int i = 0; i < layout.size(); i++){
@@ -205,7 +209,7 @@ namespace OGG{
     char table[255];
     for (unsigned int i = 0; i < layout.size(); i++){
       while (layout[i]>=255){
-        if (place >= 255){ 
+        if (place > 255){ 
           STerrMSG();
           return false;
         }
@@ -213,12 +217,14 @@ namespace OGG{
         layout[i] -= 255;
         place++;
       }
-      if (place >= 255){ 
+      if (place > 255){ 
         STerrMSG();
         return false;
       }
-      table[place] = layout[i];
-      place++;
+      if (layout[i] != 0){
+        table[place] = layout[i];
+        place++;
+      }
     }
     setPageSegments(place);
     setSegmentTable(table,place);

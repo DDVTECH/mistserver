@@ -160,7 +160,7 @@ namespace Connector_HTTP {
             }
             //parse DTSC to Ogg here
             long long unsigned int temp = Strm.getPacket()["trackid"].asInt();
-            if(prevGran[temp] != Strm.getPacket()["granule"].asInt() && DTSCBuffer[temp].size() != 0){
+            if((prevGran[temp] != Strm.getPacket()["granule"].asInt() || prevGran[temp] == -1) && DTSCBuffer[temp].size() != 0){
               curOggPage.readDTSCVector(DTSCBuffer[temp], oggMeta.DTSCID2OGGSerial[temp], oggMeta.DTSCID2seqNum[temp]);
               conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
               DTSCBuffer[temp].clear();
@@ -168,11 +168,10 @@ namespace Connector_HTTP {
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
             }
-            if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
-              //long long unsigned int prevID = Strm.getPacket()["trackid"].asInt();
+            //if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               DTSCBuffer[temp].push_back(Strm.getPacket());
               prevGran[temp] = Strm.getPacket()["granule"].asInt();
-            }
+            //}
           }
         }else{
           Util::sleep(1);

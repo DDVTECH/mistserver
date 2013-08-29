@@ -69,7 +69,7 @@ namespace Converters{
     std::string pageBuffer;
     
     while(DTSCFile.getJSON()){
-      if(DTSCFile.getJSON()["trackid"].asInt()!=prevID || DTSCFile.getJSON()["granule"].asInt()!=prevGran){
+      if(DTSCFile.getJSON()["trackid"].asInt()!=prevID || DTSCFile.getJSON()["granule"].asInt()!=prevGran || DTSCFile.getJSON()["granule"].asInt() == -1){
         curOggPage.clear();
         curOggPage.setVersion();
         if (OggCont){
@@ -82,7 +82,13 @@ namespace Converters{
         curOggPage.setGranulePosition(prevGran);
         curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[prevID]);
         curOggPage.setPageSequenceNumber(DTSCID2seqNum[prevID]++);
-        curOggPage.setSegmentTable(curSegTable);
+        if(!curOggPage.setSegmentTable(curSegTable)){
+          std::cerr << "Troubling segTable:";
+          for (unsigned int i = 0; i<curSegTable.size(); i++){
+            std::cerr << " " << curSegTable[i];
+          }
+          std::cerr << std::endl;
+        }
         curOggPage.setPayload((char*)pageBuffer.c_str(), pageBuffer.size());
         curOggPage.setCRCChecksum(curOggPage.calcChecksum());
         std::cout << std::string(curOggPage.getPage(), curOggPage.getPageSize());

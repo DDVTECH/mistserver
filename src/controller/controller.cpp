@@ -342,7 +342,7 @@ int main(int argc, char ** argv){
   Converter::Converter myConverter;
   
   while (API_Socket.connected() && conf.is_active){
-    usleep(10000); //sleep for 10 ms - prevents 100% CPU time
+    Util::sleep(10);//sleep for 10 ms - prevents 100% CPU time
 
     if (Util::epoch() - processchecker > 10){
       processchecker = Util::epoch();
@@ -470,17 +470,7 @@ int main(int argc, char ** argv){
           break;
         }
         if (it->C.spool() || it->C.Received().size()){
-          if ( *(it->C.Received().get().rbegin()) != '\n'){
-            std::string tmp = it->C.Received().get();
-            it->C.Received().get().clear();
-            if (it->C.Received().size()){
-              it->C.Received().get().insert(0, tmp);
-            }else{
-              it->C.Received().append(tmp);
-            }
-            continue;
-          }
-          if (it->H.Read(it->C.Received().get())){
+          if (it->H.Read(it->C)){
             Response.null(); //make sure no data leaks from previous requests
             if (it->clientMode){
               // In clientMode, requests are reversed. These are connections we initiated to GearBox.

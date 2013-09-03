@@ -11,6 +11,7 @@ namespace OGG{
   class Page{
     public:
       Page();
+      ~Page();
       bool read(std::string & newData);
       long unsigned int getMagicNumber();
       void setMagicNumber();
@@ -49,7 +50,7 @@ namespace OGG{
     private:
       std::deque<unsigned int> segmentTableDeque;
       char* data;//pointer to the beginning of the Page data
-      unsigned int datasize;//size of the complete page
+      unsigned int datasize;//size of the allocated memory
       unsigned int dataSum;//size of the total segments
       bool checkDataSize(unsigned int size);
       std::string codec;//codec in the page

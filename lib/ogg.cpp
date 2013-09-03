@@ -44,6 +44,12 @@ namespace OGG{
     datasize = 0;
     dataSum = 0;
   }
+  
+  Page::~Page(){
+    if (data){
+      free(data);
+    }
+  }
 
   bool Page::read(std::string & newData){
     segmentTableDeque.clear();

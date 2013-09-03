@@ -448,7 +448,6 @@ namespace OGG{
       return false;
     }
     memset(data,0,27);
-    datasize = 0;
     dataSum = 0;
     codec = "";
     setMagicNumber();

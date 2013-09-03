@@ -181,6 +181,7 @@ int main(int argc, char** argv){
               in_out.setBlocking(false);
               if (in_out.Received().get().size() >= 2){
                 playUntil = atoi(in_out.Received().get().substr(2).c_str());
+                lastTime = 0;
                 bench = Util::getMS();
               }else{
                 playUntil = 0;

@@ -21,7 +21,7 @@ namespace Converters {
 
   ///\brief Converts FLV from stdin to DTSC on stdout.
   ///\return The return code for the converter.
-  int SRT2DTSC(){
+  int SRT2DTSC(Util::Config & conf){
     int lineNum;
     int beginH, beginM, beginS, beginMs;
     int endH, endM, endS, endMs;
@@ -32,6 +32,7 @@ namespace Converters {
     meta["tracks"]["track3"]["trackid"] = 3ll;
     meta["tracks"]["track3"]["type"] = "meta";
     meta["tracks"]["track3"]["codec"] = "srt";
+    meta["tracks"]["track3"]["language"] = conf.getString("language");
     std::cout << meta.toNetPacked();
     JSON::Value newPack;
     while (std::cin.good()){
@@ -59,6 +60,8 @@ namespace Converters {
 ///\brief Entry point for SRT2DTSC, simply calls Converters::SRT2DTSC().
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.addOption("language",
+      JSON::fromString("{\"arg_num\":1,\"value\":[\"?\"], \"help\": \"The language of these subtitles.\"}"));
   conf.parseArgs(argc, argv);
-  return Converters::SRT2DTSC();
+  return Converters::SRT2DTSC(conf);
 } //main

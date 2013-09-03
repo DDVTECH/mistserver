@@ -207,7 +207,7 @@ int main(int argc, char ** argv){
   conf.addOption("streamname",
       JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
   conf.addOption("tracks",
-      JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\": \"t\",\"long\":\"tracks\",\"help\":\"The track IDs of the stream that this connector will transmit separated by spaces.\"}"));
+      JSON::fromString("{\"arg\":\"string\",\"value\":[\"\"],\"short\": \"t\",\"long\":\"tracks\",\"help\":\"The track IDs of the stream that this connector will transmit separated by spaces.\"}"));
   conf.addConnectorOptions(8888, capa);
   bool ret = conf.parseArgs(argc, argv);
   if (conf.getBool("json")){

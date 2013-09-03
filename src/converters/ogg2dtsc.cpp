@@ -29,7 +29,6 @@ namespace Converters{
   int OGG2DTSC(){
     std::string oggBuffer;
     OGG::Page oggPage;
-    //netpacked
     //Read all of std::cin to oggBuffer
     
     JSON::Value DTSCOut;
@@ -50,7 +49,6 @@ namespace Converters{
         //on succes, we handle one page
         long unsigned int sNum = oggPage.getBitstreamSerialNumber();
         if (oggPage.typeBOS()){//defines a new track
-          std::cerr << "Begin "<< sNum << std::endl;
           if (memcmp(oggPage.getFullPayload()+1, "theora", 6) == 0){
             headerSeen += 1;
             headerWritten = false;
@@ -62,7 +60,7 @@ namespace Converters{
             std::cerr << "Snr " << sNum << "=vorbis" << std::endl;
             trackData[sNum].codec = VORBIS;
           }else{
-            std::cerr << "Unknown Codec, skipping" << std::endl;
+            std::cerr << "Unknown Codec, " << std::string(oggPage.getFullPayload()+1, 6)<<" skipping" << std::endl;
             continue;
           }
           trackData[sNum].dtscID = lastTrackID++;
@@ -104,11 +102,9 @@ namespace Converters{
                 case THEORA:{
                   theora::header tHead;
                   if(tHead.read(oggPage.getFullPayload()+offset, (*it))){//if the current segment is a Theora header part
-                    std::cerr << "Theora Header Segment " << tHead.getHeaderType() << std::endl;
                     //fillDTSC header
                     switch(tHead.getHeaderType()){
                       case 0:{ //identification header
-                        std::cerr << "Theora ID header found" << std::endl;
                         trackData[sNum].idHeader = tHead;
                         DTSCHeader["tracks"][trackData[sNum].name]["height"] = (long long)tHead.getPICH();
                         DTSCHeader["tracks"][trackData[sNum].name]["width"] = (long long)tHead.getPICW();
@@ -116,7 +112,6 @@ namespace Converters{
                         break;
                       }
                       case 1: //comment header
-                        std::cerr << "Theora comment header found" << std::endl;
                         DTSCHeader["tracks"][trackData[sNum].name]["CommentHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                         break;
                       case 2:{ //setup header, also the point to start writing the header
@@ -133,12 +128,10 @@ namespace Converters{
                   break;
                 }
                 case VORBIS:{
-                  std::cerr << "Parsing part of the vorbis header\n";
                   vorbis::header vHead;
                     if(vHead.read(oggPage.getFullPayload()+offset, (*it))){//if the current segment is a Vorbis header part
                       switch(vHead.getHeaderType()){
                         case 1:{
-                          std::cerr << "Vorbis ID header" << std::endl;
                           DTSCHeader["tracks"][trackData[sNum].name]["channels"] = (long long)vHead.getAudioChannels();
                           DTSCHeader["tracks"][trackData[sNum].name]["IDHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                           break;
@@ -148,7 +141,6 @@ namespace Converters{
                           break;
                         }
                         case 5:{
-                          std::cerr << "Vorbis init header" << std::endl;
                           DTSCHeader["tracks"][trackData[sNum].name]["codec"] = "vorbis";
                           DTSCHeader["tracks"][trackData[sNum].name]["trackid"] = (long long)trackData[sNum].dtscID;
                           DTSCHeader["tracks"][trackData[sNum].name]["type"] = "audio";
@@ -158,12 +150,11 @@ namespace Converters{
                           break;
                         }
                         default:{
-                          std::cerr << "Unsupported header type for vorbis\n";
+                          std::cerr << "Unsupported header type for vorbis" << std::endl;
                         }
                       }
                     }else{
-                      std::cerr << "Not a header??\n";
-                      //buffer vorbis
+                      std::cerr << "Unknown Header" << std::endl;
                     }
                   break;
                 }
@@ -183,15 +174,14 @@ namespace Converters{
           std::cout << DTSCHeader.toNetPacked();
           headerWritten = true;
         }
-        //write section buffer
         //write section
         if (oggPage.typeEOS()){//ending page
-          std::cerr << oggPage.getBitstreamSerialNumber() << "  ending" << std::endl;
           //remove from trackdata
           trackData.erase(sNum);
         }
       }
     }
+    std::cerr << "DTSC file created succesfully" << std::endl;
     return 0;
   }
 }

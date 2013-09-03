@@ -159,7 +159,7 @@ namespace Connector_HTTP {
               progressive_has_sent_header = true;
             }
             //parse DTSC to Ogg here
-            long long unsigned int temp = Strm.getPacket()["trackid"].asInt();
+            long long int temp = Strm.getPacket()["trackid"].asInt();
             if((prevGran[temp] != Strm.getPacket()["granule"].asInt() || prevGran[temp] == -1) && DTSCBuffer[temp].size() != 0){
               curOggPage.readDTSCVector(DTSCBuffer[temp], oggMeta.DTSCID2OGGSerial[temp], oggMeta.DTSCID2seqNum[temp]);
               conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());

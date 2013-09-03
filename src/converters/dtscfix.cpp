@@ -106,7 +106,7 @@ namespace Converters {
             }
             trackData[currentID].type = F.getJSON()["datatype"].asString();
           }else{
-            fprintf(stderr, "Found an unknown package with packetid 0 and datatype %s\n",F.getJSON()["datatype"].asString().c_str());
+            //fprintf(stderr, "Found an unknown package with packetid 0 and datatype %s\n",F.getJSON()["datatype"].asString().c_str());
             F.parseNext();
             continue;
           }
@@ -119,7 +119,7 @@ namespace Converters {
           }
         }
         if( currentID == "" ) {
-          fprintf(stderr, "Found an unknown v2 packet with id %d\n", F.getJSON()["trackid"].asInt());
+          //fprintf(stderr, "Found an unknown v2 packet with id %d\n", F.getJSON()["trackid"].asInt());
           F.parseNext();
           continue;
           //should create new track but this shouldnt be needed...

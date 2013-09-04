@@ -10,6 +10,9 @@
 #else
 #include <wait.h>
 #endif
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 #include <errno.h>
 #include <iostream>
 #include <signal.h>
@@ -401,12 +404,18 @@ void Util::Config::addBasicConnectorOptions(JSON::Value & capabilities){
 /// Gets directory the current executable is stored in.
 std::string Util::getMyPath(){
   char mypath[500];
+#ifdef __APPLE__
+  memset( mypath, 0, 500);
+  unsigned int refSize = 500;
+  int ret = _NSGetExecutablePath(mypath,&refSize);
+#else
   int ret = readlink("/proc/self/exe", mypath, 500);
   if (ret != -1){
     mypath[ret] = 0;
   }else{
     mypath[0] = 0;
   }
+#endif
   std::string tPath = mypath;
   size_t slash = tPath.rfind('/');
   if (slash == std::string::npos){

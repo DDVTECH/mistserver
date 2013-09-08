@@ -72,8 +72,9 @@ namespace Buffer {
         it->second.removeMember("keys");
         it->second.removeMember("frags");
       }
+      //delete empty trackname if present - these are never interesting
+      Storage["meta"]["tracks"].removeMember("");
     }
-
     ret = Storage.toString();
     Storage["log"].null();
     return ret;

@@ -29,6 +29,7 @@ namespace Connector_RTMP {
   bool inited = false; ///< Indicates whether we are ready to connect to the Buffer.
   bool noStats = false; ///< Indicates when no stats should be sent anymore. Used in push mode.
   bool stopParsing = false; ///< Indicates when to stop all parsing.
+  bool streamReset = false;
 
   //for reply to play command
   int playTransaction = -1;///<The transaction number of the reply.
@@ -194,6 +195,7 @@ namespace Connector_RTMP {
         ss.Send("P ");
         ss.Send(Socket.getHost().c_str());
         ss.Send("\n");
+        streamReset = true;
         noStats = true;
       }
       //send a _result reply
@@ -413,6 +415,14 @@ namespace Connector_RTMP {
         case 9: //video data
         case 18: //meta data
           if (ss.connected()){
+            if (streamReset){
+              //reset push data to empty, in case stream properties change
+              meta_out.null();
+              prebuffer.str("");
+              sending = false;
+              counter = 0;
+              streamReset = false;
+            }
             F.ChunkLoader(next);
             JSON::Value pack_out = F.toJSON(meta_out);
             if ( !pack_out.isNull()){

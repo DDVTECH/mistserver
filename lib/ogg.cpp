@@ -227,9 +227,11 @@ namespace OGG{
         STerrMSG();
         return false;
       }
-      if (layout[i] != 0){
+      if (layout[i] >= 0){//fix somewhere here
         table[place] = layout[i];
-        place++;
+        if (place<255){//last segment does not need a closing 0
+          place++;
+        }
       }
     }
     setPageSegments(place);
@@ -472,7 +474,7 @@ namespace OGG{
   void Page::readDTSCVector(std::vector <JSON::Value> DTSCVec, unsigned int serial, unsigned int sequence){
     clear();
     setVersion();
-    if (DTSCVec[0]["OggCont"]){
+    if (DTSCVec[0]["OggCont"] || DTSCVec[0]["granule"].asInt() == -1){//if it is a continue page, also for granule=0xFFFFFFFF
       setHeaderType(1);//headertype 1 = Continue Page
     }else if (DTSCVec[0]["OggEOS"]){
       setHeaderType(4);//headertype 4 = end of stream

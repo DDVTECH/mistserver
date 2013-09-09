@@ -223,11 +223,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     livePos lastPos = buffers.rbegin()->first;
     if (newPos < lastPos){
       if ((lastPos.seekTime > 1000) && newPos.seekTime < lastPos.seekTime - 1000){
-        metadata.null();
         metadata["reset"] = 1LL;
         buffers.clear();
         keyframes.clear();
-        trackMapping.clear();
       }else{
         newPos.seekTime = lastPos.seekTime+1;
       }

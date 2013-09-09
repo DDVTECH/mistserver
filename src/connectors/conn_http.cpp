@@ -303,8 +303,16 @@ namespace Connector_HTTP {
       response = "// Generating info code for stream " + streamname + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
       if (ServConf["streams"].isMember(streamname) && ServConf["config"]["protocols"].size() > 0){
-        json_resp["width"] = ServConf["streams"][streamname]["meta"]["video"]["width"].asInt();
-        json_resp["height"] = ServConf["streams"][streamname]["meta"]["video"]["height"].asInt();
+        if (ServConf["streams"][streamname]["meta"].isMember("tracks") && ServConf["streams"][streamname]["meta"]["tracks"].size() > 0){
+          for (JSON::ObjIter it = ServConf["streams"][streamname]["meta"]["tracks"].ObjBegin(); it != ServConf["streams"][streamname]["meta"]["tracks"].ObjEnd(); it++){
+            if (it->second.isMember("width") && it->second["width"].asInt() > json_resp["width"].asInt()){
+              json_resp["width"] = it->second["width"].asInt();
+            }
+            if (it->second.isMember("height") && it->second["height"].asInt() > json_resp["height"].asInt()){
+              json_resp["height"] = it->second["height"].asInt();
+            }
+          }
+        }
         if (json_resp["width"].asInt() < 1 || json_resp["height"].asInt() < 1){
           json_resp["width"] = 640ll;
           json_resp["height"] = 480ll;

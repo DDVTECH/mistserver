@@ -159,18 +159,19 @@ namespace Connector_HTTP {
               progressive_has_sent_header = true;
             }
             //parse DTSC to Ogg here
-            long long int temp = Strm.getPacket()["trackid"].asInt();
-            if((prevGran[temp] != Strm.getPacket()["granule"].asInt() || prevGran[temp] == -1) && DTSCBuffer[temp].size() != 0){
-              curOggPage.readDTSCVector(DTSCBuffer[temp], oggMeta.DTSCID2OGGSerial[temp], oggMeta.DTSCID2seqNum[temp]);
-              conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
-              DTSCBuffer[temp].clear();
+            if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
+              long long int temp = Strm.getPacket()["trackid"].asInt();
+              if((prevGran[temp] != Strm.getPacket()["granule"].asInt() || prevGran[temp] == -1) && DTSCBuffer[temp].size() != 0){
+                curOggPage.readDTSCVector(DTSCBuffer[temp], oggMeta.DTSCID2OGGSerial[temp], oggMeta.DTSCID2seqNum[temp]);
+                conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
+                DTSCBuffer[temp].clear();
+                oggMeta.DTSCID2seqNum[temp] ++;
+              }
+              DTSCBuffer[temp].push_back(Strm.getPacket());
+              prevGran[temp] = Strm.getPacket()["granule"].asInt();
             }
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
-            }
-            if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
-              DTSCBuffer[temp].push_back(Strm.getPacket());
-              prevGran[temp] = Strm.getPacket()["granule"].asInt();
             }
           }
         }else{

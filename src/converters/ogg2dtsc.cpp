@@ -16,7 +16,7 @@ namespace Converters{
 
   class oggTrack{
     public:
-      oggTrack() : lastTime(), parsedHeaders(false) { }
+      oggTrack() : lastTime(0), parsedHeaders(false) { }
       codecType codec;
       std::string name;
       long long unsigned int dtscID;
@@ -69,7 +69,7 @@ namespace Converters{
           trackData[sNum].name = tID.str();
         }
         //if Serial number is available in mapping
-        if(trackData.find(sNum)!=trackData.end()){
+        if(trackData.find(sNum)!=trackData.end()){//create DTSC from OGG page
           int offset = 0;
           for (std::deque<unsigned int>::iterator it = oggPage.getSegmentTableDeque().begin(); it != oggPage.getSegmentTableDeque().end(); it++){
             if (trackData[sNum].parsedHeaders){
@@ -96,7 +96,7 @@ namespace Converters{
               }
 
               std::cout << DTSCOut.toNetPacked();
-            }else{
+            }else{//if we ouput a header:
               //switch on codec
               switch(trackData[sNum].codec){
                 case THEORA:{

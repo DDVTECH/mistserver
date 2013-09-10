@@ -218,7 +218,6 @@ namespace Connector_HTTP {
             if (HTTP_R.url.find(".xap") != std::string::npos){
 #include "xap.h"
               
-              std::cout << "! sending xap player file" << std::endl;
               HTTP_S.Clean();
               HTTP_S.SetHeader("Content-Type", "application/siverlight");
               HTTP_S.SetHeader("Cache-Control", "cache");
@@ -229,7 +228,6 @@ namespace Connector_HTTP {
             }else{
               if (HTTP_R.url.find("Manifest") == std::string::npos){
                 //We have a non-manifest request, parse it.
-                std::cout << "! NON manifest sauce file" << std::endl;
                 
                 Quality = HTTP_R.url.substr(HTTP_R.url.find("/Q(", 8) + 3);
                 Quality = Quality.substr(0, Quality.find(")"));
@@ -423,7 +421,6 @@ namespace Connector_HTTP {
               }else{
                 //We have a request for a Manifest, generate and send it.
                 
-                std::cout << "! sending manifest player file" << std::endl;
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "text/xml");
                 HTTP_S.SetHeader("Cache-Control", "no-cache");

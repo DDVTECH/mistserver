@@ -61,7 +61,8 @@
         $(this).attr('class', 'selected');
         
         // show correct tab
-        showTab($(this).text());
+        var t = $(this).text() || $(this).children('a').text();
+        showTab(t);
       });
       
     });
@@ -1514,7 +1515,9 @@
         });
         
         break;
-      
+      case 'Mist Shop':
+        $('#page').append($('<p>').addClass('nocapitals').text('The Mist Shop has been opened in a new tab.'));
+        break;
       case 'disconnect':
         showTab('login');
         setHeaderState('disconnected');

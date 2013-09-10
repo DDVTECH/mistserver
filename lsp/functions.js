@@ -743,7 +743,7 @@ function buildLogsTable(){
     for (var i in c) {
       if (c[i]) {
         $('#conv-edit-input').append(
-          $('<option>').val($('#conv-edit-dir').val()+'/'+i).text(i)
+          $('<option>').val($('#conv-edit-dir').val()+i).text(i)
         );
         j++;
       }

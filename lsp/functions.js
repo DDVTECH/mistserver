@@ -246,7 +246,7 @@
 
             for(i = 0; i < len; i++)
             {
-               if(settings.settings.config.protocols[i].connector == 'HTTP.exe')
+               if((settings.settings.config.protocols[i].connector == 'HTTP.exe') || (settings.settings.config.protocols[i].connector == 'HTTP'))
                {
                   return true;
                }
@@ -267,7 +267,7 @@
 
             for(i = 0; i < len; i++)
             {
-               if(settings.settings.config.protocols[i].connector == 'HTTP.exe')
+               if((settings.settings.config.protocols[i].connector == 'HTTP.exe') || (settings.settings.config.protocols[i].connector == 'HTTP'))
                {
                   if (settings.settings.config.protocols[i].port == 0) {
                      return 8080;

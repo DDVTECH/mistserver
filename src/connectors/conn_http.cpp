@@ -351,7 +351,7 @@ namespace Connector_HTTP {
             //check each enabled protocol separately to see if it depends on this connector
             for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
               //if it depends on this connector and has a URL, list it
-              if (conns.count(oit->first) && oit->second["deps"].asStringRef() == cName && oit->second.isMember("methods")){
+              if (conns.count(oit->first) && (oit->second["deps"].asStringRef() == cName || oit->second["deps"].asStringRef() + ".exe" == cName) && oit->second.isMember("methods")){
                 addSources(streamname, oit->second["url_rel"].asStringRef(), sources, host, ( *it)["port"].asString(), oit->second, ServConf["streams"][streamname]["meta"]);
               }
             }

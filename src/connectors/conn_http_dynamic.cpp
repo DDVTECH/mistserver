@@ -177,7 +177,6 @@ namespace Connector_HTTP {
                 HTTP_S.SendResponse("404", "Not found", conn);
                 continue;
               }
-              ss.setBlocking(false);
               Strm.waitForMeta(ss);
             }
             if (HTTP_R.url.find(".abst") != std::string::npos){
@@ -219,6 +218,9 @@ namespace Connector_HTTP {
                         HTTP_S.SendResponse("208", "Ask again later", conn);
                         HTTP_R.Clean(); //clean for any possible next requests
                         std::cout << "Fragment after fragment " << ReqFragment << " not available yet" << std::endl;
+                        if (ss.spool()){
+                          while (Strm.parsePacket(ss.Received())){}
+                        }
                       }
                     }
                     break;

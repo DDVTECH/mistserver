@@ -38,9 +38,16 @@ namespace Connector_HTTP {
     //OGG specific variables
     OGG::headerPages oggMeta;
     OGG::Page curOggPage;
-    std::map <long long unsigned int, std::vector<JSON::Value> > DTSCBuffer;
-    std::map <long long unsigned int, long long unsigned int> prevGran;
-    
+    //std::map <long long unsigned int, std::vector<JSON::Value> > DTSCBuffer;
+    //std::map <long long unsigned int, long long unsigned int> prevGran;
+    std::vector<unsigned int> curSegTable;
+    long long int prevID = 0;
+    long long int prevGran = 0;
+    std::string pageBuffer;
+    bool OggEOS = false;
+    bool OggCont = false;
+
+        
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     unsigned int seek_sec = 0;//Seek position in ms
@@ -157,21 +164,88 @@ namespace Connector_HTTP {
               oggMeta.readDTSCHeader(Strm.metadata);
               conn.SendNow((char*)oggMeta.parsedPages.c_str(), oggMeta.parsedPages.size());
               progressive_has_sent_header = true;
+              prevID = Strm.getPacket()["trackid"].asInt();
+              prevGran = Strm.getPacket()["granule"].asInt();
             }
             //parse DTSC to Ogg here
             if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               long long int temp = Strm.getPacket()["trackid"].asInt();
-              if((prevGran[temp] != Strm.getPacket()["granule"].asInt() || prevGran[temp] == -1) && DTSCBuffer[temp].size() != 0){
+              /*if((prevGran[temp] != Strm.getPacket()["granule"].asInt() || prevGran[temp] == -1) && DTSCBuffer[temp].size() != 0){
                 curOggPage.readDTSCVector(DTSCBuffer[temp], oggMeta.DTSCID2OGGSerial[temp], oggMeta.DTSCID2seqNum[temp]);
                 conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
                 DTSCBuffer[temp].clear();
                 oggMeta.DTSCID2seqNum[temp] ++;
+              }*/
+              if(Strm.getPacket()["trackid"].asInt()!=prevID || Strm.getPacket()["granule"].asInt()!=prevGran || Strm.getPacket()["granule"].asInt() == -1){
+                curOggPage.clear();
+                curOggPage.setVersion();
+                if (OggCont){
+                  curOggPage.setHeaderType(1);//headertype 1 = Continue Page
+                }else if (OggEOS){
+                  curOggPage.setHeaderType(4);//headertype 4 = end of stream
+                }else{
+                  curOggPage.setHeaderType(0);//headertype 0 = normal
+                }
+                curOggPage.setGranulePosition(prevGran);
+                curOggPage.setBitstreamSerialNumber(oggMeta.DTSCID2OGGSerial[prevID]);
+                curOggPage.setPageSequenceNumber(oggMeta.DTSCID2seqNum[prevID]++);
+                if(!curOggPage.setSegmentTable(curSegTable)){
+                  std::cerr << "Troubling segTable:";
+                  for (unsigned int i = 0; i<curSegTable.size(); i++){
+                    std::cerr << " " << curSegTable[i];
+                  }
+                  std::cerr << std::endl;
+                }
+                curOggPage.setPayload((char*)pageBuffer.c_str(), pageBuffer.size());
+                curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+                conn.SendNow(curOggPage.getPage(), curOggPage.getPageSize());
+                pageBuffer = "";
+                curSegTable.clear();
+                //write one pagebuffer as Ogg page
               }
-              DTSCBuffer[temp].push_back(Strm.getPacket());
-              prevGran[temp] = Strm.getPacket()["granule"].asInt();
+              //DTSCBuffer[temp].push_back(Strm.getPacket());
+              //prevGran[temp] = Strm.getPacket()["granule"].asInt();
+              pageBuffer += Strm.getPacket()["data"].asString();
+              curSegTable.push_back(Strm.getPacket()["data"].asString().size());
+              prevID = Strm.getPacket()["trackid"].asInt();
+              prevGran = Strm.getPacket()["granule"].asInt();
+              if (Strm.getPacket()["OggEOS"]){
+                OggEOS=true;
+              }else{
+                OggEOS=false;
+              }
+              if (Strm.getPacket()["OggCont"]){
+                OggCont=true;
+              }else{
+                OggCont=false;
+              }
             }
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
+              //last page output
+              curOggPage.clear();
+              curOggPage.setVersion();
+              if (OggCont){
+                curOggPage.setHeaderType(1);//headertype 1 = Continue Page
+              }else if (OggEOS){
+                curOggPage.setHeaderType(4);//headertype 4 = end of stream
+              }else{
+                curOggPage.setHeaderType(0);//headertype 0 = normal
+              }
+              curOggPage.setGranulePosition(prevGran);
+              curOggPage.setBitstreamSerialNumber(oggMeta.DTSCID2OGGSerial[prevID]);
+              curOggPage.setPageSequenceNumber(oggMeta.DTSCID2seqNum[prevID]++);
+              if(!curOggPage.setSegmentTable(curSegTable)){
+                std::cerr << "Troubling segTable:";
+                for (unsigned int i = 0; i<curSegTable.size(); i++){
+                  std::cerr << " " << curSegTable[i];
+                }
+                std::cerr << std::endl;
+              }
+              curOggPage.setPayload((char*)pageBuffer.c_str(), pageBuffer.size());
+              curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+              conn.SendNow(curOggPage.getPage(), curOggPage.getPageSize());
+              pageBuffer = "";
             }
           }
         }else{

@@ -84,8 +84,7 @@ int main(int argc, char** argv){
   JSON::Value meta = source.getMeta();
 
   //send the header
-  std::string meta_str = meta.toNetPacked();
-  in_out.Send(meta_str);
+  in_out.SendNow(meta.toNetPacked());
 
   if ( !(meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags"))
       && meta.isMember("video")){
@@ -162,8 +161,8 @@ int main(int argc, char** argv){
                   }
                   meta_sent = true;
                 }
-                StatsSocket.Send(json_sts.toString().c_str());
-                StatsSocket.Send("\n\n");
+                StatsSocket.SendNow(json_sts.toString());
+                StatsSocket.SendNow("\n\n", 2);
                 StatsSocket.flush();
               }
               break;

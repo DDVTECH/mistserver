@@ -30,7 +30,8 @@ namespace Converters{
     std::string oggBuffer;
     OGG::Page oggPage;
     //Read all of std::cin to oggBuffer
-    
+    int mspft;//microseconds per frame
+    int mspfv;//microseconds per frame vorbis
     JSON::Value DTSCOut;
     JSON::Value DTSCHeader;
     DTSCHeader.null();
@@ -53,12 +54,20 @@ namespace Converters{
             headerSeen += 1;
             headerWritten = false;
             trackData[sNum].codec = THEORA;
+            //fix timerate here
+            //frn/frd = fps
+            theora::header tempHead;
+            tempHead.read(oggPage.getFullPayload(), oggPage.getPayloadSize());
+            mspft = (double)(tempHead.getFRD() * 1000) / tempHead.getFRN();
             std::cerr << "Snr " << sNum << "=theora" << std::endl;
           }else if(memcmp(oggPage.getFullPayload()+1, "vorbis", 6) == 0){
             headerSeen += 1;
             headerWritten = false;
             std::cerr << "Snr " << sNum << "=vorbis" << std::endl;
             trackData[sNum].codec = VORBIS;
+            vorbis::header tempHead;
+            tempHead.read(oggPage.getFullPayload(), oggPage.getPayloadSize());
+            mspfv = 1000/tempHead.getAudioSampleRate();
           }else{
             std::cerr << "Unknown Codec, " << std::string(oggPage.getFullPayload()+1, 6)<<" skipping" << std::endl;
             continue;
@@ -78,7 +87,12 @@ namespace Converters{
               DTSCOut["trackid"] = (long long)trackData[sNum].dtscID;
               long long unsigned int temp = oggPage.getGranulePosition();
               DTSCOut["granule"] = (long long)temp;
-              DTSCOut["time"] = (long long)trackData[sNum].lastTime ++;
+              DTSCOut["time"] = (long long)trackData[sNum].lastTime;
+              if (trackData[sNum].codec == THEORA){
+                trackData[sNum].lastTime += mspft;
+              }else{
+                trackData[sNum].lastTime += mspfv;
+              }
               DTSCOut["data"] = std::string(oggPage.getFullPayload()+offset, (*it)); //segment content put in JSON
               if (trackData[sNum].codec == THEORA){
                 if (trackData[sNum].idHeader.parseGranuleUpper(temp) == 0){ //granule mask equals zero when on keyframe

@@ -13,6 +13,7 @@
 #include <mist/auth.h>
 #include <mist/timing.h>
 #include <mist/converter.h>
+#include <mist/stream.h>
 #include "controller_storage.h"
 #include "controller_connectors.h"
 #include "controller_streams.h"
@@ -325,8 +326,7 @@ int main(int argc, char ** argv){
   time_t lastuplink = 0;
   time_t processchecker = 0;
   Socket::Server API_Socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"), true);
-  mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO); //attempt to create /tmp/mist/ - ignore failures
-  Socket::Server Stats_Socket = Socket::Server("/tmp/mist/statistics", true);
+  Socket::Server Stats_Socket = Socket::Server(Util::getTmpFolder() + "statistics", true);
   conf.activate();
   Socket::Connection Incoming;
   std::vector<Controller::ConnectedUser> users;

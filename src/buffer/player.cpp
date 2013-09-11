@@ -11,6 +11,7 @@
 #include <mist/socket.h>
 #include <mist/timing.h>
 #include <mist/procs.h>
+#include <mist/stream.h>
 
 //under cygwin, recv blocks for ~15ms if no data is available.
 //This is a hack to keep performance decent with that bug present.
@@ -102,7 +103,7 @@ int main(int argc, char** argv){
   pausemark["datatype"] = "pause_marker";
   pausemark["time"] = (long long int)0;
 
-  Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
+  Socket::Connection StatsSocket = Socket::Connection(Util::getTmpFolder() + "statistics", true);
   int lasttime = Util::epoch(); //time last packet was sent
 
   if (meta["video"]["keyms"].asInt() < 11){
@@ -139,7 +140,7 @@ int main(int argc, char** argv){
             }
             case 'S': { //Stats
               if ( !StatsSocket.connected()){
-                StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
+                StatsSocket = Socket::Connection(Util::getTmpFolder() + "statistics", true);
               }
               if (StatsSocket.connected()){
                 sts = Stats(in_out.Received().get().substr(2));

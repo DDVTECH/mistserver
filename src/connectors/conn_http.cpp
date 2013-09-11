@@ -291,7 +291,7 @@ namespace Connector_HTTP {
         streamname = url.substr(7, url.length() - 10);
       }
       Util::Stream::sanitizeName(streamname);
-      JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
+      JSON::Value ServConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
       std::string response;
       std::string host = H.GetHeader("Host");
       if (host.find(':')){
@@ -404,7 +404,7 @@ namespace Connector_HTTP {
         delete connectorConnections[uid];
         connectorConnections.erase(uid);
       }
-      connectorConnections[uid] = new ConnConn(new Socket::Connection("/tmp/mist/" + connector));
+      connectorConnections[uid] = new ConnConn(new Socket::Connection(Util::getTmpFolder() + connector));
       connectorConnections[uid]->conn->setBlocking(false); //do not block on spool() with no data
 #if DEBUG >= 4
       std::cout << "Created new connection " << uid << std::endl;

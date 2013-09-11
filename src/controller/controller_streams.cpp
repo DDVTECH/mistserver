@@ -1,6 +1,7 @@
 #include <mist/procs.h>
 #include <mist/config.h>
 #include <mist/timing.h>
+#include <mist/stream.h>
 #include "controller_streams.h"
 #include "controller_storage.h"
 #include <sys/stat.h>
@@ -147,7 +148,7 @@ namespace Controller {
       changed = true;
     }
     if (changed){
-      WriteFile("/tmp/mist/streamlist", strlist.toString());
+      WriteFile(Util::getTmpFolder() + "streamlist", strlist.toString());
     }
   }
 

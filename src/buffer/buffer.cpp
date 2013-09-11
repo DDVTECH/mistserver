@@ -31,11 +31,11 @@ namespace Buffer {
       return;
     }
     std::string double_newline = "\n\n";
-    Socket::Connection StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
+    Socket::Connection StatsSocket = Socket::Connection(Util::getTmpFolder() + "statistics", true);
     while (buffer_running){
       Util::sleep(1000); //sleep one second
       if ( !StatsSocket.connected()){
-        StatsSocket = Socket::Connection("/tmp/mist/statistics", true);
+        StatsSocket = Socket::Connection(Util::getTmpFolder() + "statistics", true);
       }
       if (StatsSocket.connected()){
         Stream::get()->getReadLock();

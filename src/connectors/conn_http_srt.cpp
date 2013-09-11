@@ -229,7 +229,7 @@ int main(int argc, char ** argv){
     return -1;
   }
   
-  Socket::Server server_socket = Socket::Server("/tmp/mist/http_srt");
+  Socket::Server server_socket = Socket::Server(Util::getTmpFolder() + capa["socket"].asStringRef());
   if ( !server_socket.connected()){
     return 1;
   }

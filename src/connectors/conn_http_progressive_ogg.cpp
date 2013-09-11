@@ -39,6 +39,7 @@ namespace Connector_HTTP {
     OGG::headerPages oggMeta;
     OGG::Page curOggPage;
     std::map <long long unsigned int, std::vector<JSON::Value> > DTSCBuffer;
+    std::set <long long unsigned int> sendReady;
     //std::map <long long unsigned int, long long unsigned int> prevGran;
     std::vector<unsigned int> curSegTable;
     long long int currID = 0;
@@ -166,6 +167,9 @@ namespace Connector_HTTP {
               oggMeta.readDTSCHeader(Strm.metadata);
               conn.SendNow((char*)oggMeta.parsedPages.c_str(), oggMeta.parsedPages.size());
               progressive_has_sent_header = true;
+              //setting sendReady to not ready
+              sendReady.clear();
+              
               //prevID = Strm.getPacket()["trackid"].asInt();
               //prevGran = Strm.getPacket()["granule"].asInt();
             }
@@ -183,9 +187,16 @@ namespace Connector_HTTP {
               }
               if ((prevGran != 0 && (prevGran == -1 || currGran != prevGran)) ){
                 curOggPage.readDTSCVector(DTSCBuffer[currID], oggMeta.DTSCID2OGGSerial[currID], oggMeta.DTSCID2seqNum[currID]);
-                conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
+                //conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
+                sendBuffer += std::string((char*)curOggPage.getPage(), curOggPage.getPageSize());
                 DTSCBuffer[currID].clear();
+                sendReady.insert(currID);
                 oggMeta.DTSCID2seqNum[currID]++;
+              }
+              if (sendReady.size()==oggMeta.DTSCID2OGGSerial.size()){
+                conn.SendNow(sendBuffer);
+                sendBuffer = "";
+                sendReady.clear();
               }
               DTSCBuffer[currID].push_back(Strm.getPacket());
               prevID = currID;

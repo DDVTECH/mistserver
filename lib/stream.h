@@ -6,6 +6,7 @@
 #include "socket.h"
 
 namespace Util {
+  std::string getTmpFolder();
   class Stream{
     public:
       static void sanitizeName(std::string & streamname);

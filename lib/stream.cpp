@@ -7,11 +7,42 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include "json.h"
 #include "stream.h"
 #include "procs.h"
 #include "config.h"
 #include "socket.h"
+
+std::string Util::getTmpFolder(){
+  std::string dir;
+  char * tmp_char = 0;
+  if ( !tmp_char){
+    tmp_char = getenv("TMP");
+  }
+  if ( !tmp_char){
+    tmp_char = getenv("TEMP");
+  }
+  if ( !tmp_char){
+    tmp_char = getenv("TMPDIR");
+  }
+  if (tmp_char){
+    dir = tmp_char;
+    dir += "/mist";
+  }else{
+#if defined(_WIN32) || defined(_CYGWIN_)
+    dir = "C:/tmp/mist";
+#else
+    dir = "/tmp/mist";
+#endif
+  }
+  if (access(dir.c_str(), 0) != 0){
+    mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO); //attempt to create mist folder - ignore failures
+  }
+  return dir + "/";
+}
+
 
 /// Filters the streamname, removing invalid characters and converting all
 /// letters to lowercase. If a '?' character is found, everything following
@@ -32,7 +63,7 @@ void Util::Stream::sanitizeName(std::string & streamname){
 }
 
 Socket::Connection Util::Stream::getLive(std::string streamname){
-  return Socket::Connection("/tmp/mist/stream_" + streamname);
+  return Socket::Connection(getTmpFolder() + "stream_" + streamname);
 }
 
 /// Starts a process for a VoD stream.
@@ -49,7 +80,7 @@ Socket::Connection Util::Stream::getVod(std::string filename){
 /// Probe for available streams. Currently first VoD, then Live.
 Socket::Connection Util::Stream::getStream(std::string streamname){
   sanitizeName(streamname);
-  JSON::Value ServConf = JSON::fromFile("/tmp/mist/streamlist");
+  JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
   if (ServConf["streams"].isMember(streamname)){
     if (ServConf["streams"][streamname]["source"].asString()[0] == '/'){
 #if DEBUG >= 5
@@ -60,7 +91,7 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
 #if DEBUG >= 5
       std::cerr << "Opening live stream " << streamname << std::endl;
 #endif
-      return Socket::Connection("/tmp/mist/stream_" + streamname);
+      return Socket::Connection(getTmpFolder() + "stream_" + streamname);
     }
   }
 #if DEBUG >= 5
@@ -73,13 +104,9 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
 /// Filters the streamname, removing invalid characters and
 /// converting all letters to lowercase.
 /// If a '?' character is found, everything following that character is deleted.
-/// If the /tmp/mist directory doesn't exist yet, this will create it.
 Socket::Server Util::Stream::makeLive(std::string streamname){
   sanitizeName(streamname);
-  std::string loc = "/tmp/mist/stream_" + streamname;
-  //attempt to create the /tmp/mist directory if it doesn't exist already.
-  //ignore errors - we catch all problems in the Socket::Server creation already
-  mkdir("/tmp/mist", S_IRWXU | S_IRWXG | S_IRWXO);
+  std::string loc = getTmpFolder() + "stream_" + streamname;
   //create and return the Socket::Server
   return Socket::Server(loc);
 }

@@ -207,8 +207,11 @@ int main(int argc, char ** argv){
   capa["deps"] = "HTTP";
   capa["url_rel"] = "/$.mp4";
   capa["url_match"] = "/$.mp4";
-  capa["url_handler"] = "http";
-  capa["url_type"] = "html5/video/mp4";
+  capa["codecs"][0u][0u].append("H264");
+  capa["codecs"][0u][1u].append("AAC");
+  capa["methods"][0u]["handler"] = "http";
+  capa["methods"][0u]["type"] = "html5/video/mp4";
+  capa["methods"][0u]["priority"] = 8ll;
   capa["socket"] = "http_progressive_mp4";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);

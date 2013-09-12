@@ -44,7 +44,6 @@ namespace Connector_HTTP {
     std::vector<unsigned int> curSegTable;
     long long int currID = 0;
     long long int currGran = 0;
-    long long int prevID = 0;
     long long int prevGran = 0;
     std::string sendBuffer;
     bool OggEOS = false;
@@ -169,17 +168,11 @@ namespace Connector_HTTP {
               progressive_has_sent_header = true;
               //setting sendReady to not ready
               sendReady.clear();
-              
-              //prevID = Strm.getPacket()["trackid"].asInt();
-              //prevGran = Strm.getPacket()["granule"].asInt();
             }
             //parse DTSC to Ogg here
             if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               currID = Strm.getPacket()["trackid"].asInt();
               currGran = Strm.getPacket()["granule"].asInt();
-              if (prevID == 0){
-                prevID == currID;
-              }
               if (DTSCBuffer.count(currID) && !DTSCBuffer[currID].empty()){
                 prevGran = DTSCBuffer[currID][0]["granule"].asInt();
               }else{
@@ -187,19 +180,12 @@ namespace Connector_HTTP {
               }
               if ((prevGran != 0 && (prevGran == -1 || currGran != prevGran)) ){
                 curOggPage.readDTSCVector(DTSCBuffer[currID], oggMeta.DTSCID2OGGSerial[currID], oggMeta.DTSCID2seqNum[currID]);
-                //conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
-                sendBuffer += std::string((char*)curOggPage.getPage(), curOggPage.getPageSize());
+                conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
                 DTSCBuffer[currID].clear();
                 sendReady.insert(currID);
                 oggMeta.DTSCID2seqNum[currID]++;
               }
-              if (sendReady.size()==oggMeta.DTSCID2OGGSerial.size()){
-                conn.SendNow(sendBuffer);
-                sendBuffer = "";
-                sendReady.clear();
-              }
               DTSCBuffer[currID].push_back(Strm.getPacket());
-              prevID = currID;
             }
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();

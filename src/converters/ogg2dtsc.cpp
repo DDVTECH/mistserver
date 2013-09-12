@@ -20,7 +20,7 @@ namespace Converters{
       codecType codec;
       std::string name;
       long long unsigned int dtscID;
-      long long unsigned int lastTime;
+      double lastTime;
       bool parsedHeaders;
       //Codec specific elements
       theora::header idHeader;//needed to determine keyframe
@@ -30,8 +30,8 @@ namespace Converters{
     std::string oggBuffer;
     OGG::Page oggPage;
     //Read all of std::cin to oggBuffer
-    int mspft;//microseconds per frame
-    int mspfv;//microseconds per frame vorbis
+    double mspft;//microseconds per frame
+    double mspfv;//microseconds per frame vorbis
     JSON::Value DTSCOut;
     JSON::Value DTSCHeader;
     DTSCHeader.null();
@@ -59,15 +59,13 @@ namespace Converters{
             theora::header tempHead;
             tempHead.read(oggPage.getFullPayload(), oggPage.getPayloadSize());
             mspft = (double)(tempHead.getFRD() * 1000) / tempHead.getFRN();
-            std::cerr << "Snr " << sNum << "=theora" << std::endl;
           }else if(memcmp(oggPage.getFullPayload()+1, "vorbis", 6) == 0){
             headerSeen += 1;
             headerWritten = false;
-            std::cerr << "Snr " << sNum << "=vorbis" << std::endl;
             trackData[sNum].codec = VORBIS;
             vorbis::header tempHead;
             tempHead.read(oggPage.getFullPayload(), oggPage.getPayloadSize());
-            mspfv = 1000/tempHead.getAudioSampleRate();
+            mspfv = ntohl(tempHead.getAudioSampleRate()) / 1000;
           }else{
             std::cerr << "Unknown Codec, " << std::string(oggPage.getFullPayload()+1, 6)<<" skipping" << std::endl;
             continue;
@@ -89,9 +87,9 @@ namespace Converters{
               DTSCOut["granule"] = (long long)temp;
               DTSCOut["time"] = (long long)trackData[sNum].lastTime;
               if (trackData[sNum].codec == THEORA){
-                trackData[sNum].lastTime += mspft;
+                trackData[sNum].lastTime += (mspft / 4);
               }else{
-                trackData[sNum].lastTime += mspfv;
+                trackData[sNum].lastTime += (mspfv / 4);
               }
               DTSCOut["data"] = std::string(oggPage.getFullPayload()+offset, (*it)); //segment content put in JSON
               if (trackData[sNum].codec == THEORA){

@@ -183,6 +183,7 @@
         
         break;
         
+        
       case 'overview':
         
         
@@ -1204,6 +1205,7 @@
       case 'conversion':
         
         var convs = settings.settings.conversion;
+        if (!settings.settings.conversion.encoders) { settings.settings.conversion.encoders = 'get'; }
         
         $('#page').append(
           $('<p>').text('Current conversions:')
@@ -1337,11 +1339,28 @@
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-encoder').text('Encoder').append(
-            $('<select>').attr('id', 'conv-edit-encoder').width(237)
+            $('<select>').addClass('nocapitals').attr('id', 'conv-edit-encoder').width(237).change(function(){
+              $('#conv-edit-video-codec').html(
+                $('<option>').val('').text('-Current-')
+              );
+              for (i in settings.settings.conversion.encoders[$(this).val()].video) {
+                $('#conv-edit-video-codec').append(
+                  $('<option>').val(i).text(settings.settings.conversion.encoders[$(this).val()].video[i]+' ('+i+')')
+                );
+              }
+              $('#conv-edit-audio-codec').html(
+                $('<option>').val('').text('-Current-')
+              );
+              for (i in settings.settings.conversion.encoders[$(this).val()].audio) {
+                $('#conv-edit-audio-codec').append(
+                  $('<option>').val(i).text(settings.settings.conversion.encoders[$(this).val()].audio[i]+' ('+i+')')
+                );
+              }
+            })
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-video-codec').text('Video codec').append(
-            $('<select>').attr('id', 'conv-edit-video-codec').width(237)
+            $('<select>').addClass('nocapitals').attr('id', 'conv-edit-video-codec').width(237)
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-video-fps').text('Video fps').append(
@@ -1349,15 +1368,15 @@
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-video-height').text('Video height*').append(
-            $('<input>').attr('type', 'text').attr('placeholder', 'height').attr('id', 'conv-edit-video-height')
+            $('<input>').attr('type', 'text').attr('placeholder', 'default').attr('id', 'conv-edit-video-height')
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-video-width').text('Video width*').append(
-            $('<input>').attr('type', 'text').attr('placeholder', 'width').attr('id', 'conv-edit-video-width')
+            $('<input>').attr('type', 'text').attr('placeholder', 'default').attr('id', 'conv-edit-video-width')
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-audio-codec').text('Audio codec').append(
-            $('<select>').attr('id', 'conv-edit-audio-codec').width(237)
+            $('<select>').addClass('nocapitals').attr('id', 'conv-edit-audio-codec').width(237)
           )
         ).append(
           $('<label>').attr('for', 'conv-edit-audio-samplerate').text('Audio samplerate').append(
@@ -1367,14 +1386,29 @@
           $('<span>').addClass('comment').text('*Fill in either the width or the height. Aspect ratio will be preserved.')
         );
         
-        conversionDirQuery(dir);
-        
         for (var i in c.encoders) {
           $('#conv-edit-encoder').append(
-            $('<option>').value(c.encoders[i])
+            $('<option>').val(i).text(i)
+          );
+        } 
+        $('#conv-edit-video-codec').html(
+          $('<option>').val('').text('-Current-')
+        );
+        for (i in c.encoders[$('#conv-edit-encoder').val()].video) {
+          $('#conv-edit-video-codec').append(
+            $('<option>').val(i).text(c.encoders[$('#conv-edit-encoder').val()].video[i]+' ('+i+')')
           );
         }
-        //todo: allowed codecs for video/audio
+        $('#conv-edit-audio-codec').html(
+          $('<option>').val('').text('-Current-')
+        );
+        for (i in c.encoders[$('#conv-edit-encoder').val()].audio) {
+          $('#conv-edit-audio-codec').append(
+            $('<option>').val(i).text(c.encoders[$('#conv-edit-encoder').val()].audio[i]+' ('+i+')')
+          );
+        }
+        
+        conversionDirQuery(dir);
         
         $('#page').append(
           $('<button>').text('Save').click(function(){

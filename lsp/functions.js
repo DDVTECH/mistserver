@@ -141,6 +141,9 @@
               'capabilities': {},
               'conversion': {'query': settings.settings.conversion.query}
             };
+            if (!settings.settings.conversion.encoders) { 
+              data.conversion.encoders = {};
+            }
             console.log('sending data:',data);
             $.ajax(
             {
@@ -269,7 +272,7 @@
             {
                if((settings.settings.config.protocols[i].connector == 'HTTP.exe') || (settings.settings.config.protocols[i].connector == 'HTTP'))
                {
-                  if (settings.settings.config.protocols[i].port == 0) {
+                  if ((settings.settings.config.protocols[i].port == 0) || (settings.settings.config.protocols[i].port == '') || (!settings.settings.config.protocols[i].port)){
                      return 8080;
                   }
                   else {
@@ -754,6 +757,7 @@ function buildLogsTable(){
       )
     }
     conversionSelectInput($('#conv-edit-input').val());
+    
   });
  }
  function conversionSelectInput(filename) {

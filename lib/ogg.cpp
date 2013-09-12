@@ -474,7 +474,7 @@ namespace OGG{
   void Page::readDTSCVector(std::vector <JSON::Value> DTSCVec, unsigned int serial, unsigned int sequence){
     clear();
     setVersion();
-    if (DTSCVec[0]["OggCont"] || DTSCVec[0]["granule"].asInt() == -1){//if it is a continue page, also for granule=0xFFFFFFFF
+    if (DTSCVec[0]["OggCont"] ){//if it is a continue page, also for granule=0xFFFFFFFF
       setHeaderType(1);//headertype 1 = Continue Page
     }else if (DTSCVec[0]["OggEOS"]){
       setHeaderType(4);//headertype 4 = end of stream
@@ -482,6 +482,14 @@ namespace OGG{
       setHeaderType(0);//headertype 0 = normal
     }
     setGranulePosition(DTSCVec[0]["granule"].asInt());
+    for (unsigned int i = 1; i < DTSCVec.size(); i++){
+      if (DTSCVec[0]["granule"].asInt() != DTSCVec[i]["granule"].asInt()){
+        std::cerr << "Granule inconcistency!! " << DTSCVec[0]["granule"].asInt() << " != " << DTSCVec[i]["granule"].asInt() << std::endl;
+      }
+      if (DTSCVec[0]["trackid"].asInt() != DTSCVec[i]["trackid"].asInt()){
+        std::cerr << "Track ID inconcistency!! " << DTSCVec[0]["trackid"].asInt() << " != " <<DTSCVec[i]["trackid"].asInt() << std::endl;
+      }
+    }
     setBitstreamSerialNumber(serial);
     setPageSequenceNumber(sequence);
     

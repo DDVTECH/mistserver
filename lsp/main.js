@@ -1211,11 +1211,17 @@
           $('<p>').text('Current conversions:')
         );
         
-        if ((convs.convert) && (convs.convert.length() > 0)) {
+        if (convs.status) {
           var tb = $('<tbody>');
-          for (var i in convs.convert) {
-            var c = convs.convert[i];
+          for (var i in convs.status) {
+            var c = convs.status[i];
             var tr = $('<tr>').data('convertindex',i);
+            tr.append(
+              $('<td>').text(i)
+            ).append(
+              $('<td>').text(c)
+            );
+            /*
             tr.append(
               $('<td>').text(c.input)
             ).append(
@@ -1266,9 +1272,10 @@
             tr.append(
               $('<td>').text(txt)
             );
+            */
             tb.append(tr);
           }
-          $('<table>').append(
+          /*
             $('<thead>').append(
               $('<tr>').append(
                 $('<th>').text('Input file')
@@ -1282,7 +1289,18 @@
                 $('<th>').text('Audio')
               )
             )
-          ).append(tb);
+          */
+          $('#page').append(
+            $('<table>').append(
+              $('<thead>').append(
+                $('<tr>').append(
+                  $('<th>').text('Name')
+                ).append(
+                  $('<th>').text('Status')
+                )
+              )
+            ).append(tb)
+          );
         }
         else {
           $('#page').append(
@@ -1412,22 +1430,34 @@
         
         $('#page').append(
           $('<button>').text('Save').click(function(){
-            var cobj = {}; //he object we will save
+            var cobj = {}; //the object we will save
             
             cobj.input = $('#conv-edit-input').val();
             cobj.output =  $('#conv-edit-output').val();
             cobj.encoder =  $('#conv-edit-encoder').val();
             cobj.video = {};
             cobj.video.codec =  $('#conv-edit-video-codec').val();
-            cobj.video.fpks =  $('#conv-edit-video-fps').val() * 1000; //todo: is this correct?
+            cobj.video.fpks =  $('#conv-edit-video-fps').val() * 1000;
             cobj.video.width =  $('#conv-edit-video-width').val();
             cobj.video.height =  $('#conv-edit-video-height').val();
             cobj.audio = {};
             cobj.audio.codec =  $('#conv-edit-audio-codec').val();
             cobj.audio.samplerate =  $('#conv-edit-audio-samplerate').val();
             
-            if (!c.convert) { c.convert = Array(); }
-            c.convert.push(cobj);
+            for (i in cobj) {
+              if ((cobj[i] == '') || (cobj[i] == 0)) { delete cobj[i]; }
+            }
+            for (i in cobj.video) {
+              if ((cobj.video[i] == '') || (cobj.video[i] == 0)) { delete cobj.video[i]; }
+            }
+            for (i in cobj.audio) {
+              if ((cobj.audio[i] == '') || (cobj.audio[i] == 0)) { delete cobj.audio[i]; }
+            }
+            
+            if (!c.convert) { c.convert = {}; }
+            objname = 'convert_'+cobj.output;
+            while (c.convert[objname]) { objname += '_'; }
+            c.convert[objname] = cobj;
             
             loadSettings(function(){
               showTab('conversion');

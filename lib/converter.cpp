@@ -32,15 +32,15 @@ namespace Converter {
     while ( !(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){
       if (strstr(fileBuf, "aac") || strstr(fileBuf, "AAC")){
         strtok(fileBuf, " \t");
-        allCodecs["ffmpeg"][strtok(NULL, " \t")] = "aac";
+        allCodecs["ffmpeg"]["audio"][strtok(NULL, " \t")] = "aac";
       }
       if (strstr(fileBuf, "h264") || strstr(fileBuf, "H264")){
         strtok(fileBuf, " \t");
-        allCodecs["ffmpeg"][strtok(NULL, " \t")] = "h264";
+        allCodecs["ffmpeg"]["video"][strtok(NULL, " \t")] = "h264";
       }
       if (strstr(fileBuf, "mp3") || strstr(fileBuf, "MP3")){
         strtok(fileBuf, " \t");
-        allCodecs["ffmpeg"][strtok(NULL, " \t")] = "mp3";
+        allCodecs["ffmpeg"]["audio"][strtok(NULL, " \t")] = "mp3";
       }
     }
     fclose( outFile );

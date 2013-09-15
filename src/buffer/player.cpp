@@ -82,8 +82,15 @@ int main(int argc, char** argv){
 
   DTSC::File source = DTSC::File(conf.getString("filename"));
   JSON::Value meta = source.getMeta();
+  std::string tmp = meta.toNetPacked();
+  for (JSON::ObjIter oIt = meta["tracks"].ObjBegin(); oIt != meta["tracks"].ObjEnd(); oIt++){
+    for (JSON::ArrIter aIt = oIt->second["keys"].ArrBegin(); aIt != oIt->second["keys"].ArrEnd(); aIt++){
+      (*aIt).removeMember("parts");
+    }
+  }
 
   //send the header
+  meta.netPrepare();
   in_out.SendNow(meta.toNetPacked());
 
   if ( !(meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags"))
@@ -97,6 +104,8 @@ int main(int argc, char** argv){
     std::cerr << "Done! Aborting this request to make sure all goes well." << std::endl;
     return 1;
   }
+
+  std::cerr << meta.toNetPacked().size() << std::endl;
 
   JSON::Value pausemark;
   pausemark["datatype"] = "pause_marker";

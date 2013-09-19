@@ -109,4 +109,33 @@ namespace JSON {
   Value fromFile(std::string filename);
 
   std::string encodeVector(std::vector<long long int> & toEncode);
+
+  template <typename T>
+  std::string encodeVector(T begin, T end){
+    std::string result;
+    for( T it = begin; it != end; it++){
+      long long int tmp = (*it);
+      while(tmp >= 0xFFFF){
+        result += (char)0xFF;
+        result += (char)0xFF;
+        tmp -= 0xFFFF;
+      }
+      result += (char)tmp / 255;
+      result += (char)tmp % 255;
+    }
+    return result;
+  }
+
+  template <typename T>
+  void decodeVector( std::string input, T & result ){
+    result.clear();
+    int tmp = 0;
+    for( int i = 0; i < input.size(); i += 2){
+      tmp += input[i] + input[i + 1];
+      if ((tmp % 0xFFFF) != 0 || (input[i] + input[i+1]) == 0){
+        result.push_back(tmp);
+        tmp = 0;
+      }
+    }
+  }
 }

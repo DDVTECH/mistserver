@@ -97,7 +97,6 @@ namespace DTSC {
       File & operator = (const File & rhs);
       ~File();
       JSON::Value & getMeta();
-      JSON::Value & getFirstMeta();
       long long int getLastReadPos();
       bool writeHeader(std::string & header, bool force = false);
       long long int addHeader(std::string & header);
@@ -122,7 +121,6 @@ namespace DTSC {
       std::string strbuffer;
       JSON::Value jsonbuffer;
       JSON::Value metadata;
-      JSON::Value firstmetadata;
       std::map<int,std::string> trackMapping;
       long long int currtime;
       long long int lastreadpos;

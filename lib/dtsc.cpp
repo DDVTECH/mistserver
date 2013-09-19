@@ -277,6 +277,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
         for (JSON::ArrIter it = prevKey["parts"].ArrBegin(); it != prevKey["parts"].ArrEnd(); it++){
           size += it->asInt();
         }
+        prevKey["partsize"] = prevKey["parts"].size();
+        std::string tmpParts = JSON::encodeVector(prevKey["parts"].ArrBegin(), prevKey["parts"].ArrEnd());
+        prevKey["parts"] = tmpParts;
         prevKey["size"] = size;
         long long int bps = (double)prevKey["size"].asInt() / ((double)prevKey["len"].asInt() / 1000.0);
         if (bps > metadata["tracks"][newTrack]["maxbps"].asInt()){
@@ -549,7 +552,6 @@ DTSC::File & DTSC::File::operator =(const File & rhs){
   strbuffer = rhs.strbuffer;
   jsonbuffer = rhs.jsonbuffer;
   metadata = rhs.metadata;
-  firstmetadata = rhs.firstmetadata;
   currtime = rhs.currtime;
   lastreadpos = rhs.lastreadpos;
   headerSize = rhs.headerSize;
@@ -603,11 +605,6 @@ DTSC::File::File(std::string filename, bool create){
 /// Returns the header metadata for this file as JSON::Value.
 JSON::Value & DTSC::File::getMeta(){
   return metadata;
-}
-
-/// Returns the header metadata for this file as JSON::Value.
-JSON::Value & DTSC::File::getFirstMeta(){
-  return firstmetadata;
 }
 
 /// (Re)writes the given string to the header area if the size is the same as the existing header.
@@ -693,9 +690,6 @@ void DTSC::File::readHeader(int pos){
       return;
     }
     metadata = JSON::fromDTMI(strbuffer);
-  }
-  if (pos == 0){
-    firstmetadata = metadata;
   }
   //if there is another header, read it and replace metadata with that one.
   if (metadata.isMember("moreheader") && metadata["moreheader"].asInt() > 0){

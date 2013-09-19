@@ -81,20 +81,10 @@ int main(int argc, char** argv){
   Socket::Connection in_out = Socket::Connection(fileno(stdout), fileno(stdin));
 
   DTSC::File source = DTSC::File(conf.getString("filename"));
-  JSON::Value meta = source.getMeta();
-  std::string tmp = meta.toNetPacked();
-  for (JSON::ObjIter oIt = meta["tracks"].ObjBegin(); oIt != meta["tracks"].ObjEnd(); oIt++){
-    for (JSON::ArrIter aIt = oIt->second["keys"].ArrBegin(); aIt != oIt->second["keys"].ArrEnd(); aIt++){
-      (*aIt).removeMember("parts");
-    }
-  }
+  in_out.SendNow(source.getMeta().toNetPacked());
 
-  //send the header
-  meta.netPrepare();
-  in_out.SendNow(meta.toNetPacked());
-
-  if ( !(meta.isMember("keytime") && meta.isMember("keybpos") && meta.isMember("keynum") && meta.isMember("keylen") && meta.isMember("frags"))
-      && meta.isMember("video")){
+  if ( !(source.getMeta().isMember("keytime") && source.getMeta().isMember("keybpos") && source.getMeta().isMember("keynum") && source.getMeta().isMember("keylen") && source.getMeta().isMember("frags"))
+      && source.getMeta().isMember("video")){
     //file needs to be DTSCFix'ed! Run MistDTSCFix executable on it first
     std::cerr << "Calculating / writing / updating VoD metadata..." << std::endl;
     Util::Procs::Start("Fixer", Util::getMyPath() + "MistDTSCFix " + conf.getString("filename"));
@@ -105,8 +95,6 @@ int main(int argc, char** argv){
     return 1;
   }
 
-  std::cerr << meta.toNetPacked().size() << std::endl;
-
   JSON::Value pausemark;
   pausemark["datatype"] = "pause_marker";
   pausemark["time"] = (long long int)0;
@@ -114,9 +102,6 @@ int main(int argc, char** argv){
   Socket::Connection StatsSocket = Socket::Connection(Util::getTmpFolder() + "statistics", true);
   int lasttime = Util::epoch(); //time last packet was sent
 
-  if (meta["video"]["keyms"].asInt() < 11){
-    meta["video"]["keyms"] = (long long int)1000;
-  }
   JSON::Value last_pack;
 
   bool meta_sent = false;
@@ -162,7 +147,7 @@ int main(int argc, char** argv){
                 json_sts["vod"]["now"] = Util::epoch();
                 json_sts["vod"]["start"] = Util::epoch() - sts.conntime;
                 if ( !meta_sent){
-                  json_sts["vod"]["meta"] = meta;
+                  json_sts["vod"]["meta"] = source.getMeta();
                   for (JSON::ObjIter oIt = json_sts["vod"]["meta"]["tracks"].ObjBegin(); oIt != json_sts["vod"]["meta"]["tracks"].ObjEnd(); oIt++){
                     oIt->second.removeMember("init");
                     oIt->second.removeMember("keys");

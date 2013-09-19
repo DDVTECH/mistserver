@@ -26,7 +26,9 @@ namespace Converters {
   ///\return The return code for the fixed program.
   int DTSCFix(Util::Config & conf){
     DTSC::File F(conf.getString("filename"));
-    JSON::Value oriheader = F.getFirstMeta();
+    F.seek_bpos(0);
+    F.parseNext();
+    JSON::Value oriheader = F.getJSON();
     JSON::Value meta = F.getMeta();
     JSON::Value pack;
 

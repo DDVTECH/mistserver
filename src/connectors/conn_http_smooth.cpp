@@ -364,11 +364,13 @@ namespace Connector_HTTP {
                 trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
                 trun_box.setDataOffset(42);
                 trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);
-                for (int i = 0; i < keyObj["parts"].size(); i++){
+                std::deque<long long int> tmpParts;
+                JSON::decodeVector(keyObj["parts"].asString(), tmpParts);
+                for (int i = 0; i < tmpParts.size(); i++){
                   MP4::trunSampleInformation trunSample;
-                  trunSample.sampleSize = keyObj["parts"][i].asInt();
+                  trunSample.sampleSize = tmpParts[i];
                   //Guesstimate sample duration.
-                  trunSample.sampleDuration = ((double)(keyObj["len"].asInt() * 10000) / keyObj["parts"].size());
+                  trunSample.sampleDuration = ((double)(keyObj["len"].asInt() * 10000) / tmpParts.size());
                   trun_box.setSampleInformation(trunSample, i);
                 }
                 

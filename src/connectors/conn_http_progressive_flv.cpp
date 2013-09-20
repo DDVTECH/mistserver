@@ -163,6 +163,12 @@ namespace Connector_HTTP {
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
             }
+            if (Strm.lastType() == DTSC::INVALID){
+              #if DEBUG >= 3
+              fprintf(stderr, "Invalid packet received - closing connection.\n");
+              #endif
+              conn.close();
+            }
             if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               std::string codec = Strm.getTrackById(Strm.getPacket()["trackid"].asInt())["codec"].asString();
               if (codec == "AAC" || codec == "MP3" || codec == "H264"){

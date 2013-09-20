@@ -190,7 +190,12 @@ namespace Connector_HTTP {
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
               //last page output
-              
+            }
+            if (Strm.lastType() == DTSC::INVALID){
+              #if DEBUG >= 3
+              fprintf(stderr, "Invalid packet received - closing connection.\n");
+              #endif
+              conn.close();
             }
           }
         }else{

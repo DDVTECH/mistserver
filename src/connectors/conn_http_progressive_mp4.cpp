@@ -182,6 +182,12 @@ namespace Connector_HTTP {
               //parse DTSC to MP4 here
               conn.SendNow(Strm.lastData());//send out and clear Convverter buffer
             }
+            if (Strm.lastType() == DTSC::INVALID){
+              #if DEBUG >= 3
+              fprintf(stderr, "Invalid packet received - closing connection.\n");
+              #endif
+              conn.close();
+            }
           }
         }else{
           Util::sleep(1);

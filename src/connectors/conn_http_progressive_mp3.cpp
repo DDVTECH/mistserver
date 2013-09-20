@@ -132,10 +132,16 @@ namespace Connector_HTTP {
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
               progressive_has_sent_header = true;
             }
-            if(Strm.lastType() == DTSC::PAUSEMARK){
+            if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
             }
-            if(Strm.lastType() == DTSC::AUDIO){
+            if (Strm.lastType() == DTSC::INVALID){
+              #if DEBUG >= 3
+              fprintf(stderr, "Invalid packet received - closing connection.\n");
+              #endif
+              conn.close();
+            }
+            if (Strm.lastType() == DTSC::AUDIO){
               conn.SendNow(Strm.lastData()); //write the MP3 contents
             }
           }

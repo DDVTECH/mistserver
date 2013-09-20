@@ -54,7 +54,7 @@ namespace MP4{
           temp.size = (*keyIt)["size"].asInt();
           temp.time = (*keyIt)["time"].asInt();
           temp.len = (*keyIt)["len"].asInt();
-          temp.parts = (*keyIt)["parts"];
+          temp.parts = (*keyIt)["parts"].asString();
           keyParts.push_back(temp);
         }
       }
@@ -99,7 +99,7 @@ namespace MP4{
             //Calculating media time based on sampledelta. Probably cheating, but it works...
             int tmpParts = 0;
             for (JSON::ArrIter tmpIt = it->second["keys"].ArrBegin(); tmpIt != it->second["keys"].ArrEnd(); tmpIt++){
-              tmpParts += (*tmpIt)["parts"].size();
+              tmpParts += (*tmpIt)["partsize"].asInt();
             }
             timescale = ((double)(42 * tmpParts) / (it->second["lastms"].asInt() + it->second["firstms"].asInt())) *  1000;
             mdhdBox.setTimeScale(timescale);
@@ -199,7 +199,7 @@ namespace MP4{
                     int tmpCount = 1;
                     for (int i = 0; i < it->second["keys"].size(); i++){
                       stssBox.setSampleNumber(tmpCount,i);
-                      tmpCount += it->second["keys"][i]["parts"].size();
+                      tmpCount += it->second["keys"][i]["partsize"].asInt();
                     }
                   stblBox.setContent(stssBox,2);
                 }
@@ -221,8 +221,10 @@ namespace MP4{
                 stszBox.setVersion(0);
                 total = 0;
                 for (int i = 0; i < it->second["keys"].size(); i++){
-                  for (int o = 0; o < it->second["keys"][i]["parts"].size(); o++){
-                    stszBox.setEntrySize(it->second["keys"][i]["parts"][o].asInt(), total);//in bytes in file
+                  std::deque<long long int> parsedParts;
+                  JSON::decodeVector(it->second["keys"][i]["parts"].asString(), parsedParts);
+                  for (unsigned int o = 0; o < parsedParts.size(); o++){
+                    stszBox.setEntrySize(parsedParts[o], total);//in bytes in file
                     total++;
                   }
                 }
@@ -236,10 +238,12 @@ namespace MP4{
                 //Current values are actual byte offset without header-sized offset
                 for (unsigned int i = 0; i < keyParts.size(); i++){//for all keypart size
                   if(keyParts[i].trackID == it->second["trackid"].asInt()){//if keypart is of current trackID
-                    for (unsigned int o = 0; o < keyParts[i].parts.size(); o++){//add all parts to STCO
+                    std::deque<long long int> parsedParts;
+                    JSON::decodeVector(keyParts[i].parts, parsedParts);
+                    for (unsigned int o = 0; o < parsedParts.size(); o++){//add all parts to STCO
                       stcoBox.setChunkOffset(totalByteOffset, total);
                       total++;
-                      totalByteOffset += keyParts[i].parts[o].asInt();
+                      totalByteOffset += parsedParts[o];
                     }
                   }else{
                     totalByteOffset += keyParts[i].size;
@@ -315,26 +319,29 @@ namespace MP4{
     header << (char)((mdatSize>>24) & 0x000000FF) << (char)((mdatSize>>16) & 0x000000FF) << (char)((mdatSize>>8) & 0x000000FF) << (char)(mdatSize & 0x000000FF) << "mdat";
     //std::cerr << "Header Written" << std::endl;
     //end of header
-    std::map <long long unsigned int, std::deque<JSON::Value> > trackBuffer;
-    long long unsigned int curKey = 0;//the key chunk we are currently searching for in keyParts
-    long long unsigned int curPart = 0;//current part in current key
     
     return header.str();
   }
   
   void DTSC2MP4Converter::parseDTSC(JSON::Value mediaPart){
+    static long long unsigned int curKey = 0;//the key chunk we are currently searching for in keyParts
+    static long long unsigned int curPart = 0;//current part in current key
     //mdat output here
     //output cleanout buffer first
     //while there are requested packets in the trackBuffer:...
+    //std::cerr << curPart << " " << curKey << " " << keyParts.size() << " " << keyParts[curKey].trackID << "|";
+    //std::cerr << trackBuffer[keyParts[curKey].trackID].empty() << std::endl;
     while (!trackBuffer[keyParts[curKey].trackID].empty()){
       //output requested packages
-      if(keyParts[curKey].parts[curPart].asInt() != trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size()){
-        std::cerr << "Size discrepancy in buffer packet. Size: " << mediaPart["data"].asString().size() << " Expected:" << keyParts[curKey].parts[curPart].asInt() << std::endl;
+      std::deque<long long int> parsedParts;
+      JSON::decodeVector(keyParts[curKey].parts, parsedParts);
+      if(parsedParts[curPart] != trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size()){
+        std::cerr << "Size discrepancy in buffer packet. Size: " << mediaPart["data"].asString().size() << " Expected:" << parsedParts[curPart] << std::endl;
       }
       stringBuffer += trackBuffer[keyParts[curKey].trackID].front()["data"].asString();
       trackBuffer[keyParts[curKey].trackID].pop_front();
       curPart++;
-      if(curPart >= keyParts[curKey].parts.size()){
+      if(curPart >= parsedParts.size()){
         curPart = 0;
         curKey++;
       }
@@ -342,12 +349,14 @@ namespace MP4{
     //after that, try to put out the JSON data directly
     if(keyParts[curKey].trackID == mediaPart["trackid"].asInt()){
       //output JSON packet
-      if(keyParts[curKey].parts[curPart].asInt() != mediaPart["data"].asString().size()){
-        std::cerr << "Size discrepancy in JSON packet. Size: " << mediaPart["data"].asString().size() << " Expected:" << keyParts[curKey].parts[curPart].asInt() << std::endl;
+      std::deque<long long int> parsedParts;
+      JSON::decodeVector(keyParts[curKey].parts, parsedParts);
+      if(parsedParts[curPart] != mediaPart["data"].asStringRef().size()){
+        std::cerr << "Size discrepancy in JSON packet. Size: " << mediaPart["data"].asStringRef().size() << " Expected:" << parsedParts[curPart] << std::endl;
       }
-      stringBuffer += mediaPart["data"].asString();
+      stringBuffer += mediaPart["data"].asStringRef();
       curPart++;
-      if(curPart >= keyParts[curKey].parts.size()){
+      if(curPart >= parsedParts.size()){
         curPart = 0;
         curKey++;
       }

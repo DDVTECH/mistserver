@@ -17,7 +17,7 @@ namespace MP4 {
     long long int size;
     long long int time;
     long long int len;
-    JSON::Value parts;
+    std::string parts;
   };
 
   class DTSC2MP4Converter{
@@ -28,8 +28,8 @@ namespace MP4 {
       std::string sendString();
       std::vector <keyPart> keyParts;
     private:
-      long long unsigned int curKey;//the key chunk we are currently searching for in keyParts
-      long long unsigned int curPart;//current part in current key
+      //long long unsigned int curKey;//the key chunk we are currently searching for in keyParts
+      //long long unsigned int curPart;//current part in current key
       std::map <long long unsigned int, std::deque<JSON::Value> > trackBuffer;
       std::string stringBuffer;
   };

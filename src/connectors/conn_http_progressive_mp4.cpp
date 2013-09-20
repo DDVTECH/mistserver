@@ -166,21 +166,16 @@ namespace Connector_HTTP {
             if (Strm.lastType() == DTSC::PAUSEMARK){
               keyPartIt++;
               if (keyPartIt != Conv.keyParts.end()){
-                //Schop player
-                //t trackID
-                //s (*keyPartIt).time
-                //p time+len
+                //Instruct player
                 std::stringstream cmd;
                 cmd << "t "<< (*keyPartIt).trackID;
                 cmd << "\ns " << (*keyPartIt).time;
                 cmd << "\no\n";
-                //std::cerr << cmd.str() << std::endl;
                 ss.SendNow(cmd.str());
               }
             }else if(Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
-              //std::cerr << "send data" << std::endl;
               //parse DTSC to MP4 here
-              conn.SendNow(Strm.lastData());//send out and clear Convverter buffer
+              conn.SendNow(Strm.lastData());//send out and clear Converter buffer
             }
             if (Strm.lastType() == DTSC::INVALID){
               #if DEBUG >= 3

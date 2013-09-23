@@ -843,8 +843,27 @@ void DTSC::File::parseNext(){
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
-    readHeader(lastreadpos);
-    jsonbuffer = metadata;
+    if (lastreadpos != 0){
+      readHeader(lastreadpos);
+      jsonbuffer = metadata;
+    }else{
+      if (fread(buffer, 4, 1, F) != 1){
+        fprintf(stderr, "Could not read size\n");
+        strbuffer = "";
+        jsonbuffer.null();
+        return;
+      }
+      uint32_t * ubuffer = (uint32_t *)buffer;
+      long packSize = ntohl(ubuffer[0]);
+      strbuffer.resize(packSize);
+      if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
+        fprintf(stderr, "Could not read packet\n");
+        strbuffer = "";
+        jsonbuffer.null();
+        return;
+      }
+      jsonbuffer = JSON::fromDTMI(strbuffer);
+    }
     return;
   }
   long long unsigned int version = 0;

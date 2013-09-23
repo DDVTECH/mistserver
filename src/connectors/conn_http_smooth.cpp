@@ -55,10 +55,10 @@ namespace Connector_HTTP {
     long long int minWidth = 99999999;
     long long int minHeight = 99999999;
     for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
-      if (oIt->second["type"].asString() == "audio" && oIt->second["codec"].asString() == "H264"){
+      if (oIt->second["type"].asString() == "audio" && oIt->second["codec"].asString() == "AAC"){
         allAudio[oIt->first] = oIt->second;
       }
-      if (oIt->second["type"].asString() == "video" && oIt->second["codec"].asString() == "AAC"){
+      if (oIt->second["type"].asString() == "video" && oIt->second["codec"].asString() == "H264"){
         allVideo[oIt->first] = oIt->second;
         if (oIt->second["width"].asInt() > maxWidth){maxWidth = oIt->second["width"].asInt();}
         if (oIt->second["width"].asInt() < minWidth){minWidth = oIt->second["width"].asInt();}
@@ -205,10 +205,10 @@ namespace Connector_HTTP {
               ss.setBlocking(false);
               Strm.waitForMeta(ss);
               for (JSON::ObjIter oIt = Strm.metadata["tracks"].ObjBegin(); oIt != Strm.metadata["tracks"].ObjEnd(); oIt++){
-                if (oIt->second["type"].asString() == "audio"){
+                if (oIt->second["type"].asString() == "audio" && oIt->second["codec"].asString() == "AAC"){
                   allAudio[oIt->first] = oIt->second;
                 }
-                if (oIt->second["type"].asString() == "video"){
+                if (oIt->second["type"].asString() == "video" && oIt->second["codec"].asString() == "H264"){
                   allVideo[oIt->first] = oIt->second;
                 }
               }

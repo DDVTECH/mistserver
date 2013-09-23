@@ -120,8 +120,8 @@ namespace JSON {
         result += (char)0xFF;
         tmp -= 0xFFFF;
       }
-      result += (char)tmp / 255;
-      result += (char)tmp % 255;
+      result += (char)(tmp / 256);
+      result += (char)(tmp % 256);
     }
     return result;
   }
@@ -131,8 +131,9 @@ namespace JSON {
     result.clear();
     int tmp = 0;
     for( int i = 0; i < input.size(); i += 2){
-      tmp += input[i] + input[i + 1];
-      if ((tmp % 0xFFFF) != 0 || (input[i] + input[i+1]) == 0){
+      int curLen = (input[i] << 8) + input[i + 1];
+      tmp += curLen;
+      if (curLen != 0xFFFF){
         result.push_back(tmp);
         tmp = 0;
       }

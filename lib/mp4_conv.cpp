@@ -60,6 +60,16 @@ namespace MP4{
       }
       //sort by time on keyframes for interleaving
       std::sort(keyParts.begin(), keyParts.end(), keyPartSort);
+      //next for loop is for debugging, delete when done
+      for (unsigned int i = 0; i < keyParts.size(); i++){
+        std::deque<long long int> parsedParts;
+        JSON::decodeVector(keyParts[i].parts, parsedParts);
+        std::cerr << "Header packet size: " << keyParts[i].size;
+        for (unsigned int o = 0; o < parsedParts.size(); o++){
+          std::cerr << " " << parsedParts[o];
+        }
+        std::cerr << std::endl;
+      }
       
       //start arbitrary track addition for header
       int boxOffset = 1;
@@ -331,10 +341,12 @@ namespace MP4{
     //while there are requested packets in the trackBuffer:...
     //std::cerr << curPart << " " << curKey << " " << keyParts.size() << " " << keyParts[curKey].trackID << "|";
     //std::cerr << trackBuffer[keyParts[curKey].trackID].empty() << std::endl;
+    std::cerr << "Curpart: " << curPart <<std::endl;
     while (!trackBuffer[keyParts[curKey].trackID].empty()){
       //output requested packages
       std::deque<long long int> parsedParts;
       JSON::decodeVector(keyParts[curKey].parts, parsedParts);
+      std::cerr << "Buffer packet size: " << mediaPart["data"].asString().size() << " Expected:" << parsedParts[curPart] << std::endl;
       if(parsedParts[curPart] != trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size()){
         std::cerr << "Size discrepancy in buffer packet. Size: " << mediaPart["data"].asString().size() << " Expected:" << parsedParts[curPart] << std::endl;
       }
@@ -351,6 +363,7 @@ namespace MP4{
       //output JSON packet
       std::deque<long long int> parsedParts;
       JSON::decodeVector(keyParts[curKey].parts, parsedParts);
+      std::cerr << "JSON packet size: " << mediaPart["data"].asStringRef().size() << " Expected:" << parsedParts[curPart] << std::endl;
       if(parsedParts[curPart] != mediaPart["data"].asStringRef().size()){
         std::cerr << "Size discrepancy in JSON packet. Size: " << mediaPart["data"].asStringRef().size() << " Expected:" << parsedParts[curPart] << std::endl;
       }

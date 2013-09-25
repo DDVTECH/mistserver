@@ -129,9 +129,9 @@ namespace JSON {
   template <typename T>
   void decodeVector( std::string input, T & result ){
     result.clear();
-    int tmp = 0;
+    unsigned int tmp = 0;
     for( int i = 0; i < input.size(); i += 2){
-      int curLen = (input[i] << 8) + input[i + 1];
+      unsigned int curLen = (input[i] << 8) + input[i + 1];
       tmp += curLen;
       if (curLen != 0xFFFF){
         result.push_back(tmp);

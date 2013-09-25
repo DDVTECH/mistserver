@@ -143,7 +143,7 @@ namespace Converters {
             meta["tracks"][currentID]["keys"][newNum - 1]["len"] = F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keys"][newNum - 1]["time"].asInt();
             meta["tracks"][currentID]["keys"][newNum - 1]["size"] = trackData[currentID].totalSize;
             trackData[currentID].totalSize = 0;
-            std::string encodeVec = JSON::encodeVector( trackData[currentID].parts );
+            std::string encodeVec = JSON::encodeVector( trackData[currentID].parts.begin(), trackData[currentID].parts.end() );
             meta["tracks"][currentID]["keys"][newNum - 1]["parts"] = encodeVec;
             meta["tracks"][currentID]["keys"][newNum - 1]["partsize"] = (long long int)trackData[currentID].parts.size();
             trackData[currentID].parts.clear();
@@ -160,7 +160,7 @@ namespace Converters {
             meta["tracks"][currentID]["keys"][newNum - 1]["len"] = F.getJSON()["time"].asInt() - meta["tracks"][currentID]["keys"][newNum - 1]["time"].asInt();
             meta["tracks"][currentID]["keys"][newNum - 1]["size"] = trackData[currentID].totalSize;
             trackData[currentID].totalSize = 0;
-            std::string encodeVec = JSON::encodeVector( trackData[currentID].parts );
+            std::string encodeVec = JSON::encodeVector( trackData[currentID].parts.begin(), trackData[currentID].parts.end() );
             meta["tracks"][currentID]["keys"][newNum - 1]["parts"] = encodeVec;
             meta["tracks"][currentID]["keys"][newNum - 1]["partsize"] = (long long int)trackData[currentID].parts.size();
             trackData[currentID].parts.clear();

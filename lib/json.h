@@ -108,8 +108,6 @@ namespace JSON {
   Value fromString(std::string json);
   Value fromFile(std::string filename);
 
-  std::string encodeVector(std::vector<long long int> & toEncode);
-
   template <typename T>
   std::string encodeVector(T begin, T end){
     std::string result;

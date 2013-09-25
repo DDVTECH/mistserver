@@ -992,18 +992,3 @@ JSON::Value JSON::fromDTMI2(const unsigned char * data, unsigned int len, unsign
   tmp["trackid"] = tmpTrackID;
   return tmp;
 }
-
-std::string JSON::encodeVector(std::vector<long long int> & toEncode){
-  std::string result;
-  for(int i = 0; i < toEncode.size(); i++){
-    long long int temp = toEncode[i];
-    while( temp >= 0xFFFF){
-      result += (char)0xFF;
-      result += (char)0xFF;
-      temp -= 0xFFFF;
-    }
-    result += (char)temp / 255;
-    result += (char)temp % 255;
-  }
-  return result;
-}

@@ -21,7 +21,6 @@ namespace MP4{
     header << std::string(ftypBox.asBox(),ftypBox.boxedSize());
     
     uint64_t mdatSize = 0;
-    //std::vector<uint64_t> stcoOffsets;
     //moov box
     MP4::MOOV moovBox;
       MP4::MVHD mvhdBox;
@@ -189,7 +188,7 @@ namespace MP4{
                   sttsBox.setVersion(0);
                   MP4::STTSEntry newEntry;
                   newEntry.sampleCount = tmpParts;
-                  //42, because of reasons.
+                  //42, Used as magic number for timescale calculation
                   newEntry.sampleDelta = 42;
                   sttsBox.setSTTSEntry(newEntry, 0);
                 stblBox.setContent(sttsBox,1);
@@ -253,13 +252,6 @@ namespace MP4{
                 }
                 //calculating the offset where the STCO box will be in the main MOOV box
                 //needed for probable optimise
-                /*stcoOffsets.push_back(
-                  moovBox.payloadSize() +
-                  trakBox.boxedSize() +
-                  mdiaBox.boxedSize() +
-                  minfBox.boxedSize() +
-                  stblBox.boxedSize()
-                );*/
                 mdatSize = totalByteOffset;
                 stblBox.setContent(stcoBox,4 + offset);
               minfBox.setContent(stblBox,2);
@@ -272,7 +264,6 @@ namespace MP4{
     //initial offset length ftyp, length moov + 8
     unsigned long long int byteOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
     //update all STCO
-    //std::map <int, MP4::STCO&> STCOFix; 
     //for tracks
     for (unsigned int i = 1; i < moovBox.getContentCount(); i++){
       //10 lines to get the STCO box.
@@ -302,7 +293,6 @@ namespace MP4{
       }
       for (int j = 0; j < checkStblBox.getContentCount(); j++){
         if (checkStblBox.getContent(j).isType("stco")){
-          //STCOFix.insert( std::pair<int, MP4::STCO&>(((MP4::TKHD&)(checkTrakBox.getContent(0))).getTrackID(),(MP4::STCO&)(checkStblBox.getContent(j))));
           checkStcoBox = ((MP4::STCO&)checkStblBox.getContent(j));
           break;
         }
@@ -328,11 +318,6 @@ namespace MP4{
     //while there are requested packets in the trackBuffer:...
     while (!trackBuffer[keyParts[curKey].trackID].empty()){
       //output requested packages
-      //std::deque<long long unsigned int> parsedParts;
-      //JSON::decodeVector(keyParts[curKey].parts, parsedParts);
-      //if(parsedParts[curPart] != trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size()){
-        //std::cerr << "Size discrepancy in buffer packet. Size: " << trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size() << " Expected:" << parsedParts[curPart] << std::endl;
-      //}
       stringBuffer += trackBuffer[keyParts[curKey].trackID].front()["data"].asString();
       trackBuffer[keyParts[curKey].trackID].pop_front();
       curPart++;
@@ -344,11 +329,6 @@ namespace MP4{
     //after that, try to put out the JSON data directly
     if(keyParts[curKey].trackID == mediaPart["trackid"].asInt()){
       //output JSON packet
-      //std::deque<long long int> parsedParts;
-      //JSON::decodeVector(keyParts[curKey].parts, parsedParts);
-      //if(parsedParts[curPart] != mediaPart["data"].asStringRef().size()){
-        //std::cerr << "Size discrepancy in JSON packet. Size: " << mediaPart["data"].asStringRef().size() << " Expected:" << parsedParts[curPart] << std::endl;
-      //}
       stringBuffer += mediaPart["data"].asStringRef();
       curPart++;
       if(curPart >= keyParts[curKey].partsize){

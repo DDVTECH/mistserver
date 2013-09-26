@@ -18,6 +18,7 @@ namespace MP4 {
     long long int time;
     long long int len;
     std::string parts;
+    long long int partsize;
   };
 
   class DTSC2MP4Converter{

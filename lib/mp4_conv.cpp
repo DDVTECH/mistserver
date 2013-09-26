@@ -49,27 +49,20 @@ namespace MP4{
       keyParts.clear();
       for (JSON::ObjIter trackIt = metaData["tracks"].ObjBegin(); trackIt != metaData["tracks"].ObjEnd(); trackIt++){
         for (JSON::ArrIter keyIt = trackIt->second["keys"].ArrBegin(); keyIt != trackIt->second["keys"].ArrEnd(); keyIt++){
-          keyPart temp;
-          temp.trackID = trackIt->second["trackid"].asInt();
-          temp.size = (*keyIt)["size"].asInt();
-          temp.time = (*keyIt)["time"].asInt();
-          temp.len = (*keyIt)["len"].asInt();
-          temp.parts = (*keyIt)["parts"].asString();
-          keyParts.push_back(temp);
+          if ((*keyIt)["size"].asInt() > 0){
+            keyPart temp;
+            temp.trackID = trackIt->second["trackid"].asInt();
+            temp.size = (*keyIt)["size"].asInt();
+            temp.time = (*keyIt)["time"].asInt();
+            temp.len = (*keyIt)["len"].asInt();
+            temp.parts = (*keyIt)["parts"].asString();
+            temp.partsize = (*keyIt)["partsize"].asInt();
+            keyParts.push_back(temp);
+          }
         }
       }
       //sort by time on keyframes for interleaving
       std::sort(keyParts.begin(), keyParts.end(), keyPartSort);
-      //next for loop is for debugging, delete when done
-      for (unsigned int i = 0; i < keyParts.size(); i++){
-        std::deque<long long int> parsedParts;
-        JSON::decodeVector(keyParts[i].parts, parsedParts);
-        std::cerr << "Header packet size: " << keyParts[i].size;
-        for (unsigned int o = 0; o < parsedParts.size(); o++){
-          std::cerr << " " << parsedParts[o];
-        }
-        std::cerr << std::endl;
-      }
       
       //start arbitrary track addition for header
       int boxOffset = 1;
@@ -77,7 +70,6 @@ namespace MP4{
         int timescale = 0;
         MP4::TRAK trakBox;
           MP4::TKHD tkhdBox;
-          //std::cerr << it->second["trackid"].asInt() << std::endl;
           tkhdBox.setVersion(0);
           tkhdBox.setFlags(15);
           tkhdBox.setTrackID(it->second["trackid"].asInt());
@@ -231,7 +223,7 @@ namespace MP4{
                 stszBox.setVersion(0);
                 total = 0;
                 for (int i = 0; i < it->second["keys"].size(); i++){
-                  std::deque<long long int> parsedParts;
+                  std::deque<long long unsigned int> parsedParts;
                   JSON::decodeVector(it->second["keys"][i]["parts"].asString(), parsedParts);
                   for (unsigned int o = 0; o < parsedParts.size(); o++){
                     stszBox.setEntrySize(parsedParts[o], total);//in bytes in file
@@ -248,7 +240,7 @@ namespace MP4{
                 //Current values are actual byte offset without header-sized offset
                 for (unsigned int i = 0; i < keyParts.size(); i++){//for all keypart size
                   if(keyParts[i].trackID == it->second["trackid"].asInt()){//if keypart is of current trackID
-                    std::deque<long long int> parsedParts;
+                    std::deque<long long unsigned int> parsedParts;
                     JSON::decodeVector(keyParts[i].parts, parsedParts);
                     for (unsigned int o = 0; o < parsedParts.size(); o++){//add all parts to STCO
                       stcoBox.setChunkOffset(totalByteOffset, total);
@@ -315,9 +307,6 @@ namespace MP4{
           break;
         }
       }
-      /*MP4::Box temp = MP4::Box((moovBox.payload()+stcoOffsets[i]),false);
-      MP4::STCO & checkStcoBox = *((MP4::STCO*)(&temp));
-      std::cerr << checkStcoBox.toPrettyString() << std::endl;*/
       //got the STCO box, fixing values with MP4 header offset
       for (int j = 0; j < checkStcoBox.getEntryCount(); j++){
         checkStcoBox.setChunkOffset(checkStcoBox.getChunkOffset(j) + byteOffset, j);
@@ -325,9 +314,7 @@ namespace MP4{
     }
     header << std::string(moovBox.asBox(),moovBox.boxedSize());
 
-    //printf("%c%c%c%cmdat", (mdatSize>>24) & 0x000000FF,(mdatSize>>16) & 0x000000FF,(mdatSize>>8) & 0x000000FF,mdatSize & 0x000000FF);
     header << (char)((mdatSize>>24) & 0x000000FF) << (char)((mdatSize>>16) & 0x000000FF) << (char)((mdatSize>>8) & 0x000000FF) << (char)(mdatSize & 0x000000FF) << "mdat";
-    //std::cerr << "Header Written" << std::endl;
     //end of header
     
     return header.str();
@@ -339,21 +326,17 @@ namespace MP4{
     //mdat output here
     //output cleanout buffer first
     //while there are requested packets in the trackBuffer:...
-    //std::cerr << curPart << " " << curKey << " " << keyParts.size() << " " << keyParts[curKey].trackID << "|";
-    //std::cerr << trackBuffer[keyParts[curKey].trackID].empty() << std::endl;
-    std::cerr << "Curpart: " << curPart <<std::endl;
     while (!trackBuffer[keyParts[curKey].trackID].empty()){
       //output requested packages
-      std::deque<long long int> parsedParts;
-      JSON::decodeVector(keyParts[curKey].parts, parsedParts);
-      std::cerr << "Buffer packet size: " << mediaPart["data"].asString().size() << " Expected:" << parsedParts[curPart] << std::endl;
-      if(parsedParts[curPart] != trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size()){
-        std::cerr << "Size discrepancy in buffer packet. Size: " << mediaPart["data"].asString().size() << " Expected:" << parsedParts[curPart] << std::endl;
-      }
+      //std::deque<long long unsigned int> parsedParts;
+      //JSON::decodeVector(keyParts[curKey].parts, parsedParts);
+      //if(parsedParts[curPart] != trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size()){
+        //std::cerr << "Size discrepancy in buffer packet. Size: " << trackBuffer[keyParts[curKey].trackID].front()["data"].asString().size() << " Expected:" << parsedParts[curPart] << std::endl;
+      //}
       stringBuffer += trackBuffer[keyParts[curKey].trackID].front()["data"].asString();
       trackBuffer[keyParts[curKey].trackID].pop_front();
       curPart++;
-      if(curPart >= parsedParts.size()){
+      if(curPart >= keyParts[curKey].partsize){
         curPart = 0;
         curKey++;
       }
@@ -361,15 +344,14 @@ namespace MP4{
     //after that, try to put out the JSON data directly
     if(keyParts[curKey].trackID == mediaPart["trackid"].asInt()){
       //output JSON packet
-      std::deque<long long int> parsedParts;
-      JSON::decodeVector(keyParts[curKey].parts, parsedParts);
-      std::cerr << "JSON packet size: " << mediaPart["data"].asStringRef().size() << " Expected:" << parsedParts[curPart] << std::endl;
-      if(parsedParts[curPart] != mediaPart["data"].asStringRef().size()){
-        std::cerr << "Size discrepancy in JSON packet. Size: " << mediaPart["data"].asStringRef().size() << " Expected:" << parsedParts[curPart] << std::endl;
-      }
+      //std::deque<long long int> parsedParts;
+      //JSON::decodeVector(keyParts[curKey].parts, parsedParts);
+      //if(parsedParts[curPart] != mediaPart["data"].asStringRef().size()){
+        //std::cerr << "Size discrepancy in JSON packet. Size: " << mediaPart["data"].asStringRef().size() << " Expected:" << parsedParts[curPart] << std::endl;
+      //}
       stringBuffer += mediaPart["data"].asStringRef();
       curPart++;
-      if(curPart >= parsedParts.size()){
+      if(curPart >= keyParts[curKey].partsize){
         curPart = 0;
         curKey++;
       }

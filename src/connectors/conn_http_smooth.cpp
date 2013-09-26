@@ -377,7 +377,7 @@ namespace Connector_HTTP {
                 MP4::SDTP sdtp_box;
                 sdtp_box.setVersion(0);
                 sdtp_box.setValue(0x24, 4);
-                for (int i = 1; i < keyObj["parts"].size(); i++){
+                for (int i = 1; i < keyObj["partsize"].asInt(); i++){
                   sdtp_box.setValue(0x14, 4 + i);
                 }
                 

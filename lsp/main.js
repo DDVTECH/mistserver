@@ -435,7 +435,7 @@
         // build a list of the current connectors to see if the dependencies are already configured
         for (var index in settings.settings.config.protocols) 
         { 
-          currentconnectors.push(settings.settings.config.protocols[index].connector);
+          currentconnectors.push(settings.settings.config.protocols[index].connector.replace('.exe',''));
         }
         
         function buildProtocolParameterFields(data,required)

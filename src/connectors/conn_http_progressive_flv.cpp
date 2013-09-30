@@ -171,7 +171,7 @@ namespace Connector_HTTP {
             }
             if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               std::string codec = Strm.getTrackById(Strm.getPacket()["trackid"].asInt())["codec"].asString();
-              if (codec == "AAC" || codec == "MP3" || codec == "H264"){
+              if (codec == "AAC" || codec == "MP3" || codec == "H264" || codec == "H263" || codec == "VP6"){
                 tag.DTSCLoader(Strm);
                 conn.SendNow(tag.data, tag.len); //write the tag contents
               }

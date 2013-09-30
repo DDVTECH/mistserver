@@ -1011,20 +1011,16 @@ bool DTSC::File::atKeyframe(){
   if (getJSON().isMember("keyframe")){
     return true;
   }
-  bool inHeader = false;
+  long long int bTime = jsonbuffer["time"].asInt();
   for (std::set<int>::iterator selectIt = selectedTracks.begin(); selectIt != selectedTracks.end(); selectIt++){
-    for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
-      if (oIt->second["trackid"].asInt() == (*selectIt)){
-        for (JSON::ArrIter aIt = oIt->second["keys"].ArrBegin(); aIt != oIt->second["keys"].ArrEnd(); aIt++){
-          if ((*aIt)["time"].asInt() == jsonbuffer["time"].asInt()){
-            inHeader = true;
-            break;
-          }
-        }
+    JSON::Value & keys = getTrackById((*selectIt))["keys"];
+    for (JSON::ArrIter aIt = keys.ArrBegin(); aIt != keys.ArrEnd(); aIt++){
+      if ((*aIt)["time"].asInt() == bTime){
+        return true;
       }
     }
   }
-  return inHeader;
+  return false;
 }
 
 void DTSC::File::selectTracks(std::set<int> & tracks){

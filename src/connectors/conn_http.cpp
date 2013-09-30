@@ -58,6 +58,8 @@ namespace Connector_HTTP {
 
   std::map<std::string, ConnConn *> connectorConnections; ///< Connections to connectors
   tthread::mutex connMutex; ///< Mutex for adding/removing connector connections.
+  bool timeoutThreadStarted = false;
+  tthread::mutex timeoutStartMutex; ///< Mutex for starting timeout thread.
   tthread::mutex timeoutMutex; ///< Mutex for timeout thread.
   tthread::thread * timeouter = 0; ///< Thread that times out connections to connectors.
   JSON::Value capabilities; ///< Holds a list of all HTTP connectors and their properties
@@ -67,6 +69,7 @@ namespace Connector_HTTP {
   void proxyTimeoutThread(void * n){
     n = 0; //prevent unused variable warning
     tthread::lock_guard<tthread::mutex> guard(timeoutMutex);
+    timeoutThreadStarted = true;
     while (true){
       {
         tthread::lock_guard<tthread::mutex> guard(connMutex);
@@ -414,14 +417,18 @@ namespace Connector_HTTP {
       std::cout << "Re-using connection " << uid << std::endl;
 #endif
     }
-    //start a new timeout thread, if neccesary
-    if (timeoutMutex.try_lock()){
-      if (timeouter){
-        timeouter->join();
-        delete timeouter;
+    {//start a new timeout thread, if neccesary
+      tthread::lock_guard<tthread::mutex> guard(timeoutStartMutex);
+      if (timeoutMutex.try_lock()){
+        if (timeouter){
+          timeouter->join();
+          delete timeouter;
+        }
+        timeoutThreadStarted = false;
+        timeouter = new tthread::thread(Connector_HTTP::proxyTimeoutThread, 0);
+        timeoutMutex.unlock();
+        while (!timeoutThreadStarted){Util::sleep(10);}
       }
-      timeouter = new tthread::thread(Connector_HTTP::proxyTimeoutThread, 0);
-      timeoutMutex.unlock();
     }
 
     //lock the mutex for this connection, and handle the request

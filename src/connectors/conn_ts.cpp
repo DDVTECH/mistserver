@@ -200,10 +200,10 @@ int main(int argc, char ** argv){
   capa["required"]["streamname"]["help"] = "What streamname to serve. For multiple streams, add this protocol multiple times using different ports.";
   capa["required"]["streamname"]["type"] = "str";
   capa["required"]["streamname"]["option"] = "--stream";
-  capa["required"]["tracks"]["name"] = "Tracks";
-  capa["required"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
-  capa["required"]["tracks"]["type"] = "str";
-  capa["required"]["tracks"]["option"] = "--tracks";
+  capa["optional"]["tracks"]["name"] = "Tracks";
+  capa["optional"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
+  capa["optional"]["tracks"]["type"] = "str";
+  capa["optional"]["tracks"]["option"] = "--tracks";
   conf.addOption("streamname",
       JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
   conf.addOption("tracks",

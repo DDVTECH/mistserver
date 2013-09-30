@@ -127,15 +127,12 @@ void Util::Procs::childsig_handler(int signum){
       return;
     }
 
-#if DEBUG >= 1
+#if DEBUG >= 5
     std::string pname = plist[ret];
 #endif
     plist.erase(ret);
 #if DEBUG >= 5
-    if (isActive(pname)){
-      Stop(pname);
-    } else{
-      //can this ever happen?
+    if (!isActive(pname)){
       std::cerr << "Process " << pname << " fully terminated." << std::endl;
     }
 #endif
@@ -674,11 +671,14 @@ int Util::Procs::Count(){
 
 /// Returns true if a process by this name is currently active.
 bool Util::Procs::isActive(std::string name){
+  std::map<pid_t, std::string> listcopy = plist;
   std::map<pid_t, std::string>::iterator it;
-  for (it = plist.begin(); it != plist.end(); it++){
+  for (it = listcopy.begin(); it != listcopy.end(); it++){
     if (( *it).second == name){
       if (kill(( *it).first, 0) == 0){
         return true;
+      }else{
+        plist.erase(( *it).first);
       }
     }
   }

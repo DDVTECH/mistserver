@@ -400,23 +400,45 @@ namespace Connector_HTTP {
     std::string orig_url = H.getUrl();
     H.Clean();
 
-    //check if a connection exists, and if not create one
-    connMutex.lock();
-    if ( !connectorConnections.count(uid) || (!connectorConnections[uid]->conn->spool() && !connectorConnections[uid]->conn->connected())){
-      if (connectorConnections.count(uid)){
-        delete connectorConnections[uid];
-        connectorConnections.erase(uid);
-      }
-      connectorConnections[uid] = new ConnConn(new Socket::Connection(Util::getTmpFolder() + connector));
-      connectorConnections[uid]->conn->setBlocking(false); //do not block on spool() with no data
+    ConnConn * myCConn = 0;
+    //loop until a connection is available/created
+    while (!myCConn){
+      //lock the connection mutex before trying anything
+      connMutex.lock();
+      //check if a connection exists, and if not create one
+      if ( !connectorConnections.count(uid)){
+        connectorConnections[uid] = new ConnConn(new Socket::Connection(Util::getTmpFolder() + connector));
+        connectorConnections[uid]->conn->setBlocking(false); //do not block on spool() with no data
 #if DEBUG >= 4
-      std::cout << "Created new connection " << uid << std::endl;
+        std::cout << "Created new connection " << uid << std::endl;
 #endif
-    }else{
+      }else{
 #if DEBUG >= 5
-      std::cout << "Re-using connection " << uid << std::endl;
+        std::cout << "Re-using connection " << uid << std::endl;
 #endif
+      }
+      
+      //attempt to lock the mutex for this connection
+      if (connectorConnections[uid]->inUse.try_lock()){
+        myCConn = connectorConnections[uid];
+        //if the connection is dead, delete it and re-loop
+        if (!myCConn->conn->spool() && !myCConn->conn->connected()){
+          connectorConnections.erase(uid);
+          myCConn->inUse.unlock();
+          delete myCConn;
+          myCConn = 0;
+        }
+      }
+      //unlock the connection mutex before sleeping
+      connMutex.unlock();
+      //no connection yet? wait for 0.1 second and try again
+      if ( !myCConn){
+        Util::sleep(100);
+      }
     }
+    
+    //we now have a locked, working connection
+    
     {//start a new timeout thread, if neccesary
       tthread::lock_guard<tthread::mutex> guard(timeoutStartMutex);
       if (timeoutMutex.try_lock()){
@@ -431,16 +453,6 @@ namespace Connector_HTTP {
       }
     }
 
-    //lock the mutex for this connection, and handle the request
-    ConnConn * myCConn = connectorConnections[uid];
-    myCConn->inUse.lock();
-    connMutex.unlock();
-    //if the server connection is dead, handle as timeout.
-    if ( !myCConn->conn->connected()){
-      myCConn->conn->close();
-      myCConn->inUse.unlock();
-      return proxyHandleTimeout(H, conn);
-    }
     //forward the original request
     myCConn->conn->SendNow(request);
     myCConn->lastUse = 0;

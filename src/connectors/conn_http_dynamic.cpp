@@ -84,7 +84,7 @@ namespace Connector_HTTP {
     abst.setUpdate(false);
     abst.setTimeScale(1000);
     abst.setLive(isLive);
-    abst.setCurrentMediaTime(currTime);
+    abst.setCurrentMediaTime(metadata["lastms"].asInt());
     abst.setSmpteTimeCodeOffset(0);
     abst.setMovieIdentifier(streamName);
     abst.setSegmentRunTable(asrt, 0);

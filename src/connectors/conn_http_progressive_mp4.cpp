@@ -172,6 +172,8 @@ namespace Connector_HTTP {
                 cmd << "\ns " << (*keyPartIt).time;
                 cmd << "\no\n";
                 ss.SendNow(cmd.str());
+              }else{//if keyparts.end, then we reached the end of the file
+                conn.close();
               }
             }else if(Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               //parse DTSC to MP4 here

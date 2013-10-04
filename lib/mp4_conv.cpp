@@ -2,9 +2,9 @@
 #include <sstream>
 
 namespace MP4{
-  bool keyPartSort(keyPart i, keyPart j){
+  /*bool keyPartSort(keyPart i, keyPart j){
     return (i.time < j.time);
-  }
+  }*/
 
   std::string DTSC2MP4Converter::DTSCMeta2MP4Header(JSON::Value metaData){
     std::stringstream header;
@@ -56,12 +56,12 @@ namespace MP4{
             temp.len = (*keyIt)["len"].asInt();
             temp.parts = (*keyIt)["parts"].asString();
             temp.partsize = (*keyIt)["partsize"].asInt();
-            keyParts.push_back(temp);
+            keyParts.insert(temp);
           }
         }
       }
       //sort by time on keyframes for interleaving
-      std::sort(keyParts.begin(), keyParts.end(), keyPartSort);
+      //std::sort(keyParts.begin(), keyParts.end(), keyPartSort);
       
       //start arbitrary track addition for header
       int boxOffset = 1;
@@ -237,17 +237,17 @@ namespace MP4{
                 uint64_t totalByteOffset = 0;
                 //Inserting wrong values on purpose here, will be fixed later.
                 //Current values are actual byte offset without header-sized offset
-                for (unsigned int i = 0; i < keyParts.size(); i++){//for all keypart size
-                  if(keyParts[i].trackID == it->second["trackid"].asInt()){//if keypart is of current trackID
+                for (std::set<keyPart>::iterator i = keyParts.begin(); i != keyParts.end(); i++){//for all keypart size
+                  if(i->trackID == it->second["trackid"].asInt()){//if keypart is of current trackID
                     std::deque<long long unsigned int> parsedParts;
-                    JSON::decodeVector(keyParts[i].parts, parsedParts);
+                    JSON::decodeVector(i->parts, parsedParts);
                     for (unsigned int o = 0; o < parsedParts.size(); o++){//add all parts to STCO
                       stcoBox.setChunkOffset(totalByteOffset, total);
                       total++;
                       totalByteOffset += parsedParts[o];
                     }
                   }else{
-                    totalByteOffset += keyParts[i].size;
+                    totalByteOffset += i->size;
                   }
                 }
                 //calculating the offset where the STCO box will be in the main MOOV box
@@ -311,27 +311,27 @@ namespace MP4{
   }
   
   void DTSC2MP4Converter::parseDTSC(JSON::Value mediaPart){
-    static long long unsigned int curKey = 0;//the key chunk we are currently searching for in keyParts
+    static std::set<keyPart>::iterator curKey = keyParts.begin();//the key chunk we are currently searching for in keyParts
     static long long unsigned int curPart = 0;//current part in current key
     //mdat output here
     //output cleanout buffer first
     //while there are requested packets in the trackBuffer:...
-    while (!trackBuffer[keyParts[curKey].trackID].empty()){
+    while (!trackBuffer[curKey->trackID].empty()){
       //output requested packages
-      stringBuffer += trackBuffer[keyParts[curKey].trackID].front()["data"].asString();
-      trackBuffer[keyParts[curKey].trackID].pop_front();
+      stringBuffer += trackBuffer[curKey->trackID].front()["data"].asString();
+      trackBuffer[curKey->trackID].pop_front();
       curPart++;
-      if(curPart >= keyParts[curKey].partsize){
+      if(curPart >= curKey->partsize){
         curPart = 0;
         curKey++;
       }
     }
     //after that, try to put out the JSON data directly
-    if(keyParts[curKey].trackID == mediaPart["trackid"].asInt()){
+    if(curKey->trackID == mediaPart["trackid"].asInt()){
       //output JSON packet
       stringBuffer += mediaPart["data"].asStringRef();
       curPart++;
-      if(curPart >= keyParts[curKey].partsize){
+      if(curPart >= curKey->partsize){
         curPart = 0;
         curKey++;
       }

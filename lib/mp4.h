@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <set>
 #include <iostream>
 #include <iomanip>
 #include <cstdio>
@@ -13,6 +14,17 @@
 /// Contains all MP4 format related code.
 namespace MP4 {
   struct keyPart{
+    bool operator < (const keyPart& rhs) const {
+      if (time < rhs.time){
+        return true;
+      }
+      if (time == rhs.time){
+        if (trackID < rhs.trackID){
+          return true;
+        }
+      }
+      return false;
+    }
     long long int trackID;
     long long int size;
     long long int time;
@@ -27,7 +39,7 @@ namespace MP4 {
       void parseDTSC(JSON::Value mediaPart);
       bool sendReady();
       std::string sendString();
-      std::vector <keyPart> keyParts;
+      std::set <keyPart> keyParts;
     private:
       //long long unsigned int curKey;//the key chunk we are currently searching for in keyParts
       //long long unsigned int curPart;//current part in current key

@@ -37,7 +37,7 @@ namespace Connector_HTTP {
 
     //MP4 specific variables
     MP4::DTSC2MP4Converter Conv;
-    std::vector<MP4::keyPart>::iterator keyPartIt;
+    std::set<MP4::keyPart>::iterator keyPartIt;
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     unsigned int seek_sec = 0;//Seek position in ms

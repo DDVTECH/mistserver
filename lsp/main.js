@@ -887,7 +887,10 @@
           'preset':
           {
             'cmd': ''
-          }
+          },
+          'contentkey':'',
+          'keyid':'',
+          'keyseed':''
         },sdata);
           
         $('#page').append( $('<p>').text(title) );
@@ -930,6 +933,31 @@
             $('<label>').attr('id','stream-edit-record-label').attr('for','stream-edit-record').attr('title','Only applies to live streams.').text('Record to:').append(
              $('<input>').attr('type','text').attr('placeholder','2 keyframes').attr('id','stream-edit-record').attr('value', record).attr('placeholder','/path/to/filename.dtsc')
             )
+          )
+        );
+        
+        // ENCRYPT
+        $('#editserver').append(
+          $('<span>').addClass('LTS-only').append(
+            $('<br>')
+          ).append(
+            $('<p>').text('Encrypt this stream')
+          ).append(
+            $('<label>').attr('id','stream-edit-contentkey-label').attr('for','stream-edit-contentkey').text('Content key').append(
+             $('<input>').attr('type','text').attr('id','stream-edit-contentkey').attr('value', sdata.contentkey)
+            )
+          ).append(
+            $('<span>').text('- or -')
+          ).append(
+            $('<label>').attr('id','stream-edit-keyid-label').attr('for','stream-edit-keyid').text('Key ID').append(
+             $('<input>').attr('type','text').attr('id','stream-edit-keyid').attr('value', sdata.keyid)
+            )
+          ).append(
+            $('<label>').attr('id','stream-edit-keyseed-label').attr('for','stream-edit-keyseed').text('Key seed').append(
+             $('<input>').attr('type','text').attr('id','stream-edit-keyseed').attr('value', sdata.keyseed)
+            )
+          ).append(
+            $('<br>')
           )
         );
         
@@ -984,6 +1012,9 @@
             sdata.error = null;
             sdata.record = r.val();
             if (b.val() != '') { sdata.DVR = b.val(); }
+            sdata.contentkey = $('#stream-edit-contentkey').val();
+            sdata.contentkey = $('#stream-edit-keyid').val();
+            sdata.contentkey = $('#stream-edit-keyseed').val();
             
             if(streamname == 'new')
             {
@@ -1340,6 +1371,8 @@
           $('<button>').text('search for input files').click(function(){
             conversionDirQuery($('#conv-edit-query').val());
           })
+        ).append(
+          $('<span>').attr('id','conversiondirquery-status')
         ).append(
           $('<div>').attr('id', 'editconversion')
         );

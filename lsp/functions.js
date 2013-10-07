@@ -153,7 +153,7 @@
                   "command": JSON.stringify(data)
                },
                'dataType': 'jsonp',
-               'timeout': 10000,
+               'timeout': 300000,
                'error': function(){},
                'success': function(d)
                {
@@ -400,7 +400,9 @@
                         "capabilities": {},
                         "log": {},
                         "statistics": {},
-                        "conversion": {}
+                        "conversion": {
+                          "status" : ""
+                        }
                      }, d)
                      if (settings.settings.LTS == 1) {
                         $('.LTSonly').show();
@@ -738,15 +740,20 @@ function buildLogsTable(){
   if (!settings.settings.conversion.query) { settings.settings.conversion.query = {}; }
   settings.settings.conversion.query.path = query;
   $('#conv-edit-dir').val(query);
+  $('#conversiondirquery-status').text(' Searching for input files..');
   getData(function(data){
     var c = data.conversion.query;
     var j = 0;
+    var dir = $('#conv-edit-dir').val();
+    if (dir.substr(dir.length -1) != '/') { dir += '/'; }
     delete settings.settings.conversion.query;
     $('#conv-edit-input').html('');
     for (var i in c) {
-      if (c[i]) {
+      var ext = i.split('.');
+      ext = ext[ext.length-1];
+      if ((c[i] == null) && (ext != 'dtsc')) {
         $('#conv-edit-input').append(
-          $('<option>').val($('#conv-edit-dir').val()+i).text(i)
+          $('<option>').val(dir+i).text(i)
         );
         j++;
       }
@@ -757,7 +764,7 @@ function buildLogsTable(){
       )
     }
     conversionSelectInput($('#conv-edit-input').val());
-    
+    $('#conversiondirquery-status').text('');
   });
  }
  function conversionSelectInput(filename) {

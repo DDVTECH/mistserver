@@ -10,6 +10,7 @@
 #include <mist/vorbis.h>
 #include <mist/config.h>
 #include <mist/json.h>
+#include <mist/bitstream.h>
 
 namespace Converters{
   enum codecType {THEORA, VORBIS};
@@ -19,11 +20,18 @@ namespace Converters{
       oggTrack() : lastTime(0), parsedHeaders(false) { }
       codecType codec;
       std::string name;
+      std::string contBuffer;//buffer for continuing pages
       long long unsigned int dtscID;
       double lastTime;
+      long long unsigned int lastGran;
       bool parsedHeaders;
       //Codec specific elements
+      //theora
       theora::header idHeader;//needed to determine keyframe
+      //vorbis
+      std::deque<vorbis::mode> vModes;
+      char channels;
+      long long unsigned int blockSize[2];
   };
 
   int OGG2DTSC(){
@@ -64,7 +72,7 @@ namespace Converters{
             trackData[sNum].codec = VORBIS;
             vorbis::header tempHead;
             tempHead.read(oggPage.getFullPayload(), oggPage.getPayloadSize());
-            mspfv = ntohl(tempHead.getAudioSampleRate()) / 1000;
+            mspfv = (double)1000 / ntohl(tempHead.getAudioSampleRate());
           }else{
             std::cerr << "Unknown Codec, " << std::string(oggPage.getFullPayload()+1, 6)<<" skipping" << std::endl;
             continue;
@@ -79,34 +87,61 @@ namespace Converters{
           int offset = 0;
           for (std::deque<unsigned int>::iterator it = oggPage.getSegmentTableDeque().begin(); it != oggPage.getSegmentTableDeque().end(); it++){
             if (trackData[sNum].parsedHeaders){
-              //output DTSC packet
-              DTSCOut.null();//clearing DTSC buffer
-              DTSCOut["trackid"] = (long long)trackData[sNum].dtscID;
-              long long unsigned int temp = oggPage.getGranulePosition();
-              DTSCOut["granule"] = (long long)temp;
-              DTSCOut["time"] = (long long)trackData[sNum].lastTime;
-              if (trackData[sNum].codec == THEORA){
-                trackData[sNum].lastTime += (mspft / 4);
+              //if we are dealing with the last segment which is a part of a later continued segment
+              if (it == (oggPage.getSegmentTableDeque().end()-1) && oggPage.getPageSegments() == 255 && oggPage.getSegmentTable()[254] == 255  ){
+                //put in buffer
+                trackData[sNum].contBuffer += std::string(oggPage.getFullPayload()+offset, (*it));
               }else{
-                trackData[sNum].lastTime += (mspfv / 16);
-              }
-              DTSCOut["data"] = std::string(oggPage.getFullPayload()+offset, (*it)); //segment content put in JSON
-              if (trackData[sNum].codec == THEORA){
-                if (trackData[sNum].idHeader.parseGranuleLower(temp) == 0){ //granule mask equals zero when on keyframe
-                  DTSCOut["keyframe"] = 1;
+                //output DTSC packet
+                DTSCOut.null();//clearing DTSC buffer
+                DTSCOut["trackid"] = (long long)trackData[sNum].dtscID;
+                long long unsigned int temp = oggPage.getGranulePosition();
+                DTSCOut["time"] = (long long)trackData[sNum].lastTime;
+                if (trackData[sNum].contBuffer != ""){
+                  //if a big segment is ending on this page, output buffer
+                  DTSCOut["data"] = trackData[sNum].contBuffer + std::string(oggPage.getFullPayload()+offset, (*it));
+                  DTSCOut["comment"] = "Using buffer";
+                  trackData[sNum].contBuffer = "";
                 }else{
-                  DTSCOut["interframe"] = 1;
+                  DTSCOut["data"] = std::string(oggPage.getFullPayload()+offset, (*it)); //segment content put in JSON
                 }
+                DTSCOut["time"] = (long long)trackData[sNum].lastTime;
+                if (trackData[sNum].codec == THEORA){
+                  trackData[sNum].lastTime += mspft;
+                }else{
+                  //Getting current blockSize
+                  unsigned int blockSize = 0;
+                  Utils::bitstreamLSBF packet;
+                  packet.append(DTSCOut["data"].asString());
+                  if (packet.get(1) == 0){
+                    blockSize = trackData[sNum].blockSize[trackData[sNum].vModes[packet.get(vorbis::ilog(trackData[sNum].vModes.size()-1))].blockFlag];
+                  }else{
+                    std::cerr << "Warning! packet type != 0" << std::endl;
+                  }
+                  trackData[sNum].lastTime += mspfv * (blockSize/trackData[sNum].channels);
+                }
+                if (trackData[sNum].codec == THEORA){//marking keyframes
+                  if (it == (oggPage.getSegmentTableDeque().end() - 1)){
+                  //if we are in the vicinity of a new keyframe
+                    if (trackData[sNum].idHeader.parseGranuleUpper(trackData[sNum].lastGran) != trackData[sNum].idHeader.parseGranuleUpper(temp)){
+                    //try to mark right
+                      long long unsigned int temper = trackData[sNum].idHeader.parseGranuleUpper(temp) - trackData[sNum].idHeader.parseGranuleUpper(trackData[sNum].lastGran);
+                      DTSCOut["keyframe"] = 1;
+                      trackData[sNum].lastGran = temp;
+                    }else{
+                      DTSCOut["interframe"] = 1;
+                    }
+                  }
+                }
+                // Ending packet
+                if (oggPage.typeContinue()){//Continuing page
+                  DTSCOut["OggCont"] = 1;
+                }
+                if (oggPage.typeEOS()){//ending page of ogg stream
+                  DTSCOut["OggEOS"] = 1;
+                }
+                std::cout << DTSCOut.toNetPacked();
               }
-              // Ending packet
-              if (oggPage.typeContinue()){//Continuing page
-                DTSCOut["OggCont"] = 1;
-              }
-              if (oggPage.typeEOS()){//ending page
-                DTSCOut["OggEOS"] = 1;
-              }
-
-              std::cout << DTSCOut.toNetPacked();
             }else{//if we ouput a header:
               //switch on codec
               switch(trackData[sNum].codec){
@@ -132,6 +167,7 @@ namespace Converters{
                         DTSCHeader["tracks"][trackData[sNum].name]["init"] = std::string(oggPage.getFullPayload()+offset, (*it));
                         headerSeen --;
                         trackData[sNum].parsedHeaders = true;
+                        trackData[sNum].lastGran = 0;
                         break;
                       }
                     }
@@ -145,6 +181,9 @@ namespace Converters{
                         case 1:{
                           DTSCHeader["tracks"][trackData[sNum].name]["channels"] = (long long)vHead.getAudioChannels();
                           DTSCHeader["tracks"][trackData[sNum].name]["idheader"] = std::string(oggPage.getFullPayload()+offset, (*it));
+                          trackData[sNum].channels = vHead.getAudioChannels();
+                          trackData[sNum].blockSize[0] = 1 << vHead.getBlockSize0();
+                          trackData[sNum].blockSize[1] = 1 << vHead.getBlockSize1();
                           break;
                         }
                         case 3:{
@@ -156,6 +195,8 @@ namespace Converters{
                           DTSCHeader["tracks"][trackData[sNum].name]["trackid"] = (long long)trackData[sNum].dtscID;
                           DTSCHeader["tracks"][trackData[sNum].name]["type"] = "audio";
                           DTSCHeader["tracks"][trackData[sNum].name]["init"] = std::string(oggPage.getFullPayload()+offset, (*it));
+                          //saving modes into deque
+                          trackData[sNum].vModes = vHead.readModeDeque(trackData[sNum].channels);
                           headerSeen --;
                           trackData[sNum].parsedHeaders = true;
                           break;

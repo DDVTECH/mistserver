@@ -20,6 +20,7 @@
 #include <mist/config.h>
 #include <mist/stream.h>
 #include <mist/timing.h>
+#include "../converters/oggconv.h"
 
 ///\brief Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
@@ -36,8 +37,9 @@ namespace Connector_HTTP {
     std::string streamname;//Will contain the name of the stream.
 
     //OGG specific variables
-    OGG::headerPages oggMeta;
-    OGG::Page curOggPage;
+    //OGG::headerPages oggMeta;
+    //OGG::Page curOggPage;
+    OGG::converter oggConv;
     std::map <long long unsigned int, std::vector<JSON::Value> > DTSCBuffer;
     std::set <long long unsigned int> sendReady;
     //std::map <long long unsigned int, long long unsigned int> prevGran;
@@ -141,7 +143,7 @@ namespace Connector_HTTP {
           if (audioID != -1){
             cmd << " " << audioID;
           }
-          cmd << "\ns " << seek_sec << "\np\n";
+          cmd << "\np\n";
           ss.SendNow(cmd.str().c_str(), cmd.str().size());
           inited = true;
         }
@@ -159,8 +161,8 @@ namespace Connector_HTTP {
               HTTP_S.protocol = "HTTP/1.0";
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
               //Fill in ogg header here
-              oggMeta.readDTSCHeader(Strm.metadata);
-              conn.SendNow((char*)oggMeta.parsedPages.c_str(), oggMeta.parsedPages.size());
+              oggConv.readDTSCHeader(Strm.metadata);
+              conn.SendNow((char*)oggConv.parsedPages.c_str(), oggConv.parsedPages.size());
               progressive_has_sent_header = true;
               //setting sendReady to not ready
               sendReady.clear();
@@ -168,20 +170,11 @@ namespace Connector_HTTP {
             //parse DTSC to Ogg here
             if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               currID = Strm.getPacket()["trackid"].asInt();
-              currGran = Strm.getPacket()["granule"].asInt();
-              if (DTSCBuffer.count(currID) && !DTSCBuffer[currID].empty()){
-                prevGran = DTSCBuffer[currID][0]["granule"].asInt();
-              }else{
-                prevGran = 0;
-              }
-              if ((prevGran != 0 && (prevGran == -1 || currGran != prevGran)) ){
-                curOggPage.readDTSCVector(DTSCBuffer[currID], oggMeta.DTSCID2OGGSerial[currID], oggMeta.DTSCID2seqNum[currID]);
-                conn.SendNow((char*)curOggPage.getPage(), curOggPage.getPageSize());
-                DTSCBuffer[currID].clear();
-                sendReady.insert(currID);
-                oggMeta.DTSCID2seqNum[currID]++;
-              }
               DTSCBuffer[currID].push_back(Strm.getPacket());
+              std::string tmpString = oggConv.readDTSCVector(DTSCBuffer[currID]);
+              conn.SendNow((char*)tmpString.c_str(), tmpString.size());
+              DTSCBuffer[currID].clear();
+              sendReady.insert(currID);
             }
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();

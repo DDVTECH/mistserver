@@ -50,17 +50,7 @@ namespace Connector_HTTP {
       //Only attempt to parse input when not yet init'ed.
       if ( !inited){
         if (conn.Received().size() || conn.spool()){
-          //make sure it ends in a \n
-          if ( *(conn.Received().get().rbegin()) != '\n'){
-            std::string tmp = conn.Received().get();
-            conn.Received().get().clear();
-            if (conn.Received().size()){
-              conn.Received().get().insert(0, tmp);
-            }else{
-              conn.Received().append(tmp);
-            }
-          }
-          if (HTTP_R.Read(conn.Received().get())){
+          if (HTTP_R.Read(conn)){
 #if DEBUG >= 5
             std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
@@ -195,7 +185,7 @@ namespace Connector_HTTP {
       }
     }
     conn.close();
-    ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
+    ss.SendNow(conn.getStats("HTTP_Progressive_MP4").c_str());
     ss.close();
     return 0;
   } //Progressive_Connector main function

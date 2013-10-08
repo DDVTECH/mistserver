@@ -134,7 +134,7 @@ namespace Connector_HTTP {
         unsigned int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
-          ss.SendNow(conn.getStats("HTTP_Progressive").c_str());
+          ss.SendNow(conn.getStats("HTTP_Progressive_FLV").c_str());
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
@@ -186,7 +186,7 @@ namespace Connector_HTTP {
       }
     }
     conn.close();
-    ss.SendNow(conn.getStats("HTTP_Dynamic").c_str());
+    ss.SendNow(conn.getStats("HTTP_Progressive_FLV").c_str());
     ss.close();
     return 0;
   } //Progressive_Connector main function

@@ -96,8 +96,7 @@ namespace Connector_HTTP {
       for (JSON::ArrIter keyIt = allAudio.ObjBegin()->second["keys"].ArrBegin(); keyIt != allAudio.ObjBegin()->second["keys"].ArrEnd(); keyIt++){
         Result << "<c ";
         if (keyIt == allAudio.ObjBegin()->second["keys"].ArrBegin()){
-          // ensure proper audio start time (yes, this is video :D)
-          Result << "t=\"" << allVideo.ObjBegin()->second["firstms"].asInt() * 10000 << "\" ";
+          Result << "t=\"" << allAudio.ObjBegin()->second["firstms"].asInt() * 10000 << "\" ";
         }
         Result << "d=\"" << (*keyIt)["len"].asInt() * 10000 << "\" />\n";
       }
@@ -358,12 +357,17 @@ namespace Connector_HTTP {
                 MP4::TFHD tfhd_box;
                 tfhd_box.setFlags(MP4::tfhdSampleFlag);
                 tfhd_box.setTrackID(1);
-                tfhd_box.setDefaultSampleFlags(0x000000C0 | MP4::noIPicture | MP4::noDisposable | MP4::noKeySample);
+                tfhd_box.setDefaultSampleFlags(0x000000C0 | MP4::isKeySample);
                 
                 MP4::TRUN trun_box;
-                trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
                 trun_box.setDataOffset(42);
-                trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);
+                if (trackRef["type"].asString() == "video"){
+                 trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
+                 trun_box.setFirstSampleFlags(0x00000040 | MP4::noKeySample);
+                }else{
+                  trun_box.setFlags(MP4::trundataOffset | MP4::trunsampleDuration | MP4::trunsampleSize);
+                  trun_box.setFirstSampleFlags(0x00000040 | MP4::isKeySample);
+                }
                 std::deque<long long int> tmpParts;
                 JSON::decodeVector(keyObj["parts"].asString(), tmpParts);
                 for (int i = 0; i < tmpParts.size(); i++){
@@ -376,9 +380,16 @@ namespace Connector_HTTP {
                 
                 MP4::SDTP sdtp_box;
                 sdtp_box.setVersion(0);
-                sdtp_box.setValue(0x24, 4);
-                for (int i = 1; i < keyObj["partsize"].asInt(); i++){
-                  sdtp_box.setValue(0x14, 4 + i);
+                if (trackRef["type"].asString() == "video"){
+                  sdtp_box.setValue(36, 4);
+                  for (int i = 1; i < keyObj["partsize"].asInt(); i++){
+                    sdtp_box.setValue(20, 4 + i);
+                  }
+                }else{
+                  sdtp_box.setValue(40, 4);
+                  for (int i = 1; i < keyObj["partsize"].asInt(); i++){
+                    sdtp_box.setValue(40, 4 + i);
+                  }
                 }
                 
                 MP4::TRAF traf_box;

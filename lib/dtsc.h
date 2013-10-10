@@ -50,6 +50,7 @@
 /// - nalu_end (int, if set, is a end-of-sequence)
 /// - offset (int, unsigned version of signed int! Holds the ms offset between timestamp and proper display time for B-frames)
 namespace DTSC {
+  bool isFixed(JSON::Value & metadata);
 
   /// This enum holds all possible datatypes for DTSC packets.
   enum datatype{

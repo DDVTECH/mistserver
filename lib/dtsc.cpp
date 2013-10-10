@@ -1038,3 +1038,13 @@ DTSC::File::~File(){
     F = 0;
   }
 }
+
+
+bool DTSC::isFixed(JSON::Value & metadata){
+  for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+    if (!(it->second.isMember("keys") && it->second["keys"].isArray() && it->second["keys"][0u].isMember("bpos"))){
+      return false;
+    }
+  }
+  return true;
+}

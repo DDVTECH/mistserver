@@ -56,6 +56,11 @@ namespace Converters {
       if (tmpFileName == outFileName){
         fullSort = false;
       }else{
+        DTSC::File F(tmpFileName);
+        if (!DTSC::isFixed(F.getMeta())){
+          std::cerr << tmpFileName << " has not been run through DTSCFix yet." << std::endl;
+          return 1;
+        }
         inFiles.insert(std::pair<std::string,DTSC::File>(tmpFileName,DTSC::File(tmpFileName)));
       }
     }
@@ -64,6 +69,10 @@ namespace Converters {
       outFile = DTSC::File(outFileName, true);
     }else{
       outFile = DTSC::File(outFileName);
+      if (!DTSC::isFixed(outFile.getMeta())){
+        std::cerr << outFileName << " has not been run through DTSCFix yet." << std::endl;
+        return 1;
+      }
       meta = outFile.getMeta();
       newMeta = meta;
       if (meta.isMember("tracks") && meta["tracks"].size() > 0){

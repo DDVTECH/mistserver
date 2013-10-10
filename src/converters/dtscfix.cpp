@@ -36,19 +36,9 @@ namespace Converters {
       std::cerr << "This file is too old to fix - please reconvert." << std::endl;
       return 1;
     }
-    if (oriheader["moreheader"].asInt() > 0 && !conf.getBool("force")){
-      if (meta.isMember("tracks") && meta["tracks"].size() > 0){
-        bool isFixed = true;
-        for ( JSON::ObjIter trackIt = meta["tracks"].ObjBegin(); trackIt != meta["tracks"].ObjEnd(); trackIt ++) {
-          if ( !trackIt->second.isMember("frags") || !trackIt->second.isMember("keynum")){
-            isFixed = false;
-          }
-        }
-        if (isFixed){
-          std::cerr << "This file was already fixed or doesn't need fixing - cancelling." << std::endl;
-          return 0;
-        }
-      }
+    if (DTSC::isFixed(meta) && !conf.getBool("force")){
+      std::cerr << "This file was already fixed or doesn't need fixing - cancelling." << std::endl;
+      return 0;
     }
     meta.removeMember("isFixed");
     meta.removeMember("keytime");

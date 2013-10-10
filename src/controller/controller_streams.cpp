@@ -2,6 +2,7 @@
 #include <mist/config.h>
 #include <mist/timing.h>
 #include <mist/stream.h>
+#include <mist/dtsc.h>
 #include "controller_streams.h"
 #include "controller_storage.h"
 #include <sys/stat.h>
@@ -66,6 +67,11 @@ namespace Controller {
           tmp_cmd[0] = (char*)mistinfo.c_str();
           tmp_cmd[1] = (char*)URL.c_str();
           data["meta"] = JSON::fromString(Util::Procs::getOutputOf(tmp_cmd));
+        }
+        if ( !DTSC::isFixed(data["meta"])){
+          char * tmp_cmd[3] = {0, 0, 0};
+          std::string mistfix = Util::getMyPath() + "MistDTSCFix " + URL;
+          Util::Procs::Start("MistFixer", mistfix);
         }
         if (Util::epoch() - lastBuffer[name] > 5){
           data["error"] = "Available";

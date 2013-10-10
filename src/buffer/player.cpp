@@ -83,15 +83,8 @@ int main(int argc, char** argv){
   DTSC::File source = DTSC::File(conf.getString("filename"));
   in_out.SendNow(source.getMeta().toNetPacked());
 
-  if ( !(source.getMeta().isMember("keytime") && source.getMeta().isMember("keybpos") && source.getMeta().isMember("keynum") && source.getMeta().isMember("keylen") && source.getMeta().isMember("frags"))
-      && source.getMeta().isMember("video")){
-    //file needs to be DTSCFix'ed! Run MistDTSCFix executable on it first
-    std::cerr << "Calculating / writing / updating VoD metadata..." << std::endl;
-    Util::Procs::Start("Fixer", Util::getMyPath() + "MistDTSCFix " + conf.getString("filename"));
-    while (Util::Procs::isActive("Fixer")){
-      Util::sleep(5000);
-    }
-    std::cerr << "Done! Aborting this request to make sure all goes well." << std::endl;
+  if (DTSC::isFixed(source.getMeta())){
+    std::cerr << "Encountered a non-fixed file." << std::endl;
     return 1;
   }
 

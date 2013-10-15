@@ -150,7 +150,7 @@ namespace Converters {
           }
         }
       }else{
-        if ((F.getJSON()["time"].asInt() - trackData[currentID].lastKeyTime) > 5000){
+        if ((F.getJSON()["time"].asInt() - trackData[currentID].lastKeyTime) > 1000){
           trackData[currentID].lastKeyTime = F.getJSON()["time"].asInt();
           int newNum = meta["tracks"][currentID]["keys"].size();
           meta["tracks"][currentID]["keys"][newNum]["num"] = ++trackData[currentID].keynum;

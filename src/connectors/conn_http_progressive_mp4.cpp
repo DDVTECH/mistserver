@@ -205,6 +205,7 @@ int main(int argc, char ** argv){
   capa["methods"][0u]["handler"] = "http";
   capa["methods"][0u]["type"] = "html5/video/mp4";
   capa["methods"][0u]["priority"] = 8ll;
+  capa["methods"][0u]["nolive"] = 1;
   capa["socket"] = "http_progressive_mp4";
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);

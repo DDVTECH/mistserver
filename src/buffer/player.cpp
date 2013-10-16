@@ -227,10 +227,8 @@ int main(int argc, char** argv){
       if ( !source.getJSON()){
         playing = 0;
       }
-      if (source.atKeyframe()){
-        if (playing > 0){
-          --playing;
-        }
+      if (playing > 0 && source.atKeyframe()){
+        --playing;
       }
       if (lastTime == 0){
         lastTime = now - source.getJSON()["time"].asInt();

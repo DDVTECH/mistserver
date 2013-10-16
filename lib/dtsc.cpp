@@ -935,7 +935,8 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
     tmpPos.seekTime = 0;
     tmpPos.bytePos = 0;
   }
-  for (JSON::ArrIter keyIt = metadata["tracks"][trackMapping[trackNo]]["keys"].ArrBegin(); keyIt != metadata["tracks"][trackMapping[trackNo]]["keys"].ArrEnd(); keyIt++){
+  JSON::Value & keys = metadata["tracks"][trackMapping[trackNo]]["keys"];
+  for (JSON::ArrIter keyIt = keys.ArrBegin(); keyIt != keys.ArrEnd(); keyIt++){
     if ((*keyIt)["time"].asInt() > ms){
       break;
     }

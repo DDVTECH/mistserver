@@ -1012,12 +1012,10 @@ bool DTSC::File::atKeyframe(){
     return true;
   }
   long long int bTime = jsonbuffer["time"].asInt();
-  for (std::set<int>::iterator selectIt = selectedTracks.begin(); selectIt != selectedTracks.end(); selectIt++){
-    JSON::Value & keys = getTrackById((*selectIt))["keys"];
-    for (JSON::ArrIter aIt = keys.ArrBegin(); aIt != keys.ArrEnd(); aIt++){
-      if ((*aIt)["time"].asInt() == bTime){
-        return true;
-      }
+  JSON::Value & keys = getTrackById(jsonbuffer["trackid"].asInt())["keys"];
+  for (JSON::ArrIter aIt = keys.ArrBegin(); aIt != keys.ArrEnd(); ++aIt){
+    if ((*aIt)["time"].asInt() >= bTime){
+      return ((*aIt)["time"].asInt() == bTime);
     }
   }
   return false;

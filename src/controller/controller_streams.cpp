@@ -70,8 +70,10 @@ namespace Controller {
         }
         if ( !DTSC::isFixed(data["meta"])){
           char * tmp_cmd[3] = {0, 0, 0};
-          std::string mistfix = Util::getMyPath() + "MistDTSCFix " + URL;
-          Util::Procs::Start("MistFixer", mistfix);
+          std::string mistfix = Util::getMyPath() + "MistDTSCFix";
+          tmp_cmd[0] = (char*)mistfix.c_str();
+          tmp_cmd[1] = (char*)URL.c_str();
+          Util::Procs::StartPiped("MistFixer", tmp_cmd, 0, 0, 0);
         }
         if (Util::epoch() - lastBuffer[name] > 5){
           data["error"] = "Available";

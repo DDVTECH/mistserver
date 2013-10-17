@@ -90,6 +90,9 @@ namespace Info {
       fileSpecs.removeMember( "streams" );
     } else {
       fileSpecs["format"] = "dtsc";
+      if (DTSC::isFixed(fileSpecs)){
+        fileSpecs["is_fixed"] = 1ll;
+      }
       JSON::Value tracks = fileSpecs["tracks"];
       for(JSON::ObjIter trackIt = tracks.ObjBegin(); trackIt != tracks.ObjEnd(); trackIt++){
         if (fileSpecs["tracks"][trackIt->first].isMember("init")){

@@ -83,7 +83,7 @@ int main(int argc, char** argv){
   DTSC::File source = DTSC::File(conf.getString("filename"));
   in_out.SendNow(source.getMeta().toNetPacked());
 
-  if (DTSC::isFixed(source.getMeta())){
+  if ( !DTSC::isFixed(source.getMeta())){
     std::cerr << "Encountered a non-fixed file." << std::endl;
     return 1;
   }

@@ -141,6 +141,7 @@ int main(int argc, char** argv){
                 json_sts["vod"]["start"] = Util::epoch() - sts.conntime;
                 if ( !meta_sent){
                   json_sts["vod"]["meta"] = source.getMeta();
+                  json_sts["vod"]["meta"]["is_fixed"] = 1;
                   for (JSON::ObjIter oIt = json_sts["vod"]["meta"]["tracks"].ObjBegin(); oIt != json_sts["vod"]["meta"]["tracks"].ObjEnd(); oIt++){
                     oIt->second.removeMember("init");
                     oIt->second.removeMember("keys");

@@ -213,7 +213,7 @@ namespace Connector_HTTP {
         relurl = "/";
       }
       for (JSON::ArrIter it = conncapa["methods"].ArrBegin(); it != conncapa["methods"].ArrEnd(); it++){
-        if (!ServConf["streams"][streamname]["meta"].isMember("live") || !it->isMember("nolive")){
+        if (!strmMeta.isMember("live") || !it->isMember("nolive")){
           addSource(relurl, sources, host, port, *it, most_simul, total_matches);
         }
       }

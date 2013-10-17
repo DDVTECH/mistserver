@@ -63,7 +63,6 @@ MistConnHTTPProgressiveFLV_SOURCES=connectors/conn_http_progressive_flv.cpp ../V
 MistConnHTTPProgressiveMP3_SOURCES=connectors/conn_http_progressive_mp3.cpp ../VERSION
 MistConnHTTPProgressiveMP4_SOURCES=connectors/conn_http_progressive_mp4.cpp ../VERSION
 MistConnHTTPProgressiveOGG_SOURCES=connectors/conn_http_progressive_ogg.cpp ../VERSION
-MistConnHTTPSRT_SOURCES=connectors/conn_http_srt.cpp ../VERSION
 MistConnHTTPDynamic_SOURCES=connectors/conn_http_dynamic.cpp ../VERSION
 MistConnHTTPSmooth_SOURCES=connectors/xap.h connectors/conn_http_smooth.cpp ../VERSION
 MistConnHTTPLive_SOURCES=connectors/conn_http_live.cpp ../VERSION

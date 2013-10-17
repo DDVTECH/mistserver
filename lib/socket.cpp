@@ -203,6 +203,12 @@ void setFDBlocking(int FD, bool blocking){
   fcntl(FD, F_SETFL, flags);
 }
 
+/// Internally used call to make an file descriptor blocking or not.
+bool isFDBlocking(int FD){
+  int flags = fcntl(FD, F_GETFL, 0);
+  return (flags & O_NONBLOCK);
+}
+
 /// Set this socket to be blocking (true) or nonblocking (false).
 void Socket::Connection::setBlocking(bool blocking){
   if (sock >= 0){
@@ -214,6 +220,20 @@ void Socket::Connection::setBlocking(bool blocking){
   if (pipes[1] >= 0){
     setFDBlocking(pipes[1], blocking);
   }
+}
+
+/// Set this socket to be blocking (true) or nonblocking (false).
+bool Socket::Connection::isBlocking(){
+  if (sock >= 0){
+    return isFDBlocking(sock);
+  }
+  if (pipes[0] >= 0){
+    return isFDBlocking(pipes[0]);
+  }
+  if (pipes[1] >= 0){
+    return isFDBlocking(pipes[1]);
+  }
+  return false;
 }
 
 /// Close connection. The internal socket is closed and then set to -1.
@@ -383,9 +403,12 @@ std::string Socket::Connection::getStats(std::string C){
 /// Updates the downbuffer and upbuffer internal variables.
 /// Returns true if new data was received, false otherwise.
 bool Socket::Connection::spool(){
+  bool bing = isBlocking();
+  if (!bing){setBlocking(true);}
   if (upbuffer.size() > 0){
     iwrite(upbuffer.get());
   }
+  if (!bing){setBlocking(false);}
   /// \todo Provide better mechanism to prevent overbuffering.
   if (downbuffer.size() > 10000){
     return true;
@@ -397,11 +420,12 @@ bool Socket::Connection::spool(){
 /// Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
 /// Returns true if new data was received, false otherwise.
 bool Socket::Connection::flush(){
+  bool bing = isBlocking();
+  if (!bing){setBlocking(true);}
   while (upbuffer.size() > 0 && connected()){
-    if ( !iwrite(upbuffer.get())){
-      Util::sleep(10); //sleep 10ms
-    }
+    iwrite(upbuffer.get());
   }
+  if (!bing){setBlocking(false);}
   /// \todo Provide better mechanism to prevent overbuffering.
   if (downbuffer.size() > 1000){
     return true;
@@ -420,17 +444,13 @@ Socket::Buffer & Socket::Connection::Received(){
 /// Any data that could not be send will block until it can be send or the connection is severed.
 void Socket::Connection::SendNow(const char * data, size_t len){
   while (upbuffer.size() > 0 && connected()){
-    if ( !iwrite(upbuffer.get())){
-      Util::sleep(1); //sleep 1ms if buffer full
-    }
+    iwrite(upbuffer.get());
   }
   int i = iwrite(data, len);
   while (i < len && connected()){
     int j = iwrite(data + i, std::min(len - i, (size_t)51200));
     if (j > 0){
       i += j;
-    }else{
-      Util::sleep(1); //sleep 1ms and retry
     }
   }
 }
@@ -860,6 +880,14 @@ void Socket::Server::setBlocking(bool blocking){
   if (sock >= 0){
     setFDBlocking(sock, blocking);
   }
+}
+
+/// Set this socket to be blocking (true) or nonblocking (false).
+bool Socket::Server::isBlocking(){
+  if (sock >= 0){
+    return isFDBlocking(sock);
+  }
+  return false;
 }
 
 /// Close connection. The internal socket is closed and then set to -1.

@@ -69,6 +69,7 @@ namespace Socket {
       //generic methods
       void close(); ///< Close connection.
       void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
+      bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
       std::string getHost(); ///< Gets hostname for connection, if available.
       void setHost(std::string host); ///< Sets hostname for connection manually.
       int getSocket(); ///< Returns internal socket number.
@@ -111,6 +112,7 @@ namespace Socket {
       Connection accept(bool nonblock = false); ///< Accept any waiting connections.
       void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
       bool connected() const; ///< Returns the connected-state for this socket.
+      bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
       void close(); ///< Close connection.
       int getSocket(); ///< Returns internal socket number.
   };

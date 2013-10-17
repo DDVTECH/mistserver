@@ -73,9 +73,7 @@ namespace Controller {
           std::string mistfix = Util::getMyPath() + "MistDTSCFix";
           tmp_cmd[0] = (char*)mistfix.c_str();
           tmp_cmd[1] = (char*)URL.c_str();
-          int out = 1;
-          int err = 2;
-          Util::Procs::StartPiped("MistFixer", tmp_cmd, 0, &out, &err);
+          Util::Procs::getOutputOf(tmp_cmd);
           data.removeMember("meta");
         }
         if (Util::epoch() - lastBuffer[name] > 5){

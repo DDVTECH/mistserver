@@ -1041,6 +1041,8 @@ DTSC::File::~File(){
 
 
 bool DTSC::isFixed(JSON::Value & metadata){
+  if (metadata.isMember("is_fixed")){return true;}
+  if ( !metadata.isMember("tracks")){return false;}
   for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
     if (!(it->second.isMember("keys") && it->second["keys"].isArray() && it->second["keys"][0u].isMember("bpos"))){
       return false;

@@ -241,39 +241,6 @@ namespace Connector_HTTP {
                 }
                 parseString = parseString.substr(parseString.find("(") + 1);
                 requestedTime = atoll(parseString.substr(0, parseString.find(")")).c_str());
-                if (Strm.metadata.isMember("live")){
-                  ///\todo Fix this for live stuff
-                  int seekable = Strm.canSeekms(requestedTime / 10000);
-                  if (seekable == 0){
-                    // iff the fragment in question is available, check if the next is available too
-                    for (int i = 0; i < Strm.metadata["keytime"].size(); i++){
-                      if (Strm.metadata["keytime"][i].asInt() >= (requestedTime / 10000)){
-                        if (i + 1 == Strm.metadata["keytime"].size()){
-                          seekable = 1;
-                        }
-                        break;
-                      }
-                    }
-                  }
-                  if (seekable < 0){
-                    HTTP_S.Clean();
-                    HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-                    conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
-                    HTTP_R.Clean(); //clean for any possible next requests
-                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms too old (" << Strm.metadata["keytime"][0u].asInt() << " - " << Strm.metadata["keytime"][Strm.metadata["keytime"].size() - 1].asInt() << " ms)" << std::endl;
-                    continue;
-                  }
-                  if (seekable > 0){
-                    HTTP_S.Clean();
-                    HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-                    conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
-                    HTTP_R.Clean(); //clean for any possible next requests
-                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms not available yet (" << Strm.metadata["keytime"][0u].asInt() << " - " << Strm.metadata["keytime"][Strm.metadata["keytime"].size() - 1].asInt() << " ms)" << std::endl;
-                    continue;
-                  }
-                }
-                //Seek to the right place and send a play-once for a single fragment.
-                std::stringstream sstream;
                 JSON::Value myRef;
                 long long int selectedQuality = atoll(Quality.c_str()) / 8;
                 if (wantsVideo){
@@ -292,6 +259,39 @@ namespace Connector_HTTP {
                     }
                   }
                 }
+                if (Strm.metadata.isMember("live")){
+                  ///\todo Fix this for live stuff
+                  int seekable = Strm.canSeekms(requestedTime / 10000);
+                  if (seekable == 0){
+                    // iff the fragment in question is available, check if the next is available too
+                    for (JSON::ArrIter aIt = myRef["keys"].ArrBegin(); aIt != myRef["keys"].ArrEnd(); aIt++){
+                      if ((*aIt)["time"].asInt() >= (requestedTime / 10000)){
+                        if ((aIt + 1) == myRef["keys"].ArrEnd()){
+                          seekable = 1;
+                        }
+                        break;
+                      }
+                    }
+                  }
+                  if (seekable < 0){
+                    HTTP_S.Clean();
+                    HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+                    conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
+                    HTTP_R.Clean(); //clean for any possible next requests
+                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms too old (" << myRef["keys"][0u]["time"].asInt() << " - " << myRef["keys"][myRef["keys"].size() - 1]["time"].asInt() << " ms)" << std::endl;
+                    continue;
+                  }
+                  if (seekable > 0){
+                    HTTP_S.Clean();
+                    HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                    conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
+                    HTTP_R.Clean(); //clean for any possible next requests
+                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms not available yet (" << myRef["keys"][0u]["time"].asInt() << " - " << myRef["keys"][myRef["keys"].size() - 1]["time"].asInt() << " ms)" << std::endl;
+                    continue;
+                  }
+                }
+                //Seek to the right place and send a play-once for a single fragment.
+                std::stringstream sstream;
                 
                 long long mstime = 0;
                 long long mslen = 0;

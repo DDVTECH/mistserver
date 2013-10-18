@@ -177,7 +177,9 @@ namespace OGG{
   }
   
   inline void Page::setPageSegments(char newVal){
-    data[26] = newVal;
+    if(checkDataSize(26)){
+      data[26] = newVal;
+    }
   }
   
   char* Page::getSegmentTable(){
@@ -432,7 +434,7 @@ namespace OGG{
     return retVal;
   }
   
-  bool Page::checkDataSize(unsigned int size){
+  inline bool Page::checkDataSize(unsigned int size){
     if (size > datasize){
       void* tmp = realloc(data,size);
       if (tmp){

@@ -403,12 +403,9 @@ std::string Socket::Connection::getStats(std::string C){
 /// Updates the downbuffer and upbuffer internal variables.
 /// Returns true if new data was received, false otherwise.
 bool Socket::Connection::spool(){
-  bool bing = isBlocking();
-  if (!bing){setBlocking(true);}
   if (upbuffer.size() > 0){
     iwrite(upbuffer.get());
   }
-  if (!bing){setBlocking(false);}
   /// \todo Provide better mechanism to prevent overbuffering.
   if (downbuffer.size() > 10000){
     return true;
@@ -443,6 +440,8 @@ Socket::Buffer & Socket::Connection::Received(){
 /// This will send the upbuffer (if non-empty) first, then the data.
 /// Any data that could not be send will block until it can be send or the connection is severed.
 void Socket::Connection::SendNow(const char * data, size_t len){
+  bool bing = isBlocking();
+  if (!bing){setBlocking(true);}
   while (upbuffer.size() > 0 && connected()){
     iwrite(upbuffer.get());
   }
@@ -453,6 +452,7 @@ void Socket::Connection::SendNow(const char * data, size_t len){
       i += j;
     }
   }
+  if (!bing){setBlocking(false);}
 }
 
 /// Appends data to the upbuffer.

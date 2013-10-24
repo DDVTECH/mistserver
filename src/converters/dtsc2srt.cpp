@@ -34,9 +34,9 @@ namespace Converters {
       std::cout << F.getJSON()["data"].asString() << std::endl;
       F.parseNext();
     }
+    return 0;
 
   } //DTSCFix
-  return 0;
 
 }
 

@@ -36,6 +36,7 @@ namespace Converters {
     }
 
   } //DTSCFix
+  return 0;
 
 }
 

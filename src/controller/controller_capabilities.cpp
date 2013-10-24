@@ -120,22 +120,22 @@ namespace Controller {
           continue;
         }
         long long int i;
-        if (sscanf(line, "MemTotal : %Li kB", &i) == 1){
+        if (sscanf(line, "MemTotal : %lli kB", &i) == 1){
           capa["mem"]["total"] = i / 1024;
         }
-        if (sscanf(line, "MemFree : %Li kB", &i) == 1){
+        if (sscanf(line, "MemFree : %lli kB", &i) == 1){
           capa["mem"]["free"] = i / 1024;
         }
-        if (sscanf(line, "SwapTotal : %Li kB", &i) == 1){
+        if (sscanf(line, "SwapTotal : %lli kB", &i) == 1){
           capa["mem"]["swaptotal"] = i / 1024;
         }
-        if (sscanf(line, "SwapFree : %Li kB", &i) == 1){
+        if (sscanf(line, "SwapFree : %lli kB", &i) == 1){
           capa["mem"]["swapfree"] = i / 1024;
         }
-        if (sscanf(line, "Buffers : %Li kB", &i) == 1){
+        if (sscanf(line, "Buffers : %lli kB", &i) == 1){
           bufcache += i / 1024;
         }
-        if (sscanf(line, "Cached : %Li kB", &i) == 1){
+        if (sscanf(line, "Cached : %lli kB", &i) == 1){
           bufcache += i / 1024;
         }
       }

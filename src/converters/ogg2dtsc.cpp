@@ -93,7 +93,7 @@ namespace Converters{
               }
               DTSCOut["data"] = std::string(oggPage.getFullPayload()+offset, (*it)); //segment content put in JSON
               if (trackData[sNum].codec == THEORA){
-                if (trackData[sNum].idHeader.parseGranuleUpper(temp) == 0){ //granule mask equals zero when on keyframe
+                if (trackData[sNum].idHeader.parseGranuleLower(temp) == 0){ //granule mask equals zero when on keyframe
                   DTSCOut["keyframe"] = 1;
                 }else{
                   DTSCOut["interframe"] = 1;

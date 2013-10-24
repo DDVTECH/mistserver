@@ -206,7 +206,7 @@ void setFDBlocking(int FD, bool blocking){
 /// Internally used call to make an file descriptor blocking or not.
 bool isFDBlocking(int FD){
   int flags = fcntl(FD, F_GETFL, 0);
-  return (flags & O_NONBLOCK);
+  return !(flags & O_NONBLOCK);
 }
 
 /// Set this socket to be blocking (true) or nonblocking (false).

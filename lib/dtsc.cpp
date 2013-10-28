@@ -356,6 +356,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
       if (metadata["tracks"][track]["frags"].size() > 0){
         // delete fragments of which the beginning can no longer be reached
         while (metadata["tracks"][track]["frags"].size() > 0 && metadata["tracks"][track]["frags"][0u]["num"].asInt() < metadata["tracks"][track]["keys"][0u]["num"].asInt()){
+          metadata["tracks"][track]["firstms"] = metadata["tracks"][track]["firstms"].asInt() + metadata["tracks"][track]["frags"][0u]["dur"].asInt();
           metadata["tracks"][track]["frags"].shrink(metadata["tracks"][track]["frags"].size() - 1);
           // increase the missed fragments counter
           metadata["tracks"][track]["missed_frags"] = metadata["tracks"][track]["missed_frags"].asInt() + 1;

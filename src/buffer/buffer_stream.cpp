@@ -68,7 +68,6 @@ namespace Buffer {
 
     if(Storage["meta"].isMember("tracks") && Storage["meta"]["tracks"].size() > 0){
       for(JSON::ObjIter it = Storage["meta"]["tracks"].ObjBegin(); it != Storage["meta"]["tracks"].ObjEnd(); it++){
-        it->second.removeMember("init");
         it->second.removeMember("keys");
         it->second.removeMember("frags");
       }

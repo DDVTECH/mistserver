@@ -8,14 +8,14 @@
 #include <string.h> //for memcpy
 #include <arpa/inet.h> //for htonl
 
-static int c2hex(char c){
+static inline char c2hex(char c){
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return c - 'a' + 10;
   if (c >= 'A' && c <= 'F') return c - 'A' + 10;
   return 0;
 }
 
-static char hex2c(char c){
+static inline char hex2c(char c){
   if (c < 10){return '0' + c;}
   if (c < 16){return 'A' + (c - 10);}
   return '0';
@@ -25,7 +25,8 @@ static std::string read_string(int separator, std::istream & fromstream){
   std::string out;
   bool escaped = false;
   while (fromstream.good()){
-    int c = fromstream.get();
+    char c;
+    fromstream.get(c);
     if (c == '\\'){
       escaped = true;
       continue;
@@ -48,15 +49,18 @@ static std::string read_string(int separator, std::istream & fromstream){
           out += '\t';
           break;
         case 'u': {
-          int d1 = fromstream.get();
-          int d2 = fromstream.get();
-          int d3 = fromstream.get();
-          int d4 = fromstream.get();
-          c = c2hex(d4) + (c2hex(d3) << 4) + (c2hex(d2) << 8) + (c2hex(d1) << 16);
+          char d1, d2, d3, d4;
+          fromstream.get(d1);
+          fromstream.get(d2);
+          fromstream.get(d3);
+          fromstream.get(d4);
+          out.append(1, (c2hex(d4) + (c2hex(d3) << 4)));
+          //We ignore the upper two characters.
+          // + (c2hex(d2) << 8) + (c2hex(d1) << 16)
           break;
         }
         default:
-          out += (char)c;
+          out.append(1, c);
           break;
       }
       escaped = false;
@@ -64,7 +68,7 @@ static std::string read_string(int separator, std::istream & fromstream){
       if (c == separator){
         return out;
       }else{
-        out += (char)c;
+        out.append(1, c);
       }
     }
   }
@@ -74,7 +78,7 @@ static std::string read_string(int separator, std::istream & fromstream){
 static std::string string_escape(const std::string val){
   std::string out = "\"";
   for (unsigned int i = 0; i < val.size(); ++i){
-    switch (val[i]){
+    switch (val.data()[i]){
       case '"':
         out += "\\\"";
         break;
@@ -97,12 +101,12 @@ static std::string string_escape(const std::string val){
         out += "\\t";
         break;
       default:
-        if (val[i] < 32 || val[i] > 126){
+        if (val.data()[i] < 32 || val.data()[i] > 126){
           out += "\\u00";
-          out += hex2c((val[i] >> 4) & 0xf);
-          out += hex2c(val[i] & 0xf);
+          out += hex2c((val.data()[i] >> 4) & 0xf);
+          out += hex2c(val.data()[i] & 0xf);
         }else{
-          out += val[i];
+          out += val.data()[i];
         }
         break;
     }

@@ -497,9 +497,11 @@ int main(int argc, char ** argv){
   capa["methods"][0u]["handler"] = "http";
   capa["methods"][0u]["type"] = "html5/application/vnd.ms-ss";
   capa["methods"][0u]["priority"] = 9ll;
+  capa["methods"][0u]["nolive"] = 1;
   capa["methods"][1u]["handler"] = "http";
   capa["methods"][1u]["type"] = "silverlight";
   capa["methods"][1u]["priority"] = 1ll;
+  capa["methods"][1u]["nolive"] = 1;
   conf.addBasicConnectorOptions(capa);
   conf.parseArgs(argc, argv);
   

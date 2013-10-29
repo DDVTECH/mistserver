@@ -14,10 +14,16 @@ namespace Controller {
   void Log(std::string kind, std::string message){
     //if last log message equals this one, do not log.
     if (Storage["log"].size() > 0){
-      JSON::ArrIter it = Storage["log"].ArrEnd() - 1;
-      if (( *it)[2] == message && ( *it)[1] == kind){
-        return;
-      }
+      JSON::ArrIter it = Storage["log"].ArrEnd();
+      int repeats = Storage["log"].size();
+      if (repeats > 10){repeats = 10;}
+      do{
+        it--;
+        if (( *it)[2] == message && ( *it)[1] == kind){
+          return;
+        }
+        repeats--;
+      }while (repeats > 0);
     }
     JSON::Value m;
     m.append(Util::epoch());

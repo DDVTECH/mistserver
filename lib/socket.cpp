@@ -533,8 +533,9 @@ int Socket::Connection::iwrite(const void * buffer, int len){
       default:
         if (errno != EPIPE){
           Error = true;
+          remotehost = strerror(errno);
 #if DEBUG >= 2
-          fprintf(stderr, "Could not iwrite data! Error: %s\n", strerror(errno));
+          fprintf(stderr, "Could not iwrite data! Error: %s\n", remotehost.c_str());
 #endif
         }
         close();
@@ -572,8 +573,9 @@ int Socket::Connection::iread(void * buffer, int len){
       default:
         if (errno != EPIPE){
           Error = true;
+          remotehost = strerror(errno);
 #if DEBUG >= 2
-          fprintf(stderr, "Could not iread data! Error: %s\n", strerror(errno));
+          fprintf(stderr, "Could not iread data! Error: %s\n", remotehost.c_str());
 #endif
         }
         close();

@@ -76,7 +76,7 @@ namespace Buffer {
     } //cancel if not connected
     if (myRing->waiting){
       Stream::get()->waitForData();
-      if (!Stream::get()->getStream()->isNewest(myRing->b)){
+      if (!Stream::get()->getStream()->isNewest(myRing->b, allowedTracks)){
         myRing->waiting = false;
         Stream::get()->getReadLock();
         myRing->b = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
@@ -107,7 +107,7 @@ namespace Buffer {
     if (doSend(Stream::get()->getStream()->outPacket(myRing->b).c_str(), Stream::get()->getStream()->outPacket(myRing->b).length())){
       //switch to next buffer
       currsend = 0;
-      if (Stream::get()->getStream()->isNewest(myRing->b)){
+      if (Stream::get()->getStream()->isNewest(myRing->b, allowedTracks)){
         //no next buffer? go in waiting mode.
         myRing->waiting = true;
         Stream::get()->dropReadLock();

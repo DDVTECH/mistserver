@@ -513,16 +513,20 @@ DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> & allowedTrack
   return result;
 }
 
-bool DTSC::Stream::isNewest(DTSC::livePos & pos){
-  return (buffers.upper_bound(pos) == buffers.end());
+/// Returns whether the current position is the last currently available position within allowedTracks.
+/// Simply returns the result of getNext(pos, allowedTracks) == pos
+bool DTSC::Stream::isNewest(DTSC::livePos & pos, std::set<int> & allowedTracks){
+  return getNext(pos, allowedTracks) == pos;
 }
 
+/// Returns the next available position within allowedTracks, or the current position if no next is availble.
 DTSC::livePos DTSC::Stream::getNext(DTSC::livePos & pos, std::set<int> & allowedTracks){
-  if (!isNewest(pos)){
-    return (buffers.upper_bound(pos))->first;
-  }else{
-    return livePos();
+  std::map<livePos,JSON::Value>::iterator iter = buffers.upper_bound(pos);
+  while (iter != buffers.end()){
+    if (allowedTracks.count(iter->first.trackID)){return iter->first;}
+    iter++;
   }
+  return pos;
 }
 
 /// Properly cleans up the object for erasing.

@@ -211,7 +211,7 @@ namespace DTSC {
       int canSeekms(unsigned int ms);
       livePos msSeek(unsigned int ms, std::set<int> & allowedTracks);
       void setBufferTime(unsigned int ms);
-      bool isNewest(DTSC::livePos & pos);
+      bool isNewest(DTSC::livePos & pos, std::set<int> & allowedTracks);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
       void endStream();
       void waitForMeta(Socket::Connection & sourceSocket);

@@ -107,13 +107,14 @@ namespace Buffer {
     if (doSend(Stream::get()->getStream()->outPacket(myRing->b).c_str(), Stream::get()->getStream()->outPacket(myRing->b).length())){
       //switch to next buffer
       currsend = 0;
-      if (Stream::get()->getStream()->isNewest(myRing->b, allowedTracks)){
+      DTSC::livePos newPos = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
+      if (myRing->b == newPos){
         //no next buffer? go in waiting mode.
         myRing->waiting = true;
         Stream::get()->dropReadLock();
         return false;
       }
-      myRing->b = Stream::get()->getStream()->getNext(myRing->b, allowedTracks);
+      myRing->b = newPos;
       if ((Stream::get()->getStream()->getPacket(myRing->b).isMember("keyframe") && (myRing->playCount > 0)) || (playUntil && playUntil <= Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt())){
         myRing->playCount--;
         if (myRing->playCount < 1 || playUntil <= Stream::get()->getStream()->getPacket(myRing->b)["time"].asInt()){

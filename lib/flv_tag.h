@@ -35,8 +35,10 @@ namespace FLV {
       const char * getAudioCodec(); ///< Returns a c-string with the audio codec name.
       const char * getVideoCodec(); ///< Returns a c-string with the video codec name.
       std::string tagType(); ///< Returns a std::string describing the tag in detail.
-      unsigned int tagTime(); ///< Returns the 32-bit timestamp of this tag.
-      void tagTime(unsigned int T); ///< Sets the 32-bit timestamp of this tag.
+      unsigned int tagTime();
+      void tagTime(unsigned int T);
+      int offset();
+      void offset(int o);
       Tag(); ///< Constructor for a new, empty, tag.
       Tag(const Tag& O); ///< Copy constructor, copies the contents of an existing tag.
       Tag & operator=(const Tag& O); ///< Assignment operator - works exactly like the copy constructor.

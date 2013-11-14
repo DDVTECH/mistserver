@@ -423,7 +423,10 @@ std::string & RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char * d
 /// \param tag FLV::Tag with media to send.
 std::string & RTMPStream::SendMedia(FLV::Tag & tag){
   static RTMPStream::Chunk ch;
-  ch.cs_id = ((unsigned char)tag.data[0]);
+  //Commented bit is more efficient and correct according to RTMP spec.
+  //Simply passing "4" is the only thing that actually plays correctly, though.
+  //Adobe, if you're ever reading this... wtf? Seriously.
+  ch.cs_id = 4;//((unsigned char)tag.data[0]);
   ch.timestamp = tag.tagTime();
   ch.len = tag.len - 15;
   ch.real_len = tag.len - 15;

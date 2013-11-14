@@ -262,6 +262,25 @@ std::string FLV::Tag::tagType(){
   return R.str();
 } //FLV::Tag::tagtype
 
+/// Returns the 24-bit offset of this tag.
+/// Returns 0 if the tag isn't H264
+int FLV::Tag::offset(){
+  if (data[11] & 0x0F == 7){
+    return (((data[13] << 16) + (data[14] << 8) + data[15]) << 8) >> 8;
+  }else{
+    return 0;
+  }
+} //offset getter
+
+/// Sets the 24-bit offset of this tag.
+/// Ignored if the tag isn't H264
+void FLV::Tag::offset(int o){
+  if (data[11] & 0x0F != 7){return;}
+  data[13] = (o >> 16) & 0xFF;
+  data[14] = (o >> 8) & 0XFF;
+  data[15] = o & 0xFF;
+} //offset setter
+
 /// Returns the 32-bit timestamp of this tag.
 unsigned int FLV::Tag::tagTime(){
   return (data[4] << 16) + (data[5] << 8) + data[6] + (data[7] << 24);
@@ -401,10 +420,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
           }else{
             data[12] = 2;
           }
-          int offset = S.getPacket()["offset"].asInt();
-          data[13] = (offset >> 16) & 0xFF;
-          data[14] = (offset >> 8) & 0XFF;
-          data[15] = offset & 0xFF;
+          offset(S.getPacket()["offset"].asInt());
         }
         data[11] = 0;
         if (track.isMember("codec") && track["codec"].asStringRef() == "H264"){
@@ -1174,9 +1190,7 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
           pack_out["nalu_end"] = 1;
           break;
       }
-      int offset = (data[13] << 16) + (data[14] << 8) + data[15];
-      offset = (offset << 8) >> 8;
-      pack_out["offset"] = offset;
+      pack_out["offset"] = offset();
       if (len < 21){
         return JSON::Value();
       }

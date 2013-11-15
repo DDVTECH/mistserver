@@ -265,17 +265,12 @@ std::string FLV::Tag::tagType(){
 /// Returns the 24-bit offset of this tag.
 /// Returns 0 if the tag isn't H264
 int FLV::Tag::offset(){
-  if (data[11] & 0x0F == 7){
-    return (((data[13] << 16) + (data[14] << 8) + data[15]) << 8) >> 8;
-  }else{
-    return 0;
-  }
+  return (((data[13] << 16) + (data[14] << 8) + data[15]) << 8) >> 8;
 } //offset getter
 
 /// Sets the 24-bit offset of this tag.
 /// Ignored if the tag isn't H264
 void FLV::Tag::offset(int o){
-  if (data[11] & 0x0F != 7){return;}
   data[13] = (o >> 16) & 0xFF;
   data[14] = (o >> 8) & 0XFF;
   data[15] = o & 0xFF;

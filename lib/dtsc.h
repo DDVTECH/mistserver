@@ -13,42 +13,6 @@
 #include "socket.h"
 #include "timing.h"
 
-/// Holds all DDVTECH Stream Container classes and parsers.
-///length (int, length in seconds, if available)
-///video:
-/// - codec (string: H264, H263, VP6)
-/// - width (int, pixels)
-/// - height (int, pixels)
-/// - fpks (int, frames per kilosecond (FPS * 1000))
-/// - bps (int, bytes per second)
-/// - init (string, init data)
-/// - keycount (int, count of keyframes)
-/// - keyms (int, average ms per keyframe)
-/// - keyvar (int, max ms per keyframe variance)
-/// - keys (array of byte position ints - first is first keyframe, last is last keyframe, in between have ~equal spacing)
-///
-///audio:
-/// - codec (string: AAC, MP3)
-/// - rate (int, Hz)
-/// - size (int, bitsize)
-/// - bps (int, bytes per second)
-/// - channels (int, channelcount)
-/// - init (string, init data)
-///
-///All packets:
-/// - datatype (string: audio, video, meta (unused))
-/// - data (string: data)
-/// - time (int: ms into video)
-///
-///Video packets:
-/// - keyframe (int, if set, is a seekable keyframe)
-/// - interframe (int, if set, is a non-seekable interframe)
-/// - disposableframe (int, if set, is a disposable interframe)
-///
-///H264 video packets:
-/// - nalu (int, if set, is a nalu)
-/// - nalu_end (int, if set, is a end-of-sequence)
-/// - offset (int, unsigned version of signed int! Holds the ms offset between timestamp and proper display time for B-frames)
 namespace DTSC {
   bool isFixed(JSON::Value & metadata);
 
@@ -215,7 +179,9 @@ namespace DTSC {
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
       void endStream();
       void waitForMeta(Socket::Connection & sourceSocket);
-    private:
+    protected:
+      void cutOneBuffer();
+      void resetStream();
       std::map<livePos,JSON::Value> buffers;
       std::map<int,std::set<livePos> > keyframes;
       void addPacket(JSON::Value & newPack);
@@ -223,5 +189,6 @@ namespace DTSC {
       unsigned int buffercount;
       unsigned int buffertime;
       std::map<int,std::string> trackMapping;
+      void deletionCallback(livePos deleting);
   };
 }

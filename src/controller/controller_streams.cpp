@@ -20,7 +20,10 @@ namespace Controller {
     if (one.isMember("source") != two.isMember("source") || one["source"] != two["source"]){
       return false;
     }
-    if (one.isMember("DVR") != two.isMember("DVR") || one["DVR"] != two["DVR"]){
+    if (one.isMember("DVR") != two.isMember("DVR") || (one.isMember("DVR") && one["DVR"] != two["DVR"])){
+      return false;
+    }
+    if (one.isMember("cut") != two.isMember("cut") || (one.isMember("cut") && one["cut"] != two["cut"])){
       return false;
     }
     return true;
@@ -213,15 +216,24 @@ namespace Controller {
           out[jit->first].null();
           out[jit->first]["name"] = jit->first;
           out[jit->first]["source"] = jit->second["source"];
-          out[jit->first]["DVR"] = jit->second["DVR"];
+          out[jit->first]["DVR"] = jit->second["DVR"].asInt();
+          out[jit->first]["cut"] = jit->second["cut"].asInt();
+          out[jit->first]["updated"] = 1ll;
           Log("STRM", std::string("Updated stream ") + jit->first);
-          Util::Procs::Stop(jit->first);
-          startStream(jit->first, out[jit->first]);
+          if (out[jit->first]["source"].asStringRef().substr(0, 7) != "push://"){
+            Util::Procs::Stop(jit->first);
+            startStream(jit->first, out[jit->first]);
+          }else{
+            if ( !Util::Procs::isActive(jit->first)){
+              startStream(jit->first, out[jit->first]);
+            }
+          }
         }
       }else{
         out[jit->first]["name"] = jit->first;
         out[jit->first]["source"] = jit->second["source"];
-        out[jit->first]["DVR"] = jit->second["DVR"];
+        out[jit->first]["DVR"] = jit->second["DVR"].asInt();
+        out[jit->first]["cut"] = jit->second["cut"].asInt();
         Log("STRM", std::string("New stream ") + jit->first);
         startStream(jit->first, out[jit->first]);
       }

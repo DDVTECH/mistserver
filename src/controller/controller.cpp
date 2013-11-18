@@ -421,6 +421,24 @@ int main(int argc, char ** argv){
               if (Request.isMember("meta")){
                 Controller::Storage["streams"][thisbuffer]["meta"] = Request["meta"];
               }
+              if (Controller::Storage["streams"][thisbuffer].isMember("updated")){
+                Controller::Storage["streams"][thisbuffer].removeMember("updated");
+                if (Controller::Storage["streams"][thisbuffer].isMember("cut")){
+                  it->SendNow("c"+Controller::Storage["streams"][thisbuffer]["cut"].asString()+"\n");
+                }else{
+                  it->SendNow("c0\n");
+                }
+                if (Controller::Storage["streams"][thisbuffer].isMember("DVR")){
+                  it->SendNow("d"+Controller::Storage["streams"][thisbuffer]["DVR"].asString()+"\n");
+                }else{
+                  it->SendNow("d20000\n");
+                }
+                if (Controller::Storage["streams"][thisbuffer].isMember("source") && Controller::Storage["streams"][thisbuffer]["source"].asStringRef().substr(0, 7) == "push://"){
+                  it->SendNow("s"+Controller::Storage["streams"][thisbuffer]["source"].asStringRef().substr(7)+"\n");
+                }else{
+                  it->SendNow("s127.0.01\n");
+                }
+              }
               if (Request.isMember("totals")){
                 Controller::Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
                 std::string nowstr = Request["totals"]["now"].asString();

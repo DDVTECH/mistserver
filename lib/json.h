@@ -6,6 +6,7 @@
 #include <map>
 #include <istream>
 #include <vector>
+#include "socket.h"
 
 //empty definition of DTSC::Stream so it can be a friend.
 namespace DTSC {
@@ -73,7 +74,9 @@ namespace JSON {
       const Value & operator[](const char * i) const;
       const Value & operator[](unsigned int i) const;
       //handy functions and others
-      std::string toPacked();
+      std::string toPacked() const;
+      void sendTo(Socket::Connection & socket) const;
+      unsigned int packedSize() const;
       void netPrepare();
       std::string & toNetPacked();
       std::string toString() const;

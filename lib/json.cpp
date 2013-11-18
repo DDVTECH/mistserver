@@ -475,7 +475,7 @@ const JSON::Value & JSON::Value::operator[](unsigned int i) const{
 /// Packs to a std::string for transfer over the network.
 /// If the object is a container type, this function will call itself recursively and contain all contents.
 /// As a side effect, this function clear the internal buffer of any object-types.
-std::string JSON::Value::toPacked(){
+std::string JSON::Value::toPacked() const{
   std::string r;
   if (isInt() || isNull() || isBool()){
     r += 0x01;
@@ -500,7 +500,7 @@ std::string JSON::Value::toPacked(){
   if (isObject()){
     r += 0xE0;
     if (objVal.size() > 0){
-      for (JSON::ObjIter it = objVal.begin(); it != objVal.end(); it++){
+      for (JSON::ObjConstIter it = objVal.begin(); it != objVal.end(); it++){
         if (it->first.size() > 0){
           r += it->first.size() / 256;
           r += it->first.size() % 256;
@@ -512,11 +512,10 @@ std::string JSON::Value::toPacked(){
     r += (char)0x0;
     r += (char)0x0;
     r += (char)0xEE;
-    strVal.clear();
   }
   if (isArray()){
     r += 0x0A;
-    for (JSON::ArrIter it = arrVal.begin(); it != arrVal.end(); it++){
+    for (JSON::ArrConstIter it = arrVal.begin(); it != arrVal.end(); it++){
       r += it->toPacked();
     }
     r += (char)0x0;
@@ -526,6 +525,115 @@ std::string JSON::Value::toPacked(){
   return r;
 }
 //toPacked
+
+/// Packs and transfers over the network.
+/// If the object is a container type, this function will call itself recursively for all contents.
+void JSON::Value::sendTo(Socket::Connection & socket) const{
+  if (isInt() || isNull() || isBool()){
+    socket.SendNow("\001", 1);
+    int tmpHalf = htonl((int)(intVal >> 32));
+    socket.SendNow((char*)&tmpHalf, 4);
+    tmpHalf = htonl((int)(intVal & 0xFFFFFFFF));
+    socket.SendNow((char*)&tmpHalf, 4);
+    return;
+  }
+  if (isString()){
+    socket.SendNow("\002", 1);
+    int tmpVal = htonl((int)strVal.size());
+    socket.SendNow((char*)&tmpVal, 4);
+    socket.SendNow(strVal);
+    return;
+  }
+  if (isObject()){
+    if (isMember("trackid") && isMember("time")){
+      unsigned int trackid = objVal.find("trackid")->second.asInt();
+      long long time = objVal.find("time")->second.asInt();
+      unsigned int size = 16;
+      if (objVal.size() > 0){
+        for (JSON::ObjConstIter it = objVal.begin(); it != objVal.end(); it++){
+          if (it->first.size() > 0 && it->first != "trackid" && it->first != "time" && it->first != "datatype"){
+            size += 2+it->first.size()+it->second.packedSize();
+          }
+        }
+      }
+      socket.SendNow("DTP2", 4);
+      size = htonl(size);
+      socket.SendNow((char*)&size, 4);
+      trackid = htonl(trackid);
+      socket.SendNow((char*)&trackid, 4);
+      int tmpHalf = htonl((int)(time >> 32));
+      socket.SendNow((char*)&tmpHalf, 4);
+      tmpHalf = htonl((int)(time & 0xFFFFFFFF));
+      socket.SendNow((char*)&tmpHalf, 4);
+      socket.SendNow("\340", 1);
+      if (objVal.size() > 0){
+        for (JSON::ObjConstIter it = objVal.begin(); it != objVal.end(); it++){
+          if (it->first.size() > 0 && it->first != "trackid" && it->first != "time" && it->first != "datatype"){
+            char sizebuffer[2] = {0, 0};
+            sizebuffer[0] = (it->first.size() >> 8) & 0xFF;
+            sizebuffer[1] = it->first.size() & 0xFF;
+            socket.SendNow(sizebuffer, 2);
+            socket.SendNow(it->first);
+            it->second.sendTo(socket);
+          }
+        }
+      }
+      socket.SendNow("\000\000\356", 3);
+      return;
+    }
+    socket.SendNow("\340", 1);
+    if (objVal.size() > 0){
+      for (JSON::ObjConstIter it = objVal.begin(); it != objVal.end(); it++){
+        if (it->first.size() > 0){
+          char sizebuffer[2] = {0, 0};
+          sizebuffer[0] = (it->first.size() >> 8) & 0xFF;
+          sizebuffer[1] = it->first.size() & 0xFF;
+          socket.SendNow(sizebuffer, 2);
+          socket.SendNow(it->first);
+          it->second.sendTo(socket);
+        }
+      }
+    }
+    socket.SendNow("\000\000\356", 3);
+    return;
+  }
+  if (isArray()){
+    socket.SendNow("\012", 1);
+    for (JSON::ArrConstIter it = arrVal.begin(); it != arrVal.end(); it++){
+      it->sendTo(socket);
+    }
+    socket.SendNow("\000\000\356", 3);
+    return;
+  }
+}//sendTo
+
+/// Returns the packed size of this Value.
+unsigned int JSON::Value::packedSize() const{
+  if (isInt() || isNull() || isBool()){
+    return 9;
+  }
+  if (isString()){
+    return 5 + strVal.size();
+  }
+  if (isObject()){
+    unsigned int ret = 4;
+    if (objVal.size() > 0){
+      for (JSON::ObjConstIter it = objVal.begin(); it != objVal.end(); it++){
+        if (it->first.size() > 0){
+          ret += 2+it->first.size()+it->second.packedSize();
+        }
+      }
+    }
+    return ret;
+  }
+  if (isArray()){
+    unsigned int ret = 4;
+    for (JSON::ArrConstIter it = arrVal.begin(); it != arrVal.end(); it++){
+      ret += it->packedSize();
+    }
+    return ret;
+  }
+}//packedSize
 
 /// Pre-packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
 /// Non-object-types will print an error to stderr.

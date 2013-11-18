@@ -117,21 +117,11 @@ namespace Analysers {
             fprintf(stderr, "CTRL: Set peer bandwidth: %i\n", RTMPStream::snd_window_size);
             break;
           case 8:
-            if (Detail & (DETAIL_EXPLICIT | DETAIL_RECONSTRUCT)){
-              F.ChunkLoader(next);
-              if (Detail & DETAIL_EXPLICIT){
-                std::cerr << "Got a " << F.len << " bytes " << F.tagType() << " FLV tag of time " << F.tagTime() << "." << std::endl;
-              }
-              if (Detail & DETAIL_RECONSTRUCT){
-                std::cout.write(F.data, F.len);
-              }
-            }
-            break;
           case 9:
             if (Detail & (DETAIL_EXPLICIT | DETAIL_RECONSTRUCT)){
               F.ChunkLoader(next);
               if (Detail & DETAIL_EXPLICIT){
-                std::cerr << "Got a " << F.len << " bytes " << F.tagType() << " FLV tag of time " << F.tagTime() << "." << std::endl;
+                std::cerr << "[" << F.tagTime() << "+" << F.offset() << "] " << F.tagType() << std::endl;
               }
               if (Detail & DETAIL_RECONSTRUCT){
                 std::cout.write(F.data, F.len);

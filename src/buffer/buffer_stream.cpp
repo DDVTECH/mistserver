@@ -206,11 +206,4 @@ namespace Buffer {
     moreData.wait(stats_mutex);
   }
   
-  /// Cuts all data before the whereToCut point.
-  void Stream::cutBefore(int whereToCut){
-    while (buffers.size() > 0 && buffers.begin()->first.seekTime < buffercount){
-      cutOneBuffer();
-    }
-  }
-  
 }

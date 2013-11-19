@@ -45,7 +45,6 @@ namespace Buffer {
       bool parsePacket(std::string & buffer);
       bool parsePacket(Socket::Buffer & buffer);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
-      void cutBefore(int whereToCut);
   private:
       void deletionCallback(DTSC::livePos deleting);
       volatile int readers; ///< Current count of active readers;

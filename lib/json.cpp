@@ -581,6 +581,11 @@ void JSON::Value::sendTo(Socket::Connection & socket) const{
       socket.SendNow("\000\000\356", 3);
       return;
     }
+    if (isMember("tracks")){
+      socket.SendNow("DTSC", 4);
+      unsigned int size = htonl(packedSize());
+      socket.SendNow((char*)&size, 4);
+    }
     socket.SendNow("\340", 1);
     if (objVal.size() > 0){
       for (JSON::ObjConstIter it = objVal.begin(); it != objVal.end(); it++){

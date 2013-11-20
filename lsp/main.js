@@ -961,6 +961,16 @@
           )
         );
         
+        // CUT
+        if (sdata.cut == undefined) { var cut = ''; } else { var cut = sdata.cut; }
+        $('#editserver').append(
+          $('<span>').addClass('live-only').addClass('LTS-only').append(
+            $('<label>').attr('id','stream-edit-cut-label').attr('for','stream-edit-cut').attr('title','Only applies to live streams.').text('Cut first section of stream [ms]').append(
+             $('<input>').attr('type','text').attr('id','stream-edit-cut').attr('value', cut)
+            )
+          )
+        );
+        
         var text = $('#stream-edit-source').val();
         //if the source is not live, show any stuff marked as live-only
         if(text.charAt(0) == '/')
@@ -998,10 +1008,12 @@
             var p = $('#stream-edit-preset');
             var b = $('#stream-edit-buffer');
             var r = $('#stream-edit-record');
+            var c = $('#stream-edit-cut');
             
             if(n.val() == ''){ n.focus(); return; }
             if(s.val() == ''){ s.focus(); return; }
             if((b.val() != '') && ((b.val() < 0) || (isNaN(b.val())))){ b.focus(); return; }
+            if((c.val() != '') && ((c.val() < 0) || (isNaN(c.val())))){ c.focus(); return; }
             
             var newname = n.val().replace(/([^a-zA-Z0-9_])/g, '').toLowerCase();
             
@@ -1012,6 +1024,7 @@
             sdata.error = null;
             sdata.record = r.val();
             if (b.val() != '') { sdata.DVR = b.val(); }
+            if (c.val() != '') { sdata.cut = c.val(); }
             sdata.contentkey = $('#stream-edit-contentkey').val();
             sdata.contentkey = $('#stream-edit-keyid').val();
             sdata.contentkey = $('#stream-edit-keyseed').val();

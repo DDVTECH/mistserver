@@ -575,11 +575,19 @@ DTSC::File & DTSC::File::operator =(const File & rhs){
   memcpy(buffer, rhs.buffer, 4);
 }
 
+DTSC::File::operator bool() const{
+  return F;
+}
+
 /// Open a filename for DTSC reading/writing.
 /// If create is true and file does not exist, attempt to create.
 DTSC::File::File(std::string filename, bool create){
   if (create){
     F = fopen(filename.c_str(), "w+b");
+    if(!F){
+      std::cerr << "Could not create file" << filename << ": " << strerror(errno) << std::endl;
+      return;
+    }
     //write an empty header
     fseek(F, 0, SEEK_SET);
     fwrite(DTSC::Magic_Header, 4, 1, F);

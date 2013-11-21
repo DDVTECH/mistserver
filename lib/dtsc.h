@@ -60,6 +60,7 @@ namespace DTSC {
       File(const File & rhs);
       File(std::string filename, bool create = false);
       File & operator = (const File & rhs);
+      operator bool() const;
       ~File();
       JSON::Value & getMeta();
       long long int getLastReadPos();

@@ -44,6 +44,7 @@ namespace Connector_RTMP {
   Socket::Connection Socket; ///< A copy of the user socket to allow helper functions to directly send data.
   Socket::Connection ss; ///< Socket connected to server.
   std::string streamName; ///< Stream that will be opened.
+  std::string app_name; ///< Name of the application that was opened
 
   ///\brief Sends a RTMP command either in AMF or AMF3 mode.
   ///\param amfReply The data to be sent over RTMP.
@@ -97,6 +98,8 @@ namespace Connector_RTMP {
         }
       }
   #endif
+      app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
+      app_name = app_name.substr(app_name.find('/', 7) + 1);
       RTMPStream::chunk_snd_max = 4096;
       Socket.Send(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       Socket.Send(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
@@ -193,8 +196,10 @@ namespace Connector_RTMP {
           return;
         }
         ss.Send("P ");
-        ss.Send(Socket.getHost().c_str());
-        ss.Send("\n");
+        ss.Send(Socket.getHost());
+        ss.Send(" ");
+        ss.Send(app_name);
+        ss.SendNow("\n");
         streamReset = true;
         noStats = true;
       }
@@ -257,8 +262,8 @@ namespace Connector_RTMP {
       amfReply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
       sendCommand(amfReply, playMessageType, playStreamId);
       ss.Send("s ");
-      ss.Send(JSON::Value((long long int)amfData.getContentP(3)->NumValue()).asString().c_str());
-      ss.Send("\n");
+      ss.Send(JSON::Value((long long int)amfData.getContentP(3)->NumValue()).asString());
+      ss.SendNow("\n");
       return;
     } //seek
     if ((amfData.getContentP(0)->StrValue() == "pauseRaw") || (amfData.getContentP(0)->StrValue() == "pause")){
@@ -277,7 +282,7 @@ namespace Connector_RTMP {
         amfReply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
         sendCommand(amfReply, playMessageType, playStreamId);
       }else{
-        ss.Send("p\n"); //start playing
+        ss.SendNow("p\n"); //start playing
         //send a status reply
         AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
         amfReply.addContent(AMF::Object("", "onStatus")); //status reply
@@ -586,7 +591,7 @@ namespace Connector_RTMP {
           long long int now = Util::epoch();
           if (now != lastStats){
             lastStats = now;
-            ss.SendNow(Socket.getStats("RTMP").c_str());
+            ss.SendNow(Socket.getStats("RTMP"));
           }
         }
         if (ss.spool()){

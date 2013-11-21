@@ -240,7 +240,7 @@ namespace Buffer {
           }
         }
       }
-      if (usr->myRing->waiting){
+      if (usr->myRing->waiting || !usr->myRing->playCount){
         Util::sleep(300); //sleep 5ms
       }
     }

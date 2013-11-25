@@ -80,15 +80,26 @@ namespace Buffer {
     waiting_ip = ip;
   }
 
-  /// Check if this is the IP address to accept push data from.
-  /// \param ip The IP address to check.
-  /// \return True if it is the correct address, false otherwise.
-  bool Stream::checkWaitingIP(std::string ip){
-    if (ip == waiting_ip || ip == "::ffff:" + waiting_ip){
-      return true;
+  ///\brief Check if this is the IP address to accept push data from.
+  ///\param ip The IP address to check, followed by a space and the password to check.
+  ///\return True if it is the correct address or password, false otherwise.
+  bool Stream::checkWaitingIP(std::string push_request){
+    std::string ip = push_request.substr(0, push_request.find(' '));
+    std::string pass = push_request.substr(push_request.find(' ') + 1);
+    if (waiting_ip.length() > 0 && waiting_ip[0] == '@'){
+      if (pass == waiting_ip.substr(1)){
+        return true;
+      }else{
+        std::cout << "Password '" << pass << "' incorrect" << std::endl;
+        return false;
+      }
     }else{
-      std::cout << ip << " != (::ffff:)" << waiting_ip << std::endl;
-      return false;
+      if (ip == waiting_ip || ip == "::ffff:" + waiting_ip){
+        return true;
+      }else{
+        std::cout << ip << " != (::ffff:)" << waiting_ip << std::endl;
+        return false;
+      }
     }
   }
 

@@ -42,21 +42,21 @@ namespace Controller {
     if (data.isMember("source")){
       URL = data["source"].asString();
     }
-    std::string cmd1, cmd2, cmd3;
+    std::string buffcmd;
     if (URL == ""){
       Log("STRM", "Error for stream " + name + "! Source parameter missing.");
       data["error"] = "Missing source parameter!";
       return;
     }
+    buffcmd = "MistBuffer";
+    if (data.isMember("DVR") && data["DVR"].asInt() > 0){
+      data["DVR"] = data["DVR"].asInt();
+      buffcmd += " -t " + data["DVR"].asString();
+    }
+    buffcmd += " -s " + name;
     if (URL.substr(0, 4) == "push"){
       std::string pusher = URL.substr(7);
-      if (data.isMember("DVR") && data["DVR"].asInt() > 0){
-        data["DVR"] = data["DVR"].asInt();
-        cmd2 = "MistBuffer -t " + data["DVR"].asString() + " -s " + name + " " + pusher;
-      }else{
-        cmd2 = "MistBuffer -s " + name + " " + pusher;
-      }
-      Util::Procs::Start(name, Util::getMyPath() + cmd2);
+      Util::Procs::Start(name, Util::getMyPath() + buffcmd + " " + pusher);
       Log("BUFF", "(re)starting stream buffer " + name + " for push data from " + pusher);
     }else{
       if (URL.substr(0, 1) == "/"){
@@ -123,23 +123,9 @@ namespace Controller {
           data["online"] = 1;
         }
         return; //MistPlayer handles VoD
-      }else{
-        cmd1 = "ffmpeg -re -async 2 -i " + URL + " -f flv -";
-        cmd2 = "MistFLV2DTSC";
       }
-      if (data.isMember("DVR") && data["DVR"].asInt() > 0){
-        data["DVR"] = data["DVR"].asInt();
-        cmd3 = "MistBuffer -t " + data["DVR"].asString() + " -s " + name;
-      }else{
-        cmd3 = "MistBuffer -s " + name;
-      }
-      if (cmd2 != ""){
-        Util::Procs::Start(name, cmd1, Util::getMyPath() + cmd2, Util::getMyPath() + cmd3);
-        Log("BUFF", "(re)starting stream buffer " + name + " for ffmpeg data: " + cmd1);
-      }else{
-        Util::Procs::Start(name, cmd1, Util::getMyPath() + cmd3);
-        Log("BUFF", "(re)starting stream buffer " + name + " using input file " + URL);
-      }
+      Util::Procs::Start(name, "ffmpeg -re -async 2 -i " + URL + " -f flv -", Util::getMyPath() + "MistFLV2DTSC", Util::getMyPath() + buffcmd);
+      Log("BUFF", "(re)starting stream buffer " + name + " for ffmpeg data: ffmpeg -re -async 2 -i " + URL + " -f flv -");
     }
   }
 

@@ -196,7 +196,7 @@ namespace Connector_RTMP {
           return;
         }
         ss.Send("P ");
-        ss.Send(Socket.getHost());
+        ss.Send(Socket.getHost().c_str());
         ss.Send(" ");
         ss.Send(app_name);
         ss.SendNow("\n");
@@ -262,7 +262,7 @@ namespace Connector_RTMP {
       amfReply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
       sendCommand(amfReply, playMessageType, playStreamId);
       ss.Send("s ");
-      ss.Send(JSON::Value((long long int)amfData.getContentP(3)->NumValue()).asString());
+      ss.Send(JSON::Value((long long int)amfData.getContentP(3)->NumValue()).asString().c_str());
       ss.SendNow("\n");
       return;
     } //seek

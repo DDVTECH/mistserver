@@ -180,9 +180,8 @@ namespace Connector_HTTP {
               Strm.waitForMeta(ss);
             }
             if (HTTP_R.url.find(".abst") != std::string::npos){
-              std::string streamID = HTTP_R.url.substr(HTTP_R.url.find(streamname) + streamname.size() + 1);
+              std::string streamID = HTTP_R.url.substr(streamname.size() + 10);
               streamID = streamID.substr(0, streamID.find(".abst"));
-              std::cerr << "Requesting bootstrap for stream " << streamID << std::endl;
               HTTP_S.Clean();
               HTTP_S.SetBody(dynamicBootstrap(streamname, Strm.getTrackById(atoll(streamID.c_str())),Strm.metadata.isMember("live")));
               HTTP_S.SetHeader("Content-Type", "binary/octet");

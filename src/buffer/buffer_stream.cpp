@@ -17,6 +17,8 @@ namespace Buffer {
       creator.lock();
       if (ref == 0){
         ref = new Stream();
+        ref->metadata["tracks"] = 1ll;
+        ref->metadata["live"] = 1ll;
       }
       creator.unlock();
     }

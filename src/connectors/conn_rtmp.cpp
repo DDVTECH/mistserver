@@ -195,6 +195,8 @@ namespace Connector_RTMP {
           Socket.close(); //disconnect user
           return;
         }
+        DTSC::Stream Strm;
+        Strm.waitForMeta(ss);
         ss.Send("P ");
         ss.Send(Socket.getHost().c_str());
         ss.Send(" ");

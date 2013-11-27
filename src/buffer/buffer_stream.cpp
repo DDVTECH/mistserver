@@ -17,8 +17,7 @@ namespace Buffer {
       creator.lock();
       if (ref == 0){
         ref = new Stream();
-        ref->metadata["tracks"] = 1ll;
-        ref->metadata["live"] = 1ll;
+        ref->metadata.live = true;
       }
       creator.unlock();
     }
@@ -194,7 +193,7 @@ namespace Buffer {
   void Stream::sendMeta(Socket::Connection & s){
     if (metadata){
       rw_mutex.lock();
-      metadata.sendTo(s);
+      metadata.send(s);
       rw_mutex.unlock();
     }
   }

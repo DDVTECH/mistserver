@@ -96,13 +96,13 @@ namespace Connector_HTTP {
           }
           Strm.waitForMeta(ss);
           int byterate = 0;
-          for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (audioID == -1 && objIt->second["codec"].asString() == "MP3"){
-              audioID = objIt->second["trackid"].asInt();
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+            if (audioID == -1 && it->second.codec == "MP3"){
+              audioID = it->second.trackID;
             }
           }
           if (audioID != -1){
-            byterate += Strm.getTrackById(audioID)["bps"].asInt();
+            byterate += Strm.metadata.tracks[audioID].bps;
           }
           if ( !byterate){byterate = 1;}
           if (seek_byte){

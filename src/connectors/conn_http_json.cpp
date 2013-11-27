@@ -121,12 +121,14 @@ namespace Connector_HTTP {
             std::stringstream cmd;
             cmd << "t";
 
-            if (Strm.metadata["tracks"].size()){
-              for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-                if ( objIt->second["type"].asStringRef() == "meta" ){
-                  cmd << " " <<  objIt->second["trackid"].asInt();
+            int tid = -1;
+            for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+              if (it->second.type == "meta" ){
+                if (tid == -1){
+                  tid = it->second.trackID;
                 }
-              }        
+                cmd << " " <<  it->second.trackID;
+              }
             }
 
             if( cmd.str() == "t" ){
@@ -134,7 +136,7 @@ namespace Connector_HTTP {
               cmd.clear();
             }
 
-            int maxTime = Strm.metadata["lastms"].asInt();
+            int maxTime = Strm.metadata.tracks[tid].lastms;
             
             cmd << "\ns " << seek_sec << "\np " << maxTime << "\n";
             ss.SendNow(cmd.str().c_str(), cmd.str().size());

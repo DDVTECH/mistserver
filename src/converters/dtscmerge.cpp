@@ -57,7 +57,7 @@ namespace Converters {
         fullSort = false;
       }else{
         DTSC::File F(tmpFileName);
-        if (!DTSC::isFixed(F.getMeta())){
+        if (!F.getMeta().isFixed()){
           std::cerr << tmpFileName << " has not been run through DTSCFix yet." << std::endl;
           return 1;
         }
@@ -69,11 +69,11 @@ namespace Converters {
       outFile = DTSC::File(outFileName, true);
     }else{
       outFile = DTSC::File(outFileName);
-      if (!DTSC::isFixed(outFile.getMeta())){
+      if ( !outFile.getMeta().isFixed()){
         std::cerr << outFileName << " has not been run through DTSCFix yet." << std::endl;
         return 1;
       }
-      meta = outFile.getMeta();
+      meta = outFile.getMeta().toJSON();
       newMeta = meta;
       if (meta.isMember("tracks") && meta["tracks"].size() > 0){
         for (JSON::ObjIter trackIt = meta["tracks"].ObjBegin(); trackIt != meta["tracks"].ObjEnd(); trackIt++){
@@ -86,7 +86,7 @@ namespace Converters {
     std::multimap<int,keyframeInfo> allSorted;
 
     for (std::map<std::string,DTSC::File>::iterator it = inFiles.begin(); it != inFiles.end(); it++){
-      JSON::Value tmpMeta = it->second.getMeta();
+      JSON::Value tmpMeta = it->second.getMeta().toJSON();
       if (tmpMeta.isMember("tracks") && tmpMeta["tracks"].size() > 0){
         for (JSON::ObjIter trackIt = tmpMeta["tracks"].ObjBegin(); trackIt != tmpMeta["tracks"].ObjEnd(); trackIt++){
           long long int oldID = trackIt->second["trackid"].asInt();

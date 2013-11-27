@@ -15,7 +15,7 @@ namespace Info {
       return 1;
     }
     DTSC::File F(argv[1]);
-    JSON::Value fileSpecs = F.getMeta();
+    JSON::Value fileSpecs = F.getMeta().toJSON();
     if( !fileSpecs ) {
       char ** cmd = (char**)malloc(3*sizeof(char*));
       cmd[0] = (char*)"ffprobe";
@@ -95,8 +95,9 @@ namespace Info {
       }
       JSON::Value tracks = fileSpecs["tracks"];
       for(JSON::ObjIter trackIt = tracks.ObjBegin(); trackIt != tracks.ObjEnd(); trackIt++){
-        fileSpecs["tracks"][trackIt->first].removeMember("frags");
+        fileSpecs["tracks"][trackIt->first].removeMember("fragments");
         fileSpecs["tracks"][trackIt->first].removeMember("keys");
+        fileSpecs["tracks"][trackIt->first].removeMember("parts");
       }
     }
     printf( "%s", fileSpecs.toString().c_str() );

@@ -107,23 +107,16 @@ namespace Connector_HTTP {
 
             if(trackID == -1){
               // no track was given. Fetch the first track that has SRT data
-              for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-                if (objIt->second["codec"].asStringRef() == "srt"){
-                  trackID = objIt->second["trackid"].asInt();
+              for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+                if (it->second.codec == "srt"){
+                  trackID = it->second.trackID;
                   subtitleTrack = true;
                   break;
                 }
               }
             }else{
               // track *was* given, but we have to check whether it's an actual srt track
-              for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-                if (objIt->second["trackid"].asInt() == trackID){
-                  subtitleTrack = (objIt->second["codec"].asStringRef() == "srt");
-                  break;
-                }else{
-                  subtitleTrack = false;
-                }
-              }
+              subtitleTrack = Strm.metadata.tracks[trackID].codec == "srt";
             }
 
             if(!subtitleTrack){
@@ -139,7 +132,7 @@ namespace Connector_HTTP {
  
             cmd << "t " << trackID;
 
-            int maxTime = Strm.metadata["lastms"].asInt();
+            int maxTime = Strm.metadata.tracks[trackID].lastms;
             
             cmd << "\ns " << seek_time << "\np " << maxTime << "\n";
             ss.SendNow(cmd.str().c_str(), cmd.str().size());

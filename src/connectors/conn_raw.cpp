@@ -33,14 +33,14 @@ int main(int argc, char ** argv){
   }
   long long int lastStats = 0;
   long long int started = Util::epoch();
-  while (std::cout.good()){
+  while (std::cout.good() && S.connected()){
     if (S.spool()){
       while (S.Received().size()){
         std::cout.write(S.Received().get().c_str(), S.Received().get().size());
         S.Received().get().clear();
       }
     }else{
-      Util::sleep(10); //sleep 10ms if no data
+      Util::sleep(500); //sleep 500ms if no data
     }
     unsigned int now = Util::epoch();
     if (now != lastStats){

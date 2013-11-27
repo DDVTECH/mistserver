@@ -20,7 +20,7 @@ namespace Converters{
     char* curNewPayload;
     OGG::headerPages oggMeta;
     //Creating ID headers for theora and vorbis
-    oggMeta.readDTSCHeader(DTSCFile.getMeta());
+    oggMeta.readDTSCHeader(DTSCFile.getMeta().toJSON());
     std::cout << oggMeta.parsedPages;//outputting header pages
    
     //create DTSC in OGG pages

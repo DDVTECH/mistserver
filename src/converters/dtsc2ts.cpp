@@ -32,10 +32,22 @@ namespace Converters {
     MP4::AVCC avccbox;
     bool haveAvcc = false;
     std::stringstream TSBuf;
+    int videoID = -1;
+    int audioID = -1;
 
 
     while (std::cin.good()){
       if (Strm.parsePacket(StrData)){
+        if ((videoID == -1 || audioID == -1) && Strm.metadata){
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+            if (videoID == -1 && it->second.type == "video"){
+              videoID = it->first;
+            }
+            if (audioID == -1 && it->second.type == "audio"){
+              audioID = it->first;
+            }
+          }
+        }
         if (Strm.lastType() == DTSC::PAUSEMARK){
           TSBuf.flush();
           if (TSBuf.str().size()){
@@ -46,7 +58,7 @@ namespace Converters {
           TSBuf.str("");
         }
         if ( !haveAvcc){
-          avccbox.setPayload(Strm.metadata["video"]["init"].asString());
+          avccbox.setPayload(Strm.metadata.tracks[videoID].init);
           haveAvcc = true;
         }
         if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
@@ -83,7 +95,7 @@ namespace Converters {
             PIDno = 0x100;
             ContCounter = &VideoCounter;
           }else if (Strm.lastType() == DTSC::AUDIO){
-            ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata["audio"]["init"].asString()));
+            ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata.tracks[audioID].init));
             ToPack.append(Strm.lastData());
             ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket()["time"].asInt() * 90));
             PIDno = 0x101;

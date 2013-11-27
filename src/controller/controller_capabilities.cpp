@@ -153,8 +153,8 @@ namespace Controller {
       float onemin, fivemin, fifteenmin;
       if (sscanf(line, "%f %f %f", &onemin, &fivemin, &fifteenmin) == 3){
         capa["load"]["one"] = (long long int)(onemin * 100);
-        capa["load"]["five"] = (long long int)(onemin * 100);
-        capa["load"]["fifteen"] = (long long int)(onemin * 100);
+        capa["load"]["five"] = (long long int)(fivemin * 100);
+        capa["load"]["fifteen"] = (long long int)(fifteenmin * 100);
       }
     }
 

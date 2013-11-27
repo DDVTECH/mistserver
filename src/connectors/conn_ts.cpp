@@ -61,36 +61,25 @@ namespace Connector_TS {
         }
 
         if(trackIDs == ""){
+          std::stringstream tmpTracks;
           // no track ids given? Find the first video and first audio track (if available) and use those!
           int videoID = -1;
           int audioID = -1;
 
           Strm.waitForMeta(ss);
-          
-          if (Strm.metadata.isMember("tracks")){
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it){
+            if (audioID == -1 && it->second.type == "audio"){
+              audioID = it->first;
+              tmpTracks << " " << it->first;
+            }
 
-            for (JSON::ObjIter trackIt = Strm.metadata["tracks"].ObjBegin(); trackIt != Strm.metadata["tracks"].ObjEnd(); trackIt++){
+            if (videoID == -1 && it->second.type == "video"){
+              videoID = it->first;
+              tmpTracks << " " << it->first;
+            }
 
-              if (audioID == -1 && trackIt->second["type"].asString() == "audio"){
-                audioID = trackIt->second["trackid"].asInt();
-                if( trackIDs != ""){
-                  trackIDs += " " + trackIt->second["trackid"].asString();
-                }else{
-                    trackIDs = trackIt->second["trackid"].asString();
-                }
-              }
-
-              if (videoID == -1 && trackIt->second["type"].asString() == "video"){
-                videoID = trackIt->second["trackid"].asInt();
-                if( trackIDs != ""){
-                  trackIDs += " " + trackIt->second["trackid"].asString();
-                }else{
-                  trackIDs = trackIt->second["trackid"].asString();
-                }
-              }
-
-            }	// for iterator
-          } // if isMember("tracks")
+          }	// for iterator
+          trackIDs += tmpTracks.str();
         } // if trackIDs == ""
 
         std::string cmd = "t " + trackIDs + "\ns 0\np\n";
@@ -115,7 +104,7 @@ namespace Connector_TS {
           char * ContCounter = 0;
           if (Strm.lastType() == DTSC::VIDEO){
 		      if ( !haveAvcc){
-		          avccbox.setPayload(Strm.getTrackById(Strm.getPacket()["trackid"].asInt())["init"].asString());
+		          avccbox.setPayload(Strm.metadata.tracks[Strm.getPacket()["trackid"].asInt()].init);
 		        haveAvcc = true;
 		      }
 
@@ -139,7 +128,7 @@ namespace Connector_TS {
             PIDno = 0x100 - 1 + Strm.getPacket()["trackid"].asInt();
             ContCounter = &VideoCounter;
           }else if (Strm.lastType() == DTSC::AUDIO){
-                ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.getTrackById(Strm.getPacket()["trackid"].asInt())["init"].asString()));
+            ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata.tracks[Strm.getPacket()["trackid"].asInt()].init));
             ToPack.append(Strm.lastData());
             ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), Strm.getPacket()["time"].asInt() * 90));
             PIDno = 0x100 - 1 + Strm.getPacket()["trackid"].asInt();

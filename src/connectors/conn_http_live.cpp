@@ -28,61 +28,64 @@ namespace Connector_HTTP {
   ///\brief Builds an index file for HTTP Live streaming.
   ///\param metadata The current metadata, used to generate the index.
   ///\return The index file for HTTP Live Streaming.
-  std::string liveIndex(JSON::Value & metadata, bool isLive){
+  std::string liveIndex(DTSC::Meta & metadata, bool isLive){
     std::stringstream result;
-    if (metadata.isMember("tracks")){
-      result << "#EXTM3U\r\n";
-      int audioId = -1;
-      std::string audioName;
-      bool defAudio = false;//set default audio track;
-      for (JSON::ObjIter trackIt = metadata["tracks"].ObjBegin(); trackIt != metadata["tracks"].ObjEnd(); trackIt++){
-        if (trackIt->second["type"].asStringRef() == "audio"){
-          audioId = trackIt->second["trackid"].asInt();
-          audioName = trackIt->first;
-          break;
-        }
+    result << "#EXTM3U\r\n";
+    int audioId = -1;
+    std::string audioName;
+    bool defAudio = false;//set default audio track;
+    for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
+      if (it->second.type == "audio"){
+        audioId = it->first;
+        audioName = it->second.getIdentifier();
+        break;
       }
-      for (JSON::ObjIter trackIt = metadata["tracks"].ObjBegin(); trackIt != metadata["tracks"].ObjEnd(); trackIt++){
-        if (trackIt->second["type"].asStringRef() == "video"){
-          int bWidth = trackIt->second["maxbps"].asInt();
-          if (audioId != -1){
-            bWidth += (metadata["tracks"][audioName]["maxbps"].asInt() * 2);
-          }
-          result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << bWidth * 10 << "\r\n";
-          result << trackIt->second["trackid"].asInt();
-          if (audioId != -1){
-            result << "_" << audioId;
-          }
-          result << "/index.m3u8\r\n";
+    }
+    for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
+      if (it->second.type == "video"){
+        int bWidth = it->second.bps * 2;
+        if (audioId != -1){
+          bWidth += metadata.tracks[audioId].bps * 2;
         }
-      }
-    }else{
-      //parse single track
-      int longestFragment = 0;
-      for (JSON::ArrIter ai = metadata["frags"].ArrBegin(); ai != metadata["frags"].ArrEnd(); ai++){
-        if ((*ai)["dur"].asInt() > longestFragment){
-          longestFragment = (*ai)["dur"].asInt();
+        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << bWidth * 10 << "\r\n";
+        result << it->first;
+        if (audioId != -1){
+          result << "_" << audioId;
         }
+        result << "/index.m3u8\r\n";
       }
-      result << "#EXTM3U\r\n"
-          "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
-          "#EXT-X-MEDIA-SEQUENCE:" << metadata["missed_frags"].asInt() << "\r\n";
-      for (JSON::ArrIter ai = metadata["frags"].ArrBegin(); ai != metadata["frags"].ArrEnd(); ai++){
-        long long int starttime = 0;
-        JSON::ArrIter fi = metadata["keys"].ArrBegin();
-        while (fi != metadata["keys"].ArrEnd() && (*fi)["num"].asInt() < (*ai)["num"].asInt()){
-          fi++;
-        }
-        if (fi != metadata["keys"].ArrEnd()){
-          starttime = (*fi)["time"].asInt();
-        }
-        
-        result << "#EXTINF:" << (((*ai)["dur"].asInt() + 500) / 1000) << ", no desc\r\n"
-            << starttime << "_" << (*ai)["dur"].asInt() + starttime << ".ts\r\n";
+    }
+#if DEBUG >= 8
+    std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
+#endif
+    return result.str();
+  }
+
+  std::string liveIndex(DTSC::Track & metadata, bool isLive){
+    std::stringstream result;
+    //parse single track
+    int longestFragment = 0;
+    for (std::deque<DTSC::Fragment>::iterator it = metadata.fragments.begin(); (it + 1) != metadata.fragments.end(); it++){
+      if (it->getDuration() > longestFragment){
+        longestFragment = it->getDuration();
       }
-      if ( !isLive){
-        result << "#EXT-X-ENDLIST\r\n";
-      }
+    }
+    result << "#EXTM3U\r\n"
+        "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
+        "#EXT-X-MEDIA-SEQUENCE:" << metadata.missedFrags << "\r\n";
+    for (std::deque<DTSC::Fragment>::iterator it = metadata.fragments.begin(); it != metadata.fragments.end(); it++){
+      long long int starttime = metadata.getKey(it->getNumber()).getTime();
+      
+      if (it != (metadata.fragments.end() - 1)){
+          result << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n"
+            << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
+      }else{
+          result << "#EXTINF:" << ((metadata.lastms - starttime + 500) / 1000) << ", no desc\r\n"
+            << starttime << "_" << metadata.lastms << ".ts\r\n";
+      } 
+    }
+    if ( !isLive){
+      result << "#EXT-X-ENDLIST\r\n";
     }
 #if DEBUG >= 8
     std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
@@ -161,7 +164,7 @@ namespace Connector_HTTP {
               lastVid = Segment * 90;
               temp = HTTP_R.url.find("_", temp) + 1;
               int frameCount = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find(".ts", temp) - temp).c_str());
-              if (Strm.metadata.isMember("live")){
+              if (Strm.metadata.live){
                 int seekable = Strm.canSeekms(Segment);
                 if (seekable < 0){
                   HTTP_S.Clean();
@@ -207,10 +210,10 @@ namespace Connector_HTTP {
               HTTP_S.SetHeader("Cache-Control", "no-cache");
               std::string manifest;
               if (request.find("/") == std::string::npos){
-                manifest = liveIndex(Strm.metadata, Strm.metadata.isMember("live"));
+                manifest = liveIndex(Strm.metadata, Strm.metadata.live);
               }else{
                 int selectId = atoi(request.substr(0,request.find("/")).c_str());
-                manifest = liveIndex(Strm.getTrackById(selectId), Strm.metadata.isMember("live"));
+                manifest = liveIndex(Strm.metadata.tracks[selectId], Strm.metadata.live);
               }
               HTTP_S.SetBody(manifest);
               conn.SendNow(HTTP_S.BuildResponse("200", "OK"));
@@ -235,7 +238,7 @@ namespace Connector_HTTP {
               handlingRequest = false;
             }
             if ( !haveAvcc){
-              avccbox.setPayload(Strm.getTrackById(trackID)["init"].asString());
+              avccbox.setPayload(Strm.metadata.tracks[trackID].init);
               haveAvcc = true;
             }
             if (Strm.lastType() == DTSC::VIDEO || Strm.lastType() == DTSC::AUDIO){
@@ -269,10 +272,10 @@ namespace Connector_HTTP {
                   }
                 }
                 ToPack.prepend(TS::Packet::getPESVideoLeadIn(0ul, Strm.getPacket()["time"].asInt() * 90));
-            	PIDno = 0x100 - 1 + Strm.getPacket()["trackid"].asInt();
+                PIDno = 0x100 - 1 + Strm.getPacket()["trackid"].asInt();
                 ContCounter = &VideoCounter;
               }else if (Strm.lastType() == DTSC::AUDIO){
-                ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.getTrackById(audioTrackID)["init"].asString()));
+                ToPack.append(TS::GetAudioHeader(Strm.lastData().size(), Strm.metadata.tracks[audioTrackID].init));
                 ToPack.append(Strm.lastData());
                 if (AppleCompat){
                   ToPack.prepend(TS::Packet::getPESAudioLeadIn(ToPack.bytes(1073741824ul), lastVid));

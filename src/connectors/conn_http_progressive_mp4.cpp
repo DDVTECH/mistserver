@@ -98,7 +98,7 @@ namespace Connector_HTTP {
           HTTP_S.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for FLV files
           HTTP_S.protocol = "HTTP/1.0";
           conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
-          conn.SendNow(Conv.DTSCMeta2MP4Header(Strm.metadata));//SENDING MP4HEADER
+          conn.SendNow(Conv.DTSCMeta2MP4Header(Strm.metadata.toJSON()));//SENDING MP4HEADER
           keyPartIt = Conv.keyParts.begin();
           {//using scope to have cmd not declared after action
             std::stringstream cmd;
@@ -127,19 +127,19 @@ namespace Connector_HTTP {
             }
           }
           int byterate = 0;
-          for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["type"].asString() == "video"){
-              videoID = objIt->second["trackid"].asInt();
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+            if (videoID == -1 && it->second.type == "video"){
+              videoID = it->second.trackID;
             }
-            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
-              audioID = objIt->second["trackid"].asInt();
+            if (audioID == -1 && it->second.type == "audio"){
+              audioID = it->second.trackID;
             }
           }
           if (videoID != -1){
-            byterate += Strm.getTrackById(videoID)["bps"].asInt();
+            byterate += Strm.metadata.tracks[videoID].bps;
           }
           if (audioID != -1){
-            byterate += Strm.getTrackById(audioID)["bps"].asInt();
+            byterate += Strm.metadata.tracks[audioID].bps;
           }
           if ( !byterate){byterate = 1;}
           seek_sec = (seek_byte / byterate) * 1000;

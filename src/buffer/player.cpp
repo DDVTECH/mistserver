@@ -81,15 +81,17 @@ int main(int argc, char** argv){
   Socket::Connection in_out = Socket::Connection(fileno(stdout), fileno(stdin));
 
   DTSC::File source = DTSC::File(conf.getString("filename"));
-  in_out.SendNow(source.getMeta().toNetPacked());
 
-  if ( !DTSC::isFixed(source.getMeta())){
+  if ( !source.getMeta().isFixed()){
     std::cerr << "Encountered a non-fixed file." << std::endl;
     return 1;
   }
-
+  
+  source.getMeta().send(in_out);
+  
   JSON::Value pausemark;
-  pausemark["datatype"] = "pause_marker";
+  pausemark["trackid"] = 0ll;
+  pausemark["mark"] = "pause";
   pausemark["time"] = (long long int)0;
 
   Socket::Connection StatsSocket = Socket::Connection(Util::getTmpFolder() + "statistics", true);
@@ -140,11 +142,12 @@ int main(int argc, char** argv){
                 json_sts["vod"]["now"] = Util::epoch();
                 json_sts["vod"]["start"] = Util::epoch() - sts.conntime;
                 if ( !meta_sent){
-                  json_sts["vod"]["meta"] = source.getMeta();
+                  json_sts["vod"]["meta"] = source.getMeta().toJSON();
                   json_sts["vod"]["meta"]["is_fixed"] = 1;
                   for (JSON::ObjIter oIt = json_sts["vod"]["meta"]["tracks"].ObjBegin(); oIt != json_sts["vod"]["meta"]["tracks"].ObjEnd(); oIt++){
                     oIt->second.removeMember("keys");
-                    oIt->second.removeMember("frags");
+                    oIt->second.removeMember("fragments");
+                    oIt->second.removeMember("parts");
                   }
                   meta_sent = true;
                 }
@@ -237,8 +240,7 @@ int main(int argc, char** argv){
         std::cerr << "Completed VoD request in MistPlayer (" << (Util::getMS() - bench) << "ms)" << std::endl;
 #endif
         pausemark["time"] = source.getJSON()["time"];
-        pausemark.netPrepare();
-        in_out.SendNow(pausemark.toNetPacked());
+        pausemark.sendTo(in_out);
         in_out.setBlocking(true);
       }else{
         lasttime = Util::epoch();

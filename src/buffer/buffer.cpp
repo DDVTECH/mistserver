@@ -27,6 +27,9 @@ namespace Buffer {
   ///\brief A function running in a thread to send all statistics.
   ///\param empty A null pointer.
   void handleStats(void * empty){
+#ifdef _TTHREAD_POSIX_
+    pthread_setname_np(pthread_self(), "StatsHandler");
+#endif
     if (empty != 0){
       return;
     }
@@ -52,6 +55,9 @@ namespace Buffer {
   ///\brief A function to handle input data.
   ///\param conn A socket reference.
   void handlePushIn(Socket::Connection & conn){
+    #ifdef _TTHREAD_POSIX_
+    pthread_setname_np(pthread_self(), "Push Input");
+    #endif
     conn.setBlocking(true);
     while (buffer_running && conn.connected()){
       if (conn.spool()){
@@ -70,6 +76,9 @@ namespace Buffer {
     if (empty != 0){
       return;
     }
+    #ifdef _TTHREAD_POSIX_
+    pthread_setname_np(pthread_self(), "Standard Input");
+    #endif
     long long int timeDiff = 0; //difference between local time and stream time
     unsigned int lastPacket = 0; //last parsed packet timestamp
     std::string inBuffer;
@@ -105,7 +114,10 @@ namespace Buffer {
     user * usr = (user*)v_usr;
     thisStream->addUser(usr);
 #if DEBUG >= 5
-    std::cerr << "Thread launched for user " << usr->MyStr << ", socket number " << usr->S.getSocket() << std::endl;
+    std::cerr << "Thread launched for user " << usr->sID << ", socket number " << usr->S.getSocket() << std::endl;
+#endif
+#ifdef _TTHREAD_POSIX_
+    pthread_setname_np(pthread_self(), usr->sID.c_str());
 #endif
     usr->myRing = thisStream->getRing();
     thisStream->sendMeta(usr->S);
@@ -122,10 +134,10 @@ namespace Buffer {
               if (usr->myRing->playCount < 1 || usr->playUntil <= Stream::get()->getPacket(usr->myRing->b)["time"].asInt()){
                 usr->myRing->playCount = 0;
                 JSON::Value pausemark;
-                pausemark["datatype"] = "pause_marker";
+                pausemark["trackid"] = 0ll;
+                pausemark["mark"] = "pause";
                 pausemark["time"] = Stream::get()->getPacket(usr->myRing->b)["time"].asInt();
-                pausemark.toPacked();
-                usr->S.SendNow(pausemark.toNetPacked());
+                pausemark.sendTo(usr->S);
               }
             }
           }
@@ -144,10 +156,10 @@ namespace Buffer {
               if (usr->myRing->playCount < 1 || usr->playUntil <= Stream::get()->getPacket(usr->myRing->b)["time"].asInt()){
                 usr->myRing->playCount = 0;
                 JSON::Value pausemark;
-                pausemark["datatype"] = "pause_marker";
+                pausemark["trackid"] = 0ll;
+                pausemark["mark"] = "pause";
                 pausemark["time"] = Stream::get()->getPacket(usr->myRing->b)["time"].asInt();
-                pausemark.toPacked();
-                usr->S.SendNow(pausemark.toNetPacked());
+                pausemark.sendTo(usr->S);
               }
             }
           }
@@ -275,6 +287,9 @@ namespace Buffer {
     }
     SS.setBlocking(false);
     conf.activate();
+    #ifdef _TTHREAD_POSIX_
+    pthread_setname_np(pthread_self(), "Main accepter");
+    #endif
     thisStream = Stream::get();
     thisStream->setName(name);
     thisStream->setBufferTime(conf.getInteger("time"));
@@ -299,7 +314,7 @@ namespace Buffer {
       //starts a thread for every accepted connection
       incoming = SS.accept(true);
       if (incoming.connected()){
-        tthread::thread thisUser(handleUser, (void *)new user(incoming, userId++));
+        tthread::thread thisUser(handleUser, (void *)new user(incoming, ++userId));
         thisUser.detach();
       }else{
         Util::sleep(50);//sleep 50ms

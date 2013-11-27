@@ -101,19 +101,19 @@ namespace Connector_HTTP {
           }
           Strm.waitForMeta(ss);
           int byterate = 0;
-          for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["type"].asString() == "video"){
-              videoID = objIt->second["trackid"].asInt();
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+            if (videoID == -1 && it->second.type == "video"){
+              videoID = it->second.trackID;
             }
-            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
-              audioID = objIt->second["trackid"].asInt();
+            if (audioID == -1 && it->second.type == "audio"){
+              audioID = it->second.trackID;
             }
           }
           if (videoID != -1){
-            byterate += Strm.getTrackById(videoID)["bps"].asInt();
+            byterate += Strm.metadata.tracks[videoID].bps;
           }
           if (audioID != -1){
-            byterate += Strm.getTrackById(audioID)["bps"].asInt();
+            byterate += Strm.metadata.tracks[audioID].bps;
           }
           if ( !byterate){byterate = 1;}
           if (seek_byte){
@@ -146,16 +146,16 @@ namespace Connector_HTTP {
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
               conn.SendNow(FLV::Header, 13); //write FLV header
               //write metadata
-              tag.DTSCMetaInit(Strm, Strm.getTrackById(videoID), Strm.getTrackById(audioID));
+              tag.DTSCMetaInit(Strm, Strm.metadata.tracks[videoID], Strm.metadata.tracks[audioID]);
               conn.SendNow(tag.data, tag.len);
               //write video init data, if needed
-              if (videoID != -1 && Strm.getTrackById(videoID).isMember("init")){
-                tag.DTSCVideoInit(Strm.getTrackById(videoID));
+              if (videoID != -1){
+                tag.DTSCVideoInit(Strm.metadata.tracks[videoID]);
                 conn.SendNow(tag.data, tag.len);
               }
               //write audio init data, if needed
-              if (audioID != -1 && Strm.getTrackById(audioID).isMember("init")){
-                tag.DTSCAudioInit(Strm.getTrackById(audioID));
+              if (audioID != -1){
+                tag.DTSCAudioInit(Strm.metadata.tracks[audioID]);
                 conn.SendNow(tag.data, tag.len);
               }
               progressive_has_sent_header = true;
@@ -170,7 +170,7 @@ namespace Connector_HTTP {
               conn.close();
             }
             if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
-              std::string codec = Strm.getTrackById(Strm.getPacket()["trackid"].asInt())["codec"].asString();
+              std::string codec = Strm.metadata.tracks[Strm.getPacket()["trackid"].asInt()].codec;
               if (codec == "AAC" || codec == "MP3" || codec == "H264" || codec == "H263" || codec == "VP6"){
                 tag.DTSCLoader(Strm);
                 conn.SendNow(tag.data, tag.len); //write the tag contents

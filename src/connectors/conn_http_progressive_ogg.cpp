@@ -112,19 +112,19 @@ namespace Connector_HTTP {
           }
           Strm.waitForMeta(ss);
           int byterate = 0;
-          for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["codec"].asString() == "theora"){
-              videoID = objIt->second["trackid"].asInt();
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+            if (videoID == -1 && it->second.codec == "theora"){
+              videoID = it->second.trackID;
             }
-            if (audioID == -1 && objIt->second["codec"].asString() == "vorbis"){
-              audioID = objIt->second["trackid"].asInt();
+            if (audioID == -1 && it->second.codec == "vorbis"){
+              audioID = it->second.trackID;
             }
           }
           if (videoID != -1){
-            byterate += Strm.getTrackById(videoID)["bps"].asInt();
+            byterate += Strm.metadata.tracks[videoID].bps;
           }
           if (audioID != -1){
-            byterate += Strm.getTrackById(audioID)["bps"].asInt();
+            byterate += Strm.metadata.tracks[audioID].bps;
           }
           if ( !byterate){byterate = 1;}
           if (seek_byte){
@@ -163,7 +163,7 @@ namespace Connector_HTTP {
               HTTP_S.protocol = "HTTP/1.0";
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
               //Fill in ogg header here
-              oggMeta.readDTSCHeader(Strm.metadata);
+              oggMeta.readDTSCHeader(Strm.metadata.toJSON());
               conn.SendNow((char*)oggMeta.parsedPages.c_str(), oggMeta.parsedPages.size());
               progressive_has_sent_header = true;
               //setting sendReady to not ready

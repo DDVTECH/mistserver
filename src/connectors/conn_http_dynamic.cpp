@@ -27,16 +27,16 @@
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
   
-  std::set<std::string> videoTracks;///<< Holds valid video tracks for playback
+  std::set<int> videoTracks;///<< Holds valid video tracks for playback
   long long int audioTrack = 0;///<< Holds audio track ID for playback
-  void getTracks(JSON::Value & metadata){
+  void getTracks(DTSC::Meta & metadata){
     videoTracks.clear();
-    for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
-      if (it->second["type"] == "video"){
+    for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
+      if (it->second.type == "video"){
         videoTracks.insert(it->first);
       }
-      if (it->second["type"] == "audio"){
-        audioTrack = it->second["trackid"].asInt();
+      if (it->second.type == "audio"){
+        audioTrack = it->first;
       }
     }
   }
@@ -47,7 +47,7 @@ namespace Connector_HTTP {
   ///\param metadata The current metadata, used to generate the index.
   ///\param fragnum The index of the current fragment
   ///\return The generated bootstrap.
-  std::string dynamicBootstrap(std::string & streamName, JSON::Value & metadata, bool isLive = false, int fragnum = 0){
+  std::string dynamicBootstrap(std::string & streamName, DTSC::Track & trackMeta, bool isLive = false, int fragnum = 0){
     std::string empty;
     
     MP4::ASRT asrt;
@@ -57,7 +57,7 @@ namespace Connector_HTTP {
     if (isLive){
       asrt.setSegmentRun(1, 4294967295ul, 0);
     }else{
-      asrt.setSegmentRun(1, metadata["keys"].size(), 0);
+      asrt.setSegmentRun(1, trackMeta.keys.size(), 0);
     }
     
     MP4::AFRT afrt;
@@ -66,14 +66,14 @@ namespace Connector_HTTP {
     afrt.setTimeScale(1000);
     //afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
-    long long int currTime = 0;
-    for (int i = 0; i < metadata["keys"].size(); i++){
-      if (metadata["keys"][i]["len"].asInt() > 0){
-        afrtrun.firstFragment = metadata["keys"][i]["num"].asInt();
-        afrtrun.firstTimestamp = metadata["keys"][i]["time"].asInt();
-        afrtrun.duration = metadata["keys"][i]["len"].asInt();
-        currTime = afrtrun.firstTimestamp + afrtrun.duration;
+    int i = 0;
+    for (std::deque<DTSC::Key>::iterator it = trackMeta.keys.begin(); it != trackMeta.keys.end(); it++){
+      if (it->getLength()){
+        afrtrun.firstFragment = it->getNumber();
+        afrtrun.firstTimestamp = it->getTime();
+        afrtrun.duration = it->getLength();
         afrt.setFragmentRun(afrtrun, i);
+        i++;
       }
     }
     
@@ -84,7 +84,7 @@ namespace Connector_HTTP {
     abst.setUpdate(false);
     abst.setTimeScale(1000);
     abst.setLive(isLive);
-    abst.setCurrentMediaTime(metadata["lastms"].asInt());
+    abst.setCurrentMediaTime(trackMeta.lastms);
     abst.setSmpteTimeCodeOffset(0);
     abst.setMovieIdentifier(streamName);
     abst.setSegmentRunTable(asrt, 0);
@@ -100,7 +100,7 @@ namespace Connector_HTTP {
   ///\param streamName The name of the stream.
   ///\param metadata The current metadata, used to generate the index.
   ///\return The index file for HTTP Dynamic Streaming.
-  std::string dynamicIndex(std::string & streamName, JSON::Value & metadata){
+  std::string dynamicIndex(std::string & streamName, DTSC::Meta & metadata){
     if ( !audioTrack){getTracks(metadata);}
     std::stringstream Result;
     Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>" << std::endl;
@@ -108,27 +108,27 @@ namespace Connector_HTTP {
     Result << "  <id>" << streamName << "</id>" << std::endl;
     Result << "  <mimeType>video/mp4</mimeType>" << std::endl;
     Result << "  <deliveryType>streaming</deliveryType>" << std::endl;
-    if (metadata.isMember("vod")){
-      Result << "  <duration>" << metadata["length"].asInt() << ".000</duration>" << std::endl;
+    if (metadata.vod){
+      Result << "  <duration>" << metadata.tracks[*videoTracks.begin()].lastms / 1000 << ".000</duration>" << std::endl;
       Result << "  <streamType>recorded</streamType>" << std::endl;
     }else{
       Result << "  <duration>0.00</duration>" << std::endl;
       Result << "  <streamType>live</streamType>" << std::endl;
     }
-    for (std::set<std::string>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
+    for (std::set<int>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
       Result << "  <bootstrapInfo "
       "profile=\"named\" "
-      "id=\"boot" << metadata["tracks"][(*it)]["trackid"].asInt() << "\" "
-      "url=\"" << metadata["tracks"][(*it)]["trackid"].asInt() << ".abst\">"
+      "id=\"boot" << (*it) << "\" "
+      "url=\"" << (*it) << ".abst\">"
       "</bootstrapInfo>" << std::endl;
     }
-    for (std::set<std::string>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
+    for (std::set<int>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
       Result << "  <media "
-      "url=\"" << metadata["tracks"][(*it)]["trackid"].asInt() << "-\" "
-      "bitrate=\"" << metadata["tracks"][(*it)]["bps"].asInt() * 8 << "\" "
-      "bootstrapInfoId=\"boot" << metadata["tracks"][(*it)]["trackid"].asInt() << "\" "
-      "width=\"" << metadata["tracks"][(*it)]["width"].asInt() << "\" "
-      "height=\"" << metadata["tracks"][(*it)]["height"].asInt() << "\">" << std::endl;
+      "url=\"" << (*it) << "-\" "
+      "bitrate=\"" << metadata.tracks[(*it)].bps * 8 << "\" "
+      "bootstrapInfoId=\"boot" << (*it) << "\" "
+      "width=\"" << metadata.tracks[(*it)].width << "\" "
+      "height=\"" << metadata.tracks[(*it)].height << "\">" << std::endl;
       Result << "    <metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>" << std::endl;
       Result << "  </media>" << std::endl;
     }
@@ -183,7 +183,7 @@ namespace Connector_HTTP {
               std::string streamID = HTTP_R.url.substr(streamname.size() + 10);
               streamID = streamID.substr(0, streamID.find(".abst"));
               HTTP_S.Clean();
-              HTTP_S.SetBody(dynamicBootstrap(streamname, Strm.getTrackById(atoll(streamID.c_str())),Strm.metadata.isMember("live")));
+              HTTP_S.SetBody(dynamicBootstrap(streamname, Strm.metadata.tracks[atoll(streamID.c_str())], Strm.metadata.live));
               HTTP_S.SetHeader("Content-Type", "binary/octet");
               HTTP_S.SetHeader("Cache-Control", "no-cache");
               HTTP_S.SendResponse("200", "OK", conn);
@@ -202,32 +202,30 @@ namespace Connector_HTTP {
               printf("Video track %d, segment %d, fragment %d\n", Quality, Segment, ReqFragment);
               #endif
               if (!audioTrack){getTracks(Strm.metadata);}
-              JSON::Value & vidTrack = Strm.getTrackById(Quality);
+              DTSC::Track & vidTrack = Strm.metadata.tracks[Quality];
               mstime = 0;
               mslen = 0;
-              if (vidTrack.isMember("keys")){
-                for (JSON::ArrIter it = vidTrack["keys"].ArrBegin(); it != vidTrack["keys"].ArrEnd(); it++){
-                  if ((*it)["num"].asInt() >= ReqFragment){
-                    mstime = (*it)["time"].asInt();
-                    mslen = (*it)["len"].asInt();
-                    if (Strm.metadata.isMember("live")){
-                      if (it == vidTrack["keys"].ArrEnd() - 2){
-                        HTTP_S.Clean();
-                        HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-                        HTTP_S.SendResponse("208", "Ask again later", conn);
-                        HTTP_R.Clean(); //clean for any possible next requests
-                        std::cout << "Fragment after fragment " << ReqFragment << " not available yet" << std::endl;
-                        if (ss.spool()){
-                          while (Strm.parsePacket(ss.Received())){}
-                        }
+              for (std::deque<DTSC::Key>::iterator it = vidTrack.keys.begin(); it != vidTrack.keys.end(); it++){
+                if (it->getNumber() >= ReqFragment){
+                  mstime = it->getTime();
+                  mslen = it->getLength();
+                  if (Strm.metadata.live){
+                    if (it == vidTrack.keys.end() - 2){
+                      HTTP_S.Clean();
+                      HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                      HTTP_S.SendResponse("208", "Ask again later", conn);
+                      HTTP_R.Clean(); //clean for any possible next requests
+                      std::cout << "Fragment after fragment " << ReqFragment << " not available yet" << std::endl;
+                      if (ss.spool()){
+                        while (Strm.parsePacket(ss.Received())){}
                       }
                     }
-                    break;
                   }
+                  break;
                 }
               }
               if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
-              if (Strm.metadata.isMember("live")){
+              if (Strm.metadata.live){
                 if (mstime == 0 && ReqFragment > 1){
                   HTTP_S.Clean();
                   HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
@@ -245,18 +243,18 @@ namespace Connector_HTTP {
               HTTP_S.SetHeader("Content-Type", "video/mp4");
               HTTP_S.StartResponse(HTTP_R, conn);
               //send the bootstrap
-              std::string bootstrap = dynamicBootstrap(streamname, Strm.getTrackById(Quality), Strm.metadata.isMember("live"), ReqFragment);
+              std::string bootstrap = dynamicBootstrap(streamname, Strm.metadata.tracks[Quality], Strm.metadata.live, ReqFragment);
               HTTP_S.Chunkify(bootstrap, conn);
               //send a zero-size mdat, meaning it stretches until end of file.
               HTTP_S.Chunkify("\000\000\000\000mdat", 8, conn);
               //send init data, if needed.
-              if (audioTrack > 0 && Strm.getTrackById(audioTrack).isMember("init")){
-                tmp.DTSCAudioInit(Strm.getTrackById(audioTrack));
+              if (audioTrack > 0){
+                tmp.DTSCAudioInit(Strm.metadata.tracks[audioTrack]);
                 tmp.tagTime(mstime);
                 HTTP_S.Chunkify(tmp.data, tmp.len, conn);
               }
-              if (Quality > 0 && Strm.getTrackById(Quality).isMember("init")){
-                tmp.DTSCVideoInit(Strm.getTrackById(Quality));
+              if (Quality > 0){
+                tmp.DTSCVideoInit(Strm.metadata.tracks[Quality]);
                 tmp.tagTime(mstime);
                 HTTP_S.Chunkify(tmp.data, tmp.len, conn);
               }

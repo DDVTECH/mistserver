@@ -11,7 +11,7 @@ namespace Buffer {
   ///Also prints "User connected" text to stdout.
   ///\param fd A connection to the user.
   user::user(Socket::Connection fd, long long ID){
-    sID = JSON::Value(ID).asStringRef();
+    sID = JSON::Value(ID).asString();
     S = fd;
     curr_up = 0;
     curr_down = 0;

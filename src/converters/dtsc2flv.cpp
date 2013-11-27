@@ -33,25 +33,25 @@ namespace Converters {
       if (Strm.parsePacket(inBuffer)){
         if ( !doneheader){
           //find first audio and video tracks
-          for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["type"].asString() == "video"){
-              videoID = objIt->second["trackid"].asInt();
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+            if (videoID == -1 && it->second.type == "video"){
+              videoID = it->first;
             }
-            if (audioID == -1 && objIt->second["type"].asString() == "audio"){
-              audioID = objIt->second["trackid"].asInt();
+            if (audioID == -1 && it->second.type == "audio"){
+              audioID = it->first;
             }
           }
           
           doneheader = true;
           std::cout.write(FLV::Header, 13);
-          FLV_out.DTSCMetaInit(Strm, Strm.getTrackById(videoID), Strm.getTrackById(audioID));
+          FLV_out.DTSCMetaInit(Strm, Strm.metadata.tracks[videoID], Strm.metadata.tracks[audioID]);
           std::cout.write(FLV_out.data, FLV_out.len);
-          if (videoID && Strm.getTrackById(videoID).isMember("init")){
-            FLV_out.DTSCVideoInit(Strm.getTrackById(videoID));
+          if (videoID != -1){
+            FLV_out.DTSCVideoInit(Strm.metadata.tracks[videoID]);
             std::cout.write(FLV_out.data, FLV_out.len);
           }
-          if (audioID && Strm.getTrackById(audioID).isMember("init")){
-            FLV_out.DTSCAudioInit(Strm.getTrackById(audioID));
+          if (audioID != -1){
+            FLV_out.DTSCAudioInit(Strm.metadata.tracks[audioID]);
             std::cout.write(FLV_out.data, FLV_out.len);
           }
         }

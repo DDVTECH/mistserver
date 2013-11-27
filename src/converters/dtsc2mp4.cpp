@@ -24,11 +24,12 @@ namespace Converters {
   int DTSC2MP4(Util::Config & conf){
     DTSC::File input(conf.getString("filename"));//DTSC input
     MP4::DTSC2MP4Converter Conv;//DTSC to MP4 converter class will handle header creation and media parsing
-    std::cout << Conv.DTSCMeta2MP4Header(input.getMeta());//Creating and outputting MP4 header from DTSC file
+    std::cout << Conv.DTSCMeta2MP4Header(input.getMeta().toJSON());//Creating and outputting MP4 header from DTSC file
     
     //initialising JSON input
     std::set<int> selector;
-    for (JSON::ObjIter trackIt = input.getMeta()["tracks"].ObjBegin(); trackIt != input.getMeta()["tracks"].ObjEnd(); trackIt++){
+    JSON::Value tmp = input.getMeta().toJSON();
+    for (JSON::ObjIter trackIt = tmp["tracks"].ObjBegin(); trackIt != tmp["tracks"].ObjEnd(); trackIt++){
       selector.insert(trackIt->second["trackid"].asInt());
     }
     input.selectTracks(selector);

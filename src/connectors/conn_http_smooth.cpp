@@ -30,42 +30,42 @@ namespace Connector_HTTP {
   ///\brief Builds an index file for HTTP Smooth streaming.
   ///\param metadata The current metadata, used to generate the index.
   ///\return The index file for HTTP Smooth Streaming.
-  std::string smoothIndex(JSON::Value & metadata){
+  std::string smoothIndex(DTSC::Meta & metadata){
     std::stringstream Result;
     Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
     Result << "<SmoothStreamingMedia "
               "MajorVersion=\"2\" "
               "MinorVersion=\"0\" "
               "TimeScale=\"10000000\" ";
-    if (metadata.isMember("vod")){
-      Result << "Duration=\"" << metadata["lastms"].asInt() << "0000\"";
-    }else{
-      Result << "Duration=\"0\" "
-                "IsLive=\"TRUE\" "
-                "LookAheadFragmentCount=\"2\" "
-                "DVRWindowLength=\"" + metadata["buffer_window"].asString() + "0000\" "
-                "CanSeek=\"TRUE\" "
-                "CanPause=\"TRUE\" ";
-    }
-    Result << ">\n";
-    JSON::Value allAudio;
-    JSON::Value allVideo;
+    std::map<int,DTSC::Track> allAudio;
+    std::map<int,DTSC::Track> allVideo;
     long long int maxWidth = 0;
     long long int maxHeight = 0;
     long long int minWidth = 99999999;
     long long int minHeight = 99999999;
-    for (JSON::ObjIter oIt = metadata["tracks"].ObjBegin(); oIt != metadata["tracks"].ObjEnd(); oIt++){
-      if (oIt->second["type"].asString() == "audio" && oIt->second["codec"].asString() == "AAC"){
-        allAudio[oIt->first] = oIt->second;
+    for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
+      if (it->second.type == "audio" && it->second.codec == "AAC"){
+        allAudio.insert(*it);
       }
-      if (oIt->second["type"].asString() == "video" && oIt->second["codec"].asString() == "H264"){
-        allVideo[oIt->first] = oIt->second;
-        if (oIt->second["width"].asInt() > maxWidth){maxWidth = oIt->second["width"].asInt();}
-        if (oIt->second["width"].asInt() < minWidth){minWidth = oIt->second["width"].asInt();}
-        if (oIt->second["height"].asInt() > maxHeight){maxHeight = oIt->second["height"].asInt();}
-        if (oIt->second["height"].asInt() < minHeight){minHeight = oIt->second["height"].asInt();}
+      if (it->second.type == "video" && it->second.codec == "H264"){
+        allVideo.insert(*it);
+        if (it->second.width > maxWidth){maxWidth = it->second.width;}
+        if (it->second.width < minWidth){minWidth = it->second.width;}
+        if (it->second.height > maxHeight){maxHeight = it->second.height;}
+        if (it->second.height < minHeight){minHeight = it->second.height;}
       }
     }
+    if (metadata.vod){
+      Result << "Duration=\"" << metadata.tracks[allVideo.begin()->first].lastms << "0000\"";
+    }else{
+      Result << "Duration=\"0\" "
+                "IsLive=\"TRUE\" "
+                "LookAheadFragmentCount=\"2\" "
+                "DVRWindowLength=\"" << metadata.bufferWindow << "0000\" "
+                "CanSeek=\"TRUE\" "
+                "CanPause=\"TRUE\" ";
+    }
+    Result << ">\n";
 
     //Add audio entries
     if (allAudio.size()){
@@ -73,36 +73,36 @@ namespace Connector_HTTP {
                 "Type=\"audio\" "
                 "QualityLevels=\"" << allAudio.size() << "\" "
                 "Name=\"audio\" "
-                "Chunks=\"" << allAudio.ObjBegin()->second["keys"].size() << "\" "
+                "Chunks=\"" << allAudio.begin()->second.keys.size() << "\" "
                 "Url=\"Q({bitrate},{CustomAttributes})/A({start time})\">\n";
       int index = 0;
-      for (JSON::ObjIter oIt = allAudio.ObjBegin(); oIt != allAudio.ObjEnd(); oIt++){
+      for (std::map<int,DTSC::Track>::iterator it = allAudio.begin(); it != allAudio.end(); it++){
         Result << "<QualityLevel "
                   "Index=\"" << index << "\" "
-                  "Bitrate=\"" << oIt->second["bps"].asInt() * 8 << "\" "
+                  "Bitrate=\"" << it->second.bps * 8 << "\" "
                   "CodecPrivateData=\"" << std::hex;
-        for (int i = 0; i < oIt->second["init"].asString().size(); i++){
-          Result << std::setfill('0') << std::setw(2) << std::right << (int)oIt->second["init"].asString()[i];
+        for (int i = 0; i < it->second.init.size(); i++){
+          Result << std::setfill('0') << std::setw(2) << std::right << (int)it->second.init[i];
         }
         Result << std::dec << "\" "
-                  "SamplingRate=\"" << oIt->second["rate"].asInt() << "\" "
+                  "SamplingRate=\"" << it->second.rate << "\" "
                   "Channels=\"2\" "
                   "BitsPerSample=\"16\" "
                   "PacketSize=\"4\" "
                   "AudioTag=\"255\" "
                   "FourCC=\"AACL\" >\n";
         Result << "<CustomAttributes>\n" 
-                  "<Attribute Name = \"TrackID\" Value = \"" << oIt->second["trackid"].asString() << "\" />" 
+                  "<Attribute Name = \"TrackID\" Value = \"" << it->first << "\" />" 
                   "</CustomAttributes>";
         Result << "</QualityLevel>\n";
         index++;
       }
-      for (JSON::ArrIter keyIt = allAudio.ObjBegin()->second["keys"].ArrBegin(); keyIt != ((allAudio.ObjBegin()->second["keys"].ArrEnd()) - 1); keyIt++){
+      for (std::deque<DTSC::Key>::iterator it = allAudio.begin()->second.keys.begin(); it != ((allAudio.begin()->second.keys.end()) - 1); it++){
         Result << "<c ";
-        if (keyIt == allAudio.ObjBegin()->second["keys"].ArrBegin()){
-          Result << "t=\"" << allAudio.ObjBegin()->second["firstms"].asInt() * 10000 << "\" ";
+        if (it == allAudio.begin()->second.keys.begin()){
+          Result << "t=\"" << it->getTime() * 10000 << "\" ";
         }
-        Result << "d=\"" << (*keyIt)["len"].asInt() * 10000 << "\" />\n";
+        Result << "d=\"" << it->getLength() * 10000 << "\" />\n";
       }
       Result << "</StreamIndex>\n";
     }
@@ -112,41 +112,41 @@ namespace Connector_HTTP {
                 "Type=\"video\" "
                 "QualityLevels=\"" << allVideo.size() << "\" "
                 "Name=\"video\" "
-                "Chunks=\"" << allVideo.ObjBegin()->second["keys"].size() << "\" "
+                "Chunks=\"" << allVideo.begin()->second.keys.size() << "\" "
                 "Url=\"Q({bitrate},{CustomAttributes})/V({start time})\" "
                 "MaxWidth=\"" << maxWidth << "\" "
                 "MaxHeight=\"" << maxHeight << "\" "
                 "DisplayWidth=\"" << maxWidth << "\" "
                 "DisplayHeight=\"" << maxHeight << "\">\n";
       int index = 0;
-      for (JSON::ObjIter oIt = allVideo.ObjBegin(); oIt != allVideo.ObjEnd(); oIt++){
-      //Add video qualities
+      for (std::map<int,DTSC::Track>::iterator it = allVideo.begin(); it != allVideo.end(); it++){
+        //Add video qualities
         Result << "<QualityLevel "
                   "Index=\"" << index << "\" "
-                  "Bitrate=\"" << oIt->second["bps"].asInt() * 8 << "\" "
+                  "Bitrate=\"" << it->second.bps * 8 << "\" "
                   "CodecPrivateData=\"" << std::hex;
         MP4::AVCC avccbox;
-        avccbox.setPayload(oIt->second["init"].asString());
+        avccbox.setPayload(it->second.init);
         std::string tmpString = avccbox.asAnnexB();
         for (int i = 0; i < tmpString.size(); i++){
           Result << std::setfill('0') << std::setw(2) << std::right << (int)tmpString[i];
         }
         Result << std::dec << "\" "
-                  "MaxWidth=\"" << oIt->second["width"].asInt() << "\" "
-                  "MaxHeight=\"" << oIt->second["height"].asInt() << "\" "
+                  "MaxWidth=\"" << it->second.width << "\" "
+                  "MaxHeight=\"" << it->second.height << "\" "
                   "FourCC=\"AVC1\" >\n";
         Result << "<CustomAttributes>\n" 
-                  "<Attribute Name = \"TrackID\" Value = \"" << oIt->second["trackid"].asString() << "\" />" 
+                  "<Attribute Name = \"TrackID\" Value = \"" << it->first << "\" />" 
                   "</CustomAttributes>";
         Result << "</QualityLevel>\n";
         index++;
       }
-      for (JSON::ArrIter keyIt = allVideo.ObjBegin()->second["keys"].ArrBegin(); keyIt != ((allVideo.ObjBegin()->second["keys"].ArrEnd()) - 1); keyIt++){
+      for (std::deque<DTSC::Key>::iterator it = allVideo.begin()->second.keys.begin(); it != ((allVideo.begin()->second.keys.end()) - 1); it++){
         Result << "<c ";
-        if (keyIt == allVideo.ObjBegin()->second["keys"].ArrBegin()){
-          Result << "t=\"" << (*keyIt)["time"].asInt() * 10000 << "\" ";
+        if (it == allVideo.begin()->second.keys.begin()){
+          Result << "t=\"" << it->getTime() * 10000 << "\" ";
         }
-        Result << "d=\"" << (*keyIt)["len"].asInt() * 10000 << "\" />\n";
+        Result << "d=\"" << it->getLength() * 10000 << "\" />\n";
       }
       Result << "</StreamIndex>\n";
     }
@@ -183,8 +183,8 @@ namespace Connector_HTTP {
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     conn.setBlocking(false);//Set the client socket to non-blocking
 
-    JSON::Value allAudio;
-    JSON::Value allVideo;
+    std::map<int,DTSC::Track> allAudio;
+    std::map<int,DTSC::Track> allVideo;
 
     while (conn.connected()){
       if ( !handlingRequest){
@@ -211,12 +211,12 @@ namespace Connector_HTTP {
               }
               ss.setBlocking(false);
               Strm.waitForMeta(ss);
-              for (JSON::ObjIter oIt = Strm.metadata["tracks"].ObjBegin(); oIt != Strm.metadata["tracks"].ObjEnd(); oIt++){
-                if (oIt->second["type"].asString() == "audio" && oIt->second["codec"].asString() == "AAC"){
-                  allAudio[oIt->first] = oIt->second;
+              for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+                if (it->second.type == "audio" && it->second.codec == "AAC"){
+                  allAudio[it->first] = it->second;
                 }
-                if (oIt->second["type"].asString() == "video" && oIt->second["codec"].asString() == "H264"){
-                  allVideo[oIt->first] = oIt->second;
+                if (it->second.type == "video" && it->second.codec == "H264"){
+                  allVideo[it->first] = it->second;
                 }
               }
             };
@@ -250,14 +250,14 @@ namespace Connector_HTTP {
                 parseString = parseString.substr(parseString.find("(") + 1);
                 requestedTime = atoll(parseString.substr(0, parseString.find(")")).c_str());
                 long long int selectedQuality = atoll(Quality.c_str());
-                JSON::Value & myRef = Strm.getTrackById(selectedQuality);
-                if (Strm.metadata.isMember("live")){
+                DTSC::Track & myRef = Strm.metadata.tracks[selectedQuality];
+                if (Strm.metadata.live){
                   int seekable = Strm.canSeekms(requestedTime / 10000);
                   if (seekable == 0){
                     // iff the fragment in question is available, check if the next is available too
-                    for (JSON::ArrIter aIt = myRef["keys"].ArrBegin(); aIt != myRef["keys"].ArrEnd(); aIt++){
-                      if ((*aIt)["time"].asInt() >= (requestedTime / 10000)){
-                        if ((aIt + 1) == myRef["keys"].ArrEnd()){
+                    for (std::deque<DTSC::Key>::iterator it = myRef.keys.begin(); it != myRef.keys.end(); it++){
+                      if (it->getTime() >= (requestedTime / 10000)){
+                        if ((it + 1) == myRef.keys.end()){
                           seekable = 1;
                         }
                         break;
@@ -269,7 +269,7 @@ namespace Connector_HTTP {
                     HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
                     conn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
                     HTTP_R.Clean(); //clean for any possible next requests
-                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms too old (" << myRef["keys"][0u]["time"].asInt() << " - " << myRef["keys"][myRef["keys"].size() - 1]["time"].asInt() << " ms)" << std::endl;
+                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms too old (" << myRef.keys.begin()->getTime() << " - " << myRef.keys.rbegin()->getTime() << " ms)" << std::endl;
                     continue;
                   }
                   if (seekable > 0){
@@ -277,7 +277,7 @@ namespace Connector_HTTP {
                     HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
                     conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
                     HTTP_R.Clean(); //clean for any possible next requests
-                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms not available yet (" << myRef["keys"][0u]["time"].asInt() << " - " << myRef["keys"][myRef["keys"].size() - 1]["time"].asInt() << " ms)" << std::endl;
+                    std::cout << "Fragment @ " << requestedTime / 10000 << "ms not available yet (" << myRef.keys.begin()->getTime() << " - " << myRef.keys.rbegin()->getTime() << " ms)" << std::endl;
                     continue;
                   }
                 }
@@ -286,26 +286,24 @@ namespace Connector_HTTP {
                 
                 long long mstime = 0;
                 long long mslen = 0;
-                if (myRef.isMember("keys")){
-                  for (JSON::ArrIter it = myRef["keys"].ArrBegin(); it != myRef["keys"].ArrEnd(); it++){
-                    if ((*it)["time"].asInt() >= (requestedTime / 10000)){
-                      mstime = (*it)["time"].asInt();
-                      mslen = (*it)["len"].asInt();
-                      if (Strm.metadata.isMember("live")){
-                        if (it == myRef["keys"].ArrEnd() - 2){
-                          HTTP_S.Clean();
-                          HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-                          conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
-                          HTTP_R.Clean(); //clean for any possible next requests
-                          std::cout << "Fragment after fragment @ " << (requestedTime / 10000) << " not available yet" << std::endl;
-                        }
+                for (std::deque<DTSC::Key>::iterator it = myRef.keys.end(); it != myRef.keys.end(); it++){
+                  if (it->getTime() >= (requestedTime / 10000)){
+                    mstime = it->getTime();
+                    mslen = it->getLength();
+                    if (Strm.metadata.live){
+                      if (it == myRef.keys.end() - 2){
+                        HTTP_S.Clean();
+                        HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+                        conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
+                        HTTP_R.Clean(); //clean for any possible next requests
+                        std::cout << "Fragment after fragment @ " << (requestedTime / 10000) << " not available yet" << std::endl;
                       }
-                      break;
                     }
+                    break;
                   }
                 }
                 if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
-                if (Strm.metadata.isMember("live")){
+                if (Strm.metadata.live){
                   if (mstime == 0 && (requestedTime / 10000) > 1){
                     HTTP_S.Clean();
                     HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
@@ -317,73 +315,83 @@ namespace Connector_HTTP {
                 }
                 
                 //Obtain the corresponding track;
-                JSON::Value trackRef;
+                DTSC::Track trackRef;
                 if (wantsVideo){
-                  trackRef = allVideo.ObjBegin()->second;
+                  trackRef = allVideo.begin()->second;
                 }
                 if (wantsAudio){
-                  trackRef = allAudio.ObjBegin()->second;
+                  trackRef = allAudio.begin()->second;
                 }
                 //Also obtain the associated keyframe;
-                JSON::Value keyObj;
-                for (JSON::ArrIter keyIt = trackRef["keys"].ArrBegin(); keyIt != trackRef["keys"].ArrEnd(); keyIt++){
-                  if ((*keyIt)["time"].asInt() >= (requestedTime / 10000)){
+                DTSC::Key keyObj;
+                int partOffset = 0;
+                int keyDur = 0;
+                for (std::deque<DTSC::Key>::iterator keyIt = trackRef.keys.begin(); keyIt != trackRef.keys.end(); keyIt++){
+                  if (keyIt->getTime() >= (requestedTime / 10000)){
                     keyObj = (*keyIt);
+                    std::deque<DTSC::Key>::iterator nextIt = keyIt;
+                    nextIt++;
+                    if (nextIt != trackRef.keys.end()){
+                      keyDur = nextIt->getTime() - keyIt->getTime();
+                    }else{
+                      keyDur = -1;
+                    }
                     break;
                   }
+                  partOffset += keyIt->getParts();
                 }
                 
-                sstream << "t " << myRef["trackid"].asInt() << "\n";
-                sstream << "s " << keyObj["time"].asInt() << "\n";
-                sstream << "p " << keyObj["time"].asInt() + keyObj["len"].asInt() << "\n";
-//                sstream << "o\n";
+                sstream << "t " << myRef.trackID << "\n";
+                sstream << "s " << keyObj.getTime() << "\n";
+                if (keyDur != -1){
+                  sstream << "p " << keyObj.getTime() + keyDur << "\n";
+                }else{
+                  sstream << "p\n";
+                }
 
                 ss.SendNow(sstream.str().c_str());
+                std::cerr << "[[]]Requested " << sstream.str() << std::endl;
+
                 unsigned int myDuration;
                 
                 //Wrap everything in mp4 boxes
                 MP4::MFHD mfhd_box;
-                mfhd_box.setSequenceNumber(keyObj["num"].asInt());
-                myDuration = keyObj["len"].asInt() * 10000;
+                mfhd_box.setSequenceNumber(keyObj.getNumber());
+                myDuration = keyObj.getLength() * 10000;
                 
                 MP4::TFHD tfhd_box;
                 tfhd_box.setFlags(MP4::tfhdSampleFlag);
                 tfhd_box.setTrackID(1);
-                //if (trackRef["type"].asString() == "video"){
-                  tfhd_box.setDefaultSampleFlags(0x000000C0 | MP4::noIPicture | MP4::noDisposable | MP4::noKeySample);
-                //}else{
-                //  tfhd_box.setDefaultSampleFlags(0x000000C0 | MP4::noKeySample);
-                //}
+                tfhd_box.setDefaultSampleFlags(0x000000C0 | MP4::noIPicture | MP4::noDisposable | MP4::noKeySample);
                 
                 MP4::TRUN trun_box;
                 trun_box.setDataOffset(42);
-                if (trackRef["type"].asString() == "video"){
+                int keySize = 0;
+                if (trackRef.type == "video"){
                  trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
                 }else{
                   trun_box.setFlags(MP4::trundataOffset | MP4::trunsampleDuration | MP4::trunsampleSize);
-                //  trun_box.setFirstSampleFlags(0x00000040 | MP4::noKeySample);
                 }
                 trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);
-                std::deque<long long int> tmpParts;
-                JSON::decodeVector(keyObj["parts"].asString(), tmpParts);
-                for (int i = 0; i < tmpParts.size(); i++){
+                for (int i = 0; i < keyObj.getParts(); i++){
                   MP4::trunSampleInformation trunSample;
-                  trunSample.sampleSize = tmpParts[i];
+                  trunSample.sampleSize = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getSize();
+                  keySize += Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getSize();
                   //Guesstimate sample duration.
-                  trunSample.sampleDuration = ((double)(keyObj["len"].asInt() * 10000) / tmpParts.size());
+                  trunSample.sampleDuration = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getDuration() * 10000;
                   trun_box.setSampleInformation(trunSample, i);
                 }
                 
                 MP4::SDTP sdtp_box;
                 sdtp_box.setVersion(0);
-                if (trackRef["type"].asString() == "video"){
+                if (trackRef.type == "video"){
                   sdtp_box.setValue(36, 4);
-                  for (int i = 1; i < keyObj["partsize"].asInt(); i++){
+                  for (int i = 1; i < keyObj.getParts(); i++){
                     sdtp_box.setValue(20, 4 + i);
                   }
                 }else{
                   sdtp_box.setValue(40, 4);
-                  for (int i = 1; i < keyObj["partsize"].asInt(); i++){
+                  for (int i = 1; i < keyObj.getParts(); i++){
                     sdtp_box.setValue(40, 4 + i);
                   }
                 }
@@ -394,21 +402,23 @@ namespace Connector_HTTP {
                 traf_box.setContent(sdtp_box, 2);
                 
                 //If the stream is live, we want to have a fragref box if possible
-                if (Strm.metadata.isMember("live")){
+                if (Strm.metadata.live){
                   ///\todo Fix this for live
                   MP4::UUID_TrackFragmentReference fragref_box;
                   fragref_box.setVersion(1);
                   fragref_box.setFragmentCount(0);
                   int fragCount = 0;
-                  for (int i = 0; i < 2 && i < trackRef["keys"].size() - 1; i++){//< trackRef["keys"].size() - 1; i++){
-                    if (trackRef["keys"][i]["time"].asInt() > (requestedTime / 10000)){
-                      fragref_box.setTime(fragCount, trackRef["keys"][i]["time"].asInt() * 10000);
-                      fragref_box.setDuration(fragCount, trackRef["keys"][i]["len"].asInt() * 10000);
+                  for (int i = 0; i < 2 && i < trackRef.keys.size() - 1; i++){//< trackRef["keys"].size() - 1; i++){
+                    if (trackRef.keys[i].getTime() > (requestedTime / 10000)){
+                      fragref_box.setTime(fragCount, trackRef.keys[i].getTime() * 10000);
+                      fragref_box.setDuration(fragCount, trackRef.keys[i].getLength() * 10000);
                       fragref_box.setFragmentCount(++fragCount);
                     }
                   }
                   traf_box.setContent(fragref_box, 3);
                 }
+
+                
 
                 MP4::MOOF moof_box;
                 moof_box.setContent(mfhd_box, 0);
@@ -423,7 +433,7 @@ namespace Connector_HTTP {
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
                 HTTP_S.StartResponse(HTTP_R, conn);
                 HTTP_S.Chunkify(moof_box.asBox(), moof_box.boxedSize(), conn);
-                int size = htonl(keyObj["size"].asInt() + 8);
+                int size = htonl(keySize + 8);
                 HTTP_S.Chunkify((char*)&size, 4, conn);
                 HTTP_S.Chunkify("mdat", 4, conn);
                 handlingRequest = true;
@@ -465,6 +475,8 @@ namespace Connector_HTTP {
               handlingRequest = false;
             }
           }
+        }else{
+          Util::sleep(10);
         }
         if ( !ss.connected()){
           break;

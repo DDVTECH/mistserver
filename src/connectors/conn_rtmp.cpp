@@ -568,12 +568,12 @@ namespace Connector_RTMP {
           ss.setBlocking(false);
           Strm.waitForMeta(ss);
           //find first audio and video tracks
-          for (JSON::ObjIter objIt = Strm.metadata["tracks"].ObjBegin(); objIt != Strm.metadata["tracks"].ObjEnd(); objIt++){
-            if (videoID == -1 && objIt->second["type"].asStringRef() == "video"){
-              videoID = objIt->second["trackid"].asInt();
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+            if (videoID == -1 && it->second.type == "video"){
+              videoID = it->second.trackID;
             }
-            if (audioID == -1 && objIt->second["type"].asStringRef() == "audio"){
-              audioID = objIt->second["trackid"].asInt();
+            if (audioID == -1 && it->second.type == "audio"){
+              audioID = it->second.trackID;
             }
           }
           //select the tracks and play
@@ -612,7 +612,7 @@ namespace Connector_RTMP {
               amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
               sendCommand(amfreply, playMessageType, playStreamId);
               //send streamisrecorded if stream, well, is recorded.
-              if (Strm.metadata.isMember("length") && Strm.metadata["length"].asInt() > 0){
+              if (Strm.metadata.vod){//isMember("length") && Strm.metadata["length"].asInt() > 0){
                 Socket.Send(RTMPStream::SendUSR(4, 1)); //send UCM StreamIsRecorded (4), stream 1
               }
               //send streambegin
@@ -638,14 +638,14 @@ namespace Connector_RTMP {
 
             //sent init data if needed
             if ( !streamInited){
-              init_tag.DTSCMetaInit(Strm, Strm.getTrackById(videoID), Strm.getTrackById(audioID));
+              init_tag.DTSCMetaInit(Strm, Strm.metadata.tracks[videoID], Strm.metadata.tracks[audioID]);
               Socket.SendNow(RTMPStream::SendMedia(init_tag));
-              if (audioID != -1 && Strm.getTrackById(audioID).isMember("init")){
-                init_tag.DTSCAudioInit(Strm.getTrackById(audioID));
+              if (audioID != -1){
+                init_tag.DTSCAudioInit(Strm.metadata.tracks[audioID]);
                 Socket.SendNow(RTMPStream::SendMedia(init_tag));
               }
-              if (videoID != -1 && Strm.getTrackById(videoID).isMember("init")){
-                init_tag.DTSCVideoInit(Strm.getTrackById(videoID));
+              if (videoID != -1){
+                init_tag.DTSCVideoInit(Strm.metadata.tracks[videoID]);
                 Socket.SendNow(RTMPStream::SendMedia(init_tag));
               }
               streamInited = true;

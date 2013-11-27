@@ -53,53 +53,6 @@ namespace DTSC {
     unsigned int trackID;
   };
 
-  /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
-  class File{
-    public:
-      File();
-      File(const File & rhs);
-      File(std::string filename, bool create = false);
-      File & operator = (const File & rhs);
-      operator bool() const;
-      ~File();
-      JSON::Value & getMeta();
-      long long int getLastReadPos();
-      bool writeHeader(std::string & header, bool force = false);
-      long long int addHeader(std::string & header);
-      long int getBytePosEOF();
-      long int getBytePos();
-      bool reachedEOF();
-      void seekNext();
-      void parseNext();
-      std::string & getPacket();
-      JSON::Value & getJSON();
-      JSON::Value & getTrackById(int trackNo);
-      bool seek_time(int seconds);
-      bool seek_time(int seconds, int trackNo, bool forceSeek = false);
-      bool seek_bpos(int bpos);
-      void writePacket(std::string & newPacket);
-      void writePacket(JSON::Value & newPacket);
-      bool atKeyframe();
-      void selectTracks(std::set<int> & tracks);
-    private:
-      long int endPos;
-      void readHeader(int pos);
-      std::string strbuffer;
-      JSON::Value jsonbuffer;
-      JSON::Value metadata;
-      std::map<int,std::string> trackMapping;
-      long long int currtime;
-      long long int lastreadpos;
-      int currframe;
-      FILE * F;
-      unsigned long headerSize;
-      char buffer[4];
-      bool created;
-      std::set<seekPos> currentPositions;
-      std::set<int> selectedTracks;
-  };
-  //FileWriter
-
   /// A simple structure used for ordering byte seek positions.
   struct livePos {
     livePos(){
@@ -149,6 +102,179 @@ namespace DTSC {
       volatile int playCount;
   };
 
+  class Part{
+    public:
+      short getSize();
+      void setSize(short newSize);
+      short getDuration();
+      void setDuration(short newDuration);
+      long getOffset();
+      void setOffset(long newOffset);
+      char* getData();
+    private:
+      char data[8];
+  };
+
+  class Key{
+    public:
+      long long unsigned int getBpos();
+      void setBpos(long long unsigned int newBpos);
+      long getLength();
+      void setLength(long newLength);
+      short getNumber();
+      void setNumber(short newNumber);
+      short getParts();
+      void setParts(short newParts);
+      long getTime();
+      void setTime(long newTime);
+      char* getData();
+    private:
+      char data[16];
+  };
+
+  class Fragment{
+    public:
+      long getDuration();
+      void setDuration(long newDuration);
+      char getLength();
+      void setLength(char newLength);
+      short getNumber();
+      void setNumber(short newNumber);
+      long getSize();
+      void setSize(long newSize);
+      char* getData();
+    private:
+      char data[11];
+  };
+
+  class readOnlyTrack{
+    public:
+      readOnlyTrack();
+      readOnlyTrack(JSON::Value & trackRef);
+      int getSendLen();
+      void send(Socket::Connection & conn);
+      std::string getIdentifier();
+      JSON::Value toJSON();
+      long long unsigned int fragLen;
+      Fragment* fragments;
+      long long unsigned int keyLen;
+      Key* keys;
+      long long unsigned int partLen;
+      Part* parts;
+      int trackID;
+      int length;
+      int firstms;
+      int lastms;
+      int bps;
+      int missedFrags;
+      std::string init;
+      std::string codec;
+      std::string type;
+      //audio only
+      int rate;
+      int size;
+      int channels;
+      //video only
+      int width;
+      int height;
+      int fpks;
+  };
+
+  class Track : public readOnlyTrack {
+    public:
+      Track();
+      Track(const readOnlyTrack & rhs);
+      Track(JSON::Value & trackRef);
+      inline operator bool() const {return parts.size();}
+      void update(JSON::Value & pack);
+      int getSendLen();
+      void send(Socket::Connection & conn);
+      JSON::Value toJSON();
+      std::deque<Fragment> fragments;
+      std::deque<Key> keys;
+      std::deque<Part> parts;
+      Key & getKey(int keyNum);
+      std::string getIdentifier();
+      void reset();
+  };
+
+  class readOnlyMeta {
+    public:
+      readOnlyMeta();
+      readOnlyMeta(JSON::Value & meta);
+      std::map<int,readOnlyTrack> tracks;
+      bool vod;
+      bool live;
+      bool merged;
+      long long int moreheader;
+      long long int length;
+      long long int bufferWindow;
+      void send(Socket::Connection & conn);
+      JSON::Value toJSON();
+      bool isFixed();
+  };
+
+  class Meta : public readOnlyMeta {
+    public:
+      Meta();
+      Meta(const readOnlyMeta & meta);
+      Meta(JSON::Value & meta);
+      inline operator bool() const {return vod || live;}
+      std::map<int,Track> tracks;
+      void update(JSON::Value & pack);
+      void send(Socket::Connection & conn);
+      JSON::Value toJSON();
+      void reset();
+      bool isFixed();
+  };
+
+  /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
+  class File{
+    public:
+      File();
+      File(const File & rhs);
+      File(std::string filename, bool create = false);
+      File & operator = (const File & rhs);
+      operator bool() const;
+      ~File();
+      readOnlyMeta & getMeta();
+      long long int getLastReadPos();
+      bool writeHeader(std::string & header, bool force = false);
+      long long int addHeader(std::string & header);
+      long int getBytePosEOF();
+      long int getBytePos();
+      bool reachedEOF();
+      void seekNext();
+      void parseNext();
+      std::string & getPacket();
+      JSON::Value & getJSON();
+      bool seek_time(int seconds);
+      bool seek_time(int seconds, int trackNo, bool forceSeek = false);
+      bool seek_bpos(int bpos);
+      void writePacket(std::string & newPacket);
+      void writePacket(JSON::Value & newPacket);
+      bool atKeyframe();
+      void selectTracks(std::set<int> & tracks);
+    private:
+      long int endPos;
+      void readHeader(int pos);
+      std::string strbuffer;
+      JSON::Value jsonbuffer;
+      JSON::Value metaStorage;
+      readOnlyMeta metadata;
+      std::map<int,std::string> trackMapping;
+      long long int currtime;
+      long long int lastreadpos;
+      int currframe;
+      FILE * F;
+      unsigned long headerSize;
+      char buffer[4];
+      bool created;
+      std::set<seekPos> currentPositions;
+      std::set<int> selectedTracks;
+  };
+  //FileWriter
+
   /// Holds temporary data for a DTSC stream and provides functions to utilize it.
   /// Optionally also acts as a ring buffer of a certain requested size.
   /// If ring buffering mode is enabled, it will automatically grow in size to always contain at least one keyframe.
@@ -157,10 +283,9 @@ namespace DTSC {
       Stream();
       ~Stream();
       Stream(unsigned int buffers, unsigned int bufferTime = 0);
-      JSON::Value metadata;
+      Meta metadata;
       JSON::Value & getPacket();
       JSON::Value & getPacket(livePos num);
-      JSON::Value & getTrackById(int trackNo);
       datatype lastType();
       std::string & lastData();
       bool hasVideo();

@@ -47,11 +47,9 @@ namespace FLV {
       //loader functions
       bool ChunkLoader(const RTMPStream::Chunk& O);
       bool DTSCLoader(DTSC::Stream & S);
-      bool DTSCVideoInit(DTSC::Stream & S);
-      bool DTSCVideoInit(JSON::Value & video);
-      bool DTSCAudioInit(DTSC::Stream & S);
-      bool DTSCAudioInit(JSON::Value & audio);
-      bool DTSCMetaInit(DTSC::Stream & S, JSON::Value & videoRef, JSON::Value & audioRef);
+      bool DTSCVideoInit(DTSC::Track & video);
+      bool DTSCAudioInit(DTSC::Track & audio);
+      bool DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Track & audioRef);
       JSON::Value toJSON(JSON::Value & metadata);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool FileLoader(FILE * f);

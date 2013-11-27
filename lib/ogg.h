@@ -1,8 +1,8 @@
 #pragma once
-#include<string>
-#include<vector>
-#include<deque>
-#include"dtsc.h"
+#include <string>
+#include <vector>
+#include <deque>
+#include "dtsc.h"
 #include "theora.h"
 #include "vorbis.h"
 #include "json.h"

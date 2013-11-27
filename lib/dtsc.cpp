@@ -51,15 +51,8 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
         return false;
       }
       unsigned int i = 0;
-      metadata = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
-      metadata.removeMember("moreheader");
-      metadata.netPrepare();
-      trackMapping.clear();
-      if (metadata.isMember("tracks")){
-        for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
-          trackMapping.insert(std::pair<int,std::string>(it->second["trackid"].asInt(),it->first));
-        }
-      }
+      JSON::Value meta = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
+      metadata = Meta(meta);
       buffer.erase(0, len + 8);
       if (buffer.length() <= 8){
         return false;
@@ -127,17 +120,8 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       }
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
-      metadata = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
-      metadata.removeMember("moreheader");
-      if (buffercount > 1){
-        metadata.netPrepare();
-      }
-      if (metadata.isMember("tracks")){
-        trackMapping.clear();
-        for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
-          trackMapping.insert(std::pair<int,std::string>(it->second["trackid"].asInt(),it->first));
-        }
-      }
+      JSON::Value meta = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
+      metadata = Meta(meta);
       //recursively calls itself until failure or data packet instead of header
       return parsePacket(buffer);
     }
@@ -179,18 +163,13 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
 
 /// Adds a keyframe packet to all tracks, so the stream can be fully played.
 void DTSC::Stream::endStream(){
-  if (metadata.isMember("tracks") && metadata["tracks"].size() > 0){
-    JSON::Value trackData = metadata["tracks"];
-    for (JSON::ObjIter it = trackData.ObjBegin(); it != trackData.ObjEnd(); it++){
-      if(it->second.isMember("lastms") && it->second.isMember("trackid")){	// TODO
-        JSON::Value newPack;
-        newPack["time"] = it->second["lastms"];
-        newPack["trackid"] = it->second["trackid"];
-        newPack["keyframe"] = 1ll;
-        newPack["data"] = "";
-        addPacket(newPack);
-      }
-    }
+  for (std::map<int,Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
+    JSON::Value newPack;
+    newPack["time"] = it->second.lastms;
+    newPack["trackid"] = it->second.trackID;
+    newPack["keyframe"] = 1ll;
+    newPack["data"] = "";
+    addPacket(newPack);
   }
 }
 
@@ -243,7 +222,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   }else{
     resetStream();
   }
-  std::string newTrack = trackMapping[newPos.trackID];
+  std::string newTrack = metadata.tracks[newPos.trackID].getIdentifier();
   while (buffers.count(newPos) > 0){
     newPos.seekTime++;
   }
@@ -253,8 +232,8 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   }
   datapointertype = INVALID;
   std::string tmp = "";
-  if (newPack.isMember("trackid")){
-    tmp = getTrackById(newPack["trackid"].asInt())["type"].asStringRef();
+  if (newPack.isMember("trackid") && newPack["trackid"].asInt() > 0){
+    tmp = metadata.tracks[newPack["trackid"].asInt()].type;
   }
   if (newPack.isMember("datatype")){
     tmp = newPack["datatype"].asStringRef();
@@ -268,75 +247,12 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   if (tmp == "meta"){
     datapointertype = META;
   }
-  if (tmp == "pause_marker"){
+  if (tmp == "pause_marker" || (newPack.isMember("mark") && newPack["mark"].asStringRef() == "pause")){
     datapointertype = PAUSEMARK;
   }
-  int keySize = metadata["tracks"][newTrack]["keys"].size();
   if (buffercount > 1){
-    #define prevKey metadata["tracks"][newTrack]["keys"][keySize - 1]
-    if (newPack.isMember("keyframe") || !keySize || (datapointertype != VIDEO && newPack["time"].asInt() - 5000 > prevKey["time"].asInt())){
-      metadata["tracks"][newTrack]["lastms"] = newPack["time"];
-      keyframes[newPos.trackID].insert(newPos);
-      JSON::Value key;
-      key["time"] = newPack["time"];
-      if (keySize){
-        key["num"] = prevKey["num"].asInt() + 1;
-        prevKey["len"] = newPack["time"].asInt() - prevKey["time"].asInt();
-        int size = 0;
-        for (JSON::ArrIter it = prevKey["parts"].ArrBegin(); it != prevKey["parts"].ArrEnd(); it++){
-          size += it->asInt();
-        }
-        prevKey["partsize"] = prevKey["parts"].size();
-        std::string tmpParts = JSON::encodeVector(prevKey["parts"].ArrBegin(), prevKey["parts"].ArrEnd());
-        prevKey["parts"] = tmpParts;
-        prevKey["size"] = size;
-        long long int bps = (double)prevKey["size"].asInt() / ((double)prevKey["len"].asInt() / 1000.0);
-        if (bps > metadata["tracks"][newTrack]["maxbps"].asInt()){
-          metadata["tracks"][newTrack]["maxbps"] = (long long int)(bps * 1.2);
-        }
-      }else{
-        key["num"] = 1;
-      }
-      metadata["tracks"][newTrack]["keys"].append(key);
-      keySize = metadata["tracks"][newTrack]["keys"].size();
-
-      //find the last fragment
-      JSON::Value lastFrag;
-      if (metadata["tracks"][newTrack]["frags"].size() > 0){
-        lastFrag = metadata["tracks"][newTrack]["frags"][metadata["tracks"][newTrack]["frags"].size() - 1];
-      }
-      //find the first keyframe past the last fragment
-      JSON::ArrIter fragIt = metadata["tracks"][newTrack]["keys"].ArrBegin();
-      while (fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() && fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() - 1 && (*fragIt)["num"].asInt() < lastFrag["num"].asInt() + lastFrag["len"].asInt()){
-        fragIt++;
-      }
-      //continue only if a keyframe was found
-      if (fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() && fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() - 1){
-        //calculate the variables of the new fragment
-        JSON::Value newFrag;
-        newFrag["num"] = (*fragIt)["num"];
-        newFrag["time"] = (*fragIt)["time"];
-        newFrag["len"] = 1ll;
-        newFrag["dur"] = (*fragIt)["len"];
-        fragIt++;
-        //keep calculating until 10+ seconds or no more keyframes
-        while (fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() && fragIt != metadata["tracks"][newTrack]["keys"].ArrEnd() - 1){
-          newFrag["len"] = newFrag["len"].asInt() + 1;
-          newFrag["dur"] = newFrag["dur"].asInt() + (*fragIt)["len"].asInt();
-          //more than 5 seconds? store the new fragment
-          if (newFrag["dur"].asInt() >= 5000 || (*fragIt)["len"].asInt() < 2){
-            /// \todo Make this variable instead of hardcoded 5 seconds?
-            metadata["tracks"][newTrack]["frags"].append(newFrag);
-            break;
-          }
-          fragIt++;
-        }
-      }
-    }
-    if (keySize){
-      metadata["tracks"][newTrack]["keys"][keySize - 1]["parts"].append((long long int)newPack["data"].asStringRef().size());
-    }
-    metadata["live"] = 1ll;
+    metadata.update(newPack);
+    metadata.live = true;
   }
   
   //increase buffer size if too little time available
@@ -346,8 +262,8 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
       buffercount = buffers.size();
       if (buffercount < 2){buffercount = 2;}
     }
-    if (metadata["buffer_window"].asInt() < timeBuffered){
-      metadata["buffer_window"] = (long long int)timeBuffered;
+    if (metadata.bufferWindow < timeBuffered){
+      metadata.bufferWindow = timeBuffered;
     }
   }
 
@@ -359,23 +275,24 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
 /// Deletes a the first part of the buffer, updating the keyframes list and metadata as required.
 /// Will print a warning to std::cerr if a track has less than 2 keyframes left because of this.
 void DTSC::Stream::cutOneBuffer(){
-  if (buffercount > 1 && keyframes[buffers.begin()->first.trackID].count(buffers.begin()->first)){
+  int trid = buffers.begin()->first.trackID;
+  if (buffercount > 1 && keyframes[trid].count(buffers.begin()->first)){
     //if there are < 3 keyframes, throwing one away would mean less than 2 left.
-    if (keyframes[buffers.begin()->first.trackID].size() < 3){
-      std::cerr << "Warning - track " << buffers.begin()->first.trackID << " doesn't have enough keyframes to be reliably served." << std::endl;
+    if (keyframes[trid].size() < 3){
+      std::cerr << "Warning - track " << trid << " doesn't have enough keyframes to be reliably served." << std::endl;
     }
-    std::string track = trackMapping[buffers.begin()->first.trackID];
-    keyframes[buffers.begin()->first.trackID].erase(buffers.begin()->first);
-    int keySize = metadata["tracks"][track]["keys"].size();
-    metadata["tracks"][track]["keys"].shrink(keySize - 1);
-    if (metadata["tracks"][track]["frags"].size() > 0){
-      // delete fragments of which the beginning can no longer be reached
-      while (metadata["tracks"][track]["frags"].size() > 0 && metadata["tracks"][track]["frags"][0u]["num"].asInt() < metadata["tracks"][track]["keys"][0u]["num"].asInt()){
-        metadata["tracks"][track]["firstms"] = metadata["tracks"][track]["firstms"].asInt() + metadata["tracks"][track]["frags"][0u]["dur"].asInt();
-        metadata["tracks"][track]["frags"].shrink(metadata["tracks"][track]["frags"].size() - 1);
-        // increase the missed fragments counter
-        metadata["tracks"][track]["missed_frags"] = metadata["tracks"][track]["missed_frags"].asInt() + 1;
-      }
+    keyframes[trid].erase(buffers.begin()->first);
+    int keySize = metadata.tracks[trid].keys.size();
+    for (int i = 0; i < metadata.tracks[trid].keys[0].getParts(); i++){
+      metadata.tracks[trid].parts.pop_front();
+    }
+    metadata.tracks[trid].keys.pop_front();
+    // delete fragments of which the beginning can no longer be reached
+    while (metadata.tracks[trid].fragments.size() && metadata.tracks[trid].fragments[0].getNumber() < metadata.tracks[trid].keys[0].getNumber()){
+      metadata.tracks[trid].firstms += metadata.tracks[trid].fragments[0].getDuration();
+      metadata.tracks[trid].fragments.pop_front();
+      // increase the missed fragments counter
+      metadata.tracks[trid].missedFrags ++;
     }
   }
   buffers.erase(buffers.begin());
@@ -401,15 +318,6 @@ JSON::Value & DTSC::Stream::getPacket(){
   return buffers.begin()->second;
 }
 
-/// Returns a track element by giving the id.
-JSON::Value & DTSC::Stream::getTrackById(int trackNo){
-  static JSON::Value empty;
-  if (trackMapping.find(trackNo) != trackMapping.end()){
-    return metadata["tracks"][trackMapping[trackNo]];
-  }
-  return empty;
-}
-
 /// Returns the type of the last received packet.
 DTSC::datatype DTSC::Stream::lastType(){
   return datapointertype;
@@ -417,12 +325,22 @@ DTSC::datatype DTSC::Stream::lastType(){
 
 /// Returns true if the current stream contains at least one video track.
 bool DTSC::Stream::hasVideo(){
-  return metadata.isMember("video");
+  for (std::map<int,Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
+    if (it->second.type == "video"){
+      return true;
+    }
+  }
+  return false;
 }
 
 /// Returns true if the current stream contains at least one audio track.
 bool DTSC::Stream::hasAudio(){
-  return metadata.isMember("audio");
+  for (std::map<int,Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
+    if (it->second.type == "audio"){
+      return true;
+    }
+  }
+  return false;
 }
 
 void DTSC::Stream::setBufferTime(unsigned int ms){
@@ -446,7 +364,7 @@ std::string & DTSC::Stream::outPacket(livePos num){
 
 /// Returns a packed DTSC header, ready to sent over the network.
 std::string & DTSC::Stream::outHeader(){
-  return metadata.toNetPacked();
+  return metadata.toJSON().toNetPacked();
 }
 
 /// Constructs a new Ring, at the given buffer position.
@@ -483,16 +401,16 @@ void DTSC::Stream::dropRing(DTSC::Ring * ptr){
 int DTSC::Stream::canSeekms(unsigned int ms){
   bool too_late = false;
   //no tracks? Frame too new by definition.
-  if ( !metadata.isMember("tracks") || metadata["tracks"].size() < 1){
+  if ( !metadata.tracks.size()){
     return 1;
   }
   //loop trough all the tracks
-  for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
-    if (it->second.isMember("keys") && it->second["keys"].size() > 0){
-      if (it->second["keys"][0u]["time"].asInt() <= ms && it->second["keys"][it->second["keys"].size() - 1]["time"].asInt() >= ms){
+  for (std::map<int,Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
+    if (it->second.keys.size()){
+      if (it->second.keys[0].getTime() <= ms && it->second.keys[it->second.keys.size() - 1].getTime() >= ms){
         return 0;
       }
-      if (it->second["keys"][0u]["time"].asInt() > ms){too_late = true;}
+      if (it->second.keys[0].getTime() > ms){too_late = true;}
     }
   }
   //did we spot a track already past this point? return too late.
@@ -505,7 +423,7 @@ DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> & allowedTrack
   std::set<int> seekTracks = allowedTracks;
   livePos result = buffers.begin()->first;
   for (std::set<int>::iterator it = allowedTracks.begin(); it != allowedTracks.end(); it++){
-    if (getTrackById(*it).isMember("type") && getTrackById(*it)["type"].asStringRef() == "video"){
+    if (metadata.tracks[*it].type == "video"){
       int trackNo = *it;
       seekTracks.clear();
       seekTracks.insert(trackNo);
@@ -616,18 +534,12 @@ DTSC::File::File(std::string filename, bool create){
     headerSize = ntohl(ubuffer[0]);
   }
   readHeader(0);
-  trackMapping.clear();
-  if (metadata.isMember("tracks")){
-    for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
-      trackMapping.insert(std::pair<int,std::string>(it->second["trackid"].asInt(),it->first));
-    }
-  }
   fseek(F, 8 + headerSize, SEEK_SET);
   currframe = 0;
 }
 
 /// Returns the header metadata for this file as JSON::Value.
-JSON::Value & DTSC::File::getMeta(){
+DTSC::readOnlyMeta & DTSC::File::getMeta(){
   return metadata;
 }
 
@@ -688,19 +600,19 @@ void DTSC::File::readHeader(int pos){
       fprintf(stderr, "Could not read header (H%i)\n", pos);
     }
     strbuffer = "";
-    metadata.null();
+    metadata = readOnlyMeta();
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
     fprintf(stderr, "Invalid header - %.4s != %.4s  (H%i)\n", buffer, DTSC::Magic_Header, pos);
     strbuffer = "";
-    metadata.null();
+    metadata = readOnlyMeta();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1){
     fprintf(stderr, "Could not read size (H%i)\n", pos);
     strbuffer = "";
-    metadata.null();
+    metadata = readOnlyMeta();
     return;
   }
   uint32_t * ubuffer = (uint32_t *)buffer;
@@ -710,20 +622,21 @@ void DTSC::File::readHeader(int pos){
     if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
       fprintf(stderr, "Could not read packet (H%i)\n", pos);
       strbuffer = "";
-      metadata.null();
+      metadata = readOnlyMeta();
       return;
     }
-    metadata = JSON::fromDTMI(strbuffer);
+    metaStorage = JSON::fromDTMI(strbuffer);
+    metadata = readOnlyMeta(metaStorage);//make readonly
   }
   //if there is another header, read it and replace metadata with that one.
-  if (metadata.isMember("moreheader") && metadata["moreheader"].asInt() > 0){
-    if (metadata["moreheader"].asInt() < getBytePosEOF()){
-      readHeader(metadata["moreheader"].asInt());
+  if (metadata.moreheader){
+    if (metadata.moreheader < getBytePosEOF()){
+      readHeader(metadata.moreheader);
       return;
     }
   }
-  metadata["vod"] = true;
-  metadata.netPrepare();
+  metadata.vod = true;
+  metadata.live = false;
 }
 
 long int DTSC::File::getBytePosEOF(){
@@ -754,7 +667,7 @@ void DTSC::File::seekNext(){
     return;
   }
   clearerr(F);
-  if ( !metadata.isMember("merged") || !metadata["merged"]){
+  if ( !metadata.merged){
     seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
   }
   fseek(F,currentPositions.begin()->bytePos, SEEK_SET);
@@ -774,7 +687,7 @@ void DTSC::File::seekNext(){
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
     readHeader(lastreadpos);
-    jsonbuffer = metadata;
+    jsonbuffer = metadata.toJSON();
     return;
   }
   long long unsigned int version = 0;
@@ -810,7 +723,7 @@ void DTSC::File::seekNext(){
   }else{
     jsonbuffer = JSON::fromDTMI(strbuffer);
   }
-  if (metadata.isMember("merged") && metadata["merged"]){
+  if ( metadata.merged){
     int tempLoc = getBytePos();
     char newHeader[20];
     if (fread((void*)newHeader, 20, 1, F) == 1){
@@ -823,11 +736,12 @@ void DTSC::File::seekNext(){
           tmpPos.seekTime += ntohl(((int*)newHeader)[4]);
         }else{
           tmpPos.seekTime = -1;
-          for (JSON::ArrIter it = getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrBegin(); it != getTrackById(jsonbuffer["trackid"].asInt())["keys"].ArrEnd(); it++){
-            if ((*it)["time"].asInt() > jsonbuffer["time"].asInt()){
-              tmpPos.seekTime = (*it)["time"].asInt();
-              tmpPos.bytePos = (*it)["bpos"].asInt();
-              tmpPos.trackID = jsonbuffer["trackid"].asInt();
+          long tid = jsonbuffer["trackid"].asInt();
+          for (int i = 0; i != metadata.tracks[tid].keyLen; i++){
+            if (metadata.tracks[tid].keys[i].getTime() > jsonbuffer["time"].asInt()){
+              tmpPos.seekTime = metadata.tracks[tid].keys[i].getTime();
+              tmpPos.bytePos = metadata.tracks[tid].keys[i].getBpos();
+              tmpPos.trackID = tid;
               break;
             }
           }
@@ -869,7 +783,7 @@ void DTSC::File::parseNext(){
   if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
     if (lastreadpos != 0){
       readHeader(lastreadpos);
-      jsonbuffer = metadata;
+      jsonbuffer = metadata.toJSON();
     }else{
       if (fread(buffer, 4, 1, F) != 1){
         fprintf(stderr, "Could not read size\n");
@@ -940,15 +854,6 @@ JSON::Value & DTSC::File::getJSON(){
   return jsonbuffer;
 }
 
-/// Returns a track element by giving the id.
-JSON::Value & DTSC::File::getTrackById(int trackNo){
-  static JSON::Value empty;
-  if (trackMapping.find(trackNo) != trackMapping.end()){
-    return metadata["tracks"][trackMapping[trackNo]];
-  }
-  return empty;
-}
-
 bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
@@ -959,14 +864,13 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
     tmpPos.seekTime = 0;
     tmpPos.bytePos = 0;
   }
-  JSON::Value & keys = metadata["tracks"][trackMapping[trackNo]]["keys"];
-  for (JSON::ArrIter keyIt = keys.ArrBegin(); keyIt != keys.ArrEnd(); keyIt++){
-    if ((*keyIt)["time"].asInt() > ms){
+  for (int i = 0; i < metadata.tracks[trackNo].keyLen; i++){
+    if (metadata.tracks[trackNo].keys[i].getTime() > ms){
       break;
     }
-    if ((*keyIt)["time"].asInt() > tmpPos.seekTime){
-      tmpPos.seekTime = (*keyIt)["time"].asInt();
-      tmpPos.bytePos = (*keyIt)["bpos"].asInt();
+    if (metadata.tracks[trackNo].keys[i].getTime() > tmpPos.seekTime){
+      tmpPos.seekTime = metadata.tracks[trackNo].keys[i].getTime();
+      tmpPos.bytePos = metadata.tracks[trackNo].keys[i].getBpos();
     }
   }
   bool foundPacket = false;
@@ -999,7 +903,6 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
     }
   }
   currentPositions.insert(tmpPos);
-  //fprintf(stderr,"Seek_time to %d on track %d, time %d on track %d found\n", ms, trackNo, tmpPos.seekTime,tmpPos.trackID);
 }
 
 /// Attempts to seek to the given time in ms within the file.
@@ -1037,10 +940,10 @@ bool DTSC::File::atKeyframe(){
     return true;
   }
   long long int bTime = jsonbuffer["time"].asInt();
-  JSON::Value & keys = getTrackById(jsonbuffer["trackid"].asInt())["keys"];
-  for (JSON::ArrIter aIt = keys.ArrBegin(); aIt != keys.ArrEnd(); ++aIt){
-    if ((*aIt)["time"].asInt() >= bTime){
-      return ((*aIt)["time"].asInt() == bTime);
+  int trackid = jsonbuffer["trackid"].asInt();
+  for (int i = 0; i < metadata.tracks[trackid].keyLen; i++){
+    if (metadata.tracks[trackid].keys[i].getTime() >= bTime){
+      return (metadata.tracks[trackid].keys[i].getTime() == bTime);
     }
   }
   return false;

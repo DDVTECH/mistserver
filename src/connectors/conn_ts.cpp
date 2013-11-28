@@ -67,7 +67,7 @@ namespace Connector_TS {
           int audioID = -1;
 
           Strm.waitForMeta(ss);
-          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it){
+          for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
             if (audioID == -1 && it->second.type == "audio"){
               audioID = it->first;
               tmpTracks << " " << it->first;

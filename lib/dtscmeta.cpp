@@ -819,7 +819,7 @@ namespace DTSC {
 
   bool Meta::isFixed(){
     for (std::map<int,Track>::iterator it = tracks.begin(); it != tracks.end(); it++){
-      if (!it->second.keys.size() || !(it->second.keys.rbegin()->getBpos())){
+      if (it->second.keys.size() && !(it->second.keys.rbegin()->getBpos())){
         return false;
       }
     }

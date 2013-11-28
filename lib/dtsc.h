@@ -178,6 +178,9 @@ namespace DTSC {
       int width;
       int height;
       int fpks;
+      //vorbis and theora only
+      std::string idHeader;
+      std::string commentHeader;
   };
 
   class Track : public readOnlyTrack {

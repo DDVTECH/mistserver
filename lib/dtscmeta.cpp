@@ -166,6 +166,10 @@ namespace DTSC {
       height = trackRef["height"].asInt();
       fpks = trackRef["fpks"].asInt();
     }
+    if (codec == "vorbis" || codec == "theora"){
+      idHeader = trackRef["idheader"].asString();
+      commentHeader = trackRef["commentheader"].asString();
+    }
   }
 
   Track::Track(){}
@@ -186,6 +190,8 @@ namespace DTSC {
     width = rhs.width;
     height = rhs.height;
     fpks = rhs.fpks;
+    idHeader = rhs.idHeader;
+    commentHeader = rhs.commentHeader;
     if (rhs.fragments && rhs.fragLen){
       fragments = std::deque<Fragment>(rhs.fragments, rhs.fragments + rhs.fragLen);
     }
@@ -228,6 +234,10 @@ namespace DTSC {
       width = trackRef["width"].asInt();
       height = trackRef["height"].asInt();
       fpks = trackRef["fpks"].asInt();
+    }
+    if (codec == "vorbis" || codec == "theora"){
+      idHeader = trackRef["idheader"].asString();
+      commentHeader = trackRef["commentheader"].asString();
     }
   }
 
@@ -459,6 +469,10 @@ namespace DTSC {
     }else if (type == "video"){
       result += 48;
     }
+    if (codec == "vorbis" || codec == "theora"){
+      result += 15 + idHeader.size();//idheader
+      result += 20 + commentHeader.size();//commentheader
+    }
     return result;
   }
 
@@ -471,6 +485,10 @@ namespace DTSC {
       result += 49;
     }else if (type == "video"){
       result += 48;
+    }
+    if (codec == "vorbis" || codec == "theora"){
+      result += 15 + idHeader.size();//idheader
+      result += 20 + commentHeader.size();//commentheader
     }
     return result;
   }
@@ -521,6 +539,14 @@ namespace DTSC {
       conn.SendNow(convertLongLong(height), 8);
       conn.SendNow("\000\004fpks\001", 7);
       conn.SendNow(convertLongLong(fpks), 8);
+    }
+    if (codec == "vorbis" || codec == "theora"){
+      conn.SendNow("\000\010idheader\002", 11);
+      conn.SendNow(convertInt(idHeader.size()), 4);
+      conn.SendNow(idHeader);
+      conn.SendNow("\000\015commentheader\002", 16);
+      conn.SendNow(convertInt(commentHeader.size()), 4);
+      conn.SendNow(commentHeader);
     }
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
@@ -577,6 +603,14 @@ namespace DTSC {
       conn.SendNow(convertLongLong(height), 8);
       conn.SendNow("\000\004fpks\001", 7);
       conn.SendNow(convertLongLong(fpks), 8);
+    }
+    if (codec == "vorbis" || codec == "theora"){
+      conn.SendNow("\000\010idheader\002", 11);
+      conn.SendNow(convertInt(idHeader.size()), 4);
+      conn.SendNow(idHeader);
+      conn.SendNow("\000\015commentheader\002", 16);
+      conn.SendNow(convertInt(commentHeader.size()), 4);
+      conn.SendNow(commentHeader);
     }
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
@@ -670,6 +704,10 @@ namespace DTSC {
       result["height"] = height;
       result["fpks"] = fpks;
     }
+    if (codec == "vorbis" || codec == "theora"){
+      result["idheader"] = idHeader;
+      result["commentheader"] = commentHeader;
+    }
     return result;
   }
   
@@ -712,6 +750,10 @@ namespace DTSC {
       result["width"] = width;
       result["height"] = height;
       result["fpks"] = fpks;
+    }
+    if (codec == "vorbis" || codec == "theora"){
+      result["idheader"] = idHeader;
+      result["commentheader"] = commentHeader;
     }
     return result;
   }

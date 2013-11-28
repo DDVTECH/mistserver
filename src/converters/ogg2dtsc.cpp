@@ -89,7 +89,7 @@ namespace Converters{
               if (trackData[sNum].codec == THEORA){
                 trackData[sNum].lastTime += (mspft / 4);
               }else{
-                trackData[sNum].lastTime += (mspfv / 4);
+                trackData[sNum].lastTime += (mspfv / 16);
               }
               DTSCOut["data"] = std::string(oggPage.getFullPayload()+offset, (*it)); //segment content put in JSON
               if (trackData[sNum].codec == THEORA){

@@ -98,7 +98,7 @@ namespace Connector_HTTP {
           HTTP_S.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for FLV files
           HTTP_S.protocol = "HTTP/1.0";
           conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
-          conn.SendNow(Conv.DTSCMeta2MP4Header(Strm.metadata.toJSON()));//SENDING MP4HEADER
+          conn.SendNow(Conv.DTSCMeta2MP4Header(Strm.metadata));//SENDING MP4HEADER
           keyPartIt = Conv.keyParts.begin();
           {//using scope to have cmd not declared after action
             std::stringstream cmd;

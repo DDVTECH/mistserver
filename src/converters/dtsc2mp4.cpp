@@ -23,8 +23,12 @@ namespace Converters {
   ///\return The return code for the converter.
   int DTSC2MP4(Util::Config & conf){
     DTSC::File input(conf.getString("filename"));//DTSC input
+    
+    //DTSC::readOnlyMeta fileMeta = input.getMeta();
+    DTSC::Meta giveMeta(input.getMeta());
+    
     MP4::DTSC2MP4Converter Conv;//DTSC to MP4 converter class will handle header creation and media parsing
-    std::cout << Conv.DTSCMeta2MP4Header(input.getMeta().toJSON());//Creating and outputting MP4 header from DTSC file
+    std::cout << Conv.DTSCMeta2MP4Header(giveMeta);//Creating and outputting MP4 header from DTSC file
     
     //initialising JSON input
     std::set<int> selector;
@@ -40,11 +44,12 @@ namespace Converters {
     while (input.getJSON()){//as long as the file goes
       Conv.parseDTSC(input.getJSON());//parse 1 file DTSC packet
       if(Conv.sendReady()){//if the converter has a part to send out
-        std::cout << Conv.sendString();//send out and clear Convverter buffer
+        std::cout << Conv.sendString();//send out and clear Converter buffer
       }
       input.seekNext();//get next DTSC packet
     }
     //output remaining buffer
+    std::cout << Conv.purgeBuffer();
     return 0;
   } //DTSC2MP4
 

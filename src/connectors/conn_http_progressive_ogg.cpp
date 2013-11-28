@@ -163,7 +163,7 @@ namespace Connector_HTTP {
               HTTP_S.protocol = "HTTP/1.0";
               conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
               //Fill in ogg header here
-              oggMeta.readDTSCHeader(Strm.metadata.toJSON());
+              oggMeta.readDTSCHeader(Strm.metadata);
               conn.SendNow((char*)oggMeta.parsedPages.c_str(), oggMeta.parsedPages.size());
               progressive_has_sent_header = true;
               //setting sendReady to not ready

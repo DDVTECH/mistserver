@@ -120,11 +120,11 @@ namespace Converters{
                         trackData[sNum].idHeader = tHead;
                         DTSCHeader["tracks"][trackData[sNum].name]["height"] = (long long)tHead.getPICH();
                         DTSCHeader["tracks"][trackData[sNum].name]["width"] = (long long)tHead.getPICW();
-                        DTSCHeader["tracks"][trackData[sNum].name]["IDHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
+                        DTSCHeader["tracks"][trackData[sNum].name]["idheader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                         break;
                       }
                       case 1: //comment header
-                        DTSCHeader["tracks"][trackData[sNum].name]["CommentHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
+                        DTSCHeader["tracks"][trackData[sNum].name]["commentheader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                         break;
                       case 2:{ //setup header, also the point to start writing the header
                         DTSCHeader["tracks"][trackData[sNum].name]["codec"] = "theora";
@@ -145,11 +145,11 @@ namespace Converters{
                       switch(vHead.getHeaderType()){
                         case 1:{
                           DTSCHeader["tracks"][trackData[sNum].name]["channels"] = (long long)vHead.getAudioChannels();
-                          DTSCHeader["tracks"][trackData[sNum].name]["IDHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
+                          DTSCHeader["tracks"][trackData[sNum].name]["idheader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                           break;
                         }
                         case 3:{
-                          DTSCHeader["tracks"][trackData[sNum].name]["CommentHeader"] = std::string(oggPage.getFullPayload()+offset, (*it));
+                          DTSCHeader["tracks"][trackData[sNum].name]["commentheader"] = std::string(oggPage.getFullPayload()+offset, (*it));
                           break;
                         }
                         case 5:{

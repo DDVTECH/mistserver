@@ -98,6 +98,14 @@ namespace Converter {
       statusHistory[name] = "No output file supplied";
       return;
     }
+    struct stat statBuf;
+    std::string outPath = parameters["output"].asString();
+    outPath = outPath.substr(0, outPath.rfind('/'));
+    int statRes = stat(outPath.c_str(), & statBuf);
+    if (statRes == -1 || !S_ISDIR(statBuf.st_mode)){
+      statusHistory[name] = "Output path is either non-existent, or not a path.";
+      return;
+    }
     if ( !parameters.isMember("encoder")){
       statusHistory[name] = "No encoder specified";
       return;
@@ -261,6 +269,7 @@ namespace Converter {
     if (allConversions.size()){
       for (std::map<std::string,JSON::Value>::iterator cIt = allConversions.begin(); cIt != allConversions.end(); cIt++){
         result[cIt->first] = cIt->second["status"];
+        result[cIt->first]["details"] = cIt->second;
       }
     }
     if (statusHistory.size()){

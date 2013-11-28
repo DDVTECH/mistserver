@@ -50,7 +50,7 @@ namespace FLV {
       bool DTSCVideoInit(DTSC::Track & video);
       bool DTSCAudioInit(DTSC::Track & audio);
       bool DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Track & audioRef);
-      JSON::Value toJSON(JSON::Value & metadata);
+      JSON::Value toJSON(DTSC::Meta & metadata);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool FileLoader(FILE * f);
     protected:

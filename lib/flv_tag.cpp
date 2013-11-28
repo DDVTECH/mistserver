@@ -923,7 +923,7 @@ bool FLV::Tag::FileLoader(FILE * f){
   return false;
 } //FLV_GetPacket
 
-JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
+JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata){
   JSON::Value pack_out; // Storage for outgoing metadata.
 
   if (data[0] == 0x12){
@@ -937,61 +937,32 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
       }
     }
     if (tmp){
-      if (tmp->getContentP("videocodecid")){
-        switch ((unsigned int)tmp->getContentP("videocodecid")->NumValue()){
-          case 2:
-            metadata["tracks"]["track1"]["codec"] = "H263";
-            break;
-          case 4:
-            metadata["tracks"]["track1"]["codec"] = "VP6";
-            break;
-          case 7:
-            metadata["tracks"]["track1"]["codec"] = "H264";
-            break;
-          default:
-            metadata["tracks"]["track1"]["codec"] = "?";
-            break;
-        }
-      }
-      if (tmp->getContentP("audiocodecid")){
-        switch ((unsigned int)tmp->getContentP("audiocodecid")->NumValue()){
-          case 2:
-            metadata["tracks"]["track2"]["codec"] = "MP3";
-            break;
-          case 10:
-            metadata["tracks"]["track2"]["codec"] = "AAC";
-            break;
-          default:
-            metadata["tracks"]["track2"]["codec"] = "?";
-            break;
-        }
-      }
       if (tmp->getContentP("width")){
-        metadata["tracks"]["track1"]["width"] = (long long int)tmp->getContentP("width")->NumValue();
+        metadata.tracks[1].width = (long long int)tmp->getContentP("width")->NumValue();
       }
       if (tmp->getContentP("height")){
-        metadata["tracks"]["track1"]["height"] = (long long int)tmp->getContentP("height")->NumValue();
+        metadata.tracks[1].height = (long long int)tmp->getContentP("height")->NumValue();
       }
       if (tmp->getContentP("framerate")){
-        metadata["tracks"]["track1"]["fpks"] = (long long int)(tmp->getContentP("framerate")->NumValue() * 1000.0);
+        metadata.tracks[1].fpks = (long long int)(tmp->getContentP("framerate")->NumValue() * 1000.0);
       }
       if (tmp->getContentP("videodatarate")){
-        metadata["tracks"]["track1"]["bps"] = (long long int)(tmp->getContentP("videodatarate")->NumValue() * 1024) / 8;
+        metadata.tracks[1].bps = (long long int)(tmp->getContentP("videodatarate")->NumValue() * 1024) / 8;
       }
       if (tmp->getContentP("audiodatarate")){
-        metadata["tracks"]["track2"]["bps"] = (long long int)(tmp->getContentP("audiodatarate")->NumValue() * 1024) / 8;
+        metadata.tracks[2].bps = (long long int)(tmp->getContentP("audiodatarate")->NumValue() * 1024) / 8;
       }
       if (tmp->getContentP("audiosamplerate")){
-        metadata["tracks"]["track2"]["rate"] = (long long int)tmp->getContentP("audiosamplerate")->NumValue();
+        metadata.tracks[2].rate = (long long int)tmp->getContentP("audiosamplerate")->NumValue();
       }
       if (tmp->getContentP("audiosamplesize")){
-        metadata["tracks"]["track2"]["size"] = (long long int)tmp->getContentP("audiosamplesize")->NumValue();
+        metadata.tracks[2].size = (long long int)tmp->getContentP("audiosamplesize")->NumValue();
       }
       if (tmp->getContentP("stereo")){
         if (tmp->getContentP("stereo")->NumValue() == 1){
-          metadata["tracks"]["track2"]["channels"] = 2;
+          metadata.tracks[2].channels = 2;
         }else{
-          metadata["tracks"]["track2"]["channels"] = 1;
+          metadata.tracks[2].channels = 1;
         }
       }
       for (int i = 0; i < tmp->hasContent(); ++i){
@@ -1011,78 +982,58 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
         pack_out["time"] = tagTime();
       }
     }
-    metadata["tracks"]["track1"]["trackid"] = 1;
-    metadata["tracks"]["track1"]["type"] = "video";
-    if ( !metadata["tracks"]["track1"].isMember("length")){
-      metadata["tracks"]["track1"]["length"] = 0;
-    }
-    if (metadata["tracks"].isMember("track1")){
-      if ( !metadata["tracks"]["track1"].isMember("width")){
-        metadata["tracks"]["track1"]["width"] = 0;
-      }
-      if ( !metadata["tracks"]["track1"].isMember("height")){
-        metadata["tracks"]["track1"]["height"] = 0;
-      }
-      if ( !metadata["tracks"]["track1"].isMember("fpks")){
-        metadata["tracks"]["track1"]["fpks"] = 0;
-      }
-      if ( !metadata["tracks"]["track1"].isMember("bps")){
-        metadata["tracks"]["track1"]["bps"] = 0;
-      }
-    }
     return pack_out; //empty
   }
   if (data[0] == 0x08){
     char audiodata = data[11];
     if (needsInitData() && isInitData()){
       if ((audiodata & 0xF0) == 0xA0){
-        metadata["tracks"]["track2"]["init"] = std::string((char*)data + 13, (size_t)len - 17);
+        metadata.tracks[2].init = std::string((char*)data + 13, (size_t)len - 17);
       }else{
-        metadata["tracks"]["track2"]["init"] = std::string((char*)data + 12, (size_t)len - 16);
+        metadata.tracks[2].init = std::string((char*)data + 12, (size_t)len - 16);
       }
       return pack_out; //skip rest of parsing, get next tag.
     }
-    pack_out["datatype"] = "audio";
     pack_out["time"] = tagTime();
     pack_out["trackid"] = 2;
-    metadata["tracks"]["track2"]["trackid"] = 2;
-    metadata["tracks"]["track2"]["type"] = "audio";
-    if ( !metadata["tracks"]["track2"].isMember("codec") || metadata["tracks"]["track2"]["codec"].asString() == "?" || metadata["tracks"]["track2"]["codec"].asString() == ""){
-      metadata["tracks"]["track2"]["codec"] = getAudioCodec();
+    metadata.tracks[2].trackID = 2;
+    metadata.tracks[2].type = "audio";
+    if (metadata.tracks[2].codec == ""){
+      metadata.tracks[2].codec = getAudioCodec();
     }
-    if ( !metadata["tracks"]["track2"].isMember("rate") || metadata["tracks"]["track2"]["rate"].asInt() < 1){
+    if ( !metadata.tracks[2].rate){
       switch (audiodata & 0x0C){
         case 0x0:
-          metadata["tracks"]["track2"]["rate"] = 5512;
+          metadata.tracks[2].rate = 5512;
           break;
         case 0x4:
-          metadata["tracks"]["track2"]["rate"] = 11025;
+          metadata.tracks[2].rate = 11025;
           break;
         case 0x8:
-          metadata["tracks"]["track2"]["rate"] = 22050;
+          metadata.tracks[2].rate = 22050;
           break;
         case 0xC:
-          metadata["tracks"]["track2"]["rate"] = 44100;
+          metadata.tracks[2].rate = 44100;
           break;
       }
     }
-    if ( !metadata["tracks"]["track2"].isMember("size") || metadata["tracks"]["track2"]["size"].asInt() < 1){
+    if ( !metadata.tracks[2].size){
       switch (audiodata & 0x02){
         case 0x0:
-          metadata["tracks"]["track2"]["size"] = 8;
+          metadata.tracks[2].size = 8;
           break;
         case 0x2:
-          metadata["tracks"]["track2"]["size"] = 16;
+          metadata.tracks[2].size = 16;
           break;
       }
     }
-    if ( !metadata["tracks"]["track2"].isMember("channels") || metadata["tracks"]["track2"]["channels"].asInt() < 1){
+    if ( !metadata.tracks[2].channels){
       switch (audiodata & 0x01){
         case 0x0:
-          metadata["tracks"]["track2"]["channels"] = 1;
+          metadata.tracks[2].channels = 1;
           break;
         case 0x1:
-          metadata["tracks"]["track2"]["channels"] = 2;
+          metadata.tracks[2].channels = 2;
           break;
       }
     }
@@ -1106,19 +1057,20 @@ JSON::Value FLV::Tag::toJSON(JSON::Value & metadata){
         if (len < 21){
           return JSON::Value();
         }
-        metadata["tracks"]["track1"]["init"] = std::string((char*)data + 16, (size_t)len - 20);
+        metadata.tracks[1].init = std::string((char*)data + 16, (size_t)len - 20);
       }else{
         if (len < 17){
           return JSON::Value();
         }
-        metadata["tracks"]["track1"]["init"] = std::string((char*)data + 12, (size_t)len - 16);
+        metadata.tracks[1].init = std::string((char*)data + 12, (size_t)len - 16);
       }
       return pack_out; //skip rest of parsing, get next tag.
     }
-    if ( !metadata["tracks"]["track1"].isMember("codec") || metadata["tracks"]["track1"]["codec"].asString() == "?" || metadata["tracks"]["track1"]["codec"].asString() == ""){
-      metadata["tracks"]["track1"]["codec"] = getVideoCodec();
+    if (metadata.tracks[1].codec == ""){
+      metadata.tracks[1].codec = getVideoCodec();
     }
-    pack_out["datatype"] = "video";
+    metadata.tracks[1].type = "video";
+    metadata.tracks[1].trackID = 1;
     pack_out["trackid"] = 1;
     switch (videodata & 0xF0){
       case 0x10:

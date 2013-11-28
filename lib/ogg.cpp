@@ -505,7 +505,7 @@ namespace OGG{
     setCRCChecksum(calcChecksum());
   }
   
-  void headerPages::readDTSCHeader(JSON::Value meta){
+  void headerPages::readDTSCHeader(DTSC::Meta & meta){
     //pages.clear();
     parsedPages = "";
     Page curOggPage;
@@ -514,19 +514,19 @@ namespace OGG{
     DTSCID2OGGSerial.clear();
     DTSCID2seqNum.clear();
     //Creating ID headers for theora and vorbis
-    for ( JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it ++) {
+    for ( std::map<int,DTSC::Track>::iterator it = meta.tracks.begin(); it != meta.tracks.end(); it ++) {
       curOggPage.clear();
       curOggPage.setVersion();
       curOggPage.setHeaderType(2);//headertype 2 = Begin of Stream
       curOggPage.setGranulePosition(0);
-      DTSCID2OGGSerial[it->second["trackid"].asInt()] = rand() % 0xFFFFFFFE +1; //initialising on a random not 0 number
-      curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[it->second["trackid"].asInt()]);
-      DTSCID2seqNum[it->second["trackid"].asInt()] = 0;
-      curOggPage.setPageSequenceNumber(DTSCID2seqNum[it->second["trackid"].asInt()]++);
+      DTSCID2OGGSerial[it->second.trackID] = rand() % 0xFFFFFFFE +1; //initialising on a random not 0 number
+      curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[it->second.trackID]);
+      DTSCID2seqNum[it->second.trackID] = 0;
+      curOggPage.setPageSequenceNumber(DTSCID2seqNum[it->second.trackID]++);
       curSegTable.clear();
-      curSegTable.push_back(it->second["IDHeader"].asString().size());
+      curSegTable.push_back(it->second.idHeader.size());
       curOggPage.setSegmentTable(curSegTable);
-      curOggPage.setPayload((char*)it->second["IDHeader"].asString().c_str(), it->second["IDHeader"].asString().size());
+      curOggPage.setPayload((char*)it->second.idHeader.c_str(), it->second.idHeader.size());
       curOggPage.setCRCChecksum(curOggPage.calcChecksum());
       //std::cout << std::string(curOggPage.getPage(), curOggPage.getPageSize());
       //pages.push_back(curOggPage);
@@ -535,18 +535,18 @@ namespace OGG{
     //Creating remaining headers for theora and vorbis
     //for tracks in header
     //create standard page with comment (empty) en setup header(init)
-    for ( JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it ++) {
+    for ( std::map<int,DTSC::Track>::iterator it = meta.tracks.begin(); it != meta.tracks.end(); it ++) {
       curOggPage.clear();
       curOggPage.setVersion();
       curOggPage.setHeaderType(0);//headertype 0 = normal
       curOggPage.setGranulePosition(0);
-      curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[it->second["trackid"].asInt()]);
-      curOggPage.setPageSequenceNumber(DTSCID2seqNum[it->second["trackid"].asInt()]++);
+      curOggPage.setBitstreamSerialNumber(DTSCID2OGGSerial[it->second.trackID]);
+      curOggPage.setPageSequenceNumber(DTSCID2seqNum[it->second.trackID]++);
       curSegTable.clear();
-      curSegTable.push_back(it->second["CommentHeader"].asString().size());
-      curSegTable.push_back(it->second["init"].asString().size());
+      curSegTable.push_back(it->second.commentHeader.size());
+      curSegTable.push_back(it->second.init.size());
       curOggPage.setSegmentTable(curSegTable);
-      std::string fullHeader = it->second["CommentHeader"].asString() + it->second["init"].asString();
+      std::string fullHeader = it->second.commentHeader + it->second.init;
       curOggPage.setPayload((char*)fullHeader.c_str(),fullHeader.size());
       curOggPage.setCRCChecksum(curOggPage.calcChecksum());
       //std::cout << std::string(curOggPage.getPage(), curOggPage.getPageSize());

@@ -6,9 +6,8 @@ namespace MP4{
     return (i.time < j.time);
   }*/
 
-  std::string DTSC2MP4Converter::DTSCMeta2MP4Header(JSON::Value metaData){
+  std::string DTSC2MP4Converter::DTSCMeta2MP4Header(DTSC::Meta & metaData){
     std::stringstream header;
-    
     //ftyp box
     /// \todo fill ftyp with non hardcoded values from file
     MP4::FTYP ftypBox;
@@ -29,7 +28,15 @@ namespace MP4{
       mvhdBox.setModificationTime(0);
       mvhdBox.setTimeScale(1000);
       mvhdBox.setRate(0x10000);
-      mvhdBox.setDuration(metaData["lastms"].asInt() + metaData["firstms"].asInt());
+      //calculating longest duration
+      int fileDuration = 0;
+      ///\TODO lastms and firstms fixen
+      for ( std::map<int,DTSC::Track>::iterator trackIt = metaData.tracks.begin(); trackIt != metaData.tracks.end(); trackIt ++) {
+        if (trackIt->second.lastms - trackIt->second.firstms > fileDuration){
+          fileDuration =  trackIt->second.lastms - trackIt->second.firstms;
+        }
+      }
+      mvhdBox.setDuration(fileDuration);
       mvhdBox.setTrackID(0);
       mvhdBox.setVolume(256);
       mvhdBox.setMatrix(0x00010000,0);
@@ -44,19 +51,42 @@ namespace MP4{
       moovBox.setContent(mvhdBox, 0);
       
       //calculate interleaving
-      //putting all metadata in a huge vector 'keyParts'
+      //putting all metadata in a huge, auto-sorting vector 'keyParts'
       keyParts.clear();
-      for (JSON::ObjIter trackIt = metaData["tracks"].ObjBegin(); trackIt != metaData["tracks"].ObjEnd(); trackIt++){
-        for (JSON::ArrIter keyIt = trackIt->second["keys"].ArrBegin(); keyIt != trackIt->second["keys"].ArrEnd(); keyIt++){
-          if ((*keyIt)["size"].asInt() > 0){
-            keyPart temp;
-            temp.trackID = trackIt->second["trackid"].asInt();
-            temp.size = (*keyIt)["size"].asInt();
-            temp.time = (*keyIt)["time"].asInt();
-            temp.len = (*keyIt)["len"].asInt();
-            temp.parts = (*keyIt)["parts"].asString();
-            temp.partsize = (*keyIt)["partsize"].asInt();
-            keyParts.insert(temp);
+      for ( std::map<int,DTSC::Track>::iterator trackIt = metaData.tracks.begin(); trackIt != metaData.tracks.end(); trackIt ++) {
+        if (trackIt->first>0){
+          std::cerr << "preparing track: " << trackIt->first << std::endl;
+          int partItNumber = 0;
+          for ( std::deque< DTSC::Key>::iterator keyIt = trackIt->second.keys.begin(); keyIt != trackIt->second.keys.end(); keyIt ++) {
+            //if ((*keyIt)->size > 0){
+              keyPart temp;
+              temp.trackID = trackIt->second.trackID;
+              /*
+              temp.size = (*keyIt)["size"].asInt();
+              temp.time = (*keyIt)["time"].asInt();
+              temp.len = (*keyIt)["len"].asInt();
+              temp.parts = (*keyIt)["parts"].asString();
+              temp.partsize = (*keyIt)["partsize"].asInt();
+              */
+              temp.time = keyIt->getTime();//timeplaats van keyframe
+              std::cerr << "time: " << temp.time << std::endl;
+              temp.len = keyIt->getLength();//duration van keyframe
+              //std::cerr << "totalparts, partItNumber, getparts:"<< trackIt->second.parts.size() << ", " << partItNumber << ", " << keyIt->getParts() << std::endl;
+              temp.parts = std::deque<DTSC::Part> (trackIt->second.parts.begin() + partItNumber,trackIt->second.parts.begin() + partItNumber + keyIt->getParts() );//array met bytegrootte van elke aparte part
+              //calculate total size of parts
+              int tempSize = 0;
+              //std::cerr << "keyframe parts: ";
+              for (unsigned int di = 0; di < temp.parts.size(); di++){
+                tempSize += temp.parts[di].getSize();
+                //std::cerr << temp.parts[di].getSize() << " ";
+              }
+              //std::cerr << std::endl;
+              temp.size = tempSize;//bytegrootte van keyframe (alle parts bij elkaar)
+              temp.partsize = keyIt->getParts();//amount of parts in this keyframe
+              
+              keyParts.insert(temp);
+            //}
+            partItNumber += keyIt->getParts();
           }
         }
       }
@@ -65,18 +95,22 @@ namespace MP4{
       
       //start arbitrary track addition for header
       int boxOffset = 1;
-      for (JSON::ObjIter it = metaData["tracks"].ObjBegin(); it != metaData["tracks"].ObjEnd(); it++){
+      for ( std::map<int,DTSC::Track>::iterator it = metaData.tracks.begin(); it != metaData.tracks.end(); it ++) {
+        if (it->first > 0){
+        std::cerr << "track " << it->second.trackID << std::endl;
+      //for (JSON::ObjIter it = metaData["tracks"].ObjBegin(); it != metaData["tracks"].ObjEnd(); it++){
         int timescale = 0;
         MP4::TRAK trakBox;
           MP4::TKHD tkhdBox;
           tkhdBox.setVersion(0);
           tkhdBox.setFlags(15);
-          tkhdBox.setTrackID(it->second["trackid"].asInt());
-          tkhdBox.setDuration(it->second["lastms"].asInt() + it->second["firsms"].asInt());
+          tkhdBox.setTrackID(it->second.trackID);
+          ///\TODO duration firstms and lastms fix
+          tkhdBox.setDuration(it->second.lastms + it->second.firstms);
           
-          if (it->second["type"].asString() == "video"){
-            tkhdBox.setWidth(it->second["width"].asInt() << 16);
-            tkhdBox.setHeight(it->second["height"].asInt() << 16);
+          if (it->second.type == "video"){
+            tkhdBox.setWidth(it->second.width << 16);
+            tkhdBox.setHeight(it->second.height << 16);
             tkhdBox.setVolume(0);
           }else{
             tkhdBox.setVolume(256);
@@ -99,22 +133,24 @@ namespace MP4{
             mdhdBox.setModificationTime(0);
             //Calculating media time based on sampledelta. Probably cheating, but it works...
             int tmpParts = 0;
-            for (JSON::ArrIter tmpIt = it->second["keys"].ArrBegin(); tmpIt != it->second["keys"].ArrEnd(); tmpIt++){
-              tmpParts += (*tmpIt)["partsize"].asInt();
+            for (std::deque< DTSC::Key>::iterator tmpIt = it->second.keys.begin(); tmpIt != it->second.keys.end(); tmpIt ++) {
+            //for (JSON::ArrIter tmpIt = it->second["keys"].ArrBegin(); tmpIt != it->second["keys"].ArrEnd(); tmpIt++){
+              tmpParts += tmpIt->getParts();
             }
-            timescale = ((double)(42 * tmpParts) / (it->second["lastms"].asInt() + it->second["firstms"].asInt())) *  1000;
+            timescale = ((double)(42 * tmpParts) / (it->second.lastms + it->second.firstms)) *  1000;
             mdhdBox.setTimeScale(timescale);
-            mdhdBox.setDuration(((it->second["lastms"].asInt() + it->second["firsms"].asInt()) * ((double)timescale / 1000)));
+            ///\TODO fix lastms, firstms
+            mdhdBox.setDuration((it->second.lastms + it->second.firstms) * ((double)timescale / 1000));
             mdiaBox.setContent(mdhdBox, 0);
             
-            std::string tmpStr = it->second["type"].asString();
+            std::string tmpStr = it->second.type;
             MP4::HDLR hdlrBox;/// \todo fix constructor hdlr in lib
             if (tmpStr == "video"){
               hdlrBox.setHandlerType(0x76696465);//vide
             }else if (tmpStr == "audio"){
               hdlrBox.setHandlerType(0x736F756E);//soun
             }
-            hdlrBox.setName(it->first);
+            hdlrBox.setName(it->second.getIdentifier());
             mdiaBox.setContent(hdlrBox, 1);
             
             MP4::MINF minfBox;
@@ -140,40 +176,40 @@ namespace MP4{
                   stsdBox.setVersion(0);
                   if (tmpStr == "video"){//boxname = codec
                     MP4::VisualSampleEntry vse;
-                    std::string tmpStr2 = it->second["codec"];
+                    std::string tmpStr2 = it->second.codec;
                     if (tmpStr2 == "H264"){
                       vse.setCodec("avc1");
                     }
                     vse.setDataReferenceIndex(1);
-                    vse.setWidth(it->second["width"].asInt());
-                    vse.setHeight(it->second["height"].asInt());
+                    vse.setWidth(it->second.width);
+                    vse.setHeight(it->second.height);
                       MP4::AVCC avccBox;
-                      avccBox.setPayload(it->second["init"].asString());
+                      avccBox.setPayload(it->second.init);
                       vse.setCLAP(avccBox);
                     stsdBox.setEntry(vse,0);
                   }else if(tmpStr == "audio"){//boxname = codec
                     MP4::AudioSampleEntry ase;
-                    std::string tmpStr2 = it->second["codec"];
+                    std::string tmpStr2 = it->second.codec;
                     if (tmpStr2 == "AAC"){
                       ase.setCodec("mp4a");
                       ase.setDataReferenceIndex(1);
                     }
-                    ase.setSampleRate(it->second["rate"].asInt());
-                    ase.setChannelCount(it->second["channels"].asInt());
-                    ase.setSampleSize(it->second["size"].asInt());
+                    ase.setSampleRate(it->second.rate);
+                    ase.setChannelCount(it->second.channels);
+                    ase.setSampleSize(it->second.size);
                       MP4::ESDS esdsBox;
-                      esdsBox.setESDescriptorTypeLength(32+it->second["init"].asString().size());
+                      esdsBox.setESDescriptorTypeLength(32+it->second.init.size());
                       esdsBox.setESID(2);
                       esdsBox.setStreamPriority(0);
-                      esdsBox.setDecoderConfigDescriptorTypeLength(18+it->second["init"].asString().size());
+                      esdsBox.setDecoderConfigDescriptorTypeLength(18+it->second.init.size());
                       esdsBox.setByteObjectTypeID(0x40);
                       esdsBox.setStreamType(5);
                       esdsBox.setReservedFlag(1);
                       esdsBox.setBufferSize(1250000);
                       esdsBox.setMaximumBitRate(10000000);
-                      esdsBox.setAverageBitRate(it->second["bps"].asInt() * 8);
+                      esdsBox.setAverageBitRate(it->second.bps * 8);
                       esdsBox.setConfigDescriptorTypeLength(5);
-                      esdsBox.setESHeaderStartCodes(it->second["init"].asString());
+                      esdsBox.setESHeaderStartCodes(it->second.init);
                       esdsBox.setSLConfigDescriptorTypeTag(0x6);
                       esdsBox.setSLConfigExtendedDescriptorTypeTag(0x808080);
                       esdsBox.setSLDescriptorTypeLength(1);
@@ -193,19 +229,21 @@ namespace MP4{
                   sttsBox.setSTTSEntry(newEntry, 0);
                 stblBox.setContent(sttsBox,1);
                 
-                if (it->second["type"] == "video"){
+                if (it->second.type == "video"){
                   //STSS Box here
                   MP4::STSS stssBox;
                     stssBox.setVersion(0);
                     int tmpCount = 1;
-                    for (int i = 0; i < it->second["keys"].size(); i++){
-                      stssBox.setSampleNumber(tmpCount,i);
-                      tmpCount += it->second["keys"][i]["partsize"].asInt();
+                    int tmpItCount = 0;
+                    for ( std::deque< DTSC::Key>::iterator tmpIt = it->second.keys.begin(); tmpIt != it->second.keys.end(); tmpIt ++) {
+                      stssBox.setSampleNumber(tmpCount,tmpItCount);
+                      tmpCount += tmpIt->getParts();
+                      tmpItCount ++;
                     }
                   stblBox.setContent(stssBox,2);
                 }
 
-                int offset = (it->second["type"] == "video");
+                int offset = (it->second.type == "video");
 
                 
                 MP4::STSC stscBox;
@@ -221,44 +259,51 @@ namespace MP4{
                 MP4::STSZ stszBox;
                 stszBox.setVersion(0);
                 total = 0;
-                for (int i = 0; i < it->second["keys"].size(); i++){
-                  std::deque<long long unsigned int> parsedParts;
-                  JSON::decodeVector(it->second["keys"][i]["parts"].asString(), parsedParts);
-                  for (unsigned int o = 0; o < parsedParts.size(); o++){
-                    stszBox.setEntrySize(parsedParts[o], total);//in bytes in file
-                    total++;
-                  }
+                for (std::deque< DTSC::Part>::iterator partIt = it->second.parts.begin(); partIt != it->second.parts.end(); partIt ++) {
+                //for (int i = 0; i < it->second["keys"].size(); i++){
+                  //std::deque<long long unsigned int> parsedParts;
+                  //JSON::decodeVector(it->second["keys"][i]["parts"].asString(), parsedParts);
+                  //for (unsigned int o = 0; o < tmpIt->parts.size(); o++){
+                  stszBox.setEntrySize(partIt->getSize(), total);//in bytes in file
+                  total++;
                 }
                 stblBox.setContent(stszBox,3 + offset);
                   
                 MP4::STCO stcoBox;
                 stcoBox.setVersion(1);
                 total = 0;
-                uint64_t totalByteOffset = 0;
+                long long unsigned int totalByteOffset = 0;
                 //Inserting wrong values on purpose here, will be fixed later.
                 //Current values are actual byte offset without header-sized offset
+                std::cerr << "pre-totalByteOffset: " << totalByteOffset << std::endl;
                 for (std::set<keyPart>::iterator i = keyParts.begin(); i != keyParts.end(); i++){//for all keypart size
-                  if(i->trackID == it->second["trackid"].asInt()){//if keypart is of current trackID
-                    std::deque<long long unsigned int> parsedParts;
-                    JSON::decodeVector(i->parts, parsedParts);
-                    for (unsigned int o = 0; o < parsedParts.size(); o++){//add all parts to STCO
+                  if(i->trackID == it->second.trackID){//if keypart is of current trackID
+                    //std::deque<long long unsigned int> parsedParts;
+                    //JSON::decodeVector(i->parts, parsedParts);
+                    std::deque<DTSC::Part> onowai = i->parts;
+                    for (unsigned int o = 0; o < onowai.size(); o++){//add all parts to STCO
+                    //for (std::deque<DTSC::Part>::iterator partIt = (*i).parts.begin(); partIt != (*i).parts.end(); partIt++){
                       stcoBox.setChunkOffset(totalByteOffset, total);
                       total++;
-                      totalByteOffset += parsedParts[o];
+                      totalByteOffset += onowai[o].getSize();
+                      std::cerr << "small totalByteOffset: " << totalByteOffset << std::endl;
                     }
                   }else{
                     totalByteOffset += i->size;
+                    std::cerr << "large totalByteOffset: " << totalByteOffset << std::endl;
                   }
                 }
                 //calculating the offset where the STCO box will be in the main MOOV box
                 //needed for probable optimise
                 mdatSize = totalByteOffset;
+                
                 stblBox.setContent(stcoBox,4 + offset);
               minfBox.setContent(stblBox,2);
             mdiaBox.setContent(minfBox, 2);
           trakBox.setContent(mdiaBox, 1);
         moovBox.setContent(trakBox, boxOffset);
         boxOffset++;
+        }
       }
     //end arbitrary
     //initial offset length ftyp, length moov + 8
@@ -318,10 +363,12 @@ namespace MP4{
     //while there are requested packets in the trackBuffer:...
     while (!trackBuffer[curKey->trackID].empty()){
       //output requested packages
+      //std::deque<DTSC::Part> onowai = curKey->parts;
       stringBuffer += trackBuffer[curKey->trackID].front()["data"].asString();
+      //std::cerr << "bufDataSize, antDataSize" << trackBuffer[curKey->trackID].front()["data"].asString().size() << ", " << onowai[curPart].getSize() << std::endl;
       trackBuffer[curKey->trackID].pop_front();
       curPart++;
-      if(curPart >= curKey->partsize){
+      if(curPart >= curKey->parts.size()){
         curPart = 0;
         curKey++;
       }
@@ -330,8 +377,10 @@ namespace MP4{
     if(curKey->trackID == mediaPart["trackid"].asInt()){
       //output JSON packet
       stringBuffer += mediaPart["data"].asStringRef();
+      //std::deque<DTSC::Part> onowai = curKey->parts;
+      //std::cerr << "dataSize, antDataSize" << mediaPart["data"].asStringRef().size() << ", " << onowai[curPart].getSize() << std::endl;
       curPart++;
-      if(curPart >= curKey->partsize){
+      if(curPart >= curKey->parts.size()){
         curPart = 0;
         curKey++;
       }
@@ -353,6 +402,21 @@ namespace MP4{
     std::string temp = stringBuffer;
     stringBuffer = "";
     return temp;
+  }
+
+  std::string DTSC2MP4Converter::purgeBuffer(){
+    std::string retval = stringBuffer;
+    stringBuffer = "";
+    for (std::map <long long unsigned int, std::deque<JSON::Value> >::iterator it = trackBuffer.begin(); it !=trackBuffer.end(); it++){
+      while (!it->second.empty()){
+        //output requested packages
+        if (it->second.front()["data"].asString() != ""){
+          retval += it->second.front()["data"].asString();
+        }
+        it->second.pop_front();
+      }
+    }
+    return retval;
   }
 }
 

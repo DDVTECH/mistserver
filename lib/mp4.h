@@ -10,35 +10,38 @@
 #include <deque>
 #include <algorithm>
 #include "json.h"
+#include "dtsc.h"
 
 /// Contains all MP4 format related code.
 namespace MP4 {
   struct keyPart{
-    bool operator < (const keyPart& rhs) const {
-      if (time < rhs.time){
-        return true;
-      }
-      if (time == rhs.time){
-        if (trackID < rhs.trackID){
+    public:
+      bool operator < (const keyPart& rhs) const {
+        if (time < rhs.time){
           return true;
         }
+        if (time == rhs.time){
+          if (trackID < rhs.trackID){
+            return true;
+          }
+        }
+        return false;
       }
-      return false;
-    }
-    long long int trackID;
-    long long int size;
-    long long int time;
-    long long int len;
-    std::string parts;
-    long long int partsize;
+      long long int trackID;
+      long long int size;
+      long long int time;
+      long long int len;
+      std::deque<DTSC::Part> parts;
+      long long int partsize;
   };
 
   class DTSC2MP4Converter{
     public:
-      std::string DTSCMeta2MP4Header(JSON::Value metaData);
+      std::string DTSCMeta2MP4Header(DTSC::Meta & metaData);
       void parseDTSC(JSON::Value mediaPart);
       bool sendReady();
       std::string sendString();
+      std::string purgeBuffer();
       std::set <keyPart> keyParts;
     private:
       //long long unsigned int curKey;//the key chunk we are currently searching for in keyParts

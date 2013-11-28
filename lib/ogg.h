@@ -58,7 +58,7 @@ namespace OGG{
   
   class headerPages{
     public:
-      void readDTSCHeader(JSON::Value meta);
+      void readDTSCHeader(DTSC::Meta & meta);
       std::map <long long unsigned int, unsigned int> DTSCID2OGGSerial;
       std::map <long long unsigned int, unsigned int> DTSCID2seqNum;
       std::string parsedPages;

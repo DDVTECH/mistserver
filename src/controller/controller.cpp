@@ -594,10 +594,10 @@ int main(int argc, char ** argv){
                       }
                     }
                     if (Request["conversion"].isMember("status") || Request["conversion"].isMember("convert")){
-                      Response["conversion"]["status"] = myConverter.getStatus();
                       if (Request["conversion"].isMember("clear")){
                         myConverter.clearStatus();
                       }
+                      Response["conversion"]["status"] = myConverter.getStatus();
                     }
                   }
                   if (Request.isMember("save")){

@@ -394,6 +394,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
       break;
     }
     default: //ignore all other types (there are currently no other types...)
+      return false;
       break;
   }
   if (len > 0){

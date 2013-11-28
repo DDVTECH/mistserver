@@ -310,7 +310,7 @@ namespace Connector_RTMP {
   ///\param inputBuffer A buffer filled with chunk data.
   void parseChunk(Socket::Buffer & inputBuffer){
     //for DTSC conversion
-    static JSON::Value meta_out;
+    static DTSC::Meta meta_out;
     static std::stringstream prebuffer; // Temporary buffer before sending real data
     static bool sending = false;
     static unsigned int counter = 0;
@@ -424,7 +424,7 @@ namespace Connector_RTMP {
           if (ss.connected()){
             if (streamReset){
               //reset push data to empty, in case stream properties change
-              meta_out.null();
+              meta_out.reset();
               prebuffer.str("");
               sending = false;
               counter = 0;
@@ -437,15 +437,15 @@ namespace Connector_RTMP {
                 counter++;
                 if (counter > 8){
                   sending = true;
-                  ss.SendNow(meta_out.toNetPacked());
-                  ss.SendNow(prebuffer.str().c_str(), prebuffer.str().size()); //write buffer
+                  meta_out.send(ss);
+                  ss.SendNow(prebuffer.str()); //write buffer
                   prebuffer.str(""); //clear buffer
-                  ss.SendNow(pack_out.toNetPacked());
+                  pack_out.sendTo(ss);
                 }else{
                   prebuffer << pack_out.toNetPacked();
                 }
               }else{
-                ss.SendNow(pack_out.toNetPacked());
+                pack_out.sendTo(ss);
               }
             }
           }else{

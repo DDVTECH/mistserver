@@ -24,7 +24,7 @@ namespace Converters {
   ///\return The return code for the converter.
   int FLV2DTSC(std::ostream & output){
     FLV::Tag FLV_in; // Temporary storage for incoming FLV data.
-    JSON::Value meta_out; // Storage for outgoing header data.
+    DTSC::Meta meta_out; // Storage for outgoing header data.
     JSON::Value pack_out; // Storage for outgoing data.
     std::stringstream prebuffer; // Temporary buffer before sending real data
     bool sending = false;
@@ -40,8 +40,7 @@ namespace Converters {
           counter++;
           if (counter > 8){
             sending = true;
-            meta_out["moreheader"] = 0LL;
-            output << meta_out.toNetPacked();
+            output << meta_out.toJSON().toNetPacked();
             output << prebuffer.rdbuf();
             prebuffer.str("");
             std::cerr << "Buffer done, starting real-time output..." << std::endl;
@@ -58,8 +57,7 @@ namespace Converters {
     // if the FLV input is very short, do output it correctly...
     if ( !sending){
       std::cerr << "EOF - outputting buffer..." << std::endl;
-      meta_out["moreheader"] = 0LL;
-      output << meta_out.toNetPacked();
+      output << meta_out.toJSON().toNetPacked();
       output << prebuffer.rdbuf();
     }
     std::cerr << "Done! If you output this data to a file, don't forget to run MistDTSCFix next." << std::endl;

@@ -538,9 +538,7 @@ namespace Connector_RTMP {
       fprintf(stderr, "Handshake succcess!\n");
   #endif
     }else{
-  #if DEBUG >= 5
-      fprintf(stderr, "Handshake fail!\n");
-  #endif
+      fprintf(stderr, "RTMP: Handshake fail!\n");
       return 0;
     }
 
@@ -651,11 +649,12 @@ namespace Connector_RTMP {
               streamInited = true;
             }
             //sent a tag
-            tag.DTSCLoader(Strm);
-            Socket.SendNow(RTMPStream::SendMedia(tag));
-  #if DEBUG >= 8
-            fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), tag.tagTime(), tag.tagType().c_str());
-  #endif
+            if (tag.DTSCLoader(Strm)){
+              Socket.SendNow(RTMPStream::SendMedia(tag));
+              #if DEBUG >= 8
+              fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), tag.tagTime(), tag.tagType().c_str());
+              #endif
+            }
           }
         }
       }

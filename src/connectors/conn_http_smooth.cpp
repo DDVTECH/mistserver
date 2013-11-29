@@ -350,8 +350,6 @@ namespace Connector_HTTP {
                 }
 
                 ss.SendNow(sstream.str().c_str());
-                std::cerr << "[[]]Requested " << sstream.str() << std::endl;
-
                 unsigned int myDuration;
                 
                 //Wrap everything in mp4 boxes
@@ -366,18 +364,18 @@ namespace Connector_HTTP {
                 
                 MP4::TRUN trun_box;
                 trun_box.setDataOffset(42);
-                int keySize = 0;
+                unsigned int keySize = 0;
                 if (trackRef.type == "video"){
                  trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
                 }else{
                   trun_box.setFlags(MP4::trundataOffset | MP4::trunsampleDuration | MP4::trunsampleSize);
                 }
-                trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);
+                trun_box.setFirstSampleFlags(0x00000040 | MP4::noKeySample);
+                //trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);
                 for (int i = 0; i < keyObj.getParts(); i++){
                   MP4::trunSampleInformation trunSample;
                   trunSample.sampleSize = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getSize();
                   keySize += Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getSize();
-                  //Guesstimate sample duration.
                   trunSample.sampleDuration = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getDuration() * 10000;
                   trun_box.setSampleInformation(trunSample, i);
                 }

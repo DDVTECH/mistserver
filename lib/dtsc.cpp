@@ -968,6 +968,27 @@ DTSC::File::~File(){
 
 
 bool DTSC::isFixed(JSON::Value & metadata){
-  DTSC::Meta testFixed(metadata);
-  return testFixed.isFixed();
+  if (metadata.isMember("is_fixed")){return true;}
+  if ( !metadata.isMember("tracks")){return false;}
+  for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++){
+    if (it->second["type"].asString() == "meta"){
+      continue;
+    }
+    if (!it->second["keys"].isString()){
+      std::cerr << "Not fixed because keys for track " << it->second["trackid"].asInt() << " is not a string" << std::endl;
+      return false;
+    }
+    //Check for bpos: last element bpos != 0
+    std::string keyRef = it->second["keys"].asStringRef();
+    if (keyRef.size() < 16){
+      std::cerr << "No keys in track " << it->second["trackid"].asInt() << std::endl;
+      return false;
+    }
+    int offset = keyRef.size() - 17;
+    if (!(keyRef[offset] | keyRef[offset+1] | keyRef[offset+2] | keyRef[offset+3] | keyRef[offset+4])){
+      std::cerr << "Not fixed because last bpos for track " << it->second["trackid"].asInt() << " it 0" << std::endl;
+      return false;
+    }
+  }
+  return true;
 }

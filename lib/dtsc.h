@@ -104,15 +104,15 @@ namespace DTSC {
 
   class Part{
     public:
-      short getSize();
-      void setSize(short newSize);
+      long getSize();
+      void setSize(long newSize);
       short getDuration();
       void setDuration(short newDuration);
       long getOffset();
       void setOffset(long newOffset);
       char* getData();
     private:
-      char data[8];
+      char data[9];
   };
 
   class Key{

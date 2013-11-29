@@ -1,28 +1,30 @@
 #include "dtsc.h"
 
 namespace DTSC {
-  short Part::getSize(){
-      return ntohs(((short*)data)[0]);
+  long Part::getSize(){
+    return ((long)data[0] << 16) | ((long)data[1] << 8) | data[2];
   }
 
-  void Part::setSize(short newSize){
-    ((short*)data)[0] = htons(newSize);
+  void Part::setSize(long newSize){
+    data[0] = (newSize & 0xFF0000) >> 16;
+    data[1] = (newSize & 0x00FF00) >> 8;
+    data[2] = (newSize & 0x0000FF);
   }
 
   short Part::getDuration(){
-    return ntohs(((short*)(data+2))[0]);
+    return ntohs(((short*)(data+3))[0]);
   }
 
   void Part::setDuration(short newDuration){
-    ((short*)(data+2))[0] = htons(newDuration);
+    ((short*)(data+3))[0] = htons(newDuration);
   }
 
   long Part::getOffset(){
-    return ntohl(((int*)(data+4))[0]);
+    return ntohl(((int*)(data+5))[0]);
   }
 
   void Part::setOffset(long newOffset){
-    ((int*)(data+4))[0] = htonl(newOffset);
+    ((int*)(data+5))[0] = htonl(newOffset);
   }
 
   char* Part::getData(){
@@ -142,7 +144,7 @@ namespace DTSC {
     }
     if (trackRef.isMember("parts")){
       parts = (Part*)trackRef["parts"].asString().data();
-      partLen = trackRef["parts"].asString().size() / 8;
+      partLen = trackRef["parts"].asString().size() / 9;
     }else{
       parts = 0;
       partLen = 0;
@@ -214,7 +216,7 @@ namespace DTSC {
     }
     if (trackRef.isMember("parts") && trackRef["parts"].isString()){
       Part* tmp = (Part*)trackRef["parts"].asString().data();
-      parts = std::deque<Part>(tmp,tmp + (trackRef["parts"].asString().size() / 8));
+      parts = std::deque<Part>(tmp,tmp + (trackRef["parts"].asString().size() / 9));
     }
     trackID = trackRef["trackid"].asInt();
     length = trackRef["length"].asInt();
@@ -256,7 +258,7 @@ namespace DTSC {
     }
     parts.push_back(newPart);
     lastms = pack["time"].asInt();
-    if (pack.isMember("keyframe") || !keys.size() || (type != "video" && pack["time"].asInt() - 2000 > keys[keys.size() - 1].getTime())){
+    if (pack.isMember("keyframe") || !keys.size() || (type != "video" && pack["time"].asInt() - 5000 > keys[keys.size() - 1].getTime())){
       Key newKey;
       newKey.setTime(pack["time"].asInt());
       newKey.setParts(0);
@@ -463,7 +465,7 @@ namespace DTSC {
     int result = 163 + init.size() + codec.size() + type.size() + getIdentifier().size();
     result += fragLen * 11;
     result += keyLen * 16;
-    result += partLen * 8;
+    result += partLen * 9;
     if (type == "audio"){
       result += 49;
     }else if (type == "video"){
@@ -480,7 +482,7 @@ namespace DTSC {
     int result = 163 + init.size() + codec.size() + type.size() + getIdentifier().size();
     result += fragments.size() * 11;
     result += keys.size() * 16;
-    result += parts.size() * 8;
+    result += parts.size() * 9;
     if (type == "audio"){
       result += 49;
     }else if (type == "video"){
@@ -504,8 +506,8 @@ namespace DTSC {
     conn.SendNow(convertInt(keyLen*16), 4);
     conn.SendNow((char*)keys, keyLen*16);
     conn.SendNow("\000\005parts\002", 8);
-    conn.SendNow(convertInt(partLen*8), 4);
-    conn.SendNow((char*)parts, partLen*8);
+    conn.SendNow(convertInt(partLen*9), 4);
+    conn.SendNow((char*)parts, partLen*9);
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
     conn.SendNow("\000\006length\001", 9);
@@ -566,9 +568,9 @@ namespace DTSC {
       conn.SendNow(it->getData(), 16);
     }
     conn.SendNow("\000\005parts\002", 8);
-    conn.SendNow(convertInt(parts.size()*8), 4);
+    conn.SendNow(convertInt(parts.size()*9), 4);
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++){
-      conn.SendNow(it->getData(), 8);
+      conn.SendNow(it->getData(), 9);
     }
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
@@ -682,7 +684,7 @@ namespace DTSC {
       result["keys"] = std::string((char*)keys, keyLen * 16);
     }
     if (parts){
-      result["parts"] = std::string((char*)parts, partLen * 8);
+      result["parts"] = std::string((char*)parts, partLen * 9);
     }
     result["trackid"] = trackID;
     result["length"] = length;
@@ -726,9 +728,9 @@ namespace DTSC {
     }
     result["keys"] = tmp;
     tmp = "";
-    tmp.reserve(parts.size() * 8);
+    tmp.reserve(parts.size() * 9);
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++){
-      tmp.append(it->getData(), 8);
+      tmp.append(it->getData(), 9);
     }
     result["parts"] = tmp;
     result["trackid"] = trackID;
@@ -823,6 +825,7 @@ namespace DTSC {
         continue;
       }
       if (!it->second.keys.size() || !(it->second.keys.rbegin()->getBpos())){
+        std::cerr << "Not fixed while track " << it->first << " has " << it->second.keys.size() << "keyframes" << std::endl;
         return false;
       }
     }

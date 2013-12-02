@@ -197,7 +197,6 @@ namespace DTSC {
       std::deque<Key> keys;
       std::deque<Part> parts;
       Key & getKey(int keyNum);
-      std::string getIdentifier();
       void reset();
   };
 
@@ -314,6 +313,7 @@ namespace DTSC {
       std::map<livePos,JSON::Value> buffers;
       std::map<int,std::set<livePos> > keyframes;
       void addPacket(JSON::Value & newPack);
+      void addMeta(JSON::Value & newMeta);
       datatype datapointertype;
       unsigned int buffercount;
       unsigned int buffertime;

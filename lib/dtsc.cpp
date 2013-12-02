@@ -121,7 +121,7 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
       JSON::Value meta = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
-      metadata = Meta(meta);
+      addMeta(meta);
       //recursively calls itself until failure or data packet instead of header
       return parsePacket(buffer);
     }
@@ -205,6 +205,14 @@ void DTSC::Stream::resetStream(){
   keyframes.clear();
 }
 
+/// Adds a set of metadata to the steam.
+/// This is implemented by simply replacing the current metadata.
+/// This effectively resets the stream.
+void DTSC::Stream::addMeta(JSON::Value & newMeta){
+  metadata = Meta(newMeta);
+}
+
+/// Adds a single DTSC packet to the stream, updating the internal metadata if needed.
 void DTSC::Stream::addPacket(JSON::Value & newPack){
   long long unsigned int now = Util::getMS();
   livePos newPos;

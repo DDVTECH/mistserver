@@ -311,31 +311,11 @@ namespace DTSC {
   std::string readOnlyTrack::getIdentifier(){
     std::stringstream result;
     if (type == ""){
-      result << "Metadata_" << trackID;
+      result << "metadata_" << trackID;
       return result.str();
     }
     result << type << "_";
     result << codec << "_";
-    result << (bps / 1024) << "kbit_";
-    if (type == "audio"){
-      result << channels << "ch_";
-      result << rate << "hz";
-    }else if (type == "video"){
-      result << width << "x" << height << "_";
-      result << (double)fpks / 1000 << "fps";
-    }
-    return result.str();
-  }
-
-  std::string Track::getIdentifier(){
-    std::stringstream result;
-    if (type == ""){
-      result << "Metadata_" << trackID;
-      return result.str();
-    }
-    result << type << "_";
-    result << codec << "_";
-    result << (bps / 1024) << "kbit_";
     if (type == "audio"){
       result << channels << "ch_";
       result << rate << "hz";

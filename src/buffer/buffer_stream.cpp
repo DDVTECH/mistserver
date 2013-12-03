@@ -3,6 +3,7 @@
 
 #include "buffer_stream.h"
 #include <mist/timing.h>
+#include <stdlib.h>
 
 namespace Buffer {
   /// Stores the singleton reference.
@@ -59,17 +60,14 @@ namespace Buffer {
     Storage["totals"]["count"] = tot_count;
     Storage["totals"]["now"] = now;
     Storage["buffer"] = name;
-
-    Storage["meta"] = metadata;
-
-    if(Storage["meta"].isMember("tracks") && Storage["meta"]["tracks"].size() > 0){
-      for(JSON::ObjIter it = Storage["meta"]["tracks"].ObjBegin(); it != Storage["meta"]["tracks"].ObjEnd(); it++){
-        it->second.removeMember("keys");
-        it->second.removeMember("frags");
-      }
-      //delete empty trackname if present - these are never interesting
-      Storage["meta"]["tracks"].removeMember("");
+    
+    std::map<int,DTSC::Track>::iterator it;
+    for (it = metadata.tracks.begin(); it != metadata.tracks.end(); ++it){
+      std::cout << it->second.getIdentifier() << ": " << it->second.firstms << "-" << it->second.lastms << " (" << it->second.keys.size() << ")" << std::endl;
     }
+
+    Storage["meta"] = metadata.toJSON();
+
     ret = Storage.toString();
     Storage["log"].null();
     return ret;
@@ -137,6 +135,7 @@ namespace Buffer {
     Storage["log"][username]["host"] = stats.host;
     Storage["log"][username]["start"] = Util::epoch() - stats.conntime;
   }
+
   /// The deletion callback override that will disconnect users
   /// whom are currently receiving a tag that is being deleted.
   void Stream::deletionCallback(DTSC::livePos deleting){
@@ -173,12 +172,13 @@ namespace Buffer {
   }
   
   /// parsePacket override that will lock the rw_mutex during parsing.
-  bool Stream::parsePacket(Socket::Buffer & buffer){
+  bool Stream::parsePacket(Socket::Connection & c){
     bool ret = false;
+    if (!c.spool()){
+      return ret;
+    }
     rw_mutex.lock();
-    while (DTSC::Stream::parsePacket(buffer)){
-      //TODO: Update metadata with call erik will write
-      //metadata.netPrepare();
+    while (DTSC::Stream::parsePacket(c.Received())){
       ret = true;
     }
     rw_mutex.unlock();
@@ -216,6 +216,60 @@ namespace Buffer {
   void Stream::waitForData(){
     tthread::lock_guard<tthread::recursive_mutex> guard(stats_mutex);
     moreData.wait(stats_mutex);
+  }
+  
+  ///Creates a new user from a newly connected socket.
+  ///Also prints "User connected" text to stdout.
+  ///\param fd A connection to the user.
+  user::user(Socket::Connection fd, long long ID){
+    sID = JSON::Value(ID).asString();
+    S = fd;
+    curr_up = 0;
+    curr_down = 0;
+    myRing = 0;
+  } //constructor
+  
+  ///Disconnects the current user. Doesn't do anything if already disconnected.
+  ///Prints "Disconnected user" to stdout if disconnect took place.
+  ///\param reason The reason for disconnecting the user.
+  void user::Disconnect(std::string reason){
+    S.close();
+    Stream::get()->clearStats(sID, lastStats, reason);
+  } //Disconnect
+  
+  ///Default stats constructor.
+  ///Should not be used.
+  Stats::Stats(){
+    up = 0;
+    down = 0;
+    conntime = 0;
+  }
+  
+  ///Stats constructor reading a string.
+  ///Reads a stats string and parses it to the internal representation.
+  ///\param s The string of stats.
+  Stats::Stats(std::string s){
+    size_t f = s.find(' ');
+    if (f != std::string::npos){
+      host = s.substr(0, f);
+      s.erase(0, f + 1);
+    }
+    f = s.find(' ');
+    if (f != std::string::npos){
+      connector = s.substr(0, f);
+      s.erase(0, f + 1);
+    }
+    f = s.find(' ');
+    if (f != std::string::npos){
+      conntime = atoi(s.substr(0, f).c_str());
+      s.erase(0, f + 1);
+    }
+    f = s.find(' ');
+    if (f != std::string::npos){
+      up = atoi(s.substr(0, f).c_str());
+      s.erase(0, f + 1);
+      down = atoi(s.c_str());
+    }
   }
   
 }

@@ -60,9 +60,7 @@ namespace Buffer {
     #endif
     conn.setBlocking(true);
     while (buffer_running && conn.connected()){
-      if (conn.spool()){
-        thisStream->parsePacket(conn.Received());
-      }
+      thisStream->parsePacket(conn);
     }
     if (buffer_running){
       thisStream->endStream();

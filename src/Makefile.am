@@ -47,7 +47,7 @@ bin_PROGRAMS+=MistDTSC2MP4
 bin_PROGRAMS+=MistDTSC2SRT
 
 #buffer folder (MistBuffer, MistPlayer)
-MistBuffer_SOURCES=buffer/buffer.cpp buffer/buffer_user.h buffer/buffer_user.cpp buffer/buffer_stream.h buffer/buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
+MistBuffer_SOURCES=buffer/buffer.cpp buffer/buffer_stream.h buffer/buffer_stream.cpp tinythread.cpp tinythread.h ../VERSION
 MistBuffer_LDADD=$(MIST_LIBS) -lpthread
 MistPlayer_SOURCES=buffer/player.cpp
 

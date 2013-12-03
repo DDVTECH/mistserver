@@ -658,7 +658,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Trac
   int i = 0;
   if (audioRef){
     trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
-    trinfo.getContentP(i)->addContent(AMF::Object("length", ((double)S.metadata.length) * ((double)audioRef.rate), AMF::AMF0_NUMBER));
+    trinfo.getContentP(i)->addContent(AMF::Object("length", ((double)audioRef.lastms) * ((double)audioRef.rate), AMF::AMF0_NUMBER));
     trinfo.getContentP(i)->addContent(AMF::Object("timescale", audioRef.rate, AMF::AMF0_NUMBER));
     trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
     if (audioRef.codec == "AAC"){

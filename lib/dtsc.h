@@ -162,7 +162,6 @@ namespace DTSC {
       long long unsigned int partLen;
       Part* parts;
       int trackID;
-      int length;
       int firstms;
       int lastms;
       int bps;
@@ -209,7 +208,6 @@ namespace DTSC {
       bool live;
       bool merged;
       long long int moreheader;
-      long long int length;
       long long int bufferWindow;
       void send(Socket::Connection & conn);
       JSON::Value toJSON();

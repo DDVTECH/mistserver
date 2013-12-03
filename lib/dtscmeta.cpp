@@ -152,7 +152,6 @@ namespace DTSC {
       partLen = 0;
     }
     trackID = trackRef["trackid"].asInt();
-    length = trackRef["length"].asInt();
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
     bps = trackRef["bps"].asInt();
@@ -180,7 +179,6 @@ namespace DTSC {
 
   Track::Track(const readOnlyTrack & rhs){
     trackID = rhs.trackID;
-    length = rhs.length;
     firstms = rhs.firstms;
     lastms = rhs.lastms;
     bps = rhs.bps;
@@ -221,7 +219,6 @@ namespace DTSC {
       parts = std::deque<Part>(tmp,tmp + (trackRef["parts"].asString().size() / 9));
     }
     trackID = trackRef["trackid"].asInt();
-    length = trackRef["length"].asInt();
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
     bps = trackRef["bps"].asInt();
@@ -339,7 +336,6 @@ namespace DTSC {
     vod = false;
     live = false;
     moreheader = 0;
-    length = 0;
     merged = false;
     bufferWindow = 0;
   }
@@ -347,7 +343,6 @@ namespace DTSC {
   readOnlyMeta::readOnlyMeta(JSON::Value & meta){
     vod = meta.isMember("vod") && meta["vod"];
     live = meta.isMember("live") && meta["live"];
-    length = 0;
     merged = meta.isMember("merged") && meta["merged"];
     bufferWindow = 0;
     if (meta.isMember("buffer_window")){
@@ -356,9 +351,6 @@ namespace DTSC {
     for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++){
       if (it->second.isMember("trackid") && it->second["trackid"]){
         tracks[it->second["trackid"].asInt()] = readOnlyTrack(it->second);
-        if (length < (it->second["lastms"].asInt() - it->second["firstms"].asInt())){
-          length = (it->second["lastms"].asInt() - it->second["firstms"].asInt());
-        }
       }
     }
     moreheader = meta["moreheader"].asInt();
@@ -368,7 +360,6 @@ namespace DTSC {
     vod = false;
     live = false;
     moreheader = 0;
-    length = 0;
     merged = false;
     bufferWindow = 0;
   }
@@ -377,7 +368,6 @@ namespace DTSC {
     vod = rhs.vod;
     live = rhs.live;
     merged = rhs.merged;
-    length = rhs.length;
     bufferWindow = rhs.bufferWindow;
     for (std::map<int,readOnlyTrack>::const_iterator it = rhs.tracks.begin(); it != rhs.tracks.end(); it++){
       tracks[it->first] = it->second;
@@ -396,9 +386,6 @@ namespace DTSC {
     for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++){
       if(it->second["trackid"].asInt()){
         tracks[it->second["trackid"].asInt()] = Track(it->second);
-        if (length < (it->second["lastms"].asInt() - it->second["firstms"].asInt())){
-          length = (it->second["lastms"].asInt() - it->second["firstms"].asInt());
-        }
       }
     }
     moreheader = meta["moreheader"].asInt();
@@ -459,7 +446,7 @@ namespace DTSC {
   }
 
   int Track::getSendLen(){
-    int result = 163 + init.size() + codec.size() + type.size() + getIdentifier().size();
+    int result = 146 + init.size() + codec.size() + type.size() + getIdentifier().size();
     result += fragments.size() * 11;
     result += keys.size() * 16;
     result += parts.size() * 9;
@@ -490,8 +477,6 @@ namespace DTSC {
     conn.SendNow((char*)parts, partLen*9);
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
-    conn.SendNow("\000\006length\001", 9);
-    conn.SendNow(convertLongLong(length), 8);
     conn.SendNow("\000\007firstms\001", 10);
     conn.SendNow(convertLongLong(firstms), 8);
     conn.SendNow("\000\006lastms\001", 9);
@@ -554,8 +539,6 @@ namespace DTSC {
     }
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
-    conn.SendNow("\000\006length\001", 9);
-    conn.SendNow(convertLongLong(length), 8);
     conn.SendNow("\000\007firstms\001", 10);
     conn.SendNow(convertLongLong(firstms), 8);
     conn.SendNow("\000\006lastms\001", 9);
@@ -675,7 +658,6 @@ namespace DTSC {
       result["parts"] = std::string((char*)parts, partLen * 9);
     }
     result["trackid"] = trackID;
-    result["length"] = length;
     result["firstms"] = firstms;
     result["lastms"] = lastms;
     result["bps"] = bps;
@@ -722,7 +704,6 @@ namespace DTSC {
     }
     result["parts"] = tmp;
     result["trackid"] = trackID;
-    result["length"] = length;
     result["firstms"] = firstms;
     result["lastms"] = lastms;
     result["bps"] = bps;

@@ -394,7 +394,7 @@ namespace DTSC {
   void Meta::update(JSON::Value & pack){
     vod = pack.isMember("bpos");
     live = !vod;
-    if (pack["trackid"].asInt()){
+    if (pack["trackid"].asInt() && tracks.count(pack["trackid"].asInt()) ){
       tracks[pack["trackid"].asInt()].update(pack);
     }
   }

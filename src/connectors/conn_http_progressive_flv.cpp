@@ -134,7 +134,7 @@ namespace Connector_HTTP {
         unsigned int now = Util::epoch();
         if (now != lastStats){
           lastStats = now;
-          ss.SendNow(conn.getStats("HTTP_Progressive_FLV").c_str());
+          ss.SendNow(conn.getStats("HTTP_Progressive_FLV"));
         }
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){

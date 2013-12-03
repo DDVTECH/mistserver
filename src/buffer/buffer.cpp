@@ -197,8 +197,7 @@ namespace Buffer {
                 usr->curr_down = (usr->tmpStats.down - usr->lastStats.down) / secs;
                 usr->lastStats = usr->tmpStats;
                 thisStream->saveStats(usr->sID, usr->tmpStats);
-                //TODO: Re-enable this
-                //thisStream->sendMeta(usr->S);
+                thisStream->sendMeta(usr->S);
                 break;
               }
               case 't': {

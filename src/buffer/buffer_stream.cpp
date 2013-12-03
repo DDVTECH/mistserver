@@ -61,13 +61,17 @@ namespace Buffer {
     Storage["totals"]["now"] = now;
     Storage["buffer"] = name;
     
-    std::map<int,DTSC::Track>::iterator it;
-    for (it = metadata.tracks.begin(); it != metadata.tracks.end(); ++it){
-      std::cout << it->second.getIdentifier() << ": " << it->second.firstms << "-" << it->second.lastms << " (" << it->second.keys.size() << ")" << std::endl;
-    }
-
     Storage["meta"] = metadata.toJSON();
-
+    if (Storage["meta"].isMember("tracks")){
+      for (JSON::ObjIter oIt = Storage["meta"]["tracks"].ObjBegin(); oIt != Storage["meta"]["tracks"].ObjEnd(); ++oIt){
+        oIt->second.removeMember("fragments");
+        oIt->second.removeMember("keys");
+        oIt->second.removeMember("parts");
+        oIt->second.removeMember("idheader");
+        oIt->second.removeMember("commentheader");
+      }
+    }
+    
     ret = Storage.toString();
     Storage["log"].null();
     return ret;

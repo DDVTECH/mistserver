@@ -209,6 +209,7 @@ namespace Connector_HTTP {
                 ready4data = false;
                 continue;
               }
+              ready4data = true;
               ss.setBlocking(false);
               Strm.waitForMeta(ss);
               for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
@@ -286,7 +287,7 @@ namespace Connector_HTTP {
                 
                 long long mstime = 0;
                 long long mslen = 0;
-                for (std::deque<DTSC::Key>::iterator it = myRef.keys.end(); it != myRef.keys.end(); it++){
+                for (std::deque<DTSC::Key>::iterator it = myRef.keys.begin(); it != myRef.keys.end(); it++){
                   if (it->getTime() >= (requestedTime / 10000)){
                     mstime = it->getTime();
                     mslen = it->getLength();
@@ -446,7 +447,6 @@ namespace Connector_HTTP {
                 HTTP_S.SendResponse("200", "OK", conn);
               }
             }
-            ready4data = true;
             //Clean for any possible next requests
             HTTP_R.Clean();
           }
@@ -461,9 +461,9 @@ namespace Connector_HTTP {
         if (now != lastStats){
           //Send new stats.
           lastStats = now;
-          ss.SendNow(conn.getStats("HTTP_Smooth").c_str());
+          ss.SendNow(conn.getStats("HTTP_Smooth"));
         }
-        if (/*handlingRequest &&*/ ss.spool()){
+        if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               HTTP_S.Chunkify(Strm.lastData(), conn);

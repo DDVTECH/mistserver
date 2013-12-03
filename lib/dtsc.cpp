@@ -235,9 +235,6 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     newPos.seekTime++;
   }
   buffers[newPos] = newPack;
-  if (buffercount > 1){
-    buffers[newPos].toNetPacked();//make sure package is packed and ready
-  }
   datapointertype = INVALID;
   std::string tmp = "";
   if (newPack.isMember("trackid") && newPack["trackid"].asInt() > 0){
@@ -260,6 +257,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   }
   if (buffercount > 1){
     metadata.update(newPack);
+    if (newPack.isMember("keyframe") || metadata.tracks[newPos.trackID].keys.rbegin()->getTime() == newPos.seekTime){
+      keyframes[newPos.trackID].insert(newPos);
+    }
     metadata.live = true;
   }
   
@@ -297,7 +297,7 @@ void DTSC::Stream::cutOneBuffer(){
     metadata.tracks[trid].keys.pop_front();
     // delete fragments of which the beginning can no longer be reached
     while (metadata.tracks[trid].fragments.size() && metadata.tracks[trid].fragments[0].getNumber() < metadata.tracks[trid].keys[0].getNumber()){
-      metadata.tracks[trid].firstms += metadata.tracks[trid].fragments[0].getDuration();
+      metadata.tracks[trid].firstms = metadata.tracks[trid].keys[0].getTime();
       metadata.tracks[trid].fragments.pop_front();
       // increase the missed fragments counter
       metadata.tracks[trid].missedFrags ++;

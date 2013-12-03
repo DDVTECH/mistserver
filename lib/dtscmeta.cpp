@@ -125,6 +125,8 @@ namespace DTSC {
     parts = NULL;
     partLen = 0;
     missedFrags = 0;
+    firstms = 0;
+    lastms = 0;
   }
 
   readOnlyTrack::readOnlyTrack(JSON::Value & trackRef){
@@ -253,9 +255,6 @@ namespace DTSC {
     }else{
       newPart.setDuration(0);
     }
-    if (pack["time"].asInt() > firstms){
-      firstms = pack["time"].asInt();
-    }
     parts.push_back(newPart);
     lastms = pack["time"].asInt();
     if (pack.isMember("keyframe") || !keys.size() || (type != "video" && pack["time"].asInt() - 5000 > keys[keys.size() - 1].getTime())){
@@ -275,6 +274,7 @@ namespace DTSC {
         newKey.setBpos(0);
       }
       keys.push_back(newKey);
+      firstms = keys[0].getTime();
       if (!fragments.size() || pack["time"].asInt() - 10000 >= getKey(fragments.rbegin()->getNumber()).getTime()){
         //new fragment
         Fragment newFrag;
@@ -331,7 +331,7 @@ namespace DTSC {
     parts.clear();
     keys.clear();
     bps = 0;
-    firstms = 999;
+    firstms = 0;
     lastms = 0;
   }
 

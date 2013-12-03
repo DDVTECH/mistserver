@@ -312,12 +312,12 @@ namespace DTSC {
       void resetStream();
       std::map<livePos,JSON::Value> buffers;
       std::map<int,std::set<livePos> > keyframes;
-      void addPacket(JSON::Value & newPack);
-      void addMeta(JSON::Value & newMeta);
+      virtual void addPacket(JSON::Value & newPack);
+      virtual void addMeta(JSON::Value & newMeta);
       datatype datapointertype;
       unsigned int buffercount;
       unsigned int buffertime;
       std::map<int,std::string> trackMapping;
-      void deletionCallback(livePos deleting);
+      virtual void deletionCallback(livePos deleting);
   };
 }

@@ -270,9 +270,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
       buffercount = buffers.size();
       if (buffercount < 2){buffercount = 2;}
     }
-    if (metadata.bufferWindow < timeBuffered){
-      metadata.bufferWindow = timeBuffered;
-    }
+    metadata.bufferWindow = timeBuffered;
   }
 
   while (buffers.size() > buffercount){
@@ -290,17 +288,16 @@ void DTSC::Stream::cutOneBuffer(){
       std::cerr << "Warning - track " << trid << " doesn't have enough keyframes to be reliably served." << std::endl;
     }
     keyframes[trid].erase(buffers.begin()->first);
-    int keySize = metadata.tracks[trid].keys.size();
     for (int i = 0; i < metadata.tracks[trid].keys[0].getParts(); i++){
       metadata.tracks[trid].parts.pop_front();
     }
     metadata.tracks[trid].keys.pop_front();
+    metadata.tracks[trid].firstms = metadata.tracks[trid].keys[0].getTime();
     // delete fragments of which the beginning can no longer be reached
     while (metadata.tracks[trid].fragments.size() && metadata.tracks[trid].fragments[0].getNumber() < metadata.tracks[trid].keys[0].getNumber()){
-      metadata.tracks[trid].firstms = metadata.tracks[trid].keys[0].getTime();
       metadata.tracks[trid].fragments.pop_front();
       // increase the missed fragments counter
-      metadata.tracks[trid].missedFrags ++;
+      metadata.tracks[trid].missedFrags++;
     }
   }
   buffers.erase(buffers.begin());

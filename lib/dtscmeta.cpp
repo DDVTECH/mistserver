@@ -261,10 +261,10 @@ namespace DTSC {
       Key newKey;
       newKey.setTime(pack["time"].asInt());
       newKey.setParts(0);
-      newKey.setLength(pack["time"].asInt());
+      newKey.setLength(0);
       if (keys.size()){
         newKey.setNumber(keys[keys.size() - 1].getNumber() + 1);
-        keys[keys.size() - 1].setLength(pack["time"].asInt() - keys[keys.size() - 1].getLength());
+        keys[keys.size() - 1].setLength(pack["time"].asInt() - keys[keys.size() - 1].getTime());
       }else{
         newKey.setNumber(1);
       }
@@ -598,7 +598,7 @@ namespace DTSC {
   }
 
   void readOnlyMeta::send(Socket::Connection & conn){
-    int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + 21;
+    int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     for (std::map<int,readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++){
       dataLen += it->second.getSendLen();
     }
@@ -621,13 +621,17 @@ namespace DTSC {
       conn.SendNow("\000\006merged\001", 9);
       conn.SendNow(convertLongLong(1), 8);
     }
+    if (bufferWindow){
+      conn.SendNow("\000\015buffer_window\001", 16);
+      conn.SendNow(convertLongLong(bufferWindow), 8);
+    }
     conn.SendNow("\000\012moreheader\001", 13);
     conn.SendNow(convertLongLong(moreheader), 8);
     conn.SendNow("\000\000\356", 3);//End global object
   }
 
   void Meta::send(Socket::Connection & conn){
-    int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + 21;
+    int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     for (std::map<int,Track>::iterator it = tracks.begin(); it != tracks.end(); it++){
       dataLen += it->second.getSendLen();
     }
@@ -649,6 +653,10 @@ namespace DTSC {
     if (merged){
       conn.SendNow("\000\006merged\001", 9);
       conn.SendNow(convertLongLong(1), 8);
+    }
+    if (bufferWindow){
+      conn.SendNow("\000\015buffer_window\001", 16);
+      conn.SendNow(convertLongLong(bufferWindow), 8);
     }
     conn.SendNow("\000\012moreheader\001", 13);
     conn.SendNow(convertLongLong(moreheader), 8);
@@ -743,7 +751,6 @@ namespace DTSC {
   JSON::Value Meta::toJSON(){
     JSON::Value result;
     for (std::map<int,Track>::iterator it = tracks.begin(); it != tracks.end(); it++){
-      if (!it->second.trackID){continue;}
       result["tracks"][it->second.getIdentifier()] = it->second.toJSON();
     }
     if (vod){
@@ -756,7 +763,7 @@ namespace DTSC {
       result["merged"] = 1ll;
     }
     if (bufferWindow){
-      result["buffer_window"];
+      result["buffer_window"] = bufferWindow;
     }
     result["moreheader"] = moreheader;
     return result;
@@ -765,7 +772,6 @@ namespace DTSC {
   JSON::Value readOnlyMeta::toJSON(){
     JSON::Value result;
     for (std::map<int,readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++){
-      if (!it->second.trackID){continue;}
       result["tracks"][it->second.getIdentifier()] = it->second.toJSON();
     }
     if (vod){
@@ -779,7 +785,7 @@ namespace DTSC {
     }
     result["moreheader"] = moreheader;
     if (bufferWindow){
-      result["buffer_window"];
+      result["buffer_window"] = bufferWindow;
     }
     return result;
   }

@@ -429,7 +429,7 @@ namespace DTSC {
   }
 
   int readOnlyTrack::getSendLen(){
-    int result = 163 + init.size() + codec.size() + type.size() + getIdentifier().size();
+    int result = 146 + init.size() + codec.size() + type.size() + getIdentifier().size();
     result += fragLen * 11;
     result += keyLen * 16;
     result += partLen * 9;

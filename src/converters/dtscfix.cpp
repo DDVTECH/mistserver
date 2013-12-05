@@ -32,7 +32,9 @@ namespace Converters {
       bPos = F.getBytePos();
       F.parseNext();
     }
+    int temp = 0;
     for (std::map<int,DTSC::Track>::iterator it = meta.tracks.begin(); it != meta.tracks.end(); it++){
+      temp++;
       if (it->second.fragments.size()){
         it->second.fragments.rbegin()->setDuration(it->second.fragments.rbegin()->getDuration() - it->second.lastms);
       }

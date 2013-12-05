@@ -513,17 +513,15 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Track & video){
   if (video.codec == "H264"){
     len = video.init.size() + 20;
   }
-  if (len > 0){
-    if ( !checkBufferSize()){
-      return false;
-    }
-    memcpy(data + 16, video.init.c_str(), len - 20);
-    data[12] = 0; //H264 sequence header
-    data[13] = 0;
-    data[14] = 0;
-    data[15] = 0;
-    data[11] = 0x17; //H264 keyframe (0x07 & 0x10)
+  if (len <= 0 || !checkBufferSize()){
+    return false;
   }
+  memcpy(data + 16, video.init.c_str(), len - 20);
+  data[12] = 0; //H264 sequence header
+  data[13] = 0;
+  data[14] = 0;
+  data[15] = 0;
+  data[11] = 0x17; //H264 keyframe (0x07 & 0x10)
   setLen();
   data[0] = 0x09;
   data[1] = ((len - 15) >> 16) & 0xFF;
@@ -546,34 +544,31 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Track & audio){
   if (audio.codec == "AAC"){
     len = audio.init.size() + 17;
   }
-  if (len > 0){
-    if ( !checkBufferSize()){
-      return false;
-    }
-    memcpy(data + 13, audio.init.c_str(), len - 17);
-    data[12] = 0; //AAC sequence header
-    data[11] = 0;
-    if (audio.codec == "AAC"){
-      data[11] += 0xA0;
-    }
-    if (audio.codec == "MP3"){
-      data[11] += 0x20;
-    }
-    unsigned int datarate = audio.rate;
-    if (datarate >= 44100){
-      data[11] += 0x0C;
-    }else if (datarate >= 22050){
-      data[11] += 0x08;
-    }else if (datarate >= 11025){
-      data[11] += 0x04;
-    }
-    if (audio.size == 16){
-      data[11] += 0x02;
-    }
-    if (audio.channels > 1){
-      data[11] += 0x01;
-
-    }
+  if (len <= 0 || !checkBufferSize()){
+    return false;
+  }
+  memcpy(data + 13, audio.init.c_str(), len - 17);
+  data[12] = 0; //AAC sequence header
+  data[11] = 0;
+  if (audio.codec == "AAC"){
+    data[11] += 0xA0;
+  }
+  if (audio.codec == "MP3"){
+    data[11] += 0x20;
+  }
+  unsigned int datarate = audio.rate;
+  if (datarate >= 44100){
+    data[11] += 0x0C;
+  }else if (datarate >= 22050){
+    data[11] += 0x08;
+  }else if (datarate >= 11025){
+    data[11] += 0x04;
+  }
+  if (audio.size == 16){
+    data[11] += 0x02;
+  }
+  if (audio.channels > 1){
+    data[11] += 0x01;
   }
   setLen();
   data[0] = 0x08;
@@ -689,13 +684,10 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Trac
 
   std::string tmp = amfdata.Pack();
   len = tmp.length() + 15;
-  if (len > 0){
-    if (checkBufferSize()){
-      memcpy(data + 11, tmp.c_str(), len - 15);
-    }else{
-      return false;
-    }
+  if (len <= 0 || checkBufferSize()){
+    return false;
   }
+  memcpy(data + 11, tmp.c_str(), len - 15);
   setLen();
   data[0] = 0x12;
   data[1] = ((len - 15) >> 16) & 0xFF;

@@ -309,12 +309,11 @@ FLV::Tag::Tag(const Tag& O){
   done = true;
   sofar = 0;
   len = O.len;
+  data = 0;
   if (len > 0){
     if (checkBufferSize()){
       memcpy(data, O.data, len);
     }
-  }else{
-    data = 0;
   }
   isKeyframe = O.isKeyframe;
 } //copy constructor

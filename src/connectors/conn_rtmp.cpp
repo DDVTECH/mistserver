@@ -637,23 +637,31 @@ namespace Connector_RTMP {
             //sent init data if needed
             if ( !streamInited){
               init_tag.DTSCMetaInit(Strm, Strm.metadata.tracks[videoID], Strm.metadata.tracks[audioID]);
-              Socket.SendNow(RTMPStream::SendMedia(init_tag));
+              if (init_tag.len){
+                Socket.SendNow(RTMPStream::SendMedia(init_tag));
+              }
               if (audioID != -1){
                 init_tag.DTSCAudioInit(Strm.metadata.tracks[audioID]);
-                Socket.SendNow(RTMPStream::SendMedia(init_tag));
+                if (init_tag.len){
+                  Socket.SendNow(RTMPStream::SendMedia(init_tag));
+                }
               }
               if (videoID != -1){
                 init_tag.DTSCVideoInit(Strm.metadata.tracks[videoID]);
-                Socket.SendNow(RTMPStream::SendMedia(init_tag));
+                if (init_tag.len){
+                  Socket.SendNow(RTMPStream::SendMedia(init_tag));
+                }
               }
               streamInited = true;
             }
             //sent a tag
             if (tag.DTSCLoader(Strm)){
-              Socket.SendNow(RTMPStream::SendMedia(tag));
-              #if DEBUG >= 8
-              fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), tag.tagTime(), tag.tagType().c_str());
-              #endif
+              if (tag.len){
+                Socket.SendNow(RTMPStream::SendMedia(tag));
+                #if DEBUG >= 8
+                fprintf(stderr, "Sent tag to %i: [%u] %s\n", Socket.getSocket(), tag.tagTime(), tag.tagType().c_str());
+                #endif
+              }
             }
           }
         }

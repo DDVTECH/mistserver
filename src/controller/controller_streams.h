@@ -7,4 +7,9 @@ namespace Controller {
   void startStream(std::string name, JSON::Value & data);
   void CheckAllStreams(JSON::Value & data);
   void CheckStreams(JSON::Value & in, JSON::Value & out);
+  
+  struct liveCheck {
+    long long int lastms;
+    long long int last_active;
+  };
 } //Controller namespace

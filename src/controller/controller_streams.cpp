@@ -6,6 +6,7 @@
 #include "controller_streams.h"
 #include "controller_storage.h"
 #include <sys/stat.h>
+#include <map>
 
 ///\brief Holds everything unique to the controller.
 namespace Controller {
@@ -45,7 +46,7 @@ namespace Controller {
     std::string buffcmd;
     if (URL == ""){
       Log("STRM", "Error for stream " + name + "! Source parameter missing.");
-      data["error"] = "Missing source parameter!";
+      data["error"] = "Stream offline: Missing source parameter!";
       return;
     }
     buffcmd = "MistBuffer";
@@ -64,7 +65,7 @@ namespace Controller {
         struct stat fileinfo;
         if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
           Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
-          data["error"] = "Not found: " + URL;
+          data["error"] = "Stream offline: Not found: " + URL;
           data["online"] = 0;
           return;
         }
@@ -81,7 +82,7 @@ namespace Controller {
               }else{
                 if (trIt->second["init"].asString().size() < 4){
                   Log("WARN", "Source file "+URL+" does not contain H264 init data that MistServer can interpret.");
-                  data["error"] = "Invalid?";
+                  data["error"] = "Stream offline: Invalid?";
                 }else{
                   if (trIt->second["init"].asString().c_str()[1] != 0x42){
                     Log("WARN", "Source file "+URL+" is not H264 Baseline - convert to baseline profile for best compatibility.");
@@ -142,7 +143,7 @@ namespace Controller {
       }
       if (currTime - lastBuffer[jit->first] > 5){
         if (jit->second.isMember("source") && jit->second["source"].asString().substr(0, 1) == "/" && jit->second.isMember("error")
-            && jit->second["error"].asString() == "Available"){
+            && jit->second["error"].asString().substr(0,15) != "Stream offline:"){
           jit->second["online"] = 2;
         }else{
           if (jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
@@ -155,15 +156,19 @@ namespace Controller {
         jit->second.removeMember("error");
         jit->second["online"] = 1;
         // check if source is valid
-        if (jit->second.isMember("live") && !jit->second.isMember("meta") || !jit->second["meta"]){
+        //if (jit->second.isMember("live") && !jit->second.isMember("meta") || !jit->second["meta"]){
+        if ( (jit->second.isMember("meta") && !jit->second["meta"].isMember("tracks"))){
           jit->second["online"] = 0;
-          jit->second["error"] = "No (valid) source connected";
+          jit->second["error"] = "No (valid) source connected ";
         }else{
           // for live streams, keep track of activity
           if (jit->second["meta"].isMember("live")){
-            if (jit->second["meta"]["lastms"] != jit->second["lastms"]){
-              jit->second["lastms"] = jit->second["meta"]["lastms"];
-              jit->second["last_active"] = currTime;
+            static std::map<std::string, liveCheck> checker;
+            //check activity by monitoring the lastms of track 0;
+            JSON::ObjIter trackIt = jit->second["meta"]["tracks"].ObjBegin();
+            if (trackIt->second["lastms"].asInt() != checker[jit->first].lastms){
+              checker[jit->first].lastms = trackIt->second["lastms"].asInt();
+              checker[jit->first].last_active = currTime;
             }
             //check H264 tracks for optimality
             if (jit->second.isMember("meta") && jit->second["meta"].isMember("tracks")){
@@ -189,9 +194,10 @@ namespace Controller {
               }
             }
             // mark stream as offline if no activity for 5 seconds
-            if (jit->second.isMember("last_active") && jit->second["last_active"].asInt() < currTime - 5){
-              jit->second["online"] = 0;
-              jit->second["error"] = "No (valid) source connected";
+            //if (jit->second.isMember("last_active") && jit->second["last_active"].asInt() < currTime - 5){
+            if (checker[jit->first].last_active < currTime - 5){
+              jit->second["online"] = 2;
+              jit->second["error"] = "Source not active";
             }
           }
         }

@@ -86,6 +86,18 @@ namespace Controller {
     conn.Authorized = false;
     Response["authorize"]["status"] = "CHALL";
     Response["authorize"]["challenge"] = Challenge;
+    //the following is used to add the first account through the LSP
+    if (!Storage["account"]){
+      Response["authorize"]["status"] = "NOACC";
+      if (Request["authorize"]["new_username"] && Request["authorize"]["new_password"]){
+        //create account
+        Controller::Log("CONF", "Created account " + Request["authorize"]["new_username"].asString() + " through API");
+        Controller::Storage["account"][Request["authorize"]["new_username"].asString()]["password"] = Secure::md5(Request["authorize"]["new_password"].asString());
+        Response["authorize"]["status"] = "ACC_MADE";
+      }else{
+        Response["authorize"].removeMember("challenge");
+      }
+    }
     return;
   }
 

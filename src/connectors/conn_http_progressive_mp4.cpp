@@ -77,9 +77,9 @@ namespace Connector_HTTP {
           keyPartIt = Conv.keyParts.begin();
           {//using scope to have cmd not declared after action
             std::stringstream cmd;
-            cmd << "t "<< (*keyPartIt).trackID;
-            cmd << "\ns " << (*keyPartIt).time;
-            cmd << "\no\n";
+            cmd << "t 1 2";//<< (*keyPartIt).trackID;
+            cmd << "\ns 0";
+            cmd << "\np\n";
             ss.SendNow(cmd.str());
           }
           if ( !ss.connected()){
@@ -128,7 +128,7 @@ namespace Connector_HTTP {
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             if (Strm.lastType() == DTSC::PAUSEMARK){
-              keyPartIt++;
+              /*keyPartIt++;
               if (keyPartIt != Conv.keyParts.end()){
                 //Instruct player
                 std::stringstream cmd;
@@ -136,9 +136,9 @@ namespace Connector_HTTP {
                 cmd << "\ns " << (*keyPartIt).time;
                 cmd << "\no\n";
                 ss.SendNow(cmd.str());
-              }else{//if keyparts.end, then we reached the end of the file
+              }else{//if keyparts.end, then we reached the end of the file*/
                 conn.close();
-              }
+              //}
             }else if(Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               //parse DTSC to MP4 here
               conn.SendNow(Strm.lastData());//send out and clear Converter buffer

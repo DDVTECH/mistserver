@@ -36,7 +36,6 @@ namespace Connector_HTTP {
 
     //MP4 specific variables
     MP4::DTSC2MP4Converter Conv;
-    std::set<MP4::keyPart>::iterator keyPartIt;
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     
@@ -74,10 +73,9 @@ namespace Connector_HTTP {
           HTTP_S.protocol = "HTTP/1.0";
           conn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
           conn.SendNow(Conv.DTSCMeta2MP4Header(Strm.metadata));//SENDING MP4HEADER
-          keyPartIt = Conv.keyParts.begin();
           {//using scope to have cmd not declared after action
             std::stringstream cmd;
-            cmd << "t 1 2";//<< (*keyPartIt).trackID;
+            cmd << "t 1 2";
             cmd << "\ns 0";
             cmd << "\np\n";
             ss.SendNow(cmd.str());
@@ -128,17 +126,7 @@ namespace Connector_HTTP {
         if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             if (Strm.lastType() == DTSC::PAUSEMARK){
-              /*keyPartIt++;
-              if (keyPartIt != Conv.keyParts.end()){
-                //Instruct player
-                std::stringstream cmd;
-                cmd << "t "<< (*keyPartIt).trackID;
-                cmd << "\ns " << (*keyPartIt).time;
-                cmd << "\no\n";
-                ss.SendNow(cmd.str());
-              }else{//if keyparts.end, then we reached the end of the file*/
-                conn.close();
-              //}
+              conn.close();
             }else if(Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               //parse DTSC to MP4 here
               conn.SendNow(Strm.lastData());//send out and clear Converter buffer

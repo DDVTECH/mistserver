@@ -684,7 +684,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Trac
 
   std::string tmp = amfdata.Pack();
   len = tmp.length() + 15;
-  if (len <= 0 || checkBufferSize()){
+  if (len <= 0 || !checkBufferSize()){
     return false;
   }
   memcpy(data + 11, tmp.c_str(), len - 15);

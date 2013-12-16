@@ -155,7 +155,7 @@ namespace DTSC {
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
     bps = trackRef["bps"].asInt();
-    missedFrags = trackRef["missed_fags"].asInt();
+    missedFrags = trackRef["missed_frags"].asInt();
     codec = trackRef["codec"].asString();
     type = trackRef["type"].asString();
     init = trackRef["init"].asString();
@@ -222,7 +222,7 @@ namespace DTSC {
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
     bps = trackRef["bps"].asInt();
-    missedFrags = trackRef["missed_fags"].asInt();
+    missedFrags = trackRef["missed_frags"].asInt();
     codec = trackRef["codec"].asString();
     type = trackRef["type"].asString();
     init = trackRef["init"].asString();
@@ -243,6 +243,10 @@ namespace DTSC {
   }
 
   void Track::update(JSON::Value & pack){
+    if (pack["time"].asInt() < lastms){
+      std::cerr << "Received packets for track " << trackID << " in wrong order (" << pack["time"].asInt() << " < " << lastms << ") - ignoring!" << std::endl;
+      return;
+    }
     Part newPart;
     newPart.setSize(pack["data"].asString().size());
     newPart.setOffset(pack["offset"].asInt());
@@ -442,6 +446,7 @@ namespace DTSC {
       result += 15 + idHeader.size();//idheader
       result += 20 + commentHeader.size();//commentheader
     }
+    if (missedFrags){result += 23;}
     return result;
   }
 
@@ -459,6 +464,7 @@ namespace DTSC {
       result += 15 + idHeader.size();//idheader
       result += 20 + commentHeader.size();//commentheader
     }
+    if (missedFrags){result += 23;}
     return result;
   }
 
@@ -477,6 +483,10 @@ namespace DTSC {
     conn.SendNow((char*)parts, partLen*9);
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
+    if (missedFrags){
+      conn.SendNow("\000\014missed_frags\001", 15);
+      conn.SendNow(convertLongLong(missedFrags), 8);
+    }
     conn.SendNow("\000\007firstms\001", 10);
     conn.SendNow(convertLongLong(firstms), 8);
     conn.SendNow("\000\006lastms\001", 9);
@@ -539,6 +549,10 @@ namespace DTSC {
     }
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
+    if (missedFrags){
+      conn.SendNow("\000\014missed_frags\001", 15);
+      conn.SendNow(convertLongLong(missedFrags), 8);
+    }
     conn.SendNow("\000\007firstms\001", 10);
     conn.SendNow(convertLongLong(firstms), 8);
     conn.SendNow("\000\006lastms\001", 9);

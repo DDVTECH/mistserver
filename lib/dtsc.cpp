@@ -218,19 +218,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
-  if (buffercount > 1 && buffers.size() > 0){
-    livePos lastPos = buffers.rbegin()->first;
-    if (newPos < lastPos){
-      if ((lastPos.seekTime > 1000) && newPos.seekTime < lastPos.seekTime - 1000){
-        resetStream();
-      }else{
-        newPos.seekTime = lastPos.seekTime+1;
-      }
-    }
-  }else{
+  if (buffercount > 1 && metadata.tracks[newPos.trackID].keys.size() > 1 && newPos.seekTime < metadata.tracks[newPos.trackID].keys.rbegin()->getTime()){
     resetStream();
   }
-  std::string newTrack = metadata.tracks[newPos.trackID].getIdentifier();
   while (buffers.count(newPos) > 0){
     newPos.seekTime++;
   }
@@ -261,19 +251,18 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
       keyframes[newPos.trackID].insert(newPos);
     }
     metadata.live = true;
+    //throw away buffers if buffer time is met
+    int trid = buffers.begin()->first.trackID;
+    int firstTime = buffers.begin()->first.seekTime;
+    while (metadata.tracks[trid].keys.size() > 2 && metadata.tracks[trid].keys.rbegin()->getTime() - firstTime > buffertime){
+      cutOneBuffer();
+      trid = buffers.begin()->first.trackID;
+      firstTime = buffers.begin()->first.seekTime;
+    }
+    metadata.bufferWindow = buffertime;
   }
   
-  //increase buffer size if too little time available
-  unsigned int timeBuffered = buffers.rbegin()->second["time"].asInt() - buffers.begin()->second["time"].asInt();
-  if (buffercount > 1){
-    if (timeBuffered < buffertime){
-      buffercount = buffers.size();
-      if (buffercount < 2){buffercount = 2;}
-    }
-    metadata.bufferWindow = timeBuffered;
-  }
-
-  while (buffers.size() > buffercount){
+  while (buffercount == 1 && buffers.size() > 1){
     cutOneBuffer();
   }
 }
@@ -282,24 +271,30 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
 /// Will print a warning to std::cerr if a track has less than 2 keyframes left because of this.
 void DTSC::Stream::cutOneBuffer(){
   int trid = buffers.begin()->first.trackID;
-  if (buffercount > 1 && keyframes[trid].count(buffers.begin()->first)){
-    //if there are < 3 keyframes, throwing one away would mean less than 2 left.
-    if (keyframes[trid].size() < 3){
-      std::cerr << "Warning - track " << trid << " doesn't have enough keyframes to be reliably served." << std::endl;
+  int delTime = buffers.begin()->first.seekTime;
+  if (buffercount > 1){
+    while (keyframes[trid].size() > 0 && keyframes[trid].begin()->seekTime <= delTime){
+      keyframes[trid].erase(keyframes[trid].begin());
     }
-    keyframes[trid].erase(buffers.begin()->first);
-    for (int i = 0; i < metadata.tracks[trid].keys[0].getParts(); i++){
-      metadata.tracks[trid].parts.pop_front();
+    while (metadata.tracks[trid].keys.size() && metadata.tracks[trid].keys[0].getTime() <= delTime){
+      for (int i = 0; i < metadata.tracks[trid].keys[0].getParts(); i++){
+        metadata.tracks[trid].parts.pop_front();
+      }
+      metadata.tracks[trid].keys.pop_front();
     }
-    metadata.tracks[trid].keys.pop_front();
-    metadata.tracks[trid].firstms = metadata.tracks[trid].keys[0].getTime();
-    // delete fragments of which the beginning can no longer be reached
-    while (metadata.tracks[trid].fragments.size() && metadata.tracks[trid].fragments[0].getNumber() < metadata.tracks[trid].keys[0].getNumber()){
-      metadata.tracks[trid].fragments.pop_front();
-      // increase the missed fragments counter
-      metadata.tracks[trid].missedFrags++;
+    if (metadata.tracks[trid].keys.size()){
+      metadata.tracks[trid].firstms = metadata.tracks[trid].keys[0].getTime();
+      //delete fragments of which the beginning can no longer be reached
+      while (metadata.tracks[trid].fragments.size() && metadata.tracks[trid].fragments[0].getNumber() < metadata.tracks[trid].keys[0].getNumber()){
+        metadata.tracks[trid].fragments.pop_front();
+        //increase the missed fragments counter
+        metadata.tracks[trid].missedFrags++;
+      }
+    }else{
+      metadata.tracks[trid].fragments.clear();
     }
   }
+  deletionCallback(buffers.begin()->first);
   buffers.erase(buffers.begin());
 }
 

@@ -77,13 +77,11 @@ namespace DTSC {
       if (seekTime < rhs.seekTime){
         return true;
       }else{
-        if (seekTime == rhs.seekTime){
-          if (trackID < rhs.trackID){
-            return true;
-          }
+        if (seekTime > rhs.seekTime){
+          return false;
         }
       }
-      return false;
+      return (trackID < rhs.trackID);
     }
     volatile long long unsigned int seekTime;
     volatile unsigned int trackID;

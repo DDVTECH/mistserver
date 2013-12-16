@@ -227,7 +227,7 @@ namespace Connector_HTTP {
           lastStats = now;
           ss.SendNow(conn.getStats("HTTP_Live").c_str());
         }
-        if (handlingRequest && ss.spool()){
+        if (ss.spool()){
           while (Strm.parsePacket(ss.Received())){
             if (Strm.lastType() == DTSC::PAUSEMARK){
               HTTP_S.Chunkify("", 0, conn);

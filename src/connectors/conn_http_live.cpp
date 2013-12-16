@@ -77,12 +77,8 @@ namespace Connector_HTTP {
       long long int starttime = metadata.getKey(it->getNumber()).getTime();
       
       if (it != (metadata.fragments.end() - 1)){
-          result << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n"
-            << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
-      }else{
-          result << "#EXTINF:" << ((metadata.lastms - starttime + 500) / 1000) << ", no desc\r\n"
-            << starttime << "_" << metadata.lastms << ".ts\r\n";
-      } 
+        result << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n" << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
+      }
     }
     if ( !isLive){
       result << "#EXT-X-ENDLIST\r\n";

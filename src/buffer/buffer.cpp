@@ -250,7 +250,7 @@ namespace Buffer {
         }
       }
       if (usr->myRing->waiting || !usr->myRing->playCount){
-        Util::sleep(300); //sleep 5ms
+        Util::sleep(300); //sleep 300ms
       }
     }
     usr->Disconnect("Socket closed.");

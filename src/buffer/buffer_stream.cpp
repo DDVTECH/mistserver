@@ -145,7 +145,7 @@ namespace Buffer {
   void Stream::deletionCallback(DTSC::livePos deleting){
     tthread::lock_guard<tthread::recursive_mutex> guard(stats_mutex);
     for (usersIt = users.begin(); usersIt != users.end(); usersIt++){
-      if ((*usersIt)->myRing->b == deleting){
+      if ((*usersIt)->myRing->playCount && (*usersIt)->myRing->b == deleting){
         (*usersIt)->Disconnect("Buffer underrun");
       }
     }
@@ -197,8 +197,9 @@ namespace Buffer {
   void Stream::sendMeta(Socket::Connection & s){
     if (metadata){
       rw_mutex.lock();
-      metadata.send(s);
+      DTSC::Meta tmpMeta = metadata;
       rw_mutex.unlock();
+      tmpMeta.send(s);
     }
   }
 

@@ -402,12 +402,11 @@ namespace Connector_HTTP {
                 
                 //If the stream is live, we want to have a fragref box if possible
                 if (Strm.metadata.live){
-                  ///\todo Fix this for live
                   MP4::UUID_TrackFragmentReference fragref_box;
                   fragref_box.setVersion(1);
                   fragref_box.setFragmentCount(0);
                   int fragCount = 0;
-                  for (int i = 0; i < 2 && i < trackRef.keys.size() - 1; i++){//< trackRef["keys"].size() - 1; i++){
+                  for (int i = 0; fragCount < 2 && i < trackRef.keys.size() - 1; i++){
                     if (trackRef.keys[i].getTime() > (requestedTime / 10000)){
                       fragref_box.setTime(fragCount, trackRef.keys[i].getTime() * 10000);
                       fragref_box.setDuration(fragCount, trackRef.keys[i].getLength() * 10000);
@@ -416,8 +415,6 @@ namespace Connector_HTTP {
                   }
                   traf_box.setContent(fragref_box, 3);
                 }
-
-                
 
                 MP4::MOOF moof_box;
                 moof_box.setContent(mfhd_box, 0);

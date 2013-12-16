@@ -127,6 +127,7 @@ namespace DTSC {
     missedFrags = 0;
     firstms = 0;
     lastms = 0;
+    bps = 0;
   }
 
   readOnlyTrack::readOnlyTrack(JSON::Value & trackRef){
@@ -283,9 +284,12 @@ namespace DTSC {
         newFrag.setLength(1);
         newFrag.setNumber(keys[keys.size() - 1].getNumber());
         if (fragments.size()){
-          fragments[fragments.size() - 1].setDuration(pack["time"].asInt() - fragments[fragments.size() - 1].getDuration());
+          fragments[fragments.size() - 1].setDuration(pack["time"].asInt() - getKey(fragments[fragments.size() - 1].getNumber()).getTime());
+          if ( !bps && fragments[fragments.size() - 1].getDuration() > 1000){
+            bps = (fragments[fragments.size() - 1].getSize() * 1000) / fragments[fragments.size() - 1].getDuration();
+          }
         }
-        newFrag.setDuration(pack["time"].asInt());
+        newFrag.setDuration(0);
         newFrag.setSize(0);
         fragments.push_back(newFrag);
       }else{
@@ -295,7 +299,6 @@ namespace DTSC {
     }
     keys.rbegin()->setParts(keys.rbegin()->getParts() + 1);
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + pack["data"].asString().size());
-    bps += pack["data"].asString().size();
   }
 
   Key & Track::getKey(int keyNum){

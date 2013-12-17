@@ -35,14 +35,14 @@ namespace Connector_HTTP {
     std::string audioName;
     bool defAudio = false;//set default audio track;
     for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
-      if (it->second.type == "audio"){
+      if (it->second.codec == "AAC"){
         audioId = it->first;
         audioName = it->second.getIdentifier();
         break;
       }
     }
     for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
-      if (it->second.type == "video"){
+      if (it->second.codec == "H264"){
         int bWidth = it->second.bps * 2;
         if (audioId != -1){
           bWidth += metadata.tracks[audioId].bps * 2;

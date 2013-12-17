@@ -1,8 +1,8 @@
 CLOSUREJAR=../lsp/closure-compiler.jar
 CLOSURE=java -jar $(CLOSUREJAR) --warning_level QUIET
 BUILT_SOURCES=controller/server.html.h connectors/embed.js.h
-lspSOURCES=../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js ../lsp/functions.js ../lsp/tablesort.js
-lspDATA=../lsp/header.html ../lsp/style.css ../lsp/footer.html
+lspSOURCES=../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js ../lsp/pages.js ../lsp/tablesort.js
+lspDATA=../lsp/header.html ../lsp/main.css ../lsp/footer.html
 
 # Do not clean below files, build machines do not have closure installed
 EXTRA_DIST=controller/server.html controller/server.html.h connectors/embed.js connectors/embed.js.h $(lspSOURCES) $(lspDATA)
@@ -104,7 +104,7 @@ controller/server.html: $(lspDATA) $(lspSOURCES)
 	cat compressed.js >> $@
 	rm compressed.js
 	echo "</script><style>" >> $@
-	cat ../lsp/style.css >> $@
+	cat ../lsp/main.css >> $@
 	echo "</style>" >> $@
 	cat ../lsp/footer.html >> $@
 

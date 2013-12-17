@@ -1,53 +1,64 @@
-<!doctype html>
 
-<html lang='en'>
-
-   <head>
-
-      <meta charset='utf-8' />
-
-      <title>Mistserver Manager - not connected</title>
-
-      <script src='jquery.js'></script>
-      <script src='placeholder.js'></script> 
-      <script src='md5.js'></script>
-      <script src='main.js'></script>
-      <script src='functions.js'></script>
-      <script src='tablesort.js'></script>
-
-      <link rel='stylesheet' href='style.css' />
-
-   </head>
-
-   <body>
-
-      <div id='header'>
-
-         <div id='header-title'>
-            <span>Mistserver Manager</span>
-         </div>
-
-         <div id='header-status'>
-            <span id='header-connection' class='disconnected'>Disconnected</span>
-            <span id='header-host'></span>
-         </div>
-
-      </div>
-
-      <ul id='nav'>
-         <li class='selected'>overview</li>
-         <li>protocols</li>
-         <li>streams</li>
-         <li class='LTSonly'>limits</li>
-         <li>conversion</li>
-         <li>logs</li>
-         <li>server stats</li>
-         <li id='logoutbutton'>disconnect</li>
-         <li><a href='http://shop.mistserver.org/' target='_blank'>Mist Shop</a></li>
-      </ul>
-
-      <div id='page'></div>
-
-   </body>
-
+<html>
+  <head>
+    <meta http-equiv='content-type' content='text/html;charset=utf-8' />
+    <title>MistServer Manager</title>
+    <script src='jquery.js'></script>
+    <script src='placeholder.js'></script> 
+    <script src='md5.js'></script>
+    <script src='main.js'></script>
+    <script src='pages.js'></script>
+    <script src='tablesort.js'></script>
+    <link rel='stylesheet' href='main.css' />
+      <script>
+        //this is placed here because the compression compiler does not deal with the eval function properly.
+        function enterSettings(){
+          $('.isSetting').each(function(){
+            var objpath = findObjPath($(this));
+            var val = '';
+            try {
+              eval('val = '+objpath+';');
+            }
+            catch(e) {  }
+            if ($(this).is('input,select')) {
+              $(this).val(val);
+            }
+            else {
+              $(this).text(val);
+            }
+          });
+        }
+      </script>
+  </head>
+  <body>
+  
+  <div id='header'>
+    <div id='logo'>
+      <a href='http://mistserver.org' target='_blank'>
+	<span>Mist/</span> Server
+      </a>
+    </div>
+    <div id='status'>
+      <span id='connection' class='red'>Disconnected</span>
+      <span id='user_and_host'></span>
+      <span id='message'></span>
+    </div>
+  </div>
+  
+  <div id='menu'>
+    <div class='button'>Overview</div>
+    <div class='button'>Protocols</div>
+    <div class='button'>Streams</div>
+    <div class='button LTS-only'>Limits</div>
+    <div class='button'>Conversion</div>
+    <div class='button'>Logs</div>
+    <div class='button'>Server Stats</div>
+    <br>
+    <div class='button red'>Disconnect</div>
+    <a class='button' href='http://shop.mistserver.org' target='_blank'>Mist Shop</a>
+  </div>
+  
+  <div id='page'></div>
+  
+  </body>
 </html>

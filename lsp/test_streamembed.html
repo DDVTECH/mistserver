@@ -1,0 +1,36 @@
+<html>
+  <head>
+    <title>Test the stream embedding</title>
+    <style></style>
+    <script src=jquery.js></script>
+    <script src='../src/connectors/embed.js'></script>
+    <script>
+      $(function(){
+        $('button').click(function(){
+          $('#embedcontainer').html('');
+          
+          var streamName = $(this).parent().children('input').val();
+          
+          var info = document.createElement('script');
+          info.src = 'http://localhost:8080/info_'+streamName+'.js';
+          document.getElementById('embedcontainer').appendChild(info);
+          info.onload = function(){
+            console.log(mistvideo[streamName]);
+            
+            mistembed(streamName);
+          };
+        });
+      });
+
+    </script>
+  </head>
+  <body>
+    <label>
+      Enter the streamname:
+      <input type=text></input>
+      <button>Get video info</button>
+    </label>
+    <div id=embedcontainer>
+    </div>
+  </body>
+</html>

@@ -189,7 +189,7 @@ $(this).addClass(whatorder == 'asc' ? 'sortasc' : 'sortdesc');
 
       if(hv == '')
       {
-         $(this).css('background', 'transparent');
+         $(this).css('background-image', 'none');
       }
    });
 

@@ -11,7 +11,7 @@ namespace Util {
     public:
       static void sanitizeName(std::string & streamname);
       static Socket::Connection getLive(std::string streamname);
-      static Socket::Connection getVod(std::string streamname);
+      static Socket::Connection getVod(std::string filename, std::string streamname);
       static Socket::Connection getStream(std::string streamname);
       static Socket::Server makeLive(std::string streamname);
   };

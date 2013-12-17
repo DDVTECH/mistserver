@@ -67,10 +67,10 @@ Socket::Connection Util::Stream::getLive(std::string streamname){
 }
 
 /// Starts a process for a VoD stream.
-Socket::Connection Util::Stream::getVod(std::string filename){
+Socket::Connection Util::Stream::getVod(std::string filename, std::string streamname){
   std::string name = "MistPlayer " + filename;
   std::string player_bin = Util::getMyPath() + "MistPlayer";
-  char* const argv[] = {(char*)player_bin.c_str(), (char*)filename.c_str(), NULL};
+  char* const argv[] = {(char*)player_bin.c_str(), (char*)filename.c_str(), "-s", (char*)streamname.c_str(), NULL};
   int fdin = -1, fdout = -1, fderr = fileno(stderr);
   Util::Procs::StartPiped(name, argv, &fdin, &fdout, &fderr);
   // if StartPiped fails then fdin and fdout will be unmodified (-1)
@@ -86,7 +86,7 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
 #if DEBUG >= 5
       std::cerr << "Opening VoD stream from file " << ServConf["streams"][streamname]["source"].asString() << std::endl;
 #endif
-      return getVod(ServConf["streams"][streamname]["source"].asString());
+      return getVod(ServConf["streams"][streamname]["source"].asString(), streamname);
     }else{
 #if DEBUG >= 5
       std::cerr << "Opening live stream " << streamname << std::endl;

@@ -73,7 +73,10 @@ class Stats{
 
 int main(int argc, char** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
-  conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"help\":\"Name of the file to write to stdout.\"}"));
+  conf.addOption("filename",
+            JSON::fromString("{\"arg_num\":1, \"help\":\"Name of the file to write to stdout.\"}"));
+  conf.addOption("streamname",
+            JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
   conf.parseArgs(argc, argv);
   conf.activate();
   int playing = 0;

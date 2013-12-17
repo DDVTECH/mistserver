@@ -36,9 +36,6 @@ namespace Converters {
       if (it->second.fragments.size()){
         it->second.fragments.rbegin()->setDuration(it->second.fragments.rbegin()->getDuration() - it->second.lastms);
       }
-      if (it->second.lastms / 1000){
-        it->second.bps /= (it->second.lastms / 1000);
-      }
     }
 
     //append the revised header

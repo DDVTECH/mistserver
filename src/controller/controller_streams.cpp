@@ -177,7 +177,7 @@ namespace Controller {
                   if (trIt->second.isMember("init")){
                     if (trIt->second["init"].asString().size() < 4){
                       Log("WARN", "Live stream "+jit->first+" does not contain H264 init data that MistServer can interpret.");
-                      jit->second["error"] = "Invalid?";
+                      jit->second["error"] = "Stream offline: Invalid?";
                     }else{
                       if (trIt->second["init"].asString().c_str()[1] != 0x42){
                         Log("WARN", "Live stream "+jit->first+" is not H264 Baseline - convert to baseline profile for best compatibility.");

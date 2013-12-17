@@ -73,8 +73,13 @@ namespace Buffer {
       void sendMeta(Socket::Connection & s);
       /// Cleanup function
       ~Stream();
-      /// TODO: WRITEME
+      /// Removes a track and all related buffers from the stream.
+      void removeTrack(int trackId);
+      /// Calls removeTrack on all tracks that were streaming from this socket number.
+      void removeSocket(int sockNo);
+      /// Thread-safe parsePacket override.
       bool parsePacket(std::string & buffer);
+      /// Thread-safe parsePacket override.
       bool parsePacket(Socket::Connection & c);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
   private:

@@ -175,6 +175,39 @@ namespace Buffer {
     return DTSC::Stream::getNext(pos, allowedTracks);
   }
   
+  /// Removes a track and all related buffers from the stream.
+  void Stream::removeTrack(int trackId){
+    metadata.tracks.erase(trackId);
+    std::set<DTSC::livePos> toDelete;
+    for (std::map<DTSC::livePos, JSON::Value >::iterator it = buffers.begin(); it != buffers.end(); it++){
+      if (it->first.trackID == trackId){
+        toDelete.insert(it->first);
+      }
+    }
+    while (toDelete.size()){
+      deletionCallback(*toDelete.begin());
+      buffers.erase(*toDelete.begin());
+      keyframes[trackId].erase(*toDelete.begin());
+      toDelete.erase(toDelete.begin());
+    }
+  }
+  
+  /// Calls removeTrack on all tracks that were streaming from this socket number.
+  void Stream::removeSocket(int sockNo){
+    std::set<int> toDelete;
+    std::map<int,DTSC::Track>::iterator it;
+    for (it = metadata.tracks.begin(); it != metadata.tracks.end(); ++it){
+      if ((it->first & (sockNo << 16)) == (sockNo << 16)){
+        toDelete.insert(it->first);
+        std::cout << "Input lost, removing track: " << it->second.getIdentifier() << std::endl;
+      }
+    }
+    while (toDelete.size()){
+      removeTrack(*toDelete.begin());
+      toDelete.erase(toDelete.begin());
+    }
+  }
+  
   /// parsePacket override that will lock the rw_mutex during parsing.
   bool Stream::parsePacket(Socket::Connection & c){
     bool ret = false;

@@ -59,12 +59,18 @@ namespace Buffer {
     pthread_setname_np(pthread_self(), "Push Input");
     #endif
     conn.setBlocking(true);
+    int sockNo = 0;
     while (buffer_running && conn.connected()){
       thisStream->parsePacket(conn);
     }
     if (buffer_running){
       thisStream->endStream();
     }
+    long long int wait_time = Util::getMS();
+    while (Util::getMS() - wait_time < thisStream->metadata.bufferWindow){
+      Util::sleep(thisStream->metadata.bufferWindow);
+    }
+    thisStream->removeSocket(sockNo);
   }
   
   ///\brief A function running a thread to handle input data through stdin.

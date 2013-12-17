@@ -809,7 +809,6 @@ namespace DTSC {
         continue;
       }
       if (!it->second.keys.size() || !(it->second.keys.rbegin()->getBpos())){
-        std::cerr << "Not fixed while track " << it->first << " has " << it->second.keys.size() << "keyframes" << std::endl;
         return false;
       }
     }

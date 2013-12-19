@@ -209,11 +209,11 @@ namespace DTSC {
   Track::Track(JSON::Value & trackRef){
     if (trackRef.isMember("fragments") && trackRef["fragments"].isString()){
       Fragment* tmp = (Fragment*)trackRef["fragments"].asString().data();
-      fragments = std::deque<Fragment>(tmp,tmp + (trackRef["fragments"].asString().size() / 11));
+      fragments = std::deque<Fragment>(tmp, tmp + (trackRef["fragments"].asString().size() / 11));
     }
     if (trackRef.isMember("keys") && trackRef["keys"].isString()){
       Key* tmp = (Key*)trackRef["keys"].asString().data();
-      keys = std::deque<Key>(tmp,tmp + (trackRef["keys"].asString().size() / 16));
+      keys = std::deque<Key>(tmp, tmp + (trackRef["keys"].asString().size() / 16));
     }
     if (trackRef.isMember("parts") && trackRef["parts"].isString()){
       Part* tmp = (Part*)trackRef["parts"].asString().data();
@@ -277,7 +277,7 @@ namespace DTSC {
       }
       keys.push_back(newKey);
       firstms = keys[0].getTime();
-      if (!fragments.size() || pack["time"].asInt() - 10000 >= getKey(fragments.rbegin()->getNumber()).getTime()){
+      if (!fragments.size() || pack["time"].asInt() - 5000 >= getKey(fragments.rbegin()->getNumber()).getTime()){
         //new fragment
         Fragment newFrag;
         newFrag.setDuration(0);
@@ -342,6 +342,7 @@ namespace DTSC {
   readOnlyMeta::readOnlyMeta(){
     vod = false;
     live = false;
+    merged = false;
     moreheader = 0;
     merged = false;
     bufferWindow = 0;

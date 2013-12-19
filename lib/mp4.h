@@ -9,6 +9,7 @@
 #include <sstream>
 #include <deque>
 #include <algorithm>
+#include <vector>
 #include "json.h"
 #include "dtsc.h"
 
@@ -256,7 +257,7 @@ namespace MP4 {
       uint32_t sampleDuration;
       uint32_t sampleSize;
       uint32_t sampleFlags;
-      uint32_t sampleOffset;
+      int32_t sampleOffset;
   };
   enum trunflags{
     trundataOffset = 0x00000001,
@@ -378,6 +379,7 @@ namespace MP4 {
       uint32_t getPPSLen();
       char* getPPS();
       std::string asAnnexB();
+      void fromAnnexB(std::string annexBFormatted);
       void setPayload(std::string newPayload);
       std::string toPrettyString(uint32_t indent = 0);
   };
@@ -869,6 +871,7 @@ namespace MP4 {
       uint16_t getPreDefined();
       void setSampleRate(uint32_t newSampleRate);
       uint32_t getSampleRate();
+      uint16_t toAACInit();
       void setCodecBox(Box& newBox);
       Box & getCodecBox();
       std::string toPrettyAudioString(uint32_t indent = 0, std::string name = "");
@@ -976,4 +979,3 @@ namespace MP4 {
   };
 
 }
-

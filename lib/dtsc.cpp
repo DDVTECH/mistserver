@@ -224,6 +224,9 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   while (buffers.count(newPos) > 0){
     newPos.seekTime++;
   }
+  while (buffercount == 1 && buffers.size() > 0){
+    cutOneBuffer();
+  }
   buffers[newPos] = newPack;
   datapointertype = INVALID;
   std::string tmp = "";
@@ -262,9 +265,6 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     metadata.bufferWindow = buffertime;
   }
   
-  while (buffercount == 1 && buffers.size() > 1){
-    cutOneBuffer();
-  }
 }
 
 /// Deletes a the first part of the buffer, updating the keyframes list and metadata as required.
@@ -920,6 +920,15 @@ bool DTSC::File::seek_bpos(int bpos){
     return true;
   }
   return false;
+}
+
+void DTSC::File::rewritePacket(std::string & newPacket, int bytePos){
+  fseek(F, bytePos, SEEK_SET);
+  fwrite(newPacket.c_str(), newPacket.size(), 1, F);
+  fseek(F, 0, SEEK_END);
+  if (ftell(F) > endPos){
+    endPos = ftell(F);
+  }
 }
 
 void DTSC::File::writePacket(std::string & newPacket){

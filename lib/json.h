@@ -140,4 +140,38 @@ namespace JSON {
       }
     }
   }
+
+  template <typename T>
+  std::string encodeVector4(T begin, T end){
+    std::string result;
+    for( T it = begin; it != end; it++){
+      long long int tmp = (*it);
+      while(tmp >= 0xFFFFFFFF){
+        result += (char)0xFF;
+        result += (char)0xFF;
+        result += (char)0xFF;
+        result += (char)0xFF;
+        tmp -= 0xFFFFFFFF;
+      }
+      result += (char)((tmp & 0xFF000000) >> 24);
+      result += (char)((tmp & 0x00FF0000) >> 16);
+      result += (char)((tmp & 0x0000FF00) >> 8);
+      result += (char)((tmp & 0x000000FF));
+    }
+    return result;
+  }
+
+  template <typename T>
+  void decodeVector4( std::string input, T & result ){
+    result.clear();
+    unsigned int tmp = 0;
+    for( int i = 0; i < input.size(); i += 4){
+      unsigned int curLen = (input[i] << 24) + (input[i+1] << 16) + (input[i+2] << 8) + (input[i+3]);
+      tmp += curLen;
+      if (curLen != 0xFFFFFFFF){
+        result.push_back(tmp);
+        tmp = 0;
+      }
+    }
+  }
 }

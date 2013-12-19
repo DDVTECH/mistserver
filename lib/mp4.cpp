@@ -244,7 +244,8 @@ namespace MP4 {
       case 0x73747364:
         return ((STSD*)this)->toPrettyString(indent);
         break;
-      case 0x6D703461:
+      case 0x6D703461://mp4a
+      case 0x656E6361://enca
         return ((MP4A*)this)->toPrettyString(indent);
         break;
       case 0x61616320:
@@ -253,7 +254,8 @@ namespace MP4 {
       case 0x61766331:
         return ((AVC1*)this)->toPrettyString(indent);
         break;
-      case 0x68323634:
+      case 0x68323634://h264
+      case 0x656E6376://encv
         return ((H264*)this)->toPrettyString(indent);
         break;
       case 0x65647473:
@@ -493,7 +495,7 @@ namespace MP4 {
   /// Will attempt to resize if out of range.
   /// Returns an 8-byte error box if resizing failed.
   Box & Box::getBox(size_t index){
-    static Box retbox;
+    static Box retbox = Box((char*)"\000\000\000\010erro", false);
     index += payloadOffset;
     if (index + 8 > boxedSize()){
       if ( !reserve(index, 0, 8)){
@@ -510,7 +512,7 @@ namespace MP4 {
   /// Returns undefined values if there is no box at the given position.
   /// Returns 0 if out of range.
   size_t Box::getBoxLen(size_t index){
-    if (index + payloadOffset + 8 > boxedSize()){
+    if ((index + payloadOffset + 8) > boxedSize()){
       return 0;
     }
     return getBox(index).boxedSize();
@@ -600,7 +602,7 @@ namespace MP4 {
     int tempLoc = 0;
     while (tempLoc < boxedSize() - 8){
       res++;
-      tempLoc += getBoxLen(tempLoc);
+      tempLoc += Box(getBox(tempLoc).asBox(), false).boxedSize();
     }
     return res;
   }
@@ -640,13 +642,9 @@ namespace MP4 {
   std::string containerBox::toPrettyContainerString(uint32_t indent, std::string boxName){
     std::stringstream r;
     r << std::string(indent, ' ') << boxName <<" (" << boxedSize() << ")" << std::endl;
-    Box curBox;
-    int tempLoc = 0;
-    int contentCount = getContentCount();
-    for (int i = 0; i < contentCount; i++){
-      curBox = getContent(i);
+    for (int i = 0; i < getContentCount(); i++){
+      Box curBox = MP4::Box(getContent(i).asBox(), false);
       r << curBox.toPrettyString(indent + 1);
-      tempLoc += getBoxLen(tempLoc);
     }
     return r.str();
   }
@@ -1508,13 +1506,10 @@ namespace MP4 {
   std::string TRAF::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[traf] Track Fragment Box (" << boxedSize() << ")" << std::endl;
-    Box curBox;
-    int tempLoc = 0;
     int contentCount = getContentCount();
     for (int i = 0; i < contentCount; i++){
-      curBox = getContent(i);
+      Box curBox = Box(getContent(i).asBox(),false);
       r << curBox.toPrettyString(indent + 1);
-      tempLoc += curBox.boxedSize();
     }
     return r.str();
   }
@@ -2274,6 +2269,25 @@ namespace MP4 {
     return r.str();
   }
 
+  void AVCC::fromAnnexB(std::string annexBFormatted){
+    ///\todo fix correct data :p
+    setVersion(0x01);
+    setProfile(0x4D);
+    setCompatibleProfiles(0x40);
+    setLevel(0x1F);
+    setSPSNumber(0xE1);
+    static char annexBHeader[] = {0x00,0x00,0x00,0x01};
+    if (memcmp(annexBFormatted.c_str(), annexBHeader, 4)){
+      return;
+    }
+    annexBFormatted.erase(0,4);
+    int separator = annexBFormatted.find(annexBHeader, 0, 4);
+    setSPS(annexBFormatted.substr(0,separator));
+    setPPSNumber(0x01);
+    annexBFormatted.erase(0,separator+4);
+    setPPS(annexBFormatted);
+  }
+
   void AVCC::setPayload(std::string newPayload){
     if ( !reserve(0, payloadSize(), newPayload.size())){
       std::cerr << "Cannot allocate enough memory for payload" << std::endl;
@@ -2518,8 +2532,9 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "ConfigDescriptorTypeLength: 0x" << std::hex << (int)getConfigDescriptorTypeLength() << std::dec << std::endl;
     r << std::string(indent + 1, ' ') << "ESHeaderStartCodes: 0x";
     for (unsigned int i = 0; i<getESHeaderStartCodes().size(); i++){
-      r << std::hex << (int)getESHeaderStartCodes()[i] << std::dec << ", ";
+      r << std::hex << std::setw(2) << std::setfill('0') << (int)getESHeaderStartCodes()[i] << std::dec;
     }
+    r << std::endl;
     r << std::string(indent + 1, ' ') << "SLConfigDescriptorTypeTag: 0x" << std::hex << (int)getSLConfigDescriptorTypeTag() << std::dec << std::endl;
     r << std::string(indent + 1, ' ') << "SLConfigExtendedDescriptorTypeTag: 0x" << std::hex << (int)getSLConfigExtendedDescriptorTypeTag() << std::dec << std::endl;
     r << std::string(indent + 1, ' ') << "SLDescriptorTypeLength: 0x" << std::hex << (int)getSLDescriptorTypeLength() << std::dec << std::endl;
@@ -4259,22 +4274,25 @@ namespace MP4 {
   Box & VisualSampleEntry::getCLAP(){
     static Box ret = Box((char*)"\000\000\000\010erro", false);
     if(payloadSize() <84){//if the EntryBox is not big enough to hold a CLAP/PASP
+      ret = Box((char*)"\000\000\000\010erro", false);
       return ret;
     }
-    return getBox(78);
+    ret = Box(getBox(78).asBox(), false);
+    return ret;
   }
   
   Box & VisualSampleEntry::getPASP(){
     static Box ret = Box((char*)"\000\000\000\010erro", false);
     if(payloadSize() <84){//if the EntryBox is not big enough to hold a CLAP/PASP
+      ret = Box((char*)"\000\000\000\010erro", false);
       return ret;
     }
     if (payloadSize() < 78 + getBoxLen(78) + 8){
+      ret = Box((char*)"\000\000\000\010erro", false);
       return ret;
-    }else{
-      return getBox(78+getBoxLen(78));
     }
-    
+    ret = Box(getBox(78 + getBoxLen(78)).asBox(), false);
+    return ret;
   }
   
   std::string VisualSampleEntry::toPrettyVisualString(uint32_t indent, std::string name){
@@ -4339,6 +4357,14 @@ namespace MP4 {
   uint32_t AudioSampleEntry::getSampleRate(){
     return getInt32(24) >> 16;
   }
+
+  uint16_t AudioSampleEntry::toAACInit(){
+    uint16_t result = 0;
+    result |= (2 & 0x1F) << 11;
+    result |= (getSampleRate() & 0x0F) << 7;
+    result |= (getChannelCount() & 0x0F) << 3;
+    return result;
+  }
   
   void AudioSampleEntry::setCodecBox(Box& newBox){
     setBox(newBox, 28);
@@ -4356,7 +4382,7 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "SampleSize: " << getSampleSize() << std::endl;
     r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
     r << std::string(indent + 1, ' ') << "SampleRate: " << getSampleRate() << std::endl;
-    r << getCodecBox().toPrettyString(indent + 1) << std::endl;
+    r << getCodecBox().toPrettyString(indent + 1);
     return r.str();
   }
 
@@ -4447,13 +4473,9 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stsd] Sample Description Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntrySize: " << getEntryCount() << std::endl;
-    Box curBox;
-    int tempLoc = 0;
-    int contentCount = getEntryCount();
-    for (int i = 0; i < contentCount; i++){
-      curBox = getEntry(i);
+    for (int i = 0; i < getEntryCount(); i++){
+      Box curBox = Box(getEntry(i).asBox(), false);
       r << curBox.toPrettyString(indent + 1);
-      tempLoc += getBoxLen(tempLoc);
     }
     return r.str();
   }

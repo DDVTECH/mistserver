@@ -71,12 +71,22 @@ class Stats{
     }
 };
 
+std::string intToBin(long long int number){
+  std::string result;
+  result.resize(8);
+  for (int i = 7; i >= 0; i--){
+    result[i] = number & 0xFF;
+    number >>= 8;
+  }
+  return result;
+}
+
 int main(int argc, char** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   conf.addOption("filename",
-            JSON::fromString("{\"arg_num\":1, \"help\":\"Name of the file to write to stdout.\"}"));
+      JSON::fromString("{\"arg_num\":1, \"help\":\"Name of the file to write to stdout.\"}"));
   conf.addOption("streamname",
-            JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
+      JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
   conf.parseArgs(argc, argv);
   conf.activate();
   int playing = 0;
@@ -90,6 +100,7 @@ int main(int argc, char** argv){
     return 1;
   }
   
+  std::string streamname = conf.getString("streamname");
   source.getMeta().send(in_out);
   
   JSON::Value pausemark;
@@ -248,11 +259,8 @@ int main(int argc, char** argv){
       }else{
         lasttime = Util::epoch();
         //insert proper header for this type of data
-        in_out.Send("DTP2");
-        //insert the packet length
-        unsigned int size = htonl( source.getPacket().size());
-        in_out.Send((char*) &size, 4);
-        in_out.SendNow(source.getPacket());
+        JSON::Value toSend = source.getJSON();
+        toSend.sendTo(in_out);
       }
     }else{
       Util::sleep(10);

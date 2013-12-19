@@ -25,6 +25,36 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 
+long long int binToInt(std::string & binary){
+  long long int result = 0;
+  for ( int i = 0; i < 8; i++){
+    result <<= 8;
+    result += binary[i];
+  }
+  return result;
+}
+
+std::string intToBin(long long int number){
+  std::string result;
+  result.resize(8);
+  for( int i = 7; i >= 0; i--){
+    result[i] = number & 0xFF;
+    number >>= 8;
+  }
+  return result;
+}
+
+std::string toUTF16(std::string original){
+  std::string result;
+  result += (char)0xFF;
+  result += (char)0xFE;
+  for (std::string::iterator it = original.begin(); it != original.end(); it++){
+    result += (*it);
+    result += (char)0x00;
+  }
+  return result;
+}
+
 ///\brief Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
   ///\brief Builds an index file for HTTP Smooth streaming.
@@ -32,23 +62,23 @@ namespace Connector_HTTP {
   ///\return The index file for HTTP Smooth Streaming.
   std::string smoothIndex(DTSC::Meta & metadata){
     std::stringstream Result;
-    Result << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+    Result << "<?xml version=\"1.0\" encoding=\"utf-16\"?>\n";
     Result << "<SmoothStreamingMedia "
               "MajorVersion=\"2\" "
               "MinorVersion=\"0\" "
               "TimeScale=\"10000000\" ";
-    std::map<int,DTSC::Track> allAudio;
-    std::map<int,DTSC::Track> allVideo;
+    std::deque<std::map<int,DTSC::Track>::iterator> audioIters;
+    std::deque<std::map<int,DTSC::Track>::iterator> videoIters;
     long long int maxWidth = 0;
     long long int maxHeight = 0;
     long long int minWidth = 99999999;
     long long int minHeight = 99999999;
     for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
-      if (it->second.type == "audio" && it->second.codec == "AAC"){
-        allAudio.insert(*it);
+      if (it->second.codec == "AAC"){
+        audioIters.push_back(it);
       }
       if (it->second.type == "video" && it->second.codec == "H264"){
-        allVideo.insert(*it);
+        videoIters.push_back(it);
         if (it->second.width > maxWidth){maxWidth = it->second.width;}
         if (it->second.width < minWidth){minWidth = it->second.width;}
         if (it->second.height > maxHeight){maxHeight = it->second.height;}
@@ -56,7 +86,7 @@ namespace Connector_HTTP {
       }
     }
     if (metadata.vod){
-      Result << "Duration=\"" << metadata.tracks[allVideo.begin()->first].lastms << "0000\"";
+      Result << "Duration=\"" << (*videoIters.begin())->second.lastms << "0000\"";
     }else{
       Result << "Duration=\"0\" "
                 "IsLive=\"TRUE\" "
@@ -68,85 +98,89 @@ namespace Connector_HTTP {
     Result << ">\n";
 
     //Add audio entries
-    if (allAudio.size()){
+    if (audioIters.size()){
       Result << "<StreamIndex "
                 "Type=\"audio\" "
-                "QualityLevels=\"" << allAudio.size() << "\" "
+                "QualityLevels=\"" << audioIters.size() << "\" "
                 "Name=\"audio\" "
-                "Chunks=\"" << allAudio.begin()->second.keys.size() << "\" "
+                "Chunks=\"" << (*audioIters.begin())->second.keys.size() << "\" "
                 "Url=\"Q({bitrate},{CustomAttributes})/A({start time})\">\n";
       int index = 0;
-      for (std::map<int,DTSC::Track>::iterator it = allAudio.begin(); it != allAudio.end(); it++){
+      for (std::deque<std::map<int,DTSC::Track>::iterator>::iterator it = audioIters.begin(); it != audioIters.end(); it++){
         Result << "<QualityLevel "
                   "Index=\"" << index << "\" "
-                  "Bitrate=\"" << it->second.bps * 8 << "\" "
+                  "Bitrate=\"" << (*it)->second.bps * 8 << "\" "
                   "CodecPrivateData=\"" << std::hex;
-        for (int i = 0; i < it->second.init.size(); i++){
-          Result << std::setfill('0') << std::setw(2) << std::right << (int)it->second.init[i];
+        for (int i = 0; i < (*it)->second.init.size(); i++){
+          Result << std::setfill('0') << std::setw(2) << std::right << (int)(*it)->second.init[i];
         }
         Result << std::dec << "\" "
-                  "SamplingRate=\"" << it->second.rate << "\" "
+                  "SamplingRate=\"" << (*it)->second.rate << "\" "
                   "Channels=\"2\" "
                   "BitsPerSample=\"16\" "
                   "PacketSize=\"4\" "
                   "AudioTag=\"255\" "
                   "FourCC=\"AACL\" >\n";
         Result << "<CustomAttributes>\n" 
-                  "<Attribute Name = \"TrackID\" Value = \"" << it->first << "\" />" 
+                  "<Attribute Name = \"TrackID\" Value = \"" << (*it)->first << "\" />" 
                   "</CustomAttributes>";
         Result << "</QualityLevel>\n";
         index++;
       }
-      for (std::deque<DTSC::Key>::iterator it = allAudio.begin()->second.keys.begin(); it != ((allAudio.begin()->second.keys.end()) - 1); it++){
-        Result << "<c ";
-        if (it == allAudio.begin()->second.keys.begin()){
-          Result << "t=\"" << it->getTime() * 10000 << "\" ";
+      if ((*audioIters.begin())->second.keys.size()){
+        for (std::deque<DTSC::Key>::iterator it = (*audioIters.begin())->second.keys.begin(); it != (((*audioIters.begin())->second.keys.end()) - 1); it++){
+          Result << "<c ";
+          if (it == (*audioIters.begin())->second.keys.begin()){
+            Result << "t=\"" << it->getTime() * 10000 << "\" ";
+          }
+          Result << "d=\"" << it->getLength() * 10000 << "\" />\n";
         }
-        Result << "d=\"" << it->getLength() * 10000 << "\" />\n";
       }
       Result << "</StreamIndex>\n";
     }
     //Add video entries
-    if (allVideo.size()){
+    if (videoIters.size()){
       Result << "<StreamIndex "
                 "Type=\"video\" "
-                "QualityLevels=\"" << allVideo.size() << "\" "
+                "QualityLevels=\"" << videoIters.size() << "\" "
                 "Name=\"video\" "
-                "Chunks=\"" << allVideo.begin()->second.keys.size() << "\" "
+                "Chunks=\"" << (*videoIters.begin())->second.keys.size() << "\" "
                 "Url=\"Q({bitrate},{CustomAttributes})/V({start time})\" "
                 "MaxWidth=\"" << maxWidth << "\" "
                 "MaxHeight=\"" << maxHeight << "\" "
                 "DisplayWidth=\"" << maxWidth << "\" "
                 "DisplayHeight=\"" << maxHeight << "\">\n";
       int index = 0;
-      for (std::map<int,DTSC::Track>::iterator it = allVideo.begin(); it != allVideo.end(); it++){
+      for (std::deque<std::map<int,DTSC::Track>::iterator>::iterator it = videoIters.begin(); it != videoIters.end(); it++){
         //Add video qualities
         Result << "<QualityLevel "
                   "Index=\"" << index << "\" "
-                  "Bitrate=\"" << it->second.bps * 8 << "\" "
+                  "Bitrate=\"" << (*it)->second.bps * 8 << "\" "
                   "CodecPrivateData=\"" << std::hex;
         MP4::AVCC avccbox;
-        avccbox.setPayload(it->second.init);
+        avccbox.setPayload((*it)->second.init);
         std::string tmpString = avccbox.asAnnexB();
         for (int i = 0; i < tmpString.size(); i++){
           Result << std::setfill('0') << std::setw(2) << std::right << (int)tmpString[i];
         }
         Result << std::dec << "\" "
-                  "MaxWidth=\"" << it->second.width << "\" "
-                  "MaxHeight=\"" << it->second.height << "\" "
+                  "MaxWidth=\"" << (*it)->second.width << "\" "
+                  "MaxHeight=\"" << (*it)->second.height << "\" "
                   "FourCC=\"AVC1\" >\n";
         Result << "<CustomAttributes>\n" 
-                  "<Attribute Name = \"TrackID\" Value = \"" << it->first << "\" />" 
+                  "<Attribute Name = \"TrackID\" Value = \"" << (*it)->first << "\" />" 
                   "</CustomAttributes>";
         Result << "</QualityLevel>\n";
         index++;
       }
-      for (std::deque<DTSC::Key>::iterator it = allVideo.begin()->second.keys.begin(); it != ((allVideo.begin()->second.keys.end()) - 1); it++){
-        Result << "<c ";
-        if (it == allVideo.begin()->second.keys.begin()){
-          Result << "t=\"" << it->getTime() * 10000 << "\" ";
+      if ((*videoIters.begin())->second.keys.size()){
+        for (std::deque<DTSC::Key>::iterator it = (*videoIters.begin())->second.keys.begin(); it != (((*videoIters.begin())->second.keys.end()) - 1); it++){
+          Result << "<c ";
+          if (it == (*videoIters.begin())->second.keys.begin()){
+            Result << "t=\"" << it->getTime() * 10000 << "\" ";
+          }
+          Result << "d=\"" << it->getLength() * 10000 << "\" />\n";
         }
-        Result << "d=\"" << it->getLength() * 10000 << "\" />\n";
       }
       Result << "</StreamIndex>\n";
     }
@@ -155,7 +189,7 @@ namespace Connector_HTTP {
 #if DEBUG >= 8
     std::cerr << "Sending this manifest:" << std::endl << Result << std::endl;
 #endif
-    return Result.str();
+    return toUTF16(Result.str());
   } //smoothIndex
 
   ///\brief Main function for the HTTP Smooth Connector
@@ -183,9 +217,6 @@ namespace Connector_HTTP {
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     conn.setBlocking(false);//Set the client socket to non-blocking
 
-    std::map<int,DTSC::Track> allAudio;
-    std::map<int,DTSC::Track> allVideo;
-
     while (conn.connected()){
       if ( !handlingRequest){
         if (conn.spool() || conn.Received().size()){
@@ -209,18 +240,9 @@ namespace Connector_HTTP {
                 ready4data = false;
                 continue;
               }
-              ready4data = true;
               ss.setBlocking(false);
               Strm.waitForMeta(ss);
-              for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
-                if (it->second.type == "audio" && it->second.codec == "AAC"){
-                  allAudio[it->first] = it->second;
-                }
-                if (it->second.type == "video" && it->second.codec == "H264"){
-                  allVideo[it->first] = it->second;
-                }
-              }
-            };
+            }
       
 
             if (HTTP_R.url.find(".xap") != std::string::npos){
@@ -317,12 +339,15 @@ namespace Connector_HTTP {
                 
                 //Obtain the corresponding track;
                 DTSC::Track trackRef;
-                if (wantsVideo){
-                  trackRef = allVideo.begin()->second;
+                for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
+                  if (wantsVideo && it->second.codec == "H264"){
+                    trackRef = it->second;
+                  }
+                  if (wantsAudio && it->second.codec == "AAC"){
+                    trackRef = it->second;
+                  }
                 }
-                if (wantsAudio){
-                  trackRef = allAudio.begin()->second;
-                }
+                static long long int seqNum = 1;
                 //Also obtain the associated keyframe;
                 DTSC::Key keyObj;
                 int partOffset = 0;
@@ -355,29 +380,35 @@ namespace Connector_HTTP {
                 
                 //Wrap everything in mp4 boxes
                 MP4::MFHD mfhd_box;
-                mfhd_box.setSequenceNumber(keyObj.getNumber());
+                mfhd_box.setSequenceNumber(((keyObj.getNumber() - 1) * 2) + myRef.trackID);
                 myDuration = keyObj.getLength() * 10000;
                 
                 MP4::TFHD tfhd_box;
                 tfhd_box.setFlags(MP4::tfhdSampleFlag);
-                tfhd_box.setTrackID(1);
-                tfhd_box.setDefaultSampleFlags(0x000000C0 | MP4::noIPicture | MP4::noDisposable | MP4::noKeySample);
+                tfhd_box.setTrackID(myRef.trackID);
+                if (trackRef.type == "video"){
+                  tfhd_box.setDefaultSampleFlags(0x00004001);
+                }else{
+                  tfhd_box.setDefaultSampleFlags(0x00008002);
+                }
                 
                 MP4::TRUN trun_box;
                 trun_box.setDataOffset(42);
                 unsigned int keySize = 0;
                 if (trackRef.type == "video"){
-                 trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize);
+                 trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize | MP4::trunsampleOffsets);
                 }else{
                   trun_box.setFlags(MP4::trundataOffset | MP4::trunsampleDuration | MP4::trunsampleSize);
                 }
-                trun_box.setFirstSampleFlags(0x00000040 | MP4::noKeySample);
-                //trun_box.setFirstSampleFlags(0x00000040 | MP4::isIPicture | MP4::noDisposable | MP4::isKeySample);
+                trun_box.setFirstSampleFlags(0x00004002);
                 for (int i = 0; i < keyObj.getParts(); i++){
                   MP4::trunSampleInformation trunSample;
                   trunSample.sampleSize = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getSize();
                   keySize += Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getSize();
                   trunSample.sampleDuration = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getDuration() * 10000;
+                  if (trackRef.type == "video"){
+                    trunSample.sampleOffset = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getOffset() * 10000;
+                  }
                   trun_box.setSampleInformation(trunSample, i);
                 }
                 
@@ -419,7 +450,6 @@ namespace Connector_HTTP {
                 MP4::MOOF moof_box;
                 moof_box.setContent(mfhd_box, 0);
                 moof_box.setContent(traf_box, 1);
-
                 //Setting the correct offsets.
                 trun_box.setDataOffset(moof_box.boxedSize() + 8);
                 traf_box.setContent(trun_box, 1);
@@ -427,6 +457,8 @@ namespace Connector_HTTP {
 
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
+                HTTP_S.SetHeader("Pragma", "IISMS/5.0,IIS Media Services Premium by Microsoft");
+                HTTP_S.SetHeader("ETag", "3b517e5a0586303");
                 HTTP_S.StartResponse(HTTP_R, conn);
                 HTTP_S.Chunkify(moof_box.asBox(), moof_box.boxedSize(), conn);
                 int size = htonl(keySize + 8);

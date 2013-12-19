@@ -44,7 +44,7 @@ namespace Converters {
 
     DTSC::File outFile;
     JSON::Value meta;
-    JSON::Value newMeta;
+    DTSC::Meta newMeta;
     std::map<std::string,std::map<int, int> > trackMapping;
 
     bool fullSort = true;
@@ -74,11 +74,12 @@ namespace Converters {
         return 1;
       }
       meta = outFile.getMeta().toJSON();
-      newMeta = meta;
+      newMeta = DTSC::Meta(meta);
       if (meta.isMember("tracks") && meta["tracks"].size() > 0){
         for (JSON::ObjIter trackIt = meta["tracks"].ObjBegin(); trackIt != meta["tracks"].ObjEnd(); trackIt++){
-          trackMapping[argv[1]].insert(std::pair<int,int>(trackIt->second["trackid"].asInt(),getNextFree(trackMapping)));
-          newMeta["tracks"][trackIt->first]["trackid"] = trackMapping[argv[1]][trackIt->second["trackid"].asInt()];
+          int nxtMap = getNextFree(trackMapping);
+          trackMapping[argv[1]].insert(std::pair<int,int>(trackIt->second["trackid"].asInt(),nxtMap));
+          newMeta.tracks[nxtMap].trackID = nxtMap;
         }
       }
     }
@@ -86,36 +87,31 @@ namespace Converters {
     std::multimap<int,keyframeInfo> allSorted;
 
     for (std::map<std::string,DTSC::File>::iterator it = inFiles.begin(); it != inFiles.end(); it++){
-      JSON::Value tmpMeta = it->second.getMeta().toJSON();
-      if (tmpMeta.isMember("tracks") && tmpMeta["tracks"].size() > 0){
-        for (JSON::ObjIter trackIt = tmpMeta["tracks"].ObjBegin(); trackIt != tmpMeta["tracks"].ObjEnd(); trackIt++){
-          long long int oldID = trackIt->second["trackid"].asInt();
-          long long int mappedID = getNextFree(trackMapping);
-          trackMapping[it->first].insert(std::pair<int,int>(oldID,mappedID));
-          for (JSON::ArrIter keyIt = trackIt->second["keys"].ArrBegin(); keyIt != trackIt->second["keys"].ArrEnd(); keyIt++){
-            keyframeInfo tmpInfo;
-            tmpInfo.fileName = it->first;
-            tmpInfo.trackID = oldID;
-            tmpInfo.keyTime = (*keyIt)["time"].asInt();
-            tmpInfo.keyBPos = (*keyIt)["bpos"].asInt();
-            tmpInfo.keyNum = (*keyIt)["num"].asInt();
-            tmpInfo.keyLen = (*keyIt)["len"].asInt();
-            if ((keyIt + 1) != trackIt->second["keys"].ArrEnd()){
-              tmpInfo.endBPos = (*(keyIt + 1))["bpos"].asInt();
-            }else{
-              tmpInfo.endBPos = it->second.getBytePosEOF();
-            }
-            allSorted.insert(std::pair<int,keyframeInfo>((*keyIt)["time"].asInt(),tmpInfo));
+      DTSC::Meta tmpMeta = it->second.getMeta();
+      for (std::map<int,DTSC::Track>::iterator trackIt = tmpMeta.tracks.begin(); trackIt != tmpMeta.tracks.end(); trackIt++){
+        long long int oldID = trackIt->first;
+        long long int mappedID = getNextFree(trackMapping);
+        trackMapping[it->first].insert(std::pair<int,int>(oldID,mappedID));
+        for (std::deque<DTSC::Key>::iterator keyIt = trackIt->second.keys.begin(); keyIt != trackIt->second.keys.end(); keyIt++){
+          keyframeInfo tmpInfo;
+          tmpInfo.fileName = it->first;
+          tmpInfo.trackID = oldID;
+          tmpInfo.keyTime = keyIt->getTime();
+          tmpInfo.keyBPos = keyIt->getBpos();
+          tmpInfo.keyNum = keyIt->getNumber();
+          tmpInfo.keyLen = keyIt->getLength();
+          if ((keyIt + 1) != trackIt->second.keys.end()){
+            tmpInfo.endBPos = (keyIt + 1)->getBpos();
+          }else{
+            tmpInfo.endBPos = it->second.getBytePosEOF();
           }
-          std::cerr << it->first << "::" << oldID << ":\n" << trackIt->second.toPrettyString() << std::endl << std::endl;
-          newMeta["tracks"][it->first + JSON::Value(mappedID).asString()] = trackIt->second;
-          newMeta["tracks"][it->first + JSON::Value(mappedID).asString()]["trackid"] = mappedID;
-          newMeta["tracks"][it->first + JSON::Value(mappedID).asString()].removeMember("keys");
-          newMeta["tracks"][it->first + JSON::Value(mappedID).asString()].removeMember("frags");
+          allSorted.insert(std::pair<int,keyframeInfo>(keyIt->getTime(),tmpInfo));
         }
+        newMeta.tracks[mappedID] = trackIt->second;
+        newMeta.tracks[mappedID].trackID = mappedID;
+        newMeta.tracks[mappedID].reset();
       }
     }
-    newMeta["allsortedsize"] = (long long int)allSorted.size();
 
     if (fullSort){
       meta.null();
@@ -141,11 +137,11 @@ namespace Converters {
     }
 
     if (fullSort || (meta.isMember("merged") && meta["merged"])){
-      newMeta["merged"] = true;
+      newMeta.merged = 1;
     }else{
-      newMeta.removeMember("merged");
+      newMeta.merged = 0;
     }
-    std::string writeMeta = newMeta.toPacked();
+    std::string writeMeta = newMeta.toJSON().toPacked();
     meta["moreheader"] = outFile.addHeader(writeMeta);
     writeMeta = meta.toPacked();
     outFile.writeHeader(writeMeta);

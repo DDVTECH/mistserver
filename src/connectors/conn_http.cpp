@@ -91,7 +91,6 @@ namespace Connector_HTTP {
             }
           }
         }
-        connMutex.unlock();
       }
       usleep(1000000); //sleep 1 second and re-check
     }

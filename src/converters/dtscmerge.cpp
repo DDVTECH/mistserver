@@ -49,6 +49,7 @@ namespace Converters {
 
     bool fullSort = true;
     std::map<std::string, DTSC::File> inFiles;
+    std::map<std::string, DTSC::Meta> metaData;
     std::string outFileName = argv[1];
     std::string tmpFileName;
     for (int i = 2; i < argc; i++){
@@ -61,7 +62,7 @@ namespace Converters {
           std::cerr << tmpFileName << " has not been run through DTSCFix yet." << std::endl;
           return 1;
         }
-        inFiles.insert(std::pair<std::string,DTSC::File>(tmpFileName,DTSC::File(tmpFileName)));
+        inFiles[tmpFileName] = F;
       }
     }
 
@@ -87,7 +88,7 @@ namespace Converters {
     std::multimap<int,keyframeInfo> allSorted;
 
     for (std::map<std::string,DTSC::File>::iterator it = inFiles.begin(); it != inFiles.end(); it++){
-      DTSC::Meta tmpMeta = it->second.getMeta();
+      DTSC::Meta tmpMeta(it->second.getMeta());
       for (std::map<int,DTSC::Track>::iterator trackIt = tmpMeta.tracks.begin(); trackIt != tmpMeta.tracks.end(); trackIt++){
         long long int oldID = trackIt->first;
         long long int mappedID = getNextFree(trackMapping);

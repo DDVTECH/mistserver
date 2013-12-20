@@ -249,6 +249,7 @@ namespace DTSC {
       bool seek_time(int seconds);
       bool seek_time(int seconds, int trackNo, bool forceSeek = false);
       bool seek_bpos(int bpos);
+      void rewritePacket(std::string & newPacket, int bytePos);
       void writePacket(std::string & newPacket);
       void writePacket(JSON::Value & newPacket);
       bool atKeyframe();

@@ -258,9 +258,7 @@ int main(int argc, char** argv){
         in_out.setBlocking(true);
       }else{
         lasttime = Util::epoch();
-        //insert proper header for this type of data
-        JSON::Value toSend = source.getJSON();
-        toSend.sendTo(in_out);
+        source.getJSON().sendTo(in_out);
       }
     }else{
       Util::sleep(10);

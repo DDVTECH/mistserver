@@ -476,16 +476,14 @@ DTSC::File::File(const File & rhs){
 DTSC::File & DTSC::File::operator =(const File & rhs){
   created = rhs.created;
   if (rhs.F){
-    int tmpFd = fileno(rhs.F);
-    int newFd = dup(tmpFd);
-    F = fdopen( newFd, (created ? "w+b": "r+b"));
+    F = fdopen( dup(fileno(rhs.F)), (created ? "w+b": "r+b"));
   }else{
     F = 0;
   }
   endPos = rhs.endPos;
   strbuffer = rhs.strbuffer;
-  jsonbuffer = rhs.jsonbuffer;
-  metadata = rhs.metadata;
+  metaStorage = rhs.metaStorage;
+  metadata = metaStorage;
   currtime = rhs.currtime;
   lastreadpos = rhs.lastreadpos;
   headerSize = rhs.headerSize;

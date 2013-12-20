@@ -32,10 +32,10 @@ namespace Connector_HTTP {
   void getTracks(DTSC::Meta & metadata){
     videoTracks.clear();
     for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
-      if (it->second.type == "video"){
+      if (it->second.codec == "H264" || it->second.codec == "H263" || it->second.codec == "VP6"){
         videoTracks.insert(it->first);
       }
-      if (it->second.type == "audio"){
+      if (it->second.codec == "AAC" || it->second.codec == "MP3"){
         audioTrack = it->first;
       }
     }

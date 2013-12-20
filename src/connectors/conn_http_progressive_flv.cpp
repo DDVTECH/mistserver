@@ -102,10 +102,10 @@ namespace Connector_HTTP {
           Strm.waitForMeta(ss);
           int byterate = 0;
           for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
-            if (videoID == -1 && it->second.type == "video"){
+            if (videoID == -1 && (it->second.codec == "H264" || it->second.codec == "H263" || it->second.codec == "VP6")){
               videoID = it->second.trackID;
             }
-            if (audioID == -1 && it->second.type == "audio"){
+            if (audioID == -1 && (it->second.codec == "AAC" || it->second.codec == "MP3")){
               audioID = it->second.trackID;
             }
           }

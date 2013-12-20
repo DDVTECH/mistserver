@@ -68,12 +68,12 @@ namespace Connector_TS {
 
           Strm.waitForMeta(ss);
           for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
-            if (audioID == -1 && it->second.type == "audio"){
+            if (audioID == -1 && it->second.codec == "AAC"){
               audioID = it->first;
               tmpTracks << " " << it->first;
             }
 
-            if (videoID == -1 && it->second.type == "video"){
+            if (videoID == -1 && it->second.codec == "H264"){
               videoID = it->first;
               tmpTracks << " " << it->first;
             }

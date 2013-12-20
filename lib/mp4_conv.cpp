@@ -46,11 +46,23 @@ namespace MP4{
       mvhdBox.setMatrix(0x40000000,8);
       moovBox.setContent(mvhdBox, 0);
       
+      bool seenAudio = false;
+      bool seenVideo = false;
+      
       //calculate interleaving
       //putting all metadata in a huge, auto-sorting vector 'keyParts'
       //sort by time on keyframes for interleaving
       keyParts.clear();
       for ( std::map<int,DTSC::Track>::iterator trackIt = metaData.tracks.begin(); trackIt != metaData.tracks.end(); trackIt ++) {
+        if (trackIt->second.codec != "AAC" && trackIt->second.codec != "H264"){continue;}
+        if (trackIt->second.type == "audio"){
+          if (seenAudio){continue;}
+          seenAudio = true;
+        }
+        if (trackIt->second.type == "video"){
+          if (seenVideo){continue;}
+          seenVideo = true;
+        }
         if (trackIt->first>0){
           int partItNumber = 0;
           for ( std::deque< DTSC::Key>::iterator keyIt = trackIt->second.keys.begin(); keyIt != trackIt->second.keys.end(); keyIt ++) {
@@ -75,7 +87,18 @@ namespace MP4{
       
       //start arbitrary track addition for header
       int boxOffset = 1;
+      seenAudio = false;
+      seenVideo = false;
       for ( std::map<int,DTSC::Track>::iterator it = metaData.tracks.begin(); it != metaData.tracks.end(); it ++) {
+        if (it->second.codec != "AAC" && it->second.codec != "H264"){continue;}
+        if (it->second.type == "audio"){
+          if (seenAudio){continue;}
+          seenAudio = true;
+        }
+        if (it->second.type == "video"){
+          if (seenVideo){continue;}
+          seenVideo = true;
+        }
         if (it->first > 0){
           int timescale = 0;
           MP4::TRAK trakBox;

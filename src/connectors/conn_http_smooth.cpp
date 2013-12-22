@@ -485,8 +485,10 @@ namespace Connector_HTTP {
           Util::sleep(250);
         }
       }else{
-        //Wait 250ms before checking for new data.
-        Util::sleep(250);
+        if (!ready4data){
+          //Wait 250ms before checking for new data.
+          Util::sleep(250);
+        }
       }
       if (ready4data){
         unsigned int now = Util::epoch();

@@ -1077,3 +1077,17 @@ $(function(){
   });
 });
 
+$(window).on('hashchange', function(e) {
+  if (ignoreHashChange) { 
+    ignoreHashChange = false;
+    return; 
+  }
+  var loc = location.hash.split('&')[1].split('@');
+  if (loc[1]) {
+    showTab(loc[0],loc[1]);
+  }
+  else {
+    showTab(loc[0]);
+  }
+  ignoreHashChange = false;
+});

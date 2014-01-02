@@ -6,6 +6,12 @@ var defaults = {
 };
 
 function showTab(tabName,streamName) {
+  
+  ignoreHashChange = true;
+  location.hash = location.hash.split('&')[0]+'&'+tabName+(streamName ? '@'+streamName : '');
+  
+  
+  
   $('#menu .button').removeClass('current').filter(function(i){
     return $(this).text().toLowerCase() == tabName;
   }).addClass('current');
@@ -45,6 +51,7 @@ function showTab(tabName,streamName) {
             
             if (applyInput() === false) { return; }
             
+            ignoreHashChange = true;
             location.hash = settings.credentials.username+'@'+settings.server;
             $('#user_and_host').text(settings.credentials.username+' @ '+settings.server);
             

@@ -342,6 +342,7 @@ function showTab(tabName,streamName) {
             if (streamName == '_new_') {
               settings.newProtocol = {};
               if (applyInput() === false) { return; }
+              if (!settings.settings.config.protocols) { settings.settings.config.protocols = []; }
               settings.settings.config.protocols.push(settings.newProtocol);
               delete settings.newProtocol;
             }
@@ -542,6 +543,7 @@ function showTab(tabName,streamName) {
           $('<button>').addClass('enter-to-submit').text('Save').click(function(){
             var newName = $('#settings-streams-'+streamName+'-name').val();
             if (streamName != newName) {
+              if (!settings.settings.streams) { settings.settings.streams = {}; }
               settings.settings.streams[streamName] = {};
               if (applyInput() === false) { return; }
               settings.settings.streams[newName] = settings.settings.streams[streamName];

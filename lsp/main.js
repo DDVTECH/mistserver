@@ -365,6 +365,7 @@ function updateOverview() {
 }
 function updateProtocols() {
   getData(function(data){
+    if (!data.config.protocols) { data.config.protocols = []; }
     if (data.config.protocols.length != $('#protocols-tbody').children().length) {
       saveAndReload('protocols');
       return;

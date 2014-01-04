@@ -21,7 +21,7 @@
 #include <mist/auth.h>
 #include <mist/procs.h>
 
-#include "tinythread.h"
+#include "../../tinythread.h"
 #include "embed.js.h"
 
 /// Holds everything unique to HTTP Connectors.

@@ -5,15 +5,12 @@
 *.swp
 *~
 .deps
-Makefile
 Makefile.in
 version.m4
 docs
 nbproject
 autom4te.cache
-src/Mist*
-src/analysers/Mist*
-src/converters/Mist*
+/Mist*
 /configure
 /config.*
 /aclocal.m4
@@ -37,3 +34,4 @@ server.html*
 .settings
 .cproject
 .project
+

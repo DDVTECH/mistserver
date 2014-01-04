@@ -6,7 +6,7 @@
 #include <mist/dtsc.h>
 #include <mist/json.h>
 #include <mist/socket.h>
-#include "tinythread.h"
+#include "../../tinythread.h"
 
 namespace Buffer {
 

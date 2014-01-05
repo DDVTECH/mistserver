@@ -1,15 +1,16 @@
 #ignore object files and nonsense like that
-*.[oa]
-*.la
-*.lo
+*.o
+*.orig
+*.bak
 *~
 .deps
-Makefile
 Makefile.in
 version.m4
 docs
 nbproject
 autom4te.cache
+/libmist.so
+/libmist.a
 /configure
 /config.*
 /aclocal.m4
@@ -27,3 +28,4 @@ libtool
 *.json
 *.pc
 *.swp
+

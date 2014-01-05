@@ -1,9 +1,37 @@
-For full documentation as well as background information, visit our wiki at:
-http://wiki.mistserver.com/
+ _________________________________________________
+|                Mist Libraries                   |
+| Copyright 2010-2014 DDVTech BV, The Netherlands |
+|                                                 |
+|        Licensed under the aGPLv3 license        |
+|        See COPYING file for full license        |
+|_________________________________________________|
 
-Code contributions and bug reports are welcomed through:
-https://github.com/DDVTECH/libmist
 
-The following configure options are possible:
---enable-verbose  = Compiles the libraries in verbose mode, printing a lot more information to the screen than normally.
---disable-verbose = The opposite of above (default).
+The latest version of this code can always be found at:
+  https://github.com/DDVTECH/mistlib
+
+For full documentation/changelogs/etc visit our wiki at:
+  http://wiki.mistserver.com/
+
+Code contributions and bug reports are welcomed! Please submit at:
+  https://github.com/DDVTECH/mistlib
+
+To install using default options, simply run:
+  make && sudo make install
+
+Dependencies:
+  openssl
+
+The makefile will listen to the following variables:
+  DEBUG            Sets the debug message level. 4 is the default (and recommended setting for development), 0 is quiet, 10 is insanely high.
+  PACKAGE_VERSION  Overrides the library version number string. You shouldn't need to use this, normally.
+  prefix           Prefix to install files to. Defaults to /usr
+  exec_prefix      Prefix to install object code and binaries to. Defaults to $(prefix)
+  includedir       Directory to install headers to. Defaults to $(prefix)/include
+  libdir           Directory to install libraries to. Defaults to $(exec_prefix)/lib
+  DESTDIR          Global prefix that will be put in front of any and all other file paths.
+  CPPFLAGS         Flags for compiling object files. Defaults to -Wall -g -O2 -fPIC -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
+  LDLIBS           Libraries to include. Defaults to -lcrypto
+
+Use "make var1=val1 var2=val2" to set these. For example:
+  make install DEBUG=0 prefix=/usr/local

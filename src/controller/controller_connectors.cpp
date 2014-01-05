@@ -115,7 +115,7 @@ namespace Controller {
         if (!gotAll){continue;}
       }
       
-      /// \TODO Check dependencies?
+      /// \todo Check dependencies?
 
       new_connectors[counter] = (*ait).toString();
       if (Util::Procs::isActive(toConn(counter))){

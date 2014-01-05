@@ -1,5 +1,5 @@
-///\file conn_http_progressive.cpp
-///\brief Contains the main code for the HTTP Progressive Connector
+///\file conn_http_progressive_mp4.cpp
+///\brief Contains the main code for the HTTP Progressive MP4 Connector
 
 #include <iostream>
 #include <queue>
@@ -27,7 +27,6 @@ namespace Connector_HTTP {
   ///\param conn A socket describing the connection the client.
   ///\return The exit code of the connector.
   int progressiveConnector(Socket::Connection conn){
-    bool progressive_has_sent_header = false;//Indicates whether we have sent a header.
     bool ready4data = false; //Set to true when streaming is to begin.
     DTSC::Stream Strm; //Incoming stream buffer.
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
@@ -40,8 +39,6 @@ namespace Connector_HTTP {
     std::set<MP4::keyPart>::iterator keyPartIt;
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
-    unsigned int seek_sec = 0;//Seek position in ms
-    unsigned int seek_byte = 0;//Seek position in bytes
     
     int videoID = -1;
     int audioID = -1;
@@ -60,29 +57,7 @@ namespace Connector_HTTP {
             size_t extDot = streamname.rfind('.');
             if (extDot != std::string::npos){
               streamname.resize(extDot);
-            }; //strip the extension
-            int start = 0;
-            if ( !HTTP_R.GetVar("start").empty()){
-              start = atoi(HTTP_R.GetVar("start").c_str());
-            }
-            if ( !HTTP_R.GetVar("starttime").empty()){
-              start = atoi(HTTP_R.GetVar("starttime").c_str());
-            }
-            if ( !HTTP_R.GetVar("apstart").empty()){
-              start = atoi(HTTP_R.GetVar("apstart").c_str());
-            }
-            if ( !HTTP_R.GetVar("ec_seek").empty()){
-              start = atoi(HTTP_R.GetVar("ec_seek").c_str());
-            }
-            if ( !HTTP_R.GetVar("fs").empty()){
-              start = atoi(HTTP_R.GetVar("fs").c_str());
-            }
-            //under 3 hours we assume seconds, otherwise byte position
-            if (start < 10800){
-              seek_sec = start * 1000; //ms, not s
-            }else{
-              seek_byte = start; //divide by 1mbit, then *1000 for ms.
-            }
+            } //strip the extension
             ready4data = true;
             HTTP_R.Clean(); //clean for any possible next requests
           }
@@ -142,7 +117,6 @@ namespace Connector_HTTP {
             byterate += Strm.metadata.tracks[audioID].bps;
           }
           if ( !byterate){byterate = 1;}
-          seek_sec = (seek_byte / byterate) * 1000;
           
           inited = true;
         }

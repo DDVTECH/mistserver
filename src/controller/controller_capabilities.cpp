@@ -147,7 +147,6 @@ namespace Controller {
     std::ifstream loadavg("/proc/loadavg");
     if (loadavg){
       char line[300];
-      int bufcache = 0;
       loadavg.getline(line, 300);
       //parse lines here
       float onemin, fivemin, fifteenmin;

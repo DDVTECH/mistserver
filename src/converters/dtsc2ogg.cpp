@@ -17,7 +17,6 @@ namespace Converters{
     //JSON::Value meta = DTSCFile.getMeta();
     srand (Util::getMS());//randomising with milliseconds from boot
     std::vector<unsigned int> curSegTable;
-    char* curNewPayload;
     OGG::headerPages oggMeta;
     //Creating ID headers for theora and vorbis
     DTSC::readOnlyMeta fileMeta = DTSCFile.getMeta();
@@ -38,7 +37,7 @@ namespace Converters{
     std::map< long long int, std::vector<JSON::Value> > DTSCBuffer;
     long long unsigned int prevGran;
     long long int currID;
-    long long int currGran;
+    long long unsigned int currGran;
     OGG::Page curOggPage;
     
 
@@ -50,7 +49,7 @@ namespace Converters{
       }else{
         prevGran = 0;
       }
-      if (prevGran != 0 && (prevGran == -1 || currGran != prevGran)){
+      if (prevGran != 0 && (currGran != prevGran)){
         curOggPage.readDTSCVector(DTSCBuffer[currID], oggMeta.DTSCID2OGGSerial[currID], oggMeta.DTSCID2seqNum[currID]);
         std::cout << std::string((char*)curOggPage.getPage(), curOggPage.getPageSize());
         DTSCBuffer[currID].clear();

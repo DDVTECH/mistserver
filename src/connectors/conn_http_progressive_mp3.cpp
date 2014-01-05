@@ -1,5 +1,5 @@
-///\file conn_http_progressive.cpp
-///\brief Contains the main code for the HTTP Progressive Connector
+///\file conn_http_progressive_mp3.cpp
+///\brief Contains the main code for the HTTP Progressive MP3 Connector
 
 #include <iostream>
 #include <queue>

@@ -24,11 +24,10 @@ namespace Converters {
     DTSC::Stream Strm;
     int PacketNumber = 0;
     long long unsigned int TimeStamp = 0;
-    int ThisNaluSize;
+    unsigned int ThisNaluSize;
     char VideoCounter = 0;
     char AudioCounter = 0;
-    bool WritePesHeader;
-    bool IsKeyFrame;
+    bool IsKeyFrame = false;
     MP4::AVCC avccbox;
     bool haveAvcc = false;
     std::stringstream TSBuf;
@@ -82,7 +81,7 @@ namespace Converters {
             ToPack.append(avccbox.asAnnexB());
             while (Strm.lastData().size()){
               ThisNaluSize = (Strm.lastData()[0] << 24) + (Strm.lastData()[1] << 16) + (Strm.lastData()[2] << 8) + Strm.lastData()[3];
-              Strm.lastData().replace(0, 4, TS::NalHeader, 4);
+              Strm.lastData().replace(0, 4, "\000\000\000\001", 4);
               if (ThisNaluSize + 4 == Strm.lastData().size()){
                 ToPack.append(Strm.lastData());
                 break;

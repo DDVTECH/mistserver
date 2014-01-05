@@ -44,8 +44,9 @@ namespace Connector_HTTP {
   
   ///\brief Builds a bootstrap for use in HTTP Dynamic streaming.
   ///\param streamName The name of the stream.
-  ///\param metadata The current metadata, used to generate the index.
-  ///\param fragnum The index of the current fragment
+  ///\param trackMeta The current metadata of this track, used to generate the index.
+  ///\param isLive Whether or not the stream is live.
+  ///\param fragnum The index of the current fragment.
   ///\return The generated bootstrap.
   std::string dynamicBootstrap(std::string & streamName, DTSC::Track & trackMeta, bool isLive = false, int fragnum = 0){
     std::string empty;
@@ -153,7 +154,6 @@ namespace Connector_HTTP {
     bool handlingRequest = false;
     
     int Quality = 0;
-    int Segment = -1;
     int ReqFragment = -1;
     long long mstime = 0;
     long long mslen = 0;
@@ -195,7 +195,6 @@ namespace Connector_HTTP {
               Quality = atoi(tmp_qual.substr(0, tmp_qual.find("Seg") - 1).c_str());
               int temp;
               temp = HTTP_R.url.find("Seg") + 3;
-              Segment = atoi(HTTP_R.url.substr(temp, HTTP_R.url.find("-", temp) - temp).c_str());
               temp = HTTP_R.url.find("Frag") + 4;
               ReqFragment = atoi(HTTP_R.url.substr(temp).c_str());
               #if DEBUG >= 5

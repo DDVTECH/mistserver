@@ -111,7 +111,7 @@ namespace Connector_HTTP {
                   "Index=\"" << index << "\" "
                   "Bitrate=\"" << (*it)->second.bps * 8 << "\" "
                   "CodecPrivateData=\"" << std::hex;
-        for (int i = 0; i < (*it)->second.init.size(); i++){
+        for (unsigned int i = 0; i < (*it)->second.init.size(); i++){
           Result << std::setfill('0') << std::setw(2) << std::right << (int)(*it)->second.init[i];
         }
         Result << std::dec << "\" "
@@ -160,7 +160,7 @@ namespace Connector_HTTP {
         MP4::AVCC avccbox;
         avccbox.setPayload((*it)->second.init);
         std::string tmpString = avccbox.asAnnexB();
-        for (int i = 0; i < tmpString.size(); i++){
+        for (unsigned int i = 0; i < tmpString.size(); i++){
           Result << std::setfill('0') << std::setw(2) << std::right << (int)tmpString[i];
         }
         Result << std::dec << "\" "
@@ -197,7 +197,6 @@ namespace Connector_HTTP {
   ///\return The exit code of the connector.
   int smoothConnector(Socket::Connection conn){
     std::deque<std::string> dataBuffer;//A buffer for the data that needs to be sent to the client.
-    int dataSize = 0;//The amount of bytes in the dataBuffer
 
     DTSC::Stream Strm;//Incoming stream buffer.
     HTTP::Parser HTTP_R;//HTTP Receiver
@@ -308,11 +307,9 @@ namespace Connector_HTTP {
                 std::stringstream sstream;
                 
                 long long mstime = 0;
-                long long mslen = 0;
                 for (std::deque<DTSC::Key>::iterator it = myRef.keys.begin(); it != myRef.keys.end(); it++){
                   if (it->getTime() >= (requestedTime / 10000)){
                     mstime = it->getTime();
-                    mslen = it->getLength();
                     if (Strm.metadata.live){
                       if (it == myRef.keys.end() - 2){
                         HTTP_S.Clean();
@@ -347,7 +344,6 @@ namespace Connector_HTTP {
                     trackRef = it->second;
                   }
                 }
-                static long long int seqNum = 1;
                 //Also obtain the associated keyframe;
                 DTSC::Key keyObj;
                 int partOffset = 0;
@@ -376,12 +372,10 @@ namespace Connector_HTTP {
                 }
 
                 ss.SendNow(sstream.str().c_str());
-                unsigned int myDuration;
                 
                 //Wrap everything in mp4 boxes
                 MP4::MFHD mfhd_box;
                 mfhd_box.setSequenceNumber(((keyObj.getNumber() - 1) * 2) + myRef.trackID);
-                myDuration = keyObj.getLength() * 10000;
                 
                 MP4::TFHD tfhd_box;
                 tfhd_box.setFlags(MP4::tfhdSampleFlag);
@@ -437,7 +431,7 @@ namespace Connector_HTTP {
                   fragref_box.setVersion(1);
                   fragref_box.setFragmentCount(0);
                   int fragCount = 0;
-                  for (int i = 0; fragCount < 2 && i < trackRef.keys.size() - 1; i++){
+                  for (unsigned int i = 0; fragCount < 2 && i < trackRef.keys.size() - 1; i++){
                     if (trackRef.keys[i].getTime() > (requestedTime / 10000)){
                       fragref_box.setTime(fragCount, trackRef.keys[i].getTime() * 10000);
                       fragref_box.setDuration(fragCount, trackRef.keys[i].getLength() * 10000);

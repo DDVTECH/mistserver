@@ -1,5 +1,5 @@
-///\file conn_http_progressive.cpp
-///\brief Contains the main code for the HTTP Progressive Connector
+///\file conn_http_progressive_ogg.cpp
+///\brief Contains the main code for the HTTP Progressive OGG Connector
 
 #include <iostream>
 #include <queue>
@@ -46,10 +46,6 @@ namespace Connector_HTTP {
     long long int currGran = 0;
     long long int prevGran = 0;
     std::string sendBuffer;
-    bool OggEOS = false;
-    bool OggCont = false;
-
-        
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     unsigned int seek_sec = 0;//Seek position in ms

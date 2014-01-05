@@ -222,8 +222,6 @@ namespace Controller {
   ///\param in The requested configuration.
   ///\param out The new configuration after parsing.
   void CheckStreams(JSON::Value & in, JSON::Value & out){
-    bool changed = false;
-
     //check for new streams and updates
     for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
       if (out.isMember(jit->first)){

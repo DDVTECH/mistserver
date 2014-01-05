@@ -28,6 +28,7 @@ namespace Connector_TS {
   ///\brief Main function for the TS Connector
   ///\param conn A socket describing the connection the client.
   ///\param streamName The stream to connect to.
+  ///\param trackIDs Space separated list of wanted tracks.
   ///\return The exit code of the connector.
   int tsConnector(Socket::Connection conn, std::string streamName, std::string trackIDs){
     std::string ToPack;
@@ -35,13 +36,10 @@ namespace Connector_TS {
     std::string DTMIData;
     int PacketNumber = 0;
     long long unsigned int TimeStamp = 0;
-    int ThisNaluSize;
+    unsigned int ThisNaluSize;
     char VideoCounter = 0;
     char AudioCounter = 0;
-    bool WritePesHeader;
-    bool IsKeyFrame;
-    bool FirstKeyFrame = true;
-    bool FirstIDRInKeyFrame;
+    bool IsKeyFrame = false;
     MP4::AVCC avccbox;
     bool haveAvcc = false;
 
@@ -115,7 +113,7 @@ namespace Connector_TS {
             ToPack.append(avccbox.asAnnexB());
                 while (Strm.lastData().size() > 4){
               ThisNaluSize = (Strm.lastData()[0] << 24) + (Strm.lastData()[1] << 16) + (Strm.lastData()[2] << 8) + Strm.lastData()[3];
-              Strm.lastData().replace(0, 4, TS::NalHeader, 4);
+              Strm.lastData().replace(0, 4, "\000\000\000\001", 4);
               if (ThisNaluSize + 4 == Strm.lastData().size()){
                 ToPack.append(Strm.lastData());
                 break;

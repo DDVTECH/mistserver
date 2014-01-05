@@ -2,7 +2,7 @@ prefix = /usr
 exec_prefix = $(prefix)
 bindir = $(prefix)/bin
 
-PACKAGE_VERSION ::= $(shell git describe --tags 2> /dev/null || cat VERSION 2> /dev/null || echo "Unknown")
+PACKAGE_VERSION := $(shell git describe --tags 2> /dev/null || cat VERSION 2> /dev/null || echo "Unknown")
 DEBUG = 4
 RELEASE = Generic_$(shell getconf LONG_BIT)
 
@@ -10,16 +10,16 @@ ifeq ($(PACKAGE_VERSION),Unknown)
   $(warning Version is unknown - consider creating a VERSION file or fixing your git setup.)
 endif
 
-CPPFLAGS = -Wall -g -O2 -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\"" -DRELEASE="\"$(RELEASE)\""
+CPPFLAGS = -Wall -funsigned-char -g -O2 -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\"" -DRELEASE="\"$(RELEASE)\""
 
 LDLIBS = -lmist
 
 
-.DEFAULT_GOAL ::= all
+.DEFAULT_GOAL := all
 
 all: controller buffers connectors analysers converters
 
-DOXYGEN ::= $(shell doxygen -v 2> /dev/null)
+DOXYGEN := $(shell doxygen -v 2> /dev/null)
 ifdef DOXYGEN
 all: docs
 else
@@ -164,7 +164,7 @@ BUILT_SOURCES=controller/server.html.h connectors/embed.js.h
 lspSOURCES=../lsp/jquery.js ../lsp/placeholder.js ../lsp/md5.js ../lsp/main.js ../lsp/pages.js ../lsp/tablesort.js
 lspDATA=../lsp/header.html ../lsp/main.css ../lsp/footer.html
 
-JAVA ::= $(shell which java 2> /dev/null)
+JAVA := $(shell which java 2> /dev/null)
 ifdef JAVA
 CLOSURE=java -jar lsp/closure-compiler.jar --warning_level QUIET
 else
@@ -172,7 +172,7 @@ $(warning Java not installed - not compressing javascript codes before inclusion
 CLOSURE=cat
 endif
 
-XXD ::= $(shell which xxd 2> /dev/null)
+XXD := $(shell which xxd 2> /dev/null)
 ifndef XXD
 $(error xxd not installed - cannot continue. Please install xxd)
 endif
@@ -194,11 +194,12 @@ src/controller/server.html: $(lspDATA) $(lspSOURCES)
 src/controller/server.html.h: src/controller/server.html
 	cd src/controller; xxd -i server.html server.html.h
 
-docs: src/*
+docs: src/* Doxyfile
 	doxygen ./Doxyfile > /dev/null
 
 clean:
-	rm -f *.o Mist*
+	rm -f *.o Mist* src/controller/server.html src/connectors/embed.js.h src/controller/server.html.h
+	rm -rf ./docs
 
 install: controller buffers connectors analysers converters
 	install ./Mist* $(DESTDIR)$(bindir)
@@ -207,3 +208,4 @@ uninstall:
 	rm -f $(DESTDIR)$(bindir)/Mist*
 
 .PHONY: clean uninstall
+

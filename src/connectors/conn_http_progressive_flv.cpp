@@ -1,5 +1,5 @@
-///\file conn_http_progressive.cpp
-///\brief Contains the main code for the HTTP Progressive Connector
+///\file conn_http_progressive_flv.cpp
+///\brief Contains the main code for the HTTP Progressive FLV Connector
 
 #include <iostream>
 #include <queue>
@@ -39,8 +39,6 @@ namespace Connector_HTTP {
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     unsigned int seek_sec = 0;//Seek position in ms
     unsigned int seek_byte = 0;//Seek position in bytes
-    
-    bool isMP3 = false;//Indicates whether the request is audio-only mp3.
     
     int videoID = -1;
     int audioID = -1;

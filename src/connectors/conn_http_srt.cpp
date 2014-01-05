@@ -1,5 +1,5 @@
-///\file conn_http_progressive.cpp
-///\brief Contains the main code for the HTTP Progressive Connector
+///\file conn_http_srt.cpp
+///\brief Contains the main code for the HTTP SRT Connector
 
 #include <iostream>
 #include <queue>
@@ -29,7 +29,6 @@ namespace Connector_HTTP {
   ///\param conn A socket describing the connection the client.
   ///\return The exit code of the connector.
   int SRTConnector(Socket::Connection conn){
-    bool progressive_has_sent_header = false;//Indicates whether we have sent a header.
     DTSC::Stream Strm; //Incoming stream buffer.
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
     bool inited = false;//Whether the stream is initialized
@@ -39,7 +38,7 @@ namespace Connector_HTTP {
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
     unsigned int seek_time = 0;//Seek position in ms
     int trackID = -1; // the track to be selected
-    int curIndex; // SRT index
+    int curIndex = 0; // SRT index
     bool subtitleTrack = false; // check whether the requested track is a srt track
     bool isWebVTT = false;
     

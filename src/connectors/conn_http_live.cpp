@@ -27,13 +27,13 @@
 namespace Connector_HTTP {
   ///\brief Builds an index file for HTTP Live streaming.
   ///\param metadata The current metadata, used to generate the index.
+  ///\param isLive Whether or not the stream is live.
   ///\return The index file for HTTP Live Streaming.
   std::string liveIndex(DTSC::Meta & metadata, bool isLive){
     std::stringstream result;
     result << "#EXTM3U\r\n";
     int audioId = -1;
     std::string audioName;
-    bool defAudio = false;//set default audio track;
     for (std::map<int,DTSC::Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
       if (it->second.codec == "AAC"){
         audioId = it->first;
@@ -106,11 +106,11 @@ namespace Connector_HTTP {
     TS::Packet PackData;
     int PacketNumber = 0;
     long long unsigned int TimeStamp = 0;
-    int ThisNaluSize;
+    unsigned int ThisNaluSize;
     char VideoCounter = 0;
     char AudioCounter = 0;
     long long unsigned int lastVid = 0;
-    bool IsKeyFrame;
+    bool IsKeyFrame = false;
     MP4::AVCC avccbox;
     bool haveAvcc = false;
 
@@ -179,7 +179,7 @@ namespace Connector_HTTP {
                   continue;
                 }
               }
-              for (int i = 0; i < allTracks.size(); i++){
+              for (unsigned int i = 0; i < allTracks.size(); i++){
                 if (allTracks[i] == '_'){
                   allTracks[i] = ' ';
                 }
@@ -258,7 +258,7 @@ namespace Connector_HTTP {
                 ToPack.append(avccbox.asAnnexB());
                 while (Strm.lastData().size() > 4){
                   ThisNaluSize = (Strm.lastData()[0] << 24) + (Strm.lastData()[1] << 16) + (Strm.lastData()[2] << 8) + Strm.lastData()[3];
-                  Strm.lastData().replace(0, 4, TS::NalHeader, 4);
+                  Strm.lastData().replace(0, 4, "\000\000\000\001", 4);
                   if (ThisNaluSize + 4 == Strm.lastData().size()){
                     ToPack.append(Strm.lastData());
                     break;

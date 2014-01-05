@@ -84,7 +84,7 @@ namespace Buffer {
   }
 
   ///\brief Check if this is the IP address to accept push data from.
-  ///\param ip The IP address to check, followed by a space and the password to check.
+  ///\param push_request The IP address to check, followed by a space and the password to check.
   ///\return True if it is the correct address or password, false otherwise.
   bool Stream::checkWaitingIP(std::string push_request){
     std::string ip = push_request.substr(0, push_request.find(' '));
@@ -180,7 +180,7 @@ namespace Buffer {
     metadata.tracks.erase(trackId);
     std::set<DTSC::livePos> toDelete;
     for (std::map<DTSC::livePos, JSON::Value >::iterator it = buffers.begin(); it != buffers.end(); it++){
-      if (it->first.trackID == trackId){
+      if (it->first.trackID == (unsigned long long int)trackId){
         toDelete.insert(it->first);
       }
     }
@@ -244,7 +244,7 @@ namespace Buffer {
   }
 
   /// Removes a user from the userlist.
-  /// \param newUser The user to be removed.
+  /// \param oldUser The user to be removed.
   void Stream::removeUser(user * oldUser){
     tthread::lock_guard<tthread::recursive_mutex> guard(stats_mutex);
     users.erase(oldUser);
@@ -259,6 +259,7 @@ namespace Buffer {
   ///Creates a new user from a newly connected socket.
   ///Also prints "User connected" text to stdout.
   ///\param fd A connection to the user.
+  ///\param ID Unique ID of the user.
   user::user(Socket::Connection fd, long long ID){
     sID = JSON::Value(ID).asString();
     S = fd;

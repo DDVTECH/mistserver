@@ -30,8 +30,8 @@ namespace Converters{
     std::string oggBuffer;
     OGG::Page oggPage;
     //Read all of std::cin to oggBuffer
-    double mspft;//microseconds per frame
-    double mspfv;//microseconds per frame vorbis
+    double mspft = 0;//microseconds per frame
+    double mspfv = 0;//microseconds per frame vorbis
     JSON::Value DTSCOut;
     JSON::Value DTSCHeader;
     DTSCHeader.null();
@@ -40,7 +40,6 @@ namespace Converters{
     long long int lastTrackID = 1;
     int headerSeen = 0; 
     bool headerWritten = false;//important bool, used for outputting the simple DTSC header.
-    bool allStreamsSeen = false; //other important bool used for error checking the EOS.
     //while stream busy
     while (std::cin.good()){
       for (unsigned int i = 0; (i < 1024) && (std::cin.good()); i++){//buffering

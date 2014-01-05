@@ -1,5 +1,5 @@
-///\file conn_http_progressive.cpp
-///\brief Contains the main code for the HTTP Progressive Connector
+///\file conn_http_json.cpp
+///\brief Contains the main code for the HTTP JSON Connector
 
 #include <iostream>
 #include <queue>
@@ -29,7 +29,6 @@ namespace Connector_HTTP {
   ///\param conn A socket describing the connection the client.
   ///\return The exit code of the connector.
   int JSONConnector(Socket::Connection conn){
-    bool progressive_has_sent_header = false;//Indicates whether we have sent a header.
     DTSC::Stream Strm; //Incoming stream buffer.
     HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
     bool inited = false;//Whether the stream is initialized

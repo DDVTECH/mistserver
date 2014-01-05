@@ -214,11 +214,10 @@ void DTSC::Stream::addMeta(JSON::Value & newMeta){
 
 /// Adds a single DTSC packet to the stream, updating the internal metadata if needed.
 void DTSC::Stream::addPacket(JSON::Value & newPack){
-  long long unsigned int now = Util::getMS();
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
-  if (buffercount > 1 && metadata.tracks[newPos.trackID].keys.size() > 1 && newPos.seekTime < metadata.tracks[newPos.trackID].keys.rbegin()->getTime()){
+  if (buffercount > 1 && metadata.tracks[newPos.trackID].keys.size() > 1 && newPos.seekTime < (long long unsigned int)metadata.tracks[newPos.trackID].keys.rbegin()->getTime()){
     resetStream();
   }
   while (buffers.count(newPos) > 0){
@@ -250,7 +249,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   }
   if (buffercount > 1){
     metadata.update(newPack);
-    if (newPack.isMember("keyframe") || metadata.tracks[newPos.trackID].keys.rbegin()->getTime() == newPos.seekTime){
+    if (newPack.isMember("keyframe") || (long long unsigned int)metadata.tracks[newPos.trackID].keys.rbegin()->getTime() == newPos.seekTime){
       keyframes[newPos.trackID].insert(newPos);
     }
     metadata.live = true;
@@ -271,12 +270,12 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
 /// Will print a warning to std::cerr if a track has less than 2 keyframes left because of this.
 void DTSC::Stream::cutOneBuffer(){
   int trid = buffers.begin()->first.trackID;
-  int delTime = buffers.begin()->first.seekTime;
+  long long unsigned int delTime = buffers.begin()->first.seekTime;
   if (buffercount > 1){
     while (keyframes[trid].size() > 0 && keyframes[trid].begin()->seekTime <= delTime){
       keyframes[trid].erase(keyframes[trid].begin());
     }
-    while (metadata.tracks[trid].keys.size() && metadata.tracks[trid].keys[0].getTime() <= delTime){
+    while (metadata.tracks[trid].keys.size() && (long long unsigned int)metadata.tracks[trid].keys[0].getTime() <= delTime){
       for (int i = 0; i < metadata.tracks[trid].keys[0].getParts(); i++){
         metadata.tracks[trid].parts.pop_front();
       }
@@ -489,6 +488,7 @@ DTSC::File & DTSC::File::operator =(const File & rhs){
   headerSize = rhs.headerSize;
   trackMapping = rhs.trackMapping;
   memcpy(buffer, rhs.buffer, 4);
+  return *this;
 }
 
 DTSC::File::operator bool() const{
@@ -696,7 +696,7 @@ void DTSC::File::seekNext(){
     version = 2;
   }
   if (version == 0){
-    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", lastreadpos, buffer, DTSC::Magic_Packet2);
+    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2);
     strbuffer = "";
     jsonbuffer.null();
     return;
@@ -729,13 +729,13 @@ void DTSC::File::seekNext(){
         seekPos tmpPos;
         tmpPos.bytePos = tempLoc;
         tmpPos.trackID = ntohl(((int*)newHeader)[2]);
+        tmpPos.seekTime = 0;
         if (selectedTracks.find(tmpPos.trackID) != selectedTracks.end()){
           tmpPos.seekTime = ((long long unsigned int)ntohl(((int*)newHeader)[3])) << 32;
           tmpPos.seekTime += ntohl(((int*)newHeader)[4]);
         }else{
-          tmpPos.seekTime = -1;
           long tid = jsonbuffer["trackid"].asInt();
-          for (int i = 0; i != metadata.tracks[tid].keyLen; i++){
+          for (unsigned int i = 0; i != metadata.tracks[tid].keyLen; i++){
             if (metadata.tracks[tid].keys[i].getTime() > jsonbuffer["time"].asInt()){
               tmpPos.seekTime = metadata.tracks[tid].keys[i].getTime();
               tmpPos.bytePos = metadata.tracks[tid].keys[i].getBpos();
@@ -744,19 +744,17 @@ void DTSC::File::seekNext(){
             }
           }
         }
-        if (tmpPos.seekTime != -1){
-          bool insert = true;
-          for (std::set<seekPos>::iterator curPosIter = currentPositions.begin(); curPosIter != currentPositions.end(); curPosIter++){
-            if ((*curPosIter).trackID == tmpPos.trackID && (*curPosIter).seekTime >= tmpPos.seekTime){
-              insert = false;
-              break;
-            }
+        bool insert = true;
+        for (std::set<seekPos>::iterator curPosIter = currentPositions.begin(); curPosIter != currentPositions.end(); curPosIter++){
+          if ((*curPosIter).trackID == tmpPos.trackID && (*curPosIter).seekTime >= tmpPos.seekTime){
+            insert = false;
+            break;
           }
-          if (insert){
-            currentPositions.insert(tmpPos);
-          }else{
-            seek_time(jsonbuffer["time"].asInt() + 1, jsonbuffer["trackid"].asInt(), true);
-          }
+        }
+        if (insert){
+          currentPositions.insert(tmpPos);
+        }else{
+          seek_time(jsonbuffer["time"].asInt() + 1, jsonbuffer["trackid"].asInt(), true);
         }
       }
     }
@@ -810,7 +808,7 @@ void DTSC::File::parseNext(){
     version = 2;
   }
   if (version == 0){
-    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", lastreadpos, buffer, DTSC::Magic_Packet2);
+    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2);
     strbuffer = "";
     jsonbuffer.null();
     return;
@@ -852,7 +850,7 @@ JSON::Value & DTSC::File::getJSON(){
   return jsonbuffer;
 }
 
-bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
+bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
   if (!forceSeek && jsonbuffer && ms > jsonbuffer["time"].asInt() && trackNo >= jsonbuffer["trackid"].asInt()){
@@ -862,11 +860,11 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
     tmpPos.seekTime = 0;
     tmpPos.bytePos = 0;
   }
-  for (int i = 0; i < metadata.tracks[trackNo].keyLen; i++){
+  for (unsigned int i = 0; i < metadata.tracks[trackNo].keyLen; i++){
     if (metadata.tracks[trackNo].keys[i].getTime() > ms){
       break;
     }
-    if (metadata.tracks[trackNo].keys[i].getTime() > tmpPos.seekTime){
+    if ((long long unsigned int)metadata.tracks[trackNo].keys[i].getTime() > tmpPos.seekTime){
       tmpPos.seekTime = metadata.tracks[trackNo].keys[i].getTime();
       tmpPos.bytePos = metadata.tracks[trackNo].keys[i].getBpos();
     }
@@ -901,13 +899,14 @@ bool DTSC::File::seek_time(int ms, int trackNo, bool forceSeek){
     }
   }
   currentPositions.insert(tmpPos);
+  return true;
 }
 
 /// Attempts to seek to the given time in ms within the file.
 /// Returns true if successful, false otherwise.
-bool DTSC::File::seek_time(int ms){
+bool DTSC::File::seek_time(unsigned int ms){
   currentPositions.clear();
-  seekPos tmpPos;
+  /// \todo Check this. Doesn't seem right?
   for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
     seek_bpos(0);
     seek_time(ms,(*it));
@@ -948,7 +947,7 @@ bool DTSC::File::atKeyframe(){
   }
   long long int bTime = jsonbuffer["time"].asInt();
   int trackid = jsonbuffer["trackid"].asInt();
-  for (int i = 0; i < metadata.tracks[trackid].keyLen; i++){
+  for (unsigned int i = 0; i < metadata.tracks[trackid].keyLen; i++){
     if (metadata.tracks[trackid].keys[i].getTime() >= bTime){
       return (metadata.tracks[trackid].keys[i].getTime() == bTime);
     }

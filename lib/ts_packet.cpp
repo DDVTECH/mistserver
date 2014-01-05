@@ -129,7 +129,7 @@ int64_t TS::Packet::PCR(){
   int64_t Result = 0;
   Result = (((strBuf[6] << 24) + (strBuf[7] << 16) + (strBuf[8] << 8) + strBuf[9]) << 1) + (strBuf[10] & 0x80 >> 7);
   Result = Result * 300;
-  Result += ((strBuf[10] & 0x01) << 8 + strBuf[11]);
+  Result += (((strBuf[10] & 0x01) << 8) + strBuf[11]);
   return Result;
 }
 
@@ -388,7 +388,7 @@ std::string & TS::Packet::getPESAudioLeadIn(unsigned int NewLen, long long unsig
 /// Stores as many bytes from NewVal as possible in the packet.
 /// \param NewVal The data to store in the packet.
 void TS::Packet::FillFree(std::string & NewVal){
-  int toWrite = BytesFree();
+  unsigned int toWrite = BytesFree();
   if (toWrite == NewVal.size()){
     strBuf += NewVal;
     NewVal.clear();

@@ -119,8 +119,8 @@ namespace DTSC {
       void setBpos(long long unsigned int newBpos);
       long getLength();
       void setLength(long newLength);
-      short getNumber();
-      void setNumber(short newNumber);
+      unsigned short getNumber();
+      void setNumber(unsigned short newNumber);
       short getParts();
       void setParts(short newParts);
       long getTime();
@@ -193,7 +193,7 @@ namespace DTSC {
       std::deque<Fragment> fragments;
       std::deque<Key> keys;
       std::deque<Part> parts;
-      Key & getKey(int keyNum);
+      Key & getKey(unsigned int keyNum);
       void reset();
   };
 
@@ -246,8 +246,8 @@ namespace DTSC {
       void parseNext();
       std::string & getPacket();
       JSON::Value & getJSON();
-      bool seek_time(int seconds);
-      bool seek_time(int seconds, int trackNo, bool forceSeek = false);
+      bool seek_time(unsigned int ms);
+      bool seek_time(unsigned int ms, int trackNo, bool forceSeek = false);
       bool seek_bpos(int bpos);
       void rewritePacket(std::string & newPacket, int bytePos);
       void writePacket(std::string & newPacket);
@@ -280,7 +280,7 @@ namespace DTSC {
   class Stream{
     public:
       Stream();
-      ~Stream();
+      virtual ~Stream();
       Stream(unsigned int buffers, unsigned int bufferTime = 0);
       Meta metadata;
       JSON::Value & getPacket();

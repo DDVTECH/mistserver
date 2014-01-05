@@ -436,7 +436,7 @@ void Util::getMyExec(std::deque<std::string> & execs){
   struct dirent *dp;
   do {
     errno = 0;
-    if (dp = readdir(d)){
+    if ((dp = readdir(d))){
       if (strncmp(dp->d_name, "Mist", 4) == 0){
         execs.push_back(dp->d_name);
       }

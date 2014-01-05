@@ -66,7 +66,7 @@ namespace OGG{
     }
     memcpy(data, newData.c_str(), 27);//copying the header, always 27 bytes
     
-    if (newData.size() < 27 + getPageSegments()){//check input size
+    if (newData.size() < 27u + getPageSegments()){//check input size
       return false;
     }
     if(!checkDataSize(27 + getPageSegments())){//check if size available in memory
@@ -279,7 +279,7 @@ namespace OGG{
   }
   
   bool Page::typeNone(){
-    if (getHeaderType() & 0x07 == 0x00){
+    if ((getHeaderType() & 0x07) == 0x00){
       return true;
     }
     return false;
@@ -319,7 +319,7 @@ namespace OGG{
     r << std::string(indent + 2,' ') << "Payloadsize: " << dataSum << std::endl;
     if (codec == "theora"){
       int offset = 0;
-      for (int i = 0; i < getSegmentTableDeque().size(); i++){
+      for (unsigned int i = 0; i < getSegmentTableDeque().size(); i++){
         theora::header tmpHeader;
         int len = getSegmentTableDeque()[i];
         if (tmpHeader.read(getFullPayload()+offset,len)){
@@ -334,7 +334,7 @@ namespace OGG{
     }else if(codec == "vorbis"){
       r << "Vorbis Data" << std::endl;
       int offset = 0;
-      for (int i = 0; i < getSegmentTableDeque().size(); i++){
+      for (unsigned int i = 0; i < getSegmentTableDeque().size(); i++){
         vorbis::header tmpHeader;
         int len = getSegmentTableDeque()[i];
         if (tmpHeader.read(getFullPayload()+offset,len)){

@@ -541,7 +541,7 @@ namespace MP4 {
     }
     if (current < wanted){
       //make bigger
-      if (boxedSize() + (wanted - current) > data_size){
+      if (boxedSize() + (wanted - current) > (size_t)data_size){
         //realloc if managed, otherwise fail
         if ( !managed){
           return false;
@@ -599,7 +599,7 @@ namespace MP4 {
   
   uint32_t containerBox::getContentCount(){
     int res = 0;
-    int tempLoc = 0;
+    unsigned int tempLoc = 0;
     while (tempLoc < boxedSize() - 8){
       res++;
       tempLoc += Box(getBox(tempLoc).asBox(), false).boxedSize();
@@ -609,8 +609,8 @@ namespace MP4 {
 
   void containerBox::setContent(Box & newContent, uint32_t no){
     int tempLoc = 0;
-    int contentCount = getContentCount();
-    for (int i = 0; i < no; i++){
+    unsigned int contentCount = getContentCount();
+    for (unsigned int i = 0; i < no; i++){
       if (i < contentCount){
         tempLoc += getBoxLen(tempLoc);
       }else{
@@ -630,7 +630,7 @@ namespace MP4 {
     if (no > getContentCount()){
       return ret;
     }
-    int i = 0;
+    unsigned int i = 0;
     int tempLoc = 0;
     while (i < no){
       tempLoc += getBoxLen(tempLoc);
@@ -642,7 +642,7 @@ namespace MP4 {
   std::string containerBox::toPrettyContainerString(uint32_t indent, std::string boxName){
     std::stringstream r;
     r << std::string(indent, ' ') << boxName <<" (" << boxedSize() << ")" << std::endl;
-    for (int i = 0; i < getContentCount(); i++){
+    for (unsigned int i = 0; i < getContentCount(); i++){
       Box curBox = MP4::Box(getContent(i).asBox(), false);
       r << curBox.toPrettyString(indent + 1);
     }
@@ -651,7 +651,7 @@ namespace MP4 {
 
   uint32_t containerFullBox::getContentCount(){
     int res = 0;
-    int tempLoc = 4;
+    unsigned int tempLoc = 4;
     while (tempLoc < boxedSize() - 8){
       res++;
       tempLoc += getBoxLen(tempLoc);
@@ -661,8 +661,8 @@ namespace MP4 {
   
   void containerFullBox::setContent(Box & newContent, uint32_t no){
     int tempLoc = 4;
-    int contentCount = getContentCount();
-    for (int i = 0; i < no; i++){
+    unsigned int contentCount = getContentCount();
+    for (unsigned int i = 0; i < no; i++){
       if (i < contentCount){
         tempLoc += getBoxLen(tempLoc);
       }else{
@@ -682,8 +682,8 @@ namespace MP4 {
     if (no > getContentCount()){
       return ret;
     }
-    int i = 0;
-    int tempLoc = 4;
+    unsigned int i = 0;
+    unsigned int tempLoc = 4;
     while (i < no){
       tempLoc += getBoxLen(tempLoc);
       i++;
@@ -818,7 +818,7 @@ namespace MP4 {
     int countLoc = 29 + getStringLen(29) + 1;
     int tempLoc = countLoc + 1;
     //attempt to reach the wanted position
-    int i;
+    unsigned int i;
     for (i = 0; i < getInt8(countLoc) && i < no; ++i){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -843,7 +843,7 @@ namespace MP4 {
       return "";
     }
     int tempLoc = 29 + getStringLen(29) + 1 + 1; //position of first entry
-    for (int i = 0; i < no; i++){
+    for (unsigned int i = 0; i < no; i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     return getString(tempLoc);
@@ -851,7 +851,7 @@ namespace MP4 {
 
   uint32_t ABST::getQualityEntryCount(){
     int countLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       countLoc += getStringLen(countLoc) + 1;
     }
     return getInt8(countLoc);
@@ -859,12 +859,12 @@ namespace MP4 {
 
   void ABST::setQualityEntry(std::string & newEntry, uint32_t no){
     int countLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       countLoc += getStringLen(countLoc) + 1;
     }
     int tempLoc = countLoc + 1;
     //attempt to reach the wanted position
-    int i;
+    unsigned int i;
     for (i = 0; i < getInt8(countLoc) && i < no; ++i){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -888,11 +888,11 @@ namespace MP4 {
       return "";
     }
     int tempLoc = 29 + getStringLen(29) + 1 + 1; //position of serverentries;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += 1; //first qualityentry
-    for (int i = 0; i < no; i++){
+    for (unsigned int i = 0; i < no; i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     return getString(tempLoc);
@@ -900,11 +900,11 @@ namespace MP4 {
 
   void ABST::setDrmData(std::string newDrm){
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     setString(newDrm, tempLoc);
@@ -912,11 +912,11 @@ namespace MP4 {
 
   char* ABST::getDrmData(){
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     return getString(tempLoc);
@@ -924,11 +924,11 @@ namespace MP4 {
 
   void ABST::setMetaData(std::string newMetaData){
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += getStringLen(tempLoc) + 1;
@@ -937,11 +937,11 @@ namespace MP4 {
 
   char* ABST::getMetaData(){
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += getStringLen(tempLoc) + 1;
@@ -950,11 +950,11 @@ namespace MP4 {
 
   uint32_t ABST::getSegmentRunTableCount(){
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += getStringLen(tempLoc) + 1; //DrmData
@@ -964,11 +964,11 @@ namespace MP4 {
 
   void ABST::setSegmentRunTable(ASRT & newSegment, uint32_t no){
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += getStringLen(tempLoc) + 1; //DrmData
@@ -976,7 +976,7 @@ namespace MP4 {
     int countLoc = tempLoc;
     tempLoc++; //skip segmentRuntableCount
     //attempt to reach the wanted position
-    int i;
+    unsigned int i;
     for (i = 0; i < getInt8(countLoc) && i < no; ++i){
       tempLoc += getBoxLen(tempLoc);
     }
@@ -1005,18 +1005,17 @@ namespace MP4 {
       return (ASRT&)res;
     }
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += getStringLen(tempLoc) + 1; //DrmData
     tempLoc += getStringLen(tempLoc) + 1; //MetaData
-    int countLoc = tempLoc;
     tempLoc++; //segmentRuntableCount
-    for (int i = 0; i < no; ++i){
+    for (unsigned int i = 0; i < no; ++i){
       tempLoc += getBoxLen(tempLoc);
     }
     return (ASRT&)getBox(tempLoc);
@@ -1024,16 +1023,16 @@ namespace MP4 {
 
   uint32_t ABST::getFragmentRunTableCount(){
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += getStringLen(tempLoc) + 1; //DrmData
     tempLoc += getStringLen(tempLoc) + 1; //MetaData
-    for (int i = getInt8(tempLoc++); i != 0; --i){
+    for (unsigned int i = getInt8(tempLoc++); i != 0; --i){
       tempLoc += getBoxLen(tempLoc);
     }
     return getInt8(tempLoc);
@@ -1041,34 +1040,34 @@ namespace MP4 {
 
   void ABST::setFragmentRunTable(AFRT & newFragment, uint32_t no){
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += getStringLen(tempLoc) + 1; //DrmData
     tempLoc += getStringLen(tempLoc) + 1; //MetaData
-    for (int i = getInt8(tempLoc++); i != 0; --i){
+    for (unsigned int i = getInt8(tempLoc++); i != 0; --i){
       tempLoc += getBoxLen(tempLoc);
     }
     int countLoc = tempLoc;
     tempLoc++;
     //attempt to reach the wanted position
-    int i;
+    unsigned int i;
     for (i = 0; i < getInt8(countLoc) && i < no; ++i){
       tempLoc += getBoxLen(tempLoc);
     }
     //we are now either at the end, or at the right position
     //let's reserve any unreserved space...
     if (no + 1 > getInt8(countLoc)){
-      int amount = no + 1 - getInt8(countLoc);
+      unsigned int amount = no + 1 - getInt8(countLoc);
       if ( !reserve(payloadOffset + tempLoc, 0, amount * 8)){
         return;
       };
       //set empty erro boxes as contents
-      for (int j = 0; j < amount; ++j){
+      for (unsigned int j = 0; j < amount; ++j){
         memcpy(data + payloadOffset + tempLoc + j * 8, "\000\000\000\010erro", 8);
       }
       setInt8(no + 1, countLoc); //set new count
@@ -1085,21 +1084,20 @@ namespace MP4 {
       return (AFRT&)res;
     }
     uint32_t tempLoc = 29 + getStringLen(29) + 1 + 1;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc++;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     tempLoc += getStringLen(tempLoc) + 1; //DrmData
     tempLoc += getStringLen(tempLoc) + 1; //MetaData
-    for (int i = getInt8(tempLoc++); i != 0; --i){
+    for (unsigned int i = getInt8(tempLoc++); i != 0; --i){
       tempLoc += getBoxLen(tempLoc);
     }
-    int countLoc = tempLoc;
     tempLoc++;
-    for (int i = 0; i < no; i++){
+    for (unsigned int i = 0; i < no; i++){
       tempLoc += getBoxLen(tempLoc);
     }
     return (AFRT&)getBox(tempLoc);
@@ -1126,11 +1124,11 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "SmpteTimeCodeOffset " << getSmpteTimeCodeOffset() << std::endl;
     r << std::string(indent + 1, ' ') << "MovieIdentifier " << getMovieIdentifier() << std::endl;
     r << std::string(indent + 1, ' ') << "ServerEntryTable (" << getServerEntryCount() << ")" << std::endl;
-    for (int i = 0; i < getServerEntryCount(); i++){
+    for (unsigned int i = 0; i < getServerEntryCount(); i++){
       r << std::string(indent + 2, ' ') << i << ": " << getServerEntry(i) << std::endl;
     }
     r << std::string(indent + 1, ' ') << "QualityEntryTable (" << getQualityEntryCount() << ")" << std::endl;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       r << std::string(indent + 2, ' ') << i << ": " << getQualityEntry(i) << std::endl;
     }
     r << std::string(indent + 1, ' ') << "DrmData " << getDrmData() << std::endl;
@@ -1185,7 +1183,7 @@ namespace MP4 {
     int countLoc = 8;
     int tempLoc = countLoc + 1;
     //attempt to reach the wanted position
-    int i;
+    unsigned int i;
     for (i = 0; i < getQualityEntryCount() && i < no; ++i){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -1209,7 +1207,7 @@ namespace MP4 {
       return "";
     }
     int tempLoc = 9; //position of first quality entry
-    for (int i = 0; i < no; i++){
+    for (unsigned int i = 0; i < no; i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     return getString(tempLoc);
@@ -1217,7 +1215,7 @@ namespace MP4 {
 
   uint32_t AFRT::getFragmentRunCount(){
     int tempLoc = 9;
-    for (int i = 0; i < getQualityEntryCount(); ++i){
+    for (unsigned int i = 0; i < getQualityEntryCount(); ++i){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     return getInt32(tempLoc);
@@ -1225,12 +1223,12 @@ namespace MP4 {
 
   void AFRT::setFragmentRun(afrt_runtable newRun, uint32_t no){
     int tempLoc = 9;
-    for (int i = 0; i < getQualityEntryCount(); ++i){
+    for (unsigned int i = 0; i < getQualityEntryCount(); ++i){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     int countLoc = tempLoc;
     tempLoc += 4;
-    for (int i = 0; i < no; i++){
+    for (unsigned int i = 0; i < no; i++){
       if (i + 1 > getInt32(countLoc)){
         setInt32(0, tempLoc);
         setInt64(0, tempLoc + 4);
@@ -1259,12 +1257,11 @@ namespace MP4 {
       return res;
     }
     int tempLoc = 9;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
-    int countLoc = tempLoc;
     tempLoc += 4;
-    for (int i = 0; i < no; i++){
+    for (unsigned int i = 0; i < no; i++){
       if (getInt32(tempLoc + 12) == 0){
         tempLoc += 17;
       }else{
@@ -1293,11 +1290,11 @@ namespace MP4 {
     }
     r << std::string(indent + 1, ' ') << "Timescale " << getTimeScale() << std::endl;
     r << std::string(indent + 1, ' ') << "QualitySegmentUrlModifiers (" << getQualityEntryCount() << ")" << std::endl;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       r << std::string(indent + 2, ' ') << i << ": " << getQualityEntry(i) << std::endl;
     }
     r << std::string(indent + 1, ' ') << "FragmentRunEntryTable (" << getFragmentRunCount() << ")" << std::endl;
-    for (int i = 0; i < getFragmentRunCount(); i++){
+    for (unsigned int i = 0; i < getFragmentRunCount(); i++){
       afrt_runtable myRun = getFragmentRun(i);
       if (myRun.duration){
         r << std::string(indent + 2, ' ') << i << ": " << myRun.firstFragment << " is at " << ((double)myRun.firstTimestamp / (double)getTimeScale())
@@ -1340,7 +1337,7 @@ namespace MP4 {
     int countLoc = 4;
     int tempLoc = countLoc + 1;
     //attempt to reach the wanted position
-    int i;
+    unsigned int i;
     for (i = 0; i < getQualityEntryCount() && i < no; ++i){
       tempLoc += getStringLen(tempLoc) + 1;
     }
@@ -1364,7 +1361,7 @@ namespace MP4 {
       return "";
     }
     int tempLoc = 5; //position of qualityentry count;
-    for (int i = 0; i < no; i++){
+    for (unsigned int i = 0; i < no; i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     return getString(tempLoc);
@@ -1372,7 +1369,7 @@ namespace MP4 {
 
   uint32_t ASRT::getSegmentRunEntryCount(){
     int tempLoc = 5; //position of qualityentry count;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     return getInt32(tempLoc);
@@ -1380,7 +1377,7 @@ namespace MP4 {
 
   void ASRT::setSegmentRun(uint32_t firstSegment, uint32_t fragmentsPerSegment, uint32_t no){
     int tempLoc = 5; //position of qualityentry count;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       tempLoc += getStringLen(tempLoc) + 1;
     }
     int countLoc = tempLoc;
@@ -1398,10 +1395,9 @@ namespace MP4 {
       return res;
     }
     int tempLoc = 5; //position of qualityentry count;
-    for (int i = 0; i < getQualityEntryCount(); ++i){
+    for (unsigned int i = 0; i < getQualityEntryCount(); ++i){
       tempLoc += getStringLen(tempLoc) + 1;
     }
-    int countLoc = tempLoc;
     tempLoc += 4 + 8 * no;
     res.firstSegment = getInt32(tempLoc);
     res.fragmentsPerSegment = getInt32(tempLoc + 4);
@@ -1418,11 +1414,11 @@ namespace MP4 {
       r << std::string(indent + 1, ' ') << "Replacement or new table" << std::endl;
     }
     r << std::string(indent + 1, ' ') << "QualityEntryTable (" << getQualityEntryCount() << ")" << std::endl;
-    for (int i = 0; i < getQualityEntryCount(); i++){
+    for (unsigned int i = 0; i < getQualityEntryCount(); i++){
       r << std::string(indent + 2, ' ') << i << ": " << getQualityEntry(i) << std::endl;
     }
     r << std::string(indent + 1, ' ') << "SegmentRunEntryTable (" << getSegmentRunEntryCount() << ")" << std::endl;
-    for (int i = 0; i < getSegmentRunEntryCount(); i++){
+    for (unsigned int i = 0; i < getSegmentRunEntryCount(); i++){
       r << std::string(indent + 2, ' ') << i << ": First=" << getSegmentRun(i).firstSegment << ", FragmentsPerSegment="
           << getSegmentRun(i).fragmentsPerSegment << std::endl;
     }
@@ -1463,7 +1459,7 @@ namespace MP4 {
 
   uint32_t TRAF::getContentCount(){
     int res = 0;
-    int tempLoc = 0;
+    unsigned int tempLoc = 0;
     while (tempLoc < boxedSize() - 8){
       res++;
       tempLoc += getBoxLen(tempLoc);
@@ -1473,8 +1469,8 @@ namespace MP4 {
 
   void TRAF::setContent(Box & newContent, uint32_t no){
     int tempLoc = 0;
-    int contentCount = getContentCount();
-    for (int i = 0; i < no; i++){
+    unsigned int contentCount = getContentCount();
+    for (unsigned int i = 0; i < no; i++){
       if (i < contentCount){
         tempLoc += getBoxLen(tempLoc);
       }else{
@@ -1494,7 +1490,7 @@ namespace MP4 {
     if (no > getContentCount()){
       return ret;
     }
-    int i = 0;
+    unsigned int i = 0;
     int tempLoc = 0;
     while (i < no){
       tempLoc += getBoxLen(tempLoc);
@@ -1695,7 +1691,7 @@ namespace MP4 {
     }
 
     r << std::string(indent + 1, ' ') << "SampleInformation (" << getSampleInformationCount() << "):" << std::endl;
-    for (int i = 0; i < getSampleInformationCount(); ++i){
+    for (unsigned int i = 0; i < getSampleInformationCount(); ++i){
       r << std::string(indent + 2, ' ') << "[" << i << "] ";
       trunSampleInformation samp = getSampleInformation(i);
       if (flags & trunsampleDuration){
@@ -2205,7 +2201,7 @@ namespace MP4 {
 
   void AVCC::setSPS(std::string newSPS){
     setInt16(newSPS.size(), 6);
-    for (int i = 0; i < newSPS.size(); i++){
+    for (unsigned int i = 0; i < newSPS.size(); i++){
       setInt8(newSPS[i], 8 + i);
     } //not null-terminated
   }
@@ -2231,7 +2227,7 @@ namespace MP4 {
   void AVCC::setPPS(std::string newPPS){
     int offset = 8 + getSPSLen() + 1;
     setInt16(newPPS.size(), offset);
-    for (int i = 0; i < newPPS.size(); i++){
+    for (unsigned int i = 0; i < newPPS.size(); i++){
       setInt8(newPPS[i], offset + 2 + i);
     } //not null-terminated
   }
@@ -2401,7 +2397,7 @@ namespace MP4 {
   }
   
   void ESDS::setUpstreamFlag(bool newVal){
-    setInt8(getStreamType()<<2 + ((uint8_t)newVal << 1) + (uint8_t)getReservedFlag() , 18);
+    setInt8((getStreamType()<<2) + ((uint8_t)newVal << 1) + (uint8_t)getReservedFlag() , 18);
   }
   
   bool ESDS::getReservedFlag(){
@@ -2472,7 +2468,7 @@ namespace MP4 {
   
   void ESDS::setESHeaderStartCodes(std::string newVal){
     setConfigDescriptorTypeLength(newVal.size());
-    for (int i = 0; i < newVal.size(); i++){
+    for (unsigned int i = 0; i < newVal.size(); i++){
       setInt8(newVal[i],35+i);
     }
   }
@@ -2559,7 +2555,7 @@ namespace MP4 {
   }
 
   uint32_t SDTP::getValue(size_t index){
-    getInt8(index);
+    return getInt8(index);
   }
 
   std::string SDTP::toPrettyString(uint32_t indent){
@@ -2659,7 +2655,7 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "MajorBrand: 0x" << std::hex << getMajorBrand() << std::dec << std::endl;
     r << std::string(indent + 1, ' ') << "MinorVersion: " << getMinorVersion() << std::endl;
     r << std::string(indent + 1, ' ') << "CompatibleBrands (" << getCompatibleBrandsCount() << "):" << std::endl;
-    for (int i = 0; i < getCompatibleBrandsCount(); i++){
+    for (unsigned int i = 0; i < getCompatibleBrandsCount(); i++){
       r << std::string(indent + 2, ' ') << "[" << i << "] CompatibleBrand: 0x" << std::hex << getCompatibleBrands(i) << std::dec << std::endl;
     }
     return r.str();
@@ -2706,7 +2702,7 @@ namespace MP4 {
   }
   
   uint32_t TREX::getDefaultSampleDuration(){
-    getInt32(8);
+    return getInt32(8);
   }
   
   void TREX::setDefaultSampleSize(uint32_t newDefaultSampleSize){
@@ -2714,7 +2710,7 @@ namespace MP4 {
   }
   
   uint32_t TREX::getDefaultSampleSize(){
-    getInt32(12);
+    return getInt32(12);
   }
   
   void TREX::setDefaultSampleFlags(uint32_t newDefaultSampleFlags){
@@ -2722,7 +2718,7 @@ namespace MP4 {
   }
   
   uint32_t TREX::getDefaultSampleFlags(){
-    getInt32(16);
+    return getInt32(16);
   }
   
   std::string TREX::toPrettyString(uint32_t indent){
@@ -2785,7 +2781,7 @@ namespace MP4 {
   }
   
   uint32_t MFRO::getSize(){
-    getInt32(0);
+    return getInt32(0);
   }
   
   std::string MFRO::toPrettyString(uint32_t indent){
@@ -2883,7 +2879,7 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[vmhd] Video Media Header Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "GraphicsMode: " << getGraphicsMode() << std::endl;
-    for (int i = 0; i < getOpColorCount(); i++){
+    for (unsigned int i = 0; i < getOpColorCount(); i++){
       r << std::string(indent + 1, ' ') << "OpColor["<<i<<"]: " << getOpColor(i) << std::endl;
     }
     return r.str();
@@ -3069,7 +3065,7 @@ namespace MP4 {
   }
   
   void DREF::setDataEntry(fullBox & newDataEntry, size_t index){
-    int i;
+    unsigned int i;
     uint32_t offset = 8; //start of boxes
     for (i=0; i< getEntryCount() && i < index; i++){
       offset += getBoxLen(offset);
@@ -3095,7 +3091,7 @@ namespace MP4 {
       return (Box &)res;
     }
     
-    for (int i=0; i < index; i++){
+    for (unsigned int i=0; i < index; i++){
       offset += getBoxLen(offset);
     }
     return (Box &)getBox(offset);
@@ -3106,7 +3102,7 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[dref] Data Reference Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
-    for (int32_t i = 0; i< getEntryCount(); i++){
+    for (unsigned int i = 0; i< getEntryCount(); i++){
       r << getDataEntry(i).toPrettyString(indent+1);
     }
     return r.str();
@@ -3276,7 +3272,7 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "Rate: " << getRate() << std::endl;
     r << std::string(indent + 1, ' ') << "Volume: " << getVolume() << std::endl;
     r << std::string(indent + 1, ' ') << "Matrix: ";
-    for (int32_t i = 0; i< getMatrixCount(); i++){
+    for (unsigned int i = 0; i< getMatrixCount(); i++){
       r << getMatrix(i);
       if (i!=getMatrixCount()-1){
         r << ", ";
@@ -3297,7 +3293,7 @@ namespace MP4 {
   }
   
   uint32_t TFRA::getTrackID(){
-    getInt32(4);
+    return getInt32(4);
   }
   
   void TFRA::setLengthSizeOfTrafNum(char newVal){
@@ -3480,7 +3476,7 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "lengthSizeOfTrunNum: " << (int)getLengthSizeOfTrunNum() << std::endl;
     r << std::string(indent + 1, ' ') << "lengthSizeOfSampleNum: " << (int)getLengthSizeOfSampleNum() << std::endl;
     r << std::string(indent + 1, ' ') << "NumberOfEntry: " << getNumberOfEntry() << std::endl;
-    for (int i = 0; i < getNumberOfEntry(); i++){
+    for (unsigned int i = 0; i < getNumberOfEntry(); i++){
       static TFRAEntry temp;
       temp = getTFRAEntry(i);
       r << std::string(indent + 1, ' ') << "Entry[" << i <<"]:"<< std::endl;
@@ -3692,7 +3688,7 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "AlternateGroup: " << getAlternateGroup() << std::endl;
     r << std::string(indent + 1, ' ') << "Volume: " << getVolume() << std::endl;
     r << std::string(indent + 1, ' ') << "Matrix: ";
-    for (int32_t i = 0; i< getMatrixCount(); i++){
+    for (unsigned int i = 0; i< getMatrixCount(); i++){
       r << getMatrix(i);
       if (i!=getMatrixCount()-1){
         r << ", ";
@@ -3830,7 +3826,7 @@ namespace MP4 {
   void STTS::setSTTSEntry(STTSEntry newSTTSEntry, uint32_t no){
     if(no + 1 > getEntryCount()){
       setEntryCount(no + 1);
-      for (int i = getEntryCount(); i < no; i++){
+      for (unsigned int i = getEntryCount(); i < no; i++){
         setInt64(0, 8 + (i * 8));//filling up undefined entries of 64 bits
       }
     }
@@ -3854,7 +3850,7 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stts] Sample Table Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
-    for (int i = 0; i < getEntryCount(); i++){
+    for (unsigned int i = 0; i < getEntryCount(); i++){
       static STTSEntry temp;
       temp = getSTTSEntry(i);
       r << std::string(indent + 1, ' ') << "Entry[" << i <<"]:"<< std::endl;
@@ -3879,7 +3875,7 @@ namespace MP4 {
   
   void CTTS::setCTTSEntry(CTTSEntry newCTTSEntry, uint32_t no){
     if(no + 1 > getEntryCount()){
-      for (int i = getEntryCount(); i < no; i++){
+      for (unsigned int i = getEntryCount(); i < no; i++){
         setInt64(0, 8 + (i * 8));//filling up undefined entries of 64 bits
       }
     }
@@ -3903,7 +3899,7 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stts] Sample Table Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
-    for (int i = 0; i < getEntryCount(); i++){
+    for (unsigned int i = 0; i < getEntryCount(); i++){
       static CTTSEntry temp;
       temp = getCTTSEntry(i);
       r << std::string(indent + 1, ' ') << "Entry[" << i <<"]:"<< std::endl;
@@ -3932,7 +3928,7 @@ namespace MP4 {
   void STSC::setSTSCEntry(STSCEntry newSTSCEntry, uint32_t no){
     if(no + 1 > getEntryCount()){
       setEntryCount(no+1);
-      for (int i = getEntryCount(); i < no; i++){
+      for (unsigned int i = getEntryCount(); i < no; i++){
         setInt64(0, 8 + (i * 12));//filling up undefined entries of 64 bits
         setInt32(0, 8 + (i * 12) + 8);
       }
@@ -3959,7 +3955,7 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stsc] Sample To Chunk Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
-    for (int i = 0; i < getEntryCount(); i++){
+    for (unsigned int i = 0; i < getEntryCount(); i++){
       static STSCEntry temp;
       temp = getSTSCEntry(i);
       r << std::string(indent + 1, ' ') << "Entry[" << i <<"]:"<< std::endl;
@@ -3987,7 +3983,7 @@ namespace MP4 {
   
   void STCO::setChunkOffset(uint32_t newChunkOffset, uint32_t no){
     if (no + 1 > getEntryCount()){
-      for (int i = getEntryCount(); i < no; i++){
+      for (unsigned int i = getEntryCount(); i < no; i++){
         setInt32(0, 8 + i * 4);//filling undefined entries
       }
       setEntryCount(no+1);
@@ -4007,7 +4003,7 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stco] Chunk Offset Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
-    for (int i = 0; i < getEntryCount(); i++){
+    for (unsigned int i = 0; i < getEntryCount(); i++){
       r << std::string(indent + 1, ' ') << "ChunkOffset[" << i <<"]: " << getChunkOffset(i) << std::endl;
     }
     return r.str();
@@ -4039,7 +4035,7 @@ namespace MP4 {
   void STSZ::setEntrySize(uint32_t newEntrySize, uint32_t no){
     if (no + 1 > getSampleCount()){
       setSampleCount(no + 1);
-      for (int i = getSampleCount(); i < no; i++){
+      for (unsigned int i = getSampleCount(); i < no; i++){
         setInt32(0, 12 + i * 4);//filling undefined entries
       }
     }
@@ -4059,7 +4055,7 @@ namespace MP4 {
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "SampleSize: " << getSampleSize() << std::endl;
     r << std::string(indent + 1, ' ') << "SampleCount: " << getSampleCount() << std::endl;
-    for (int i = 0; i < getSampleCount(); i++){
+    for (unsigned int i = 0; i < getSampleCount(); i++){
       r << std::string(indent + 1, ' ') << "EntrySize[" << i <<"]: " << getEntrySize(i) << std::endl;
     }
     return r.str();
@@ -4264,7 +4260,7 @@ namespace MP4 {
   }
   
   uint16_t VisualSampleEntry::getDepth(){
-    getInt16(74);
+    return getInt16(74);
   }
 
   void VisualSampleEntry::setCLAP(Box& clap){
@@ -4434,9 +4430,9 @@ namespace MP4 {
   }
   
   void STSD::setEntry(Box & newContent, uint32_t no){
-  int tempLoc = 8;
-    int entryCount = getEntryCount();
-    for (int i = 0; i < no; i++){
+    int tempLoc = 8;
+    unsigned int entryCount = getEntryCount();
+    for (unsigned int i = 0; i < no; i++){
       if (i < entryCount){
         tempLoc += getBoxLen(tempLoc);
       }else{
@@ -4459,7 +4455,7 @@ namespace MP4 {
     if (no > getEntryCount()){
       return ret;
     }
-    int i = 0;
+    unsigned int i = 0;
     int tempLoc = 8;
     while (i < no){
       tempLoc += getBoxLen(tempLoc);
@@ -4473,7 +4469,7 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stsd] Sample Description Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntrySize: " << getEntryCount() << std::endl;
-    for (int i = 0; i < getEntryCount(); i++){
+    for (unsigned int i = 0; i < getEntryCount(); i++){
       Box curBox = Box(getEntry(i).asBox(), false);
       r << curBox.toPrettyString(indent + 1);
     }
@@ -4508,7 +4504,7 @@ namespace MP4 {
   }
   
   uint32_t STSS::getEntryCount(){
-    getInt32(4);
+    return getInt32(4);
   }
   
   void STSS::setSampleNumber(uint32_t newVal, uint32_t index){
@@ -4530,7 +4526,7 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stss] Sync Sample Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
-    for (int i = 0; i < getEntryCount(); i++){
+    for (unsigned int i = 0; i < getEntryCount(); i++){
       r << std::string(indent + 1, ' ') << "SampleNumber[" << i <<"] : " << getSampleNumber(i) << std::endl;
     }
     return r.str();

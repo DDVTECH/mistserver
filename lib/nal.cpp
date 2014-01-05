@@ -33,7 +33,6 @@ bool NAL_Unit::ReadData(std::string & InputData){
   if (AnnexB){
     MyData = "";
     InputData.erase(0, 3); //Intro Bytes
-    bool FinalByteRead = false;
     int Location = std::min(InputData.find(ShortAnnexB), InputData.find(FullAnnexB));
     MyData = InputData.substr(0, Location);
     InputData.erase(0, Location);
@@ -41,7 +40,7 @@ bool NAL_Unit::ReadData(std::string & InputData){
     if (InputData.size() < 4){
       return false;
     }
-    int UnitLen = (InputData[0] << 24) + (InputData[1] << 16) + (InputData[2] << 8) + InputData[3];
+    unsigned int UnitLen = (InputData[0] << 24) + (InputData[1] << 16) + (InputData[2] << 8) + InputData[3];
     if (InputData.size() < 4 + UnitLen){
       return false;
     }

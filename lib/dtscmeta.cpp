@@ -1,5 +1,29 @@
 #include "dtsc.h"
 
+/// Retrieves a short in network order from the pointer p.
+static short btohs(char * p){
+  return (p[0] << 8) + p[1];
+}
+
+/// Stores a short value of val in network order to the pointer p.
+static void htobs(char * p, short val){
+  p[0] = (val >> 8) & 0xFF;
+  p[1] = val & 0xFF;
+}
+
+/// Retrieves a long in network order from the pointer p.
+static long btohl(char * p){
+  return (p[0] << 24) + (p[1] << 16) + (p[2] << 8) + p[3];
+}
+
+/// Stores a long value of val in network order to the pointer p.
+static void htobl(char * p, long val){
+  p[0] = (val >> 24) & 0xFF;
+  p[1] = (val >> 16) & 0xFF;
+  p[2] = (val >> 8) & 0xFF;
+  p[3] = val & 0xFF;
+}
+
 namespace DTSC {
   long Part::getSize(){
     return ((long)data[0] << 16) | ((long)data[1] << 8) | data[2];
@@ -12,19 +36,19 @@ namespace DTSC {
   }
 
   short Part::getDuration(){
-    return ntohs(((short*)(data+3))[0]);
+    return btohs(data+3);
   }
 
   void Part::setDuration(short newDuration){
-    ((short*)(data+3))[0] = htons(newDuration);
+    htobs(data+3, newDuration);
   }
 
   long Part::getOffset(){
-    return ntohl(((int*)(data+5))[0]);
+    return btohl(data+5);
   }
 
   void Part::setOffset(long newOffset){
-    ((int*)(data+5))[0] = htonl(newOffset);
+    htobl(data+5, newOffset);
   }
 
   char* Part::getData(){
@@ -53,28 +77,28 @@ namespace DTSC {
     data[5] = (newLength >> 16) & 0xFF;
   }
 
-  short Key::getNumber(){
-    return ntohs(((short*)(data+8))[0]);
+  unsigned short Key::getNumber(){
+    return btohs(data+8);
   }
 
-  void Key::setNumber(short newNumber){
-    ((short*)(data+8))[0] = htons(newNumber);
+  void Key::setNumber(unsigned short newNumber){
+    htobs(data+8, newNumber);
   }
 
   short Key::getParts(){
-    return ntohs(((short*)(data+10))[0]);
+    return btohs(data+10);
   }
 
   void Key::setParts(short newParts){
-    ((short*)(data+10))[0] = htons(newParts);
+    htobs(data+10, newParts);
   }
 
   long Key::getTime(){
-    return ntohl(((int*)(data+12))[0]);
+    return btohl(data+12);
   }
 
   void Key::setTime(long newTime){
-    ((int*)(data+12))[0] = htonl(newTime);
+    htobl(data+12, newTime);
   }
 
   char* Key::getData(){
@@ -82,11 +106,11 @@ namespace DTSC {
   }
 
   long Fragment::getDuration(){
-    return ntohl(((int*)data)[0]);
+    return btohl(data);
   }
 
   void Fragment::setDuration(long newDuration){
-    ((int*)data)[0] = htonl(newDuration);
+    htobl(data, newDuration);
   }
 
   char Fragment::getLength(){
@@ -98,19 +122,19 @@ namespace DTSC {
   }
 
   short Fragment::getNumber(){
-    return ntohs(((short*)(data+5))[0]);
+    return btohs(data+5);
   }
 
   void Fragment::setNumber(short newNumber){
-    ((short*)(data+5))[0] = htons(newNumber);
+    htobs(data+5, newNumber);
   }
 
   long Fragment::getSize(){
-    return ntohl(((int*)(data+7))[0]);
+    return btohl(data+7);
   }
 
   void Fragment::setSize(long newSize){
-    ((int*)(data+7))[0] = htonl(newSize);
+    htobl(data+7, newSize);
   }
 
   char* Fragment::getData(){
@@ -301,7 +325,7 @@ namespace DTSC {
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + pack["data"].asString().size());
   }
 
-  Key & Track::getKey(int keyNum){
+  Key & Track::getKey(unsigned int keyNum){
     static Key empty;
     if (keyNum < keys[0].getNumber()){
       return empty;

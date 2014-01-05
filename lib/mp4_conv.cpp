@@ -308,32 +308,32 @@ namespace MP4{
       MP4::STBL checkStblBox;
       MP4::STCO checkStcoBox;
       checkTrakBox = ((MP4::TRAK&)moovBox.getContent(i));
-      for (int j = 0; j < checkTrakBox.getContentCount(); j++){
+      for (unsigned int j = 0; j < checkTrakBox.getContentCount(); j++){
         if (checkTrakBox.getContent(j).isType("mdia")){
           checkMdiaBox = ((MP4::MDIA&)checkTrakBox.getContent(j));
           break;
         }
       }
-      for (int j = 0; j < checkMdiaBox.getContentCount(); j++){
+      for (unsigned int j = 0; j < checkMdiaBox.getContentCount(); j++){
         if (checkMdiaBox.getContent(j).isType("minf")){
           checkMinfBox = ((MP4::MINF&)checkMdiaBox.getContent(j));
           break;
         }
       }
-      for (int j = 0; j < checkMinfBox.getContentCount(); j++){
+      for (unsigned int j = 0; j < checkMinfBox.getContentCount(); j++){
         if (checkMinfBox.getContent(j).isType("stbl")){
           checkStblBox = ((MP4::STBL&)checkMinfBox.getContent(j));
           break;
         }
       }
-      for (int j = 0; j < checkStblBox.getContentCount(); j++){
+      for (unsigned int j = 0; j < checkStblBox.getContentCount(); j++){
         if (checkStblBox.getContent(j).isType("stco")){
           checkStcoBox = ((MP4::STCO&)checkStblBox.getContent(j));
           break;
         }
       }
       //got the STCO box, fixing values with MP4 header offset
-      for (int j = 0; j < checkStcoBox.getEntryCount(); j++){
+      for (unsigned int j = 0; j < checkStcoBox.getEntryCount(); j++){
         checkStcoBox.setChunkOffset(checkStcoBox.getChunkOffset(j) + byteOffset, j);
       }
     }

@@ -198,7 +198,7 @@ void HTTP::Parser::Proxy(Socket::Connection & from, Socket::Connection & to){
           }
           unsigned int chunkLen = 0;
           if ( !tmpA.empty()){
-            for (int i = 0; i < tmpA.size(); ++i){
+            for (unsigned int i = 0; i < tmpA.size(); ++i){
               chunkLen = (chunkLen << 4) | unhex(tmpA[i]);
             }
             if (chunkLen == 0){
@@ -457,7 +457,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer){
             }
             unsigned int chunkLen = 0;
             if ( !tmpA.empty()){
-              for (int i = 0; i < tmpA.size(); ++i){
+              for (unsigned int i = 0; i < tmpA.size(); ++i){
                 chunkLen = (chunkLen << 4) | unhex(tmpA[i]);
               }
               if (chunkLen == 0){

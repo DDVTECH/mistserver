@@ -60,10 +60,10 @@ namespace theora{
     if (getVMIN() != 2){return false;}
     if (getFMBW() == 0){return false;}
     if (getFMBH() == 0){return false;}
-    if (getPICW() > getFMBW() * 16){return false;}
-    if (getPICH() > getFMBH() * 16){return false;}
-    if (getPICX() > (getFMBW() * 16) - getPICW()){return false;}
-    if (getPICY() > (getFMBH() * 16) - getPICH()){return false;}
+    if ((short)getPICW() > getFMBW() * 16){return false;}
+    if ((short)getPICH() > getFMBH() * 16){return false;}
+    if ((short)getPICX() > (getFMBW() * 16) - (short)getPICW()){return false;}
+    if ((short)getPICY() > (getFMBH() * 16) - (short)getPICH()){return false;}
     if (getFRN() == 0){return false;}
     if (getFRD() == 0){return false;}
     return true;
@@ -212,9 +212,8 @@ namespace theora{
 
   std::string header::getUserComment(size_t index){
     if (index >= getNComments()){return "";}
-    int len;
     int offset = 11 + commentLen(7) + 4;
-    for (int i = 0; i < index; i++){
+    for (size_t i = 0; i < index; i++){
       offset += 4 + commentLen(offset);
     }
     return std::string(data + offset + 4,commentLen(offset));
@@ -247,7 +246,7 @@ namespace theora{
       case 1:
         result << std::string(indent+2,' ') << "Vendor: " << getVendor() << std::endl;
         result << std::string(indent+2,' ') << "User Comments (" << getNComments() << "):" << std::endl;
-        for (int i = 0; i < getNComments(); i++){
+        for (long unsigned int i = 0; i < getNComments(); i++){
           result << std::string(indent+4,' ') << "[" << i << "] " << getUserComment(i) << std::endl;
         }
         break;

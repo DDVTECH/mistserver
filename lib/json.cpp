@@ -638,6 +638,7 @@ unsigned int JSON::Value::packedSize() const{
     }
     return ret;
   }
+  return 0;
 }//packedSize
 
 /// Pre-packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
@@ -1089,7 +1090,7 @@ JSON::Value JSON::fromDTMI2(std::string data){
   long long int tmpTrackID = ntohl(((int*)(data.c_str()))[0]);
   JSON::Value tmp = fromDTMI(data.substr(12));
   long long int tmpTime = ntohl(((int*)(data.c_str() + 4))[0]);
-  tmpTime << 32;
+  tmpTime <<= 32;
   tmpTime += ntohl(((int*)(data.c_str() + 8))[0]);
   tmp["time"] = tmpTime;
   tmp["trackid"] = tmpTrackID;
@@ -1101,7 +1102,7 @@ JSON::Value JSON::fromDTMI2(const unsigned char * data, unsigned int len, unsign
   if (len < 13){return tmp;}
   long long int tmpTrackID = ntohl(((int*)data)[0]);
   long long int tmpTime = ntohl(((int*)data)[1]);
-  tmpTime << 32;
+  tmpTime <<= 32;
   tmpTime += ntohl(((int*)data)[2]);
   i += 12;
   tmp = fromDTMI(data, len, i);

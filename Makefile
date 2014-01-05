@@ -10,7 +10,7 @@ ifeq ($(PACKAGE_VERSION),Unknown)
   $(warning Version is unknown - consider creating a VERSION file or fixing your git setup.)
 endif
 
-CPPFLAGS = -Wall -g -O2 -fPIC -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
+CPPFLAGS = -Wall -funsigned-char -g -O2 -fPIC -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
 
 LDLIBS = -lcrypto
 

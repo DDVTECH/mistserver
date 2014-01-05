@@ -54,7 +54,7 @@ namespace Socket {
       Buffer downbuffer; ///< Stores temporary data coming in.
       Buffer upbuffer; ///< Stores temporary data going out.
       int iread(void * buffer, int len); ///< Incremental read call.
-      int iwrite(const void * buffer, int len); ///< Incremental write call.
+      unsigned int iwrite(const void * buffer, int len); ///< Incremental write call.
       bool iread(Buffer & buffer); ///< Incremental write call that is compatible with Socket::Buffer.
       bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
     public:

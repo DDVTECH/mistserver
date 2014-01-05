@@ -16,7 +16,6 @@ Filesystem::Directory::~Directory(){
 }
 
 void Filesystem::Directory::FillEntries(){
-  fprintf(stderr, "Filling Entries of %s:\n", (MyBase + MyPath).c_str());
   ValidDir = true;
   struct stat StatBuf;
   Entries.clear();
@@ -27,15 +26,15 @@ void Filesystem::Directory::FillEntries(){
     dirent * entry;
     while ((entry = readdir(Dirp))){
       if (stat((MyBase + MyPath + "/" + entry->d_name).c_str(), &StatBuf) == -1){
+#if DEBUG >= 4
         fprintf(stderr, "\tSkipping %s\n\t\tReason: %s\n", entry->d_name, strerror(errno));
+#endif
         continue;
       }
       ///Convert stat to string
       Entries[std::string(entry->d_name)] = StatBuf;
     }
   }
-  fprintf(stderr, "Valid dir: %d\n", ValidDir);
-  fprintf(stderr, "#Entries: %d\n", Entries.size());
 }
 
 void Filesystem::Directory::Print(){

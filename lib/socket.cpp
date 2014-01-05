@@ -445,12 +445,9 @@ void Socket::Connection::SendNow(const char * data, size_t len){
   while (upbuffer.size() > 0 && connected()){
     iwrite(upbuffer.get());
   }
-  int i = iwrite(data, len);
+  unsigned int i = iwrite(data, len);
   while (i < len && connected()){
-    int j = iwrite(data + i, std::min(len - i, (size_t)51200));
-    if (j > 0){
-      i += j;
-    }
+    i += iwrite(data + i, std::min(len - i, (size_t)51200));
   }
   if (!bing){setBlocking(false);}
 }
@@ -469,7 +466,7 @@ void Socket::Connection::Send(const char * data, size_t len){
   if (upbuffer.size() > 0){
     upbuffer.append(data, len);
   }else{
-    int i = iwrite(data, len);
+    unsigned int i = iwrite(data, len);
     if (i < len){
       upbuffer.append(data + i, len - i);
     }
@@ -515,11 +512,11 @@ void Socket::Connection::Send(std::string & data){
 /// \param buffer Location of the buffer to write from.
 /// \param len Amount of bytes to write.
 /// \returns The amount of bytes actually written.
-int Socket::Connection::iwrite(const void * buffer, int len){
+unsigned int Socket::Connection::iwrite(const void * buffer, int len){
   if ( !connected() || len < 1){
     return 0;
   }
-  int r;
+  unsigned int r;
   if (sock >= 0){
     r = send(sock, buffer, len, 0);
   }else{
@@ -614,8 +611,8 @@ bool Socket::Connection::iwrite(std::string & buffer){
   if (buffer.size() < 1){
     return false;
   }
-  int tmp = iwrite((void*)buffer.c_str(), buffer.size());
-  if (tmp < 1){
+  unsigned int tmp = iwrite((void*)buffer.c_str(), buffer.size());
+  if ( !tmp){
     return false;
   }
   buffer = buffer.substr(tmp);

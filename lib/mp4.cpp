@@ -118,7 +118,7 @@ namespace MP4 {
   }
 
   /// Attempts to typecast this Box to a more specific type and call the toPrettyString() function of that type.
-  /// If this failed, it will print out a message saying pretty-printing is not implemented for <boxtype>.
+  /// If this failed, it will print out a message saying pretty-printing is not implemented for that boxtype.
   std::string Box::toPrettyString(uint32_t indent){
     switch (ntohl( *((int*)(data + 4)))){ //type is at this address
       case 0x6D666864:

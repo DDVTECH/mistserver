@@ -61,6 +61,7 @@ namespace TS {
   /// The length of this header will ALWAYS be 7 bytes, and has to be 
   /// prepended on each audio frame.
   /// \param FrameLen the length of the current audio frame.
+  /// \param initData A string containing the initalization data for this track's codec.
   static inline std::string GetAudioHeader(int FrameLen, std::string initData){
     char StandardHeader[7] = {0xFF, 0xF1, 0x00, 0x00, 0x00, 0x1F, 0xFC};
     FrameLen += 7;

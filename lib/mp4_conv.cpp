@@ -26,7 +26,7 @@ namespace MP4{
       mvhdBox.setRate(0x10000);
       //calculating longest duration
       int fileDuration = 0;
-      ///\TODO lastms and firstms fixen
+      ///\  odo lastms and firstms fixen
       for ( std::map<int,DTSC::Track>::iterator trackIt = metaData.tracks.begin(); trackIt != metaData.tracks.end(); trackIt ++) {
         if (trackIt->second.lastms - trackIt->second.firstms > fileDuration){
           fileDuration =  trackIt->second.lastms - trackIt->second.firstms;
@@ -106,7 +106,7 @@ namespace MP4{
             tkhdBox.setVersion(0);
             tkhdBox.setFlags(15);
             tkhdBox.setTrackID(it->second.trackID);
-            ///\TODO duration firstms and lastms fix
+            ///\  odo duration firstms and lastms fix
             tkhdBox.setDuration(it->second.lastms + it->second.firstms);
             
             if (it->second.type == "video"){
@@ -139,7 +139,7 @@ namespace MP4{
               }
               timescale = ((double)(42 * tmpParts) / (it->second.lastms + it->second.firstms)) *  1000;
               mdhdBox.setTimeScale(timescale);
-              ///\TODO fix lastms, firstms
+              ///\  odo fix lastms, firstms
               mdhdBox.setDuration((it->second.lastms + it->second.firstms) * ((double)timescale / 1000));
               mdiaBox.setContent(mdhdBox, 0);
               
@@ -219,7 +219,7 @@ namespace MP4{
                     }
                   stblBox.setContent(stsdBox,0);
                   
-                  /// \TODO update following stts lines
+                  /// \ odo update following stts lines
                   MP4::STTS sttsBox;//current version probably causes problems
                     sttsBox.setVersion(0);
                     MP4::STTSEntry newEntry;

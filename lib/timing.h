@@ -1,4 +1,4 @@
-/// \file time.h
+/// \file timing.h
 /// Utilities for handling time and timestamps.
 
 #pragma once

@@ -400,7 +400,9 @@ void TS::Packet::FillFree(std::string & NewVal){
 
 /// Fills the free bytes of the TS::Packet.
 /// Stores as many bytes from NewVal as possible in the packet.
+/// The minimum of TS::Packet::BytesFree and maxLen is used.
 /// \param NewVal The data to store in the packet.
+/// \param maxLen The maximum amount of bytes to store.
 int TS::Packet::FillFree(const char* NewVal, int maxLen){
   int toWrite = std::min((int)BytesFree(), maxLen);
   strBuf += std::string(NewVal, toWrite);

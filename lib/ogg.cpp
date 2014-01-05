@@ -205,7 +205,7 @@ namespace OGG{
     std::cerr << "Segments too big, create a continue page" << std::endl;
   }
 
-  ///\TODO MAKE FIX HERE
+  /// \todo MAKE FIX HERE
   bool Page::setSegmentTable(std::vector<unsigned int> layout){
     dataSum=0;
     for (unsigned int i = 0; i < layout.size(); i++){

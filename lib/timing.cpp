@@ -1,4 +1,4 @@
-/// \file time.cpp
+/// \file timing.cpp
 /// Utilities for handling time and timestamps.
 
 #include "timing.h"

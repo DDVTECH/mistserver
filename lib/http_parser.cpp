@@ -95,8 +95,10 @@ std::string & HTTP::Parser::BuildResponse(std::string code, std::string message)
 /// Creates and sends a valid HTTP 1.0 or 1.1 response.
 /// The response is partly build from internal variables set before this call is made.
 /// To be precise, protocol, headers and body are used.
+/// This call will attempt to buffer as little as possible and block until the whole request is sent.
 /// \param code The HTTP response code. Usually you want 200.
 /// \param message The HTTP response message. Usually you want "OK".
+/// \param conn The Socket::Connection to send the response over.
 void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::Connection & conn){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;

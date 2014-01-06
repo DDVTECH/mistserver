@@ -172,14 +172,12 @@ $(warning Java not installed - not compressing javascript codes before inclusion
 CLOSURE=cat
 endif
 
-XXD := $(shell which xxd 2> /dev/null)
-ifndef XXD
-$(error xxd not installed - cannot continue. Please install xxd)
-endif
+sourcery: src/sourcery.cpp
+	$(CXX) -o $@ $(CPPFLAGS) $^
 
-src/connectors/embed.js.h: src/connectors/embed.js
+src/connectors/embed.js.h: src/connectors/embed.js sourcery
 	$(CLOSURE) src/connectors/embed.js > embed.min.js
-	xxd -i embed.min.js | sed s/_min_/_/g > src/connectors/embed.js.h
+	./sourcery embed.min.js embed_js > src/connectors/embed.js.h
 	rm embed.min.js
 
 src/controller/server.html: $(lspDATA) $(lspSOURCES)
@@ -191,8 +189,8 @@ src/controller/server.html: $(lspDATA) $(lspSOURCES)
 	echo "</style>" >> $@
 	cat lsp/footer.html >> $@
 
-src/controller/server.html.h: src/controller/server.html
-	cd src/controller; xxd -i server.html server.html.h
+src/controller/server.html.h: src/controller/server.html sourcery
+	cd src/controller; ../../sourcery server.html server_html > server.html.h
 
 docs: src/* Doxyfile
 	doxygen ./Doxyfile > /dev/null

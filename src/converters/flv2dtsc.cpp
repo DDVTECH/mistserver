@@ -30,7 +30,7 @@ namespace Converters {
     bool sending = false;
     unsigned int counter = 0;
 
-    while ( !feof(stdin)){
+    while ( !feof(stdin) && !FLV::Parse_Error){
       if (FLV_in.FileLoader(stdin)){
         pack_out = FLV_in.toJSON(meta_out);
         if (pack_out.isNull()){
@@ -52,6 +52,10 @@ namespace Converters {
         //simply write
         output << pack_out.toNetPacked();
       }
+    }
+    if (FLV::Parse_Error){
+      std::cerr << "Conversion failed: " << FLV::Error_Str << std::endl;
+      return 0;
     }
 
     // if the FLV input is very short, do output it correctly...

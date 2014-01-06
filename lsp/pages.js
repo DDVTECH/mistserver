@@ -600,7 +600,7 @@ function showTab(tabName,streamName) {
             )
           ).append(
             $('<label>').text('The embed code is:').css('overflow','hidden').append(
-              $('<textarea>').val('<div>\n  <script src="'+embedbase+'embed_'+streamName+'.js"></script>\n</div>')
+              $('<textarea>').val('<div>\n  <script src="'+embedbase+'embed_'+streamName+'.js"></' + 'script>\n</div>')
             )
           ).append(
             $('<button>').text('Back').addClass('escape-to-cancel').click(function(){

@@ -19,6 +19,7 @@ autom4te.cache
 /ltmain.sh
 /missing
 /depcomp
+/sourcery
 .libs
 VERSION
 .dep.inc

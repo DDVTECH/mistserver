@@ -61,7 +61,7 @@ function showTab(tabName,streamName) {
       );
       
       // retrieve address hash from URL
-      var adr = location.hash.replace('#', '').split('@');
+      var adr = location.hash.replace('#', '').split('&')[0].split('@');
       if(adr.length == 2) {
         $('#server').val(adr[1]);
         $('#credentials-username').val(adr[0]);

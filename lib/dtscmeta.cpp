@@ -385,7 +385,11 @@ namespace DTSC {
         tracks[it->second["trackid"].asInt()] = readOnlyTrack(it->second);
       }
     }
-    moreheader = meta["moreheader"].asInt();
+    if (meta.isMember("moreheader")){
+      moreheader = meta["moreheader"].asInt();
+    }else{
+      moreheader = 0;
+    }
   }
 
   Meta::Meta(){
@@ -420,7 +424,11 @@ namespace DTSC {
         tracks[it->second["trackid"].asInt()] = Track(it->second);
       }
     }
-    moreheader = meta["moreheader"].asInt();
+    if (meta.isMember("moreheader")){
+      moreheader = meta["moreheader"].asInt();
+    }else{
+      moreheader = 0;
+    }
   }
 
   void Meta::update(JSON::Value & pack){

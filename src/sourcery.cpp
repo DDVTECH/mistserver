@@ -38,6 +38,6 @@ int main(int argc, char* argv[]){
       i = 0;
     }
   }
-  std::cout << "\";" << std::endl << "unsigned int " << argv[2] << "_len = " << i + total << ";";
+  std::cout << "\";" << std::endl << "unsigned int " << argv[2] << "_len = " << i + total << ";" << std::endl;
   return 0;
 }

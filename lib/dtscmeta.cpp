@@ -354,6 +354,12 @@ namespace DTSC {
     return result.str();
   }
 
+  std::string readOnlyTrack::getWritableIdentifier(){
+    std::stringstream result;
+    result << getIdentifier() << "_" << trackID;
+    return result.str( );
+  }
+
   void Track::reset(){
     fragments.clear();
     parts.clear();
@@ -469,7 +475,7 @@ namespace DTSC {
   }
 
   int readOnlyTrack::getSendLen(){
-    int result = 146 + init.size() + codec.size() + type.size() + getIdentifier().size();
+    int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
     result += fragLen * 11;
     result += keyLen * 16;
     result += partLen * 9;
@@ -487,7 +493,7 @@ namespace DTSC {
   }
 
   int Track::getSendLen(){
-    int result = 146 + init.size() + codec.size() + type.size() + getIdentifier().size();
+    int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
     result += fragments.size() * 11;
     result += keys.size() * 16;
     result += parts.size() * 9;
@@ -505,8 +511,8 @@ namespace DTSC {
   }
 
   void readOnlyTrack::send(Socket::Connection & conn){
-    conn.SendNow(convertShort(getIdentifier().size()), 2);
-    conn.SendNow(getIdentifier());
+    conn.SendNow(convertShort(getWritableIdentifier().size()), 2);
+    conn.SendNow(getWritableIdentifier());
     conn.SendNow("\340", 1);//Begin track object
     conn.SendNow("\000\011fragments\002", 12);
     conn.SendNow(convertInt(fragLen*11), 4);
@@ -565,8 +571,8 @@ namespace DTSC {
   }
 
   void Track::send(Socket::Connection & conn){
-    conn.SendNow(convertShort(getIdentifier().size()), 2);
-    conn.SendNow(getIdentifier());
+    conn.SendNow(convertShort(getWritableIdentifier().size()), 2);
+    conn.SendNow(getWritableIdentifier());
     conn.SendNow("\340", 1);//Begin track object
     conn.SendNow("\000\011fragments\002", 12);
     conn.SendNow(convertInt(fragments.size()*11), 4);
@@ -782,7 +788,7 @@ namespace DTSC {
   JSON::Value Meta::toJSON(){
     JSON::Value result;
     for (std::map<int,Track>::iterator it = tracks.begin(); it != tracks.end(); it++){
-      result["tracks"][it->second.getIdentifier()] = it->second.toJSON();
+      result["tracks"][it->second.getWritableIdentifier()] = it->second.toJSON();
     }
     if (vod){
       result["vod"] = 1ll;
@@ -803,7 +809,7 @@ namespace DTSC {
   JSON::Value readOnlyMeta::toJSON(){
     JSON::Value result;
     for (std::map<int,readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++){
-      result["tracks"][it->second.getIdentifier()] = it->second.toJSON();
+      result["tracks"][it->second.getWritableIdentifier()] = it->second.toJSON();
     }
     if (vod){
       result["vod"] = 1ll;

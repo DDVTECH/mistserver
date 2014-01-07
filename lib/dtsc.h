@@ -152,6 +152,7 @@ namespace DTSC {
       int getSendLen();
       void send(Socket::Connection & conn);
       std::string getIdentifier();
+      std::string getWritableIdentifier();
       JSON::Value toJSON();
       long long unsigned int fragLen;
       Fragment* fragments;

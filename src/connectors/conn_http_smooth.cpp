@@ -470,6 +470,7 @@ namespace Connector_HTTP {
                 HTTP_S.SendResponse("200", "OK", conn);
               }
             }
+            ready4data = true;
             //Clean for any possible next requests
             HTTP_R.Clean();
           }

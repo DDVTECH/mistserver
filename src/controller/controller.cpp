@@ -398,7 +398,7 @@ int main(int argc, char ** argv){
         uplink->H.Clean();
         uplink->H.SetBody("command=" + HTTP::Parser::urlencode(Response.toString()));
         uplink->H.BuildRequest();
-        uplink->C.Send(uplink->H.BuildResponse("200", "OK"));
+        uplink->H.SendResponse("200", "OK", uplink->C);
         uplink->H.Clean();
         //Controller::Log("UPLK", "Sending server data to uplink.");
       }else{
@@ -526,7 +526,7 @@ int main(int argc, char ** argv){
                     it->H.Clean();
                     it->H.SetBody("command=" + HTTP::Parser::urlencode(Response.toString()));
                     it->H.BuildRequest();
-                    it->C.Send(it->H.BuildResponse("200", "OK"));
+                    it->H.SendResponse("200", "OK", it->C);
                     it->H.Clean();
                     Controller::Log("UPLK", "Attempting login to uplink.");
                   }
@@ -632,7 +632,7 @@ int main(int argc, char ** argv){
                 }else{
                   it->H.SetBody(jsonp + "(" + Response.toString() + ");\n\n");
                 }
-                it->C.Send(it->H.BuildResponse("200", "OK"));
+                it->H.SendResponse("200", "OK", it->C);
                 it->H.Clean();
               }
             }

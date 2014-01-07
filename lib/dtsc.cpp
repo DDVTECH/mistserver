@@ -34,6 +34,9 @@ void DTSC::Stream::deletionCallback(livePos deleting){}
 /// Returns the time in milliseconds of the last received packet.
 /// This is _not_ the time this packet was received, only the stored time.
 unsigned int DTSC::Stream::getTime(){
+  if ( !buffers.size()){
+    return 0;
+  }
   return buffers.rbegin()->second["time"].asInt();
 }
 

@@ -97,6 +97,12 @@ namespace Controller {
               }
             }
           }
+          if ( !data["meta"] || !data["meta"]["tracks"]){
+            Log("WARN", "Source file " + URL + " seems to be corrupt.");
+            data["error"] = "Stream offline: Corrupt file?";
+            data["online"] = 0;
+            return;
+          }
         }else{
           getMeta = true;
         }
@@ -106,8 +112,14 @@ namespace Controller {
           tmp_cmd[0] = (char*)mistinfo.c_str();
           tmp_cmd[1] = (char*)URL.c_str();
           data["meta"] = JSON::fromString(Util::Procs::getOutputOf(tmp_cmd));
+          if ( !data["meta"] || !data["meta"].isMember("tracks") || !data["meta"]["tracks"]){
+            Log("WARN", "Source file " + URL + " seems to be corrupt.");
+            data["error"] = "Stream offline: Corrupt file?";
+            data["online"] = 0;
+            return;
+          }
         }
-        if ( !DTSC::isFixed(data["meta"])){
+        if ( data["meta"] && data["meta"].isMember("tracks") && data["meta"]["tracks"] && !DTSC::isFixed(data["meta"])){
           char * tmp_cmd[3] = {0, 0, 0};
           std::string mistfix = Util::getMyPath() + "MistDTSCFix";
           tmp_cmd[0] = (char*)mistfix.c_str();

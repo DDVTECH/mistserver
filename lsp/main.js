@@ -272,7 +272,9 @@ function getData(callBack,sendData,timeOut,doShield){
         $('#message').append(
           $('<br>')
         ).append(
-          $('<span>').text('Last log entry: '+formatTime(lastlog[0])+' ['+lastlog[1]+'] '+lastlog[2])
+          $('<span>').text(
+            'Last log entry: '+formatTime(lastlog[0])+' ['+lastlog[1]+'] '+lastlog[2]
+          ).addClass(lastlog[1] == 'WARN' ? 'orange' : '')
         );
       }
       $('#shield').remove();

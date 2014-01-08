@@ -1,5 +1,6 @@
   <script>
-    //this is placed here because the compression compiler does not deal with the eval function properly.
+    //these are placed here because the compression compiler does not deal with the eval function properly.
+    //enter the values of the settings object into their input fields
     function enterSettings(){
       $('.isSetting').each(function(){
         var objpath = findObjPath($(this));
@@ -15,6 +16,28 @@
           $(this).text(val);
         }
       });
+    }
+    //this function is for moving limits (LTS only)
+    function moveLimit(destination,streamName,objpath) {
+      if ((streamName == '_new_') || (destination != streamName[0])) {
+        var target;
+        if (destination == 'server') {
+          if (!settings.settings.config.limits) {
+            settings.settings.config.limits = [];
+          }
+          target = settings.settings.config.limits;
+        }
+        else {
+          destination = destination.replace('stream-','');
+          if (!settings.settings.streams[destination].limits) {
+            settings.settings.streams[destination].limits = [];
+          }
+          target = settings.settings.streams[destination].limits;
+        }
+        
+        eval('target.push(settings.'+objpath+');');
+        eval('delete settings.'+objpath+';');
+      }
     }
   </script>
 </head>

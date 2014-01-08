@@ -787,26 +787,7 @@ function showTab(tabName,streamName) {
             }
             if (applyInput() === false) { return; }
             
-            var destination = $('#limit-applies-to').val();
-            if ((streamName == '_new_') || (destination != streamName[0])) {
-              var target;
-              if (destination == 'server') {
-                if (!settings.settings.config.limits) {
-                  settings.settings.config.limits = [];
-                }
-                target = settings.settings.config.limits;
-              }
-              else {
-                destination = destination.replace('stream-','');
-                if (!settings.settings.streams[destination].limits) {
-                  settings.settings.streams[destination].limits = [];
-                }
-                target = settings.settings.streams[destination].limits;
-              }
-              
-              eval('target.push(settings.'+objpath+');');
-              eval('delete settings.'+objpath+';');
-            }
+            moveLimit($('#limit-applies-to').val(),streamName,objpath);
             
             saveAndReload('limits');
           })

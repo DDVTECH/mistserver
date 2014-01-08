@@ -695,6 +695,7 @@ function updateConversions() {
     for (var index in data.conversion.status) {
       $('#conversion-status-of-'+index).html(formatConversionStatus(data.conversion.status[index]))
     }
+    settings.settings.conversion = data.conversion;
   },{conversion: {status: true}});
 }
 function conversionDirQuery(query){

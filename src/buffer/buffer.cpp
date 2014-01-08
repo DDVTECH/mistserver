@@ -180,7 +180,6 @@ namespace Buffer {
           if ( !usr->S.Received().get().empty()){
             switch (usr->S.Received().get()[0]){
               case 'P': { //Push
-                std::cout << "Push attempt from IP " << usr->S.Received().get().substr(2) << std::endl;
                 if (thisStream->checkWaitingIP(usr->S.Received().get().substr(2))){
                   usr->S.Received().get().clear();
                   Socket::Connection tmp = usr->S;
@@ -326,7 +325,6 @@ namespace Buffer {
 
     // disconnect listener
     buffer_running = false;
-    std::cout << "Buffer shutting down" << std::endl;
     SS.close();
     delete thisStream;
     return 0;

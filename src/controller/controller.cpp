@@ -488,6 +488,11 @@ int main(int argc, char ** argv){
                 }
               }
             }
+            if (Request.isMember("ctrl_log") && Request["ctrl_log"].size() > 0){
+              for (JSON::ArrIter it = Request["ctrl_log"].ArrBegin(); it != Request["ctrl_log"].ArrEnd(); it++){
+                Controller::Log((*it)[0u], (*it)[1u]);
+              }
+            }
           }
         }
       }

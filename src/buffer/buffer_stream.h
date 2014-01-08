@@ -81,6 +81,8 @@ namespace Buffer {
       bool parsePacket(std::string & buffer);
       /// Thread-safe parsePacket override.
       bool parsePacket(Socket::Connection & c);
+      /// Logs a message to the controller.
+      void Log(std::string type, std::string message);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
   private:
       void deletionCallback(DTSC::livePos deleting);

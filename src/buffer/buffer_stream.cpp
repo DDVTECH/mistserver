@@ -6,6 +6,16 @@
 #include <stdlib.h>
 
 namespace Buffer {
+  
+  static JSON::Value ctrl_log;
+  
+  void Stream::Log(std::string type, std::string message){
+    JSON::Value l;
+    l.append(type);
+    l.append(message);
+    ctrl_log.append(l);
+  }
+  
   /// Stores the singleton reference.
   Stream * Stream::ref = 0;
 
@@ -71,6 +81,9 @@ namespace Buffer {
         oIt->second.removeMember("commentheader");
       }
     }
+
+    Storage["ctrl_log"] = ctrl_log;
+    ctrl_log.null();
     
     ret = Storage.toString();
     Storage["log"].null();
@@ -93,14 +106,14 @@ namespace Buffer {
       if (pass == waiting_ip.substr(1)){
         return true;
       }else{
-        std::cout << "Password '" << pass << "' incorrect" << std::endl;
+        Log("BUFF", "Push to stream " + name + " denied, incorrect password: "+pass);
         return false;
       }
     }else{
       if (ip == waiting_ip || ip == "::ffff:" + waiting_ip){
         return true;
       }else{
-        std::cout << ip << " != (::ffff:)" << waiting_ip << std::endl;
+        Log("BUFF", "Push to stream " + name + " denied, wrong IP: "+ip+" != (::ffff:)"+waiting_ip);
         return false;
       }
     }
@@ -199,7 +212,7 @@ namespace Buffer {
     for (it = metadata.tracks.begin(); it != metadata.tracks.end(); ++it){
       if ((it->first & (sockNo << 16)) == (sockNo << 16)){
         toDelete.insert(it->first);
-        std::cout << "Input lost, removing track: " << it->second.getIdentifier() << std::endl;
+        Log("BUFF", "Stream "+name+" lost input for track: "+ it->second.getIdentifier());
       }
     }
     while (toDelete.size()){

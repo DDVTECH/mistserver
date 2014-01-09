@@ -695,7 +695,7 @@ function updateConversions() {
     for (var index in data.conversion.status) {
       $('#conversion-status-of-'+index).html(formatConversionStatus(data.conversion.status[index]))
     }
-    settings.settings.conversion = data.conversion;
+    settings.settings.conversion.status = data.conversion.status;
   },{conversion: {status: true}});
 }
 function conversionDirQuery(query){
@@ -775,7 +775,11 @@ function conversionSelectInput(theFiles) {
     }
   });
   var $videocodec = $('<select>').attr('id',objpath+'-video-codec').addClass('isSetting');
-  var $audiocodec = $('<select>').attr('id',objpath+'-audio-codec').addClass('isSetting');
+  var $audiocodec = $('<select>').attr('id',objpath+'-audio-codec').addClass('isSetting').change(function(){
+    if ($(this).children(':selected').text().substr(0,4) == 'mp3 ') {
+      $('#settings-conversion-convert-_new_-audio-samplerate').val('44100');
+    }
+  });
   
   $('#conversion-details').html(
     $('<p>').text('Conversion settings for "'+index+'"')
@@ -797,11 +801,10 @@ function conversionSelectInput(theFiles) {
     $('<label>').text('Include video:').attr('for',objpath+'-video').append(
       $('<input>').attr('type','checkbox').attr('id',objpath+'-video').attr('checked','checked').change(function(){
         if (!$(this).is(':checked')) {
-          $('#video-settings-container').hide();
-          $('#video-settings-container').find('input,select').val('');
+          $('#video-settings-container').hide().find('input,select').val('').removeClass('isSetting');
         }
         else {
-          $('#video-settings-container').show();
+          $('#video-settings-container').show().find('input,select').addClass('isSetting');
         }
       })
     )
@@ -831,11 +834,10 @@ function conversionSelectInput(theFiles) {
     $('<label>').text('Include audio:').attr('for',objpath+'-audio').append(
       $('<input>').attr('type','checkbox').attr('id',objpath+'-audio').attr('checked','checked').change(function(){
         if (!$(this).is(':checked')) {
-          $('#audio-settings-container').hide();
-          $('#audio-settings-container').find('input,select').val('');
+          $('#audio-settings-container').hide().find('input,select').val('').removeClass('isSetting');
         }
         else {
-          $('#audio-settings-container').show();
+          $('#audio-settings-container').show().find('input,select').addClass('isSetting');
         }
       })
     )

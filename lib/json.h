@@ -104,13 +104,17 @@ namespace JSON {
       void null();
   };
 
-  Value fromDTMI2(std::string data);
+  Value fromDTMI2(std::string & data);
   Value fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i);
-  Value fromDTMI(std::string data);
+  Value fromDTMI(std::string & data);
   Value fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i);
   Value fromString(std::string json);
   Value fromFile(std::string filename);
-
+  void fromDTMI2(std::string & data, Value & ret);
+  void fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i, Value & ret);
+  void fromDTMI(std::string & data, Value & ret);
+  void fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i, Value & ret);
+  
   template <typename T>
   std::string encodeVector(T begin, T end){
     std::string result;

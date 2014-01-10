@@ -1006,16 +1006,29 @@ JSON::Value JSON::fromFile(std::string filename){
 /// \param i Current parsing position in the raw data (defaults to 0).
 /// \returns A single JSON::Value, parsed from the raw data.
 JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i){
+  JSON::Value ret;
+  fromDTMI(data, len, i, ret);
+  return ret;
+}
+
+/// Parses a single DTMI type - used recursively by the JSON::fromDTMI functions.
+/// This function updates i every call with the new position in the data.
+/// \param data The raw data to parse.
+/// \param len The size of the raw data.
+/// \param i Current parsing position in the raw data (defaults to 0).
+/// \param ret Will be set to JSON::Value, parsed from the raw data.
+void JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i, JSON::Value & ret){
 #if DEBUG >= 10
   fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
 #endif
+  ret.null();
   if (i >= len){
-    return JSON::Value();
+    return;
   }
   switch (data[i]){
     case 0x01: { //integer
       if (i+8 >= len){
-        return JSON::Value();
+        return;
       }
       unsigned char tmpdbl[8];
       tmpdbl[7] = data[i + 1];
@@ -1028,47 +1041,49 @@ JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigne
       tmpdbl[0] = data[i + 8];
       i += 9; //skip 8(an uint64_t)+1 forwards
       uint64_t * d = (uint64_t*)tmpdbl;
-      return JSON::Value((long long int) *d);
+      ret = (long long int) *d;
+      return;
       break;
     }
     case 0x02: { //string
       if (i+4 >= len){
-        return JSON::Value();
+        return;
       }
       unsigned int tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; //set tmpi to UTF-8-long length
       std::string tmpstr = std::string((const char *)data + i + 5, (size_t)tmpi); //set the string data
       if (i+4+tmpi >= len){
-        return JSON::Value();
+        return;
       }
       i += tmpi + 5; //skip length+size+1 forwards
-      return JSON::Value(tmpstr);
+      ret = tmpstr;
+      return;
       break;
     }
     case 0xFF: //also object
     case 0xE0: { //object
       ++i;
-      JSON::Value ret;
       while (data[i] + data[i + 1] != 0 && i < len){ //while not encountering 0x0000 (we assume 0x0000EE)
         if (i+2 >= len){
-          return JSON::Value();
+          return;
         }
         unsigned int tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
         std::string tmpstr = std::string((const char *)data + i + 2, (size_t)tmpi); //set the string data
         i += tmpi + 2; //skip length+size forwards
-        ret[tmpstr] = fromDTMI(data, len, i); //add content, recursively parsed, updating i, setting indice to tmpstr
+        ret[tmpstr].null();
+        fromDTMI(data, len, i, ret[tmpstr]); //add content, recursively parsed, updating i, setting indice to tmpstr
       }
       i += 3; //skip 0x0000EE
-      return ret;
+      return;
       break;
     }
     case 0x0A: { //array
-      JSON::Value ret;
       ++i;
       while (data[i] + data[i + 1] != 0 && i < len){ //while not encountering 0x0000 (we assume 0x0000EE)
-        ret.append(fromDTMI(data, len, i)); //add content, recursively parsed, updating i
+        ret.append(JSON::Value());
+        fromDTMI(data, len, i, *--ret.ArrEnd()); //add content, recursively parsed, updating i
       }
       i += 3; //skip 0x0000EE
-      return ret;
+      return;
       break;
     }
   }
@@ -1076,37 +1091,51 @@ JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigne
   fprintf(stderr, "Error: Unimplemented DTMI type %hhx, @ %i / %i - returning.\n", data[i], i, len);
 #endif
   i += 1;
-  return JSON::Value();
+  return;
 } //fromOneDTMI
 
 /// Parses a std::string to a valid JSON::Value.
 /// This function will find one DTMI object in the string and return it.
-JSON::Value JSON::fromDTMI(std::string data){
+void JSON::fromDTMI(std::string & data, JSON::Value & ret){
+  unsigned int i = 0;
+  return fromDTMI((const unsigned char*)data.c_str(), data.size(), i, ret);
+} //fromDTMI
+
+/// Parses a std::string to a valid JSON::Value.
+/// This function will find one DTMI object in the string and return it.
+JSON::Value JSON::fromDTMI(std::string & data){
   unsigned int i = 0;
   return fromDTMI((const unsigned char*)data.c_str(), data.size(), i);
 } //fromDTMI
 
-JSON::Value JSON::fromDTMI2(std::string data){
-  long long int tmpTrackID = ntohl(((int*)(data.c_str()))[0]);
-  JSON::Value tmp = fromDTMI(data.substr(12));
-  long long int tmpTime = ntohl(((int*)(data.c_str() + 4))[0]);
-  tmpTime <<= 32;
-  tmpTime += ntohl(((int*)(data.c_str() + 8))[0]);
-  tmp["time"] = tmpTime;
-  tmp["trackid"] = tmpTrackID;
-  return tmp;
+void JSON::fromDTMI2(std::string & data, JSON::Value & ret){
+  unsigned int i = 0;
+  fromDTMI2((const unsigned char*)data.c_str(), data.size(), i, ret);
+  return;
 }
 
-JSON::Value JSON::fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i){
-  JSON::Value tmp;
-  if (len < 13){return tmp;}
+JSON::Value JSON::fromDTMI2(std::string & data){
+  JSON::Value ret;
+  unsigned int i = 0;
+  fromDTMI2((const unsigned char*)data.c_str(), data.size(), i, ret);
+  return ret;
+}
+
+void JSON::fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i, JSON::Value & ret){
+  if (len < 13){return;}
   long long int tmpTrackID = ntohl(((int*)data)[0]);
   long long int tmpTime = ntohl(((int*)data)[1]);
   tmpTime <<= 32;
   tmpTime += ntohl(((int*)data)[2]);
   i += 12;
-  tmp = fromDTMI(data, len, i);
-  tmp["time"] = tmpTime;
-  tmp["trackid"] = tmpTrackID;
-  return tmp;
+  fromDTMI(data, len, i, ret);
+  ret["time"] = tmpTime;
+  ret["trackid"] = tmpTrackID;
+  return;
+}
+
+JSON::Value JSON::fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i){
+  JSON::Value ret;
+  fromDTMI2(data, len, i, ret);
+  return ret;
 }

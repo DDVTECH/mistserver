@@ -54,7 +54,8 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
         return false;
       }
       unsigned int i = 0;
-      JSON::Value meta = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
+      JSON::Value meta;
+      JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i, meta);
       metadata = Meta(meta);
       buffer.erase(0, len + 8);
       if (buffer.length() <= 8){
@@ -76,10 +77,10 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       JSON::Value newPack;
       unsigned int i = 0;
       if (version == 1){
-        newPack = JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i);
+        JSON::fromDTMI((unsigned char*)buffer.c_str() + 8, len, i, newPack);
       }
       if (version == 2){
-        newPack = JSON::fromDTMI2((unsigned char*)buffer.c_str() + 8, len, i);
+        JSON::fromDTMI2((unsigned char*)buffer.c_str() + 8, len, i, newPack);
       }
       buffer.erase(0, len + 8);
       addPacket(newPack);
@@ -123,7 +124,8 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       }
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
-      JSON::Value meta = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
+      JSON::Value meta;
+      JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i, meta);
       addMeta(meta);
       //recursively calls itself until failure or data packet instead of header
       return parsePacket(buffer);
@@ -144,10 +146,10 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       unsigned int i = 0;
       std::string wholepacket = buffer.remove(len + 8);
       if (version == 1){
-        newPack = JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i);
+        JSON::fromDTMI((unsigned char*)wholepacket.c_str() + 8, len, i, newPack);
       }
       if (version == 2){
-        newPack = JSON::fromDTMI2((unsigned char*)wholepacket.c_str() + 8, len, i);
+        JSON::fromDTMI2((unsigned char*)wholepacket.c_str() + 8, len, i, newPack);
       }
       addPacket(newPack);
       syncing = false;
@@ -626,7 +628,7 @@ void DTSC::File::readHeader(int pos){
       metadata = readOnlyMeta();
       return;
     }
-    metaStorage = JSON::fromDTMI(strbuffer);
+    JSON::fromDTMI(strbuffer, metaStorage);
     metadata = readOnlyMeta(metaStorage);//make readonly
   }
   //if there is another header, read it and replace metadata with that one.
@@ -720,9 +722,9 @@ void DTSC::File::seekNext(){
     return;
   }
   if (version == 2){
-    jsonbuffer = JSON::fromDTMI2(strbuffer);
+    JSON::fromDTMI2(strbuffer, jsonbuffer);
   }else{
-    jsonbuffer = JSON::fromDTMI(strbuffer);
+    JSON::fromDTMI(strbuffer, jsonbuffer);
   }
   if ( metadata.merged){
     int tempLoc = getBytePos();
@@ -799,7 +801,7 @@ void DTSC::File::parseNext(){
         jsonbuffer.null();
         return;
       }
-      jsonbuffer = JSON::fromDTMI(strbuffer);
+      JSON::fromDTMI(strbuffer, jsonbuffer);
     }
     return;
   }
@@ -832,9 +834,9 @@ void DTSC::File::parseNext(){
     return;
   }
   if (version == 2){
-    jsonbuffer = JSON::fromDTMI2(strbuffer);
+    JSON::fromDTMI2(strbuffer, jsonbuffer);
   }else{
-    jsonbuffer = JSON::fromDTMI(strbuffer);
+    JSON::fromDTMI(strbuffer, jsonbuffer);
   }
 }
 

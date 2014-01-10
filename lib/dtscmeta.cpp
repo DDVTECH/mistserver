@@ -155,23 +155,23 @@ namespace DTSC {
   }
 
   readOnlyTrack::readOnlyTrack(JSON::Value & trackRef){
-    if (trackRef.isMember("fragments")){
-      fragments = (Fragment*)trackRef["fragments"].asString().data();
-      fragLen = trackRef["fragments"].asString().size() / 11;
+    if (trackRef.isMember("fragments") && trackRef["fragments"].isString()){
+      fragments = (Fragment*)trackRef["fragments"].asStringRef().data();
+      fragLen = trackRef["fragments"].asStringRef().size() / 11;
     }else{
       fragments = 0;
       fragLen = 0;
     }
-    if (trackRef.isMember("keys")){
-      keys = (Key*)trackRef["keys"].asString().data();
-      keyLen = trackRef["keys"].asString().size() / 16;
+    if (trackRef.isMember("keys") && trackRef["keys"].isString()){
+      keys = (Key*)trackRef["keys"].asStringRef().data();
+      keyLen = trackRef["keys"].asStringRef().size() / 16;
     }else{
       keys = 0;
       keyLen = 0;
     }
-    if (trackRef.isMember("parts")){
-      parts = (Part*)trackRef["parts"].asString().data();
-      partLen = trackRef["parts"].asString().size() / 9;
+    if (trackRef.isMember("parts") && trackRef["parts"].isString()){
+      parts = (Part*)trackRef["parts"].asStringRef().data();
+      partLen = trackRef["parts"].asStringRef().size() / 9;
     }else{
       parts = 0;
       partLen = 0;
@@ -181,9 +181,9 @@ namespace DTSC {
     lastms = trackRef["lastms"].asInt();
     bps = trackRef["bps"].asInt();
     missedFrags = trackRef["missed_frags"].asInt();
-    codec = trackRef["codec"].asString();
-    type = trackRef["type"].asString();
-    init = trackRef["init"].asString();
+    codec = trackRef["codec"].asStringRef();
+    type = trackRef["type"].asStringRef();
+    init = trackRef["init"].asStringRef();
     if (type == "audio"){
       rate = trackRef["rate"].asInt();
       size = trackRef["size"].asInt();
@@ -195,8 +195,8 @@ namespace DTSC {
       fpks = trackRef["fpks"].asInt();
     }
     if (codec == "vorbis" || codec == "theora"){
-      idHeader = trackRef["idheader"].asString();
-      commentHeader = trackRef["commentheader"].asString();
+      idHeader = trackRef["idheader"].asStringRef();
+      commentHeader = trackRef["commentheader"].asStringRef();
     }
   }
 
@@ -232,25 +232,25 @@ namespace DTSC {
 
   Track::Track(JSON::Value & trackRef){
     if (trackRef.isMember("fragments") && trackRef["fragments"].isString()){
-      Fragment* tmp = (Fragment*)trackRef["fragments"].asString().data();
-      fragments = std::deque<Fragment>(tmp, tmp + (trackRef["fragments"].asString().size() / 11));
+      Fragment* tmp = (Fragment*)trackRef["fragments"].asStringRef().data();
+      fragments = std::deque<Fragment>(tmp, tmp + (trackRef["fragments"].asStringRef().size() / 11));
     }
     if (trackRef.isMember("keys") && trackRef["keys"].isString()){
-      Key* tmp = (Key*)trackRef["keys"].asString().data();
-      keys = std::deque<Key>(tmp, tmp + (trackRef["keys"].asString().size() / 16));
+      Key* tmp = (Key*)trackRef["keys"].asStringRef().data();
+      keys = std::deque<Key>(tmp, tmp + (trackRef["keys"].asStringRef().size() / 16));
     }
     if (trackRef.isMember("parts") && trackRef["parts"].isString()){
-      Part* tmp = (Part*)trackRef["parts"].asString().data();
-      parts = std::deque<Part>(tmp,tmp + (trackRef["parts"].asString().size() / 9));
+      Part* tmp = (Part*)trackRef["parts"].asStringRef().data();
+      parts = std::deque<Part>(tmp,tmp + (trackRef["parts"].asStringRef().size() / 9));
     }
     trackID = trackRef["trackid"].asInt();
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
     bps = trackRef["bps"].asInt();
     missedFrags = trackRef["missed_frags"].asInt();
-    codec = trackRef["codec"].asString();
-    type = trackRef["type"].asString();
-    init = trackRef["init"].asString();
+    codec = trackRef["codec"].asStringRef();
+    type = trackRef["type"].asStringRef();
+    init = trackRef["init"].asStringRef();
     if (type == "audio"){
       rate = trackRef["rate"].asInt();
       size = trackRef["size"].asInt();
@@ -262,8 +262,8 @@ namespace DTSC {
       fpks = trackRef["fpks"].asInt();
     }
     if (codec == "vorbis" || codec == "theora"){
-      idHeader = trackRef["idheader"].asString();
-      commentHeader = trackRef["commentheader"].asString();
+      idHeader = trackRef["idheader"].asStringRef();
+      commentHeader = trackRef["commentheader"].asStringRef();
     }
   }
 
@@ -273,7 +273,7 @@ namespace DTSC {
       return;
     }
     Part newPart;
-    newPart.setSize(pack["data"].asString().size());
+    newPart.setSize(pack["data"].asStringRef().size());
     newPart.setOffset(pack["offset"].asInt());
     if (parts.size()){
       parts[parts.size()-1].setDuration(pack["time"].asInt() - lastms);
@@ -322,7 +322,7 @@ namespace DTSC {
       }
     }
     keys.rbegin()->setParts(keys.rbegin()->getParts() + 1);
-    fragments.rbegin()->setSize(fragments.rbegin()->getSize() + pack["data"].asString().size());
+    fragments.rbegin()->setSize(fragments.rbegin()->getSize() + pack["data"].asStringRef().size());
   }
 
   Key & Track::getKey(unsigned int keyNum){

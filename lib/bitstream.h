@@ -48,7 +48,7 @@ namespace Utils{
       std::string data;
     private:
       long long unsigned int readBuffer;
-      int readBufferOffset;
+      unsigned int readBufferOffset;
       void fixData();
   };
 }

@@ -27,18 +27,8 @@ namespace Controller {
     std::map<long long, std::string>::iterator iter;
     for (iter = currentConnectors.begin(); iter != currentConnectors.end(); iter++){
       if (iter->second.substr(0, protocol.size()) == protocol){
-        Log("CONF", "Restarting connector for update: " + iter->second);
+        Log("CONF", "Killing connector for update: " + iter->second);
         Util::Procs::Stop(toConn(iter->first));
-        int i = 0;
-        while (Util::Procs::isActive(toConn(iter->first)) && i < 30){
-          Util::sleep(100);
-        }
-        if (i >= 30){
-          Log("WARN", "Connector still active 3 seconds after shutdown - delaying restart.");
-        }else{
-          Util::Procs::Start(toConn(iter->first), Util::getMyPath() + iter->second);
-        }
-        return;
       }
     }
   }

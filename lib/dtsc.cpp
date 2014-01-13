@@ -180,24 +180,35 @@ void DTSC::Stream::endStream(){
 
 /// Blocks until either the stream has metadata available or the sourceSocket errors.
 /// This function is intended to be run before any commands are sent and thus will not throw away anything important.
+/// It will time out after 5 seconds, disconnecting the sourceSocket.
 void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket){
-  while ( !metadata && sourceSocket.connected()){
+  //cancel the attempt after 5000 milliseconds
+  long long int start = Util::getMS();
+  while ( !metadata && sourceSocket.connected() && Util::getMS() - start < 5000){
     //we have data? attempt to read header
     if (sourceSocket.Received().size()){
-      //return value is ignore because we're not interested in data packets, just metadata.
+      //return value is ignored because we're not interested in data packets, just metadata.
       parsePacket(sourceSocket.Received());
     }
     //still no header? check for more data
     if ( !metadata){
       if (sourceSocket.spool()){
         //more received? attempt to read
-        //return value is ignore because we're not interested in data packets, just metadata.
+        //return value is ignored because we're not interested in data packets, just metadata.
         parsePacket(sourceSocket.Received());
       }else{
         //nothing extra to receive? wait a bit and retry
         Util::sleep(5);
       }
     }
+  }
+  //if the timeout has passed, close the socket
+  if (Util::getMS() - start >= 5000){
+    sourceSocket.close();
+    //and optionally print a debug message that this happened
+    #if DEBUG >= 4
+    fprintf(stderr, "Timed out while waiting for metadata\n");
+    #endif
   }
 }
 

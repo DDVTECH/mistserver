@@ -37,11 +37,12 @@ namespace Controller {
   ///\brief Write contents to Filename
   ///\param Filename The full path of the file to write to.
   ///\param contents The data to be written to the file.
-  void WriteFile(std::string Filename, std::string contents){
+  bool WriteFile(std::string Filename, std::string contents){
     std::ofstream File;
     File.open(Filename.c_str());
     File << contents << std::endl;
     File.close();
+    return File.good();
   }
 
 }

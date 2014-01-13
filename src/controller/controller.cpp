@@ -600,8 +600,11 @@ int main(int argc, char ** argv){
                     }
                   }
                   if (Request.isMember("save")){
-                    Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString());
-                    Controller::Log("CONF", "Config written to file on request through API");
+                    if( Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString())){
+                      Controller::Log("CONF", "Config written to file on request through API");
+                    }else{
+                      Controller::Log("ERROR", "Config " + conf.getString("configFile") + " could not be written");
+                    }
                   }
                   //sent current configuration, no matter if it was changed or not
                   //Response["streams"] = Storage["streams"];
@@ -648,7 +651,16 @@ int main(int argc, char ** argv){
   }
   API_Socket.close();
   Controller::Log("CONF", "Controller shutting down");
-  Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString());
+  if ( !Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString())){
+    std::cerr << "Error writing config " << conf.getString("configFile") << std::endl;
+    Controller::Storage.removeMember("log");
+    for (JSON::ObjIter it = Controller::Storage["streams"].ObjBegin(); it != Controller::Storage["streams"].ObjEnd(); it++){
+      it->second.removeMember("meta");
+    }
+    std::cerr << "**Config**" << std::endl;
+    std::cerr << Controller::Storage.toString() << std::endl;
+    std::cerr << "**End config**" << std::endl;
+  }
   Util::Procs::StopAll();
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
   return 0;

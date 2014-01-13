@@ -9,6 +9,6 @@ namespace Controller {
   void Log(std::string kind, std::string message);
 
   /// Write contents to Filename.
-  void WriteFile(std::string Filename, std::string contents);
+  bool WriteFile(std::string Filename, std::string contents);
 
 }

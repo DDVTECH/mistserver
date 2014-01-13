@@ -65,7 +65,7 @@ MistConnHTTPProgressiveMP4: src/connectors/conn_http_progressive_mp4.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 connectors: MistConnHTTPProgressiveOGG
-MistConnHTTPProgressiveOGG: src/connectors/conn_http_progressive_ogg.cpp
+MistConnHTTPProgressiveOGG: src/connectors/conn_http_progressive_ogg.cpp  src/converters/oggconv.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 connectors: MistConnHTTPDynamic
@@ -133,7 +133,7 @@ MistOGG2DTSC: src/converters/ogg2dtsc.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 converters: MistDTSC2OGG
-MistDTSC2OGG: src/converters/dtsc2ogg.cpp
+MistDTSC2OGG: src/converters/dtsc2ogg.cpp src/converters/oggconv.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 converters: MistDTSCFix

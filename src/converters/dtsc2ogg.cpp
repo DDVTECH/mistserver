@@ -17,7 +17,6 @@ namespace Converters{
     DTSC::File DTSCFile(conf.getString("filename"));
     srand (Util::getMS());//randomising with milliseconds from boot
     std::vector<unsigned int> curSegTable;
-    char* curNewPayload;
     OGG::converter oggMeta;
     //Creating ID headers for theora and vorbis
     DTSC::readOnlyMeta fileMeta = DTSCFile.getMeta();
@@ -29,20 +28,12 @@ namespace Converters{
     //create DTSC in OGG pages
     DTSCFile.parseNext();
     std::map< long long int, std::vector<JSON::Value> > DTSCBuffer;
-    long long unsigned int prevGran;
     long long int currID;
-    long long unsigned int currGran;
     OGG::Page curOggPage;
     
 
     while(DTSCFile.getJSON()){
       currID = DTSCFile.getJSON()["trackid"].asInt();
-      currGran = DTSCFile.getJSON()["granule"].asInt();
-      if (DTSCBuffer.count(currID) && !DTSCBuffer[currID].empty()){
-        prevGran = DTSCBuffer[currID][0]["granule"].asInt();
-      }else{
-        prevGran = 0;
-      }
       if (!DTSCBuffer[currID].empty()){
         std::cout << oggMeta.readDTSCVector(DTSCBuffer[currID]);
         DTSCBuffer[currID].clear();

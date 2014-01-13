@@ -92,7 +92,7 @@ namespace OGG{
     for (unsigned int i = 0; i < DTSCVec.size(); i++){
       OGG::Page tempPage;
       tempPage.setSegmentTable(curSegTable);
-      if (DTSCVec[i]["data"].asString().size() >= (255-tempPage.getPageSegments())*255){//if segment is too big
+      if (DTSCVec[i]["data"].asString().size() >= (255-tempPage.getPageSegments())*255u){//if segment is too big
         //Put page in Buffer and start next page
         if (!curSegTable.empty()){
           //output page
@@ -112,13 +112,12 @@ namespace OGG{
           dataBuffer = "";
         }
         std::string remainingData = DTSCVec[i]["data"].asString();
-        bool firstLoop;
         typeFlag = 0;
         while (remainingData.size() > 255*255){
           //output part of the segment
           //granule -1
           curSegTable.clear();
-          curSegTable.push_back(255*255);///\TODO optimise this
+          curSegTable.push_back(255*255);
           retVal.clear();
           retVal.setVersion();
           retVal.setHeaderType(typeFlag);//normal Page

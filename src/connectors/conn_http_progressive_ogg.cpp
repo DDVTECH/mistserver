@@ -45,13 +45,9 @@ namespace Connector_HTTP {
     //std::map <long long unsigned int, long long unsigned int> prevGran;
     std::vector<unsigned int> curSegTable;
     long long int currID = 0;
-    long long int currGran = 0;
-    long long int prevGran = 0;
     std::string sendBuffer;
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.
-    unsigned int seek_sec = 0;//Seek position in ms
-    unsigned int seek_byte = 0;//Seek position in bytes
     
     int videoID = -1;
     int audioID = -1;
@@ -66,28 +62,6 @@ namespace Connector_HTTP {
 #endif
             conn.setHost(HTTP_R.GetHeader("X-Origin"));
             streamname = HTTP_R.GetHeader("X-Stream");
-            int start = 0;
-            if ( !HTTP_R.GetVar("start").empty()){
-              start = atoi(HTTP_R.GetVar("start").c_str());
-            }
-            if ( !HTTP_R.GetVar("starttime").empty()){
-              start = atoi(HTTP_R.GetVar("starttime").c_str());
-            }
-            if ( !HTTP_R.GetVar("apstart").empty()){
-              start = atoi(HTTP_R.GetVar("apstart").c_str());
-            }
-            if ( !HTTP_R.GetVar("ec_seek").empty()){
-              start = atoi(HTTP_R.GetVar("ec_seek").c_str());
-            }
-            if ( !HTTP_R.GetVar("fs").empty()){
-              start = atoi(HTTP_R.GetVar("fs").c_str());
-            }
-            //under 3 hours we assume seconds, otherwise byte position
-            if (start < 10800){
-              seek_sec = start * 1000; //ms, not s
-            }else{
-              seek_byte = start; //divide by 1mbit, then *1000 for ms.
-            }
             ready4data = true;
             HTTP_R.Clean(); //clean for any possible next requests
           }
@@ -109,7 +83,6 @@ namespace Connector_HTTP {
             continue;
           }
           Strm.waitForMeta(ss);
-          int byterate = 0;
           for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
             if (videoID == -1 && it->second.codec == "theora"){
               videoID = it->second.trackID;
@@ -117,16 +90,6 @@ namespace Connector_HTTP {
             if (audioID == -1 && it->second.codec == "vorbis"){
               audioID = it->second.trackID;
             }
-          }
-          if (videoID != -1){
-            byterate += Strm.metadata.tracks[videoID].bps;
-          }
-          if (audioID != -1){
-            byterate += Strm.metadata.tracks[audioID].bps;
-          }
-          if ( !byterate){byterate = 1;}
-          if (seek_byte){
-            seek_sec = (seek_byte / byterate) * 1000;
           }
           if (videoID == -1 && audioID == -1){
             HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers

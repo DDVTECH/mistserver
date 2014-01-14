@@ -529,14 +529,20 @@ namespace Connector_HTTP {
         Socket::Connection * myConn = myCConn->conn;
         myCConn->conn = new Socket::Connection();
         myCConn->inUse.unlock();
+        long long int last_data_time = Util::getMS();
         //continue sending data from this socket and keep it permanently in use
         while (myConn->connected() && conn->connected()){
           if (myConn->Received().size() || myConn->spool()){
             //forward any and all incoming data directly without parsing
             conn->SendNow(myConn->Received().get());
             myConn->Received().get().clear();
+            last_data_time = Util::getMS();
           }else{
             Util::sleep(30);
+            //if no data for 5000ms, cancel the connection
+            if (Util::getMS() - last_data_time > 5000){
+              break;
+            }
           }
         }
         myConn->close();

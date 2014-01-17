@@ -749,9 +749,9 @@ function showTab(tabName,streamName) {
         ).append(
           $('<label>').text('Type:').attr('for','limit-type').append(
             $('<select>').attr('id','limit-type').attr('objpath',objpath+'.type').addClass('isSetting').html(
-              $('<option>').value('soft').text('Soft')
+              $('<option>').val('soft').text('Soft')
             ).append(
-              $('<option>').value('hard').text('Hard')
+              $('<option>').val('hard').text('Hard')
             )
           )
         ).append(

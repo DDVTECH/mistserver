@@ -30,7 +30,7 @@ The makefile will listen to the following variables:
   includedir       Directory to install headers to. Defaults to $(prefix)/include
   libdir           Directory to install libraries to. Defaults to $(exec_prefix)/lib
   DESTDIR          Global prefix that will be put in front of any and all other file paths.
-  CPPFLAGS         Flags for compiling object files. Defaults to -Wall -g -O2 -fPIC -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
+  CPPFLAGS         Flags for compiling object files. Defaults to -Wall -g -O2 -fPIC
   LDLIBS           Libraries to include. Defaults to -lcrypto
 
 Use "make var1=val1 var2=val2" to set these. For example:

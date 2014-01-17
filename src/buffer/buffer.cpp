@@ -55,13 +55,16 @@ namespace Buffer {
   ///\brief A function to handle input data.
   ///\param conn A socket reference.
   void handlePushIn(Socket::Connection & conn){
-    #if defined(_TTHREAD_POSIX_) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
+    #if defined(_TTHREAD_POSIX_) && defined(WITH_THREADNAMES) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
     pthread_setname_np(pthread_self(), "Push Input");
     #endif
     conn.setBlocking(true);
     int sockNo = 0;
     while (buffer_running && conn.connected()){
-      thisStream->parsePacket(conn);
+      while (thisStream->parsePacket(conn)){
+        //do nothing while parsing
+      }
+      Util::sleep(10);//sleep to prevent high CPU usage
     }
     if (buffer_running){
       thisStream->endStream();

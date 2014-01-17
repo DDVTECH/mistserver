@@ -27,7 +27,7 @@ namespace Buffer {
   ///\brief A function running in a thread to send all statistics.
   ///\param empty A null pointer.
   void handleStats(void * empty){
-#if defined(_TTHREAD_POSIX_) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
+#if defined(_TTHREAD_POSIX_) && defined(WITH_THREADNAMES) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
     pthread_setname_np(pthread_self(), "StatsHandler");
 #endif
     if (empty != 0){
@@ -83,7 +83,7 @@ namespace Buffer {
     if (empty != 0){
       return;
     }
-    #if defined(_TTHREAD_POSIX_) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
+    #if defined(_TTHREAD_POSIX_) && defined(WITH_THREADNAMES) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
     pthread_setname_np(pthread_self(), "Standard Input");
     #endif
     long long int timeDiff = 0; //difference between local time and stream time
@@ -123,7 +123,7 @@ namespace Buffer {
 #if DEBUG >= 5
     std::cerr << "Thread launched for user " << usr->sID << ", socket number " << usr->S.getSocket() << std::endl;
 #endif
-#if defined(_TTHREAD_POSIX_) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
+#if defined(_TTHREAD_POSIX_) && defined(WITH_THREADNAMES) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
     pthread_setname_np(pthread_self(), usr->sID.c_str());
 #endif
     usr->myRing = thisStream->getRing();
@@ -292,7 +292,7 @@ namespace Buffer {
     }
     SS.setBlocking(false);
     conf.activate();
-    #if defined(_TTHREAD_POSIX_) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
+    #if defined(_TTHREAD_POSIX_) && defined(WITH_THREADNAMES) && !(defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__) || defined(_WIN32) || defined(__CYGWIN__))
     pthread_setname_np(pthread_self(), "Main accepter");
     #endif
     thisStream = Stream::get();

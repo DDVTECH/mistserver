@@ -31,8 +31,10 @@ The makefile will listen to the following variables:
   exec_prefix      Prefix to install object code and binaries to. Defaults to $(prefix)
   bindir           Directory to install binaries to. Defaults to $(exec_prefix)/bin
   DESTDIR          Global prefix that will be put in front of any and all other file paths.
-  CPPFLAGS         Flags for compiling object files. Defaults to -Wall -g -O2 -fPIC -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
-  LDLIBS           Libraries to include. Defaults to -lmist, adding -lpthread for some binaries.
+  CPPFLAGS         Flags for compiling object files. Defaults to -Wall -g -O2
+  LDLIBS           Libraries to include. Defaults to -lmist
+  THREADLIB        Libraries to include for threaded binaries. Defaults to -lpthread
+  WITH_THREADNAMES If set, this will set names of threads in threaded binaries. Defaults to being unset.
 
 Use "make var1=val1 var2=val2" to set these. For example:
   make install DEBUG=0 prefix=/usr/local

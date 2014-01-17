@@ -10,8 +10,14 @@ ifeq ($(PACKAGE_VERSION),Unknown)
   $(warning Version is unknown - consider creating a VERSION file or fixing your git setup.)
 endif
 
-CPPFLAGS = -Wall -funsigned-char -g -O2 -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\"" -DRELEASE="\"$(RELEASE)\""
+CPPFLAGS = -Wall -g -O2
+override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\"" -DRELEASE="\"$(RELEASE)\""
 
+ifdef WITH_THREADNAMES
+override CPPFLAGS += -DWITH_THREADNAMES=1
+endif
+
+THREADLIB = -lpthread
 LDLIBS = -lmist
 
 
@@ -35,7 +41,7 @@ MistPlayer: src/buffer/player.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 buffers: MistBuffer
-MistBuffer: LDLIBS += -lpthread
+MistBuffer: override LDLIBS += $(THREADLIB)
 MistBuffer: src/buffer/buffer.cpp src/buffer/buffer_stream.h src/buffer/buffer_stream.cpp tinythread.o tinythread.h
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) src/buffer/buffer.cpp src/buffer/buffer_stream.cpp tinythread.o $(LDLIBS) -o $@
 
@@ -48,7 +54,7 @@ MistConnRTMP: src/connectors/conn_rtmp.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 connectors: MistConnHTTP
-MistConnHTTP: LDLIBS += -lpthread
+MistConnHTTP: override LDLIBS += $(THREADLIB)
 MistConnHTTP: src/connectors/conn_http.cpp tinythread.o tinythread.h src/connectors/embed.js.h src/connectors/icon.h
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) src/connectors/conn_http.cpp tinythread.o $(LDLIBS) -o $@
 

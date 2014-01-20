@@ -80,105 +80,102 @@ namespace OGG{
     }
   }
   
-  std::string converter::readDTSCVector(std::vector <JSON::Value> DTSCVec){
+  void converter::readDTSCVector(JSON::Value & DTSCPart, std::string & pageBuffer){
     Page retVal;
     int typeFlag = 0;//flag to remember if the page has a continued segment
-    std::string pageBuffer = "";
-    long long int DTSCID = DTSCVec[0]["trackid"].asInt();
+    long long int DTSCID = DTSCPart["trackid"].asInt();
     std::vector<unsigned int> curSegTable;
     std::string dataBuffer;
     long long unsigned int lastGran = 0;
 
-    for (unsigned int i = 0; i < DTSCVec.size(); i++){
-      OGG::Page tempPage;
-      tempPage.setSegmentTable(curSegTable);
-      if (DTSCVec[i]["data"].asString().size() >= (255-tempPage.getPageSegments())*255u){//if segment is too big
-        //Put page in Buffer and start next page
-        if (!curSegTable.empty()){
-          //output page
-          retVal.clear();
-          retVal.setVersion();
-          retVal.setHeaderType(typeFlag);//headertype 0 = normal
-          retVal.setGranulePosition(lastGran);
-          retVal.setBitstreamSerialNumber(trackInf[DTSCID].OGGSerial);
-          retVal.setPageSequenceNumber(trackInf[DTSCID].seqNum);
-          retVal.setSegmentTable(curSegTable);
-          retVal.setPayload((char*)dataBuffer.c_str(), dataBuffer.size());
-          retVal.setCRCChecksum(retVal.calcChecksum());
-          trackInf[DTSCID].seqNum++;
-          pageBuffer += std::string((char*)retVal.getPage(), retVal.getPageSize());
-          
-          curSegTable.clear();
-          dataBuffer = "";
-        }
-        std::string remainingData = DTSCVec[i]["data"].asString();
-        typeFlag = 0;
-        while (remainingData.size() > 255*255){
-          //output part of the segment
-          //granule -1
-          curSegTable.clear();
-          curSegTable.push_back(255*255);
-          retVal.clear();
-          retVal.setVersion();
-          retVal.setHeaderType(typeFlag);//normal Page
-          retVal.setGranulePosition(-1);
-          retVal.setBitstreamSerialNumber(trackInf[DTSCID].OGGSerial);
-          retVal.setPageSequenceNumber(trackInf[DTSCID].seqNum);
-          retVal.setSegmentTable(curSegTable);
-          retVal.setPayload((char*)remainingData.substr(0,255*255).c_str(), 255*255);
-          retVal.setCRCChecksum(retVal.calcChecksum());
-          trackInf[DTSCID].seqNum++;
-          pageBuffer += std::string((char*)retVal.getPage(), retVal.getPageSize());
-          remainingData = remainingData.substr(255*255);
-          typeFlag = 1;//1 = continued page
-        }
-        //output last remaining data
+    //for (unsigned int i = 0; i < DTSCVec.size(); i++){
+    OGG::Page tempPage;
+    tempPage.setSegmentTable(curSegTable);
+    if (DTSCPart["data"].asString().size() >= (255-tempPage.getPageSegments())*255u){//if segment is too big
+      //Put page in Buffer and start next page
+      if (!curSegTable.empty()){
+        //output page
+        retVal.clear();
+        retVal.setVersion();
+        retVal.setHeaderType(typeFlag);//headertype 0 = normal
+        retVal.setGranulePosition(lastGran);
+        retVal.setBitstreamSerialNumber(trackInf[DTSCID].OGGSerial);
+        retVal.setPageSequenceNumber(trackInf[DTSCID].seqNum);
+        retVal.setSegmentTable(curSegTable);
+        retVal.setPayload((char*)dataBuffer.c_str(), dataBuffer.size());
+        retVal.setCRCChecksum(retVal.calcChecksum());
+        trackInf[DTSCID].seqNum++;
+        pageBuffer += std::string((char*)retVal.getPage(), retVal.getPageSize());
+        
         curSegTable.clear();
-        curSegTable.push_back(remainingData.size());
-        dataBuffer += remainingData;
-      }else{//build data for page
-        curSegTable.push_back(DTSCVec[i]["data"].asString().size());
-        dataBuffer += DTSCVec[i]["data"].asString();
+        dataBuffer = "";
       }
-      //lastGran = calcGranule(DTSCID, DTSCVec[i]["keyframe"].asBool());
-      //calculating granule position
-      if (trackInf[DTSCID].codec == "theora"){
-        if (DTSCVec[i]["keyframe"].asBool()){
-          trackInf[DTSCID].lastKeyFrame += trackInf[DTSCID].sinceKeyFrame + 1;
-          trackInf[DTSCID].sinceKeyFrame = 0;
-        }else{
-          trackInf[DTSCID].sinceKeyFrame ++;
-        }
-        lastGran = (trackInf[DTSCID].lastKeyFrame << trackInf[DTSCID].significantValue) + trackInf[DTSCID].sinceKeyFrame;
-      } else if (trackInf[DTSCID].codec == "vorbis"){
-        //decode DTSCVec[i]["data"].asString() for mode index
-        Utils::bitstreamLSBF packet;
-        packet.append(DTSCVec[i]["data"].asString());
-        //calculate amount of samples associated with that block (from ID header)
-        //check mode block in deque for index
-        int curPCMSamples = 0;
-        if (packet.get(1) == 0){
-          int tempModes = vorbis::ilog(trackInf[DTSCID].vorbisModes.size()-1);
-          int tempPacket = packet.get(tempModes);
-          int curBlockFlag = trackInf[DTSCID].vorbisModes[tempPacket].blockFlag;
-          curPCMSamples = (1 << trackInf[DTSCID].blockSize[curBlockFlag]);
-          if (trackInf[DTSCID].prevBlockFlag!= -1){
-            if (curBlockFlag == trackInf[DTSCID].prevBlockFlag){
-              curPCMSamples /= 2;
-            }else{
-              curPCMSamples -= (1 << trackInf[DTSCID].blockSize[0]) / 4 + (1 << trackInf[DTSCID].blockSize[1]) / 4;
-            }
-          }
-          trackInf[DTSCID].sinceKeyFrame = (1 << trackInf[DTSCID].blockSize[curBlockFlag]);
-          trackInf[DTSCID].prevBlockFlag = curBlockFlag;
-        }else{
-          std::cerr << "Error, Vorbis packet type !=0" << std::endl;
-        }
-        //add to granule position
-        trackInf[DTSCID].lastKeyFrame += curPCMSamples;
-        lastGran  = trackInf[DTSCID].lastKeyFrame;
+      std::string remainingData = DTSCPart["data"].asString();
+      typeFlag = 0;
+      while (remainingData.size() > 255*255){
+        //output part of the segment
+        //granule -1
+        curSegTable.clear();
+        curSegTable.push_back(255*255);
+        retVal.clear();
+        retVal.setVersion();
+        retVal.setHeaderType(typeFlag);//normal Page
+        retVal.setGranulePosition(-1);
+        retVal.setBitstreamSerialNumber(trackInf[DTSCID].OGGSerial);
+        retVal.setPageSequenceNumber(trackInf[DTSCID].seqNum);
+        retVal.setSegmentTable(curSegTable);
+        retVal.setPayload((char*)remainingData.substr(0,255*255).c_str(), 255*255);
+        retVal.setCRCChecksum(retVal.calcChecksum());
+        trackInf[DTSCID].seqNum++;
+        pageBuffer += std::string((char*)retVal.getPage(), retVal.getPageSize());
+        remainingData = remainingData.substr(255*255);
+        typeFlag = 1;//1 = continued page
       }
+      //output last remaining data
+      curSegTable.clear();
+      curSegTable.push_back(remainingData.size());
+      dataBuffer += remainingData;
+    }else{//build data for page
+      curSegTable.push_back(DTSCPart["data"].asString().size());
+      dataBuffer += DTSCPart["data"].asString();
     }
+    //calculating granule position
+    if (trackInf[DTSCID].codec == "theora"){
+      if (DTSCPart["keyframe"].asBool()){
+        trackInf[DTSCID].lastKeyFrame += trackInf[DTSCID].sinceKeyFrame + 1;
+        trackInf[DTSCID].sinceKeyFrame = 0;
+      }else{
+        trackInf[DTSCID].sinceKeyFrame ++;
+      }
+      lastGran = (trackInf[DTSCID].lastKeyFrame << trackInf[DTSCID].significantValue) + trackInf[DTSCID].sinceKeyFrame;
+    } else if (trackInf[DTSCID].codec == "vorbis"){
+      Utils::bitstreamLSBF packet;
+      packet.append(DTSCPart["data"].asString());
+      //calculate amount of samples associated with that block (from ID header)
+      //check mode block in deque for index
+      int curPCMSamples = 0;
+      if (packet.get(1) == 0){
+        int tempModes = vorbis::ilog(trackInf[DTSCID].vorbisModes.size()-1);
+        int tempPacket = packet.get(tempModes);
+        int curBlockFlag = trackInf[DTSCID].vorbisModes[tempPacket].blockFlag;
+        curPCMSamples = (1 << trackInf[DTSCID].blockSize[curBlockFlag]);
+        if (trackInf[DTSCID].prevBlockFlag!= -1){
+          if (curBlockFlag == trackInf[DTSCID].prevBlockFlag){
+            curPCMSamples /= 2;
+          }else{
+            curPCMSamples -= (1 << trackInf[DTSCID].blockSize[0]) / 4 + (1 << trackInf[DTSCID].blockSize[1]) / 4;
+          }
+        }
+        trackInf[DTSCID].sinceKeyFrame = (1 << trackInf[DTSCID].blockSize[curBlockFlag]);
+        trackInf[DTSCID].prevBlockFlag = curBlockFlag;
+      }else{
+        std::cerr << "Error, Vorbis packet type !=0" << std::endl;
+      }
+      //add to granule position
+      trackInf[DTSCID].lastKeyFrame += curPCMSamples;
+      lastGran  = trackInf[DTSCID].lastKeyFrame;
+    }
+    //}
     //last parts of page put out 
     if (!curSegTable.empty()){
       retVal.clear();
@@ -193,6 +190,5 @@ namespace OGG{
       trackInf[DTSCID].seqNum++;
       pageBuffer += std::string((char*)retVal.getPage(), retVal.getPageSize());
     }
-    return pageBuffer;
   }
 }

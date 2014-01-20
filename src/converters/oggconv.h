@@ -19,7 +19,7 @@ namespace OGG {
   class converter{
     public:
       void readDTSCHeader(DTSC::Meta & meta);
-      std::string readDTSCVector(std::vector <JSON::Value> DTSCVec);
+      void readDTSCVector(JSON::Value & DTSCPart, std::string & pageBuffer);
       std::string parsedPages;
     private:
       std::map <long long unsigned int, trackStats> trackInf;

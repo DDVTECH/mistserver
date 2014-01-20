@@ -33,21 +33,23 @@ namespace Converters{
     
 
     while(DTSCFile.getJSON()){
-      currID = DTSCFile.getJSON()["trackid"].asInt();
-      if (!DTSCBuffer[currID].empty()){
-        std::cout << oggMeta.readDTSCVector(DTSCBuffer[currID]);
-        DTSCBuffer[currID].clear();
-      }
-      DTSCBuffer[currID].push_back(DTSCFile.getJSON());
+      //currID = DTSCFile.getJSON()["trackid"].asInt();
+      //if (!DTSCBuffer[currID].empty()){
+      std::string tmpString;
+      oggMeta.readDTSCVector(DTSCFile.getJSON(), tmpString);
+      std::cout << tmpString;
+      //DTSCBuffer[currID].clear();
+      //}
+      //DTSCBuffer[currID].push_back(DTSCFile.getJSON());
 
       DTSCFile.parseNext();
     }
     //outputting end of stream pages
-    for (std::map< long long int, std::vector<JSON::Value> >::iterator it = DTSCBuffer.begin(); it != DTSCBuffer.end(); it++){
-      if (!DTSCBuffer[it->first].empty() && DTSCBuffer[it->first][0]["data"].asString() != ""){
-        std::cout << oggMeta.readDTSCVector(DTSCBuffer[it->first]);
-      }
-    }
+    //for (std::map< long long int, std::vector<JSON::Value> >::iterator it = DTSCBuffer.begin(); it != DTSCBuffer.end(); it++){
+      //if (!DTSCBuffer[it->first].empty() && DTSCBuffer[it->first][0]["data"].asString() != ""){
+        //std::cout << oggMeta.readDTSCVector(DTSCBuffer[it->first]);
+      //}
+    //}
     return 0;   
   }
 }

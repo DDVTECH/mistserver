@@ -41,7 +41,6 @@ namespace Connector_HTTP {
     //OGG::Page curOggPage;
     OGG::converter oggConv;
     std::map <long long unsigned int, std::vector<JSON::Value> > DTSCBuffer;
-    std::set <long long unsigned int> sendReady;
     //std::map <long long unsigned int, long long unsigned int> prevGran;
     std::vector<unsigned int> curSegTable;
     long long int currID = 0;
@@ -127,17 +126,13 @@ namespace Connector_HTTP {
               oggConv.readDTSCHeader(Strm.metadata);
               conn.SendNow((char*)oggConv.parsedPages.c_str(), oggConv.parsedPages.size());
               progressive_has_sent_header = true;
-              //setting sendReady to not ready
-              sendReady.clear();
             }
             //parse DTSC to Ogg here
             if (Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
-              currID = Strm.getPacket()["trackid"].asInt();
-              DTSCBuffer[currID].push_back(Strm.getPacket());
-              std::string tmpString = oggConv.readDTSCVector(DTSCBuffer[currID]);
-              conn.SendNow((char*)tmpString.c_str(), tmpString.size());
-              DTSCBuffer[currID].clear();
-              sendReady.insert(currID);
+              std::string tmpString;
+              oggConv.readDTSCVector(Strm.getPacket(), tmpString);
+              conn.SendNow(tmpString);
+              
             }
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();

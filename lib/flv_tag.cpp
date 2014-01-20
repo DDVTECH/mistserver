@@ -606,10 +606,10 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Trac
     keys.addContent(AMF::Object("filepositions", AMF::AMF0_STRICT_ARRAY));
     keys.addContent(AMF::Object("times", AMF::AMF0_STRICT_ARRAY));
     int total_byterate = 0;
-    if (videoRef){
+    if (videoRef.trackID > 0){
       total_byterate += videoRef.bps;
     }
-    if (audioRef){
+    if (audioRef.trackID > 0){
       total_byterate += audioRef.bps;
     }
     for (int i = 0; i < videoRef.lastms / 1000; ++i){ //for each second in the file
@@ -618,7 +618,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Trac
     }
     amfdata.getContentP(1)->addContent(keys);
   }
-  if (videoRef){
+  if (videoRef.trackID > 0){
     amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
     if (videoRef.codec == "H264"){
       amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", (std::string)"avc1"));
@@ -634,7 +634,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Trac
     amfdata.getContentP(1)->addContent(AMF::Object("videoframerate", (double)videoRef.fpks / 1000.0, AMF::AMF0_NUMBER));
     amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", (double)videoRef.bps * 128.0, AMF::AMF0_NUMBER));
   }
-  if (audioRef){
+  if (audioRef.trackID > 0){
     amfdata.getContentP(1)->addContent(AMF::Object("hasAudio", 1, AMF::AMF0_BOOL));
     amfdata.getContentP(1)->addContent(AMF::Object("audiodelay", 0, AMF::AMF0_NUMBER));
     if (audioRef.codec == "AAC"){

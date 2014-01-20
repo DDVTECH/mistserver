@@ -202,6 +202,7 @@ namespace DTSC {
     public:
       readOnlyMeta();
       readOnlyMeta(JSON::Value & meta);
+      inline operator bool() const {return vod || live;}
       std::map<int,readOnlyTrack> tracks;
       bool vod;
       bool live;
@@ -218,7 +219,6 @@ namespace DTSC {
       Meta();
       Meta(const readOnlyMeta & meta);
       Meta(JSON::Value & meta);
-      inline operator bool() const {return vod || live;}
       std::map<int,Track> tracks;
       void update(JSON::Value & pack);
       void send(Socket::Connection & conn);

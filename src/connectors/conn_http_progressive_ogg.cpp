@@ -136,6 +136,7 @@ namespace Connector_HTTP {
             }
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
+              ss.close();
               //last page output
             }
             if (Strm.lastType() == DTSC::INVALID){
@@ -146,7 +147,7 @@ namespace Connector_HTTP {
             }
           }
         }else{
-          Util::sleep(1);
+          Util::sleep(100);
         }
         if ( !ss.connected()){
           break;

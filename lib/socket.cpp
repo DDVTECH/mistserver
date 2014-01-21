@@ -516,7 +516,7 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len){
   if ( !connected() || len < 1){
     return 0;
   }
-  unsigned int r;
+  int r;
   if (sock >= 0){
     r = send(sock, buffer, len, 0);
   }else{

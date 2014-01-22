@@ -134,7 +134,7 @@ namespace Converter {
           encoderCommand << "-vcodec " << vidCodec->first << " ";
           if (parameters["video"]["codec"].asString() == "h264"){
             //Enforce baseline
-             ecncoderCommand << "-preset slow -profile:v baseline -level 30 ";
+             encoderCommand << "-preset slow -profile:v baseline -level 30 ";
           }
           if (parameters["video"].isMember("fpks")){
             encoderCommand << "-r " << parameters["video"]["fpks"].asInt() / 1000 << " "; 

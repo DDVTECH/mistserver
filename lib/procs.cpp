@@ -2,6 +2,7 @@
 /// Contains generic functions for managing processes.
 
 #include "procs.h"
+#include "defines.h"
 #include <string.h>
 #include <sys/types.h>
 #include <signal.h>
@@ -127,22 +128,19 @@ void Util::Procs::childsig_handler(int signum){
       return;
     }
 
-#if DEBUG >= 5
+#if DEBUG >= DLVL_DEVEL
     std::string pname = plist[ret];
 #endif
     plist.erase(ret);
-#if DEBUG >= 5
+#if DEBUG >= DLVL_DEVEL
     if (!isActive(pname)){
-      std::cerr << "Process " << pname << " fully terminated." << std::endl;
+      DEBUG_MSG(DLVL_DEVEL, "Process %s fully terminated", pname.c_str());
     }
 #endif
 
     if (exitHandlers.count(ret) > 0){
       TerminationNotifier tn = exitHandlers[ret];
       exitHandlers.erase(ret);
-#if DEBUG >= 5
-      std::cerr << "Calling termination handler for " << pname << std::endl;
-#endif
       tn(ret, exitcode);
     }
   }
@@ -205,9 +203,7 @@ void Util::Procs::runCmd(std::string & cmd){
   }
   //execute the command
   execvp(args[0], args);
-#if DEBUG >= 1
-  std::cerr << "Error running \"" << cmd << "\": " << strerror(errno) << std::endl;
-#endif
+  DEBUG_MSG(DLVL_ERROR, "Error running %s: %s", cmd.c_str(), strerror(errno));
   _exit(42);
 }
 
@@ -225,14 +221,10 @@ pid_t Util::Procs::Start(std::string name, std::string cmd){
     runCmd(cmd);
   }else{
     if (ret > 0){
-#if DEBUG >= 5
-      std::cerr << "Process " << name << " started, PID " << ret << ": " << cmd << std::endl;
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "Process %s started, PID %d: %s", name.c_str(), ret, cmd.c_str());
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{
-#if DEBUG >= 1
-      std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Process %s could not be started: fork() failed", name.c_str());
       return 0;
     }
   }
@@ -251,9 +243,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
   setHandler();
   int pfildes[2];
   if (pipe(pfildes) == -1){
-#if DEBUG >= 1
-    std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. Pipe creation failed.", name.c_str());
     return 0;
   }
 
@@ -270,9 +260,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
     if (ret > 0){
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{
-#if DEBUG >= 1
-      std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. fork() failed.", name.c_str());
       close(pfildes[1]);
       close(pfildes[0]);
       return 0;
@@ -289,14 +277,10 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
     runCmd(cmd2);
   }else{
     if (ret2 > 0){
-#if DEBUG >= 5
-      std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << "): " << cmd << " | " << cmd2 << std::endl;
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "Process %s started, PIDs (%d, %d): %s | %s", name.c_str(), ret, ret2, cmd.c_str(), cmd2.c_str());
       plist.insert(std::pair<pid_t, std::string>(ret2, name));
     }else{
-#if DEBUG >= 1
-      std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. fork() failed.", name.c_str());
       Stop(name);
       close(pfildes[1]);
       close(pfildes[0]);
@@ -322,15 +306,11 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
   int pfildes[2];
   int pfildes2[2];
   if (pipe(pfildes) == -1){
-#if DEBUG >= 1
-    std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. Pipe creation failed.", name.c_str());
     return 0;
   }
   if (pipe(pfildes2) == -1){
-#if DEBUG >= 1
-    std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. Pipe creation failed.", name.c_str());
     return 0;
   }
 
@@ -349,9 +329,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     if (ret > 0){
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{
-#if DEBUG >= 1
-      std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. fork() failed.", name.c_str());
       close(pfildes[1]);
       close(pfildes[0]);
       close(pfildes2[1]);
@@ -372,14 +350,10 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     runCmd(cmd2);
   }else{
     if (ret2 > 0){
-#if DEBUG >= 5
-      std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << "): " << cmd << " | " << cmd2 << std::endl;
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "Process %s started, PIDs (%d, %d): %s | %s", name.c_str(), ret, ret2, cmd.c_str(), cmd2.c_str());
       plist.insert(std::pair<pid_t, std::string>(ret2, name));
     }else{
-#if DEBUG >= 1
-      std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. fork() failed.", name.c_str());
       Stop(name);
       close(pfildes[1]);
       close(pfildes[0]);
@@ -403,14 +377,10 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     runCmd(cmd3);
   }else{
     if (ret3 > 0){
-#if DEBUG >= 5
-      std::cerr << "Process " << name << " started, PIDs (" << ret << ", " << ret2 << ", " << ret3 << "): " << cmd << " | " << cmd2 << " | " << cmd3 << std::endl;
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "Process %s started, PIDs (%d, %d, %d): %s | %s | %s", name.c_str(), ret, ret2, ret3, cmd.c_str(), cmd2.c_str(), cmd3.c_str());
       plist.insert(std::pair<pid_t, std::string>(ret3, name));
     }else{
-#if DEBUG >= 1
-      std::cerr << "Process " << name << " could not be started. fork() failed." << std::endl;
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. fork() failed.", name.c_str());
       Stop(name);
       close(pfildes[1]);
       close(pfildes[0]);
@@ -432,24 +402,18 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
 /// \arg fdout Same as fdin, but for stderr.
 pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, int * fdout, int * fderr){
   if (isActive(name)){
-    #if DEBUG >= 1
-    std::cerr << name << " already active - skipping start" << std::endl;
-    #endif
+    DEBUG_MSG(DLVL_WARN, "Process %s already active - skipping start", name.c_str());
     return getPid(name);
   }
   pid_t pid;
   int pipein[2], pipeout[2], pipeerr[2];
   setHandler();
   if (fdin && *fdin == -1 && pipe(pipein) < 0){
-#if DEBUG >= 1
-    std::cerr << "Pipe (in) creation failed for " << name << std::endl;
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Pipe in creation failed for process %s", name.c_str());
     return 0;
   }
   if (fdout && *fdout == -1 && pipe(pipeout) < 0){
-#if DEBUG >= 1
-    std::cerr << "Pipe (out) creation failed for " << name << std::endl;
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Pipe out creation failed for process %s", name.c_str());
     if ( *fdin == -1){
       close(pipein[0]);
       close(pipein[1]);
@@ -457,9 +421,7 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
     return 0;
   }
   if (fderr && *fderr == -1 && pipe(pipeerr) < 0){
-#if DEBUG >= 1
-    std::cerr << "Pipe (err) creation failed for " << name << std::endl;
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Pipe err creation failed for process %s", name.c_str());
     if ( *fdin == -1){
       close(pipein[0]);
       close(pipein[1]);
@@ -474,9 +436,7 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
   if ( !fdin || !fdout || !fderr){
     devnull = open("/dev/null", O_RDWR);
     if (devnull == -1){
-#if DEBUG >= 1
-      std::cerr << "Could not open /dev/null for " << name << ": " << strerror(errno) << std::endl;
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Could not open /dev/null for process %s: %s", name.c_str(), strerror(errno));
       if ( *fdin == -1){
         close(pipein[0]);
         close(pipein[1]);
@@ -528,14 +488,10 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
       close(devnull);
     }
     execvp(argv[0], argv);
-#if DEBUG >= 1
-    perror("execvp failed");
-#endif
+    DEBUG_MSG(DLVL_ERROR, "execvp() failed for process %s", name.c_str());
     exit(42);
   }else if (pid == -1){
-#if DEBUG >= 1
-    std::cerr << "Failed to fork for pipe: " << name << std::endl;
-#endif
+    DEBUG_MSG(DLVL_ERROR, "fork() for pipe failed for process %s", name.c_str());
     if (fdin && *fdin == -1){
       close(pipein[0]);
       close(pipein[1]);
@@ -553,14 +509,7 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
     }
     return 0;
   }else{ //parent
-#if DEBUG >= 5
-  std::cerr << "Piped process " << name << " started";
-  if (fdin ) std::cerr << " in=" << (*fdin == -1 ? pipein [1] : *fdin );
-  if (fdout) std::cerr << " out=" << (*fdout == -1 ? pipeout[0] : *fdout);
-  if (fderr) std::cerr << " err=" << (*fderr == -1 ? pipeerr[0] : *fderr);
-  if (devnull != -1) std::cerr << " null=" << devnull;
-  std::cerr << ", PID " << pid << ": " << argv[0] << std::endl;
-#endif
+    DEBUG_MSG(DLVL_DEVEL, "Piped process %s started, PID %d: %s", name.c_str(), pid, argv[0]);
     if (devnull != -1){
       close(devnull);
     }
@@ -611,9 +560,7 @@ pid_t Util::Procs::StartPiped(std::string name, std::string cmd, int * fdin, int
 pid_t Util::Procs::StartPiped2(std::string name, std::string cmd1, std::string cmd2, int * fdin, int * fdout, int * fderr1, int * fderr2){
   int pfildes[2];
   if (pipe(pfildes) == -1){
-#if DEBUG >= 1
-    std::cerr << "Process " << name << " could not be started. Pipe creation failed." << std::endl;
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Pipe creation failed for process %s", name.c_str());
     return 0;
   }
   pid_t res1 = StartPiped(name, cmd1, fdin, &pfildes[1], fderr1);

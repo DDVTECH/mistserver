@@ -1,4 +1,5 @@
 #include "ogg.h"
+#include "defines.h"
 #include <string.h>
 #include <stdlib.h>
 #include <sstream>
@@ -204,7 +205,7 @@ namespace OGG{
   }
 
   static void STerrMSG(){
-    std::cerr << "Segments too big, create a continue page" << std::endl;
+    DEBUG_MSG(DLVL_ERROR, "Segment too big, create a continue page");
   }
 
   /// \todo MAKE FIX HERE
@@ -486,10 +487,10 @@ namespace OGG{
     setGranulePosition(DTSCVec[0]["granule"].asInt());
     for (unsigned int i = 1; i < DTSCVec.size(); i++){
       if (DTSCVec[0]["granule"].asInt() != DTSCVec[i]["granule"].asInt()){
-        std::cerr << "Granule inconcistency!! " << DTSCVec[0]["granule"].asInt() << " != " << DTSCVec[i]["granule"].asInt() << std::endl;
+        DEBUG_MSG(DLVL_WARN, "Granule inconcistency!! %u != %u", (unsigned int)DTSCVec[0]["granule"].asInt(), (unsigned int)DTSCVec[i]["granule"].asInt());
       }
       if (DTSCVec[0]["trackid"].asInt() != DTSCVec[i]["trackid"].asInt()){
-        std::cerr << "Track ID inconcistency!! " << DTSCVec[0]["trackid"].asInt() << " != " <<DTSCVec[i]["trackid"].asInt() << std::endl;
+        DEBUG_MSG(DLVL_WARN, "Track ID inconcistency!! %u != %u", (unsigned int)DTSCVec[0]["trackid"].asInt(), (unsigned int)DTSCVec[i]["trackid"].asInt());
       }
     }
     setBitstreamSerialNumber(serial);

@@ -2,8 +2,8 @@
 /// Holds all code for the AMF namespace.
 
 #include "amf.h"
+#include "defines.h"
 #include <sstream>
-#include <cstdio> //needed for stderr only
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.
 std::string AMF::Object::Indice(){
@@ -124,9 +124,9 @@ AMF::Object::Object(std::string indice, AMF::obj0type setType){ //object type in
   numval = 0;
 }
 
-/// Prints the contents of this object to std::cerr.
+/// Return the contents as a human-readable string.
 /// If this object contains other objects, it will call itself recursively
-/// and print all nested content in a nice human-readable format.
+/// and print all nested content as well.
 std::string AMF::Object::Print(std::string indent){
   std::stringstream st;
   st << indent;
@@ -368,9 +368,6 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
   double *d; // hack to work around strict aliasing
-#if DEBUG >= 10
-  fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
-#endif
   switch (data[i]){
     case AMF::AMF0_NUMBER:
       tmpdbl[7] = data[i + 1];
@@ -496,9 +493,7 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
     }
       break;
   }
-#if DEBUG >= 2
-  fprintf(stderr, "Error: Unimplemented AMF type %hhx - returning.\n", data[i]);
-#endif
+  DEBUG_MSG(DLVL_ERROR, "Error: Unimplemented AMF type %hhx - returning.", data[i]);
   return AMF::Object("error", AMF::AMF0_DDV_CONTAINER);
 } //parseOne
 
@@ -668,99 +663,101 @@ AMF::Object3::Object3(std::string indice, AMF::obj3type setType){ //object type 
   intval = 0;
 }
 
-/// Prints the contents of this object to std::cerr.
+/// Return the contents as a human-readable string.
 /// If this object contains other objects, it will call itself recursively
-/// and print all nested content in a nice human-readable format.
-void AMF::Object3::Print(std::string indent){
-  std::cerr << indent;
+/// and print all nested content as well.
+std::string AMF::Object3::Print(std::string indent){
+  std::stringstream st;
+  st << indent;
   // print my type
   switch (myType){
     case AMF::AMF3_UNDEFINED:
-      std::cerr << "Undefined";
+      st << "Undefined";
       break;
     case AMF::AMF3_NULL:
-      std::cerr << "Null";
+      st << "Null";
       break;
     case AMF::AMF3_FALSE:
-      std::cerr << "False";
+      st << "False";
       break;
     case AMF::AMF3_TRUE:
-      std::cerr << "True";
+      st << "True";
       break;
     case AMF::AMF3_INTEGER:
-      std::cerr << "Integer";
+      st << "Integer";
       break;
     case AMF::AMF3_DOUBLE:
-      std::cerr << "Double";
+      st << "Double";
       break;
     case AMF::AMF3_STRING:
-      std::cerr << "String";
+      st << "String";
       break;
     case AMF::AMF3_XMLDOC:
-      std::cerr << "XML Doc";
+      st << "XML Doc";
       break;
     case AMF::AMF3_DATE:
-      std::cerr << "Date";
+      st << "Date";
       break;
     case AMF::AMF3_ARRAY:
-      std::cerr << "Array";
+      st << "Array";
       break;
     case AMF::AMF3_OBJECT:
-      std::cerr << "Object";
+      st << "Object";
       break;
     case AMF::AMF3_XML:
-      std::cerr << "XML";
+      st << "XML";
       break;
     case AMF::AMF3_BYTES:
-      std::cerr << "ByteArray";
+      st << "ByteArray";
       break;
     case AMF::AMF3_DDV_CONTAINER:
-      std::cerr << "DDVTech Container";
+      st << "DDVTech Container";
       break;
   }
   // print my string indice, if available
-  std::cerr << " " << myIndice << " ";
+  st << " " << myIndice << " ";
   // print my numeric or string contents
   switch (myType){
     case AMF::AMF3_INTEGER:
-      std::cerr << intval;
+      st << intval;
       break;
     case AMF::AMF3_DOUBLE:
-      std::cerr << dblval;
+      st << dblval;
       break;
     case AMF::AMF3_STRING:
     case AMF::AMF3_XMLDOC:
     case AMF::AMF3_XML:
     case AMF::AMF3_BYTES:
       if (intval > 0){
-        std::cerr << "REF" << intval;
+        st << "REF" << intval;
       }else{
-        std::cerr << strval;
+        st << strval;
       }
       break;
     case AMF::AMF3_DATE:
       if (intval > 0){
-        std::cerr << "REF" << intval;
+        st << "REF" << intval;
       }else{
-        std::cerr << dblval;
+        st << dblval;
       }
       break;
     case AMF::AMF3_ARRAY:
     case AMF::AMF3_OBJECT:
       if (intval > 0){
-        std::cerr << "REF" << intval;
+        st << "REF" << intval;
       }
       break;
     default:
       break; //we don't care about the rest, and don't want a compiler warning...
   }
-  std::cerr << std::endl;
+  st << std::endl;
   // if I hold other objects, print those too, recursively.
   if (contents.size() > 0){
     for (std::vector<AMF::Object3>::iterator it = contents.begin(); it != contents.end(); it++){
-      it->Print(indent + "  ");
+      st << it->Print(indent + "  ");
     }
   }
+  return st.str();
 } //print
 
 /// Packs the AMF object to a std::string for transfer over the network.
@@ -784,9 +781,6 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
   unsigned int arrsize = 0;
   unsigned char tmpdbl[8];
   double *d; // hack to work around strict aliasing
-#if DEBUG >= 10
-  fprintf(stderr, "Note: AMF3 type %hhx found. %i bytes left\n", data[i], len-i);
-#endif
   switch (data[i]){
     case AMF::AMF3_UNDEFINED:
     case AMF::AMF3_NULL:
@@ -1121,9 +1115,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
     }
       break;
   }
-#if DEBUG >= 2
-  fprintf(stderr, "Error: Unimplemented AMF3 type %hhx - returning.\n", data[i]);
-#endif
+  DEBUG_MSG(DLVL_ERROR, "Error: Unimplemented AMF3 type %hhx - returning.", data[i]);
   return AMF::Object3("error", AMF::AMF3_DDV_CONTAINER);
 } //parseOne
 

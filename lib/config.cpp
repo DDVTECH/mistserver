@@ -2,6 +2,9 @@
 /// Contains generic functions for managing configuration.
 
 #include "config.h"
+#include "defines.h"
+#include "timing.h"
+#include "tinythread.h"
 #include <string.h>
 #include <signal.h>
 
@@ -22,7 +25,6 @@
 #include <pwd.h>
 #include <getopt.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <fstream>
 #include <dirent.h> //for getMyExec
 
@@ -295,6 +297,46 @@ bool Util::Config::getBool(std::string optname){
   return getOption(optname).asBool();
 }
 
+struct callbackData{
+  Socket::Connection * sock;
+  void (*cb)(Socket::Connection &);
+};
+
+static void callThreadCallback(void * cDataArg){
+  DEBUG_MSG(DLVL_INSANE, "Thread for %p started", cDataArg);
+  callbackData * cData = (callbackData*)cDataArg;
+  cData->cb(*(cData->sock));
+  cData->sock->close();
+  delete cData->sock;
+  delete cData;
+  DEBUG_MSG(DLVL_INSANE, "Thread for %p ended", cDataArg);
+}
+
+int Util::Config::serveThreadedSocket(void (*callback)(Socket::Connection &)){
+  Socket::Server server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
+  if (!server_socket.connected()){return 1;}
+  DEBUG_MSG(DLVL_DEVEL, "Activating threaded server: %s", getString("cmd").c_str());
+  activate();
+  
+  while (is_active && server_socket.connected()){
+    Socket::Connection S = server_socket.accept();
+    if (S.connected()){ //check if the new connection is valid
+      callbackData * cData = new callbackData;
+      cData->sock = new Socket::Connection(S);
+      cData->cb = callback;
+      //spawn a new thread for this connection
+      tthread::thread T(callThreadCallback, (void*)cData);
+      //detach it, no need to keep track of it anymore
+      T.detach();
+    }else{
+      Util::sleep(10); //sleep 10ms
+    }
+  }//main loop
+  server_socket.close();
+  DEBUG_MSG(DLVL_DEVEL, "Threaded server exiting: %s", getString("cmd").c_str());
+  return 0;
+}
+
 /// Activated the stored config. This will:
 /// - Drop permissions to the stored "username", if any.
 /// - Daemonize the process if "daemonize" exists and is true.
@@ -450,19 +492,13 @@ void Util::setUser(std::string username){
   if (username != "root"){
     struct passwd * user_info = getpwnam(username.c_str());
     if ( !user_info){
-#if DEBUG >= 1
-      fprintf(stderr, "Error: could not setuid %s: could not get PID\n", username.c_str());
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Error: could not setuid %s: could not get PID", username.c_str());
       return;
     }else{
       if (setuid(user_info->pw_uid) != 0){
-#if DEBUG >= 1
-        fprintf(stderr, "Error: could not setuid %s: not allowed\n", username.c_str());
-#endif
+        DEBUG_MSG(DLVL_ERROR, "Error: could not setuid %s: not allowed", username.c_str());
       }else{
-#if DEBUG >= 3
-        fprintf(stderr, "Changed user to %s\n", username.c_str());
-#endif
+        DEBUG_MSG(DLVL_DEVEL, "Change user to %s", username.c_str());
       }
     }
   }
@@ -473,12 +509,8 @@ void Util::setUser(std::string username){
 /// Does not change directory to root.
 /// Does redirect output to /dev/null
 void Util::Daemonize(){
-#if DEBUG >= 3
-  fprintf(stderr, "Going into background mode...\n");
-#endif
+  DEBUG_MSG(DLVL_DEVEL, "Going into background mode...");
   if (daemon(1, 0) < 0){
-#if DEBUG >= 1
-    fprintf(stderr, "Failed to daemonize: %s\n", strerror(errno));
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Failed to daemonize: %s", strerror(errno));
   }
 }

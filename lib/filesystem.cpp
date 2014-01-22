@@ -1,4 +1,5 @@
 #include "filesystem.h"
+#include "defines.h"
 
 Filesystem::Directory::Directory(std::string PathName, std::string BasePath){
   MyBase = BasePath;
@@ -26,9 +27,7 @@ void Filesystem::Directory::FillEntries(){
     dirent * entry;
     while ((entry = readdir(Dirp))){
       if (stat((MyBase + MyPath + "/" + entry->d_name).c_str(), &StatBuf) == -1){
-#if DEBUG >= 4
-        fprintf(stderr, "\tSkipping %s\n\t\tReason: %s\n", entry->d_name, strerror(errno));
-#endif
+        DEBUG_MSG(DLVL_DEVEL, "Skipping %s, reason %s", entry->d_name, strerror(errno));
         continue;
       }
       ///Convert stat to string
@@ -38,8 +37,9 @@ void Filesystem::Directory::FillEntries(){
 }
 
 void Filesystem::Directory::Print(){
+  /// \todo Remove? Libraries shouldn't print stuff.
   if ( !ValidDir){
-    printf("%s is not a valid directory\n", (MyBase + MyPath).c_str());
+    DEBUG_MSG(DLVL_ERROR, "%s is not a valid directory", (MyBase + MyPath).c_str());
     return;
   }
   printf("%s:\n", (MyBase + MyPath).c_str());
@@ -74,9 +74,6 @@ std::string Filesystem::Directory::LIST(std::vector<std::string> ActiveStreams){
   for (std::map<std::string, struct stat>::iterator it = Entries.begin(); it != Entries.end(); it++){
 
     bool Active = (std::find(ActiveStreams.begin(), ActiveStreams.end(), ( *it).first) != ActiveStreams.end());
-    fprintf(stderr, "%s active?: %d\n", ( *it).first.c_str(), Active);
-    fprintf(stderr, "\tMyPath: %s\n\tVisible: %d\n", MyPath.c_str(), MyVisible[MyPath]);
-    fprintf(stderr, "\t\tBitmask S_ACTIVE: %d\n\t\tBitmask S_INACTIVE: %d\n", MyVisible[MyPath] & S_ACTIVE, MyVisible[MyPath] & S_INACTIVE);
     if ((Active && (MyVisible[MyPath] & S_ACTIVE)) || (( !Active) && (MyVisible[MyPath] & S_INACTIVE)) || ((( *it).second.st_mode / 010000) == 4)){
       if ((( *it).second.st_mode / 010000) == 4){
         Converter << 'd';
@@ -217,7 +214,6 @@ void Filesystem::Directory::STOR(std::string Path, std::string Data){
 
 bool Filesystem::Directory::SimplifyPath(){
   MyPath += "/";
-  fprintf(stderr, "MyPath: %s\n", MyPath.c_str());
   std::vector<std::string> TempPath;
   std::string TempString;
   for (std::string::iterator it = MyPath.begin(); it != MyPath.end(); it++){
@@ -258,7 +254,7 @@ bool Filesystem::Directory::DELE(std::string Path){
       FileName = MyBase + MyPath + "/" + Path;
     }
     if (std::remove(FileName.c_str())){
-      fprintf(stderr, "Removing file %s unsuccesfull\n", FileName.c_str());
+      DEBUG_MSG(DLVL_ERROR, "Removing file %s failed", FileName.c_str());
       return false;
     }
     return true;
@@ -275,7 +271,7 @@ bool Filesystem::Directory::MKD(std::string Path){
     FileName = MyBase + MyPath + "/" + Path;
   }
   if (mkdir(FileName.c_str(), S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH)){
-    fprintf(stderr, "Creating directory %s unsuccesfull\n", FileName.c_str());
+    DEBUG_MSG(DLVL_ERROR, "Creating directory %s failed", FileName.c_str());
     return false;
   }
   MyVisible[FileName] = S_ALL;
@@ -298,7 +294,7 @@ bool Filesystem::Directory::Rename(std::string From, std::string To){
       FileTo = MyBase + MyPath + "/" + To;
     }
     if (std::rename(FileFrom.c_str(), FileTo.c_str())){
-      fprintf(stderr, "Renaming file %s to %s unsuccesfull\n", FileFrom.c_str(), FileTo.c_str());
+      DEBUG_MSG(DLVL_ERROR, "Renaming %s to %s failed", FileFrom.c_str(), FileTo.c_str());
       return false;
     }
     return true;

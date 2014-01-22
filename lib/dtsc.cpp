@@ -2,6 +2,7 @@
 /// Holds all code for DDVTECH Stream Container parsing/generation.
 
 #include "dtsc.h"
+#include "defines.h"
 #include <stdlib.h>
 #include <string.h> //for memcmp
 #include <arpa/inet.h> //for htonl/ntohl
@@ -87,9 +88,9 @@ bool DTSC::Stream::parsePacket(std::string & buffer){
       syncing = false;
       return true;
     }
-#if DEBUG >= 2
+#if DEBUG >= DLVL_WARN
     if (!syncing){
-      std::cerr << "Error: Invalid DTMI data detected - re-syncing" << std::endl;
+      DEBUG_MSG(DLVL_WARN, "Invalid DTMI data detected - re-syncing");
       syncing = true;
     }
 #endif
@@ -155,9 +156,9 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
       syncing = false;
       return true;
     }
-#if DEBUG >= 2
+#if DEBUG >= DLVL_WARN
     if (!syncing){
-      std::cerr << "Error: Invalid DTMI data detected - syncing" << std::endl;
+      DEBUG_MSG(DLVL_WARN, "Invalid DTMI data detected - syncing");
       syncing = true;
     }
 #endif
@@ -206,9 +207,7 @@ void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket){
   if (Util::getMS() - start >= 5000){
     sourceSocket.close();
     //and optionally print a debug message that this happened
-    #if DEBUG >= 4
-    fprintf(stderr, "Timed out while waiting for metadata\n");
-    #endif
+    DEBUG_MSG(DLVL_DEVEL, "Timing out while waiting for metadata");
   }
 }
 
@@ -283,7 +282,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
 }
 
 /// Deletes a the first part of the buffer, updating the keyframes list and metadata as required.
-/// Will print a warning to std::cerr if a track has less than 2 keyframes left because of this.
+/// Will print a warning if a track has less than 2 keyframes left because of this.
 void DTSC::Stream::cutOneBuffer(){
   int trid = buffers.begin()->first.trackID;
   long long unsigned int delTime = buffers.begin()->first.seekTime;
@@ -517,7 +516,7 @@ DTSC::File::File(std::string filename, bool create){
   if (create){
     F = fopen(filename.c_str(), "w+b");
     if(!F){
-      std::cerr << "Could not create file" << filename << ": " << strerror(errno) << std::endl;
+      DEBUG_MSG(DLVL_ERROR, "Could not create file %s: %s", filename.c_str(), strerror(errno));
       return;
     }
     //write an empty header
@@ -531,7 +530,7 @@ DTSC::File::File(std::string filename, bool create){
   }
   created = create;
   if ( !F){
-    fprintf(stderr, "Could not open file %s\n", filename.c_str());
+    DEBUG_MSG(DLVL_ERROR, "Could not open file %s\n", filename.c_str());
     return;
   }
   fseek(F, 0, SEEK_END);
@@ -561,7 +560,7 @@ DTSC::readOnlyMeta & DTSC::File::getMeta(){
 /// Forces a write if force is set to true.
 bool DTSC::File::writeHeader(std::string & header, bool force){
   if (headerSize != header.size() && !force){
-    fprintf(stderr, "Could not overwrite header - not equal size\n");
+    DEBUG_MSG(DLVL_ERROR, "Could not overwrite header - not equal size");
     return false;
   }
   headerSize = header.size();
@@ -601,30 +600,28 @@ long long int DTSC::File::addHeader(std::string & header){
 }
 
 /// Reads the header at the given file position.
-/// If the packet could not be read for any reason, the reason is printed to stderr.
+/// If the packet could not be read for any reason, the reason is printed.
 /// Reading the header means the file position is moved to after the header.
 void DTSC::File::readHeader(int pos){
   fseek(F, pos, SEEK_SET);
   if (fread(buffer, 4, 1, F) != 1){
     if (feof(F)){
-#if DEBUG >= 4
-      fprintf(stderr, "End of file reached (H%i)\n", pos);
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "End of file reached while reading header @ %d", pos);
     }else{
-      fprintf(stderr, "Could not read header (H%i)\n", pos);
+      DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", pos);
     }
     strbuffer = "";
     metadata = readOnlyMeta();
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
-    fprintf(stderr, "Invalid header - %.4s != %.4s  (H%i)\n", buffer, DTSC::Magic_Header, pos);
+    DEBUG_MSG(DLVL_ERROR, "Invalid header - %.4s != %.4s  @ %i", buffer, DTSC::Magic_Header, pos);
     strbuffer = "";
     metadata = readOnlyMeta();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1){
-    fprintf(stderr, "Could not read size (H%i)\n", pos);
+    DEBUG_MSG(DLVL_ERROR, "Could not read header size @ %i", pos);
     strbuffer = "";
     metadata = readOnlyMeta();
     return;
@@ -634,7 +631,7 @@ void DTSC::File::readHeader(int pos){
   strbuffer.resize(packSize);
   if (packSize){
     if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
-      fprintf(stderr, "Could not read packet (H%i)\n", pos);
+      DEBUG_MSG(DLVL_ERROR, "Could not read header packet @ %i", pos);
       strbuffer = "";
       metadata = readOnlyMeta();
       return;
@@ -666,7 +663,7 @@ bool DTSC::File::reachedEOF(){
 }
 
 /// Reads the packet available at the current file position.
-/// If the packet could not be read for any reason, the reason is printed to stderr.
+/// If the packet could not be read for any reason, the reason is printed.
 /// Reading the packet means the file position is increased to the next packet.
 void DTSC::File::seekNext(){
   if ( !currentPositions.size()){
@@ -689,11 +686,9 @@ void DTSC::File::seekNext(){
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1){
     if (feof(F)){
-#if DEBUG >= 4
-      fprintf(stderr, "End of file reached.\n");
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "End of file reached while seeking @ %i", (int)lastreadpos);
     }else{
-      fprintf(stderr, "Could not read header\n");
+      DEBUG_MSG(DLVL_ERROR, "Could not seek to next @ %i", (int)lastreadpos);
     }
     strbuffer = "";
     jsonbuffer.null();
@@ -712,13 +707,13 @@ void DTSC::File::seekNext(){
     version = 2;
   }
   if (version == 0){
-    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2);
+    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2, (int)lastreadpos);
     strbuffer = "";
     jsonbuffer.null();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1){
-    fprintf(stderr, "Could not read size\n");
+    DEBUG_MSG(DLVL_ERROR, "Could not read packet size @ %d", (int)lastreadpos);
     strbuffer = "";
     jsonbuffer.null();
     return;
@@ -727,7 +722,7 @@ void DTSC::File::seekNext(){
   long packSize = ntohl(ubuffer[0]);
   strbuffer.resize(packSize);
   if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
-    fprintf(stderr, "Could not read packet\n");
+    DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
     strbuffer = "";
     jsonbuffer.null();
     return;
@@ -782,11 +777,9 @@ void DTSC::File::parseNext(){
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1){
     if (feof(F)){
-#if DEBUG >= 4
-      fprintf(stderr, "End of file reached.\n");
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "End of file reached @ %d", (int)lastreadpos);
     }else{
-      fprintf(stderr, "Could not read header\n");
+      DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", (int)lastreadpos);
     }
     strbuffer = "";
     jsonbuffer.null();
@@ -798,7 +791,7 @@ void DTSC::File::parseNext(){
       jsonbuffer = metadata.toJSON();
     }else{
       if (fread(buffer, 4, 1, F) != 1){
-        fprintf(stderr, "Could not read size\n");
+        DEBUG_MSG(DLVL_ERROR, "Could not read header size @ %d", (int)lastreadpos);
         strbuffer = "";
         jsonbuffer.null();
         return;
@@ -807,7 +800,7 @@ void DTSC::File::parseNext(){
       long packSize = ntohl(ubuffer[0]);
       strbuffer.resize(packSize);
       if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
-        fprintf(stderr, "Could not read packet\n");
+        DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", (int)lastreadpos);
         strbuffer = "";
         jsonbuffer.null();
         return;
@@ -824,13 +817,13 @@ void DTSC::File::parseNext(){
     version = 2;
   }
   if (version == 0){
-    fprintf(stderr, "Invalid packet header @ %#x - %.4s != %.4s\n", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2);
+    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2, (int)lastreadpos);
     strbuffer = "";
     jsonbuffer.null();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1){
-    fprintf(stderr, "Could not read size\n");
+    DEBUG_MSG(DLVL_ERROR, "Could not read packet size @ %d", (int)lastreadpos);
     strbuffer = "";
     jsonbuffer.null();
     return;
@@ -839,7 +832,7 @@ void DTSC::File::parseNext(){
   long packSize = ntohl(ubuffer[0]);
   strbuffer.resize(packSize);
   if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
-    fprintf(stderr, "Could not read packet\n");
+    DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
     strbuffer = "";
     jsonbuffer.null();
     return;

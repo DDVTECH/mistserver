@@ -1,7 +1,7 @@
-#include"bitstream.h"
-#include<stdlib.h>
-#include<string.h>
-#include<iostream>
+#include "bitstream.h"
+#include "defines.h"
+#include <stdlib.h>
+#include <string.h>
 
 namespace Utils{
   bitstream::bitstream(){
@@ -31,7 +31,6 @@ namespace Utils{
       memcpy(data+dataSize, input, bytes);
       dataSize += bytes;
     }
-    //std::cout << std::hex << std::string(data, dataSize) << std::dec << std::endl;
   }
 
   void bitstream::append(std::string input){
@@ -45,11 +44,11 @@ namespace Utils{
   
   long long unsigned int bitstream::peek(size_t count){
     if (count  > 64){
-      std::cerr << "Utils::bitstream: Warning; Can not read "<< count <<" bits into a long long unsigned int!" << std::endl;
+      DEBUG_MSG(DLVL_WARN, "Can not read %d bits into a long long unsigned int!", (int)count);
       //return 0;
     }
     if (count > size()){
-      std::cerr << "Utils::bitstream: not enough bits left in stream. Left: " << size() << " requested: " << count << std::endl;
+      DEBUG_MSG(DLVL_ERROR, "Not enough bits left in stream. Left: %d requested: %d", (int)size(), (int)count);
       return 0;
     }
     long long unsigned int retval = 0;

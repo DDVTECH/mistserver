@@ -2,6 +2,7 @@
 /// Holds all code for the RTMPStream namespace.
 
 #include "rtmpchunks.h"
+#include "defines.h"
 #include "flv_tag.h"
 #include "timing.h"
 
@@ -261,9 +262,7 @@ bool ValidateClientScheme(uint8_t * pBuffer, uint8_t scheme){
   uint8_t *pTempHash = new uint8_t[512];
   HMACsha256(pTempBuffer, 1536 - 32, genuineFPKey, 30, pTempHash);
   bool result = (memcmp(pBuffer + clientDigestOffset, pTempHash, 32) == 0);
-#if DEBUG >= 5
-  fprintf(stderr, "Client scheme validation %hhi %s\n", scheme, result?"success":"failed");
-#endif
+  DEBUG_MSG(DLVL_MEDIUM, "Client scheme validation %hhi %s", scheme, result?"success":"failed");
   delete[] pTempBuffer;
   delete[] pTempHash;
   return result;
@@ -556,7 +555,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
     case 0x40:
       if (indata.size() < i + 7) return false; //can't read whole header
       if (prev.msg_type_id == 0){
-        fprintf(stderr, "Warning: Header type 0x40 with no valid previous chunk!\n");
+        DEBUG_MSG(DLVL_WARN, "Warning: Header type 0x40 with no valid previous chunk!");
       }
       timestamp = indata[i++ ] * 256 * 256;
       timestamp += indata[i++ ] * 256;
@@ -574,7 +573,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
     case 0x80:
       if (indata.size() < i + 3) return false; //can't read whole header
       if (prev.msg_type_id == 0){
-        fprintf(stderr, "Warning: Header type 0x80 with no valid previous chunk!\n");
+        DEBUG_MSG(DLVL_WARN, "Warning: Header type 0x80 with no valid previous chunk!");
       }
       timestamp = indata[i++ ] * 256 * 256;
       timestamp += indata[i++ ] * 256;
@@ -589,7 +588,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       break;
     case 0xC0:
       if (prev.msg_type_id == 0){
-        fprintf(stderr, "Warning: Header type 0xC0 with no valid previous chunk!\n");
+        DEBUG_MSG(DLVL_WARN, "Warning: Header type 0xC0 with no valid previous chunk!");
       }
       timestamp = prev.timestamp;
       len = prev.len;
@@ -704,7 +703,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer){
       } //can't read whole header
       indata = buffer.copy(i + 7);
       if (prev.msg_type_id == 0){
-        fprintf(stderr, "Warning: Header type 0x40 with no valid previous chunk!\n");
+        DEBUG_MSG(DLVL_WARN, "Warning: Header type 0x40 with no valid previous chunk!");
       }
       timestamp = indata[i++ ] * 256 * 256;
       timestamp += indata[i++ ] * 256;
@@ -725,7 +724,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer){
       } //can't read whole header
       indata = buffer.copy(i + 3);
       if (prev.msg_type_id == 0){
-        fprintf(stderr, "Warning: Header type 0x80 with no valid previous chunk!\n");
+        DEBUG_MSG(DLVL_WARN, "Warning: Header type 0x80 with no valid previous chunk!");
       }
       timestamp = indata[i++ ] * 256 * 256;
       timestamp += indata[i++ ] * 256;
@@ -740,7 +739,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer){
       break;
     case 0xC0:
       if (prev.msg_type_id == 0){
-        fprintf(stderr, "Warning: Header type 0xC0 with no valid previous chunk!\n");
+        DEBUG_MSG(DLVL_WARN, "Warning: Header type 0xC0 with no valid previous chunk!");
       }
       timestamp = prev.timestamp;
       len = prev.len;
@@ -821,16 +820,12 @@ bool RTMPStream::doHandshake(){
   } //"random" data
 
   bool encrypted = (Version == 6);
-#if DEBUG >= 8
-  fprintf(stderr, "Handshake version is %hhi\n", Version);
-#endif
+  DEBUG_MSG(DLVL_HIGH, "Handshake version is %hhi", Version);
   uint8_t _validationScheme = 5;
   if (ValidateClientScheme(Client, 0)) _validationScheme = 0;
   if (ValidateClientScheme(Client, 1)) _validationScheme = 1;
 
-#if DEBUG >= 8
-  fprintf(stderr, "Handshake type is %hhi, encryption is %s\n", _validationScheme, encrypted?"on":"off");
-#endif
+  DEBUG_MSG(DLVL_HIGH, "Handshake type is %hhi, encryption is %s", _validationScheme, encrypted?"on":"off");
 
   //FIRST 1536 bytes from server response
   //compute DH key position

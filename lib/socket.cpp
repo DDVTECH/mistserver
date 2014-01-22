@@ -4,6 +4,7 @@
 
 #include "socket.h"
 #include "timing.h"
+#include "defines.h"
 #include <sys/stat.h>
 #include <poll.h>
 #include <netdb.h>
@@ -14,7 +15,6 @@
 #endif
 
 #define BUFFER_BLOCKSIZE 4096 //set buffer blocksize to 4KiB
-#include <iostream>//temporary for debugging
 
 std::string uint2string(unsigned int i){
   std::stringstream st;
@@ -70,7 +70,7 @@ void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize
     }
   }
   if (data.size() > 5000){
-    std::cerr << "Warning: After " << newdatasize << " new bytes, buffer has " << data.size() << " parts!" << std::endl;
+    DEBUG_MSG(DLVL_WARN, "Warning: After %d new bytes, buffer has %d parts!", newdatasize, (int)data.size());
   }
 }
 
@@ -240,9 +240,7 @@ bool Socket::Connection::isBlocking(){
 /// If the connection is already closed, nothing happens.
 void Socket::Connection::close(){
   if (connected()){
-#if DEBUG >= 6
-    fprintf(stderr, "Socket closed.\n");
-#endif
+    DEBUG_MSG(DLVL_HIGH, "Socket %d closed", sock);
     if (sock != -1){
       shutdown(sock, SHUT_RDWR);
       errno = EINTR;
@@ -285,9 +283,7 @@ Socket::Connection::Connection(std::string address, bool nonblock){
   sock = socket(PF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
     remotehost = strerror(errno);
-#if DEBUG >= 1
-    fprintf(stderr, "Could not create socket! Error: %s\n", remotehost.c_str());
-#endif
+    DEBUG_MSG(DLVL_FAIL, "Could not create socket! Error: %s", remotehost.c_str());
     return;
   }
   Error = false;
@@ -307,9 +303,7 @@ Socket::Connection::Connection(std::string address, bool nonblock){
     }
   }else{
     remotehost = strerror(errno);
-#if DEBUG >= 1
-    fprintf(stderr, "Could not connect to %s! Error: %s\n", address.c_str(), remotehost.c_str());
-#endif
+    DEBUG_MSG(DLVL_FAIL, "Could not connect to %s! Error: %s", address.c_str(), remotehost.c_str());
     close();
   }
 } //Socket::Connection Unix Contructor
@@ -340,9 +334,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   hints.ai_next = NULL;
   int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0){
-#if DEBUG >= 1
-    fprintf(stderr, "Could not connect to %s:%i! Error: %s\n", host.c_str(), port, gai_strerror(s));
-#endif
+    DEBUG_MSG(DLVL_FAIL, "Could not connect to %s:%i! Error: %s", host.c_str(), port, gai_strerror(s));
     close();
     return;
   }
@@ -362,9 +354,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   freeaddrinfo(result);
 
   if (rp == 0){
-#if DEBUG >= 1
-    fprintf(stderr, "Could not connect to %s! Error: %s\n", host.c_str(), remotehost.c_str());
-#endif
+    DEBUG_MSG(DLVL_FAIL, "Could not connect to %s! Error: %s", host.c_str(), remotehost.c_str());
     close();
   }else{
     if (nonblock){
@@ -531,9 +521,7 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len){
         if (errno != EPIPE){
           Error = true;
           remotehost = strerror(errno);
-#if DEBUG >= 2
-          fprintf(stderr, "Could not iwrite data! Error: %s\n", remotehost.c_str());
-#endif
+          DEBUG_MSG(DLVL_WARN, "Could not iwrite data! Error: %s\n", remotehost.c_str());
         }
         close();
         return 0;
@@ -571,9 +559,7 @@ int Socket::Connection::iread(void * buffer, int len){
         if (errno != EPIPE){
           Error = true;
           remotehost = strerror(errno);
-#if DEBUG >= 2
-          fprintf(stderr, "Could not iread data! Error: %s\n", remotehost.c_str());
-#endif
+          DEBUG_MSG(DLVL_WARN, "Could not iread data! Error: %s\n", remotehost.c_str());
         }
         close();
         return 0;
@@ -661,7 +647,7 @@ Socket::Server::Server(){
 /// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
 Socket::Server::Server(int port, std::string hostname, bool nonblock){
   if ( !IPv6bind(port, hostname, nonblock) && !IPv4bind(port, hostname, nonblock)){
-    fprintf(stderr, "Could not create socket %s:%i! Error: %s\n", hostname.c_str(), port, errors.c_str());
+    DEBUG_MSG(DLVL_FAIL, "Could not create socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
     sock = -1;
   }
 } //Socket::Server TCP Constructor
@@ -675,9 +661,7 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET6, SOCK_STREAM, 0);
   if (sock < 0){
     errors = strerror(errno);
-#if DEBUG >= 1
-    fprintf(stderr, "Could not create IPv6 socket %s:%i! Error: %s\n", hostname.c_str(), port, errors.c_str());
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Could not create IPv6 socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
     return false;
   }
   int on = 1;
@@ -699,23 +683,17 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100); //start listening, backlog of 100 allowed
     if (ret == 0){
-#if DEBUG >= 1
-      fprintf(stderr, "IPv6 socket success @ %s:%i\n", hostname.c_str(), port);
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "IPv6 socket success @ %s:%i\n", hostname.c_str(), port);
       return true;
     }else{
       errors = strerror(errno);
-#if DEBUG >= 1
-      fprintf(stderr, "IPv6 Listen failed! Error: %s\n", errors.c_str());
-#endif
+      DEBUG_MSG(DLVL_ERROR, "IPv6 listen failed! Error: %s\n", errors.c_str());
       close();
       return false;
     }
   }else{
     errors = strerror(errno);
-#if DEBUG >= 1
-    fprintf(stderr, "IPv6 Binding %s:%i failed (%s)\n", hostname.c_str(), port, errors.c_str());
-#endif
+    DEBUG_MSG(DLVL_ERROR, "IPv6 Binding %s:%i failed (%s)\n", hostname.c_str(), port, errors.c_str());
     close();
     return false;
   }
@@ -730,9 +708,7 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock < 0){
     errors = strerror(errno);
-#if DEBUG >= 1
-    fprintf(stderr, "Could not create IPv4 socket %s:%i! Error: %s\n", hostname.c_str(), port, errors.c_str());
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Could not create IPv4 socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
     return false;
   }
   int on = 1;
@@ -754,23 +730,17 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100); //start listening, backlog of 100 allowed
     if (ret == 0){
-#if DEBUG >= 1
-      fprintf(stderr, "IPv4 socket success @ %s:%i\n", hostname.c_str(), port);
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "IPv4 socket success @ %s:%i\n", hostname.c_str(), port);
       return true;
     }else{
       errors = strerror(errno);
-#if DEBUG >= 1
-      fprintf(stderr, "IPv4 Listen failed! Error: %s\n", errors.c_str());
-#endif
+      DEBUG_MSG(DLVL_ERROR, "IPv4 listen failed! Error: %s\n", errors.c_str());
       close();
       return false;
     }
   }else{
     errors = strerror(errno);
-#if DEBUG >= 1
-    fprintf(stderr, "IPv4 binding %s:%i failed (%s)\n", hostname.c_str(), port, errors.c_str());
-#endif
+    DEBUG_MSG(DLVL_ERROR, "IPv4 Binding %s:%i failed (%s)\n", hostname.c_str(), port, errors.c_str());
     close();
     return false;
   }
@@ -787,9 +757,7 @@ Socket::Server::Server(std::string address, bool nonblock){
   sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
     errors = strerror(errno);
-#if DEBUG >= 1
-    fprintf(stderr, "Could not create socket! Error: %s\n", errors.c_str());
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Could not create unix socket %s! Error: %s", address.c_str(), errors.c_str());
     return;
   }
   if (nonblock){
@@ -807,17 +775,13 @@ Socket::Server::Server(std::string address, bool nonblock){
       return;
     }else{
       errors = strerror(errno);
-#if DEBUG >= 1
-      fprintf(stderr, "Listen failed! Error: %s\n", errors.c_str());
-#endif
+      DEBUG_MSG(DLVL_ERROR, "Unix listen failed! Error: %s\n", errors.c_str());
       close();
       return;
     }
   }else{
     errors = strerror(errno);
-#if DEBUG >= 1
-    fprintf(stderr, "Binding failed! Error: %s\n", errors.c_str());
-#endif
+    DEBUG_MSG(DLVL_ERROR, "Unix Binding %s failed (%s)\n", address.c_str(), errors.c_str());
     close();
     return;
   }
@@ -845,29 +809,20 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   Socket::Connection tmp(r);
   if (r < 0){
     if ((errno != EWOULDBLOCK) && (errno != EAGAIN) && (errno != EINTR)){
-#if DEBUG >= 1
-      fprintf(stderr, "Error during accept - closing server socket.\n");
-#endif
+      DEBUG_MSG(DLVL_FAIL, "Error during accept - closing server socket %d.", sock);
       close();
     }
   }else{
     if (addrinfo.sin6_family == AF_INET6){
       tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-#if DEBUG >= 6
-      fprintf(stderr,"IPv6 addr: %s\n", tmp.remotehost.c_str());
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "IPv6 addr [%s]", tmp.remotehost.c_str());
     }
     if (addrinfo.sin6_family == AF_INET){
       tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in*) &addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-#if DEBUG >= 6
-      fprintf(stderr,"IPv4 addr: %s\n", tmp.remotehost.c_str());
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "IPv4 addr [%s]", tmp.remotehost.c_str());
     }
     if (addrinfo.sin6_family == AF_UNIX){
-#if DEBUG >= 6
-      tmp.remotehost = ((sockaddr_un*)&addrinfo)->sun_path;
-      fprintf(stderr,"Unix socket, no address\n");
-#endif
+      DEBUG_MSG(DLVL_DEVEL, "Unix addr [?]");
       tmp.remotehost = "UNIX_SOCKET";
     }
   }
@@ -893,9 +848,7 @@ bool Socket::Server::isBlocking(){
 /// If the connection is already closed, nothing happens.
 void Socket::Server::close(){
   if (connected()){
-#if DEBUG >= 6
-    fprintf(stderr, "ServerSocket closed.\n");
-#endif
+    DEBUG_MSG(DLVL_HIGH, "ServerSocket %d closed", sock);
     shutdown(sock, SHUT_RDWR);
     errno = EINTR;
     while (::close(sock) != 0 && errno == EINTR){

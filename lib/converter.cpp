@@ -1,4 +1,3 @@
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <sys/types.h>
@@ -69,7 +68,6 @@ namespace Converter {
     char const * cmd[3] = {0, 0, 0};
     std::string mistPath = Util::getMyPath() + "MistInfo";
     cmd[0] = mistPath.c_str();
-    fprintf( stderr, "Querying %s\n", myPath.c_str());
     JSON::Value result;
     DIR * Dirp = opendir(myPath.c_str());
     struct stat StatBuf;

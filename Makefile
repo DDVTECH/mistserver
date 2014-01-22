@@ -13,7 +13,9 @@ endif
 CPPFLAGS = -Wall -g -O2 -fPIC
 override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
 
-LDLIBS = -lcrypto -lrt
+LDLIBS = -lcrypto
+THREADLIB = -lpthread -lrt
+LDLIBS = -lcrypto $(THREADLIB)
 
 
 .DEFAULT_GOAL := all

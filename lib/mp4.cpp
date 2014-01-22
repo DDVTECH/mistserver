@@ -3,6 +3,7 @@
 #include <arpa/inet.h> //for htonl and friends
 #include "mp4.h"
 #include "json.h"
+#include "defines.h"
 
 #define Int64 uint64_t
 
@@ -2286,7 +2287,7 @@ namespace MP4 {
 
   void AVCC::setPayload(std::string newPayload){
     if ( !reserve(0, payloadSize(), newPayload.size())){
-      std::cerr << "Cannot allocate enough memory for payload" << std::endl;
+      DEBUG_MSG(DLVL_ERROR, "Cannot allocate enough memory for payload");
       return;
     }
     memcpy((char*)payload(), (char*)newPayload.c_str(), newPayload.size());

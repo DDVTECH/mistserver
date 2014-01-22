@@ -6,6 +6,9 @@
 |        See COPYING file for full license        |
 |_________________________________________________|
 
+NOTE: TinyThread++ is included also, but *not* copyright DDVTech BV.
+License and author information for TinyThread++ can be found in the tinythread.h/cpp files.
+
 
 The latest version of this code can always be found at:
   https://github.com/DDVTECH/mistlib

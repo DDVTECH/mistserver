@@ -1,6 +1,7 @@
 /// \file json.cpp Holds all JSON-related code.
 
 #include "json.h"
+#include "defines.h"
 #include <sstream>
 #include <fstream>
 #include <stdlib.h>
@@ -642,11 +643,11 @@ unsigned int JSON::Value::packedSize() const{
 }//packedSize
 
 /// Pre-packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
-/// Non-object-types will print an error to stderr.
+/// Non-object-types will print an error.
 /// The internal buffer is guaranteed to be up-to-date after this function is called.
 void JSON::Value::netPrepare(){
   if (myType != OBJECT){
-    fprintf(stderr, "Error: Only objects may be NetPacked!\n");
+    DEBUG_MSG(DLVL_ERROR, "Only objects may be netpacked!");
     return;
   }
   std::string packed = toPacked();
@@ -711,7 +712,7 @@ void JSON::Value::netPrepare(){
 }
 
 /// Packs any object-type JSON::Value to a std::string for transfer over the network, including proper DTMI header.
-/// Non-object-types will print an error to stderr and return an empty string.
+/// Non-object-types will print an error and return an empty string.
 /// This function returns a reference to an internal buffer where the prepared data is kept.
 /// The internal buffer is *not* made stale if any changes occur inside the object - subsequent calls to toPacked() will clear the buffer,
 /// calls to netPrepare will guarantee it is up-to-date.
@@ -719,7 +720,7 @@ std::string & JSON::Value::toNetPacked(){
   static std::string emptystring;
   //check if this is legal
   if (myType != OBJECT){
-    fprintf(stderr, "Error: Only objects may be NetPacked!\n");
+    DEBUG_MSG(DLVL_ERROR, "Only objects may be netpacked!");
     return emptystring;
   }
   //if sneaky storage doesn't contain correct data, re-calculate it
@@ -1018,9 +1019,6 @@ JSON::Value JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigne
 /// \param i Current parsing position in the raw data (defaults to 0).
 /// \param ret Will be set to JSON::Value, parsed from the raw data.
 void JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i, JSON::Value & ret){
-#if DEBUG >= 10
-  fprintf(stderr, "Note: AMF type %hhx found. %i bytes left\n", data[i], len-i);
-#endif
   ret.null();
   if (i >= len){
     return;
@@ -1087,9 +1085,7 @@ void JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigned int &
       break;
     }
   }
-#if DEBUG >= 2
-  fprintf(stderr, "Error: Unimplemented DTMI type %hhx, @ %i / %i - returning.\n", data[i], i, len);
-#endif
+  DEBUG_MSG(DLVL_FAIL, "Unimplemented DTMI type %hhx, @ %i / %i - returning.\n", data[i], i, len);
   i += 1;
   return;
 } //fromOneDTMI

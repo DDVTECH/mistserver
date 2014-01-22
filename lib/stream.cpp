@@ -1,10 +1,6 @@
 /// \file stream.cpp
 /// Utilities for handling streams.
 
-#if DEBUG >= 4
-#include <iostream>
-#endif
-
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -14,6 +10,7 @@
 #include "procs.h"
 #include "config.h"
 #include "socket.h"
+#include "defines.h"
 
 std::string Util::getTmpFolder(){
   std::string dir;
@@ -83,20 +80,12 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
   JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
   if (ServConf["streams"].isMember(streamname)){
     if (ServConf["streams"][streamname]["source"].asString()[0] == '/'){
-#if DEBUG >= 5
-      std::cerr << "Opening VoD stream from file " << ServConf["streams"][streamname]["source"].asString() << std::endl;
-#endif
       return getVod(ServConf["streams"][streamname]["source"].asString(), streamname);
     }else{
-#if DEBUG >= 5
-      std::cerr << "Opening live stream " << streamname << std::endl;
-#endif
       return Socket::Connection(getTmpFolder() + "stream_" + streamname);
     }
   }
-#if DEBUG >= 5
-  std::cerr << "Could not open stream " << streamname << " - stream not found" << std::endl;
-#endif
+  DEBUG_MSG(DLVL_ERROR, "Stream not found: %s", streamname.c_str());
   return Socket::Connection();
 }
 

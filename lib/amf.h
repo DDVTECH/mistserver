@@ -108,7 +108,7 @@ namespace AMF {
       Object3(std::string indice, double val, obj3type setType = AMF3_DOUBLE);
       Object3(std::string indice, std::string val, obj3type setType = AMF3_STRING);
       Object3(std::string indice, obj3type setType = AMF3_OBJECT);
-      void Print(std::string indent = "");
+      std::string Print(std::string indent = "");
       std::string Pack();
     protected:
       std::string myIndice; ///< Holds this objects indice, if any.

@@ -1,4 +1,5 @@
 #include "vorbis.h"
+#include "defines.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sstream>
@@ -236,7 +237,7 @@ namespace vorbis{
       long long unsigned int floorType = stream.get(16);
       switch(floorType){
         case 0:{
-          std::cerr << "WARNING: FloorType 0 in vorbis setup header not tested!" << std::endl;
+          DEBUG_MSG(DLVL_WARN, "FloorType 0 in vorbis setup header not tested!");
           stream.skip(8);//order
           stream.skip(16);//rate
           stream.skip(16);//bark_map_size
@@ -339,7 +340,7 @@ namespace vorbis{
         }
         char meh = stream.get(2);
         if (meh != 0){
-          std::cerr << "  Sanity Check ==0 : " << (int)meh << std::endl;
+          DEBUG_MSG(DLVL_ERROR, "Sanity check ==0 : %i", (int)meh);
           exit(0);
         }
         if (mappingSubmaps > 1){

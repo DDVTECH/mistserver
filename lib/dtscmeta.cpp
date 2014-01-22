@@ -1,4 +1,5 @@
 #include "dtsc.h"
+#include "defines.h"
 
 /// Retrieves a short in network order from the pointer p.
 static short btohs(char * p){
@@ -269,7 +270,7 @@ namespace DTSC {
 
   void Track::update(JSON::Value & pack){
     if (pack["time"].asInt() < lastms){
-      std::cerr << "Received packets for track " << trackID << " in wrong order (" << pack["time"].asInt() << " < " << lastms << ") - ignoring!" << std::endl;
+      DEBUG_MSG(DLVL_WARN, "Received packets for track %d in wrong order (%d < %d) - ignoring!", (int)trackID, (int)pack["time"].asInt(), (int)lastms);
       return;
     }
     Part newPart;

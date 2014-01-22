@@ -23,7 +23,6 @@ FTP::User::User(Socket::Connection NewConnection, std::map<std::string, std::str
   MyDir.SetVisibility("OnDemand", Filesystem::S_ACTIVE);
 
   JSON::Value MyConfig = JSON::fromFile("/tmp/mist/streamlist");
-  fprintf(stderr, "Streamamount: %d\n", MyConfig["streams"].size());
   for (JSON::ObjIter it = MyConfig["streams"].ObjBegin(); it != MyConfig["streams"].ObjEnd(); it++){
     std::string ThisStream = ( *it).second["channel"]["URL"].toString();
     ThisStream.erase(ThisStream.begin());
@@ -32,7 +31,6 @@ FTP::User::User(Socket::Connection NewConnection, std::map<std::string, std::str
       ThisStream.erase(0, ThisStream.find('/') + 1);
     }
     ActiveStreams.push_back(ThisStream);
-    fprintf(stderr, "\t%s\n", ThisStream.c_str());
   }
 }
 
@@ -160,7 +158,6 @@ int FTP::User::ParseCommand(std::string Command){
       break;
     }
     case CMD_LIST: {
-      std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
       if (Connected.connected()){
         Conn.Send("125 Data connection already open; transfer starting.\n");
@@ -170,7 +167,6 @@ int FTP::User::ParseCommand(std::string Command){
       while ( !Connected.connected()){
         Connected = Passive.accept();
       }
-      fprintf(stderr, "Sending LIST information\n");
       std::string tmpstr = MyDir.LIST(ActiveStreams);
       Connected.Send(tmpstr);
       Connected.close();
@@ -197,7 +193,6 @@ int FTP::User::ParseCommand(std::string Command){
         return 530;
       } //Not logged in.
       MyPassivePort = (rand() % 9999);
-      std::cout << ":" << MyPassivePort << "\n";
       Passive = Socket::Server(MyPassivePort, "0.0.0.0", true);
       return 229;
       break;
@@ -207,7 +202,6 @@ int FTP::User::ParseCommand(std::string Command){
         return 530;
       } //Not logged in.
       MyPassivePort = (rand() % 9999) + 49152;
-      std::cout << ":" << MyPassivePort << "\n";
       Passive = Socket::Server(MyPassivePort, "0.0.0.0", true);
       return 227;
       break;
@@ -222,7 +216,6 @@ int FTP::User::ParseCommand(std::string Command){
       if ( !MyDir.HasPermission(Filesystem::P_RETR)){
         return 550;
       } //Access denied.
-      std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
       if (Connected.connected()){
         Conn.Send("125 Data connection already open; transfer starting.\n");
@@ -232,7 +225,6 @@ int FTP::User::ParseCommand(std::string Command){
       while ( !Connected.connected()){
         Connected = Passive.accept();
       }
-      fprintf(stderr, "Sending RETR information\n");
       std::string tmpstr = MyDir.RETR(Command);
       Connected.Send(tmpstr);
       Connected.close();
@@ -249,7 +241,6 @@ int FTP::User::ParseCommand(std::string Command){
       if ( !MyDir.HasPermission(Filesystem::P_STOR)){
         return 550;
       } //Access denied.
-      std::cout << "Listening on :" << MyPassivePort << "\n";
       Socket::Connection Connected = Passive.accept();
       if (Connected.connected()){
         Conn.Send("125 Data connection already open; transfer starting.\n");
@@ -259,7 +250,6 @@ int FTP::User::ParseCommand(std::string Command){
       while ( !Connected.connected()){
         Connected = Passive.accept();
       }
-      fprintf(stderr, "Reading STOR information\n");
       std::string Buffer;
       while (Connected.spool()){
       }

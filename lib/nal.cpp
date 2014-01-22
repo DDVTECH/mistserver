@@ -18,7 +18,6 @@ bool NAL_Unit::ReadData(std::string & InputData){
   ShortAnnexB += (char)0x00;
   ShortAnnexB += (char)0x00;
   ShortAnnexB += (char)0x01;
-//  fprintf( stderr, "NAL_Unit::ReadData --- DataSize: %d\n", InputData.size() );
   if (InputData.size() < 3){
     return false;
   }

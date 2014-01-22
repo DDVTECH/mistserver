@@ -31,7 +31,13 @@ namespace Controller {
     m.append(message);
     Storage["log"].append(m);
     Storage["log"].shrink(100); //limit to 100 log messages
-    std::cout << "(" << Util::epoch() << ") [" << kind << "] " << message << std::endl;
+    time_t rawtime;
+    struct tm * timeinfo;
+    char buffer [100];
+    time (&rawtime);
+    timeinfo = localtime (&rawtime);
+    strftime (buffer,100,"%b %d %Y -- %H:%M",timeinfo);
+    std::cout << "(" << buffer << ") [" << kind << "] " << message << std::endl;
   }
 
   ///\brief Write contents to Filename

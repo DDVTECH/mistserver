@@ -590,6 +590,7 @@ int main(int argc, char ** argv){
                     if (Request["conversion"].isMember("convert")){
                       for (JSON::ObjIter it = Request["conversion"]["convert"].ObjBegin(); it != Request["conversion"]["convert"].ObjEnd(); it++){
                         myConverter.startConversion(it->first,it->second);
+                        Controller::Log("CONV","Conversion " + it->second["input"].asString() + " to " + it->second["output"].asString() + " started.");
                       }
                     }
                     if (Request["conversion"].isMember("status") || Request["conversion"].isMember("convert")){

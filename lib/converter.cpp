@@ -173,6 +173,10 @@ namespace Converter {
     Util::Procs::StartPiped2(name,encoderCommand.str(),Util::getMyPath() + "MistFLV2DTSC -o " + parameters["output"].asString(),0,0,&statusFD,0);
     parameters["statusFD"] = statusFD;
     allConversions[name] = parameters;
+    allConversions[name]["status"]["duration"] = "?";
+    allConversions[name]["status"]["progress"] = 0;
+    allConversions[name]["status"]["frame"] = 0;
+    allConversions[name]["status"]["time"] = 0;
   }
   
   void Converter::updateStatus(){
@@ -222,7 +226,6 @@ namespace Converter {
             allConversions.erase(cIt);
             hasChanged = true;
           }
-          break;
         }
       }
     }

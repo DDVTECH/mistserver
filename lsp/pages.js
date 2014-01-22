@@ -697,8 +697,9 @@ function showTab(tabName,streamName) {
                 })
               ).append(
                 $('<button>').text('Delete').click(function(){
-                  if (confirmDelete('Are you sure you want to delete the limit "Stream "'+stream+'": '+limitShortToLong(settings.settings.streams[stream].limits[index].name)+'"')) {
-                    var which = $(this).parent().parent().data('limit')
+                  var which = $(this).parent().parent().data('limit');
+                  var stream = which[0].replace('stream-','');
+                  if (confirmDelete('Are you sure you want to delete the limit "Stream "'+stream+'": '+limitShortToLong(settings.settings.streams[stream].limits[which[1]].name)+'"')) {
                     delete settings.settings.streams[stream].limits[which[1]];
                     saveAndReload('limits');
                   }

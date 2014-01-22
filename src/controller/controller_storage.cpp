@@ -31,7 +31,7 @@ namespace Controller {
     m.append(message);
     Storage["log"].append(m);
     Storage["log"].shrink(100); //limit to 100 log messages
-    std::cout << "[" << kind << "] " << message << std::endl;
+    std::cout << "(" << Util::epoch() << ") [" << kind << "] " << message << std::endl;
   }
 
   ///\brief Write contents to Filename

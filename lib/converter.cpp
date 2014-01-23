@@ -225,6 +225,7 @@ namespace Converter {
             }
             allConversions.erase(cIt);
             hasChanged = true;
+            break;
           }
         }
       }

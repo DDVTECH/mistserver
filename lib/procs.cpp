@@ -25,6 +25,16 @@ std::map<pid_t, std::string> Util::Procs::plist;
 std::map<pid_t, Util::TerminationNotifier> Util::Procs::exitHandlers;
 bool Util::Procs::handler_set = false;
 
+static bool childRunning(pid_t p){
+  pid_t ret = waitpid(p, 0, WNOHANG);
+  if (ret == p){return false;}
+  if (ret < 0 && errno == EINTR){
+    return childRunning(p);
+  }
+  if (kill(p, 0) == 0){return true;}
+  return false;
+}
+
 /// Called at exit of any program that used a Start* function.
 /// Waits up to 1 second, then sends SIGINT signal to all managed processes.
 /// After that waits up to 5 seconds for children to exit, then sends SIGKILL to
@@ -33,61 +43,75 @@ void Util::Procs::exit_handler(){
   int waiting = 0;
   std::map<pid_t, std::string> listcopy = plist;
   std::map<pid_t, std::string>::iterator it;
+  if (listcopy.empty()){return;}
 
-  //wait up to 1 second for applications to shut down 
-  while ( !listcopy.empty() && waiting <= 50){
+  //wait up to 0.5 second for applications to shut down 
+  while ( !listcopy.empty() && waiting <= 25){
     for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (kill(( *it).first, 0) == 0){
-        Util::sleep(20);
-        ++waiting;
-      }else{
+      if ( !childRunning((*it).first)){
         listcopy.erase(it);
         break;
       }
+      if ( !listcopy.empty()){
+        Util::sleep(20);
+        ++waiting;
+      }
     }
   }
+  if (listcopy.empty()){return;}
   
+  DEBUG_MSG(DLVL_DEVEL, "Sending SIGINT to remaining %d children", (int)listcopy.size());
   //send sigint to all remaining
   if ( !listcopy.empty()){
     for (it = listcopy.begin(); it != listcopy.end(); it++){
+      DEBUG_MSG(DLVL_DEVEL, "SIGINT %d: %s", ( *it).first, ( *it).second.c_str());
       kill(( *it).first, SIGINT);
     }
   }
-
+  
+  DEBUG_MSG(DLVL_DEVEL, "Waiting up to 5 seconds for %d children to terminate.", (int)listcopy.size());
   waiting = 0;
   //wait up to 5 seconds for applications to shut down 
-  while ( !listcopy.empty() && waiting <= 50){
+  while ( !listcopy.empty() && waiting <= 250){
     for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (kill(( *it).first, 0) == 0){
-        Util::sleep(100);
-        ++waiting;
-      }else{
+      if ( !childRunning((*it).first)){
         listcopy.erase(it);
         break;
       }
+      if ( !listcopy.empty()){
+        Util::sleep(20);
+        ++waiting;
+      }
     }
   }
+  if (listcopy.empty()){return;}
   
+  DEBUG_MSG(DLVL_DEVEL, "Sending SIGKILL to remaining %d children", (int)listcopy.size());
   //send sigkill to all remaining
-  if ( !plist.empty()){
+  if ( !listcopy.empty()){
     for (it = listcopy.begin(); it != listcopy.end(); it++){
+      DEBUG_MSG(DLVL_DEVEL, "SIGKILL %d: %s", ( *it).first, ( *it).second.c_str());
       kill(( *it).first, SIGKILL);
     }
   }
 
+  DEBUG_MSG(DLVL_DEVEL, "Waiting up to a second for %d children to terminate.", (int)listcopy.size());
   waiting = 0;
   //wait up to 1 second for applications to shut down 
   while ( !listcopy.empty() && waiting <= 50){
     for (it = listcopy.begin(); it != listcopy.end(); it++){
-      if (kill(( *it).first, 0) == 0){
-        Util::sleep(20);
-        ++waiting;
-      }else{
+      if ( !childRunning((*it).first)){
         listcopy.erase(it);
         break;
       }
+      if ( !listcopy.empty()){
+        Util::sleep(20);
+        ++waiting;
+      }
     }
   }
+  if (listcopy.empty()){return;}
+  DEBUG_MSG(DLVL_DEVEL, "Giving up with %d children left.", (int)listcopy.size());
   
 }
 
@@ -128,13 +152,15 @@ void Util::Procs::childsig_handler(int signum){
       return;
     }
 
-#if DEBUG >= DLVL_DEVEL
+#if DEBUG >= DLVL_HIGH
     std::string pname = plist[ret];
 #endif
     plist.erase(ret);
-#if DEBUG >= DLVL_DEVEL
+#if DEBUG >= DLVL_HIGH
     if (!isActive(pname)){
-      DEBUG_MSG(DLVL_DEVEL, "Process %s fully terminated", pname.c_str());
+      DEBUG_MSG(DLVL_HIGH, "Process %s fully terminated", pname.c_str());
+    }else{
+      DEBUG_MSG(DLVL_HIGH, "Child process %d exited", ret);
     }
 #endif
 
@@ -221,7 +247,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd){
     runCmd(cmd);
   }else{
     if (ret > 0){
-      DEBUG_MSG(DLVL_DEVEL, "Process %s started, PID %d: %s", name.c_str(), ret, cmd.c_str());
+      DEBUG_MSG(DLVL_HIGH, "Process %s started, PID %d: %s", name.c_str(), ret, cmd.c_str());
       plist.insert(std::pair<pid_t, std::string>(ret, name));
     }else{
       DEBUG_MSG(DLVL_ERROR, "Process %s could not be started: fork() failed", name.c_str());
@@ -277,7 +303,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2){
     runCmd(cmd2);
   }else{
     if (ret2 > 0){
-      DEBUG_MSG(DLVL_DEVEL, "Process %s started, PIDs (%d, %d): %s | %s", name.c_str(), ret, ret2, cmd.c_str(), cmd2.c_str());
+      DEBUG_MSG(DLVL_HIGH, "Process %s started, PIDs (%d, %d): %s | %s", name.c_str(), ret, ret2, cmd.c_str(), cmd2.c_str());
       plist.insert(std::pair<pid_t, std::string>(ret2, name));
     }else{
       DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. fork() failed.", name.c_str());
@@ -350,7 +376,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     runCmd(cmd2);
   }else{
     if (ret2 > 0){
-      DEBUG_MSG(DLVL_DEVEL, "Process %s started, PIDs (%d, %d): %s | %s", name.c_str(), ret, ret2, cmd.c_str(), cmd2.c_str());
+      DEBUG_MSG(DLVL_HIGH, "Process %s started, PIDs (%d, %d): %s | %s", name.c_str(), ret, ret2, cmd.c_str(), cmd2.c_str());
       plist.insert(std::pair<pid_t, std::string>(ret2, name));
     }else{
       DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. fork() failed.", name.c_str());
@@ -377,7 +403,7 @@ pid_t Util::Procs::Start(std::string name, std::string cmd, std::string cmd2, st
     runCmd(cmd3);
   }else{
     if (ret3 > 0){
-      DEBUG_MSG(DLVL_DEVEL, "Process %s started, PIDs (%d, %d, %d): %s | %s | %s", name.c_str(), ret, ret2, ret3, cmd.c_str(), cmd2.c_str(), cmd3.c_str());
+      DEBUG_MSG(DLVL_HIGH, "Process %s started, PIDs (%d, %d, %d): %s | %s | %s", name.c_str(), ret, ret2, ret3, cmd.c_str(), cmd2.c_str(), cmd3.c_str());
       plist.insert(std::pair<pid_t, std::string>(ret3, name));
     }else{
       DEBUG_MSG(DLVL_ERROR, "Process %s could not be started. fork() failed.", name.c_str());
@@ -509,7 +535,7 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
     }
     return 0;
   }else{ //parent
-    DEBUG_MSG(DLVL_DEVEL, "Piped process %s started, PID %d: %s", name.c_str(), pid, argv[0]);
+    DEBUG_MSG(DLVL_HIGH, "Piped process %s started, PID %d: %s", name.c_str(), pid, argv[0]);
     if (devnull != -1){
       close(devnull);
     }

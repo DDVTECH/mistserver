@@ -42,8 +42,8 @@ MistPlayer: src/buffer/player.cpp
 
 buffers: MistBuffer
 MistBuffer: override LDLIBS += $(THREADLIB)
-MistBuffer: src/buffer/buffer.cpp src/buffer/buffer_stream.h src/buffer/buffer_stream.cpp tinythread.o tinythread.h
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) src/buffer/buffer.cpp src/buffer/buffer_stream.cpp tinythread.o $(LDLIBS) -o $@
+MistBuffer: src/buffer/buffer.cpp src/buffer/buffer_stream.h src/buffer/buffer_stream.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) src/buffer/buffer.cpp src/buffer/buffer_stream.cpp $(LDLIBS) -o $@
 
 connectors: MistConnRaw
 MistConnRaw: src/connectors/conn_raw.cpp
@@ -55,8 +55,8 @@ MistConnRTMP: src/connectors/conn_rtmp.cpp
 
 connectors: MistConnHTTP
 MistConnHTTP: override LDLIBS += $(THREADLIB)
-MistConnHTTP: src/connectors/conn_http.cpp tinythread.o tinythread.h src/connectors/embed.js.h src/connectors/icon.h
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) src/connectors/conn_http.cpp tinythread.o $(LDLIBS) -o $@
+MistConnHTTP: src/connectors/conn_http.cpp src/connectors/embed.js.h src/connectors/icon.h
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $< $(LDLIBS) -o $@
 
 connectors: MistConnHTTPProgressiveFLV
 MistConnHTTPProgressiveFLV: src/connectors/conn_http_progressive_flv.cpp

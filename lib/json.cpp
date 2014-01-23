@@ -1085,7 +1085,7 @@ void JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigned int &
       break;
     }
   }
-  DEBUG_MSG(DLVL_FAIL, "Unimplemented DTMI type %hhx, @ %i / %i - returning.\n", data[i], i, len);
+  DEBUG_MSG(DLVL_FAIL, "Unimplemented DTMI type %hhx, @ %i / %i - returning.", data[i], i, len);
   i += 1;
   return;
 } //fromOneDTMI

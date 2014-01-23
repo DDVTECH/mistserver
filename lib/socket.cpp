@@ -521,7 +521,7 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len){
         if (errno != EPIPE){
           Error = true;
           remotehost = strerror(errno);
-          DEBUG_MSG(DLVL_WARN, "Could not iwrite data! Error: %s\n", remotehost.c_str());
+          DEBUG_MSG(DLVL_WARN, "Could not iwrite data! Error: %s", remotehost.c_str());
         }
         close();
         return 0;
@@ -559,7 +559,7 @@ int Socket::Connection::iread(void * buffer, int len){
         if (errno != EPIPE){
           Error = true;
           remotehost = strerror(errno);
-          DEBUG_MSG(DLVL_WARN, "Could not iread data! Error: %s\n", remotehost.c_str());
+          DEBUG_MSG(DLVL_WARN, "Could not iread data! Error: %s", remotehost.c_str());
         }
         close();
         return 0;
@@ -683,17 +683,17 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100); //start listening, backlog of 100 allowed
     if (ret == 0){
-      DEBUG_MSG(DLVL_DEVEL, "IPv6 socket success @ %s:%i\n", hostname.c_str(), port);
+      DEBUG_MSG(DLVL_DEVEL, "IPv6 socket success @ %s:%i", hostname.c_str(), port);
       return true;
     }else{
       errors = strerror(errno);
-      DEBUG_MSG(DLVL_ERROR, "IPv6 listen failed! Error: %s\n", errors.c_str());
+      DEBUG_MSG(DLVL_ERROR, "IPv6 listen failed! Error: %s", errors.c_str());
       close();
       return false;
     }
   }else{
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "IPv6 Binding %s:%i failed (%s)\n", hostname.c_str(), port, errors.c_str());
+    DEBUG_MSG(DLVL_ERROR, "IPv6 Binding %s:%i failed (%s)", hostname.c_str(), port, errors.c_str());
     close();
     return false;
   }
@@ -730,17 +730,17 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100); //start listening, backlog of 100 allowed
     if (ret == 0){
-      DEBUG_MSG(DLVL_DEVEL, "IPv4 socket success @ %s:%i\n", hostname.c_str(), port);
+      DEBUG_MSG(DLVL_DEVEL, "IPv4 socket success @ %s:%i", hostname.c_str(), port);
       return true;
     }else{
       errors = strerror(errno);
-      DEBUG_MSG(DLVL_ERROR, "IPv4 listen failed! Error: %s\n", errors.c_str());
+      DEBUG_MSG(DLVL_ERROR, "IPv4 listen failed! Error: %s", errors.c_str());
       close();
       return false;
     }
   }else{
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "IPv4 Binding %s:%i failed (%s)\n", hostname.c_str(), port, errors.c_str());
+    DEBUG_MSG(DLVL_ERROR, "IPv4 Binding %s:%i failed (%s)", hostname.c_str(), port, errors.c_str());
     close();
     return false;
   }
@@ -775,13 +775,13 @@ Socket::Server::Server(std::string address, bool nonblock){
       return;
     }else{
       errors = strerror(errno);
-      DEBUG_MSG(DLVL_ERROR, "Unix listen failed! Error: %s\n", errors.c_str());
+      DEBUG_MSG(DLVL_ERROR, "Unix listen failed! Error: %s", errors.c_str());
       close();
       return;
     }
   }else{
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "Unix Binding %s failed (%s)\n", address.c_str(), errors.c_str());
+    DEBUG_MSG(DLVL_ERROR, "Unix Binding %s failed (%s)", address.c_str(), errors.c_str());
     close();
     return;
   }

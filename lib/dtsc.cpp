@@ -530,7 +530,7 @@ DTSC::File::File(std::string filename, bool create){
   }
   created = create;
   if ( !F){
-    DEBUG_MSG(DLVL_ERROR, "Could not open file %s\n", filename.c_str());
+    DEBUG_MSG(DLVL_ERROR, "Could not open file %s", filename.c_str());
     return;
   }
   fseek(F, 0, SEEK_END);

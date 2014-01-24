@@ -13,7 +13,7 @@ endif
 CPPFLAGS = -Wall -g -O2 -fPIC
 override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
 
-LDLIBS = -lcrypto
+LDLIBS = -lcrypto -lrt
 
 
 .DEFAULT_GOAL := all

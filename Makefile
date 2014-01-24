@@ -18,7 +18,7 @@ override CPPFLAGS += -DWITH_THREADNAMES=1
 endif
 
 THREADLIB = -lpthread
-LDLIBS = -lmist
+LDLIBS = -lmist -lrt
 
 
 .DEFAULT_GOAL := all

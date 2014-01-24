@@ -346,6 +346,7 @@ int main(int argc, char ** argv){
         #if DEBUG >= 3
         fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
         #endif
+        S.close();
       }
     }
   } //while connected

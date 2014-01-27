@@ -25,12 +25,13 @@
 
 ///\brief Holds everything unique to the TS Connector
 namespace Connector_TS {
+  std::string streamName;
+  std::string trackIDs;
+  
   ///\brief Main function for the TS Connector
   ///\param conn A socket describing the connection the client.
-  ///\param streamName The stream to connect to.
-  ///\param trackIDs Space separated list of wanted tracks.
   ///\return The exit code of the connector.
-  int tsConnector(Socket::Connection conn, std::string streamName, std::string trackIDs){
+  int tsConnector(Socket::Connection & conn){
     std::string ToPack;
     TS::Packet PackData;
     std::string DTMIData;
@@ -206,27 +207,8 @@ int main(int argc, char ** argv){
     conf.printHelp(std::cout);
     return 1;
   }
-  
-  Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));
-  if ( !server_socket.connected()){
-    return 1;
-  }
-  conf.activate();
 
-  while (server_socket.connected() && conf.is_active){
-    Socket::Connection S = server_socket.accept();
-    if (S.connected()){ //check if the new connection is valid
-      pid_t myid = fork();
-      if (myid == 0){ //if new child, start MAINHANDLER
-        return Connector_TS::tsConnector(S, conf.getString("streamname"), conf.getString("tracks"));
-      }else{ //otherwise, do nothing or output debugging text
-#if DEBUG >= 5
-        fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
-#endif
-        S.close();
-      }
-    }
-  } //while connected
-  server_socket.close();
-  return 0;
+  Connector_TS::streamName = conf.getString("streamname");
+  Connector_TS::trackIDs = conf.getString("tracks");
+  return conf.serveForkedSocket(Connector_TS::tsConnector);
 } //main

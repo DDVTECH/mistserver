@@ -102,13 +102,13 @@ namespace Connector_HTTP {
   ///\param H The request to be handled.
   ///\param conn The connection to the client that issued the request.
   ///\return A timestamp indicating when the request was parsed.
-  long long int proxyHandleUnsupported(HTTP::Parser & H, Socket::Connection * conn){
+  long long int proxyHandleUnsupported(HTTP::Parser & H, Socket::Connection & conn){
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody(
         "<!DOCTYPE html><html><head><title>Unsupported Media Type</title></head><body><h1>Unsupported Media Type</h1>The server isn't quite sure what you wanted to receive from it.</body></html>");
     long long int ret = Util::getMS();
-    conn->SendNow(H.BuildResponse("415", "Unsupported Media Type"));
+    conn.SendNow(H.BuildResponse("415", "Unsupported Media Type"));
     return ret;
   }
 
@@ -118,13 +118,13 @@ namespace Connector_HTTP {
   ///\param H The request that was being handled upon timeout.
   ///\param conn The connection to the client that issued the request.
   ///\return A timestamp indicating when the request was parsed.
-  long long int proxyHandleTimeout(HTTP::Parser & H, Socket::Connection * conn){
+  long long int proxyHandleTimeout(HTTP::Parser & H, Socket::Connection & conn){
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody(
         "<!DOCTYPE html><html><head><title>Gateway timeout</title></head><body><h1>Gateway timeout</h1>Though the server understood your request and attempted to handle it, somehow handling it took longer than it should. Your request has been cancelled - please try again later.</body></html>");
     long long int ret = Util::getMS();
-    conn->SendNow(H.BuildResponse("504", "Gateway Timeout"));
+    conn.SendNow(H.BuildResponse("504", "Gateway Timeout"));
     return ret;
   }
   
@@ -233,7 +233,7 @@ namespace Connector_HTTP {
   ///\param H The request to be handled.
   ///\param conn The connection to the client that issued the request.
   ///\return A timestamp indicating when the request was parsed.
-  long long int proxyHandleInternal(HTTP::Parser & H, Socket::Connection * conn){
+  long long int proxyHandleInternal(HTTP::Parser & H, Socket::Connection & conn){
 
     std::string url = H.getUrl();
 
@@ -244,7 +244,7 @@ namespace Connector_HTTP {
       H.SetBody(
           "<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       long long int ret = Util::getMS();
-      conn->SendNow(H.BuildResponse("200", "OK"));
+      conn.SendNow(H.BuildResponse("200", "OK"));
       return ret;
     } //crossdomain.xml
 
@@ -255,7 +255,7 @@ namespace Connector_HTTP {
       H.SetBody(
           "<?xml version=\"1.0\" encoding=\"utf-8\"?><access-policy><cross-domain-access><policy><allow-from http-methods=\"*\" http-request-headers=\"*\"><domain uri=\"*\"/></allow-from><grant-to><resource path=\"/\" include-subpaths=\"true\"/></grant-to></policy></cross-domain-access></access-policy>");
       long long int ret = Util::getMS();
-      conn->SendNow(H.BuildResponse("200", "OK"));
+      conn.SendNow(H.BuildResponse("200", "OK"));
       return ret;
     } //clientaccesspolicy.xml
     
@@ -268,8 +268,8 @@ namespace Connector_HTTP {
       H.SetHeader("Content-Length", icon_len);
       H.SetBody("");
       long long int ret = Util::getMS();
-      conn->SendNow(H.BuildResponse("200", "OK"));
-      conn->SendNow((const char*)icon_data, icon_len);
+      conn.SendNow(H.BuildResponse("200", "OK"));
+      conn.SendNow((const char*)icon_data, icon_len);
       return ret;
     }
 
@@ -282,7 +282,7 @@ namespace Connector_HTTP {
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetBody("<!DOCTYPE html><html><head><title>Stream "+streamname+"</title><style>BODY{color:white;background:black;}</style></head><body><script src=\"embed_"+streamname+".js\"></script></body></html>");
       long long int ret = Util::getMS();
-      conn->SendNow(H.BuildResponse("200", "OK"));
+      conn.SendNow(H.BuildResponse("200", "OK"));
       return ret;
     }
     
@@ -379,7 +379,7 @@ namespace Connector_HTTP {
       }
       H.SetBody(response);
       long long int ret = Util::getMS();
-      conn->SendNow(H.BuildResponse("200", "OK"));
+      conn.SendNow(H.BuildResponse("200", "OK"));
       return ret;
     } //embed code generator
 
@@ -391,12 +391,12 @@ namespace Connector_HTTP {
   ///\param conn The connection to the client that issued the request.
   ///\param connector The type of connector to be invoked.
   ///\return A timestamp indicating when the request was parsed.
-  long long int proxyHandleThroughConnector(HTTP::Parser & H, Socket::Connection * conn, std::string & connector){
+  long long int proxyHandleThroughConnector(HTTP::Parser & H, Socket::Connection & conn, std::string & connector){
     //create a unique ID based on a hash of the user agent and host, followed by the stream name and connector
-    std::string uid = Secure::md5(H.GetHeader("User-Agent") + conn->getHost()) + "_" + H.GetVar("stream") + "_" + connector;
+    std::string uid = Secure::md5(H.GetHeader("User-Agent") + conn.getHost()) + "_" + H.GetVar("stream") + "_" + connector;
     H.SetHeader("X-Stream", H.GetVar("stream"));
     H.SetHeader("X-UID", uid); //add the UID to the headers before copying
-    H.SetHeader("X-Origin", conn->getHost()); //add the UID to the headers before copying
+    H.SetHeader("X-Origin", conn.getHost()); //add the UID to the headers before copying
     std::string request = H.BuildRequest(); //copy the request for later forwarding to the connector
     std::string orig_url = H.getUrl();
     H.Clean();
@@ -462,8 +462,8 @@ namespace Connector_HTTP {
     //set to only read headers
     H.headerOnly = true;
     //wait for a response
-    while (myCConn->conn->connected() && conn->connected()){
-      conn->spool();
+    while (myCConn->conn->connected() && conn.connected()){
+      conn.spool();
       if (myCConn->conn->Received().size() || myCConn->conn->spool()){
         //check if the whole header was received
         if (H.Read(*(myCConn->conn))){
@@ -505,7 +505,7 @@ namespace Connector_HTTP {
     }
     //unset to only read headers
     H.headerOnly = false;
-    if ( !myCConn->conn->connected() || !conn->connected()){
+    if ( !myCConn->conn->connected() || !conn.connected()){
       //failure, disconnect and sent error to user
       myCConn->conn->close();
       myCConn->inUse.unlock();
@@ -518,23 +518,23 @@ namespace Connector_HTTP {
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         H.body = "";
-        H.Proxy(*(myCConn->conn), *conn);
+        H.Proxy(*(myCConn->conn), conn);
         myCConn->inUse.unlock();
       }else{
         //unknown length
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
-        conn->SendNow(H.BuildResponse("200", "OK"));
+        conn.SendNow(H.BuildResponse("200", "OK"));
         //switch out the connection for an empty one - it makes no sense to keep these globally
         Socket::Connection * myConn = myCConn->conn;
         myCConn->conn = new Socket::Connection();
         myCConn->inUse.unlock();
         long long int last_data_time = Util::getMS();
         //continue sending data from this socket and keep it permanently in use
-        while (myConn->connected() && conn->connected()){
+        while (myConn->connected() && conn.connected()){
           if (myConn->Received().size() || myConn->spool()){
             //forward any and all incoming data directly without parsing
-            conn->SendNow(myConn->Received().get());
+            conn.SendNow(myConn->Received().get());
             myConn->Received().get().clear();
             last_data_time = Util::getMS();
           }else{
@@ -547,7 +547,7 @@ namespace Connector_HTTP {
         }
         myConn->close();
         delete myConn;
-        conn->close();
+        conn.close();
       }
       return ret;
     }
@@ -622,17 +622,16 @@ namespace Connector_HTTP {
   }
 
   ///\brief Function run as a thread to handle a single HTTP connection.
-  ///\param pointer A Socket::Connection* indicating the connection to th client.
-  void proxyHandleHTTPConnection(void * pointer){
-    Socket::Connection * conn = (Socket::Connection *)pointer;
-    conn->setBlocking(false); //do not block on conn.spool() when no data is available
+  ///\param conn A Socket::Connection indicating the connection to th client.
+  int proxyHandleHTTPConnection(Socket::Connection & conn){
+    conn.setBlocking(false); //do not block on conn.spool() when no data is available
     HTTP::Parser Client;
-    while (conn->connected()){
-      if (conn->spool() || conn->Received().size()){
-        if (Client.Read(*conn)){
+    while (conn.connected()){
+      if (conn.spool() || conn.Received().size()){
+        if (Client.Read(conn)){
           std::string handler = proxyGetHandleType(Client);
 #if DEBUG >= 4
-          std::cout << "Received request: " << Client.getUrl() << " (" << conn->getSocket() << ") => " << handler << " (" << Client.GetVar("stream")
+          std::cout << "Received request: " << Client.getUrl() << " (" << conn.getSocket() << ") => " << handler << " (" << Client.GetVar("stream")
               << ")" << std::endl;
           long long int startms = Util::getMS();
 #endif
@@ -653,7 +652,7 @@ namespace Connector_HTTP {
           }
 #if DEBUG >= 4
           long long int nowms = Util::getMS();
-          std::cout << "Completed request " << conn->getSocket() << " " << handler << " in " << (midms - startms) << " ms (processing) / " << (nowms - midms) << " ms (transfer)" << std::endl;
+          std::cout << "Completed request " << conn.getSocket() << " " << handler << " in " << (midms - startms) << " ms (processing) / " << (nowms - midms) << " ms (transfer)" << std::endl;
 #endif
           if (closeConnection){
             break;
@@ -665,8 +664,8 @@ namespace Connector_HTTP {
       }
     }
     //close and remove the connection
-    conn->close();
-    delete conn;
+    conn.close();
+    return 0;
   }
 
 } //Connector_HTTP namespace
@@ -699,24 +698,8 @@ int main(int argc, char ** argv){
     }
   }
   
-  Socket::Server server_socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"));
-  if ( !server_socket.connected()){
-    return 1;
-  }
-  conf.activate();
+  return conf.serveThreadedSocket(Connector_HTTP::proxyHandleHTTPConnection);
 
-  while (server_socket.connected() && conf.is_active){
-    Socket::Connection S = server_socket.accept();
-    if (S.connected()){ //check if the new connection is valid
-      //spawn a new thread for this connection
-      tthread::thread T(Connector_HTTP::proxyHandleHTTPConnection, (void *)(new Socket::Connection(S)));
-      //detach it, no need to keep track of it anymore
-      T.detach();
-    }else{
-      Util::sleep(10); //sleep 10ms
-    }
-  } //while connected and not requested to stop
-  server_socket.close();
   if (Connector_HTTP::timeouter){
     Connector_HTTP::timeouter->detach();
     delete Connector_HTTP::timeouter;

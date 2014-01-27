@@ -195,7 +195,7 @@ namespace Connector_HTTP {
   ///\brief Main function for the HTTP Smooth Connector
   ///\param conn A socket describing the connection the client.
   ///\return The exit code of the connector.
-  int smoothConnector(Socket::Connection conn){
+  int smoothConnector(Socket::Connection & conn){
     std::deque<std::string> dataBuffer;//A buffer for the data that needs to be sent to the client.
 
     DTSC::Stream Strm;//Incoming stream buffer.
@@ -545,26 +545,5 @@ int main(int argc, char ** argv){
     return -1;
   }
 
-  Socket::Server server_socket = Socket::Server(Util::getTmpFolder() + capa["socket"].asStringRef());
-  if ( !server_socket.connected()){
-    return 1;
-  }
-  conf.activate();
-
-  while (server_socket.connected() && conf.is_active){
-    Socket::Connection S = server_socket.accept();
-    if (S.connected()){ //check if the new connection is valid
-      pid_t myid = fork();
-      if (myid == 0){ //if new child, start MAINHANDLER
-        return Connector_HTTP::smoothConnector(S);
-      }else{ //otherwise, do nothing or output debugging text
-#if DEBUG >= 5
-        fprintf(stderr, "Spawned new process %i for socket %i\n", (int)myid, S.getSocket());
-#endif
-        S.close();
-      }
-    }
-  } //while connected
-  server_socket.close();
-  return 0;
+  return conf.serveForkedSocket(Connector_HTTP::smoothConnector);
 } //main

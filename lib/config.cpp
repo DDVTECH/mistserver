@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "timing.h"
 #include "tinythread.h"
+#include "stream.h"
 #include <string.h>
 #include <signal.h>
 
@@ -299,7 +300,7 @@ bool Util::Config::getBool(std::string optname){
 
 struct callbackData{
   Socket::Connection * sock;
-  void (*cb)(Socket::Connection &);
+  int (*cb)(Socket::Connection &);
 };
 
 static void callThreadCallback(void * cDataArg){
@@ -312,8 +313,14 @@ static void callThreadCallback(void * cDataArg){
   DEBUG_MSG(DLVL_INSANE, "Thread for %p ended", cDataArg);
 }
 
-int Util::Config::serveThreadedSocket(void (*callback)(Socket::Connection &)){
-  Socket::Server server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
+int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
+  Socket::Server server_socket;
+  if (vals.isMember("socket")){
+    server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
+  }
+  if (vals.isMember("listen_port") && vals.isMember("listen_interface")){
+    server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
+  }
   if (!server_socket.connected()){return 1;}
   DEBUG_MSG(DLVL_DEVEL, "Activating threaded server: %s", getString("cmd").c_str());
   activate();
@@ -334,6 +341,41 @@ int Util::Config::serveThreadedSocket(void (*callback)(Socket::Connection &)){
   }//main loop
   server_socket.close();
   DEBUG_MSG(DLVL_DEVEL, "Threaded server exiting: %s", getString("cmd").c_str());
+  return 0;
+}
+
+int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)){
+  Socket::Server server_socket;
+  if (vals.isMember("socket")){
+    server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
+  }
+  if (vals.isMember("listen_port") && vals.isMember("listen_interface")){
+    server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
+  }
+  if (!server_socket.connected()){
+    DEBUG_MSG(DLVL_DEVEL, "Failure to open socket");
+    return 1;
+  }
+  DEBUG_MSG(DLVL_DEVEL, "Activating forked server: %s", getString("cmd").c_str());
+  activate();
+  
+  while (is_active && server_socket.connected()){
+    Socket::Connection S = server_socket.accept();
+    if (S.connected()){ //check if the new connection is valid
+      pid_t myid = fork();
+      if (myid == 0){ //if new child, start MAINHANDLER
+        server_socket.drop();
+        return callback(S);
+      }else{ //otherwise, do nothing or output debugging text
+        DEBUG_MSG(DLVL_DEVEL, "Forked new process %i for socket %i", (int)myid, S.getSocket());
+        S.drop();
+      }
+    }else{
+      Util::sleep(10); //sleep 10ms
+    }
+  }//main loop
+  server_socket.close();
+  DEBUG_MSG(DLVL_DEVEL, "Forked server exiting: %s", getString("cmd").c_str());
   return 0;
 }
 
@@ -425,7 +467,16 @@ void Util::Config::addBasicConnectorOptions(JSON::Value & capabilities){
   capabilities["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
   capabilities["optional"]["username"]["option"] = "--username";
   capabilities["optional"]["username"]["type"] = "str";
-  
+
+
+  if (capabilities.isMember("socket")){
+    option.null();
+    option["arg"] = "string";
+    option["help"] = "Socket name that can be connected to for this connector.";
+    option["value"].append(capabilities["socket"]);
+    addOption("socket", option);
+  }
+
   option.null();
   option["long"] = "daemon";
   option["short"] = "d";

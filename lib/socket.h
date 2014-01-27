@@ -68,6 +68,7 @@ namespace Socket {
       Connection(int write, int read); ///< Simulate a socket using two file descriptors.
       //generic methods
       void close(); ///< Close connection.
+      void drop(); ///< Close connection without shutdown.
       void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
       bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
       std::string getHost(); ///< Gets hostname for connection, if available.
@@ -114,6 +115,7 @@ namespace Socket {
       bool connected() const; ///< Returns the connected-state for this socket.
       bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
       void close(); ///< Close connection.
+      void drop(); ///< Close connection without shutdown.
       int getSocket(); ///< Returns internal socket number.
   };
 

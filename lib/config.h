@@ -33,9 +33,9 @@ namespace Util {
       long long int getInteger(std::string optname);
       bool getBool(std::string optname);
       void activate();
-      int serveThreadedSocket(void (*callback)(Socket::Connection & S));
-      int serveForkedSocket(void (*callback)(Socket::Connection & S));
-      int servePlainSocket(void (*callback)(Socket::Connection & S));
+      int serveThreadedSocket(int (*callback)(Socket::Connection & S));
+      int serveForkedSocket(int (*callback)(Socket::Connection & S));
+      int servePlainSocket(int (*callback)(Socket::Connection & S));
       void addBasicConnectorOptions(JSON::Value & capabilities);
       void addConnectorOptions(int port, JSON::Value & capabilities);
   };
@@ -53,4 +53,3 @@ namespace Util {
   void Daemonize();
 
 }
-;

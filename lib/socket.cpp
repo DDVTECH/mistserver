@@ -238,11 +238,23 @@ bool Socket::Connection::isBlocking(){
 
 /// Close connection. The internal socket is closed and then set to -1.
 /// If the connection is already closed, nothing happens.
+/// This function calls shutdown, thus making the socket unusable in all other
+/// processes as well. Do not use on shared sockets that are still in use.
 void Socket::Connection::close(){
+  if (sock != -1){
+    shutdown(sock, SHUT_RDWR);
+  }
+  drop();
+} //Socket::Connection::close
+
+/// Close connection. The internal socket is closed and then set to -1.
+/// If the connection is already closed, nothing happens.
+/// This function does *not* call shutdown, allowing continued use in other
+/// processes.
+void Socket::Connection::drop(){
   if (connected()){
-    DEBUG_MSG(DLVL_HIGH, "Socket %d closed", sock);
     if (sock != -1){
-      shutdown(sock, SHUT_RDWR);
+      DEBUG_MSG(DLVL_HIGH, "Socket %d closed", sock);
       errno = EINTR;
       while (::close(sock) != 0 && errno == EINTR){
       }
@@ -261,7 +273,7 @@ void Socket::Connection::close(){
       pipes[1] = -1;
     }
   }
-} //Socket::Connection::close
+} //Socket::Connection::drop
 
 /// Returns internal socket number.
 int Socket::Connection::getSocket(){
@@ -846,16 +858,30 @@ bool Socket::Server::isBlocking(){
 
 /// Close connection. The internal socket is closed and then set to -1.
 /// If the connection is already closed, nothing happens.
+/// This function calls shutdown, thus making the socket unusable in all other
+/// processes as well. Do not use on shared sockets that are still in use.
 void Socket::Server::close(){
-  if (connected()){
-    DEBUG_MSG(DLVL_HIGH, "ServerSocket %d closed", sock);
+  if (sock != -1){
     shutdown(sock, SHUT_RDWR);
-    errno = EINTR;
-    while (::close(sock) != 0 && errno == EINTR){
-    }
-    sock = -1;
   }
+  drop();
 } //Socket::Server::close
+
+/// Close connection. The internal socket is closed and then set to -1.
+/// If the connection is already closed, nothing happens.
+/// This function does *not* call shutdown, allowing continued use in other
+/// processes.
+void Socket::Server::drop(){
+  if (connected()){
+    if (sock != -1){
+      DEBUG_MSG(DLVL_HIGH, "ServerSocket %d closed", sock);
+      errno = EINTR;
+      while (::close(sock) != 0 && errno == EINTR){
+      }
+      sock = -1;
+    }
+  }
+} //Socket::Server::drop
 
 /// Returns the connected-state for this socket.
 /// Note that this function might be slightly behind the real situation.

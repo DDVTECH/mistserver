@@ -66,6 +66,7 @@ namespace Buffer {
       }
       Util::sleep(10);//sleep to prevent high CPU usage
     }
+    conn.close();
     if (buffer_running){
       thisStream->endStream();
     }

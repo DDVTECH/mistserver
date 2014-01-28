@@ -271,7 +271,8 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
     //throw away buffers if buffer time is met
     int trid = buffers.begin()->first.trackID;
     int firstTime = buffers.begin()->first.seekTime;
-    while (metadata.tracks[trid].keys.size() > 2 && metadata.tracks[trid].keys.rbegin()->getTime() - firstTime > buffertime){
+    int lastTime = buffers.rbegin()->first.seekTime - buffertime;
+    while ((!metadata.tracks[trid].keys.size() && firstTime < lastTime) || (metadata.tracks[trid].keys.size() && metadata.tracks[trid].keys.rbegin()->getTime() < lastTime) || (metadata.tracks[trid].keys.size() > 2 && metadata.tracks[trid].keys.rbegin()->getTime() - firstTime > buffertime)){
       cutOneBuffer();
       trid = buffers.begin()->first.trackID;
       firstTime = buffers.begin()->first.seekTime;

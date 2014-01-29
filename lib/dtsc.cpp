@@ -409,6 +409,9 @@ DTSC::Ring * DTSC::Stream::getRing(){
 /// Deletes a given out Ring class from memory and internal Ring list.
 /// Checks for NULL pointers and invalid pointers, silently discarding them.
 void DTSC::Stream::dropRing(DTSC::Ring * ptr){
+  if (ptr){
+    delete ptr;
+  }
 }
 
 /// Returns 0 if seeking is possible, -1 if the wanted frame is too old, 1 if the wanted frame is too new.

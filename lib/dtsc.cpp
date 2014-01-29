@@ -169,10 +169,11 @@ bool DTSC::Stream::parsePacket(Socket::Buffer & buffer){
 
 /// Adds a keyframe packet to all tracks, so the stream can be fully played.
 void DTSC::Stream::endStream(){
+  if (!metadata.tracks.size()){return;}
   for (std::map<int,Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
     JSON::Value newPack;
     newPack["time"] = it->second.lastms;
-    newPack["trackid"] = it->second.trackID;
+    newPack["trackid"] = it->first;
     newPack["keyframe"] = 1ll;
     newPack["data"] = "";
     addPacket(newPack);
@@ -232,6 +233,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
+  if (!metadata.tracks.count(newPos.trackID)){return;}
   if (buffercount > 1 && metadata.tracks[newPos.trackID].keys.size() > 1 && newPos.seekTime < (long long unsigned int)metadata.tracks[newPos.trackID].keys.rbegin()->getTime()){
     resetStream();
   }
@@ -285,6 +287,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
 /// Deletes a the first part of the buffer, updating the keyframes list and metadata as required.
 /// Will print a warning if a track has less than 2 keyframes left because of this.
 void DTSC::Stream::cutOneBuffer(){
+  if ( !buffers.size()){return;}
   int trid = buffers.begin()->first.trackID;
   long long unsigned int delTime = buffers.begin()->first.seekTime;
   if (buffercount > 1){

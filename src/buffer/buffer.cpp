@@ -16,6 +16,7 @@
 #include <mist/timing.h>
 #include "buffer_stream.h"
 #include <mist/stream.h>
+#include <mist/defines.h>
 
 /// Holds all code unique to the Buffer.
 namespace Buffer {
@@ -72,7 +73,7 @@ namespace Buffer {
     }
     long long int wait_time = Util::getMS();
     while (Util::getMS() - wait_time < thisStream->metadata.bufferWindow){
-      Util::sleep(thisStream->metadata.bufferWindow);
+      Util::sleep(thisStream->metadata.bufferWindow - (Util::getMS() - wait_time));
     }
     thisStream->removeSocket(sockNo);
   }
@@ -315,6 +316,7 @@ namespace Buffer {
     }
 
     unsigned int userId = 0;
+    SS.setBlocking(true);
     while (buffer_running && SS.connected() && conf.is_active){
       //check for new connections, accept them if there are any
       //starts a thread for every accepted connection
@@ -322,8 +324,6 @@ namespace Buffer {
       if (incoming.connected()){
         tthread::thread thisUser(handleUser, (void *)new user(incoming, ++userId));
         thisUser.detach();
-      }else{
-        Util::sleep(50);//sleep 50ms
       }
     } //main loop
 

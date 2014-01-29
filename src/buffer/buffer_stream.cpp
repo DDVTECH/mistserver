@@ -71,7 +71,9 @@ namespace Buffer {
     Storage["totals"]["now"] = now;
     Storage["buffer"] = name;
     
+    rw_mutex.lock();
     Storage["meta"] = metadata.toJSON();
+    rw_mutex.unlock();
     if (Storage["meta"].isMember("tracks")){
       for (JSON::ObjIter oIt = Storage["meta"]["tracks"].ObjBegin(); oIt != Storage["meta"]["tracks"].ObjEnd(); ++oIt){
         oIt->second.removeMember("fragments");
@@ -190,7 +192,9 @@ namespace Buffer {
   
   /// Removes a track and all related buffers from the stream.
   void Stream::removeTrack(int trackId){
+    rw_mutex.lock();
     metadata.tracks.erase(trackId);
+    rw_mutex.unlock();
     std::set<DTSC::livePos> toDelete;
     for (std::map<DTSC::livePos, JSON::Value >::iterator it = buffers.begin(); it != buffers.end(); it++){
       if (it->first.trackID == (unsigned long long int)trackId){
@@ -209,12 +213,14 @@ namespace Buffer {
   void Stream::removeSocket(int sockNo){
     std::set<int> toDelete;
     std::map<int,DTSC::Track>::iterator it;
+    rw_mutex.lock();
     for (it = metadata.tracks.begin(); it != metadata.tracks.end(); ++it){
       if ((it->first & (sockNo << 16)) == (sockNo << 16)){
         toDelete.insert(it->first);
         Log("BUFF", "Stream "+name+" lost input for track: "+ it->second.getIdentifier());
       }
     }
+    rw_mutex.unlock();
     while (toDelete.size()){
       removeTrack(*toDelete.begin());
       toDelete.erase(toDelete.begin());

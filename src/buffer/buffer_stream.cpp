@@ -189,6 +189,12 @@ namespace Buffer {
     tthread::lock_guard<tthread::mutex> guard(rw_mutex);
     return DTSC::Stream::getNext(pos, allowedTracks);
   }
+
+  /// endStream override that will lock the rw_mutex
+  void Stream::endStream(){
+    tthread::lock_guard<tthread::mutex> guard(rw_mutex);
+    return DTSC::Stream::endStream();
+  }
   
   /// Removes a track and all related buffers from the stream.
   void Stream::removeTrack(int trackId){

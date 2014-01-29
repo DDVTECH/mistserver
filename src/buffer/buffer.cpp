@@ -190,6 +190,7 @@ namespace Buffer {
                   Socket::Connection tmp = usr->S;
                   usr->S = Socket::Connection( -1);
                   thisStream->removeUser(usr);
+                  thisStream->dropRing(usr->myRing);
                   delete usr;
                   return handlePushIn(tmp);
                 }else{
@@ -264,7 +265,9 @@ namespace Buffer {
       }
     }
     usr->Disconnect("Socket closed.");
+    thisStream->dropRing(usr->myRing);
     thisStream->removeUser(usr);
+    delete usr;
   }
 
   ///\brief Starts a loop, waiting for connections to send data to.

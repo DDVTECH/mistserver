@@ -84,6 +84,7 @@ namespace Buffer {
       /// Logs a message to the controller.
       void Log(std::string type, std::string message);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
+      void endStream();
   private:
       void deletionCallback(DTSC::livePos deleting);
       tthread::mutex rw_mutex; ///< Mutex for read/write locking.

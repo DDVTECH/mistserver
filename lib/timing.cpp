@@ -26,8 +26,8 @@ void Util::sleep(int ms){
   if (ms < 0){
     return;
   }
-  if (ms > 10000){
-    return;
+  if (ms > 100000){
+    ms = 100000;
   }
   struct timespec T;
   T.tv_sec = ms / 1000;

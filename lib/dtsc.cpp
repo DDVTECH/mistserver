@@ -233,7 +233,7 @@ void DTSC::Stream::addPacket(JSON::Value & newPack){
   livePos newPos;
   newPos.trackID = newPack["trackid"].asInt();
   newPos.seekTime = newPack["time"].asInt();
-  if (!metadata.tracks.count(newPos.trackID)){return;}
+  if (!metadata.tracks.count(newPos.trackID) && (!newPack.isMember("mark") || newPack["mark"].asStringRef() != "pause")){return;}
   if (buffercount > 1 && metadata.tracks[newPos.trackID].keys.size() > 1 && newPos.seekTime < (long long unsigned int)metadata.tracks[newPos.trackID].keys.rbegin()->getTime()){
     resetStream();
   }

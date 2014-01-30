@@ -22,6 +22,7 @@
 #include <mist/ts_packet.h> //TS support
 #include <mist/dtsc.h> //DTSC support
 #include <mist/mp4.h> //For initdata conversion
+#include <mist/mp4_generic.h>
 
 ///\brief Holds everything unique to the TS Connector
 namespace Connector_TS {

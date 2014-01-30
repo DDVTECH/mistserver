@@ -43,7 +43,6 @@ namespace Connector_HTTP {
     std::map <long long unsigned int, std::vector<JSON::Value> > DTSCBuffer;
     //std::map <long long unsigned int, long long unsigned int> prevGran;
     std::vector<unsigned int> curSegTable;
-    long long int currID = 0;
     std::string sendBuffer;
     
     unsigned int lastStats = 0;//Indicates the last time that we have sent stats to the server socket.

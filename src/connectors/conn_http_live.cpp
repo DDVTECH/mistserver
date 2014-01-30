@@ -17,6 +17,7 @@
 #include <mist/json.h>
 #include <mist/dtsc.h>
 #include <mist/mp4.h>
+#include <mist/mp4_generic.h>
 #include <mist/config.h>
 #include <sstream>
 #include <mist/stream.h>

@@ -19,6 +19,7 @@
 #include <mist/base64.h>
 #include <mist/amf.h>
 #include <mist/mp4.h>
+#include <mist/mp4_adobe.h>
 #include <mist/config.h>
 #include <sstream>
 #include <mist/stream.h>

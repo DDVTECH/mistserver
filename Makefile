@@ -162,10 +162,6 @@ converters: MistDTSC2SRT
 MistDTSC2SRT: src/converters/dtsc2srt.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
-converters: MistDTSC2MP4
-MistDTSC2MP4: src/converters/dtsc2mp4.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
-
 BUILT_SOURCES=controller/server.html.h connectors/embed.js.h
 lspSOURCES=lsp/jquery.js lsp/placeholder.js lsp/md5.js lsp/main.js lsp/pages.js lsp/tablesort.js
 lspDATA=lsp/header.html lsp/main.css lsp/footer.html

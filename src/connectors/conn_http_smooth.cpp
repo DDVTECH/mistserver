@@ -21,6 +21,8 @@
 #include <mist/base64.h>
 #include <mist/amf.h>
 #include <mist/mp4.h>
+#include <mist/mp4_ms.h>
+#include <mist/mp4_generic.h>
 #include <mist/config.h>
 #include <mist/stream.h>
 #include <mist/timing.h>

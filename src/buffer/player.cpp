@@ -12,6 +12,7 @@
 #include <mist/timing.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
+#include <mist/defines.h>
 
 //under cygwin, recv blocks for ~15ms if no data is available.
 //This is a hack to keep performance decent with that bug present.
@@ -250,9 +251,7 @@ int main(int argc, char** argv){
         playing = 0;
       }
       if (playing == 0){
-#if DEBUG >= 4
-        std::cerr << "Completed VoD request in MistPlayer (" << (Util::getMS() - bench) << "ms)" << std::endl;
-#endif
+        DEBUG_MSG(DLVL_DEVEL, "Completed VoD request in MistPlayer (%d ms)", (Util::getMS() - bench));
         pausemark["time"] = source.getJSON()["time"];
         pausemark.sendTo(in_out);
         in_out.setBlocking(true);
@@ -266,12 +265,5 @@ int main(int argc, char** argv){
   }
   StatsSocket.close();
   in_out.close();
-#if DEBUG >= 5
-  if (Util::epoch() - lasttime < 60){
-    std::cerr << "MistPlayer exited (disconnect)." << std::endl;
-  }else{
-    std::cerr << "MistPlayer exited (command timeout)." << std::endl;
-  }
-#endif
   return 0;
 }

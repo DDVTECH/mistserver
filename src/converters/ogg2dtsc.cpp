@@ -125,7 +125,6 @@ namespace Converters{
                   //if we are in the vicinity of a new keyframe
                     if (trackData[sNum].idHeader.parseGranuleUpper(trackData[sNum].lastGran) != trackData[sNum].idHeader.parseGranuleUpper(temp)){
                     //try to mark right
-                      long long unsigned int temper = trackData[sNum].idHeader.parseGranuleUpper(temp) - trackData[sNum].idHeader.parseGranuleUpper(trackData[sNum].lastGran);
                       DTSCOut["keyframe"] = 1;
                       trackData[sNum].lastGran = temp;
                     }else{

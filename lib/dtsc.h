@@ -37,12 +37,8 @@ namespace DTSC {
         return true;
       }else{
         if (seekTime == rhs.seekTime){
-          if (bytePos < rhs.bytePos){
+          if (trackID < rhs.trackID){
             return true;
-          }else{
-            if (trackID < rhs.trackID){
-              return true;
-            }
           }
         }
       }

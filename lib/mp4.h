@@ -15,30 +15,6 @@
 
 /// Contains all MP4 format related code.
 namespace MP4 {
-  struct keyPart{
-    public:
-      bool operator < (const keyPart& rhs) const {
-        if (time < rhs.time){
-          return true;
-        }
-        if (time == rhs.time){
-          if (trackID < rhs.trackID){
-            return true;
-          }
-        }
-        return false;
-      }
-      long unsigned int trackID;
-      long unsigned int size;
-      long long unsigned int time;
-      long long unsigned int endTime;
-      long unsigned int index;
-  };
-
-  class DTSC2MP4Converter{
-    public:
-      std::string DTSCMeta2MP4Header(DTSC::Meta & metaData);
-  };
   
   class Box{
     public:

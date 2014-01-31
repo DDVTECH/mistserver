@@ -827,14 +827,14 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   }else{
     if (addrinfo.sin6_family == AF_INET6){
       tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-      DEBUG_MSG(DLVL_DEVEL, "IPv6 addr [%s]", tmp.remotehost.c_str());
+      DEBUG_MSG(DLVL_HIGH, "IPv6 addr [%s]", tmp.remotehost.c_str());
     }
     if (addrinfo.sin6_family == AF_INET){
       tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in*) &addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-      DEBUG_MSG(DLVL_DEVEL, "IPv4 addr [%s]", tmp.remotehost.c_str());
+      DEBUG_MSG(DLVL_HIGH, "IPv4 addr [%s]", tmp.remotehost.c_str());
     }
     if (addrinfo.sin6_family == AF_UNIX){
-      DEBUG_MSG(DLVL_DEVEL, "Unix addr [?]");
+      DEBUG_MSG(DLVL_HIGH, "Unix connection");
       tmp.remotehost = "UNIX_SOCKET";
     }
   }

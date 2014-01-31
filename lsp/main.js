@@ -774,10 +774,26 @@ function conversionSelectInput(theFiles) {
       );
     }
   });
-  var $videocodec = $('<select>').attr('id',objpath+'-video-codec').addClass('isSetting');
+  var $videocodec = $('<select>').attr('id',objpath+'-video-codec').addClass('isSetting').change(function(){
+    if ($(this).val() == '') {
+      $('#video-settings-container').find('input,select').not($(this)).val('').removeClass('isSetting').parent().hide();
+    }
+    else {
+      $('#video-settings-container').find('input,select').not($(this)).addClass('isSetting').parent().show();
+    }
+  });
   var $audiocodec = $('<select>').attr('id',objpath+'-audio-codec').addClass('isSetting').change(function(){
     if ($(this).children(':selected').text().substr(0,4) == 'mp3 ') {
-      $('#settings-conversion-convert-_new_-audio-samplerate').val('44100');
+      $('#settings-conversion-convert-_new_-audio-samplerate').val('44100').attr('disabled','disabled');
+    }
+    else {
+      $('#settings-conversion-convert-_new_-audio-samplerate').removeAttr('disabled');
+      if ($(this).val() == '') {
+        $('#audio-settings-container').find('input,select').not($(this)).val('').removeClass('isSetting').parent().hide();
+      }
+      else {
+        $('#audio-settings-container').find('input,select').not($(this)).addClass('isSetting').parent().show();
+      }
     }
   });
   
@@ -806,6 +822,7 @@ function conversionSelectInput(theFiles) {
         else {
           $('#video-settings-container').show().find('input,select').addClass('isSetting');
         }
+        $videocodec.trigger('change');
       })
     )
   ).append(
@@ -839,6 +856,7 @@ function conversionSelectInput(theFiles) {
         else {
           $('#audio-settings-container').show().find('input,select').addClass('isSetting');
         }
+        $audiocodec.trigger('change');
       })
     )
   ).append(
@@ -890,6 +908,8 @@ function conversionSelectInput(theFiles) {
     );
   }
   $encoders.trigger('change');
+  $audiocodec.trigger('change');
+  $videocodec.trigger('change');
 }
 function buildLogsTable(){
   var logs = settings.settings.log;

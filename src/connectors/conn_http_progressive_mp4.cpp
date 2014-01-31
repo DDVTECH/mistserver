@@ -383,7 +383,7 @@ namespace Connector_HTTP {
     bool inited = false;//Whether the stream is initialized
     Socket::Connection ss( -1);//The Stream Socket, used to connect to the desired stream.
     std::string streamname;//Will contain the name of the stream.
-    #if DEBUG >= DLVL_DEVEL
+    #if DEBUG >= DLVL_HIGH
     std::set <keyPart> sortSet;//filling sortset for interleaving parts
     #endif
 
@@ -439,7 +439,7 @@ namespace Connector_HTTP {
               cmd << "\ns 0\np\n";
               ss.SendNow(cmd.str());
             }
-            #if DEBUG >= DLVL_DEVEL
+            #if DEBUG >= DLVL_HIGH
             for (std::set<int>::iterator subIt = tracks.begin(); subIt != tracks.end(); subIt++) {
               keyPart temp;
               temp.trackID = *subIt;
@@ -474,10 +474,10 @@ namespace Connector_HTTP {
             if (Strm.lastType() == DTSC::PAUSEMARK){
               conn.close();
             }else if(Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
-              #if DEBUG >= DLVL_DEVEL
+              #if DEBUG >= DLVL_HIGH
               if (!sortSet.empty()){
                 if (sortSet.begin()->trackID != Strm.getPacket()["trackid"].asInt() || sortSet.begin()->time != Strm.getPacket()["time"].asInt()){
-                  DEBUG_MSG(DLVL_DEVEL, "Set[%d, %d] => Real[%d, %d]", sortSet.begin()->trackID, sortSet.begin()->time, Strm.getPacket()["trackid"].asInt(), Strm.getPacket()["time"].asInt());
+                  DEBUG_MSG(DLVL_HIGH, "Set[%d, %d] => Real[%d, %d]", sortSet.begin()->trackID, sortSet.begin()->time, Strm.getPacket()["trackid"].asInt(), Strm.getPacket()["time"].asInt());
                 }
                 //add keyPart to sortSet
                 keyPart temp;

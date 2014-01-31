@@ -2590,6 +2590,14 @@ namespace MP4{
     setSampleSize(16);
     setSampleRate(44100);
   }
+  
+  uint16_t AudioSampleEntry::toAACInit(){
+    uint16_t result = 0;
+    result |= (2 & 0x1F) << 11;
+    result |= (getSampleRate() & 0x0F) << 7;
+    result |= (getChannelCount() & 0x0F) << 3;
+    return result;
+  }
 
   void AudioSampleEntry::setCodec(const char* newCodec){
     memcpy(data + 4, newCodec, 4);

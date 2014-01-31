@@ -592,6 +592,7 @@ namespace MP4{
       void setPreDefined(uint16_t newPreDefined);
       uint16_t getPreDefined();
       void setSampleRate(uint32_t newSampleRate);
+      uint16_t toAACInit();
       uint32_t getSampleRate();
       void setCodecBox(Box& newBox);
       Box & getCodecBox();

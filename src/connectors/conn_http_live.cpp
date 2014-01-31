@@ -57,7 +57,7 @@ namespace Connector_HTTP {
       }
     }
 #if DEBUG >= 8
-    std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
+    std::cerr << "Sending this index:" << std::endl << result.str() << std::endl;
 #endif
     return result.str();
   }
@@ -85,7 +85,7 @@ namespace Connector_HTTP {
       result << "#EXT-X-ENDLIST\r\n";
     }
 #if DEBUG >= 8
-    std::cerr << "Sending this index:" << std::endl << Result.str() << std::endl;
+    std::cerr << "Sending this index:" << std::endl << result.str() << std::endl;
 #endif
     return result.str();
   } //liveIndex

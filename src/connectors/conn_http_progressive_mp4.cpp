@@ -476,7 +476,7 @@ namespace Connector_HTTP {
             }else if(Strm.lastType() == DTSC::AUDIO || Strm.lastType() == DTSC::VIDEO){
               #if DEBUG >= DLVL_HIGH
               if (!sortSet.empty()){
-                if (sortSet.begin()->trackID != Strm.getPacket()["trackid"].asInt() || sortSet.begin()->time != Strm.getPacket()["time"].asInt()){
+                if ((long long)sortSet.begin()->trackID != Strm.getPacket()["trackid"].asInt() || (long long)sortSet.begin()->time != Strm.getPacket()["time"].asInt()){
                   DEBUG_MSG(DLVL_HIGH, "Set[%d, %d] => Real[%d, %d]", sortSet.begin()->trackID, sortSet.begin()->time, Strm.getPacket()["trackid"].asInt(), Strm.getPacket()["time"].asInt());
                 }
                 //add keyPart to sortSet

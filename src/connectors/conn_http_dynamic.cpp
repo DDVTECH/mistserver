@@ -199,7 +199,7 @@ namespace Connector_HTTP {
               temp = HTTP_R.url.find("Frag") + 4;
               ReqFragment = atoi(HTTP_R.url.substr(temp).c_str());
               #if DEBUG >= 5
-              printf("Video track %d, segment %d, fragment %d\n", Quality, Segment, ReqFragment);
+              printf("Video track %d, fragment %d\n", Quality, ReqFragment);
               #endif
               if (!audioTrack){getTracks(Strm.metadata);}
               DTSC::Track & vidTrack = Strm.metadata.tracks[Quality];

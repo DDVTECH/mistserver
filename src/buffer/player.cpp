@@ -107,22 +107,22 @@ int main(int argc, char** argv){
   JSON::Value pausemark;
   pausemark["trackid"] = 0ll;
   pausemark["mark"] = "pause";
-  pausemark["time"] = (long long int)0;
-
+  pausemark["time"] = 0ll;
+  
   Socket::Connection StatsSocket = Socket::Connection(Util::getTmpFolder() + "statistics", true);
-  int lasttime = Util::epoch(); //time last packet was sent
+  int lastSent = Util::epoch(); //time last packet was sent
 
   JSON::Value last_pack;
 
   bool meta_sent = false;
   int playUntil = -1;
-  long long now, lastTime = 0; //for timing of sending packets
+  long long now, prevTimestamp = 0; //for timing of sending packets
   long long bench = 0; //for benchmarking
   std::set<int> newSelect;
   Stats sts;
   CYG_DEFI
 
-  while (in_out.connected() && (Util::epoch() - lasttime < 60) && conf.is_active){
+  while (in_out.connected() && (Util::epoch() - lastSent < 60) && conf.is_active){
     CYG_INCR
     if (CYG_LOOP in_out.spool()){
       while (in_out.Received().size()){
@@ -175,18 +175,18 @@ int main(int argc, char** argv){
             case 's': { //second-seek
               int ms = JSON::Value(in_out.Received().get().substr(2)).asInt();
               source.seek_time(ms);
-              lasttime = Util::epoch();
-              lastTime = 0;
+              lastSent = Util::epoch();
+              prevTimestamp = 0;
               playUntil = 0;
               break;
             }
             case 'p': { //play
               playing = -1;
-              lasttime = Util::epoch();
+              lastSent = Util::epoch();
               in_out.setBlocking(false);
               if (in_out.Received().get().size() >= 2){
                 playUntil = atoi(in_out.Received().get().substr(2).c_str());
-                lastTime = 0;
+                prevTimestamp = 0;
                 bench = Util::getMS();
               }else{
                 playUntil = 0;
@@ -241,11 +241,11 @@ int main(int argc, char** argv){
       if (playing > 0 && source.atKeyframe()){
         --playing;
       }
-      if (lastTime == 0){
-        lastTime = now - source.getJSON()["time"].asInt();
+      if (prevTimestamp == 0){
+        prevTimestamp = now - source.getJSON()["time"].asInt();
       }
-      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - lastTime + 7500){
-        Util::sleep(source.getJSON()["time"].asInt() - (now - lastTime + 5000));
+      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - prevTimestamp + 7500){
+        Util::sleep(source.getJSON()["time"].asInt() - (now - prevTimestamp + 5000));
       }
       if ( playUntil && playUntil <= source.getJSON()["time"].asInt()){
         playing = 0;
@@ -256,7 +256,7 @@ int main(int argc, char** argv){
         pausemark.sendTo(in_out);
         in_out.setBlocking(true);
       }else{
-        lasttime = Util::epoch();
+        lastSent = Util::epoch();
         source.getJSON().sendTo(in_out);
       }
     }else{

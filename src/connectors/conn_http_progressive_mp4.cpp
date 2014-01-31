@@ -151,13 +151,14 @@ namespace Connector_HTTP {
             }//hdlr box
             {
               MP4::MINF minfBox;
+              unsigned int minf_offset = 0;
               if (metaData.tracks[*it].type== "video"){
                 MP4::VMHD vmhdBox;
                 vmhdBox.setFlags(1);
-                minfBox.setContent(vmhdBox,0);
+                minfBox.setContent(vmhdBox,minf_offset++);
               }else if (metaData.tracks[*it].type == "audio"){
                 MP4::SMHD smhdBox;
-                minfBox.setContent(smhdBox,0);
+                minfBox.setContent(smhdBox,minf_offset++);
               }//type box
               {
                 MP4::DINF dinfBox;
@@ -167,10 +168,11 @@ namespace Connector_HTTP {
                 urlBox.setFlags(1);
                 drefBox.setDataEntry(urlBox,0);
                 dinfBox.setContent(drefBox,0);
-                minfBox.setContent(dinfBox,1);
+                minfBox.setContent(dinfBox,minf_offset++);
               }//dinf box
               {
                 MP4::STBL stblBox;
+                unsigned int offset = 0;
                 {
                   MP4::STSD stsdBox;
                   stsdBox.setVersion(0);
@@ -219,7 +221,7 @@ namespace Connector_HTTP {
                     ase.setCodecBox(esdsBox);
                     stsdBox.setEntry(ase,0);
                   }
-                  stblBox.setContent(stsdBox,0);
+                  stblBox.setContent(stsdBox,offset++);
                 }//stsd box
                 /// \todo update following stts lines
                 {
@@ -230,7 +232,7 @@ namespace Connector_HTTP {
                   //42, Used as magic number for timescale calculation
                   newEntry.sampleDelta = 42;
                   sttsBox.setSTTSEntry(newEntry, 0);
-                  stblBox.setContent(sttsBox,1);
+                  stblBox.setContent(sttsBox,offset++);
                 }//stts box
                 if (metaData.tracks[*it].type == "video"){
                   //STSS Box here
@@ -243,10 +245,8 @@ namespace Connector_HTTP {
                     tmpCount += tmpIt->getParts();
                     tmpItCount ++;
                   }
-                  stblBox.setContent(stssBox,2);
+                  stblBox.setContent(stssBox,offset++);
                 }//stss box
-                
-                int offset = (metaData.tracks[*it].type == "video");
                 {
                   MP4::STSC stscBox;
                   stscBox.setVersion(0);
@@ -255,7 +255,7 @@ namespace Connector_HTTP {
                   stscEntry.samplesPerChunk = 1;
                   stscEntry.sampleDescriptionIndex = 1;
                   stscBox.setSTSCEntry(stscEntry, 0);
-                  stblBox.setContent(stscBox,2 + offset);
+                  stblBox.setContent(stscBox,offset++);
                 }//stsc box
                 {
                   uint32_t total = 0;
@@ -266,7 +266,7 @@ namespace Connector_HTTP {
                     stszBox.setEntrySize(partIt->getSize(), total);//in bytes in file
                     total++;
                   }
-                  stblBox.setContent(stszBox,3 + offset);
+                  stblBox.setContent(stszBox,offset++);
                 }//stsz box
                 //add STCO boxes here
                 {
@@ -276,9 +276,9 @@ namespace Connector_HTTP {
                   if (metaData.tracks[*it].parts.size() != 0){
                     stcoBox.setChunkOffset(0, metaData.tracks[*it].parts.size() - 1);//this inserts all empty entries at once
                   }
-                  stblBox.setContent(stcoBox,4 + offset);
+                  stblBox.setContent(stcoBox,offset++);
                 }//stco box
-                minfBox.setContent(stblBox,2);
+                minfBox.setContent(stblBox,minf_offset++);
               }//stbl box
               mdiaBox.setContent(minfBox, 2);
             }//minf box

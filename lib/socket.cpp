@@ -9,6 +9,7 @@
 #include <poll.h>
 #include <netdb.h>
 #include <sstream>
+#include <cstdlib>
 
 #ifdef __FreeBSD__
 #include <netinet/in.h>
@@ -895,4 +896,110 @@ bool Socket::Server::connected() const{
 /// Returns internal socket number.
 int Socket::Server::getSocket(){
   return sock;
+}
+
+/// Create a new UDP Socket.
+/// \param nonblock Whether the socket should be nonblocking. 
+Socket::UDPConnection::UDPConnection(bool nonblock){
+  sock = socket(AF_INET6, SOCK_DGRAM, 0);
+  if (sock == -1){
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+  }
+  if (sock == -1){
+    DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));
+  }
+  up = 0;
+  down = 0;
+  destAddr = 0;
+  destAddr_size = 0;
+  if (nonblock){
+    setBlocking(!nonblock);
+  }
+} //Socket::UDPConnection UDP Contructor
+
+Socket::UDPConnection::UDPConnection(const UDPConnection & o){
+  sock = socket(AF_INET6, SOCK_DGRAM, 0);
+  if (sock == -1){
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+  }
+  if (sock == -1){
+    DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));
+  }
+  up = 0;
+  down = 0;
+  if (o.destAddr && o.destAddr_size){
+    destAddr = malloc(o.destAddr_size);
+    if (destAddr){
+      memcpy(destAddr, o.destAddr, o.destAddr_size);
+    }
+  }else{
+    destAddr = 0;
+    destAddr_size = 0;
+  }
+}
+
+Socket::UDPConnection::~UDPConnection(){
+  if (sock != -1){
+    errno = EINTR;
+    while (::close(sock) != 0 && errno == EINTR){
+    }
+    sock = -1;
+  }
+  if (destAddr){
+    free(destAddr);
+    destAddr = 0;
+  }
+}
+
+void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
+  destAddr = malloc(sizeof(struct sockaddr_in6));
+  if (destAddr){
+    destAddr_size = sizeof(struct sockaddr_in6);
+    memset(destAddr, 0, destAddr_size);
+    ((struct sockaddr_in6*)destAddr)->sin6_family = AF_INET6;
+    ((struct sockaddr_in6*)destAddr)->sin6_port = htons(port);
+    if(inet_pton(AF_INET6, destIp.c_str(), &(((struct sockaddr_in6*)destAddr)->sin6_addr)) == 1){
+      return;
+    }
+    free(destAddr);
+    destAddr = 0;
+  }
+  destAddr = malloc(sizeof(struct sockaddr_in));
+  if (destAddr){
+    destAddr_size = sizeof(struct sockaddr_in);
+    memset(destAddr, 0, destAddr_size);
+    ((struct sockaddr_in*)destAddr)->sin_family = AF_INET;
+    ((struct sockaddr_in*)destAddr)->sin_port = htons(port);
+    if(inet_pton(AF_INET, destIp.c_str(), &(((struct sockaddr_in*)destAddr)->sin_addr)) == 1){
+      return;
+    }
+    free(destAddr);
+    destAddr = 0;
+  }
+  DEBUG_MSG(DLVL_FAIL, "Could not set destination for UDP socket: %s:%d", destIp.c_str(), port);
+}//Socket::UDPConnection SetDestination
+
+void Socket::UDPConnection::setBlocking(bool blocking){
+  if (sock >= 0){
+    setFDBlocking(sock, blocking);
+  }
+}
+
+void Socket::UDPConnection::SendNow(const std::string & data){
+  SendNow(data.c_str(), data.size());
+}
+
+void Socket::UDPConnection::SendNow(const char* data){
+  int len = strlen(data);
+  SendNow(data, len);
+}
+
+void Socket::UDPConnection::SendNow(const char * data, size_t len){
+  if (len < 1){return;}
+  int r = sendto(sock, data, len, 0, (sockaddr*)destAddr, destAddr_size);
+  if (r > 0){
+    up += r;
+  }else{
+    DEBUG_MSG(DLVL_FAIL, "Could not send UDP data through %d: %s", sock, strerror(errno));
+  }
 }

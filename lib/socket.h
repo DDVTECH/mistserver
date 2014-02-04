@@ -123,20 +123,24 @@ namespace Socket {
     private:
       int sock; ///< Internally saved socket number.
       std::string remotehost;///< Stores remote host address
-      void * destAddr;
-      unsigned int destAddr_size;
-      unsigned int up;
-      unsigned int down;
+      void * destAddr;///< Destination address pointer.
+      unsigned int destAddr_size;///< Size of the destination address pointer.
+      unsigned int up;///< Amount of bytes transferred up.
+      unsigned int down;///< Amount of bytes transferred down.
+      unsigned int data_size;///< The size in bytes of the allocated space in the data pointer.
     public:
-      UDPConnection(const UDPConnection & o); ///< Copy constructor
-      UDPConnection(bool nonblock = false); ///< Create new UDP socket
+      char * data;///< Holds the last received packet.
+      unsigned int data_len; ///< The size in bytes of the last received packet.
+      UDPConnection(const UDPConnection & o);
+      UDPConnection(bool nonblock = false);
       ~UDPConnection();
-      void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
-      void SetDestination(std::string hostname, uint32_t port); ///< Sets the hostname and port destination for this UDP socket.
-      void Close();///< Closes the local socket
-      void SendNow(const std::string & data); ///< Will not buffer anything but always send right away. Blocks.
-      void SendNow(const char * data); ///< Will not buffer anything but always send right away. Blocks.
-      void SendNow(const char * data, size_t len); ///< Will not buffer anything but always send right away. Blocks.
+      int bind(int port);
+      void setBlocking(bool blocking);
+      void SetDestination(std::string hostname, uint32_t port);
+      bool Receive();
+      void SendNow(const std::string & data);
+      void SendNow(const char * data);
+      void SendNow(const char * data, size_t len);
   };
 
 }

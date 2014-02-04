@@ -899,7 +899,9 @@ int Socket::Server::getSocket(){
 }
 
 /// Create a new UDP Socket.
-/// \param nonblock Whether the socket should be nonblocking. 
+/// Will attempt to create an IPv6 UDP socket, on fail try a IPV4 UDP socket.
+/// If both fail, prints an DLVL_FAIL debug message.
+/// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock){
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1){
@@ -912,11 +914,16 @@ Socket::UDPConnection::UDPConnection(bool nonblock){
   down = 0;
   destAddr = 0;
   destAddr_size = 0;
+  data = 0;
+  data_size = 0;
+  data_len = 0;
   if (nonblock){
     setBlocking(!nonblock);
   }
 } //Socket::UDPConnection UDP Contructor
 
+/// Copies a UDP socket, re-allocating local copies of any needed structures.
+/// The data/data_size/data_len variables are *not* copied over.
 Socket::UDPConnection::UDPConnection(const UDPConnection & o){
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1){
@@ -936,8 +943,12 @@ Socket::UDPConnection::UDPConnection(const UDPConnection & o){
     destAddr = 0;
     destAddr_size = 0;
   }
+  data = 0;
+  data_size = 0;
+  data_len = 0;
 }
 
+/// Closes the UDP socket, cleans up any memory allocated by the socket.
 Socket::UDPConnection::~UDPConnection(){
   if (sock != -1){
     errno = EINTR;
@@ -949,9 +960,19 @@ Socket::UDPConnection::~UDPConnection(){
     free(destAddr);
     destAddr = 0;
   }
+  if (data){
+    free(data);
+    data = 0;
+  }
 }
 
+/// Stores the properties of the reiving end of this UDP socket.
+/// This will be the receiving end for all SendNow calls.
 void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
+  if (destAddr){
+    free(destAddr);
+    destAddr = 0;
+  }
   destAddr = malloc(sizeof(struct sockaddr_in6));
   if (destAddr){
     destAddr_size = sizeof(struct sockaddr_in6);
@@ -979,27 +1000,87 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   DEBUG_MSG(DLVL_FAIL, "Could not set destination for UDP socket: %s:%d", destIp.c_str(), port);
 }//Socket::UDPConnection SetDestination
 
+/// Sets the socket to be blocking if the parameters is true.
+/// Sets the socket to be non-blocking otherwise.
 void Socket::UDPConnection::setBlocking(bool blocking){
   if (sock >= 0){
     setFDBlocking(sock, blocking);
   }
 }
 
-void Socket::UDPConnection::SendNow(const std::string & data){
-  SendNow(data.c_str(), data.size());
+/// Sends a UDP datagram using the buffer sdata.
+/// This function simply calls SendNow(const char*, size_t)
+void Socket::UDPConnection::SendNow(const std::string & sdata){
+  SendNow(sdata.c_str(), sdata.size());
 }
 
-void Socket::UDPConnection::SendNow(const char* data){
-  int len = strlen(data);
-  SendNow(data, len);
+/// Sends a UDP datagram using the buffer sdata.
+/// sdata is required to be NULL-terminated.
+/// This function simply calls SendNow(const char*, size_t)
+void Socket::UDPConnection::SendNow(const char* sdata){
+  int len = strlen(sdata);
+  SendNow(sdata, len);
 }
 
-void Socket::UDPConnection::SendNow(const char * data, size_t len){
+/// Sends a UDP datagram using the buffer sdata of length len.
+/// Does not do anything if len < 1.
+/// Prints an DLVL_FAIL level debug message if sending failed.
+void Socket::UDPConnection::SendNow(const char * sdata, size_t len){
   if (len < 1){return;}
-  int r = sendto(sock, data, len, 0, (sockaddr*)destAddr, destAddr_size);
+  int r = sendto(sock, sdata, len, 0, (sockaddr*)destAddr, destAddr_size);
   if (r > 0){
     up += r;
   }else{
     DEBUG_MSG(DLVL_FAIL, "Could not send UDP data through %d: %s", sock, strerror(errno));
+  }
+}
+
+/// Bind to a port number, returning the bound port.
+/// Attempts to bind over IPv6 first.
+/// If it fails, attempts to bind over IPv4.
+/// If that fails too, gives up and returns zero.
+/// Prints a debug message at DLVL_FAIL level if binding failed.
+/// \return Actually bound port number, or zero on error.
+int Socket::UDPConnection::bind(int port){
+  struct sockaddr_in6 s6;
+  s6.sin6_family = AF_INET6;
+  s6.sin6_addr = in6addr_any;
+  if (port){s6.sin6_port = htons(port);}
+  int r = ::bind(sock, (sockaddr*)&s6, sizeof(s6));
+  if (r == 0){return ntohs(s6.sin6_port);}
+  
+  struct sockaddr_in s4;
+  s4.sin_family = AF_INET;
+  s4.sin_addr.s_addr = INADDR_ANY;
+  if (port){s4.sin_port = htons(port);}
+  r = ::bind(sock, (sockaddr*)&s4, sizeof(s4));
+  if (r == 0){return ntohs(s4.sin_port);}
+  
+  DEBUG_MSG(DLVL_FAIL, "Could not bind UDP socket to port %d", port);
+  return 0;
+}
+
+/// Attempt to receive a UDP packet.
+/// This will automatically allocate or resize the internal data buffer if needed.
+/// If a packet is received, it will be placed in the "data" member, with it's length in "data_len".
+/// \return True if a packet was received, false otherwise.
+bool Socket::UDPConnection::Receive(){
+  int r = recvfrom(sock, data, data_size, MSG_PEEK | MSG_TRUNC, 0, 0);
+  if (data_size < (unsigned int)r){
+    data = (char*)realloc(data, r);
+    if (data){
+      data_size = r;
+    }else{
+      data_size = 0;
+    }
+  }
+  r = recvfrom(sock, data, data_size, 0, 0, 0);
+  if (r > 0){
+    down += r;
+    data_len = r;
+    return true;
+  }else{
+    data_len = 0;
+    return false;
   }
 }

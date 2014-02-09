@@ -153,7 +153,7 @@ void HTTP::Parser::StartResponse(HTTP::Parser & request, Socket::Connection & co
 /// - Forward those contents as-is to the 'to' Socket::Connection.
 /// It blocks until completed or either of the connections reaches an error state.
 void HTTP::Parser::Proxy(Socket::Connection & from, Socket::Connection & to){
-  SendResponse("200", "OK", to);
+  SendResponse(url, method, to);
   if (getChunks){
     unsigned int proxyingChunk = 0;
     while (to.connected() && from.connected()){

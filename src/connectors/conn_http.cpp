@@ -21,6 +21,7 @@
 #include <mist/auth.h>
 #include <mist/procs.h>
 #include <mist/tinythread.h>
+#include <mist/defines.h>
 
 #include "embed.js.h"
 
@@ -38,13 +39,11 @@ namespace Connector_HTTP {
         conn = 0;
         lastUse = 0;
       }
-      ;
       /// Constructor that sets lastUse to 0, but socket to s.
       ConnConn(Socket::Connection * s){
         conn = s;
         lastUse = 0;
       }
-      ;
       /// Destructor that deletes the socket if non-null.
       ~ConnConn(){
         if (conn){
@@ -53,7 +52,6 @@ namespace Connector_HTTP {
         }
         conn = 0;
       }
-      ;
   };
 
   std::map<std::string, ConnConn *> connectorConnections; ///< Connections to connectors
@@ -410,13 +408,7 @@ namespace Connector_HTTP {
       if ( !connectorConnections.count(uid)){
         connectorConnections[uid] = new ConnConn(new Socket::Connection(Util::getTmpFolder() + connector));
         connectorConnections[uid]->conn->setBlocking(false); //do not block on spool() with no data
-#if DEBUG >= 4
-        std::cout << "Created new connection " << uid << std::endl;
-#endif
-      }else{
-#if DEBUG >= 5
-        std::cout << "Re-using connection " << uid << std::endl;
-#endif
+        DEBUG_MSG(DLVL_HIGH, "Created new connection %s", uid.c_str());
       }
       
       //attempt to lock the mutex for this connection
@@ -424,10 +416,13 @@ namespace Connector_HTTP {
         myCConn = connectorConnections[uid];
         //if the connection is dead, delete it and re-loop
         if (!myCConn->conn->spool() && !myCConn->conn->connected()){
+          DEBUG_MSG(DLVL_HIGH, "Resetting existing connection %s", uid.c_str());
           connectorConnections.erase(uid);
           myCConn->inUse.unlock();
           delete myCConn;
           myCConn = 0;
+        }else{
+          DEBUG_MSG(DLVL_HIGH, "Using active connection %s", uid.c_str());
         }
       }
       //unlock the connection mutex before sleeping
@@ -474,7 +469,7 @@ namespace Connector_HTTP {
             }
             retries++;
             if (retries >= 10){
-              std::cout << "[5 retry-laters, cancelled]" << std::endl;
+              DEBUG_MSG(DLVL_HIGH, "Cancelled connection %s, because of 208 status repeated 10 times", uid.c_str());
               myCConn->conn->close();
               myCConn->inUse.unlock();
               //unset to only read headers
@@ -493,7 +488,7 @@ namespace Connector_HTTP {
       }
       //keep trying unless the timeout triggers
       if (timeout++ > 4000){
-        std::cout << "[20s timeout triggered]" << std::endl;
+        DEBUG_MSG(DLVL_HIGH, "Canceled connection %s, 4s timeout", uid.c_str());
         myCConn->conn->close();
         myCConn->inUse.unlock();
         //unset to only read headers
@@ -515,12 +510,18 @@ namespace Connector_HTTP {
       //success, check type of response
       if (H.GetHeader("Content-Length") != "" || H.GetHeader("Transfer-Encoding") == "chunked"){
         //known length - simply re-send the request with added headers and continue
+        DEBUG_MSG(DLVL_HIGH, "Proxying %s - known length or chunked transfer encoding", uid.c_str());
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
         H.body = "";
         H.Proxy(*(myCConn->conn), conn);
+        if (!conn.connected()){
+          DEBUG_MSG(DLVL_HIGH, "Incoming connection to %s dropped, killing off connector", uid.c_str());
+          myCConn->conn->close();
+        }
         myCConn->inUse.unlock();
       }else{
+        DEBUG_MSG(DLVL_HIGH, "Handing off %s - one-time connection", uid.c_str());
         //unknown length
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
@@ -630,11 +631,10 @@ namespace Connector_HTTP {
       if (conn.spool() || conn.Received().size()){
         if (Client.Read(conn)){
           std::string handler = proxyGetHandleType(Client);
-#if DEBUG >= 4
-          std::cout << "Received request: " << Client.getUrl() << " (" << conn.getSocket() << ") => " << handler << " (" << Client.GetVar("stream")
-              << ")" << std::endl;
+          DEBUG_MSG(DLVL_HIGH, "Received request: %s (%d) => %s (%s)", Client.getUrl().c_str(), conn.getSocket(), handler.c_str(), Client.GetVar("stream").c_str());
+          #if DEBUG >= DLVL_HIGH
           long long int startms = Util::getMS();
-#endif
+          #endif
           long long int midms = 0;
           bool closeConnection = false;
           if (Client.GetHeader("Connection") == "close"){
@@ -650,10 +650,10 @@ namespace Connector_HTTP {
           }else{
             midms = proxyHandleThroughConnector(Client, conn, handler);
           }
-#if DEBUG >= 4
+          #if DEBUG >= DLVL_HIGH
           long long int nowms = Util::getMS();
-          std::cout << "Completed request " << conn.getSocket() << " " << handler << " in " << (midms - startms) << " ms (processing) / " << (nowms - midms) << " ms (transfer)" << std::endl;
-#endif
+          DEBUG_MSG(DLVL_HIGH, "Completed request %d (%s) in %d ms (processing) / %d ms (transfer)", conn.getSocket(), handler.c_str(), (midms - startms), (nowms - midms));
+          #endif
           if (closeConnection){
             break;
           }

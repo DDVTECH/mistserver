@@ -634,8 +634,11 @@ namespace Connector_HTTP {
           DEBUG_MSG(DLVL_HIGH, "Received request: %s (%d) => %s (%s)", Client.getUrl().c_str(), conn.getSocket(), handler.c_str(), Client.GetVar("stream").c_str());
           #if DEBUG >= DLVL_HIGH
           long long int startms = Util::getMS();
-          #endif
           long long int midms = 0;
+          #define MID_BENCH midms =
+          #else
+          #define MID_BENCH 
+          #endif
           bool closeConnection = false;
           if (Client.GetHeader("Connection") == "close"){
             closeConnection = true;
@@ -643,12 +646,12 @@ namespace Connector_HTTP {
 
           if (handler == "none" || handler == "internal"){
             if (handler == "internal"){
-              midms = proxyHandleInternal(Client, conn);
+              MID_BENCH proxyHandleInternal(Client, conn);
             }else{
-              midms = proxyHandleUnsupported(Client, conn);
+              MID_BENCH proxyHandleUnsupported(Client, conn);
             }
           }else{
-            midms = proxyHandleThroughConnector(Client, conn, handler);
+            MID_BENCH proxyHandleThroughConnector(Client, conn, handler);
           }
           #if DEBUG >= DLVL_HIGH
           long long int nowms = Util::getMS();

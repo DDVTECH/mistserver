@@ -238,7 +238,7 @@ namespace Connector_HTTP {
                   //STSS Box here
                   MP4::STSS stssBox;
                   stssBox.setVersion(0);
-                  int tmpCount = 1;
+                  int tmpCount = 0;
                   int tmpItCount = 0;
                   for ( std::deque< DTSC::Key>::iterator tmpIt = metaData.tracks[*it].keys.begin(); tmpIt != metaData.tracks[*it].keys.end(); tmpIt ++) {
                     stssBox.setSampleNumber(tmpCount,tmpItCount);

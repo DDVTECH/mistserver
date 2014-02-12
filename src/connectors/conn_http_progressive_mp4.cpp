@@ -663,6 +663,7 @@ namespace Connector_HTTP {
               }
               if (leftOver < 1){
                 ss.SendNow("q\n");//stop playback
+                Strm.waitForPause(ss);//sync the stream
                 inited = false;
               }
             }

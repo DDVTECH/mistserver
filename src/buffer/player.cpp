@@ -117,9 +117,6 @@ int main(int argc, char** argv){
   bool meta_sent = false;
   int playUntil = -1;
   long long now, prevTimestamp = 0; //for timing of sending packets
-  #if DEBUG >= DLVL_DEVEL
-  long long bench = 0; //for benchmarking
-  #endif
   std::set<int> newSelect;
   Stats sts;
   CYG_DEFI
@@ -135,6 +132,7 @@ int main(int argc, char** argv){
         }
         in_out.Received().get().resize(in_out.Received().get().size() - 1);
         if ( !in_out.Received().get().empty()){
+          DEBUG_MSG(DLVL_HIGH, "Player received: %s", in_out.Received().get().c_str());
           switch (in_out.Received().get()[0]){
             case 'P': { //Push
 #if DEBUG >= 4
@@ -186,12 +184,9 @@ int main(int argc, char** argv){
               playing = -1;
               lastSent = Util::epoch();
               in_out.setBlocking(false);
+              prevTimestamp = 0;
               if (in_out.Received().get().size() >= 2){
                 playUntil = atoi(in_out.Received().get().substr(2).c_str());
-                prevTimestamp = 0;
-                #if DEBUG >= DLVL_DEVEL
-                bench = Util::getMS();
-                #endif
               }else{
                 playUntil = 0;
               }
@@ -201,14 +196,17 @@ int main(int argc, char** argv){
               if (playing <= 0){
                 playing = 1;
               }
+              prevTimestamp = 0;
               ++playing;
               in_out.setBlocking(false);
-              #if DEBUG >= DLVL_DEVEL
-              bench = Util::getMS();
-              #endif
               break;
             }
             case 'q': { //quit-playing
+              if (playing != 0){
+                DEBUG_MSG(DLVL_HIGH, "Pausemark sent");
+                pausemark["time"] = source.getJSON()["time"];
+                pausemark.sendTo(in_out);
+              }
               playing = 0;
               in_out.setBlocking(true);
               break;
@@ -242,6 +240,7 @@ int main(int argc, char** argv){
       now = Util::getMS();
       source.seekNext();
       if ( !source.getJSON()){
+        DEBUG_MSG(DLVL_HIGH, "Seek failed (end of file?) - stopping playback");
         playing = 0;
       }
       if (playing > 0 && source.atKeyframe()){
@@ -257,14 +256,13 @@ int main(int argc, char** argv){
         playing = 0;
       }
       if (playing == 0){
-        #if DEBUG >= DLVL_DEVEL
-        DEBUG_MSG(DLVL_DEVEL, "Completed VoD request in MistPlayer (%d ms)", (Util::getMS() - bench));
-        #endif
+        DEBUG_MSG(DLVL_HIGH, "Pausemark sent");
         pausemark["time"] = source.getJSON()["time"];
         pausemark.sendTo(in_out);
         in_out.setBlocking(true);
       }else{
         lastSent = Util::epoch();
+        DEBUG_MSG(DLVL_HIGH, "Playing %lliT%lli", source.getJSON()["trackid"].asInt(), source.getJSON()["time"].asInt());
         source.getJSON().sendTo(in_out);
       }
     }else{

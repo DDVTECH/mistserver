@@ -56,7 +56,7 @@ namespace MP4 {
       char * data; ///< Holds the data of this box
       unsigned int data_size; ///< Currently reserved size
       bool managed; ///< If false, will not attempt to resize/free the data pointer.
-      int payloadOffset; ///<The offset of the payload with regards to the data
+      unsigned int payloadOffset; ///<The offset of the payload with regards to the data
   };
   //Box Class
   

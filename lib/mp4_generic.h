@@ -184,13 +184,13 @@ namespace MP4{
   class FTYP: public Box{
     public:
       FTYP();
-      void setMajorBrand(uint32_t newMajorBrand);
-      uint32_t getMajorBrand();
-      void setMinorVersion(uint32_t newMinorVersion);
-      uint32_t getMinorVersion();
-      uint32_t getCompatibleBrandsCount();
-      void setCompatibleBrands(uint32_t newCompatibleBrand, size_t index);
-      uint32_t getCompatibleBrands(size_t index);
+      void setMajorBrand(const char * newMajorBrand);
+      std::string getMajorBrand();
+      void setMinorVersion(const char * newMinorVersion);
+      std::string getMinorVersion();
+      size_t getCompatibleBrandsCount();
+      void setCompatibleBrands(const char * newCompatibleBrand, size_t index);
+      std::string getCompatibleBrands(size_t index);
       std::string toPrettyString(uint32_t indent = 0);
   };
   
@@ -256,13 +256,9 @@ namespace MP4{
 
   class HDLR: public Box{
     public:
-      HDLR();
-      void setSize(uint32_t newSize);
-      uint32_t getSize();
-      void setPreDefined(uint32_t newPreDefined);
-      uint32_t getPreDefined();
-      void setHandlerType(uint32_t newHandlerType);
-      uint32_t getHandlerType();
+      HDLR(std::string & type, std::string name);
+      void setHandlerType(const char * newHandlerType);
+      std::string getHandlerType();
       void setName(std::string newName);
       std::string getName();
       std::string toPrettyString(uint32_t indent = 0);
@@ -340,7 +336,7 @@ namespace MP4{
   
   class DREF: public fullBox{
     public:
-      DREF(char v = 1, uint32_t = 0);
+      DREF();
       uint32_t getEntryCount();
       void setDataEntry(fullBox & newDataEntry, size_t index);
       Box & getDataEntry(size_t index);
@@ -349,7 +345,6 @@ namespace MP4{
   
   class MVHD: public fullBox{
     public:
-      MVHD(char v = 1, uint32_t f = 0);
       MVHD(long long unsigned int duration);
       void setCreationTime(uint64_t newCreationTime);
       uint64_t getCreationTime();
@@ -363,7 +358,6 @@ namespace MP4{
       uint32_t getRate();
       void setVolume(uint16_t newVolume);
       uint16_t getVolume();
-      ///\todo fix default values
       uint32_t getMatrixCount();
       void setMatrix(int32_t newMatrix, size_t index);
       int32_t getMatrix(size_t index);
@@ -401,7 +395,7 @@ namespace MP4{
   
   class TKHD: public fullBox{
     public:
-      TKHD(char v = 1, uint32_t f = 0);
+      TKHD(uint32_t trackId, uint64_t duration, uint32_t width, uint32_t height);
       void setCreationTime(uint64_t newCreationTime);
       uint64_t getCreationTime();
       void setModificationTime(uint64_t newModificationTime);
@@ -418,7 +412,6 @@ namespace MP4{
 
       void setVolume(uint16_t newVolume);
       uint16_t getVolume();
-      ///\todo fix default values
       uint32_t getMatrixCount();
       void setMatrix(int32_t newMatrix, size_t index);
       int32_t getMatrix(size_t index);
@@ -432,7 +425,7 @@ namespace MP4{
   
   class MDHD: public fullBox{
     public:
-      MDHD(char v = 1, uint32_t f = 0);
+      MDHD(uint64_t duration);
       void setCreationTime(uint64_t newCreationTime);
       uint64_t getCreationTime();
       void setModificationTime(uint64_t newModificationTime);

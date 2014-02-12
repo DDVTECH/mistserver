@@ -899,49 +899,68 @@ namespace MP4{
   
   FTYP::FTYP(){
     memcpy(data + 4, "ftyp", 4);
-    setMajorBrand(0);
-    setMinorVersion(0);
+    setMajorBrand("mp41");
+    setMinorVersion("Mist");
+    setCompatibleBrands("isom",0);
+    setCompatibleBrands("iso2",1);
+    setCompatibleBrands("avc1",2);
+    setCompatibleBrands("mp41",3);
   }
   
-  void FTYP::setMajorBrand(uint32_t newMajorBrand){
-    setInt32(newMajorBrand, 0);
+  void FTYP::setMajorBrand(const char * newMajorBrand){
+    if (payloadOffset + 3 >= boxedSize()){
+      if ( !reserve(payloadOffset, 0, 4)){
+        return;
+      }
+    }
+    memcpy(data + payloadOffset, newMajorBrand, 4);
   }
   
-  uint32_t FTYP::getMajorBrand(){
-    return getInt32(0);
+  std::string FTYP::getMajorBrand(){
+    return std::string(data + payloadOffset, 4);
   }
   
-  void FTYP::setMinorVersion(uint32_t newMinorVersion){
-    setInt32(newMinorVersion, 4);
+  void FTYP::setMinorVersion(const char * newMinorVersion){
+    if (payloadOffset + 7 >= boxedSize()){
+      if ( !reserve(payloadOffset+4, 0, 4)){
+        return;
+      }
+    }
+    memcpy(data + payloadOffset + 4, newMinorVersion, 4);
   }
   
-  uint32_t FTYP::getMinorVersion(){
-    return getInt32(4);
+  std::string FTYP::getMinorVersion(){
+    return std::string(data+payloadOffset+4, 4);
   }
   
-  uint32_t FTYP::getCompatibleBrandsCount(){
+  size_t FTYP::getCompatibleBrandsCount(){
     return (payloadSize() - 8) / 4;
   }
   
-  void FTYP::setCompatibleBrands(uint32_t newCompatibleBrand, size_t index){
-    setInt32(newCompatibleBrand, 8 + (index * 4));
+  void FTYP::setCompatibleBrands(const char * newCompatibleBrand, size_t index){
+    if (payloadOffset + 8+index*4 + 3 >= boxedSize()){
+      if ( !reserve(payloadOffset+8+index*4, 0, 4)){
+        return;
+      }
+    }
+    memcpy(data + payloadOffset+8+index*4, newCompatibleBrand, 4);
   }
   
-  uint32_t FTYP::getCompatibleBrands(size_t index){
+  std::string FTYP::getCompatibleBrands(size_t index){
     if (index >= getCompatibleBrandsCount()){
-      return 0;
+      return "";
     }
-    return getInt32(8 + (index * 4));
+    return std::string(data+payloadOffset+8 + (index * 4), 4);
   }
   
   std::string FTYP::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[ftyp] File Type (" << boxedSize() << ")" << std::endl;
-    r << std::string(indent + 1, ' ') << "MajorBrand: 0x" << std::hex << getMajorBrand() << std::dec << std::endl;
+    r << std::string(indent + 1, ' ') << "MajorBrand: " << getMajorBrand() << std::endl;
     r << std::string(indent + 1, ' ') << "MinorVersion: " << getMinorVersion() << std::endl;
     r << std::string(indent + 1, ' ') << "CompatibleBrands (" << getCompatibleBrandsCount() << "):" << std::endl;
     for (unsigned int i = 0; i < getCompatibleBrandsCount(); i++){
-      r << std::string(indent + 2, ' ') << "[" << i << "] CompatibleBrand: 0x" << std::hex << getCompatibleBrands(i) << std::dec << std::endl;
+      r << std::string(indent + 2, ' ') << "[" << i << "] CompatibleBrand: " << getCompatibleBrands(i) << std::endl;
     }
     return r.str();
   }
@@ -1048,33 +1067,25 @@ namespace MP4{
     return r.str();
   }
   
-  HDLR::HDLR(){
+  HDLR::HDLR(std::string & type, std::string name){
     memcpy(data + 4, "hdlr", 4);
-    setName("");
+    //reserve an entire box, except for the string part at the end
+    if (!reserve(0, 8, 32)){
+      return;//on fail, cancel all the things
+    }
+    memset(data+payloadOffset, 0, 24);//set all bytes (32 - 8) to zeroes
+    
+    if (type == "video"){setHandlerType("vide");}
+    if (type == "audio"){setHandlerType("soun");}
+    setName(name);
   }
   
-  void HDLR::setSize(uint32_t newSize){
-    setInt32(newSize,0);
+  void HDLR::setHandlerType(const char * newHandlerType){
+    memcpy(data+payloadOffset+8, newHandlerType, 4);
   }
   
-  uint32_t HDLR::getSize(){
-    return getInt32(0);
-  }
-  
-  void HDLR::setPreDefined(uint32_t newPreDefined){
-    setInt32(newPreDefined,4);
-  }
-  
-  uint32_t HDLR::getPreDefined(){
-    return getInt32(4);
-  }
-  
-  void HDLR::setHandlerType(uint32_t newHandlerType){
-    setInt32(newHandlerType, 8);
-  }
-  
-  uint32_t HDLR::getHandlerType(){
-    return getInt32(8);
+  std::string HDLR::getHandlerType(){
+    return std::string(data+payloadOffset+8, 4);
   }
   
   void HDLR::setName(std::string newName){
@@ -1088,10 +1099,7 @@ namespace MP4{
   std::string HDLR::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[hdlr] Handler Reference (" << boxedSize() << ")" << std::endl;
-    r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
-    r << std::string(indent + 1, ' ') << "HandlerType: " << 
-      (char)((getHandlerType() & 0xFF000000) >> 24) << (char)((getHandlerType() & 0x00FF0000) >> 16) <<
-      (char)((getHandlerType() & 0x0000FF00) >> 8) << (char)(getHandlerType() & 0x000000FF) << std::endl;
+    r << std::string(indent + 1, ' ') << "Handler Type: " << getHandlerType() << std::endl;
     r << std::string(indent + 1, ' ') << "Name: " << getName() << std::endl;
     return r.str();
   }
@@ -1304,11 +1312,14 @@ namespace MP4{
     return r.str();
   }
 
-  DREF::DREF(char v, uint32_t f){
+  DREF::DREF(){
     memcpy(data + 4, "dref", 4);
-    setVersion(v);
-    setFlags(f);
+    setVersion(0);
+    setFlags(0);
     setInt32(0,4);
+    URL urlBox;
+    urlBox.setFlags(1);
+    setDataEntry(urlBox, 0);
   }
   
   uint32_t DREF::getEntryCount(){
@@ -1359,44 +1370,24 @@ namespace MP4{
     return r.str();
   }
   
-  MVHD::MVHD(char v, uint32_t f){
-    memcpy(data + 4, "mvhd", 4);
-    setVersion(v);
-    setFlags(f);
-    setCreationTime(0);
-    setModificationTime(0);
-    setTimeScale(1000);
-    setDuration(0);
-    setRate(0x00010000);
-    setVolume(0x0100);
-    setMatrix(0x40000000,0);
-    setMatrix(0x00010000,4);
-    setMatrix(0x00010000,8);
-    setTrackID(1);
-  }
-  
   MVHD::MVHD(long long unsigned int duration){
-    //memcpy(data + 4, "mvhd", 4);
-    //char temp[] =  {00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 0x03, 0xE8, 0x10, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 0x01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 01, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 40, 00, 00, 00};
-    //char temp[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x80, 0x3d, 0xe8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
-    //setString(temp, 0x4F, 0);
-    //setDuration(duration);
-    
     memcpy(data + 4, "mvhd", 4);
-    setVersion(0);
-    setFlags(0);
-    setTrackID(1);
-    setTimeScale(1000);
-
-    setRate(0x00010000);
-    setVolume(0x0100);
-    setMatrix(0x40000000,0);
-    setMatrix(0x00010000,4);
-    setMatrix(0x00010000,8);
-    setTimeScale(1000);
-    setRate(0x10000);
     
-    setDuration(duration);
+    //reserve an entire version 0 box
+    if (!reserve(0, 8, 108)){
+      return;//on fail, cancel all the things
+    }
+    memset(data+payloadOffset, 0, 100);//set all bytes (108 - 8) to zeroes
+    
+    setTimeScale(1000);//we always use milliseconds
+    setDuration(duration);//in ms
+    setRate(0x00010000);//playback rate 1.0X
+    setVolume(0x0100);//volume 1.0X
+    setMatrix(0x00010000,0);
+    setMatrix(0x00010000,4);
+    setMatrix(0x40000000,8);
+    setTrackID(0xFFFFFFFF);//empty track numbers is unknown
+    
   }
   
   void MVHD::setCreationTime(uint64_t newCreationTime){
@@ -1764,23 +1755,26 @@ namespace MP4{
     return r.str();
   }
 
-  TKHD::TKHD(char v, uint32_t f){
+  TKHD::TKHD(uint32_t trackId, uint64_t duration, uint32_t width, uint32_t height){
     memcpy(data + 4, "tkhd", 4);
-    setVersion(v);
-    setFlags(f);
-    setCreationTime(0);
-    setModificationTime(0);
-    setTrackID(0);
-    setDuration(0);
-    setLayer(0);
-    setAlternateGroup(0);
-    setVolume(0x0100);
+    
+    //reserve an entire version 0 box
+    if (!reserve(0, 8, 92)){
+      return;//on fail, cancel all the things
+    }
+    memset(data+payloadOffset, 0, 84);//set all bytes (92 - 8) to zeroes
+    
+    setFlags(15);//ENABLED | IN_MOVIE | IN_PREVIEW | IN_POSTER
+    setTrackID(trackId);
+    setDuration(duration);
+    if (width == 0 || height == 0){
+      setVolume(0x0100);
+    }
     setMatrix(0x00010000,0);
     setMatrix(0x00010000,4);
-    //fills automatically with zero's
     setMatrix(0x40000000,8);
-    setWidth(0);
-    setHeight(0);
+    setWidth(width << 16);
+    setHeight(height << 16);
   }
   
   void TKHD::setCreationTime(uint64_t newCreationTime){
@@ -1817,7 +1811,7 @@ namespace MP4{
   
   void TKHD::setTrackID(uint32_t newTrackID){
     if (getVersion() == 0){
-      setInt32((uint32_t) newTrackID, 12);
+      setInt32(newTrackID, 12);
     }else{
       setInt32(newTrackID, 20);
     }
@@ -1902,9 +1896,9 @@ namespace MP4{
   void TKHD::setMatrix(int32_t newMatrix, size_t index){
     int offset = 0;
     if (getVersion() == 0){
-      offset = 36 + 2 + 2;
+      offset = 40;
     }else{
-      offset = 48 + 2 + 2;
+      offset = 52;
     }
     setInt32(newMatrix, offset + index * 4);
   }
@@ -1912,9 +1906,9 @@ namespace MP4{
   int32_t TKHD::getMatrix(size_t index){
     int offset = 0;
     if (getVersion() == 0){
-      offset = 36 + 2 + 2;
+      offset = 40;
     }else{
-      offset = 48 + 2 + 2;
+      offset = 52;
     }
     return getInt32(offset + index * 4);
   }
@@ -1975,20 +1969,16 @@ namespace MP4{
     return r.str();
   }
 
-  MDHD::MDHD(char v, uint32_t f){
+  MDHD::MDHD(uint64_t duration){
     memcpy(data + 4, "mdhd", 4);
-    setVersion(v);
-    setFlags(f);
-    setCreationTime(0);
-    setModificationTime(0);
-    setTimeScale(1000);
-    setDuration(0);
-    setLanguage(0);
-    if (v==0){
-      setInt16(0,22);
-    }else{
-      setInt16(0,34);
+    //reserve an entire version 0 box
+    if (!reserve(0, 8, 32)){
+      return;//on fail, cancel all the things
     }
+    memset(data+payloadOffset, 0, 24);//set all bytes (32 - 8) to zeroes
+    
+    setTimeScale(1000);
+    setDuration(duration);
   }
   
   void MDHD::setCreationTime(uint64_t newCreationTime){

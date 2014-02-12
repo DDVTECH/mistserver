@@ -301,7 +301,8 @@ namespace DTSC {
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
       void endStream();
       void waitForMeta(Socket::Connection & sourceSocket);
-    protected:
+      void waitForPause(Socket::Connection & sourceSocket);
+  protected:
       void cutOneBuffer();
       void resetStream();
       std::map<livePos,JSON::Value> buffers;

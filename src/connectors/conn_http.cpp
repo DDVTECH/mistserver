@@ -508,7 +508,7 @@ namespace Connector_HTTP {
     }else{
       long long int ret = Util::getMS();
       //success, check type of response
-      if (H.GetHeader("Content-Length") != "" || H.GetHeader("Transfer-Encoding") == "chunked"){
+      if (H.GetHeader("MistMultiplex") != "No" && (H.GetHeader("Content-Length") != "" || H.GetHeader("Transfer-Encoding") == "chunked")){
         //known length - simply re-send the request with added headers and continue
         DEBUG_MSG(DLVL_HIGH, "Proxying %s - known length or chunked transfer encoding", uid.c_str());
         H.SetHeader("X-UID", uid);

@@ -509,6 +509,10 @@ namespace Connector_HTTP {
                 std::stringstream rangeReply;
                 rangeReply << "bytes " << byteStart << "-" << byteEnd << "/" << size;
                 HTTP_S.SetHeader("Content-Length", byteEnd - byteStart + 1);
+                //do not multiplex requests that are > 1MiB
+                if (byteEnd - byteStart + 1 > 1024*1024){
+                  HTTP_S.SetHeader("MistMultiplex", "No");
+                }
                 HTTP_S.SetHeader("Content-Range", rangeReply.str());
                 /// \todo Switch to chunked?
                 HTTP_S.SendResponse("206", "Partial content", conn);
@@ -516,6 +520,8 @@ namespace Connector_HTTP {
               }
             }else{
               HTTP_S.SetHeader("Content-Length", byteEnd - byteStart + 1);
+              //do not multiplex requests that aren't ranged
+              HTTP_S.SetHeader("MistMultiplex", "No");
               /// \todo Switch to chunked?
               HTTP_S.SendResponse("200", "OK", conn);
               //HTTP_S.StartResponse(HTTP_R, conn);

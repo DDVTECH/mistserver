@@ -650,8 +650,13 @@ int main(int argc, char ** argv){
       }
     }
   }
+  if (!conf.is_active){
+    Controller::Log("CONF", "Controller shutting down because of user request (received shutdown signal)");
+  }
+  if (!API_Socket.connected()){
+    Controller::Log("CONF", "Controller shutting down because of socket problem (API port closed)");
+  }
   API_Socket.close();
-  Controller::Log("CONF", "Controller shutting down");
   if ( !Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString())){
     std::cerr << "Error writing config " << conf.getString("configFile") << std::endl;
     Controller::Storage.removeMember("log");

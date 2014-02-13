@@ -525,7 +525,7 @@ namespace Connector_HTTP {
         //unknown length
         H.SetHeader("X-UID", uid);
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
-        conn.SendNow(H.BuildResponse("200", "OK"));
+        conn.SendNow(H.BuildResponse(H.url, H.method));
         //switch out the connection for an empty one - it makes no sense to keep these globally
         Socket::Connection * myConn = myCConn->conn;
         myCConn->conn = new Socket::Connection();

@@ -182,11 +182,13 @@ void DTSC::Stream::endStream(){
 
 /// Blocks until either the stream has metadata available or the sourceSocket errors.
 /// This function is intended to be run before any commands are sent and thus will not throw away anything important.
-/// It will time out after 5 seconds, disconnecting the sourceSocket.
+/// It will time out after 3 seconds, disconnecting the sourceSocket.
 void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket){
+  bool wasBlocking = sourceSocket.isBlocking();
+  sourceSocket.setBlocking(false);
   //cancel the attempt after 5000 milliseconds
   long long int start = Util::getMS();
-  while ( !metadata && sourceSocket.connected() && Util::getMS() - start < 5000){
+  while ( !metadata && sourceSocket.connected() && Util::getMS() - start < 3000){
     //we have data? attempt to read header
     if (sourceSocket.Received().size()){
       //return value is ignored because we're not interested in data packets, just metadata.
@@ -200,12 +202,13 @@ void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket){
         parsePacket(sourceSocket.Received());
       }else{
         //nothing extra to receive? wait a bit and retry
-        Util::sleep(5);
+        Util::sleep(10);
       }
     }
   }
+  sourceSocket.setBlocking(wasBlocking);
   //if the timeout has passed, close the socket
-  if (Util::getMS() - start >= 5000){
+  if (Util::getMS() - start >= 3000){
     sourceSocket.close();
     //and optionally print a debug message that this happened
     DEBUG_MSG(DLVL_DEVEL, "Timing out while waiting for metadata");
@@ -216,6 +219,8 @@ void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket){
 /// This function is intended to be run after the 'q' command is sent, throwing away superfluous packets.
 /// It will time out after 5 seconds, disconnecting the sourceSocket.
 void DTSC::Stream::waitForPause(Socket::Connection & sourceSocket){
+  bool wasBlocking = sourceSocket.isBlocking();
+  sourceSocket.setBlocking(false);
   //cancel the attempt after 5000 milliseconds
   long long int start = Util::getMS();
   while (lastType() != DTSC::PAUSEMARK && sourceSocket.connected() && Util::getMS() - start < 5000){
@@ -232,10 +237,11 @@ void DTSC::Stream::waitForPause(Socket::Connection & sourceSocket){
         parsePacket(sourceSocket.Received());
       }else{
         //nothing extra to receive? wait a bit and retry
-        Util::sleep(5);
+        Util::sleep(10);
       }
     }
   }
+  sourceSocket.setBlocking(wasBlocking);
   //if the timeout has passed, close the socket
   if (Util::getMS() - start >= 5000){
     sourceSocket.close();

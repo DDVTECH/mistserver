@@ -452,15 +452,18 @@ namespace Connector_HTTP {
             streamname = HTTP_R.GetHeader("X-Stream");
             if (!ss){
               ss = Util::Stream::getStream(streamname);
+              if (ss){
+                Strm.waitForMeta(ss);
+              }
               if (!ss){
                 DEBUG_MSG(DLVL_FAIL, "Could not connect to stream %s!", streamname.c_str());
                 ss.close();
                 HTTP_S.Clean();
+                HTTP_R.Clean();
                 HTTP_S.SetBody("No such stream is available on the system. Please try again.\n");
                 HTTP_S.SendResponse("404", "Not found", conn);
                 continue;
               }
-              Strm.waitForMeta(ss);
             }
             int videoID = -1;
             int audioID = -1;

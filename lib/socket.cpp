@@ -966,7 +966,7 @@ Socket::UDPConnection::~UDPConnection(){
   }
 }
 
-/// Stores the properties of the reiving end of this UDP socket.
+/// Stores the properties of the receiving end of this UDP socket.
 /// This will be the receiving end for all SendNow calls.
 void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   if (destAddr){
@@ -982,23 +982,46 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
     if(inet_pton(AF_INET6, destIp.c_str(), &(((struct sockaddr_in6*)destAddr)->sin6_addr)) == 1){
       return;
     }
-    free(destAddr);
-    destAddr = 0;
-  }
-  destAddr = malloc(sizeof(struct sockaddr_in));
-  if (destAddr){
-    destAddr_size = sizeof(struct sockaddr_in);
     memset(destAddr, 0, destAddr_size);
     ((struct sockaddr_in*)destAddr)->sin_family = AF_INET;
     ((struct sockaddr_in*)destAddr)->sin_port = htons(port);
     if(inet_pton(AF_INET, destIp.c_str(), &(((struct sockaddr_in*)destAddr)->sin_addr)) == 1){
       return;
     }
-    free(destAddr);
-    destAddr = 0;
   }
+  free(destAddr);
+  destAddr = 0;
   DEBUG_MSG(DLVL_FAIL, "Could not set destination for UDP socket: %s:%d", destIp.c_str(), port);
 }//Socket::UDPConnection SetDestination
+
+/// Gets the properties of the receiving end of this UDP socket.
+/// This will be the receiving end for all SendNow calls.
+void Socket::UDPConnection::GetDestination(std::string & destIp, uint32_t & port){
+  if (!destAddr || !destAddr_size){
+    destIp = "";
+    port = 0;
+    return;
+  }
+  char addr_str[INET6_ADDRSTRLEN+1];
+  addr_str[INET6_ADDRSTRLEN] = 0;//set last byte to zero, to prevent walking out of the array
+  if (((struct sockaddr_in*)destAddr)->sin_family == AF_INET6){
+    if (inet_ntop(AF_INET6, &(((struct sockaddr_in6*)destAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+      destIp = addr_str;
+      port = ntohs(((struct sockaddr_in6*)destAddr)->sin6_port);
+      return;
+    }
+  }
+  if (((struct sockaddr_in*)destAddr)->sin_family == AF_INET){
+    if (inet_ntop(AF_INET, &(((struct sockaddr_in*)destAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+      destIp = addr_str;
+      port = ntohs(((struct sockaddr_in*)destAddr)->sin_port);
+      return;
+    }
+  }
+  destIp = "";
+  port = 0;
+  DEBUG_MSG(DLVL_FAIL, "Could not get destination for UDP socket");
+}//Socket::UDPConnection GetDestination
 
 /// Sets the socket to be blocking if the parameters is true.
 /// Sets the socket to be non-blocking otherwise.
@@ -1074,7 +1097,8 @@ bool Socket::UDPConnection::Receive(){
       data_size = 0;
     }
   }
-  r = recvfrom(sock, data, data_size, 0, 0, 0);
+  socklen_t destsize = destAddr_size;
+  r = recvfrom(sock, data, data_size, 0, (sockaddr*)destAddr, &destsize);
   if (r > 0){
     down += r;
     data_len = r;

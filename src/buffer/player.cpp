@@ -116,6 +116,7 @@ int main(int argc, char** argv){
 
   bool meta_sent = false;
   int playUntil = -1;
+  long long max_lead_time = 7500;//maximum time in ms that the player can be faster than real-time
   long long now, prevTimestamp = 0; //for timing of sending packets
   std::set<int> newSelect;
   Stats sts;
@@ -249,8 +250,8 @@ int main(int argc, char** argv){
       if (prevTimestamp == 0){
         prevTimestamp = now - source.getJSON()["time"].asInt();
       }
-      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - prevTimestamp + 7500){
-        Util::sleep(source.getJSON()["time"].asInt() - (now - prevTimestamp + 5000));
+      if (playing == -1 && playUntil == 0 && source.getJSON()["time"].asInt() > now - prevTimestamp + max_lead_time){
+        Util::sleep(source.getJSON()["time"].asInt() - (now - prevTimestamp + max_lead_time));
       }
       if ( playUntil && playUntil <= source.getJSON()["time"].asInt()){
         playing = 0;

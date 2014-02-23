@@ -313,18 +313,7 @@ static void callThreadCallback(void * cDataArg){
   DEBUG_MSG(DLVL_INSANE, "Thread for %p ended", cDataArg);
 }
 
-int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
-  Socket::Server server_socket;
-  if (vals.isMember("socket")){
-    server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  }
-  if (vals.isMember("listen_port") && vals.isMember("listen_interface")){
-    server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
-  }
-  if (!server_socket.connected()){return 1;}
-  DEBUG_MSG(DLVL_DEVEL, "Activating threaded server: %s", getString("cmd").c_str());
-  activate();
-  
+int Util::Config::threadServer(Socket::Server & server_socket, int (*callback)(Socket::Connection &)){
   while (is_active && server_socket.connected()){
     Socket::Connection S = server_socket.accept();
     if (S.connected()){ //check if the new connection is valid
@@ -335,13 +324,50 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
       tthread::thread T(callThreadCallback, (void*)cData);
       //detach it, no need to keep track of it anymore
       T.detach();
+      DEBUG_MSG(DLVL_HIGH, "Spawned new thread for socket %i", S.getSocket());
     }else{
       Util::sleep(10); //sleep 10ms
     }
-  }//main loop
+  }
   server_socket.close();
-  DEBUG_MSG(DLVL_DEVEL, "Threaded server exiting: %s", getString("cmd").c_str());
   return 0;
+}
+
+int Util::Config::forkServer(Socket::Server & server_socket, int (*callback)(Socket::Connection &)){
+  while (is_active && server_socket.connected()){
+    Socket::Connection S = server_socket.accept();
+    if (S.connected()){ //check if the new connection is valid
+      pid_t myid = fork();
+      if (myid == 0){ //if new child, start MAINHANDLER
+        server_socket.drop();
+        return callback(S);
+      }else{ //otherwise, do nothing or output debugging text
+        DEBUG_MSG(DLVL_HIGH, "Forked new process %i for socket %i", (int)myid, S.getSocket());
+        S.drop();
+      }
+    }else{
+      Util::sleep(10); //sleep 10ms
+    }
+  }
+  server_socket.close();
+  return 0;
+}
+
+int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
+  Socket::Server server_socket;
+  if (vals.isMember("socket")){
+    server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
+  }
+  if (vals.isMember("listen_port") && vals.isMember("listen_interface")){
+    server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
+  }
+  if (!server_socket.connected()){
+    DEBUG_MSG(DLVL_DEVEL, "Failure to open socket");
+    return 1;
+  }
+  DEBUG_MSG(DLVL_DEVEL, "Activating threaded server: %s", getString("cmd").c_str());
+  activate();
+  return threadServer(server_socket, callback);
 }
 
 int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)){
@@ -358,25 +384,7 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)){
   }
   DEBUG_MSG(DLVL_DEVEL, "Activating forked server: %s", getString("cmd").c_str());
   activate();
-  
-  while (is_active && server_socket.connected()){
-    Socket::Connection S = server_socket.accept();
-    if (S.connected()){ //check if the new connection is valid
-      pid_t myid = fork();
-      if (myid == 0){ //if new child, start MAINHANDLER
-        server_socket.drop();
-        return callback(S);
-      }else{ //otherwise, do nothing or output debugging text
-        DEBUG_MSG(DLVL_DEVEL, "Forked new process %i for socket %i", (int)myid, S.getSocket());
-        S.drop();
-      }
-    }else{
-      Util::sleep(10); //sleep 10ms
-    }
-  }//main loop
-  server_socket.close();
-  DEBUG_MSG(DLVL_DEVEL, "Forked server exiting: %s", getString("cmd").c_str());
-  return 0;
+  return forkServer(server_socket, callback);
 }
 
 /// Activated the stored config. This will:

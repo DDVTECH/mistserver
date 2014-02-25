@@ -185,7 +185,7 @@ void DTSC::Stream::endStream() {
 /// Blocks until either the stream has metadata available or the sourceSocket errors.
 /// This function is intended to be run before any commands are sent and thus will not throw away anything important.
 /// It will time out after 3 seconds, disconnecting the sourceSocket.
-void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket) {
+void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket, bool closeOnError){
   bool wasBlocking = sourceSocket.isBlocking();
   sourceSocket.setBlocking(false);
   //cancel the attempt after 5000 milliseconds
@@ -210,7 +210,7 @@ void DTSC::Stream::waitForMeta(Socket::Connection & sourceSocket) {
   }
   sourceSocket.setBlocking(wasBlocking);
   //if the timeout has passed, close the socket
-  if (Util::getMS() - start >= 3000) {
+  if (Util::getMS() - start >= 3000 && closeOnError){
     sourceSocket.close();
     //and optionally print a debug message that this happened
     DEBUG_MSG(DLVL_DEVEL, "Timing out while waiting for metadata");

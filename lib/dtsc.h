@@ -425,7 +425,7 @@ namespace DTSC {
       bool isNewest(DTSC::livePos & pos, std::set<int> & allowedTracks);
       DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
       void endStream();
-      void waitForMeta(Socket::Connection & sourceSocket);
+      void waitForMeta(Socket::Connection & sourceSocket, bool closeOnError = true);
       void waitForPause(Socket::Connection & sourceSocket);
     protected:
       void cutOneBuffer();

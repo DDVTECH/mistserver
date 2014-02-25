@@ -977,16 +977,6 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata){
   }
   if (data[0] == 0x08){
     char audiodata = data[11];
-    if (needsInitData() && isInitData()){
-      if ((audiodata & 0xF0) == 0xA0){
-        metadata.tracks[2].init = std::string((char*)data + 13, (size_t)len - 17);
-      }else{
-        metadata.tracks[2].init = std::string((char*)data + 12, (size_t)len - 16);
-      }
-      return pack_out; //skip rest of parsing, get next tag.
-    }
-    pack_out["time"] = tagTime();
-    pack_out["trackid"] = 2;
     metadata.tracks[2].trackID = 2;
     metadata.tracks[2].type = "audio";
     if (metadata.tracks[2].codec == ""){
@@ -1028,6 +1018,16 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata){
           break;
       }
     }
+    if (needsInitData() && isInitData()){
+      if ((audiodata & 0xF0) == 0xA0){
+        metadata.tracks[2].init = std::string((char*)data + 13, (size_t)len - 17);
+      }else{
+        metadata.tracks[2].init = std::string((char*)data + 12, (size_t)len - 16);
+      }
+      return pack_out; //skip rest of parsing, get next tag.
+    }
+    pack_out["time"] = tagTime();
+    pack_out["trackid"] = 2;
     if ((audiodata & 0xF0) == 0xA0){
       if (len < 18){
         return JSON::Value();
@@ -1043,6 +1043,11 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata){
   }
   if (data[0] == 0x09){
     char videodata = data[11];
+    if (metadata.tracks[1].codec == ""){
+      metadata.tracks[1].codec = getVideoCodec();
+    }
+    metadata.tracks[1].type = "video";
+    metadata.tracks[1].trackID = 1;
     if (needsInitData() && isInitData()){
       if ((videodata & 0x0F) == 7){
         if (len < 21){
@@ -1057,11 +1062,6 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata){
       }
       return pack_out; //skip rest of parsing, get next tag.
     }
-    if (metadata.tracks[1].codec == ""){
-      metadata.tracks[1].codec = getVideoCodec();
-    }
-    metadata.tracks[1].type = "video";
-    metadata.tracks[1].trackID = 1;
     pack_out["trackid"] = 1;
     switch (videodata & 0xF0){
       case 0x10:

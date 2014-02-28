@@ -313,7 +313,7 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 /// \return True if a whole request or response was read, false otherwise.
 bool HTTP::Parser::Read(Socket::Connection & conn){
   //Make sure the received data ends in a newline (\n).
-  while ( *(conn.Received().get().rbegin()) != '\n'){
+  while ( !seenHeaders && *(conn.Received().get().rbegin()) != '\n'){
     if (conn.Received().size() > 1){
       //make a copy of the first part
       std::string tmp = conn.Received().get();

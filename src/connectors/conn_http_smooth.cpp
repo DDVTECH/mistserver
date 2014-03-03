@@ -27,7 +27,7 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 
-long long int binToInt(std::string & binary){
+long long unsigned int binToInt(std::string & binary){
   long long int result = 0;
   for ( int i = 0; i < 8; i++){
     result <<= 8;
@@ -36,7 +36,7 @@ long long int binToInt(std::string & binary){
   return result;
 }
 
-std::string intToBin(long long int number){
+std::string intToBin(long long unsigned int number){
   std::string result;
   result.resize(8);
   for( int i = 7; i >= 0; i--){
@@ -209,9 +209,6 @@ namespace Connector_HTTP {
     std::string streamname;//Will contain the name of the stream.
     bool handlingRequest = false;
 
-    bool wantsVideo = false;//Indicates whether this request is a video request.
-    bool wantsAudio = false;//Indicates whether this request is an audio request.
-
     std::string Quality;//Indicates the request quality of the movie.
     long long int requestedTime = -1;//Indicates the fragment requested.
     std::string parseString;//A string used for parsing different aspects of the request.
@@ -263,14 +260,6 @@ namespace Connector_HTTP {
                 Quality = HTTP_R.url.substr(HTTP_R.url.find("TrackID=", 8) + 8);
                 Quality = Quality.substr(0, Quality.find(")"));
                 parseString = HTTP_R.url.substr(HTTP_R.url.find(")/") + 2);
-                wantsAudio = false;
-                wantsVideo = false;
-                if (parseString[0] == 'A'){
-                  wantsAudio = true;
-                }
-                if (parseString[0] == 'V'){
-                  wantsVideo = true;
-                }
                 parseString = parseString.substr(parseString.find("(") + 1);
                 requestedTime = atoll(parseString.substr(0, parseString.find(")")).c_str());
                 long long int selectedQuality = atoll(Quality.c_str());
@@ -309,11 +298,20 @@ namespace Connector_HTTP {
                 std::stringstream sstream;
                 
                 long long mstime = 0;
+                int partOffset = 0;
+                int keyDur = 0;
+                DTSC::Key keyObj;
                 for (std::deque<DTSC::Key>::iterator it = myRef.keys.begin(); it != myRef.keys.end(); it++){
                   if (it->getTime() >= (requestedTime / 10000)){
                     mstime = it->getTime();
-                    if (Strm.metadata.live){
-                      if (it == myRef.keys.end() - 2){
+                    keyObj = (*it);
+                    std::deque<DTSC::Key>::iterator nextIt = it;
+                    nextIt++;
+                    if (nextIt != myRef.keys.end()){
+                      keyDur = nextIt->getTime() - it->getTime();
+                    }else{
+                      keyDur = -1;
+                      if (Strm.metadata.live){
                         HTTP_S.Clean();
                         HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
                         conn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
@@ -323,6 +321,7 @@ namespace Connector_HTTP {
                     }
                     break;
                   }
+                  partOffset += it->getParts();
                 }
                 if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
                 if (Strm.metadata.live){
@@ -334,35 +333,6 @@ namespace Connector_HTTP {
                     std::cout << "Fragment @ " << (requestedTime / 10000) << " too old" << std::endl;
                     continue;
                   }
-                }
-                
-                //Obtain the corresponding track;
-                DTSC::Track trackRef;
-                for (std::map<int,DTSC::Track>::iterator it = Strm.metadata.tracks.begin(); it != Strm.metadata.tracks.end(); it++){
-                  if (wantsVideo && it->second.codec == "H264"){
-                    trackRef = it->second;
-                  }
-                  if (wantsAudio && it->second.codec == "AAC"){
-                    trackRef = it->second;
-                  }
-                }
-                //Also obtain the associated keyframe;
-                DTSC::Key keyObj;
-                int partOffset = 0;
-                int keyDur = 0;
-                for (std::deque<DTSC::Key>::iterator keyIt = trackRef.keys.begin(); keyIt != trackRef.keys.end(); keyIt++){
-                  if (keyIt->getTime() >= (requestedTime / 10000)){
-                    keyObj = (*keyIt);
-                    std::deque<DTSC::Key>::iterator nextIt = keyIt;
-                    nextIt++;
-                    if (nextIt != trackRef.keys.end()){
-                      keyDur = nextIt->getTime() - keyIt->getTime();
-                    }else{
-                      keyDur = -1;
-                    }
-                    break;
-                  }
-                  partOffset += keyIt->getParts();
                 }
                 
                 sstream << "t " << myRef.trackID << "\n";
@@ -382,7 +352,7 @@ namespace Connector_HTTP {
                 MP4::TFHD tfhd_box;
                 tfhd_box.setFlags(MP4::tfhdSampleFlag);
                 tfhd_box.setTrackID(myRef.trackID);
-                if (trackRef.type == "video"){
+                if (myRef.type == "video"){
                   tfhd_box.setDefaultSampleFlags(0x00004001);
                 }else{
                   tfhd_box.setDefaultSampleFlags(0x00008002);
@@ -391,7 +361,7 @@ namespace Connector_HTTP {
                 MP4::TRUN trun_box;
                 trun_box.setDataOffset(42);
                 unsigned int keySize = 0;
-                if (trackRef.type == "video"){
+                if (myRef.type == "video"){
                  trun_box.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleDuration | MP4::trunsampleSize | MP4::trunsampleOffsets);
                 }else{
                   trun_box.setFlags(MP4::trundataOffset | MP4::trunsampleDuration | MP4::trunsampleSize);
@@ -402,7 +372,7 @@ namespace Connector_HTTP {
                   trunSample.sampleSize = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getSize();
                   keySize += Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getSize();
                   trunSample.sampleDuration = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getDuration() * 10000;
-                  if (trackRef.type == "video"){
+                  if (myRef.type == "video"){
                     trunSample.sampleOffset = Strm.metadata.tracks[myRef.trackID].parts[i + partOffset].getOffset() * 10000;
                   }
                   trun_box.setSampleInformation(trunSample, i);
@@ -410,7 +380,7 @@ namespace Connector_HTTP {
                 
                 MP4::SDTP sdtp_box;
                 sdtp_box.setVersion(0);
-                if (trackRef.type == "video"){
+                if (myRef.type == "video"){
                   sdtp_box.setValue(36, 4);
                   for (int i = 1; i < keyObj.getParts(); i++){
                     sdtp_box.setValue(20, 4 + i);
@@ -433,10 +403,10 @@ namespace Connector_HTTP {
                   fragref_box.setVersion(1);
                   fragref_box.setFragmentCount(0);
                   int fragCount = 0;
-                  for (unsigned int i = 0; fragCount < 2 && i < trackRef.keys.size() - 1; i++){
-                    if (trackRef.keys[i].getTime() > (requestedTime / 10000)){
-                      fragref_box.setTime(fragCount, trackRef.keys[i].getTime() * 10000);
-                      fragref_box.setDuration(fragCount, trackRef.keys[i].getLength() * 10000);
+                  for (unsigned int i = 0; fragCount < 2 && i < myRef.keys.size() - 1; i++){
+                    if (myRef.keys[i].getTime() > (requestedTime / 10000)){
+                      fragref_box.setTime(fragCount, myRef.keys[i].getTime() * 10000);
+                      fragref_box.setDuration(fragCount, myRef.keys[i].getLength() * 10000);
                       fragref_box.setFragmentCount(++fragCount);
                     }
                   }
@@ -445,16 +415,14 @@ namespace Connector_HTTP {
 
                 MP4::MOOF moof_box;
                 moof_box.setContent(mfhd_box, 0);
-                moof_box.setContent(traf_box, 1);
                 //Setting the correct offsets.
+                moof_box.setContent(traf_box, 1);
                 trun_box.setDataOffset(moof_box.boxedSize() + 8);
                 traf_box.setContent(trun_box, 1);
                 moof_box.setContent(traf_box, 1);
 
                 HTTP_S.Clean();
                 HTTP_S.SetHeader("Content-Type", "video/mp4");
-                HTTP_S.SetHeader("Pragma", "IISMS/5.0,IIS Media Services Premium by Microsoft");
-                HTTP_S.SetHeader("ETag", "3b517e5a0586303");
                 HTTP_S.StartResponse(HTTP_R, conn);
                 HTTP_S.Chunkify(moof_box.asBox(), moof_box.boxedSize(), conn);
                 int size = htonl(keySize + 8);

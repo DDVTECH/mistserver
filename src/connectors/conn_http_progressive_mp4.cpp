@@ -445,8 +445,7 @@ namespace Connector_HTTP {
     while (conn.connected()){
       //Only attempt to parse input when not yet init'ed.
       if ( !inited){
-        if (conn.Received().size() || conn.spool()){
-          if (HTTP_R.Read(conn)){
+        if (conn.spool() && HTTP_R.Read(conn)){
             DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.getUrl().c_str());
             conn.setHost(HTTP_R.GetHeader("X-Origin"));
             streamname = HTTP_R.GetHeader("X-Stream");
@@ -559,7 +558,6 @@ namespace Connector_HTTP {
               sortSet.insert(temp);
             }
             inited = true;
-          }
         }
       }else{
         unsigned int now = Util::epoch();

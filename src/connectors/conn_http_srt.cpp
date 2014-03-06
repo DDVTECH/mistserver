@@ -47,8 +47,7 @@ namespace Connector_HTTP {
     while (conn.connected()){
       //Only attempt to parse input when not yet init'ed.
       if ( !inited){
-        if (conn.Received().size() || conn.spool()){
-          if (HTTP_R.Read(conn)){
+        if (conn.spool() && HTTP_R.Read(conn)){
 #if DEBUG >= 5
             std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
@@ -142,7 +141,6 @@ namespace Connector_HTTP {
             srtdata.clear();
             curIndex = 1;   // set to 1, first srt 'track'
           }
-        }
       }
 
       unsigned int now = Util::epoch();

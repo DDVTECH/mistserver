@@ -217,8 +217,7 @@ namespace Connector_HTTP {
 
     while (conn.connected()){
       if ( !handlingRequest){
-        if (conn.spool() || conn.Received().size()){
-          if (HTTP_R.Read(conn)){
+        if (conn.spool() && HTTP_R.Read(conn)){
   #if DEBUG >= 5
             std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
   #endif
@@ -443,8 +442,6 @@ namespace Connector_HTTP {
             ready4data = true;
             //Clean for any possible next requests
             HTTP_R.Clean();
-          }
-          
         }else{
           //Wait 250ms before checking for new data.
           Util::sleep(250);

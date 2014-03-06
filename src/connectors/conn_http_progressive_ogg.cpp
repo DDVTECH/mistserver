@@ -53,8 +53,7 @@ namespace Connector_HTTP {
     while (conn.connected()){
       //Only attempt to parse input when not yet init'ed.
       if ( !inited){
-        if (conn.Received().size() || conn.spool()){
-          if (HTTP_R.Read(conn)){
+        if (conn.spool() && HTTP_R.Read(conn)){
 #if DEBUG >= 5
             std::cout << "Received request: " << HTTP_R.getUrl() << std::endl;
 #endif
@@ -62,7 +61,6 @@ namespace Connector_HTTP {
             streamname = HTTP_R.GetHeader("X-Stream");
             ready4data = true;
             HTTP_R.Clean(); //clean for any possible next requests
-          }
         }
       }
       if (ready4data){

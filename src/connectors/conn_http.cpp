@@ -463,9 +463,8 @@ namespace Connector_HTTP {
     //wait for a response
     while (myCConn->conn->connected() && conn.connected()){
       conn.spool();
-      if (myCConn->conn->Received().size() || myCConn->conn->spool()){
         //check if the whole header was received
-        if (H.Read(*(myCConn->conn))){
+      if (myCConn->conn->spool() && H.Read(*(myCConn->conn))){
           //208 means the fragment is too new, retry in 3s
           if (H.url == "208"){
             while (myCConn->conn->Received().size() > 0){
@@ -488,7 +487,6 @@ namespace Connector_HTTP {
             continue;
           }
           break; //continue down below this while loop
-        }
       }
       //keep trying unless the timeout triggers
       if (timeout++ > 4000){
@@ -632,8 +630,7 @@ namespace Connector_HTTP {
     conn.setBlocking(false); //do not block on conn.spool() when no data is available
     HTTP::Parser Client;
     while (conn.connected()){
-      if (conn.spool() || conn.Received().size()){
-        if (Client.Read(conn)){
+        if (conn.spool() && Client.Read(conn)){
           std::string handler = proxyGetHandleType(Client);
           DEBUG_MSG(DLVL_HIGH, "Received request: %s (%d) => %s (%s)", Client.getUrl().c_str(), conn.getSocket(), handler.c_str(), Client.GetVar("stream").c_str());
           #if DEBUG >= DLVL_HIGH
@@ -665,7 +662,6 @@ namespace Connector_HTTP {
             break;
           }
           Client.Clean(); //clean for any possible next requests
-        }
       }else{
         Util::sleep(10); //sleep 10ms
       }

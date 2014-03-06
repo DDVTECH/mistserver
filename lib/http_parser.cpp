@@ -326,7 +326,14 @@ bool HTTP::Parser::Read(Socket::Connection & conn){
       return false;
     }
   }
-  return parse(conn.Received().get());
+  //if a parse succeeds, simply return true
+  if (parse(conn.Received().get())){
+    return true;
+  }
+  //otherwise, if we have parts left, call ourselves recursively
+  if (conn.Received().size()){
+    return Read(conn);
+  }
 } //HTTPReader::Read
 
 /// Attempt to read a whole HTTP request or response from a std::string buffer.

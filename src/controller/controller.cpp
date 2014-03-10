@@ -4,6 +4,7 @@
 #include <stdio.h>
 //#include <io.h>
 #include <iostream>
+#include <ctime>
 #include <vector>
 #include <sys/stat.h>
 #include <mist/config.h>
@@ -14,6 +15,7 @@
 #include <mist/timing.h>
 #include <mist/converter.h>
 #include <mist/stream.h>
+#include <mist/defines.h>
 #include "controller_storage.h"
 #include "controller_connectors.h"
 #include "controller_streams.h"
@@ -218,6 +220,9 @@ int main(int argc, char ** argv){
   conf.addOption("account",
       JSON::fromString(
           "{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
+  conf.addOption("logfile",
+      JSON::fromString(
+          "{\"long\":\"logfile\", \"short\":\"L\", \"arg\":\"string\" \"default\":\"\",\"help\":\"Redirect all standard output to a log file, provided with an argument\"}"));
   conf.addOption("configFile",
       JSON::fromString(
           "{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" \"default\":\"config.json\", \"help\":\"Specify a config file other than default.\"}"));
@@ -231,7 +236,24 @@ int main(int argc, char ** argv){
       JSON::fromString(
           "{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}"));
   conf.parseArgs(argc, argv);
-
+  if(conf.getString("logfile")!= ""){
+    //open logfile, dup stdout to logfile
+    int output = open(conf.getString("logfile").c_str(),O_APPEND|O_CREAT|O_WRONLY,S_IRWXU);
+    if(output < 0){
+      DEBUG_MSG(DLVL_ERROR, "Could not redirect output to %s: %s",conf.getString("logfile").c_str(),strerror(errno));
+      return 7;
+    }else{
+      dup2(output,STDOUT_FILENO);
+      dup2(output,STDERR_FILENO);
+      time_t rawtime;
+      struct tm * timeinfo;
+      char buffer [25];
+      time (&rawtime);
+      timeinfo = localtime (&rawtime);
+      strftime (buffer,25,"%c",timeinfo);
+      std::cerr << std::endl << std::endl <<"!----MistServer Started at " << buffer << " ----!"  << std::endl;
+    }
+  }
   //Input custom config here
   Controller::Storage = JSON::fromFile(conf.getString("configFile"));
 
@@ -339,7 +361,6 @@ int main(int argc, char ** argv){
   time_t processchecker = 0;
   Socket::Server API_Socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"), true);
   Socket::Server Stats_Socket = Socket::Server(Util::getTmpFolder() + "statistics", true);
-  conf.activate();
   Socket::Connection Incoming;
   std::vector<Controller::ConnectedUser> users;
   std::vector<Socket::Connection> buffers;

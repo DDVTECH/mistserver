@@ -491,7 +491,7 @@ void Util::Config::addBasicConnectorOptions(JSON::Value & capabilities){
   option["long_off"] = "nodaemon";
   option["short_off"] = "n";
   option["help"] = "Whether or not to daemonize the process after starting.";
-  option["value"].append(1ll);
+  option["value"].append(0ll);
   addOption("daemonize", option);
   
   option.null();

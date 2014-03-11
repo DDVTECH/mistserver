@@ -397,7 +397,11 @@ void Util::Config::activate(){
     setUser(getString("username"));
   }
   if (vals.isMember("daemonize") && getBool("daemonize")){
-    Daemonize();
+    if(vals.isMember("logfile") && getString("logfile") != ""){
+      Daemonize(true);
+    }else{
+      Daemonize(false);
+    }
   }
   struct sigaction new_action;
   new_action.sa_handler = signal_handler;
@@ -567,9 +571,13 @@ void Util::setUser(std::string username){
 /// Works by calling daemon(1,0):
 /// Does not change directory to root.
 /// Does redirect output to /dev/null
-void Util::Daemonize(){
+void Util::Daemonize(bool notClose){
   DEBUG_MSG(DLVL_DEVEL, "Going into background mode...");
-  if (daemon(1, 0) < 0){
+  int noClose = 0;
+  if(notClose){
+    noClose = 1;
+  }
+  if (daemon(1, noClose) < 0){
     DEBUG_MSG(DLVL_ERROR, "Failed to daemonize: %s", strerror(errno));
   }
 }

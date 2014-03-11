@@ -52,6 +52,6 @@ namespace Util {
   void setUser(std::string user);
 
   /// Will turn the current process into a daemon.
-  void Daemonize();
+  void Daemonize(bool notClose = false);
 
 }

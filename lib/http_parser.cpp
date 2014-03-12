@@ -334,6 +334,7 @@ bool HTTP::Parser::Read(Socket::Connection & conn){
   if (conn.Received().size()){
     return Read(conn);
   }
+  return false;
 } //HTTPReader::Read
 
 /// Attempt to read a whole HTTP request or response from a std::string buffer.

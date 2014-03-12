@@ -1,0 +1,12 @@
+[Unit]
+Description=MistServer
+After=networkmanager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/MistController -c /etc/mistserver.conf
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

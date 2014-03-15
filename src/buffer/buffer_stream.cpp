@@ -3,6 +3,7 @@
 
 #include "buffer_stream.h"
 #include <mist/timing.h>
+#include <mist/defines.h>
 #include <stdlib.h>
 
 namespace Buffer {
@@ -170,6 +171,16 @@ namespace Buffer {
   /// \param n The new name of the buffer.
   void Stream::setName(std::string n){
     name = n;
+  }
+  
+  void Stream::sendPacket(DTSC::livePos & num, Socket::Connection & S){
+    rw_mutex.lock();
+    if (!getPacket(num) && buffers.size()){
+      DEBUG_MSG(DLVL_DEVEL, "Oh noes, ran out of packets! Resetting to beginning...");
+      num = buffers.rbegin()->first;
+    }
+    getPacket(num).sendTo(S);
+    rw_mutex.unlock();
   }
   
   /// parsePacket override that will lock the rw_mutex during parsing.

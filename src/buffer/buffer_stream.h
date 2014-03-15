@@ -57,6 +57,8 @@ namespace Buffer {
       bool setInput(Socket::Connection S);
       /// Gets the current socket for push data.
       Socket::Connection & getIPInput();
+      /// Send a packet while locking the mutex.
+      void sendPacket(DTSC::livePos & num, Socket::Connection & S);
       /// Stores intermediate statistics.
       void saveStats(std::string username, Stats & stats);
       /// Stores final statistics.

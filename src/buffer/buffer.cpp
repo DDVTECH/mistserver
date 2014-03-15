@@ -152,7 +152,7 @@ namespace Buffer {
           }
         }else{
           //complete a send
-          Stream::get()->getPacket(usr->myRing->b).sendTo(usr->S);
+          Stream::get()->sendPacket(usr->myRing->b, usr->S);
           if ( !usr->S.connected()){break;}
           //switch to next buffer
           if (Stream::get()->isNewest(usr->myRing->b, allowedTracks)){

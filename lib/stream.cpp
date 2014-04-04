@@ -60,20 +60,56 @@ void Util::Stream::sanitizeName(std::string & streamname){
 }
 
 Socket::Connection Util::Stream::getLive(std::string streamname){
-  return Socket::Connection(getTmpFolder() + "stream_" + streamname);
+  JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
+  static unsigned long long counter = 0;
+  std::stringstream name;
+  name << "MistInBuffer " << (counter++);
+  std::string player_bin = Util::getMyPath() + "MistInBuffer";
+  DEBUG_MSG(DLVL_WARN, "Starting %s -p -s %s", player_bin.c_str(), streamname.c_str());
+  char* argv[15] = {(char*)player_bin.c_str(), (char*)"-p", (char*)"-s", (char*)streamname.c_str(), (char*)0};
+  int argNum = 4;
+  if (ServConf["streams"][streamname].isMember("DVR")){
+    std::string bufferTime = ServConf["streams"][streamname]["DVR"].asString();
+    argv[argNum++] = (char*)"-b";
+    argv[argNum++] = (char*)bufferTime.c_str();
+    argv[argNum++] = (char*)0;
+  }
+
+  int pid = fork();
+  if (pid){
+    execvp(argv[0], argv);
+    _exit(42);
+  }else if(pid == -1){
+    perror("Could not start vod");
+  }
+  return Socket::Connection();
 }
 
 /// Starts a process for a VoD stream.
 Socket::Connection Util::Stream::getVod(std::string filename, std::string streamname){
   static unsigned long long counter = 0;
   std::stringstream name;
-  name << "MistPlayer " << (counter++);
-  std::string player_bin = Util::getMyPath() + "MistPlayer";
-  char* const argv[] = {(char*)player_bin.c_str(), (char*)filename.c_str(), (char*)"-s", (char*)streamname.c_str(), (char*)0};
-  int fdin = -1, fdout = -1, fderr = fileno(stderr);
-  Util::Procs::StartPiped(name.str(), argv, &fdin, &fdout, &fderr);
-  // if StartPiped fails then fdin and fdout will be unmodified (-1)
-  return Socket::Connection(fdin, fdout);
+  name << "MistInDTSC " << (counter++);
+  std::string player_bin = Util::getMyPath() + "MistInDTSC";
+  if (filename.substr(filename.size()-5) == ".ismv"){
+    name.str("MistInISMV " + filename);
+    player_bin = Util::getMyPath() + "MistInISMV";
+  }
+  if (filename.substr(filename.size()-4) == ".flv"){
+    name.str("MistInFLV " + filename);
+    player_bin = Util::getMyPath() + "MistInFLV";
+  }
+  DEBUG_MSG(DLVL_WARN, "Starting %s -p -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
+  char* const argv[] = {(char*)player_bin.c_str(), (char*)"-p", (char*)"-s", (char*)streamname.c_str(), (char*)filename.c_str(), (char*)0};
+
+  int pid = fork();
+  if (pid){
+    execvp(argv[0], argv);
+    _exit(42);
+  }else if(pid == -1){
+    perror("Could not start vod");
+  }
+  return Socket::Connection();
 }
 
 /// Probe for available streams. Currently first VoD, then Live.
@@ -84,7 +120,7 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
     if (ServConf["streams"][streamname]["source"].asString()[0] == '/'){
       return getVod(ServConf["streams"][streamname]["source"].asString(), streamname);
     }else{
-      return Socket::Connection(getTmpFolder() + "stream_" + streamname);
+      return getLive(streamname);
     }
   }
   DEBUG_MSG(DLVL_ERROR, "Stream not found: %s", streamname.c_str());

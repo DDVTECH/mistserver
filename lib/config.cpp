@@ -32,6 +32,8 @@
 bool Util::Config::is_active = false;
 std::string Util::Config::libver = PACKAGE_VERSION;
 
+Util::Config::Config(){}
+
 /// Creates a new configuration manager.
 Util::Config::Config(std::string cmd, std::string version){
   vals.null();

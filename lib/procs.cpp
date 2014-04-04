@@ -648,7 +648,7 @@ bool Util::Procs::isActive(std::string name){
   std::map<pid_t, std::string>::iterator it;
   for (it = listcopy.begin(); it != listcopy.end(); it++){
     if (( *it).second == name){
-      if (kill(( *it).first, 0) == 0){
+      if (childRunning(( *it).first)){
         return true;
       }else{
         plist.erase(( *it).first);

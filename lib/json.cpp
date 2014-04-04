@@ -143,7 +143,9 @@ JSON::Value::Value(std::istream & fromstream){
   null();
   bool reading_object = false;
   bool reading_array = false;
-  while (fromstream.good()){
+  bool negative = false;
+  bool stop = false;
+  while (!stop && fromstream.good()){
     int c = fromstream.peek();
     switch (c){
       case '{':
@@ -167,11 +169,15 @@ JSON::Value::Value(std::istream & fromstream){
         if ( !reading_object){
           myType = STRING;
           strVal = read_string(c, fromstream);
-          return;
+          stop = true;
         }else{
           std::string tmpstr = read_string(c, fromstream);
           ( *this)[tmpstr] = JSON::Value(fromstream);
         }
+        break;
+      case '-':
+        c = fromstream.get();
+        negative = true;
         break;
       case '0':
       case '1':
@@ -189,7 +195,10 @@ JSON::Value::Value(std::istream & fromstream){
         intVal += c - '0';
         break;
       case ',':
-        if ( !reading_object && !reading_array) return;
+        if ( !reading_object && !reading_array){
+          stop = true;
+          break;
+        }
         c = fromstream.get();
         if (reading_array){
           append(JSON::Value(fromstream));
@@ -199,39 +208,42 @@ JSON::Value::Value(std::istream & fromstream){
         if (reading_object){
           c = fromstream.get();
         }
-        return;
+        stop = true;
         break;
       case ']':
         if (reading_array){
           c = fromstream.get();
         }
-        return;
+        stop = true;
         break;
       case 't':
       case 'T':
         skipToEnd(fromstream);
         myType = BOOL;
         intVal = 1;
-        return;
+        stop = true;
         break;
       case 'f':
       case 'F':
         skipToEnd(fromstream);
         myType = BOOL;
         intVal = 0;
-        return;
+        stop = true;
         break;
       case 'n':
       case 'N':
         skipToEnd(fromstream);
         myType = EMPTY;
-        return;
+        stop = true;
         break;
       default:
         c = fromstream.get(); //ignore this character
         continue;
         break;
     }
+  }
+  if (negative){
+    intVal *= -1;
   }
 }
 
@@ -1119,10 +1131,10 @@ JSON::Value JSON::fromDTMI2(std::string & data){
 
 void JSON::fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i, JSON::Value & ret){
   if (len < 13){return;}
-  long long int tmpTrackID = ntohl(((int*)data)[0]);
-  long long int tmpTime = ntohl(((int*)data)[1]);
+  long long int tmpTrackID = ntohl(((int*)(data+i))[0]);
+  long long int tmpTime = ntohl(((int*)(data+i))[1]);
   tmpTime <<= 32;
-  tmpTime += ntohl(((int*)data)[2]);
+  tmpTime += ntohl(((int*)(data+i))[2]);
   i += 12;
   fromDTMI(data, len, i, ret);
   ret["time"] = tmpTime;

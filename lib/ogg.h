@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include <deque>
@@ -8,12 +9,20 @@
 #include "json.h"
 
 namespace OGG{
+  
+  enum HeaderType{
+    Continued = 1,
+    BeginOfStream = 2,
+    EndOfStream = 4
+  };
+  
   class Page{
     public:
       Page();
       ~Page();
       bool read(std::string & newData);
-      long unsigned int getMagicNumber();
+      bool read(FILE * inFile);
+      bool getSegment(unsigned int index, char * data, unsigned int & len);
       void setMagicNumber();
       char getVersion();
       void setVersion(char newVal = 0);
@@ -37,10 +46,6 @@ namespace OGG{
       unsigned long int getPageSize();
       char* getFullPayload();//returns all segments in the page
       int getPayloadSize();
-      bool typeBOS();
-      bool typeEOS();
-      bool typeContinue();
-      bool typeNone();
       std::string toPrettyString(size_t indent = 0);
       void setInternalCodec(std::string myCodec);
       long unsigned int calcChecksum();

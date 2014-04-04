@@ -58,9 +58,10 @@ namespace OGG{
     if (newData.size()<27){
       return false;
     }
-    /*if (getMagicNumber() != 0x4f676753){
+    if (newData.substr(0, 4) != "OggS"){
+      DEBUG_MSG(DLVL_FAIL, "Invalid Ogg page encountered - cannot continue");
       return false;
-    }*/
+    }
     dataSum = 0;
     if (!checkDataSize(27)){
       return false;
@@ -81,20 +82,72 @@ namespace OGG{
     }
     
     if (newData.size() < 27 + getPageSegments() + dataSum){//check input size
+      dataSum = 0;
       return false;
     }
     if(!checkDataSize(27 + getPageSegments()+dataSum)){
+      dataSum = 0;
       return false;
     }
     memcpy(data + 27 + getPageSegments(), newData.c_str() + 27 + getPageSegments(), dataSum);
     newData.erase(0, getPageSize());
     return true;
   }
-  
-  long unsigned int Page::getMagicNumber(){
-    return ntohl(((long unsigned int*)(data))[0]);
+
+
+  bool Page::read(FILE * inFile){
+    segmentTableDeque.clear();
+    int oriPos = ftell(inFile);
+    dataSum = 0;
+    if (!checkDataSize(27)){
+      DEBUG_MSG(DLVL_WARN,"Unable to read a page: memory allocation");
+      return false;
+    }
+    if (!fread(data, 27, 1, inFile)){
+      DEBUG_MSG(DLVL_WARN,"Unable to read a page: fread");
+      fseek(inFile, oriPos, SEEK_SET);
+      return false;
+    }
+    if(!checkDataSize(27 + getPageSegments())){
+      DEBUG_MSG(DLVL_WARN,"Unable to read a page: memory allocation1");
+      return false;
+    }
+    if (!fread(data + 27, getPageSegments(), 1, inFile)){
+      DEBUG_MSG(DLVL_WARN,"Unable to read a page: fread1");
+      fseek(inFile, oriPos, SEEK_SET);
+      return false;
+    }
+    for (unsigned int i = 0; i < getPageSegments(); i++){
+      dataSum += data[27 + i];
+    }
+    if (!checkDataSize(27 + getPageSegments() + dataSum)){
+      DEBUG_MSG(DLVL_WARN,"Unable to read a page: memory allocation2");
+      dataSum = 0;
+      return false;
+    }
+    if ( !fread(data + 27 + getPageSegments(), dataSum, 1, inFile)){
+      DEBUG_MSG(DLVL_WARN,"Unable to read a page: fread2");
+      fseek(inFile, oriPos, SEEK_SET);
+      dataSum = 0;
+      return false;
+    }
+    return true;
   }
 
+  bool Page::getSegment(unsigned int index, char * ret, unsigned int & len){
+    if (index > segmentTableDeque.size()){
+      ret = NULL;
+      len = 0;
+      return false;
+    }
+    ret = getFullPayload();
+    for (int i = 0; i < index; i++){
+      ret += segmentTableDeque[i];
+    }
+    len = segmentTableDeque[index];
+    return true;
+  }
+  
   void Page::setMagicNumber(){
     if(checkDataSize(4)){
       memcpy(data, "OggS", 4);
@@ -208,34 +261,26 @@ namespace OGG{
     DEBUG_MSG(DLVL_ERROR, "Segment too big, create a continue page");
   }
 
-  /// \todo MAKE FIX HERE
   bool Page::setSegmentTable(std::vector<unsigned int> layout){
     dataSum=0;
     for (unsigned int i = 0; i < layout.size(); i++){
       dataSum += layout[i];
     }
     unsigned int place = 0;
-    char table[255];
+    char table[256];
     for (unsigned int i = 0; i < layout.size(); i++){
-      while (layout[i]>=255){
-        if (place > 255){ 
-          STerrMSG();
-          return false;
-        }
-        table[place] = 255;
-        layout[i] -= 255;
-        place++;
-      }
-      if (place > 255){ 
+      int amount = (layout[i]/255) + 1;
+      if (i == layout.size() - 1 && place + amount > (255 + (layout[i] % 255 == 0))){
         STerrMSG();
         return false;
       }
-      if (layout[i] >= 0){//fix somewhere here
-        table[place] = layout[i];
-        if (place<255){//last segment does not need a closing 0
-          place++;
-        }
-      }
+      memset(table + place, 255, amount - 1);
+      table[place + amount - 1] = layout[i] % 255;
+      place += amount;
+    }
+    //Don't send element 256, even if it was filled.
+    if (place > 255){
+      place = 255;
     }
     setPageSegments(place);
     setSegmentTable(table,place);
@@ -260,92 +305,42 @@ namespace OGG{
     return data + 27 + getPageSegments();
   }
   
-  bool Page::typeBOS(){
-    if (getHeaderType() & 0x02){
-      return true;
-    }
-    return false;
-  }
-  
-  bool Page::typeEOS(){
-    if (getHeaderType() & 0x04){
-      return true;
-    }
-    return false;
-  }
-  
-  bool Page::typeContinue(){
-    if (getHeaderType() & 0x01){
-      return true;
-    }
-    return false;
-  }
-  
-  bool Page::typeNone(){
-    if ((getHeaderType() & 0x07) == 0x00){
-      return true;
-    }
-    return false;
-  }
-
   void Page::setInternalCodec(std::string myCodec){
     codec = myCodec;
   }
   
   std::string Page::toPrettyString(size_t indent){
     std::stringstream r;
-    r << std::string(indent,' ') << "OGG Page (" << getPageSize() << ")" << std::endl;
-    r << std::string(indent + 2,' ') << "Magic Number: " << std::string(data, 4) << std::endl;
+    r << std::string(indent,' ') << "Ogg page (" << getPageSize() << ")" << std::endl;
     r << std::string(indent + 2,' ') << "Version: " << (int)getVersion() << std::endl;
-    r << std::string(indent + 2,' ') << "Headertype: " << std::hex << (int)getHeaderType() << std::dec;
-    if (typeContinue()){
-      r << " continued";
+    r << std::string(indent + 2,' ') << "Header type:";
+    if ( !getHeaderType()){
+      r << " Normal";
+    }else{
+      if (getHeaderType() & Continued){
+        r << " Continued";
+      }
+      if (getHeaderType() & BeginOfStream){
+        r << " BeginOfStream";
+      }
+      if (getHeaderType() & EndOfStream){
+        r << " EndOfStream";
+      }
     }
-    if (typeBOS()){
-      r << " bos";
-    }
-    if (typeEOS()){
-      r << " eos";
-    }
-    r << std::endl;
-    r << std::string(indent + 2,' ') << "Granule Position: " << std::hex << getGranulePosition() << std::dec << std::endl;
-    r << std::string(indent + 2,' ') << "Bitstream Number: " << getBitstreamSerialNumber() << std::endl;
-    r << std::string(indent + 2,' ') << "Sequence Number: " << getPageSequenceNumber() << std::endl;
+    r << " (" << (int)getHeaderType() << ")" << std::endl;
+    r << std::string(indent + 2,' ') << "Granule position: " << getGranulePosition() << std::endl;
+    r << std::string(indent + 2,' ') << "Bitstream number: " << getBitstreamSerialNumber() << std::endl;
+    r << std::string(indent + 2,' ') << "Sequence number: " << getPageSequenceNumber() << std::endl;
     r << std::string(indent + 2,' ') << "Checksum: " << std::hex << getCRCChecksum() << std::dec << std::endl;
     //r << "  Calced Checksum: " << std::hex << calcChecksum() << std::dec << std::endl;
-    //r << "CRC_checksum write: " << std::hex << getCRCChecksum()<< std::dec << std::endl;
-    r << std::string(indent + 2,' ') << "Segments: " << (int)getPageSegments() << std::endl;
+    r << std::string(indent + 2,' ') << "Payloadsize: " << dataSum << std::endl;
+    r << std::string(indent + 2,' ') << (int)getPageSegments() << " segments:" << std::endl;
+    r << std::string(indent + 3,' ');
     std::deque<unsigned int> temp = getSegmentTableDeque();
     for (std::deque<unsigned int>::iterator i = temp.begin(); i != temp.end(); i++){
-      r << std::string(indent + 4,' ') << (*i) << std::endl;
+      r << " " << (*i);
     }
-    r << std::string(indent + 2,' ') << "Payloadsize: " << dataSum << std::endl;
-    if (codec == "theora"){
-      int offset = 0;
-      for (unsigned int i = 0; i < getSegmentTableDeque().size(); i++){
-        theora::header tmpHeader;
-        int len = getSegmentTableDeque()[i];
-        if (tmpHeader.read(getFullPayload()+offset,len)){
-          r << tmpHeader.toPrettyString(indent + 4);
-        }
-        theora::frame tmpFrame;
-        if (tmpFrame.read(getFullPayload()+offset,len)){
-          r << tmpFrame.toPrettyString(indent + 4);
-        }
-        offset += len;
-      }
-    }else if(codec == "vorbis"){
-      r << "Vorbis Data" << std::endl;
-      int offset = 0;
-      for (unsigned int i = 0; i < getSegmentTableDeque().size(); i++){
-        vorbis::header tmpHeader;
-        int len = getSegmentTableDeque()[i];
-        if (tmpHeader.read(getFullPayload()+offset,len)){
-          r << tmpHeader.toPrettyString(indent + 4);
-        }
-        offset += len;
-      }
-    }
+    r << std::endl;
     return r.str();
   }
   

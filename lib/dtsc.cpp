@@ -540,7 +540,7 @@ DTSC::File & DTSC::File::operator =(const File & rhs){
     F = 0;
   }
   endPos = rhs.endPos;
-  strbuffer = rhs.strbuffer;
+  myPack = rhs.myPack;
   metaStorage = rhs.metaStorage;
   metadata = metaStorage;
   currtime = rhs.currtime;
@@ -581,6 +581,32 @@ DTSC::File::File(std::string filename, bool create){
   fseek(F, 0, SEEK_END);
   endPos = ftell(F);
 
+  bool sepHeader = false;
+  if (!create){
+    fseek(F, 0, SEEK_SET);
+    if (fread(buffer, 4, 1, F) != 1){
+	  DEBUG_MSG(DLVL_ERROR, "Can't read file contents of %s", filename.c_str());
+      fclose(F);
+      F = 0;
+      return;
+    }
+    if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
+      if (memcmp(buffer, DTSC::Magic_Packet2, 4) != 0){
+        File Fhead(filename + ".dtsh");
+        if (Fhead){
+          metadata = Fhead.metadata;
+          sepHeader = true;
+        }else{
+  	      DEBUG_MSG(DLVL_ERROR, "%s is not a valid DTSC file", filename.c_str());
+          fclose(F);
+          F = 0;
+          return;
+        }
+      }else{
+        metadata.moreheader = -1;
+      }
+    }
+  }
   //we now know the first 4 bytes are DTSC::Magic_Header and we have a valid file
   fseek(F, 4, SEEK_SET);
   if (fread(buffer, 4, 1, F) != 1){
@@ -591,8 +617,20 @@ DTSC::File::File(std::string filename, bool create){
     uint32_t * ubuffer = (uint32_t *)buffer;
     headerSize = ntohl(ubuffer[0]);
   }
-  readHeader(0);
-  fseek(F, 8 + headerSize, SEEK_SET);
+  if (metadata.moreheader != -1){
+    if (!sepHeader){
+      readHeader(0);
+      fseek(F, 8 + headerSize, SEEK_SET);
+    }else{
+      fseek(F, 0, SEEK_SET);
+    }
+  }else{
+    fseek(F, 0, SEEK_SET);
+    File Fhead(filename + ".dtsh");
+    if (Fhead){
+      metadata = Fhead.metadata;
+    }
+  }
   currframe = 0;
 }
 
@@ -655,33 +693,29 @@ void DTSC::File::readHeader(int pos){
     }else{
       DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", pos);
     }
-    strbuffer = "";
     metadata = readOnlyMeta();
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
     DEBUG_MSG(DLVL_ERROR, "Invalid header - %.4s != %.4s  @ %i", buffer, DTSC::Magic_Header, pos);
-    strbuffer = "";
     metadata = readOnlyMeta();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read header size @ %i", pos);
-    strbuffer = "";
     metadata = readOnlyMeta();
     return;
   }
-  uint32_t * ubuffer = (uint32_t *)buffer;
-  long packSize = ntohl(ubuffer[0]);
-  strbuffer.resize(packSize);
+  long packSize = ntohl(((uint32_t*)buffer)[0]);
+  std::string strBuffer;
+  strBuffer.resize(packSize);
   if (packSize){
-    if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
+    if (fread((void*)strBuffer.c_str(), packSize, 1, F) != 1){
       DEBUG_MSG(DLVL_ERROR, "Could not read header packet @ %i", pos);
-      strbuffer = "";
       metadata = readOnlyMeta();
       return;
     }
-    JSON::fromDTMI(strbuffer, metaStorage);
+    JSON::fromDTMI(strBuffer, metaStorage);
     metadata = readOnlyMeta(metaStorage);//make readonly
   }
   //if there is another header, read it and replace metadata with that one.
@@ -713,15 +747,12 @@ bool DTSC::File::reachedEOF(){
 void DTSC::File::seekNext(){
   if ( !currentPositions.size()){
     DEBUG_MSG(DLVL_HIGH, "No seek positions set - returning empty packet.");
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
-  DEBUG_MSG(DLVL_HIGH, "Seeking to %uT%lli @ %llu", currentPositions.begin()->trackID, currentPositions.begin()->seekTime, currentPositions.begin()->bytePos);
   fseek(F,currentPositions.begin()->bytePos, SEEK_SET);
   if ( reachedEOF()){
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
   clearerr(F);
@@ -737,12 +768,11 @@ void DTSC::File::seekNext(){
     }else{
       DEBUG_MSG(DLVL_ERROR, "Could not seek to next @ %i", (int)lastreadpos);
     }
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
-    seek_time(jsonbuffer["time"].asInt() + 1, jsonbuffer["trackid"].asInt(), true);
+    seek_time(myPack.getTime() + 1, myPack.getTrackId(), true);
     return seekNext();
   }
   long long unsigned int version = 0;
@@ -754,32 +784,28 @@ void DTSC::File::seekNext(){
   }
   if (version == 0){
     DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2, (int)lastreadpos);
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet size @ %d", (int)lastreadpos);
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
-  uint32_t * ubuffer = (uint32_t *)buffer;
-  long packSize = ntohl(ubuffer[0]);
-  strbuffer.resize(packSize);
-  if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
+  long packSize = ntohl(((uint32_t*)buffer)[0]);
+  std::string strBuffer = "DTP2";
+  if (version == 1){
+    strBuffer = "DTPD";
+  }
+  strBuffer.append(buffer, 4);
+  strBuffer.resize(packSize + 8);
+  if (fread((void*)(strBuffer.c_str() + 8), packSize, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
-  if (version == 2){
-    JSON::fromDTMI2(strbuffer, jsonbuffer);
-  }else{
-    if (version == 1){
-      JSON::fromDTMI(strbuffer, jsonbuffer);
-    }
-  }
+  const char * tmp = strBuffer.data();
+  myPack.reInit(tmp, strBuffer.size());
   if ( metadata.merged){
     int tempLoc = getBytePos();
     char newHeader[20];
@@ -795,9 +821,9 @@ void DTSC::File::seekNext(){
           tmpPos.seekTime += ntohl(((int*)newHeader)[4]);
           insert = true;
         }else{
-          long tid = jsonbuffer["trackid"].asInt();
+          long tid = myPack.getTrackId();
           for (unsigned int i = 0; i != metadata.tracks[tid].keyLen; i++){
-            if (metadata.tracks[tid].keys[i].getTime() > jsonbuffer["time"].asInt()){
+            if (metadata.tracks[tid].keys[i].getTime() > myPack.getTime()){
               tmpPos.seekTime = metadata.tracks[tid].keys[i].getTime();
               tmpPos.bytePos = metadata.tracks[tid].keys[i].getBpos();
               tmpPos.trackID = tid;
@@ -819,8 +845,9 @@ void DTSC::File::seekNext(){
     if (insert){
       currentPositions.insert(tmpPos);
     }else{
-      seek_time(jsonbuffer["time"].asInt() + 1, jsonbuffer["trackid"].asInt(), true);
+      seek_time(myPack.getTime() + 1, myPack.getTrackId(), true);
     }
+    seek_bpos(tempLoc);
   }
 }
 
@@ -833,31 +860,31 @@ void DTSC::File::parseNext(){
     }else{
       DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", (int)lastreadpos);
     }
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
     if (lastreadpos != 0){
       readHeader(lastreadpos);
-      jsonbuffer = metadata.toJSON();
+      std::string tmp = metaStorage.toNetPacked();
+      myPack.reInit(tmp.data(), tmp.size());
+      DEBUG_MSG(DLVL_DEVEL,"Does this ever even happen?");
     }else{
       if (fread(buffer, 4, 1, F) != 1){
         DEBUG_MSG(DLVL_ERROR, "Could not read header size @ %d", (int)lastreadpos);
-        strbuffer = "";
-        jsonbuffer.null();
+        myPack.null();
         return;
       }
-      uint32_t * ubuffer = (uint32_t *)buffer;
-      long packSize = ntohl(ubuffer[0]);
-      strbuffer.resize(packSize);
-      if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
+      long packSize = ntohl(((uint32_t*)buffer)[0]);
+      std::string strBuffer = "DTSC";
+      strBuffer.append(buffer, 4);
+      strBuffer.resize(packSize + 8);
+      if (fread((void*)(strBuffer.c_str() + 8), packSize, 1, F) != 1){
         DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", (int)lastreadpos);
-        strbuffer = "";
-        jsonbuffer.null();
+        myPack.null();
         return;
       }
-      JSON::fromDTMI(strbuffer, jsonbuffer);
+      myPack.reInit(strBuffer.data(), strBuffer.size());
     }
     return;
   }
@@ -870,30 +897,27 @@ void DTSC::File::parseNext(){
   }
   if (version == 0){
     DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2, (int)lastreadpos);
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet size @ %d", (int)lastreadpos);
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
-  uint32_t * ubuffer = (uint32_t *)buffer;
-  long packSize = ntohl(ubuffer[0]);
-  strbuffer.resize(packSize);
-  if (fread((void*)strbuffer.c_str(), packSize, 1, F) != 1){
+  long packSize = ntohl(((uint32_t*)buffer)[0]);
+  std::string strBuffer = "DTP2";
+  if (version == 1){
+    strBuffer = "DTPD";
+  }
+  strBuffer.append(buffer, 4);
+  strBuffer.resize(packSize + 8);
+  if (fread((void*)(strBuffer.c_str() + 8), packSize, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
-    strbuffer = "";
-    jsonbuffer.null();
+    myPack.null();
     return;
   }
-  if (version == 2){
-    JSON::fromDTMI2(strbuffer, jsonbuffer);
-  }else{
-    JSON::fromDTMI(strbuffer, jsonbuffer);
-  }
+  myPack.reInit(strBuffer.data(), strBuffer.size());
 }
 
 /// Returns the byte positon of the start of the last packet that was read.
@@ -902,32 +926,29 @@ long long int DTSC::File::getLastReadPos(){
 }
 
 /// Returns the internal buffer of the last read packet in raw binary format.
-std::string & DTSC::File::getPacket(){
-  return strbuffer;
-}
-
-/// Returns the internal buffer of the last read packet in JSON format.
-JSON::Value & DTSC::File::getJSON(){
-  return jsonbuffer;
+DTSC::Packet & DTSC::File::getPacket(){
+  return myPack;
 }
 
 bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
-  if (!forceSeek && jsonbuffer && ms > jsonbuffer["time"].asInt() && trackNo >= jsonbuffer["trackid"].asInt()){
-    tmpPos.seekTime = jsonbuffer["time"].asInt();
+  if (!forceSeek && myPack && ms > myPack.getTime() && trackNo >= myPack.getTrackId()){
+    tmpPos.seekTime = myPack.getTime();
     tmpPos.bytePos = getBytePos();
   }else{
     tmpPos.seekTime = 0;
     tmpPos.bytePos = 0;
   }
-  for (unsigned int i = 0; i < metadata.tracks[trackNo].keyLen; i++){
-    if (metadata.tracks[trackNo].keys[i].getTime() > ms){
+  DTSC::readOnlyTrack & trackRef = metadata.tracks[trackNo];
+  for (unsigned int i = 0; i < trackRef.keyLen; i++){
+    long keyTime = trackRef.keys[i].getTime();
+    if (keyTime > ms){
       break;
     }
-    if ((long long unsigned int)metadata.tracks[trackNo].keys[i].getTime() > tmpPos.seekTime){
-      tmpPos.seekTime = metadata.tracks[trackNo].keys[i].getTime();
-      tmpPos.bytePos = metadata.tracks[trackNo].keys[i].getBpos();
+    if ((long long unsigned int)keyTime > tmpPos.seekTime){
+      tmpPos.seekTime = keyTime;
+      tmpPos.bytePos = trackRef.keys[i].getBpos();
     }
   }
   if (reachedEOF()){
@@ -1007,14 +1028,14 @@ void DTSC::File::writePacket(JSON::Value & newPacket){
 }
 
 bool DTSC::File::atKeyframe(){
-  if (getJSON().isMember("keyframe")){
+  if (myPack.getFlag("keyframe")){
     return true;
   }
-  long long int bTime = jsonbuffer["time"].asInt();
-  int trackid = jsonbuffer["trackid"].asInt();
-  for (unsigned int i = 0; i < metadata.tracks[trackid].keyLen; i++){
-    if (metadata.tracks[trackid].keys[i].getTime() >= bTime){
-      return (metadata.tracks[trackid].keys[i].getTime() == bTime);
+  long long int bTime = myPack.getTime();
+  DTSC::readOnlyTrack & trackRef = metadata.tracks[myPack.getTrackId()];
+  for (unsigned int i = 0; i < trackRef.keyLen; i++){
+    if (trackRef.keys[i].getTime() >= bTime){
+      return (trackRef.keys[i].getTime() == bTime);
     }
   }
   return false;

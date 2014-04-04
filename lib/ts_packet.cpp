@@ -422,7 +422,7 @@ unsigned int TS::Packet::AddStuffing(int NumBytes){
     strBuf.resize(5 + strBuf[4]);
     strBuf[4] += NumBytes;
     for (int i = 0; i < NumBytes; i++){
-      strBuf.append(FILLER_DATA + (i % sizeof(FILLER_DATA)), 1);
+      strBuf.append(FILLER_DATA[i % sizeof(FILLER_DATA)], 0);
     }
   }else{
     AdaptationField(3);

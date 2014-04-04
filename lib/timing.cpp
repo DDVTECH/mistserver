@@ -42,6 +42,20 @@ long long int Util::getMS(){
   return ((long long int)t.tv_sec) * 1000 + t.tv_nsec / 1000000;
 }
 
+/// Gets the current time in microseconds.
+long long unsigned int Util::getMicros(){
+  struct timespec t;
+  clock_gettime(CLOCK_REALTIME, &t);
+  return ((long long unsigned int)t.tv_sec) * 1000000 + t.tv_nsec / 1000;
+}
+
+/// Gets the time difference in microseconds.
+long long unsigned int Util::getMicros(long long unsigned int previous){
+  struct timespec t;
+  clock_gettime(CLOCK_REALTIME, &t);
+  return ((long long unsigned int)t.tv_sec) * 1000000 + t.tv_nsec / 1000 - previous;
+}
+
 /// Gets the amount of seconds since 01/01/1970.
 long long int Util::epoch(){
   return time(0);

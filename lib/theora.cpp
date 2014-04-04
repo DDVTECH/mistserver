@@ -53,6 +53,12 @@ namespace theora{
     datasize = 0;
   }
 
+  header::header(char * newData, unsigned int length){
+    data = NULL;
+    datasize = 0;
+    read(newData, length);
+  }
+
   bool header::validateIdentificationHeader(){
     if (datasize != 42){return false;}
     if (getHeaderType() != 0){return false;}

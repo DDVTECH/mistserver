@@ -366,132 +366,111 @@ FLV::Tag & FLV::Tag::operator=(const FLV::Tag& O){
 /// FLV loader function from DTSC.
 /// Takes the DTSC data and makes it into FLV.
 bool FLV::Tag::DTSCLoader(DTSC::Stream & S){
+  std::string tmp = S.getPacket().toNetPacked();
+  DTSC::Packet tmpPack(tmp.data(), tmp.size());
+  return DTSCLoader(tmpPack, S.metadata.tracks[S.getPacket()["trackid"].asInt()]);
+}
+
+bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track){
   std::string meta_str;
-  DTSC::Track & track = S.metadata.tracks[S.getPacket()["trackid"].asInt()];
-  switch (S.lastType()){
-    case DTSC::VIDEO:
-      len = S.lastData().length() + 16;
-      if (track.codec == "H264"){
-        len += 4;
-      }
-      break;
-    case DTSC::AUDIO:
-      len = S.lastData().length() + 16;
-      if (track.codec == "AAC"){
-        len += 1;
-      }
-      break;
-    case DTSC::META:{
-      AMF::Object amfdata("root", AMF::AMF0_DDV_CONTAINER);
-      amfdata.addContent(AMF::Object("", "onMetaData"));
-      amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
-      for (JSON::ObjIter it = S.getPacket()["data"].ObjBegin(); it != S.getPacket()["data"].ObjEnd(); it++){
-        if (it->second.asInt()){
-          amfdata.getContentP(1)->addContent(AMF::Object(it->first, it->second.asInt(), AMF::AMF0_NUMBER));
-        }else{
-          amfdata.getContentP(1)->addContent(AMF::Object(it->first, it->second.asString(), AMF::AMF0_STRING));
-        }
-      }
-      meta_str = amfdata.Pack();
-      len = meta_str.length() + 15;
-      break;
+  len = 0;
+  if (track.type == "video"){
+    char * tmpData = 0;
+    packData.getString("data", tmpData, len);
+    len += 16;
+    if (track.codec == "H264"){
+      len += 4;
     }
-    default: //ignore all other types (there are currently no other types...)
-      return false;
-      break;
-  }
-  if (len > 0){
     if ( !checkBufferSize()){
       return false;
     }
-    switch (S.lastType()){
-      case DTSC::VIDEO:
-        if ((unsigned int)len == S.lastData().length() + 16){
-          memcpy(data + 12, S.lastData().c_str(), S.lastData().length());
-        }else{
-          memcpy(data + 16, S.lastData().c_str(), S.lastData().length());
-          if (S.getPacket().isMember("nalu")){
-            data[12] = 1;
-          }else{
-            data[12] = 2;
-          }
-          offset(S.getPacket()["offset"].asInt());
-        }
-        data[11] = 0;
-        if (track.codec == "H264"){
-          data[11] += 7;
-        }
-        if (track.codec == "H263"){
-          data[11] += 2;
-        }
-        if (S.getPacket().isMember("keyframe")){
-          data[11] += 0x10;
-        }
-        if (S.getPacket().isMember("interframe")){
-          data[11] += 0x20;
-        }
-        if (S.getPacket().isMember("disposableframe")){
-          data[11] += 0x30;
-        }
-        break;
-      case DTSC::AUDIO: {
-        if ((unsigned int)len == S.lastData().length() + 16){
-          memcpy(data + 12, S.lastData().c_str(), S.lastData().length());
-        }else{
-          memcpy(data + 13, S.lastData().c_str(), S.lastData().length());
-          data[12] = 1; //raw AAC data, not sequence header
-        }
-        data[11] = 0;
-        if (track.codec == "AAC"){
-          data[11] += 0xA0;
-        }
-        if (track.codec == "MP3"){
-          data[11] += 0x20;
-        }
-        unsigned int datarate = track.rate;
-        if (datarate >= 44100){
-          data[11] += 0x0C;
-        }else if (datarate >= 22050){
-          data[11] += 0x08;
-        }else if (datarate >= 11025){
-          data[11] += 0x04;
-        }
-        if (track.size == 16){
-          data[11] += 0x02;
-        }
-        if (track.channels > 1){
-          data[11] += 0x01;
-        }
-        break;
+    if (track.codec == "H264"){
+      memcpy(data + 16, tmpData, len - 20);
+      if (packData.getFlag("nalu")){
+        data[12] = 1;
+      }else{
+        data[12] = 2;
       }
-      case DTSC::META:
-        memcpy(data + 11, meta_str.c_str(), meta_str.length());
-        break;
-      default:
-        break;
+      if (packData.getInt("offset") < 0){
+        offset(0);
+      }else{
+        offset(packData.getInt("offset"));
+      }
+    }else{
+      memcpy(data + 12, tmpData, len - 16);
+    }
+    data[11] = 0;
+    if (track.codec == "H264"){
+      data[11] += 7;
+    }
+    if (track.codec == "H263"){
+      data[11] += 2;
+    }
+    if (packData.getFlag("keyframe")){
+      data[11] += 0x10;
+    }
+    if (packData.getFlag("interframe")){
+      data[11] += 0x20;
+    }
+    if (packData.getFlag("disposableframe")){
+      data[11] += 0x30;
     }
   }
-  setLen();
-  switch (S.lastType()){
-    case DTSC::VIDEO:
-      data[0] = 0x09;
-      break;
-    case DTSC::AUDIO:
-      data[0] = 0x08;
-      break;
-    case DTSC::META:
-      data[0] = 0x12;
-      break;
-    default:
-      break;
+  if (track.type == "audio"){
+    char * tmpData = 0;
+    packData.getString("data", tmpData, len);
+    len += 16;
+    if (track.codec == "AAC"){
+      len ++;
+    }
+    if ( !checkBufferSize()){
+      return false;
+    }
+    if (track.codec == "AAC"){
+      memcpy(data + 13, tmpData, len - 17);
+      data[12] = 1; //raw AAC data, not sequence header
+    }else{
+      memcpy(data + 12, tmpData, len - 16);
+    }
+    data[11] = 0;
+    if (track.codec == "AAC"){
+      data[11] += 0xA0;
+    }
+    if (track.codec == "MP3"){
+      data[11] += 0x20;
+    }
+    unsigned int datarate = track.rate;
+    if (datarate >= 44100){
+      data[11] += 0x0C;
+    }else if (datarate >= 22050){
+      data[11] += 0x08;
+    }else if (datarate >= 11025){
+      data[11] += 0x04;
+    }
+    if (track.size == 16){
+      data[11] += 0x02;
+    }
+    if (track.channels > 1){
+      data[11] += 0x01;
+    }
   }
+  if (!len){
+    return false;
+  }
+  setLen();
+  if (track.type == "video"){data[0] = 0x09;}
+  if (track.type == "audio"){data[0] = 0x08;}
+  if (track.type == "meta"){data[0] = 0x12;}
   data[1] = ((len - 15) >> 16) & 0xFF;
   data[2] = ((len - 15) >> 8) & 0xFF;
   data[3] = (len - 15) & 0xFF;
   data[8] = 0;
   data[9] = 0;
   data[10] = 0;
-  tagTime(S.getPacket()["time"].asInt());
+  tagTime(packData.getTime());
+  if (packData.getInt("offset")){
+    tagTime(packData.getTime() + packData.getInt("offset"));
+  }
   return true;
 }
 
@@ -576,6 +555,86 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Track & audio){
   }
   setLen();
   data[0] = 0x08;
+  data[1] = ((len - 15) >> 16) & 0xFF;
+  data[2] = ((len - 15) >> 8) & 0xFF;
+  data[3] = (len - 15) & 0xFF;
+  data[8] = 0;
+  data[9] = 0;
+  data[10] = 0;
+  tagTime(0);
+  return true;
+}
+
+bool FLV::Tag::DTSCMetaInit(DTSC::Meta & M, std::set<long unsigned int> & selTracks){
+  AMF::Object amfdata("root", AMF::AMF0_DDV_CONTAINER);
+  amfdata.addContent(AMF::Object("", "onMetaData"));
+  amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
+  AMF::Object trinfo = AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY);
+  int i = 0;
+  int mediaLen = 0;
+  for (std::set<long unsigned int>::iterator it = selTracks.begin(); it != selTracks.end(); it++){
+    if (M.tracks[*it].lastms - M.tracks[*it].firstms > mediaLen){
+      mediaLen = M.tracks[*it].lastms - M.tracks[*it].firstms;
+    }
+    if (M.tracks[*it].type == "video"){
+      trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
+      trinfo.getContentP(i)->addContent(AMF::Object("length", ((double)M.tracks[*it].lastms / 1000) * ((double)M.tracks[*it].fpks / 1000.0), AMF::AMF0_NUMBER));
+      trinfo.getContentP(i)->addContent(AMF::Object("timescale", ((double)M.tracks[*it].fpks / 1000.0), AMF::AMF0_NUMBER));
+      trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
+      amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
+      if (M.tracks[*it].codec == "H264"){
+        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", (std::string)"avc1"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"avc1"));
+      }
+      if (M.tracks[*it].codec == "VP6"){
+        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 4, AMF::AMF0_NUMBER));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"vp6"));
+      }
+      if (M.tracks[*it].codec == "H263"){
+        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 2, AMF::AMF0_NUMBER));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"h263"));
+      }
+      amfdata.getContentP(1)->addContent(AMF::Object("width", M.tracks[*it].width, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("height", M.tracks[*it].height, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("videoframerate", (double)M.tracks[*it].fpks / 1000.0, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", (double)M.tracks[*it].bps * 128.0, AMF::AMF0_NUMBER));
+      ++i;
+    }
+    if (M.tracks[*it].type == "audio"){
+      trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
+      trinfo.getContentP(i)->addContent(AMF::Object("length", ((double)M.tracks[*it].lastms) * ((double)M.tracks[*it].rate), AMF::AMF0_NUMBER));
+      trinfo.getContentP(i)->addContent(AMF::Object("timescale", M.tracks[*it].rate, AMF::AMF0_NUMBER));
+      trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
+      amfdata.getContentP(1)->addContent(AMF::Object("hasAudio", 1, AMF::AMF0_BOOL));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiodelay", 0, AMF::AMF0_NUMBER));
+      if (M.tracks[*it].codec == "AAC"){
+        amfdata.getContentP(1)->addContent(AMF::Object("audiocodecid", (std::string)"mp4a"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"mp4a"));
+      }
+      if (M.tracks[*it].codec == "MP3"){
+        amfdata.getContentP(1)->addContent(AMF::Object("audiocodecid", (std::string)"mp3"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"mp3"));
+      }
+      amfdata.getContentP(1)->addContent(AMF::Object("audiochannels", M.tracks[*it].channels, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiosamplerate", M.tracks[*it].rate, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiosamplesize", M.tracks[*it].size, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiodatarate", (double)M.tracks[*it].bps * 128.0, AMF::AMF0_NUMBER));
+      ++i;
+    }
+  }
+  if (M.vod){
+    amfdata.getContentP(1)->addContent(AMF::Object("duration", mediaLen/1000, AMF::AMF0_NUMBER));
+  }
+  amfdata.getContentP(1)->addContent(trinfo);
+  
+  std::string tmp = amfdata.Pack();
+  len = tmp.length() + 15;
+  if (len <= 0 || !checkBufferSize()){
+    return false;
+  }
+  memcpy(data + 11, tmp.data(), len - 15);
+  setLen();
+  data[0] = 0x12;
   data[1] = ((len - 15) >> 16) & 0xFF;
   data[2] = ((len - 15) >> 8) & 0xFF;
   data[3] = (len - 15) & 0xFF;
@@ -691,7 +750,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Trac
   if (len <= 0 || !checkBufferSize()){
     return false;
   }
-  memcpy(data + 11, tmp.c_str(), len - 15);
+  memcpy(data + 11, tmp.data(), len - 15);
   setLen();
   data[0] = 0x12;
   data[1] = ((len - 15) >> 16) & 0xFF;

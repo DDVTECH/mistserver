@@ -39,6 +39,7 @@ namespace Socket {
       bool available(unsigned int count);
       std::string remove(unsigned int count);
       std::string copy(unsigned int count);
+      void clear();
   };
   //Buffer
 
@@ -76,6 +77,7 @@ namespace Socket {
       int getSocket(); ///< Returns internal socket number.
       std::string getError(); ///< Returns a string describing the last error that occured.
       bool connected() const; ///< Returns the connected-state for this socket.
+      bool isAddress(std::string addr);
       //buffered i/o methods
       bool spool(); ///< Updates the downbuffer and upbuffer internal variables.
       bool flush(); ///< Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
@@ -87,6 +89,7 @@ namespace Socket {
       void SendNow(const char * data); ///< Will not buffer anything but always send right away. Blocks.
       void SendNow(const char * data, size_t len); ///< Will not buffer anything but always send right away. Blocks.
       //stats related methods
+      unsigned int connTime();///< Returns the time this socket has been connected.
       unsigned int dataUp(); ///< Returns total amount of bytes sent.
       unsigned int dataDown(); ///< Returns total amount of bytes received.
       std::string getStats(std::string C); ///< Returns a std::string of stats, ended by a newline.

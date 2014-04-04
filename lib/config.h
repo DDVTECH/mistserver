@@ -24,6 +24,7 @@ namespace Util {
       static std::string libver; ///< Version number of the library as a string.
       static bool is_active; ///< Set to true by activate(), set to false by the signal handler.
       //functions
+      Config();
       Config(std::string cmd, std::string version);
       void addOption(std::string optname, JSON::Value option);
       void printHelp(std::ostream & output);

@@ -153,6 +153,11 @@ std::string & Socket::Buffer::get(){
   }
 }
 
+/// Completely empties the buffer
+void Socket::Buffer::clear(){
+  data.clear();
+}
+
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a Socket::Connection.
 /// \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
@@ -385,6 +390,11 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
 /// \returns True if socket is connected, false otherwise.
 bool Socket::Connection::connected() const{
   return (sock >= 0) || ((pipes[0] >= 0) && (pipes[1] >= 0));
+}
+
+/// Returns the time this socket has been connected.
+unsigned int Socket::Connection::connTime(){
+  return conntime;
 }
 
 /// Returns total amount of bytes sent.
@@ -645,6 +655,48 @@ bool Socket::Connection::operator!=(const Connection &B) const{
 /// Aliases for Socket::Connection::connected()
 Socket::Connection::operator bool() const{
   return connected();
+}
+
+/// Returns true if the given address can be matched with the remote host.
+/// Can no longer return true after any socket error have occurred.
+bool Socket::Connection::isAddress(std::string addr){
+  struct addrinfo *result, *rp, hints;
+  memset( &hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
+  hints.ai_protocol = 0;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+  int s = getaddrinfo(addr.c_str(), 0, &hints, &result);
+  DEBUG_MSG(DLVL_DEVEL, "Meh: %s", addr.c_str());
+  if (s != 0){
+    return false;
+  }
+  
+  char newaddr[INET_ADDRSTRLEN];
+  newaddr[0] = 0;
+  for (rp = result; rp != NULL; rp = rp->ai_next){
+    if (rp->ai_family == AF_INET && inet_ntop(rp->ai_family, &(((sockaddr_in*)rp->ai_addr)->sin_addr), newaddr, INET_ADDRSTRLEN)){
+      DEBUG_MSG(DLVL_DEVEL, "Comparing: '%s'  to '%s'", remotehost.c_str(), newaddr);
+      if (remotehost == newaddr){
+        return true;
+      }
+      DEBUG_MSG(DLVL_DEVEL, "Comparing: '%s'  to '::ffff:%s'", remotehost.c_str(), newaddr);
+      if (remotehost == std::string("::ffff:")+newaddr){
+        return true;
+      }
+    }
+    if (rp->ai_family == AF_INET6 && inet_ntop(rp->ai_family, &(((sockaddr_in6*)rp->ai_addr)->sin6_addr), newaddr, INET_ADDRSTRLEN)){
+      DEBUG_MSG(DLVL_DEVEL, "Comparing: '%s'  to '%s'", remotehost.c_str(), newaddr);
+      if (remotehost == newaddr){
+        return true;
+      }
+    }
+  }
+  freeaddrinfo(result);
+  return false;
 }
 
 /// Create a new base Server. The socket is never connected, and a placeholder for later connections.

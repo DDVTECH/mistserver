@@ -7,6 +7,7 @@ namespace theora{
   class header{
     public:
       header();
+      header(char* newData, unsigned int length);
       bool read(char* newData, unsigned int length);
       int getHeaderType();
       char getVMAJ();

@@ -28,6 +28,12 @@ namespace vorbis{
     data = NULL;
     datasize = 0;
   }
+
+  header::header(char * newData, unsigned int length){
+    data = NULL;
+    datasize = 0;
+    read(newData, length);
+  }
   
   int header::getHeaderType(){
     return (int)(data[0]);
@@ -51,7 +57,7 @@ namespace vorbis{
   
   long unsigned int header::getAudioSampleRate(){
     if (getHeaderType() == 1){
-      return getInt32(12);
+      return ntohl(getInt32(12));
     }else{
       return 0;
     }
@@ -180,6 +186,7 @@ namespace vorbis{
     for (int i = 0; i < codebook_count; i++){
       long long unsigned int CMN = stream.get(24);
       if (CMN != 0x564342){
+        DEBUG_MSG(DLVL_WARN,"Is dit het? VCB != %c%c%c", (char)(CMN >> 16), (char)(CMN >> 8), (char)CMN);
         exit(1);
       }
       unsigned short codebook_dimensions = stream.get(16);

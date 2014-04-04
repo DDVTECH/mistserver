@@ -39,7 +39,7 @@ namespace Mist {
   }
 
   void inputBuffer::updateMeta(){
-    long long unsigned int firstms = 0xFFFFFFFFFFFFFFFF;
+    long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
     for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.firstms < firstms){
@@ -206,7 +206,7 @@ namespace Mist {
             int thisKeyNum = ((((long long int *)(indexPages[tNum].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
             if (thisKeyNum == htonl(curPage)){
               if((ntohl((((long long int*)(indexPages[tNum].mapped + i))[0]) & 0xFFFFFFFF) == 1000)){
-                ((long long int *)(indexPages[tNum].mapped + i))[0] &= 0xFFFFFFFF00000000;
+                ((long long int *)(indexPages[tNum].mapped + i))[0] &= 0xFFFFFFFF00000000ull;
                 ((long long int *)(indexPages[tNum].mapped + i))[0] |= htonl(inputLoc[tNum][curPage].keyNum);
               }
             }

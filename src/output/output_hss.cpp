@@ -3,7 +3,6 @@
 #include <mist/mp4.h>
 #include <mist/mp4_ms.h>
 #include <mist/mp4_generic.h>
-#include <mist/mp4_encryption.h>
 #include <mist/base64.h>
 #include <mist/http_parser.h>
 #include <mist/stream.h>

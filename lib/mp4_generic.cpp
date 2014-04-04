@@ -2632,7 +2632,14 @@ namespace MP4{
   Box & AudioSampleEntry::getCodecBox(){
     return getBox(28);
   }
-  
+
+  /*LTS-START*/
+  Box & AudioSampleEntry::getSINFBox(){
+    static Box ret = Box(getBox(28 + getBoxLen(28)).asBox(), false);
+    return ret;
+  }
+  /*LTS-END*/
+
   std::string AudioSampleEntry::toPrettyAudioString(uint32_t indent, std::string name){
     std::stringstream r;
     r << std::string(indent, ' ') << name << " (" << boxedSize() << ")" << std::endl;
@@ -2642,6 +2649,11 @@ namespace MP4{
     r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
     r << std::string(indent + 1, ' ') << "SampleRate: " << getSampleRate() << std::endl;
     r << getCodecBox().toPrettyString(indent + 1) << std::endl;
+    /*LTS-START*/
+    if (isType("enca")){
+      r << getSINFBox().toPrettyString(indent + 1);
+    }
+    /*LTS-END*/
     return r.str();
   }
 

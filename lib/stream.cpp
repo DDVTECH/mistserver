@@ -116,7 +116,17 @@ Socket::Connection Util::Stream::getVod(std::string filename, std::string stream
 Socket::Connection Util::Stream::getStream(std::string streamname){
   sanitizeName(streamname);
   JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
+  /*LTS-START*/
+  if (ServConf["config"].isMember("hardlimit_active")){
+    return Socket::Connection();
+  }
+  /*LTS-END*/
   if (ServConf["streams"].isMember(streamname)){
+    /*LTS-START*/
+    if (ServConf["streams"][streamname].isMember("hardlimit_active")){
+      return Socket::Connection();
+    }
+    /*LTS-END*/
     if (ServConf["streams"][streamname]["source"].asString()[0] == '/'){
       return getVod(ServConf["streams"][streamname]["source"].asString(), streamname);
     }else{

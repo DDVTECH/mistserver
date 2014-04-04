@@ -144,6 +144,26 @@ namespace DTSC {
       volatile int playCount;
   };
 
+  /*LTS-START*/
+  ///\brief Basic class supporting initialization Vectors.
+  ///
+  ///These are used for encryption of data.
+  class Ivec {
+    public:
+      Ivec();
+      Ivec(long long int iVec);
+      void setIvec(long long int iVec);
+      void setIvec(std::string iVec);
+      void setIvec(char * iVec, int len);
+      long long int asInt();
+      char * getData();
+    private:
+      ///\brief Data storage for this initialization vector.
+      ///
+      /// - 8 bytes: MSB storage of the initialization vector.
+      char data[8];
+  };
+  /*LTS-END*/
 
   ///\brief Basic class for storage of data associated with single DTSC packets, a.k.a. parts.
   class Part {
@@ -226,6 +246,8 @@ namespace DTSC {
       Key * keys;
       long long unsigned int partLen;
       Part * parts;
+      long long unsigned int iVecLen; /*LTS*/
+      Ivec * ivecs; /*LTS*/
       int trackID;
       int firstms;
       int lastms;
@@ -265,6 +287,7 @@ namespace DTSC {
       std::deque<Fragment> fragments;
       std::deque<Key> keys;
       std::deque<Part> parts;
+      std::deque<Ivec> ivecs; /*LTS*/
       Key & getKey(unsigned int keyNum);
       void reset();
       void toPrettyString(std::stringstream & str, int indent = 0, int verbosity = 0);
@@ -292,6 +315,7 @@ namespace DTSC {
   };
 
   class Meta : public readOnlyMeta {
+    /// \todo Make toJSON().toNetpacked() shorter
     public:
       Meta();
       Meta(const readOnlyMeta & meta);
@@ -375,6 +399,7 @@ namespace DTSC {
       std::string & outPacket(livePos num);
       std::string & outHeader();
       Ring * getRing();
+      void setRecord(std::string path); /*LTS*/
       unsigned int getTime();
       void dropRing(Ring * ptr);
       int canSeekms(unsigned int ms);
@@ -392,9 +417,13 @@ namespace DTSC {
       std::map<int, std::set<livePos> > keyframes;
       virtual void addPacket(JSON::Value & newPack);
       virtual void addMeta(JSON::Value & newMeta);
+      void recordPacket(JSON::Value & packet); /*LTS*/
       datatype datapointertype;
       unsigned int buffercount;
       unsigned int buffertime;
+      std::string recordPath; /*LTS*/
+      File * recordFile; /*LTS*/
+      bool headerRecorded; /*LTS*/
       std::map<int, std::string> trackMapping;
       virtual void deletionCallback(livePos deleting);
   };

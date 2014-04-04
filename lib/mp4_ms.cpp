@@ -1,4 +1,5 @@
 #include "mp4_ms.h"
+#include "mp4_encryption.h" /*LTS*/
 
 namespace MP4{
 
@@ -127,6 +128,17 @@ namespace MP4{
     if (UUID == "d4807ef2-ca39-4695-8e54-26cb9e46a79f"){
       return ((UUID_TrackFragmentReference*)this)->toPrettyString(indent);
     }
+    /*LTS-START*/
+    if (UUID == "a2394f52-5a9b-4f14-a244-6c427c648df4"){
+      return ((UUID_SampleEncryption*)this)->toPrettyString(indent);
+    }
+    if (UUID == "8974dbce-7be7-4c51-84f9-7148f9882554"){
+      return ((UUID_TrackEncryption*)this)->toPrettyString(indent);
+    }
+    if (UUID == "d08a4f18-10f3-4a82-b6c8-32d8aba183d3"){
+      return ((UUID_ProtectionSystemSpecificHeader*)this)->toPrettyString(indent);
+    }
+    /*LTS-END*/
     std::stringstream r;
     r << std::string(indent, ' ') << "[uuid] Extension box (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "UUID: " << UUID << std::endl;

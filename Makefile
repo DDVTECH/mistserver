@@ -13,6 +13,14 @@ endif
 CPPFLAGS = -Wall -g -O2 -fPIC
 override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
 
+# /*LTS-START*/
+FILLER_DATA =
+override CPPFLAGS += -DFILLER_DATA=\"$(FILLER_DATA)\"
+ifeq ($(FILLER_DATA),)
+  $(warning Filler data is empty and this is an LTS build - did you set FILLER_DATA?)
+endif
+# /*LTS-END*/
+
 LDLIBS = -lcrypto
 THREADLIB = -lpthread -lrt
 LDLIBS = -lcrypto $(THREADLIB)

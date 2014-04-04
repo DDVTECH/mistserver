@@ -5,6 +5,7 @@
 #include "mp4_adobe.h"
 #include "mp4_ms.h"
 #include "mp4_generic.h"
+#include "mp4_encryption.h" // /*LTS*/
 #include "json.h"
 
 /// Contains all MP4 format related code.
@@ -280,6 +281,20 @@ namespace MP4 {
       case 0x75756964:
         return ((UUID*)this)->toPrettyString(indent);
         break;
+      /*LTS-START*/
+      case 0x73696E66:
+        return ((SINF*)this)->toPrettyString(indent);
+        break;
+      case 0x66726D61:
+        return ((FRMA*)this)->toPrettyString(indent);
+        break;
+      case 0x7363686D:
+        return ((SCHM*)this)->toPrettyString(indent);
+        break;
+      case 0x73636869:
+        return ((SCHI*)this)->toPrettyString(indent);
+        break;
+      /*LTS-END*/
       default:
         break;
     }
@@ -709,4 +724,5 @@ namespace MP4 {
     }
     return r.str();
   }
+
 }

@@ -334,6 +334,46 @@ namespace DTSC {
     return result;
   }
 
+  /*LTS-START*/
+  Ivec::Ivec() {
+    setIvec(0);
+  }
+
+  Ivec::Ivec(long long int iVec) {
+    setIvec(iVec);
+  }
+
+  void Ivec::setIvec(long long int iVec) {
+    data[0] = ((iVec & 0xFF00000000000000LL) >> 56);
+    data[1] = ((iVec & 0x00FF000000000000LL) >> 48);
+    data[2] = ((iVec & 0x0000FF0000000000LL) >> 40);
+    data[3] = ((iVec & 0x000000FF00000000LL) >> 32);
+    data[4] = ((iVec & 0x00000000FF000000LL) >> 24);
+    data[5] = ((iVec & 0x0000000000FF0000LL) >> 16);
+    data[6] = ((iVec & 0x000000000000FF00LL) >> 8);
+    data[7] = (iVec & 0x00000000000000FFLL);
+  }
+
+  void Ivec::setIvec(std::string iVec) {
+    memset(data, 0, 8);
+    memcpy(data, iVec.data(), std::min(8, (int)iVec.size()));
+  }
+
+  void Ivec::setIvec(char * iVec, int len) {
+    memset(data, 0, 8);
+    memcpy(data, iVec, std::min(8, len));
+  }
+
+  long long int Ivec::asInt() {
+    long long int result;
+    result = ((long long int)data[0] << 56) | ((long long int)data[1] << 48) | ((long long int)data[2] << 40) | ((long long int)data[3] << 32) | ((long long int)data[4] << 24) | ((long long int)data[5] << 16) | ((long long int)data[6] << 8) | data[7];
+    return result;
+  }
+
+  char * Ivec::getData() {
+    return data;
+  }
+  /*LTS-END*/
 
   long Part::getSize() {
     return ((long)data[0] << 16) | ((long)data[1] << 8) | data[2];
@@ -470,6 +510,8 @@ namespace DTSC {
     keyLen = 0;
     parts = NULL;
     partLen = 0;
+    ivecs = NULL; /*LTS*/
+    iVecLen = 0; /*LTS*/
     missedFrags = 0;
     firstms = 0;
     lastms = 0;
@@ -504,6 +546,15 @@ namespace DTSC {
       parts = 0;
       partLen = 0;
     }
+    /*LTS-START*/
+    if (trackRef.isMember("ivecs")) {
+      ivecs = (Ivec *)trackRef["ivecs"].asString().data();
+      iVecLen = trackRef["ivecs"].asString().size() / 8;
+    } else {
+      ivecs = 0;
+      iVecLen = 0;
+    }
+    /*LTS-END*/
     trackID = trackRef["trackid"].asInt();
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
@@ -568,6 +619,11 @@ namespace DTSC {
     if (rhs.parts && rhs.partLen) {
       parts = std::deque<Part>(rhs.parts, rhs.parts + rhs.partLen);
     }
+    /*LTS-START*/
+    if (rhs.ivecs && rhs.iVecLen) {
+      ivecs = std::deque<Ivec>(rhs.ivecs, rhs.ivecs + rhs.iVecLen);
+    }
+    /*LTS-END*/
   }
 
   Track::Track(JSON::Value & trackRef) {
@@ -583,6 +639,12 @@ namespace DTSC {
       Part * tmp = (Part *)trackRef["parts"].asStringRef().data();
       parts = std::deque<Part>(tmp, tmp + (trackRef["parts"].asStringRef().size() / 9));
     }
+    /*LTS-START*/
+    if (trackRef.isMember("ivecs") && trackRef["ivecs"].isString()) {
+      Ivec * tmp = (Ivec *)trackRef["ivecs"].asString().data();
+      ivecs = std::deque<Ivec>(tmp, tmp + (trackRef["ivecs"].asString().size() / 8));
+    }
+    /*LTS-END*/
     trackID = trackRef["trackid"].asInt();
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
@@ -642,6 +704,16 @@ namespace DTSC {
       } else {
         newKey.setBpos(0);
       }
+      /*LTS-START*/
+      if (pack.hasMember("ivec")) {
+        Ivec newIvec;
+        char * tmpVec;
+        int vecLen;
+        pack.getString("ivec", tmpVec, vecLen);
+        newIvec.setIvec(tmpVec, vecLen);
+        ivecs.push_back(newIvec);
+      }
+      /*LTS-END*/
       keys.push_back(newKey);
       firstms = keys[0].getTime();
       if (!fragments.size() || pack.getTime() - 5000 >= getKey(fragments.rbegin()->getNumber()).getTime()) {
@@ -700,6 +772,13 @@ namespace DTSC {
       } else {
         newKey.setBpos(0);
       }
+      /*LTS-START*/
+      if (pack.isMember("ivec")) {
+        Ivec newIvec;
+        newIvec.setIvec((char *)pack["ivec"].asString().data(), 8);
+        ivecs.push_back(newIvec);
+      }
+      /*LTS-END*/
       keys.push_back(newKey);
       firstms = keys[0].getTime();
       if (!fragments.size() || pack["time"].asInt() - 5000 >= getKey(fragments.rbegin()->getNumber()).getTime()) {
@@ -978,6 +1057,7 @@ namespace DTSC {
     result += fragLen * 11;
     result += keyLen * 16;
     result += partLen * 9;
+    result += (iVecLen * 8) + 12; /*LTS*/
     if (type == "audio") {
       result += 49;
     } else if (type == "video") {
@@ -998,6 +1078,7 @@ namespace DTSC {
     result += fragments.size() * 11;
     result += keys.size() * 16;
     result += parts.size() * 9;
+    result += (ivecs.size() * 8) + 12; /*LTS*/
     if (type == "audio") {
       result += 49;
     } else if (type == "video") {
@@ -1036,6 +1117,11 @@ namespace DTSC {
     writePointer(p, "\000\005parts\002", 8);
     writePointer(p, convertInt(partLen * 9), 4);
     writePointer(p, (char *)parts, partLen * 9);
+    /*LTS-START*/
+    writePointer(p, "\000\005ivecs\002", 8);
+    writePointer(p, convertInt(iVecLen * 8), 4);
+    writePointer(p, (char *)ivecs, iVecLen * 8);
+    /*LTS-END*/
     writePointer(p, "\000\007trackid\001", 10);
     writePointer(p, convertLongLong(trackID), 8);
     if (missedFrags) {
@@ -1096,6 +1182,11 @@ namespace DTSC {
     conn.SendNow("\000\005parts\002", 8);
     conn.SendNow(convertInt(partLen * 9), 4);
     conn.SendNow((char *)parts, partLen * 9);
+    /*LTS-START*/
+    conn.SendNow("\000\005ivecs\002", 8);
+    conn.SendNow(convertInt(iVecLen * 8), 4);
+    conn.SendNow((char *)ivecs, iVecLen * 8);
+    /*LTS-END*/
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
     if (missedFrags) {
@@ -1162,6 +1253,13 @@ namespace DTSC {
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
       writePointer(p, it->getData(), 9);
     }
+    /*LTS-START*/
+    writePointer(p, "\000\005ivecs\002", 8);
+    writePointer(p, convertInt(ivecs.size() * 8), 4);
+    for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
+      writePointer(p, it->getData(), 8);
+    }
+    /*LTS-END*/
     writePointer(p, "\000\007trackid\001", 10);
     writePointer(p, convertLongLong(trackID), 8);
     if (missedFrags) {
@@ -1228,6 +1326,13 @@ namespace DTSC {
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
       conn.SendNow(it->getData(), 9);
     }
+    /*LTS-START*/
+    conn.SendNow("\000\005ivecs\002", 8);
+    conn.SendNow(convertInt(ivecs.size() * 8), 4);
+    for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
+      conn.SendNow(it->getData(), 8);
+    }
+    /*LTS-END*/
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
     if (missedFrags) {
@@ -1422,6 +1527,11 @@ namespace DTSC {
     if (parts) {
       result["parts"] = std::string((char *)parts, partLen * 9);
     }
+    /*LTS-START*/
+    if (ivecs) {
+      result ["ivecs"] = std::string((char *)ivecs, iVecLen * 8);
+    }
+    /*LTS-END*/
     result["trackid"] = trackID;
     result["firstms"] = firstms;
     result["lastms"] = lastms;
@@ -1468,6 +1578,14 @@ namespace DTSC {
       tmp.append(it->getData(), 9);
     }
     result["parts"] = tmp;
+    /*LTS-START*/
+    tmp = "";
+    tmp.reserve(ivecs.size() * 8);
+    for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
+      tmp.append(it->getData(), 8);
+    }
+    result["ivecs"] = tmp;
+    /*LTS-END*/
     result["trackid"] = trackID;
     result["firstms"] = firstms;
     result["lastms"] = lastms;

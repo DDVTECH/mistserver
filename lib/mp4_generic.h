@@ -589,6 +589,7 @@ namespace MP4{
       uint32_t getSampleRate();
       void setCodecBox(Box& newBox);
       Box & getCodecBox();
+      Box & getSINFBox(); /*LTS*/
       std::string toPrettyAudioString(uint32_t indent = 0, std::string name = "");
   };
   

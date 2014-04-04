@@ -19,19 +19,21 @@ namespace Converters {
     int curIndex = 1;
 
     F.parseNext();
-    while ( !F.getJSON().isNull()){
+    std::string tmp;
+    while (F.getPacket()){
       std::cout << curIndex++ << std::endl;
-      long long unsigned int time = F.getJSON()["time"].asInt();
+      long long unsigned int time = F.getPacket().getTime();
       std::cout << std::setfill('0') << std::setw(2) << (time / 3600000) << ":";
       std::cout << std::setfill('0') << std::setw(2) <<  ((time % 3600000) / 60000) << ":";
       std::cout << std::setfill('0') << std::setw(2) << (((time % 3600000) % 60000) / 1000) << ",";
       std::cout << std::setfill('0') << std::setw(3) << time % 1000 << " --> ";
-      time += F.getJSON()["duration"].asInt();
+      time += F.getPacket().getInt("duration");
       std::cout << std::setfill('0') << std::setw(2) << (time / 3600000) << ":";
       std::cout << std::setfill('0') << std::setw(2) <<  ((time % 3600000) / 60000) << ":";
       std::cout << std::setfill('0') << std::setw(2) << (((time % 3600000) % 60000) / 1000) << ",";
       std::cout << std::setfill('0') << std::setw(3) << time % 1000 << std::endl;
-      std::cout << F.getJSON()["data"].asString() << std::endl;
+      F.getPacket().getString("data", tmp);
+      std::cout << tmp << std::endl;
       F.parseNext();
     }
     return 0;

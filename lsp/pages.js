@@ -6,6 +6,7 @@ var defaults = {
 };
 
 function showTab(tabName,streamName) {
+  settings.currentpage = tabName.replace(' ','_');
   
   ignoreHashChange = true;
   location.hash = location.hash.split('&')[0]+'&'+tabName+(streamName ? '@'+streamName : '');
@@ -14,9 +15,10 @@ function showTab(tabName,streamName) {
   
   $('#menu .button').removeClass('current').filter(function(i){
     return $(this).text().toLowerCase() == tabName;
-  }).addClass('current');
+  }).addClass('current').parents('.expandbutton').addClass('active');
   
   $('#page').html('');
+  $('#tooltip').remove();
   clearInterval(theInterval);
   $('#menu').css('visibility', 'visible');
   
@@ -120,6 +122,10 @@ function showTab(tabName,streamName) {
             $('#user_and_host').text(settings.credentials.username+' @ '+settings.server);
             
             saveAndReload('overview');
+          })
+        ).append(
+          $('<button>').text('Cancel').addClass('escape-to-cancel').click(function(){
+            showTab('login');
           })
         )
       );
@@ -434,8 +440,12 @@ function showTab(tabName,streamName) {
             $('<td>').attr('id','status-of-'+index).html(formatStatus(theStream))
           ).append(
             $('<td>').html(
-              $('<button>').text('Embed').click(function(){
-                showTab('embed',$(this).parent().parent().data('stream'))
+              $('<button>').text('Preview').click(function(){
+                showTab('preview',$(this).parent().parent().data('stream'))
+              })
+            ).append(
+              $('<button>').text('Info').click(function(){
+                showTab('streaminfo',$(this).parent().parent().data('stream'))
               })
             )
           ).append(
@@ -497,7 +507,7 @@ function showTab(tabName,streamName) {
           $('<label>').text('Buffer time:').addClass('live-only').attr('for','settings-streams-'+streamName+'-DVR').append(
             $('<span>').addClass('unit').text('[ms]')
           ).append(
-            $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-DVR').attr('placeholder','2 keyframes').addClass('isSetting').addClass('').addClass('validate-positive-integer')
+            $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-DVR').attr('placeholder','30000').addClass('isSetting').addClass('').addClass('validate-positive-integer')
           )
         ).append(
           $('<label>').text('Record to:').addClass('live-only').addClass('LTS-only').attr('for','settings-streams-'+streamName+'-record').attr('title','The path to the file to record to. Leave this field blank if you do not wish to record to file.').append(
@@ -516,7 +526,7 @@ function showTab(tabName,streamName) {
             $('<p>').text('Encrypt this stream')
           ).append(
             $('<div>').addClass('description').text(
-              'To enable encryption, the Licene Acquisition URL must be entered, as well as either the content key or the key ID and seed.'
+              'To enable encryption, the Licence Acquisition URL must be entered, as well as either the content key or the key ID and seed.'
             )
           ).append(
             $('<label>').text('Licence Acquisition URL:').attr('for','settings-streams-'+streamName+'-la_url').append(
@@ -578,7 +588,131 @@ function showTab(tabName,streamName) {
       })
       
     break;
-    case 'embed':
+    case 'streaminfo':
+      var meta = settings.settings.streams[streamName].meta;
+      if (!meta) {
+        $('#page').html('No info available for stream "'+streamName+'".');
+      } 
+      else {
+        $meta = $('<table>').css('width','auto');
+        if (meta.live) {
+          $meta.html(
+            $('<tr>').html(
+              $('<td>').text('Type:')
+            ).append(
+              $('<td>').text('Live')
+            )
+          );
+        }
+        else {
+          $meta.html(
+            $('<tr>').html(
+              $('<td>').text('Type:')
+            ).append(
+              $('<td>').text('Pre-recorded (VoD)')
+            )
+          );
+        }
+        for (var index in meta.tracks) {
+          var track = meta.tracks[index];
+          if (track.type == '') { continue; }
+          var $table = $('<table>').html(
+            $('<tr>').html(
+              $('<td>').text('Type:')
+            ).append(
+              $('<td>').text(capFirstChar(track.type))
+            )
+          ).append(
+            $('<tr>').html(
+              $('<td>').text('Codec:')
+            ).append(
+              $('<td>').text(track.codec)
+            )
+          ).append(
+            $('<tr>').html(
+              $('<td>').text('Duration:')
+            ).append(
+              $('<td>').html(
+                formatDuration(track.lastms-track.firstms)+'<br>(from '+formatDuration(track.firstms)+' to '+formatDuration(track.lastms)+')'
+              )
+            )
+          ).append(
+            $('<tr>').html(
+              $('<td>').text('Average bitrate:')
+            ).append(
+              $('<td>').text(Math.round(track.bps/1024)+' KiB/s')
+            )
+          );
+          
+          if (track.height) {
+            $table.append(
+              $('<tr>').html(
+                $('<td>').text('Size:')
+              ).append(
+                $('<td>').text(track.width+'x'+track.height+' px')
+              )
+            );
+          }
+          if (track.fpks) {
+            $table.append(
+              $('<tr>').html(
+                $('<td>').text('Framerate:')
+              ).append(
+                $('<td>').text(track.fpks/1000+' fps')
+              )
+            );
+          }
+          if (track.channels) {
+            $table.append(
+              $('<tr>').html(
+                $('<td>').text('Channels:')
+              ).append(
+                $('<td>').text(track.channels)
+              )
+            );
+          }
+          if (track.rate) {
+            $table.append(
+              $('<tr>').html(
+                $('<td>').text('Samplerate:')
+              ).append(
+                $('<td>').text(seperateThousands(track.rate,' ')+' Hz')
+              )
+            );
+          }
+          
+          $meta.append(
+            $('<tr>').html(
+              $('<td>').text(capFirstChar(index)+':')
+            ).append(
+              $('<td>').html(
+                $table
+              )
+            )
+          );
+        }
+        
+        $('#page').html(
+          $('<p>').text('Detailed information about stream "'+streamName+'"')
+        ).append(
+          $('<div>').css({'width':'100%','display':'table','table-layout':'fixed','min-height':'300px'}).html(
+            $('<div>').css('display','table-row').html(
+              $('<div>').attr('id','info-stream-meta').css({'display':'table-cell','max-width':'50%','overflow':'auto'}).html(
+                $meta
+              )
+            ).append(
+              $('<div>').attr('id','info-stream-statistics').css({'display':'table-cell','text-align':'center','min-height':'200px'})
+            )
+          )
+        );
+      }
+      $('#page').append(
+        $('<button>').text('Back').addClass('escape-to-cancel').click(function(){
+          showTab('streams');
+        })
+      );
+    break;
+    case 'preview':
       var httpConnector = false;
       for (var index in settings.settings.config.protocols) {
         if ((settings.settings.config.protocols[index].connector == 'HTTP') || (settings.settings.config.protocols[index].connector == 'HTTP.exe')) {
@@ -586,37 +720,29 @@ function showTab(tabName,streamName) {
         }
       }
       if (httpConnector) {
-        var embedbase = 'http://'+parseURL(settings.server).host+':'+(httpConnector.port ? httpConnector.port : 8080)+'/';
         $('#page').html(
-          $('<div>').addClass('input_container').html(
-            $('<p>').text('Embed info for stream "'+streamName+'"')
-          ).append(
-            $('<label>').text('The info embed URL is:').append(
-              $('<input>').attr('type','text').attr('readonly','readonly').val(embedbase+'info_'+streamName+'.js')
+          $('<div>').addClass('table').html(
+            $('<div>').addClass('row').html(
+              $('<div>').addClass('cell').attr('id','liststreams').addClass('menu')
+            ).append(
+              $('<div>').addClass('cell').attr('id','subpage').css('padding-left','1em')
             )
-          ).append(
-            $('<label>').text('The embed URL is:').append(
-              $('<input>').attr('type','text').attr('readonly','readonly').val(embedbase+'embed_'+streamName+'.js')
-            )
-          ).append(
-            $('<label>').text('The embed code is:').css('overflow','hidden').append(
-              $('<textarea>').val('<div>\n  <script src="'+embedbase+'embed_'+streamName+'.js"></' + 'script>\n</div>')
-            )
-          ).append(
-            $('<button>').text('Back').addClass('escape-to-cancel').click(function(){
-              showTab('streams');
-            })
           )
-        ).append(
-          $('<p>').text('Preview:')
-        ).append(
-          $('<div>').attr('id','preview-container')
         );
+        var embedbase = 'http://'+parseURL(settings.server).host+':'+(httpConnector.port ? httpConnector.port : 8080)+'/';
         
-        // jQuery doesn't work -> use DOM magic
-        var script = document.createElement('script');
-        script.src = embedbase+'embed_'+streamName+'.js';
-        document.getElementById('preview-container').appendChild( script );
+        for (var s in settings.settings.streams) {
+          if (!streamName) {
+            streamName = s;
+          }
+          $('#liststreams').append(
+            $('<div>').addClass('button').text(settings.settings.streams[s].name).click(function(){
+              buildstreamembed($(this).text());
+            })
+          );
+        }
+        
+        buildstreamembed(streamName,embedbase);
       }
       else {
         $('#page').html(
@@ -627,29 +753,31 @@ function showTab(tabName,streamName) {
     case 'limits':
       var $tbody = $('<tbody>');
       $('#page').html(
-        $('<div>').addClass('description').text('This is an overview of the limits that have been configured on MistServer.')
-      ).append(
-        $('<table>').html(
-          $('<thead>').html(
-            $('<tr>').html(
-              $('<th>').text('Applies to')
-            ).append(
-              $('<th>').text('Type')
-            ).append(
-              $('<th>').text('Name')
-            ).append(
-              $('<th>').text('Value')
-            ).append(
-              $('<th>')
+        $('<div>').addClass('LTS-only').html(
+          $('<div>').addClass('description').text('This is an overview of the limits that have been configured on MistServer.')
+        ).append(
+          $('<table>').html(
+            $('<thead>').html(
+              $('<tr>').html(
+                $('<th>').text('Applies to')
+              ).append(
+                $('<th>').text('Type')
+              ).append(
+                $('<th>').text('Name')
+              ).append(
+                $('<th>').text('Value')
+              ).append(
+                $('<th>')
+              )
             )
+          ).append(
+            $tbody
           )
         ).append(
-          $tbody
+          $('<button>').text('New').click(function(){
+            showTab('edit limit','_new_');
+          })
         )
-      ).append(
-        $('<button>').text('New').click(function(){
-          showTab('edit limit','_new_');
-        })
       );
       
       for (var index in settings.settings.config.limits) {
@@ -1041,6 +1169,551 @@ function showTab(tabName,streamName) {
       }
       $('#logs-refresh-every').val(defaults.logRefreshing[1]);
     break;
+    case 'statistics':
+      var graphs = {};
+      var plot;
+      $('#page').html(
+        $('<div>').addClass('description').text('Here, you can select all kinds of data, and view them in a graph.')
+      ).append(
+        $('<div>').addClass('input_container').html(
+          $('<p>').text('Select the data to display')
+        ).append(
+          $('<label>').text('Add to graph:').append(
+            $('<select>').attr('id','graphid').html(
+              $('<option>').text('New graph').val('new')
+            ).change(function(){
+              if ($(this).val() == 'new') {
+                $('#graphtype').removeAttr('disabled');
+              }
+              else {
+                $('#graphtype').attr('disabled','disabled');
+                //set to correct type
+              }
+            })
+          )
+        ).append(
+          $('<label>').text('Graph x-axis type:').append(
+            $('<select>').attr('id','graphtype').html(
+              $('<option>').text('Time line').val('time')
+            ).append(
+              $('<option>').text('Map').val('coords')
+            ).change(function(){
+              $('#dataset option').hide();
+              $('#dataset option.axis_'+$(this).val()).show();
+              $('#dataset').val( $('#dataset option.axis_'+$(this).val()).first().val());
+            })
+          )
+        ).append(
+          $('<label>').text('Select data set:').append(
+            $('<select>').attr('id','dataset').html(
+              $('<option>').text('Viewers').val('clients').addClass('axis_time')
+            ).append(
+              $('<option>').text('Bandwidth (up)').val('upbps').addClass('axis_time')
+            ).append(
+              $('<option>').text('Bandwidth (down)').val('downbps').addClass('axis_time')
+            ).append(
+              $('<option>').text('% CPU').val('cpuload').addClass('axis_time')
+            ).append(
+              $('<option>').text('Memory load').val('memload').addClass('axis_time')
+            ).append(
+              $('<option>').text('Viewer location').val('coords').addClass('axis_coords')
+            ).change(function(){
+              switch ($(this).val()) {
+                case 'clients':
+                case 'upbps':
+                case 'downbps':
+                  $('#dataset-details .replace-dataset').text('amount of viewers')
+                  $('#dataset-details').show();
+                  break;
+                default:
+                  $('#dataset-details').hide();
+              }
+            })
+          )
+        ).append(
+          $('<div>').attr('id','dataset-details').addClass('checklist').css({
+            'padding':'0.5em 0 0 40%',
+            'font-size':'0.9em'
+          }).html('Show <span class=replace-dataset></span> for:').append(
+            $('<label>').text('The total').prepend(
+              $('<input>').attr('type','radio').attr('name','cumutype').attr('checked','checked').val('all')
+            )
+          ).append(
+            $('<label>').text('The stream ').append(
+              $('<select>').addClass('stream cumuval')
+            ).prepend(
+              $('<input>').attr('type','radio').attr('name','cumutype').val('stream')
+            )
+          ).append(
+            $('<label>').text('The protocol ').append(
+              $('<select>').addClass('protocol cumuval')
+            ).prepend(
+              $('<input>').attr('type','radio').attr('name','cumutype').val('protocol')
+            )
+          )
+        ).append(
+          $('<button>').text('Add data set').click(function(){
+            //the graph
+            if ($('#graphid').val() == 'new') {
+              var graph = {};
+              graph.id = $('#graphid').val();
+              graph.type = $('#graphtype').val();
+              graph.id = 'graph_'+($('#graphcontainer .graph').length+1);
+              graph.datasets = [];
+              graphs[graph.id] = graph;
+              $('#graphcontainer').append(
+                $('<div>').attr('id',graph.id).addClass('graph-item').html(
+                  $('<div>').addClass('legend')
+                ).append(
+                  $('<div>').addClass('graph')
+                )
+              );
+              $('#graphid').append(
+                $('<option>').text(graph.id)
+              ).val(graph.id).trigger('change');
+            }
+            else {
+              var graph = graphs[$('#graphid').val()];
+            }
+            //the dataset itself
+            var d = {
+              display: true,
+              type: $('#dataset').val(),
+              label: '',
+              yaxistype: 'amount',
+              data: [],
+              lines: { show: true },
+              points: { show: false }
+            };
+            switch (d.type) {
+              case 'cpuload':
+                d.label = 'CPU load';
+                d.yaxistype = 'percentage';
+              break;
+              case 'memload':
+                d.label = 'Memory load';
+                d.yaxistype = 'percentage';
+              break;
+              case 'upbps':
+              case 'downbps':
+              case 'clients':
+                d.cumutype = $('#dataset-details input[name=cumutype]:checked').val();
+                d.yaxistype = 'bytespersec';
+                if (d.cumutype == 'all') {
+                  switch (d.type) {
+                    case 'clients':
+                      d.label = 'Total viewers';
+                      d.yaxistype = 'amount';
+                      break;
+                    case 'upbps':
+                      d.label = 'Total bandwidth (up)';
+                      break;
+                    case 'downbps':
+                      d.label = 'Total bandwidth (down)';
+                      break;
+                  }
+                }
+                else {
+                  var which = $('#dataset-details.cumuval.'+d.cumutype).val();
+                  if (d.cumutype == 'stream') {
+                    d.stream = which;
+                  }
+                  else if (d.cumutype == 'protocol') {
+                    d.protocol = which;
+                  }
+                  switch (d.type) {
+                    case 'clients':
+                      d.label = 'Viewers ('+d.stream+')';
+                      d.yaxistype = 'amount';
+                      break;
+                    case 'upbps':
+                      d.label = 'Bandwidth (up) ('+d.stream+')';
+                      break;
+                    case 'downbps':
+                      d.label = 'Bandwidth (down) ('+d.stream+')';
+                      break;
+                  }
+                }
+              break;
+            }
+            graph.datasets.push(d);
+            getPlotData();
+          })
+        )/*.append(
+          $('<p>').text('Switch data display type').css('clear','both')
+        ).append(
+          $('<label>').text('Show data in a:').append(
+            $('<select>').html(
+              $('<option>').text('graph')
+            ).append(
+              $('<option>').text('table')
+            )
+          )
+        )*/
+      ).append(
+        $('<div>').attr('id','graphcontainer')
+      );
+      for (var i in settings.settings.streams) {
+        $('#dataset-details .cumuval.stream').append(
+          $('<option>').text(settings.settings.streams[i].name).val(i)
+        );
+      }
+      for (var i in settings.settings.config.protocols) {
+        $('#dataset-details .cumuval.protocol').append(
+          $('<option>').text(settings.settings.config.protocols[i].connector)
+        );
+      }
+      $('#graphtype').trigger('change');
+      
+      var lastitem = null;
+      var $tooltip = $('<div>').attr('id','tooltip');
+      $('body').append($tooltip);
+      $('.graph').live('plothover',function(e,pos,item){
+        if (item) {
+          var pos;
+          if (item.pageX > ($(window).width() / 2)) {
+            pos.left = 'auto';
+            pos.right = $(window).width() - item.pageX + 8+'px';
+          }
+          else {
+            pos.left = item.pageX + 8+'px';
+            pos.right = 'auto';
+          }
+          if (item.pageY > ($(window).height() / 2)) {
+            pos.top = 'auto';
+            pos.bottom = $(window).height() - item.pageY + 8+'px';
+          }
+          else {
+            pos.top = item.pageY + 8+'px';
+            pos.bottom = 'auto';
+          }
+          $tooltip.css({
+            'left': pos.left,
+            'top': pos.top,
+            'right': pos.right,
+            'bottom': pos.bottom
+          }).html(
+            $('<p>').text(item.series.label).prepend(
+              $('<div>').css({
+                'background-color': item.series.color,
+                'width': '20px',
+                'height': '20px',
+                'display': 'inline-block',
+                'margin': '0 0.5em'
+              })
+            )
+          ).append(
+            $('<table>').html(
+              $('<tr>').html(
+                $('<td>').text('Time:')
+              ).append(
+                $('<td>').text(item.series.xaxis.tickFormatter(item.datapoint[0],item.series.xaxis))
+              )
+            ).append(
+              $('<tr>').html(
+                $('<td>').text(item.series.label+':')
+              ).append(
+                $('<td>').text(item.series.yaxis.tickFormatter(item.datapoint[1],item.series.yaxis))
+              )
+            )
+          ).fadeIn();
+        }
+        else {
+          $('#tooltip').hide();
+        }
+      });
+      
+      
+      theInterval = setInterval(function(){
+        getPlotData();
+      },10000);
+      
+      function getPlotData() {
+        getData(function(data){
+          for (var j in graphs) {
+            for (var i in graphs[j].datasets) {
+              graphs[j].datasets[i] = findDataset(graphs[j].datasets[i],data);
+            }
+            drawGraph(graphs[j]);
+          }
+        },{capabilities:true,totals:{}});
+      }
+      
+      function findDataset(dataobj,sourcedata) {
+        var now = sourcedata.config.time;
+        switch (dataobj.type) {
+          case 'cpuload':
+            //remove any data older than 10 minutes
+            var removebefore = false;
+            for (var i in dataobj.data) {
+              if (dataobj.data[i][0] < (now-600)*1000) {
+                removebefore = Number(i)+1;
+              }
+            }
+            if (removebefore !== false) {
+              dataobj.data.splice(0,removebefore);
+            }
+            dataobj.data.push([now*1000,sourcedata.capabilities.load.one]);
+            break;
+          case 'memload':
+            //remove any data older than 10 minutes
+            var removebefore = false;
+            for (var i in dataobj.data) {
+              if (dataobj.data[i][0] < (now-600)*1000) {
+                removebefore = Number(i)+1;
+              }
+            }
+            if (removebefore !== false) {
+              dataobj.data.splice(0,removebefore);
+            }
+            dataobj.data.push([now*1000,sourcedata.capabilities.load.memory]);
+            break;
+          case 'upbps':
+          case 'downbps':
+          case 'clients':
+            //todo: depending on the stream..
+            if (!sourcedata.totals || !sourcedata.totals.data) {
+              dataobj.data.push([(now-600)*1000,0]);
+              dataobj.data.push([now*1000,0]);
+            }
+            else {
+              var fields = {};
+              for (var index in sourcedata.totals.fields) {
+                fields[sourcedata.totals.fields[index]] = index;
+              }
+              var time = sourcedata.totals.start;
+              dataobj.data = [];
+              if (time > now-590) {
+                //prepend data with 0 
+                dataobj.data.push([(now-600)*1000,0]);
+                dataobj.data.push([time*1000-1,0]);
+              }
+              var index = 0;
+              dataobj.data.push([[time*1000,sourcedata.totals.data[index][fields[dataobj.type]]]]);
+              for (var i in sourcedata.totals.interval) {
+                if ((i % 2) == 1) {
+                  //fill gaps with 0
+                  time += sourcedata.totals.interval[i][1];
+                  dataobj.data.push([time*1000,0]);
+                }
+                else {
+                  for (var j = 0; j < sourcedata.totals.interval[i][0]; j++) {
+                    time += sourcedata.totals.interval[i][1];
+                    index++;
+                    dataobj.data.push([time*1000,sourcedata.totals.data[index][fields[dataobj.type]]]);
+                  }
+                  if (i < sourcedata.totals.interval.length-1) {
+                    dataobj.data.push([time*1000+1,0]);
+                  }
+                }
+              }
+              if (now > time + 10) {
+                //append data with 0
+                dataobj.data.push([time*1000+1,0]);
+                dataobj.data.push([now*1000,0]);
+              }
+            }
+            break;
+        }
+        
+        
+        return dataobj;
+      }
+      
+      function drawGraph(graph){
+        var datasets = graph.datasets;
+        if (datasets.length < 1) { 
+          $('#'+graph.id).children('.graph,.legend').html('');
+          return; 
+        }
+        var yaxes = [];
+        var yaxesTemplates = {
+          percentage: {
+            name: 'percentage',
+            color: 'black',
+            display: false,
+            tickColor: 0,
+            tickDecimals: 0,
+            tickFormatter: function(val,axis){
+              return val.toFixed(axis.tickDecimals) + '%';
+            },
+            tickLength: 0,
+            min: 0
+          },
+          amount: {
+            name: 'amount',
+            color: 'black',
+            display: false,
+            tickColor: 0,
+            tickDecimals: 0,
+            tickFormatter: function(val,axis){
+              return seperateThousands(val.toFixed(axis.tickDecimals),' ');
+            },
+            tickLength: 0,
+            min: 0
+          },
+          bytespersec: {
+            name: 'bytespersec',
+            color: 'black',
+            display: false,
+            tickColor: 0,
+            tickDecimals: 1,
+            tickFormatter: function(val,axis){
+              var suffix = ['bytes','KiB','MiB','GiB','TiB','PiB'];
+              if (val == 0) { 
+                val = val+' '+suffix[0];
+              }
+              else {
+                var exponent = Math.floor(Math.log(Math.abs(val)) / Math.log(1024));
+                if (exponent < 0) {
+                  val = val.toFixed(axis.tickDecimals)+' '+suffix[0];
+                }
+                else {
+                  val = Math.round(val / Math.pow(1024,exponent) * Math.pow(10,axis.tickDecimals)) / Math.pow(10,axis.tickDecimals) +' '+suffix[exponent];
+                }
+              }
+              return val + '/s';
+            },
+            tickLength: 0,
+            ticks: function(axis,a,b,c,d){
+              //taken from flot source code (function setupTickGeneration), 
+              //modified to think in multiples of 1024 by Carina van der Meer for DDVTECH
+              
+              // heuristic based on the model a*sqrt(x) fitted to
+              // some data points that seemed reasonable
+              var noTicks = 0.3 * Math.sqrt($('.graph').first().height());
+              
+              var delta = (axis.max - axis.min) / noTicks,
+              exponent = Math.floor(Math.log(Math.abs(delta)) / Math.log(1024)),
+              correcteddelta = delta / Math.pow(1024,exponent),
+              dec = -Math.floor(Math.log(correcteddelta) / Math.LN10),
+              maxDec = axis.tickDecimals;
+              
+              if (maxDec != null && dec > maxDec) {
+                dec = maxDec;
+              }
+              
+              var magn = Math.pow(10, -dec),
+              norm = correcteddelta / magn, // norm is between 1.0 and 10.0
+              size;
+              
+              if (norm < 1.5) {
+                size = 1;
+              } else if (norm < 3) {
+                size = 2;
+                // special case for 2.5, requires an extra decimal
+                if (norm > 2.25 && (maxDec == null || dec + 1 <= maxDec)) {
+                  size = 2.5;
+                  ++dec;
+                }
+              } else if (norm < 7.5) {
+                size = 5;
+              } else {
+                size = 10;
+              }
+              
+              size *= magn;
+              size = size * Math.pow(1024,exponent);
+              
+              if (axis.minTickSize != null && size < axis.minTickSize) {
+                size = axis.minTickSize;
+              }
+              
+              axis.delta = delta;
+              axis.tickDecimals = Math.max(0, maxDec != null ? maxDec : dec);
+              axis.tickSize = size;
+              
+              var ticks = [],
+              start = axis.tickSize * Math.floor(axis.min / axis.tickSize),
+              i = 0,
+              v = Number.NaN,
+              prev;
+              
+              do {
+                prev = v;
+                v = start + i * axis.tickSize;
+                ticks.push(v);
+                ++i;
+              } while (v < axis.max && v != prev);
+              return ticks;
+            },
+            min: 0
+          }
+        };
+        var xaxistemplates = {
+          time: {
+            name: 'time',
+            mode: 'time',
+            timezone: 'browser',
+            ticks: 5
+          }
+        }
+        var plotsets = [];
+        for (var i in datasets) {
+          if (datasets[i].display) {
+            if (yaxesTemplates[datasets[i].yaxistype].display === false) {
+              yaxes.push(yaxesTemplates[datasets[i].yaxistype]);
+              yaxesTemplates[datasets[i].yaxistype].display = yaxes.length;
+            }
+            datasets[i].yaxis = yaxesTemplates[datasets[i].yaxistype].display;
+            datasets[i].color = Number(i);
+            plotsets.push(datasets[i]);
+          }
+        }
+        if (yaxes[0]) { yaxes[0].color = 0; }
+        plot = $.plot(
+          $('#'+graph.id+' .graph'),
+          plotsets,
+          {
+            legend: {show: false},
+            xaxis: xaxistemplates[graph.type],
+            yaxes: yaxes,
+            grid: {
+              hoverable: true,
+              borderWidth: {top: 0, right: 0, bottom: 1, left: 1},
+              color: 'black',
+              backgroundColor: {colors: ['#fff','#ededed']}
+            }
+          }
+        );
+        $('#'+graph.id+' .legend').html(
+          $('<div>').addClass('legend-list').addClass('checklist')
+        );
+        var plotdata = plot.getOptions();
+        for (var i in datasets) {
+          var $checkbox = $('<input>').attr('type','checkbox').data('dataset-index',i).click(function(){
+            if ($(this).is(':checked')) {
+              datasets[$(this).data('dataset-index')].display = true;
+            }
+            else {
+              datasets[$(this).data('dataset-index')].display = false;
+            }
+            drawGraph($(this).parents('.graph-item'));
+          });
+          if (datasets[i].display) {
+            $checkbox.attr('checked','checked');
+          }
+          $('#'+graph.id+' .legend-list').append(
+            $('<label>').html(
+              $checkbox
+            ).append(
+              $('<div>').addClass('series-color').css('background-color',plotdata.colors[datasets[i].color % plotdata.colors.length])
+            ).append(
+              datasets[i].label
+            )
+          );
+        }
+        if (datasets.length > 0) {
+          $('#'+graph.id+' .legend').append(
+            $('<button>').text('Clear all').click(function(){
+              var graph = graphs[$(this).parents('.graph-item').attr('id')];
+              graph.datasets = [];
+              drawGraph(graph);
+            }).css({'float':'none'})
+          );
+        }
+      }
+    break;
     case 'server stats':
       var $cont = $('<div>').addClass('input_container');
       
@@ -1094,6 +1767,55 @@ function showTab(tabName,streamName) {
       
       $('#page').html($cont);
     break;
+    case 'email for help':
+      var config = $.extend({},settings.settings);
+      delete config.statistics;
+      config = JSON.stringify(config);
+      $('#page').html(
+        $('<div>').addClass('description').html(
+          'You can use this form to email MistServer support if you\'re having difficulties.<br>'
+        ).append(
+          'A copy of your server config file will automatically be included.'
+        )
+      ).append(
+        $('<div>').addClass('input_container').html(
+          $('<form>').html(
+            $('<label>').text('Your name:').append(
+              $('<input>').attr('type','text').attr('name','name')
+            )
+          ).append(
+            $('<input>').attr('type','hidden').attr('name','company').val('-')
+          ).append(
+            $('<label>').text('Your email address:').append(
+              $('<input>').attr('type','email').attr('name','email')
+            )
+          ).append(
+            $('<input>').attr('type','hidden').attr('name','subject').val('Integrated Help')
+          ).append(
+            $('<label>').text('Your message:').append(
+              $('<textarea>').attr('name','message').height('20em')
+            )
+          ).append(
+            $('<label>').text('Your config file:').append(
+              $('<textarea>').attr('name','configfile').attr('readonly','readonly').css({'height':'20em','font-size':'0.7em'}).val(config)
+            )
+          ).append(
+            $('<button>').text('Send').click(function(e){
+              var data = $(this).parents('form').serialize();
+              $.ajax({
+                type: 'POST',
+                url: 'http://mistserver.org/contact_us?skin=plain',
+                data: data,
+                success: function(d) {
+                  $('#page').html(d);
+                }
+              });
+              e.preventDefault();
+            })
+          )
+        )
+      );
+    break;
     case 'disconnect':
       showTab('login');
       $('#connection').addClass('red').removeClass('green').text('Disconnected');
@@ -1110,17 +1832,32 @@ function showTab(tabName,streamName) {
   
   if ((settings.credentials.authstring) && (!settings.settings.LTS)) {
     $('.LTS-only input').add('.LTS-only select').add('.LTS-only button').attr('disabled','disabled');
-    $('.LTS-only, .LTS-only p, .LTS-only label, .LTS-only button ').css('color','#b4b4b4');
+    //$('.LTS-only, .LTS-only p, .LTS-only label, .LTS-only button').css('color','#b4b4b4');
     $('.LTS-only, .LTS-only > *').filter(':not(.LTSstuff_done)').each(function(){
       var t = [];
       if ($(this).attr('title')) {
         t.push($(this).attr('title'));
       }
-      t.push('This is feature is only available in the LTS version.');
+      t.push('This feature is only available in the LTS version.');
       $(this).attr('title',t.join(' ')).addClass('LTSstuff_done');
+    });
+    $('#page .LTS-only').prepend(
+      $('<a>').text('Upgrade to LTS').attr('target','_blank').attr('href','http://mistserver.org/products/MistServer LTS').addClass('fakebutton')
+    );
+    
+    $('.linktoReleaseNotes.notedited').each(function(){
+      $(this).attr('href',$(this).attr('href')+'/'+settings.settings.config.version.split('-')[0]).removeClass('.notedited');
     });
   }
   else if (settings.settings.LTS) {
     $('.LTS-only').removeClass('LTS-only');
+    $('.linktoTnC.notLTSlink').attr('href','http://mistserver.org/wiki/MistServerLTS_license').removeClass('notLTSlink');
+    $('.linktoReleaseNotes.notedited').each(function(){
+      $(this).attr('href',$(this).attr('href')+'/'+settings.settings.config.version.split('-')[0]+'LTS').removeClass('.notedited');
+    });
+  }
+  
+  if (ih) {
+    ihAddBalloons();
   }
 }

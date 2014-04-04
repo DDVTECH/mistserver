@@ -20,7 +20,13 @@
 #include "controller_connectors.h"
 #include "controller_streams.h"
 #include "controller_capabilities.h"
+#include "controller_statistics.h"
 #include "server.html.h"
+
+
+#include <mist/tinythread.h>
+#include <mist/shared_memory.h>
+
 
 #define UPLINK_INTERVAL 30
 
@@ -31,7 +37,8 @@
 
 ///\brief Holds everything unique to the controller.
 namespace Controller {
-
+  Util::Config conf;
+  
   Secure::Auth keychecker; ///< Checks key authorization.
 
   ///\brief A class storing information about a connected user.
@@ -133,42 +140,23 @@ namespace Controller {
     out = in;
   }
 
-  ///\brief Parse received statistics.
-  ///\param stats The statistics to be parsed.
-  void CheckStats(JSON::Value & stats){
-    long long int currTime = Util::epoch();
-    for (JSON::ObjIter jit = stats.ObjBegin(); jit != stats.ObjEnd(); jit++){
-      if (currTime - lastBuffer[jit->first] > 120){
-        stats.removeMember(jit->first);
-        return;
-      }else{
-        if (jit->second.isMember("curr") && jit->second["curr"].size() > 0){
-          for (JSON::ObjIter u_it = jit->second["curr"].ObjBegin(); u_it != jit->second["curr"].ObjEnd(); ++u_it){
-            if (u_it->second.isMember("now") && u_it->second["now"].asInt() < currTime - 3){
-              jit->second["log"].append(u_it->second);
-              jit->second["curr"].removeMember(u_it->first);
-              if ( !jit->second["curr"].size()){
-                break;
-              }
-              u_it = jit->second["curr"].ObjBegin();
-            }
-          }
-        }
-      }
-    }
-  }
 } //Controller namespace
 
 /// the following function is a simple check if the user wants to proceed to fix (y), ignore (n) or abort on (a) a question
-char yna(std::string user_input){
-  if(user_input == "y" || user_input == "Y"){
-    return 'y';
-  }else if(user_input == "n" || user_input == "N"){
-    return 'n';
-  }else if(user_input == "a" || user_input == "A"){
-    return 'a';
-  }else{
-    return 'x';//when no valid option is found, yna returns x
+char yna(std::string & user_input){
+  switch (user_input[0]){
+    case 'y': case 'Y':
+      return 'y';
+      break;
+    case 'n': case 'N':
+      return 'n';
+      break;
+    case 'a': case 'A':
+      return 'a';
+      break;
+    default:
+      return 'x';
+      break;
   }
 }
 
@@ -210,37 +198,37 @@ int main(int argc, char ** argv){
   if ( !stored_user["default"]){
     stored_user["default"] = "root";
   }
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION " / " RELEASE);
-  conf.addOption("listen_port", stored_port);
-  conf.addOption("listen_interface", stored_interface);
-  conf.addOption("username", stored_user);
-  conf.addOption("daemonize",
+  Controller::conf = Util::Config(argv[0], PACKAGE_VERSION " / " RELEASE);
+  Controller::conf.addOption("listen_port", stored_port);
+  Controller::conf.addOption("listen_interface", stored_interface);
+  Controller::conf.addOption("username", stored_user);
+  Controller::conf.addOption("daemonize",
       JSON::fromString(
           "{\"long\":\"daemon\", \"short\":\"d\", \"default\":0, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Turns deamon mode on (-d) or off (-n). -d runs quietly in background, -n (default) enables verbose in foreground.\"}"));
-  conf.addOption("account",
+  Controller::conf.addOption("account",
       JSON::fromString(
           "{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
-  conf.addOption("logfile",
+  Controller::conf.addOption("logfile",
       JSON::fromString(
           "{\"long\":\"logfile\", \"short\":\"L\", \"arg\":\"string\" \"default\":\"\",\"help\":\"Redirect all standard output to a log file, provided with an argument\"}"));
-  conf.addOption("configFile",
+  Controller::conf.addOption("configFile",
       JSON::fromString(
           "{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" \"default\":\"config.json\", \"help\":\"Specify a config file other than default.\"}"));
-  conf.addOption("uplink",
+  Controller::conf.addOption("uplink",
       JSON::fromString(
           "{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host and port.\", \"short\":\"U\", \"long\":\"uplink\"}"));
-  conf.addOption("uplink-name",
+  Controller::conf.addOption("uplink-name",
       JSON::fromString(
           "{\"default\":\"" COMPILED_USERNAME "\", \"arg\":\"string\", \"help\":\"MistSteward uplink username.\", \"short\":\"N\", \"long\":\"uplink-name\"}"));
-  conf.addOption("uplink-pass",
+  Controller::conf.addOption("uplink-pass",
       JSON::fromString(
           "{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}"));
-  conf.parseArgs(argc, argv);
-  if(conf.getString("logfile")!= ""){
+  Controller::conf.parseArgs(argc, argv);
+  if(Controller::conf.getString("logfile")!= ""){
     //open logfile, dup stdout to logfile
-    int output = open(conf.getString("logfile").c_str(),O_APPEND|O_CREAT|O_WRONLY,S_IRWXU);
+    int output = open(Controller::conf.getString("logfile").c_str(),O_APPEND|O_CREAT|O_WRONLY,S_IRWXU);
     if(output < 0){
-      DEBUG_MSG(DLVL_ERROR, "Could not redirect output to %s: %s",conf.getString("logfile").c_str(),strerror(errno));
+      DEBUG_MSG(DLVL_ERROR, "Could not redirect output to %s: %s",Controller::conf.getString("logfile").c_str(),strerror(errno));
       return 7;
     }else{
       dup2(output,STDOUT_FILENO);
@@ -255,27 +243,25 @@ int main(int argc, char ** argv){
     }
   }
   //Input custom config here
-  Controller::Storage = JSON::fromFile(conf.getString("configFile"));
+  Controller::Storage = JSON::fromFile(Controller::conf.getString("configFile"));
 
   //check for port, interface and username in arguments
   //if they are not there, take them from config file, if there
-  if (conf.getOption("listen_port", true).size() <= 1){
+  if (Controller::conf.getOption("listen_port", true).size() <= 1){
     if (Controller::Storage["config"]["controller"]["port"]){
-      conf.getOption("listen_port") = Controller::Storage["config"]["controller"]["port"];
+      Controller::conf.getOption("listen_port") = Controller::Storage["config"]["controller"]["port"];
     }
   }
-  if (conf.getOption("listen_interface", true).size() <= 1){
+  if (Controller::conf.getOption("listen_interface", true).size() <= 1){
     if (Controller::Storage["config"]["controller"]["interface"]){
-      conf.getOption("listen_interface") = Controller::Storage["config"]["controller"]["interface"];
+      Controller::conf.getOption("listen_interface") = Controller::Storage["config"]["controller"]["interface"];
     }
   }
-  if (conf.getOption("username", true).size() <= 1){
+  if (Controller::conf.getOption("username", true).size() <= 1){
     if (Controller::Storage["config"]["controller"]["username"]){
-      conf.getOption("username") = Controller::Storage["config"]["controller"]["username"];
+      Controller::conf.getOption("username") = Controller::Storage["config"]["controller"]["username"];
     }
   }
-  
-  
   JSON::Value capabilities;
   //list available protocols and report about them
   std::deque<std::string> execs;
@@ -284,6 +270,10 @@ int main(int argc, char ** argv){
   char const * conn_args[] = {0, "-j", 0};
   for (std::deque<std::string>::iterator it = execs.begin(); it != execs.end(); it++){
     if ((*it).substr(0, 8) == "MistConn"){
+      //skip if an MistOut already existed - MistOut takes precedence!
+      if (capabilities["connectors"].isMember((*it).substr(8))){
+        continue;
+      }
       arg_one = Util::getMyPath() + (*it);
       conn_args[0] = arg_one.c_str();
       capabilities["connectors"][(*it).substr(8)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
@@ -291,9 +281,17 @@ int main(int argc, char ** argv){
         capabilities["connectors"].removeMember((*it).substr(8));
       }
     }
+    if ((*it).substr(0, 7) == "MistOut"){
+      arg_one = Util::getMyPath() + (*it);
+      conn_args[0] = arg_one.c_str();
+      capabilities["connectors"][(*it).substr(7)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+      if (capabilities["connectors"][(*it).substr(7)].size() < 1){
+        capabilities["connectors"].removeMember((*it).substr(7));
+      }
+    }
   }
   
-  createAccount(conf.getString("account"));
+  createAccount(Controller::conf.getString("account"));
   
   /// User friendliness input added at this line
   if (isatty(fileno(stdin))){
@@ -340,11 +338,11 @@ int main(int argc, char ** argv){
     }
     //check for streams
     if ( !Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1){
-      std::cerr << "No streams configured, remember to set up streams through local settings page on port " << conf.getInteger("listen_port") << " or using the API." << std::endl;
+      std::cerr << "No streams configured, remember to set up streams through local settings page on port " << Controller::conf.getInteger("listen_port") << " or using the API." << std::endl;
     }
   }
   
-  std::string uplink_addr = conf.getString("uplink");
+  std::string uplink_addr = Controller::conf.getString("uplink");
   std::string uplink_host = "";
   int uplink_port = 0;
   if (uplink_addr.size() > 0){
@@ -359,7 +357,7 @@ int main(int argc, char ** argv){
 
   time_t lastuplink = 0;
   time_t processchecker = 0;
-  Socket::Server API_Socket = Socket::Server(conf.getInteger("listen_port"), conf.getString("listen_interface"), true);
+  Socket::Server API_Socket = Socket::Server(Controller::conf.getInteger("listen_port"), Controller::conf.getString("listen_interface"), true);
   Socket::Server Stats_Socket = Socket::Server(Util::getTmpFolder() + "statistics", true);
   Socket::Connection Incoming;
   std::vector<Controller::ConnectedUser> users;
@@ -369,19 +367,21 @@ int main(int argc, char ** argv){
   std::string jsonp;
   Controller::ConnectedUser * uplink = 0;
   Controller::Log("CONF", "Controller started");
-  conf.activate();
-  
+  Controller::conf.activate();
+
   //Create a converter class and automatically load in all encoders.
   Converter::Converter myConverter;
   
-  while (API_Socket.connected() && conf.is_active){
+  tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);
+  
+  while (API_Socket.connected() && Controller::conf.is_active){
     Util::sleep(10);//sleep for 10 ms - prevents 100% CPU time
+    
 
-    if (Util::epoch() - processchecker > 10){
+    if (Util::epoch() - processchecker > 5){
       processchecker = Util::epoch();
       Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
       Controller::CheckAllStreams(Controller::Storage["streams"]);
-      Controller::CheckStats(Controller::Storage["statistics"]);
       myConverter.updateStatus();
     }
     if (uplink_port && Util::epoch() - lastuplink > UPLINK_INTERVAL){
@@ -414,7 +414,8 @@ int main(int argc, char ** argv){
         Response["config"] = Controller::Storage["config"];
         Response["streams"] = Controller::Storage["streams"];
         Response["log"] = Controller::Storage["log"];
-        Response["statistics"] = Controller::Storage["statistics"];
+        /// \todo Put this back in, someway, somehow...
+        //Response["statistics"] = Controller::Storage["statistics"];
         Response["now"] = (unsigned int)lastuplink;
         uplink->H.Clean();
         uplink->H.SetBody("command=" + HTTP::Parser::urlencode(Response.toString()));
@@ -430,93 +431,6 @@ int main(int argc, char ** argv){
     Incoming = API_Socket.accept(true);
     if (Incoming.connected()){
       users.push_back((Controller::ConnectedUser)Incoming);
-    }
-    Incoming = Stats_Socket.accept(true);
-    if (Incoming.connected()){
-      buffers.push_back(Incoming);
-    }
-    if (buffers.size() > 0){
-      for (std::vector<Socket::Connection>::iterator it = buffers.begin(); it != buffers.end(); it++){
-        if ( !it->connected()){
-          it->close();
-          buffers.erase(it);
-          break;
-        }
-        if (it->spool()){
-          while (it->Received().size()){
-            it->Received().get().resize(it->Received().get().size() - 1);
-            Request = JSON::fromString(it->Received().get());
-            it->Received().get().clear();
-            if (Request.isMember("buffer")){
-              std::string thisbuffer = Request["buffer"];
-              Controller::lastBuffer[thisbuffer] = Util::epoch();
-              //if metadata is available, store it
-              if (Request.isMember("meta")){
-                Controller::Storage["streams"][thisbuffer]["meta"] = Request["meta"];
-              }
-              if (Controller::Storage["streams"][thisbuffer].isMember("updated")){
-                Controller::Storage["streams"][thisbuffer].removeMember("updated");
-                if (Controller::Storage["streams"][thisbuffer].isMember("cut")){
-                  it->SendNow("c"+Controller::Storage["streams"][thisbuffer]["cut"].asString()+"\n");
-                }else{
-                  it->SendNow("c0\n");
-                }
-                if (Controller::Storage["streams"][thisbuffer].isMember("DVR")){
-                  it->SendNow("d"+Controller::Storage["streams"][thisbuffer]["DVR"].asString()+"\n");
-                }else{
-                  it->SendNow("d20000\n");
-                }
-                if (Controller::Storage["streams"][thisbuffer].isMember("source") && Controller::Storage["streams"][thisbuffer]["source"].asStringRef().substr(0, 7) == "push://"){
-                  it->SendNow("s"+Controller::Storage["streams"][thisbuffer]["source"].asStringRef().substr(7)+"\n");
-                }else{
-                  it->SendNow("s127.0.01\n");
-                }
-              }
-              if (Request.isMember("totals")){
-                Controller::Storage["statistics"][thisbuffer]["curr"] = Request["curr"];
-                std::string nowstr = Request["totals"]["now"].asString();
-                Controller::Storage["statistics"][thisbuffer]["totals"][nowstr] = Request["totals"];
-                Controller::Storage["statistics"][thisbuffer]["totals"][nowstr].removeMember("now");
-                Controller::Storage["statistics"][thisbuffer]["totals"].shrink(600); //limit to 10 minutes of data
-                for (JSON::ObjIter jit = Request["log"].ObjBegin(); jit != Request["log"].ObjEnd(); jit++){
-                  Controller::Storage["statistics"][thisbuffer]["log"].append(jit->second);
-                  Controller::Storage["statistics"][thisbuffer]["log"].shrink(1000); //limit to 1000 users per buffer
-                }
-              }
-            }
-            if (Request.isMember("vod")){
-              std::string thisfile = Request["vod"]["filename"];
-              for (JSON::ObjIter oit = Controller::Storage["streams"].ObjBegin(); oit != Controller::Storage["streams"].ObjEnd(); ++oit){
-                if ((oit->second.isMember("source") && oit->second["source"].asString() == thisfile)
-                    || (oit->second.isMember("channel") && oit->second["channel"]["URL"].asString() == thisfile)){
-                  Controller::lastBuffer[oit->first] = Util::epoch();
-                  if (Request["vod"].isMember("meta")){
-                    Controller::Storage["streams"][oit->first]["meta"] = Request["vod"]["meta"];
-                  }
-                  JSON::Value sockit = (long long int)it->getSocket();
-                  std::string nowstr = Request["vod"]["now"].asString();
-                  Controller::Storage["statistics"][oit->first]["curr"][sockit.asString()] = Request["vod"];
-                  Controller::Storage["statistics"][oit->first]["curr"][sockit.asString()].removeMember("meta");
-                  JSON::Value nowtotal;
-                  for (JSON::ObjIter u_it = Controller::Storage["statistics"][oit->first]["curr"].ObjBegin();
-                      u_it != Controller::Storage["statistics"][oit->first]["curr"].ObjEnd(); ++u_it){
-                    nowtotal["up"] = nowtotal["up"].asInt() + u_it->second["up"].asInt();
-                    nowtotal["down"] = nowtotal["down"].asInt() + u_it->second["down"].asInt();
-                    nowtotal["count"] = nowtotal["count"].asInt() + 1;
-                  }
-                  Controller::Storage["statistics"][oit->first]["totals"][nowstr] = nowtotal;
-                  Controller::Storage["statistics"][oit->first]["totals"].shrink(600);
-                }
-              }
-            }
-            if (Request.isMember("ctrl_log") && Request["ctrl_log"].size() > 0){
-              for (JSON::ArrIter it = Request["ctrl_log"].ArrBegin(); it != Request["ctrl_log"].ArrEnd(); it++){
-                Controller::Log((*it)[0u], (*it)[1u]);
-              }
-            }
-          }
-        }
-      }
     }
     if (users.size() > 0){
       for (std::vector<Controller::ConnectedUser>::iterator it = users.begin(); it != users.end(); it++){
@@ -543,12 +457,13 @@ int main(int argc, char ** argv){
                     Response["config"] = Controller::Storage["config"];
                     Response["streams"] = Controller::Storage["streams"];
                     Response["log"] = Controller::Storage["log"];
-                    Response["statistics"] = Controller::Storage["statistics"];
-                    Response["authorize"]["username"] = conf.getString("uplink-name");
+                    /// \todo Put this back in, someway, somehow...
+                    //Response["statistics"] = Controller::Storage["statistics"];
+                    Response["authorize"]["username"] = Controller::conf.getString("uplink-name");
                     Controller::checkCapable(capabilities);
                     Response["capabilities"] = capabilities;
                     Controller::Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
-                    Response["authorize"]["password"] = Secure::md5(conf.getString("uplink-pass") + Request["authorize"]["challenge"].asString());
+                    Response["authorize"]["password"] = Secure::md5(Controller::conf.getString("uplink-pass") + Request["authorize"]["challenge"].asString());
                     it->H.Clean();
                     it->H.SetBody("command=" + HTTP::Parser::urlencode(Response.toString()));
                     it->H.BuildRequest();
@@ -568,7 +483,6 @@ int main(int argc, char ** argv){
                 }
                 if (Request.isMember("clearstatlogs")){
                   Controller::Storage["log"].null();
-                  Controller::Storage["statistics"].null();
                 }
               }
             }else{
@@ -578,8 +492,9 @@ int main(int argc, char ** argv){
                 it->H.SetHeader("Content-Type", "text/html");
                 it->H.SetHeader("X-Info", "To force an API response, request the file /api");
                 it->H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE);
-                it->H.SetBody(std::string((char*)server_html, (size_t)server_html_len));
-                it->C.Send(it->H.BuildResponse("200", "OK"));
+                it->H.SetHeader("Content-Length", server_html_len);
+                it->H.SendResponse("200", "OK", it->C);
+                it->C.SendNow(server_html, server_html_len);
                 it->H.Clean();
               }else{
                 Authorize(Request, Response, ( *it));
@@ -622,10 +537,10 @@ int main(int argc, char ** argv){
                     }
                   }
                   if (Request.isMember("save")){
-                    if( Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString())){
+                    if( Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
                       Controller::Log("CONF", "Config written to file on request through API");
                     }else{
-                      Controller::Log("ERROR", "Config " + conf.getString("configFile") + " could not be written");
+                      Controller::Log("ERROR", "Config " + Controller::conf.getString("configFile") + " could not be written");
                     }
                   }
                   //sent current configuration, no matter if it was changed or not
@@ -640,11 +555,15 @@ int main(int argc, char ** argv){
                   }
                   //sent any available logs and statistics
                   Response["log"] = Controller::Storage["log"];
-                  Response["statistics"] = Controller::Storage["statistics"];
                   //clear log and statistics if requested
                   if (Request.isMember("clearstatlogs")){
                     Controller::Storage["log"].null();
-                    Controller::Storage["statistics"].null();
+                  }
+                  if (Request.isMember("clients")){
+                    Controller::fillClients(Request["clients"], Response["clients"]);
+                  }
+                  if (Request.isMember("totals")){
+                    Controller::fillTotals(Request["totals"], Response["totals"]);
                   }
                   
                 }
@@ -657,6 +576,11 @@ int main(int argc, char ** argv){
                 }
                 it->H.Clean();
                 it->H.SetHeader("Content-Type", "text/javascript");
+                it->H.SetHeader("Access-Control-Allow-Origin", "*");
+                it->H.SetHeader("Access-Control-Allow-Methods", "GET, POST");
+                it->H.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+                it->H.SetHeader("Access-Control-Allow-Credentials", "true");
+                
                 if (jsonp == ""){
                   it->H.SetBody(Response.toString() + "\n\n");
                 }else{
@@ -671,15 +595,17 @@ int main(int argc, char ** argv){
       }
     }
   }
-  if (!conf.is_active){
+  if (!Controller::conf.is_active){
     Controller::Log("CONF", "Controller shutting down because of user request (received shutdown signal)");
   }
   if (!API_Socket.connected()){
     Controller::Log("CONF", "Controller shutting down because of socket problem (API port closed)");
   }
+  Controller::conf.is_active = false;
   API_Socket.close();
-  if ( !Controller::WriteFile(conf.getString("configFile"), Controller::Storage.toString())){
-    std::cerr << "Error writing config " << conf.getString("configFile") << std::endl;
+  statsThread.join();
+  if ( !Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
+    std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;
     Controller::Storage.removeMember("log");
     for (JSON::ObjIter it = Controller::Storage["streams"].ObjBegin(); it != Controller::Storage["streams"].ObjEnd(); it++){
       it->second.removeMember("meta");

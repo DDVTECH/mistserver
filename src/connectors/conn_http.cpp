@@ -25,6 +25,7 @@
 
 #include "embed.js.h"
 
+
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
 
@@ -115,14 +116,15 @@ namespace Connector_HTTP {
   ///Displays a friendly error message.
   ///\param H The request that was being handled upon timeout.
   ///\param conn The connection to the client that issued the request.
+  ///\param msg The message to print to the client.
   ///\return A timestamp indicating when the request was parsed.
-  long long int proxyHandleTimeout(HTTP::Parser & H, Socket::Connection & conn){
+  long long int proxyHandleTimeout(HTTP::Parser & H, Socket::Connection & conn, std::string msg){
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
     H.SetBody(
-        "<!DOCTYPE html><html><head><title>Gateway timeout</title></head><body><h1>Gateway timeout</h1>Though the server understood your request and attempted to handle it, somehow handling it took longer than it should. Your request has been cancelled - please try again later.</body></html>");
+        "<!DOCTYPE html><html><head><title>"+msg+"</title></head><body><h1>"+msg+"</h1>Though the server understood your request and attempted to handle it, somehow handling it took longer than it should. Your request has been cancelled - please try again later.</body></html>");
     long long int ret = Util::getMS();
-    conn.SendNow(H.BuildResponse("504", "Gateway Timeout"));
+    conn.SendNow(H.BuildResponse("504", msg));
     return ret;
   }
   
@@ -404,6 +406,7 @@ namespace Connector_HTTP {
     H.Clean();
 
     ConnConn * myCConn = 0;
+    unsigned int counter = 0;
     //loop until a connection is available/created
     while (!myCConn){
       //lock the connection mutex before trying anything
@@ -412,6 +415,12 @@ namespace Connector_HTTP {
       if ( !connectorConnections.count(uid)){
         connectorConnections[uid] = new ConnConn(new Socket::Connection(Util::getTmpFolder() + connector));
         connectorConnections[uid]->conn->setBlocking(false); //do not block on spool() with no data
+        if (!connectorConnections[uid]->conn->spool() && !connectorConnections[uid]->conn){
+          //unlock the connection mutex before exiting
+          connMutex.unlock();
+          DEBUG_MSG(DLVL_FAIL, "Created new connection (%s) failed - aborting request!", uid.c_str());
+          return Util::getMS();
+        }
         DEBUG_MSG(DLVL_HIGH, "Created new connection %s", uid.c_str());
       }
       
@@ -420,11 +429,17 @@ namespace Connector_HTTP {
         myCConn = connectorConnections[uid];
         //if the connection is dead, delete it and re-loop
         if (!myCConn->conn->spool() && !myCConn->conn->connected()){
+          counter++;
           DEBUG_MSG(DLVL_HIGH, "Resetting existing connection %s", uid.c_str());
           connectorConnections.erase(uid);
           myCConn->inUse.unlock();
           delete myCConn;
           myCConn = 0;
+          if (counter++ > 2){
+            connMutex.unlock();
+            DEBUG_MSG(DLVL_FAIL, "Created new connection (%s) failed - aborting request!", uid.c_str());
+            return Util::getMS();
+          }
         }else{
           DEBUG_MSG(DLVL_HIGH, "Using active connection %s", uid.c_str());
         }
@@ -477,7 +492,7 @@ namespace Connector_HTTP {
               myCConn->inUse.unlock();
               //unset to only read headers
               H.headerOnly = false;
-              return proxyHandleTimeout(H, conn);
+              return proxyHandleTimeout(H, conn, "Timeout: fragment too new");
             }
             myCConn->lastUse = 0;
             timeout = 0;
@@ -495,9 +510,9 @@ namespace Connector_HTTP {
         myCConn->inUse.unlock();
         //unset to only read headers
         H.headerOnly = false;
-        return proxyHandleTimeout(H, conn);
+        return proxyHandleTimeout(H, conn, "Gateway timeout while waiting for response");
       }else{
-        Util::sleep(5);
+        Util::sleep(100);
       }
     }
     //unset to only read headers
@@ -506,7 +521,7 @@ namespace Connector_HTTP {
       //failure, disconnect and sent error to user
       myCConn->conn->close();
       myCConn->inUse.unlock();
-      return proxyHandleTimeout(H, conn);
+      return proxyHandleTimeout(H, conn, "Gateway connection dropped");
     }else{
       long long int ret = Util::getMS();
       //success, check type of response
@@ -697,6 +712,14 @@ int main(int argc, char ** argv){
       Connector_HTTP::capabilities[(*it).substr(8)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
       if (Connector_HTTP::capabilities[(*it).substr(8)].size() < 1){
         Connector_HTTP::capabilities.removeMember((*it).substr(8));
+      }
+    }
+    if ((*it).substr(0, 7) == "MistOut"){
+      arg_one = Util::getMyPath() + (*it);
+      conn_args[0] = arg_one.c_str();
+      Connector_HTTP::capabilities[(*it).substr(7)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+      if (Connector_HTTP::capabilities[(*it).substr(7)].size() < 1){
+        Connector_HTTP::capabilities.removeMember((*it).substr(7));
       }
     }
   }

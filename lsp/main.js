@@ -14,6 +14,8 @@ function consolelog() {
   }
 }
 
+var ih = false;
+
 function confirmDelete(question){
   return confirm(question);
 }
@@ -55,6 +57,151 @@ function formatTime(date){
     ('00' + d.getMinutes()).slice(-2),
     ('00' + d.getSeconds()).slice(-2)
   ].join(':');
+}
+/**
+ * Format a time duration to something like "2 days, 00:00:00.000"
+ * @param ms the duration to format in miliseconds
+ */
+function formatDuration(ms) {
+  var secs = Math.floor(ms / 1000), mins = 0;
+  ms = ms % 1000;
+  if (secs >= 60) {
+    mins = Math.floor(secs / 60);
+    secs = secs % 60;
+  }
+  if (mins >= 60) {
+    var hours = Math.floor(mins / 60);
+    mins = mins % 60;
+  }
+  var string = ('00'+mins).slice(-2)+':'+('00'+secs).slice(-2)+'.'+('000'+ms).slice(-3);
+  if (hours >= 24) {
+    var days = Math.floor(hours / 24);
+    hours = hours % 24;
+  }
+  if (hours > 0) {
+    string = ('00'+hours).slice(-2)+':'+string;
+  }
+  if (days > 0) {
+    string = days+' day'+(days > 1 ? 's' : '')+', '+string
+  }
+  return string;
+}
+/**
+ * Capitalize the first letter
+ * @param string the string
+ */
+function capFirstChar(string) {
+  if (string.length <= 0) { return ''; }
+  return string[0].toUpperCase() + string.slice(1);
+}
+/**
+ * Flot tick generator for bandwidth
+ * @param axis the axis
+ */
+function flotTicksBandwidthAxis(axis) {
+  var range = axis.max - axis.min;
+  var delta = range / 4;
+  var start = axis.min;
+  if (axis.max < 1024) {                                                                                                          // unit: bytes/s
+    if      (delta > 100)       { delta = Math.floor(delta/100)*100;             start = Math.floor(start/100)*100;             } // to lowest 100 bytes/s
+    else if (delta > 10)        { delta = Math.floor(delta/10)*10;               start = Math.floor(start/10)*10;               } // to lowest 10 bytes/s
+  }
+  else if (axis.max < 1048576) {                                                                                                  //unit: kiB/s
+    if      (delta > 102400)    { delta = Math.floor(delta/102400)*102400;       start = Math.floor(start/102400)*102400;       } //to lowest 100 kiB/s
+    else if (delta > 10240)     { delta = Math.floor(delta/10240)*10240;         start = Math.floor(start/10240)*10240;         } //to lowest 10 kiB/s
+    else if (delta > 1024)      { delta = Math.floor(delta/1024)*1024;           start = Math.floor(start/1024)*1024;           } //to lowest 1 kiB/s
+    else                        { delta = Math.floor(delta/102.4)*102.4;         start = Math.floor(start/102.4)*102.4;         } //to lowest 0.1 kiB/s
+  }
+  else {                                                                                                                          //unit: miB/s
+    if      (delta > 104857600) { delta = Math.floor(delta/104857600)*104857600; start = Math.floor(start/104857600)*104857600; } //to lowest 100 miB/s
+    else if (delta > 10485760)  { delta = Math.floor(delta/10485760)*10485760;   start = Math.floor(start/10485760)*10485760;   } //to lowest 10 miB/s
+    else if (delta > 1048576)   { delta = Math.floor(delta/1048576)*1048576;     start = Math.floor(start/1048576)*1048576;     } //to lowest 1 miB/s
+    else                        { delta = Math.floor(delta/104857.6)*104857.6;   start = Math.floor(start/104857.6)*104857.6;   } //to lowest 0.1 miB/s
+  }
+  var out = [];
+  for (var i = start; i <= axis.max; i += delta) {
+    out.push(i);
+  }
+  return out;
+}
+/**
+ * Flot axis formatter for bandwidth
+ * @param val the valuea
+ * @param axis the axis
+ */
+function flotFormatBandwidthAxis(val,axis) {
+  if (val < 0) { var sign = '-'; }
+  else { var sign = ''; }
+  val = Math.abs(val);
+  
+  if (val < 1024)      { return sign+Math.round(val)+' bytes/s'; }          // 0  bytes/s through 1023 bytes/s
+  if (val < 10235)     { return sign+(val/1024).toFixed(2)+' kiB/s'; }      // 1.00 kiB/s through 9.99 kiB/s
+  if (val < 102449)    { return sign+(val/1024).toFixed(1)+' kiB/s'; }      // 10.0 kiB/s through 99.9 kiB/s
+  if (val < 1048064)   { return sign+Math.round(val/1024)+' kiB/s'; }       // 100  kiB/s through 1023 kiB/s
+  if (val < 10480518)  { return sign+(val/1048576).toFixed(2)+' miB/s'; }   // 1.00 miB/s through 9.99 miB/s
+  if (val < 104805172) { return sign+(val/1048576).toFixed(1)+' miB/s'; }   // 10.0 miB/s through 99.9 miB/s
+  return sign+Math.round(val/1048576)+' miB/s';                             // 100  miB/s and up
+}
+/**
+ * Converts the statistics data into something flot understands
+ * @param stats the statistics.totals object
+ * @param cumulative cumulative mode if true
+ */
+function convertStatisticsToFlotFormat(stats,islive) {
+  var plotdata = [
+    { label: 'Viewers', data: []},
+    { label: 'Bandwidth (Up)', data: [], yaxis: 2},
+    { label: 'Bandwidth (Down)', data: [], yaxis: 2}
+  ];
+
+  var oldtimestamp = 0;
+  var i = 0, up = 0, down = 0;
+  for (var timestamp in stats) {
+    if (islive) {
+      i++;
+      up += stats[timestamp].up;
+      down += stats[timestamp].down;
+      //average over 5 seconds to prevent super spiky unreadable graph
+      if ((i % 5) == 0) {
+        plotdata[0].data.push([Number(timestamp)*1000,stats[timestamp].count]);
+        plotdata[1].data.push([Number(timestamp)*1000,up/5]);
+        plotdata[2].data.push([Number(timestamp)*1000,down/5]);
+        up = 0;
+        down = 0;
+      }
+    }
+    else {
+      var dt = timestamp - oldtimestamp;
+      if (stats[oldtimestamp]) {
+        var up = (stats[timestamp].up - stats[oldtimestamp].up)/dt;
+        var down = (stats[timestamp].down - stats[oldtimestamp].down)/dt;
+      }
+      else {
+        var up = stats[timestamp].up;
+        var down = stats[timestamp].down;
+      }
+      plotdata[0].data.push([Number(timestamp)*1000,stats[timestamp].count]);
+      plotdata[1].data.push([Number(timestamp)*1000,up]);
+      plotdata[2].data.push([Number(timestamp)*1000,down]);
+      oldtimestamp = timestamp; 
+    }
+  }
+  for (var timestamp in stats) {
+    var dt = timestamp - oldtimestamp;
+    plotdata[0].data.push([Number(timestamp)*1000,stats[timestamp].count]);
+    if (stats[oldtimestamp]) {
+      var up = (stats[timestamp].up - stats[oldtimestamp].up)/dt;
+      var down = (stats[timestamp].down - stats[oldtimestamp].down)/dt;
+    }
+    else {
+      var up = stats[timestamp].up;
+      var down = stats[timestamp].down;
+    }
+    plotdata[1].data.push([Number(timestamp)*1000,up]);
+    plotdata[2].data.push([Number(timestamp)*1000,down]);
+    oldtimestamp = timestamp;
+  }
+  return plotdata;
 }
 /**
 * Check if an URL points to a live datastream or a recorded file
@@ -136,9 +283,10 @@ function applyInput(){
   
   //apply the inputs
   $('input.isSetting,select.isSetting').each(function(){
+    
     var objpath = findObjPath($(this));
     
-    if ($(this).val() == '') {
+    if (($(this).val() == '') || ($(this).val() == 0)) {
       eval('delete '+objpath+';');
     }
     else {
@@ -161,6 +309,37 @@ function findObjPath($element) {
   else {
     return 'settings.'+$element.attr('id').replace(/-/g,'.');
   }
+}
+
+function ihAddBalloons() {
+  var page = settings.ih.pages[settings.currentpage];
+  if (!page) { return; }
+  
+  //something with pageinfo
+  if (page.pageinfo) {
+    $('#page').prepend(
+      $('<div>').addClass('ih-balloon').addClass('pageinfo').html(page.pageinfo)
+    );
+  }
+  
+  for (inputid in page.inputs) {
+    $('#'+inputid).parent().prepend(
+      $('<div>').addClass('ih-balloon').addClass('inputinfo').attr('data-for',inputid).html(page.inputs[inputid]).hide()
+    );
+    $('#'+inputid).focus(function(){
+      $('.ih-balloon[data-for='+$(this).attr('id')+']').show();
+      $('.ih-balloon.pageinfo').hide();
+    }).blur(function(){
+      $('.ih-balloon[data-for='+$(this).attr('id')+']').hide();
+      $('.ih-balloon.pageinfo').show();
+    });
+  }
+  $('#page label').each(function(){
+    $(this)
+  });
+}
+function ihMakeBalloon(contents,forid) {
+  return $('<div>').addClass('ih-balloon').attr('data-for',forid).html(contents).hide();
 }
 
 function getData(callBack,sendData,timeOut,doShield){
@@ -283,6 +462,81 @@ function getData(callBack,sendData,timeOut,doShield){
   
   var jqxhr = $.ajax(obj);
 }
+
+function getWikiData(url,callBack) {
+  var wikiHost = 'http://rework.mistserver.org'; //must be changed when rework goes live
+  
+  $('#message').removeClass('red').text('Connecting to the MistServer wiki..').append(
+    $('<br>')
+  ).append(
+    $('<a>').text('Cancel request').click(function(){
+      jqxhr.abort();
+    })
+  );
+  
+  var obj = {
+    'url': wikiHost+url,
+    'type': 'GET',
+    'crossDomain': true,
+    'data': {
+      'skin': 'plain'
+    },
+    'error':function(jqXHR,textStatus,errorThrown){
+      switch (textStatus) {
+        case 'timeout':
+          textStatus = $('<i>').text('The connection timed out. ');
+          break;
+        case 'abort':
+          textStatus = $('<i>').text('The connection was aborted. ');
+          break;
+        default:
+          textStatus = $('<i>').text(textStatus+'. ').css('text-transform','capitalize');
+      }
+      $('#message').addClass('red').text('An error occurred while attempting to communicate with the MistServer wiki:').append(
+        $('<br>')
+      ).append(
+        textStatus
+      ).append(
+        $('<a>').text('Send server request again').click(function(){
+          getWikiData(url,callback);
+        })
+      );
+    },
+    'success': function(returnedData){
+      $('#message').text('Wiki data received');
+      
+      //convert to DOM elements
+      //returnedData = $.parseHTML(returnedData);
+      returnedData = $(returnedData);
+      
+      //fix broken slash-links in the imported data
+      returnedData.find('a[href]').each(function(){
+        if ((this.hostname == '') || (this.hostname == undefined)) {
+          $(this).attr('href',wikiHost+$(this).attr('href'));
+        }
+        if (!$(this).attr('target')) {
+          $(this).attr('target','_blank');
+        }
+      }).find('img[src]').each(function(){
+        var a = $('<a>').attr('href',$(this).attr('src'));
+        if ((a.hostname == '') || (a.hostname == undefined)) {
+          $(this).attr('src',wikiHost+$(this).attr('src'));
+        }
+      });
+      
+      consolelog('['+(new Date).toTimeString().split(' ')[0]+']','Received wiki data:',returnedData);
+      
+      if (callBack) {
+        callBack(returnedData);
+      }
+      $('#message').text('Last communication with the MistServer wiki at '+formatTime((new Date).getTime()/1000));
+      
+    }
+  };
+  
+  var jqxhr = $.ajax(obj);
+}
+
 function saveAndReload(tabName){
   var sendData = $.extend(true,{},settings.settings);
   delete sendData.logs;
@@ -345,12 +599,8 @@ function updateOverview() {
     var streams = 0;
     var streamsOnline = 0;
     
-    for (var index in data.statistics) {
-      if (data.statistics[index].curr) {
-        for (viewer in data.statistics[index].curr) {
-          viewers++;
-        }
-      }
+    if (data.clients && data.clients.data) {
+      viewers = data.clients.data.length;
     }
     
     for (var index in data.streams) {
@@ -363,7 +613,9 @@ function updateOverview() {
     $('#cur_streams_online').text(streamsOnline+'/'+streams+' online');
     $('#cur_num_viewers').text(seperateThousands(viewers,' '));
     $('#settings-config-time').text(formatDateLong(data.config.time));
-  });
+    
+    settings.settings.statistics = data.statistics;
+  },{clients: {}});
 }
 function updateProtocols() {
   getData(function(data){
@@ -380,6 +632,9 @@ function updateProtocols() {
 
 function displayProtocolSettings(theProtocol) {
   var capabilities = settings.settings.capabilities.connectors[theProtocol.connector];
+  if (!capabilities) {
+    return '';
+  }
   var settingsList = [];
   for (var index in capabilities.required) {
     if ((theProtocol[index]) && (theProtocol[index] != '')) {
@@ -478,20 +733,31 @@ function buildProtocolParameterFields(data,required,objpath) {
   return $container.html();
 }
 function updateStreams() {
+  var streamlist = [];
+  for (var stream in settings.settings.streams) {
+    streamlist.push(stream);
+  }
   getData(function(data){
+    var datafields = {};
+    for (var index in data.clients.fields) {
+      datafields[data.clients.fields[index]] = index;
+    }
+    var viewers = {};
+    for (var index in data.clients.data) {
+      if (viewers[data.clients.data[index][datafields['stream']]]) {
+        viewers[data.clients.data[index][datafields['stream']]]++;
+      }
+      else {
+        viewers[data.clients.data[index][datafields['stream']]] = 1;
+      }
+    }
     for (var index in data.streams) {
       $('#status-of-'+index).html(formatStatus(data.streams[index]))
+      $('#viewers-of-'+index).text(seperateThousands(viewers[index],' '));
     }
-    for (var index in data.statistics) {
-      var viewers = 0;
-      if (data.statistics[index].curr) {
-        for (var jndex in data.statistics[index].curr) {
-          viewers++;
-        }
-      }
-      $('#viewers-of-'+index).text(seperateThousands(viewers,' '));
-    }
-  });
+
+    settings.settings.statistics = data.statistics;
+  },{clients:{}});
 }
 function filterTable() {
   var displayRecorded = $('#stream-filter-recorded').is(':checked');
@@ -886,11 +1152,18 @@ function conversionSelectInput(theFiles) {
       
       applyInput();
       
+      var extension = settings.settings.conversion.convert._new_.output.split('.');
+      if (extension[extension.length-1] != 'dtsc') {
+        extension.push('dtsc');
+        settings.settings.conversion.convert._new_.output = extension.join('.');
+      }
       settings.settings.conversion.convert._new_.output = settings.settings.conversion.convert._new_.outputdir.replace(/\/$/,'')+'/'+settings.settings.conversion.convert._new_.output;
       delete settings.settings.conversion.convert._new_.outputdir;
       if ((settings.settings.conversion.convert._new_.video) && (settings.settings.conversion.convert._new_.video.fps)) {
         settings.settings.conversion.convert._new_.fpks = Math.floor(settings.settings.conversion.convert._new_.fps * 1000);
       }
+      
+      
       
       settings.settings.conversion.convert['c_'+(new Date).getTime()] = settings.settings.conversion.convert._new_;
       delete settings.settings.conversion.convert._new_;
@@ -1019,10 +1292,85 @@ function updateServerstats() {
   },{capabilities:true});
 }
 
+function buildstreamembed(streamName,embedbase) {
+  $('#liststreams .button.current').removeClass('current')
+  $('#liststreams .button').filter(function(){
+    return $(this).text() == streamName;
+  }).addClass('current');
+  
+  $('#subpage').append(
+    $('<div>').addClass('input_container').html(
+      $('<label>').text('The info embed URL is:').append(
+        $('<input>').attr('type','text').attr('readonly','readonly').val(embedbase+'info_'+streamName+'.js')
+      )
+    ).append(
+      $('<label>').text('The embed URL is:').append(
+        $('<input>').attr('type','text').attr('readonly','readonly').val(embedbase+'embed_'+streamName+'.js')
+      )
+    ).append(
+      $('<label>').text('The embed code is:').css('overflow','hidden').append(
+        $('<textarea>').val('<div>\n  <script src="'+embedbase+'embed_'+streamName+'.js"></' + 'script>\n</div>')
+      )
+    )
+  ).append(
+    $('<span>').attr('id','listprotocols').text('Loading..')
+  ).append(
+    $('<p>').text('Preview:')
+  ).append(
+    $('<div>').attr('id','preview-container')
+  );
+  
+  // jQuery doesn't work -> use DOM magic
+  var script = document.createElement('script');
+  script.src = embedbase+'embed_'+streamName+'.js';
+  script.onload = function(){
+    var priority = mistvideo[streamName].source;
+    if (priority.length > 0) {
+      priority.sort(function(a,b){
+        return b.priority - a.priority;
+      });
+      var $table = $('<table>').html(
+        $('<tr>').html(
+          $('<th>').text('URL')
+        ).append(
+          $('<th>').text('Type')
+        ).append(
+          $('<th>').text('Priority')
+        )
+      );
+      for (var i in priority) {
+        $table.append(
+          $('<tr>').html(
+            $('<td>').text(priority[i].url)
+          ).append(
+            $('<td>').text(priority[i].type)
+          ).append(
+            $('<td>').addClass('align-center').text(priority[i].priority)
+          )
+        );
+      }
+      $('#listprotocols').html($table);
+    }
+    else {
+      $('#listprotocols').html('No data in info embed file.');
+    }
+  }
+  document.getElementById('preview-container').appendChild( script );
+}
+
 $(function(){
-  $('#menu div.button').click(function(){
-    if ((settings.settings.LTS != 1) && ($(this).hasClass('LTS-only'))) { return; }
+  $('#logo > a').click(function(){
+    if ($.isEmptyObject(settings.settings)) {
+      showTab('login')
+    }
+    else {
+      showTab('overview');
+    }
+  });
+  $('#menu div.button').click(function(e){
+    //if ((settings.settings.LTS != 1) && ($(this).hasClass('LTS-only'))) { return; }
     showTab($(this).text().toLowerCase());
+    e.stopPropagation();
   })
   $('body').on('keydown',function(e){
     switch (e.which) {
@@ -1101,6 +1449,41 @@ $(function(){
     $(this).val(v);
     this.setSelectionRange(curpos,curpos);
   });
+  
+  $('.expandbutton').click(function(){
+    $(this).toggleClass('active');
+  });
+  
+  
+  $('#ih-button').click(function(){
+    if (ih) {
+      $('.ih-balloon').remove();
+    }
+    else {
+      getWikiData('/wiki/Integrated_Help',function(data){
+        settings.ih = { 
+          raw: data.find('#mw-content-text').contents(),
+          pages: {}
+        }
+        settings.ih.raw.filter('.page[data-pagename]').each(function(){
+          var pagename = $(this).attr('data-pagename').replace(' ','_');
+          settings.ih.pages[pagename] = {
+            raw: $(this).contents(),
+            pageinfo: $(this).find('.page-description').html(),
+            inputs: {}
+          }
+          $(this).children('.input-description[data-inputid]').each(function(){
+            settings.ih.pages[pagename].inputs[$(this).attr('data-inputid')] = $(this).html();
+          });
+        });
+        consolelog('New integrated help data:',settings.ih);
+        ihAddBalloons();
+      });
+    }
+    ih = !ih;
+    $(this).toggleClass('active');
+  });
+  
 });
 
 $(window).on('hashchange', function(e) {

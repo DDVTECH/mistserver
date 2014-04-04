@@ -1,6 +1,7 @@
 #include <stdio.h> // cout, cerr
 #include <string> 
 #include <cstring>   // strcpy
+#include <sys/stat.h> //stat
 #include <mist/json.h>
 #include <mist/config.h>
 #include <mist/procs.h>
@@ -55,7 +56,14 @@ namespace Controller {
   static inline void buildPipedArguments(JSON::Value & p, char * argarr[], JSON::Value & capabilities){
     int argnum = 0;
     static std::string tmparg;
-    tmparg = Util::getMyPath() + std::string("MistConn") + p["connector"].asStringRef();
+    tmparg = Util::getMyPath() + std::string("MistOut") + p["connector"].asStringRef();
+    struct stat buf;
+    if (::stat(tmparg.c_str(), &buf) != 0){
+      tmparg = Util::getMyPath() + std::string("MistConn") + p["connector"].asStringRef();
+    }
+    if (::stat(tmparg.c_str(), &buf) != 0){
+      return;
+    }
     argarr[argnum++] = (char*)tmparg.c_str();
     argarr[argnum++] = (char*)"-n";
     JSON::Value & pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];

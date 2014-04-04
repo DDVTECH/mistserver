@@ -15,7 +15,7 @@ namespace Converters {
     DTSC::File F(conf.getString("filename"));
     F.seek_bpos(0);
     F.parseNext();
-    JSON::Value oriheader = F.getJSON();
+    JSON::Value oriheader = F.getPacket().toJSON();
     DTSC::Meta meta(F.getMeta());
 
     if (meta.isFixed() && !conf.getBool("force")){
@@ -26,9 +26,11 @@ namespace Converters {
     meta.reset();
     int bPos = F.getBytePos();
     F.parseNext();
-    while ( !F.getJSON().isNull()){
-      F.getJSON()["bpos"] = bPos;
-      meta.update(F.getJSON());
+    JSON::Value newPack;
+    while ( F.getPacket()){
+      newPack = F.getPacket().toJSON();
+      newPack["bpos"] = bPos;
+      meta.update(newPack);
       bPos = F.getBytePos();
       F.parseNext();
     }

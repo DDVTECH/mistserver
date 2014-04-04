@@ -3,16 +3,17 @@
 #include <mist/timing.h>
 #include <mist/stream.h>
 #include <mist/dtsc.h>
+#include <mist/defines.h>
+#include <mist/shared_memory.h>
 #include "controller_streams.h"
 #include "controller_storage.h"
+#include "controller_statistics.h"
 #include <sys/stat.h>
 #include <map>
 
 ///\brief Holds everything unique to the controller.
 namespace Controller {
 
-  std::map<std::string, int> lastBuffer; ///< Last moment of contact with all buffers.
-  
   ///\brief Checks whether two streams are equal.
   ///\param one The first stream for the comparison.
   ///\param two The second stream for the comparison.
@@ -43,22 +44,28 @@ namespace Controller {
     if (data.isMember("source")){
       URL = data["source"].asString();
     }
-    std::string buffcmd;
     if (URL == ""){
       Log("STRM", "Error for stream " + name + "! Source parameter missing.");
       data["error"] = "Stream offline: Missing source parameter!";
       return;
     }
-    buffcmd = "MistBuffer";
-    if (data.isMember("DVR") && data["DVR"].asInt() > 0){
-      data["DVR"] = data["DVR"].asInt();
-      buffcmd += " -t " + data["DVR"].asString();
-    }
-    buffcmd += " -s " + name;
     if (URL.substr(0, 4) == "push"){
-      std::string pusher = URL.substr(7);
-      Util::Procs::Start(name, Util::getMyPath() + buffcmd + " " + pusher);
-      Log("BUFF", "(re)starting stream buffer " + name + " for push data from " + pusher);
+      if (hasViewers(name)){
+        data["meta"].null();
+        IPC::sharedPage streamIndex(name,0,false,false);
+        if (!streamIndex.mapped){
+          return;
+        }
+        unsigned int i = 0;
+        JSON::fromDTMI((const unsigned char*)streamIndex.mapped + 8, streamIndex.len - 8, i, data["meta"]);
+        if (data["meta"].isMember("tracks") && data["meta"]["tracks"].size()){
+          for(JSON::ObjIter trackIt = data["meta"]["tracks"].ObjBegin(); trackIt != data["meta"]["tracks"].ObjEnd(); trackIt++){
+            trackIt->second.removeMember("fragments");
+            trackIt->second.removeMember("keys");
+            trackIt->second.removeMember("parts");
+          }
+        }
+      }
     }else{
       if (URL.substr(0, 1) == "/"){
         data.removeMember("error");
@@ -73,6 +80,12 @@ namespace Controller {
         if ( !data.isMember("l_meta") || fileinfo.st_mtime != data["l_meta"].asInt()){
           getMeta = true;
           data["l_meta"] = (long long)fileinfo.st_mtime;
+        }
+        if (stat((URL+".dtsh").c_str(), &fileinfo) == 0 && !S_ISDIR(fileinfo.st_mode)){
+          if ( !data.isMember("h_meta") || fileinfo.st_mtime != data["h_meta"].asInt()){
+            getMeta = true;
+            data["h_meta"] = (long long)fileinfo.st_mtime;
+          }
         }
         if ( !getMeta && data.isMember("meta") && data["meta"].isMember("tracks")){
           for (JSON::ObjIter trIt = data["meta"]["tracks"].ObjBegin(); trIt != data["meta"]["tracks"].ObjEnd(); trIt++){
@@ -107,6 +120,9 @@ namespace Controller {
           getMeta = true;
         }
         if (getMeta){
+          if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
+            Util::Stream::getStream(name);
+          }
           char * tmp_cmd[3] = {0, 0, 0};
           std::string mistinfo = Util::getMyPath() + "MistInfo";
           tmp_cmd[0] = (char*)mistinfo.c_str();
@@ -127,7 +143,7 @@ namespace Controller {
           Util::Procs::getOutputOf(tmp_cmd);
           data.removeMember("meta");
         }
-        if (Util::epoch() - lastBuffer[name] > 5){
+        if (!hasViewers(name)){
           if ( !data.isMember("error")){
             data["error"] = "Available";
           }
@@ -136,9 +152,11 @@ namespace Controller {
           data["online"] = 1;
         }
         return; //MistPlayer handles VoD
+      }else{
+        /// \todo Implement ffmpeg pulling again?
+        //Util::Procs::Start(name, "ffmpeg -re -async 2 -i " + URL + " -f flv -", Util::getMyPath() + "MistFLV2DTSC", Util::getMyPath() + buffcmd);
+        //Log("BUFF", "(re)starting stream buffer " + name + " for ffmpeg data: ffmpeg -re -async 2 -i " + URL + " -f flv -");
       }
-      Util::Procs::Start(name, "ffmpeg -re -async 2 -i " + URL + " -f flv -", Util::getMyPath() + "MistFLV2DTSC", Util::getMyPath() + buffcmd);
-      Log("BUFF", "(re)starting stream buffer " + name + " for ffmpeg data: ffmpeg -re -async 2 -i " + URL + " -f flv -");
     }
   }
 
@@ -153,7 +171,7 @@ namespace Controller {
       if (!jit->second.isMember("name")){
         jit->second["name"] = jit->first;
       }
-      if (currTime - lastBuffer[jit->first] > 5){
+      if (!hasViewers(jit->first)){
         if (jit->second.isMember("source") && jit->second["source"].asString().substr(0, 1) == "/" && jit->second.isMember("error")
             && jit->second["error"].asString().substr(0,15) != "Stream offline:"){
           jit->second["online"] = 2;
@@ -229,11 +247,8 @@ namespace Controller {
       WriteFile(Util::getTmpFolder() + "streamlist", strlist.toString());
     }
   }
-
-  ///\brief Parse a given stream configuration.
-  ///\param in The requested configuration.
-  ///\param out The new configuration after parsing.
-  void CheckStreams(JSON::Value & in, JSON::Value & out){
+  
+  void AddStreams(JSON::Value & in, JSON::Value & out){
     //check for new streams and updates
     for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
       if (out.isMember(jit->first)){
@@ -263,6 +278,14 @@ namespace Controller {
         startStream(jit->first, out[jit->first]);
       }
     }
+  }
+
+  ///\brief Parse a given stream configuration.
+  ///\param in The requested configuration.
+  ///\param out The new configuration after parsing.
+  void CheckStreams(JSON::Value & in, JSON::Value & out){
+    //check for new streams and updates
+    AddStreams(in, out);
 
     //check for deleted streams
     std::set<std::string> toDelete;

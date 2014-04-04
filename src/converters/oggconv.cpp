@@ -1,4 +1,4 @@
-#include"oggconv.h"
+#include "oggconv.h"
 #include <stdlib.h>
 #include <mist/bitstream.h>
 
@@ -11,32 +11,61 @@ namespace OGG{
     srand (Util::getMS());//randomising with milliseconds from boot
     std::vector<unsigned int> curSegTable;
     //trackInf.clear();
-    //Creating ID headers for theora and vorbis
+    /// \todo This is utter rubbish right now.
+    /// \todo We shouldn't assume all possible tracks are selected.
+    /// \todo We shouldn't be buffering, but sending.
+    /// \todo Especially not in a std::string. (Why, god, why?!)
+    //Creating headers
     for ( std::map<int,DTSC::Track>::iterator it = meta.tracks.begin(); it != meta.tracks.end(); it ++) {
-      curOggPage.clear();
-      curOggPage.setVersion();
-      curOggPage.setHeaderType(2);//headertype 2 = Begin of Stream
-      curOggPage.setGranulePosition(0);
-      trackInf[it->second.trackID].OGGSerial = rand() % 0xFFFFFFFE +1; //initialising on a random not 0 number
-      curOggPage.setBitstreamSerialNumber(trackInf[it->second.trackID].OGGSerial);
-      trackInf[it->second.trackID].seqNum = 0;
-      curOggPage.setPageSequenceNumber(trackInf[it->second.trackID].seqNum++);
-      curSegTable.clear();
-      curSegTable.push_back(it->second.idHeader.size());
-      curOggPage.setSegmentTable(curSegTable);
-      curOggPage.setPayload((char*)it->second.idHeader.c_str(), it->second.idHeader.size());
-      curOggPage.setCRCChecksum(curOggPage.calcChecksum());
-      //pages.push_back(curOggPage);
-      parsedPages += std::string(curOggPage.getPage(), curOggPage.getPageSize());
       trackInf[it->second.trackID].codec = it->second.codec;
+      trackInf[it->second.trackID].OGGSerial = rand() % 0xFFFFFFFE +1; //initialising on a random not 0 number
+      trackInf[it->second.trackID].seqNum = 0;
       if (it->second.codec == "theora"){
+        curOggPage.clear();
+        curOggPage.setVersion();
+        curOggPage.setHeaderType(2);//headertype 2 = Begin of Stream
+        curOggPage.setGranulePosition(0);
+        curOggPage.setBitstreamSerialNumber(trackInf[it->second.trackID].OGGSerial);
+        curOggPage.setPageSequenceNumber(trackInf[it->second.trackID].seqNum++);
+        curSegTable.clear();
+        curSegTable.push_back(it->second.idHeader.size());
+        curOggPage.setSegmentTable(curSegTable);
+        curOggPage.setPayload((char*)it->second.idHeader.c_str(), it->second.idHeader.size());
+        curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+        parsedPages += std::string(curOggPage.getPage(), curOggPage.getPageSize());
         trackInf[it->second.trackID].lastKeyFrame = 1;
         trackInf[it->second.trackID].sinceKeyFrame = 0;
         theora::header tempHead;
         std::string tempString = it->second.idHeader;
         tempHead.read((char*)tempString.c_str(),42);
         trackInf[it->second.trackID].significantValue = tempHead.getKFGShift();
+        curOggPage.clear();
+        curOggPage.setVersion();
+        curOggPage.setHeaderType(0);//headertype 0 = normal
+        curOggPage.setGranulePosition(0);
+        curOggPage.setBitstreamSerialNumber(trackInf[it->second.trackID].OGGSerial);
+        curOggPage.setPageSequenceNumber(trackInf[it->second.trackID].seqNum++);
+        curSegTable.clear();
+        curSegTable.push_back(it->second.commentHeader.size());
+        curSegTable.push_back(it->second.init.size());
+        curOggPage.setSegmentTable(curSegTable);
+        std::string fullHeader = it->second.commentHeader + it->second.init;
+        curOggPage.setPayload((char*)fullHeader.c_str(),fullHeader.size());
+        curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+        parsedPages += std::string(curOggPage.getPage(), curOggPage.getPageSize());
       }else if (it->second.codec == "vorbis"){
+        curOggPage.clear();
+        curOggPage.setVersion();
+        curOggPage.setHeaderType(2);//headertype 2 = Begin of Stream
+        curOggPage.setGranulePosition(0);
+        curOggPage.setBitstreamSerialNumber(trackInf[it->second.trackID].OGGSerial);
+        curOggPage.setPageSequenceNumber(trackInf[it->second.trackID].seqNum++);
+        curSegTable.clear();
+        curSegTable.push_back(it->second.idHeader.size());
+        curOggPage.setSegmentTable(curSegTable);
+        curOggPage.setPayload((char*)it->second.idHeader.c_str(), it->second.idHeader.size());
+        curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+        parsedPages += std::string(curOggPage.getPage(), curOggPage.getPageSize());
         trackInf[it->second.trackID].lastKeyFrame = 0;
         trackInf[it->second.trackID].sinceKeyFrame = 0;
         trackInf[it->second.trackID].prevBlockFlag = -1;
@@ -57,26 +86,52 @@ namespace OGG{
         tempHead.read((char*)tempString.c_str(),tempString.size());
         trackInf[it->second.trackID].vorbisModes = tempHead.readModeDeque(audioChannels);
         trackInf[it->second.trackID].hadFirst = false;
+        curOggPage.clear();
+        curOggPage.setVersion();
+        curOggPage.setHeaderType(0);//headertype 0 = normal
+        curOggPage.setGranulePosition(0);
+        curOggPage.setBitstreamSerialNumber(trackInf[it->second.trackID].OGGSerial);
+        curOggPage.setPageSequenceNumber(trackInf[it->second.trackID].seqNum++);
+        curSegTable.clear();
+        curSegTable.push_back(it->second.commentHeader.size());
+        curSegTable.push_back(it->second.init.size());
+        curOggPage.setSegmentTable(curSegTable);
+        std::string fullHeader = it->second.commentHeader + it->second.init;
+        curOggPage.setPayload((char*)fullHeader.c_str(),fullHeader.size());
+        curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+        parsedPages += std::string(curOggPage.getPage(), curOggPage.getPageSize());
+      }else if (it->second.codec == "opus"){
+        //OpusHead page
+        curOggPage.clear();
+        curOggPage.setVersion();
+        curOggPage.setHeaderType(2);//headertype 2 = Begin of Stream
+        curOggPage.setGranulePosition(0);
+        curOggPage.setBitstreamSerialNumber(trackInf[it->second.trackID].OGGSerial);
+        curOggPage.setPageSequenceNumber(trackInf[it->second.trackID].seqNum++);
+        curSegTable.clear();
+        curSegTable.push_back(19);
+        curOggPage.setSegmentTable(curSegTable);
+        //version = 1, channels = 2, preskip=0x138, origRate=48k, gain=0, channelmap=0
+        //we can safely hard-code these as everything is already overridden elsewhere anyway
+        // (except preskip - but this seems to be 0x138 for all files, and doesn't hurt much if it's wrong anyway)
+        curOggPage.setPayload((char*)"OpusHead\001\002\070\001\200\273\000\000\000\000\000", 19);
+        curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+        parsedPages += std::string(curOggPage.getPage(), curOggPage.getPageSize());
+        //end of OpusHead, now moving on to OpusTags
+        curOggPage.clear();
+        curOggPage.setVersion();
+        curOggPage.setHeaderType(2);//headertype 2 = Begin of Stream
+        curOggPage.setGranulePosition(0);
+        curOggPage.setBitstreamSerialNumber(trackInf[it->second.trackID].OGGSerial);
+        curOggPage.setPageSequenceNumber(trackInf[it->second.trackID].seqNum++);
+        curSegTable.clear();
+        curSegTable.push_back(26);
+        curOggPage.setSegmentTable(curSegTable);
+        //we send an encoder value of "MistServer" and no further tags
+        curOggPage.setPayload((char*)"OpusTags\012\000\000\000MistServer\000\000\000\000", 26);
+        curOggPage.setCRCChecksum(curOggPage.calcChecksum());
+        parsedPages += std::string(curOggPage.getPage(), curOggPage.getPageSize());
       }
-    }
-    //Creating remaining headers for theora and vorbis
-    //for tracks in header
-    //create standard page with comment (empty) en setup header(init)
-    for ( std::map<int,DTSC::Track>::iterator it = meta.tracks.begin(); it != meta.tracks.end(); it ++) {
-      curOggPage.clear();
-      curOggPage.setVersion();
-      curOggPage.setHeaderType(0);//headertype 0 = normal
-      curOggPage.setGranulePosition(0);
-      curOggPage.setBitstreamSerialNumber(trackInf[it->second.trackID].OGGSerial);
-      curOggPage.setPageSequenceNumber(trackInf[it->second.trackID].seqNum++);
-      curSegTable.clear();
-      curSegTable.push_back(it->second.commentHeader.size());
-      curSegTable.push_back(it->second.init.size());
-      curOggPage.setSegmentTable(curSegTable);
-      std::string fullHeader = it->second.commentHeader + it->second.init;
-      curOggPage.setPayload((char*)fullHeader.c_str(),fullHeader.size());
-      curOggPage.setCRCChecksum(curOggPage.calcChecksum());
-      parsedPages += std::string(curOggPage.getPage(), curOggPage.getPageSize());
     }
   }
   
@@ -174,6 +229,8 @@ namespace OGG{
       //add to granule position
       trackInf[DTSCID].lastKeyFrame += curPCMSamples;
       lastGran  = trackInf[DTSCID].lastKeyFrame;
+    } else if (trackInf[DTSCID].codec == "opus"){
+      lastGran = (int)((DTSCPart["time"].asInt() * 48.0) / 120.0 + 0.5) * 120;
     }
     //}
     //last parts of page put out 

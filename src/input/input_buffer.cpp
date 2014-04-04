@@ -122,6 +122,11 @@ namespace Mist {
   }
 
   void inputBuffer::userCallback(char * data, size_t len, unsigned int id) {
+    /*LTS-START*/
+    if (Util::epoch() - lastReTime > 4){
+      setup();
+    }
+    /*LTS-END*/
     unsigned long tmp = ((long)(data[0]) << 24) | ((long)(data[1]) << 16) | ((long)(data[2]) << 8) | ((long)(data[3]));
     if (tmp & 0x80000000) {
       //Track is set to "New track request", assign new track id and create shared memory page
@@ -243,6 +248,7 @@ namespace Mist {
   }
 
   bool inputBuffer::setup() {
+    lastReTime = Util::epoch(); /*LTS*/
     if (!bufferTime){
       bufferTime = config->getInteger("bufferTime");
     }
@@ -255,6 +261,14 @@ namespace Mist {
           bufferTime = streamConfig["DVR"].asInt();
         }
       }
+      /*LTS-START*/
+      if (streamConfig.isMember("cut") && streamConfig["cut"].asInt()){
+        if (cutTime != streamConfig["cut"].asInt()){
+          DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, streamConfig["cut"].asInt());
+          cutTime = streamConfig["cut"].asInt();
+        }
+      }
+      /*LTS-END*/
     }
     return true;
   }

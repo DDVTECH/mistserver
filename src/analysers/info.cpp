@@ -98,6 +98,7 @@ namespace Info {
         fileSpecs["tracks"][trackIt->first].removeMember("fragments");
         fileSpecs["tracks"][trackIt->first].removeMember("keys");
         fileSpecs["tracks"][trackIt->first].removeMember("parts");
+        fileSpecs["tracks"][trackIt->first].removeMember("ivecs");/*LTS*/
       }
     }
     printf( "%s", fileSpecs.toString().c_str() );

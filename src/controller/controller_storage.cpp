@@ -13,6 +13,7 @@ namespace Controller {
   ///\param message The message to be logged.
   void Log(std::string kind, std::string message){
     //if last log message equals this one, do not log.
+    if (kind != "HLIM" && kind != "SLIM"){/*LTS*/
     if (Storage["log"].size() > 0){
       JSON::ArrIter it = Storage["log"].ArrEnd();
       int repeats = Storage["log"].size();
@@ -25,6 +26,7 @@ namespace Controller {
         repeats--;
       }while (repeats > 0);
     }
+    }/*LTS*/
     JSON::Value m;
     m.append(Util::epoch());
     m.append(kind);

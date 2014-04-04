@@ -244,6 +244,23 @@ namespace Mist {
           }
           std::string source = streamConfig["source"].asStringRef().substr(7);
           std::string IP = source.substr(0, source.find('@'));
+          /*LTS-START*/
+          std::string password;
+          if (source.find('@') != std::string::npos){
+            password = source.substr(source.find('@')+1);
+            if (password != ""){
+              if (password == app_name){
+                DEBUG_MSG(DLVL_DEVEL, "Password accepted - ignoring IP settings.");
+                IP = "";
+              }else{
+                DEBUG_MSG(DLVL_DEVEL, "Password rejected - checking IP.");
+                if (IP == ""){
+                  IP = "deny-all.invalid";
+                }
+              }
+            }
+          }
+          /*LTS-END*/
           if (IP != ""){
             if (!myConn.isAddress(IP)){
               DEBUG_MSG(DLVL_FAIL, "Push rejected - source host not whitelisted");

@@ -8,6 +8,7 @@
 #include "controller_streams.h"
 #include "controller_storage.h"
 #include "controller_statistics.h"
+#include "controller_limits.h" /*LTS*/
 #include <sys/stat.h>
 #include <map>
 
@@ -28,6 +29,14 @@ namespace Controller {
     if (one.isMember("cut") != two.isMember("cut") || (one.isMember("cut") && one["cut"] != two["cut"])){
       return false;
     }
+    /*LTS-START*/
+    if (one.isMember("record") != two.isMember("record") || (one.isMember("record") && one["record"] != two["record"])){
+      return false;
+    }
+    if (one.isMember("limits") != two.isMember("limits") || (one.isMember("limits") && one["limits"] != two["limits"])){
+      return false;
+    }
+    /*LTS-END*/
     return true;
   }
 
@@ -151,6 +160,7 @@ namespace Controller {
         }else{
           data["online"] = 1;
         }
+        checkServerLimits(); /*LTS*/
         return; //MistPlayer handles VoD
       }else{
         /// \todo Implement ffmpeg pulling again?
@@ -181,6 +191,7 @@ namespace Controller {
           }
           jit->second["online"] = 0;
         }
+        checkServerLimits(); /*LTS*/
       }else{
         // assume all is fine
         jit->second.removeMember("error");
@@ -259,6 +270,11 @@ namespace Controller {
           out[jit->first]["DVR"] = jit->second["DVR"].asInt();
           out[jit->first]["cut"] = jit->second["cut"].asInt();
           out[jit->first]["updated"] = 1ll;
+          out[jit->first]["keyseed"] = jit->second["keyseed"].asString();/*LTS*/
+          out[jit->first]["keyid"] = jit->second["keyid"].asString();/*LTS*/
+          out[jit->first]["contentkey"] = jit->second["contentkey"].asString();/*LTS*/
+          out[jit->first]["la_url"] = jit->second["la_url"].asString();/*LTS*/
+          out[jit->first]["limits"] = jit->second["limits"];/*LTS*/
           Log("STRM", std::string("Updated stream ") + jit->first);
           if (out[jit->first]["source"].asStringRef().substr(0, 7) != "push://"){
             Util::Procs::Stop(jit->first);
@@ -274,6 +290,11 @@ namespace Controller {
         out[jit->first]["source"] = jit->second["source"];
         out[jit->first]["DVR"] = jit->second["DVR"].asInt();
         out[jit->first]["cut"] = jit->second["cut"].asInt();
+        out[jit->first]["keyseed"] = jit->second["keyseed"].asString();/*LTS*/
+        out[jit->first]["keyid"] = jit->second["keyid"].asString();/*LTS*/
+        out[jit->first]["contentkey"] = jit->second["contentkey"].asString();/*LTS*/
+        out[jit->first]["la_url"] = jit->second["la_url"].asString();/*LTS*/
+        out[jit->first]["limits"] = jit->second["limits"];/*LTS*/
         Log("STRM", std::string("New stream ") + jit->first);
         startStream(jit->first, out[jit->first]);
       }

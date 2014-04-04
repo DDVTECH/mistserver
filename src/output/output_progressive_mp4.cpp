@@ -425,6 +425,14 @@ namespace Mist {
         DEBUG_MSG(DLVL_DEVEL, "No video param given");
       }
 
+      /*LTS-START*/
+      //allow setting of max lead time through buffer variable.
+      //max lead time is set in MS, but the variable is in integer seconds for simplicity.
+      if (HTTP_R.GetVar("buffer") != ""){
+        maxSkipAhead = JSON::Value(HTTP_R.GetVar("buffer")).asInt() * 1000;
+        minSkipAhead = maxSkipAhead - std::min(2500u, maxSkipAhead / 2);
+      }
+      /*LTS-END*/
       parseData = true;
       wantRequest = false;
     }

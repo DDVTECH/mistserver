@@ -25,6 +25,11 @@
 
 #include "embed.js.h"
 
+/*LTS-START*/
+#ifndef SUPER_SECRET
+#define SUPER_SECRET "PuddingBroodjes"
+#endif
+/*LTS-END*/
 
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
@@ -261,6 +266,16 @@ namespace Connector_HTTP {
     
     // send logo icon
     if (url.length() > 4 && url.substr(url.length() - 4, 4) == ".ico"){
+      /*LTS-START*/
+      if (H.GetVar("s") == SUPER_SECRET){
+        H.Clean();
+        H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+        H.SetBody("Yup");
+        long long int retv = Util::getMS();
+        H.SendResponse("200", "OK", conn);
+        return retv;
+      }
+      /*LTS-END*/
       H.Clean();
 #include "icon.h"
       H.SetHeader("Content-Type", "image/x-icon");

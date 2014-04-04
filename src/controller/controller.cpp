@@ -21,6 +21,10 @@
 #include "controller_streams.h"
 #include "controller_capabilities.h"
 #include "controller_statistics.h"
+/*LTS-START*/
+#include "controller_updater.h"
+#include "controller_limits.h"
+/*LTS-END*/
 #include "server.html.h"
 
 
@@ -223,6 +227,7 @@ int main(int argc, char ** argv){
   Controller::conf.addOption("uplink-pass",
       JSON::fromString(
           "{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}"));
+  Controller::conf.addOption("update", JSON::fromString("{\"default\":0, \"help\":\"Check for and install updates before starting.\", \"short\":\"D\", \"long\":\"update\"}")); /*LTS*/
   Controller::conf.parseArgs(argc, argv);
   if(Controller::conf.getString("logfile")!= ""){
     //open logfile, dup stdout to logfile
@@ -357,6 +362,7 @@ int main(int argc, char ** argv){
 
   time_t lastuplink = 0;
   time_t processchecker = 0;
+  time_t updatechecker = 0; /*LTS*/
   Socket::Server API_Socket = Socket::Server(Controller::conf.getInteger("listen_port"), Controller::conf.getString("listen_interface"), true);
   Socket::Server Stats_Socket = Socket::Server(Util::getTmpFolder() + "statistics", true);
   Socket::Connection Incoming;
@@ -369,6 +375,11 @@ int main(int argc, char ** argv){
   Controller::Log("CONF", "Controller started");
   Controller::conf.activate();
 
+  /*LTS-START*/
+  if (Controller::conf.getBool("update")){
+    Controller::CheckUpdates();
+  }
+  /*LTS-END*/
   //Create a converter class and automatically load in all encoders.
   Converter::Converter myConverter;
   
@@ -377,6 +388,12 @@ int main(int argc, char ** argv){
   while (API_Socket.connected() && Controller::conf.is_active){
     Util::sleep(10);//sleep for 10 ms - prevents 100% CPU time
     
+    /*LTS-START*/
+    if (Util::epoch() - updatechecker > 3600){
+      updatechecker = Util::epoch();
+      Controller::CheckUpdateInfo();
+    }
+    /*LTS-END*/
 
     if (Util::epoch() - processchecker > 5){
       processchecker = Util::epoch();
@@ -460,6 +477,7 @@ int main(int argc, char ** argv){
                     /// \todo Put this back in, someway, somehow...
                     //Response["statistics"] = Controller::Storage["statistics"];
                     Response["authorize"]["username"] = Controller::conf.getString("uplink-name");
+                    Response["update"] = Controller::updates; /*LTS*/
                     Controller::checkCapable(capabilities);
                     Response["capabilities"] = capabilities;
                     Controller::Log("UPLK", "Responding to login challenge: " + Request["authorize"]["challenge"].asString());
@@ -484,6 +502,14 @@ int main(int argc, char ** argv){
                 if (Request.isMember("clearstatlogs")){
                   Controller::Storage["log"].null();
                 }
+                /*LTS-START*/
+                if (Request.isMember("autoupdate")){
+                  Controller::CheckUpdates();
+                }
+                if (Request.isMember("checkupdate")){
+                  Controller::updates = Controller::CheckUpdateInfo();
+                }
+                /*LTS-END*/
               }
             }else{
               Request = JSON::fromString(it->H.GetVar("command"));
@@ -508,6 +534,12 @@ int main(int argc, char ** argv){
                     Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
                     Controller::CheckAllStreams(Controller::Storage["streams"]);
                   }
+                  /*LTS-START*/
+                  if (Request.isMember("addstream")){
+                    Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
+                    Controller::CheckAllStreams(Controller::Storage["streams"]);
+                  }
+                  /*LTS-END*/
                   if (Request.isMember("capabilities")){
                     Controller::checkCapable(capabilities);
                     Response["capabilities"] = capabilities;
@@ -543,6 +575,18 @@ int main(int argc, char ** argv){
                       Controller::Log("ERROR", "Config " + Controller::conf.getString("configFile") + " could not be written");
                     }
                   }
+                  /*LTS-START*/
+                  Response["LTS"] = 1;
+                  if (Request.isMember("autoupdate")){
+                    Controller::CheckUpdates();
+                  }
+                  if (Request.isMember("checkupdate")){
+                    Controller::updates = Controller::CheckUpdateInfo();
+                  }
+                  if (Request.isMember("update") || Request.isMember("checkupdate")){
+                    Response["update"] = Controller::updates;
+                  }
+                  /*LTS-END*/
                   //sent current configuration, no matter if it was changed or not
                   //Response["streams"] = Storage["streams"];
                   Response["config"] = Controller::Storage["config"];
@@ -567,6 +611,7 @@ int main(int argc, char ** argv){
                   }
                   
                 }
+                Controller::checkServerLimits(); /*LTS*/
                 jsonp = "";
                 if (it->H.GetVar("callback") != ""){
                   jsonp = it->H.GetVar("callback");
@@ -595,6 +640,11 @@ int main(int argc, char ** argv){
       }
     }
   }
+  /*LTS-START*/
+  if (Controller::restarting){
+    Controller::Log("CONF", "Controller restarting for update");
+  }
+  /*LTS-END*/
   if (!Controller::conf.is_active){
     Controller::Log("CONF", "Controller shutting down because of user request (received shutdown signal)");
   }
@@ -616,5 +666,12 @@ int main(int argc, char ** argv){
   }
   Util::Procs::StopAll();
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
+  /*LTS-START*/
+  if (Controller::restarting){
+    std::string myFile = Util::getMyPath() + "MistController";
+    execvp(myFile.c_str(), argv);
+    std::cout << "Error restarting: " << strerror(errno) << std::endl;
+  }
+  /*LTS-END*/
   return 0;
 }

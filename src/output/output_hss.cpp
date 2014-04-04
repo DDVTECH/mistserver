@@ -283,6 +283,37 @@ namespace Mist {
     MP4::MOOF moof_box;
     moof_box.setContent(mfhd_box, 0);
     moof_box.setContent(traf_box, 1);
+    /*LTS-START*/
+    if (myMeta.tracks[tid].keys.size() == myMeta.tracks[tid].ivecs.size()) {
+      std::string tmpVec = std::string(myMeta.tracks[tid].ivecs[keyObj.getNumber() - myMeta.tracks[tid].keys[0].getNumber()].getData(), 8);
+      unsigned long long int curVec = binToInt(tmpVec);
+      MP4::UUID_SampleEncryption sEnc;
+      sEnc.setVersion(0);
+      if (myMeta.tracks[tid].type == "audio") {
+        sEnc.setFlags(0);
+        for (int i = 0; i < keyObj.getParts(); i++) {
+          MP4::UUID_SampleEncryption_Sample newSample;
+          newSample.InitializationVector = intToBin(curVec);
+          curVec++;
+          sEnc.setSample(newSample, i);
+        }
+      } else {
+        sEnc.setFlags(2);
+        std::deque<long long int> tmpParts;
+        for (int i = 0; i < keyObj.getParts(); i++) {
+          MP4::UUID_SampleEncryption_Sample newSample;
+          newSample.InitializationVector = intToBin(curVec);
+          curVec++;
+          MP4::UUID_SampleEncryption_Sample_Entry newEntry;
+          newEntry.BytesClear = 5;
+          newEntry.BytesEncrypted = myMeta.tracks[tid].parts[partOffset + i].getSize() - 5;
+          newSample.Entries.push_back(newEntry);
+          sEnc.setSample(newSample, i);
+        }
+      }
+      traf_box.setContent(sEnc, 3);
+    }
+    /*LTS-END*/
     //Setting the correct offsets.
     moof_box.setContent(traf_box, 1);
     trun_box.setDataOffset(moof_box.boxedSize() + 8);
@@ -301,10 +332,36 @@ namespace Mist {
     DEBUG_MSG(DLVL_DEVEL, "(%d) Sent full header", getpid());
   }
 
+  /*LTS-START*/
+  std::string OutHSS::protectionHeader(JSON::Value & encParams) {
+    std::string xmlGen = "<WRMHEADER xmlns=\"http://schemas.microsoft.com/DRM/2007/03/PlayReadyHeader\" version=\"4.0.0.0\"><DATA><PROTECTINFO><KEYLEN>16</KEYLEN><ALGID>AESCTR</ALGID></PROTECTINFO><KID>";
+    xmlGen += encParams["keyid"].asString();
+    xmlGen += "</KID><LA_URL>";
+    xmlGen += encParams["la_url"].asString();
+    xmlGen += "</LA_URL></DATA></WRMHEADER>";
+    std::string tmp = toUTF16(xmlGen);
+    tmp = tmp.substr(2);
+    std::stringstream resGen;
+    resGen << (char)((tmp.size() + 10) & 0xFF);
+    resGen << (char)(((tmp.size() + 10) >> 8) & 0xFF);
+    resGen << (char)(((tmp.size() + 10) >> 16) & 0xFF);
+    resGen << (char)(((tmp.size() + 10) >> 24) & 0xFF);
+    resGen << (char)0x01 << (char)0x00;
+    resGen << (char)0x01 << (char)0x00;
+    resGen << (char)((tmp.size()) & 0xFF);
+    resGen << (char)(((tmp.size()) >> 8) & 0xFF);
+    resGen << tmp;
+    return Base64::encode(resGen.str());
+  }
+  /*LTS-END*/
 
   ///\brief Builds an index file for HTTP Smooth streaming.
+  ///\param encParams The encryption parameters. /*LTS*/
   ///\return The index file for HTTP Smooth Streaming.
-  std::string OutHSS::smoothIndex(){
+  /*LTS
+  std::string smoothIndex(){
+  LTS*/
+  std::string OutHSS::smoothIndex(JSON::Value encParams) { /*LTS*/
     updateMeta();
     std::stringstream Result;
     Result << "<?xml version=\"1.0\" encoding=\"utf-16\"?>\n";
@@ -318,6 +375,7 @@ namespace Mist {
     long long int maxHeight = 0;
     long long int minWidth = 99999999;
     long long int minHeight = 99999999;
+    bool encrypted = false;/*LTS*/
     for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
       if (it->second.codec == "AAC") {
         audioIters.push_back(it);
@@ -361,6 +419,7 @@ namespace Mist {
              "Url=\"Q({bitrate},{CustomAttributes})/A({start time})\">\n";
       int index = 0;
       for (std::deque<std::map<int, DTSC::Track>::iterator>::iterator it = audioIters.begin(); it != audioIters.end(); it++) {
+        encrypted |= ((*it)->second.keys.size() == (*it)->second.ivecs.size()); /*LTS*/
         Result << "<QualityLevel "
                "Index=\"" << index << "\" "
                "Bitrate=\"" << (*it)->second.bps * 8 << "\" "
@@ -406,6 +465,7 @@ namespace Mist {
              "DisplayHeight=\"" << maxHeight << "\">\n";
       int index = 0;
       for (std::deque<std::map<int, DTSC::Track>::iterator>::iterator it = videoIters.begin(); it != videoIters.end(); it++) {
+        encrypted |= ((*it)->second.keys.size() == (*it)->second.ivecs.size()); /*LTS*/
         //Add video qualities
         Result << "<QualityLevel "
                "Index=\"" << index << "\" "
@@ -438,6 +498,13 @@ namespace Mist {
       }
       Result << "</StreamIndex>\n";
     }
+    /*LTS-START*/
+    if (encrypted) {
+      Result << "<Protection><ProtectionHeader SystemID=\"9a04f079-9840-4286-ab92-e65be0885f95\">";
+      Result << protectionHeader(encParams);
+      Result << "</ProtectionHeader></Protection>";
+    }
+    /*LTS-END*/
     Result << "</SmoothStreamingMedia>\n";
 
 #if DEBUG >= 8
@@ -459,7 +526,10 @@ namespace Mist {
         HTTP_S.Clean();
         HTTP_S.SetHeader("Content-Type", "text/xml");
         HTTP_S.SetHeader("Cache-Control", "no-cache");
+        /*LTS
         std::string manifest = smoothIndex();
+        LTS*/
+        std::string manifest = smoothIndex(encryption);/*LTS*/
         HTTP_S.SetBody(manifest);
         HTTP_S.SendResponse("200", "OK", myConn);
         HTTP_R.Clean();
@@ -477,6 +547,14 @@ namespace Mist {
         keyTimes[it->first].insert(it2->getTime());
       }
     }
+    /*LTS-START*/
+    JSON::Value servConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
+    encryption["keyseed"] = servConf["streams"][streamName]["keyseed"];
+    encryption["keyid"] = servConf["streams"][streamName]["keyid"];
+    encryption["contentkey"] = servConf["streams"][streamName]["contentkey"];
+    encryption["la_url"] = servConf["streams"][streamName]["la_url"];
+    servConf.null();
+    /*LTS-END*/
   }
 
 

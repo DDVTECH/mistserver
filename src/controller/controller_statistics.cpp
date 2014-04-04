@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <mist/config.h>
 #include "controller_statistics.h"
+#include "controller_limits.h"
 
 /// The STAT_CUTOFF define sets how many seconds of statistics history is kept.
 #define STAT_CUTOFF 600
@@ -39,6 +40,7 @@ void Controller::SharedMemStats(void * config){
     while (oldConns.size() && oldConns.begin()->first < (unsigned long long)(Util::epoch() - STAT_CUTOFF)){
       oldConns.erase(oldConns.begin());
     }
+    Controller::checkServerLimits(); /*LTS*/
     Util::sleep(1000);
   }
   DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
@@ -74,6 +76,11 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
     oldConns.insert(std::pair<unsigned long long int, statStorage>(Util::epoch(), curConns[id]));
     curConns.erase(id);
   }
+  /*LTS-START*/
+  //if (counter < 125 && Controller::isBlacklisted(tmpEx.host(), ID, tmpEx.time())){
+  //  (*(data - 1)) = 128;//Send disconnect message;
+  //}
+  /*LTS-END*/
 }
 
 /// Returns true if this stream has at least one connected client.

@@ -58,7 +58,6 @@ namespace Mist {
     option["long"] = "player";
     option["help"] = "Makes this connector into a player";
     config->addOption("player", option);
-    
     packTime = 0;
     lastActive = Util::epoch();
     playing = 0;

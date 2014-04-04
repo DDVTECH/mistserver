@@ -5,6 +5,7 @@ bindir = $(prefix)/bin
 PACKAGE_VERSION := $(shell git describe --tags 2> /dev/null || cat VERSION 2> /dev/null || echo "Unknown")
 DEBUG = 4
 RELEASE = Generic_$(shell getconf LONG_BIT)
+GEOIP = -lGeoIP # /*LTS*/
 
 ifeq ($(PACKAGE_VERSION),Unknown)
   $(warning Version is unknown - consider creating a VERSION file or fixing your git setup.)
@@ -16,6 +17,23 @@ override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(P
 ifdef WITH_THREADNAMES
 override CPPFLAGS += -DWITH_THREADNAMES=1
 endif
+
+# /*LTS-START*/
+FILLER_DATA =
+SHARED_SECRET =
+SUPER_SECRET =
+override CPPFLAGS += -DFILLER_DATA=\"$(FILLER_DATA)\" -DSHARED_SECRET=\"$(SHARED_SECRET)\" -DSUPER_SECRET=\"$(SUPER_SECRET)\"
+ifeq ($(FILLER_DATA),)
+  $(warning Filler data is empty and this is an LTS build - did you set FILLER_DATA?)
+endif
+ifeq ($(SHARED_SECRET),)
+  $(warning Shared secret is empty and this is an LTS build - did you set SHARED_SECRET?)
+endif
+ifeq ($(SUPER_SECRET),)
+  $(warning Super secret is empty and this is an LTS build - did you set SUPER_SECRET?)
+endif
+# /*LTS-END*/
+
 
 THREADLIB = -lpthread
 LDLIBS = -lmist -lrt
@@ -34,6 +52,7 @@ endif
 
 controller: MistController
 MistController: override LDLIBS += $(THREADLIB)
+MistController: override LDLIBS += $(GEOIP) # /*LTS*/
 MistController: src/controller/server.html.h src/controller/*
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) src/controller/*.cpp $(LDLIBS) -o $@
 
@@ -98,10 +117,28 @@ converters: MistDTSC2SRT
 MistDTSC2SRT: src/converters/dtsc2srt.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
+# /*LTS-START*/
+converters: MistISMV2DTSC
+MistISMV2DTSC: src/converters/ismv2dtsc.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+# /*LTS-END*/
+
+# /*LTS-START*/
+converters: MistDTSCCrypt
+MistDTSCCrypt: src/converters/dtsccrypt.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+# /*LTS-END*/
+
 inputs: MistInDTSC
 MistInDTSC: override LDLIBS += $(THREADLIB)
 MistInDTSC: override CPPFLAGS += "-DINPUTTYPE=\"input_dtsc.h\""
 MistInDTSC: src/input/mist_in.cpp src/input/input.cpp src/input/input_dtsc.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+
+inputs: MistInISMV
+MistInISMV: override LDLIBS += $(THREADLIB)
+MistInISMV: override CPPFLAGS += "-DINPUTTYPE=\"input_ismv.h\""
+MistInISMV: src/input/mist_in.cpp src/input/input.cpp src/input/input_ismv.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 inputs: MistInFLV

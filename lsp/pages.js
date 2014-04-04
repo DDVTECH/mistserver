@@ -603,6 +603,15 @@ function showTab(tabName,streamName) {
               $('<td>').text('Live')
             )
           );
+          if (meta.buffer_window) {
+            $meta.append(
+              $('<tr>').html(
+                $('<td>').text('Buffer window:')
+              ).append(
+                $('<td>').text(meta.buffer_window+' ms')
+              )
+            );
+          }
         }
         else {
           $meta.html(
@@ -737,7 +746,7 @@ function showTab(tabName,streamName) {
           }
           $('#liststreams').append(
             $('<div>').addClass('button').text(settings.settings.streams[s].name).click(function(){
-              buildstreamembed($(this).text());
+              buildstreamembed($(this).text(),embedbase);
             })
           );
         }

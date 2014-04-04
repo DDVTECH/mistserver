@@ -389,12 +389,18 @@ namespace Mist {
     }
     sortedPageInfo nxt = *(buffer.begin());
     buffer.erase(buffer.begin());
-    
-    DEBUG_MSG(DLVL_VERYHIGH, "Loading track %u (next=%lu), part @ %u/%lld", nxt.tid, nxtKeyNum[nxt.tid], nxt.offset, curPages[nxt.tid].len);
+
+    DEBUG_MSG(DLVL_DONTEVEN, "Loading track %u (next=%lu), %llu ms", nxt.tid, nxtKeyNum[nxt.tid], nxt.time);
     
     if (nxt.offset >= curPages[nxt.tid].len){
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
+      if (curPages.count(nxt.tid) && curPages[nxt.tid].mapped){
+        nxt.time = getDTSCTime(curPages[nxt.tid].mapped, nxt.offset);
+        buffer.insert(nxt);
+        prepareNext();
+        return;
+      }
     }
     
     if (!curPages.count(nxt.tid) || !curPages[nxt.tid].mapped){
@@ -425,11 +431,14 @@ namespace Mist {
     }
     currentPacket.reInit(curPages[nxt.tid].mapped + nxt.offset, 0, true);
     if (currentPacket){
+      if (currentPacket.getTime() != nxt.time){
+        DEBUG_MSG(DLVL_DEVEL, "ACTUALLY Loaded track %ld (next=%lu), %llu ms", currentPacket.getTrackId(), nxtKeyNum[nxt.tid], currentPacket.getTime());
+      }
       nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, currentPacket.getTime());
       emptyCount = 0;
     }
     nxt.offset += currentPacket.getDataLen();
-    if (realTime && !myMeta.live){
+    if (realTime){
       while (nxt.time > (Util::getMS() - firstTime + maxSkipAhead)*1000/realTime) {
         Util::sleep(nxt.time - (Util::getMS() - firstTime + minSkipAhead)*1000/realTime);
       }

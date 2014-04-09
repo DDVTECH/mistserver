@@ -129,9 +129,12 @@ namespace Controller {
           getMeta = true;
         }
         if (getMeta){
+          // if the file isn't dtsc and there's no dtsh file, run getStream on it
+          // this guarantees that if the stream is playable, it now has a valid header.
           if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
-            Util::Stream::getStream(name);
+            Util::Stream::getVod(URL, name);
           }
+          //now, run mistinfo on the source - which will read the file or the header, depending on what is the right thing to do.
           char * tmp_cmd[3] = {0, 0, 0};
           std::string mistinfo = Util::getMyPath() + "MistInfo";
           tmp_cmd[0] = (char*)mistinfo.c_str();

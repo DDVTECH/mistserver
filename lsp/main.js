@@ -1298,7 +1298,7 @@ function buildstreamembed(streamName,embedbase) {
     return $(this).text() == streamName;
   }).addClass('current');
   
-  $('#subpage').append(
+  $('#subpage').html(
     $('<div>').addClass('input_container').html(
       $('<label>').text('The info embed URL is:').append(
         $('<input>').attr('type','text').attr('readonly','readonly').val(embedbase+'info_'+streamName+'.js')

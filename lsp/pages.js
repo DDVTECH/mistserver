@@ -1535,156 +1535,221 @@ function showTab(tabName,streamName) {
           $('#'+graph.id).children('.graph,.legend').html('');
           return; 
         }
-        var yaxes = [];
-        var yaxesTemplates = {
-          percentage: {
-            name: 'percentage',
-            color: 'black',
-            display: false,
-            tickColor: 0,
-            tickDecimals: 0,
-            tickFormatter: function(val,axis){
-              return val.toFixed(axis.tickDecimals) + '%';
-            },
-            tickLength: 0,
-            min: 0
-          },
-          amount: {
-            name: 'amount',
-            color: 'black',
-            display: false,
-            tickColor: 0,
-            tickDecimals: 0,
-            tickFormatter: function(val,axis){
-              return seperateThousands(val.toFixed(axis.tickDecimals),' ');
-            },
-            tickLength: 0,
-            min: 0
-          },
-          bytespersec: {
-            name: 'bytespersec',
-            color: 'black',
-            display: false,
-            tickColor: 0,
-            tickDecimals: 1,
-            tickFormatter: function(val,axis){
-              var suffix = ['bytes','KiB','MiB','GiB','TiB','PiB'];
-              if (val == 0) { 
-                val = val+' '+suffix[0];
+        switch (graph.type) {
+          case 'coords':
+            //format [lat,long]
+            var data = [[-54.657438,-65.11675],[49.725719,-1.941553],[-34.425464,172.677617],[76.958669,68.494178],[0,0]];
+            //correct latitude according to the Miller cylindrical projection
+            for (var i in  data) {
+              var lat = data[i][0];
+              var lon = data[i][1];
+              //to radians
+              lat = Math.PI * lat / 180;
+              var y = 1.25 * Math.log(Math.tan(0.25 * Math.PI + 0.4 * lat));
+              data[i] = [lon,y];
+            }
+            console.log(data);
+            
+            plotsets = [{data:data}];
+            //make sure the plot area has the correct height/width ratio
+            if ($('#'+graph.id+' .graphbackground').length == 0) {
+              var parent = $('#'+graph.id+' .graph');
+              var mapheight = 2450;
+              var mapwidth = 3386.08;
+              parent.height(parent.width()*mapheight/mapwidth);
+              var placeholder = $('<div>').addClass('graphforeground')
+              parent.html(
+                $('<img>').attr('src','map.svg').addClass('graphbackground').width(parent.width).height(parent.height())
+              ).append(
+                placeholder
+              );
+            }
+            else {
+              var placeholder = $('#'+graph.id+' .graphforeground');
+            }
+            plot = $.plot(
+              placeholder,
+              plotsets,
+              {
+                legend: {show: false},
+                xaxis: {
+                  show: false,
+                  min: -170,
+                  max: 190
+                },
+                yaxis: {
+                  show: false,
+                  min: -2.248101053,
+                  max: 2.073709536
+                },
+                series: {
+                  lines: {show: false},
+                  points: {show: true}
+                },
+                grid: {
+                  hoverable: true,
+                  margin: 0,
+                  border: 0,
+                  borderWidth: 0,
+                  minBorderMargin: 0
+                }
               }
-              else {
-                var exponent = Math.floor(Math.log(Math.abs(val)) / Math.log(1024));
-                if (exponent < 0) {
-                  val = val.toFixed(axis.tickDecimals)+' '+suffix[0];
+            );
+            break;
+          case 'time':
+          case 'default':
+          var yaxes = [];
+          var yaxesTemplates = {
+            percentage: {
+              name: 'percentage',
+              color: 'black',
+              display: false,
+              tickColor: 0,
+              tickDecimals: 0,
+              tickFormatter: function(val,axis){
+                return val.toFixed(axis.tickDecimals) + '%';
+              },
+              tickLength: 0,
+              min: 0
+            },
+            amount: {
+              name: 'amount',
+              color: 'black',
+              display: false,
+              tickColor: 0,
+              tickDecimals: 0,
+              tickFormatter: function(val,axis){
+                return seperateThousands(val.toFixed(axis.tickDecimals),' ');
+              },
+              tickLength: 0,
+              min: 0
+            },
+            bytespersec: {
+              name: 'bytespersec',
+              color: 'black',
+              display: false,
+              tickColor: 0,
+              tickDecimals: 1,
+              tickFormatter: function(val,axis){
+                var suffix = ['bytes','KiB','MiB','GiB','TiB','PiB'];
+                if (val == 0) { 
+                  val = val+' '+suffix[0];
                 }
                 else {
-                  val = Math.round(val / Math.pow(1024,exponent) * Math.pow(10,axis.tickDecimals)) / Math.pow(10,axis.tickDecimals) +' '+suffix[exponent];
+                  var exponent = Math.floor(Math.log(Math.abs(val)) / Math.log(1024));
+                  if (exponent < 0) {
+                    val = val.toFixed(axis.tickDecimals)+' '+suffix[0];
+                  }
+                  else {
+                    val = Math.round(val / Math.pow(1024,exponent) * Math.pow(10,axis.tickDecimals)) / Math.pow(10,axis.tickDecimals) +' '+suffix[exponent];
+                  }
                 }
-              }
-              return val + '/s';
-            },
-            tickLength: 0,
-            ticks: function(axis,a,b,c,d){
-              //taken from flot source code (function setupTickGeneration), 
-              //modified to think in multiples of 1024 by Carina van der Meer for DDVTECH
-              
-              // heuristic based on the model a*sqrt(x) fitted to
-              // some data points that seemed reasonable
-              var noTicks = 0.3 * Math.sqrt($('.graph').first().height());
-              
-              var delta = (axis.max - axis.min) / noTicks,
-              exponent = Math.floor(Math.log(Math.abs(delta)) / Math.log(1024)),
-              correcteddelta = delta / Math.pow(1024,exponent),
-              dec = -Math.floor(Math.log(correcteddelta) / Math.LN10),
-              maxDec = axis.tickDecimals;
-              
-              if (maxDec != null && dec > maxDec) {
-                dec = maxDec;
-              }
-              
-              var magn = Math.pow(10, -dec),
-              norm = correcteddelta / magn, // norm is between 1.0 and 10.0
-              size;
-              
-              if (norm < 1.5) {
-                size = 1;
-              } else if (norm < 3) {
-                size = 2;
-                // special case for 2.5, requires an extra decimal
-                if (norm > 2.25 && (maxDec == null || dec + 1 <= maxDec)) {
-                  size = 2.5;
-                  ++dec;
+                return val + '/s';
+              },
+              tickLength: 0,
+              ticks: function(axis,a,b,c,d){
+                //taken from flot source code (function setupTickGeneration), 
+                //modified to think in multiples of 1024 by Carina van der Meer for DDVTECH
+                
+                // heuristic based on the model a*sqrt(x) fitted to
+                // some data points that seemed reasonable
+                var noTicks = 0.3 * Math.sqrt($('.graph').first().height());
+                
+                var delta = (axis.max - axis.min) / noTicks,
+                exponent = Math.floor(Math.log(Math.abs(delta)) / Math.log(1024)),
+                correcteddelta = delta / Math.pow(1024,exponent),
+                dec = -Math.floor(Math.log(correcteddelta) / Math.LN10),
+                maxDec = axis.tickDecimals;
+                
+                if (maxDec != null && dec > maxDec) {
+                  dec = maxDec;
                 }
-              } else if (norm < 7.5) {
-                size = 5;
-              } else {
-                size = 10;
-              }
-              
-              size *= magn;
-              size = size * Math.pow(1024,exponent);
-              
-              if (axis.minTickSize != null && size < axis.minTickSize) {
-                size = axis.minTickSize;
-              }
-              
-              axis.delta = delta;
-              axis.tickDecimals = Math.max(0, maxDec != null ? maxDec : dec);
-              axis.tickSize = size;
-              
-              var ticks = [],
-              start = axis.tickSize * Math.floor(axis.min / axis.tickSize),
-              i = 0,
-              v = Number.NaN,
-              prev;
-              
-              do {
-                prev = v;
-                v = start + i * axis.tickSize;
-                ticks.push(v);
-                ++i;
-              } while (v < axis.max && v != prev);
-              return ticks;
-            },
-            min: 0
-          }
-        };
-        var xaxistemplates = {
-          time: {
-            name: 'time',
-            mode: 'time',
-            timezone: 'browser',
-            ticks: 5
-          }
-        }
-        var plotsets = [];
-        for (var i in datasets) {
-          if (datasets[i].display) {
-            if (yaxesTemplates[datasets[i].yaxistype].display === false) {
-              yaxes.push(yaxesTemplates[datasets[i].yaxistype]);
-              yaxesTemplates[datasets[i].yaxistype].display = yaxes.length;
+                
+                var magn = Math.pow(10, -dec),
+                norm = correcteddelta / magn, // norm is between 1.0 and 10.0
+                size;
+                
+                if (norm < 1.5) {
+                  size = 1;
+                } else if (norm < 3) {
+                  size = 2;
+                  // special case for 2.5, requires an extra decimal
+                  if (norm > 2.25 && (maxDec == null || dec + 1 <= maxDec)) {
+                    size = 2.5;
+                    ++dec;
+                  }
+                } else if (norm < 7.5) {
+                  size = 5;
+                } else {
+                  size = 10;
+                }
+                
+                size *= magn;
+                size = size * Math.pow(1024,exponent);
+                
+                if (axis.minTickSize != null && size < axis.minTickSize) {
+                  size = axis.minTickSize;
+                }
+                
+                axis.delta = delta;
+                axis.tickDecimals = Math.max(0, maxDec != null ? maxDec : dec);
+                axis.tickSize = size;
+                
+                var ticks = [],
+                start = axis.tickSize * Math.floor(axis.min / axis.tickSize),
+                i = 0,
+                v = Number.NaN,
+                prev;
+                
+                do {
+                  prev = v;
+                  v = start + i * axis.tickSize;
+                  ticks.push(v);
+                  ++i;
+                } while (v < axis.max && v != prev);
+                return ticks;
+              },
+              min: 0
             }
-            datasets[i].yaxis = yaxesTemplates[datasets[i].yaxistype].display;
-            datasets[i].color = Number(i);
-            plotsets.push(datasets[i]);
-          }
-        }
-        if (yaxes[0]) { yaxes[0].color = 0; }
-        plot = $.plot(
-          $('#'+graph.id+' .graph'),
-          plotsets,
-          {
-            legend: {show: false},
-            xaxis: xaxistemplates[graph.type],
-            yaxes: yaxes,
-            grid: {
-              hoverable: true,
-              borderWidth: {top: 0, right: 0, bottom: 1, left: 1},
-              color: 'black',
-              backgroundColor: {colors: ['#fff','#ededed']}
+          };
+          var xaxistemplates = {
+            time: {
+              name: 'time',
+              mode: 'time',
+              timezone: 'browser',
+              ticks: 5
             }
           }
-        );
+          var plotsets = [];
+          for (var i in datasets) {
+            if (datasets[i].display) {
+              if (yaxesTemplates[datasets[i].yaxistype].display === false) {
+                yaxes.push(yaxesTemplates[datasets[i].yaxistype]);
+                yaxesTemplates[datasets[i].yaxistype].display = yaxes.length;
+              }
+              datasets[i].yaxis = yaxesTemplates[datasets[i].yaxistype].display;
+              datasets[i].color = Number(i);
+              plotsets.push(datasets[i]);
+            }
+          }
+          if (yaxes[0]) { yaxes[0].color = 0; }
+          plot = $.plot(
+            $('#'+graph.id+' .graph'),
+            plotsets,
+            {
+              legend: {show: false},
+              xaxis: xaxistemplates[graph.type],
+              yaxes: yaxes,
+              grid: {
+                hoverable: true,
+                borderWidth: {top: 0, right: 0, bottom: 1, left: 1},
+                color: 'black',
+                backgroundColor: {colors: ['#fff','#ededed']}
+              }
+            }
+          );
+          break;
+        } //end of graph type switch
         $('#'+graph.id+' .legend').html(
           $('<div>').addClass('legend-list').addClass('checklist')
         );

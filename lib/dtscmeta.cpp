@@ -71,13 +71,19 @@ namespace DTSC {
   /// Valid packets have a length of at least 8, known header type, and length equal to the length set in the header.
   Packet::operator bool() const {
     if (!data) {
+      DEBUG_MSG(DLVL_DONTEVEN, "No data");
       return false;
     }
     if (dataLen < 8) {
+      DEBUG_MSG(DLVL_DONTEVEN, "Datalen < 8");
       return false;
     }
-    if (version == DTSC_INVALID){return false;}
+    if (version == DTSC_INVALID){
+      DEBUG_MSG(DLVL_DONTEVEN, "No valid version");
+      return false;
+    }
     if (ntohl(((int *)data)[1]) + 8 != dataLen) {
+      DEBUG_MSG(DLVL_DONTEVEN, "Length mismatch");
       return false;
     }
     return true;
@@ -365,7 +371,7 @@ namespace DTSC {
     return data;
   }
 
-  void Part::toPrettyString(std::stringstream & str, int indent){
+  void Part::toPrettyString(std::ostream & str, int indent){
     str << std::string(indent, ' ') << "Part: Size(" << getSize() << "), Dur(" << getDuration() << "), Offset(" << getOffset() << ")" << std::endl;
   }
 
@@ -419,7 +425,7 @@ namespace DTSC {
     return data;
   }
 
-  void Key::toPrettyString(std::stringstream & str, int indent){
+  void Key::toPrettyString(std::ostream & str, int indent){
     str << std::string(indent, ' ') << "Key " << getNumber() << ": Pos(" << getBpos() << "), Dur(" << getLength() << "), Parts(" << getParts() <<  "), Time(" << getTime() << ")" << std::endl;
   }
 
@@ -459,7 +465,7 @@ namespace DTSC {
     return data;
   }
 
-  void Fragment::toPrettyString(std::stringstream & str, int indent){
+  void Fragment::toPrettyString(std::ostream & str, int indent){
     str << std::string(indent, ' ') << "Fragment " << getNumber() << ": Dur(" << getDuration() << "), Len(" << (int)getLength() << "), Size(" << getSize() << ")" << std::endl;
   }
 
@@ -799,7 +805,7 @@ namespace DTSC {
     }
   }
 
-  void readOnlyTrack::toPrettyString(std::stringstream & str, int indent, int verbosity){
+  void readOnlyTrack::toPrettyString(std::ostream & str, int indent, int verbosity){
     str << std::string(indent, ' ') << "Track " << getWritableIdentifier() << std::endl;
     str << std::string(indent + 2, ' ') << "ID: " << trackID << std::endl;
     str << std::string(indent + 2, ' ') << "Firstms: " << firstms << std::endl;
@@ -899,7 +905,7 @@ namespace DTSC {
     }
   }
 
-  void Track::toPrettyString(std::stringstream & str, int indent, int verbosity){
+  void Track::toPrettyString(std::ostream & str, int indent, int verbosity){
     str << std::string(indent, ' ') << "Track " << getWritableIdentifier() << std::endl;
     str << std::string(indent + 2, ' ') << "ID: " << trackID << std::endl;
     str << std::string(indent + 2, ' ') << "Firstms: " << firstms << std::endl;
@@ -1515,7 +1521,7 @@ namespace DTSC {
     return result;
   }
 
-  void readOnlyMeta::toPrettyString(std::stringstream & str, int indent, int verbosity){
+  void readOnlyMeta::toPrettyString(std::ostream & str, int indent, int verbosity){
     for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.toPrettyString(str, indent, verbosity);
     }
@@ -1534,7 +1540,7 @@ namespace DTSC {
     str << std::string(indent, ' ') << "More Header: " << moreheader << std::endl;
   }
 
-  void Meta::toPrettyString(std::stringstream & str, int indent, int verbosity){
+  void Meta::toPrettyString(std::ostream & str, int indent, int verbosity){
     for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.toPrettyString(str, indent, verbosity);
     }

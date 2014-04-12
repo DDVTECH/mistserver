@@ -49,7 +49,11 @@ int main(int argc, char * argv[]) {
       sem_close(waiting);
       //if the exit was clean, don't restart it
       if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
-        DEBUG_MSG(DLVL_DEVEL, "Finished player succesfully");
+        DEBUG_MSG(DLVL_MEDIUM, "Finished player succesfully");
+        break;
+      }
+      if (DEBUG >= DLVL_DEVEL){
+        DEBUG_MSG(DLVL_DEVEL, "Player exited with errors - stopping because this is a development build.");
         break;
       }
     }

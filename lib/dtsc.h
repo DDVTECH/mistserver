@@ -175,7 +175,7 @@ namespace DTSC {
       long getOffset();
       void setOffset(long newOffset);
       char * getData();
-      void toPrettyString(std::stringstream & str, int indent = 0);
+      void toPrettyString(std::ostream & str, int indent = 0);
     private:
       ///\brief Data storage for this packet.
       ///
@@ -201,7 +201,7 @@ namespace DTSC {
       long getTime();
       void setTime(long newTime);
       char * getData();
-      void toPrettyString(std::stringstream & str, int indent = 0);
+      void toPrettyString(std::ostream & str, int indent = 0);
     private:
       ///\brief Data storage for this packet.
       ///
@@ -225,7 +225,7 @@ namespace DTSC {
       long getSize();
       void setSize(long newSize);
       char * getData();
-      void toPrettyString(std::stringstream & str, int indent = 0);
+      void toPrettyString(std::ostream & str, int indent = 0);
     private:
       char data[11];
   };
@@ -267,7 +267,7 @@ namespace DTSC {
       //vorbis and theora only
       std::string idHeader;
       std::string commentHeader;
-      void toPrettyString(std::stringstream & str, int indent = 0, int verbosity = 0);
+      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
   class Track : public readOnlyTrack {
@@ -290,7 +290,7 @@ namespace DTSC {
       std::deque<Ivec> ivecs; /*LTS*/
       Key & getKey(unsigned int keyNum);
       void reset();
-      void toPrettyString(std::stringstream & str, int indent = 0, int verbosity = 0);
+      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
   class readOnlyMeta {
@@ -311,7 +311,7 @@ namespace DTSC {
       void writeTo(char * p);
       JSON::Value toJSON();
       bool isFixed();
-      void toPrettyString(std::stringstream & str, int indent = 0, int verbosity = 0);
+      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
   class Meta : public readOnlyMeta {
@@ -329,7 +329,7 @@ namespace DTSC {
       JSON::Value toJSON();
       void reset();
       bool isFixed();
-      void toPrettyString(std::stringstream & str, int indent = 0, int verbosity = 0);
+      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.

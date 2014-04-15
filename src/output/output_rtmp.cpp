@@ -233,6 +233,7 @@ namespace Mist {
     if ((amfData.getContentP(0)->StrValue() == "publish")) {
       if (amfData.getContentP(3)) {
         streamName = amfData.getContentP(3)->StrValue();
+        Util::Stream::sanitizeName(streamName);
         //pull the server configuration
         JSON::Value servConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");    
         if (servConf.isMember("streams") && servConf["streams"].isMember(streamName)){

@@ -134,7 +134,10 @@ namespace Controller {
           if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
             Util::Stream::getVod(URL, name);
           }
-          //now, run mistinfo on the source - which will read the file or the header, depending on what is the right thing to do.
+          //now, run mistinfo on the source - or on the accompanying dtsh file, if it exists
+          if (stat((URL+".dtsh").c_str(), &fileinfo) == 0){
+            URL += ".dtsh";
+          }
           char * tmp_cmd[3] = {0, 0, 0};
           std::string mistinfo = Util::getMyPath() + "MistInfo";
           tmp_cmd[0] = (char*)mistinfo.c_str();

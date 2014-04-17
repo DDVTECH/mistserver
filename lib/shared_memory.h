@@ -38,6 +38,7 @@ namespace IPC {
       sem_t * mySemaphore;
   };
 
+#if !defined __APPLE__ && !defined __CYGWIN__
   class sharedPage{
     public:
       sharedPage(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
@@ -55,6 +56,9 @@ namespace IPC {
       bool master;
       char * mapped;
   };
+#else
+  class sharedPage;
+#endif
 
   class sharedFile{
     public:
@@ -73,7 +77,16 @@ namespace IPC {
       bool master;
       char * mapped;
   };
-  
+
+#if defined __APPLE__ || defined __CYGWIN__
+  class sharedPage: public sharedFile{
+    public:
+      sharedPage(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
+      sharedPage(const sharedPage & rhs);
+      ~sharedPage();
+  };
+#endif
+
   class sharedServer{
     public:
       sharedServer();

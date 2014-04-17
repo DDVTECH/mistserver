@@ -37,7 +37,8 @@ namespace IPC {
   static void btohll(char * p, long long & val) {
     val = ((long long)p[0] << 56) | ((long long)p[1] << 48) | ((long long)p[2] << 40) | ((long long)p[3] << 32) | ((long long)p[4] << 24) | ((long long)p[5] << 16) | ((long long)p[6] << 8) | p[7];
   }
-  
+
+#if !defined __APPLE__ && !defined __CYGWIN__
   sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) : handle(0), name(name_), len(len_), master(master_), mapped(NULL) {
     handle = 0;
     name = name_;
@@ -130,7 +131,35 @@ namespace IPC {
       close(handle);
     }
   }
-
+#else
+  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) /*: handle(0), name(name_), len(len_), master(master_), mapped(NULL) */{
+    handle = 0;
+    name = name_;
+    len = len_;
+    master = master_;
+    mapped = 0;
+    init(name_,len_,master_, autoBackoff);
+  }
+  sharedPage::sharedPage(const sharedPage & rhs){
+    handle = 0;
+    name = "";
+    len = 0;
+    master = false;
+    mapped = 0;
+    init(rhs.name, rhs.len, rhs.master);
+  }
+  sharedPage::~sharedPage(){
+    if (mapped && len){
+      munmap(mapped,len);
+    }
+    if(master){
+      unlink(name.c_str());
+    }
+    if (handle > 0){
+      close(handle);
+    }
+  }
+#endif
   sharedFile::sharedFile(std::string name_, unsigned int len_, bool master_, bool autoBackoff) : handle(0), name(name_), len(len_), master(master_), mapped(NULL) {
     handle = 0;
     name = name_;
@@ -336,7 +365,7 @@ namespace IPC {
       mySemaphore = sem_open(std::string("/" + baseName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     }
     if (mySemaphore == SEM_FAILED) {
-      perror("Creating semaphore failed");
+      DEBUG_MSG(DLVL_FAIL,"Creating semaphore failed: %s", strerror(errno));
       return;
     }
     newPage();
@@ -503,9 +532,14 @@ namespace IPC {
     baseName = rhs.baseName;
     payLen = rhs.payLen;
     hasCounter = rhs.hasCounter;
+#ifdef __APPLE__    
+    //note: O_CREAT is only needed for mac, probably
+    mySemaphore = sem_open(std::string("/" + baseName).c_str(), O_RDWR | O_CREAT, 0);
+#else
     mySemaphore = sem_open(std::string("/" + baseName).c_str(), O_RDWR);
+#endif
     if (mySemaphore == SEM_FAILED) {
-      perror("Creating semaphore failed");
+      DEBUG_MSG(DLVL_FAIL,"Creating semaphore failed: %s", strerror(errno));
       return;
     }
     semGuard tmpGuard(mySemaphore);
@@ -517,20 +551,30 @@ namespace IPC {
     baseName = rhs.baseName;
     payLen = rhs.payLen;
     hasCounter = rhs.hasCounter;
+#ifdef __APPLE__    
+    //note: O_CREAT is only needed for mac, probably
+    mySemaphore = sem_open(std::string("/" + baseName).c_str(), O_RDWR | O_CREAT, 0);
+#else
     mySemaphore = sem_open(std::string("/" + baseName).c_str(), O_RDWR);
+#endif
     if (mySemaphore == SEM_FAILED) {
-      perror("Creating semaphore failed");
+      DEBUG_MSG(DLVL_FAIL,"Creating semaphore failed: %s", strerror(errno));
       return;
     }
     semGuard tmpGuard(mySemaphore);
     myPage.init(rhs.myPage.name,rhs.myPage.len,rhs.myPage.master);
     offsetOnPage = rhs.offsetOnPage;
   }
-
+  
   sharedClient::sharedClient(std::string name, int len, bool withCounter) : baseName(name), payLen(len), offsetOnPage(-1), hasCounter(withCounter) {
+#ifdef __APPLE__    
+    //note: O_CREAT is only needed for mac, probably
+    mySemaphore = sem_open(std::string("/" + baseName).c_str(), O_RDWR | O_CREAT, 0);
+#else
     mySemaphore = sem_open(std::string("/" + baseName).c_str(), O_RDWR);
+#endif
     if (mySemaphore == SEM_FAILED) {
-      perror("Creating semaphore failed");
+      DEBUG_MSG(DLVL_FAIL,"Creating semaphore failed: %s", strerror(errno));
       return;
     }
     semGuard tmpGuard(mySemaphore);

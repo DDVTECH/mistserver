@@ -2,6 +2,7 @@
 #include "defines.h"
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
 
 
 /// Retrieves a short in network order from the pointer p.
@@ -895,7 +896,11 @@ namespace DTSC {
     }
     str << std::string(indent + 2, ' ') << "Codec: " << codec << std::endl;
     str << std::string(indent + 2, ' ') << "Type: " << type << std::endl;
-    str << std::string(indent + 2, ' ') << "Init: " << init << std::endl;
+    str << std::string(indent + 2, ' ') << "Init: ";
+    for (unsigned int i = 0; i < init.size(); ++i){
+      str << std::hex << std::setw(2) << std::setfill('0') << (int)init[i];
+    }
+    str << std::dec << std::endl;
     if (type == "audio") {
       str << std::string(indent + 2, ' ') << "Rate: " << rate << std::endl;
       str << std::string(indent + 2, ' ') << "Size: " << size << std::endl;
@@ -995,7 +1000,11 @@ namespace DTSC {
     }
     str << std::string(indent + 2, ' ') << "Codec: " << codec << std::endl;
     str << std::string(indent + 2, ' ') << "Type: " << type << std::endl;
-    str << std::string(indent + 2, ' ') << "Init: " << init << std::endl;
+    str << std::string(indent + 2, ' ') << "Init: ";
+    for (unsigned int i = 0; i < init.size(); ++i){
+      str << std::hex << std::setw(2) << std::setfill('0') << (int)init[i];
+    }
+    str << std::dec << std::endl;
     if (type == "audio") {
       str << std::string(indent + 2, ' ') << "Rate: " << rate << std::endl;
       str << std::string(indent + 2, ' ') << "Size: " << size << std::endl;

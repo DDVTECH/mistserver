@@ -162,9 +162,9 @@ namespace Mist {
         change = false;
         for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
           if (!it2->second){
-            DEBUG_MSG(DLVL_DEVEL, "Erasing page %u:%u", it->first, it2->first);
             pagesByTrack[it->first].erase(it2->first); 
             pageCounter[it->first].erase(it2->first);
+            dataPages[it->first].erase(it2->first);
             change = true;
             break;
           }

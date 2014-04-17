@@ -6,13 +6,14 @@
 
 namespace Mist {
   struct DTSCPageData {
-    DTSCPageData() : pageNum(0), keyNum(0), partNum(0), dataSize(0), curOffset(0), firstTime(0){}
+    DTSCPageData() : pageNum(0), keyNum(0), partNum(0), dataSize(0), curOffset(0), firstTime(0), lastKeyTime(-5000){}
     int pageNum;///<The current page number
     int keyNum;///<The number of keyframes in this page.
     int partNum;///<The number of parts in this page.
     unsigned long long int dataSize;///<The full size this page should be.
     unsigned long long int curOffset;///<The current write offset in the page.
     unsigned long long int firstTime;///<The first timestamp of the page.
+    long long int lastKeyTime;///<The time of the last keyframe of the page.
   };
 
   class OutRTMP : public Output {

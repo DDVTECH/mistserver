@@ -273,8 +273,12 @@ namespace Controller {
           out[jit->first].null();
           out[jit->first]["name"] = jit->first;
           out[jit->first]["source"] = jit->second["source"];
-          out[jit->first]["DVR"] = jit->second["DVR"].asInt();
-          out[jit->first]["cut"] = jit->second["cut"].asInt();
+          if (jit->second.isMember("DVR")){
+            out[jit->first]["DVR"] = jit->second["DVR"].asInt();
+          }
+          if (jit->second.isMember("cut")){
+            out[jit->first]["cut"] = jit->second["cut"].asInt();
+          }
           out[jit->first]["updated"] = 1ll;
           out[jit->first]["keyseed"] = jit->second["keyseed"].asString();/*LTS*/
           out[jit->first]["keyid"] = jit->second["keyid"].asString();/*LTS*/
@@ -294,8 +298,12 @@ namespace Controller {
       }else{
         out[jit->first]["name"] = jit->first;
         out[jit->first]["source"] = jit->second["source"];
-        out[jit->first]["DVR"] = jit->second["DVR"].asInt();
-        out[jit->first]["cut"] = jit->second["cut"].asInt();
+        if (jit->second.isMember("DVR")){
+          out[jit->first]["DVR"] = jit->second["DVR"].asInt();
+        }
+        if (jit->second.isMember("cut")){
+          out[jit->first]["cut"] = jit->second["cut"].asInt();
+        }
         out[jit->first]["keyseed"] = jit->second["keyseed"].asString();/*LTS*/
         out[jit->first]["keyid"] = jit->second["keyid"].asString();/*LTS*/
         out[jit->first]["contentkey"] = jit->second["contentkey"].asString();/*LTS*/

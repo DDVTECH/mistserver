@@ -233,14 +233,7 @@ namespace Mist {
       if (inputLoc[tNum][pageNum].firstTime == 0){
         inputLoc[tNum][pageNum].firstTime = tmpPack.getTime();
       }
-      //Overloaded use of .firstTime to indicate last Keytime on non-video streams;
-      if (myMeta.tracks[tNum].type == "video"){
-        inputLoc[tNum][pageNum].keyNum += tmpPack.getFlag("keyframe");
-      }else{
-        if ((tmpPack.getTime() > 5000) && ((tmpPack.getTime() - 5000) > inputLoc[tNum][pageNum].firstTime)){
-          inputLoc[tNum][pageNum].keyNum ++;
-        }
-      }
+      inputLoc[tNum][pageNum].keyNum += tmpPack.getFlag("keyframe");
       inputLoc[tNum][pageNum].curOffset += tmpPack.getDataLen();
       tmpPack.reInit(dataPages[tNum][pageNum].mapped + inputLoc[tNum][pageNum].curOffset, 0);
     }

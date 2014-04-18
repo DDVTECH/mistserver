@@ -452,6 +452,12 @@ namespace Mist {
       //declined track;
       return;
     }
+    if (myMeta.tracks[pack["trackid"].asInt()].type != "video"){
+      if ((pack["time"].asInt() - bookKeeping[trackMap[pack["trackid"].asInt()]].lastKeyTime) >= 5000){
+        pack["keyframe"] = 1LL;
+        bookKeeping[trackMap[pack["trackid"].asInt()]].lastKeyTime = pack["time"].asInt();
+      }
+    }
     pack["trackid"] = trackMap[pack["trackid"].asInt()];
     long long unsigned int tNum = pack["trackid"].asInt();
     if (!bookKeeping.count(tNum)){

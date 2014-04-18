@@ -129,8 +129,9 @@ bool Util::Stream::getStream(std::string streamname){
     }
     /*LTS-END*/
     //check if the stream is already active, if yes, don't re-activate
-    sem_t * playerLock = sem_open(std::string("/lock_" + conf.getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    sem_t * playerLock = sem_open(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     if (sem_trywait(playerLock) == -1){
+      sem_close(playerLock);
       return true;
     }
     sem_post(playerLock);

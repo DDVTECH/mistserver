@@ -76,11 +76,14 @@ namespace Mist {
     if (streamIndex.mapped){
       return;
     }
+    if (!Util::Stream::getStream(streamName)){
+      DEBUG_MSG(DLVL_FAIL, "Opening stream disallowed - aborting initalization");
+      return;
+    }
     isInitialized = true;
     streamIndex.init(streamName,0,false,false);
     if (!streamIndex.mapped){
       sem_t * waiting = sem_open(std::string("/wait_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 0);
-      Util::Stream::getStream(streamName);
       if (waiting == SEM_FAILED){
         DEBUG_MSG(DLVL_FAIL, "Failed to open semaphore - cancelling");
         onFail();

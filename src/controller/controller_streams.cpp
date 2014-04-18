@@ -262,8 +262,12 @@ namespace Controller {
           out[jit->first].null();
           out[jit->first]["name"] = jit->first;
           out[jit->first]["source"] = jit->second["source"];
-          out[jit->first]["DVR"] = jit->second["DVR"].asInt();
-          out[jit->first]["cut"] = jit->second["cut"].asInt();
+          if (jit->second.isMember("DVR")){
+            out[jit->first]["DVR"] = jit->second["DVR"].asInt();
+          }
+          if (jit->second.isMember("cut")){
+            out[jit->first]["cut"] = jit->second["cut"].asInt();
+          }
           out[jit->first]["updated"] = 1ll;
           Log("STRM", std::string("Updated stream ") + jit->first);
           if (out[jit->first]["source"].asStringRef().substr(0, 7) != "push://"){
@@ -278,8 +282,12 @@ namespace Controller {
       }else{
         out[jit->first]["name"] = jit->first;
         out[jit->first]["source"] = jit->second["source"];
-        out[jit->first]["DVR"] = jit->second["DVR"].asInt();
-        out[jit->first]["cut"] = jit->second["cut"].asInt();
+        if (jit->second.isMember("DVR")){
+          out[jit->first]["DVR"] = jit->second["DVR"].asInt();
+        }
+        if (jit->second.isMember("cut")){
+          out[jit->first]["cut"] = jit->second["cut"].asInt();
+        }
         Log("STRM", std::string("New stream ") + jit->first);
         startStream(jit->first, out[jit->first]);
       }

@@ -399,8 +399,12 @@ namespace Mist {
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
       if (curPages.count(nxt.tid) && curPages[nxt.tid].mapped){
-        nxt.time = getDTSCTime(curPages[nxt.tid].mapped, nxt.offset);
-        buffer.insert(nxt);
+        if (getDTSCTime(curPages[nxt.tid].mapped, nxt.offset) < nxt.time){
+          DEBUG_MSG(DLVL_DEVEL, "Time going backwards in track %u - dropping track.", nxt.tid);
+        }else{
+          nxt.time = getDTSCTime(curPages[nxt.tid].mapped, nxt.offset);
+          buffer.insert(nxt);
+        }
         prepareNext();
         return;
       }
@@ -420,14 +424,18 @@ namespace Mist {
         prepareNext();
         return;
       }
-      Util::sleep(500);
-      updateMeta();
-      if (myMeta && ++emptyCount < 20){
-        if (!seek(nxt.tid, currentPacket.getTime(), true)){
-          buffer.insert(nxt);
+      if (myMeta.live){
+        Util::sleep(500);
+        updateMeta();
+        if (myMeta && ++emptyCount < 20){
+          if (!seek(nxt.tid, currentPacket.getTime(), true)){
+            buffer.insert(nxt);
+          }
+        }else{
+          DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u - could not reload, dropping track.", nxt.tid);
         }
       }else{
-        DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u - could not reload, dropping track.", nxt.tid);
+        DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u - dropping track.", nxt.tid);
       }
       prepareNext();
       return;

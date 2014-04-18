@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <semaphore.h>
 #include "json.h"
 #include "stream.h"
 #include "procs.h"
@@ -59,7 +60,7 @@ void Util::Stream::sanitizeName(std::string & streamname){
   }
 }
 
-Socket::Connection Util::Stream::getLive(std::string streamname){
+bool Util::Stream::getLive(std::string streamname){
   JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
   static unsigned long long counter = 0;
   std::stringstream name;
@@ -82,11 +83,11 @@ Socket::Connection Util::Stream::getLive(std::string streamname){
   }else if(pid == -1){
     perror("Could not start vod");
   }
-  return Socket::Connection();
+  return true;
 }
 
 /// Starts a process for a VoD stream.
-Socket::Connection Util::Stream::getVod(std::string filename, std::string streamname){
+bool Util::Stream::getVod(std::string filename, std::string streamname){
   static unsigned long long counter = 0;
   std::stringstream name;
   name << "MistInDTSC " << (counter++);
@@ -109,24 +110,31 @@ Socket::Connection Util::Stream::getVod(std::string filename, std::string stream
   }else if(pid == -1){
     perror("Could not start vod");
   }
-  return Socket::Connection();
+  return true;
 }
 
 /// Probe for available streams. Currently first VoD, then Live.
-Socket::Connection Util::Stream::getStream(std::string streamname){
+bool Util::Stream::getStream(std::string streamname){
   sanitizeName(streamname);
   JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
   /*LTS-START*/
   if (ServConf["config"].isMember("hardlimit_active")){
-    return Socket::Connection();
+    return false;
   }
   /*LTS-END*/
   if (ServConf["streams"].isMember(streamname)){
     /*LTS-START*/
     if (ServConf["streams"][streamname].isMember("hardlimit_active")){
-      return Socket::Connection();
+      return false;
     }
     /*LTS-END*/
+    //check if the stream is already active, if yes, don't re-activate
+    sem_t * playerLock = sem_open(std::string("/lock_" + conf.getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    if (sem_trywait(playerLock) == -1){
+      return true;
+    }
+    sem_post(playerLock);
+    sem_close(playerLock);
     if (ServConf["streams"][streamname]["source"].asString()[0] == '/'){
       return getVod(ServConf["streams"][streamname]["source"].asString(), streamname);
     }else{
@@ -134,7 +142,7 @@ Socket::Connection Util::Stream::getStream(std::string streamname){
     }
   }
   DEBUG_MSG(DLVL_ERROR, "Stream not found: %s", streamname.c_str());
-  return Socket::Connection();
+  return false;
 }
 
 /// Create a stream on the system.

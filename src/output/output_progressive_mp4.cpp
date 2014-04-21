@@ -299,26 +299,17 @@ namespace Mist {
     if (byteStart <= headerSize){return;}
     //okay, we're past the header. Substract the headersize from the starting postion.
     byteStart -= headerSize;
-    //initialize a list of sorted parts that this file contains
-    std::set <keyPart> sortSet;
-    for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
-      keyPart temp;
-      temp.trackID = *subIt;
-      temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
-      temp.endTime = myMeta.tracks[*subIt].firstms + myMeta.tracks[*subIt].parts[0].getDuration();
-      temp.size = myMeta.tracks[*subIt].parts[0].getSize();//bytesize of frame (alle parts all together)
-      temp.index = 0;
-      sortSet.insert(temp);
-    }
     //forward through the file by headers, until we reach the point where we need to be
     while (!sortSet.empty()){
+      //record where we are
+      seekPoint = sortSet.begin()->time;
       //substract the size of this fragment from byteStart
       byteStart -= sortSet.begin()->size;
       //if that put us past the point where we wanted to be, return right now
       if (byteStart < 0){return;}
-      //otherwise, set seekPoint to where we are now
-      seekPoint = sortSet.begin()->time;
-      //then find the next part
+      //otherwise, set currPos to where we are now and continue
+      currPos += sortSet.begin()->size;
+      //find the next part
       keyPart temp;
       temp.index = sortSet.begin()->index + 1;
       temp.trackID = sortSet.begin()->trackID;
@@ -330,6 +321,7 @@ namespace Mist {
       }
       //remove highest keyPart
       sortSet.erase(sortSet.begin());
+      //wash, rinse, repeat
     }
     //If we're here, we're in the last fragment.
     //That's technically legal, of course.
@@ -359,13 +351,11 @@ namespace Mist {
       if (byteStart > byteEnd){
         //entire file if starting before byte zero
         byteStart = 0;
-        DEBUG_MSG(DLVL_DEVEL, "Full negative range: %lli-%lli", byteStart, byteEnd);
         findSeekPoint(byteStart, seekPoint, headerSize);
         return;
       }else{
         //start byteStart bytes before byteEnd
         byteStart = byteEnd - byteStart;
-        DEBUG_MSG(DLVL_DEVEL, "Partial negative range: %lli-%lli", byteStart, byteEnd);
         findSeekPoint(byteStart, seekPoint, headerSize);
         return;
       }
@@ -401,41 +391,39 @@ namespace Mist {
       }else{
         byteEnd = size;
       }
-      DEBUG_MSG(DLVL_DEVEL, "Range request: %lli-%lli (%s)", byteStart, byteEnd, header.c_str());
+      DEBUG_MSG(DLVL_MEDIUM, "Range request: %lli-%lli (%s)", byteStart, byteEnd, header.c_str());
       findSeekPoint(byteStart, seekPoint, headerSize);
       return;
     }
   }
   
   void OutProgressiveMP4::onRequest(){
-    while (HTTP_R.Read(myConn)){
-      DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.getUrl().c_str());
+    if (HTTP_R.Read(myConn)){
+      DEBUG_MSG(DLVL_MEDIUM, "Received request: %s", HTTP_R.getUrl().c_str());
       myConn.setHost(HTTP_R.GetHeader("X-Origin"));
       streamName = HTTP_R.GetHeader("X-Stream");
       if (HTTP_R.GetVar("audio") != ""){
-        DEBUG_MSG(DLVL_DEVEL, "GetVar Aud = %s", HTTP_R.GetVar("audio").c_str());
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("audio")).asInt());
-      }else{
-        DEBUG_MSG(DLVL_DEVEL, "No audio param given");
       }
       if (HTTP_R.GetVar("video") != ""){
-        DEBUG_MSG(DLVL_DEVEL, "GetVar Vid = %s", HTTP_R.GetVar("video").c_str());
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("video")).asInt());
-      }else{
-        DEBUG_MSG(DLVL_DEVEL, "No video param given");
       }
 
       parseData = true;
       wantRequest = false;
+      sentHeader = false;
     }
   }
   
+  /*
   bool OutProgressiveMP4::onFinish(){
+    //HTTP_S.Chunkify("", myConn);
     HTTP_R.Clean();
     parseData = false;
     wantRequest = true;
     return true;
   }
+  */
   
   void OutProgressiveMP4::onFail(){
     HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
@@ -448,9 +436,14 @@ namespace Mist {
     char * dataPointer = 0;
     int len = 0;
     currentPacket.getString("data", dataPointer, len);
-    
-    //keep track of where we are - fast-forward until where we are now
-    while (!sortSet.empty() && ((long long)sortSet.begin()->trackID != currentPacket.getTrackId() || (long long)sortSet.begin()->time != currentPacket.getTime())){
+    if (currentPacket.getTrackId() != sortSet.begin()->trackID || currentPacket.getTime() != sortSet.begin()->time){
+      DEBUG_MSG(DLVL_WARN, "Warning: current packet %ld_%llu does not match expected packet %ld_%llu. We're most likely sending out corrupt data at this point. Have a nice day.", currentPacket.getTrackId(), currentPacket.getTime(), sortSet.begin()->trackID, sortSet.begin()->time);
+      stop();
+      myConn.close();
+      return;
+    }
+    //keep track of where we are
+    if (!sortSet.empty()){
       keyPart temp;
       temp.index = sortSet.begin()->index + 1;
       temp.trackID = sortSet.begin()->trackID;
@@ -464,8 +457,9 @@ namespace Mist {
       //remove highest keyPart
       sortSet.erase(sortSet.begin());
     }
+    
+    
     if (currPos >= byteStart){
-      sortSet.clear();//we don't need you anymore!
       myConn.SendNow(dataPointer, std::min(leftOver, (long long)len));
       //HTTP_S.Chunkify(Strm.lastData().data(), Strm.lastData().size(), conn);
       leftOver -= len;
@@ -474,9 +468,9 @@ namespace Mist {
         myConn.SendNow(dataPointer+(byteStart-currPos), len-(byteStart-currPos));
         leftOver -= len-(byteStart-currPos);
         currPos = byteStart;
-        sortSet.clear();//we don't need you anymore!
       }
     }
+    //sortSet.clear();//we don't need you anymore!
     if (leftOver < 1){
       //stop playback, wait for new request
       stop();
@@ -491,10 +485,7 @@ namespace Mist {
     byteEnd = fileSize - 1;
     long long seekPoint = 0;
     char rangeType = ' ';
-    if (HTTP_R.GetHeader("Range") != ""){
-      parseRange(HTTP_R.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerData.size());
-      rangeType = HTTP_R.GetHeader("Range")[0];
-    }
+    currPos = 0;
     sortSet.clear();
     for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
       keyPart temp;
@@ -505,11 +496,14 @@ namespace Mist {
       temp.index = 0;
       sortSet.insert(temp);
     }
+    if (HTTP_R.GetHeader("Range") != ""){
+      parseRange(HTTP_R.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerData.size());
+      rangeType = HTTP_R.GetHeader("Range")[0];
+    }
     HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
     HTTP_S.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for MP4 files
     HTTP_S.SetHeader("Accept-Ranges", "bytes, parsec");
     if (rangeType != ' '){
-      DEBUG_MSG(DLVL_DEVEL, "Ranged request");
       if (!byteEnd){
         if (rangeType == 'p'){
           HTTP_S.SetBody("Starsystem not in communications range");
@@ -534,7 +528,6 @@ namespace Mist {
         //HTTP_S.StartResponse("206", "Partial content", HTTP_R, conn);
       }
     }else{
-      DEBUG_MSG(DLVL_DEVEL, "Non-Ranged request");
       HTTP_S.SetHeader("Content-Length", byteEnd - byteStart + 1);
       //do not multiplex requests that aren't ranged
       HTTP_S.SetHeader("MistMultiplex", "No");
@@ -543,14 +536,13 @@ namespace Mist {
       //HTTP_S.StartResponse(HTTP_R, conn);
     }
     leftOver = byteEnd - byteStart + 1;//add one byte, because range "0-0" = 1 byte of data
-    currPos = 0;
     if (byteStart < (long long)headerData.size()){
       /// \todo Switch to chunked?
       //HTTP_S.Chunkify(headerData.data()+byteStart, std::min((long long)headerData.size(), byteEnd) - byteStart, conn);//send MP4 header
       myConn.SendNow(headerData.data()+byteStart, std::min((long long)headerData.size(), byteEnd) - byteStart);//send MP4 header
       leftOver -= std::min((long long)headerData.size(), byteEnd) - byteStart;
     }
-    currPos = headerData.size();//we're now guaranteed to be past the header point, no matter what
+    currPos += headerData.size();//we're now guaranteed to be past the header point, no matter what
     seek(seekPoint);
     sentHeader = true;
   }

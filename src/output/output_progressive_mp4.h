@@ -33,7 +33,7 @@ namespace Mist {
       
       void onRequest();
       void sendNext();
-      bool onFinish();
+      //bool onFinish();
       void sendHeader();
       void onFail();
     protected:

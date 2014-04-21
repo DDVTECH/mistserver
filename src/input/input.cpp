@@ -121,7 +121,7 @@ namespace Mist {
       
       if (!isBuffer){
         for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-          bufferFrame(it->first, 0);
+          bufferFrame(it->first, 1);
         }
       }
       
@@ -162,7 +162,6 @@ namespace Mist {
         change = false;
         for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
           if (!it2->second){
-            pagesByTrack[it->first].erase(it2->first); 
             pageCounter[it->first].erase(it2->first);
             dataPages[it->first].erase(it2->first);
             change = true;
@@ -201,7 +200,7 @@ namespace Mist {
     while(lastPack){//loop through all
       int tid = lastPack.getTrackId();
       if (!bookKeeping.count(tid)){
-        bookKeeping[tid].first = 0;
+        bookKeeping[tid].first = 1;
         bookKeeping[tid].curPart = 0;
         bookKeeping[tid].curKey = 0;
         
@@ -240,8 +239,9 @@ namespace Mist {
       if (!pagesByTrack.count(it->first)){
         DEBUG_MSG(DLVL_WARN, "No pages for track %d found", it->first);
       }else{
-        DEBUG_MSG(DLVL_HIGH, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), pagesByTrack[it->first].size());
+        DEBUG_MSG(DLVL_DEVEL, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), pagesByTrack[it->first].size());
         for (std::map<int, DTSCPageData>::iterator it2 = pagesByTrack[it->first].begin(); it2 != pagesByTrack[it->first].end(); it2++){
+          DEBUG_MSG(DLVL_DEVEL, "Page %u-%u", it2->first, it2->first + it2->second.keyNum - 1);
         }
       }
     }
@@ -249,42 +249,42 @@ namespace Mist {
   
   
   bool Input::bufferFrame(int track, int keyNum){
-    DEBUG_MSG(DLVL_DONTEVEN, "Attempting to buffer %d:%d", track, keyNum);
+    if (keyNum < 1){keyNum = 1;}
     if (!pagesByTrack.count(track)){
       return false;
     }
-    std::map<int, DTSCPageData> ::iterator it = pagesByTrack[track].upper_bound(keyNum);
-    if (it == pagesByTrack[track].begin()){
-      return false;
+    std::map<int, DTSCPageData>::iterator it = pagesByTrack[track].upper_bound(keyNum);
+    if (it != pagesByTrack[track].begin()){
+      it--;
     }
-    it --;
     int pageNum = it->first;
     pageCounter[track][pageNum] = 15;///Keep page 15seconds in memory after last use
     
-    if (!dataPages[track].count(pageNum)){
-      char pageId[100];
-      int pageIdLen = sprintf(pageId, "%s%d_%d", config->getString("streamname").c_str(), track, pageNum);
-      std::string tmpString(pageId, pageIdLen);
-      dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
-      DEBUG_MSG(DLVL_HIGH, "Buffering page %d through %d / %lu", pageNum, pageNum + it->second.keyNum, myMeta.tracks[track].keys.size());
-        
-      std::stringstream trackSpec;
-      trackSpec << track;
-      trackSelect(trackSpec.str());
-    }else{
+    DEBUG_MSG(DLVL_DONTEVEN, "Attempting to buffer page %d key %d->%d", track, keyNum, pageNum);
+    if (dataPages[track].count(pageNum)){
       return true;
     }
-    seek(myMeta.tracks[track].keys[pageNum].getTime());
+    char pageId[100];
+    int pageIdLen = sprintf(pageId, "%s%d_%d", config->getString("streamname").c_str(), track, pageNum);
+    std::string tmpString(pageId, pageIdLen);
+    dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
+    DEBUG_MSG(DLVL_DEVEL, "Buffering page %d through %d / %lu", pageNum, pageNum-1 + it->second.keyNum, myMeta.tracks[track].keys.size());
+
+    std::stringstream trackSpec;
+    trackSpec << track;
+    trackSelect(trackSpec.str());
+    seek(myMeta.tracks[track].keys[pageNum-1].getTime());
     long long unsigned int stopTime = myMeta.tracks[track].lastms + 1;
-    if ((int)myMeta.tracks[track].keys.size() > pageNum + it->second.keyNum){
-      stopTime = myMeta.tracks[track].keys[pageNum + it->second.keyNum].getTime();
+    if ((int)myMeta.tracks[track].keys.size() > pageNum-1 + it->second.keyNum){
+      stopTime = myMeta.tracks[track].keys[pageNum-1 + it->second.keyNum].getTime();
     }
-    DEBUG_MSG(DLVL_HIGH, "Playing from %ld to %llu", myMeta.tracks[track].keys[pageNum].getTime(), stopTime);
+    DEBUG_MSG(DLVL_HIGH, "Playing from %ld to %llu", myMeta.tracks[track].keys[pageNum-1].getTime(), stopTime);
+    it->second.curOffset = 0;
     getNext();
     while (lastPack && lastPack.getTime() < stopTime){
       if (it->second.curOffset + lastPack.getDataLen() > pagesByTrack[track][pageNum].dataSize){
-        DEBUG_MSG(DLVL_WARN, "Trying to write %u bytes past the end of page %u/%u", lastPack.getDataLen(), track, pageNum);
-        return true;
+        DEBUG_MSG(DLVL_WARN, "Trying to write %u bytes on pos %llu where size is %llu (time: %llu / %llu, track %u page %u)", lastPack.getDataLen(), it->second.curOffset, pagesByTrack[track][pageNum].dataSize, lastPack.getTime(), stopTime, track, pageNum);
+        break;
       }else{
         memcpy(dataPages[track][pageNum].mapped + it->second.curOffset, lastPack.getData(), lastPack.getDataLen());
         it->second.curOffset += lastPack.getDataLen();

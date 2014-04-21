@@ -574,7 +574,9 @@ DTSC::File & DTSC::File::operator =(const File & rhs){
     F = 0;
   }
   endPos = rhs.endPos;
-  myPack = rhs.myPack;
+  if (rhs.myPack){
+    myPack = rhs.myPack;
+  }
   metaStorage = rhs.metaStorage;
   metadata = metaStorage;
   currtime = rhs.currtime;
@@ -827,19 +829,21 @@ void DTSC::File::seekNext(){
     return;
   }
   long packSize = ntohl(((uint32_t*)buffer)[0]);
-  std::string strBuffer = "DTP2";
+  char * packBuffer = (char*)malloc(packSize+8);
   if (version == 1){
-    strBuffer = "DTPD";
+    memcpy(packBuffer, "DTPD", 4);
+  }else{
+    memcpy(packBuffer, "DTP2", 4);
   }
-  strBuffer.append(buffer, 4);
-  strBuffer.resize(packSize + 8);
-  if (fread((void*)(strBuffer.c_str() + 8), packSize, 1, F) != 1){
+  memcpy(packBuffer+4, buffer, 4);
+  if (fread((void*)(packBuffer + 8), packSize, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
     myPack.null();
+    free(packBuffer);
     return;
   }
-  const char * tmp = strBuffer.data();
-  myPack.reInit(tmp, strBuffer.size());
+  myPack.reInit(packBuffer, packSize+8);
+  free(packBuffer);
   if ( metadata.merged){
     int tempLoc = getBytePos();
     char newHeader[20];
@@ -902,7 +906,7 @@ void DTSC::File::parseNext(){
       readHeader(lastreadpos);
       std::string tmp = metaStorage.toNetPacked();
       myPack.reInit(tmp.data(), tmp.size());
-      DEBUG_MSG(DLVL_DEVEL,"Does this ever even happen?");
+      DEBUG_MSG(DLVL_DEVEL,"Read another header");
     }else{
       if (fread(buffer, 4, 1, F) != 1){
         DEBUG_MSG(DLVL_ERROR, "Could not read header size @ %d", (int)lastreadpos);
@@ -940,18 +944,21 @@ void DTSC::File::parseNext(){
     return;
   }
   long packSize = ntohl(((uint32_t*)buffer)[0]);
-  std::string strBuffer = "DTP2";
+  char * packBuffer = (char*)malloc(packSize+8);
   if (version == 1){
-    strBuffer = "DTPD";
+    memcpy(packBuffer, "DTPD", 4);
+  }else{
+    memcpy(packBuffer, "DTP2", 4);
   }
-  strBuffer.append(buffer, 4);
-  strBuffer.resize(packSize + 8);
-  if (fread((void*)(strBuffer.c_str() + 8), packSize, 1, F) != 1){
+  memcpy(packBuffer+4, buffer, 4);
+  if (fread((void*)(packBuffer + 8), packSize, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
     myPack.null();
+    free(packBuffer);
     return;
   }
-  myPack.reInit(strBuffer.data(), strBuffer.size());
+  myPack.reInit(packBuffer, packSize+8);
+  free(packBuffer);
 }
 
 /// Returns the byte positon of the start of the last packet that was read.

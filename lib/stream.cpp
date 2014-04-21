@@ -122,13 +122,16 @@ bool Util::Stream::getStream(std::string streamname){
     sem_t * playerLock = sem_open(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     if (sem_trywait(playerLock) == -1){
       sem_close(playerLock);
+      DEBUG_MSG(DLVL_MEDIUM, "Playerlock for %s already active - not re-activating stream", streamname.c_str());
       return true;
     }
     sem_post(playerLock);
     sem_close(playerLock);
     if (ServConf["streams"][streamname]["source"].asString()[0] == '/'){
+      DEBUG_MSG(DLVL_MEDIUM, "Activating VoD stream %s", streamname.c_str());
       return getVod(ServConf["streams"][streamname]["source"].asString(), streamname);
     }else{
+      DEBUG_MSG(DLVL_MEDIUM, "Activating live stream %s", streamname.c_str());
       return getLive(streamname);
     }
   }

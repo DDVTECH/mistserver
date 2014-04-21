@@ -93,16 +93,16 @@ namespace IPC {
         }
       }
       if (handle == -1) {
-        perror(std::string("shm_open for page " + name + " failed").c_str());
+        DEBUG_MSG(DLVL_FAIL, "shm_open for page %s failed: %s", name.c_str(), strerror(errno));
         return;
       }
       if (master){
         if (ftruncate(handle, 0) < 0) {
-          perror(std::string("ftruncate to zero for page " + name + " failed").c_str());
+          DEBUG_MSG(DLVL_FAIL, "truncate to zero for page %s failed: %s", name.c_str(), strerror(errno));
           return;
         }
         if (ftruncate(handle, len) < 0) {
-          perror(std::string("ftruncate to len for page " + name + " failed").c_str());
+          DEBUG_MSG(DLVL_FAIL, "truncate to %lld for page %s failed: %s", len, name.c_str(), strerror(errno));
           return;
         }
       }else{
@@ -391,7 +391,7 @@ namespace IPC {
     sharedPage tmp(std::string(baseName + (char)(myPages.size() + (int)'A')), (4096 << myPages.size()), true);
     myPages.insert(tmp);
     tmp.master = false;
-    DEBUG_MSG(DLVL_WARN, "Added a new page: %s", tmp.name.c_str());
+    DEBUG_MSG(DLVL_MEDIUM, "Added a new page: %s", tmp.name.c_str());
   }
 
   void sharedServer::deletePage() {
@@ -452,7 +452,7 @@ namespace IPC {
             //increase the count if needed
             if (id >= amount){
               amount = id+1;
-              DEBUG_MSG(DLVL_DEVEL, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+              DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
             callback(it->mapped + offset + 1, payLen, id);
             switch (counter) {
@@ -483,7 +483,7 @@ namespace IPC {
               //bring the counter down if this was the last element
               if (id == amount - 1){
                 amount = id;
-                DEBUG_MSG(DLVL_DEVEL, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+                DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point
               return;
@@ -494,7 +494,7 @@ namespace IPC {
             //increase the count if needed
             if (id >= amount){
               amount = id+1;
-              DEBUG_MSG(DLVL_DEVEL, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+              DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
             callback(it->mapped + offset, payLen, id);
           }else{
@@ -503,7 +503,7 @@ namespace IPC {
               //bring the counter down if this was the last element
               if (id == amount - 1){
                 amount = id;
-                DEBUG_MSG(DLVL_DEVEL, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+                DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point
               if (empty){

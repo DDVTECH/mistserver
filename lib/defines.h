@@ -12,7 +12,8 @@
 #define DLVL_DONTEVEN 10 // All messages enabled, even pointless ones.
 #if DEBUG > 0
 #include <stdio.h>
-#define DEBUG_MSG(lvl, msg, ...) if (DEBUG >= lvl){fprintf(stderr, "[%s:%d] " msg "\n", __FILE__, __LINE__, ##__VA_ARGS__);}
+#include <unistd.h>
+#define DEBUG_MSG(lvl, msg, ...) if (DEBUG >= lvl){fprintf(stderr, "[%d][%s:%d] " msg "\n", getpid(), __FILE__, __LINE__, ##__VA_ARGS__);}
 #else
 #define DEBUG_MSG(lvl, msg, ...) // Debugging disabled.
 #endif

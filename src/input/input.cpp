@@ -268,7 +268,7 @@ namespace Mist {
     int pageIdLen = sprintf(pageId, "%s%d_%d", config->getString("streamname").c_str(), track, pageNum);
     std::string tmpString(pageId, pageIdLen);
     dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
-    DEBUG_MSG(DLVL_DEVEL, "Buffering page %d through %d / %lu", pageNum, pageNum-1 + it->second.keyNum, myMeta.tracks[track].keys.size());
+    DEBUG_MSG(DLVL_DEVEL, "Buffering track %d page %d through %d", track, pageNum, pageNum-1 + it->second.keyNum);
 
     std::stringstream trackSpec;
     trackSpec << track;
@@ -297,6 +297,7 @@ namespace Mist {
         break;
       }
     }
+    DEBUG_MSG(DLVL_DEVEL, "Buffering track %d page %d through %d, completed", track, pageNum, pageNum-1 + it->second.keyNum);
     return true;
   }
   

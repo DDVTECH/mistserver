@@ -297,7 +297,6 @@ namespace Mist {
         break;
       }
     }
-    DEBUG_MSG(DLVL_DEVEL, "Buffering track %d page %d through %d, completed", track, pageNum, pageNum-1 + it->second.keyNum);
     return true;
   }
   

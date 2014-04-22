@@ -1,3 +1,11 @@
+#ifndef INT64_MIN
+#define INT64_MIN (-(9223372036854775807 ## LL)-1)
+#endif
+
+#ifndef INT64_MAX
+#define INT64_MAX ((9223372036854775807 ## LL))
+#endif
+
 #include "input.h"
 extern "C" {
   #include <libavcodec/avcodec.h>

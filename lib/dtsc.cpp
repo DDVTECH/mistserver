@@ -748,7 +748,7 @@ bool DTSC::File::reachedEOF(){
 /// Reading the packet means the file position is increased to the next packet.
 void DTSC::File::seekNext(){
   if ( !currentPositions.size()){
-    DEBUG_MSG(DLVL_HIGH, "No seek positions set - returning empty packet.");
+    DEBUG_MSG(DLVL_WARN, "No seek positions set - returning empty packet.");
     myPack.null();
     return;
   }
@@ -947,6 +947,12 @@ bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek){
     tmpPos.seekTime = 0;
     tmpPos.bytePos = 0;
   }
+  if (reachedEOF()){
+    clearerr(F);
+    seek_bpos(0);
+    tmpPos.bytePos = 0;
+    tmpPos.seekTime = 0;
+  }
   DTSC::readOnlyTrack & trackRef = metadata.tracks[trackNo];
   for (unsigned int i = 0; i < trackRef.keyLen; i++){
     long keyTime = trackRef.keys[i].getTime();
@@ -958,13 +964,11 @@ bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek){
       tmpPos.bytePos = trackRef.keys[i].getBpos();
     }
   }
-  if (reachedEOF()){
-    clearerr(F);
-  }
   bool foundPacket = false;
   while ( !foundPacket){
     lastreadpos = ftell(F);
     if (reachedEOF()){
+      DEBUG_MSG(DLVL_WARN, "Reached EOF during seek to %u in track %d - aborting @ %lld", ms, trackNo, lastreadpos);
       return false;
     }
     //Seek to first packet after ms.
@@ -976,6 +980,11 @@ bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek){
     int packSize = ntohl(((int*)header)[1]);
     int packID = ntohl(((int*)header)[2]);
     if (memcmp(header,Magic_Packet2,4) != 0 || packID != trackNo){
+      if (memcmp(header,"DT",2) != 0){
+        DEBUG_MSG(DLVL_WARN, "Invalid header during seek to %u in track %d @ %lld - resetting bytePos from %lld to zero", ms, trackNo, lastreadpos, tmpPos.bytePos);
+        tmpPos.bytePos = 0;
+        continue;
+      }
       tmpPos.bytePos += 8 + packSize;
       continue;
     }

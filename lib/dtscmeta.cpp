@@ -65,7 +65,11 @@ namespace DTSC {
     if (master && !rhs.master){
       null();
     }
-    reInit(rhs.data, rhs.dataLen, !rhs.master);
+    if (rhs){
+      reInit(rhs.data, rhs.dataLen, !rhs.master);
+    }else{
+      null();
+    }
   }
 
   /// Returns true if the packet is deemed valid, false otherwise.

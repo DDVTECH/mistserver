@@ -114,7 +114,11 @@ namespace Mist {
     }else{
       //after this player functionality
       
-      metaPage.init(config->getString("streamname"), (isBuffer ? 8388608 : myMeta.getSendLen()), true);
+#ifdef __CYGWIN__
+  metaPage.init(config->getString("streamname"), 8 * 1024 * 1024, true);
+#else
+  metaPage.init(config->getString("streamname"), (isBuffer ? 8 * 1024 * 1024 : myMeta.getSendLen()), true);
+#endif
       myMeta.writeTo(metaPage.mapped);
       userPage.init(config->getString("streamname") + "_users", 30, true);
       
@@ -125,13 +129,13 @@ namespace Mist {
         }
       }
       
-      sem_t * waiting = sem_open(std::string("/wait_" + config->getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 0);
-      if (waiting == SEM_FAILED){
+      IPC::semaphore waiting(std::string("/wait_" + config->getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 0);
+      if (!waiting){
         DEBUG_MSG(DLVL_FAIL, "Failed to open semaphore - cancelling");
         return -1;
       }
-      sem_post(waiting);
-      sem_close(waiting);
+      waiting.post();
+      waiting.close();
       
       DEBUG_MSG(DLVL_HIGH,"Pre-While");
       
@@ -213,10 +217,10 @@ namespace Mist {
 
         char tmpId[20];
         sprintf(tmpId, "%d", tid);
-        indexPages[tid].init(config->getString("streamname") + tmpId, 8192, true);//Pages of 8kb in size, room for 512 parts.
+        indexPages[tid].init(config->getString("streamname") + tmpId, 8 * 1024, true);//Pages of 8kb in size, room for 512 parts.
       }
       if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() == curData[tid].partNum){
-        if (curData[tid].dataSize > 8388608) {
+        if (curData[tid].dataSize > 8 * 1024 * 1024) {
           pagesByTrack[tid][bookKeeping[tid].first] = curData[tid];
           bookKeeping[tid].first += curData[tid].keyNum;
           curData[tid].keyNum = 0;
@@ -267,7 +271,11 @@ namespace Mist {
     char pageId[100];
     int pageIdLen = sprintf(pageId, "%s%d_%d", config->getString("streamname").c_str(), track, pageNum);
     std::string tmpString(pageId, pageIdLen);
+#ifdef __CYGWIN__
+    dataPages[track][pageNum].init(tmpString, 26 * 1024 * 1024, true);
+#else
     dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
+#endif
     DEBUG_MSG(DLVL_DEVEL, "Buffering track %d page %d through %d", track, pageNum, pageNum-1 + it->second.keyNum);
 
     std::stringstream trackSpec;

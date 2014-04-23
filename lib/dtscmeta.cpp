@@ -115,6 +115,7 @@ namespace DTSC {
 
   /// Internally used resize function for when operating in copy mode and the internal buffer is too small.
   /// It will only resize up, never down.
+  ///\param len The length th scale the buffer up to if necessary
   void Packet::resize(unsigned int len) {
     if (master && len > bufferLen) {
       char * tmp = (char *)realloc(data, len);
@@ -127,6 +128,10 @@ namespace DTSC {
     }
   }
 
+  ///\brief Initializes a packet with new data
+  ///\param data_ The new data for the packet
+  ///\param len The length of the data pointed to by data_
+  ///\param noCopy Determines whether to make a copy or not
   void Packet::reInit(const char * data_, unsigned int len, bool noCopy) {
     if (!data_){
       DEBUG_MSG(DLVL_DEVEL, "ReInit received a null pointer with len %d, ignoring", len);
@@ -240,6 +245,9 @@ namespace DTSC {
     return (char*)1;//out of packet! 1 == error
   }
 
+  ///\brief Locates an identifier within the payload
+  ///\param identifier The identifier to find
+  ///\return A pointer to the location of the identifier
   char * Packet::findIdentifier(const char * identifier){
     char * p = data;
     if (version == DTSC_V2){
@@ -251,6 +259,10 @@ namespace DTSC {
     return ret;
   }
   
+  ///\brief Retrieves a single parameter as a string
+  ///\param identifier The name of the parameter
+  ///\param result A location on which the string will be returned
+  ///\param len An integer in which the length of the string will be returned
   void Packet::getString(const char * identifier, char *& result, int & len) {
     char * pos = findIdentifier(identifier);
     if (pos < (char*)2) {
@@ -267,6 +279,9 @@ namespace DTSC {
     len = ntohl(((int *)(pos + 1))[0]);
   }
 
+  ///\brief Retrieves a single parameter as a string
+  ///\param identifier The name of the parameter
+  ///\param result The string in which to store the result
   void Packet::getString(const char * identifier, std::string & result) {
     char * data = NULL;
     int len = 0;
@@ -274,6 +289,9 @@ namespace DTSC {
     result = std::string(data, len);
   }
 
+  ///\brief Retrieves a single parameter as an integer
+  ///\param identifier The name of the parameter
+  ///\param result The result is stored in this integer
   void Packet::getInt(const char * identifier, int & result) {
     char * pos = findIdentifier(identifier);
     if (pos < (char*)2) {
@@ -287,28 +305,42 @@ namespace DTSC {
     result = ((long long int)pos[1] << 56) | ((long long int)pos[2] << 48) | ((long long int)pos[3] << 40) | ((long long int)pos[4] << 32) | ((long long int)pos[5] << 24) | ((long long int)pos[6] << 16) | ((long long int)pos[7] << 8) | pos[8];
   }
 
+  ///\brief Retrieves a single parameter as an integer
+  ///\param identifier The name of the parameter
+  ///\result The requested parameter as an integer
   int Packet::getInt(const char * identifier) {
     int result;
     getInt(identifier, result);
     return result;
   }
 
+  ///\brief Retrieves a single parameter as a boolean
+  ///\param identifier The name of the parameter
+  ///\param result The result is stored in this boolean
   void Packet::getFlag(const char * identifier, bool & result) {
     int result_;
     getInt(identifier, result_);
     result = (bool)result_;
   }
 
+  ///\brief Retrieves a single parameter as a boolean
+  ///\param identifier The name of the parameter
+  ///\result The requested parameter as a boolean
   bool Packet::getFlag(const char * identifier) {
     bool result;
     getFlag(identifier, result);
     return result;
   }
 
+  ///\brief Checks whether a parameter exists
+  ///\param identifier The name of the parameter
+  ///\result Whether the parameter exists or not
   bool Packet::hasMember(const char * identifier) {
     return findIdentifier(identifier) > (char*)2;
   }
 
+  ///\brief Returns the timestamp of the packet.
+  ///\return The timestamp of this packet.
   long long unsigned int Packet::getTime() {
     if (version != DTSC_V2){
       if (!data){return 0;}
@@ -317,6 +349,8 @@ namespace DTSC {
     return ((long long int)ntohl(((int *)(data + 12))[0]) << 32) | ntohl(((int *)(data + 12))[1]);
   }
 
+  ///\brief Returns the track id of the packet.
+  ///\return The track id of this packet.
   long int Packet::getTrackId() {
     if (version != DTSC_V2){
       return getInt("trackid");
@@ -324,15 +358,21 @@ namespace DTSC {
     return ntohl(((int *)data)[2]);
   }
 
+  ///\brief Returns a pointer to the payload of this packet.
+  ///\return A pointer to the payload of this packet.
   char * Packet::getData() {
     return data;
   }
 
+  ///\brief Returns the size of the payload of this packet.
+  ///\return The size of the payload of this packet.
   int Packet::getDataLen() {
     return dataLen;
   
   }
 
+  ///\brief Converts the packet into a JSON value
+  ///\return A JSON::Value representation of this packet.
   JSON::Value Packet::toJSON(){
     JSON::Value result;
     unsigned int i = 8;
@@ -346,44 +386,56 @@ namespace DTSC {
   }
 
 
+  ///\brief Returns the payloadsize of a part
   long Part::getSize() {
     return ((long)data[0] << 16) | ((long)data[1] << 8) | data[2];
   }
 
+  ///\brief Sets the payloadsize of a part
   void Part::setSize(long newSize) {
     data[0] = (newSize & 0xFF0000) >> 16;
     data[1] = (newSize & 0x00FF00) >> 8;
     data[2] = (newSize & 0x0000FF);
   }
 
+  ///\brief Retruns the duration of a part
   short Part::getDuration() {
     return btohs(data + 3);
   }
 
+  ///\brief Sets the duration of a part
   void Part::setDuration(short newDuration) {
     htobs(data + 3, newDuration);
   }
 
+  ///\brief returns the offset of a part
   long Part::getOffset() {
     return btohl(data + 5);
   }
 
+  ///\brief Sets the offset of a part
   void Part::setOffset(long newOffset) {
     htobl(data + 5, newOffset);
   }
 
+  ///\brief Returns the data of a part
   char * Part::getData() {
     return data;
   }
 
+  ///\brief Converts a part to a human readable string
+  ///\param str The stringstream to append to
+  ///\param indent the amount of indentation needed
   void Part::toPrettyString(std::ostream & str, int indent){
     str << std::string(indent, ' ') << "Part: Size(" << getSize() << "), Dur(" << getDuration() << "), Offset(" << getOffset() << ")" << std::endl;
   }
 
+  ///\brief Returns the byteposition of a keyframe
   long long unsigned int Key::getBpos() {
     return (((long long unsigned int)data[0] << 32) | (data[1] << 24) | (data[2] << 16) | (data[3] << 8) | data[4]);
   }
 
+  ///\brief Returns the byteposition of a keyframe
   void Key::setBpos(long long unsigned int newBpos) {
     data[4] = newBpos & 0xFF;
     data[3] = (newBpos >> 8) & 0xFF;
@@ -392,88 +444,113 @@ namespace DTSC {
     data[0] = (newBpos >> 32) & 0xFF;
   }
 
+  ///\brief Returns the byteposition of a keyframe
   long Key::getLength() {
     return ((data[5] << 16) | (data[6] << 8) | data[7]);
   }
 
+  ///\brief Sets the byteposition of a keyframe
   void Key::setLength(long newLength) {
     data[7] = newLength & 0xFF;
     data[6] = (newLength >> 8) & 0xFF;
     data[5] = (newLength >> 16) & 0xFF;
   }
 
+  ///\brief Returns the number of a keyframe
   unsigned short Key::getNumber() {
     return btohs(data + 8);
   }
 
+  ///\brief Sets the number of a keyframe
   void Key::setNumber(unsigned short newNumber) {
     htobs(data + 8, newNumber);
   }
 
+  ///\brief Returns the number of parts of a keyframe
   short Key::getParts() {
     return btohs(data + 10);
   }
 
+  ///\brief Sets the number of parts of a keyframe
   void Key::setParts(short newParts) {
     htobs(data + 10, newParts);
   }
 
+  ///\brief Returns the timestamp of a keyframe
   long Key::getTime() {
     return btohl(data + 12);
   }
 
+  ///\brief Sets the timestamp of a keyframe
   void Key::setTime(long newTime) {
     htobl(data + 12, newTime);
   }
 
+  ///\brief Returns the data of this keyframe struct
   char * Key::getData() {
     return data;
   }
 
+  ///\brief Converts a keyframe to a human readable string
+  ///\param str The stringstream to append to
+  ///\param indent the amount of indentation needed
   void Key::toPrettyString(std::ostream & str, int indent){
     str << std::string(indent, ' ') << "Key " << getNumber() << ": Pos(" << getBpos() << "), Dur(" << getLength() << "), Parts(" << getParts() <<  "), Time(" << getTime() << ")" << std::endl;
   }
 
+  ///\brief Returns the duration of this fragment
   long Fragment::getDuration() {
     return btohl(data);
   }
 
+  ///\brief Sets the duration of this fragment
   void Fragment::setDuration(long newDuration) {
     htobl(data, newDuration);
   }
 
+  ///\brief Returns the length of this fragment
   char Fragment::getLength() {
     return data[4];
   }
 
+  ///\brief Sets the length of this fragment
   void Fragment::setLength(char newLength) {
     data[4] = newLength;
   }
 
+  ///\brief Returns the number of the first keyframe in this fragment
   short Fragment::getNumber() {
     return btohs(data + 5);
   }
 
+  ///\brief Sets the number of the first keyframe in this fragment
   void Fragment::setNumber(short newNumber) {
     htobs(data + 5, newNumber);
   }
 
+  ///\brief Returns the size of a fragment
   long Fragment::getSize() {
     return btohl(data + 7);
   }
 
+  ///\brief Sets the size of a fragement
   void Fragment::setSize(long newSize) {
     htobl(data + 7, newSize);
   }
 
+  ///\brief Returns thte data of this fragment structure
   char * Fragment::getData() {
     return data;
   }
 
+  ///\brief Converts a fragment to a human readable string
+  ///\param str The stringstream to append to
+  ///\param indent the amount of indentation needed
   void Fragment::toPrettyString(std::ostream & str, int indent){
     str << std::string(indent, ' ') << "Fragment " << getNumber() << ": Dur(" << getDuration() << "), Len(" << (int)getLength() << "), Size(" << getSize() << ")" << std::endl;
   }
 
+  ///\brief Constructs an empty readOnlyTrack
   readOnlyTrack::readOnlyTrack() {
     fragments = NULL;
     fragLen = 0;
@@ -493,6 +570,7 @@ namespace DTSC {
     fpks = 0;
   }
 
+  ///\brief Constructs a readOnlyTrack from a JSON::Value
   readOnlyTrack::readOnlyTrack(JSON::Value & trackRef) {
     if (trackRef.isMember("fragments") && trackRef["fragments"].isString()) {
       fragments = (Fragment *)trackRef["fragments"].asStringRef().data();
@@ -539,6 +617,7 @@ namespace DTSC {
     }
   }
 
+  ///\brief Constructs an empty track
   Track::Track() {
     trackID = 0;
     firstms = 0;
@@ -553,6 +632,7 @@ namespace DTSC {
     fpks = 0;
   }
 
+  ///\brief Constructs a track from a readOnlyTrack
   Track::Track(const readOnlyTrack & rhs) {
     trackID = rhs.trackID;
     firstms = rhs.firstms;
@@ -581,6 +661,7 @@ namespace DTSC {
     }
   }
 
+  ///\brief Constructs a track from a JSON::Value
   Track::Track(JSON::Value & trackRef) {
     if (trackRef.isMember("fragments") && trackRef["fragments"].isString()) {
       Fragment * tmp = (Fragment *)trackRef["fragments"].asStringRef().data();
@@ -618,6 +699,9 @@ namespace DTSC {
     }
   }
 
+  ///\brief Updates a track and its metadata given a DTSC::Packet.
+  ///
+  ///Will also insert keyframes on non-video tracks, and creates fragments
   void Track::update(DTSC::Packet & pack) {
     if (pack.getTime() < lastms) {
       DEBUG_MSG(DLVL_WARN, "Received packets for track %d in wrong order (%d < %d) - ignoring!", (int)trackID, (int)pack.getTime(), (int)lastms);
@@ -679,6 +763,9 @@ namespace DTSC {
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + dataLen);
   }
 
+  ///\brief Updates a track and its metadata given a JSON::Value
+  ///
+  ///Will also insert keyframes on non-video tracks, and creates fragments
   void Track::update(JSON::Value & pack) {
     if (pack["time"].asInt() < lastms) {
       DEBUG_MSG(DLVL_WARN, "Received packets for track %d in wrong order (%d < %d) - ignoring!", (int)trackID, (int)pack["time"].asInt(), (int)lastms);
@@ -737,6 +824,7 @@ namespace DTSC {
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + pack["data"].asStringRef().size());
   }
 
+  ///\brief Returns a key given its number, or an empty key if the number is out of bounds
   Key & Track::getKey(unsigned int keyNum) {
     static Key empty;
     if (keyNum < keys[0].getNumber()) {
@@ -748,6 +836,7 @@ namespace DTSC {
     return keys[keyNum - keys[0].getNumber()];
   }
 
+  ///\brief Returns a unique identifier for a track
   std::string readOnlyTrack::getIdentifier() {
     std::stringstream result;
     if (type == "") {
@@ -766,12 +855,14 @@ namespace DTSC {
     return result.str();
   }
 
+  ///\brief Returns a writable identifier for a track, to prevent overwrites on readout
   std::string readOnlyTrack::getWritableIdentifier() {
     std::stringstream result;
     result << getIdentifier() << "_" << trackID;
     return result.str();
   }
 
+  ///\brief Resets a track, clears all meta values
   void Track::reset() {
     fragments.clear();
     parts.clear();
@@ -781,6 +872,7 @@ namespace DTSC {
     lastms = 0;
   }
 
+  ///\brief Creates an empty read-only meta object
   readOnlyMeta::readOnlyMeta() {
     vod = false;
     live = false;
@@ -790,6 +882,7 @@ namespace DTSC {
     bufferWindow = 0;
   }
 
+  ///\brief Creates a read-only meta object from a given JSON::Value
   readOnlyMeta::readOnlyMeta(JSON::Value & meta) {
     vod = meta.isMember("vod") && meta["vod"];
     live = meta.isMember("live") && meta["live"];
@@ -810,6 +903,10 @@ namespace DTSC {
     }
   }
 
+  ///\brief Converts a read-only track to a human readable string
+  ///\param str The stringstream to append to
+  ///\param indent the amount of indentation needed
+  ///\param verbosity How verbose the output needs to be
   void readOnlyTrack::toPrettyString(std::ostream & str, int indent, int verbosity){
     str << std::string(indent, ' ') << "Track " << getWritableIdentifier() << std::endl;
     str << std::string(indent + 2, ' ') << "ID: " << trackID << std::endl;
@@ -859,6 +956,7 @@ namespace DTSC {
     }
   }
 
+  ///\brief Creates an empty meta object
   Meta::Meta() {
     vod = false;
     live = false;
@@ -867,6 +965,7 @@ namespace DTSC {
     bufferWindow = 0;
   }
 
+  ///\brief Creates a meta object from a read-only meta object
   Meta::Meta(const readOnlyMeta & rhs) {
     vod = rhs.vod;
     live = rhs.live;
@@ -878,6 +977,7 @@ namespace DTSC {
     moreheader = rhs.moreheader;
   }
 
+  ///\brief Creates a meta object from a JSON::Value
   Meta::Meta(JSON::Value & meta) {
     vod = meta.isMember("vod") && meta["vod"];
     live = meta.isMember("live") && meta["live"];
@@ -898,6 +998,7 @@ namespace DTSC {
     }
   }
 
+  ///\brief Updates a meta object given a JSON::Value
   void Meta::update(JSON::Value & pack) {
     vod = pack.isMember("bpos");
     live = !vod;
@@ -906,6 +1007,7 @@ namespace DTSC {
     }
   }
 
+  ///\brief Updates a meta object given a DTSC::Packet
   void Meta::update(DTSC::Packet & pack) {
     vod = pack.hasMember("bpos");
     live = !vod;
@@ -914,6 +1016,10 @@ namespace DTSC {
     }
   }
 
+  ///\brief Converts a track to a human readable string
+  ///\param str The stringstream to append to
+  ///\param indent the amount of indentation needed
+  ///\param verbosity How verbose the output needs to be
   void Track::toPrettyString(std::ostream & str, int indent, int verbosity){
     str << std::string(indent, ' ') << "Track " << getWritableIdentifier() << std::endl;
     str << std::string(indent + 2, ' ') << "ID: " << trackID << std::endl;
@@ -963,6 +1069,7 @@ namespace DTSC {
     }
   }
   
+  ///\brief Converts a short to a char*
   char * convertShort(short input) {
     static char result[2];
     result[0] = (input >> 8) & 0xFF;
@@ -970,6 +1077,7 @@ namespace DTSC {
     return result;
   }
 
+  ///\brief Converts an integer to a char*
   char * convertInt(int input) {
     static char result[4];
     result[0] = (input >> 24) & 0xFF;
@@ -979,6 +1087,7 @@ namespace DTSC {
     return result;
   }
 
+  ///\brief Converts a long long to a char*
   char * convertLongLong(long long int input) {
     static char result[8];
     result[0] = (input >> 56) & 0xFF;
@@ -992,6 +1101,7 @@ namespace DTSC {
     return result;
   }
 
+  ///\brief Determines the "packed" size of a read-only track
   int readOnlyTrack::getSendLen() {
     int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
     result += fragLen * 11;
@@ -1012,6 +1122,7 @@ namespace DTSC {
     return result;
   }
 
+  ///\brief Determines the "packed" size of a track
   int Track::getSendLen() {
     int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
     result += fragments.size() * 11;
@@ -1032,15 +1143,22 @@ namespace DTSC {
     return result;
   }
   
+  ///\brief Writes a pointer to the specified destination
+  ///
+  ///Does a memcpy and increases the destination pointer accordingly
   static void writePointer(char *& p, const char * src, unsigned int len){
     memcpy(p, src, len);
     p += len;
   }
 
+  ///\brief Writes a pointer to the specified destination
+  ///
+  ///Does a memcpy and increases the destination pointer accordingly
   static void writePointer(char *& p, const std::string & src){
     writePointer(p, src.data(), src.size());
   }
 
+  ///\brief Writes a read-only track to a pointer
   void readOnlyTrack::writeTo(char *& p){
     std::string iden = getWritableIdentifier();
     writePointer(p, convertShort(iden.size()), 2);
@@ -1102,6 +1220,7 @@ namespace DTSC {
     writePointer(p, "\000\000\356", 3);//End this track Object
   }
   
+  ///\brief Writes a read-only track to a socket
   void readOnlyTrack::send(Socket::Connection & conn) {
     conn.SendNow(convertShort(getWritableIdentifier().size()), 2);
     conn.SendNow(getWritableIdentifier());
@@ -1162,6 +1281,7 @@ namespace DTSC {
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
   
+  ///\brief Writes a track to a pointer
   void Track::writeTo(char *& p){
     writePointer(p, convertShort(getWritableIdentifier().size()), 2);
     writePointer(p, getWritableIdentifier());
@@ -1228,6 +1348,7 @@ namespace DTSC {
     writePointer(p, "\000\000\356", 3);//End this track Object
   }
 
+  ///\brief Writes a track to a socket
   void Track::send(Socket::Connection & conn) {
     conn.SendNow(convertShort(getWritableIdentifier().size()), 2);
     conn.SendNow(getWritableIdentifier());
@@ -1294,6 +1415,7 @@ namespace DTSC {
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
 
+  ///\brief Determines the "packed" size of a read-only meta object 
   unsigned int readOnlyMeta::getSendLen(){
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
@@ -1302,6 +1424,7 @@ namespace DTSC {
     return dataLen;
   }
   
+  ///\brief Writes a read-only meta object to a pointer
   void readOnlyMeta::writeTo(char * p){
     int dataLen = getSendLen();
     writePointer(p, DTSC::Magic_Header, 4);
@@ -1332,6 +1455,7 @@ namespace DTSC {
     writePointer(p, "\000\000\356", 3);//End global object
   }
   
+  ///\brief Writes a read-only meta object to a socket
   void readOnlyMeta::send(Socket::Connection & conn) {
     int dataLen = getSendLen();
     conn.SendNow(DTSC::Magic_Header, 4);
@@ -1362,6 +1486,7 @@ namespace DTSC {
     conn.SendNow("\000\000\356", 3);//End global object
   }
   
+  ///\brief Determines the "packed" size of a meta object 
   unsigned int Meta::getSendLen(){
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
@@ -1370,6 +1495,7 @@ namespace DTSC {
     return dataLen;
   }
   
+  ///\brief Writes a meta object to a pointer
   void Meta::writeTo(char * p){
     int dataLen = getSendLen();
     writePointer(p, DTSC::Magic_Header, 4);
@@ -1400,6 +1526,7 @@ namespace DTSC {
     writePointer(p, "\000\000\356", 3);//End global object
   }
 
+  ///\brief Writes a meta object to a socket
   void Meta::send(Socket::Connection & conn) {
     int dataLen = getSendLen();
     conn.SendNow(DTSC::Magic_Header, 4);
@@ -1430,6 +1557,7 @@ namespace DTSC {
     conn.SendNow("\000\000\356", 3);//End global object
   }
 
+  ///\brief Converts a read-only track to a JSON::Value
   JSON::Value readOnlyTrack::toJSON() {
     JSON::Value result;
     if (fragments) {
@@ -1467,6 +1595,7 @@ namespace DTSC {
     return result;
   }
 
+  ///\brief Converts a track to a JSON::Value
   JSON::Value Track::toJSON() {
     JSON::Value result;
     std::string tmp;
@@ -1513,6 +1642,7 @@ namespace DTSC {
     return result;
   }
 
+  ///\brief Converts a meta object to a JSON::Value
   JSON::Value Meta::toJSON() {
     JSON::Value result;
     for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
@@ -1534,6 +1664,10 @@ namespace DTSC {
     return result;
   }
 
+  ///\brief Converts a read-only meta object to a human readable string
+  ///\param str The stringstream to append to
+  ///\param indent the amount of indentation needed
+  ///\param verbosity How verbose the output needs to be
   void readOnlyMeta::toPrettyString(std::ostream & str, int indent, int verbosity){
     for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.toPrettyString(str, indent, verbosity);
@@ -1553,6 +1687,10 @@ namespace DTSC {
     str << std::string(indent, ' ') << "More Header: " << moreheader << std::endl;
   }
 
+  ///\brief Converts a meta object to a human readable string
+  ///\param str The stringstream to append to
+  ///\param indent the amount of indentation needed
+  ///\param verbosity How verbose the output needs to be
   void Meta::toPrettyString(std::ostream & str, int indent, int verbosity){
     for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.toPrettyString(str, indent, verbosity);
@@ -1572,6 +1710,7 @@ namespace DTSC {
     str << std::string(indent, ' ') << "More Header: " << moreheader << std::endl;
   }
   
+  ///\brief Converts a read-only meta object to a JSON::Value
   JSON::Value readOnlyMeta::toJSON() {
     JSON::Value result;
     for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
@@ -1593,12 +1732,14 @@ namespace DTSC {
     return result;
   }
 
+  ///\brief Resets a meta object, removes all unimportant meta values
   void Meta::reset() {
     for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.reset();
     }
   }
 
+  ///\brief Returns whether a read-only meta object is fixed or not
   bool readOnlyMeta::isFixed() {
     for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       if (!it->second.keyLen || !(it->second.keys[it->second.keyLen - 1].getBpos())) {
@@ -1608,6 +1749,7 @@ namespace DTSC {
     return true;
   }
 
+  ///\brief Returns whether a meta object is fixed or not
   bool Meta::isFixed() {
     for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       if (it->second.type == "meta" || it->second.type == "") {

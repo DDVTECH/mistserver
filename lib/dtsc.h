@@ -210,6 +210,7 @@ namespace DTSC {
       char data[11];
   };
 
+  ///\brief Basic class for storage of a read-only track
   class readOnlyTrack {
     public:
       readOnlyTrack();
@@ -248,6 +249,7 @@ namespace DTSC {
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
+  ///\brief Class for storage of track data
   class Track : public readOnlyTrack {
     public:
       Track();
@@ -270,6 +272,7 @@ namespace DTSC {
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
+  ///\brief Class for storage of read-only meta data
   class readOnlyMeta {
     public:
       readOnlyMeta();
@@ -291,6 +294,7 @@ namespace DTSC {
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
+  ///\brief Class for storage of meta data
   class Meta : public readOnlyMeta {
     public:
       Meta();

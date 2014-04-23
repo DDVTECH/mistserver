@@ -12,10 +12,17 @@
 
 namespace Converter {
   
+  ///\brief The base constructor
   Converter::Converter(){
     fillFFMpegEncoders();
   }
   
+  ///\brief A function that fill the internal variables with values provided by examing ffmpeg output
+  ///
+  ///Checks for the following encoders:
+  /// - AAC
+  /// - H264
+  /// - MP3
   void Converter::fillFFMpegEncoders(){
     std::vector<char*> cmd;
     cmd.reserve(3);
@@ -45,10 +52,14 @@ namespace Converter {
     fclose( outFile );
   }
   
+  ///\brief A function to obtain all available codecs that have been obtained from the encoders.
+  ///\return A reference to the allCodecs member.
   converterInfo & Converter::getCodecs(){
     return allCodecs;
   }
 
+  ///\brief A function to obtain the available encoders in JSON format.
+  ///\return A JSON::Value containing all encoder:codec pairs.
   JSON::Value Converter::getEncoders(){
     JSON::Value result;
     for (converterInfo::iterator convIt = allCodecs.begin(); convIt != allCodecs.end(); convIt++){
@@ -64,6 +75,9 @@ namespace Converter {
     return result;
   }
   
+  ///\brief Looks in a given path for all files that could be converted
+  ///\param myPath The location to look at, this should be a folder.
+  ///\return A JSON::Value containing all media files in the location, with their corresponding metadata values.
   JSON::Value Converter::queryPath(std::string myPath){
     char const * cmd[3] = {0, 0, 0};
     std::string mistPath = Util::getMyPath() + "MistInfo";
@@ -89,6 +103,20 @@ namespace Converter {
     return result;
   }
 
+  ///\brief Start a conversion with the given parameters
+  ///\param name The name to use for logging the conversion.
+  ///\param parameters The parameters, accepted are the following:
+  /// - input The input url
+  /// - output The output url
+  /// - encoder The encoder to use
+  /// - video An object containing video parameters, if not existant no video will be output. Values are:
+  ///   - width The width of the resulting video
+  ///   - height The height of the resulting video
+  ///   - codec The codec to encode video in, or copy to use the current codec
+  ///   - fpks The framerate in fps * 1000
+  /// - audio An object containing audio parameters, if not existant no audio will be output. Values are:
+  ///   - codec The codec to encode audio in, or copy to use the current codec
+  ///   - samplerate The target samplerate for the audio, in hz
   void Converter::startConversion(std::string name, JSON::Value parameters) {
     if ( !parameters.isMember("input")){
       statusHistory[name] = "No input file supplied";
@@ -185,6 +213,9 @@ namespace Converter {
     allConversions[name]["status"]["time"] = 0;
   }
   
+  ///\brief Updates the internal status of the converter class.
+  ///
+  ///Will check for each running conversion whether it is still running, and update its status accordingly
   void Converter::updateStatus(){
     if (allConversions.size()){
       std::map<std::string,JSON::Value>::iterator cIt;
@@ -249,6 +280,11 @@ namespace Converter {
     }
   }
   
+  ///\brief Parses a single ffmpeg status line into a JSON format
+  ///\param statusLine The current status of ffmpeg
+  ///\return A JSON::Value with the following values set:
+  /// - frame The current last encoded frame
+  /// - time The current last encoded timestamp
   JSON::Value Converter::parseFFMpegStatus(std::string statusLine){
     JSON::Value result;
     int curOffset = statusLine.find("frame=") + 6;
@@ -263,6 +299,8 @@ namespace Converter {
     return result;
   }
   
+  ///\brief Obtain the current internal status of the conversion class
+  ///\return A JSON::Value with the status of each conversion
   JSON::Value Converter::getStatus(){
     updateStatus();
     JSON::Value result;
@@ -281,6 +319,7 @@ namespace Converter {
     return result;
   }
   
+  ///\brief Clears the status history of all conversions
   void Converter::clearStatus(){
     statusHistory.clear();
   }

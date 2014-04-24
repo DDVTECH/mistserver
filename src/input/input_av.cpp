@@ -153,7 +153,7 @@ namespace Mist {
       pkt["trackid"] = (long long)packet.stream_index + 1;
       pkt["data"] = std::string((char*)packet.data, packet.size);
       pkt["time"] = (long long)(packet.dts * 1000 * strm->time_base.num / strm->time_base.den);
-      if (packet.flags & AV_PKT_FLAG_KEY){
+      if (packet.flags & AV_PKT_FLAG_KEY && myMeta.tracks[(long long)packet.stream_index + 1].type != "audio"){
         pkt["keyframe"] = 1ll;
         pkt["bpos"] = (long long)packet.pos;
       }
@@ -183,7 +183,7 @@ namespace Mist {
       pkt["trackid"] = (long long)packet.stream_index + 1;
       pkt["data"] = std::string((char*)packet.data, packet.size);
       pkt["time"] = (long long)(packet.dts * 1000 * strm->time_base.num / strm->time_base.den);
-      if (packet.flags & AV_PKT_FLAG_KEY){
+      if (packet.flags & AV_PKT_FLAG_KEY && myMeta.tracks[(long long)packet.stream_index + 1].type != "audio"){
         pkt["keyframe"] = 1ll;
         pkt["bpos"] = (long long)packet.pos;
       }

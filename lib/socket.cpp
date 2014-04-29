@@ -458,9 +458,9 @@ void Socket::Connection::SendNow(const char * data, size_t len){
   while (upbuffer.size() > 0 && connected()){
     iwrite(upbuffer.get());
   }
-  unsigned int i = iwrite(data, len);
+  unsigned int i = iwrite(data, std::min(len, 51200ul));
   while (i < len && connected()){
-    i += iwrite(data + i, std::min(len - i, (size_t)51200));
+    i += iwrite(data + i, std::min(len - i, 51200ul));
   }
   if (!bing){setBlocking(false);}
 }
@@ -508,7 +508,7 @@ void Socket::Connection::Send(const char * data){
 /// This will send the upbuffer (if non-empty) first, then the data.
 /// Any data that could not be send will block until it can be send or the connection is severed.
 void Socket::Connection::SendNow(const std::string & data){
-  SendNow(data.c_str(), data.size());
+  SendNow(data.data(), data.size());
 }
 
 /// Appends data to the upbuffer.
@@ -737,6 +737,7 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
     fcntl(sock, F_SETFL, flags);
   }
   struct sockaddr_in6 addr;
+  memset(&addr, 0, sizeof(addr));
   addr.sin6_family = AF_INET6;
   addr.sin6_port = htons(port); //set port
   if (hostname == "0.0.0.0" || hostname.length() == 0){
@@ -784,6 +785,7 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
     fcntl(sock, F_SETFL, flags);
   }
   struct sockaddr_in addr4;
+  memset(&addr4, 0, sizeof(addr4));
   addr4.sin_family = AF_INET;
   addr4.sin_port = htons(port); //set port
   if (hostname == "0.0.0.0" || hostname.length() == 0){

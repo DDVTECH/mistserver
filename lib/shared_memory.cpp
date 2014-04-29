@@ -526,6 +526,7 @@ namespace IPC {
     hasCounter = 0;
     payLen = 0;
     offsetOnPage = 0;
+    mySemaphore = 0;
   }
 
   sharedClient::sharedClient(const sharedClient & rhs ) {

@@ -136,7 +136,7 @@ namespace Mist {
       DEBUG_MSG(DLVL_HIGH,"Pre-While");
       
       long long int activityCounter = Util::getMS();
-      while ((Util::getMS() - activityCounter) < 10000){//1minute timeout
+      while ((Util::getMS() - activityCounter) < 10000){//10 second timeout
         DEBUG_MSG(DLVL_HIGH, "Timer running");
         Util::sleep(1000);
         removeUnused();
@@ -162,8 +162,8 @@ namespace Mist {
         change = false;
         for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
           if (!it2->second){
-            pageCounter[it->first].erase(it2->first);
             dataPages[it->first].erase(it2->first);
+            pageCounter[it->first].erase(it2->first);
             change = true;
             break;
           }

@@ -52,6 +52,7 @@ namespace Analysers {
     FLV::Tag F; //FLV holder
     AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
     AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);
+    unsigned int read_in = 0;
 
     while (std::cin.good() || inbuffer.size()){
       if (next.Parse(inbuffer)){
@@ -61,8 +62,8 @@ namespace Analysers {
         }
         switch (next.msg_type_id){
           case 0: //does not exist
-            fprintf(stderr, "Error chunk - %i, %i, %i, %i, %i\n", next.cs_id, next.timestamp, next.real_len, next.len_left, next.msg_stream_id);
-            //return 0;
+            fprintf(stderr, "Error chunk @ %lu - CS%i, T%i, L%i, LL%i, MID%i\n", read_in-inbuffer.size(), next.cs_id, next.timestamp, next.real_len, next.len_left, next.msg_stream_id);
+            return 0;
             break; //happens when connection breaks unexpectedly
           case 1: //set chunk size
             RTMPStream::chunk_rec_max = ntohl(*(int*)next.data.c_str());
@@ -177,6 +178,7 @@ namespace Analysers {
       }else{ //if chunk parsed
         if (std::cin.good()){
           inbuffer += std::cin.get();
+          ++read_in;
         }else{
           inbuffer.clear();
         }

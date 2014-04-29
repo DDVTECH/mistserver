@@ -15,7 +15,10 @@ namespace Mist {
       conn.spool();
       Util::sleep(5);
     }
-    RTMPStream::handshake_in = conn.Received().remove(1537);
+    if (!conn){
+      return;
+    }
+    RTMPStream::handshake_in.append(conn.Received().remove(1537));
     RTMPStream::rec_cnt += 1537;
 
     if (RTMPStream::doHandshake()) {
@@ -33,6 +36,8 @@ namespace Mist {
     counter = 0;
     sending = false;
     streamReset = false;
+    maxSkipAhead = 1500;
+    minSkipAhead = 500;
   }
 
   OutRTMP::~OutRTMP() {}
@@ -53,18 +58,169 @@ namespace Mist {
     cfg->addConnectorOptions(1935, capa);
     config = cfg;
   }
-
+  
   void OutRTMP::sendNext() {
-    //sent a tag
-    FLV::Tag tag;
-    if (tag.DTSCLoader(currentPacket, myMeta.tracks[currentPacket.getTrackId()])) {
-      if (tag.len) {
-        myConn.SendNow(RTMPStream::SendMedia(tag));
-#if DEBUG >= 8
-        fprintf(stderr, "Sent tag to %i: [%u] %s\n", myConn.getSocket(), tag.tagTime(), tag.tagType().c_str());
-#endif
+    char rtmpheader[] = {0, //byte 0 = cs_id | ch_type
+                         0, 0, 0, //bytes 1-3 = timestamp
+                         0, 0, 0, //bytes 4-6 = length
+                         0x12, //byte 7 = msg_type_id
+                         1, 0, 0, 0, //bytes 8-11 = msg_stream_id = 1
+                         0, 0, 0, 0}; //bytes 12-15 = extended timestamp
+    char dataheader[] = {0, 0, 0, 0, 0};
+    unsigned int dheader_len = 1;
+    char * tmpData = 0;//pointer to raw media data
+    int data_len = 0;//length of processed media data
+    currentPacket.getString("data", tmpData, data_len);
+    DTSC::Track & track = myMeta.tracks[currentPacket.getTrackId()];
+    
+    //set msg_type_id
+    if (track.type == "video"){
+      rtmpheader[7] = 0x09;
+      if (track.codec == "H264"){
+        dheader_len += 4;
+        dataheader[0] = 7;
+        if (currentPacket.getFlag("nalu")){
+          dataheader[1] = 1;
+        }else{
+          dataheader[1] = 2;
+        }
+        if (currentPacket.getInt("offset") > 0){
+          long long offset = currentPacket.getInt("offset");
+          dataheader[2] = (offset >> 16) & 0xFF;
+          dataheader[3] = (offset >> 8) & 0xFF;
+          dataheader[4] = offset & 0xFF;
+        }
+      }
+      if (track.codec == "H263"){
+        dataheader[0] = 2;
+      }
+      if (currentPacket.getFlag("keyframe")){
+        dataheader[0] |= 0x10;
+      }
+      if (currentPacket.getFlag("interframe")){
+        dataheader[0] |= 0x20;
+      }
+      if (currentPacket.getFlag("disposableframe")){
+        dataheader[0] |= 0x30;
       }
     }
+    
+    if (track.type == "audio"){
+      rtmpheader[7] = 0x08;
+      if (track.codec == "AAC"){
+        dataheader[0] += 0xA0;
+        dheader_len += 1;
+        dataheader[1] = 1; //raw AAC data, not sequence header
+      }
+      if (track.codec == "MP3"){
+        dataheader[0] += 0x20;
+      }
+      if (track.rate >= 44100){
+        dataheader[0] |= 0x0C;
+      }else if (track.rate >= 22050){
+        dataheader[0] |= 0x08;
+      }else if (track.rate >= 11025){
+        dataheader[0] |= 0x04;
+      }
+      if (track.size == 16){
+        dataheader[0] |= 0x02;
+      }
+      if (track.channels > 1){
+        dataheader[0] |= 0x01;
+      }
+    }
+    data_len += dheader_len;
+    
+    unsigned int timestamp = currentPacket.getTime();
+    
+    bool allow_short = RTMPStream::lastsend.count(4);
+    RTMPStream::Chunk & prev = RTMPStream::lastsend[4];
+    unsigned char chtype = 0x00;
+    unsigned int header_len = 12;
+    bool time_is_diff = false;
+    if (allow_short && (prev.cs_id == 4)){
+      if (prev.msg_stream_id == 1){
+        chtype = 0x40;
+        header_len = 8; //do not send msg_stream_id
+        if (data_len == prev.len && rtmpheader[7] == prev.msg_type_id){
+          chtype = 0x80;
+          header_len = 4; //do not send len and msg_type_id
+          if (timestamp == prev.timestamp){
+            chtype = 0xC0;
+            header_len = 1; //do not send timestamp
+          }
+        }
+        //override - we always sent type 0x00 if the timestamp has decreased since last chunk in this channel
+        if (timestamp < prev.timestamp){
+          chtype = 0x00;
+          header_len = 12;
+        }else{
+          //store the timestamp diff instead of the whole timestamp
+          timestamp -= prev.timestamp;
+          time_is_diff = true;
+        }
+      }
+    }
+    
+    //update previous chunk variables
+    prev.cs_id = 4;
+    prev.msg_stream_id = 1;
+    prev.len = data_len;
+    prev.msg_type_id = rtmpheader[7];
+    if (time_is_diff){
+      prev.timestamp += timestamp;
+    }else{
+      prev.timestamp = timestamp;
+    }
+
+    //cs_id and ch_type
+    rtmpheader[0] = chtype | 4;
+    //data length, 3 bytes
+    rtmpheader[4] = (data_len >> 16) & 0xff;
+    rtmpheader[5] = (data_len >> 8) & 0xff;
+    rtmpheader[6] = data_len & 0xff;
+    //timestamp, 3 bytes
+    if (timestamp >= 0x00ffffff){
+      //send extended timestamp
+      rtmpheader[1] = 0xff;
+      rtmpheader[2] = 0xff;
+      rtmpheader[3] = 0xff;
+      rtmpheader[header_len++] = timestamp & 0xff;
+      rtmpheader[header_len++] = (timestamp >> 8) & 0xff;
+      rtmpheader[header_len++] = (timestamp >> 16) & 0xff;
+      rtmpheader[header_len++] = (timestamp >> 24) & 0xff;
+    }else{
+      //regular timestamp
+      rtmpheader[1] = (timestamp >> 16) & 0xff;
+      rtmpheader[2] = (timestamp >> 8) & 0xff;
+      rtmpheader[3] = timestamp & 0xff;
+    }
+    
+    //send the header
+    myConn.SendNow(rtmpheader, header_len);
+    //set the header's first byte to the "continue" type chunk, for later use
+    rtmpheader[0] = 0xC4;
+
+    //sent actual data - never send more than chunk_snd_max at a time
+    //interleave blocks of max chunk_snd_max bytes with 0xC4 bytes to indicate continue
+    unsigned int len_sent = 0;
+    unsigned int steps = 0;
+    while (len_sent < data_len){
+      unsigned int to_send = std::min(data_len - len_sent, RTMPStream::chunk_snd_max);
+      if (!len_sent){
+        myConn.SendNow(dataheader, dheader_len);
+        to_send -= dheader_len;
+        len_sent += dheader_len;
+      }
+      myConn.SendNow(tmpData+len_sent-dheader_len, to_send);
+      len_sent += to_send;
+      if (len_sent < data_len){
+        myConn.SendNow(rtmpheader, 1);
+        ++steps;
+      }
+    }
+    //update the sent data counter
+    RTMPStream::snd_cnt += header_len + data_len + steps;
   }
 
   void OutRTMP::sendHeader() {

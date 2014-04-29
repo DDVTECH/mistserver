@@ -28,7 +28,7 @@ namespace RTMPStream {
   extern unsigned int snd_cnt; ///< Counter for total data sent, in bytes.
 
   extern timeval lastrec; ///< Timestamp of last time data was received.
-
+  
   /// Holds a single RTMP chunk, either send or receive direction.
   class Chunk{
     public:
@@ -46,13 +46,12 @@ namespace RTMPStream {
       bool Parse(std::string & data);
       bool Parse(Socket::Buffer & data);
       std::string & Pack();
-
-    private:
-      static std::map<unsigned int, Chunk> lastsend;
-      static std::map<unsigned int, Chunk> lastrecv;
   };
   //RTMPStream::Chunk
 
+  extern std::map<unsigned int, Chunk> lastsend;
+  extern std::map<unsigned int, Chunk> lastrecv;
+  
   std::string & SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data);
   std::string & SendMedia(unsigned char msg_type_id, unsigned char * data, int len, unsigned int ts);
   std::string & SendMedia(FLV::Tag & tag);

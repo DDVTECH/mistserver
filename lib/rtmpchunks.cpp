@@ -25,9 +25,9 @@ unsigned int RTMPStream::snd_cnt = 0;
 timeval RTMPStream::lastrec;
 
 /// Holds the last sent chunk for every msg_id.
-std::map<unsigned int, RTMPStream::Chunk> RTMPStream::Chunk::lastsend;
+std::map<unsigned int, RTMPStream::Chunk> RTMPStream::lastsend;
 /// Holds the last received chunk for every msg_id.
-std::map<unsigned int, RTMPStream::Chunk> RTMPStream::Chunk::lastrecv;
+std::map<unsigned int, RTMPStream::Chunk> RTMPStream::lastrecv;
 
 #include <openssl/bn.h>
 #include <openssl/dh.h>
@@ -274,10 +274,11 @@ bool ValidateClientScheme(uint8_t * pBuffer, uint8_t scheme){
 std::string & RTMPStream::Chunk::Pack(){
   static std::string output;
   output.clear();
+  bool allow_short = lastsend.count(cs_id);
   RTMPStream::Chunk prev = lastsend[cs_id];
   unsigned int tmpi;
   unsigned char chtype = 0x00;
-  if ((prev.msg_type_id > 0) && (prev.cs_id == cs_id)){
+  if (allow_short && (prev.cs_id == cs_id)){
     if (msg_stream_id == prev.msg_stream_id){
       chtype = 0x40; //do not send msg_stream_id
       if (len == prev.len){
@@ -427,12 +428,12 @@ std::string & RTMPStream::SendMedia(FLV::Tag & tag){
   //Adobe, if you're ever reading this... wtf? Seriously.
   ch.cs_id = 4;//((unsigned char)tag.data[0]);
   ch.timestamp = tag.tagTime();
-  ch.len = tag.len - 15;
-  ch.real_len = tag.len - 15;
   ch.len_left = 0;
   ch.msg_type_id = (unsigned char)tag.data[0];
   ch.msg_stream_id = 1;
   ch.data = std::string(tag.data + 11, (size_t)(tag.len - 15));
+  ch.len = ch.data.size();
+  ch.real_len = ch.len;
   return ch.Pack();
 } //SendMedia
 
@@ -532,6 +533,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       break;
   }
 
+  bool allow_short = lastrecv.count(cs_id);
   RTMPStream::Chunk prev = lastrecv[cs_id];
 
   //process the rest of the header, for each chunk type
@@ -554,7 +556,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       break;
     case 0x40:
       if (indata.size() < i + 7) return false; //can't read whole header
-      if (prev.msg_type_id == 0){
+      if (!allow_short){
         DEBUG_MSG(DLVL_WARN, "Warning: Header type 0x40 with no valid previous chunk!");
       }
       timestamp = indata[i++ ] * 256 * 256;
@@ -572,7 +574,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       break;
     case 0x80:
       if (indata.size() < i + 3) return false; //can't read whole header
-      if (prev.msg_type_id == 0){
+      if (!allow_short){
         DEBUG_MSG(DLVL_WARN, "Warning: Header type 0x80 with no valid previous chunk!");
       }
       timestamp = indata[i++ ] * 256 * 256;
@@ -587,7 +589,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata){
       msg_stream_id = prev.msg_stream_id;
       break;
     case 0xC0:
-      if (prev.msg_type_id == 0){
+      if (!allow_short){
         DEBUG_MSG(DLVL_WARN, "Warning: Header type 0xC0 with no valid previous chunk!");
       }
       timestamp = prev.timestamp;
@@ -806,10 +808,14 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer){
 bool RTMPStream::doHandshake(){
   char Version;
   //Read C0
+  if (handshake_in.size() < 1537){
+    DEBUG_MSG(DLVL_FAIL, "Handshake wasn't filled properly (%lu/1537) - aborting!", handshake_in.size());
+    return false;
+  }
   Version = RTMPStream::handshake_in[0];
-  uint8_t * Client = (uint8_t *)RTMPStream::handshake_in.c_str() + 1;
+  uint8_t * Client = (uint8_t *)RTMPStream::handshake_in.data() + 1;
   RTMPStream::handshake_out.resize(3073);
-  uint8_t * Server = (uint8_t *)RTMPStream::handshake_out.c_str() + 1;
+  uint8_t * Server = (uint8_t *)RTMPStream::handshake_out.data() + 1;
   RTMPStream::rec_cnt += 1537;
 
   //Build S1 Packet

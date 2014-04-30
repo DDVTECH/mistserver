@@ -18,6 +18,16 @@ namespace Mist {
     option["help"] = "Buffertime for this stream.";
     option["value"].append(30000LL);
     config->addOption("bufferTime", option);
+    /*LTS-start*/
+    option.null();
+    option["arg"] = "string";
+    option["long"] = "record";
+    option["short"] = "r";
+    option["help"] = "Record the stream to a file";
+    option["value"].append("");
+    config->addOption("record", option);
+    /*LTS-end*/
+        
     
     capa["desc"] = "Enables buffered live input";
     capa["codecs"][0u][0u].append("*");
@@ -60,8 +70,55 @@ namespace Mist {
     DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%d", tid, myMeta.tracks[tid].keys[0].getNumber());
     //remove all parts of this key
     for (int i = 0; i < myMeta.tracks[tid].keys[0].getParts(); i++){
+      /*LTS-START*/
+      if (recFile.is_open()){
+        if (!recMeta.tracks.count(tid)){
+          recMeta.tracks[tid] = myMeta.tracks[tid];
+          recMeta.tracks[tid].reset();
+        }
+      }
+      /*LTS-END*/
       myMeta.tracks[tid].parts.pop_front();
     }
+    /*LTS-START*/
+    ///\todo Maybe optimize this by keeping track of the byte positions
+    if (recFile.good()){
+      long long unsigned int firstms = myMeta.tracks[tid].keys[0].getTime();
+      long long unsigned int lastms = myMeta.tracks[tid].keys[1].getTime();
+      DEBUG_MSG(DLVL_DEVEL, "Recording track %d from %llums to %llums", tid, firstms, lastms);
+      long long unsigned int bpos = 0;
+      DTSC::Packet recPack;
+      int pageLen = dataPages[tid][inputLoc[tid].begin()->first].len;
+      char * pageMapped = dataPages[tid][inputLoc[tid].begin()->first].mapped;
+      while( bpos < pageLen) {
+        int tmpSize = ((int)pageMapped[bpos + 4] << 24) | ((int)pageMapped[bpos + 5] << 16) | ((int)pageMapped[bpos + 6] << 8) | (int)pageMapped[bpos + 7];
+        tmpSize += 8;
+        recPack.reInit(pageMapped + bpos, tmpSize, true);
+        if (tmpSize != recPack.getDataLen()){
+          DEBUG_MSG(DLVL_DEVEL, "Something went wrong while trying to record a packet @ %llu, %d != %d", bpos, tmpSize, recPack.getDataLen());
+          break;
+        }
+        if (recPack.getTime() >= lastms){
+          DEBUG_MSG(DLVL_HIGH, "Stopping record, %llu >= %llu", recPack.getTime(), lastms);
+          break;
+        }
+        if (recPack.getTime() >= firstms){
+          //Actually record to file here
+          JSON::Value recJSON = recPack.toJSON();
+          recJSON["bpos"] = recBpos;
+          recFile << recJSON.toNetPacked();
+          recFile.flush();
+          recBpos += recPack.getDataLen();
+          recMeta.update(recJSON);
+        }
+        bpos += recPack.getDataLen();
+      }
+      recFile.flush();
+      std::ofstream tmp(std::string(recName + ".dtsh").c_str());
+      tmp << recMeta.toJSON().toNetPacked();
+      tmp.close();
+    }
+    /*LTS-END*/
     //remove the key itself
     myMeta.tracks[tid].keys.pop_front();
     //re-calculate firstms
@@ -261,6 +318,24 @@ namespace Mist {
           cutTime = streamConfig["cut"].asInt();
         }
       }
+
+      if (streamConfig.isMember("record") && streamConfig["record"].asString() != ""){
+        if (recName != streamConfig["record"].asString()){
+          //close currently recording file, for we should open a new one
+          recFile.close();
+          recMeta.tracks.clear();
+        }
+        if (!recFile.is_open()){
+          recName = streamConfig["record"].asString();
+          DEBUG_MSG(DLVL_DEVEL, "Starting to record stream %s to %s", config->getString("streamname").c_str(), recName.c_str());
+          recFile.open(recName.c_str());
+          if (recFile.fail()){
+            DEBUG_MSG(DLVL_DEVEL, "Error occured during record opening: %s", strerror(errno));
+          }
+          recBpos = 0;
+        }
+      }
+
       /*LTS-END*/
     }
     return true;

@@ -293,6 +293,7 @@ namespace Controller {
           out[jit->first]["contentkey"] = jit->second["contentkey"].asString();/*LTS*/
           out[jit->first]["la_url"] = jit->second["la_url"].asString();/*LTS*/
           out[jit->first]["limits"] = jit->second["limits"];/*LTS*/
+          out[jit->first]["record"] = jit->second["record"];/*LTS*/
           Log("STRM", std::string("Updated stream ") + jit->first);
           if (out[jit->first]["source"].asStringRef().substr(0, 7) != "push://"){
             Util::Procs::Stop(jit->first);
@@ -317,6 +318,7 @@ namespace Controller {
         out[jit->first]["contentkey"] = jit->second["contentkey"].asString();/*LTS*/
         out[jit->first]["la_url"] = jit->second["la_url"].asString();/*LTS*/
         out[jit->first]["limits"] = jit->second["limits"];/*LTS*/
+        out[jit->first]["record"] = jit->second["record"];/*LTS*/
         Log("STRM", std::string("New stream ") + jit->first);
         startStream(jit->first, out[jit->first]);
       }

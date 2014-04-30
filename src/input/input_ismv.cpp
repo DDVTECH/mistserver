@@ -35,7 +35,6 @@ namespace Mist {
         return false;
       }
     }
-    
     //open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile) {

@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "input.h"
 #include <mist/dtsc.h>
 #include <mist/shared_memory.h>
@@ -24,8 +26,14 @@ namespace Mist {
       void userCallback(char * data, size_t len, unsigned int id);
       std::set<unsigned long> givenTracks;
       std::map<unsigned long, IPC::sharedPage> metaPages;
+      ///Maps trackid to a pagenum->pageData map
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > inputLoc;
       inputBuffer * singleton;
+
+      std::string recName;/*LTS*/
+      DTSC::Meta recMeta;/*LTS*/
+      std::ofstream recFile;/*LTS*/
+      long long int recBpos;/*LTS*/
   };
 }
 

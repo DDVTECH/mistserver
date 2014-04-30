@@ -866,7 +866,6 @@ function changeLimitName(limitValue) {
         $('<option>').val('').text('[Select a country]')
       ).bind('change',function(){
         makeLimitValue();
-        
       });
       for (var index in countrylist) {
         $field.append(
@@ -925,7 +924,7 @@ function changeLimitName(limitValue) {
       limitValue = limitValue.substr(1).split(' ');
       for (var index in limitValue) {
         $('#field_container').append(
-          $field.clone().val(limitValue[index])
+          $field.clone(true).val(limitValue[index])
         )
       }
       $('#field_container').append(

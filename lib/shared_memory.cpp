@@ -253,7 +253,14 @@ namespace IPC {
         if (master){
           handle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len, name.c_str());
         }else{
-          handle = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());  
+          int i = 0;
+          do {
+            if (i != 0){
+              Util::sleep(1000);
+            }
+            handle = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());  
+            i++;
+          } while(i < 10 && !handle && autoBackoff);
         }
         if (!handle) {
           DEBUG_MSG(DLVL_FAIL, "%s for page %s failed: %s", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), strerror(errno));

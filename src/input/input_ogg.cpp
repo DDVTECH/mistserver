@@ -21,13 +21,14 @@ namespace Mist {
 
   bool inputOGG::setup() {
     if (config->getString("input") == "-") {
-      std::cerr << "Input from stream not yet supported" << std::endl;
+      std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
-    if (config->getString("output") != "-") {
-      std::cerr << "Output to non-stdout not yet supported" << std::endl;
+    if (config->getString("output") == "-") {
+      std::cerr << "Output to stdout not yet supported" << std::endl;
+      return false;
     }
-
+    
     //open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile) {

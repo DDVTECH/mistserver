@@ -162,6 +162,7 @@ namespace Mist {
       if (HTTP_R.url.find(".abst") != std::string::npos){
         myConn.setHost(HTTP_R.GetHeader("X-Origin"));
         streamName = HTTP_R.GetHeader("X-Stream");
+        initialize();
         std::string streamID = HTTP_R.url.substr(streamName.size() + 10);
         streamID = streamID.substr(0, streamID.find(".abst"));
         HTTP_S.Clean();

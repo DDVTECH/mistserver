@@ -653,12 +653,6 @@ namespace Mist {
           DEBUG_MSG(DLVL_VERYHIGH, "SendHeader");
           sendHeader();
         }
-        /*LTS-START*/
-        if (isBlacklisted(myConn.getHost(), streamName, myConn.connTime())){
-          myConn.close();
-          continue;
-        }
-        /*LTS-END*/
         prepareNext();
         if (currentPacket){
           sendNext();
@@ -755,6 +749,12 @@ namespace Mist {
   }
 
   void Output::stats(){
+    /*LTS-START*/
+    if (isBlacklisted(myConn.getHost(), streamName, myConn.connTime())){
+      myConn.close();
+      return;
+    }
+    /*LTS-END*/
     if (!statsPage.getData()){
       return;
     }

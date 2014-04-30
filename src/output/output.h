@@ -10,12 +10,12 @@
 #include <mist/shared_memory.h>
 
 namespace Mist {
-  
+
   /// This struct keeps packet information sorted in playback order, so the
   /// Mist::Output class knows when to buffer which packet.
-  struct sortedPageInfo{
+  struct sortedPageInfo {
     bool operator < (const sortedPageInfo & rhs) const {
-      if (time < rhs.time){
+      if (time < rhs.time) {
         return true;
       }
       return (time == rhs.time && tid < rhs.tid);
@@ -51,11 +51,21 @@ namespace Mist {
       virtual void sendNext() {}//REQUIRED! Others are optional.
       virtual void prepareNext();
       virtual void onRequest();
-      virtual bool onFinish(){return false;}
+      virtual bool onFinish() {
+        return false;
+      }
       virtual void initialize();
       virtual void sendHeader();
       virtual void onFail();
     private://these *should* not be messed with in child classes.
+      /*LTS-START*/
+      void Log(std::string type, std::string message);
+      bool checkLimits();
+      bool isBlacklisted(std::string host, std::string streamName, int timeConnected);
+      std::string hostLookup(std::string ip);
+      bool onList(std::string ip, std::string list);
+      std::string getCountry(std::string ip);
+      /*LTS-END*/
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
       bool isBlocking;///< If true, indicates that myConn is blocking.
@@ -68,19 +78,19 @@ namespace Mist {
     protected://these are to be messed with by child classes
       unsigned int getKeyForTime(long unsigned int trackId, long long timeStamp);
       IPC::sharedPage streamIndex;///< Shared memory used for metadata
-      std::map<int,IPC::sharedPage> indexPages;///< Maintains index pages of each track, holding information about available pages with DTSC packets.
-      std::map<int,IPC::sharedPage> curPages;///< Holds the currently used pages with DTSC packets for each track.
+      std::map<int, IPC::sharedPage> indexPages; ///< Maintains index pages of each track, holding information about available pages with DTSC packets.
+      std::map<int, IPC::sharedPage> curPages; ///< Holds the currently used pages with DTSC packets for each track.
       /// \todo Privitize keyTimes
       IPC::sharedClient playerConn;///< Shared memory used for connection to MistIn process.
-      std::map<int,std::set<int> > keyTimes;///< Per-track list of keyframe times, for keyframe detection.      
+      std::map<int, std::set<int> > keyTimes; ///< Per-track list of keyframe times, for keyframe detection.
       //static member for initialization
       static Util::Config * config;///< Static, global configuration for the MistOut process
-      
+
       //stream delaying variables
       unsigned int maxSkipAhead;///< Maximum ms that we will go ahead of the intended timestamps.
       unsigned int minSkipAhead;///< Minimum ms that we will go ahead of the intended timestamps.
       unsigned int realTime;///< Playback speed times 1000 (1000 == 1.0X). Zero is infinite.
-      
+
       //Read/write status variables
       Socket::Connection & myConn;///< Connection to the client.
       std::string streamName;///< Name of the stream that will be opened by initialize()
@@ -96,3 +106,4 @@ namespace Mist {
   };
 
 }
+

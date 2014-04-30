@@ -12,6 +12,15 @@
 #include <mist/timing.h>
 #include "output.h"
 
+/*LTS-START*/
+#include <GeoIP.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#define GEOIPV4 "/usr/share/GeoIP/GeoIP.dat"
+#define GEOIPV6 "/usr/share/GeoIP/GeoIPv6.dat"
+/*LTS-END*/
+
 namespace Mist {
   Util::Config * Output::config = NULL;
   JSON::Value Output::capa = JSON::Value();
@@ -350,6 +359,275 @@ namespace Mist {
       return false;
     }
   }
+
+  /*LTS-START*/
+  bool Output::onList(std::string ip, std::string list){
+    if (list == ""){
+      return false;
+    }
+    std::string entry;
+    std::string lowerIpv6;//lower-case
+    std::string upperIpv6;//full-caps
+    do{
+      entry = list.substr(0,list.find(" "));//make sure we have a single entry
+      lowerIpv6 = "::ffff:" + entry;
+      upperIpv6 = "::FFFF:" + entry;
+      if (entry == ip || lowerIpv6 == ip || upperIpv6 == ip){
+        return true;
+      }
+      long long unsigned int starPos = entry.find("*");
+      if (starPos == std::string::npos){
+        if (ip == entry){
+          return true;
+        }
+      }else{
+        if (starPos == 0){//beginning of the filter
+          if (ip.substr(ip.length() - entry.size() - 1) == entry.substr(1)){
+            return true;
+          }
+        }else{
+          if (starPos == entry.size() - 1){//end of the filter
+            if (ip.find(entry.substr(0, entry.size() - 1)) == 0 ){
+              return true;
+            }
+            if (ip.find(entry.substr(0, lowerIpv6.size() - 1)) == 0 ){
+              return true;
+            }
+            if (ip.find(entry.substr(0, upperIpv6.size() - 1)) == 0 ){
+              return true;
+            }
+          }else{
+            Log("CONF","Invalid list entry detected: " + entry);
+          }
+        }
+      }
+      list.erase(0, entry.size() + 1);
+    }while (list != "");
+    return false;
+  }
+
+  void Output::Log(std::string type, std::string message){
+    if (type == "HLIM"){
+      DEBUG_MSG(DLVL_WARN, "HardLimit Triggered: %s", message.c_str());
+    }
+    if (type == "SLIM"){
+      DEBUG_MSG(DLVL_WARN, "SoftLimit Triggered: %s", message.c_str());
+    }
+  }
+  
+  std::string Output::hostLookup(std::string ip){
+    struct sockaddr_in6 sa;
+    char hostName[1024];
+    char service[20];
+    if (inet_pton(AF_INET6, ip.c_str(), &(sa.sin6_addr)) != 1){
+      return "\n";
+    }
+    sa.sin6_family = AF_INET6;
+    sa.sin6_port = 0;
+    sa.sin6_flowinfo = 0;
+    sa.sin6_scope_id = 0;
+    int tmpRet = getnameinfo((struct sockaddr*)&sa, sizeof sa, hostName, sizeof hostName, service, sizeof service, NI_NAMEREQD );
+    if ( tmpRet == 0){
+      return hostName;
+    }
+    return "";
+  }
+  
+  bool Output::isBlacklisted(std::string host, std::string streamName, int timeConnected){
+    JSON::Value Storage = JSON::fromFile(Util::getTmpFolder() + "streamlist");    
+    std::string myHostName = hostLookup(host);
+    if (myHostName == "\n"){
+      return false;
+    }
+    std::string myCountryName = getCountry(host);
+    JSON::ArrIter limitIt;
+    bool hasWhitelist = false;
+    bool hostOnWhitelist = false;
+    if (Storage["streams"].isMember(streamName)){
+      if (Storage["streams"][streamName].isMember("limits") && Storage["streams"][streamName]["limits"].size()){
+        for (limitIt = Storage["streams"][streamName]["limits"].ArrBegin(); limitIt != Storage["streams"][streamName]["limits"].ArrEnd(); limitIt++){
+          if ((*limitIt)["name"].asString() == "host"){
+            if ((*limitIt)["value"].asString()[0] == '+'){
+              if (!onList(host, (*limitIt)["value"].asString().substr(1))){
+                if (myHostName == ""){
+                  if (timeConnected > Storage["config"]["limit_timeout"].asInt()){
+                    return true;
+                  }
+                }else{
+                  if ( !onList(myHostName, (*limitIt)["value"].asString().substr(1))){
+                    if ((*limitIt)["type"].asString() == "hard"){
+                      Log("HLIM", "Host " + host + " not whitelisted for stream " + streamName);
+                      return true;
+                    }else{
+                      Log("SLIM", "Host " + host + " not whitelisted for stream " + streamName);
+                    }
+                  }
+                }
+              }
+            }else{
+              if ((*limitIt)["value"].asString()[0] == '-'){
+                if (onList(host, (*limitIt)["value"].asString().substr(1))){
+                  if ((*limitIt)["type"].asString() == "hard"){
+                    Log("HLIM", "Host " + host + " blacklisted for stream " + streamName);
+                    return true;
+                  }else{
+                    Log("SLIM", "Host " + host + " blacklisted for stream " + streamName);
+                  }
+                }
+                if (myHostName != "" && onList(myHostName, (*limitIt)["value"].asString().substr(1))){
+                  if ((*limitIt)["type"].asString() == "hard"){
+                    Log("HLIM", "Host " + myHostName + " blacklisted for stream " + streamName);
+                    return true;
+                  }else{
+                    Log("SLIM", "Host " + myHostName + " blacklisted for stream " + streamName);
+                  }
+                }
+              }
+            }
+          }
+          if ((*limitIt)["name"].asString() == "geo"){
+            if ((*limitIt)["value"].asString()[0] == '+'){
+              if (myCountryName == ""){
+                if ((*limitIt)["type"].asString() == "hard"){
+                  Log("HLIM", "Host " + host + " with unknown location blacklisted for stream " + streamName);
+                  return true;
+                }else{
+                  Log("SLIM", "Host " + host + " with unknown location blacklisted for stream " + streamName);
+                }
+              }
+              if (!onList(myCountryName, (*limitIt)["value"].asString().substr(1))){
+                if ((*limitIt)["type"].asString() == "hard"){
+                  Log("HLIM", "Host " + host + " with location " + myCountryName + " not whitelisted for stream " + streamName);
+                  return true;
+                }else{
+                  Log("SLIM", "Host " + host + " with location " + myCountryName + " not whitelisted for stream " + streamName);
+                }
+              }
+            }else{
+              if ((*limitIt)["val"].asString()[0] == '-'){
+                if (onList(myCountryName, (*limitIt)["value"].asString().substr(1))){
+                  if ((*limitIt)["type"].asString() == "hard"){
+                    Log("HLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
+                    return true;
+                  }else{
+                    Log("SLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if (Storage["config"]["limits"].size()){
+      for (limitIt = Storage["config"]["limits"].ArrBegin(); limitIt != Storage["config"]["limits"].ArrEnd(); limitIt++){
+        if ((*limitIt)["name"].asString() == "host"){
+          if ((*limitIt)["value"].asString()[0] == '+'){
+            if (!onList(host, (*limitIt)["value"].asString().substr(1))){
+              if (myHostName == ""){
+                if (timeConnected > Storage["config"]["limit_timeout"].asInt()){
+                  return true;
+                }
+              }else{
+                if ( !onList(myHostName, (*limitIt)["value"].asString().substr(1))){
+                  if ((*limitIt)["type"].asString() == "hard"){
+                    Log("HLIM", "Host " + host + " not whitelisted for stream " + streamName);
+                    return true;
+                  }else{
+                    Log("SLIM", "Host " + host + " not whitelisted for stream " + streamName);
+                  }
+                }
+              }
+            }
+          }else{
+            if ((*limitIt)["value"].asString()[0] == '-'){
+              if (onList(host, (*limitIt)["value"].asString().substr(1))){
+                if ((*limitIt)["type"].asString() == "hard"){
+                  Log("HLIM", "Host " + host + " blacklisted for stream " + streamName);
+                  return true;
+                }else{
+                  Log("SLIM", "Host " + host + " blacklisted for stream " + streamName);
+                }
+              }
+              if (myHostName != "" && onList(myHostName, (*limitIt)["value"].asString().substr(1))){
+                if ((*limitIt)["type"].asString() == "hard"){
+                  Log("HLIM", "Host " + myHostName + " blacklisted for stream " + streamName);
+                  return true;
+                }else{
+                  Log("SLIM", "Host " + myHostName + " blacklisted for stream " + streamName);
+                }
+              }
+            }
+          }
+        }
+        if ((*limitIt)["name"].asString() == "geo"){
+          if ((*limitIt)["value"].asString()[0] == '+'){
+            if (myCountryName == ""){
+              if ((*limitIt)["type"].asString() == "hard"){
+                Log("HLIM", "Host " + host + " with unknown location blacklisted for stream " + streamName);
+                return true;
+              }else{
+                Log("SLIM", "Host " + host + " with unknown location blacklisted for stream " + streamName);
+              }
+            }
+            if (!onList(myCountryName, (*limitIt)["value"].asString().substr(1))){
+              if ((*limitIt)["type"].asString() == "hard"){
+                Log("HLIM", "Host " + host + " with location " + myCountryName + " not whitelisted for stream " + streamName);
+                return true;
+              }else{
+                Log("SLIM", "Host " + host + " with location " + myCountryName + " not whitelisted for stream " + streamName);
+              }
+            }
+          }else{
+            if ((*limitIt)["value"].asString()[0] == '-'){
+              if (onList(myCountryName, (*limitIt)["val"].asString().substr(1))){
+                if ((*limitIt)["type"].asString() == "hard"){
+                  Log("HLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
+                  return true;
+                }else{
+                  Log("SLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if (hasWhitelist){
+      if (hostOnWhitelist || myHostName == ""){
+        return false;
+      }else{
+        return true;
+      }
+    }
+    return false;
+  }
+
+  std::string Output::getCountry(std::string ip){
+    char * code = NULL;
+    GeoIP * geoIP;
+    geoIP = GeoIP_open(GEOIPV4, GEOIP_STANDARD | GEOIP_CHECK_CACHE);
+    if (!geoIP){
+      std::cerr << "An error occured loading the IPv4 database" << std::endl;
+    }else{
+      code = (char*)GeoIP_country_code_by_addr(geoIP, ip.c_str());
+      GeoIP_delete(geoIP);
+    }
+    if (!code){
+      geoIP = GeoIP_open(GEOIPV6, GEOIP_STANDARD | GEOIP_CHECK_CACHE);
+      if (!geoIP){
+        std::cerr << "An error occured loading the IPv6 database" << std::endl;
+      }else{
+        code = (char*)GeoIP_country_code_by_addr_v6(geoIP, ip.c_str());
+        GeoIP_delete(geoIP);
+      }
+    }
+    if (!code){
+      return "";
+    }
+    return code;
+  }
+  /*LTS-END*/
  
   int Output::run() {
     bool firstData = true;//only the first time, we call OnRequest if there's data buffered already.
@@ -375,6 +653,12 @@ namespace Mist {
           DEBUG_MSG(DLVL_VERYHIGH, "SendHeader");
           sendHeader();
         }
+        /*LTS-START*/
+        if (isBlacklisted(myConn.getHost(), streamName, myConn.connTime())){
+          myConn.close();
+          continue;
+        }
+        /*LTS-END*/
         prepareNext();
         if (currentPacket){
           sendNext();

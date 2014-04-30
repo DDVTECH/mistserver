@@ -626,7 +626,7 @@ namespace Mist {
       //open new page
       char nextPage[100];
       sprintf(nextPage, "%s%llu_%d", streamName.c_str(), tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
-      curPages[tNum].init(nextPage, 0, false);
+      curPages[tNum].init(nextPage, 26 * 1024 * 1024);
       bookKeeping[tNum].pageNum += bookKeeping[tNum].keyNum;
       bookKeeping[tNum].keyNum = 0;
       bookKeeping[tNum].curOffset = 0;
@@ -684,7 +684,7 @@ namespace Mist {
     for (std::map<int, int>::iterator it = trackMap.begin(); it != trackMap.end(); it++){
       char tmp[100];
       sprintf( tmp, "liveStream_%s%d", streamName.c_str(), it->second);
-      metaPages[it->second].init(std::string(tmp), 0, false);
+      metaPages[it->second].init(std::string(tmp), 8 * 1024 * 1024);
       DTSC::Meta tmpMeta = meta_out;
       tmpMeta.tracks.clear();
       tmpMeta.tracks[it->second] = meta_out.tracks[it->first];
@@ -736,7 +736,7 @@ namespace Mist {
       }else{
         char firstPage[100];
         sprintf(firstPage, "%s%lu_%d", streamName.c_str(), tNum, 0);
-        curPages[tNum].init(firstPage, 0, false);
+        curPages[tNum].init(firstPage, 8 * 1024 * 1024);
         bookKeeping[tNum] = DTSCPageData();
         DEBUG_MSG(DLVL_WARN, "Buffer accepted track %lu", tNum);
       }

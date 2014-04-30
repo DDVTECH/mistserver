@@ -54,11 +54,13 @@ namespace Mist {
   }
 
   void Output::updateMeta(){
-    unsigned int i = 0;
     //read metadata from page to myMeta variable
-    JSON::Value jsonMeta;
-    JSON::fromDTMI((const unsigned char*)streamIndex.mapped + 8, streamIndex.len - 8, i, jsonMeta);
-    myMeta = DTSC::Meta(jsonMeta);
+    if (streamIndex.mapped){
+      JSON::Value jsonMeta;
+      unsigned int i = 0;
+      JSON::fromDTMI((const unsigned char*)streamIndex.mapped + 8, streamIndex.len - 8, i, jsonMeta);
+      myMeta = DTSC::Meta(jsonMeta);
+    }
   }
   
   /// Called when stream initialization has failed.
@@ -82,7 +84,7 @@ namespace Mist {
       return;
     }
     isInitialized = true;
-    streamIndex.init(streamName,0);
+    streamIndex.init(streamName,8 * 1024 * 1024);
     if (!streamIndex.mapped){
       DEBUG_MSG(DLVL_FAIL, "Could not connect to server for %s\n", streamName.c_str());
       onFail();
@@ -239,7 +241,7 @@ namespace Mist {
     if (!indexPages.count(trackId)){
       char id[100];
       sprintf(id, "%s%lu", streamName.c_str(), trackId);
-      indexPages[trackId].init(id, 8192);
+      indexPages[trackId].init(id, 8 * 1024);
     }
     while (pageNum == -1 || keyAmount == -1){
       for (int i = 0; i < indexPages[trackId].len / 8; i++){
@@ -285,7 +287,7 @@ namespace Mist {
     }
     char id[100];
     sprintf(id, "%s%lu_%d", streamName.c_str(), trackId, pageNum);
-    curPages[trackId].init(std::string(id),0);
+    curPages[trackId].init(std::string(id),26 * 1024 * 1024);
     if (!(curPages[trackId].mapped)){
       DEBUG_MSG(DLVL_FAIL, "Initializing page %s failed", curPages[trackId].name.c_str());
       return;

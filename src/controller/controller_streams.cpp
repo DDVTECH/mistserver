@@ -211,6 +211,9 @@ namespace Controller {
               checker[jit->first].lastms = trackIt->second["lastms"].asInt();
               checker[jit->first].last_active = currTime;
             }
+            if (trackIt->second["firsms"].asInt() > Storage["streams"][jit->first]["cut"].asInt()){
+              Storage["streams"][jit->first].removeMember("cut");
+            }
             //check H264 tracks for optimality
             if (jit->second.isMember("meta") && jit->second["meta"].isMember("tracks")){
               for (JSON::ObjIter trIt = jit->second["meta"]["tracks"].ObjBegin(); trIt != jit->second["meta"]["tracks"].ObjEnd(); trIt++){

@@ -24,9 +24,16 @@ namespace Mist {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
-    if (config->getString("output") == "-") {
-      std::cerr << "Output to stdout not yet supported" << std::endl;
-      return false;
+    if (!config->getBool("player")){
+      if (config->getString("output") == "-") {
+        std::cerr << "Output to stdout not yet supported" << std::endl;
+        return false;
+      }
+    }else{
+      if (config->getString("output") != "-") {
+        std::cerr << "File output in player mode not supported" << std::endl;
+        return false;
+      }
     }
     
     //open File

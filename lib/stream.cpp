@@ -12,6 +12,7 @@
 #include "config.h"
 #include "socket.h"
 #include "defines.h"
+#include "shared_memory.h"
 
 std::string Util::getTmpFolder(){
   std::string dir;
@@ -129,14 +130,14 @@ bool Util::Stream::getStream(std::string streamname){
     }
     /*LTS-END*/
     //check if the stream is already active, if yes, don't re-activate
-    sem_t * playerLock = sem_open(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    if (sem_trywait(playerLock) == -1){
-      sem_close(playerLock);
+    IPC::semaphore playerLock(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    if (!playerLock.tryWait()){
+      playerLock.close();
       DEBUG_MSG(DLVL_MEDIUM, "Playerlock for %s already active - not re-activating stream", streamname.c_str());
       return true;
     }
-    sem_post(playerLock);
-    sem_close(playerLock);
+    playerLock.post();
+    playerLock.close();
     if (ServConf["streams"][streamname]["source"].asString()[0] == '/'){
       DEBUG_MSG(DLVL_MEDIUM, "Activating VoD stream %s", streamname.c_str());
       return getVod(ServConf["streams"][streamname]["source"].asString(), streamname);

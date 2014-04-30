@@ -46,7 +46,11 @@ namespace Mist {
   
   bool inputAV::setup() {
     if (config->getString("input") == "-") {
-      std::cerr << "Input from stream not yet supported" << std::endl;
+      std::cerr << "Input from stdin not yet supported" << std::endl;
+      return false;
+    }
+    if (config->getString("output") == "-") {
+      std::cerr << "Output to stdout not yet supported" << std::endl;
       return false;
     }
     

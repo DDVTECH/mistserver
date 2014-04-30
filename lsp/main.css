@@ -455,8 +455,19 @@ button[disabled=disabled] {
   margin: 0.1em;
   padding: 0 0.5em;
 }
+#graphcontainer .graph > .graphforeground {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+#graphcontainer .graph > .graphbackground {
+  position: absolute;
+  display: block;
+  opacity: 0.5;
+}
 #graphcontainer .graph {
-  height: 250px;
+  height: 400px;
+  margin: 0 auto;
 }
 .legend {
   font-size: 0.8em;

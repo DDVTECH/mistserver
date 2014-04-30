@@ -522,9 +522,10 @@ namespace MP4 {
       tempLoc += getStringLen(tempLoc) + 1;
     }
     int countLoc = tempLoc;
+    unsigned int count = getInt32(countLoc);
     tempLoc += 4;
     for (unsigned int i = 0; i < no; i++){
-      if (i + 1 > getInt32(countLoc)){
+      if (i + 1 > count){
         setInt32(0, tempLoc);
         setInt64(0, tempLoc + 4);
         setInt32(1, tempLoc + 12);
@@ -541,7 +542,7 @@ namespace MP4 {
     if (newRun.duration == 0){
       setInt8(newRun.discontinuity, tempLoc + 16);
     }
-    if (getInt32(countLoc) < no + 1){
+    if (count < no + 1){
       setInt32(no + 1, countLoc);
     }
   }

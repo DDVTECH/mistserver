@@ -37,7 +37,7 @@ namespace Mist {
     if (myMeta.live){
       asrt.setSegmentRun(1, 4294967295ul, 0);
     }else{
-      asrt.setSegmentRun(1, myMeta.tracks[tid].keys.size(), 0);
+      asrt.setSegmentRun(1, myMeta.tracks[tid].fragments.size(), 0);
     }
     
     MP4::AFRT afrt;
@@ -47,13 +47,22 @@ namespace Mist {
     //afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
     int i = 0;
-    for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[tid].keys.begin(); it != myMeta.tracks[tid].keys.end(); it++){
-      if (it->getLength()){
-        afrtrun.firstFragment = it->getNumber();
-        afrtrun.firstTimestamp = it->getTime();
-        afrtrun.duration = it->getLength();
-        afrt.setFragmentRun(afrtrun, i);
-        i++;
+    int j = 0;
+    if (myMeta.tracks[tid].fragments.size()){
+      unsigned int firstTime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments.begin()->getNumber()).getTime();
+      for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
+        if (myMeta.vod || it->getDuration() > 0){
+          afrtrun.firstFragment = myMeta.tracks[tid].missedFrags + j + 1;
+          afrtrun.firstTimestamp = myMeta.tracks[tid].getKey(it->getNumber()).getTime() - firstTime;
+          if (it->getDuration() > 0){
+            afrtrun.duration = it->getDuration();
+          }else{
+            afrtrun.duration = myMeta.tracks[tid].lastms - afrtrun.firstTimestamp;
+          }
+          afrt.setFragmentRun(afrtrun, i);
+          i++;
+        }
+        j++;
       }
     }
     
@@ -184,44 +193,30 @@ namespace Mist {
         int temp;
         temp = HTTP_R.url.find("Seg") + 3;
         temp = HTTP_R.url.find("Frag") + 4;
-        fragNum = atoi(HTTP_R.url.substr(temp).c_str());
+        fragNum = atoi(HTTP_R.url.substr(temp).c_str()) - 1;
         DEBUG_MSG(DLVL_MEDIUM, "Video track %d, fragment %d\n", tid, fragNum);
         if (!audioTrack){getTracks();}
         unsigned int mstime = 0;
         unsigned int mslen = 0;
-        for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[tid].keys.begin(); it != myMeta.tracks[tid].keys.end(); it++){
-          if (it->getNumber() >= fragNum){
-            mstime = it->getTime();
-            mslen = it->getLength();
-            if (myMeta.live){
-              if (it == myMeta.tracks[tid].keys.end() - 2){
-                HTTP_S.Clean();
-                HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-                HTTP_S.SendResponse("208", "Ask again later", myConn);
-                HTTP_R.Clean(); //clean for any possible next requests
-                std::cout << "Fragment after fragment " << fragNum << " not available yet" << std::endl;
-                /*
-                ///\todo patch this back in?
-                if (ss.spool()){
-                  while (Strm.parsePacket(ss.Received())){}
-                }
-                */
-              }
-            }
-            break;
-          }
+        if (fragNum < myMeta.tracks[tid].missedFrags){
+          HTTP_S.Clean();
+          HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+          HTTP_S.SendResponse("412", "Fragment out of range", myConn);
+          HTTP_R.Clean(); //clean for any possible next requests
+          std::cout << "Fragment " << fragNum << " too old" << std::endl;
+          continue;
         }
-        if (HTTP_R.url == "/"){continue;}//Don't continue, but continue instead.
-        if (myMeta.live){
-          if (mstime == 0 && fragNum > 1){
-            HTTP_S.Clean();
-            HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-            HTTP_S.SendResponse("412", "Fragment out of range", myConn);
-            HTTP_R.Clean(); //clean for any possible next requests
-            std::cout << "Fragment " << fragNum << " too old" << std::endl;
-            continue;
-          }
+        if (fragNum > myMeta.tracks[tid].missedFrags + myMeta.tracks[tid].fragments.size() - 1){
+          HTTP_S.Clean();
+          HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
+          HTTP_S.SendResponse("208", "Ask again later", myConn);
+          HTTP_R.Clean(); //clean for any possible next requests
+          std::cout << "Fragment after fragment " << fragNum << " not available yet" << std::endl;
+          continue;
         }
+        mstime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getNumber()).getTime();
+        mslen = myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getDuration();
+        
         selectedTracks.clear();
         selectedTracks.insert(tid);
         selectedTracks.insert(audioTrack);

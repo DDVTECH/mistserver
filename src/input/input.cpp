@@ -85,11 +85,15 @@ namespace Mist {
     if (!config->getBool("player")){
       //check filename for no -
       if (config->getString("output") != "-"){
+        std::string filename = config->getString("output");
+        if (filename.size() < 5 || filename.substr(filename.size() - 5) != ".dtsc"){
+          filename += ".dtsc";
+        }
         //output to dtsc
         DTSC::Meta newMeta = myMeta;
         newMeta.reset();
         JSON::Value tempVal;
-        std::ofstream file(config->getString("output").c_str());
+        std::ofstream file(filename.c_str());
         long long int bpos = 0;
         seek(0);
         getNext();
@@ -104,7 +108,7 @@ namespace Mist {
         //close file
         file.close();
         //create header
-        file.open((config->getString("output")+".dtsh").c_str());
+        file.open((filename+".dtsh").c_str());
         file << newMeta.toJSON().toNetPacked();
         file.close();
       }else{

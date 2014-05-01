@@ -124,11 +124,11 @@ namespace Controller {
           // this guarantees that if the stream is playable, it now has a valid header.
           if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
             Util::Stream::getVod(URL, name);
-          }
-          //wait for the stream
-          {
-            IPC::sharedPage streamIndex;
-            streamIndex.init(name, 8 * 1024 * 1024);
+            //wait for the stream
+            {
+              IPC::sharedPage streamIndex;
+              streamIndex.init(name, 8 * 1024 * 1024);
+            }
           }
           //now, run mistinfo on the source - or on the accompanying dtsh file, if it exists
           if (stat((URL+".dtsh").c_str(), &fileinfo) == 0){

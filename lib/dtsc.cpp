@@ -596,7 +596,8 @@ DTSC::File::File(std::string filename, bool create){
       if (memcmp(buffer, DTSC::Magic_Packet2, 4) != 0){
         File Fhead(filename + ".dtsh");
         if (Fhead){
-          metadata = Fhead.metadata;
+          metaStorage = Fhead.metaStorage;
+          metadata = metaStorage;
           sepHeader = true;
         }else{
   	      DEBUG_MSG(DLVL_ERROR, "%s is not a valid DTSC file", filename.c_str());
@@ -630,7 +631,8 @@ DTSC::File::File(std::string filename, bool create){
     fseek(F, 0, SEEK_SET);
     File Fhead(filename + ".dtsh");
     if (Fhead){
-      metadata = Fhead.metadata;
+      metaStorage = Fhead.metaStorage;
+      metadata = metaStorage;
     }
   }
   currframe = 0;

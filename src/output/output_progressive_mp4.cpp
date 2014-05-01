@@ -433,14 +433,15 @@ namespace Mist {
   }
   
   void OutProgressiveMP4::sendNext(){
+    static bool perfect = true;
     char * dataPointer = 0;
     int len = 0;
     currentPacket.getString("data", dataPointer, len);
     if (currentPacket.getTrackId() != sortSet.begin()->trackID || currentPacket.getTime() != sortSet.begin()->time){
-      DEBUG_MSG(DLVL_WARN, "Warning: current packet %ld_%llu does not match expected packet %ld_%llu. We're most likely sending out corrupt data at this point. Have a nice day.", currentPacket.getTrackId(), currentPacket.getTime(), sortSet.begin()->trackID, sortSet.begin()->time);
-      stop();
-      myConn.close();
-      return;
+      if (perfect){
+        DEBUG_MSG(DLVL_WARN, "Warning: input is inconsistent, playback may not be perfect");
+        perfect = false;
+      }
     }
     //keep track of where we are
     if (!sortSet.empty()){

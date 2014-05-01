@@ -454,8 +454,8 @@ namespace Mist {
                     return true;
                   }
                 }else{
-                  if ( !onList(myHostName, (*limitIt)["value"].asString().substr(1))){
-                    if ((*limitIt)["type"].asString() == "hard"){
+                  if ( !onList(myHostName, (*limitIt)["value"].asStringRef().substr(1))){
+                    if ((*limitIt)["type"].asStringRef() == "hard"){
                       Log("HLIM", "Host " + host + " not whitelisted for stream " + streamName);
                       return true;
                     }else{
@@ -465,9 +465,9 @@ namespace Mist {
                 }
               }
             }else{
-              if ((*limitIt)["value"].asString()[0] == '-'){
-                if (onList(host, (*limitIt)["value"].asString().substr(1))){
-                  if ((*limitIt)["type"].asString() == "hard"){
+              if ((*limitIt)["value"].asStringRef().size() > 1 && (*limitIt)["value"].asStringRef()[0] == '-'){
+                if (onList(host, (*limitIt)["value"].asStringRef().substr(1))){
+                  if ((*limitIt)["type"].asStringRef() == "hard"){
                     Log("HLIM", "Host " + host + " blacklisted for stream " + streamName);
                     return true;
                   }else{
@@ -475,7 +475,7 @@ namespace Mist {
                   }
                 }
                 if (myHostName != "" && onList(myHostName, (*limitIt)["value"].asString().substr(1))){
-                  if ((*limitIt)["type"].asString() == "hard"){
+                  if ((*limitIt)["type"].asStringRef() == "hard"){
                     Log("HLIM", "Host " + myHostName + " blacklisted for stream " + streamName);
                     return true;
                   }else{
@@ -504,7 +504,7 @@ namespace Mist {
                 }
               }
             }else{
-              if ((*limitIt)["val"].asString()[0] == '-'){
+              if ((*limitIt)["value"].asString()[0] == '-'){
                 if (onList(myCountryName, (*limitIt)["value"].asString().substr(1))){
                   if ((*limitIt)["type"].asString() == "hard"){
                     Log("HLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
@@ -580,7 +580,7 @@ namespace Mist {
             }
           }else{
             if ((*limitIt)["value"].asStringRef().size() > 1 && (*limitIt)["value"].asStringRef()[0] == '-'){
-              if (onList(myCountryName, (*limitIt)["val"].asStringRef().substr(1))){
+              if (onList(myCountryName, (*limitIt)["value"].asStringRef().substr(1))){
                 if ((*limitIt)["type"].asString() == "hard"){
                   Log("HLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
                   return true;

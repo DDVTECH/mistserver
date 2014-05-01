@@ -802,10 +802,10 @@ function limitValueFormat(theLimit) {
     case 'geo':
       var str;
       if (theLimit.value.charAt(0) == '+') {
-        str = 'Only trigger on connections not from:<br>'
+        str = 'Whitelist<br>'
       }
       else {
-        str = 'Only trigger on connections from:<br>'
+        str = 'Blacklist<br>'
       }
       var values = theLimit.value.substr(1).split(' ');
       for (var index in values) {
@@ -816,10 +816,10 @@ function limitValueFormat(theLimit) {
     case 'host':
       var str;
       if (theLimit.value.charAt(0) == '+') {
-        str = 'Only trigger on connections not from:<br>'
+        str = 'Whitelist<br>'
       }
       else {
-        str = 'Only trigger on connections from:<br>'
+        str = 'Blacklist<br>'
       }
       return str+theLimit.value.substr(1).split(' ').join(', ');
       break;
@@ -847,9 +847,9 @@ function changeLimitName(limitValue) {
   $('#detailed-settings').html('');
   $('#limit-value-label').show();
   var $listtype = $('<select>').attr('id','limit-list-type').html(
-    $('<option>').val('-').text('Only trigger on connections from..')
+    $('<option>').val('-').text('Blacklist')
   ).append(
-    $('<option>').val('+').text('Only trigger on connections not from..')
+    $('<option>').val('+').text('Whitelist')
   ).change(function(){
     makeLimitValue();
   });

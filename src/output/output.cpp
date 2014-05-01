@@ -13,12 +13,9 @@
 #include "output.h"
 
 /*LTS-START*/
-#include <GeoIP.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#define GEOIPV4 "/usr/share/GeoIP/GeoIP.dat"
-#define GEOIPV6 "/usr/share/GeoIP/GeoIPv6.dat"
 /*LTS-END*/
 
 namespace Mist {
@@ -603,24 +600,15 @@ namespace Mist {
     return false;
   }
 
+  GeoIP * Output::geoIP4 = 0;
+  GeoIP * Output::geoIP6 = 0;
   std::string Output::getCountry(std::string ip){
     char * code = NULL;
-    GeoIP * geoIP;
-    geoIP = GeoIP_open(GEOIPV4, GEOIP_STANDARD | GEOIP_CHECK_CACHE);
-    if (!geoIP){
-      std::cerr << "An error occured loading the IPv4 database" << std::endl;
-    }else{
-      code = (char*)GeoIP_country_code_by_addr(geoIP, ip.c_str());
-      GeoIP_delete(geoIP);
+    if (geoIP4){
+      code = (char*)GeoIP_country_code_by_addr(geoIP4, ip.c_str());
     }
-    if (!code){
-      geoIP = GeoIP_open(GEOIPV6, GEOIP_STANDARD | GEOIP_CHECK_CACHE);
-      if (!geoIP){
-        std::cerr << "An error occured loading the IPv6 database" << std::endl;
-      }else{
-        code = (char*)GeoIP_country_code_by_addr_v6(geoIP, ip.c_str());
-        GeoIP_delete(geoIP);
-      }
+    if (!code && geoIP6){
+      code = (char*)GeoIP_country_code_by_addr_v6(geoIP6, ip.c_str());
     }
     if (!code){
       return "";

@@ -8,6 +8,7 @@
 #include <mist/dtsc.h>
 #include <mist/socket.h>
 #include <mist/shared_memory.h>
+#include <GeoIP.h> /*LTS*/
 
 namespace Mist {
 
@@ -39,6 +40,8 @@ namespace Mist {
       //static members for initialization and capabilities
       static void init(Util::Config * cfg) {}
       static JSON::Value capa;
+      static GeoIP * geoIP4; /*LTS*/
+      static GeoIP * geoIP6; /*LTS*/
       //non-virtual generic functions
       int run();
       void stats();

@@ -404,11 +404,13 @@ namespace Mist {
   }
 
   void Output::Log(std::string type, std::string message){
+    /// \todo These logs need to show up in the controller.
+    /// \todo Additionally, the triggering and untriggering of limits should be recorded in the controller as well.
     if (type == "HLIM"){
-      DEBUG_MSG(DLVL_WARN, "HardLimit Triggered: %s", message.c_str());
+      DEBUG_MSG(DLVL_HIGH, "HardLimit Triggered: %s", message.c_str());
     }
     if (type == "SLIM"){
-      DEBUG_MSG(DLVL_WARN, "SoftLimit Triggered: %s", message.c_str());
+      DEBUG_MSG(DLVL_HIGH, "SoftLimit Triggered: %s", message.c_str());
     }
   }
   

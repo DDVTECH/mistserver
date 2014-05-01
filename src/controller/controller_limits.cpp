@@ -18,8 +18,9 @@ namespace Controller{
     if( !Storage["streams"][streamName]["limits"]){
       return;
     }
+
     Storage["streams"][streamName].removeMember("hardlimit_active");
-    if( !Storage["statistics"].isMember(streamName) || Storage["streams"][streamName]["online"].asInt() != 1){
+    if (Storage["streams"][streamName]["online"].asInt() != 1){
       for (JSON::ArrIter limitIt = Storage["streams"][streamName]["limits"].ArrBegin(); limitIt != Storage["streams"][streamName]["limits"].ArrEnd(); limitIt++){
         if ((*limitIt).isMember("triggered")){
           if ((*limitIt)["type"].asString() == "soft"){

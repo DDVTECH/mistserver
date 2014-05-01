@@ -458,9 +458,9 @@ void Socket::Connection::SendNow(const char * data, size_t len){
   while (upbuffer.size() > 0 && connected()){
     iwrite(upbuffer.get());
   }
-  unsigned int i = iwrite(data, std::min(len, 51200ul));
+  unsigned int i = iwrite(data, std::min((long unsigned int)len, 51200ul));
   while (i < len && connected()){
-    i += iwrite(data + i, std::min(len - i, 51200ul));
+    i += iwrite(data + i, std::min((long unsigned int)(len - i), 51200ul));
   }
   if (!bing){setBlocking(false);}
 }

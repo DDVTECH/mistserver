@@ -494,6 +494,15 @@ function showTab(tabName,streamName) {
         ).append(
           $('<label>').text('Source:').attr('for','settings-streams-'+streamName+'-source').attr('title','The path to the stream, usually "/path/to/filename.dtsc" for files or "push://hostname/streamname" for live streams.').append(
             $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-source').addClass('isSetting').addClass('validate-required').keyup(function(){
+              $('#input-validation-info').remove();
+              if (($(this).val().substring(0,7) != 'push://') && ($(this).val().substring(0,1) != '/')) {
+                $(this).parent().append(
+                  $('<div>').attr('id','input-validation-info').html(
+                    'The stream source should start with "push://" or "/".'
+                  ).addClass('orange')
+                );
+              }
+              
               if(isLive($(this).val())){
                 $('.live-only').show();
               }
@@ -511,6 +520,8 @@ function showTab(tabName,streamName) {
           )
         ).append(
           $('<label>').text('Record to:').addClass('live-only').addClass('LTS-only').attr('for','settings-streams-'+streamName+'-record').attr('title','The path to the file to record to. Leave this field blank if you do not wish to record to file.').append(
+            $('<span>').addClass('unit').text('[.dtsc]')
+          ).append(
             $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-record').addClass('isSetting')
           )
         ).append(
@@ -560,6 +571,14 @@ function showTab(tabName,streamName) {
               delete settings.settings.streams[streamName];
             }
             else {
+              var filename = $('#settings-streams-'+streamName+'-record').val()
+              if (filename != '') {
+                filename = filename.split('.');
+                if (filename[filename.length-1] != 'dtsc') {
+                  filename.push('dtsc');
+                }
+                $('#settings-streams-'+streamName+'-record').val(filename.join('.'));
+              }
               if (applyInput() === false) { return; }
             }
             saveAndReload('streams');
@@ -589,137 +608,140 @@ function showTab(tabName,streamName) {
       
     break;
     case 'streaminfo':
-      var meta = settings.settings.streams[streamName].meta;
-      if (!meta) {
-        $('#page').html('No info available for stream "'+streamName+'".');
-      } 
-      else {
-        $meta = $('<table>').css('width','auto');
-        if (meta.live) {
-          $meta.html(
-            $('<tr>').html(
-              $('<td>').text('Type:')
+      getData(function(returnedData){
+        settings.settings.streams = returnedData.streams;
+        var meta = settings.settings.streams[streamName].meta;
+        if (!meta) {
+          $('#page').html('No info available for stream "'+streamName+'".');
+        } 
+        else {
+          $meta = $('<table>').css('width','auto');
+          if (meta.live) {
+            $meta.html(
+              $('<tr>').html(
+                $('<td>').text('Type:')
+              ).append(
+                $('<td>').text('Live')
+              )
+            );
+            if (meta.buffer_window) {
+              $meta.append(
+                $('<tr>').html(
+                  $('<td>').text('Buffer window:')
+                ).append(
+                  $('<td>').text(meta.buffer_window+' ms')
+                )
+              );
+            }
+          }
+          else {
+            $meta.html(
+              $('<tr>').html(
+                $('<td>').text('Type:')
+              ).append(
+                $('<td>').text('Pre-recorded (VoD)')
+              )
+            );
+          }
+          for (var index in meta.tracks) {
+            var track = meta.tracks[index];
+            if (track.type == '') { continue; }
+            var $table = $('<table>').html(
+              $('<tr>').html(
+                $('<td>').text('Type:')
+              ).append(
+                $('<td>').text(capFirstChar(track.type))
+              )
             ).append(
-              $('<td>').text('Live')
-            )
-          );
-          if (meta.buffer_window) {
+              $('<tr>').html(
+                $('<td>').text('Codec:')
+              ).append(
+                $('<td>').text(track.codec)
+              )
+            ).append(
+              $('<tr>').html(
+                $('<td>').text('Duration:')
+              ).append(
+                $('<td>').html(
+                  formatDuration(track.lastms-track.firstms)+'<br>(from '+formatDuration(track.firstms)+' to '+formatDuration(track.lastms)+')'
+                )
+              )
+            ).append(
+              $('<tr>').html(
+                $('<td>').text('Average bitrate:')
+              ).append(
+                $('<td>').text(Math.round(track.bps/1024)+' KiB/s')
+              )
+            );
+            
+            if (track.height) {
+              $table.append(
+                $('<tr>').html(
+                  $('<td>').text('Size:')
+                ).append(
+                  $('<td>').text(track.width+'x'+track.height+' px')
+                )
+              );
+            }
+            if (track.fpks) {
+              $table.append(
+                $('<tr>').html(
+                  $('<td>').text('Framerate:')
+                ).append(
+                  $('<td>').text(track.fpks/1000+' fps')
+                )
+              );
+            }
+            if (track.channels) {
+              $table.append(
+                $('<tr>').html(
+                  $('<td>').text('Channels:')
+                ).append(
+                  $('<td>').text(track.channels)
+                )
+              );
+            }
+            if (track.rate) {
+              $table.append(
+                $('<tr>').html(
+                  $('<td>').text('Samplerate:')
+                ).append(
+                  $('<td>').text(seperateThousands(track.rate,' ')+' Hz')
+                )
+              );
+            }
+            
             $meta.append(
               $('<tr>').html(
-                $('<td>').text('Buffer window:')
+                $('<td>').text(capFirstChar(index)+':')
               ).append(
-                $('<td>').text(meta.buffer_window+' ms')
-              )
-            );
-          }
-        }
-        else {
-          $meta.html(
-            $('<tr>').html(
-              $('<td>').text('Type:')
-            ).append(
-              $('<td>').text('Pre-recorded (VoD)')
-            )
-          );
-        }
-        for (var index in meta.tracks) {
-          var track = meta.tracks[index];
-          if (track.type == '') { continue; }
-          var $table = $('<table>').html(
-            $('<tr>').html(
-              $('<td>').text('Type:')
-            ).append(
-              $('<td>').text(capFirstChar(track.type))
-            )
-          ).append(
-            $('<tr>').html(
-              $('<td>').text('Codec:')
-            ).append(
-              $('<td>').text(track.codec)
-            )
-          ).append(
-            $('<tr>').html(
-              $('<td>').text('Duration:')
-            ).append(
-              $('<td>').html(
-                formatDuration(track.lastms-track.firstms)+'<br>(from '+formatDuration(track.firstms)+' to '+formatDuration(track.lastms)+')'
-              )
-            )
-          ).append(
-            $('<tr>').html(
-              $('<td>').text('Average bitrate:')
-            ).append(
-              $('<td>').text(Math.round(track.bps/1024)+' KiB/s')
-            )
-          );
-          
-          if (track.height) {
-            $table.append(
-              $('<tr>').html(
-                $('<td>').text('Size:')
-              ).append(
-                $('<td>').text(track.width+'x'+track.height+' px')
-              )
-            );
-          }
-          if (track.fpks) {
-            $table.append(
-              $('<tr>').html(
-                $('<td>').text('Framerate:')
-              ).append(
-                $('<td>').text(track.fpks/1000+' fps')
-              )
-            );
-          }
-          if (track.channels) {
-            $table.append(
-              $('<tr>').html(
-                $('<td>').text('Channels:')
-              ).append(
-                $('<td>').text(track.channels)
-              )
-            );
-          }
-          if (track.rate) {
-            $table.append(
-              $('<tr>').html(
-                $('<td>').text('Samplerate:')
-              ).append(
-                $('<td>').text(seperateThousands(track.rate,' ')+' Hz')
+                $('<td>').html(
+                  $table
+                )
               )
             );
           }
           
-          $meta.append(
-            $('<tr>').html(
-              $('<td>').text(capFirstChar(index)+':')
-            ).append(
-              $('<td>').html(
-                $table
+          $('#page').html(
+            $('<p>').text('Detailed information about stream "'+streamName+'"')
+          ).append(
+            $('<div>').css({'width':'100%','display':'table','table-layout':'fixed','min-height':'300px'}).html(
+              $('<div>').css('display','table-row').html(
+                $('<div>').attr('id','info-stream-meta').css({'display':'table-cell','max-width':'50%','overflow':'auto'}).html(
+                  $meta
+                )
+              ).append(
+                $('<div>').attr('id','info-stream-statistics').css({'display':'table-cell','text-align':'center','min-height':'200px'})
               )
             )
           );
         }
-        
-        $('#page').html(
-          $('<p>').text('Detailed information about stream "'+streamName+'"')
-        ).append(
-          $('<div>').css({'width':'100%','display':'table','table-layout':'fixed','min-height':'300px'}).html(
-            $('<div>').css('display','table-row').html(
-              $('<div>').attr('id','info-stream-meta').css({'display':'table-cell','max-width':'50%','overflow':'auto'}).html(
-                $meta
-              )
-            ).append(
-              $('<div>').attr('id','info-stream-statistics').css({'display':'table-cell','text-align':'center','min-height':'200px'})
-            )
-          )
+        $('#page').append(
+          $('<button>').text('Back').addClass('escape-to-cancel').click(function(){
+            showTab('streams');
+          })
         );
-      }
-      $('#page').append(
-        $('<button>').text('Back').addClass('escape-to-cancel').click(function(){
-          showTab('streams');
-        })
-      );
+      },{},0,true);
     break;
     case 'preview':
       var httpConnector = false;

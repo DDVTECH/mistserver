@@ -7,9 +7,6 @@
 
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
-    playTransaction = -1;
-    playMessageType = -1;
-    playStreamId = -1;
     setBlocking(false);
     while (!conn.Received().available(1537) && conn.connected()) {
       conn.spool();
@@ -549,6 +546,8 @@ namespace Mist {
       return;
     } //seek
     if ((amfData.getContentP(0)->StrValue() == "pauseRaw") || (amfData.getContentP(0)->StrValue() == "pause")) {
+      int playMessageType = messageType;
+      int playStreamId = streamId;
       if (amfData.getContentP(3)->NumValue()) {
         parseData = false;
         //send a status reply

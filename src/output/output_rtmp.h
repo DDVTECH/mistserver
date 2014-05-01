@@ -21,7 +21,6 @@ namespace Mist {
       OutRTMP(Socket::Connection & conn);
       ~OutRTMP();
       static void init(Util::Config * cfg);
-      
       void onRequest();
       void sendNext();
       void sendHeader();
@@ -33,9 +32,6 @@ namespace Mist {
       bool sending;
       int counter;
       bool streamReset;
-      int playTransaction;///<The transaction number of the reply.
-      int playStreamId;///<The stream id of the reply.
-      int playMessageType;///<The message type of the reply.
       void parseChunk(Socket::Buffer & inputBuffer);
       void parseAMFCommand(AMF::Object & amfData, int messageType, int streamId);
       void sendCommand(AMF::Object & amfReply, int messageType, int streamId);

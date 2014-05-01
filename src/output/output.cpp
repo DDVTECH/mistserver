@@ -579,8 +579,8 @@ namespace Mist {
               }
             }
           }else{
-            if ((*limitIt)["value"].asString()[0] == '-'){
-              if (onList(myCountryName, (*limitIt)["val"].asString().substr(1))){
+            if ((*limitIt)["value"].asStringRef().size() > 1 && (*limitIt)["value"].asStringRef()[0] == '-'){
+              if (onList(myCountryName, (*limitIt)["val"].asStringRef().substr(1))){
                 if ((*limitIt)["type"].asString() == "hard"){
                   Log("HLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
                   return true;

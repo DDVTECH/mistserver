@@ -127,11 +127,11 @@ namespace Mist {
     selectedTracks.insert(tid);
     if (myMeta.live) {
       updateMeta();
-      int seekable = canSeekms(seekTime / 10000);
+      int seekable = canSeekms(seekTime);
       if (seekable == 0){
         // iff the fragment in question is available, check if the next is available too
         for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[tid].keys.begin(); it != myMeta.tracks[tid].keys.end(); it++){
-          if (it->getTime() >= (seekTime / 10000)){
+          if (it->getTime() >= seekTime){
             if ((it + 1) == myMeta.tracks[tid].keys.end()){
               seekable = 1;
             }
@@ -144,7 +144,7 @@ namespace Mist {
         HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
         myConn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
         HTTP_R.Clean(); //clean for any possible next requests
-        std::cout << "Fragment @ " << seekTime / 10000 << "ms too old (" << myMeta.tracks[tid].firstms << " - " << myMeta.tracks[tid].lastms << " ms)" << std::endl;
+        std::cout << "Fragment @ " << seekTime << "ms too old (" << myMeta.tracks[tid].firstms << " - " << myMeta.tracks[tid].lastms << " ms)" << std::endl;
         stop();
         wantRequest = true;
         return;
@@ -154,7 +154,7 @@ namespace Mist {
         HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
         myConn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
         HTTP_R.Clean(); //clean for any possible next requests
-        std::cout << "Fragment @ " << seekTime / 10000 << "ms not available yet (" << myMeta.tracks[tid].firstms << " - " << myMeta.tracks[tid].lastms << " ms)" << std::endl;
+        std::cout << "Fragment @ " << seekTime << "ms not available yet (" << myMeta.tracks[tid].firstms << " - " << myMeta.tracks[tid].lastms << " ms)" << std::endl;
         stop();
         wantRequest = true;
         return;
@@ -185,7 +185,7 @@ namespace Mist {
             HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
             myConn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
             HTTP_R.Clean(); //clean for any possible next requests
-            std::cout << "Fragment after fragment @ " << (seekTime / 10000) << " not available yet" << std::endl;
+            std::cout << "Fragment after fragment @ " << seekTime << " not available yet" << std::endl;
           }
         }
         break;
@@ -197,12 +197,12 @@ namespace Mist {
     }
     /*
     if (myMeta.live) {
-      if (mstime == 0 && (seekTime / 10000) > 1){
+      if (mstime == 0 && seekTime > 1){
         HTTP_S.Clean();
         HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
         myConn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
         HTTP_R.Clean(); //clean for any possible next requests
-        std::cout << "Fragment @ " << (seekTime / 10000) << " too old" << std::endl;
+        std::cout << "Fragment @ " << seekTime << " too old" << std::endl;
         continue;
       }
     }

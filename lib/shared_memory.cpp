@@ -102,10 +102,11 @@ namespace IPC {
 
   ///\brief Returns the current value of the semaphore
   int semaphore::getVal() const {
-    int res;
 #ifdef __CYGWIN__
+    LONG res;
     ReleaseSemaphore(mySem, 0, &res);//not really release.... just checking to see if I can get the value this way
 #else
+    int res;
     sem_getvalue(mySem, &res);
 #endif
     return res;

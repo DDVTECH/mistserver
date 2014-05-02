@@ -328,6 +328,52 @@ namespace Controller {
   ///\brief Parse a given stream configuration.
   ///\param in The requested configuration.
   ///\param out The new configuration after parsing.
+  ///
+  /// \api
+  /// `"streams"` requests take the form of:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "streamname_here": { //name of the stream
+  ///     "source": "/mnt/media/a.dtsc" //full path to a VoD file, or "push://" followed by the IP or hostname of the machine allowed to push live data. Empty means everyone is allowed to push live data.
+  ///     "DVR": 30000 //optional. For live streams, indicates the requested minimum size of the available DVR buffer in milliseconds.
+  ///   },
+  ///   //the above structure repeated for all configured streams
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// and are responded to as:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "streamname_here": { //name of the configured stream
+  ///     "error": "Available", //error state, if any. "Available" is a special value for VoD streams, indicating it has no current viewers (is not active), but is available for activation.
+  ///     "h_meta": 1398113185, //unix time the stream header (if any) was last processed for metadata
+  ///     "l_meta": 1398115447, //unix time the stream itself was last processed for metadata
+  ///     "meta": { //available metadata for this stream, if any
+  ///       "format": "dtsc", //detected media source format
+  ///       "tracks": { //list of tracks in this stream
+  ///         "audio_AAC_2ch_48000hz_2": {//human-readable track name
+  ///           "bps": 16043,
+  ///           "channels": 2,
+  ///           "codec": "AAC",
+  ///           "firstms": 0,
+  ///           "init": "\u0011Vå\u0000",
+  ///           "lastms": 596480,
+  ///           "rate": 48000,
+  ///           "size": 16,
+  ///           "trackid": 2,
+  ///           "type": "audio"
+  ///         },
+  ///         //the above structure repeated for all tracks
+  ///       },
+  ///       "vod": 1 //indicates VoD stream, or "live" to indicated live stream.
+  ///     },
+  ///     "name": "a", //the stream name, guaranteed to be equal to the object name.
+  ///     "online": 2, //online state. 0 = error, 1 = active, 2 = inactive.
+  ///     "source": "/home/thulinma/a.dtsc" //source for this stream, as configured.
+  ///   },
+  ///   //the above structure repeated for all configured streams
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// Through this request, ALL streams must always be configured. To remove a stream, simply leave it out of the request. To add a stream, simply add it to the request. To edit a stream, simply edit it in the request. The LTS edition has additional requests that allow per-stream changing of the configuration.
   void CheckStreams(JSON::Value & in, JSON::Value & out){
     //check for new streams and updates
     AddStreams(in, out);

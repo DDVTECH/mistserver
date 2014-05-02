@@ -51,6 +51,74 @@ namespace Controller {
 
   ///\brief Checks the capabilities of the system.
   ///\param capa The location to store the capabilities.
+  ///
+  /// \api
+  /// `"capabilities"` requests are always empty:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {}
+  /// ~~~~~~~~~~~~~~~
+  /// and are responded to as:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "connectors": { // a list of installed connectors
+  ///     "FLV": { //name of the connector. This is based on the executable filename, with the "MistIn" / "MistConn" prefix stripped.
+  ///       "codecs": [ //supported combinations of codecs.
+  ///         [["H264","H263","VP6"],["AAC","MP3"]] //one such combination, listing simultaneously available channels and the codec options for those channels
+  ///       ],
+  ///       "deps": "HTTP", //dependencies on other connectors, if any.
+  ///       "desc": "Enables HTTP protocol progressive streaming.", //human-friendly description of this connector
+  ///       "methods": [ //list of supported request methods
+  ///         {
+  ///           "handler": "http", //what handler to use for this request method. The "http://" part of a URL, without the "://".
+  ///           "priority": 5, // priority of this request method, higher is better.
+  ///           "type": "flash/7" //type of request method - usually name of plugin followed by the minimal plugin version, or 'HTML5' for pluginless.
+  ///         }
+  ///       ],
+  ///       "name": "HTTP_Progressive_FLV", //Full name of this connector.
+  ///       "optional": { //optional parameters
+  ///         "username": { //name of the parameter
+  ///           "help": "Username to drop privileges to - default if unprovided means do not drop privileges", //human-readable help text
+  ///           "name": "Username", //human-readable name of parameter
+  ///           "option": "--username", //command-line option to use
+  ///           "type": "str" //type of option - "str" or "num"
+  ///         }
+  ///         //above structure repeated for all (optional) parameters
+  ///       },
+  ///       //above structure repeated, as "required" for required parameters, if any.
+  ///       "socket": "http_progressive_flv", //unix socket this connector listens on, if any
+  ///       "url_match": "/$.flv", //URL pattern to match, if any. The $ substitutes the stream name and may not be the first or last character.
+  ///       "url_prefix": "/progressive/$/", //URL prefix to match, if any. The $ substitutes the stream name and may not be the first or last character.
+  ///       "url_rel": "/$.flv" //relative URL where to access a stream through this connector.
+  ///     }
+  ///     //... above structure repeated for all installed connectors.
+  ///   },
+  ///   "cpu": [ //a list of installed CPUs
+  ///     {
+  ///       "cores": 4, //amount of cores for this CPU
+  ///       "mhz": 1645, //speed in MHz for this CPU
+  ///       "model": "Intel(R) Core(TM) i7-2630QM CPU @ 2.00GHz", //model identifier, for humans
+  ///       "threads": 8 //amount of simultaneously executing threads that are supported on this CPU
+  ///     }
+  ///     //above structure repeated for all installed CPUs
+  ///   ],
+  ///   "load": {
+  ///     "fifteen": 72,
+  ///     "five": 81,
+  ///     "memory": 42,
+  ///     "one": 124
+  ///   },
+  ///   "mem": {
+  ///     "cached": 1989, //current memory usage of system caches, in MiB
+  ///     "free": 2539, //free memory, in MiB
+  ///     "swapfree": 0, //free swap space, in MiB
+  ///     "swaptotal": 0, //total swap space, in MiB
+  ///     "total": 7898, //total memory, in MiB
+  ///     "used": 3370 //used memory, in MiB (excluding system caches, listed separately)
+  ///   },
+  ///   "speed": 6580, //total speed in MHz of all CPUs cores summed together
+  ///   "threads": 8 //total count of all threads of all CPUs summed together
+  /// }
+  /// ~~~~~~~~~~~~~~~
   void checkCapable(JSON::Value & capa){
     //capa.null();
     capa.removeMember("cpu");

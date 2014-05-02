@@ -9,6 +9,10 @@
 #include <string.h>
 #include <signal.h>
 
+#ifdef __CYGWIN__
+#include <windows.h>
+#endif
+
 #if defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__)
 #include <sys/wait.h>
 #else
@@ -511,18 +515,22 @@ void Util::Config::addBasicConnectorOptions(JSON::Value & capabilities){
 /// Gets directory the current executable is stored in.
 std::string Util::getMyPath(){
   char mypath[500];
-#ifdef __APPLE__
+  #ifdef __CYGWIN__
+  GetModuleFileName(0, mypath, 500);
+  #else
+  #ifdef __APPLE__
   memset( mypath, 0, 500);
   unsigned int refSize = 500;
   int ret = _NSGetExecutablePath(mypath,&refSize);
-#else
+  #else
   int ret = readlink("/proc/self/exe", mypath, 500);
   if (ret != -1){
     mypath[ret] = 0;
   }else{
     mypath[0] = 0;
   }
-#endif
+  #endif
+  #endif
   std::string tPath = mypath;
   size_t slash = tPath.rfind('/');
   if (slash == std::string::npos){
@@ -538,6 +546,18 @@ std::string Util::getMyPath(){
 /// Gets all executables in getMyPath that start with "Mist".
 void Util::getMyExec(std::deque<std::string> & execs){
   std::string path = Util::getMyPath();
+  #ifdef __CYGWIN__
+  path += "\\Mist*";
+  WIN32_FIND_DATA FindFileData;
+  HANDLE hdl = FindFirstFile(path.c_str(), &FindFileData);
+  while (hdl != INVALID_HANDLE_VALUE){
+    execs.push_back(FindFileData.cFileName);
+    if (!FindNextFile(hdl, &FindFileData)){
+      FindClose(hdl);
+      hdl = INVALID_HANDLE_VALUE;
+    }
+  }
+  #else
   DIR * d = opendir(path.c_str());
   if (!d){return;}
   struct dirent *dp;
@@ -550,6 +570,7 @@ void Util::getMyExec(std::deque<std::string> & execs){
     }
   } while (dp != NULL);
   closedir(d);
+  #endif
 }
 
 /// Sets the current process' running user

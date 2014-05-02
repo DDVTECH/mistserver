@@ -91,7 +91,7 @@ bool Controller::hasViewers(std::string streamName){
 /// This takes a "clients" request, and fills in the response data.
 /// 
 /// \api
-/// `"client"` requests take the form of:
+/// `"clients"` requests take the form of:
 /// ~~~~~~~~~~~~~~~{.js}
 /// {
 ///   //array of streamnames to accumulate. Empty means all.

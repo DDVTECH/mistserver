@@ -1,5 +1,30 @@
+/// \page api API calls
+/// The controller listens for commands through a JSON-based API. This page describes the API in full.
+///
+/// A default interface implementing this API as a single HTML page is included in the controller itself. This default interface will be send for invalid API requests, and is thus triggered by default when a browser attempts to access the API port directly.
+/// The default API port is 4242 - but this can be changed through both the API and commandline parameters.
+///
+/// To send an API request, simply send a HTTP request to this port for any file, and include either a GET or POST parameter called `"command"`, containing a JSON object as payload. Nearly all members of the request object are optional, and described below.
+/// A simple example request logging in to the system would look like this:
+///
+///     GET /api?command={"authorize":{"username":"test","password":"941d7b88b2312d4373aff526cf7b6114"}} HTTP/1.0
+///
+/// Or, when properly URL encoded:
+///
+///     GET /api?command=%7B%22authorize%22%3A%7B%22username%22%3A%22test%22%2C%22password%22%3A%22941d7b88b2312d4373aff526cf7b6114%22%7D%7D HTTP/1.0
+///
+/// The server is quite lenient about not URL encoding your strings, but it's a good idea to always do it, anyway.
+/// See the `"authorize"` section below for more information about security and logging in.
+///
+/// As mentioned above, sending an invalid request will trigger a response containing the default interface. As you may not want to receive a big HTML page as response to an invalid request, requesting the file `"/api"` (as done in the example above) will force a JSON response, even when the request is invalid.
+///
+/// You may also include a `"callback"` or `"jsonp"` HTTP variable, to trigger JSONP compatibility mode. JSONP is useful for getting around the cross-domain scripting protection in most modern browsers. Developers creating non-JavaScript applications will most likely not want to use JSONP mode, though nothing is stopping you if you really want to.
+///
+/// \brief Listing of all controller API calls.
+
 /// \file controller.cpp
 /// Contains all code for the controller executable.
+
 
 #include <stdio.h>
 //#include <io.h>
@@ -66,6 +91,45 @@ namespace Controller {
   ///\param Request The request to be parsed.
   ///\param Response The location to store the generated response.
   ///\param conn The user to be checked for authorization.
+  ///
+  /// \api
+  /// To login, an `"authorize"` request must be sent. Since HTTP does not use persistent connections, you are required to re-sent authentication with every API request made. To prevent plaintext sending of the password, a random challenge string is sent first, and then the password is hashed together with this challenge string to create a one-time-use string to login with.
+  /// If the user is not authorized, this request is the only request the server will respond to until properly authorized.
+  /// `"authorize"` requests take the form of:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   //username to login as
+  ///   "username": "test",
+  ///   //hash of password to login with. Send empty value when no challenge for the hash is known yet.
+  ///   //When the challenge is known, the value to be used here can be calculated as follows:
+  ///   //   MD5( MD5("secret") + challenge)
+  ///   //Where "secret" is the plaintext password.
+  ///   "password": ""
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// and are responded to as:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   //current login status. Either "OK", "CHALL", "NOACC" or "ACC_MADE".
+  ///   "status": "CHALL",
+  ///   //Random value to be used in hashing the password.
+  ///   "challenge": "abcdef1234567890"
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// The challenge string is sent for all statuses, except `"NOACC"`, where it is left out.
+  /// A status of `"OK"` means you are currently logged in and have access to all other API requests.
+  /// A status of `"CHALL"` means you are not logged in, and a challenge has been provided to login with.
+  /// A status of `"NOACC"` means there are no valid accounts to login with. In this case - and ONLY in this case - it is possible to create a initial login through the API itself. To do so, send a request as follows:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   //username to create, as plain text
+  ///   "new_username": "test",
+  ///   //password to set, as plain text
+  ///   "new_password": "secret"
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// Please note that this is NOT secure. At all. Never use this mechanism over a public network!
+  /// A status of `"ACC_MADE"` indicates the account was created successfully and can now be used to login as normal.
   void Authorize(JSON::Value & Request, JSON::Value & Response, ConnectedUser & conn){
     time_t Time = time(0);
     tm * TimeInfo = localtime( &Time);
@@ -113,6 +177,47 @@ namespace Controller {
   ///\brief Check the submitted configuration and handle things accordingly.
   ///\param in The new configuration.
   ///\param out The location to store the resulting configuration.
+  ///
+  /// \api
+  /// `"config"` requests take the form of:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "controller": { //controller settings
+  ///     "interface": null, //interface to listen on. Defaults to all interfaces.
+  ///     "port": 4242, //port to listen on. Defaults to 4242.
+  ///     "username": null //username to drop privileges to. Defaults to root.
+  ///   },
+  ///   "protocols": [ //enabled connectors / protocols
+  ///     {
+  ///       "connector": "HTTP" //Name of the connector to enable
+  ///       //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+  ///     },
+  ///     //above structure repeated for all enabled connectors / protocols
+  ///   ],
+  ///   "serverid": "", //human-readable server identifier, optional.
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// and are responded to as:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "controller": { //controller settings
+  ///     "interface": null, //interface to listen on. Defaults to all interfaces.
+  ///     "port": 4242, //port to listen on. Defaults to 4242.
+  ///     "username": null //username to drop privileges to. Defaults to root.
+  ///   },
+  ///   "protocols": [ //enabled connectors / protocols
+  ///     {
+  ///       "connector": "HTTP" //Name of the connector to enable
+  ///       //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+  ///       "online": 1 //boolean value indicating if the executable is running or not
+  ///     },
+  ///     //above structure repeated for all enabled connectors / protocols
+  ///   ],
+  ///   "serverid": "", //human-readable server identifier, as configured.
+  ///   "time": 1398982430, //current unix time
+  ///   "version": "2.0.2/8.0.1-23-gfeb9322/Generic_64" //currently running server version string
+  /// }
+  /// ~~~~~~~~~~~~~~~
   void CheckConfig(JSON::Value & in, JSON::Value & out){
     for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
       if (jit->first == "version" || jit->first == "time"){
@@ -536,6 +641,14 @@ int main(int argc, char ** argv){
                       Response["conversion"]["status"] = myConverter.getStatus();
                     }
                   }
+                  /// 
+                  /// \api
+                  /// `"save"` requests are always empty:
+                  /// ~~~~~~~~~~~~~~~{.js}
+                  /// {}
+                  /// ~~~~~~~~~~~~~~~
+                  /// Sending this request will cause the controller to write out its currently active configuration to the configuration file it was loaded from (the default being `./config.json`).
+                  /// 
                   if (Request.isMember("save")){
                     if( Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
                       Controller::Log("CONF", "Config written to file on request through API");
@@ -554,6 +667,21 @@ int main(int argc, char ** argv){
                     Response["config"]["serverid"] = "";
                   }
                   //sent any available logs and statistics
+                  /// 
+                  /// \api
+                  /// `"log"` responses are always sent, and cannot be requested:
+                  /// ~~~~~~~~~~~~~~~{.js}
+                  /// [
+                  ///   [
+                  ///     1398978357, //unix timestamp of this log message
+                  ///     "CONF", //shortcode indicating the type of log message
+                  ///     "Starting connector: {\"connector\":\"HTTP\"}" //string containing the log message itself
+                  ///   ],
+                  ///   //the above structure repeated for all logs
+                  /// ]
+                  /// ~~~~~~~~~~~~~~~
+                  /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
+                  /// 
                   Response["log"] = Controller::Storage["log"];
                   //clear log and statistics if requested
                   if (Request.isMember("clearstatlogs")){

@@ -172,6 +172,7 @@ namespace IPC {
   }
 
 
+#if !defined __APPLE__
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap() {
     if (mapped && len) {
@@ -198,7 +199,6 @@ namespace IPC {
   }
 
 
-#if !defined __APPLE__
   ///brief Creates a shared page
   ///\param name_ The name of the page to be created
   ///\param len_ The size to make the page

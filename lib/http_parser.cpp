@@ -33,7 +33,7 @@ void HTTP::Parser::Clean(){
 std::string & HTTP::Parser::BuildRequest(){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
-  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){
+  if (protocol.size() < 5 || protocol[4] != '/'){
     protocol = "HTTP/1.0";
   }
   builder = method + " " + url + " " + protocol + "\r\n";
@@ -52,7 +52,7 @@ std::string & HTTP::Parser::BuildRequest(){
 void HTTP::Parser::SendRequest(Socket::Connection & conn){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
-  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){
+  if (protocol.size() < 5 || protocol[4] != '/'){
     protocol = "HTTP/1.0";
   }
   builder = method + " " + url + " " + protocol + "\r\n";
@@ -76,7 +76,7 @@ void HTTP::Parser::SendRequest(Socket::Connection & conn){
 std::string & HTTP::Parser::BuildResponse(std::string code, std::string message){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
-  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){
+  if (protocol.size() < 5 || protocol[4] != '/'){
     protocol = "HTTP/1.0";
   }
   builder = protocol + " " + code + " " + message + "\r\n";
@@ -102,7 +102,7 @@ std::string & HTTP::Parser::BuildResponse(std::string code, std::string message)
 void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::Connection & conn){
   /// \todo Include GET/POST variable parsing?
   std::map<std::string, std::string>::iterator it;
-  if (protocol.size() < 5 || protocol.substr(0, 4) != "HTTP"){
+  if (protocol.size() < 5 || protocol[4] != '/'){
     protocol = "HTTP/1.0";
   }
   builder = protocol + " " + code + " " + message + "\r\n";

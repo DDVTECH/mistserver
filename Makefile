@@ -64,7 +64,15 @@ MistConnHTTP: src/connectors/conn_http.cpp src/connectors/embed.js.h src/connect
 analysers: MistAnalyserRTMP
 MistAnalyserRTMP: src/analysers/rtmp_analyser.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+	
+analysers: MistAnalyserRTP
+MistAnalyserRTP: src/analysers/rtp_analyser.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
+analysers: MistAnalyserRTSP
+MistAnalyserRTSP: src/analysers/rtsp_rtp_analyser.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+	
 analysers: MistAnalyserFLV
 MistAnalyserFLV: src/analysers/flv_analyser.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
@@ -171,6 +179,15 @@ MistOutFLV: override LDLIBS += $(GEOIP) # /*LTS*/
 MistOutFLV: override CPPFLAGS += "-DOUTPUTTYPE=\"output_progressive_flv.h\""
 MistOutFLV: src/output/mist_out.cpp src/output/output.cpp src/output/output_progressive_flv.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+	
+# /*LTS-START*/
+outputs: MistOutRTSP
+MistOutRTSP: override LDLIBS += $(THREADLIB)
+MistOutRTSP: override LDLIBS += $(GEOIP)
+MistOutRTSP: override CPPFLAGS += "-DOUTPUTTYPE=\"output_rtsp.h\""
+MistOutRTSP: src/output/mist_out.cpp src/output/output.cpp src/output/output_rtsp.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+# /*LTS-END*/
 
 outputs: MistOutMP4
 MistOutMP4: override LDLIBS += $(THREADLIB)

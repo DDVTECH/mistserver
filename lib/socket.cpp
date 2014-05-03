@@ -1162,3 +1162,7 @@ bool Socket::UDPConnection::Receive(){
     return false;
   }
 }
+
+int Socket::UDPConnection::getSock(){
+  return sock; 
+}

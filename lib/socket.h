@@ -137,6 +137,7 @@ namespace Socket {
       UDPConnection(const UDPConnection & o);
       UDPConnection(bool nonblock = false);
       ~UDPConnection();
+      int getSock();
       int bind(int port);
       void setBlocking(bool blocking);
       void SetDestination(std::string hostname, uint32_t port);

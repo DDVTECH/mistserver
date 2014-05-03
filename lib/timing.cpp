@@ -35,6 +35,12 @@ void Util::sleep(int ms){
   nanosleep( &T, 0);
 }
 
+long long Util::getNTP(){
+  struct timespec t;
+  clock_gettime(CLOCK_REALTIME, &t);
+  return ((((long long int)t.tv_sec) + 2208988800) << 32) + (t.tv_nsec*4.2949);
+}
+
 /// Gets the current time in milliseconds.
 long long int Util::getMS(){
   struct timespec t;

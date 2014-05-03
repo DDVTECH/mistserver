@@ -8,5 +8,6 @@ namespace Util {
   long long int getMS(); ///< Gets the current time in milliseconds.
   long long unsigned int getMicros();///<Gets the current time in microseconds.
   long long unsigned int getMicros(long long unsigned int previous);///<Gets the time difference in microseconds.
+  long long int getNTP();
   long long int epoch(); ///< Gets the amount of seconds since 01/01/1970.
 }

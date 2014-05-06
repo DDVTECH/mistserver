@@ -68,14 +68,20 @@ namespace Mist {
     }
     
     //Open video file
-    if(avformat_open_input(&pFormatCtx, config->getString("input").c_str(), NULL, NULL) != 0){
-      DEBUG_MSG(DLVL_FAIL, "Could not open file. Sorry :-(");
+    int ret = avformat_open_input(&pFormatCtx, config->getString("input").c_str(), NULL, NULL);
+    if(ret != 0){
+      char errstr[300];
+      av_strerror(ret, errstr, 300);
+      DEBUG_MSG(DLVL_FAIL, "Could not open file: %s", errstr);
       return false; // Couldn't open file
     }
       
     //Retrieve stream information
-    if(avformat_find_stream_info(pFormatCtx, NULL) < 0){
-      DEBUG_MSG(DLVL_FAIL, "Could not find stream info. Sorry :-(");
+    ret = avformat_find_stream_info(pFormatCtx, NULL);
+    if(ret < 0){
+      char errstr[300];
+      av_strerror(ret, errstr, 300);
+      DEBUG_MSG(DLVL_FAIL, "Could not find stream info: %s", errstr);
       return false;
     }
     return true;

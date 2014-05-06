@@ -60,6 +60,10 @@ namespace Mist {
         return false;
       }
     }
+
+    //make sure all av inputs are registered properly, just in case
+    //setup() already does this, but under windows it doesn't remember it. Very sad, that.
+    av_register_all();
     
     //close any already open files
     if (pFormatCtx){

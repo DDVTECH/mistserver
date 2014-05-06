@@ -739,17 +739,17 @@ namespace Mist {
   }
 
   void Output::stats(){
-    /*LTS-START*/
-    if (isBlacklisted(myConn.getHost(), streamName, myConn.connTime())){
-      myConn.close();
-      return;
-    }
-    /*LTS-END*/
     if (!statsPage.getData()){
       return;
     }
     unsigned long long int now = Util::epoch();
     if (now != lastStats){
+      /*LTS-START*/
+      if (isBlacklisted(myConn.getHost(), streamName, myConn.connTime())){
+        myConn.close();
+        return;
+      }
+      /*LTS-END*/
       lastStats = now;
       IPC::statExchange tmpEx(statsPage.getData());
       tmpEx.now(now);

@@ -48,6 +48,9 @@ void AMF::Object::addContent(AMF::Object c){
 /// Returns AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
 AMF::Object* AMF::Object::getContentP(int i){
+  if (i >= contents.size()){
+    return 0;
+  }
   return &contents.at(i);
 }
 

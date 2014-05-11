@@ -108,7 +108,7 @@ namespace Mist {
     bool IsKeyFrame = false;
     
     char * dataPointer = 0;
-    int dataLen = 0;
+    unsigned int dataLen = 0;
     currentPacket.getString("data", dataPointer, dataLen);
 
     if (currentPacket.getTime() >= until){

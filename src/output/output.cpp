@@ -56,10 +56,10 @@ namespace Mist {
   void Output::updateMeta(){
     //read metadata from page to myMeta variable
     if (streamIndex.mapped){
-      JSON::Value jsonMeta;
-      unsigned int i = 0;
-      JSON::fromDTMI((const unsigned char*)streamIndex.mapped + 8, streamIndex.len - 8, i, jsonMeta);
-      myMeta = DTSC::Meta(jsonMeta);
+      DTSC::Packet tmpMeta(streamIndex.mapped, streamIndex.len, true);
+      if (tmpMeta){
+        myMeta.reinit(tmpMeta);
+      }
     }
   }
   

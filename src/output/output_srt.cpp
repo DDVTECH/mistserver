@@ -33,7 +33,7 @@ namespace Mist {
   
   void OutProgressiveSRT::sendNext(){
     char * dataPointer = 0;
-    int len = 0;
+    unsigned int len = 0;
     currentPacket.getString("data", dataPointer, len);
     std::stringstream tmp;
     if(!webVTT) {

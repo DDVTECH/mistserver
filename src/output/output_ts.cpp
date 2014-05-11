@@ -61,7 +61,7 @@ namespace Mist {
     bool IsKeyFrame = false;
     
     char * dataPointer = 0;
-    int dataLen = 0;
+    unsigned int dataLen = 0;
     currentPacket.getString("data", dataPointer, dataLen);
     
     //detect packet type, and put converted data into ToPack.

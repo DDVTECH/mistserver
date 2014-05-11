@@ -205,6 +205,7 @@ namespace Mist {
     }else{
       seek(0);
     }
+    capa.null();
   }
   
   /// Clears the buffer, sets parseData to false, and generally makes not very much happen at all.

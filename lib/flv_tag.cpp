@@ -376,8 +376,9 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track){
   len = 0;
   if (track.type == "video"){
     char * tmpData = 0;
-    packData.getString("data", tmpData, len);
-    len += 16;
+    unsigned int tmpLen = 0;
+    packData.getString("data", tmpData, tmpLen);
+    len = tmpLen + 16;
     if (track.codec == "H264"){
       len += 4;
     }
@@ -418,8 +419,9 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track){
   }
   if (track.type == "audio"){
     char * tmpData = 0;
-    packData.getString("data", tmpData, len);
-    len += 16;
+    unsigned int tmpLen = 0;
+    packData.getString("data", tmpData, tmpLen);
+    len = tmpLen + 16;
     if (track.codec == "AAC"){
       len ++;
     }

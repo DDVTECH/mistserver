@@ -13,6 +13,12 @@
 #include "socket.h"
 #include "timing.h"
 
+#define DTSC_INT 0x01
+#define DTSC_STR 0x02
+#define DTSC_OBJ 0xE0
+#define DTSC_ARR 0x0A
+#define DTSC_CON 0xFF
+
 namespace DTSC {
   bool isFixed(JSON::Value & metadata);
 
@@ -59,6 +65,26 @@ namespace DTSC {
     DTSC_V2
   };
 
+  /// This class allows scanning through raw binary format DTSC data.
+  /// It can be used as an iterator or as a direct accessor.
+  class Scan{
+  public:
+    Scan();
+    Scan(char * pointer, size_t len);
+    std::string toPrettyString(unsigned int indent = 0);
+    Scan getMember(std::string indice);
+    Scan getIndice(unsigned int num);
+    
+    char getType();
+    bool asBool();
+    long long asInt();
+    std::string asString();
+    void getString(char *& result, unsigned int & len);
+  private:
+    char * p;
+    size_t len;
+  };
+  
   /// DTSC::Packets can currently be three types:
   /// DTSC_HEAD packets are the "DTSC" header string, followed by 4 bytes len and packed content.
   /// DTSC_V1 packets are "DTPD", followed by 4 bytes len and packed content.
@@ -73,30 +99,31 @@ namespace DTSC {
       void null();
       void operator = (const Packet & rhs);
       operator bool() const;
-      packType getVersion();
+      packType getVersion() const;
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
-      void getString(const char * identifier, char *& result, int & len);
-      void getString(const char * identifier, std::string & result);
-      void getInt(const char * identifier, int & result);
-      int getInt(const char * identifier);
-      void getFlag(const char * identifier, bool & result);
-      bool getFlag(const char * identifier);
-      bool hasMember(const char * identifier);
-      long long unsigned int getTime();
-      long int getTrackId();
-      char * getData();
-      int getDataLen();
-      JSON::Value toJSON();
+      void getString(const char * identifier, char *& result, unsigned int & len) const;
+      void getString(const char * identifier, std::string & result) const;
+      void getInt(const char * identifier, int & result) const;
+      int getInt(const char * identifier) const;
+      void getFlag(const char * identifier, bool & result) const;
+      bool getFlag(const char * identifier) const;
+      bool hasMember(const char * identifier) const;
+      long long unsigned int getTime() const;
+      long int getTrackId() const;
+      char * getData() const;
+      int getDataLen() const;
+      int getPayloadLen() const;
+      JSON::Value toJSON() const;
+      Scan getScan() const;
     protected:
       bool master;
       packType version;
-      char * findIdentifier(const char * identifier);
       void resize(unsigned int size);
       char * data;
       unsigned int bufferLen;
       unsigned int dataLen;
   };
-
+  
   /// A simple structure used for ordering byte seek positions.
   struct livePos {
     livePos() {
@@ -255,6 +282,7 @@ namespace DTSC {
       Track();
       Track(const readOnlyTrack & rhs);
       Track(JSON::Value & trackRef);
+      Track(Scan & trackRef);
       inline operator bool() const {
         return parts.size();
       }
@@ -298,9 +326,10 @@ namespace DTSC {
   class Meta : public readOnlyMeta {
     public:
       Meta();
+      Meta(const DTSC::Packet & source);
       Meta(const readOnlyMeta & meta);
       Meta(JSON::Value & meta);
-      std::map<int, Track> tracks;
+      void reinit(const DTSC::Packet & source);
       void update(DTSC::Packet & pack);
       void update(JSON::Value & pack);
       unsigned int getSendLen();
@@ -310,6 +339,8 @@ namespace DTSC {
       void reset();
       bool isFixed();
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
+      //members:
+      std::map<int, Track> tracks;
   };
 
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.

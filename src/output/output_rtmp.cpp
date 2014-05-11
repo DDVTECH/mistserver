@@ -66,7 +66,7 @@ namespace Mist {
     char dataheader[] = {0, 0, 0, 0, 0};
     unsigned int dheader_len = 1;
     char * tmpData = 0;//pointer to raw media data
-    int data_len = 0;//length of processed media data
+    unsigned int data_len = 0;//length of processed media data
     currentPacket.getString("data", tmpData, data_len);
     DTSC::Track & track = myMeta.tracks[currentPacket.getTrackId()];
     

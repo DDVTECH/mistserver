@@ -443,7 +443,7 @@ namespace Mist {
   void OutProgressiveMP4::sendNext(){
     static bool perfect = true;
     char * dataPointer = 0;
-    int len = 0;
+    unsigned int len = 0;
     currentPacket.getString("data", dataPointer, len);
     if (currentPacket.getTrackId() != sortSet.begin()->trackID || currentPacket.getTime() != sortSet.begin()->time){
       if (perfect){

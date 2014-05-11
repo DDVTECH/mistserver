@@ -49,7 +49,7 @@ namespace Mist {
 
   void OutRTSP::sendNext(){
     char * dataPointer = 0;
-    int dataLen = 0;
+    unsigned int dataLen = 0;
     currentPacket.getString("data", dataPointer, dataLen);
     unsigned int tid = currentPacket.getTrackId();
     unsigned int timestamp = currentPacket.getTime();

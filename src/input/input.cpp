@@ -186,7 +186,6 @@ namespace Mist {
     std::stringstream trackSpec;
     for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
       DEBUG_MSG(DLVL_VERYHIGH, "Track %d encountered", it->first);
-      //selectedTracks.insert(it->first);
       if (trackSpec.str() != ""){
         trackSpec << " ";
       }
@@ -206,6 +205,10 @@ namespace Mist {
 
     while(lastPack){//loop through all
       int tid = lastPack.getTrackId();
+      if (!tid){
+        getNext(false);
+        continue;
+      }
       if (!bookKeeping.count(tid)){
         bookKeeping[tid].first = 1;
         bookKeeping[tid].curPart = 0;

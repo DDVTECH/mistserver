@@ -80,7 +80,7 @@ namespace Mist {
       return;
     }
     char * dataPointer = 0;
-    int len = 0;
+    unsigned int len = 0;
     currentPacket.getString("data", dataPointer, len);
     HTTP_S.Chunkify(dataPointer, len, myConn);
   }

@@ -25,7 +25,7 @@ namespace Mist {
   
   void OutProgressiveMP3::sendNext(){
     char * dataPointer = 0;
-    int len = 0;
+    unsigned int len = 0;
     currentPacket.getString("data", dataPointer, len);
     myConn.SendNow(dataPointer, len);
   }

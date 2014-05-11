@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <cstring>
 #include <cerrno>
 #include <cstdlib>
@@ -92,6 +93,13 @@ namespace Mist {
   }
 
   bool inputAV::readHeader() {
+    //See whether a separate header file exists.
+    DTSC::File tmp(config->getString("input") + ".dtsh");
+    if (tmp){
+      myMeta = tmp.getMeta();
+      return true;
+    }
+    
     myMeta.tracks.clear();
     myMeta.live = false;
     myMeta.vod = true;
@@ -187,10 +195,15 @@ namespace Mist {
       myMeta.update(pkt);
       av_free_packet(&packet);
     }
-    setup();
+    myMeta.live = false;
+    myMeta.vod = true;
     
-    myMeta.toPrettyString(std::cout);
+    //store dtsc-style header file for faster processing, later
+    std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
+    oFile << myMeta.toJSON().toNetPacked();
+    oFile.close();
     
+    seek(0);
     return true;
   }
   
@@ -231,15 +244,25 @@ namespace Mist {
   void inputAV::seek(int seekTime) {
     
     DEBUG_MSG(DLVL_FAIL, "Seeking to %d from %ld", seekTime, pFormatCtx->pb->pos);
-    return;
-    
+
     int stream_index = av_find_default_stream_index(pFormatCtx);
     //Convert ts to frame
-    seekTime = av_rescale(seekTime, pFormatCtx->streams[stream_index]->time_base.den, pFormatCtx->streams[stream_index]->time_base.num);
+    unsigned long long reseekTime = av_rescale(seekTime, pFormatCtx->streams[stream_index]->time_base.den, pFormatCtx->streams[stream_index]->time_base.num);
     seekTime /= 1000;
+   
     
-    //SEEK
-    if (avformat_seek_file(pFormatCtx, stream_index, INT64_MIN, seekTime, INT64_MAX, 0) < 0) {
+    unsigned long long seekStreamDuration = pFormatCtx->streams[stream_index]->duration;
+    
+    int flags = AVSEEK_FLAG_BACKWARD;
+    if (reseekTime > 0 && reseekTime < seekStreamDuration){
+      flags |= AVSEEK_FLAG_ANY; // H.264 I frames don't always register as "key frames" in FFmpeg
+    }
+    int ret = av_seek_frame(pFormatCtx, stream_index, reseekTime, flags);
+    if (ret < 0){
+      ret = av_seek_frame(pFormatCtx, stream_index, reseekTime, AVSEEK_FLAG_ANY);
+    }
+    
+    if (ret < 0) {
       DEBUG_MSG(DLVL_FAIL, "Unable to seek");
     } else {
       DEBUG_MSG(DLVL_FAIL, "Success: %ld", pFormatCtx->pb->pos);

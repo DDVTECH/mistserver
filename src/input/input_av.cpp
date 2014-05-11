@@ -13,14 +13,10 @@
 namespace Mist {
   inputAV::inputAV(Util::Config * cfg) : Input(cfg) {
     pFormatCtx = 0;
-    
     capa["decs"] = "Enables generic avformat/avcodec based input";
-    
     capa["codecs"][0u][0u].null();
     capa["codecs"][0u][1u].null();
     capa["codecs"][0u][2u].null();
-    
-    
     av_register_all();
     AVCodec * cInfo = 0;
     while ((cInfo = av_codec_next(cInfo)) != 0){
@@ -34,9 +30,6 @@ namespace Mist {
         capa["codecs"][0u][3u].append(cInfo->name);
       }
     }
-    
-    
-    
   }
 
   inputAV::~inputAV(){
@@ -63,7 +56,8 @@ namespace Mist {
     }
 
     //make sure all av inputs are registered properly, just in case
-    //setup() already does this, but under windows it doesn't remember it. Very sad, that.
+    //setup() already does this, but under windows it doesn't remember that it has.
+    //Very sad, that. We may need to get windows some medication for it.
     av_register_all();
     
     //close any already open files
@@ -242,17 +236,11 @@ namespace Mist {
   }
 
   void inputAV::seek(int seekTime) {
-    
-    DEBUG_MSG(DLVL_FAIL, "Seeking to %d from %ld", seekTime, pFormatCtx->pb->pos);
-
     int stream_index = av_find_default_stream_index(pFormatCtx);
     //Convert ts to frame
     unsigned long long reseekTime = av_rescale(seekTime, pFormatCtx->streams[stream_index]->time_base.den, pFormatCtx->streams[stream_index]->time_base.num);
-    seekTime /= 1000;
-   
-    
+    reseekTime /= 1000;
     unsigned long long seekStreamDuration = pFormatCtx->streams[stream_index]->duration;
-    
     int flags = AVSEEK_FLAG_BACKWARD;
     if (reseekTime > 0 && reseekTime < seekStreamDuration){
       flags |= AVSEEK_FLAG_ANY; // H.264 I frames don't always register as "key frames" in FFmpeg
@@ -261,15 +249,6 @@ namespace Mist {
     if (ret < 0){
       ret = av_seek_frame(pFormatCtx, stream_index, reseekTime, AVSEEK_FLAG_ANY);
     }
-    
-    if (ret < 0) {
-      DEBUG_MSG(DLVL_FAIL, "Unable to seek");
-    } else {
-      DEBUG_MSG(DLVL_FAIL, "Success: %ld", pFormatCtx->pb->pos);
-      avcodec_flush_buffers(pFormatCtx->streams[stream_index]->codec);
-    }
-    
-    
   }
 
   void inputAV::trackSelect(std::string trackSpec) {

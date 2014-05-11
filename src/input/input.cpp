@@ -295,6 +295,10 @@ namespace Mist {
     DEBUG_MSG(DLVL_HIGH, "Playing from %ld to %llu", myMeta.tracks[track].keys[pageNum-1].getTime(), stopTime);
     it->second.curOffset = 0;
     getNext();
+    //in case earlier seeking was inprecise, seek to the exact point
+    while (lastPack && lastPack.getTime() < myMeta.tracks[track].keys[pageNum-1].getTime()){
+      getNext();
+    }
     while (lastPack && lastPack.getTime() < stopTime){
       if (it->second.curOffset + lastPack.getDataLen() > pagesByTrack[track][pageNum].dataSize){
         DEBUG_MSG(DLVL_WARN, "Trying to write %u bytes on pos %llu where size is %llu (time: %llu / %llu, track %u page %u)", lastPack.getDataLen(), it->second.curOffset, pagesByTrack[track][pageNum].dataSize, lastPack.getTime(), stopTime, track, pageNum);

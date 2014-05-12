@@ -361,6 +361,12 @@ namespace DTSC {
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
   Scan Scan::getMember(std::string indice){
+    return getMember(indice.data(), indice.size());
+  }
+
+  /// Returns an object representing the named indice of this object.
+  /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
+  Scan Scan::getMember(const char * indice, const unsigned int ind_len){
     if (getType() != DTSC_OBJ && getType() != DTSC_CON){
       return Scan();
     }
@@ -372,7 +378,7 @@ namespace DTSC {
       }
       unsigned int strlen = i[0] * 256 + i[1];
       i += 2;
-      if (indice.size() == strlen && strncmp(indice.data(), i, strlen) == 0){
+      if (ind_len == strlen && strncmp(indice, i, strlen) == 0){
         return Scan(i+strlen, len-(i-p));
       }else{
         i = skipDTSC(i+strlen, p+len);
@@ -382,6 +388,12 @@ namespace DTSC {
       }
     }
     return Scan();
+  }
+  
+  /// Returns an object representing the named indice of this object.
+  /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
+  Scan Scan::getMember(const char * indice){
+    return getMember(indice, strlen(indice));
   }
   
   /// Returns an object representing the num-th indice of this array.

@@ -73,6 +73,8 @@ namespace DTSC {
     Scan(char * pointer, size_t len);
     std::string toPrettyString(unsigned int indent = 0);
     Scan getMember(std::string indice);
+    Scan getMember(const char * indice);
+    Scan getMember(const char * indice, const unsigned int ind_len);
     Scan getIndice(unsigned int num);
     
     char getType();

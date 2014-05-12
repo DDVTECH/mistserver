@@ -221,16 +221,13 @@ namespace Mist {
   }
   
   unsigned int Output::getKeyForTime(long unsigned int trackId, long long timeStamp){
-    if (!myMeta.tracks[trackId].keys.size()){
+    DTSC::Track & trk = myMeta.tracks[trackId];
+    if (!trk.keys.size()){
       return 0;
     }
-    unsigned int keyNo = myMeta.tracks[trackId].keys.begin()->getNumber();
-    for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[trackId].keys.begin(); it != myMeta.tracks[trackId].keys.end(); it++){
-      if (it->getTime() <= timeStamp){
-        keyNo = it->getNumber();
-      }else{
-        break;
-      }
+    unsigned int keyNo = trk.keys.begin()->getNumber();
+    for (std::deque<DTSC::Key>::iterator it = trk.keys.begin(); it != trk.keys.end() && it->getTime() <= timeStamp; it++){
+      keyNo = it->getNumber();
     }
     return keyNo;
   }

@@ -194,6 +194,7 @@ namespace Mist {
     }
     
     //send the header
+    myConn.setBlocking(true);
     myConn.SendNow(rtmpheader, header_len);
     //set the header's first byte to the "continue" type chunk, for later use
     rtmpheader[0] = 0xC4;
@@ -216,6 +217,7 @@ namespace Mist {
         ++steps;
       }
     }
+    myConn.setBlocking(false);
     //update the sent data counter
     RTMPStream::snd_cnt += header_len + data_len + steps;
   }

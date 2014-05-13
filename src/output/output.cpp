@@ -57,7 +57,8 @@ namespace Mist {
     //read metadata from page to myMeta variable
     if (streamIndex.mapped){
       DTSC::Packet tmpMeta(streamIndex.mapped, streamIndex.len, true);
-      if (tmpMeta){
+      if (tmpMeta.getVersion()){
+        /// \todo Make sure this doesn't go wrong when overwritten by MistInBuffer during parse
         myMeta.reinit(tmpMeta);
       }
     }

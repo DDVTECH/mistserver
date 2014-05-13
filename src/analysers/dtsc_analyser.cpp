@@ -19,9 +19,7 @@ namespace Analysers {
   ///\return The return code of the analyser.
   int analyseDTSC(Util::Config conf){
     DTSC::File F(conf.getString("filename"));
-    std::stringstream meta;
-    F.getMeta().toPrettyString(meta,0, 0x03);
-    std::cout << meta.str() << std::endl;
+    F.getMeta().toPrettyString(std::cout,0, 0x03);
 
     int bPos = 0;
     F.seek_bpos(0);
@@ -29,16 +27,13 @@ namespace Analysers {
     JSON::Value tmp;
     std::string tmpStr;
     while (F.getPacket()){
-      tmpStr = std::string(F.getPacket().getData(), F.getPacket().getDataLen());
       switch (F.getPacket().getVersion()){
         case DTSC::DTSC_V1: {
-          unsigned int i = 8;
-          JSON::fromDTMI((const unsigned char*)tmpStr.data(), tmpStr.size(), i, tmp);
+          std::cout << "DTSCv1 packet: " << F.getPacket().getScan().toPrettyString() << std::endl;
           break;
         }
         case DTSC::DTSC_V2: {
-          unsigned int i = 8;
-          JSON::fromDTMI2((const unsigned char*)tmpStr.data(), tmpStr.size(), i, tmp);
+          std::cout << "DTSCv2 packet: " << F.getPacket().getScan().toPrettyString() << std::endl;
           break;
         }
         default:

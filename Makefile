@@ -69,6 +69,10 @@ analysers: MistAnalyserRTP
 MistAnalyserRTP: src/analysers/rtp_analyser.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
+analysers: MistAnalyserTS
+MistAnalyserTS: src/analysers/ts_analyser.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+
 analysers: MistAnalyserRTSP
 MistAnalyserRTSP: src/analysers/rtsp_rtp_analyser.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
@@ -153,6 +157,12 @@ inputs: MistInFLV
 MistInFLV: override LDLIBS += $(THREADLIB)
 MistInFLV: override CPPFLAGS += "-DINPUTTYPE=\"input_flv.h\""
 MistInFLV: src/input/mist_in.cpp src/input/input.cpp src/input/input_flv.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+
+inputs: MistInTS
+MistInTS: override LDLIBS += $(THREADLIB)
+MistInTS: override CPPFLAGS += "-DINPUTTYPE=\"input_ts.h\""
+MistInTS: src/input/mist_in.cpp src/input/input.cpp src/input/input_ts.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 inputs: MistInOGG

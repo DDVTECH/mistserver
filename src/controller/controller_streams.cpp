@@ -216,18 +216,13 @@ namespace Controller {
           // for live streams, keep track of activity
           if (jit->second["meta"].isMember("live")){
             static std::map<std::string, liveCheck> checker;
-            //check activity by monitoring the lastms of track 0;
-            JSON::ObjIter trackIt = jit->second["meta"]["tracks"].ObjBegin();
-            if (trackIt->second["lastms"].asInt() != checker[jit->first].lastms){
-              checker[jit->first].lastms = trackIt->second["lastms"].asInt();
-              checker[jit->first].last_active = currTime;
-            }
-            if (trackIt->second["firsms"].asInt() > Storage["streams"][jit->first]["cut"].asInt()){
-              Storage["streams"][jit->first].removeMember("cut");
-            }
             //check H264 tracks for optimality
             if (jit->second.isMember("meta") && jit->second["meta"].isMember("tracks")){
               for (JSON::ObjIter trIt = jit->second["meta"]["tracks"].ObjBegin(); trIt != jit->second["meta"]["tracks"].ObjEnd(); trIt++){
+                if (trIt->second["lastms"].asInt() > checker[jit->first].lastms){
+                  checker[jit->first].lastms = trIt->second["lastms"].asInt();
+                  checker[jit->first].last_active = currTime;
+                }
                 if (trIt->second["codec"] == "H264"){
                   if (trIt->second.isMember("init")){
                     if (trIt->second["init"].asString().size() < 4){

@@ -60,6 +60,8 @@ namespace Mist {
       }
     }
     myMeta.bufferWindow = lastms - firstms;
+    myMeta.vod = false;
+    myMeta.live = true;
     myMeta.writeTo(metaPage.mapped);
   } 
 

@@ -223,6 +223,11 @@ namespace Controller {
                   checker[jit->first].lastms = trIt->second["lastms"].asInt();
                   checker[jit->first].last_active = currTime;
                 }
+                /*LTS-START*/
+                if (trIt->second["firstms"].asInt() > Storage["streams"][jit->first]["cut"].asInt()){
+                  Storage["streams"][jit->first].removeMember("cut");
+                }
+                /*LTS-END*/
                 if (trIt->second["codec"] == "H264"){
                   if (trIt->second.isMember("init")){
                     if (trIt->second["init"].asString().size() < 4){

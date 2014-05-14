@@ -169,10 +169,7 @@ bool DHWrapper::CreateSharedKey(uint8_t *pPeerPublicKey, int32_t length){
     return false;
   }
 
-  if (DH_compute_key(_pSharedKey, _peerPublickey, _pDH) != _sharedKeyLength){
-    return false;
-  }
-
+  DH_compute_key(_pSharedKey, _peerPublickey, _pDH);
   return true;
 }
 
@@ -840,13 +837,21 @@ bool RTMPStream::doHandshake(){
 
   //generate DH key
   DHWrapper dhWrapper(1024);
-  if ( !dhWrapper.Initialize()) return false;
-  if ( !dhWrapper.CreateSharedKey(Client + clientDHOffset, 128)) return false;
-  if ( !dhWrapper.CopyPublicKey(Server + serverDHOffset, 128)) return false;
+  if ( !dhWrapper.Initialize()){
+    return false;
+  }
+  if ( !dhWrapper.CreateSharedKey(Client + clientDHOffset, 128)){
+    return false;
+  }
+  if ( !dhWrapper.CopyPublicKey(Server + serverDHOffset, 128)){
+    return false;
+  }
 
   if (encrypted){
     uint8_t secretKey[128];
-    if ( !dhWrapper.CopySharedKey(secretKey, sizeof(secretKey))) return false;
+    if ( !dhWrapper.CopySharedKey(secretKey, sizeof(secretKey))){
+      return false;
+    }
     RC4_KEY _pKeyIn;
     RC4_KEY _pKeyOut;
     InitRC4Encryption(secretKey, (uint8_t*) &Client[clientDHOffset], (uint8_t*) &Server[serverDHOffset], &_pKeyIn, &_pKeyOut);

@@ -487,6 +487,14 @@ namespace Mist {
       statsPage.keepAlive();
     }
     int tNum = 0;
+    if (!playerConn.getData()){
+      playerConn = IPC::sharedClient(streamName + "_users", 30, true);
+      if (!playerConn.getData()){
+        DEBUG_MSG(DLVL_WARN, "Player connection failure - aborting output");
+        myConn.close();
+        return;
+      }
+    }
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < 5; it++){
       char thisData[6];
       thisData[0] = ((*it >> 24) & 0xFF);

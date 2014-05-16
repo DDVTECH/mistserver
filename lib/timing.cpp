@@ -4,6 +4,7 @@
 #include "timing.h"
 #include <sys/time.h>//for gettimeofday
 #include <time.h>//for time and nanosleep
+#include <sys/sysinfo.h> //forsysinfo
 
 //emulate clock_gettime() for OSX compatibility
 #if defined(__APPLE__) || defined(__MACH__)
@@ -46,6 +47,12 @@ long long int Util::getMS(){
   struct timespec t;
   clock_gettime(CLOCK_REALTIME, &t);
   return ((long long int)t.tv_sec) * 1000 + t.tv_nsec / 1000000;
+}
+
+long long int Util::bootSecs(){
+  struct sysinfo sinfo;
+  sysinfo(&sinfo);
+  return sinfo.uptime;
 }
 
 /// Gets the current time in microseconds.

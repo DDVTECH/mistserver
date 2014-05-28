@@ -152,6 +152,32 @@ function showTab(tabName,streamName) {
             $('<input>').attr('id','settings-config-basePath').addClass('isSetting').attr('type','text')
           ) */
         ).append(
+          $('<label>').text('Debug level:').append(
+            $('<select>').attr('id','settings-config-debug').addClass('isSetting').append(
+              $('<option>').val(0).text('0 - All debugging messages disabled')
+            ).append(
+              $('<option>').val(1).text('1 - Messages about failed operations')
+            ).append(
+              $('<option>').val(2).text('2 - Previous level, and error messages')
+            ).append(
+              $('<option>').val(3).text('3 - Previous level, and warning messages')
+            ).append(
+              $('<option>').val(4).text('4 - Previous level, and status messages for development')
+            ).append(
+              $('<option>').val(5).text('5 - Previous level, and more status messages for development')
+            ).append(
+              $('<option>').val(6).text('6 - Previous level, and verbose debugging messages')
+            ).append(
+              $('<option>').val(7).text('7 - Previous level, and very verbose debugging messages')
+            ).append(
+              $('<option>').val(8).text('8 - Report everything in extreme detail')
+            ).append(
+              $('<option>').val(9).text('9 - Report everything in insane detail')
+            ).append(
+              $('<option>').val(10).text('10 - All messages enabled')
+            )
+          )
+        ).append(
           $('<label>').text('Server time:').append(
             $('<span>').attr('id','settings-config-time')
           )

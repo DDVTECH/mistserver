@@ -77,9 +77,12 @@ namespace Controller {
     char buf[1024];
     FILE * output = fdopen((long long int)err, "r");
     while (fgets(buf, 1024, output)){
-      for (unsigned int i = 0; i < 9 && buf[i] != ' '; i++){}
+      unsigned int i = 0;
+      while (i < 9 && buf[i] != ' '){
+        ++i;
+      }
       if(i < 9){
-        buf[i] = NULL;
+        buf[i] = 0;
         Log(buf,buf+i+1);
       }else{
         printf("%s\n",buf);
@@ -162,7 +165,7 @@ namespace Controller {
         Util::Procs::StartPiped(toConn(iter->first), argarr, &zero, &out, &err);//redirects output to out. Must make a new pipe, redirect std err
         if(err != -1){
           //spawn new thread where err is read, it reads err until there is nothing more to be read
-           tthread::thread * msghandler = new tthread::thread(handleMsg, (void*) err);
+           tthread::thread * msghandler = new tthread::thread(handleMsg, (void*)err);
            msghandler->detach();
         }
       }

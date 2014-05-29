@@ -1,4 +1,6 @@
 // Defines to print debug messages.
+#ifndef MIST_DEBUG
+#define MIST_DEBUG 1
 #define DLVL_NONE      0 // All debugging disabled.
 #define DLVL_FAIL      1 // Only messages about failed operations.
 #define DLVL_ERROR     2 // Only messages about errors and failed operations.
@@ -10,10 +12,13 @@
 #define DLVL_EXTREME   8 // Everything is reported in extreme detail.
 #define DLVL_INSANE    9 // Everything is reported in insane detail.
 #define DLVL_DONTEVEN 10 // All messages enabled, even pointless ones.
-#if DEBUG > 0
+#if DEBUG > -1
 #include <stdio.h>
 #include <unistd.h>
-#define DEBUG_MSG(lvl, msg, ...) if (DEBUG >= lvl){fprintf(stderr, "[%d][%s:%d] " msg "\n", getpid(), __FILE__, __LINE__, ##__VA_ARGS__);}
+#include "config.h"
+static const char* DBG_LVL_LIST[] = {"NONE","FAIL","ERROR","WARN","DEVEL","MEDIUM","HIGH","VERYHIGH","EXTREME","INSANE","DONTEVEN"};
+#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s [%d][%s:%d] " msg "\n", DBG_LVL_LIST[lvl],getpid(), __FILE__, __LINE__, ##__VA_ARGS__);}
 #else
 #define DEBUG_MSG(lvl, msg, ...) // Debugging disabled.
+#endif
 #endif

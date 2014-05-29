@@ -23,6 +23,7 @@ namespace Util {
       //variables
       static std::string libver; ///< Version number of the library as a string.
       static bool is_active; ///< Set to true by activate(), set to false by the signal handler.
+      static unsigned int printDebugLevel;
       //functions
       Config();
       Config(std::string cmd, std::string version);

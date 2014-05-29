@@ -34,9 +34,21 @@
 #include <dirent.h> //for getMyExec
 
 bool Util::Config::is_active = false;
+unsigned int Util::Config::printDebugLevel = DEBUG;//
 std::string Util::Config::libver = PACKAGE_VERSION;
 
-Util::Config::Config(){}
+Util::Config::Config(){
+  //global options here
+  vals["debug"]["long"] = "debug";
+  vals["debug"]["short"] = "g";
+  vals["debug"]["arg"] = "integer";
+  vals["debug"]["help"] = "The debug level at which messages need to be printed.";
+  vals["debug"]["value"].append((long long)DEBUG);
+  /*capabilities["optional"]["debug level"]["name"] = "debug";
+  capabilities["optional"]["debug level"]["help"] = "The debug level at which messages need to be printed.";
+  capabilities["optional"]["debug level"]["option"] = "--debug";
+  capabilities["optional"]["debug level"]["type"] = "integer";*/
+}
 
 /// Creates a new configuration manager.
 Util::Config::Config(std::string cmd, std::string version){
@@ -51,6 +63,11 @@ Util::Config::Config(std::string cmd, std::string version){
   vals["help"]["help"] = "Display usage and version information, then exit.";
   vals["version"]["value"].append((std::string)PACKAGE_VERSION);
   vals["version"]["value"].append(version);
+  vals["debug"]["long"] = "debug";
+  vals["debug"]["short"] = "g";
+  vals["debug"]["arg"] = "integer";
+  vals["debug"]["help"] = "The debug level at which messages need to be printed.";
+  vals["debug"]["value"].append((long long)DEBUG);  
 }
 
 /// Adds an option to the configuration parser.
@@ -265,6 +282,7 @@ bool Util::Config::parseArgs(int & argc, char ** & argv){
   if (long_i <= arg_count){
     return false;
   }
+  printDebugLevel = getInteger("debug");
   return true;
 }
 
@@ -511,6 +529,8 @@ void Util::Config::addBasicConnectorOptions(JSON::Value & capabilities){
   option["value"].append(0ll);
   addOption("json", option);
 }
+
+
 
 /// Gets directory the current executable is stored in.
 std::string Util::getMyPath(){

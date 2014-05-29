@@ -25,6 +25,13 @@ namespace Mist {
     return ((long long int)timePoint[0] << 56) | ((long long int)timePoint[1] << 48) | ((long long int)timePoint[2] << 40) | ((long long int)timePoint[3] << 32) | ((long long int)timePoint[4] << 24) | ((long long int)timePoint[5] << 16) | ((long long int)timePoint[6] << 8) | timePoint[7];
   }
 
+   void Output::init(Util::Config * cfg){
+    capa["optional"]["debug"]["name"] = "debug";
+    capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
+    capa["optional"]["debug"]["option"] = "--debug";
+    capa["optional"]["debug"]["type"] = "uint";
+  }
+  
   Output::Output(Socket::Connection & conn) : myConn(conn) {
     firstTime = 0;
     parseData = false;

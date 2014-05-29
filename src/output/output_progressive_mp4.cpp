@@ -9,6 +9,7 @@ namespace Mist {
   OutProgressiveMP4::~OutProgressiveMP4() {}
   
   void OutProgressiveMP4::init(Util::Config * cfg){
+    Output::init(cfg);
     capa["name"] = "HTTP_Progressive_MP4";
     capa["desc"] = "Enables HTTP protocol progressive streaming.";
     capa["deps"] = "HTTP";

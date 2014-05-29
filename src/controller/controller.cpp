@@ -231,9 +231,6 @@ namespace Controller {
         Log("CONF", std::string("New configuration value ") + jit->first);
       }
     }
-    if (out["config"]["basepath"].asString()[out["config"]["basepath"].asString().size() - 1] == '/'){
-      out["config"]["basepath"] = out["config"]["basepath"].asString().substr(0, out["config"]["basepath"].asString().size() - 1);
-    }
     for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
       if (jit->first == "version" || jit->first == "time"){
         continue;
@@ -243,6 +240,12 @@ namespace Controller {
       }
     }
     out = in;
+    if (out["basepath"].asString()[out["basepath"].asString().size() - 1] == '/'){
+      out["basepath"] = out["basepath"].asString().substr(0, out["basepath"].asString().size() - 1);
+    }
+    if (out.isMember("debug")){
+      Util::Config::printDebugLevel = out["debug"].asInt();
+    }    
   }
 
 } //Controller namespace
@@ -349,7 +352,13 @@ int main(int argc, char ** argv){
   }
   //Input custom config here
   Controller::Storage = JSON::fromFile(Controller::conf.getString("configFile"));
-
+  
+  if (Controller::conf.getOption("debug",true).size() > 1){
+    Controller::Storage["config"]["debug"] = Controller::conf.getInteger("debug");
+  }
+  if (Controller::Storage.isMember("config") && Controller::Storage["config"].isMember("debug")){
+    Util::Config::printDebugLevel = Controller::Storage["config"]["debug"].asInt();
+  }
   //check for port, interface and username in arguments
   //if they are not there, take them from config file, if there
   if (Controller::conf.getOption("listen_port", true).size() <= 1){

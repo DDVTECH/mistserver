@@ -87,6 +87,7 @@ namespace Mist {
   }
   
   void OutHLS::init(Util::Config * cfg){
+    Output::init(cfg);
     capa["name"] = "HTTP_Live";
     capa["desc"] = "Enables HTTP protocol Apple-specific streaming (also known as HLS).";
     capa["deps"] = "HTTP";

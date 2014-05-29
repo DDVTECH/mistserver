@@ -49,6 +49,7 @@ namespace Mist {
   OutHSS::~OutHSS() {}
 
   void OutHSS::init(Util::Config * cfg) {
+    Output::init(cfg);
     capa["name"] = "HTTP_Smooth";
     capa["desc"] = "Enables HTTP protocol Microsoft-specific smooth streaming through silverlight (also known as HSS).";
     capa["deps"] = "HTTP";

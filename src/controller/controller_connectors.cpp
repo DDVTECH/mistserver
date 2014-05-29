@@ -6,10 +6,12 @@
 #include <mist/config.h>
 #include <mist/procs.h>
 #include <mist/timing.h>
+#include <mist/tinythread.h>
 #include "controller_storage.h"
 #include "controller_connectors.h"
 
 #include <iostream>
+#include <unistd.h>
 
 
 ///\brief Holds everything unique to the controller.
@@ -70,6 +72,21 @@ namespace Controller {
     if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
     if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
   }
+  
+  void handleMsg(void * err){
+    char buf[1024];
+    FILE * output = fdopen((long long int)err, "r");
+    while (fgets(buf, 1024, output)){
+      for (unsigned int i = 0; i < 9 && buf[i] != ' '; i++){}
+      if(i < 9){
+        buf[i] = NULL;
+        Log(buf,buf+i+1);
+      }else{
+        printf("%s\n",buf);
+      }
+    }
+  }
+  
 
   ///\brief Checks current protocol coguration, updates state of enabled connectors if neccesary.
   ///\param p An object containing all protocols.
@@ -141,7 +158,13 @@ namespace Controller {
         // get args for this connector
         buildPipedArguments(p[(long long unsigned)iter->first], (char **)&argarr, capabilities);
         // start piped w/ generated args
-        Util::Procs::StartPiped(toConn(iter->first), argarr, &zero, &out, &err);
+        err = -1;
+        Util::Procs::StartPiped(toConn(iter->first), argarr, &zero, &out, &err);//redirects output to out. Must make a new pipe, redirect std err
+        if(err != -1){
+          //spawn new thread where err is read, it reads err until there is nothing more to be read
+           tthread::thread * msghandler = new tthread::thread(handleMsg, (void*) err);
+           msghandler->detach();
+        }
       }
     }
 

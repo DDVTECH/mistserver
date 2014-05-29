@@ -691,6 +691,10 @@ namespace Connector_HTTP {
 int main(int argc, char ** argv){
   Util::Config conf(argv[0], PACKAGE_VERSION);
   JSON::Value capa;
+  capa["optional"]["debug"]["name"] = "debug";
+  capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
+  capa["optional"]["debug"]["option"] = "--debug";
+  capa["optional"]["debug"]["type"] = "uint";
   capa["desc"] = "Enables the generic HTTP listener, required by all other HTTP protocols. Needs other HTTP protocols enabled to do much of anything.";
   capa["deps"] = "";
   conf.addConnectorOptions(8080, capa);

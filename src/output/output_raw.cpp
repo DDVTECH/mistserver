@@ -30,6 +30,7 @@ namespace Mist {
   OutRaw::~OutRaw() {}
   
   void OutRaw::init(Util::Config * cfg){
+    Output::init(cfg);
     capa["name"] = "RAW";
     capa["desc"] = "Enables raw DTSC over TCP.";
     capa["deps"] = "";

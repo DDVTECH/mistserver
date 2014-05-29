@@ -39,6 +39,7 @@ namespace Mist {
   OutRTMP::~OutRTMP() {}
 
   void OutRTMP::init(Util::Config * cfg) {
+    Output::init(cfg);
     capa["name"] = "RTMP";
     capa["desc"] = "Enables the RTMP protocol which is used by Adobe Flash Player.";
     capa["deps"] = "";

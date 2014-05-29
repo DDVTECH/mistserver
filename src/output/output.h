@@ -37,7 +37,7 @@ namespace Mist {
       Output(Socket::Connection & conn);
       virtual ~Output();
       //static members for initialization and capabilities
-      static void init(Util::Config * cfg) {}
+      static void init(Util::Config * cfg);
       static JSON::Value capa;
       //non-virtual generic functions
       int run();

@@ -88,28 +88,6 @@ namespace Controller {
           }
         }
         if ( !getMeta && data.isMember("meta") && data["meta"].isMember("tracks")){
-          for (JSON::ObjIter trIt = data["meta"]["tracks"].ObjBegin(); trIt != data["meta"]["tracks"].ObjEnd(); trIt++){
-            if (trIt->second["codec"] == "H264"){
-              if ( !trIt->second.isMember("init")){
-                getMeta = true;
-              }else{
-                if (trIt->second["init"].asString().size() < 4){
-                  Log("WARN", "Source file "+URL+" does not contain H264 init data that MistServer can interpret.");
-                  data["error"] = "Stream offline: Invalid?";
-                }else{
-                  if (trIt->second["init"].asString().c_str()[1] != 0x42){
-                    Log("WARN", "Source file "+URL+" is not H264 Baseline - convert to baseline profile for best compatibility.");
-                    data["error"] = "Not optimal (details in log)";
-                  }else{
-                    if (trIt->second["init"].asString().c_str()[3] > 30){
-                      Log("WARN", "Source file "+URL+" is higher than H264 level 3.0 - convert to a level <= 3.0 for best compatibility.");
-                      data["error"] = "Not optimal (details in log)";
-                    }
-                  }
-                }
-              }
-            }
-          }
           if ( !data["meta"] || !data["meta"]["tracks"]){
             Log("WARN", "Source file " + URL + " seems to be corrupt.");
             data["error"] = "Stream offline: Corrupt file?";
@@ -212,24 +190,7 @@ namespace Controller {
                   checker[jit->first].lastms = trIt->second["lastms"].asInt();
                   checker[jit->first].last_active = currTime;
                 }
-                if (trIt->second["codec"] == "H264"){
-                  if (trIt->second.isMember("init")){
-                    if (trIt->second["init"].asString().size() < 4){
-                      Log("WARN", "Live stream "+jit->first+" does not contain H264 init data that MistServer can interpret.");
-                      jit->second["error"] = "Stream offline: Invalid?";
-                    }else{
-                      if (trIt->second["init"].asString().c_str()[1] != 0x42){
-                        Log("WARN", "Live stream "+jit->first+" is not H264 Baseline - convert to baseline profile for best compatibility.");
-                        jit->second["error"] = "Not optimal (details in log)";
-                      }else{
-                        if (trIt->second["init"].asString().c_str()[3] > 30){
-                          Log("WARN", "Live stream "+jit->first+" is higher than H264 level 3.0 - convert to a level <= 3.0 for best compatibility.");
-                          jit->second["error"] = "Not optimal (details in log)";
-                        }
-                      }
-                    }
-                  }
-                }
+
               }
             }
             // mark stream as offline if no activity for 5 seconds

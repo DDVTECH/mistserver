@@ -15,13 +15,19 @@
 
 /// Contains all MP4 format related code.
 namespace MP4 {
+  std::string readBoxType(FILE * newData);
+  bool skipBox(FILE * newData);
+
   
   class Box{
     public:
       Box(char * datapointer = 0, bool manage = true);
+      Box(const Box & rs);
+      Box& operator = (const Box & rs);
       ~Box();
       std::string getType();
       bool isType(const char* boxType);
+      bool read(FILE* newData);
       bool read(std::string & newData);
       uint64_t boxedSize();
       uint64_t payloadSize();

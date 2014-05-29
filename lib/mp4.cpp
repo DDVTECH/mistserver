@@ -7,6 +7,8 @@
 #include "mp4_generic.h"
 #include "json.h"
 
+#include "defines.h"
+
 /// Contains all MP4 format related code.
 namespace MP4 {
 
@@ -15,6 +17,7 @@ namespace MP4 {
   /// If the datapointer is NULL, manage is assumed to be true even if explicitly given as false.
   /// If managed, the pointer will be free'd upon destruction.
   Box::Box(char * datapointer, bool manage){
+  
     data = datapointer;
     managed = manage;
     payloadOffset = 8;
@@ -24,6 +27,31 @@ namespace MP4 {
       data_size = ntohl(((int*)data)[0]);
     }
   }
+  
+  Box::Box(const Box & rs){
+    data = rs.data;
+    managed = false;
+    payloadOffset = rs.payloadOffset;
+    if (data == 0){
+      clear();
+    }else{
+      data_size = ntohl(((int*)data)[0]);
+    }
+  }
+
+  Box& Box::operator = (const Box & rs){
+    clear();
+    data = rs.data;
+    managed = false;
+    payloadOffset = rs.payloadOffset;
+    if (data == 0){
+      clear();
+    }else{
+      data_size = ntohl(((int*)data)[0]);
+    }
+    return *this;
+  }
+
 
   /// If managed, this will free the data pointer.
   Box::~Box(){
@@ -41,6 +69,72 @@ namespace MP4 {
   /// Returns true if the given 4-byte boxtype is equal to the values at byte positions 4 through 7.
   bool Box::isType(const char* boxType){
     return !memcmp(boxType, data + 4, 4);
+  }
+
+  /// Reads the first 8 bytes and returns 
+  std::string readBoxType(FILE * newData){
+    char retVal[8] = {0, 0, 0, 0, 'e', 'r', 'r', 'o'};
+    long long unsigned int pos = ftell(newData);
+    fread(retVal,8,1,newData);
+    fseek (newData,pos,SEEK_SET);
+    return std::string(retVal+4,4);
+  }
+
+  ///\todo make good working calcBoxSize with size and payloadoffset calculation
+  unsigned long int calcBoxSize(char readVal[16]){
+    return (readVal[0] << 24) | (readVal[1] << 16) | (readVal[2] << 8) | (readVal[3]);
+  }
+
+  bool skipBox(FILE * newData){
+    char readVal[16];
+    long long unsigned int pos = ftell(newData);
+    if (fread(readVal,4,1,newData)){
+      uint64_t size = calcBoxSize(readVal);
+      if (size==1){
+        if (fread(readVal+4,12,1,newData)){
+          size = 0 + ntohl(((int*)readVal)[2]);
+          size <<= 32;
+          size += ntohl(((int*)readVal)[3]);
+        }else{
+          return false;
+        }
+      }else if (size==0){
+        fseek(newData, 0, SEEK_END);
+      }
+      DEBUG_MSG(DLVL_DEVEL,"skipping size 0x%0.8X",size); 
+      if (fseek(newData, pos + size, SEEK_SET)==0){
+        return true;
+      }else{
+        return false;
+      }
+    }else{
+      return false;
+    }
+  }
+
+  bool Box::read(FILE* newData){
+    char readVal[16];
+    long long unsigned int pos = ftell(newData);
+    if (fread(readVal,4,1,newData)){
+      payloadOffset = 8;
+      uint64_t size = calcBoxSize(readVal);
+      if (size==1){
+        if (fread(readVal+4,12,1,newData)){
+          size = 0 + ntohl(((int*)readVal)[2]);
+          size <<= 32;
+          size += ntohl(((int*)readVal)[3]);
+          payloadOffset = 16;
+        }else{
+          return false;
+        }
+      }
+      fseek (newData,pos,SEEK_SET);
+      data = (char*)realloc(data, size);
+      data_size = size;
+      return (fread(data,size,1,newData) == 1);
+    }else{
+      return false;
+    }
   }
 
   /// Reads out a whole box (if possible) from newData, copying to the internal data storage and removing from the input string.
@@ -63,13 +157,9 @@ namespace MP4 {
         }
       }
       if (newData.size() >= size){
-        void * ret = malloc(size);
-        if ( !ret){
-          return false;
-        }
-        free(data);
-        data = (char*)ret;
-        memcpy(data, newData.c_str(), size);
+        data = (char*)realloc(data, size);
+        data_size = size;
+        memcpy(data, newData.data(), size);
         newData.erase(0, size);
         return true;
       }
@@ -568,6 +658,7 @@ namespace MP4 {
   }
   
   fullBox::fullBox(){
+    setVersion(0);
   }
   
   void fullBox::setVersion(char newVersion){

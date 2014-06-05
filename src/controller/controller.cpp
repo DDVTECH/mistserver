@@ -219,32 +219,15 @@ namespace Controller {
   /// }
   /// ~~~~~~~~~~~~~~~
   void CheckConfig(JSON::Value & in, JSON::Value & out){
-    for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
-      if (jit->first == "version" || jit->first == "time"){
-        continue;
-      }
-      if (out.isMember(jit->first)){
-        if (jit->second != out[jit->first]){
-          Log("CONF", std::string("Updated configuration value ") + jit->first);
-        }
-      }else{
-        Log("CONF", std::string("New configuration value ") + jit->first);
-      }
-    }
-    for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
-      if (jit->first == "version" || jit->first == "time"){
-        continue;
-      }
-      if ( !in.isMember(jit->first)){
-        Log("CONF", std::string("Deleted configuration value ") + jit->first);
-      }
-    }
     out = in;
     if (out["basepath"].asString()[out["basepath"].asString().size() - 1] == '/'){
       out["basepath"] = out["basepath"].asString().substr(0, out["basepath"].asString().size() - 1);
     }
     if (out.isMember("debug")){
-      Util::Config::printDebugLevel = out["debug"].asInt();
+      if (Util::Config::printDebugLevel != out["debug"].asInt()){
+        Util::Config::printDebugLevel = out["debug"].asInt();
+        DEBUG_MSG(Util::Config::printDebugLevel, "Debug level set to %u", Util::Config::printDebugLevel);
+      }
     }    
   }
 
@@ -421,18 +404,20 @@ int main(int argc, char ** argv){
   createAccount(Controller::conf.getString("account"));
   
   /// User friendliness input added at this line
-  if (isatty(fileno(stdin))){
+  if (isatty(fileno(stdin)) && Controller::conf.getString("logfile") == ""){
     //check for username
     if ( !Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
       std::string in_string = "";
       while(yna(in_string) == 'x'){
-        std::cerr << "Account not set, do you want to create an account? (y)es, (n)o, (a)bort: ";
+        std::cout << "Account not set, do you want to create an account? (y)es, (n)o, (a)bort: ";
+        std::cout.flush();
         std::getline(std::cin, in_string);
         if (yna(in_string) == 'y'){
           //create account
           std::string usr_string = "";
           while(!(Controller::Storage.isMember("account") && Controller::Storage["account"].size() > 0)){
-            std::cerr << "Please type in the username, a colon and a password in the following format; username:password" << std::endl << ": ";
+            std::cout << "Please type in the username, a colon and a password in the following format; username:password" << std::endl << ": ";
+            std::cout.flush();
             std::getline(std::cin, usr_string);
             createAccount(usr_string);
           }
@@ -446,7 +431,8 @@ int main(int argc, char ** argv){
     if ( !Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") || Controller::Storage["config"]["protocols"].size() < 1){
       std::string in_string = "";
       while(yna(in_string) == 'x'){
-        std::cerr << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, (a)bort: ";
+        std::cout << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, (a)bort: ";
+        std::cout.flush();
         std::getline(std::cin, in_string);
         if (yna(in_string) == 'y'){
           //create protocols
@@ -465,7 +451,7 @@ int main(int argc, char ** argv){
     }
     //check for streams
     if ( !Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1){
-      std::cerr << "No streams configured, remember to set up streams through local settings page on port " << Controller::conf.getInteger("listen_port") << " or using the API." << std::endl;
+      std::cout << "No streams configured, remember to set up streams through local settings page on port " << Controller::conf.getInteger("listen_port") << " or using the API." << std::endl;
     }
   }
   

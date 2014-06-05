@@ -112,7 +112,6 @@ namespace Mist {
     size_t seekPos = myMeta.tracks[trackSeek].keys[0].getBpos();
     for (int i = 0; i < myMeta.tracks[trackSeek].keys.size(); i++){
       if (myMeta.tracks[trackSeek].keys[i].getTime() > seekTime){
-        DEBUG_MSG(DLVL_WARN, "Seeking to keyframe %d on track %d, timestamp %ld, bytepos %lu", i, trackSeek, myMeta.tracks[trackSeek].keys[i].getTime(), seekPos);
         break;
       }
       seekPos = myMeta.tracks[trackSeek].keys[i].getBpos();
@@ -126,7 +125,6 @@ namespace Mist {
     while (trackSpec != "") {
       index = trackSpec.find(' ');
       selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      DEBUG_MSG(DLVL_WARN, "Added track %d, index = %lld, (index == npos) = %d", atoi(trackSpec.substr(0, index).c_str()), index, index == std::string::npos);
       if (index != std::string::npos) {
         trackSpec.erase(0, index + 1);
       } else {

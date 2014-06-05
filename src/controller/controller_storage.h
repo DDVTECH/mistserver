@@ -13,5 +13,7 @@ namespace Controller {
 
   /// Write contents to Filename.
   bool WriteFile(std::string Filename, std::string contents);
+  
+  void handleMsg(void * err);
 
 }

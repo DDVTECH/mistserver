@@ -38,5 +38,33 @@ namespace Controller {
     File.close();
     return File.good();
   }
+  
+  /// Handles output of a Mist application, detecting and catching debug messages.
+  /// Debug messages are automatically converted into Log messages.
+  /// Closes the file descriptor on read error.
+  /// \param err File descriptor of the stderr output of the process to monitor.
+  void handleMsg(void * err){
+    char buf[1024];
+    FILE * output = fdopen((long long int)err, "r");
+    while (fgets(buf, 1024, output)){
+      unsigned int i = 0;
+      while (i < 9 && buf[i] != '|' && buf[i] != 0){
+        ++i;
+      }
+      unsigned int j = i;
+      while (j < 1024 && buf[j] != '\n' && buf[j] != 0){
+        ++j;
+      }
+      buf[j] = 0;
+      if(i < 9){
+        buf[i] = 0;
+        Log(buf,buf+i+1);
+      }else{
+        printf("%s", buf);
+      }
+    }
+    fclose(output);
+    close((long long int)err);
+  }
 
 }

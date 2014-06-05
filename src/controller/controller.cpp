@@ -226,7 +226,7 @@ namespace Controller {
     if (out.isMember("debug")){
       if (Util::Config::printDebugLevel != out["debug"].asInt()){
         Util::Config::printDebugLevel = out["debug"].asInt();
-        DEBUG_MSG(Util::Config::printDebugLevel, "Debug level set to %u", Util::Config::printDebugLevel);
+        INFO_MSG("Debug level set to %u", Util::Config::printDebugLevel);
       }
     }    
   }

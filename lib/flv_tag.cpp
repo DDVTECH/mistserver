@@ -387,11 +387,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track){
     }
     if (track.codec == "H264"){
       memcpy(data + 16, tmpData, len - 20);
-      if (packData.getFlag("nalu")){
-        data[12] = 1;
-      }else{
-        data[12] = 2;
-      }
+      data[12] = 1;
       if (packData.getInt("offset") < 0){
         offset(0);
       }else{
@@ -402,19 +398,18 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track){
     }
     data[11] = 0;
     if (track.codec == "H264"){
-      data[11] += 7;
+      data[11] |= 7;
     }
     if (track.codec == "H263"){
-      data[11] += 2;
+      data[11] |= 2;
     }
     if (packData.getFlag("keyframe")){
-      data[11] += 0x10;
-    }
-    if (packData.getFlag("interframe")){
-      data[11] += 0x20;
+      data[11] |= 0x10;
+    }else{
+      data[11] |= 0x20;
     }
     if (packData.getFlag("disposableframe")){
-      data[11] += 0x30;
+      data[11] |= 0x30;
     }
   }
   if (track.type == "audio"){
@@ -436,24 +431,24 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track){
     }
     data[11] = 0;
     if (track.codec == "AAC"){
-      data[11] += 0xA0;
+      data[11] |= 0xA0;
     }
     if (track.codec == "MP3"){
-      data[11] += 0x20;
+      data[11] |= 0x20;
     }
     unsigned int datarate = track.rate;
     if (datarate >= 44100){
-      data[11] += 0x0C;
+      data[11] |= 0x0C;
     }else if (datarate >= 22050){
-      data[11] += 0x08;
+      data[11] |= 0x08;
     }else if (datarate >= 11025){
-      data[11] += 0x04;
+      data[11] |= 0x04;
     }
     if (track.size == 16){
-      data[11] += 0x02;
+      data[11] |= 0x02;
     }
     if (track.channels > 1){
-      data[11] += 0x01;
+      data[11] |= 0x01;
     }
   }
   if (!len){

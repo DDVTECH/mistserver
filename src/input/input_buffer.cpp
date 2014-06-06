@@ -237,28 +237,52 @@ namespace Mist {
 
           std::string tempId = tmpMeta.tracks.begin()->second.getIdentifier();
           DEBUG_MSG(DLVL_DEVEL, "Attempting colision detection for track %s", tempId.c_str());
+          /*LTS
           int finalMap = -1;
+          LTS*/
+          int collidesWith = -1;/*LTS*/
           for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+            /*LTS-START*/
+            if (it->second.getIdentifier() == tempId) {
+              collidesWith = it->first;
+              break;
+            }
+            /*LTS-END*/
+            /*LTS
             if (it->second.type == "video"){
               finalMap = 1;
             }
             if (it->second.type == "audio"){
               finalMap = 2;
             }
+            LTS*/
           }
           //Remove the "negotiate" status in either case
           negotiateTracks.erase(value);
           metaPages.erase(value);
+          /*LTS
           if (finalMap != -1 && givenTracks.count(finalMap)) {
+          LTS*/
+          if (collidesWith != -1 && givenTracks.count(collidesWith)) {/*LTS*/
+            /*LTS
             DEBUG_MSG(DLVL_DEVEL, "Collision of new track %lu with track %d detected! Declining track", value, finalMap);
+            LTS*/
+            DEBUG_MSG(DLVL_DEVEL, "Collision of new track %lu with track %d detected! Declining track", value, collidesWith);/*LTS*/
             thisData[0] = 0xFF;
             thisData[1] = 0xFF;
             thisData[2] = 0xFF;
             thisData[3] = 0xFF;
           } else {
+            int finalMap = collidesWith;/*LTS*/
             if (finalMap == -1){
+              /*LTS-START*/
+              finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
+              DEBUG_MSG(DLVL_DEVEL, "No colision detected for negotiation track %lu, from user %u, assigning final track number %d", value, id, finalMap);
+              /*LTS-END*/
+              /*LTS
               DEBUG_MSG(DLVL_DEVEL, "Invalid track type detected, discarding");
               continue;
+              LTS*/
             }else{
               //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared"
               //or if the firstms of the replacement track is later than the lastms on the existing track

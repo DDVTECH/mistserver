@@ -78,6 +78,142 @@ namespace Mist {
     isInitialized = false;
     myConn.close();
   }
+
+  void Output::negotiateWithBuffer(int tid){
+    //Check whether the track exists
+    if (!meta_out.tracks.count(tid)) {
+      return;
+    }
+    //Do not re-negotiate already confirmed tracks
+    if (trackMap.count(tid)){
+      return;
+    }
+    //Do not re-negotiate if already at maximum for push tracks
+    if (trackMap.size() >= 5){
+      DEBUG_MSG(DLVL_FAIL, "Failed to negotiate for incoming track %d, already at maximum number of tracks", tid);
+      return;
+    }
+
+    char * tmp = playerConn.getData();
+    if (!tmp){
+      DEBUG_MSG(DLVL_FAIL, "Failed to negotiate for incoming track %d, there does not seem to be a connection with the buffer", tid);
+      return;
+    }
+    int bufConnOffset = trackMap.size();
+    DEBUG_MSG(DLVL_DEVEL, "Starting negotiation for incoming track %d, at offset %d", tid, bufConnOffset);
+    memset(tmp + 6 * bufConnOffset, 0, 6);
+    tmp[6 * bufConnOffset] = 0x80;
+    tmp[6 * bufConnOffset + 4] = 0xFF;
+    tmp[6 * bufConnOffset + 5] = 0xFF;
+    playerConn.keepAlive();
+    int newTid = 0x80000000;
+    while (newTid == 0x80000000){
+      Util::sleep(100);
+      newTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
+    }
+    DEBUG_MSG(DLVL_DEVEL, "Track %d temporarily mapped to %d", tid, newTid);
+
+    char pageName[100];
+    sprintf(pageName, "liveStream_%s%d", streamName.c_str(), newTid); 
+    metaPages[newTid].init(pageName, 8 * 1024 * 1024);
+    DTSC::Meta tmpMeta = meta_out;
+    tmpMeta.tracks.clear();
+    tmpMeta.tracks[newTid] = meta_out.tracks[tid];
+    tmpMeta.tracks[newTid].trackID = newTid;
+    JSON::Value tmpVal = tmpMeta.toJSON();
+    std::string tmpStr = tmpVal.toNetPacked();
+    memcpy(metaPages[newTid].mapped, tmpStr.data(), tmpStr.size());
+    DEBUG_MSG(DLVL_DEVEL, "Temporary metadata written for incoming track %d, handling as track %d", tid, newTid);
+
+    unsigned short firstPage = 0xFFFF;
+    unsigned int finalTid = newTid;
+    while (firstPage == 0xFFFF){
+      DEBUG_MSG(DLVL_DEVEL, "Re-checking at offset %d",  bufConnOffset);
+      Util::sleep(100);
+      finalTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
+      firstPage = ((long)(tmp[6 * bufConnOffset + 4]) << 8) | tmp[6 * bufConnOffset + 5];
+      if (finalTid == 0xFFFFFFFF){
+        DEBUG_MSG(DLVL_DEVEL, "Buffer has declined incoming track %d", tid);
+        return;
+      }
+    }
+    //Reinitialize so we make sure we got the right values here
+    finalTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
+    firstPage = ((long)(tmp[6 * bufConnOffset + 4]) << 8) | tmp[6 * bufConnOffset + 5];
+    if (finalTid == 0xFFFFFFFF){
+      DEBUG_MSG(DLVL_DEVEL, "Buffer has declined incoming track %d", tid);
+      memset(tmp + 6 * bufConnOffset, 0, 6);
+      return;
+    }
+
+    DEBUG_MSG(DLVL_DEVEL, "Buffer accepted incoming track %d, temporary mapping %d as final mapping %d", tid, newTid, finalTid);
+    DEBUG_MSG(DLVL_DEVEL, "Buffer has indicated that incoming track %d should start writing on track %d, page %d", tid, finalTid, firstPage);
+    memset(pageName, 0, 100);
+    sprintf(pageName, "%s%d_%d", streamName.c_str(), finalTid, firstPage);
+    curPages[finalTid].init(pageName, 8 * 1024 * 1024);
+    trackMap[tid] = finalTid;
+    bookKeeping[finalTid] = DTSCPageData();
+    DEBUG_MSG(DLVL_DEVEL, "Done negotiating for incoming track %d", tid);
+  }
+  
+
+  void Output::negotiatePushTracks() {
+    int i = 0;
+    for (std::map<int, DTSC::Track>::iterator it = meta_out.tracks.begin(); it != meta_out.tracks.end() && i < 5; it++){
+      negotiateWithBuffer(it->first);
+      i++;
+    }
+  }
+
+  void Output::bufferPacket(JSON::Value & pack){
+    if (myMeta.tracks[pack["trackid"].asInt()].type != "video"){
+      if ((pack["time"].asInt() - bookKeeping[trackMap[pack["trackid"].asInt()]].lastKeyTime) >= 5000){
+        pack["keyframe"] = 1LL;
+        bookKeeping[trackMap[pack["trackid"].asInt()]].lastKeyTime = pack["time"].asInt();
+      }
+    }
+    if (pack["trackid"].asInt() == 0){
+      return;
+    }
+    //Re-negotiate declined tracks on each keyframe, to compensate for "broken" tracks
+    if (!trackMap.count(pack["trackid"].asInt()) || !trackMap[pack["trackid"].asInt()]){
+      if (pack.isMember("keyframe") && pack["keyframe"]){
+        negotiateWithBuffer(pack["trackid"].asInt());
+      }
+    }
+    if (!trackMap.count(pack["trackid"].asInt()) || !trackMap[pack["trackid"].asInt()]){
+      //declined track;
+      return;
+    }
+    pack["trackid"] = trackMap[pack["trackid"].asInt()];
+    long long unsigned int tNum = pack["trackid"].asInt();
+    if (!bookKeeping.count(tNum)){
+      return;
+    }
+    int pageNum = bookKeeping[tNum].pageNum;
+    std::string tmp = pack.toNetPacked();
+    if (bookKeeping[tNum].curOffset > 8388608 && pack.isMember("keyframe") && pack["keyframe"]){
+      Util::sleep(500);
+      //open new page
+      char nextPage[100];
+      sprintf(nextPage, "%s%llu_%d", streamName.c_str(), tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
+      curPages[tNum].init(nextPage, 26 * 1024 * 1024);
+      bookKeeping[tNum].pageNum += bookKeeping[tNum].keyNum;
+      bookKeeping[tNum].keyNum = 0;
+      bookKeeping[tNum].curOffset = 0;
+    }
+    if (bookKeeping[tNum].curOffset + tmp.size() < curPages[tNum].len){
+      bookKeeping[tNum].keyNum += (pack.isMember("keyframe") && pack["keyframe"]);
+      memcpy(curPages[tNum].mapped + bookKeeping[tNum].curOffset, tmp.data(), tmp.size());
+      bookKeeping[tNum].curOffset += tmp.size();
+    }else{
+      bookKeeping[tNum].curOffset += tmp.size();
+      DEBUG_MSG(DLVL_WARN, "Can't buffer frame on page %d, track %llu, time %lld, keyNum %d, offset %llu", pageNum, tNum, pack["time"].asInt(), bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum, bookKeeping[tNum].curOffset);
+    }
+    playerConn.keepAlive();
+  }
+
+
   
   void Output::initialize(){
     if (isInitialized){
@@ -392,6 +528,7 @@ namespace Mist {
       }
     }
     DEBUG_MSG(DLVL_MEDIUM, "MistOut client handler shutting down: %s, %s, %s", myConn.connected() ? "conn_active" : "conn_closed", wantRequest ? "want_request" : "no_want_request", parseData ? "parsing_data" : "not_parsing_data");
+    playerConn.finish();
     myConn.close();
     return 0;
   }

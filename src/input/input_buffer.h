@@ -21,8 +21,10 @@ namespace Mist {
       bool removeKey(unsigned int tid);
       void removeUnused();
       void userCallback(char * data, size_t len, unsigned int id);
+      std::set<unsigned long> negotiateTracks;
       std::set<unsigned long> givenTracks;
       std::map<unsigned long, IPC::sharedPage> metaPages;
+      ///Maps trackid to a pagenum->pageData map
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > inputLoc;
       inputBuffer * singleton;
   };

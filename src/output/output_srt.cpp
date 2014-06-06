@@ -19,6 +19,7 @@ namespace Mist {
   OutProgressiveSRT::~OutProgressiveSRT() {}
   
   void OutProgressiveSRT::init(Util::Config * cfg){
+    Output::init(cfg);
     capa["desc"] = "Enables HTTP protocol subtitle streaming.";
     capa["deps"] = "HTTP";
     capa["url_rel"] = "/$.srt";

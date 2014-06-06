@@ -34,6 +34,7 @@ namespace Mist {
   OutTS::~OutTS() {}
   
   void OutTS::init(Util::Config * cfg){
+    Output::init(cfg);
     capa["name"] = "TS";
     capa["desc"] = "Enables the raw MPEG Transport Stream protocol over TCP.";
     capa["deps"] = "";

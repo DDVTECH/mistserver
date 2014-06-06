@@ -38,7 +38,7 @@ namespace Mist {
       Output(Socket::Connection & conn);
       virtual ~Output();
       //static members for initialization and capabilities
-      static void init(Util::Config * cfg) {}
+      static void init(Util::Config * cfg);
       static JSON::Value capa;
       static GeoIP * geoIP4; /*LTS*/
       static GeoIP * geoIP6; /*LTS*/

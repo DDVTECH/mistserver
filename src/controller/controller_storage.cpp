@@ -7,26 +7,12 @@
 namespace Controller {
 
   JSON::Value Storage; ///< Global storage of data.
-
+  tthread::mutex logMutex;///< Mutex for log thread.
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.
   void Log(std::string kind, std::string message){
-    //if last log message equals this one, do not log.
-    if (kind != "HLIM" && kind != "SLIM"){/*LTS*/
-    if (Storage["log"].size() > 0){
-      JSON::ArrIter it = Storage["log"].ArrEnd();
-      int repeats = Storage["log"].size();
-      if (repeats > 10){repeats = 10;}
-      do{
-        it--;
-        if (( *it)[2] == message && ( *it)[1] == kind){
-          return;
-        }
-        repeats--;
-      }while (repeats > 0);
-    }
-    }/*LTS*/
+    tthread::lock_guard<tthread::mutex> guard(logMutex);
     JSON::Value m;
     m.append(Util::epoch());
     m.append(kind);
@@ -51,6 +37,34 @@ namespace Controller {
     File << contents << std::endl;
     File.close();
     return File.good();
+  }
+  
+  /// Handles output of a Mist application, detecting and catching debug messages.
+  /// Debug messages are automatically converted into Log messages.
+  /// Closes the file descriptor on read error.
+  /// \param err File descriptor of the stderr output of the process to monitor.
+  void handleMsg(void * err){
+    char buf[1024];
+    FILE * output = fdopen((long long int)err, "r");
+    while (fgets(buf, 1024, output)){
+      unsigned int i = 0;
+      while (i < 9 && buf[i] != '|' && buf[i] != 0){
+        ++i;
+      }
+      unsigned int j = i;
+      while (j < 1024 && buf[j] != '\n' && buf[j] != 0){
+        ++j;
+      }
+      buf[j] = 0;
+      if(i < 9){
+        buf[i] = 0;
+        Log(buf,buf+i+1);
+      }else{
+        printf("%s", buf);
+      }
+    }
+    fclose(output);
+    close((long long int)err);
   }
 
 }

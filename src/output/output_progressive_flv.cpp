@@ -8,6 +8,7 @@ namespace Mist {
   OutProgressiveFLV::~OutProgressiveFLV() {}
   
   void OutProgressiveFLV::init(Util::Config * cfg){
+    Output::init(cfg);
     capa["name"] = "HTTP_Progressive_FLV";
     capa["desc"] = "Enables HTTP protocol progressive streaming.";
     capa["deps"] = "HTTP";

@@ -6,10 +6,13 @@
 #include <mist/config.h>
 #include <mist/procs.h>
 #include <mist/timing.h>
+#include <mist/tinythread.h>
+#include <mist/defines.h>
 #include "controller_storage.h"
 #include "controller_connectors.h"
 
 #include <iostream>
+#include <unistd.h>
 
 
 ///\brief Holds everything unique to the controller.
@@ -36,18 +39,28 @@ namespace Controller {
   
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, JSON::Value & argset){
     for (JSON::ObjIter it = argset.ObjBegin(); it != argset.ObjEnd(); ++it){
-      if (it->second.isMember("option") && p.isMember(it->first)){
-        if (it->second.isMember("type")){
-          if (it->second["type"].asStringRef() == "str" && !p[it->first].isString()){
-            p[it->first] = p[it->first].asString();
+      if (it->second.isMember("option")){
+        if (p.isMember(it->first)){
+          if (it->second.isMember("type")){
+            if (it->second["type"].asStringRef() == "str" && !p[it->first].isString()){
+              p[it->first] = p[it->first].asString();
+            }
+            if ((it->second["type"].asStringRef() == "uint" || it->second["type"].asStringRef() == "int") && !p[it->first].isInt()){
+              p[it->first] = p[it->first].asString();
+            }
           }
-          if ((it->second["type"].asStringRef() == "uint" || it->second["type"].asStringRef() == "int") && !p[it->first].isInt()){
-            p[it->first] = JSON::Value(p[it->first].asInt()).asString();
+          if (p[it->first].asStringRef().size() > 0){
+            argarr[argnum++] = (char*)(it->second["option"].c_str());
+            argarr[argnum++] = (char*)(p[it->first].c_str());
           }
-        }
-        if (p[it->first].asStringRef().size() > 0){
-          argarr[argnum++] = (char*)(it->second["option"].c_str());
-          argarr[argnum++] = (char*)(p[it->first].c_str());
+        }else{
+          if (it->first == "debug"){
+            static std::string debugLvlStr;
+            debugLvlStr = JSON::Value((long long)Util::Config::printDebugLevel).asString();
+            argarr[argnum++] = (char*)(it->second["option"].c_str());
+            argarr[argnum++] = (char*)debugLvlStr.c_str();
+            DEVEL_MSG("Setting debug for %s to %s", p["connector"].asStringRef().c_str(), debugLvlStr.c_str());
+          }
         }
       }
     }
@@ -70,7 +83,7 @@ namespace Controller {
     if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
     if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
   }
-
+  
   ///\brief Checks current protocol coguration, updates state of enabled connectors if neccesary.
   ///\param p An object containing all protocols.
   ///\param capabilities An object containing the detected capabilities.
@@ -89,14 +102,18 @@ namespace Controller {
     long long counter = 0;
 
     for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
-      ( *ait).removeMember("online");
+      std::string prevOnline = ( *ait)["online"].asString();
       #define connName (*ait)["connector"].asStringRef()
       if ( !(*ait).isMember("connector") || connName == ""){
+        ( *ait)["online"] = "Missing connector name";
         continue;
       }
       
       if ( !capabilities["connectors"].isMember(connName)){
-        Log("WARN", connName + " connector is enabled but doesn't exist on system! Ignoring connector.");
+        ( *ait)["online"] = "Not installed";
+        if (( *ait)["online"].asString() != prevOnline){
+          Log("WARN", connName + " connector is enabled but doesn't exist on system! Ignoring connector.");
+        }
         continue;
       }
       
@@ -106,13 +123,17 @@ namespace Controller {
         for (JSON::ObjIter it = connCapa["required"].ObjBegin(); it != connCapa["required"].ObjEnd(); ++it){
           if ( !(*ait).isMember(it->first) || (*ait)[it->first].asStringRef().size() < 1){
             gotAll = false;
-            Log("WARN", connName + " connector is missing required parameter " + it->first + "! Ignoring connector.");
+            ( *ait)["online"] = "Invalid configuration";
+            if (( *ait)["online"].asString() != prevOnline){
+              Log("WARN", connName + " connector is missing required parameter " + it->first + "! Ignoring connector.");
+            }
             break;
           }
         }
         if (!gotAll){continue;}
       }
       
+      ( *ait).removeMember("online");
       /// \todo Check dependencies?
 
       new_connectors[counter] = (*ait).toString();
@@ -141,7 +162,13 @@ namespace Controller {
         // get args for this connector
         buildPipedArguments(p[(long long unsigned)iter->first], (char **)&argarr, capabilities);
         // start piped w/ generated args
-        Util::Procs::StartPiped(toConn(iter->first), argarr, &zero, &out, &err);
+        err = -1;
+        Util::Procs::StartPiped(toConn(iter->first), argarr, &zero, &out, &err);//redirects output to out. Must make a new pipe, redirect std err
+        if(err != -1){
+          //spawn thread that reads stderr of process
+           tthread::thread msghandler(Controller::handleMsg, (void*)(((char*)0) + err));
+           msghandler.detach();
+        }
       }
     }
 

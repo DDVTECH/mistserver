@@ -7,10 +7,9 @@
 
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
-    setBlocking(false);
+    setBlocking(true);
     while (!conn.Received().available(1537) && conn.connected()) {
       conn.spool();
-      Util::sleep(5);
     }
     if (!conn){
       return;
@@ -22,7 +21,6 @@ namespace Mist {
       conn.SendNow(RTMPStream::handshake_out);
       while (!conn.Received().available(1536) && conn.connected()) {
         conn.spool();
-        Util::sleep(5);
       }
       conn.Received().remove(1536);
       RTMPStream::rec_cnt += 1536;
@@ -30,6 +28,7 @@ namespace Mist {
     } else {
       DEBUG_MSG(DLVL_DEVEL, "Handshake fail!");
     }
+    setBlocking(false);
     counter = 0;
     sending = false;
     streamReset = false;
@@ -40,6 +39,7 @@ namespace Mist {
   OutRTMP::~OutRTMP() {}
 
   void OutRTMP::init(Util::Config * cfg) {
+    Output::init(cfg);
     capa["name"] = "RTMP";
     capa["desc"] = "Enables the RTMP protocol which is used by Adobe Flash Player.";
     capa["deps"] = "";

@@ -63,6 +63,7 @@ namespace Mist {
     myMeta.vod = false;
     myMeta.live = true;
     myMeta.writeTo(metaPage.mapped);
+    memset(metaPage.mapped+myMeta.getSendLen(), 0, metaPage.len > myMeta.getSendLen() ? std::min(metaPage.len-myMeta.getSendLen(), 4ll) : 0);
   } 
 
   bool inputBuffer::removeKey(unsigned int tid){
@@ -186,97 +187,140 @@ namespace Mist {
       setup();
     }
     /*LTS-END*/
-    unsigned long tmp = ((long)(data[0]) << 24) | ((long)(data[1]) << 16) | ((long)(data[2]) << 8) | ((long)(data[3]));
-    if (tmp & 0x80000000) {
-      //Track is set to "New track request", assign new track id and create shared memory page
-      unsigned long tNum = (givenTracks.size() ? (*givenTracks.rbegin()) : 0) + 1;
-      ///\todo Neatify this
-      data[0] = (tNum >> 24) & 0xFF;
-      data[1] = (tNum >> 16) & 0xFF;
-      data[2] = (tNum >> 8) & 0xFF;
-      data[3] = (tNum) & 0xFF;
-      givenTracks.insert(tNum);
-      char tmpChr[100];
-      long tmpLen = sprintf(tmpChr, "liveStream_%s%lu", config->getString("streamname").c_str(), tNum);
-      metaPages[tNum].init(std::string(tmpChr, tmpLen), 8388608, true);
-    } else {
-      unsigned long tNum = ((long)(data[0]) << 24) | ((long)(data[1]) << 16) | ((long)(data[2]) << 8) | ((long)(data[3]));
-      if (!myMeta.tracks.count(tNum)) {
-        DEBUG_MSG(DLVL_DEVEL, "Tracknum not in meta: %lu, from user %u", tNum, id);
-        if (metaPages[tNum].mapped) {
-          if (metaPages[tNum].mapped[0] == 'D' && metaPages[tNum].mapped[1] == 'T') {
-            unsigned int len = ntohl(((int *)metaPages[tNum].mapped)[1]);
-            unsigned int i = 0;
-            JSON::Value tmpMeta;
-            JSON::fromDTMI((const unsigned char *)metaPages[tNum].mapped + 8, len, i, tmpMeta);
-            DTSC::Meta tmpTrack(tmpMeta);
-            int oldTNum = tmpTrack.tracks.begin()->first;
-            bool collision = false;
-            for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-              if (it->first == tNum) {
-                continue;
-              }
-              if (it->second.getIdentifier() == tmpTrack.tracks[oldTNum].getIdentifier()) {
-                collision = true;
-                break;
-              }
+    static int nextTempId = 1001;
+    char counter = (*(data - 1));
+    for (int index = 0; index < 5; index++){
+      char* thisData = data + (index * 6);
+      unsigned long value = ((long)(thisData[0]) << 24) | ((long)(thisData[1]) << 16) | ((long)(thisData[2]) << 8) | thisData[3];
+      if (value == 0xFFFFFFFF){
+        //Skip value 0xFFFFFFFF as this indicates a previously declined track
+        continue;
+      }
+      if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
+        if (negotiateTracks.count(value)){
+          negotiateTracks.erase(value);
+          metaPages.erase(value);
+        }
+        if (givenTracks.count(value)){
+          givenTracks.erase(value);
+        }
+        continue;
+      }
+      if (value & 0x80000000){
+        //Track is set to "New track request", assign new track id and create shared memory page
+        int tmpTid = nextTempId++;
+        negotiateTracks.insert(tmpTid);
+        thisData[0] = (tmpTid >> 24) & 0xFF;
+        thisData[1] = (tmpTid >> 16) & 0xFF;
+        thisData[2] = (tmpTid >> 8) & 0xFF;
+        thisData[3] = (tmpTid) & 0xFF;
+        unsigned long tNum = ((long)(thisData[4]) << 8) | thisData[5];
+        INFO_MSG("Assigning temporary ID %d to incoming track %lu for user %d", tmpTid, tNum, id);
+        
+        char tempMetaName[100];
+        sprintf(tempMetaName, "liveStream_%s%d", config->getString("streamname").c_str(), tmpTid);
+        metaPages[tmpTid].init(tempMetaName, 8388608, true);
+      }
+      if (negotiateTracks.count(value)){
+        INFO_MSG("Negotiating %lu", value);
+        //Track is currently under negotiation, check whether the metadata has been submitted
+        if (metaPages[value].mapped){
+          INFO_MSG("Mapped %lu", value);
+          unsigned int len = ntohl(((int *)metaPages[value].mapped)[1]);
+          unsigned int i = 0;
+          JSON::Value JSONMeta;
+          JSON::fromDTMI((const unsigned char *)metaPages[value].mapped + 8, len, i, JSONMeta);
+          DTSC::Meta tmpMeta(JSONMeta);
+          if (!tmpMeta.tracks.count(value)){//Track not yet added
+            continue;
+          }
+
+          std::string tempId = tmpMeta.tracks.begin()->second.getIdentifier();
+          DEBUG_MSG(DLVL_DEVEL, "Attempting colision detection for track %s", tempId.c_str());
+          int finalMap = -1;
+          for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+            if (it->second.type == "video"){
+              finalMap = 1;
             }
-            if (collision) {
-              /// \todo Erasing page for now, should do more here
-              DEBUG_MSG(DLVL_DEVEL, "Collision detected! Erasing page for now, should do more here");
-              metaPages.erase(tNum);
-              data[0] = 0xFF;
-              data[1] = 0xFF;
-              data[2] = 0xFF;
-              data[3] = 0xFF;
-            } else {
-              if (!myMeta.tracks.count(tNum)) {
-                myMeta.tracks[tNum] = tmpTrack.tracks[oldTNum];
-                data[4] = 0x00;
-                data[5] = 0x00;
-                updateMeta();
-                char firstPage[100];
-                sprintf(firstPage, "%s%lu", config->getString("streamname").c_str(), tNum);
-                indexPages[tNum].init(firstPage, 8192, true);
-                ((long long int *)indexPages[tNum].mapped)[0] = htonl(1000);
-                ///\todo Fix for non-first-key-pushing
-                sprintf(firstPage, "%s%lu_0", config->getString("streamname").c_str(), tNum);
-                ///\todo Make size dynamic / other solution. 25mb is too much.
-                dataPages[tNum][0].init(firstPage, 26214400, true);
-              }
+            if (it->second.type == "audio"){
+              finalMap = 2;
             }
           }
+          //Remove the "negotiate" status in either case
+          negotiateTracks.erase(value);
+          metaPages.erase(value);
+          if (finalMap != -1 && givenTracks.count(finalMap)) {
+            DEBUG_MSG(DLVL_DEVEL, "Collision of new track %lu with track %d detected! Declining track", value, finalMap);
+            thisData[0] = 0xFF;
+            thisData[1] = 0xFF;
+            thisData[2] = 0xFF;
+            thisData[3] = 0xFF;
+          } else {
+            if (finalMap == -1){
+              DEBUG_MSG(DLVL_DEVEL, "Invalid track type detected, discarding");
+              continue;
+            }else{
+              //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared"
+              //or if the firstms of the replacement track is later than the lastms on the existing track
+              if (tmpMeta.tracks.begin()->second.keys.size() > 1|| tmpMeta.tracks.begin()->second.firstms >= myMeta.tracks[finalMap].lastms){
+                DEBUG_MSG(DLVL_DEVEL, "Allowing negotiation track %lu, from user %u, to resume pushing final track number %d", value, id, finalMap);
+              }else{
+              //Otherwise replace existing track
+                DEBUG_MSG(DLVL_DEVEL, "Re-push initiated for track %lu, from user %u, will replace final track number %d", value, id, finalMap);
+                myMeta.tracks.erase(finalMap);
+              }
+            }
+            givenTracks.insert(finalMap);
+            if (!myMeta.tracks.count(finalMap)){
+              myMeta.tracks[finalMap] = tmpMeta.tracks.begin()->second;
+              myMeta.tracks[finalMap].trackID = finalMap;
+            }
+            thisData[0] = (finalMap >> 24) & 0xFF;
+            thisData[1] = (finalMap >> 16) & 0xFF;
+            thisData[2] = (finalMap >> 8) & 0xFF;
+            thisData[3] = (finalMap) & 0xFF;
+            int keyNum = myMeta.tracks[finalMap].keys.size();
+            thisData[4] = (keyNum >> 8) & 0xFF;
+            thisData[5] = keyNum & 0xFF;
+            updateMeta();
+            char firstPage[100];
+            sprintf(firstPage, "%s%d", config->getString("streamname").c_str(), finalMap);
+            indexPages[finalMap].init(firstPage, 8192, true);
+            ((long long int *)indexPages[finalMap].mapped)[0] = htonl(1000);
+            sprintf(firstPage, "%s%d_%d", config->getString("streamname").c_str(), finalMap, keyNum);
+            ///\todo Make size dynamic / other solution. 25mb is too much.
+            dataPages[finalMap][0].init(firstPage, 26214400, true);
+          }
         }
-      } else {
+      }
+      if (givenTracks.count(value)){
         //First check if the previous page has been finished:
-        if (!inputLoc[tNum].count(dataPages[tNum].rbegin()->first) || !inputLoc[tNum][dataPages[tNum].rbegin()->first].curOffset){
-          if (dataPages[tNum].size() > 1){
-            int prevPage = (++dataPages[tNum].rbegin())->first;
-            //update previous page.
-            updateMetaFromPage(tNum, prevPage);
+        if (!inputLoc[value].count(dataPages[value].rbegin()->first) || !inputLoc[value][dataPages[value].rbegin()->first].curOffset){
+          if (dataPages[value].size() > 1){
+            int previousPage = (++dataPages[value].rbegin())->first;
+            updateMetaFromPage(value, previousPage);
           }
         }
         //update current page
-        int curPage = dataPages[tNum].rbegin()->first;
-        updateMetaFromPage(tNum, curPage);
-        if (inputLoc[tNum][curPage].curOffset > 8388608) {
-          //create new page is > 8MB
-          int nxtPage = curPage + inputLoc[tNum][curPage].keyNum;
+        int currentPage = dataPages[value].rbegin()->first;
+        updateMetaFromPage(value, currentPage);
+        if (inputLoc[value][currentPage].curOffset > 8388608) {
+          int nextPage = currentPage + inputLoc[value][currentPage].keyNum;
           char nextPageName[100];
-          sprintf(nextPageName, "%s%lu_%d", config->getString("streamname").c_str(), tNum, nxtPage);
-          dataPages[tNum][nxtPage].init(nextPageName, 20971520, true);
+          sprintf(nextPageName, "%s%lu_%d", config->getString("streamname").c_str(), value, nextPage);
+          dataPages[value][nextPage].init(nextPageName, 20971520, true);
           bool createdNew = false;
           for (int i = 0; i < 8192; i += 8){
-            int thisKeyNum = ((((long long int *)(indexPages[tNum].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
-            if (thisKeyNum == htonl(curPage)){
-              if((ntohl((((long long int*)(indexPages[tNum].mapped + i))[0]) & 0xFFFFFFFF) == 1000)){
-                ((long long int *)(indexPages[tNum].mapped + i))[0] &= 0xFFFFFFFF00000000ull;
-                ((long long int *)(indexPages[tNum].mapped + i))[0] |= htonl(inputLoc[tNum][curPage].keyNum);
+            int thisKeyNum = ((((long long int *)(indexPages[value].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
+            if (thisKeyNum == htonl(currentPage)){
+              if((ntohl((((long long int*)(indexPages[value].mapped + i))[0]) & 0xFFFFFFFF) == 1000)){
+                ((long long int *)(indexPages[value].mapped + i))[0] &= 0xFFFFFFFF00000000ull;
+                ((long long int *)(indexPages[value].mapped + i))[0] |= htonl(inputLoc[value][currentPage].keyNum);
               }
             }
-            if (!createdNew && (((long long int*)(indexPages[tNum].mapped + i))[0]) == 0){
+            if (!createdNew && (((long long int*)(indexPages[value].mapped + i))[0]) == 0){
               createdNew = true;
-              ((long long int *)(indexPages[tNum].mapped + i))[0] = (((long long int)htonl(nxtPage)) << 32) | htonl(1000);
+              ((long long int *)(indexPages[value].mapped + i))[0] = (((long long int)htonl(nextPage)) << 32) | htonl(1000);
             }
           }
         }

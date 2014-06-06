@@ -26,7 +26,18 @@ namespace Mist {
     unsigned int offset;
   };
 
-  /// The output class is intended to be inherited by MistOut process classes.
+  struct DTSCPageData {
+    DTSCPageData() : pageNum(0), keyNum(0), partNum(0), dataSize(0), curOffset(0), firstTime(0), lastKeyTime(-5000){}
+    int pageNum;///<The current page number
+    int keyNum;///<The number of keyframes in this page.
+    int partNum;///<The number of parts in this page.
+    unsigned long long int dataSize;///<The full size this page should be.
+    unsigned long long int curOffset;///<The current write offset in the page.
+    unsigned long long int firstTime;///<The first timestamp of the page.
+    long long int lastKeyTime;///<The time of the last keyframe of the page.
+  };
+
+ /// The output class is intended to be inherited by MistOut process classes.
   /// It contains all generic code and logic, while the child classes implement
   /// anything specific to particular protocols or containers.
   /// It contains several virtual functions, that may be overridden to "hook" into
@@ -106,6 +117,18 @@ namespace Mist {
       //Read-only stream data variables
       DTSC::Packet currentPacket;///< The packet that is ready for sending now.
       DTSC::Meta myMeta;///< Up to date stream metadata
+
+
+      //For pushing data through an output into the buffer process
+      void negotiateWithBuffer(int tid);
+      void negotiatePushTracks();
+      void bufferPacket(JSON::Value & pack);
+
+      DTSC::Meta meta_out;
+      std::deque<JSON::Value> preBuf;
+      std::map<int,int> trackMap;
+      std::map<int,IPC::sharedPage> metaPages;
+      std::map<int,DTSCPageData> bookKeeping;
   };
 
 }

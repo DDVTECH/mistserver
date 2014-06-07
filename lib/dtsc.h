@@ -257,8 +257,8 @@ namespace DTSC {
       long long unsigned int partLen;
       Part * parts;
       int trackID;
-      int firstms;
-      int lastms;
+      unsigned long long firstms;
+      unsigned long long lastms;
       int bps;
       int missedFrags;
       std::string init;
@@ -384,7 +384,7 @@ namespace DTSC {
       int currframe;
       FILE * F;
       unsigned long headerSize;
-      char buffer[4];
+      void * buffer;
       bool created;
       std::set<seekPos> currentPositions;
       std::set<int> selectedTracks;

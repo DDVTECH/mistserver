@@ -141,7 +141,7 @@ namespace OGG{
       return false;
     }
     ret = getFullPayload();
-    for (int i = 0; i < index; i++){
+    for (unsigned int i = 0; i < index; i++){
       ret += segmentTableDeque[i];
     }
     len = segmentTableDeque[index];

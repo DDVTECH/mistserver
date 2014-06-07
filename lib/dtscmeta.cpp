@@ -1001,7 +1001,7 @@ namespace DTSC {
     }
     parts.push_back(newPart);
     lastms = pack.getTime();
-    if (pack.getFlag("keyframe") || !keys.size() || (type != "video" && pack.getTime() > 5000 && pack.getTime() - 5000 > keys[keys.size() - 1].getTime())) {
+    if (pack.getFlag("keyframe") || !keys.size() || (type != "video" && pack.getTime() > 5000 && pack.getTime() - 5000 > (unsigned long long)keys[keys.size() - 1].getTime())) {
       Key newKey;
       newKey.setTime(pack.getTime());
       newKey.setParts(0);
@@ -1019,7 +1019,7 @@ namespace DTSC {
       }
       keys.push_back(newKey);
       firstms = keys[0].getTime();
-      if (!fragments.size() || pack.getTime() - 5000 >= getKey(fragments.rbegin()->getNumber()).getTime()) {
+      if (!fragments.size() || pack.getTime() - 5000 >= (unsigned long long)getKey(fragments.rbegin()->getNumber()).getTime()) {
         //new fragment
         Fragment newFrag;
         newFrag.setDuration(0);
@@ -1047,7 +1047,7 @@ namespace DTSC {
   ///
   ///Will also insert keyframes on non-video tracks, and creates fragments
   void Track::update(JSON::Value & pack) {
-    if (pack["time"].asInt() < lastms) {
+    if ((unsigned long long)pack["time"].asInt() < lastms) {
       DEBUG_MSG(DLVL_WARN, "Received packets for track %d in wrong order (%d < %d) - ignoring!", (int)trackID, (int)pack["time"].asInt(), (int)lastms);
       return;
     }
@@ -1876,8 +1876,8 @@ namespace DTSC {
       result["parts"] = std::string((char *)parts, partLen * 9);
     }
     result["trackid"] = trackID;
-    result["firstms"] = firstms;
-    result["lastms"] = lastms;
+    result["firstms"] = (long long)firstms;
+    result["lastms"] = (long long)lastms;
     result["bps"] = bps;
     if (missedFrags) {
       result["missed_frags"] = missedFrags;
@@ -1923,8 +1923,8 @@ namespace DTSC {
     }
     result["parts"] = tmp;
     result["trackid"] = trackID;
-    result["firstms"] = firstms;
-    result["lastms"] = lastms;
+    result["firstms"] = (long long)firstms;
+    result["lastms"] = (long long)lastms;
     result["bps"] = bps;
     if (missedFrags) {
       result["missed_frags"] = missedFrags;

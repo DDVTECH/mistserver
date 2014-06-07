@@ -47,7 +47,7 @@ void AMF::Object::addContent(AMF::Object c){
 /// Returns a pointer to the object held at indice i.
 /// Returns AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
-AMF::Object* AMF::Object::getContentP(int i){
+AMF::Object* AMF::Object::getContentP(unsigned int i){
   if (i >= contents.size()){
     return 0;
   }
@@ -57,7 +57,7 @@ AMF::Object* AMF::Object::getContentP(int i){
 /// Returns a copy of the object held at indice i.
 /// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
-AMF::Object AMF::Object::getContent(int i){
+AMF::Object AMF::Object::getContent(unsigned int i){
   return contents.at(i);
 }
 

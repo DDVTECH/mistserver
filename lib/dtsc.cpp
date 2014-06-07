@@ -172,7 +172,7 @@ void DTSC::Stream::endStream(){
   if (!metadata.tracks.size()){return;}
   for (std::map<int,Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++){
     JSON::Value newPack;
-    newPack["time"] = it->second.lastms;
+    newPack["time"] = (long long)it->second.lastms;
     newPack["trackid"] = it->first;
     newPack["keyframe"] = 1ll;
     newPack["data"] = "";
@@ -525,10 +525,12 @@ DTSC::Stream::~Stream(){
 
 DTSC::File::File(){
   F = 0;
+  buffer = malloc(4);
   endPos = 0;
 }
 
 DTSC::File::File(const File & rhs){
+  buffer = malloc(4);
   *this = rhs;
 }
 
@@ -560,6 +562,7 @@ DTSC::File::operator bool() const{
 /// Open a filename for DTSC reading/writing.
 /// If create is true and file does not exist, attempt to create.
 DTSC::File::File(std::string filename, bool create){
+  buffer = malloc(4);
   if (create){
     F = fopen(filename.c_str(), "w+b");
     if(!F){
@@ -617,8 +620,7 @@ DTSC::File::File(std::string filename, bool create){
     memset(buffer, 0, 4);
     fwrite(buffer, 4, 1, F); //write 4 zero-bytes
   }else{
-    uint32_t * ubuffer = (uint32_t *)buffer;
-    headerSize = ntohl(ubuffer[0]);
+    headerSize = ntohl(((uint32_t *)buffer)[0]);
   }
   if (metadata.moreheader != -1){
     if (!sepHeader){
@@ -701,7 +703,7 @@ void DTSC::File::readHeader(int pos){
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
-    DEBUG_MSG(DLVL_ERROR, "Invalid header - %.4s != %.4s  @ %i", buffer, DTSC::Magic_Header, pos);
+    DEBUG_MSG(DLVL_ERROR, "Invalid header - %.4s != %.4s  @ %i", (char*)buffer, DTSC::Magic_Header, pos);
     metadata = readOnlyMeta();
     return;
   }
@@ -710,7 +712,7 @@ void DTSC::File::readHeader(int pos){
     metadata = readOnlyMeta();
     return;
   }
-  long packSize = ntohl(((uint32_t*)buffer)[0]);
+  long packSize = ntohl(((unsigned long*)buffer)[0]);
   std::string strBuffer;
   strBuffer.resize(packSize);
   if (packSize){
@@ -787,7 +789,7 @@ void DTSC::File::seekNext(){
     version = 2;
   }
   if (version == 0){
-    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2, (int)lastreadpos);
+    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, (char*)buffer, DTSC::Magic_Packet2, (int)lastreadpos);
     myPack.null();
     return;
   }
@@ -796,7 +798,7 @@ void DTSC::File::seekNext(){
     myPack.null();
     return;
   }
-  long packSize = ntohl(((uint32_t*)buffer)[0]);
+  long packSize = ntohl(((unsigned long*)buffer)[0]);
   char * packBuffer = (char*)malloc(packSize+8);
   if (version == 1){
     memcpy(packBuffer, "DTPD", 4);
@@ -829,7 +831,7 @@ void DTSC::File::seekNext(){
         }else{
           long tid = myPack.getTrackId();
           for (unsigned int i = 0; i != metadata.tracks[tid].keyLen; i++){
-            if (metadata.tracks[tid].keys[i].getTime() > myPack.getTime()){
+            if ((unsigned long long)metadata.tracks[tid].keys[i].getTime() > myPack.getTime()){
               tmpPos.seekTime = metadata.tracks[tid].keys[i].getTime();
               tmpPos.bytePos = metadata.tracks[tid].keys[i].getBpos();
               tmpPos.trackID = tid;
@@ -881,9 +883,9 @@ void DTSC::File::parseNext(){
         myPack.null();
         return;
       }
-      long packSize = ntohl(((uint32_t*)buffer)[0]);
+      long packSize = ntohl(((unsigned long*)buffer)[0]);
       std::string strBuffer = "DTSC";
-      strBuffer.append(buffer, 4);
+      strBuffer.append((char*)buffer, 4);
       strBuffer.resize(packSize + 8);
       if (fread((void*)(strBuffer.c_str() + 8), packSize, 1, F) != 1){
         DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", (int)lastreadpos);
@@ -902,7 +904,7 @@ void DTSC::File::parseNext(){
     version = 2;
   }
   if (version == 0){
-    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, buffer, DTSC::Magic_Packet2, (int)lastreadpos);
+    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, (char*)buffer, DTSC::Magic_Packet2, (int)lastreadpos);
     myPack.null();
     return;
   }
@@ -911,7 +913,7 @@ void DTSC::File::parseNext(){
     myPack.null();
     return;
   }
-  long packSize = ntohl(((uint32_t*)buffer)[0]);
+  long packSize = ntohl(((unsigned long*)buffer)[0]);
   char * packBuffer = (char*)malloc(packSize+8);
   if (version == 1){
     memcpy(packBuffer, "DTPD", 4);
@@ -1071,6 +1073,7 @@ DTSC::File::~File(){
     fclose(F);
     F = 0;
   }
+  free(buffer);
 }
 
 

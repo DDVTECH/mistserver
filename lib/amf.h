@@ -61,8 +61,8 @@ namespace AMF {
       const char * Str();
       int hasContent();
       void addContent(AMF::Object c);
-      Object* getContentP(int i);
-      Object getContent(int i);
+      Object* getContentP(unsigned int i);
+      Object getContent(unsigned int i);
       Object* getContentP(std::string s);
       Object getContent(std::string s);
       Object();

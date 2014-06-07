@@ -568,7 +568,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Meta & M, std::set<long unsigned int> & selTra
   amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
   AMF::Object trinfo = AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY);
   int i = 0;
-  int mediaLen = 0;
+  unsigned long long mediaLen = 0;
   for (std::set<long unsigned int>::iterator it = selTracks.begin(); it != selTracks.end(); it++){
     if (M.tracks[*it].lastms - M.tracks[*it].firstms > mediaLen){
       mediaLen = M.tracks[*it].lastms - M.tracks[*it].firstms;
@@ -672,7 +672,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Trac
     if (audioRef.trackID > 0){
       total_byterate += audioRef.bps;
     }
-    for (int i = 0; i < videoRef.lastms / 1000; ++i){ //for each second in the file
+    for (unsigned long long i = 0; i < videoRef.lastms / 1000; ++i){ //for each second in the file
       keys.getContentP(0)->addContent(AMF::Object("", i * total_byterate, AMF::AMF0_NUMBER)); //multiply by byterate for fake byte positions
       keys.getContentP(1)->addContent(AMF::Object("", i, AMF::AMF0_NUMBER)); //seconds
     }

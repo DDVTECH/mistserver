@@ -732,7 +732,7 @@ std::string & JSON::Value::toNetPacked(){
   static std::string emptystring;
   //check if this is legal
   if (myType != OBJECT){
-    DEBUG_MSG(DLVL_ERROR, "Only objects may be netpacked!");
+    INFO_MSG("Ignored attempt to netpack a non-object.");
     return emptystring;
   }
   //if sneaky storage doesn't contain correct data, re-calculate it

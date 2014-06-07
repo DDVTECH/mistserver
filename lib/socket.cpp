@@ -541,7 +541,7 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len){
         return 0;
         break;
       default:
-        if (errno != EPIPE){
+        if (errno != EPIPE && errno != ECONNRESET){
           Error = true;
           remotehost = strerror(errno);
           DEBUG_MSG(DLVL_WARN, "Could not iwrite data! Error: %s", remotehost.c_str());

@@ -101,7 +101,7 @@ bool Util::Stream::getVod(std::string filename, std::string streamname){
     name.str("MistInFLV " + filename);
     player_bin = Util::getMyPath() + "MistInFLV";
   }
-  DEBUG_MSG(DLVL_WARN, "Starting %s -p -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
+  INFO_MSG("Starting %s -p -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
   char* const argv[] = {(char*)player_bin.c_str(), (char*)"-p", (char*)"-s", (char*)streamname.c_str(), (char*)filename.c_str(), (char*)0};
 
   int pid = fork();

@@ -80,7 +80,7 @@ namespace Mist {
       if (myMeta.tracks[tid].keys[0].getNumber() >= (++(inputLoc[tid].begin()))->first){
         //Find page in indexpage and null it
         for (int i = 0; i < 8192; i += 8){
-          int thisKeyNum = ((((long long int *)(indexPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
+          unsigned int thisKeyNum = ((((long long int *)(indexPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
           if (thisKeyNum == htonl(pagesByTrack[tid].begin()->first) && ((((long long int *)(indexPages[tid].mapped + i))[0]) != 0)){
             (((long long int *)(indexPages[tid].mapped + i))[0]) = 0;
           }
@@ -249,7 +249,7 @@ namespace Mist {
           dataPages[value][nextPage].init(nextPageName, 20971520, true);
           bool createdNew = false;
           for (int i = 0; i < 8192; i += 8){
-            int thisKeyNum = ((((long long int *)(indexPages[value].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
+            unsigned int thisKeyNum = ((((long long int *)(indexPages[value].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
             if (thisKeyNum == htonl(currentPage)){
               if((ntohl((((long long int*)(indexPages[value].mapped + i))[0]) & 0xFFFFFFFF) == 1000)){
                 ((long long int *)(indexPages[value].mapped + i))[0] &= 0xFFFFFFFF00000000ull;

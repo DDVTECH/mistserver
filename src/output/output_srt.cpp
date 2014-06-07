@@ -42,11 +42,11 @@ namespace Mist {
     }
     long long unsigned int time = currentPacket.getTime();
     char tmpBuf[50];
-    int tmpLen = sprintf(tmpBuf, "%0.2llu:%0.2llu:%0.2llu,%0.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
+    int tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu,%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << " --> ";
     time += currentPacket.getInt("duration");
-    tmpLen = sprintf(tmpBuf, "%0.2llu:%0.2llu:%0.2llu,%0.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
+    tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu,%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << std::endl;
     myConn.SendNow(tmp.str());

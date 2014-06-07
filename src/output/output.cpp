@@ -20,7 +20,7 @@ namespace Mist {
     return ntohl(((int*)(mapped + offset))[1]);
   }
 
-  long long int getDTSCTime(char * mapped, long long int offset){
+  unsigned long long getDTSCTime(char * mapped, long long int offset){
     char * timePoint = mapped + offset + 12;
     return ((long long int)timePoint[0] << 56) | ((long long int)timePoint[1] << 48) | ((long long int)timePoint[2] << 40) | ((long long int)timePoint[3] << 32) | ((long long int)timePoint[4] << 24) | ((long long int)timePoint[5] << 16) | ((long long int)timePoint[6] << 8) | timePoint[7];
   }
@@ -106,8 +106,8 @@ namespace Mist {
     tmp[6 * bufConnOffset + 4] = 0xFF;
     tmp[6 * bufConnOffset + 5] = 0xFF;
     playerConn.keepAlive();
-    int newTid = 0x80000000;
-    while (newTid == 0x80000000){
+    unsigned int newTid = 0x80000000u;
+    while (newTid == 0x80000000u){
       Util::sleep(100);
       newTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
     }
@@ -202,7 +202,7 @@ namespace Mist {
       bookKeeping[tNum].keyNum = 0;
       bookKeeping[tNum].curOffset = 0;
     }
-    if (bookKeeping[tNum].curOffset + tmp.size() < curPages[tNum].len){
+    if (bookKeeping[tNum].curOffset + tmp.size() < (unsigned long long)curPages[tNum].len){
       bookKeeping[tNum].keyNum += (pack.isMember("keyframe") && pack["keyframe"]);
       memcpy(curPages[tNum].mapped + bookKeeping[tNum].curOffset, tmp.data(), tmp.size());
       bookKeeping[tNum].curOffset += tmp.size();
@@ -424,7 +424,7 @@ namespace Mist {
     stats();
     nxtKeyNum[trackId] = pageNum;
     
-    if (currKeyOpen.count(trackId) && currKeyOpen[trackId] == pageNum){
+    if (currKeyOpen.count(trackId) && currKeyOpen[trackId] == (unsigned int)pageNum){
       return;
     }
     char id[100];

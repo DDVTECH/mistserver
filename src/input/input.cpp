@@ -297,7 +297,7 @@ namespace Mist {
     it->second.curOffset = 0;
     getNext();
     //in case earlier seeking was inprecise, seek to the exact point
-    while (lastPack && lastPack.getTime() < myMeta.tracks[track].keys[pageNum-1].getTime()){
+    while (lastPack && lastPack.getTime() < (unsigned long long)myMeta.tracks[track].keys[pageNum-1].getTime()){
       getNext();
     }
     while (lastPack && lastPack.getTime() < stopTime){
@@ -320,7 +320,7 @@ namespace Mist {
   }
   
   bool Input::atKeyFrame(){
-    static std::map<int, int> lastSeen;
+    static std::map<int, unsigned long long> lastSeen;
     //not in keyTimes? We're not at a keyframe.
     unsigned int c = keyTimes[lastPack.getTrackId()].count(lastPack.getTime());
     if (!c){

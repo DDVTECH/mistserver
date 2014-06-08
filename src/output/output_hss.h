@@ -26,7 +26,7 @@ namespace Mist {
       int keysToSend;
       int myTrackStor;
       int myKeyStor;
-      long long int playUntil;
+      unsigned long long playUntil;
   };
 }
 

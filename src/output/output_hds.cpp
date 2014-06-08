@@ -199,7 +199,7 @@ namespace Mist {
         if (!audioTrack){getTracks();}
         unsigned int mstime = 0;
         unsigned int mslen = 0;
-        if (fragNum < myMeta.tracks[tid].missedFrags){
+        if (fragNum < (unsigned int)myMeta.tracks[tid].missedFrags){
           HTTP_S.Clean();
           HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
           HTTP_S.SendResponse("412", "Fragment out of range", myConn);

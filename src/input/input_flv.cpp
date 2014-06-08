@@ -110,7 +110,7 @@ namespace Mist {
     //Flv files are never multi-track, so track 1 is video, track 2 is audio.
     int trackSeek = (selectedTracks.count(1) ? 1 : 2);
     size_t seekPos = myMeta.tracks[trackSeek].keys[0].getBpos();
-    for (int i = 0; i < myMeta.tracks[trackSeek].keys.size(); i++){
+    for (unsigned int i = 0; i < myMeta.tracks[trackSeek].keys.size(); i++){
       if (myMeta.tracks[trackSeek].keys[i].getTime() > seekTime){
         break;
       }
@@ -121,7 +121,7 @@ namespace Mist {
 
   void inputFLV::trackSelect(std::string trackSpec) {
     selectedTracks.clear();
-    long long int index;
+    size_t index;
     while (trackSpec != "") {
       index = trackSpec.find(' ');
       selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));

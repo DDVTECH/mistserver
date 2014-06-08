@@ -43,10 +43,10 @@ namespace Mist {
       long long int firstms = -1;
       long long int lastms = -1;
       for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
-        if (lastms == -1 || lastms < myMeta.tracks[*it].lastms){
+        if (lastms == -1 || lastms < (long long)myMeta.tracks[*it].lastms){
           lastms = myMeta.tracks[*it].lastms;
         }
-        if (firstms == -1 || firstms > myMeta.tracks[*it].firstms){
+        if (firstms == -1 || firstms > (long long)myMeta.tracks[*it].firstms){
           firstms = myMeta.tracks[*it].firstms;
         }
       }
@@ -446,7 +446,7 @@ namespace Mist {
     char * dataPointer = 0;
     unsigned int len = 0;
     currentPacket.getString("data", dataPointer, len);
-    if (currentPacket.getTrackId() != sortSet.begin()->trackID || currentPacket.getTime() != sortSet.begin()->time){
+    if ((unsigned long)currentPacket.getTrackId() != sortSet.begin()->trackID || currentPacket.getTime() != sortSet.begin()->time){
       if (perfect){
         DEBUG_MSG(DLVL_WARN, "Warning: input is inconsistent, playback may not be perfect");
         perfect = false;

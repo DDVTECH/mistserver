@@ -103,12 +103,12 @@ namespace Mist {
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       //return "too late" if one track is past this point
       if (ms < myMeta.tracks[*it].firstms) {
-        DEBUG_MSG(DLVL_DEVEL, "HSS Canseek to %d returns -1 because track %lu firstms == %d", ms, *it, myMeta.tracks[*it].firstms);
+        DEBUG_MSG(DLVL_DEVEL, "HSS Canseek to %d returns -1 because track %lu firstms == %llu", ms, *it, myMeta.tracks[*it].firstms);
         return -1;
       }
       //return "too early" if one track is not yet at this point
       if (ms > myMeta.tracks[*it].lastms) {
-        DEBUG_MSG(DLVL_DEVEL, "HSS Canseek to %d returns 1 because track %lu lastms == %d", ms, *it, myMeta.tracks[*it].lastms);
+        DEBUG_MSG(DLVL_DEVEL, "HSS Canseek to %d returns 1 because track %lu lastms == %llu", ms, *it, myMeta.tracks[*it].lastms);
         return 1;
       }
     }
@@ -172,12 +172,10 @@ namespace Mist {
     std::stringstream sstream;
 
     int partOffset = 0;
-    int keyDur = 0;
     DTSC::Key keyObj;
     for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[tid].keys.begin(); it != myMeta.tracks[tid].keys.end(); it++) {
       if (it->getTime() >= seekTime) {
         keyObj = (*it);
-        keyDur = it->getLength();
         std::deque<DTSC::Key>::iterator nextIt = it;
         nextIt++;
         if (nextIt == myMeta.tracks[tid].keys.end()) {

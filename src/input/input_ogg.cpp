@@ -265,11 +265,11 @@ namespace Mist {
 
   void inputOGG::trackSelect(std::string trackSpec) {
     selectedTracks.clear();
-    long long int index;
+    size_t index;
     while (trackSpec != "") {
       index = trackSpec.find(' ');
       selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      DEBUG_MSG(DLVL_WARN, "Added track %d, index = %lld, (index == npos) = %d", atoi(trackSpec.substr(0, index).c_str()), index, index == std::string::npos);
+      DEBUG_MSG(DLVL_WARN, "Added track %d, index = %lu, (index == npos) = %d", atoi(trackSpec.substr(0, index).c_str()), index, index == std::string::npos);
       if (index != std::string::npos) {
         trackSpec.erase(0, index + 1);
       } else {

@@ -93,7 +93,7 @@ namespace Mist {
       DTSC::Packet recPack;
       int pageLen = dataPages[tid][inputLoc[tid].begin()->first].len;
       char * pageMapped = dataPages[tid][inputLoc[tid].begin()->first].mapped;
-      while( bpos < pageLen) {
+      while( bpos < (unsigned long long)pageLen) {
         int tmpSize = ((int)pageMapped[bpos + 4] << 24) | ((int)pageMapped[bpos + 5] << 16) | ((int)pageMapped[bpos + 6] << 8) | (int)pageMapped[bpos + 7];
         tmpSize += 8;
         recPack.reInit(pageMapped + bpos, tmpSize, true);

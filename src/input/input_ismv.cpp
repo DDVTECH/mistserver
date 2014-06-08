@@ -191,7 +191,7 @@ namespace Mist {
 
   void inputISMV::trackSelect(std::string trackSpec) {
     selectedTracks.clear();
-    long long int index;
+    size_t index;
     while (trackSpec != "") {
       index = trackSpec.find(' ');
       selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));

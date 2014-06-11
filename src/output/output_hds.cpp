@@ -233,7 +233,7 @@ namespace Mist {
         //send a zero-size mdat, meaning it stretches until end of file.
         HTTP_S.Chunkify("\000\000\000\000mdat", 8, myConn);
         //send init data, if needed.
-        if (audioTrack > 0){
+        if (audioTrack > 0 && myMeta.tracks[audioTrack].init != ""){
           tag.DTSCAudioInit(myMeta.tracks[audioTrack]);
           tag.tagTime(mstime);
           HTTP_S.Chunkify(tag.data, tag.len, myConn);

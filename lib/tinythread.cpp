@@ -176,8 +176,11 @@ void * thread::wrapper_function(void * aArg)
   }
 
   // The thread is no longer executing
-  lock_guard<mutex> guard(ti->mThread->mDataMutex);
-  ti->mThread->mNotAThread = true;
+  if (ti->mThread){
+    lock_guard<mutex> guard(ti->mThread->mDataMutex);
+    ti->mThread->mNotAThread = true;
+    ti->mThread->ti_copy = 0;
+  }
 
   // The thread is responsible for freeing the startup information
   delete ti;
@@ -193,6 +196,7 @@ thread::thread(void (*aFunction)(void *), void * aArg)
   // Fill out the thread startup information (passed to the thread wrapper,
   // which will eventually free it)
   _thread_start_info * ti = new _thread_start_info;
+  ti_copy = ti;
   ti->mFunction = aFunction;
   ti->mArg = aArg;
   ti->mThread = this;
@@ -212,12 +216,16 @@ thread::thread(void (*aFunction)(void *), void * aArg)
   if(!mHandle)
   {
     mNotAThread = true;
+    ti_copy = 0;
     delete ti;
   }
 }
 
 thread::~thread()
 {
+  if (ti_copy){
+    ((_thread_start_info *)ti_copy)->mThread = 0;
+  }
   if(joinable())
     std::terminate();
 }

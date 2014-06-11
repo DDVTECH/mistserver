@@ -554,6 +554,7 @@ class thread {
     native_handle_type mHandle;   ///< Thread handle.
     mutable mutex mDataMutex;     ///< Serializer for access to the thread private data.
     bool mNotAThread;             ///< True if this object is not a thread of execution.
+    void * ti_copy;
 #if defined(_TTHREAD_WIN32_)
     unsigned int mWin32ThreadID;  ///< Unique thread ID (filled out by _beginthreadex).
 #endif

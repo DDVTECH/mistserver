@@ -794,10 +794,22 @@ int main(int argc, char ** argv){
                     Controller::Storage["log"].null();
                   }
                   if (Request.isMember("clients")){
-                    Controller::fillClients(Request["clients"], Response["clients"]);
+                    if (Request["clients"].isArray()){
+                      for (unsigned int i = 0; i < Request["clients"].size(); ++i){
+                        Controller::fillClients(Request["clients"][i], Response["clients"][i]);
+                      }
+                    }else{
+                      Controller::fillClients(Request["clients"], Response["clients"]);
+                    }
                   }
                   if (Request.isMember("totals")){
-                    Controller::fillTotals(Request["totals"], Response["totals"]);
+                    if (Request["totals"].isArray()){
+                      for (unsigned int i = 0; i < Request["totals"].size(); ++i){
+                        Controller::fillTotals(Request["totals"][i], Response["totals"][i]);
+                      }
+                    }else{
+                      Controller::fillTotals(Request["totals"], Response["totals"]);
+                    }
                   }
                   
                 }

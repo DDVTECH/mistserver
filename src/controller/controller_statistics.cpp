@@ -111,6 +111,13 @@ bool Controller::hasViewers(std::string streamName){
 ///   "time": 1234567
 /// }
 /// ~~~~~~~~~~~~~~~
+/// OR
+/// ~~~~~~~~~~~~~~~{.js}
+/// [
+///   {},//request object as above
+///   {}//repeat the structure as many times as wanted
+/// ]
+/// ~~~~~~~~~~~~~~~
 /// and are responded to as:
 /// ~~~~~~~~~~~~~~~{.js}
 /// {
@@ -122,6 +129,7 @@ bool Controller::hasViewers(std::string streamName){
 ///   "data": [[x, y, z], [x, y, z], [x, y, z]]
 /// }
 /// ~~~~~~~~~~~~~~~
+/// In case of the second method, the response is an array in the same order as the requests.
 void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   //first, figure out the timestamp wanted
   long long int reqTime = 0;
@@ -295,6 +303,13 @@ class totalsData {
 ///   "end": 1234567
 /// }
 /// ~~~~~~~~~~~~~~~
+/// OR
+/// ~~~~~~~~~~~~~~~{.js}
+/// [
+///   {},//request object as above
+///   {}//repeat the structure as many times as wanted
+/// ]
+/// ~~~~~~~~~~~~~~~
 /// and are responded to as:
 /// ~~~~~~~~~~~~~~~{.js}
 /// {
@@ -310,6 +325,7 @@ class totalsData {
 ///   "data": [[x, y, z], [x, y, z], [x, y, z]]
 /// }
 /// ~~~~~~~~~~~~~~~
+/// In case of the second method, the response is an array in the same order as the requests.
 void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   //first, figure out the timestamps wanted
   long long int reqStart = 0;

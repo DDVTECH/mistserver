@@ -3,30 +3,46 @@
 
 #pragma once
 #include <string>
+#include <map>
 #include <cmath>
 #include <stdint.h>//for uint64_t
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
-
 #include "dtsc.h"
 
 /// Holds all TS processing related code.
 namespace TS {
-  /// Class for reading and writing TS Streams
-  class Packet{
+
+
+  ///stores all the data of a pmt table. It must be mapped to a PID, and this is done in the function TS::getPMTTable(TS::Packet& packet)
+  ///\todo Add more necessary variables, or find a more efficient way to store metadata
+  struct pmtinfo {
+    unsigned short streamtype;//the streamtype, 0x1b is h264, 0x0f is aac. These are used in aac, there may be (undiscovered) others
+    unsigned int trackid;//track id
+    std::string curPayload;//payload without PES/TS headers
+    long long int lastPEStime;//the pes time of the packet that was last seen
+  };
+
+
+  ///Class for reading and writing TS Streams. The class is capable of analyzing a packet of 188 bytes
+  ///and calculating key values
+  class Packet {
     public:
       Packet();
       ~Packet();
       bool FromString(std::string & Data);
+      bool FromPointer(char * Data);
+      bool FromFile(FILE * data);
       void PID(int NewPID);
-      int PID();
+      unsigned int PID();
       void ContinuityCounter(int NewContinuity);
       int ContinuityCounter();
       void Clear();
       void PCR(int64_t NewVal);
       int64_t PCR();
+      int64_t OPCR();
       void AdaptationField(int NewVal);
       int AdaptationField();
       int AdaptationFieldLen();
@@ -36,33 +52,87 @@ namespace TS {
       void UnitStart(int NewVal);
       int RandomAccess();
       void RandomAccess(int NewVal);
+
+      int DiscontinuityIndicator();
+      int elementaryStreamPriorityIndicator();
+      int PCRFlag();
+      int OPCRFlag();
+      int splicingPointFlag();
+      //int transportPrivateDataFlag();
+      //int adaptationFieldExtensionFlag();
+
       int BytesFree();
+      unsigned int getSyncByte();
+      unsigned int getTransportErrorIndicator();
+      unsigned int getPayloadUnitStartIndicator();
+      unsigned int getTransportPriority();
+      unsigned int getTransportScramblingControl();
 
       std::string toPrettyString(size_t indent = 0);
-      const char* ToString();
+      std::string getStrBuf();
+      const char * getBuffer();
+      const char * getPayload();
+      int getPayloadLength();
+
+      const char * ToString();
       void PESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS = 1);
       void PESAudioLeadIn(unsigned int NewLen, uint64_t PTS = 0);
       static void PESAudioLeadIn(std::string & toSend, long long unsigned int PTS);
       static void PESVideoLeadIn(std::string & toSend, long long unsigned int PTS);
       static std::string & getPESAudioLeadIn(unsigned int NewLen, long long unsigned int PTS);
       static std::string & getPESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS);
-      
+
       void FillFree(std::string & PackageData);
-      int FillFree(const char* PackageData, int maxLen);
+      int FillFree(const char * PackageData, int maxLen);
       unsigned int AddStuffing(int NumBytes);
-    private:
-      //int Free;
-      std::string strBuf;
+    protected:
+      std::string strBuf;///<The actual data
       //char Buffer[188];///< The actual data
   };
-  //TS::Packet class
+
+  class ProgramAssociationTable : public Packet {
+    public:
+      char getOffset();
+      char getTableId();
+      short getSectionLength();
+      short getTransportStreamId();
+      char getVersionNumber();
+      bool getCurrentNextIndicator();
+      char getSectionNumber();
+      char getLastSectionNumber();
+      short getProgramCount();
+      short getProgramNumber(short index);
+      short getProgramPID(short index);
+      int getCRC();
+      std::string toPrettyString(size_t indent);
+  };
+
+  class ProgramMappingTable : public Packet {
+    public:
+      char getOffset();
+      char getTableId();
+      short getSectionLength();
+      short getProgramNumber();
+      char getVersionNumber();
+      bool getCurrentNextIndicator();
+      char getSectionNumber();
+      char getLastSectionNumber();
+      short getPCRPID();
+      short getProgramInfoLength();
+      short getProgramCount();
+      char getStreamType(short index);
+      short getElementaryPID(short index);
+      short getESInfoLength(short index);
+      int getCRC();
+      std::string toPrettyString(size_t indent);
+  };
 
   /// Constructs an audio header to be used on each audio frame.
-  /// The length of this header will ALWAYS be 7 bytes, and has to be 
+  /// The length of this header will ALWAYS be 7 bytes, and has to be
   /// prepended on each audio frame.
   /// \param FrameLen the length of the current audio frame.
   /// \param initData A string containing the initalization data for this track's codec.
-  static inline std::string GetAudioHeader(int FrameLen, std::string initData){
+  static inline std::string GetAudioHeader(int FrameLen, std::string initData) {
     char StandardHeader[7] = {0xFF, 0xF1, 0x00, 0x00, 0x00, 0x1F, 0xFC};
     FrameLen += 7;
     StandardHeader[2] = ((((initData[0] >> 3) - 1) << 6) & 0xC0); //AAC Profile - 1 ( First two bits )
@@ -74,6 +144,7 @@ namespace TS {
     StandardHeader[5] |= ((FrameLen & 0x00000007) << 5);
     return std::string(StandardHeader, 7);
   }
+
 
   /// A standard Program Association Table, as generated by FFMPEG.
   /// Seems to be independent of the stream.
@@ -130,3 +201,4 @@ namespace TS {
       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 } //TS namespace
+

@@ -8,6 +8,10 @@ namespace Utils{
         append(input);
         return *this;
       };
+      bitstream& operator<< (char input){
+        append(std::string(input, 1));
+        return *this;
+      };
       void append (char* input, size_t bytes);
       void append (std::string input);
       long long unsigned int size();

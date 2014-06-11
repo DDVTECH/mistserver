@@ -648,8 +648,62 @@ int main(int argc, char ** argv){
                     Controller::CheckAllStreams(Controller::Storage["streams"]);
                   }
                   /*LTS-START*/
+                  /// 
+                  /// \api
+                  /// `"addstream"` requests take the form of:
+                  /// ~~~~~~~~~~~~~~~{.js}
+                  /// {
+                  ///   "streamname": {
+                  ///     //Stream configuration - see the "streams" call for details on this format.
+                  ///   }
+                  ///   /// Optionally, repeat for more streams.
+                  /// }
+                  /// ~~~~~~~~~~~~~~~
+                  /// These requests will add new streams or update existing streams with the same names, without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
+                  /// 
                   if (Request.isMember("addstream")){
                     Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
+                    Controller::CheckAllStreams(Controller::Storage["streams"]);
+                  }
+                  /// 
+                  /// \api
+                  /// `"deletestream"` requests take the form of:
+                  /// ~~~~~~~~~~~~~~~{.js}
+                  /// {
+                  ///   "streamname": {} //any contents in this object are ignored
+                  ///   /// Optionally, repeat for more streams.
+                  /// }
+                  /// ~~~~~~~~~~~~~~~
+                  /// OR
+                  /// ~~~~~~~~~~~~~~~{.js}
+                  /// [
+                  ///   "streamname",
+                  ///   /// Optionally, repeat for more streams.
+                  /// ]
+                  /// ~~~~~~~~~~~~~~~
+                  /// OR
+                  /// ~~~~~~~~~~~~~~~{.js}
+                  /// "streamname"
+                  /// ~~~~~~~~~~~~~~~
+                  /// These requests will remove the named stream(s), without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
+                  ///
+                  if (Request.isMember("deletestream")){
+                    //if array, delete all elements
+                    //if object, delete all entries
+                    //if string, delete just the one
+                    if (Request["deletestream"].isString()){
+                      Controller::Storage["streams"].removeMember(Request["deletestream"].asStringRef());
+                    }
+                    if (Request["deletestream"].isArray()){
+                      for (JSON::ArrIter it = Request["deletestream"].ArrBegin(); it != Request["deletestream"].ArrEnd(); ++it){
+                        Controller::Storage["streams"].removeMember(it->asString());
+                      }
+                    }
+                    if (Request["deletestream"].isObject()){
+                      for (JSON::ObjIter it = Request["deletestream"].ObjBegin(); it != Request["deletestream"].ObjEnd(); ++it){
+                        Controller::Storage["streams"].removeMember(it->first);
+                      }
+                    }
                     Controller::CheckAllStreams(Controller::Storage["streams"]);
                   }
                   /*LTS-END*/

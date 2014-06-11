@@ -67,6 +67,35 @@ namespace Mist {
     isBuffer = false;
   }
 
+  void Input::checkHeaderTimes(std::string streamFile){
+    std::string headerFile = streamFile + ".dtsh";
+    FILE * tmp = fopen(headerFile.c_str(),"r");
+	  if (tmp == NULL) {
+      INFO_MSG("can't open file: %s (no header times compared, nothing removed)", headerFile.c_str() );  
+	    return;   
+	  } 
+	  struct stat bufStream;
+    struct stat bufHeader;
+    //fstat(fileno(streamFile), &bufStream);
+    //fstat(fileno(tmp), &bufHeader);
+
+    if (stat(streamFile.c_str(), &bufStream) !=0 || stat(headerFile.c_str(), &bufHeader) !=0){
+		  ERROR_MSG("could not get file info (no header times compared, nothing removed)");
+      fclose(tmp);
+		  return;
+    }
+    
+	  int timeStream = bufStream.st_mtime;
+    int timeHeader = bufHeader.st_mtime;
+    fclose(tmp);    
+    INFO_MSG("time header: %i time stream: %i ", timeHeader, timeStream);
+    if (timeHeader < timeStream) {
+	    INFO_MSG("removing old header file: %s ",headerFile.c_str());
+		  //delete filename
+		  remove(headerFile.c_str());
+    }
+  }
+
   int Input::run() {
     if (config->getBool("json")) {
       std::cerr << capa.toString() << std::endl;
@@ -76,6 +105,7 @@ namespace Mist {
       std::cerr << config->getString("cmd") << " setup failed." << std::endl;
       return 0;
     }
+    checkHeaderTimes(config->getString("input"));
     if (!readHeader()) {
       std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
       return 0;

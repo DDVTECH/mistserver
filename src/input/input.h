@@ -39,6 +39,7 @@ namespace Mist {
       void play(int until = 0);
       void playOnce();
       void quitPlay();
+      void checkHeaderTimes(std::string streamFile);
       virtual void removeUnused();
       virtual void trackSelect(std::string trackSpec){};
       virtual void userCallback(char * data, size_t len, unsigned int id);

@@ -62,12 +62,20 @@ namespace Mist {
 
   void Output::updateMeta(){
     //read metadata from page to myMeta variable
+    IPC::semaphore liveMeta(std::string("liveMeta@" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    bool lock = myMeta.live;
+    if (lock){
+      liveMeta.wait();
+    }
     if (streamIndex.mapped){
       DTSC::Packet tmpMeta(streamIndex.mapped, streamIndex.len, true);
       if (tmpMeta.getVersion()){
         /// \todo Make sure this doesn't go wrong when overwritten by MistInBuffer during parse
         myMeta.reinit(tmpMeta);
       }
+    }
+    if (lock){
+      liveMeta.post();
     }
   }
   
@@ -640,13 +648,17 @@ namespace Mist {
       }
     }
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < 5; it++){
+      int tId = *it;
+      if (trackMap.count(tId)){
+        tId = trackMap[tId];
+      }
       char thisData[6];
-      thisData[0] = ((*it >> 24) & 0xFF);
-      thisData[1] = ((*it >> 16) & 0xFF);
-      thisData[2] = ((*it >> 8) & 0xFF);
-      thisData[3] = ((*it) & 0xFF);
-      thisData[4] = ((nxtKeyNum[*it] >> 8) & 0xFF);
-      thisData[5] = ((nxtKeyNum[*it]) & 0xFF);
+      thisData[0] = ((tId >> 24) & 0xFF);
+      thisData[1] = ((tId >> 16) & 0xFF);
+      thisData[2] = ((tId >> 8) & 0xFF);
+      thisData[3] = ((tId) & 0xFF);
+      thisData[4] = ((nxtKeyNum[tId] >> 8) & 0xFF);
+      thisData[5] = ((nxtKeyNum[tId]) & 0xFF);
       memcpy(playerConn.getData() + (6 * tNum), thisData, 6);
       tNum ++;
       playerConn.keepAlive();

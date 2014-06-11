@@ -72,7 +72,7 @@ namespace Mist {
 
   void OutHSS::sendNext() {
     if (currentPacket.getTime() >= playUntil) {
-      DEBUG_MSG(DLVL_DEVEL, "(%d) Done sending fragment %d:%d", getpid(), myTrackStor, myKeyStor);
+      DEBUG_MSG(DLVL_HIGH, "(%d) Done sending fragment %d:%d", getpid(), myTrackStor, myKeyStor);
       stop();
       wantRequest = true;
       HTTP_S.Chunkify("", 0, myConn);
@@ -95,19 +95,19 @@ namespace Mist {
   int OutHSS::canSeekms(unsigned int ms) {
     //no tracks? Frame too new by definition.
     if (!myMeta.tracks.size()) {
-      DEBUG_MSG(DLVL_DEVEL, "HSS Canseek to %d returns 1 because no tracks", ms);
+      DEBUG_MSG(DLVL_DONTEVEN, "HSS Canseek to %d returns 1 because no tracks", ms);
       return 1;
     }
     //loop trough all selected tracks
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       //return "too late" if one track is past this point
       if (ms < myMeta.tracks[*it].firstms) {
-        DEBUG_MSG(DLVL_DEVEL, "HSS Canseek to %d returns -1 because track %lu firstms == %llu", ms, *it, myMeta.tracks[*it].firstms);
+        DEBUG_MSG(DLVL_DONTEVEN, "HSS Canseek to %d returns -1 because track %lu firstms == %llu", ms, *it, myMeta.tracks[*it].firstms);
         return -1;
       }
       //return "too early" if one track is not yet at this point
       if (ms > myMeta.tracks[*it].lastms) {
-        DEBUG_MSG(DLVL_DEVEL, "HSS Canseek to %d returns 1 because track %lu lastms == %llu", ms, *it, myMeta.tracks[*it].lastms);
+        DEBUG_MSG(DLVL_DONTEVEN, "HSS Canseek to %d returns 1 because track %lu lastms == %llu", ms, *it, myMeta.tracks[*it].lastms);
         return 1;
       }
     }
@@ -160,10 +160,10 @@ namespace Mist {
         return;
       }
     }
-    DEBUG_MSG(DLVL_DEVEL, "(%d) Seeking to time %lld on track %d", getpid(), seekTime, tid);
+    DEBUG_MSG(DLVL_HIGH, "(%d) Seeking to time %lld on track %d", getpid(), seekTime, tid);
     seek(seekTime);
     playUntil = (*(keyTimes[tid].upper_bound(seekTime)));
-    DEBUG_MSG(DLVL_DEVEL, "Set playUntil to %lld", playUntil);
+    DEBUG_MSG(DLVL_HIGH, "Set playUntil to %lld", playUntil);
     myTrackStor = tid;
     myKeyStor = seekTime;
     keysToSend = 1;
@@ -269,7 +269,7 @@ namespace Mist {
       int fragCount = 0;
       for (unsigned int i = 0; fragCount < 2 && i < myMeta.tracks[tid].keys.size() - 1; i++) {
         if (myMeta.tracks[tid].keys[i].getTime() > seekTime) {
-          DEBUG_MSG(DLVL_DEVEL, "Key %d added to fragRef box, time %ld > %lld", i, myMeta.tracks[tid].keys[i].getTime(), seekTime);
+          DEBUG_MSG(DLVL_HIGH, "Key %d added to fragRef box, time %ld > %lld", i, myMeta.tracks[tid].keys[i].getTime(), seekTime);
           fragref_box.setTime(fragCount, myMeta.tracks[tid].keys[i].getTime() * 10000);
           fragref_box.setDuration(fragCount, myMeta.tracks[tid].keys[i].getLength() * 10000);
           fragref_box.setFragmentCount(++fragCount);
@@ -296,7 +296,7 @@ namespace Mist {
     HTTP_S.Chunkify("mdat", 4, myConn);
     sentHeader = true;
     HTTP_R.Clean();
-    DEBUG_MSG(DLVL_DEVEL, "(%d) Sent full header", getpid());
+    DEBUG_MSG(DLVL_HIGH, "(%d) Sent full header", getpid());
   }
 
 
@@ -336,7 +336,7 @@ namespace Mist {
         }
       }
     }
-    DEBUG_MSG(DLVL_DEVEL, "Buffer window here %lld", myMeta.bufferWindow);
+    DEBUG_MSG(DLVL_DONTEVEN, "Buffer window here %lld", myMeta.bufferWindow);
     if (myMeta.vod) {
       Result << "Duration=\"" << (*videoIters.begin())->second.lastms << "0000\"";
     } else {

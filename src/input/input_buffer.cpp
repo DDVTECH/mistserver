@@ -1,3 +1,6 @@
+#include <fcntl.h>
+#include <sys/stat.h>
+
 #include <iostream>
 #include <cstring>
 #include <cerrno>
@@ -53,7 +56,10 @@ namespace Mist {
     myMeta.vod = false;
     myMeta.live = true;
     myMeta.writeTo(metaPage.mapped);
+    IPC::semaphore liveMeta(std::string("liveMeta@" + config->getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    liveMeta.wait();
     memset(metaPage.mapped+myMeta.getSendLen(), 0, metaPage.len > myMeta.getSendLen() ? std::min(metaPage.len-myMeta.getSendLen(), 4ll) : 0);
+    liveMeta.post();
   } 
 
   bool inputBuffer::removeKey(unsigned int tid){
@@ -134,6 +140,10 @@ namespace Mist {
         //Skip value 0xFFFFFFFF as this indicates a previously declined track
         continue;
       }
+      if (value == 0){
+        //Skip value 0 as this indicates an empty track
+        continue;
+      }
       if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
         if (negotiateTracks.count(value)){
           negotiateTracks.erase(value);
@@ -141,6 +151,9 @@ namespace Mist {
         }
         if (givenTracks.count(value)){
           givenTracks.erase(value);
+          indexPages.erase(value);
+          dataPages.erase(value);
+          inputLoc.erase(value);
         }
         continue;
       }
@@ -247,6 +260,7 @@ namespace Mist {
           char nextPageName[100];
           sprintf(nextPageName, "%s%lu_%d", config->getString("streamname").c_str(), value, nextPage);
           dataPages[value][nextPage].init(nextPageName, 20971520, true);
+          DEVEL_MSG("Created page %s", nextPageName);
           bool createdNew = false;
           for (int i = 0; i < 8192; i += 8){
             unsigned int thisKeyNum = ((((long long int *)(indexPages[value].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
@@ -269,6 +283,9 @@ namespace Mist {
   void inputBuffer::updateMetaFromPage(int tNum, int pageNum){
     DTSC::Packet tmpPack;
     tmpPack.reInit(dataPages[tNum][pageNum].mapped + inputLoc[tNum][pageNum].curOffset, 0);
+    if (!tmpPack && inputLoc[tNum][pageNum].curOffset == 0){
+      return;
+    }
     while (tmpPack) {
       myMeta.update(tmpPack);
       if (inputLoc[tNum][pageNum].firstTime == 0){

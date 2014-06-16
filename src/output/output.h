@@ -76,6 +76,7 @@ namespace Mist {
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       std::map<unsigned long, unsigned long> lastKeyTime;///< Stores the time of the last keyframe, for preventing duplicates
+      bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
       unsigned int getKeyForTime(long unsigned int trackId, long long timeStamp);
       IPC::sharedPage streamIndex;///< Shared memory used for metadata

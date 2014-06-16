@@ -36,6 +36,7 @@ namespace Mist {
     firstTime = 0;
     parseData = false;
     wantRequest = true;
+    sought = false;
     isInitialized = false;
     isBlocking = false;
     lastStats = 0;
@@ -119,7 +120,7 @@ namespace Mist {
       Util::sleep(100);
       newTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
     }
-    DEBUG_MSG(DLVL_DEVEL, "Track %d temporarily mapped to %d", tid, newTid);
+    DEBUG_MSG(DLVL_VERYHIGH, "Track %d temporarily mapped to %d", tid, newTid);
 
     char pageName[100];
     sprintf(pageName, "liveStream_%s%d", streamName.c_str(), newTid); 
@@ -131,17 +132,17 @@ namespace Mist {
     JSON::Value tmpVal = tmpMeta.toJSON();
     std::string tmpStr = tmpVal.toNetPacked();
     memcpy(metaPages[newTid].mapped, tmpStr.data(), tmpStr.size());
-    DEBUG_MSG(DLVL_DEVEL, "Temporary metadata written for incoming track %d, handling as track %d", tid, newTid);
+    DEBUG_MSG(DLVL_VERYHIGH, "Temporary metadata written for incoming track %d, handling as track %d", tid, newTid);
 
     unsigned short firstPage = 0xFFFF;
     unsigned int finalTid = newTid;
     while (firstPage == 0xFFFF){
-      DEBUG_MSG(DLVL_DEVEL, "Re-checking at offset %d",  bufConnOffset);
+      DEBUG_MSG(DLVL_VERYHIGH, "Re-checking at offset %d",  bufConnOffset);
       Util::sleep(100);
       finalTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
       firstPage = ((long)(tmp[6 * bufConnOffset + 4]) << 8) | tmp[6 * bufConnOffset + 5];
       if (finalTid == 0xFFFFFFFF){
-        DEBUG_MSG(DLVL_DEVEL, "Buffer has declined incoming track %d", tid);
+        WARN_MSG("Buffer has declined incoming track %d", tid);
         return;
       }
     }
@@ -149,19 +150,17 @@ namespace Mist {
     finalTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
     firstPage = ((long)(tmp[6 * bufConnOffset + 4]) << 8) | tmp[6 * bufConnOffset + 5];
     if (finalTid == 0xFFFFFFFF){
-      DEBUG_MSG(DLVL_DEVEL, "Buffer has declined incoming track %d", tid);
+      WARN_MSG("Buffer has declined incoming track %d", tid);
       memset(tmp + 6 * bufConnOffset, 0, 6);
       return;
     }
 
-    DEBUG_MSG(DLVL_DEVEL, "Buffer accepted incoming track %d, temporary mapping %d as final mapping %d", tid, newTid, finalTid);
-    DEBUG_MSG(DLVL_DEVEL, "Buffer has indicated that incoming track %d should start writing on track %d, page %d", tid, finalTid, firstPage);
+    INFO_MSG("Buffer has indicated that incoming track %d should start writing on track %d, page %d", tid, finalTid, firstPage);
     memset(pageName, 0, 100);
     sprintf(pageName, "%s%d_%d", streamName.c_str(), finalTid, firstPage);
     curPages[finalTid].init(pageName, 8 * 1024 * 1024);
     trackMap[tid] = finalTid;
     bookKeeping[finalTid] = DTSCPageData();
-    DEBUG_MSG(DLVL_DEVEL, "Done negotiating for incoming track %d", tid);
   }
   
 
@@ -205,6 +204,7 @@ namespace Mist {
       //open new page
       char nextPage[100];
       sprintf(nextPage, "%s%llu_%d", streamName.c_str(), tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
+      INFO_MSG("Continuing track %llu on page %d", tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
       curPages[tNum].init(nextPage, 26 * 1024 * 1024);
       bookKeeping[tNum].pageNum += bookKeeping[tNum].keyNum;
       bookKeeping[tNum].keyNum = 0;
@@ -342,21 +342,7 @@ namespace Mist {
     DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s", selected.str().c_str());    
     #endif
     
-    unsigned int firstms = 0x0;
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      lastKeyTime[*it] = 0xFFFFFFFF;
-      if (myMeta.tracks[*it].firstms > firstms){
-        firstms = myMeta.tracks[*it].firstms;
-      }
-    }
-    if (myMeta.live){
-      if (firstms < 5000){
-        firstms = 0;
-      }
-      seek(firstms);
-    }else{
-      seek(0);
-    }
+    sought = false;
     capa.null();
   }
   
@@ -448,6 +434,7 @@ namespace Mist {
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   /// \todo Make this actually seek, instead of always loading position zero.
   void Output::seek(long long pos){
+    sought = true;
     firstTime = Util::getMS() - pos;
     if (!isInitialized){
       initialize();
@@ -542,6 +529,23 @@ namespace Mist {
   }
   
   void Output::prepareNext(){
+    if (!sought){
+      unsigned int firstms = 0x0;
+      for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        lastKeyTime[*it] = 0xFFFFFFFF;
+        if (myMeta.tracks[*it].firstms > firstms){
+          firstms = myMeta.tracks[*it].firstms;
+        }
+      }
+      if (myMeta.live){
+        if (firstms < 5000){
+          firstms = 0;
+        }
+        seek(firstms);
+      }else{
+        seek(0);
+      }
+    }
     static unsigned int emptyCount = 0;
     if (!buffer.size()){
       currentPacket.null();

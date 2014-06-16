@@ -213,8 +213,6 @@ namespace Mist {
         }
         if (givenTracks.count(value)){
           givenTracks.erase(value);
-          indexPages.erase(value);
-          dataPages.erase(value);
           inputLoc.erase(value);
         }
         continue;
@@ -228,17 +226,15 @@ namespace Mist {
         thisData[2] = (tmpTid >> 8) & 0xFF;
         thisData[3] = (tmpTid) & 0xFF;
         unsigned long tNum = ((long)(thisData[4]) << 8) | thisData[5];
-        INFO_MSG("Assigning temporary ID %d to incoming track %lu for user %d", tmpTid, tNum, id);
+        DEBUG_MSG(DLVL_HIGH, "Assigning temporary ID %d to incoming track %lu for user %d", tmpTid, tNum, id);
         
         char tempMetaName[100];
         sprintf(tempMetaName, "liveStream_%s%d", config->getString("streamname").c_str(), tmpTid);
         metaPages[tmpTid].init(tempMetaName, 8388608, true);
       }
       if (negotiateTracks.count(value)){
-        INFO_MSG("Negotiating %lu", value);
         //Track is currently under negotiation, check whether the metadata has been submitted
         if (metaPages[value].mapped){
-          INFO_MSG("Mapped %lu", value);
           unsigned int len = ntohl(((int *)metaPages[value].mapped)[1]);
           unsigned int i = 0;
           JSON::Value JSONMeta;
@@ -249,26 +245,24 @@ namespace Mist {
           }
 
           std::string tempId = tmpMeta.tracks.begin()->second.getIdentifier();
-          DEBUG_MSG(DLVL_DEVEL, "Attempting colision detection for track %s", tempId.c_str());
+          DEBUG_MSG(DLVL_HIGH, "Attempting colision detection for track %s", tempId.c_str());
           /*LTS
           int finalMap = -1;
           LTS*/
-          int collidesWith = -1;/*LTS*/
+          /*LTS-START*/
           for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-            /*LTS-START*/
             if (it->second.getIdentifier() == tempId) {
               collidesWith = it->first;
               break;
             }
-            /*LTS-END*/
-            /*LTS
-            if (it->second.type == "video"){
-              finalMap = 1;
-            }
-            if (it->second.type == "audio"){
-              finalMap = 2;
-            }
-            LTS*/
+          }
+          /*LTS-END*/
+          /*LTS
+          if (tmpMeta.tracks.begin()->second.type == "video"){
+            finalMap = 1;
+          }
+          if (tmpMeta.tracks.begin()->second.type == "audio"){
+            finalMap = 2;
           }
           //Remove the "negotiate" status in either case
           negotiateTracks.erase(value);
@@ -280,7 +274,7 @@ namespace Mist {
             /*LTS
             DEBUG_MSG(DLVL_DEVEL, "Collision of new track %lu with track %d detected! Declining track", value, finalMap);
             LTS*/
-            DEBUG_MSG(DLVL_DEVEL, "Collision of new track %lu with track %d detected! Declining track", value, collidesWith);/*LTS*/
+            WARN_MSG("Collision of new track %lu with track %d detected! Declining track", value, finalMap);
             thisData[0] = 0xFF;
             thisData[1] = 0xFF;
             thisData[2] = 0xFF;
@@ -293,22 +287,32 @@ namespace Mist {
               DEBUG_MSG(DLVL_DEVEL, "No colision detected for negotiation track %lu, from user %u, assigning final track number %d", value, id, finalMap);
               /*LTS-END*/
               /*LTS
-              DEBUG_MSG(DLVL_DEVEL, "Invalid track type detected, discarding");
+              WARN_MSG("Invalid track type detected, declining.");
+              thisData[0] = 0xFF;
+              thisData[1] = 0xFF;
+              thisData[2] = 0xFF;
+              thisData[3] = 0xFF;
               continue;
               LTS*/
             }else{
               //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared"
               //or if the firstms of the replacement track is later than the lastms on the existing track
-              if (tmpMeta.tracks.begin()->second.keys.size() > 1|| tmpMeta.tracks.begin()->second.firstms >= myMeta.tracks[finalMap].lastms){
-                DEBUG_MSG(DLVL_DEVEL, "Allowing negotiation track %lu, from user %u, to resume pushing final track number %d", value, id, finalMap);
+              if (tmpMeta.tracks.begin()->second.keys.size() > 1 || !myMeta.tracks.count(finalMap) || tmpMeta.tracks.begin()->second.firstms >= myMeta.tracks[finalMap].lastms){
+                if (myMeta.tracks.count(finalMap) && myMeta.tracks[finalMap].lastms > 0){
+                  INFO_MSG("Allowing negotiation track %lu, from user %u, to resume pushing final track number %d", value, id, finalMap);
+                }else{
+                  INFO_MSG("Allowing negotiation track %lu, from user %u, to start pushing final track number %d", value, id, finalMap);
+                }
               }else{
               //Otherwise replace existing track
-                DEBUG_MSG(DLVL_DEVEL, "Re-push initiated for track %lu, from user %u, will replace final track number %d", value, id, finalMap);
+                INFO_MSG("Re-push initiated for track %lu, from user %u, will replace final track number %d", value, id, finalMap);
                 myMeta.tracks.erase(finalMap);
+                dataPages.erase(finalMap);
               }
             }
             givenTracks.insert(finalMap);
             if (!myMeta.tracks.count(finalMap)){
+              DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %d", finalMap);
               myMeta.tracks[finalMap] = tmpMeta.tracks.begin()->second;
               myMeta.tracks[finalMap].trackID = finalMap;
             }
@@ -341,6 +345,7 @@ namespace Mist {
         //update current page
         int currentPage = dataPages[value].rbegin()->first;
         updateMetaFromPage(value, currentPage);
+        INFO_MSG("To go, track %lu: %lli", value, 8388608 - inputLoc[value][currentPage].curOffset);
         if (inputLoc[value][currentPage].curOffset > 8388608) {
           int nextPage = currentPage + inputLoc[value][currentPage].keyNum;
           char nextPageName[100];

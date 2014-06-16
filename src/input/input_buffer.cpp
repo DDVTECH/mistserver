@@ -259,7 +259,6 @@ namespace Mist {
         //update current page
         int currentPage = dataPages[value].rbegin()->first;
         updateMetaFromPage(value, currentPage);
-        INFO_MSG("To go, track %lu: %lli", value, 8388608 - inputLoc[value][currentPage].curOffset);
         if (inputLoc[value][currentPage].curOffset > 8388608) {
           int nextPage = currentPage + inputLoc[value][currentPage].keyNum;
           char nextPageName[100];

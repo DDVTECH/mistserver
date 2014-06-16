@@ -177,26 +177,30 @@ namespace IPC {
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap() {
     if (mapped && len) {
-#ifdef __CYGWIN__
+      #ifdef __CYGWIN__
       UnmapViewOfFile(mapped);
-#else
+      #else
       munmap(mapped, len);
-#endif
+      #endif
+      mapped = 0;
+      len = 0;
     }
-    mapped = 0;
-    len = 0;
   }
 
   ///\brief Closes a shared page if allowed
   void sharedPage::close() {
+    unmap();
     if (handle > 0) {
-#ifdef __CYGWIN__
+      #ifdef __CYGWIN__
       CloseHandle(handle);
-#else
+      #else
       ::close(handle);
-#endif
+      if (master && name != "") {
+        shm_unlink(name.c_str());
+      }
+      #endif
+      handle = 0;
     }
-    handle = 0;
   }
 
 
@@ -205,12 +209,7 @@ namespace IPC {
   ///\param len_ The size to make the page
   ///\param master_ Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) : handle(0), name(name_), len(len_), master(master_), mapped(NULL) {
-    handle = 0;
-    name = name_;
-    len = len_;
-    master = master_;
-    mapped = 0;
+  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) : handle(0), len(0), master(false), mapped(0) {
     init(name_, len_, master_, autoBackoff);
   }
 
@@ -218,7 +217,6 @@ namespace IPC {
   ///\param rhs The page to copy
   sharedPage::sharedPage(const sharedPage & rhs) {
     handle = 0;
-    name = "";
     len = 0;
     master = false;
     mapped = 0;
@@ -237,20 +235,19 @@ namespace IPC {
   }
 
 
-  #ifdef __CYGWIN__
-    ///\brief Initialize a page, de-initialize before if needed
-    ///\param name_ The name of the page to be created
-    ///\param len_ The size to make the page
-    ///\param master_ Whether to create or merely open the page
-    ///\param autoBackoff When only opening the page, wait for it to appear or fail
-    void sharedPage::init(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
-      unmap();
-      close();
-      name = name_;
-      len = len_;
-      master = master_;
-      mapped = 0;
-      if (name.size()) {
+  ///\brief Initialize a page, de-initialize before if needed
+  ///\param name_ The name of the page to be created
+  ///\param len_ The size to make the page
+  ///\param master_ Whether to create or merely open the page
+  ///\param autoBackoff When only opening the page, wait for it to appear or fail
+  void sharedPage::init(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
+    close();
+    name = name_;
+    len = len_;
+    master = master_;
+    mapped = 0;
+    if (name.size()) {
+      #ifdef __CYGWIN__
         if (master){
           handle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len, name.c_str());
         }else{
@@ -271,25 +268,7 @@ namespace IPC {
         if (!mapped) {
           return;
         }
-      }
-    }
-  #else
-    ///\brief Initialize a page, de-initialize before if needed
-    ///\param name_ The name of the page to be created
-    ///\param len_ The size to make the page
-    ///\param master_ Whether to create or merely open the page
-    ///\param autoBackoff When only opening the page, wait for it to appear or fail
-    void sharedPage::init(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
-      unmap();
-      if (master) {
-        shm_unlink(name.c_str());
-      }
-      close();
-      name = name_;
-      len = len_;
-      master = master_;
-      mapped = 0;
-      if (name.size()) {
+      #else
         handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
         if (handle == -1) {
           if (master) {
@@ -330,18 +309,12 @@ namespace IPC {
           mapped = 0;
           return;
         }
-      }
+      #endif
     }
-  #endif
+  }
 
   ///\brief Default destructor
   sharedPage::~sharedPage() {
-    unmap();
-    if (master) {
-#ifndef __CYGWIN__
-      shm_unlink(name.c_str());
-#endif
-    }
     close();
   }
 
@@ -354,9 +327,8 @@ namespace IPC {
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
   sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
     handle = 0;
-    name = name_;
-    len = len_;
-    master = master_;
+    len = 0;
+    master = false;
     mapped = 0;
     init(name_, len_, master_, autoBackoff);
   }
@@ -365,7 +337,6 @@ namespace IPC {
   ///\param rhs The page to copy
   sharedPage::sharedPage(const sharedPage & rhs) {
     handle = 0;
-    name = "";
     len = 0;
     master = false;
     mapped = 0;
@@ -375,10 +346,10 @@ namespace IPC {
   ///\brief Default destructor
   sharedPage::~sharedPage() {
     unmap();
-    if (master) {
+    close(handle);
+    if (master && name != "") {
       unlink(name.c_str());
     }
-    close(handle);
   }
 
 #endif

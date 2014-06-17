@@ -50,9 +50,9 @@ long long int Util::getMS(){
 }
 
 long long int Util::bootSecs(){
-  struct sysinfo sinfo;
-  sysinfo(&sinfo);
-  return sinfo.uptime;
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return t.tv_sec;
 }
 
 /// Gets the current time in microseconds.

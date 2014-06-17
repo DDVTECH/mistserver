@@ -250,6 +250,7 @@ namespace Mist {
           int finalMap = -1;
           LTS*/
           /*LTS-START*/
+          int collidesWith = -1;
           for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
             if (it->second.getIdentifier() == tempId) {
               collidesWith = it->first;
@@ -264,6 +265,7 @@ namespace Mist {
           if (tmpMeta.tracks.begin()->second.type == "audio"){
             finalMap = 2;
           }
+          LTS*/
           //Remove the "negotiate" status in either case
           negotiateTracks.erase(value);
           metaPages.erase(value);
@@ -274,7 +276,7 @@ namespace Mist {
             /*LTS
             DEBUG_MSG(DLVL_DEVEL, "Collision of new track %lu with track %d detected! Declining track", value, finalMap);
             LTS*/
-            WARN_MSG("Collision of new track %lu with track %d detected! Declining track", value, finalMap);
+            WARN_MSG("Collision of new track %lu with track %d detected! Declining track", value, collidesWith);
             thisData[0] = 0xFF;
             thisData[1] = 0xFF;
             thisData[2] = 0xFF;

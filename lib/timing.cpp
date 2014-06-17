@@ -4,17 +4,17 @@
 #include "timing.h"
 #include <sys/time.h>//for gettimeofday
 #include <time.h>//for time and nanosleep
-#include <sys/sysinfo.h> //forsysinfo
 
 //emulate clock_gettime() for OSX compatibility
 #if defined(__APPLE__) || defined(__MACH__)
 #include <mach/clock.h>
 #include <mach/mach.h>
-#define CLOCK_REALTIME 0
+#define CLOCK_REALTIME CALENDAR_CLOCK
+#define CLOCK_MONOTONIC SYSTEM_CLOCK
 void clock_gettime(int ign, struct timespec * ts){
   clock_serv_t cclock;
   mach_timespec_t mts;
-  host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+  host_get_clock_service(mach_host_self(), ign, &cclock);
   clock_get_time(cclock, &mts);
   mach_port_deallocate(mach_task_self(), cclock);
   ts->tv_sec = mts.tv_sec;

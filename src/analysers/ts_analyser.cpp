@@ -11,7 +11,6 @@
 #include <signal.h>
 #include <mist/ts_packet.h>
 #include <mist/config.h>
-#include <sys/sysinfo.h>
 
 
 namespace Analysers {
@@ -24,9 +23,7 @@ namespace Analysers {
     unsigned int pmt = 0;
     //std::map<unsigned int, TS::pmtinfo> PMT;
     TS::Packet packet;
-    struct sysinfo sinfo;
-    sysinfo(&sinfo);
-    long long int upTime = sinfo.uptime;
+    long long int upTime = Util::bootSecs();
     int64_t pcr = 0;
     unsigned int bytes = 0;
     char packetPtr[188];
@@ -60,8 +57,7 @@ namespace Analysers {
         }
       }
       if(bytes > 1024){
-        sysinfo(&sinfo);
-        long long int tTime = sinfo.uptime;
+        long long int tTime = Util::bootSecs();
         if(validate && tTime - upTime > 5 && tTime - upTime > pcr/27000000){
           std::cerr << "data received too slowly" << std::endl;
           return 1;
@@ -69,8 +65,7 @@ namespace Analysers {
         bytes = 0;
       }
     }
-    sysinfo(&sinfo);
-    long long int finTime = sinfo.uptime;
+    long long int finTime = Util::bootSecs();
     if(validate){
       fprintf(stdout,"time since boot,time at completion,real time duration of data receival,video duration\n");
       fprintf(stdout, "%lli000,%lli000,%lli000,%li \n",upTime,finTime,finTime-upTime,pcr/27000);

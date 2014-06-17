@@ -12,19 +12,18 @@ namespace Mist {
   Input * Input::singleton = NULL;
   
   void Input::userCallback(char * data, size_t len, unsigned int id){
-    long tid = ((long)(data[0]) << 24) | ((long)(data[1]) << 16) | ((long)(data[2]) << 8) | ((long)(data[3]));
-    long keyNum = ((long)(data[4]) << 8) | ((long)(data[5]));
-    bufferFrame(tid, keyNum + 1);//Try buffer next frame
+    for (int i = 0; i < 5; i++){
+      long tid = ((long)(data[0]) << 24) | ((long)(data[1]) << 16) | ((long)(data[2]) << 8) | ((long)(data[3]));
+      if (tid){
+        long keyNum = ((long)(data[4]) << 8) | ((long)(data[5]));
+        bufferFrame(tid, keyNum + 1);//Try buffer next frame
+      }
+    }
   }
   
   void Input::doNothing(char * data, size_t len, unsigned int id){
     DEBUG_MSG(DLVL_DONTEVEN, "Doing 'nothing'");
-    for (int i = 0; i < 5; i++){
-      int tmp = ((long)(data[i*6]) << 24) | ((long)(data[i*6 + 1]) << 16) | ((long)(data[i*6 + 2]) << 8) | data[i*6 + 3];
-      if (tmp){
-        singleton->userCallback(data + (i*6), 6, id);//call the userCallback for this input
-      }
-    }
+    singleton->userCallback(data, 30, id);//call the userCallback for this input
   }
   
   Input::Input(Util::Config * cfg) {

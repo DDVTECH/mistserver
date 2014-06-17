@@ -710,13 +710,13 @@ namespace IPC {
                 DEBUG_MSG(DLVL_HIGH, "Client %u requested disconnect", id);
                 break;
               case 126:
-                DEBUG_MSG(DLVL_HIGH, "Client %u timed out", id);
+                DEBUG_MSG(DLVL_WARN, "Client %u timed out", id);
                 break;
               case 255:
                 DEBUG_MSG(DLVL_HIGH, "Client %u disconnected on request", id);
                 break;
               case 254:
-                DEBUG_MSG(DLVL_HIGH, "Client %u disconnect timed out", id);
+                DEBUG_MSG(DLVL_WARN, "Client %u disconnect timed out", id);
                 break;
               default:
                 break;

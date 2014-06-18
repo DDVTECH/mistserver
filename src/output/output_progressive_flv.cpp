@@ -3,7 +3,10 @@
 #include <mist/defines.h>
 
 namespace Mist {
-  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : Output(conn) { }
+  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : Output(conn) { 
+    myConn.setHost(config->getString("ip"));
+    streamName = config->getString("streamname");
+  }
   
   OutProgressiveFLV::~OutProgressiveFLV() {}
   
@@ -78,8 +81,6 @@ namespace Mist {
       if (HTTP_R.GetVar("video") != ""){
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("video")).asInt());
       }
-      myConn.setHost(HTTP_R.GetHeader("X-Origin"));
-      streamName = HTTP_R.GetHeader("X-Stream");
       parseData = true;
       wantRequest = false;
       HTTP_R.Clean();

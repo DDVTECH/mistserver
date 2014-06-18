@@ -6,6 +6,8 @@
 namespace Mist {
   OutProgressiveSRT::OutProgressiveSRT(Socket::Connection & conn) : Output(conn) {
     realTime = 0;
+    myConn.setHost(config->getString("ip"));
+    streamName = config->getString("streamname");
   }
 
   void OutProgressiveSRT::onFail(){
@@ -72,8 +74,6 @@ namespace Mist {
       if (HTTP_R.GetVar("track") != ""){
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("track")).asInt());
       }
-      myConn.setHost(HTTP_R.GetHeader("X-Origin"));
-      streamName = HTTP_R.GetHeader("X-Stream");
       parseData = true;
       wantRequest = false;
       HTTP_R.Clean();

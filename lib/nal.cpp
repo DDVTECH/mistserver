@@ -134,10 +134,10 @@ namespace h264 {
     //For calculating width
     unsigned int widthInMbs = 0;
     unsigned int cropHorizontal = 0;
-    
+
     //For calculating height
     bool mbsOnlyFlag = 0;
-    unsigned int heightInMapUnits = 0; 
+    unsigned int heightInMapUnits = 0;
     unsigned int cropVertical = 0;
 
     Utils::bitstream bs;
@@ -177,7 +177,7 @@ namespace h264 {
     bs.skip(1);
     //Stop skipping data and start doing usefull stuff
 
-    
+
     widthInMbs = bs.getUExpGolomb() + 1;
     heightInMapUnits = bs.getUExpGolomb() + 1;
 
@@ -197,7 +197,7 @@ namespace h264 {
     //vuiParameters
     if (bs.get(1)) {
       //Skipping all the paramters we dont use
-      if (bs.get(1)){
+      if (bs.get(1)) {
         if (bs.get(8) == 255) {
           bs.skip(32);
         }

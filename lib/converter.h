@@ -4,9 +4,9 @@
 #include "json.h"
 
 ///\brief A typedef to simplify accessing all codecs
-typedef std::map<std::string,std::string> codecInfo;
+typedef std::map<std::string, std::string> codecInfo;
 ///\brief A typedef to simplify accessing all encoders
-typedef std::map<std::string,codecInfo> converterInfo;
+typedef std::map<std::string, codecInfo> converterInfo;
 
 ///\brief A namespace containing all functions for handling the conversion API
 namespace Converter {
@@ -28,8 +28,8 @@ namespace Converter {
       ///\brief Holds a list of all current known codecs
       converterInfo allCodecs;
       ///\brief Holds a list of all the current conversions
-      std::map<std::string,JSON::Value> allConversions;
+      std::map<std::string, JSON::Value> allConversions;
       ///\brief Stores the status of all conversions, and the history
-      std::map<std::string,std::string> statusHistory;
+      std::map<std::string, std::string> statusHistory;
   };
 }

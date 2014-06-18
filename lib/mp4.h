@@ -18,16 +18,16 @@ namespace MP4 {
   std::string readBoxType(FILE * newData);
   bool skipBox(FILE * newData);
 
-  
-  class Box{
+
+  class Box {
     public:
       Box(char * datapointer = 0, bool manage = true);
       Box(const Box & rs);
-      Box& operator = (const Box & rs);
+      Box & operator = (const Box & rs);
       ~Box();
       std::string getType();
-      bool isType(const char* boxType);
-      bool read(FILE* newData);
+      bool isType(const char * boxType);
+      bool read(FILE * newData);
       bool read(std::string & newData);
       uint64_t boxedSize();
       uint64_t payloadSize();
@@ -49,7 +49,7 @@ namespace MP4 {
       uint64_t getInt64(size_t index);
       //string functions
       void setString(std::string newData, size_t index);
-      void setString(char* newData, size_t size, size_t index);
+      void setString(char * newData, size_t size, size_t index);
       char * getString(size_t index);
       size_t getStringLen(size_t index);
       //box functions
@@ -65,8 +65,8 @@ namespace MP4 {
       unsigned int payloadOffset; ///<The offset of the payload with regards to the data
   };
   //Box Class
-  
-  class fullBox: public Box{
+
+  class fullBox: public Box {
     public:
       fullBox();
       void setVersion(char newVersion);
@@ -75,8 +75,8 @@ namespace MP4 {
       uint32_t getFlags();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class containerBox: public Box{
+
+  class containerBox: public Box {
     public:
       containerBox();
       uint32_t getContentCount();
@@ -84,8 +84,8 @@ namespace MP4 {
       Box & getContent(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class containerFullBox: public fullBox{
+
+  class containerFullBox: public fullBox {
     public:
       uint32_t getContentCount();
       void setContent(Box & newContent, uint32_t no);

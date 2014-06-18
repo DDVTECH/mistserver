@@ -17,7 +17,7 @@ namespace DTSC {
 namespace JSON {
 
   /// Lists all types of JSON::Value.
-  enum ValueType{
+  enum ValueType {
     EMPTY, BOOL, INTEGER, STRING, ARRAY, OBJECT
   };
 
@@ -28,9 +28,9 @@ namespace JSON {
   typedef std::deque<Value>::iterator ArrIter;
   typedef std::map<std::string, Value>::const_iterator ObjConstIter;
   typedef std::deque<Value>::const_iterator ArrConstIter;
-  
+
   /// A JSON::Value is either a string or an integer, but may also be an object, array or null.
-  class Value{
+  class Value {
     private:
       ValueType myType;
       long long int intVal;
@@ -48,15 +48,15 @@ namespace JSON {
       Value(long long int val);
       Value(bool val);
       //comparison operators
-      bool operator==(const Value &rhs) const;
-      bool operator!=(const Value &rhs) const;
+      bool operator==(const Value & rhs) const;
+      bool operator!=(const Value & rhs) const;
       //assignment operators
-      Value & operator=(const std::string &rhs);
+      Value & operator=(const std::string & rhs);
       Value & operator=(const char * rhs);
-      Value & operator=(const long long int &rhs);
-      Value & operator=(const int &rhs);
-      Value & operator=(const unsigned int &rhs);
-      Value & operator=(const bool &rhs);
+      Value & operator=(const long long int & rhs);
+      Value & operator=(const int & rhs);
+      Value & operator=(const unsigned int & rhs);
+      Value & operator=(const bool & rhs);
       //converts to basic types
       operator long long int() const;
       operator std::string() const;
@@ -105,22 +105,22 @@ namespace JSON {
   };
 
   Value fromDTMI2(std::string & data);
-  Value fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i);
+  Value fromDTMI2(const unsigned char * data, unsigned int len, unsigned int & i);
   Value fromDTMI(std::string & data);
-  Value fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i);
+  Value fromDTMI(const unsigned char * data, unsigned int len, unsigned int & i);
   Value fromString(std::string json);
   Value fromFile(std::string filename);
   void fromDTMI2(std::string & data, Value & ret);
-  void fromDTMI2(const unsigned char * data, unsigned int len, unsigned int &i, Value & ret);
+  void fromDTMI2(const unsigned char * data, unsigned int len, unsigned int & i, Value & ret);
   void fromDTMI(std::string & data, Value & ret);
-  void fromDTMI(const unsigned char * data, unsigned int len, unsigned int &i, Value & ret);
-  
+  void fromDTMI(const unsigned char * data, unsigned int len, unsigned int & i, Value & ret);
+
   template <typename T>
-  std::string encodeVector(T begin, T end){
+  std::string encodeVector(T begin, T end) {
     std::string result;
-    for( T it = begin; it != end; it++){
+    for (T it = begin; it != end; it++) {
       long long int tmp = (*it);
-      while(tmp >= 0xFFFF){
+      while (tmp >= 0xFFFF) {
         result += (char)0xFF;
         result += (char)0xFF;
         tmp -= 0xFFFF;
@@ -132,13 +132,13 @@ namespace JSON {
   }
 
   template <typename T>
-  void decodeVector( std::string input, T & result ){
+  void decodeVector(std::string input, T & result) {
     result.clear();
     unsigned int tmp = 0;
-    for( int i = 0; i < input.size(); i += 2){
+    for (int i = 0; i < input.size(); i += 2) {
       unsigned int curLen = (input[i] << 8) + input[i + 1];
       tmp += curLen;
-      if (curLen != 0xFFFF){
+      if (curLen != 0xFFFF) {
         result.push_back(tmp);
         tmp = 0;
       }
@@ -146,11 +146,11 @@ namespace JSON {
   }
 
   template <typename T>
-  std::string encodeVector4(T begin, T end){
+  std::string encodeVector4(T begin, T end) {
     std::string result;
-    for( T it = begin; it != end; it++){
+    for (T it = begin; it != end; it++) {
       long long int tmp = (*it);
-      while(tmp >= 0xFFFFFFFF){
+      while (tmp >= 0xFFFFFFFF) {
         result += (char)0xFF;
         result += (char)0xFF;
         result += (char)0xFF;
@@ -166,13 +166,13 @@ namespace JSON {
   }
 
   template <typename T>
-  void decodeVector4( std::string input, T & result ){
+  void decodeVector4(std::string input, T & result) {
     result.clear();
     unsigned int tmp = 0;
-    for( int i = 0; i < input.size(); i += 4){
-      unsigned int curLen = (input[i] << 24) + (input[i+1] << 16) + (input[i+2] << 8) + (input[i+3]);
+    for (int i = 0; i < input.size(); i += 4) {
+      unsigned int curLen = (input[i] << 24) + (input[i + 1] << 16) + (input[i + 2] << 8) + (input[i + 3]);
       tmp += curLen;
-      if (curLen != 0xFFFFFFFF){
+      if (curLen != 0xFFFFFFFF) {
         result.push_back(tmp);
         tmp = 0;
       }

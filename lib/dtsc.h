@@ -58,7 +58,7 @@ namespace DTSC {
     unsigned int trackID;///< Stores the track the DTSC packet referenced by this structure is associated with.
   };
 
-  enum packType{
+  enum packType {
     DTSC_INVALID,
     DTSC_HEAD,
     DTSC_V1,
@@ -67,26 +67,26 @@ namespace DTSC {
 
   /// This class allows scanning through raw binary format DTSC data.
   /// It can be used as an iterator or as a direct accessor.
-  class Scan{
-  public:
-    Scan();
-    Scan(char * pointer, size_t len);
-    std::string toPrettyString(unsigned int indent = 0);
-    Scan getMember(std::string indice);
-    Scan getMember(const char * indice);
-    Scan getMember(const char * indice, const unsigned int ind_len);
-    Scan getIndice(unsigned int num);
-    
-    char getType();
-    bool asBool();
-    long long asInt();
-    std::string asString();
-    void getString(char *& result, unsigned int & len);
-  private:
-    char * p;
-    size_t len;
+  class Scan {
+    public:
+      Scan();
+      Scan(char * pointer, size_t len);
+      std::string toPrettyString(unsigned int indent = 0);
+      Scan getMember(std::string indice);
+      Scan getMember(const char * indice);
+      Scan getMember(const char * indice, const unsigned int ind_len);
+      Scan getIndice(unsigned int num);
+
+      char getType();
+      bool asBool();
+      long long asInt();
+      std::string asString();
+      void getString(char *& result, unsigned int & len);
+    private:
+      char * p;
+      size_t len;
   };
-  
+
   /// DTSC::Packets can currently be three types:
   /// DTSC_HEAD packets are the "DTSC" header string, followed by 4 bytes len and packed content.
   /// DTSC_V1 packets are "DTPD", followed by 4 bytes len and packed content.
@@ -125,7 +125,7 @@ namespace DTSC {
       unsigned int bufferLen;
       unsigned int dataLen;
   };
-  
+
   /// A simple structure used for ordering byte seek positions.
   struct livePos {
     livePos() {
@@ -375,7 +375,7 @@ namespace DTSC {
     private:
       long int endPos;
       void readHeader(int pos);
-      DTSC::Packet myPack; 
+      DTSC::Packet myPack;
       JSON::Value metaStorage;
       readOnlyMeta metadata;
       std::map<int, std::string> trackMapping;

@@ -4,17 +4,17 @@
 
 namespace MP4 {
   //class Box;
-  
-  struct afrt_runtable{
-      uint32_t firstFragment;
-      uint64_t firstTimestamp;
-      uint32_t duration;
-      uint32_t discontinuity;
+
+  struct afrt_runtable {
+    uint32_t firstFragment;
+    uint64_t firstTimestamp;
+    uint32_t duration;
+    uint32_t discontinuity;
   };
   //fragmentRun
 
   /// AFRT Box class
-  class AFRT: public Box{
+  class AFRT: public Box {
     public:
       AFRT();
       void setVersion(char newVersion);
@@ -33,13 +33,13 @@ namespace MP4 {
   };
   //AFRT Box
 
-  struct asrt_runtable{
-      uint32_t firstSegment;
-      uint32_t fragmentsPerSegment;
+  struct asrt_runtable {
+    uint32_t firstSegment;
+    uint32_t fragmentsPerSegment;
   };
 
   /// ASRT Box class
-  class ASRT: public Box{
+  class ASRT: public Box {
     public:
       ASRT();
       void setVersion(char newVersion);
@@ -48,7 +48,7 @@ namespace MP4 {
       uint32_t getUpdate();
       uint32_t getQualityEntryCount();
       void setQualityEntry(std::string & newQuality, uint32_t no);
-      const char* getQualityEntry(uint32_t no);
+      const char * getQualityEntry(uint32_t no);
       uint32_t getSegmentRunEntryCount();
       void setSegmentRun(uint32_t firstSegment, uint32_t fragmentsPerSegment, uint32_t no);
       asrt_runtable getSegmentRun(uint32_t no);
@@ -57,7 +57,7 @@ namespace MP4 {
   //ASRT Box
 
   /// ABST Box class
-  class ABST: public Box{
+  class ABST: public Box {
     public:
       ABST();
       void setVersion(char newVersion);
@@ -100,18 +100,18 @@ namespace MP4 {
   };
   //ABST Box
 
-  struct afraentry{
-      uint64_t time;
-      uint64_t offset;
+  struct afraentry {
+    uint64_t time;
+    uint64_t offset;
   };
-  struct globalafraentry{
-      uint64_t time;
-      uint32_t segment;
-      uint32_t fragment;
-      uint64_t afraoffset;
-      uint64_t offsetfromafra;
+  struct globalafraentry {
+    uint64_t time;
+    uint32_t segment;
+    uint32_t fragment;
+    uint64_t afraoffset;
+    uint64_t offsetfromafra;
   };
-  class AFRA: public Box{
+  class AFRA: public Box {
     public:
       AFRA();
       void setVersion(uint32_t newVersion);

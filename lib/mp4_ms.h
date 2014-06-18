@@ -1,8 +1,8 @@
 #pragma once
 #include "mp4.h"
 
-namespace MP4{
-  class SDTP: public Box{
+namespace MP4 {
+  class SDTP: public Box {
     public:
       SDTP();
       void setVersion(uint32_t newVersion);
@@ -11,8 +11,8 @@ namespace MP4{
       uint32_t getValue(size_t index);
       std::string toPrettyString(uint32_t indent = 0);
   };
-        
-  class UUID: public Box{
+
+  class UUID: public Box {
     public:
       UUID();
       std::string getUUID();
@@ -21,7 +21,7 @@ namespace MP4{
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  class UUID_TrackFragmentReference: public UUID{
+  class UUID_TrackFragmentReference: public UUID {
     public:
       UUID_TrackFragmentReference();
       void setVersion(uint32_t newVersion);

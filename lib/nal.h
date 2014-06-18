@@ -1,17 +1,17 @@
 #include <string>
 #include <cstdio>
 
-namespace h264{
-  
+namespace h264 {
+
   ///Struct containing pre-calculated metadata of an SPS nal unit. Width and height in pixels, fps in Hz
-  struct SPSMeta{
+  struct SPSMeta {
     unsigned int width;
     unsigned int height;
     double fps;
   };
-  
+
   ///Class for analyzing generic nal units
-  class NAL{
+  class NAL {
     public:
       NAL();
       NAL(std::string & InputData);
@@ -25,21 +25,21 @@ namespace h264{
       std::string MyData;///<The h264 nal unit data
   };
   //NAL class
-  
+
   ///Special instance of NAL class for analyzing SPS nal units
-  class SPS: public NAL{
+  class SPS: public NAL {
     public:
-    SPS():NAL(){};
-    SPS(std::string & InputData, bool raw = false);
-    SPSMeta getCharacteristics();
-    void analyzeSPS();
+      SPS(): NAL() {};
+      SPS(std::string & InputData, bool raw = false);
+      SPSMeta getCharacteristics();
+      void analyzeSPS();
   };
- 
+
   ///Special instance of NAL class for analyzing PPS nal units
-  class PPS: public NAL{
+  class PPS: public NAL {
     public:
-    PPS():NAL(){};
-    PPS(std::string & InputData):NAL(InputData){};
-    void analyzePPS();
+      PPS(): NAL() {};
+      PPS(std::string & InputData): NAL(InputData) {};
+      void analyzePPS();
   };
 }//ns h264

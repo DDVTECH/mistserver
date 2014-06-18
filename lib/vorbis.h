@@ -5,23 +5,23 @@
 #include <string>
 #include <deque>
 
-namespace vorbis{
-  struct mode{
+namespace vorbis {
+  struct mode {
     bool blockFlag;
     unsigned short windowType;
     unsigned short transformType;
     char mapping;
   };
-  
-  inline unsigned int ilog(unsigned int input){
-    return (std::log(input))/(std::log(2))+1;
+
+  inline unsigned int ilog(unsigned int input) {
+    return (std::log(input)) / (std::log(2)) + 1;
   }
-  
-  class header{
+
+  class header {
     public:
       header();
-      header(char* newData, unsigned int length);
-      bool read(char* newData, unsigned int length);
+      header(char * newData, unsigned int length);
+      bool read(char * newData, unsigned int length);
       int getHeaderType();
       long unsigned int getVorbisVersion();
       char getAudioChannels();
@@ -40,9 +40,9 @@ namespace vorbis{
       uint16_t getInt16(size_t index);
     private:
       std::deque<mode> modes;
-      char* data;
+      char * data;
       unsigned int datasize;
       bool checkDataSize(unsigned int size);
       bool validate();
-  };   
+  };
 }

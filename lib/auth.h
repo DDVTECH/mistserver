@@ -2,7 +2,7 @@
 #include <string>
 
 namespace Secure {
-  class Auth{
+  class Auth {
     private:
       void * pubkey; ///< Holds the public key.
     public:

@@ -14,22 +14,22 @@
 namespace FTP {
   static std::string FTPBasePath = "/tmp/mist/OnDemand/";
 
-  enum Mode{
+  enum Mode {
     MODE_STREAM,
   };
   //FTP::Mode enumeration
 
-  enum Structure{
+  enum Structure {
     STRU_FILE, STRU_RECORD,
   };
   //FTP::Structure enumeration
 
-  enum Type{
+  enum Type {
     TYPE_ASCII_NONPRINT, TYPE_IMAGE_NONPRINT,
   };
   //FTP::Type enumeration
 
-  enum Commands{
+  enum Commands {
     CMD_NOCMD,
     CMD_NOOP,
     CMD_USER,
@@ -55,7 +55,7 @@ namespace FTP {
   };
   //FTP::Commands enumeration
 
-  class User{
+  class User {
     public:
       User(Socket::Connection NewConnection, std::map<std::string, std::string> Credentials);
       ~User();

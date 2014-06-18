@@ -36,9 +36,9 @@ namespace TS {
 /// It fills the content with the next 188 bytes int he file.
 /// \param Data The data to be read into the packet.
 /// \return true if it was possible to read in a full packet, false otherwise.
-  bool Packet::FromFile(FILE * data){
+  bool Packet::FromFile(FILE * data) {
     strBuf.resize(188);
-    if (!fread((void*)strBuf.data(), 188, 1, data)){
+    if (!fread((void *)strBuf.data(), 188, 1, data)) {
       return false;
     }
     return true;
@@ -577,12 +577,12 @@ namespace TS {
 ///Gets the payload of this packet, as a raw char array
 ///\return The payload of this ts packet as a char pointer
   const char * Packet::getPayload() {
-    return strBuf.data() + (4 + (AdaptationField( ) > 1 ? AdaptationFieldLen() + 1 : 0));
+    return strBuf.data() + (4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0));
   }
 
   ///Gets the length of the payload for this apcket
   ///\return The amount of bytes payload in this packet
-  int Packet::getPayloadLength(){
+  int Packet::getPayloadLength() {
     return 184 - ((AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0));
   }
 

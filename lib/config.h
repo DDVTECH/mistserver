@@ -14,7 +14,7 @@
 namespace Util {
 
   /// Deals with parsing configuration from commandline options.
-  class Config{
+  class Config {
     private:
       JSON::Value vals; ///< Holds all current config values
       int long_count;
@@ -49,7 +49,7 @@ namespace Util {
 
   /// Gets all executables in getMyPath that start with "Mist".
   void getMyExec(std::deque<std::string> & execs);
-  
+
   /// Will set the active user to the named username.
   void setUser(std::string user);
 

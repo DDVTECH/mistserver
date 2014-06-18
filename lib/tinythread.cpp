@@ -25,10 +25,10 @@ freely, subject to the following restrictions:
 #include "tinythread.h"
 
 #if defined(_TTHREAD_POSIX_)
-  #include <unistd.h>
-  #include <map>
+#include <unistd.h>
+#include <map>
 #elif defined(_TTHREAD_WIN32_)
-  #include <process.h>
+#include <process.h>
 #endif
 
 
@@ -49,74 +49,69 @@ namespace tthread {
 //------------------------------------------------------------------------------
 
 #if defined(_TTHREAD_WIN32_)
-  #define _CONDITION_EVENT_ONE 0
-  #define _CONDITION_EVENT_ALL 1
+#define _CONDITION_EVENT_ONE 0
+#define _CONDITION_EVENT_ALL 1
 #endif
 
 #if defined(_TTHREAD_WIN32_)
-condition_variable::condition_variable() : mWaitersCount(0)
-{
-  mEvents[_CONDITION_EVENT_ONE] = CreateEvent(NULL, FALSE, FALSE, NULL);
-  mEvents[_CONDITION_EVENT_ALL] = CreateEvent(NULL, TRUE, FALSE, NULL);
-  InitializeCriticalSection(&mWaitersCountLock);
-}
+  condition_variable::condition_variable() : mWaitersCount(0) {
+    mEvents[_CONDITION_EVENT_ONE] = CreateEvent(NULL, FALSE, FALSE, NULL);
+    mEvents[_CONDITION_EVENT_ALL] = CreateEvent(NULL, TRUE, FALSE, NULL);
+    InitializeCriticalSection(&mWaitersCountLock);
+  }
 #endif
 
 #if defined(_TTHREAD_WIN32_)
-condition_variable::~condition_variable()
-{
-  CloseHandle(mEvents[_CONDITION_EVENT_ONE]);
-  CloseHandle(mEvents[_CONDITION_EVENT_ALL]);
-  DeleteCriticalSection(&mWaitersCountLock);
-}
+  condition_variable::~condition_variable() {
+    CloseHandle(mEvents[_CONDITION_EVENT_ONE]);
+    CloseHandle(mEvents[_CONDITION_EVENT_ALL]);
+    DeleteCriticalSection(&mWaitersCountLock);
+  }
 #endif
 
 #if defined(_TTHREAD_WIN32_)
-void condition_variable::_wait()
-{
-  // Wait for either event to become signaled due to notify_one() or
-  // notify_all() being called
-  int result = WaitForMultipleObjects(2, mEvents, FALSE, INFINITE);
+  void condition_variable::_wait() {
+    // Wait for either event to become signaled due to notify_one() or
+    // notify_all() being called
+    int result = WaitForMultipleObjects(2, mEvents, FALSE, INFINITE);
 
-  // Check if we are the last waiter
-  EnterCriticalSection(&mWaitersCountLock);
-  -- mWaitersCount;
-  bool lastWaiter = (result == (WAIT_OBJECT_0 + _CONDITION_EVENT_ALL)) &&
-                    (mWaitersCount == 0);
-  LeaveCriticalSection(&mWaitersCountLock);
+    // Check if we are the last waiter
+    EnterCriticalSection(&mWaitersCountLock);
+    -- mWaitersCount;
+    bool lastWaiter = (result == (WAIT_OBJECT_0 + _CONDITION_EVENT_ALL)) &&
+                      (mWaitersCount == 0);
+    LeaveCriticalSection(&mWaitersCountLock);
 
-  // If we are the last waiter to be notified to stop waiting, reset the event
-  if(lastWaiter)
-    ResetEvent(mEvents[_CONDITION_EVENT_ALL]);
-}
+    // If we are the last waiter to be notified to stop waiting, reset the event
+    if (lastWaiter)
+      ResetEvent(mEvents[_CONDITION_EVENT_ALL]);
+  }
 #endif
 
 #if defined(_TTHREAD_WIN32_)
-void condition_variable::notify_one()
-{
-  // Are there any waiters?
-  EnterCriticalSection(&mWaitersCountLock);
-  bool haveWaiters = (mWaitersCount > 0);
-  LeaveCriticalSection(&mWaitersCountLock);
+  void condition_variable::notify_one() {
+    // Are there any waiters?
+    EnterCriticalSection(&mWaitersCountLock);
+    bool haveWaiters = (mWaitersCount > 0);
+    LeaveCriticalSection(&mWaitersCountLock);
 
-  // If we have any waiting threads, send them a signal
-  if(haveWaiters)
-    SetEvent(mEvents[_CONDITION_EVENT_ONE]);
-}
+    // If we have any waiting threads, send them a signal
+    if (haveWaiters)
+      SetEvent(mEvents[_CONDITION_EVENT_ONE]);
+  }
 #endif
 
 #if defined(_TTHREAD_WIN32_)
-void condition_variable::notify_all()
-{
-  // Are there any waiters?
-  EnterCriticalSection(&mWaitersCountLock);
-  bool haveWaiters = (mWaitersCount > 0);
-  LeaveCriticalSection(&mWaitersCountLock);
+  void condition_variable::notify_all() {
+    // Are there any waiters?
+    EnterCriticalSection(&mWaitersCountLock);
+    bool haveWaiters = (mWaitersCount > 0);
+    LeaveCriticalSection(&mWaitersCountLock);
 
-  // If we have any waiting threads, send them a signal
-  if(haveWaiters)
-    SetEvent(mEvents[_CONDITION_EVENT_ALL]);
-}
+    // If we have any waiting threads, send them a signal
+    if (haveWaiters)
+      SetEvent(mEvents[_CONDITION_EVENT_ALL]);
+  }
 #endif
 
 
@@ -128,17 +123,16 @@ void condition_variable::notify_all()
 //------------------------------------------------------------------------------
 
 #if defined(_TTHREAD_POSIX_)
-static thread::id _pthread_t_to_ID(const pthread_t &aHandle)
-{
-  static mutex idMapLock;
-  static std::map<pthread_t, unsigned long int> idMap;
-  static unsigned long int idCount(1);
+  static thread::id _pthread_t_to_ID(const pthread_t & aHandle) {
+    static mutex idMapLock;
+    static std::map<pthread_t, unsigned long int> idMap;
+    static unsigned long int idCount(1);
 
-  lock_guard<mutex> guard(idMapLock);
-  if(idMap.find(aHandle) == idMap.end())
-    idMap[aHandle] = idCount ++;
-  return thread::id(idMap[aHandle]);
-}
+    lock_guard<mutex> guard(idMapLock);
+    if (idMap.find(aHandle) == idMap.end())
+      idMap[aHandle] = idCount ++;
+    return thread::id(idMap[aHandle]);
+  }
 #endif // _TTHREAD_POSIX_
 
 
@@ -147,165 +141,151 @@ static thread::id _pthread_t_to_ID(const pthread_t &aHandle)
 //------------------------------------------------------------------------------
 
 /// Information to pass to the new thread (what to run).
-struct _thread_start_info {
-  void (*mFunction)(void *); ///< Pointer to the function to be executed.
-  void * mArg;               ///< Function argument for the thread function.
-  thread * mThread;          ///< Pointer to the thread object.
-};
+  struct _thread_start_info {
+    void (*mFunction)(void *); ///< Pointer to the function to be executed.
+    void * mArg;               ///< Function argument for the thread function.
+    thread * mThread;          ///< Pointer to the thread object.
+  };
 
 // Thread wrapper function.
 #if defined(_TTHREAD_WIN32_)
-unsigned WINAPI thread::wrapper_function(void * aArg)
+  unsigned WINAPI thread::wrapper_function(void * aArg)
 #elif defined(_TTHREAD_POSIX_)
-void * thread::wrapper_function(void * aArg)
+  void * thread::wrapper_function(void * aArg)
 #endif
-{
-  // Get thread startup information
-  _thread_start_info * ti = (_thread_start_info *) aArg;
-
-  try
   {
-    // Call the actual client thread function
-    ti->mFunction(ti->mArg);
-  }
-  catch(...)
-  {
-    // Uncaught exceptions will terminate the application (default behavior
-    // according to C++11)
-    std::terminate();
-  }
+    // Get thread startup information
+    _thread_start_info * ti = (_thread_start_info *) aArg;
 
-  // The thread is no longer executing
-  if (ti->mThread){
-    lock_guard<mutex> guard(ti->mThread->mDataMutex);
-    ti->mThread->mNotAThread = true;
-    ti->mThread->ti_copy = 0;
-  }
+    try {
+      // Call the actual client thread function
+      ti->mFunction(ti->mArg);
+    } catch (...) {
+      // Uncaught exceptions will terminate the application (default behavior
+      // according to C++11)
+      std::terminate();
+    }
 
-  // The thread is responsible for freeing the startup information
-  delete ti;
+    // The thread is no longer executing
+    if (ti->mThread) {
+      lock_guard<mutex> guard(ti->mThread->mDataMutex);
+      ti->mThread->mNotAThread = true;
+      ti->mThread->ti_copy = 0;
+    }
 
-  return 0;
-}
-
-thread::thread(void (*aFunction)(void *), void * aArg)
-{
-  // Serialize access to this thread structure
-  lock_guard<mutex> guard(mDataMutex);
-
-  // Fill out the thread startup information (passed to the thread wrapper,
-  // which will eventually free it)
-  _thread_start_info * ti = new _thread_start_info;
-  ti_copy = ti;
-  ti->mFunction = aFunction;
-  ti->mArg = aArg;
-  ti->mThread = this;
-
-  // The thread is now alive
-  mNotAThread = false;
-
-  // Create the thread
-#if defined(_TTHREAD_WIN32_)
-  mHandle = (HANDLE) _beginthreadex(0, 0, wrapper_function, (void *) ti, 0, &mWin32ThreadID);
-#elif defined(_TTHREAD_POSIX_)
-  if(pthread_create(&mHandle, NULL, wrapper_function, (void *) ti) != 0)
-    mHandle = 0;
-#endif
-
-  // Did we fail to create the thread?
-  if(!mHandle)
-  {
-    mNotAThread = true;
-    ti_copy = 0;
+    // The thread is responsible for freeing the startup information
     delete ti;
-  }
-}
 
-thread::~thread()
-{
-  if (ti_copy){
-    ((_thread_start_info *)ti_copy)->mThread = 0;
+    return 0;
   }
-  if(joinable())
-    std::terminate();
-}
 
-void thread::join()
-{
-  if(joinable())
-  {
+  thread::thread(void (*aFunction)(void *), void * aArg) {
+    // Serialize access to this thread structure
+    lock_guard<mutex> guard(mDataMutex);
+
+    // Fill out the thread startup information (passed to the thread wrapper,
+    // which will eventually free it)
+    _thread_start_info * ti = new _thread_start_info;
+    ti_copy = ti;
+    ti->mFunction = aFunction;
+    ti->mArg = aArg;
+    ti->mThread = this;
+
+    // The thread is now alive
+    mNotAThread = false;
+
+    // Create the thread
 #if defined(_TTHREAD_WIN32_)
-    WaitForSingleObject(mHandle, INFINITE);
-    CloseHandle(mHandle);
+    mHandle = (HANDLE) _beginthreadex(0, 0, wrapper_function, (void *) ti, 0, &mWin32ThreadID);
 #elif defined(_TTHREAD_POSIX_)
-    pthread_join(mHandle, NULL);
+    if (pthread_create(&mHandle, NULL, wrapper_function, (void *) ti) != 0)
+      mHandle = 0;
+#endif
+
+    // Did we fail to create the thread?
+    if (!mHandle) {
+      mNotAThread = true;
+      ti_copy = 0;
+      delete ti;
+    }
+  }
+
+  thread::~thread() {
+    if (ti_copy) {
+      ((_thread_start_info *)ti_copy)->mThread = 0;
+    }
+    if (joinable())
+      std::terminate();
+  }
+
+  void thread::join() {
+    if (joinable()) {
+#if defined(_TTHREAD_WIN32_)
+      WaitForSingleObject(mHandle, INFINITE);
+      CloseHandle(mHandle);
+#elif defined(_TTHREAD_POSIX_)
+      pthread_join(mHandle, NULL);
+#endif
+    }
+  }
+
+  bool thread::joinable() const {
+    mDataMutex.lock();
+    bool result = !mNotAThread;
+    mDataMutex.unlock();
+    return result;
+  }
+
+  void thread::detach() {
+    mDataMutex.lock();
+    if (!mNotAThread) {
+#if defined(_TTHREAD_WIN32_)
+      CloseHandle(mHandle);
+#elif defined(_TTHREAD_POSIX_)
+      pthread_detach(mHandle);
+#endif
+      mNotAThread = true;
+    }
+    mDataMutex.unlock();
+  }
+
+  thread::id thread::get_id() const {
+    if (!joinable())
+      return id();
+#if defined(_TTHREAD_WIN32_)
+    return id((unsigned long int) mWin32ThreadID);
+#elif defined(_TTHREAD_POSIX_)
+    return _pthread_t_to_ID(mHandle);
 #endif
   }
-}
 
-bool thread::joinable() const
-{
-  mDataMutex.lock();
-  bool result = !mNotAThread;
-  mDataMutex.unlock();
-  return result;
-}
-
-void thread::detach()
-{
-  mDataMutex.lock();
-  if(!mNotAThread)
-  {
+  unsigned thread::hardware_concurrency() {
 #if defined(_TTHREAD_WIN32_)
-    CloseHandle(mHandle);
-#elif defined(_TTHREAD_POSIX_)
-    pthread_detach(mHandle);
-#endif
-    mNotAThread = true;
-  }
-  mDataMutex.unlock();
-}
-
-thread::id thread::get_id() const
-{
-  if(!joinable())
-    return id();
-#if defined(_TTHREAD_WIN32_)
-  return id((unsigned long int) mWin32ThreadID);
-#elif defined(_TTHREAD_POSIX_)
-  return _pthread_t_to_ID(mHandle);
-#endif
-}
-
-unsigned thread::hardware_concurrency()
-{
-#if defined(_TTHREAD_WIN32_)
-  SYSTEM_INFO si;
-  GetSystemInfo(&si);
-  return (int) si.dwNumberOfProcessors;
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (int) si.dwNumberOfProcessors;
 #elif defined(_SC_NPROCESSORS_ONLN)
-  return (int) sysconf(_SC_NPROCESSORS_ONLN);
+    return (int) sysconf(_SC_NPROCESSORS_ONLN);
 #elif defined(_SC_NPROC_ONLN)
-  return (int) sysconf(_SC_NPROC_ONLN);
+    return (int) sysconf(_SC_NPROC_ONLN);
 #else
-  // The standard requires this function to return zero if the number of
-  // hardware cores could not be determined.
-  return 0;
+    // The standard requires this function to return zero if the number of
+    // hardware cores could not be determined.
+    return 0;
 #endif
-}
+  }
 
 
 //------------------------------------------------------------------------------
 // this_thread
 //------------------------------------------------------------------------------
 
-thread::id this_thread::get_id()
-{
+  thread::id this_thread::get_id() {
 #if defined(_TTHREAD_WIN32_)
-  return thread::id((unsigned long int) GetCurrentThreadId());
+    return thread::id((unsigned long int) GetCurrentThreadId());
 #elif defined(_TTHREAD_POSIX_)
-  return _pthread_t_to_ID(pthread_self());
+    return _pthread_t_to_ID(pthread_self());
 #endif
-}
+  }
 
 }

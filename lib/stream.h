@@ -7,7 +7,7 @@
 
 namespace Util {
   std::string getTmpFolder();
-  class Stream{
+  class Stream {
     public:
       static void sanitizeName(std::string & streamname);
       static bool getLive(std::string streamname);

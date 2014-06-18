@@ -1,19 +1,19 @@
 #include<string>
 
-namespace Utils{
-  class bitstream{
+namespace Utils {
+  class bitstream {
     public:
       bitstream();
-      bitstream& operator<< (std::string input){
+      bitstream & operator<< (std::string input) {
         append(input);
         return *this;
       };
-      bitstream& operator<< (char input){
+      bitstream & operator<< (char input) {
         append(std::string(input, 1));
         return *this;
       };
-      void append (char* input, size_t bytes);
-      void append (std::string input);
+      void append(char * input, size_t bytes);
+      void append(std::string input);
       long long unsigned int size();
       void skip(size_t count);
       long long unsigned int get(size_t count);
@@ -29,21 +29,21 @@ namespace Utils{
       bool checkBufferSize(unsigned int size);
       long long unsigned int golombGetter();
       long long unsigned int golombPeeker();
-      char* data;
+      char * data;
       size_t offset;
       size_t dataSize;
       size_t bufferSize;
   };
 
-  class bitstreamLSBF{
+  class bitstreamLSBF {
     public:
       bitstreamLSBF();
-      bitstreamLSBF& operator<< (std::string input){
+      bitstreamLSBF & operator<< (std::string input) {
         append(input);
         return *this;
       };
-      void append (char* input, size_t bytes);
-      void append (std::string input);
+      void append(char * input, size_t bytes);
+      void append(std::string input);
       long long unsigned int size();
       void skip(size_t count);
       long long unsigned int get(size_t count);

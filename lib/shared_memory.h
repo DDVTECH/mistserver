@@ -11,7 +11,7 @@
 #endif
 
 namespace IPC {
-  
+
   ///\brief A class used for the exchange of statistics over shared memory.
   class statExchange {
     public:
@@ -35,13 +35,13 @@ namespace IPC {
     private:
       ///\brief The payload for the stat exchange
       /// - 8 byte - now (timestamp of last statistics)
-      /// - 4 byte - time (duration of the current connection) 
+      /// - 4 byte - time (duration of the current connection)
       /// - 4 byte - lastSecond (last second of content viewed)
       /// - 8 byte - down (Number of bytes received from peer)
       /// - 8 byte - up (Number of bytes sent to peer)
       /// - 16 byte - host (ip address of the peer)
       /// - 20 byte - streamName (name of the stream peer is viewing)
-      /// - 20 byte - connector (name of the connector the peer is using) 
+      /// - 20 byte - connector (name of the connector the peer is using)
       char * data;
   };
 
@@ -80,7 +80,7 @@ namespace IPC {
 
 #if !defined __APPLE__
   ///\brief A class for managing shared memory pages.
-  class sharedPage{
+  class sharedPage {
     public:
       sharedPage(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
       sharedPage(const sharedPage & rhs);
@@ -93,13 +93,13 @@ namespace IPC {
       }
       void unmap();
       void close();
-  #ifdef __CYGWIN__
+#ifdef __CYGWIN__
       ///\brief The handle of the opened shared memory page
       HANDLE handle;
-  #else
+#else
       ///\brief The fd handle of the opened shared memory page
       int handle;
-  #endif
+#endif
       ///\brief The name of the opened shared memory page
       std::string name;
       ///\brief The size in bytes of the opened shared memory page
@@ -118,7 +118,7 @@ namespace IPC {
 #else
   ///\brief A class for managing shared files.
 #endif
-  class sharedFile{
+  class sharedFile {
     public:
       sharedFile(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
       sharedFile(const sharedFile & rhs);
@@ -146,7 +146,7 @@ namespace IPC {
   ///\brief A class for handling shared memory pages.
   ///
   ///Uses shared files at its backbone, defined for portability
-  class sharedPage: public sharedFile{
+  class sharedPage: public sharedFile {
     public:
       sharedPage(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
       sharedPage(const sharedPage & rhs);
@@ -163,7 +163,7 @@ namespace IPC {
   ///
   ///Clients should allocate payLen bytes at a time, possibly with the addition of a counter.
   ///If no such length can be allocated, the next page should be tried, and so on.
-  class sharedServer{
+  class sharedServer {
     public:
       sharedServer();
       sharedServer(std::string name, int len, bool withCounter = false);
@@ -198,7 +198,7 @@ namespace IPC {
   ///
   ///Clients should allocate payLen bytes at a time, possibly with the addition of a counter.
   ///If no such length can be allocated, the next page should be tried, and so on.
-  class sharedClient{
+  class sharedClient {
     public:
       sharedClient();
       sharedClient(const sharedClient & rhs);

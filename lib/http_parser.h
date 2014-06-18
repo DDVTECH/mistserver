@@ -11,7 +11,7 @@
 /// Holds all HTTP processing related code.
 namespace HTTP {
   /// Simple class for reading and writing HTTP 1.0 and 1.1.
-  class Parser{
+  class Parser {
     public:
       Parser();
       bool Read(Socket::Connection & conn);

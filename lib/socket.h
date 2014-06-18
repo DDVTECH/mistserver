@@ -25,7 +25,7 @@ namespace Buffer {
 namespace Socket {
 
   /// A buffer made out of std::string objects that can be efficiently read from and written to.
-  class Buffer{
+  class Buffer {
     private:
       std::deque<std::string> data;
     public:
@@ -44,7 +44,7 @@ namespace Socket {
   //Buffer
 
   /// This class is for easy communicating through sockets, either TCP or Unix.
-  class Connection{
+  class Connection {
     private:
       int sock; ///< Internally saved socket number.
       int pipes[2]; ///< Internally saved file descriptors for pipe socket simulation.
@@ -98,13 +98,13 @@ namespace Socket {
       bool Error; ///< Set to true if a socket error happened.
       bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.
       //overloaded operators
-      bool operator==(const Connection &B) const;
-      bool operator!=(const Connection &B) const;
+      bool operator==(const Connection & B) const;
+      bool operator!=(const Connection & B) const;
       operator bool() const;
   };
 
   /// This class is for easily setting up listening socket, either TCP or Unix.
-  class Server{
+  class Server {
     private:
       std::string errors; ///< Stores errors that may have occured.
       int sock; ///< Internally saved socket number.
@@ -122,8 +122,8 @@ namespace Socket {
       void drop(); ///< Close connection without shutdown.
       int getSocket(); ///< Returns internal socket number.
   };
-  
-  class UDPConnection{
+
+  class UDPConnection {
     private:
       int sock; ///< Internally saved socket number.
       std::string remotehost;///< Stores remote host address

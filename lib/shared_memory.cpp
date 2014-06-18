@@ -177,11 +177,11 @@ namespace IPC {
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap() {
     if (mapped && len) {
-      #ifdef __CYGWIN__
+#ifdef __CYGWIN__
       UnmapViewOfFile(mapped);
-      #else
+#else
       munmap(mapped, len);
-      #endif
+#endif
       mapped = 0;
       len = 0;
     }
@@ -191,14 +191,14 @@ namespace IPC {
   void sharedPage::close() {
     unmap();
     if (handle > 0) {
-      #ifdef __CYGWIN__
+#ifdef __CYGWIN__
       CloseHandle(handle);
-      #else
+#else
       ::close(handle);
       if (master && name != "") {
         shm_unlink(name.c_str());
       }
-      #endif
+#endif
       handle = 0;
     }
   }
@@ -247,69 +247,69 @@ namespace IPC {
     master = master_;
     mapped = 0;
     if (name.size()) {
-      #ifdef __CYGWIN__
-        if (master){
-          handle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len, name.c_str());
-        }else{
-          int i = 0;
-          do {
-            if (i != 0){
-              Util::sleep(1000);
-            }
-            handle = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());  
-            i++;
-          } while(i < 10 && !handle && autoBackoff);
-        }
-        if (!handle) {
-          DEBUG_MSG(DLVL_FAIL, "%s for page %s failed: %s", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), strerror(errno));
-          return;
-        }
-        mapped = (char *)MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-        if (!mapped) {
-          return;
-        }
-      #else
-        handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
-        if (handle == -1) {
-          if (master) {
-            DEBUG_MSG(DLVL_HIGH, "Overwriting old page for %s", name.c_str());
-            handle = shm_open(name.c_str(), O_CREAT | O_RDWR, ACCESSPERMS);
-          } else {
-            int i = 0;
-            while (i < 10 && handle == -1 && autoBackoff) {
-              i++;
-              Util::sleep(1000);
-              handle = shm_open(name.c_str(), O_RDWR, ACCESSPERMS);
-            }
+#ifdef __CYGWIN__
+      if (master) {
+        handle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len, name.c_str());
+      } else {
+        int i = 0;
+        do {
+          if (i != 0) {
+            Util::sleep(1000);
           }
-        }
-        if (handle == -1) {
-          DEBUG_MSG(DLVL_FAIL, "shm_open for page %s failed: %s", name.c_str(), strerror(errno));
-          return;
-        }
+          handle = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());
+          i++;
+        } while (i < 10 && !handle && autoBackoff);
+      }
+      if (!handle) {
+        DEBUG_MSG(DLVL_FAIL, "%s for page %s failed: %s", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), strerror(errno));
+        return;
+      }
+      mapped = (char *)MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+      if (!mapped) {
+        return;
+      }
+#else
+      handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
+      if (handle == -1) {
         if (master) {
-          if (ftruncate(handle, 0) < 0) {
-            DEBUG_MSG(DLVL_FAIL, "truncate to zero for page %s failed: %s", name.c_str(), strerror(errno));
-            return;
-          }
-          if (ftruncate(handle, len) < 0) {
-            DEBUG_MSG(DLVL_FAIL, "truncate to %lld for page %s failed: %s", len, name.c_str(), strerror(errno));
-            return;
-          }
+          DEBUG_MSG(DLVL_HIGH, "Overwriting old page for %s", name.c_str());
+          handle = shm_open(name.c_str(), O_CREAT | O_RDWR, ACCESSPERMS);
         } else {
-          struct stat buffStats;
-          int xRes = fstat(handle, &buffStats);
-          if (xRes < 0) {
-            return;
+          int i = 0;
+          while (i < 10 && handle == -1 && autoBackoff) {
+            i++;
+            Util::sleep(1000);
+            handle = shm_open(name.c_str(), O_RDWR, ACCESSPERMS);
           }
-          len = buffStats.st_size;
         }
-        mapped = (char *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
-        if (mapped == MAP_FAILED) {
-          mapped = 0;
+      }
+      if (handle == -1) {
+        DEBUG_MSG(DLVL_FAIL, "shm_open for page %s failed: %s", name.c_str(), strerror(errno));
+        return;
+      }
+      if (master) {
+        if (ftruncate(handle, 0) < 0) {
+          DEBUG_MSG(DLVL_FAIL, "truncate to zero for page %s failed: %s", name.c_str(), strerror(errno));
           return;
         }
-      #endif
+        if (ftruncate(handle, len) < 0) {
+          DEBUG_MSG(DLVL_FAIL, "truncate to %lld for page %s failed: %s", len, name.c_str(), strerror(errno));
+          return;
+        }
+      } else {
+        struct stat buffStats;
+        int xRes = fstat(handle, &buffStats);
+        if (xRes < 0) {
+          return;
+        }
+        len = buffStats.st_size;
+      }
+      mapped = (char *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
+      if (mapped == MAP_FAILED) {
+        mapped = 0;
+        return;
+      }
+#endif
     }
   }
 

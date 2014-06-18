@@ -61,12 +61,12 @@ namespace DTSC {
   /// Copier for packets, copies an existing packet with same noCopy flag as original.
   /// If going from copy to noCopy, this will free the data pointer first.
   void Packet::operator = (const Packet & rhs) {
-    if (master && !rhs.master){
+    if (master && !rhs.master) {
       null();
     }
-    if (rhs){
+    if (rhs) {
       reInit(rhs.data, rhs.dataLen, !rhs.master);
-    }else{
+    } else {
       null();
     }
   }
@@ -82,7 +82,7 @@ namespace DTSC {
       DEBUG_MSG(DLVL_DONTEVEN, "Datalen < 8");
       return false;
     }
-    if (version == DTSC_INVALID){
+    if (version == DTSC_INVALID) {
       DEBUG_MSG(DLVL_DONTEVEN, "No valid version");
       return false;
     }
@@ -94,15 +94,15 @@ namespace DTSC {
   }
 
   /// Returns the recognized packet type.
-  /// This type is set by reInit and all constructors, and then just referenced from there on. 
-  packType Packet::getVersion() const{
+  /// This type is set by reInit and all constructors, and then just referenced from there on.
+  packType Packet::getVersion() const {
     return version;
   }
 
   /// Resets this packet back to the same state as if it had just been freshly constructed.
   /// If needed, this frees the data pointer.
   void Packet::null() {
-    if (master && data){
+    if (master && data) {
       free(data);
     }
     master = false;
@@ -132,12 +132,12 @@ namespace DTSC {
   ///\param len The length of the data pointed to by data_
   ///\param noCopy Determines whether to make a copy or not
   void Packet::reInit(const char * data_, unsigned int len, bool noCopy) {
-    if (!data_){
+    if (!data_) {
       DEBUG_MSG(DLVL_DEVEL, "ReInit received a null pointer with len %d, ignoring", len);
       null();
       return;
     }
-    if (data_[0] != 'D' || data_[1] != 'T'){
+    if (data_[0] != 'D' || data_[1] != 'T') {
       DEBUG_MSG(DLVL_HIGH, "ReInit received a pointer that didn't start with 'DT' - data corruption?");
       null();
       return;
@@ -146,80 +146,80 @@ namespace DTSC {
       len = ntohl(((int *)data_)[1]) + 8;
     }
     //clear any existing controlled contents
-    if (master && noCopy){
+    if (master && noCopy) {
       null();
     }
     //set control flag to !noCopy
     master = !noCopy;
     //either copy the data, or only the pointer, depending on flag
-    if (noCopy){
-      data = (char*)data_;
-    }else{
+    if (noCopy) {
+      data = (char *)data_;
+    } else {
       resize(len);
       memcpy(data, data_, len);
     }
     //check header type and store packet length
     dataLen = len;
     version = DTSC_INVALID;
-    if (len > 3){
-      if (!memcmp(data, Magic_Packet2, 4)){
+    if (len > 3) {
+      if (!memcmp(data, Magic_Packet2, 4)) {
         version = DTSC_V2;
-      }else{
-        if (!memcmp(data, Magic_Packet, 4)){
+      } else {
+        if (!memcmp(data, Magic_Packet, 4)) {
           version = DTSC_V1;
-        }else{
-          if (!memcmp(data, Magic_Header, 4)){
+        } else {
+          if (!memcmp(data, Magic_Header, 4)) {
             version = DTSC_HEAD;
-          }else{
+          } else {
             DEBUG_MSG(DLVL_FAIL, "ReInit received a packet with invalid header");
             return;
           }
         }
       }
-    }else{
+    } else {
       DEBUG_MSG(DLVL_FAIL, "ReInit received a packet with size < 4");
       return;
     }
   }
-  
+
   /// Helper function for skipping over whole DTSC parts
-  static char * skipDTSC(char * p, char * max){
-    if (p+1 >= max || p[0] == 0x00){
+  static char * skipDTSC(char * p, char * max) {
+    if (p + 1 >= max || p[0] == 0x00) {
       return 0;//out of packet! 1 == error
     }
-    if (p[0] == DTSC_INT){
+    if (p[0] == DTSC_INT) {
       //int, skip 9 bytes to next value
-      return p+9;
+      return p + 9;
     }
-    if (p[0] == DTSC_STR){
-      if (p+4 >= max){
+    if (p[0] == DTSC_STR) {
+      if (p + 4 >= max) {
         return 0;//out of packet!
       }
       return p + 5 + p[1] * 256 * 256 * 256 + p[2] * 256 * 256 + p[3] * 256 + p[4];
     }
-    if (p[0] == DTSC_OBJ || p[0] == DTSC_CON){
+    if (p[0] == DTSC_OBJ || p[0] == DTSC_CON) {
       p++;
       //object, scan contents
-      while (p[0] + p[1] != 0 && p < max){ //while not encountering 0x0000 (we assume 0x0000EE)
-        if (p+2 >= max){
+      while (p[0] + p[1] != 0 && p < max) { //while not encountering 0x0000 (we assume 0x0000EE)
+        if (p + 2 >= max) {
           return 0;//out of packet!
         }
         p += 2 + (p[0] * 256 + p[1]);//skip size
         //otherwise, search through the contents, if needed, and continue
         p = skipDTSC(p, max);
-        if (!p){
+        if (!p) {
           return 0;
         }
       }
-      return p+3;
+      return p + 3;
     }
-    if (p[0] == DTSC_ARR){
+    if (p[0] == DTSC_ARR) {
       p++;
       //array, scan contents
-      while (p[0] + p[1] != 0 && p < max){ //while not encountering 0x0000 (we assume 0x0000EE)
+      while (p[0] + p[1] != 0 && p < max) { //while not encountering 0x0000 (we assume 0x0000EE)
         //search through contents...
         p = skipDTSC(p, max);
-        if (!p){
+        if (!p) {
           return 0;
         }
       }
@@ -227,33 +227,33 @@ namespace DTSC {
     }
     return 0;//out of packet! 1 == error
   }
-  
+
   ///\brief Retrieves a single parameter as a string
   ///\param identifier The name of the parameter
   ///\param result A location on which the string will be returned
   ///\param len An integer in which the length of the string will be returned
-  void Packet::getString(const char * identifier, char *& result, unsigned int & len) const{
+  void Packet::getString(const char * identifier, char *& result, unsigned int & len) const {
     getScan().getMember(identifier).getString(result, len);
   }
 
   ///\brief Retrieves a single parameter as a string
   ///\param identifier The name of the parameter
   ///\param result The string in which to store the result
-  void Packet::getString(const char * identifier, std::string & result) const{
+  void Packet::getString(const char * identifier, std::string & result) const {
     result = getScan().getMember(identifier).asString();
   }
 
   ///\brief Retrieves a single parameter as an integer
   ///\param identifier The name of the parameter
   ///\param result The result is stored in this integer
-  void Packet::getInt(const char * identifier, int & result) const{
+  void Packet::getInt(const char * identifier, int & result) const {
     result = getScan().getMember(identifier).asInt();
   }
 
   ///\brief Retrieves a single parameter as an integer
   ///\param identifier The name of the parameter
   ///\result The requested parameter as an integer
-  int Packet::getInt(const char * identifier) const{
+  int Packet::getInt(const char * identifier) const {
     int result;
     getInt(identifier, result);
     return result;
@@ -262,7 +262,7 @@ namespace DTSC {
   ///\brief Retrieves a single parameter as a boolean
   ///\param identifier The name of the parameter
   ///\param result The result is stored in this boolean
-  void Packet::getFlag(const char * identifier, bool & result) const{
+  void Packet::getFlag(const char * identifier, bool & result) const {
     int result_;
     getInt(identifier, result_);
     result = (bool)result_;
@@ -271,7 +271,7 @@ namespace DTSC {
   ///\brief Retrieves a single parameter as a boolean
   ///\param identifier The name of the parameter
   ///\result The requested parameter as a boolean
-  bool Packet::getFlag(const char * identifier) const{
+  bool Packet::getFlag(const char * identifier) const {
     bool result;
     getFlag(identifier, result);
     return result;
@@ -280,15 +280,17 @@ namespace DTSC {
   ///\brief Checks whether a parameter exists
   ///\param identifier The name of the parameter
   ///\result Whether the parameter exists or not
-  bool Packet::hasMember(const char * identifier) const{
+  bool Packet::hasMember(const char * identifier) const {
     return getScan().getMember(identifier).getType() > 0;
   }
 
   ///\brief Returns the timestamp of the packet.
   ///\return The timestamp of this packet.
-  long long unsigned int Packet::getTime() const{
-    if (version != DTSC_V2){
-      if (!data){return 0;}
+  long long unsigned int Packet::getTime() const {
+    if (version != DTSC_V2) {
+      if (!data) {
+        return 0;
+      }
       return getInt("time");
     }
     return ((long long int)ntohl(((int *)(data + 12))[0]) << 32) | ntohl(((int *)(data + 12))[1]);
@@ -296,8 +298,8 @@ namespace DTSC {
 
   ///\brief Returns the track id of the packet.
   ///\return The track id of this packet.
-  long int Packet::getTrackId() const{
-    if (version != DTSC_V2){
+  long int Packet::getTrackId() const {
+    if (version != DTSC_V2) {
       return getInt("trackid");
     }
     return ntohl(((int *)data)[2]);
@@ -305,134 +307,134 @@ namespace DTSC {
 
   ///\brief Returns a pointer to the payload of this packet.
   ///\return A pointer to the payload of this packet.
-  char * Packet::getData() const{
+  char * Packet::getData() const {
     return data;
   }
 
   ///\brief Returns the size of this packet.
   ///\return The size of this packet.
-  int Packet::getDataLen() const{
-      return dataLen;
+  int Packet::getDataLen() const {
+    return dataLen;
   }
 
   ///\brief Returns the size of the payload of this packet.
   ///\return The size of the payload of this packet.
-  int Packet::getPayloadLen() const{
-    if (version == DTSC_V2){
-      return dataLen-20;
-    }else{
-      return dataLen-8;
+  int Packet::getPayloadLen() const {
+    if (version == DTSC_V2) {
+      return dataLen - 20;
+    } else {
+      return dataLen - 8;
     }
   }
-  
+
   /// Returns a DTSC::Scan instance to the contents of this packet.
   /// May return an invalid instance if this packet is invalid.
-  Scan Packet::getScan() const{
-    return Scan(data+(getDataLen()-getPayloadLen()), getPayloadLen());
+  Scan Packet::getScan() const {
+    return Scan(data + (getDataLen() - getPayloadLen()), getPayloadLen());
   }
-  
+
   ///\brief Converts the packet into a JSON value
   ///\return A JSON::Value representation of this packet.
-  JSON::Value Packet::toJSON() const{
+  JSON::Value Packet::toJSON() const {
     JSON::Value result;
     unsigned int i = 8;
-    if (getVersion() == DTSC_V1){
+    if (getVersion() == DTSC_V1) {
       JSON::fromDTMI((const unsigned char *)data, dataLen, i, result);
     }
-    if (getVersion() == DTSC_V2){
+    if (getVersion() == DTSC_V2) {
       JSON::fromDTMI2((const unsigned char *)data, dataLen, i, result);
     }
     return result;
   }
-  
+
   /// Create an invalid DTSC::Scan object by default.
-  Scan::Scan(){
+  Scan::Scan() {
     p = 0;
     len = 0;
   }
-  
-  
+
+
   /// Create a DTSC::Scan object from memory pointer.
-  Scan::Scan(char * pointer, size_t length){
+  Scan::Scan(char * pointer, size_t length) {
     p = pointer;
     len = length;
   }
-  
+
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
-  Scan Scan::getMember(std::string indice){
+  Scan Scan::getMember(std::string indice) {
     return getMember(indice.data(), indice.size());
   }
 
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
-  Scan Scan::getMember(const char * indice, const unsigned int ind_len){
-    if (getType() != DTSC_OBJ && getType() != DTSC_CON){
+  Scan Scan::getMember(const char * indice, const unsigned int ind_len) {
+    if (getType() != DTSC_OBJ && getType() != DTSC_CON) {
       return Scan();
     }
-    char * i = p+1;
+    char * i = p + 1;
     //object, scan contents
-    while (i[0] + i[1] != 0 && i < p+len){ //while not encountering 0x0000 (we assume 0x0000EE)
-      if (i+2 >= p+len){
+    while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+      if (i + 2 >= p + len) {
         return Scan();//out of packet!
       }
       unsigned int strlen = i[0] * 256 + i[1];
       i += 2;
-      if (ind_len == strlen && strncmp(indice, i, strlen) == 0){
-        return Scan(i+strlen, len-(i-p));
-      }else{
-        i = skipDTSC(i+strlen, p+len);
-        if (!i){
+      if (ind_len == strlen && strncmp(indice, i, strlen) == 0) {
+        return Scan(i + strlen, len - (i - p));
+      } else {
+        i = skipDTSC(i + strlen, p + len);
+        if (!i) {
           return Scan();
         }
       }
     }
     return Scan();
   }
-  
+
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
-  Scan Scan::getMember(const char * indice){
+  Scan Scan::getMember(const char * indice) {
     return getMember(indice, strlen(indice));
   }
-  
+
   /// Returns an object representing the num-th indice of this array.
   /// If not an array but an object, it returns the num-th member, instead.
   /// Returns an invalid object if this indice doesn't exist or this isn't an array or object type.
-  Scan Scan::getIndice(unsigned int num){
-    if (getType() == DTSC_ARR){
-      char * i = p+1;
+  Scan Scan::getIndice(unsigned int num) {
+    if (getType() == DTSC_ARR) {
+      char * i = p + 1;
       unsigned int arr_indice = 0;
       //array, scan contents
-      while (i[0] + i[1] != 0 && i < p+len){ //while not encountering 0x0000 (we assume 0x0000EE)
+      while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
         //search through contents...
-        if (arr_indice == num){
-          return Scan(i, len-(i-p));
-        }else{
+        if (arr_indice == num) {
+          return Scan(i, len - (i - p));
+        } else {
           arr_indice++;
-          i = skipDTSC(i, p+len);
-          if (!i){
+          i = skipDTSC(i, p + len);
+          if (!i) {
             return Scan();
           }
         }
       }
     }
-    if (getType() == DTSC_OBJ || getType() == DTSC_CON){
-      char * i = p+1;
+    if (getType() == DTSC_OBJ || getType() == DTSC_CON) {
+      char * i = p + 1;
       unsigned int arr_indice = 0;
       //object, scan contents
-      while (i[0] + i[1] != 0 && i < p+len){ //while not encountering 0x0000 (we assume 0x0000EE)
-        if (i+2 >= p+len){
+      while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+        if (i + 2 >= p + len) {
           return Scan();//out of packet!
         }
         unsigned int strlen = i[0] * 256 + i[1];
         i += 2;
-        if (arr_indice == num){
-          return Scan(i+strlen, len-(i-p));
-        }else{
+        if (arr_indice == num) {
+          return Scan(i + strlen, len - (i - p));
+        } else {
           arr_indice++;
-          i = skipDTSC(i+strlen, p+len);
-          if (!i){
+          i = skipDTSC(i + strlen, p + len);
+          if (!i) {
             return Scan();
           }
         }
@@ -440,20 +442,22 @@ namespace DTSC {
     }
     return Scan();
   }
-  
+
   /// Returns the first byte of this DTSC value, or 0 on error.
-  char Scan::getType(){
-    if (!p){return 0;}
+  char Scan::getType() {
+    if (!p) {
+      return 0;
+    }
     return p[0];
   }
-  
+
   /// Returns the boolean value of this DTSC value.
   /// Numbers are compared to 0.
   /// Strings are checked for non-zero length.
   /// Objects and arrays are checked for content.
   /// Returns false on error or in other cases.
-  bool Scan::asBool(){
-    switch (getType()){
+  bool Scan::asBool() {
+    switch (getType()) {
       case DTSC_STR:
         return (p[1] | p[2] | p[3] | p[4]);
       case DTSC_INT:
@@ -466,42 +470,44 @@ namespace DTSC {
         return false;
     }
   }
-  
+
   /// Returns the long long value of this DTSC number value.
   /// Will convert string values to numbers, taking octal and hexadecimal types into account.
   /// Illegal or invalid values return 0.
-  long long Scan::asInt(){
-    switch (getType()){
+  long long Scan::asInt() {
+    switch (getType()) {
       case DTSC_INT:
         return ((long long int)p[1] << 56) | ((long long int)p[2] << 48) | ((long long int)p[3] << 40) | ((long long int)p[4] << 32) | ((long long int)p[5] << 24) | ((long long int)p[6] << 16) | ((long long int)p[7] << 8) | p[8];
       case DTSC_STR:
         char * str;
         unsigned int strlen;
         getString(str, strlen);
-        if (!strlen){return 0;}
+        if (!strlen) {
+          return 0;
+        }
         return strtoll(str, 0, 0);
       default:
         return 0;
     }
   }
-  
+
   /// Returns the string value of this DTSC string value.
   /// Uses getString internally, does no conversion.
   /// Returns an empty string on error.
-  std::string Scan::asString(){
+  std::string Scan::asString() {
     char * str;
     unsigned int strlen;
     getString(str, strlen);
     return std::string(str, strlen);
   }
-  
+
   /// Sets result to a pointer to the string, and strlen to the lenght of it.
   /// Sets both to zero if this isn't a DTSC string value.
   /// Attempts absolutely no conversion.
-  void Scan::getString(char *& result, unsigned int & strlen){
-    switch (getType()){
+  void Scan::getString(char *& result, unsigned int & strlen) {
+    switch (getType()) {
       case DTSC_STR:
-        result = p+5;
+        result = p + 5;
         strlen = p[1] * 256 * 256 * 256 + p[2] * 256 * 256 + p[3] * 256 + p[4];
         return;
       default:
@@ -510,20 +516,24 @@ namespace DTSC {
         return;
     }
   }
-  
+
   /// \todo Move this function to some generic area. Duplicate from json.cpp
-  static inline char hex2c(char c){
-    if (c < 10){return '0' + c;}
-    if (c < 16){return 'A' + (c - 10);}
+  static inline char hex2c(char c) {
+    if (c < 10) {
+      return '0' + c;
+    }
+    if (c < 16) {
+      return 'A' + (c - 10);
+    }
     return '0';
   }
-  
+
   /// \todo Move this function to some generic area. Duplicate from json.cpp
-  static std::string string_escape(const std::string val){
+  static std::string string_escape(const std::string val) {
     std::stringstream out;
     out << "\"";
-    for (unsigned int i = 0; i < val.size(); ++i){
-      switch (val.data()[i]){
+    for (unsigned int i = 0; i < val.size(); ++i) {
+      switch (val.data()[i]) {
         case '"':
           out << "\\\"";
           break;
@@ -546,11 +556,11 @@ namespace DTSC {
           out << "\\t";
           break;
         default:
-          if (val.data()[i] < 32 || val.data()[i] > 126){
+          if (val.data()[i] < 32 || val.data()[i] > 126) {
             out << "\\u00";
             out << hex2c((val.data()[i] >> 4) & 0xf);
             out << hex2c(val.data()[i] & 0xf);
-          }else{
+          } else {
             out << val.data()[i];
           }
           break;
@@ -559,71 +569,71 @@ namespace DTSC {
     out << "\"";
     return out.str();
   }
-  
-  std::string Scan::toPrettyString(unsigned int indent){
-    switch (getType()){
-      case DTSC_STR:{
-        unsigned int strlen = p[1] * 256 * 256 * 256 + p[2] * 256 * 256 + p[3] * 256 + p[4];
-        if (strlen > 250){
+
+  std::string Scan::toPrettyString(unsigned int indent) {
+    switch (getType()) {
+      case DTSC_STR: {
+          unsigned int strlen = p[1] * 256 * 256 * 256 + p[2] * 256 * 256 + p[3] * 256 + p[4];
+          if (strlen > 250) {
+            std::stringstream ret;
+            ret << "\"" << strlen << " bytes of data\"";
+            return ret.str();
+          }
+          return string_escape(asString());
+        }
+      case DTSC_INT: {
           std::stringstream ret;
-          ret << "\"" << strlen << " bytes of data\"";
+          ret << asInt();
           return ret.str();
         }
-        return string_escape(asString());
-      }
-      case DTSC_INT:{
-        std::stringstream ret;
-        ret << asInt();
-        return ret.str();
-      }
       case DTSC_OBJ:
-      case DTSC_CON:{
-        std::stringstream ret;
-        ret << "{" << std::endl;
-        indent += 2;
-        char * i = p+1;
-        //object, scan contents
-        while (i[0] + i[1] != 0 && i < p+len){ //while not encountering 0x0000 (we assume 0x0000EE)
-          if (i+2 >= p+len){
-            indent -= 2;
-            ret << std::string((size_t)indent, ' ') << "} //walked out of object here";
-            return ret.str();
+      case DTSC_CON: {
+          std::stringstream ret;
+          ret << "{" << std::endl;
+          indent += 2;
+          char * i = p + 1;
+          //object, scan contents
+          while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+            if (i + 2 >= p + len) {
+              indent -= 2;
+              ret << std::string((size_t)indent, ' ') << "} //walked out of object here";
+              return ret.str();
+            }
+            unsigned int strlen = i[0] * 256 + i[1];
+            i += 2;
+            ret << std::string((size_t)indent, ' ') << "\"" << std::string(i, strlen) << "\": " << Scan(i + strlen, len - (i - p)).toPrettyString(indent) << "," << std::endl;
+            i = skipDTSC(i + strlen, p + len);
+            if (!i) {
+              indent -= 2;
+              ret << std::string((size_t)indent, ' ') << "} //could not locate next object";
+              return ret.str();
+            }
           }
-          unsigned int strlen = i[0] * 256 + i[1];
-          i += 2;
-          ret << std::string((size_t)indent, ' ') << "\"" << std::string(i, strlen) << "\": " << Scan(i+strlen, len-(i-p)).toPrettyString(indent) << "," << std::endl;
-          i = skipDTSC(i+strlen, p+len);
-          if (!i){
-            indent -= 2;
-            ret << std::string((size_t)indent, ' ') << "} //could not locate next object";
-            return ret.str();
-          }
+          indent -= 2;
+          ret << std::string((size_t)indent, ' ') << "}";
+          return ret.str();
         }
-        indent -= 2;
-        ret << std::string((size_t)indent, ' ') << "}";
-        return ret.str();
-      }
-      case DTSC_ARR:{
-        std::stringstream ret;
-        ret << "[" << std::endl;
-        indent += 2;
-        Scan tmpScan;
-        unsigned int i = 0;
-        do {
-          tmpScan = getIndice(i++);
-          if (tmpScan.getType()){
-            ret << std::string((size_t)indent, ' ') << tmpScan.toPrettyString(indent) << "," << std::endl;
-          }
-        }while(tmpScan.getType());
-        indent -= 2;
-        ret << std::string((size_t)indent, ' ') << "]";
-        return ret.str();
-      }
+      case DTSC_ARR: {
+          std::stringstream ret;
+          ret << "[" << std::endl;
+          indent += 2;
+          Scan tmpScan;
+          unsigned int i = 0;
+          do {
+            tmpScan = getIndice(i++);
+            if (tmpScan.getType()) {
+              ret << std::string((size_t)indent, ' ') << tmpScan.toPrettyString(indent) << "," << std::endl;
+            }
+          } while (tmpScan.getType());
+          indent -= 2;
+          ret << std::string((size_t)indent, ' ') << "]";
+          return ret.str();
+        }
       default:
         return "Error";
     }
   }
-  
+
 
 
   ///\brief Returns the payloadsize of a part
@@ -666,7 +676,7 @@ namespace DTSC {
   ///\brief Converts a part to a human readable string
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed
-  void Part::toPrettyString(std::ostream & str, int indent){
+  void Part::toPrettyString(std::ostream & str, int indent) {
     str << std::string(indent, ' ') << "Part: Size(" << getSize() << "), Dur(" << getDuration() << "), Offset(" << getOffset() << ")" << std::endl;
   }
 
@@ -734,7 +744,7 @@ namespace DTSC {
   ///\brief Converts a keyframe to a human readable string
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed
-  void Key::toPrettyString(std::ostream & str, int indent){
+  void Key::toPrettyString(std::ostream & str, int indent) {
     str << std::string(indent, ' ') << "Key " << getNumber() << ": Pos(" << getBpos() << "), Dur(" << getLength() << "), Parts(" << getParts() <<  "), Time(" << getTime() << ")" << std::endl;
   }
 
@@ -786,7 +796,7 @@ namespace DTSC {
   ///\brief Converts a fragment to a human readable string
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed
-  void Fragment::toPrettyString(std::ostream & str, int indent){
+  void Fragment::toPrettyString(std::ostream & str, int indent) {
     str << std::string(indent, ' ') << "Fragment " << getNumber() << ": Dur(" << getDuration() << "), Len(" << (int)getLength() << "), Size(" << getSize() << ")" << std::endl;
   }
 
@@ -938,22 +948,22 @@ namespace DTSC {
       commentHeader = trackRef["commentheader"].asStringRef();
     }
   }
-  
+
   ///\brief Constructs a track from a JSON::Value
   Track::Track(Scan & trackRef) {
-    if (trackRef.getMember("fragments").getType() == DTSC_STR){
+    if (trackRef.getMember("fragments").getType() == DTSC_STR) {
       char * tmp = 0;
       unsigned int tmplen = 0;
       trackRef.getMember("fragments").getString(tmp, tmplen);
       fragments = std::deque<Fragment>((Fragment *)tmp, ((Fragment *)tmp) + (tmplen / 11));
     }
-    if (trackRef.getMember("keys").getType() == DTSC_STR){
+    if (trackRef.getMember("keys").getType() == DTSC_STR) {
       char * tmp = 0;
       unsigned int tmplen = 0;
       trackRef.getMember("keys").getString(tmp, tmplen);
       keys = std::deque<Key>((Key *)tmp, ((Key *)tmp) + (tmplen / 16));
     }
-    if (trackRef.getMember("parts").getType() == DTSC_STR){
+    if (trackRef.getMember("parts").getType() == DTSC_STR) {
       char * tmp = 0;
       unsigned int tmplen = 0;
       trackRef.getMember("parts").getString(tmp, tmplen);
@@ -1187,19 +1197,19 @@ namespace DTSC {
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed
   ///\param verbosity How verbose the output needs to be
-  void readOnlyTrack::toPrettyString(std::ostream & str, int indent, int verbosity){
+  void readOnlyTrack::toPrettyString(std::ostream & str, int indent, int verbosity) {
     str << std::string(indent, ' ') << "Track " << getWritableIdentifier() << std::endl;
     str << std::string(indent + 2, ' ') << "ID: " << trackID << std::endl;
     str << std::string(indent + 2, ' ') << "Firstms: " << firstms << std::endl;
     str << std::string(indent + 2, ' ') << "Lastms: " << lastms << std::endl;
     str << std::string(indent + 2, ' ') << "Bps: " << bps << std::endl;
-    if (missedFrags){
+    if (missedFrags) {
       str << std::string(indent + 2, ' ') << "missedFrags: " << missedFrags << std::endl;
     }
     str << std::string(indent + 2, ' ') << "Codec: " << codec << std::endl;
     str << std::string(indent + 2, ' ') << "Type: " << type << std::endl;
     str << std::string(indent + 2, ' ') << "Init: ";
-    for (unsigned int i = 0; i < init.size(); ++i){
+    for (unsigned int i = 0; i < init.size(); ++i) {
       str << std::hex << std::setw(2) << std::setfill('0') << (int)init[i];
     }
     str << std::dec << std::endl;
@@ -1217,20 +1227,20 @@ namespace DTSC {
       str << std::string(indent + 2, ' ') << "CommentHeader: " << commentHeader << std::endl;
     }
     str << std::string(indent + 2, ' ') << "Fragments: " << fragLen << std::endl;
-    if (fragments && verbosity & 0x01){
-      for (unsigned int i = 0; i < fragLen; i++){
+    if (fragments && verbosity & 0x01) {
+      for (unsigned int i = 0; i < fragLen; i++) {
         fragments[i].toPrettyString(str, indent + 4);
       }
     }
     str << std::string(indent + 2, ' ') << "Keys: " << keyLen << std::endl;
     if (keys && verbosity & 0x02) {
-      for (unsigned int i = 0; i < keyLen; i++){
+      for (unsigned int i = 0; i < keyLen; i++) {
         keys[i].toPrettyString(str, indent + 4);
       }
     }
     str << std::string(indent + 2, ' ') << "Parts: " << partLen << std::endl;
     if (parts && verbosity & 0x04) {
-      for (unsigned int i = 0; i < partLen; i++){
+      for (unsigned int i = 0; i < partLen; i++) {
         parts[i].toPrettyString(str, indent + 4);
       }
     }
@@ -1256,12 +1266,12 @@ namespace DTSC {
     }
     moreheader = rhs.moreheader;
   }
-  
-  Meta::Meta(const DTSC::Packet & source){
+
+  Meta::Meta(const DTSC::Packet & source) {
     reinit(source);
   }
-  
-  void Meta::reinit(const DTSC::Packet & source){
+
+  void Meta::reinit(const DTSC::Packet & source) {
     tracks.clear();
     vod = source.getFlag("vod");
     live = source.getFlag("live");
@@ -1271,16 +1281,16 @@ namespace DTSC {
     Scan tmpTracks = source.getScan().getMember("tracks");
     unsigned int num = 0;
     Scan tmpTrack;
-    do{
+    do {
       tmpTrack = tmpTracks.getIndice(num);
-      if (tmpTrack.asBool()){
+      if (tmpTrack.asBool()) {
         int trackId = tmpTrack.getMember("trackid").asInt();
-        if (trackId){
+        if (trackId) {
           tracks[trackId] = Track(tmpTrack);
         }
         num++;
       }
-    }while(tmpTrack.asBool());
+    } while (tmpTrack.asBool());
   }
 
   ///\brief Creates a meta object from a JSON::Value
@@ -1326,19 +1336,19 @@ namespace DTSC {
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed
   ///\param verbosity How verbose the output needs to be
-  void Track::toPrettyString(std::ostream & str, int indent, int verbosity){
+  void Track::toPrettyString(std::ostream & str, int indent, int verbosity) {
     str << std::string(indent, ' ') << "Track " << getWritableIdentifier() << std::endl;
     str << std::string(indent + 2, ' ') << "ID: " << trackID << std::endl;
     str << std::string(indent + 2, ' ') << "Firstms: " << firstms << std::endl;
     str << std::string(indent + 2, ' ') << "Lastms: " << lastms << std::endl;
     str << std::string(indent + 2, ' ') << "Bps: " << bps << std::endl;
-    if (missedFrags){
+    if (missedFrags) {
       str << std::string(indent + 2, ' ') << "missedFrags: " << missedFrags << std::endl;
     }
     str << std::string(indent + 2, ' ') << "Codec: " << codec << std::endl;
     str << std::string(indent + 2, ' ') << "Type: " << type << std::endl;
     str << std::string(indent + 2, ' ') << "Init: ";
-    for (unsigned int i = 0; i < init.size(); ++i){
+    for (unsigned int i = 0; i < init.size(); ++i) {
       str << std::hex << std::setw(2) << std::setfill('0') << (int)init[i];
     }
     str << std::dec << std::endl;
@@ -1356,25 +1366,25 @@ namespace DTSC {
       str << std::string(indent + 2, ' ') << "CommentHeader: " << commentHeader << std::endl;
     }
     str << std::string(indent + 2, ' ') << "Fragments: " << fragments.size() << std::endl;
-    if (verbosity & 0x01){
-      for (unsigned int i = 0; i < fragments.size(); i++){
+    if (verbosity & 0x01) {
+      for (unsigned int i = 0; i < fragments.size(); i++) {
         fragments[i].toPrettyString(str, indent + 4);
       }
     }
     str << std::string(indent + 2, ' ') << "Keys: " << keys.size() << std::endl;
     if (verbosity & 0x02) {
-      for (unsigned int i = 0; i < keys.size(); i++){
+      for (unsigned int i = 0; i < keys.size(); i++) {
         keys[i].toPrettyString(str, indent + 4);
       }
     }
     str << std::string(indent + 2, ' ') << "Parts: " << parts.size() << std::endl;
     if (verbosity & 0x04) {
-      for (unsigned int i = 0; i < parts.size(); i++){
+      for (unsigned int i = 0; i < parts.size(); i++) {
         parts[i].toPrettyString(str, indent + 4);
       }
     }
   }
-  
+
   ///\brief Converts a short to a char*
   char * convertShort(short input) {
     static char result[2];
@@ -1448,11 +1458,11 @@ namespace DTSC {
     }
     return result;
   }
-  
+
   ///\brief Writes a pointer to the specified destination
   ///
   ///Does a memcpy and increases the destination pointer accordingly
-  static void writePointer(char *& p, const char * src, unsigned int len){
+  static void writePointer(char *& p, const char * src, unsigned int len) {
     memcpy(p, src, len);
     p += len;
   }
@@ -1460,12 +1470,12 @@ namespace DTSC {
   ///\brief Writes a pointer to the specified destination
   ///
   ///Does a memcpy and increases the destination pointer accordingly
-  static void writePointer(char *& p, const std::string & src){
+  static void writePointer(char *& p, const std::string & src) {
     writePointer(p, src.data(), src.size());
   }
 
   ///\brief Writes a read-only track to a pointer
-  void readOnlyTrack::writeTo(char *& p){
+  void readOnlyTrack::writeTo(char *& p) {
     std::string iden = getWritableIdentifier();
     writePointer(p, convertShort(iden.size()), 2);
     writePointer(p, iden);
@@ -1525,7 +1535,7 @@ namespace DTSC {
     }
     writePointer(p, "\000\000\356", 3);//End this track Object
   }
-  
+
   ///\brief Writes a read-only track to a socket
   void readOnlyTrack::send(Socket::Connection & conn) {
     conn.SendNow(convertShort(getWritableIdentifier().size()), 2);
@@ -1586,9 +1596,9 @@ namespace DTSC {
     }
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
-  
+
   ///\brief Writes a track to a pointer
-  void Track::writeTo(char *& p){
+  void Track::writeTo(char *& p) {
     writePointer(p, convertShort(getWritableIdentifier().size()), 2);
     writePointer(p, getWritableIdentifier());
     writePointer(p, "\340", 1);//Begin track object
@@ -1721,17 +1731,17 @@ namespace DTSC {
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
 
-  ///\brief Determines the "packed" size of a read-only meta object 
-  unsigned int readOnlyMeta::getSendLen(){
+  ///\brief Determines the "packed" size of a read-only meta object
+  unsigned int readOnlyMeta::getSendLen() {
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       dataLen += it->second.getSendLen();
     }
-    return dataLen+8;//add 8 bytes header length
+    return dataLen + 8; //add 8 bytes header length
   }
-  
+
   ///\brief Writes a read-only meta object to a pointer
-  void readOnlyMeta::writeTo(char * p){
+  void readOnlyMeta::writeTo(char * p) {
     int dataLen = getSendLen() - 8;//strip 8 bytes header
     writePointer(p, DTSC::Magic_Header, 4);
     writePointer(p, convertInt(dataLen), 4);
@@ -1760,10 +1770,10 @@ namespace DTSC {
     writePointer(p, convertLongLong(moreheader), 8);
     writePointer(p, "\000\000\356", 3);//End global object
   }
-  
+
   ///\brief Writes a read-only meta object to a socket
   void readOnlyMeta::send(Socket::Connection & conn) {
-    int dataLen = getSendLen()-8;//strip 8 bytes header
+    int dataLen = getSendLen() - 8; //strip 8 bytes header
     conn.SendNow(DTSC::Magic_Header, 4);
     conn.SendNow(convertInt(dataLen), 4);
     conn.SendNow("\340\000\006tracks\340", 10);
@@ -1791,19 +1801,19 @@ namespace DTSC {
     conn.SendNow(convertLongLong(moreheader), 8);
     conn.SendNow("\000\000\356", 3);//End global object
   }
-  
-  ///\brief Determines the "packed" size of a meta object 
-  unsigned int Meta::getSendLen(){
+
+  ///\brief Determines the "packed" size of a meta object
+  unsigned int Meta::getSendLen() {
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       dataLen += it->second.getSendLen();
     }
-    return dataLen+8;//add 8 bytes header
+    return dataLen + 8; //add 8 bytes header
   }
-  
+
   ///\brief Writes a meta object to a pointer
-  void Meta::writeTo(char * p){
-    int dataLen = getSendLen()-8;//strip 8 bytes header
+  void Meta::writeTo(char * p) {
+    int dataLen = getSendLen() - 8; //strip 8 bytes header
     writePointer(p, DTSC::Magic_Header, 4);
     writePointer(p, convertInt(dataLen), 4);
     writePointer(p, "\340\000\006tracks\340", 10);
@@ -1834,7 +1844,7 @@ namespace DTSC {
 
   ///\brief Writes a meta object to a socket
   void Meta::send(Socket::Connection & conn) {
-    int dataLen = getSendLen()-8;//strip 8 bytes header
+    int dataLen = getSendLen() - 8; //strip 8 bytes header
     conn.SendNow(DTSC::Magic_Header, 4);
     conn.SendNow(convertInt(dataLen), 4);
     conn.SendNow("\340\000\006tracks\340", 10);
@@ -1974,7 +1984,7 @@ namespace DTSC {
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed
   ///\param verbosity How verbose the output needs to be
-  void readOnlyMeta::toPrettyString(std::ostream & str, int indent, int verbosity){
+  void readOnlyMeta::toPrettyString(std::ostream & str, int indent, int verbosity) {
     for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.toPrettyString(str, indent, verbosity);
     }
@@ -1997,7 +2007,7 @@ namespace DTSC {
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed
   ///\param verbosity How verbose the output needs to be
-  void Meta::toPrettyString(std::ostream & str, int indent, int verbosity){
+  void Meta::toPrettyString(std::ostream & str, int indent, int verbosity) {
     for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.toPrettyString(str, indent, verbosity);
     }
@@ -2015,7 +2025,7 @@ namespace DTSC {
     }
     str << std::string(indent, ' ') << "More Header: " << moreheader << std::endl;
   }
-  
+
   ///\brief Converts a read-only meta object to a JSON::Value
   JSON::Value readOnlyMeta::toJSON() {
     JSON::Value result;

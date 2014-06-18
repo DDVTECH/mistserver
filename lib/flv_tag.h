@@ -25,7 +25,7 @@ namespace FLV {
   bool is_header(char * header); ///< Checks the first 3 bytes for the string "FLV".
 
   /// This class is used to hold, work with and get information about a single FLV tag.
-  class Tag{
+  class Tag {
     public:
       int len; ///< Actual length of tag.
       bool isKeyframe; ///< True if current tag is a video keyframe.
@@ -40,12 +40,12 @@ namespace FLV {
       int offset();
       void offset(int o);
       Tag(); ///< Constructor for a new, empty, tag.
-      Tag(const Tag& O); ///< Copy constructor, copies the contents of an existing tag.
-      Tag & operator=(const Tag& O); ///< Assignment operator - works exactly like the copy constructor.
-      Tag(const RTMPStream::Chunk& O); ///<Copy constructor from a RTMP chunk.
+      Tag(const Tag & O); ///< Copy constructor, copies the contents of an existing tag.
+      Tag & operator=(const Tag & O); ///< Assignment operator - works exactly like the copy constructor.
+      Tag(const RTMPStream::Chunk & O); ///<Copy constructor from a RTMP chunk.
       ~Tag(); ///< Generic destructor.
       //loader functions
-      bool ChunkLoader(const RTMPStream::Chunk& O);
+      bool ChunkLoader(const RTMPStream::Chunk & O);
       bool DTSCLoader(DTSC::Stream & S);
       bool DTSCLoader(DTSC::Packet & packData, DTSC::Track & track);
       bool DTSCVideoInit(DTSC::Track & video);

@@ -3,12 +3,12 @@
 #include<stdint.h>
 #include<string>
 
-namespace theora{
-  class header{
+namespace theora {
+  class header {
     public:
       header();
-      header(char* newData, unsigned int length);
-      bool read(char* newData, unsigned int length);
+      header(char * newData, unsigned int length);
+      bool read(char * newData, unsigned int length);
       int getHeaderType();
       char getVMAJ();
       char getVMIN();
@@ -41,16 +41,16 @@ namespace theora{
       uint16_t getInt16(size_t index);
       uint32_t commentLen(size_t index);
     private:
-      char* data;
+      char * data;
       unsigned int datasize;
       bool checkDataSize(unsigned int size);
       bool validateIdentificationHeader();
   };
 
-  class frame{
+  class frame {
     public:
       frame();
-      bool read(char* newData, unsigned int length);
+      bool read(char * newData, unsigned int length);
       char getFTYPE();
       char getNQIS();
       char getQIS(size_t index);

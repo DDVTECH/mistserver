@@ -10,7 +10,7 @@
 namespace AMF {
 
   /// Enumerates all possible AMF0 types, adding a special DDVTECH container type for ease of use.
-  enum obj0type{
+  enum obj0type {
     AMF0_NUMBER = 0x00,
     AMF0_BOOL = 0x01,
     AMF0_STRING = 0x02,
@@ -33,7 +33,7 @@ namespace AMF {
   };
 
   /// Enumerates all possible AMF3 types, adding a special DDVTECH container type for ease of use.
-  enum obj3type{
+  enum obj3type {
     AMF3_UNDEFINED = 0x00,
     AMF3_NULL = 0x01,
     AMF3_FALSE = 0x02,
@@ -52,7 +52,7 @@ namespace AMF {
 
   /// Recursive class that holds AMF0 objects.
   /// It supports all AMF0 types (defined in AMF::obj0type), adding support for a special DDVTECH container type.
-  class Object{
+  class Object {
     public:
       std::string Indice();
       obj0type GetType();
@@ -61,9 +61,9 @@ namespace AMF {
       const char * Str();
       int hasContent();
       void addContent(AMF::Object c);
-      Object* getContentP(unsigned int i);
+      Object * getContentP(unsigned int i);
       Object getContent(unsigned int i);
-      Object* getContentP(std::string s);
+      Object * getContentP(std::string s);
       Object getContent(std::string s);
       Object();
       Object(std::string indice, double val, obj0type setType = AMF0_NUMBER);
@@ -85,11 +85,11 @@ namespace AMF {
   /// Parses a std::string to a valid AMF::Object.
   Object parse(std::string data);
   /// Parses a single AMF0 type - used recursively by the AMF::parse() functions.
-  Object parseOne(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name);
+  Object parseOne(const unsigned char *& data, unsigned int & len, unsigned int & i, std::string name);
 
   /// Recursive class that holds AMF3 objects.
   /// It supports all AMF3 types (defined in AMF::obj3type), adding support for a special DDVTECH container type.
-  class Object3{
+  class Object3 {
     public:
       std::string Indice();
       obj3type GetType();
@@ -99,9 +99,9 @@ namespace AMF {
       const char * Str();
       int hasContent();
       void addContent(AMF::Object3 c);
-      Object3* getContentP(int i);
+      Object3 * getContentP(int i);
       Object3 getContent(int i);
-      Object3* getContentP(std::string s);
+      Object3 * getContentP(std::string s);
       Object3 getContent(std::string s);
       Object3();
       Object3(std::string indice, int val, obj3type setType = AMF3_INTEGER);
@@ -125,6 +125,6 @@ namespace AMF {
   /// Parses a std::string to a valid AMF::Object3.
   Object3 parse3(std::string data);
   /// Parses a single AMF3 type - used recursively by the AMF::parse3() functions.
-  Object3 parseOne3(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name);
+  Object3 parseOne3(const unsigned char *& data, unsigned int & len, unsigned int & i, std::string name);
 
 } //AMF namespace

@@ -21,7 +21,7 @@
 #include <errno.h>
 
 namespace Filesystem {
-  enum DIR_Permissions{
+  enum DIR_Permissions {
     P_LIST = 0x01, //List
     P_RETR = 0x02, //Retrieve
     P_STOR = 0x04, //Store
@@ -31,11 +31,11 @@ namespace Filesystem {
     P_RMD = 0x40, //Remove directory
   };
 
-  enum DIR_Show{
+  enum DIR_Show {
     S_NONE = 0x00, S_ACTIVE = 0x01, S_INACTIVE = 0x02, S_ALL = 0x03,
   };
 
-  class Directory{
+  class Directory {
     public:
       Directory(std::string PathName = "", std::string BasePath = ".");
       ~Directory();

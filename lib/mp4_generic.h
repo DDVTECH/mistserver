@@ -1,7 +1,7 @@
 #include "mp4.h"
 
-namespace MP4{
-  class MFHD: public Box{
+namespace MP4 {
+  class MFHD: public Box {
     public:
       MFHD();
       void setSequenceNumber(uint32_t newSequenceNumber);
@@ -10,13 +10,13 @@ namespace MP4{
   };
   //MFHD Box
 
-  class MOOF: public containerBox{
+  class MOOF: public containerBox {
     public:
       MOOF();
   };
   //MOOF Box
 
-  class TRAF: public Box{
+  class TRAF: public Box {
     public:
       TRAF();
       uint32_t getContentCount();
@@ -26,13 +26,13 @@ namespace MP4{
   };
   //TRAF Box
 
-  struct trunSampleInformation{
-      uint32_t sampleDuration;
-      uint32_t sampleSize;
-      uint32_t sampleFlags;
-      uint32_t sampleOffset;
+  struct trunSampleInformation {
+    uint32_t sampleDuration;
+    uint32_t sampleSize;
+    uint32_t sampleFlags;
+    uint32_t sampleOffset;
   };
-  enum trunflags{
+  enum trunflags {
     trundataOffset = 0x00000001,
     trunfirstSampleFlags = 0x00000004,
     trunsampleDuration = 0x00000100,
@@ -40,7 +40,7 @@ namespace MP4{
     trunsampleFlags = 0x00000400,
     trunsampleOffsets = 0x00000800
   };
-  enum sampleflags{
+  enum sampleflags {
     noIPicture = 0x01000000,
     isIPicture = 0x02000000,
     noDisposable = 0x00400000,
@@ -52,7 +52,7 @@ namespace MP4{
     MUST_BE_PRESENT = 0x1
   };
   std::string prettySampleFlags(uint32_t flag);
-  class TRUN: public Box{
+  class TRUN: public Box {
     public:
       TRUN();
       void setFlags(uint32_t newFlags);
@@ -67,7 +67,7 @@ namespace MP4{
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  enum tfhdflags{
+  enum tfhdflags {
     tfhdBaseOffset = 0x000001,
     tfhdSampleDesc = 0x000002,
     tfhdSampleDura = 0x000008,
@@ -75,7 +75,7 @@ namespace MP4{
     tfhdSampleFlag = 0x000020,
     tfhdNoDuration = 0x010000,
   };
-  class TFHD: public Box{
+  class TFHD: public Box {
     public:
       TFHD();
       void setFlags(uint32_t newFlags);
@@ -96,7 +96,7 @@ namespace MP4{
   };
 
 
-  class AVCC: public Box{
+  class AVCC: public Box {
     public:
       AVCC();
       void setVersion(uint32_t newVersion);
@@ -111,19 +111,19 @@ namespace MP4{
       uint32_t getSPSNumber();
       void setSPS(std::string newSPS);
       uint32_t getSPSLen();
-      char* getSPS();
+      char * getSPS();
       void setPPSNumber(uint32_t newPPSNumber);
       uint32_t getPPSNumber();
       void setPPS(std::string newPPS);
       uint32_t getPPSLen();
-      char* getPPS();
+      char * getPPS();
       std::string asAnnexB();
       void setPayload(std::string newPayload);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
+
   ///\todo : ESDS is filthy implemented, clean up when optimising
-  class ESDS: public fullBox{
+  class ESDS: public fullBox {
     public:
       ESDS();
       ESDS(std::string init, uint32_t bps);
@@ -180,8 +180,8 @@ namespace MP4{
       void setSLValue(char newVal);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class FTYP: public Box{
+
+  class FTYP: public Box {
     public:
       FTYP();
       void setMajorBrand(const char * newMajorBrand);
@@ -193,18 +193,18 @@ namespace MP4{
       std::string getCompatibleBrands(size_t index);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class MOOV: public containerBox{
+
+  class MOOV: public containerBox {
     public:
       MOOV();
   };
-  
-  class MVEX: public containerBox{
+
+  class MVEX: public containerBox {
     public:
       MVEX();
   };
-  
-  class TREX: public Box{
+
+  class TREX: public Box {
     public:
       TREX();
       void setTrackID(uint32_t newTrackID);
@@ -219,34 +219,34 @@ namespace MP4{
       uint32_t getDefaultSampleFlags();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  
-  class MFRA: public containerBox{
+
+
+  class MFRA: public containerBox {
     public:
       MFRA();
   };
 
-  class TRAK: public containerBox{
+  class TRAK: public containerBox {
     public:
       TRAK();
   };
-  
-  class MDIA: public containerBox{
+
+  class MDIA: public containerBox {
     public:
       MDIA();
   };
 
-  class MINF: public containerBox{
+  class MINF: public containerBox {
     public:
       MINF();
   };
 
-  class DINF: public containerBox{
+  class DINF: public containerBox {
     public:
       DINF();
   };
 
-  class MFRO: public Box{
+  class MFRO: public Box {
     public:
       MFRO();
       void setSize(uint32_t newSize);
@@ -254,7 +254,7 @@ namespace MP4{
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  class HDLR: public Box{
+  class HDLR: public Box {
     public:
       HDLR(std::string & type, std::string name);
       void setHandlerType(const char * newHandlerType);
@@ -264,7 +264,7 @@ namespace MP4{
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  class VMHD: public fullBox{
+  class VMHD: public fullBox {
     public:
       VMHD();
       void setGraphicsMode(uint16_t newGraphicsMode);
@@ -274,16 +274,16 @@ namespace MP4{
       uint16_t getOpColor(size_t index);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class SMHD: public fullBox{
+
+  class SMHD: public fullBox {
     public:
       SMHD();
       void setBalance(int16_t newBalance);
       int16_t getBalance();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class HMHD: public fullBox{
+
+  class HMHD: public fullBox {
     public:
       HMHD();
       void setMaxPDUSize(uint16_t newMaxPDUSize);
@@ -296,27 +296,27 @@ namespace MP4{
       uint32_t getAvgBitRate();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class NMHD: public fullBox{
+
+  class NMHD: public fullBox {
     public:
       NMHD();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class MEHD: public fullBox{
+
+  class MEHD: public fullBox {
     public:
       MEHD();
       void setFragmentDuration(uint64_t newFragmentDuration);
       uint64_t getFragmentDuration();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class STBL: public containerBox{
+
+  class STBL: public containerBox {
     public:
       STBL();
   };
-  
-  class URL: public fullBox{
+
+  class URL: public fullBox {
     public:
       URL();
       void setLocation(std::string newLocation);
@@ -324,7 +324,7 @@ namespace MP4{
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  class URN: public fullBox{
+  class URN: public fullBox {
     public:
       URN();
       void setName(std::string newName);
@@ -333,8 +333,8 @@ namespace MP4{
       std::string getLocation();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class DREF: public fullBox{
+
+  class DREF: public fullBox {
     public:
       DREF();
       uint32_t getEntryCount();
@@ -342,8 +342,8 @@ namespace MP4{
       Box & getDataEntry(size_t index);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class MVHD: public fullBox{
+
+  class MVHD: public fullBox {
     public:
       MVHD(long long unsigned int duration);
       void setCreationTime(uint64_t newCreationTime);
@@ -365,16 +365,16 @@ namespace MP4{
       uint32_t getTrackID();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  struct TFRAEntry{
+
+  struct TFRAEntry {
     uint64_t time;
     uint64_t moofOffset;
     uint32_t trafNumber;
     uint32_t trunNumber;
     uint32_t sampleNumber;
   };
-  
-  class TFRA: public fullBox{
+
+  class TFRA: public fullBox {
     public:
       TFRA();
       void setTrackID(uint32_t newTrackID);
@@ -392,8 +392,8 @@ namespace MP4{
       uint32_t getTFRAEntrySize();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class TKHD: public fullBox{
+
+  class TKHD: public fullBox {
     public:
       TKHD(uint32_t trackId, uint64_t duration, uint32_t width, uint32_t height);
       void setCreationTime(uint64_t newCreationTime);
@@ -422,8 +422,8 @@ namespace MP4{
       uint32_t getHeight();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class MDHD: public fullBox{
+
+  class MDHD: public fullBox {
     public:
       MDHD(uint64_t duration);
       void setCreationTime(uint64_t newCreationTime);
@@ -439,13 +439,13 @@ namespace MP4{
       uint16_t getLanguage();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  struct STTSEntry{
+
+  struct STTSEntry {
     uint32_t sampleCount;
     uint32_t sampleDelta;
   };
-  
-  class STTS: public fullBox{
+
+  class STTS: public fullBox {
     public:
       STTS(char v = 1, uint32_t f = 0);
       void setEntryCount(uint32_t newEntryCount);
@@ -454,13 +454,13 @@ namespace MP4{
       STTSEntry getSTTSEntry(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  struct CTTSEntry{
+
+  struct CTTSEntry {
     uint32_t sampleCount;
     uint32_t sampleOffset;
   };
 
-  class CTTS: public fullBox{
+  class CTTS: public fullBox {
     public:
       CTTS();
       void setEntryCount(uint32_t newEntryCount);
@@ -469,14 +469,14 @@ namespace MP4{
       CTTSEntry getCTTSEntry(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  struct STSCEntry{
+
+  struct STSCEntry {
     uint32_t firstChunk;
     uint32_t samplesPerChunk;
     uint32_t sampleDescriptionIndex;
   };
-  
-  class STSC: public fullBox{
+
+  class STSC: public fullBox {
     public:
       STSC(char v = 1, uint32_t f = 0);
       void setEntryCount(uint32_t newEntryCount);
@@ -485,8 +485,8 @@ namespace MP4{
       STSCEntry getSTSCEntry(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class STCO: public fullBox{
+
+  class STCO: public fullBox {
     public:
       STCO(char v = 1, uint32_t f = 0);
       void setEntryCount(uint32_t newEntryCount);
@@ -495,8 +495,8 @@ namespace MP4{
       uint32_t getChunkOffset(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class STSZ: public fullBox{
+
+  class STSZ: public fullBox {
     public:
       STSZ(char v = 1, uint32_t f = 0);
       void setSampleSize(uint32_t newSampleSize);
@@ -507,16 +507,16 @@ namespace MP4{
       uint32_t getEntrySize(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class SampleEntry: public Box{
+
+  class SampleEntry: public Box {
     public:
       SampleEntry();
       void setDataReferenceIndex(uint16_t newDataReferenceIndex);
       uint16_t getDataReferenceIndex();
       std::string toPrettySampleString(uint32_t index);
   };
-  
-  class CLAP: public Box{//CleanApertureBox
+
+  class CLAP: public Box { //CleanApertureBox
     public:
       CLAP();
       void setCleanApertureWidthN(uint32_t newVal);
@@ -538,7 +538,7 @@ namespace MP4{
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  class PASP: public Box{ //PixelAspectRatioBox
+  class PASP: public Box { //PixelAspectRatioBox
     public:
       PASP();
       void setHSpacing(uint32_t newVal);
@@ -547,19 +547,19 @@ namespace MP4{
       uint32_t getVSpacing();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class VisualSampleEntry: public SampleEntry{
-    ///\todo set default values
+
+  class VisualSampleEntry: public SampleEntry {
+      ///\todo set default values
     public:
       VisualSampleEntry();
-      void setCodec(const char* newCodec);
+      void setCodec(const char * newCodec);
       void setWidth(uint16_t newWidth);
       uint16_t getWidth();
       void setHeight(uint16_t newHeight);
       uint16_t getHeight();
-      void setHorizResolution (uint32_t newHorizResolution);
+      void setHorizResolution(uint32_t newHorizResolution);
       uint32_t getHorizResolution();
-      void setVertResolution (uint32_t newVertResolution);
+      void setVertResolution(uint32_t newVertResolution);
       uint32_t getVertResolution();
       void setFrameCount(uint16_t newFrameCount);
       uint16_t getFrameCount();
@@ -568,16 +568,16 @@ namespace MP4{
       void setDepth(uint16_t newDepth);
       uint16_t getDepth();
       Box & getCLAP();
-      void setCLAP(Box& clap);
+      void setCLAP(Box & clap);
       Box & getPASP();
       std::string toPrettyVisualString(uint32_t index = 0, std::string = "");
   };
-  
-  class AudioSampleEntry: public SampleEntry{
+
+  class AudioSampleEntry: public SampleEntry {
     public:
       ///\todo set default values
       AudioSampleEntry();
-      void setCodec(const char* newCodec);
+      void setCodec(const char * newCodec);
       void setChannelCount(uint16_t newChannelCount);
       uint16_t getChannelCount();
       void setSampleSize(uint16_t newSampleSize);
@@ -587,56 +587,56 @@ namespace MP4{
       void setSampleRate(uint32_t newSampleRate);
       uint16_t toAACInit();
       uint32_t getSampleRate();
-      void setCodecBox(Box& newBox);
+      void setCodecBox(Box & newBox);
       Box & getCodecBox();
       std::string toPrettyAudioString(uint32_t indent = 0, std::string name = "");
   };
-  
-  class MP4A: public AudioSampleEntry{
+
+  class MP4A: public AudioSampleEntry {
     public:
       MP4A();
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  class AAC: public AudioSampleEntry{
+  class AAC: public AudioSampleEntry {
     public:
       AAC();
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  class AVC1: public VisualSampleEntry{
+  class AVC1: public VisualSampleEntry {
     public:
       AVC1();
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  class H264: public VisualSampleEntry{
+  class H264: public VisualSampleEntry {
     public:
       H264();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class STSD: public fullBox{
+
+  class STSD: public fullBox {
     public:
       STSD(char v = 1, uint32_t f = 0);
-      void setEntryCount (uint32_t newEntryCount);
+      void setEntryCount(uint32_t newEntryCount);
       uint32_t getEntryCount();
       void setEntry(Box & newContent, uint32_t no);
       Box & getEntry(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class EDTS: public containerBox{
+
+  class EDTS: public containerBox {
     public:
       EDTS();
   };
 
-  class UDTA: public containerBox{
+  class UDTA: public containerBox {
     public:
       UDTA();
   };
-  
-  class STSS: public fullBox{
+
+  class STSS: public fullBox {
     public:
       STSS(char v = 1, uint32_t f = 0);
       void setEntryCount(uint32_t newVal);
@@ -645,14 +645,14 @@ namespace MP4{
       uint32_t getSampleNumber(uint32_t index);
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class META: public containerFullBox{
+
+  class META: public containerFullBox {
     public:
       META();
       std::string toPrettyString(uint32_t indent = 0);
   };
-  
-  class ELST: public fullBox{
+
+  class ELST: public fullBox {
     public:
       ELST();
       void setSegmentDuration(uint64_t newVal);

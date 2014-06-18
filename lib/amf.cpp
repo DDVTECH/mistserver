@@ -6,49 +6,49 @@
 #include <sstream>
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.
-std::string AMF::Object::Indice(){
+std::string AMF::Object::Indice() {
   return myIndice;
 }
 
 /// Returns the AMF::obj0type AMF0 object type for this object.
-AMF::obj0type AMF::Object::GetType(){
+AMF::obj0type AMF::Object::GetType() {
   return myType;
 }
 
 /// Returns the numeric value of this object, if available.
 /// If this object holds no numeric value, 0 is returned.
-double AMF::Object::NumValue(){
+double AMF::Object::NumValue() {
   return numval;
 }
 
 /// Returns the std::string value of this object, if available.
 /// If this object holds no string value, an empty string is returned.
-std::string AMF::Object::StrValue(){
+std::string AMF::Object::StrValue() {
   return strval;
 }
 
 /// Returns the C-string value of this object, if available.
 /// If this object holds no string value, an empty C-string is returned.
-const char * AMF::Object::Str(){
+const char * AMF::Object::Str() {
   return strval.c_str();
 }
 
 /// Returns a count of the amount of objects this object currently holds.
 /// If this object is not a container type, this function will always return 0.
-int AMF::Object::hasContent(){
+int AMF::Object::hasContent() {
   return contents.size();
 }
 
 /// Adds an AMF::Object to this object. Works for all types, but only makes sense for container types.
-void AMF::Object::addContent(AMF::Object c){
+void AMF::Object::addContent(AMF::Object c) {
   contents.push_back(c);
 }
 
 /// Returns a pointer to the object held at indice i.
 /// Returns AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
-AMF::Object* AMF::Object::getContentP(unsigned int i){
-  if (i >= contents.size()){
+AMF::Object * AMF::Object::getContentP(unsigned int i) {
+  if (i >= contents.size()) {
     return 0;
   }
   return &contents.at(i);
@@ -57,17 +57,17 @@ AMF::Object* AMF::Object::getContentP(unsigned int i){
 /// Returns a copy of the object held at indice i.
 /// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
-AMF::Object AMF::Object::getContent(unsigned int i){
+AMF::Object AMF::Object::getContent(unsigned int i) {
   return contents.at(i);
 }
 
 /// Returns a pointer to the object held at indice s.
 /// Returns NULL if no object is held at this indice.
 /// \param s The indice of the object in this container.
-AMF::Object* AMF::Object::getContentP(std::string s){
-  for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == s){
-      return &( *it);
+AMF::Object * AMF::Object::getContentP(std::string s) {
+  for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++) {
+    if (it->Indice() == s) {
+      return &(*it);
     }
   }
   return 0;
@@ -76,9 +76,9 @@ AMF::Object* AMF::Object::getContentP(std::string s){
 /// Returns a copy of the object held at indice s.
 /// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param s The indice of the object in this container.
-AMF::Object AMF::Object::getContent(std::string s){
-  for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == s){
+AMF::Object AMF::Object::getContent(std::string s) {
+  for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++) {
+    if (it->Indice() == s) {
       return *it;
     }
   }
@@ -87,7 +87,7 @@ AMF::Object AMF::Object::getContent(std::string s){
 
 /// Default constructor.
 /// Simply fills the data with AMF::Object("error", AMF0_DDV_CONTAINER)
-AMF::Object::Object(){
+AMF::Object::Object() {
   *this = AMF::Object("error", AMF0_DDV_CONTAINER);
 } //default constructor
 
@@ -96,7 +96,7 @@ AMF::Object::Object(){
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
 /// \param val The numeric value of this object. Numeric AMF0 objects only support double-type values.
 /// \param setType The object type to force this object to.
-AMF::Object::Object(std::string indice, double val, AMF::obj0type setType){ //num type initializer
+AMF::Object::Object(std::string indice, double val, AMF::obj0type setType) { //num type initializer
   myIndice = indice;
   myType = setType;
   strval = "";
@@ -109,7 +109,7 @@ AMF::Object::Object(std::string indice, double val, AMF::obj0type setType){ //nu
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
 /// \param val The string value of this object.
 /// \param setType The object type to force this object to.
-AMF::Object::Object(std::string indice, std::string val, AMF::obj0type setType){ //str type initializer
+AMF::Object::Object(std::string indice, std::string val, AMF::obj0type setType) { //str type initializer
   myIndice = indice;
   myType = setType;
   strval = val;
@@ -120,7 +120,7 @@ AMF::Object::Object(std::string indice, std::string val, AMF::obj0type setType){
 /// The object type is by default AMF::AMF0_OBJECT, but this can be forced to a different value.
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
 /// \param setType The object type to force this object to.
-AMF::Object::Object(std::string indice, AMF::obj0type setType){ //object type initializer
+AMF::Object::Object(std::string indice, AMF::obj0type setType) { //object type initializer
   myIndice = indice;
   myType = setType;
   strval = "";
@@ -130,11 +130,11 @@ AMF::Object::Object(std::string indice, AMF::obj0type setType){ //object type in
 /// Return the contents as a human-readable string.
 /// If this object contains other objects, it will call itself recursively
 /// and print all nested content as well.
-std::string AMF::Object::Print(std::string indent){
+std::string AMF::Object::Print(std::string indent) {
   std::stringstream st;
   st << indent;
   // print my type
-  switch (myType){
+  switch (myType) {
     case AMF::AMF0_NUMBER:
       st << "Number";
       break;
@@ -194,7 +194,7 @@ std::string AMF::Object::Print(std::string indent){
   // print my string indice, if available
   st << " " << myIndice << " ";
   // print my numeric or string contents
-  switch (myType){
+  switch (myType) {
     case AMF::AMF0_NUMBER:
     case AMF::AMF0_BOOL:
     case AMF::AMF0_REFERENCE:
@@ -212,8 +212,8 @@ std::string AMF::Object::Print(std::string indent){
   }
   st << std::endl;
   // if I hold other objects, print those too, recursively.
-  if (contents.size() > 0){
-    for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
+  if (contents.size() > 0) {
+    for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++) {
       st << it->Print(indent + "  ");
     }
   }
@@ -223,37 +223,37 @@ std::string AMF::Object::Print(std::string indent){
 /// Packs the AMF object to a std::string for transfer over the network.
 /// If the object is a container type, this function will call itself recursively and contain all contents.
 /// Tip: When sending multiple AMF objects in one go, put them in a single AMF::AMF0_DDV_CONTAINER for easy transfer.
-std::string AMF::Object::Pack(){
+std::string AMF::Object::Pack() {
   std::string r = "";
   //check for string/longstring conversion
-  if ((myType == AMF::AMF0_STRING) && (strval.size() > 0xFFFF)){
+  if ((myType == AMF::AMF0_STRING) && (strval.size() > 0xFFFF)) {
     myType = AMF::AMF0_LONGSTRING;
   }
   //skip output of DDV container types, they do not exist. Only output their contents.
-  if (myType != AMF::AMF0_DDV_CONTAINER){
+  if (myType != AMF::AMF0_DDV_CONTAINER) {
     r += myType;
   }
   //output the properly formatted AMF0 data stream for this object's contents.
-  switch (myType){
+  switch (myType) {
     case AMF::AMF0_NUMBER:
-      r += *(((char*) &numval) + 7);
-      r += *(((char*) &numval) + 6);
-      r += *(((char*) &numval) + 5);
-      r += *(((char*) &numval) + 4);
-      r += *(((char*) &numval) + 3);
-      r += *(((char*) &numval) + 2);
-      r += *(((char*) &numval) + 1);
-      r += *(((char*) &numval));
+      r += *(((char *) &numval) + 7);
+      r += *(((char *) &numval) + 6);
+      r += *(((char *) &numval) + 5);
+      r += *(((char *) &numval) + 4);
+      r += *(((char *) &numval) + 3);
+      r += *(((char *) &numval) + 2);
+      r += *(((char *) &numval) + 1);
+      r += *(((char *) &numval));
       break;
     case AMF::AMF0_DATE:
-      r += *(((char*) &numval) + 7);
-      r += *(((char*) &numval) + 6);
-      r += *(((char*) &numval) + 5);
-      r += *(((char*) &numval) + 4);
-      r += *(((char*) &numval) + 3);
-      r += *(((char*) &numval) + 2);
-      r += *(((char*) &numval) + 1);
-      r += *(((char*) &numval));
+      r += *(((char *) &numval) + 7);
+      r += *(((char *) &numval) + 6);
+      r += *(((char *) &numval) + 5);
+      r += *(((char *) &numval) + 4);
+      r += *(((char *) &numval) + 3);
+      r += *(((char *) &numval) + 2);
+      r += *(((char *) &numval) + 1);
+      r += *(((char *) &numval));
       r += (char)0; //timezone always 0
       r += (char)0; //timezone always 0
       break;
@@ -277,10 +277,10 @@ std::string AMF::Object::Pack(){
       r += Indice().size() / 256;
       r += Indice().size() % 256;
       r += Indice();
-      /* no break */
+    /* no break */
     case AMF::AMF0_OBJECT:
-      if (contents.size() > 0){
-        for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
+      if (contents.size() > 0) {
+        for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++) {
           r += it->Indice().size() / 256;
           r += it->Indice().size() % 256;
           r += it->Indice();
@@ -305,52 +305,52 @@ std::string AMF::Object::Pack(){
       r += (char)((int)numval % 256);
       break;
     case AMF::AMF0_ECMA_ARRAY: {
-      int arrlen = 0;
-      if (contents.size() > 0){
-        arrlen = contents.size();
-        r += arrlen / (256 * 256 * 256);
-        r += arrlen / (256 * 256);
-        r += arrlen / 256;
-        r += arrlen % 256;
-        for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-          r += it->Indice().size() / 256;
-          r += it->Indice().size() % 256;
-          r += it->Indice();
-          r += it->Pack();
+        int arrlen = 0;
+        if (contents.size() > 0) {
+          arrlen = contents.size();
+          r += arrlen / (256 * 256 * 256);
+          r += arrlen / (256 * 256);
+          r += arrlen / 256;
+          r += arrlen % 256;
+          for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++) {
+            r += it->Indice().size() / 256;
+            r += it->Indice().size() % 256;
+            r += it->Indice();
+            r += it->Pack();
+          }
+        } else {
+          r += (char)0;
+          r += (char)0;
+          r += (char)0;
+          r += (char)0;
         }
-      }else{
         r += (char)0;
         r += (char)0;
-        r += (char)0;
-        r += (char)0;
+        r += (char)9;
       }
-      r += (char)0;
-      r += (char)0;
-      r += (char)9;
-    }
       break;
     case AMF::AMF0_STRICT_ARRAY: {
-      int arrlen = 0;
-      if (contents.size() > 0){
-        arrlen = contents.size();
-        r += arrlen / (256 * 256 * 256);
-        r += arrlen / (256 * 256);
-        r += arrlen / 256;
-        r += arrlen % 256;
-        for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-          r += it->Pack();
+        int arrlen = 0;
+        if (contents.size() > 0) {
+          arrlen = contents.size();
+          r += arrlen / (256 * 256 * 256);
+          r += arrlen / (256 * 256);
+          r += arrlen / 256;
+          r += arrlen % 256;
+          for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++) {
+            r += it->Pack();
+          }
+        } else {
+          r += (char)0;
+          r += (char)0;
+          r += (char)0;
+          r += (char)0;
         }
-      }else{
-        r += (char)0;
-        r += (char)0;
-        r += (char)0;
-        r += (char)0;
       }
-    }
       break;
     case AMF::AMF0_DDV_CONTAINER: //only send contents
-      if (contents.size() > 0){
-        for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
+      if (contents.size() > 0) {
+        for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++) {
           r += it->Pack();
         }
       }
@@ -366,12 +366,12 @@ std::string AMF::Object::Pack(){
 /// \param i Current parsing position in the raw data.
 /// \param name Indice name for any new object created.
 /// \returns A single AMF::Object, parsed from the raw data.
-AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name){
+AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int & len, unsigned int & i, std::string name) {
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
-  double *d; // hack to work around strict aliasing
-  switch (data[i]){
+  double * d; // hack to work around strict aliasing
+  switch (data[i]) {
     case AMF::AMF0_NUMBER:
       tmpdbl[7] = data[i + 1];
       tmpdbl[6] = data[i + 2];
@@ -382,7 +382,7 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
       tmpdbl[1] = data[i + 7];
       tmpdbl[0] = data[i + 8];
       i += 9; //skip 8(a double)+1 forwards
-      d = (double*)tmpdbl;
+      d = (double *)tmpdbl;
       return AMF::Object(name, *d, AMF::AMF0_NUMBER);
       break;
     case AMF::AMF0_DATE:
@@ -395,14 +395,14 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
       tmpdbl[1] = data[i + 7];
       tmpdbl[0] = data[i + 8];
       i += 11; //skip 8(a double)+1+timezone(2) forwards
-      d = (double*)tmpdbl;
+      d = (double *)tmpdbl;
       return AMF::Object(name, *d, AMF::AMF0_DATE);
       break;
     case AMF::AMF0_BOOL:
       i += 2; //skip bool+1 forwards
-      if (data[i - 1] == 0){
+      if (data[i - 1] == 0) {
         return AMF::Object(name, (double)0, AMF::AMF0_BOOL);
-      }else{
+      } else {
         return AMF::Object(name, (double)1, AMF::AMF0_BOOL);
       }
       break;
@@ -439,61 +439,61 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
       return AMF::Object(name, (double)0, (AMF::obj0type)data[i - 1]);
       break;
     case AMF::AMF0_OBJECT: {
-      ++i;
-      AMF::Object ret(name, AMF::AMF0_OBJECT);
-      while (data[i] + data[i + 1] != 0){ //while not encountering 0x0000 (we assume 0x000009)
-        tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
-        tmpstr.clear(); //clean tmpstr, just to be sure
-        tmpstr.append((const char*)data + i + 2, (size_t)tmpi); //add the string data
-        i += tmpi + 2; //skip length+size forwards
-        ret.addContent(AMF::parseOne(data, len, i, tmpstr)); //add content, recursively parsed, updating i, setting indice to tmpstr
+        ++i;
+        AMF::Object ret(name, AMF::AMF0_OBJECT);
+        while (data[i] + data[i + 1] != 0) { //while not encountering 0x0000 (we assume 0x000009)
+          tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
+          tmpstr.clear(); //clean tmpstr, just to be sure
+          tmpstr.append((const char *)data + i + 2, (size_t)tmpi); //add the string data
+          i += tmpi + 2; //skip length+size forwards
+          ret.addContent(AMF::parseOne(data, len, i, tmpstr)); //add content, recursively parsed, updating i, setting indice to tmpstr
+        }
+        i += 3; //skip 0x000009
+        return ret;
       }
-      i += 3; //skip 0x000009
-      return ret;
-    }
       break;
     case AMF::AMF0_TYPED_OBJ: {
-      ++i;
-      tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
-      tmpstr.clear(); //clean tmpstr, just to be sure
-      tmpstr.append((const char*)data + i + 2, (size_t)tmpi); //add the string data
-      AMF::Object ret(tmpstr, AMF::AMF0_TYPED_OBJ); //the object is not named "name" but tmpstr
-      while (data[i] + data[i + 1] != 0){ //while not encountering 0x0000 (we assume 0x000009)
+        ++i;
         tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
         tmpstr.clear(); //clean tmpstr, just to be sure
-        tmpstr.append((const char*)data + i + 2, (size_t)tmpi); //add the string data
-        i += tmpi + 2; //skip length+size forwards
-        ret.addContent(AMF::parseOne(data, len, i, tmpstr)); //add content, recursively parsed, updating i, setting indice to tmpstr
+        tmpstr.append((const char *)data + i + 2, (size_t)tmpi); //add the string data
+        AMF::Object ret(tmpstr, AMF::AMF0_TYPED_OBJ); //the object is not named "name" but tmpstr
+        while (data[i] + data[i + 1] != 0) { //while not encountering 0x0000 (we assume 0x000009)
+          tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
+          tmpstr.clear(); //clean tmpstr, just to be sure
+          tmpstr.append((const char *)data + i + 2, (size_t)tmpi); //add the string data
+          i += tmpi + 2; //skip length+size forwards
+          ret.addContent(AMF::parseOne(data, len, i, tmpstr)); //add content, recursively parsed, updating i, setting indice to tmpstr
+        }
+        i += 3; //skip 0x000009
+        return ret;
       }
-      i += 3; //skip 0x000009
-      return ret;
-    }
       break;
     case AMF::AMF0_ECMA_ARRAY: {
-      ++i;
-      AMF::Object ret(name, AMF::AMF0_ECMA_ARRAY);
-      i += 4; //ignore the array length, we re-calculate it
-      while (data[i] + data[i + 1] != 0){ //while not encountering 0x0000 (we assume 0x000009)
-        tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
-        tmpstr.clear(); //clean tmpstr, just to be sure
-        tmpstr.append((const char*)data + i + 2, (size_t)tmpi); //add the string data
-        i += tmpi + 2; //skip length+size forwards
-        ret.addContent(AMF::parseOne(data, len, i, tmpstr)); //add content, recursively parsed, updating i, setting indice to tmpstr
+        ++i;
+        AMF::Object ret(name, AMF::AMF0_ECMA_ARRAY);
+        i += 4; //ignore the array length, we re-calculate it
+        while (data[i] + data[i + 1] != 0) { //while not encountering 0x0000 (we assume 0x000009)
+          tmpi = data[i] * 256 + data[i + 1]; //set tmpi to the UTF-8 length
+          tmpstr.clear(); //clean tmpstr, just to be sure
+          tmpstr.append((const char *)data + i + 2, (size_t)tmpi); //add the string data
+          i += tmpi + 2; //skip length+size forwards
+          ret.addContent(AMF::parseOne(data, len, i, tmpstr)); //add content, recursively parsed, updating i, setting indice to tmpstr
+        }
+        i += 3; //skip 0x000009
+        return ret;
       }
-      i += 3; //skip 0x000009
-      return ret;
-    }
       break;
     case AMF::AMF0_STRICT_ARRAY: {
-      AMF::Object ret(name, AMF::AMF0_STRICT_ARRAY);
-      tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; //set tmpi to array length
-      i += 5; //skip size+1 forwards
-      while (tmpi > 0){ //while not done parsing array
-        ret.addContent(AMF::parseOne(data, len, i, "arrVal")); //add content, recursively parsed, updating i
-        --tmpi;
+        AMF::Object ret(name, AMF::AMF0_STRICT_ARRAY);
+        tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; //set tmpi to array length
+        i += 5; //skip size+1 forwards
+        while (tmpi > 0) { //while not done parsing array
+          ret.addContent(AMF::parseOne(data, len, i, "arrVal")); //add content, recursively parsed, updating i
+          --tmpi;
+        }
+        return ret;
       }
-      return ret;
-    }
       break;
   }
   DEBUG_MSG(DLVL_ERROR, "Error: Unimplemented AMF type %hhx - returning.", data[i]);
@@ -503,14 +503,14 @@ AMF::Object AMF::parseOne(const unsigned char *& data, unsigned int &len, unsign
 /// Parses a C-string to a valid AMF::Object.
 /// This function will find all AMF objects in the string and return
 /// them all packed in a single AMF::AMF0_DDV_CONTAINER AMF::Object.
-AMF::Object AMF::parse(const unsigned char * data, unsigned int len){
+AMF::Object AMF::parse(const unsigned char * data, unsigned int len) {
   AMF::Object ret("returned", AMF::AMF0_DDV_CONTAINER); //container type
   unsigned int i = 0, j = 0;
-  while (i < len){
+  while (i < len) {
     ret.addContent(AMF::parseOne(data, len, i, ""));
-    if (i > j){
+    if (i > j) {
       j = i;
-    }else{
+    } else {
       return ret;
     }
   }
@@ -520,77 +520,77 @@ AMF::Object AMF::parse(const unsigned char * data, unsigned int len){
 /// Parses a std::string to a valid AMF::Object.
 /// This function will find all AMF objects in the string and return
 /// them all packed in a single AMF::AMF0_DDV_CONTAINER AMF::Object.
-AMF::Object AMF::parse(std::string data){
-  return AMF::parse((const unsigned char*)data.c_str(), data.size());
+AMF::Object AMF::parse(std::string data) {
+  return AMF::parse((const unsigned char *)data.c_str(), data.size());
 } //parse
 
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.
-std::string AMF::Object3::Indice(){
+std::string AMF::Object3::Indice() {
   return myIndice;
 }
 
 /// Returns the AMF::obj0type AMF0 object type for this object.
-AMF::obj3type AMF::Object3::GetType(){
+AMF::obj3type AMF::Object3::GetType() {
   return myType;
 }
 
 /// Returns the double value of this object, if available.
 /// If this object holds no double value, 0 is returned.
-double AMF::Object3::DblValue(){
+double AMF::Object3::DblValue() {
   return dblval;
 }
 
 /// Returns the integer value of this object, if available.
 /// If this object holds no integer value, 0 is returned.
-int AMF::Object3::IntValue(){
+int AMF::Object3::IntValue() {
   return intval;
 }
 
 /// Returns the std::string value of this object, if available.
 /// If this object holds no string value, an empty string is returned.
-std::string AMF::Object3::StrValue(){
+std::string AMF::Object3::StrValue() {
   return strval;
 }
 
 /// Returns the C-string value of this object, if available.
 /// If this object holds no string value, an empty C-string is returned.
-const char * AMF::Object3::Str(){
+const char * AMF::Object3::Str() {
   return strval.c_str();
 }
 
 /// Returns a count of the amount of objects this object currently holds.
 /// If this object is not a container type, this function will always return 0.
-int AMF::Object3::hasContent(){
+int AMF::Object3::hasContent() {
   return contents.size();
 }
 
 /// Adds an AMF::Object to this object. Works for all types, but only makes sense for container types.
-void AMF::Object3::addContent(AMF::Object3 c){
+void AMF::Object3::addContent(AMF::Object3 c) {
   contents.push_back(c);
 }
 
 /// Returns a pointer to the object held at indice i.
 /// Returns AMF::AMF3_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
-AMF::Object3* AMF::Object3::getContentP(int i){
+AMF::Object3 * AMF::Object3::getContentP(int i) {
   return &contents.at(i);
 }
 
 /// Returns a copy of the object held at indice i.
 /// Returns a AMF::AMF3_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
-AMF::Object3 AMF::Object3::getContent(int i){
+AMF::Object3 AMF::Object3::getContent(int i) {
   return contents.at(i);
 }
 
 /// Returns a pointer to the object held at indice s.
 /// Returns NULL if no object is held at this indice.
 /// \param s The indice of the object in this container.
-AMF::Object3* AMF::Object3::getContentP(std::string s){
-  for (std::vector<AMF::Object3>::iterator it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == s){
-      return &( *it);
+AMF::Object3 * AMF::Object3::getContentP(std::string s) {
+  for (std::vector<AMF::Object3>::iterator it = contents.begin(); it != contents.end(); it++) {
+    if (it->Indice() == s) {
+      return &(*it);
     }
   }
   return 0;
@@ -599,9 +599,9 @@ AMF::Object3* AMF::Object3::getContentP(std::string s){
 /// Returns a copy of the object held at indice s.
 /// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param s The indice of the object in this container.
-AMF::Object3 AMF::Object3::getContent(std::string s){
-  for (std::vector<AMF::Object3>::iterator it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == s){
+AMF::Object3 AMF::Object3::getContent(std::string s) {
+  for (std::vector<AMF::Object3>::iterator it = contents.begin(); it != contents.end(); it++) {
+    if (it->Indice() == s) {
       return *it;
     }
   }
@@ -610,7 +610,7 @@ AMF::Object3 AMF::Object3::getContent(std::string s){
 
 /// Default constructor.
 /// Simply fills the data with AMF::Object3("error", AMF3_DDV_CONTAINER)
-AMF::Object3::Object3(){
+AMF::Object3::Object3() {
   *this = AMF::Object3("error", AMF3_DDV_CONTAINER);
 } //default constructor
 
@@ -619,7 +619,7 @@ AMF::Object3::Object3(){
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
 /// \param val The numeric value of this object. Double AMF3 objects only support double-type values.
 /// \param setType The object type to force this object to.
-AMF::Object3::Object3(std::string indice, double val, AMF::obj3type setType){ //num type initializer
+AMF::Object3::Object3(std::string indice, double val, AMF::obj3type setType) { //num type initializer
   myIndice = indice;
   myType = setType;
   strval = "";
@@ -632,7 +632,7 @@ AMF::Object3::Object3(std::string indice, double val, AMF::obj3type setType){ //
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
 /// \param val The numeric value of this object. Integer AMF3 objects only support integer-type values.
 /// \param setType The object type to force this object to.
-AMF::Object3::Object3(std::string indice, int val, AMF::obj3type setType){ //num type initializer
+AMF::Object3::Object3(std::string indice, int val, AMF::obj3type setType) { //num type initializer
   myIndice = indice;
   myType = setType;
   strval = "";
@@ -646,7 +646,7 @@ AMF::Object3::Object3(std::string indice, int val, AMF::obj3type setType){ //num
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
 /// \param val The string value of this object.
 /// \param setType The object type to force this object to.
-AMF::Object3::Object3(std::string indice, std::string val, AMF::obj3type setType){ //str type initializer
+AMF::Object3::Object3(std::string indice, std::string val, AMF::obj3type setType) { //str type initializer
   myIndice = indice;
   myType = setType;
   strval = val;
@@ -658,7 +658,7 @@ AMF::Object3::Object3(std::string indice, std::string val, AMF::obj3type setType
 /// The object type is by default AMF::AMF0_OBJECT, but this can be forced to a different value.
 /// \param indice The string indice of this object in its container, or empty string if none. Numeric indices are automatic.
 /// \param setType The object type to force this object to.
-AMF::Object3::Object3(std::string indice, AMF::obj3type setType){ //object type initializer
+AMF::Object3::Object3(std::string indice, AMF::obj3type setType) { //object type initializer
   myIndice = indice;
   myType = setType;
   strval = "";
@@ -669,11 +669,11 @@ AMF::Object3::Object3(std::string indice, AMF::obj3type setType){ //object type 
 /// Return the contents as a human-readable string.
 /// If this object contains other objects, it will call itself recursively
 /// and print all nested content as well.
-std::string AMF::Object3::Print(std::string indent){
+std::string AMF::Object3::Print(std::string indent) {
   std::stringstream st;
   st << indent;
   // print my type
-  switch (myType){
+  switch (myType) {
     case AMF::AMF3_UNDEFINED:
       st << "Undefined";
       break;
@@ -720,7 +720,7 @@ std::string AMF::Object3::Print(std::string indent){
   // print my string indice, if available
   st << " " << myIndice << " ";
   // print my numeric or string contents
-  switch (myType){
+  switch (myType) {
     case AMF::AMF3_INTEGER:
       st << intval;
       break;
@@ -731,22 +731,22 @@ std::string AMF::Object3::Print(std::string indent){
     case AMF::AMF3_XMLDOC:
     case AMF::AMF3_XML:
     case AMF::AMF3_BYTES:
-      if (intval > 0){
+      if (intval > 0) {
         st << "REF" << intval;
-      }else{
+      } else {
         st << strval;
       }
       break;
     case AMF::AMF3_DATE:
-      if (intval > 0){
+      if (intval > 0) {
         st << "REF" << intval;
-      }else{
+      } else {
         st << dblval;
       }
       break;
     case AMF::AMF3_ARRAY:
     case AMF::AMF3_OBJECT:
-      if (intval > 0){
+      if (intval > 0) {
         st << "REF" << intval;
       }
       break;
@@ -755,8 +755,8 @@ std::string AMF::Object3::Print(std::string indent){
   }
   st << std::endl;
   // if I hold other objects, print those too, recursively.
-  if (contents.size() > 0){
-    for (std::vector<AMF::Object3>::iterator it = contents.begin(); it != contents.end(); it++){
+  if (contents.size() > 0) {
+    for (std::vector<AMF::Object3>::iterator it = contents.begin(); it != contents.end(); it++) {
       st << it->Print(indent + "  ");
     }
   }
@@ -766,7 +766,7 @@ std::string AMF::Object3::Print(std::string indent){
 /// Packs the AMF object to a std::string for transfer over the network.
 /// If the object is a container type, this function will call itself recursively and contain all contents.
 /// Tip: When sending multiple AMF objects in one go, put them in a single AMF::AMF0_DDV_CONTAINER for easy transfer.
-std::string AMF::Object3::Pack(){
+std::string AMF::Object3::Pack() {
   std::string r = "";
   return r;
 } //pack
@@ -778,13 +778,13 @@ std::string AMF::Object3::Pack(){
 /// \param i Current parsing position in the raw data.
 /// \param name Indice name for any new object created.
 /// \returns A single AMF::Object3, parsed from the raw data.
-AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsigned int &i, std::string name){
+AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int & len, unsigned int & i, std::string name) {
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned int arrsize = 0;
   unsigned char tmpdbl[8];
-  double *d; // hack to work around strict aliasing
-  switch (data[i]){
+  double * d; // hack to work around strict aliasing
+  switch (data[i]) {
     case AMF::AMF3_UNDEFINED:
     case AMF::AMF3_NULL:
     case AMF::AMF3_FALSE:
@@ -793,20 +793,20 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       return AMF::Object3(name, (AMF::obj3type)data[i - 1]);
       break;
     case AMF::AMF3_INTEGER:
-      if (data[i + 1] < 0x80){
+      if (data[i + 1] < 0x80) {
         tmpi = data[i + 1];
         i += 2;
-      }else{
+      } else {
         tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-        if (data[i + 2] < 0x80){
+        if (data[i + 2] < 0x80) {
           tmpi |= data[i + 2];
           i += 3;
-        }else{
+        } else {
           tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 3] < 0x80){
+          if (data[i + 3] < 0x80) {
             tmpi |= data[i + 3];
             i += 4;
-          }else{
+          } else {
             tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
             tmpi |= data[i + 4];
             i += 5;
@@ -826,24 +826,24 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       tmpdbl[1] = data[i + 7];
       tmpdbl[0] = data[i + 8];
       i += 9; //skip 8(a double)+1 forwards
-      d = (double*)tmpdbl;
+      d = (double *)tmpdbl;
       return AMF::Object3(name, *d, AMF::AMF3_DOUBLE);
       break;
     case AMF::AMF3_STRING:
-      if (data[i + 1] < 0x80){
+      if (data[i + 1] < 0x80) {
         tmpi = data[i + 1];
         i += 2;
-      }else{
+      } else {
         tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-        if (data[i + 2] < 0x80){
+        if (data[i + 2] < 0x80) {
           tmpi |= data[i + 2];
           i += 3;
-        }else{
+        } else {
           tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 3] < 0x80){
+          if (data[i + 3] < 0x80) {
             tmpi |= data[i + 3];
             i += 4;
-          }else{
+          } else {
             tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
             tmpi |= data[i + 4];
             i += 5;
@@ -851,7 +851,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
         }
       }
       tmpi = (tmpi << 3) >> 3; //fix sign bit
-      if ((tmpi & 1) == 0){
+      if ((tmpi & 1) == 0) {
         return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_STRING); //reference type
       }
       tmpstr.clear(); //clean tmpstr, just to be sure
@@ -860,20 +860,20 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       return AMF::Object3(name, tmpstr, AMF::AMF3_STRING); //normal type
       break;
     case AMF::AMF3_XMLDOC:
-      if (data[i + 1] < 0x80){
+      if (data[i + 1] < 0x80) {
         tmpi = data[i + 1];
         i += 2;
-      }else{
+      } else {
         tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-        if (data[i + 2] < 0x80){
+        if (data[i + 2] < 0x80) {
           tmpi |= data[i + 2];
           i += 3;
-        }else{
+        } else {
           tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 3] < 0x80){
+          if (data[i + 3] < 0x80) {
             tmpi |= data[i + 3];
             i += 4;
-          }else{
+          } else {
             tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
             tmpi |= data[i + 4];
             i += 5;
@@ -881,7 +881,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
         }
       }
       tmpi = (tmpi << 3) >> 3; //fix sign bit
-      if ((tmpi & 1) == 0){
+      if ((tmpi & 1) == 0) {
         return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_XMLDOC); //reference type
       }
       tmpstr.clear(); //clean tmpstr, just to be sure
@@ -890,20 +890,20 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       return AMF::Object3(name, tmpstr, AMF::AMF3_XMLDOC); //normal type
       break;
     case AMF::AMF3_XML:
-      if (data[i + 1] < 0x80){
+      if (data[i + 1] < 0x80) {
         tmpi = data[i + 1];
         i += 2;
-      }else{
+      } else {
         tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-        if (data[i + 2] < 0x80){
+        if (data[i + 2] < 0x80) {
           tmpi |= data[i + 2];
           i += 3;
-        }else{
+        } else {
           tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 3] < 0x80){
+          if (data[i + 3] < 0x80) {
             tmpi |= data[i + 3];
             i += 4;
-          }else{
+          } else {
             tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
             tmpi |= data[i + 4];
             i += 5;
@@ -911,7 +911,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
         }
       }
       tmpi = (tmpi << 3) >> 3; //fix sign bit
-      if ((tmpi & 1) == 0){
+      if ((tmpi & 1) == 0) {
         return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_XML); //reference type
       }
       tmpstr.clear(); //clean tmpstr, just to be sure
@@ -920,20 +920,20 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       return AMF::Object3(name, tmpstr, AMF::AMF3_XML); //normal type
       break;
     case AMF::AMF3_BYTES:
-      if (data[i + 1] < 0x80){
+      if (data[i + 1] < 0x80) {
         tmpi = data[i + 1];
         i += 2;
-      }else{
+      } else {
         tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-        if (data[i + 2] < 0x80){
+        if (data[i + 2] < 0x80) {
           tmpi |= data[i + 2];
           i += 3;
-        }else{
+        } else {
           tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 3] < 0x80){
+          if (data[i + 3] < 0x80) {
             tmpi |= data[i + 3];
             i += 4;
-          }else{
+          } else {
             tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
             tmpi |= data[i + 4];
             tmpi = (tmpi << 3) >> 3; //fix sign bit
@@ -941,7 +941,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
           }
         }
       }
-      if ((tmpi & 1) == 0){
+      if ((tmpi & 1) == 0) {
         return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_BYTES); //reference type
       }
       tmpstr.clear(); //clean tmpstr, just to be sure
@@ -950,20 +950,20 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       return AMF::Object3(name, tmpstr, AMF::AMF3_BYTES); //normal type
       break;
     case AMF::AMF3_DATE:
-      if (data[i + 1] < 0x80){
+      if (data[i + 1] < 0x80) {
         tmpi = data[i + 1];
         i += 2;
-      }else{
+      } else {
         tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-        if (data[i + 2] < 0x80){
+        if (data[i + 2] < 0x80) {
           tmpi |= data[i + 2];
           i += 3;
-        }else{
+        } else {
           tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 3] < 0x80){
+          if (data[i + 3] < 0x80) {
             tmpi |= data[i + 3];
             i += 4;
-          }else{
+          } else {
             tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
             tmpi |= data[i + 4];
             i += 5;
@@ -971,7 +971,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
         }
       }
       tmpi = (tmpi << 3) >> 3; //fix sign bit
-      if ((tmpi & 1) == 0){
+      if ((tmpi & 1) == 0) {
         return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_DATE); //reference type
       }
       tmpdbl[7] = data[i];
@@ -982,123 +982,52 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
       tmpdbl[2] = data[i + 5];
       tmpdbl[1] = data[i + 6];
       tmpdbl[0] = data[i + 7];
-      d = (double*)tmpdbl;
+      d = (double *)tmpdbl;
       i += 8; //skip a double forwards
       return AMF::Object3(name, *d, AMF::AMF3_DATE);
       break;
     case AMF::AMF3_ARRAY: {
-      if (data[i + 1] < 0x80){
-        tmpi = data[i + 1];
-        i += 2;
-      }else{
-        tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-        if (data[i + 2] < 0x80){
-          tmpi |= data[i + 2];
-          i += 3;
-        }else{
-          tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 3] < 0x80){
-            tmpi |= data[i + 3];
-            i += 4;
-          }else{
-            tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
-            tmpi |= data[i + 4];
-            i += 5;
-          }
-        }
-      }
-      tmpi = (tmpi << 3) >> 3; //fix sign bit
-      if ((tmpi & 1) == 0){
-        return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_ARRAY); //reference type
-      }
-      AMF::Object3 ret(name, AMF::AMF3_ARRAY);
-      arrsize = tmpi >> 1;
-      do{
-        if (data[i + 1] < 0x80){
+        if (data[i + 1] < 0x80) {
           tmpi = data[i + 1];
           i += 2;
-        }else{
+        } else {
           tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 2] < 0x80){
+          if (data[i + 2] < 0x80) {
             tmpi |= data[i + 2];
             i += 3;
-          }else{
+          } else {
             tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-            if (data[i + 3] < 0x80){
+            if (data[i + 3] < 0x80) {
               tmpi |= data[i + 3];
               i += 4;
-            }else{
+            } else {
               tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
               tmpi |= data[i + 4];
               i += 5;
             }
           }
         }
-        tmpi = (tmpi << 3) >> 4; //fix sign bit, ignore references for now...
-        /// \todo Fix references?
-        if (tmpi > 0){
-          tmpstr.clear(); //clean tmpstr, just to be sure
-          tmpstr.append((const char*)data + i, (size_t)tmpi); //add the string data
-          ret.addContent(AMF::parseOne3(data, len, i, tmpstr)); //add content, recursively parsed, updating i
+        tmpi = (tmpi << 3) >> 3; //fix sign bit
+        if ((tmpi & 1) == 0) {
+          return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_ARRAY); //reference type
         }
-      }while (tmpi > 0);
-      while (arrsize > 0){ //while not done parsing array
-        ret.addContent(AMF::parseOne3(data, len, i, "arrVal")); //add content, recursively parsed, updating i
-        --arrsize;
-      }
-      return ret;
-    }
-      break;
-    case AMF::AMF3_OBJECT: {
-      if (data[i + 1] < 0x80){
-        tmpi = data[i + 1];
-        i += 2;
-      }else{
-        tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-        if (data[i + 2] < 0x80){
-          tmpi |= data[i + 2];
-          i += 3;
-        }else{
-          tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-          if (data[i + 3] < 0x80){
-            tmpi |= data[i + 3];
-            i += 4;
-          }else{
-            tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
-            tmpi |= data[i + 4];
-            i += 5;
-          }
-        }
-      }
-      tmpi = (tmpi << 3) >> 3; //fix sign bit
-      if ((tmpi & 1) == 0){
-        return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_OBJECT); //reference type
-      }
-      AMF::Object3 ret(name, AMF::AMF3_OBJECT);
-      bool isdynamic = false;
-      if ((tmpi & 2) == 0){ //traits by reference, skip for now
-        /// \todo Implement traits by reference. Or references in general, of course...
-      }else{
-        isdynamic = ((tmpi & 8) == 8);
-        arrsize = tmpi >> 4; //count of sealed members
-        /// \todo Read in arrsize sealed member names, then arrsize sealed members.
-      }
-      if (isdynamic){
-        do{
-          if (data[i + 1] < 0x80){
+        AMF::Object3 ret(name, AMF::AMF3_ARRAY);
+        arrsize = tmpi >> 1;
+        do {
+          if (data[i + 1] < 0x80) {
             tmpi = data[i + 1];
             i += 2;
-          }else{
+          } else {
             tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
-            if (data[i + 2] < 0x80){
+            if (data[i + 2] < 0x80) {
               tmpi |= data[i + 2];
               i += 3;
-            }else{
+            } else {
               tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
-              if (data[i + 3] < 0x80){
+              if (data[i + 3] < 0x80) {
                 tmpi |= data[i + 3];
                 i += 4;
-              }else{
+              } else {
                 tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
                 tmpi |= data[i + 4];
                 i += 5;
@@ -1107,15 +1036,86 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
           }
           tmpi = (tmpi << 3) >> 4; //fix sign bit, ignore references for now...
           /// \todo Fix references?
-          if (tmpi > 0){
+          if (tmpi > 0) {
             tmpstr.clear(); //clean tmpstr, just to be sure
-            tmpstr.append((const char*)data + i, (size_t)tmpi); //add the string data
+            tmpstr.append((const char *)data + i, (size_t)tmpi); //add the string data
             ret.addContent(AMF::parseOne3(data, len, i, tmpstr)); //add content, recursively parsed, updating i
           }
-        }while (tmpi > 0); //keep reading dynamic values until empty string
-      } //dynamic types
-      return ret;
-    }
+        } while (tmpi > 0);
+        while (arrsize > 0) { //while not done parsing array
+          ret.addContent(AMF::parseOne3(data, len, i, "arrVal")); //add content, recursively parsed, updating i
+          --arrsize;
+        }
+        return ret;
+      }
+      break;
+    case AMF::AMF3_OBJECT: {
+        if (data[i + 1] < 0x80) {
+          tmpi = data[i + 1];
+          i += 2;
+        } else {
+          tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
+          if (data[i + 2] < 0x80) {
+            tmpi |= data[i + 2];
+            i += 3;
+          } else {
+            tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
+            if (data[i + 3] < 0x80) {
+              tmpi |= data[i + 3];
+              i += 4;
+            } else {
+              tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
+              tmpi |= data[i + 4];
+              i += 5;
+            }
+          }
+        }
+        tmpi = (tmpi << 3) >> 3; //fix sign bit
+        if ((tmpi & 1) == 0) {
+          return AMF::Object3(name, (int)((tmpi >> 1) + 1), AMF::AMF3_OBJECT); //reference type
+        }
+        AMF::Object3 ret(name, AMF::AMF3_OBJECT);
+        bool isdynamic = false;
+        if ((tmpi & 2) == 0) { //traits by reference, skip for now
+          /// \todo Implement traits by reference. Or references in general, of course...
+        } else {
+          isdynamic = ((tmpi & 8) == 8);
+          arrsize = tmpi >> 4; //count of sealed members
+          /// \todo Read in arrsize sealed member names, then arrsize sealed members.
+        }
+        if (isdynamic) {
+          do {
+            if (data[i + 1] < 0x80) {
+              tmpi = data[i + 1];
+              i += 2;
+            } else {
+              tmpi = (data[i + 1] & 0x7F) << 7; //strip the upper bit, shift 7 up.
+              if (data[i + 2] < 0x80) {
+                tmpi |= data[i + 2];
+                i += 3;
+              } else {
+                tmpi = (tmpi | (data[i + 2] & 0x7F)) << 7; //strip the upper bit, shift 7 up.
+                if (data[i + 3] < 0x80) {
+                  tmpi |= data[i + 3];
+                  i += 4;
+                } else {
+                  tmpi = (tmpi | (data[i + 3] & 0x7F)) << 8; //strip the upper bit, shift 7 up.
+                  tmpi |= data[i + 4];
+                  i += 5;
+                }
+              }
+            }
+            tmpi = (tmpi << 3) >> 4; //fix sign bit, ignore references for now...
+            /// \todo Fix references?
+            if (tmpi > 0) {
+              tmpstr.clear(); //clean tmpstr, just to be sure
+              tmpstr.append((const char *)data + i, (size_t)tmpi); //add the string data
+              ret.addContent(AMF::parseOne3(data, len, i, tmpstr)); //add content, recursively parsed, updating i
+            }
+          } while (tmpi > 0); //keep reading dynamic values until empty string
+        } //dynamic types
+        return ret;
+      }
       break;
   }
   DEBUG_MSG(DLVL_ERROR, "Error: Unimplemented AMF3 type %hhx - returning.", data[i]);
@@ -1125,14 +1125,14 @@ AMF::Object3 AMF::parseOne3(const unsigned char *& data, unsigned int &len, unsi
 /// Parses a C-string to a valid AMF::Object3.
 /// This function will find all AMF3 objects in the string and return
 /// them all packed in a single AMF::AMF3_DDV_CONTAINER AMF::Object3.
-AMF::Object3 AMF::parse3(const unsigned char * data, unsigned int len){
+AMF::Object3 AMF::parse3(const unsigned char * data, unsigned int len) {
   AMF::Object3 ret("returned", AMF::AMF3_DDV_CONTAINER); //container type
   unsigned int i = 0, j = 0;
-  while (i < len){
+  while (i < len) {
     ret.addContent(AMF::parseOne3(data, len, i, ""));
-    if (i > j){
+    if (i > j) {
       j = i;
-    }else{
+    } else {
       return ret;
     }
   }
@@ -1142,6 +1142,6 @@ AMF::Object3 AMF::parse3(const unsigned char * data, unsigned int len){
 /// Parses a std::string to a valid AMF::Object3.
 /// This function will find all AMF3 objects in the string and return
 /// them all packed in a single AMF::AMF3_DDV_CONTAINER AMF::Object3.
-AMF::Object3 AMF::parse3(std::string data){
-  return AMF::parse3((const unsigned char*)data.c_str(), data.size());
+AMF::Object3 AMF::parse3(std::string data) {
+  return AMF::parse3((const unsigned char *)data.c_str(), data.size());
 } //parse

@@ -54,9 +54,9 @@ namespace Socket {
       long long int conntime;
       Buffer downbuffer; ///< Stores temporary data coming in.
       Buffer upbuffer; ///< Stores temporary data going out.
-      int iread(void * buffer, int len); ///< Incremental read call.
+      int iread(void * buffer, int len, int flags = 0); ///< Incremental read call.
       unsigned int iwrite(const void * buffer, int len); ///< Incremental write call.
-      bool iread(Buffer & buffer); ///< Incremental write call that is compatible with Socket::Buffer.
+      bool iread(Buffer & buffer, int flags = 0); ///< Incremental write call that is compatible with Socket::Buffer.
       bool iwrite(std::string & buffer); ///< Write call that is compatible with std::string.
     public:
       //friends
@@ -81,6 +81,7 @@ namespace Socket {
       //buffered i/o methods
       bool spool(); ///< Updates the downbuffer and upbuffer internal variables.
       bool flush(); ///< Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
+      bool peek(); ///< Clears the downbuffer and fills it with peek
       Buffer & Received(); ///< Returns a reference to the download buffer.
       void Send(std::string & data); ///< Appends data to the upbuffer.
       void Send(const char * data); ///< Appends data to the upbuffer.

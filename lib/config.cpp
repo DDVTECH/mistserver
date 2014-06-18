@@ -428,6 +428,7 @@ void Util::Config::activate(){
     }
   }
   struct sigaction new_action;
+  struct sigaction cur_action;
   new_action.sa_handler = signal_handler;
   sigemptyset( &new_action.sa_mask);
   new_action.sa_flags = 0;
@@ -435,7 +436,11 @@ void Util::Config::activate(){
   sigaction(SIGHUP, &new_action, NULL);
   sigaction(SIGTERM, &new_action, NULL);
   sigaction(SIGPIPE, &new_action, NULL);
-  sigaction(SIGCHLD, &new_action, NULL);
+  //check if a child signal handler isn't set already, if so, set it.
+  sigaction(SIGCHLD, 0, &cur_action);
+  if (cur_action.sa_handler == SIG_DFL || cur_action.sa_handler == SIG_IGN){
+	sigaction(SIGCHLD, &new_action, NULL);
+  }
   is_active = true;
 }
 
@@ -449,9 +454,17 @@ void Util::Config::signal_handler(int signum){
     case SIGTERM:
       is_active = false;
       break;
-    case SIGCHLD: //when a child dies, reap it.
-      wait(0);
+    case SIGCHLD:{ //when a child dies, reap it.
+	  int status;
+	  pid_t ret = -1;
+	  while (ret != 0){
+		ret = waitpid( -1, &status, WNOHANG);
+		if (ret < 0 && errno != EINTR){
+	      break;
+		}
+	  }
       break;
+	}
     default: //other signals are ignored
       break;
   }

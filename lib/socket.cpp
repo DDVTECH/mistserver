@@ -427,6 +427,13 @@ bool Socket::Connection::spool(){
   }
 }
 
+/// 
+bool Socket::Connection::peek(){
+  /// clear buffer
+  downbuffer.clear();
+  return iread(downbuffer, MSG_PEEK);
+}
+
 /// Updates the downbuffer and upbuffer internal variables until upbuffer is empty.
 /// Returns true if new data was received, false otherwise.
 bool Socket::Connection::flush(){
@@ -563,15 +570,16 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len){
 /// \param buffer Location of the buffer to read to.
 /// \param len Amount of bytes to read.
 /// \returns The amount of bytes actually read.
-int Socket::Connection::iread(void * buffer, int len){
+int Socket::Connection::iread(void * buffer, int len, int flags){
   if ( !connected() || len < 1){
     return 0;
   }
   int r;
-  if (sock >= 0){
-    r = recv(sock, buffer, len, 0);
-  }else{
-    r = read(pipes[1], buffer, len);
+  if (sock >=0 ){
+	 r = recv(sock, buffer, len, flags); 
+  } else {
+    //(pipes[1] >=0) {
+	r = read(pipes[1], buffer, len);
   }
   if (r < 0){
     switch (errno){
@@ -589,7 +597,7 @@ int Socket::Connection::iread(void * buffer, int len){
         break;
     }
   }
-  if (r == 0 && (sock >= 0)){
+  if (r == 0){
     close();
   }
   down += r;
@@ -601,9 +609,9 @@ int Socket::Connection::iread(void * buffer, int len){
 /// then appended to end of buffer.
 /// \param buffer Socket::Buffer to append data to.
 /// \return True if new data arrived, false otherwise.
-bool Socket::Connection::iread(Buffer & buffer){
+bool Socket::Connection::iread(Buffer & buffer, int flags){
   char cbuffer[BUFFER_BLOCKSIZE];
-  int num = iread(cbuffer, BUFFER_BLOCKSIZE);
+  int num = iread(cbuffer, BUFFER_BLOCKSIZE, flags);
   if (num < 1){
     return false;
   }

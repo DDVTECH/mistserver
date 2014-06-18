@@ -126,12 +126,16 @@ void Util::Procs::setHandler(){
     sigaction(SIGCHLD, &new_action, NULL);
     atexit(exit_handler);
     handler_set = true;
-  }
+  }// else {
+   // DEBUG_MSG(DLVL_DEVEL, "not setting handler");
+ // }
 }
+
 
 /// Used internally to capture child signals and update plist.
 void Util::Procs::childsig_handler(int signum){
   if (signum != SIGCHLD){
+    DEBUG_MSG(DLVL_DEVEL, "signum != SIGCHLD");
     return;
   }
   int status;
@@ -142,13 +146,14 @@ void Util::Procs::childsig_handler(int signum){
       if (ret == 0 || errno != EINTR){
         return;
       }
+      continue;
     }
     int exitcode;
     if (WIFEXITED(status)){
       exitcode = WEXITSTATUS(status);
     }else if (WIFSIGNALED(status)){
       exitcode = -WTERMSIG(status);
-    }else{/* not possible */
+    }else{// not possible 
       return;
     }
 
@@ -186,6 +191,7 @@ std::string Util::Procs::getOutputOf(char* const* argv){
     ret += fileBuf;
   }
   fclose(outFile);
+  free(fileBuf);
   return ret;
 }
 
@@ -201,6 +207,7 @@ std::string Util::Procs::getOutputOf(std::string cmd){
   while ( !(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){
     ret += fileBuf;
   }
+  free(fileBuf);
   fclose(outFile);
   return ret;
 }
@@ -431,15 +438,24 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
     DEBUG_MSG(DLVL_WARN, "Process %s already active - skipping start", name.c_str());
     return getPid(name);
   }
+  int pidtemp = StartPiped(argv, fdin, fdout, fderr);
+  if (pidtemp > 0 ) {
+    plist.insert(std::pair<pid_t, std::string>(pidtemp, name));
+  }
+  return pidtemp;
+}
+
+pid_t Util::Procs::StartPiped(char* const* argv, int * fdin, int * fdout, int * fderr){
   pid_t pid;
   int pipein[2], pipeout[2], pipeerr[2];
+  //DEBUG_MSG(DLVL_DEVEL, "setHandler");
   setHandler();
   if (fdin && *fdin == -1 && pipe(pipein) < 0){
-    DEBUG_MSG(DLVL_ERROR, "Pipe in creation failed for process %s", name.c_str());
+    DEBUG_MSG(DLVL_ERROR, "Pipe in creation failed for process %s", argv[0]);
     return 0;
   }
   if (fdout && *fdout == -1 && pipe(pipeout) < 0){
-    DEBUG_MSG(DLVL_ERROR, "Pipe out creation failed for process %s", name.c_str());
+    DEBUG_MSG(DLVL_ERROR, "Pipe out creation failed for process %s", argv[0]);
     if ( *fdin == -1){
       close(pipein[0]);
       close(pipein[1]);
@@ -447,7 +463,7 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
     return 0;
   }
   if (fderr && *fderr == -1 && pipe(pipeerr) < 0){
-    DEBUG_MSG(DLVL_ERROR, "Pipe err creation failed for process %s", name.c_str());
+    DEBUG_MSG(DLVL_ERROR, "Pipe err creation failed for process %s", argv[0]);
     if ( *fdin == -1){
       close(pipein[0]);
       close(pipein[1]);
@@ -462,7 +478,7 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
   if ( !fdin || !fdout || !fderr){
     devnull = open("/dev/null", O_RDWR);
     if (devnull == -1){
-      DEBUG_MSG(DLVL_ERROR, "Could not open /dev/null for process %s: %s", name.c_str(), strerror(errno));
+      DEBUG_MSG(DLVL_ERROR, "Could not open /dev/null for process %s: %s", argv[0], strerror(errno));
       if ( *fdin == -1){
         close(pipein[0]);
         close(pipein[1]);
@@ -488,7 +504,6 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
       close(pipein[0]);
     }else if ( *fdin != STDIN_FILENO){
       dup2( *fdin, STDIN_FILENO);
-      close( *fdin);
     }
     if ( !fdout){
       dup2(devnull, STDOUT_FILENO);
@@ -497,8 +512,7 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
       dup2(pipeout[1], STDOUT_FILENO);
       close(pipeout[1]);
     }else if ( *fdout != STDOUT_FILENO){
-      dup2( *fdout, STDOUT_FILENO);
-      close( *fdout);
+      dup2( *fdout, STDOUT_FILENO);  
     }
     if ( !fderr){
       dup2(devnull, STDERR_FILENO);
@@ -508,16 +522,24 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
       close(pipeerr[1]);
     }else if ( *fderr != STDERR_FILENO){
       dup2( *fderr, STDERR_FILENO);
+    }
+    if( fdin && *fdin !=-1 && *fdin != STDIN_FILENO){
+      close( *fdin);
+    }
+    if( fdout && *fdout !=-1 && *fdout != STDOUT_FILENO){
+      close( *fdout);
+    }
+    if( fderr && *fderr !=-1 && *fderr != STDERR_FILENO){
       close( *fderr);
     }
     if (devnull != -1){
       close(devnull);
     }
     execvp(argv[0], argv);
-    DEBUG_MSG(DLVL_ERROR, "execvp() failed for process %s", name.c_str());
+    DEBUG_MSG(DLVL_ERROR, "execvp() failed for process %s", argv[0]);
     exit(42);
   }else if (pid == -1){
-    DEBUG_MSG(DLVL_ERROR, "fork() for pipe failed for process %s", name.c_str());
+    DEBUG_MSG(DLVL_ERROR, "fork() for pipe failed for process %s", argv[0]);
     if (fdin && *fdin == -1){
       close(pipein[0]);
       close(pipein[1]);
@@ -535,7 +557,7 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
     }
     return 0;
   }else{ //parent
-    DEBUG_MSG(DLVL_HIGH, "Piped process %s started, PID %d: %s", name.c_str(), pid, argv[0]);
+    DEBUG_MSG(DLVL_HIGH, "Piped process %s started, PID %d", argv[0], pid);
     if (devnull != -1){
       close(devnull);
     }
@@ -551,7 +573,6 @@ pid_t Util::Procs::StartPiped(std::string name, char* const* argv, int * fdin, i
       close(pipeerr[1]); // close unused write end
       *fderr = pipeerr[0];
     }
-    plist.insert(std::pair<pid_t, std::string>(pid, name));
   }
   return pid;
 }

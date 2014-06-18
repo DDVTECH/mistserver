@@ -44,7 +44,10 @@ std::string toUTF16(std::string original) {
 
 
 namespace Mist {
-  OutHSS::OutHSS(Socket::Connection & conn) : Output(conn) { }
+  OutHSS::OutHSS(Socket::Connection & conn) : Output(conn) { 
+    myConn.setHost(config->getString("ip"));
+    streamName = config->getString("streamname");
+  }
 
   OutHSS::~OutHSS() {}
 
@@ -449,8 +452,6 @@ namespace Mist {
     sentHeader = false;
     while (HTTP_R.Read(myConn)) {
       DEBUG_MSG(DLVL_DEVEL, "(%d) Received request %s", getpid(), HTTP_R.getUrl().c_str());
-      myConn.setHost(HTTP_R.GetHeader("X-Origin"));
-      streamName = HTTP_R.GetHeader("X-Stream");
       initialize();
       if (HTTP_R.url.find("Manifest") != std::string::npos) {
         //Manifest, direct reply

@@ -4,7 +4,10 @@
 #include <mist/mp4_generic.h>
 
 namespace Mist {
-  OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : Output(conn) { }
+  OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : Output(conn) {
+    myConn.setHost(config->getString("ip"));
+    streamName = config->getString("streamname");
+  }
   
   OutProgressiveMP4::~OutProgressiveMP4() {}
   
@@ -401,8 +404,6 @@ namespace Mist {
   void OutProgressiveMP4::onRequest(){
     if (HTTP_R.Read(myConn)){
       DEBUG_MSG(DLVL_MEDIUM, "Received request: %s", HTTP_R.getUrl().c_str());
-      myConn.setHost(HTTP_R.GetHeader("X-Origin"));
-      streamName = HTTP_R.GetHeader("X-Stream");
       if (HTTP_R.GetVar("audio") != ""){
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("audio")).asInt());
       }

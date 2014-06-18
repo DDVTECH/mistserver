@@ -75,6 +75,8 @@ namespace Mist {
   
   OutHLS::OutHLS(Socket::Connection & conn) : Output(conn) {
     haveAvcc = false;
+    myConn.setHost(config->getString("ip"));
+    streamName = config->getString("streamname");
   }
   
   OutHLS::~OutHLS() {}
@@ -212,9 +214,7 @@ namespace Mist {
   void OutHLS::onRequest(){
     while (HTTP_R.Read(myConn)){
       DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.getUrl().c_str());
-      myConn.setHost(HTTP_R.GetHeader("X-Origin"));
       AppleCompat = (HTTP_R.GetHeader("User-Agent").find("Apple") != std::string::npos);
-      streamName = HTTP_R.GetHeader("X-Stream");
       initialize();
       if (HTTP_R.url.find(".m3u") == std::string::npos){
         std::string tmpStr = HTTP_R.getUrl();
@@ -257,7 +257,6 @@ namespace Mist {
         parseData = true;
         wantRequest = false;
       }else{
-        streamName = HTTP_R.GetHeader("X-Stream");
         initialize();
         std::string request = HTTP_R.url.substr(HTTP_R.url.find("/", 5) + 1);
         HTTP_S.Clean();

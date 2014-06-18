@@ -6,6 +6,8 @@
 namespace Mist {
   OutJSON::OutJSON(Socket::Connection & conn) : Output(conn){
     realTime = 0;
+    myConn.setHost(config->getString("ip"));
+    streamName = config->getString("streamname");
   }
   
   OutJSON::~OutJSON() {}
@@ -60,8 +62,6 @@ namespace Mist {
     while (HTTP_R.Read(myConn)){
       DEBUG_MSG(DLVL_DEVEL, "Received request %s", HTTP_R.getUrl().c_str());
       first = true;
-      myConn.setHost(HTTP_R.GetHeader("X-Origin"));
-      streamName = HTTP_R.GetHeader("X-Stream");
       jsonp = "";
       if (HTTP_R.GetVar("callback") != ""){
         jsonp = HTTP_R.GetVar("callback");

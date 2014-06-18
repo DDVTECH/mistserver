@@ -3,7 +3,10 @@
 #include <mist/defines.h>
 
 namespace Mist {
-  OutProgressiveMP3::OutProgressiveMP3(Socket::Connection & conn) : Output(conn) { }
+  OutProgressiveMP3::OutProgressiveMP3(Socket::Connection & conn) : Output(conn) {
+    myConn.setHost(config->getString("ip"));
+    streamName = config->getString("streamname");  
+  }
   
   OutProgressiveMP3::~OutProgressiveMP3() {}
   
@@ -55,8 +58,6 @@ namespace Mist {
       if (HTTP_R.GetVar("audio") != ""){
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("audio")).asInt());
       }
-      myConn.setHost(HTTP_R.GetHeader("X-Origin"));
-      streamName = HTTP_R.GetHeader("X-Stream");
       parseData = true;
       wantRequest = false;
       HTTP_R.Clean();

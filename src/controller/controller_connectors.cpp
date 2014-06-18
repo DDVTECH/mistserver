@@ -78,7 +78,6 @@ namespace Controller {
       return;
     }
     argarr[argnum++] = (char*)tmparg.c_str();
-    argarr[argnum++] = (char*)"-n";
     JSON::Value & pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
     if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
     if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
@@ -156,6 +155,7 @@ namespace Controller {
     //start up new/changed connectors
     for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
       if (currentConnectors.count(iter->first) != 1 || currentConnectors[iter->first] != iter->second || !Util::Procs::isActive(toConn(iter->first))){
+		if ( capabilities["connectors"][p[iter->first]["connector"].asString()].isMember("socket") ) {continue;}
         Log("CONF", "Starting connector: " + iter->second);
         // clear out old args
         for (i=0; i<15; i++){argarr[i] = 0;}

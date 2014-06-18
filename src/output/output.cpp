@@ -640,6 +640,11 @@ namespace Mist {
       tmpEx.up(myConn.dataUp());
       tmpEx.down(myConn.dataDown());
       tmpEx.time(now - myConn.connTime());
+      if (currentPacket){
+        tmpEx.lastSecond(currentPacket.getTime());
+      }else{
+        tmpEx.lastSecond(0);
+      }
       statsPage.keepAlive();
     }
     int tNum = 0;

@@ -286,7 +286,7 @@ function applyInput(){
     
     var objpath = findObjPath($(this));
     
-    if (($(this).val() == '') || ($(this).val() == 0)) {
+    if (($(this).val() == '') || (($(this).val() == 0) && ($(this).attr('type') == 'number'))) {
       eval('delete '+objpath+';');
     }
     else {

@@ -154,6 +154,8 @@ function showTab(tabName,streamName) {
         ).append(
           $('<label>').text('Debug level:').append(
             $('<select>').attr('id','settings-config-debug').addClass('isSetting').append(
+              $('<option>').val('').text('Default')
+            ).append(
               $('<option>').val(0).text('0 - All debugging messages disabled')
             ).append(
               $('<option>').val(1).text('1 - Messages about failed operations')

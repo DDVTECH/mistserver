@@ -68,6 +68,24 @@ function showTab(tabName,streamName) {
         $('#server').val(adr[1]);
         $('#credentials-username').val(adr[0]);
       }
+      
+      //new here? message
+      if ((!localStorageSupported) || (!localStorage['MistServer_notnew'])) {
+        var $msg = $('<div>').addClass('ih-balloon').addClass('pageinfo').html(
+            '<p>New here?<br>Click the Integrated Help logo for more information about the current page.</p>'
+        );
+        if (localStorageSupported()) {
+          $msg.append(
+            $('<a>').text('Don\'t show this again.').click(function(){
+              localStorage['MistServer_notnew'] = 1;
+              $(this).closest('.ih-balloon').remove();
+            })
+          );
+        }
+        $('#page').prepend($msg);
+      }
+
+      
     break;
     case 'create new account':
       $('#menu').css('visibility', 'hidden');

@@ -90,7 +90,10 @@ body {
 #message > a {
   text-decoration: underline;
   color: #505050;
+}
+a {
   cursor: pointer;
+  text-decoration: underline;
 }
 #ih-button, #ih-button.active:hover {
   position: absolute;

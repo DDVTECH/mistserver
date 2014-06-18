@@ -1455,10 +1455,8 @@ $(function(){
   
   
   $('#ih-button').click(function(){
-    if (ih) {
-      $('.ih-balloon').remove();
-    }
-    else {
+    $('.ih-balloon').remove();
+    if (!ih) {
       getWikiData('/wiki/Integrated_Help',function(data){
         settings.ih = { 
           raw: data.find('#mw-content-text').contents(),
@@ -1499,3 +1497,12 @@ $(window).on('hashchange', function(e) {
   }
   ignoreHashChange = false;
 });
+
+function localStorageSupported() {
+  //does this browser support it?
+  try {
+    return 'localStorage' in window && window['localStorage'] !== null;
+  } catch (e) {
+    return false;
+  }
+}

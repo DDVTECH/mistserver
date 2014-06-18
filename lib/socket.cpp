@@ -427,7 +427,6 @@ bool Socket::Connection::spool() {
   }
 }
 
-///
 bool Socket::Connection::peek() {
   /// clear buffer
   downbuffer.clear();

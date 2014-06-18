@@ -138,16 +138,13 @@ void Util::Procs::setHandler() {
     sigaction(SIGCHLD, &new_action, NULL);
     atexit(exit_handler);
     handler_set = true;
-  }// else {
-  // DEBUG_MSG(DLVL_DEVEL, "not setting handler");
-// }
+  }
 }
 
 
 /// Used internally to capture child signals and update plist.
 void Util::Procs::childsig_handler(int signum) {
   if (signum != SIGCHLD) {
-    DEBUG_MSG(DLVL_DEVEL, "signum != SIGCHLD");
     return;
   }
   int status;

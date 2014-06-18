@@ -90,16 +90,15 @@ bool Util::Stream::getLive(std::string streamname) {
 /// Starts a process for a VoD stream.
 bool Util::Stream::getVod(std::string filename, std::string streamname) {
   static unsigned long long counter = 0;
-  std::stringstream name;
-  name << "MistInDTSC " << (counter++);
   std::string player_bin = Util::getMyPath() + "MistInDTSC";
-  if (filename.substr(filename.size() - 5) == ".ismv") {
-    name.str("MistInISMV " + filename);
-    player_bin = Util::getMyPath() + "MistInISMV";
+  bool selected = false;
+  if (filename.substr(filename.size() - 5) == ".dtsc") {
+    player_bin = Util::getMyPath() + "MistInDTSC";
+    selected = true;
   }
   if (filename.substr(filename.size() - 4) == ".flv") {
-    name.str("MistInFLV " + filename);
     player_bin = Util::getMyPath() + "MistInFLV";
+    selected = true;
   }
   INFO_MSG("Starting %s -p -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
   char * const argv[] = {(char *)player_bin.c_str(), (char *)"-p", (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str(), (char *)0};

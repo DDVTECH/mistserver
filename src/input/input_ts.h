@@ -7,32 +7,35 @@
 
 
 namespace Mist {
-  struct pesBuffer {
-    ///\brief Less-than comparison for seekPos structures.
-    ///\param rhs The seekPos to compare with.
-    ///\return Whether this object is smaller than rhs.
-    bool operator < (const pesBuffer & rhs) const {
-      if (time < rhs.time) {
-        return true;
-      } else {
-        if (time == rhs.time){
-          if (tid < rhs.tid){
-            return true;
+  class pesBuffer {
+    public:
+      pesBuffer() : lastPos(0), len(0), time(0), offset(0), bpos(0), curSampleCount(0), isKey(false) {}
+      ///\brief Less-than comparison for seekPos structures.
+      ///\param rhs The seekPos to compare with.
+      ///\return Whether this object is smaller than rhs.
+      bool operator < (const pesBuffer & rhs) const {
+        if (time < rhs.time) {
+          return true;
+        } else {
+          if (time == rhs.time){
+            if (tid < rhs.tid){
+              return true;
+            }
           }
         }
+        return false;
       }
-      return false;
-    }
-    int tid;//When used for buffering, not for header generation
-    long long int lastPos;//set by readFullPES, stores the byteposition directly after the last read ts packet
-    int len;
-    std::string data;
-    long long int time;
-    long long int offset;
-    long long int bpos;
-    bool isKey;
-    std::string sps;
-    std::string pps;
+      int tid;//When used for buffering, not for header generation
+      long long int lastPos;//set by readFullPES, stores the byteposition directly after the last read ts packet
+      long long int len;
+      std::string data;
+      long long int time;
+      long long int offset;
+      long long int bpos;
+      long long int curSampleCount;
+      bool isKey;
+      std::string sps;
+      std::string pps;
   };
 
 
@@ -70,6 +73,7 @@ namespace Mist {
       h264::NAL nal;///<Used to analyze raw h264 data
       long long int lastPos;///<last position played in file
       std::set<pesBuffer> playbackBuf;///Used for buffering playback items
+      std::map<int, int> firstTimes;
   };
 }
 

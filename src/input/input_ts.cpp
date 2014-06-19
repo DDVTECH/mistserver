@@ -50,7 +50,6 @@ namespace Mist {
     while (trackSpec != "") {
       index = trackSpec.find(' ');
       selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      DEBUG_MSG(DLVL_WARN, "Added track %d, index = %lld, (index == npos) = %d", atoi(trackSpec.substr(0, index).c_str()), index, index == std::string::npos);
       if (index != std::string::npos) {
         trackSpec.erase(0, index + 1);
       } else {
@@ -90,6 +89,10 @@ namespace Mist {
         buf.offset -= buf.time;
       }
     }
+    if (!firstTimes.count(tid)){
+      firstTimes[tid] = buf.time;
+    }
+    buf.time -= firstTimes[tid];
     buf.data.erase(0, 9 + buf.data[8]);
   }
 
@@ -104,6 +107,10 @@ namespace Mist {
 
 
   void inputTS::parseAACPES(int tid, pesBuffer & buf){
+    if (!buf.data.size()){
+      buf.len = 0;
+      return;
+    }
     if (myMeta.tracks[tid].init == ""){
       char audioInit[2];//5 bits object type, 4 bits frequency index, 4 bits channel index
       char AACProfile = ((buf.data[2] >> 6) & 0x03) + 1;
@@ -135,6 +142,8 @@ namespace Mist {
       //\todo This value is right now hardcoded, maybe fix this when we know how
       myMeta.tracks[tid].size = 16;
     }
+    buf.len = (((buf.data[3] & 0x03) << 11) | (buf.data[4] << 3) | ((buf.data[5] >> 5) & 0x07)) - (buf.data[1] & 0x01 ? 7 :9);
+    buf.curSampleCount += 1024 * ((buf.data[6] & 0x3) + 1);//Number of frames * samples per frame(1024);
     buf.data.erase(0, (buf.data[1] & 0x01 ? 7 : 9));//Substract header
   }
 
@@ -163,19 +172,21 @@ namespace Mist {
       switch (buf.data[pos] & 0x1F){
         case 0x05: buf.isKey = true; break;
         case 0x07: buf.sps = buf.data.substr(pos, nalLength); break;
-        case 0x09: buf.pps = buf.data.substr(pos, nalLength); break;
+        case 0x08: buf.pps = buf.data.substr(pos, nalLength); break;
         default: break;
       }
-      //Append length + payload
-      nalLen[0] = (nalLength >> 24) & 0xFF;
-      nalLen[1] = (nalLength >> 16) & 0xFF;
-      nalLen[2] = (nalLength >> 8) & 0xFF;
-      nalLen[3] = nalLength & 0xFF;
-      newData.append(nalLen, 4);
-      newData += buf.data.substr(pos, nalLength);
+      if ((buf.data[pos] & 0x1F) != 0x07 && (buf.data[pos] & 0x1F) != 0x08 && (buf.data[pos] & 0x1F) != 0x09){
+        //Append length + payload
+        nalLen[0] = (nalLength >> 24) & 0xFF;
+        nalLen[1] = (nalLength >> 16) & 0xFF;
+        nalLen[2] = (nalLength >> 8) & 0xFF;
+        nalLen[3] = nalLength & 0xFF;
+        newData.append(nalLen, 4);
+        newData += buf.data.substr(pos, nalLength);
+      }
     }
-    //Rewrite entire buffer
     buf.data = newData;
+    buf.len = newData.size();
     //If this packet had both a Sequence Parameter Set (sps) and a Picture Parameter Set (pps), calculate the metadata for the stream
     if (buf.sps != "" && buf.pps != ""){
       MP4::AVCC avccBox;
@@ -185,8 +196,8 @@ namespace Mist {
       avccBox.setLevel(buf.sps[3]);
       avccBox.setSPSNumber(1);
       avccBox.setSPS(buf.sps);
-      avccBox.setSPSNumber(1);
-      avccBox.setSPS(buf.sps);
+      avccBox.setPPSNumber(1);
+      avccBox.setPPS(buf.pps);
       myMeta.tracks[tid].init = std::string(avccBox.payload(), avccBox.payloadSize());
       h264::SPS tmpNal(buf.sps, true);
       h264::SPSMeta tmpMeta = tmpNal.getCharacteristics();
@@ -262,24 +273,13 @@ namespace Mist {
         //we have audio/video payload
         //get trackID of this packet
         int tid = packet.PID();
-        if (!lastBuffer.count(tid)){
-          lastBuffer[tid].len = 0;
-          lastBuffer[tid].time = 0;
-          lastBuffer[tid].offset = 0;
-          lastBuffer[tid].bpos = lastBpos;
-          lastBuffer[tid].isKey = false;
-        }
-        lastBuffer[tid].data.append(packet.getPayload(), packet.getPayloadLength());
-        if (!lastBuffer[tid].len){
-          parsePESHeader(tid, lastBuffer[tid]);
-        }
-        if (lastBuffer[tid].data.size() == lastBuffer[tid].len) {
+        if (packet.UnitStart() && lastBuffer.count(tid) && lastBuffer[tid].len){
           parsePESPayload(tid, lastBuffer[tid]);
           lastPack.null();
           lastPack["data"] = lastBuffer[tid].data;
           lastPack["trackid"] = tid;//last trackid
           lastPack["bpos"] = lastBuffer[tid].bpos;
-          lastPack["time"] = lastBuffer[tid].time;
+          lastPack["time"] = lastBuffer[tid].time ;
           if (lastBuffer[tid].offset){
             lastPack["offset"] = lastBuffer[tid].offset;
           }
@@ -289,7 +289,43 @@ namespace Mist {
           myMeta.update(lastPack);//metadata was read in
           lastBuffer.erase(tid);
         }
-
+        if (!lastBuffer.count(tid)){
+          lastBuffer[tid] = pesBuffer();
+          lastBuffer[tid].bpos = lastBpos;
+        }
+        lastBuffer[tid].data.append(packet.getPayload(), packet.getPayloadLength());
+        if (!lastBuffer[tid].len){
+          parsePESHeader(tid, lastBuffer[tid]);
+        }
+        if (lastBuffer[tid].data.size() == lastBuffer[tid].len) {
+          parsePESPayload(tid, lastBuffer[tid]);
+          if (myMeta.tracks[tid].codec == "AAC"){
+            while(lastBuffer[tid].data.size()){
+              lastPack.null();
+              lastPack["data"] = lastBuffer[tid].data.substr(0, lastBuffer[tid].len);
+              lastPack["trackid"] = tid;//last trackid
+              lastPack["bpos"] = lastBuffer[tid].bpos;
+              lastPack["time"] = lastBuffer[tid].time + (long long int)((double)((lastBuffer[tid].curSampleCount - 1024) * 1000)/ myMeta.tracks[tid].rate) ;
+              myMeta.update(lastPack);//metadata was read in
+              lastBuffer[tid].data.erase(0, lastBuffer[tid].len);
+              parsePESPayload(tid, lastBuffer[tid]);
+            }
+          }else{
+            lastPack.null();
+            lastPack["data"] = lastBuffer[tid].data;
+            lastPack["trackid"] = tid;//last trackid
+            lastPack["bpos"] = lastBuffer[tid].bpos;
+            lastPack["time"] = lastBuffer[tid].time ;
+            if (lastBuffer[tid].offset){
+              lastPack["offset"] = lastBuffer[tid].offset;
+            }
+            if (lastBuffer[tid].isKey){
+              lastPack["keyframe"] = 1LL;
+            }
+            myMeta.update(lastPack);//metadata was read in
+          }
+          lastBuffer.erase(tid);
+        }
       }
       lastBpos = ftell(inFile);
     }
@@ -306,10 +342,6 @@ namespace Mist {
   pesBuffer inputTS::readFullPES(int tid){
     pesBuffer pesBuf;
     pesBuf.tid = tid;
-    pesBuf.time = 0;
-    pesBuf.offset = 0;
-    pesBuf.len = 0;
-    pesBuf.isKey = false;
     if (feof(inFile)){
       DEBUG_MSG(DLVL_DEVEL, "Trying to read a PES past the end of the file, returning");
       return pesBuf;
@@ -322,28 +354,36 @@ namespace Mist {
       lastPos = ftell(inFile);
       tsBuf.FromFile(inFile);
       if (feof(inFile)){
-        DEBUG_MSG(DLVL_DEVEL, "Reaching EOF during parsing at expected point, returning, nothing wrong here");
         return pesBuf;
       }
     }
     pesBuf.bpos = lastPos;
     pesBuf.data.append(tsBuf.getPayload(), tsBuf.getPayloadLength());
     parsePESHeader(tid, pesBuf);
+    bool unbound = false;
     while (pesBuf.data.size() != pesBuf.len){
       //ReadNextPage
       tsBuf.FromFile(inFile);
+      if (tsBuf.PID() == tid && tsBuf.UnitStart()){
+        unbound = true;
+        break;
+      }
       if (feof(inFile)){
         DEBUG_MSG(DLVL_DEVEL, "Reached EOF at an unexpected point... what happened?");
         return pesBuf;
       }
       if (tsBuf.PID() == tid){
         pesBuf.data.append(tsBuf.getPayload(), tsBuf.getPayloadLength());
+        pesBuf.lastPos = ftell(inFile);
       }
       if (pesBuf.len == 0){
         parsePESHeader(tid, pesBuf);
       }
     }
     pesBuf.lastPos = ftell(inFile);
+    if (unbound){
+      pesBuf.lastPos -= 188;
+    }
     parsePESPayload(tid, pesBuf);
     return pesBuf;
   }
@@ -366,9 +406,30 @@ namespace Mist {
 
     //Seek follow up
     fseek(inFile, thisBuf.lastPos, SEEK_SET);
-    pesBuffer nxtBuf = readFullPES(thisBuf.tid);
+    pesBuffer nxtBuf;
+    if (myMeta.tracks[thisBuf.tid].codec != "AAC" || playbackBuf.size() < 2){
+      nxtBuf = readFullPES(thisBuf.tid);
+    }
     if (nxtBuf.len){
-      playbackBuf.insert(nxtBuf);
+      if (myMeta.tracks[nxtBuf.tid].codec == "AAC"){//only in case of aac we have more packets, for now
+        while (nxtBuf.len){
+          pesBuffer pesBuf;
+          pesBuf.tid = nxtBuf.tid;
+          pesBuf.time = nxtBuf.time + ((double)((nxtBuf.curSampleCount - 1024) * 1000)/ myMeta.tracks[nxtBuf.tid].rate) ;
+          pesBuf.offset = nxtBuf.offset;
+          pesBuf.len = nxtBuf.len;
+          pesBuf.lastPos = nxtBuf.lastPos;
+          pesBuf.isKey = false;
+          pesBuf.data = nxtBuf.data.substr(0, nxtBuf.len);
+          playbackBuf.insert(pesBuf);
+
+          nxtBuf.data.erase(0, nxtBuf.len);
+          parsePESPayload(thisBuf.tid, nxtBuf);
+        }
+      }else{
+        nxtBuf.data = nxtBuf.data.substr(0, nxtBuf.len);
+        playbackBuf.insert(nxtBuf);
+      }
     }
 
     thisPack.null();
@@ -395,8 +456,6 @@ namespace Mist {
       }
       pesBuffer tmpBuf;
       tmpBuf.tid = *it;
-      tmpBuf.time = 0;
-      tmpBuf.bpos = 0;
       for (unsigned int i = 0; i < myMeta.tracks[*it].keyLen; i++){
         if (myMeta.tracks[*it].keys[i].getTime() > seekTime){
           break;
@@ -406,9 +465,10 @@ namespace Mist {
           tmpBuf.bpos = myMeta.tracks[*it].keys[i].getBpos();
         }
       }
+
       bool foundPacket = false;
       unsigned long long lastPos;
-      pesBuffer pesBuf;
+      pesBuffer nxtBuf;
       while ( !foundPacket){
         lastPos = ftell(inFile);
         if (feof(inFile)){
@@ -416,14 +476,31 @@ namespace Mist {
           return;
         }
         fseek(inFile, tmpBuf.bpos, SEEK_SET);
-        pesBuf = readFullPES(*it);
-        if (pesBuf.time >= seekTime){
+        nxtBuf = readFullPES(*it);
+        if (nxtBuf.time >= seekTime){
           foundPacket = true;
         }else{
-          tmpBuf.bpos = pesBuf.lastPos;
+          tmpBuf.bpos = nxtBuf.lastPos;
         }
       }
-      playbackBuf.insert(pesBuf);
+      if (myMeta.tracks[nxtBuf.tid].codec == "AAC"){//only in case of aac we have more packets, for now
+        while (nxtBuf.len){
+          pesBuffer pesBuf;
+          pesBuf.tid = nxtBuf.tid;
+          pesBuf.time = nxtBuf.time + ((double)((nxtBuf.curSampleCount - 1024) * 1000)/ myMeta.tracks[nxtBuf.tid].rate); 
+          pesBuf.offset = nxtBuf.offset;
+          pesBuf.len = nxtBuf.len;
+          pesBuf.lastPos = nxtBuf.lastPos;
+          pesBuf.isKey = false;
+          pesBuf.data = nxtBuf.data.substr(0, nxtBuf.len);
+          playbackBuf.insert(pesBuf);
+
+          nxtBuf.data.erase(0, nxtBuf.len);
+          parsePESPayload(nxtBuf.tid, nxtBuf);
+        }
+      }else{
+        playbackBuf.insert(nxtBuf);
+      }
     }
   }
 }

@@ -75,7 +75,6 @@ namespace Mist {
 
   void OutHSS::sendNext() {
     if (currentPacket.getTime() >= playUntil) {
-      DEBUG_MSG(DLVL_HIGH, "(%d) Done sending fragment %d:%d", getpid(), myTrackStor, myKeyStor);
       stop();
       wantRequest = true;
       HTTP_S.Chunkify("", 0, myConn);
@@ -163,10 +162,8 @@ namespace Mist {
         return;
       }
     }
-    DEBUG_MSG(DLVL_HIGH, "(%d) Seeking to time %lld on track %d", getpid(), seekTime, tid);
     seek(seekTime);
     playUntil = (*(keyTimes[tid].upper_bound(seekTime)));
-    DEBUG_MSG(DLVL_HIGH, "Set playUntil to %lld", playUntil);
     myTrackStor = tid;
     myKeyStor = seekTime;
     keysToSend = 1;
@@ -299,7 +296,6 @@ namespace Mist {
     HTTP_S.Chunkify("mdat", 4, myConn);
     sentHeader = true;
     HTTP_R.Clean();
-    DEBUG_MSG(DLVL_HIGH, "(%d) Sent full header", getpid());
   }
 
 
@@ -451,7 +447,6 @@ namespace Mist {
   void OutHSS::onRequest() {
     sentHeader = false;
     while (HTTP_R.Read(myConn)) {
-      DEBUG_MSG(DLVL_DEVEL, "(%d) Received request %s", getpid(), HTTP_R.getUrl().c_str());
       initialize();
       if (HTTP_R.url.find("Manifest") != std::string::npos) {
         //Manifest, direct reply

@@ -346,6 +346,7 @@ namespace Mist {
         break;
       }
     }
+    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d for track %d", pageNum, track);
     return true;
   }
   

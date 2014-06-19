@@ -76,11 +76,7 @@ namespace Mist {
       if (track.codec == "H264"){
         dheader_len += 4;
         dataheader[0] = 7;
-        if (currentPacket.getFlag("nalu")){
-          dataheader[1] = 1;
-        }else{
-          dataheader[1] = 2;
-        }
+        dataheader[1] = 1;
         if (currentPacket.getInt("offset") > 0){
           long long offset = currentPacket.getInt("offset");
           dataheader[2] = (offset >> 16) & 0xFF;
@@ -93,8 +89,7 @@ namespace Mist {
       }
       if (currentPacket.getFlag("keyframe")){
         dataheader[0] |= 0x10;
-      }
-      if (currentPacket.getFlag("interframe")){
+      }else{
         dataheader[0] |= 0x20;
       }
       if (currentPacket.getFlag("disposableframe")){

@@ -1293,13 +1293,19 @@ function showTab(tabName,streamName) {
             ).append(
               $('<option>').text('Memory load').val('memload').addClass('axis_time')
             ).append(
-              $('<option>').text('Viewer location').val('coords').addClass('axis_coords')
+              $('<option>').text('Viewer location (LTS only)').val('coords').addClass('axis_coords')
             ).change(function(){
               switch ($(this).val()) {
                 case 'clients':
+                  $('#dataset-details .replace-dataset').text('amount of viewers');
+                  $('#dataset-details').show();
+                  break;
                 case 'upbps':
+                  $('#dataset-details .replace-dataset').text('bandwidth (up)');
+                  $('#dataset-details').show();
+                  break;
                 case 'downbps':
-                  $('#dataset-details .replace-dataset').text('amount of viewers')
+                  $('#dataset-details .replace-dataset').text('bandwidth (down)');
                   $('#dataset-details').show();
                   break;
                 default:
@@ -1391,7 +1397,7 @@ function showTab(tabName,streamName) {
                   }
                 }
                 else {
-                  var which = $('#dataset-details.cumuval.'+d.cumutype).val();
+                  var which = $('#dataset-details .cumuval.'+d.cumutype).val();
                   if (d.cumutype == 'stream') {
                     d.stream = which;
                   }
@@ -1400,17 +1406,27 @@ function showTab(tabName,streamName) {
                   }
                   switch (d.type) {
                     case 'clients':
-                      d.label = 'Viewers ('+d.stream+')';
+                      d.label = 'Viewers ('+which+')';
                       d.yaxistype = 'amount';
                       break;
                     case 'upbps':
-                      d.label = 'Bandwidth (up) ('+d.stream+')';
+                      d.label = 'Bandwidth (up) ('+which+')';
                       break;
                     case 'downbps':
-                      d.label = 'Bandwidth (down) ('+d.stream+')';
+                      d.label = 'Bandwidth (down) ('+which+')';
                       break;
                   }
                 }
+              break;
+              case 'coords':
+                d.cumutype = $('#dataset-details input[name=cumutype]:checked').val();
+                if (d.cumutype == 'all') {
+                  var which = 'all';
+                }
+                else {
+                  var which = $('#dataset-details .cumuval.'+d.cumutype).val();
+                }
+                d.label = 'Viewer location ('+which+')';
               break;
             }
             graph.datasets.push(d);
@@ -1506,6 +1522,30 @@ function showTab(tabName,streamName) {
       },10000);
       
       function getPlotData() {
+        var reqobj = {
+          totals: []
+        };
+        for (var g in graphs) {
+          for (var d in graphs[g].datasets) {
+            var set = graphs[g].datasets[d];
+            switch (set.type) {
+              case 'clients':
+              case 'upbps':
+              case 'downbps':
+                switch (set.cumutype) {
+                  case 'all':       reqobj['totals'].push({fields: [set.type]});                               break;
+                  case 'stream':    reqobj['totals'].push({fields: [set.type], streams: [set.stream]});        break;
+                  case 'protocol':  reqobj['totals'].push({fields: [set.type], protocols: [set.protocol]});    break;
+                }
+                set.sourceid = reqobj['totals'].length-1;
+                break;
+              case 'cpuload':
+              case 'memload':
+                reqobj['capabilities'] = {};
+                break;
+            }
+          }
+        }
         getData(function(data){
           for (var j in graphs) {
             for (var i in graphs[j].datasets) {
@@ -1513,7 +1553,7 @@ function showTab(tabName,streamName) {
             }
             drawGraph(graphs[j]);
           }
-        },{capabilities:true,totals:{}});
+        },reqobj);
       }
       
       function findDataset(dataobj,sourcedata) {
@@ -1549,16 +1589,16 @@ function showTab(tabName,streamName) {
           case 'downbps':
           case 'clients':
             //todo: depending on the stream..
-            if (!sourcedata.totals || !sourcedata.totals.data) {
+            if (!sourcedata.totals || !sourcedata.totals[dataobj.sourceid] || !sourcedata.totals[dataobj.sourceid].data) {
               dataobj.data.push([(now-600)*1000,0]);
               dataobj.data.push([now*1000,0]);
             }
             else {
               var fields = {};
-              for (var index in sourcedata.totals.fields) {
-                fields[sourcedata.totals.fields[index]] = index;
+              for (var index in sourcedata.totals[dataobj.sourceid].fields) {
+                fields[sourcedata.totals[dataobj.sourceid].fields[index]] = index;
               }
-              var time = sourcedata.totals.start;
+              var time = sourcedata.totals[dataobj.sourceid].start;
               dataobj.data = [];
               if (time > now-590) {
                 //prepend data with 0 
@@ -1566,20 +1606,20 @@ function showTab(tabName,streamName) {
                 dataobj.data.push([time*1000-1,0]);
               }
               var index = 0;
-              dataobj.data.push([[time*1000,sourcedata.totals.data[index][fields[dataobj.type]]]]);
-              for (var i in sourcedata.totals.interval) {
+              dataobj.data.push([[time*1000,sourcedata.totals[dataobj.sourceid].data[index][fields[dataobj.type]]]]);
+              for (var i in sourcedata.totals[dataobj.sourceid].interval) {
                 if ((i % 2) == 1) {
                   //fill gaps with 0
-                  time += sourcedata.totals.interval[i][1];
+                  time += sourcedata.totals[dataobj.sourceid].interval[i][1];
                   dataobj.data.push([time*1000,0]);
                 }
                 else {
-                  for (var j = 0; j < sourcedata.totals.interval[i][0]; j++) {
-                    time += sourcedata.totals.interval[i][1];
+                  for (var j = 0; j < sourcedata.totals[dataobj.sourceid].interval[i][0]; j++) {
+                    time += sourcedata.totals[dataobj.sourceid].interval[i][1];
                     index++;
-                    dataobj.data.push([time*1000,sourcedata.totals.data[index][fields[dataobj.type]]]);
+                    dataobj.data.push([time*1000,sourcedata.totals[dataobj.sourceid].data[index][fields[dataobj.type]]]);
                   }
-                  if (i < sourcedata.totals.interval.length-1) {
+                  if (i < sourcedata.totals[dataobj.sourceid].interval.length-1) {
                     dataobj.data.push([time*1000+1,0]);
                   }
                 }
@@ -1590,6 +1630,13 @@ function showTab(tabName,streamName) {
                 dataobj.data.push([now*1000,0]);
               }
             }
+            break;
+          case 'coords':
+            //retrieve data
+            //format [lat,long]
+            
+            //testing data
+            dataobj.data = [[-54.657438,-65.11675],[49.725719,-1.941553],[-34.425464,172.677617],[76.958669,68.494178],[0,0]];
             break;
         }
         
@@ -1605,20 +1652,21 @@ function showTab(tabName,streamName) {
         }
         switch (graph.type) {
           case 'coords':
-            //format [lat,long]
-            var data = [[-54.657438,-65.11675],[49.725719,-1.941553],[-34.425464,172.677617],[76.958669,68.494178],[0,0]];
-            //correct latitude according to the Miller cylindrical projection
-            for (var i in  data) {
-              var lat = data[i][0];
-              var lon = data[i][1];
-              //to radians
-              lat = Math.PI * lat / 180;
-              var y = 1.25 * Math.log(Math.tan(0.25 * Math.PI + 0.4 * lat));
-              data[i] = [lon,y];
+            plotsets = [];
+            for (var d in datasets) {
+              //put backend data into the correct projection
+              data = datasets[d].data;
+              //correct latitude according to the Miller cylindrical projection
+              for (var i in  data) {
+                var lat = data[i][0];
+                var lon = data[i][1];
+                //to radians
+                lat = Math.PI * lat / 180;
+                var y = 1.25 * Math.log(Math.tan(0.25 * Math.PI + 0.4 * lat));
+                data[i] = [lon,y];
+              }
+              plotsets.push({data:data});
             }
-            console.log(data);
-            
-            plotsets = [{data:data}];
             //make sure the plot area has the correct height/width ratio
             if ($('#'+graph.id+' .graphbackground').length == 0) {
               var parent = $('#'+graph.id+' .graph');

@@ -97,6 +97,9 @@ namespace IPC {
       mySem = sem_open(name, oflag);
     }
 #endif
+    if (!(*this)){
+      FAIL_MSG("Failed to open semaphore %s: %s", name, strerror(errno));
+    }
     myName = (char *)name;
   }
 

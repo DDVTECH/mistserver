@@ -117,6 +117,12 @@ namespace Controller {
       }
       
       #define connCapa capabilities["connectors"][connName]
+      
+      if (connCapa.isMember("socket")){
+        ( *ait)["online"] = "Enabled";
+        continue;
+      }
+      
       if (connCapa.isMember("required")){
         bool gotAll = true;
         for (JSON::ObjIter it = connCapa["required"].ObjBegin(); it != connCapa["required"].ObjEnd(); ++it){
@@ -155,7 +161,7 @@ namespace Controller {
     //start up new/changed connectors
     for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
       if (currentConnectors.count(iter->first) != 1 || currentConnectors[iter->first] != iter->second || !Util::Procs::isActive(toConn(iter->first))){
-		if ( capabilities["connectors"][p[iter->first]["connector"].asString()].isMember("socket") ) {continue;}
+        if ( capabilities["connectors"][p[iter->first]["connector"].asString()].isMember("socket") ) {continue;}
         Log("CONF", "Starting connector: " + iter->second);
         // clear out old args
         for (i=0; i<15; i++){argarr[i] = 0;}

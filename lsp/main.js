@@ -286,7 +286,7 @@ function applyInput(){
     
     var objpath = findObjPath($(this));
     
-    if (($(this).val() == '') || ($(this).val() == 0)) {
+    if (($(this).val() == '') || (($(this).val() == 0) && ($(this).attr('type') == 'number'))) {
       eval('delete '+objpath+';');
     }
     else {
@@ -1455,10 +1455,8 @@ $(function(){
   
   
   $('#ih-button').click(function(){
-    if (ih) {
-      $('.ih-balloon').remove();
-    }
-    else {
+    $('.ih-balloon').remove();
+    if (!ih) {
       getWikiData('/wiki/Integrated_Help',function(data){
         settings.ih = { 
           raw: data.find('#mw-content-text').contents(),
@@ -1499,3 +1497,397 @@ $(window).on('hashchange', function(e) {
   }
   ignoreHashChange = false;
 });
+
+function localStorageSupported() {
+  //does this browser support it?
+  try {
+    return 'localStorage' in window && window['localStorage'] !== null;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* functions for the statistics graphs */
+
+function getPlotData(graphs) {
+  var reqobj = {
+    totals: []
+  };
+  for (var g in graphs) {
+    for (var d in graphs[g].datasets) {
+      var set = graphs[g].datasets[d];
+      switch (set.type) {
+        case 'clients':
+        case 'upbps':
+        case 'downbps':
+          switch (set.cumutype) {
+            case 'all':       reqobj['totals'].push({fields: [set.type]});                               break;
+            case 'stream':    reqobj['totals'].push({fields: [set.type], streams: [set.stream]});        break;
+            case 'protocol':  reqobj['totals'].push({fields: [set.type], protocols: [set.protocol]});    break;
+          }
+          set.sourceid = reqobj['totals'].length-1;
+          break;
+        case 'cpuload':
+        case 'memload':
+          reqobj['capabilities'] = {};
+          break;
+      }
+    }
+  }
+  getData(function(data){
+    for (var j in graphs) {
+      for (var i in graphs[j].datasets) {
+        graphs[j].datasets[i] = findDataset(graphs[j].datasets[i],data);
+      }
+      drawGraph(graphs[j]);
+    }
+  },reqobj);
+}
+
+function findDataset(dataobj,sourcedata) {
+  var now = sourcedata.config.time;
+  switch (dataobj.type) {
+    case 'cpuload':
+      //remove any data older than 10 minutes
+      var removebefore = false;
+      for (var i in dataobj.data) {
+        if (dataobj.data[i][0] < (now-600)*1000) {
+          removebefore = Number(i)+1;
+        }
+      }
+      if (removebefore !== false) {
+        dataobj.data.splice(0,removebefore);
+      }
+      dataobj.data.push([now*1000,sourcedata.capabilities.load.one]);
+      break;
+    case 'memload':
+      //remove any data older than 10 minutes
+      var removebefore = false;
+      for (var i in dataobj.data) {
+        if (dataobj.data[i][0] < (now-600)*1000) {
+          removebefore = Number(i)+1;
+        }
+      }
+      if (removebefore !== false) {
+        dataobj.data.splice(0,removebefore);
+      }
+      dataobj.data.push([now*1000,sourcedata.capabilities.load.memory]);
+      break;
+    case 'upbps':
+    case 'downbps':
+    case 'clients':
+      //todo: depending on the stream..
+      if (!sourcedata.totals || !sourcedata.totals[dataobj.sourceid] || !sourcedata.totals[dataobj.sourceid].data) {
+        dataobj.data.push([(now-600)*1000,0]);
+        dataobj.data.push([now*1000,0]);
+      }
+      else {
+        var fields = {};
+        for (var index in sourcedata.totals[dataobj.sourceid].fields) {
+          fields[sourcedata.totals[dataobj.sourceid].fields[index]] = index;
+        }
+        var time = sourcedata.totals[dataobj.sourceid].start;
+        dataobj.data = [];
+        if (time > now-590) {
+          //prepend data with 0 
+          dataobj.data.push([(now-600)*1000,0]);
+          dataobj.data.push([time*1000-1,0]);
+        }
+        var index = 0;
+        dataobj.data.push([[time*1000,sourcedata.totals[dataobj.sourceid].data[index][fields[dataobj.type]]]]);
+        for (var i in sourcedata.totals[dataobj.sourceid].interval) {
+          if ((i % 2) == 1) {
+            //fill gaps with 0
+            time += sourcedata.totals[dataobj.sourceid].interval[i][1];
+            dataobj.data.push([time*1000,0]);
+          }
+          else {
+            for (var j = 0; j < sourcedata.totals[dataobj.sourceid].interval[i][0]; j++) {
+              time += sourcedata.totals[dataobj.sourceid].interval[i][1];
+              index++;
+              dataobj.data.push([time*1000,sourcedata.totals[dataobj.sourceid].data[index][fields[dataobj.type]]]);
+            }
+            if (i < sourcedata.totals[dataobj.sourceid].interval.length-1) {
+              dataobj.data.push([time*1000+1,0]);
+            }
+          }
+        }
+        if (now > time + 10) {
+          //append data with 0
+          dataobj.data.push([time*1000+1,0]);
+          dataobj.data.push([now*1000,0]);
+        }
+      }
+      break;
+    case 'coords':
+      //retrieve data
+      //format [lat,long]
+      
+      //testing data
+      dataobj.data = [[-54.657438,-65.11675],[49.725719,-1.941553],[-34.425464,172.677617],[76.958669,68.494178],[0,0]];
+      break;
+  }
+  
+  
+  return dataobj;
+}
+
+function drawGraph(graph){
+  var datasets = graph.datasets;
+  if (datasets.length < 1) { 
+    $('#'+graph.id).children('.graph,.legend').html('');
+    return; 
+  }
+  switch (graph.type) {
+    case 'coords':
+      plotsets = [];
+      for (var d in datasets) {
+        //put backend data into the correct projection
+        data = datasets[d].data;
+        //correct latitude according to the Miller cylindrical projection
+        for (var i in  data) {
+          var lat = data[i][0];
+          var lon = data[i][1];
+          //to radians
+          lat = Math.PI * lat / 180;
+          var y = 1.25 * Math.log(Math.tan(0.25 * Math.PI + 0.4 * lat));
+          data[i] = [lon,y];
+        }
+        plotsets.push({data:data});
+      }
+      //make sure the plot area has the correct height/width ratio
+      if ($('#'+graph.id+' .graphbackground').length == 0) {
+        var parent = $('#'+graph.id+' .graph');
+        var mapheight = 2450;
+        var mapwidth = 3386.08;
+        parent.height(parent.width()*mapheight/mapwidth);
+        var placeholder = $('<div>').addClass('graphforeground')
+        parent.html(
+          $('<img>').attr('src','map.svg').addClass('graphbackground').width(parent.width).height(parent.height())
+        ).append(
+          placeholder
+        );
+      }
+      else {
+        var placeholder = $('#'+graph.id+' .graphforeground');
+      }
+      plot = $.plot(
+        placeholder,
+        plotsets,
+        {
+          legend: {show: false},
+          xaxis: {
+            show: false,
+            min: -170,
+            max: 190
+          },
+          yaxis: {
+            show: false,
+            min: -2.248101053,
+            max: 2.073709536
+          },
+          series: {
+            lines: {show: false},
+            points: {show: true}
+          },
+          grid: {
+            hoverable: true,
+            margin: 0,
+            border: 0,
+            borderWidth: 0,
+            minBorderMargin: 0
+          }
+        }
+      );
+      break;
+      case 'time':
+      case 'default':
+        var yaxes = [];
+        var yaxesTemplates = {
+          percentage: {
+            name: 'percentage',
+            color: 'black',
+            display: false,
+            tickColor: 0,
+            tickDecimals: 0,
+            tickFormatter: function(val,axis){
+              return val.toFixed(axis.tickDecimals) + '%';
+            },
+            tickLength: 0,
+            min: 0
+          },
+          amount: {
+            name: 'amount',
+            color: 'black',
+            display: false,
+            tickColor: 0,
+            tickDecimals: 0,
+            tickFormatter: function(val,axis){
+              return seperateThousands(val.toFixed(axis.tickDecimals),' ');
+            },
+            tickLength: 0,
+            min: 0
+          },
+          bytespersec: {
+            name: 'bytespersec',
+            color: 'black',
+            display: false,
+            tickColor: 0,
+            tickDecimals: 1,
+            tickFormatter: function(val,axis){
+              var suffix = ['bytes','KiB','MiB','GiB','TiB','PiB'];
+              if (val == 0) { 
+                val = val+' '+suffix[0];
+              }
+              else {
+                var exponent = Math.floor(Math.log(Math.abs(val)) / Math.log(1024));
+                if (exponent < 0) {
+                  val = val.toFixed(axis.tickDecimals)+' '+suffix[0];
+                }
+                else {
+                  val = Math.round(val / Math.pow(1024,exponent) * Math.pow(10,axis.tickDecimals)) / Math.pow(10,axis.tickDecimals) +' '+suffix[exponent];
+                }
+              }
+              return val + '/s';
+            },
+            tickLength: 0,
+            ticks: function(axis,a,b,c,d){
+              //taken from flot source code (function setupTickGeneration), 
+              //modified to think in multiples of 1024 by Carina van der Meer for DDVTECH
+              
+              // heuristic based on the model a*sqrt(x) fitted to
+              // some data points that seemed reasonable
+              var noTicks = 0.3 * Math.sqrt($('.graph').first().height());
+              
+              var delta = (axis.max - axis.min) / noTicks,
+              exponent = Math.floor(Math.log(Math.abs(delta)) / Math.log(1024)),
+              correcteddelta = delta / Math.pow(1024,exponent),
+              dec = -Math.floor(Math.log(correcteddelta) / Math.LN10),
+              maxDec = axis.tickDecimals;
+              
+              if (maxDec != null && dec > maxDec) {
+                dec = maxDec;
+              }
+              
+              var magn = Math.pow(10, -dec),
+              norm = correcteddelta / magn, // norm is between 1.0 and 10.0
+              size;
+              
+              if (norm < 1.5) {
+                size = 1;
+              } else if (norm < 3) {
+                size = 2;
+                // special case for 2.5, requires an extra decimal
+                if (norm > 2.25 && (maxDec == null || dec + 1 <= maxDec)) {
+                  size = 2.5;
+                  ++dec;
+                }
+              } else if (norm < 7.5) {
+                size = 5;
+              } else {
+                size = 10;
+              }
+              
+              size *= magn;
+              size = size * Math.pow(1024,exponent);
+              
+              if (axis.minTickSize != null && size < axis.minTickSize) {
+                size = axis.minTickSize;
+              }
+              
+              axis.delta = delta;
+              axis.tickDecimals = Math.max(0, maxDec != null ? maxDec : dec);
+              axis.tickSize = size;
+              
+              var ticks = [],
+              start = axis.tickSize * Math.floor(axis.min / axis.tickSize),
+              i = 0,
+              v = Number.NaN,
+              prev;
+              
+              do {
+                prev = v;
+                v = start + i * axis.tickSize;
+                ticks.push(v);
+                ++i;
+              } while (v < axis.max && v != prev);
+              return ticks;
+            },
+            min: 0
+          }
+        };
+        var xaxistemplates = {
+          time: {
+            name: 'time',
+            mode: 'time',
+            timezone: 'browser',
+            ticks: 5
+          }
+        }
+        var plotsets = [];
+        for (var i in datasets) {
+          if (datasets[i].display) {
+            if (yaxesTemplates[datasets[i].yaxistype].display === false) {
+              yaxes.push(yaxesTemplates[datasets[i].yaxistype]);
+              yaxesTemplates[datasets[i].yaxistype].display = yaxes.length;
+            }
+            datasets[i].yaxis = yaxesTemplates[datasets[i].yaxistype].display;
+            datasets[i].color = Number(i);
+            plotsets.push(datasets[i]);
+          }
+        }
+        if (yaxes[0]) { yaxes[0].color = 0; }
+        plot = $.plot(
+          $('#'+graph.id+' .graph'),
+                      plotsets,
+                      {
+                        legend: {show: false},
+                      xaxis: xaxistemplates[graph.type],
+                      yaxes: yaxes,
+                      grid: {
+                        hoverable: true,
+                      borderWidth: {top: 0, right: 0, bottom: 1, left: 1},
+                      color: 'black',
+                      backgroundColor: {colors: ['#fff','#ededed']}
+                      }
+                      }
+        );
+        break;
+  } //end of graph type switch
+  $('#'+graph.id+' .legend').html(
+    $('<div>').addClass('legend-list').addClass('checklist')
+  );
+  var plotdata = plot.getOptions();
+  for (var i in datasets) {
+    var $checkbox = $('<input>').attr('type','checkbox').data('dataset-index',i).click(function(){
+      if ($(this).is(':checked')) {
+        datasets[$(this).data('dataset-index')].display = true;
+      }
+      else {
+        datasets[$(this).data('dataset-index')].display = false;
+      }
+      drawGraph($(this).parents('.graph-item'));
+    });
+    if (datasets[i].display) {
+      $checkbox.attr('checked','checked');
+    }
+    $('#'+graph.id+' .legend-list').append(
+      $('<label>').html(
+        $checkbox
+      ).append(
+        $('<div>').addClass('series-color').css('background-color',plotdata.colors[datasets[i].color % plotdata.colors.length])
+      ).append(
+        datasets[i].label
+      )
+    );
+  }
+  if (datasets.length > 0) {
+    $('#'+graph.id+' .legend').append(
+      $('<button>').text('Clear all').click(function(){
+        var graph = graphs[$(this).parents('.graph-item').attr('id')];
+        graph.datasets = [];
+        drawGraph(graph);
+      }).css({'float':'none'})
+    );
+  }
+}

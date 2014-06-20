@@ -460,7 +460,6 @@ namespace Connector_HTTP {
 	int id = -1;
 		
 	for (unsigned int i=0; i < ServConf["config"]["protocols"].size(); ++i){
-	  std::cout << "checking: " << ServConf["config"]["protocols"][i]["connector"].asStringRef() <<std::endl;
 	  if ( ServConf["config"]["protocols"][i]["connector"].asStringRef() == connector ) {
 		id =  i;
 		break;  	//pick the first protocol in the list that matches the connector 
@@ -497,7 +496,6 @@ namespace Connector_HTTP {
     argarr[argnum++] = (char*)(temphost.c_str());
     argarr[argnum++] = (char*)"-s";
     argarr[argnum++] = (char*)(tempstream.c_str());
-    INFO_MSG("argnum: %i", argnum);
 	
     //for (unsigned int i=0; i<20; i++){
     //std::cerr << "argv["<<i<< "] " << argarr[i] <<std::endl;

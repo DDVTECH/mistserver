@@ -343,7 +343,6 @@ namespace Mist {
     #endif
     
     sought = false;
-    capa.null();
   }
   
   /// Clears the buffer, sets parseData to false, and generally makes not very much happen at all.

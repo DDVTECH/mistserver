@@ -138,6 +138,7 @@ namespace Mist {
   
   void OutHDS::init(Util::Config * cfg){
     Output::init(cfg);
+    capa["name"] = "HDS";
     capa["desc"] = "Enables HTTP protocol Adobe-specific dynamic streaming (also known as HDS).";
     capa["deps"] = "HTTP";
     capa["url_rel"] = "/dynamic/$/manifest.f4m";

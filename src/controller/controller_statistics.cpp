@@ -47,9 +47,11 @@ void Controller::SharedMemStats(void * config){
 /// This function is called by parseStatistics.
 /// It updates the internally saved statistics data.
 void Controller::statStorage::update(IPC::statExchange & data) {
-  if (streamName == ""){
+  if (!streamName.size()){
     host = data.host();
     streamName = data.streamName();
+  }
+  if (!connector.size()){
     connector = data.connector();
   }
   statLog tmp;

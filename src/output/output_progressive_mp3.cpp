@@ -12,7 +12,7 @@ namespace Mist {
   
   void OutProgressiveMP3::init(Util::Config * cfg){
     Output::init(cfg);
-    capa["name"] = "HTTP_Progressive_MP3";
+    capa["name"] = "MP3";
     capa["desc"] = "Enables HTTP protocol progressive streaming.";
     capa["deps"] = "HTTP";
     capa["url_rel"] = "/$.mp3";

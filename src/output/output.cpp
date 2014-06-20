@@ -626,6 +626,9 @@ namespace Mist {
   }
 
   void Output::stats(){
+    if (!isInitialized){
+      return;
+    }
     if (statsPage.getData()){
       unsigned long long int now = Util::epoch();
       if (now != lastStats){

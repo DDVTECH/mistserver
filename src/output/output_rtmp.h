@@ -14,6 +14,7 @@ namespace Mist {
       void sendNext();
       void sendHeader();
     protected:
+      void parseVars(std::string data);
       std::string app_name;
       bool sending;
       int counter;

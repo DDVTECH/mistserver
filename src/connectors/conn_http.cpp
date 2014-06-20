@@ -324,6 +324,54 @@ namespace Connector_HTTP {
       return ret;
     }
     
+    // send smil MBR index
+    if (url.length() > 6 && url.substr(url.length() - 5, 5) == ".smil"){
+      std::string streamname = url.substr(1, url.length() - 6);
+      Util::Stream::sanitizeName(streamname);
+      JSON::Value ServConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
+      
+      std::string host = H.GetHeader("Host");
+      if (host.find(':')){
+        host.resize(host.find(':'));
+      }
+      
+      std::string port, url_rel;
+      
+      for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
+        const std::string & cName = ( *it)["connector"].asStringRef();
+        if (cName != "RTMP"){continue;}
+        //if we have the RTMP port,
+        if (capabilities.isMember(cName) && capabilities[cName].isMember("optional") && capabilities[cName]["optional"].isMember("port")){
+          //get the default port if none is set
+          if (( *it)["port"].asInt() == 0){
+            port = capabilities[cName]["optional"]["port"]["default"].asString();
+          }
+          //extract url
+          if (capabilities[cName].isMember("url_rel")){
+            url_rel = capabilities[cName]["url_rel"].asString();
+            if (url_rel.find('$')){
+              url_rel.resize(url_rel.find('$'));
+            }
+          }
+        }
+      }
+
+      std::string trackSources;//this string contains all track sources for MBR smil
+      for (JSON::ObjIter it = ServConf["streams"][streamname]["meta"]["tracks"].ObjBegin(); it != ServConf["streams"][streamname]["meta"]["tracks"].ObjEnd(); it++){//for all tracks
+        if (it->second.isMember("type") && it->second["type"].asString() == "video"){
+          trackSources += "      <video src='"+ streamname + "?track=" + it->second["trackid"].asString() + "' height='" + it->second["height"].asString() + "' system-bitrate='" + it->second["bps"].asString() + "' width='" + it->second["width"].asString() + "' />\n";
+        }
+      }
+
+      H.Clean();
+      H.SetHeader("Content-Type", "application/smil");
+      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+      H.SetBody("<smil>\n  <head>\n    <meta base='rtmp://" + host + ":" + port + url_rel + "' />\n  </head>\n  <body>\n    <switch>\n"+trackSources+"    </switch>\n  </body>\n</smil>");
+      long long int ret = Util::getMS();
+      conn.SendNow(H.BuildResponse("200", "OK"));
+      return ret;
+    }
+    
     if ((url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js")
         || (url.length() > 10 && url.substr(0, 7) == "/embed_" && url.substr(url.length() - 3, 3) == ".js")){
       std::string streamname;
@@ -562,6 +610,9 @@ namespace Connector_HTTP {
         return "internal";
       }
       if (url.length() > 6 && url.substr(url.length() - 5, 5) == ".html"){
+        return "internal";
+      }
+      if (url.length() > 6 && url.substr(url.length() - 5, 5) == ".smil"){
         return "internal";
       }
     }

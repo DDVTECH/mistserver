@@ -38,6 +38,61 @@ namespace Mist {
 
   OutRTMP::~OutRTMP() {}
 
+  void OutRTMP::parseVars(std::string data){
+    std::string varname;
+    std::string varval;
+    bool trackSwitch = false;
+    // position where a part start (e.g. after &)
+    size_t pos = 0;
+    while (pos < data.length()){
+      size_t nextpos = data.find('&', pos);
+      if (nextpos == std::string::npos){
+        nextpos = data.length();
+      }
+      size_t eq_pos = data.find('=', pos);
+      if (eq_pos < nextpos){
+        // there is a key and value
+        varname = data.substr(pos, eq_pos - pos);
+        varval = data.substr(eq_pos + 1, nextpos - eq_pos - 1);
+      }else{
+        // no value, only a key
+        varname = data.substr(pos, nextpos - pos);
+        varval.clear();
+      }
+      //SetVar(urlunescape(varname), urlunescape(varval));
+
+      if (varname == "track"){
+        long long int selTrack = JSON::Value(varval).asInt();
+        if (myMeta){
+          if (myMeta.tracks.count(selTrack)){
+            std::string & delThis = myMeta.tracks[selTrack].type;
+            for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+              if (myMeta.tracks[*it].type == delThis){
+                selectedTracks.erase(it);
+                trackSwitch = true;
+                break;
+              }
+            }
+            selectedTracks.insert(selTrack);
+          }
+        }else{
+          selectedTracks.insert(selTrack);
+        }
+      }
+
+      if (nextpos == std::string::npos){
+        // in case the string is gigantic
+        break;
+      }
+      // erase &
+      pos = nextpos + 1;
+    }
+    if (trackSwitch){
+      seek(currentPacket.getTime());
+    }
+  }
+
+
   void OutRTMP::init(Util::Config * cfg) {
     Output::init(cfg);
     capa["name"] = "RTMP";
@@ -446,6 +501,14 @@ namespace Mist {
       int playMessageType = messageType;
       int playStreamId = streamId;
       streamName = amfData.getContentP(3)->StrValue();
+
+      //handle variables
+      if (streamName.find('?') != std::string::npos){
+        std::string tmpVars = streamName.substr(streamName.find('?') + 1);
+        Util::Stream::sanitizeName(streamName);
+        parseVars(tmpVars);
+      }
+
       initialize();
       
       //send a status reply

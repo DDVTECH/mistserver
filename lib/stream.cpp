@@ -63,9 +63,7 @@ void Util::Stream::sanitizeName(std::string & streamname) {
 
 bool Util::Stream::getLive(std::string streamname) {
   JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
-  static unsigned long long counter = 0;
   std::stringstream name;
-  name << "MistInBuffer " << (counter++);
   std::string player_bin = Util::getMyPath() + "MistInBuffer";
   DEBUG_MSG(DLVL_WARN, "Starting %s -p -s %s", player_bin.c_str(), streamname.c_str());
   char * argv[15] = {(char *)player_bin.c_str(), (char *)"-p", (char *)"-s", (char *)streamname.c_str(), (char *)0};
@@ -89,7 +87,6 @@ bool Util::Stream::getLive(std::string streamname) {
 
 /// Starts a process for a VoD stream.
 bool Util::Stream::getVod(std::string filename, std::string streamname) {
-  static unsigned long long counter = 0;
   std::string player_bin = Util::getMyPath() + "MistInDTSC";
   bool selected = false;
   if (filename.substr(filename.size() - 5) == ".dtsc") {

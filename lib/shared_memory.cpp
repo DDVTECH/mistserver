@@ -812,7 +812,7 @@ namespace IPC {
     mySemaphore.open(std::string("/" + baseName).c_str(), O_RDWR);
 #endif
     if (!mySemaphore) {
-      DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
+      DEBUG_MSG(DLVL_FAIL, "Creating copy of semaphore %s failed: %s", baseName.c_str(), strerror(errno));
       return;
     }
     semGuard tmpGuard(mySemaphore);
@@ -832,7 +832,7 @@ namespace IPC {
     mySemaphore.open(std::string("/" + baseName).c_str(), O_RDWR);
 #endif
     if (!mySemaphore) {
-      DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
+      DEBUG_MSG(DLVL_FAIL, "Creating semaphore %s failed: %s", baseName.c_str(), strerror(errno));
       return;
     }
     semGuard tmpGuard(mySemaphore);

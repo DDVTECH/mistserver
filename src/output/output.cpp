@@ -626,26 +626,25 @@ namespace Mist {
   }
 
   void Output::stats(){
-    if (!statsPage.getData()){
-      return;
-    }
-    unsigned long long int now = Util::epoch();
-    if (now != lastStats){
-      lastStats = now;
-      IPC::statExchange tmpEx(statsPage.getData());
-      tmpEx.now(now);
-      tmpEx.host(myConn.getHost());
-      tmpEx.streamName(streamName);
-      tmpEx.connector(capa["name"].asString());
-      tmpEx.up(myConn.dataUp());
-      tmpEx.down(myConn.dataDown());
-      tmpEx.time(now - myConn.connTime());
-      if (currentPacket){
-        tmpEx.lastSecond(currentPacket.getTime());
-      }else{
-        tmpEx.lastSecond(0);
+    if (statsPage.getData()){
+      unsigned long long int now = Util::epoch();
+      if (now != lastStats){
+        lastStats = now;
+        IPC::statExchange tmpEx(statsPage.getData());
+        tmpEx.now(now);
+        tmpEx.host(myConn.getHost());
+        tmpEx.streamName(streamName);
+        tmpEx.connector(capa["name"].asString());
+        tmpEx.up(myConn.dataUp());
+        tmpEx.down(myConn.dataDown());
+        tmpEx.time(now - myConn.connTime());
+        if (currentPacket){
+          tmpEx.lastSecond(currentPacket.getTime());
+        }else{
+          tmpEx.lastSecond(0);
+        }
+        statsPage.keepAlive();
       }
-      statsPage.keepAlive();
     }
     int tNum = 0;
     if (!playerConn.getData()){

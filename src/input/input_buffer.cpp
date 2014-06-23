@@ -222,6 +222,7 @@ namespace Mist {
                 INFO_MSG("Re-push initiated for track %lu, from user %u, will replace final track number %d", value, id, finalMap);
                 myMeta.tracks.erase(finalMap);
                 dataPages.erase(finalMap);
+                inputLoc.erase(finalMap);
               }
             }
             givenTracks.insert(finalMap);

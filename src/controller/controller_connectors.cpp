@@ -59,7 +59,6 @@ namespace Controller {
             debugLvlStr = JSON::Value((long long)Util::Config::printDebugLevel).asString();
             argarr[argnum++] = (char*)(it->second["option"].c_str());
             argarr[argnum++] = (char*)debugLvlStr.c_str();
-            DEVEL_MSG("Setting debug for %s to %s", p["connector"].asStringRef().c_str(), debugLvlStr.c_str());
           }
         }
       }
@@ -101,6 +100,7 @@ namespace Controller {
     long long counter = 0;
 
     for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
+      counter = ait - p.ArrBegin();
       std::string prevOnline = ( *ait)["online"].asString();
       #define connName (*ait)["connector"].asStringRef()
       if ( !(*ait).isMember("connector") || connName == ""){
@@ -147,7 +147,6 @@ namespace Controller {
       }else{
         ( *ait)["online"] = 0;
       }
-      counter++;
     }
 
     //shut down deleted/changed connectors
@@ -161,20 +160,13 @@ namespace Controller {
     //start up new/changed connectors
     for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
       if (currentConnectors.count(iter->first) != 1 || currentConnectors[iter->first] != iter->second || !Util::Procs::isActive(toConn(iter->first))){
-        if ( capabilities["connectors"][p[iter->first]["connector"].asString()].isMember("socket") ) {continue;}
         Log("CONF", "Starting connector: " + iter->second);
         // clear out old args
         for (i=0; i<15; i++){argarr[i] = 0;}
         // get args for this connector
         buildPipedArguments(p[(long long unsigned)iter->first], (char **)&argarr, capabilities);
         // start piped w/ generated args
-        err = -1;
         Util::Procs::StartPiped(toConn(iter->first), argarr, &zero, &out, &err);//redirects output to out. Must make a new pipe, redirect std err
-        if(err != -1){
-          //spawn thread that reads stderr of process
-           tthread::thread msghandler(Controller::handleMsg, (void*)(((char*)0) + err));
-           msghandler.detach();
-        }
       }
     }
 

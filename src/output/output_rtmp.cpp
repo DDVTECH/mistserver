@@ -794,6 +794,7 @@ namespace Mist {
               counter++;
               if (counter > 8){
                 sending = true;
+                myMeta = meta_out;
                 negotiatePushTracks();
                 for (std::deque<JSON::Value>::iterator it = preBuf.begin(); it != preBuf.end(); it++){
                   bufferPacket((*it));

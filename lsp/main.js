@@ -1266,19 +1266,19 @@ function fillServerstatsTables(data) {
       $('<tr>').html(
         $('<td>').text('1 minute:')
       ).append(
-        $('<td>').text(settings.settings.capabilities.load.one+'%').css('text-align','right')
+        $('<td>').text(settings.settings.capabilities.load.one/100+'%').css('text-align','right')
       )
     ).append(
       $('<tr>').html(
         $('<td>').text('5 minutes:')
       ).append(
-        $('<td>').text(settings.settings.capabilities.load.five+'%').css('text-align','right')
+        $('<td>').text(settings.settings.capabilities.load.five/100+'%').css('text-align','right')
       )
     ).append(
       $('<tr>').html(
         $('<td>').text('15 minutes:')
       ).append(
-        $('<td>').text(settings.settings.capabilities.load.fifteen+'%').css('text-align','right')
+        $('<td>').text(settings.settings.capabilities.load.fifteen/100+'%').css('text-align','right')
       )
     );
   }
@@ -1558,7 +1558,7 @@ function findDataset(dataobj,sourcedata) {
       if (removebefore !== false) {
         dataobj.data.splice(0,removebefore);
       }
-      dataobj.data.push([now*1000,sourcedata.capabilities.load.one]);
+      dataobj.data.push([now*1000,sourcedata.capabilities.load.one/100]);
       break;
     case 'memload':
       //remove any data older than 10 minutes

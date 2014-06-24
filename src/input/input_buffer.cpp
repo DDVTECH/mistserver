@@ -206,16 +206,19 @@ namespace Mist {
         //Skip value 0 as this indicates an empty track
         continue;
       }
-      if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
-        if (negotiateTracks.count(value)){
-          negotiateTracks.erase(value);
-          metaPages.erase(value);
+      if (pushedLoc[value] == thisData){
+        if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
+          pushedLoc.erase(value);
+          if (negotiateTracks.count(value)){
+            negotiateTracks.erase(value);
+            metaPages.erase(value);
+          }
+          if (givenTracks.count(value)){
+            givenTracks.erase(value);
+            inputLoc.erase(value);
+          }
+          continue;
         }
-        if (givenTracks.count(value)){
-          givenTracks.erase(value);
-          inputLoc.erase(value);
-        }
-        continue;
       }
       if (value & 0x80000000){
         //Track is set to "New track request", assign new track id and create shared memory page
@@ -314,6 +317,7 @@ namespace Mist {
               }
             }
             givenTracks.insert(finalMap);
+            pushedLoc[finalMap] = thisData;
             if (!myMeta.tracks.count(finalMap)){
               DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %d", finalMap);
               myMeta.tracks[finalMap] = tmpMeta.tracks.begin()->second;
@@ -337,7 +341,7 @@ namespace Mist {
           }
         }
       }
-      if (givenTracks.count(value)){
+      if (givenTracks.count(value) && pushedLoc[value] == thisData){
         //First check if the previous page has been finished:
         if (!inputLoc[value].count(dataPages[value].rbegin()->first) || !inputLoc[value][dataPages[value].rbegin()->first].curOffset){
           if (dataPages[value].size() > 1){

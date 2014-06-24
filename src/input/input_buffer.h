@@ -29,6 +29,7 @@ namespace Mist {
       std::map<unsigned long, IPC::sharedPage> metaPages;
       ///Maps trackid to a pagenum->pageData map
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > inputLoc;
+      std::map<unsigned long, char *> pushedLoc;
       inputBuffer * singleton;
 
       std::string recName;/*LTS*/

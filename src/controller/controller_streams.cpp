@@ -133,14 +133,6 @@ namespace Controller {
             return;
           }
         }
-        if ( data["meta"] && data["meta"].isMember("tracks") && data["meta"]["tracks"] && !DTSC::isFixed(data["meta"])){
-          char * tmp_cmd[3] = {0, 0, 0};
-          std::string mistfix = Util::getMyPath() + "MistDTSCFix";
-          tmp_cmd[0] = (char*)mistfix.c_str();
-          tmp_cmd[1] = (char*)URL.c_str();
-          Util::Procs::getOutputOf(tmp_cmd);
-          data.removeMember("meta");
-        }
         if (!hasViewers(name)){
           if ( !data.isMember("error")){
             data["error"] = "Available";

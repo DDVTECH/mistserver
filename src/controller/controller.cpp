@@ -267,9 +267,6 @@ void createAccount (std::string account){
       Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
     }
   }
-  if ( !Controller::Storage["config"].isMember("basePath")){
-    Controller::Storage["config"]["basePath"] = Util::getMyPath();
-  }
 }
 
 ///\brief The main entry point for the controller.

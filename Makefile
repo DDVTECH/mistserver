@@ -227,8 +227,11 @@ clean:
 	rm -f *.o Mist* sourcery src/controller/server.html src/connectors/embed.js.h src/controller/server.html.h
 	rm -rf ./docs
 
+distclean: clean
+
 install: all
-	install ./Mist* $(DESTDIR)$(bindir)
+	mkdir -p $(DESTDIR)$(bindir)
+	install -m 755 ./Mist* $(DESTDIR)$(bindir)
 
 uninstall:
 	rm -f $(DESTDIR)$(bindir)/Mist*

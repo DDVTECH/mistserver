@@ -45,13 +45,16 @@ clean:
 	rm -f lib/*.o libmist.so libmist.a
 	rm -rf ./docs
 
+distclean: clean
+
 install: libmist.so libmist.a lib/*.h
 	mkdir -p $(DESTDIR)$(includedir)/mist
-	install lib/*.h $(DESTDIR)$(includedir)/mist/
-	install libmist.so $(DESTDIR)$(libdir)/libmist.so
-	install libmist.a $(DESTDIR)$(libdir)/libmist.a
+	install -m 644 lib/*.h $(DESTDIR)$(includedir)/mist/
+	mkdir -p $(DESTDIR)$(libdir)
+	install -m 644 libmist.a $(DESTDIR)$(libdir)/libmist.a
+	install -m 644 libmist.so $(DESTDIR)$(libdir)/libmist.so
 	$(POST_INSTALL)
-	ldconfig
+	if [ "$$USER" = "root" ]; then ldconfig; else echo "run: sudo ldconfig"; fi
 
 uninstall:
 	rm -f $(DESTDIR)$(includedir)/mist/*.h

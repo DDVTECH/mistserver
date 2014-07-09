@@ -468,7 +468,6 @@ int main(int argc, char ** argv){
   time_t lastuplink = 0;
   time_t processchecker = 0;
   Socket::Server API_Socket = Socket::Server(Controller::conf.getInteger("listen_port"), Controller::conf.getString("listen_interface"), true);
-  Socket::Server Stats_Socket = Socket::Server(Util::getTmpFolder() + "statistics", true);
   Socket::Connection Incoming;
   std::vector<Controller::ConnectedUser> users;
   std::vector<Socket::Connection> buffers;

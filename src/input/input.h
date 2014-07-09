@@ -59,7 +59,6 @@ namespace Mist {
 
       Util::Config * config;
       JSON::Value capa;
-      Socket::Connection StatsSocket;
       DTSC::Meta myMeta;
       DTSC::Packet lastPack;
       

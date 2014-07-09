@@ -101,6 +101,10 @@ namespace Analysers {
               case 7:
                 fprintf(stderr, "CTRL: User control message: pingresponse %u\n", ntohl(*(unsigned int*)(next.data.c_str()+2)));
                 break;
+              case 31:
+              case 32:
+                //don't know, but not interesting anyway
+                break;
               default:
                 fprintf(stderr, "CTRL: User control message: UNKNOWN %hu - %u\n", ucmtype, ntohl(*(unsigned int*)(next.data.c_str()+2)));
                 break;
@@ -168,7 +172,9 @@ namespace Analysers {
           }
             break;
           case 22:
-            fprintf(stderr, "Received aggregate message\n");
+            if (Detail & DETAIL_RECONSTRUCT){
+              std::cout << next.data;
+            }
             break;
           default:
             fprintf(stderr, "Unknown chunk received! Probably protocol corruption, stopping parsing of incoming data.\n");

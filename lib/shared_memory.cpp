@@ -1,6 +1,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/sem.h>
 #include <cerrno>
 #include <cstring>
 #include <cstdlib>
@@ -68,7 +69,10 @@ namespace IPC {
   }
 
   ///\brief The deconstructor
-  semaphore::~semaphore() {}
+  semaphore::~semaphore() {
+    close();
+  }
+
 
   ///\brief Returns whether we have a valid semaphore
   semaphore::operator bool() const {

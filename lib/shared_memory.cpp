@@ -572,13 +572,13 @@ namespace IPC {
   }
 
   ///\brief Creates a semaphore guard, locks the semaphore on call
-  semGuard::semGuard(semaphore thisSemaphore) : mySemaphore(thisSemaphore) {
-    mySemaphore.wait();
+  semGuard::semGuard(semaphore * thisSemaphore) : mySemaphore(thisSemaphore) {
+    mySemaphore->wait();
   }
 
   ///\brief Destructs a semaphore guard, unlocks the semaphore on call
   semGuard::~semGuard() {
-    mySemaphore.post();
+    mySemaphore->post();
   }
 
   ///\brief Default constructor, erases all the values
@@ -641,7 +641,7 @@ namespace IPC {
 
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
-    semGuard tmpGuard(mySemaphore);
+    semGuard tmpGuard(&mySemaphore);
     sharedPage tmp(std::string(baseName + (char)(myPages.size() + (int)'A')), (4096 << myPages.size()), true);
     myPages.insert(tmp);
     tmp.master = false;
@@ -654,7 +654,7 @@ namespace IPC {
       DEBUG_MSG(DLVL_WARN, "Can't remove last page for %s", baseName.c_str());
       return;
     }
-    semGuard tmpGuard(mySemaphore);
+    semGuard tmpGuard(&mySemaphore);
     myPages.erase((*myPages.rbegin()));
   }
 
@@ -802,7 +802,7 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
       return;
     }
-    semGuard tmpGuard(mySemaphore);
+    semGuard tmpGuard(&mySemaphore);
     myPage.init(rhs.myPage.name, rhs.myPage.len, rhs.myPage.master);
     offsetOnPage = rhs.offsetOnPage;
   }
@@ -822,7 +822,7 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating copy of semaphore %s failed: %s", baseName.c_str(), strerror(errno));
       return;
     }
-    semGuard tmpGuard(mySemaphore);
+    semGuard tmpGuard(&mySemaphore);
     myPage.init(rhs.myPage.name, rhs.myPage.len, rhs.myPage.master);
     offsetOnPage = rhs.offsetOnPage;
   }
@@ -842,7 +842,7 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore %s failed: %s", baseName.c_str(), strerror(errno));
       return;
     }
-    semGuard tmpGuard(mySemaphore);
+    semGuard tmpGuard(&mySemaphore);
     char * empty = 0;
     if (!hasCounter) {
       empty = (char *)malloc(payLen * sizeof(char));

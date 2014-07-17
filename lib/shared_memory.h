@@ -71,11 +71,11 @@ namespace IPC {
   ///\brief A class used as a semaphore guard
   class semGuard {
     public:
-      semGuard(semaphore thisSemaphore);
+      semGuard(semaphore * thisSemaphore);
       ~semGuard();
     private:
       ///\brief The semaphore to guard.
-      semaphore mySemaphore;
+      semaphore * mySemaphore;
   };
 
 #if !defined __APPLE__

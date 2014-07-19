@@ -8,12 +8,27 @@
 # Description:      MistServer - next generation multimedia server
 ### END INIT INFO
 
+NAME=MistController
+DESC="MistServer"
+CFG_FILE=/etc/mistserver.conf
+LOG_FILE=/var/log/mistserver.log
+PID_FILE=/var/run/mistserver.pid
+
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
 #
 # Function that starts the daemon/service
 #
 do_start()
 {
-  MistController -d -L /var/log/mistserver.log -c /etc/mistserver.conf
+  echo -n "Starting $DESC" "$NAME"
+  MistController -d -L $LOG_FILE -c $CFG_FILE
+  RETVAL=$?
+  [ $RETVAL = 0 ] && touch /var/lock/subsys/$NAME && echo $!>$PID_FILE && echo_success || echo_failure
+  echo
+  return $RETVAL
 }
 
 #
@@ -21,26 +36,37 @@ do_start()
 #
 do_stop()
 {
-  killall MistController
+  echo -n "Stopping $DESC" "$NAME"
+  killall MistController >/dev/null 2>&1
+  RETVAL=$?
+  [ $RETVAL = 0 ] && rm -f /var/lock/subsys/$NAME $PID_FILE && echo_success || echo_failure
+  echo
+  return $RETVAL
+}
+
+do_restart()
+{
+  echo -n "Restarting $DESC" "$NAME"
+  [[ -f /var/lock/subsys/$NAME ]] && killall MistController >/dev/null 2>&1 && rm -f /var/lock/subsys/$NAME $PID_FILE && sleep 2
+  MistController -d -L $LOG_FILE -c $CFG_FILE
+  RETVAL=$?
+  [ $RETVAL = 0 ] && touch /var/lock/subsys/$NAME && echo $!>$PID_FILE && echo_success || echo_failure
+  echo
+  return $RETVAL
 }
 
 case "$1" in
   start)
-        echo "Starting MistServer"
-        do_start
-        ;;
+    do_start
+    ;;
   stop)
-        echo "Stopping MistServer"
-        do_stop
-        ;;
+    do_stop
+    ;;
   restart)
-        log_daemon_msg "Restarting $DESC" "$NAME"
-        do_stop
-        sleep 2
-        do_start
-        ;;
+    do_restart
+    ;;
   *)
-        echo "Usage: $SCRIPTNAME {start|stop|restart}" >&2
-        exit 3
-        ;;
+    echo "Usage: $SCRIPTNAME {start|stop|restart}" >&2
+    exit 3
+    ;;
 esac

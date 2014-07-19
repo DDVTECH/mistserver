@@ -34,18 +34,6 @@ int main(int argc, char * argv[]) {
       //wait for the process to exit
       int status;
       while (waitpid(pid, &status, 0) != pid && errno == EINTR) continue;
-      //clean up the semaphore by waiting for it, if it's non-zero
-      IPC::semaphore waiting(std::string("/wait_" + conf.getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 0);
-      if (!waiting){
-        DEBUG_MSG(DLVL_FAIL, "Failed to open semaphore - cancelling");
-        return -1;
-      }
-      int sem_val = waiting.getVal();
-      while (sem_val){
-        waiting.wait();
-        sem_val = waiting.getVal();
-      }
-      waiting.close();
       //if the exit was clean, don't restart it
       if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
         DEBUG_MSG(DLVL_MEDIUM, "Finished player succesfully");

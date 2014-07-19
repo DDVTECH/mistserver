@@ -162,14 +162,6 @@ namespace Mist {
         }
       }
       
-      IPC::semaphore waiting(std::string("/wait_" + config->getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 0);
-      if (!waiting){
-        DEBUG_MSG(DLVL_FAIL, "Failed to open semaphore - cancelling");
-        return -1;
-      }
-      waiting.post();
-      waiting.close();
-      
       DEBUG_MSG(DLVL_HIGH,"Pre-While");
       
       long long int activityCounter = Util::getMS();

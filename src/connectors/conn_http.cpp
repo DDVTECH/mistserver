@@ -487,62 +487,57 @@ namespace Connector_HTTP {
     int fdIn = conn.getSocket();
     int fdOut = conn.getSocket();
 
-	//taken from CheckProtocols (controller_connectors.cpp)
+    //taken from CheckProtocols (controller_connectors.cpp)
     char * argarr[20];
     for (int i=0; i<20; i++){argarr[i] = 0;}
-	int id = -1;
-		
-	for (unsigned int i=0; i < ServConf["config"]["protocols"].size(); ++i){
-	  if ( ServConf["config"]["protocols"][i]["connector"].asStringRef() == connector ) {
-		id =  i;
-		break;  	//pick the first protocol in the list that matches the connector 
-      }
-	}
-	if (id == -1) {
-		DEBUG_MSG(DLVL_ERROR, "No connector found for: %s", connector.c_str());
-		return -1;
-	}
+    int id = -1;
 
-	DEBUG_MSG(DLVL_HIGH, "Connector found: %s", connector.c_str());
+    for (unsigned int i=0; i < ServConf["config"]["protocols"].size(); ++i){
+      if ( ServConf["config"]["protocols"][i]["connector"].asStringRef() == connector ) {
+        id =  i;
+        break;  	//pick the first protocol in the list that matches the connector 
+      }
+    }
+    if (id == -1) {
+      DEBUG_MSG(DLVL_ERROR, "No connector found for: %s", connector.c_str());
+      return -1;
+    }
+
+    DEBUG_MSG(DLVL_HIGH, "Connector found: %s", connector.c_str());
     //build arguments for starting output process
-    
+
     std::string temphost=conn.getHost();
     std::string tempstream=H.GetVar("stream");
-   // buildPipedArguments( , (char **)&argarr, Connector_HTTP::capabilities, temphost, tempstream);
-	int argnum = 0;
-    
+    std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
+
     std::string tmparg;
     tmparg = Util::getMyPath() + std::string("MistOut") + ServConf["config"]["protocols"][id]["connector"].asStringRef();
     struct stat buf;
     if (::stat(tmparg.c_str(), &buf) != 0){
       tmparg = Util::getMyPath() + std::string("MistConn") + ServConf["config"]["protocols"][id]["connector"].asStringRef();
     }
-    
+
+    int argnum = 0;
     argarr[argnum++] = (char*)tmparg.c_str();
     JSON::Value & p = ServConf["config"]["protocols"][id];
     JSON::Value & pipedCapa = capabilities[p["connector"].asStringRef()];
-    /// \todo why is the if(pipedCapa) line not working (nothing is added to argarr)??
-    if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
-    if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
-	
     argarr[argnum++] = (char*)"-i";
     argarr[argnum++] = (char*)(temphost.c_str());
     argarr[argnum++] = (char*)"-s";
     argarr[argnum++] = (char*)(tempstream.c_str());
-	
-    //for (unsigned int i=0; i<20; i++){
-    //std::cerr << "argv["<<i<< "] " << argarr[i] <<std::endl;
-    //}
-	
-	//std::cerr << "p: " << p.toPrettyString() <<std::endl;
-	//std::cerr << "pipedCapa: " << pipedCapa.toPrettyString() <<std::endl;
-	//std::cerr << "capa: " << capabilities.toPrettyString() <<std::endl;
-	
-	int tempint = fileno(stderr);
+    //set the debug level if non-default
+    if (Util::Config::printDebugLevel != DEBUG){
+      argarr[argnum++] = (char*)"--debug";
+      argarr[argnum++] = (char*)(debuglevel.c_str());
+    }
+    if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
+    if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
+    
+    int tempint = fileno(stderr);
     ///start output process, fdIn and fdOut are connected to conn.sock
-	Util::Procs::StartPiped(argarr, & fdIn, & fdOut, & tempint);
-	conn.drop();
-	return 0;
+    Util::Procs::StartPiped(argarr, & fdIn, & fdOut, & tempint);
+    conn.drop();
+    return 0;
   }
 
   ///\brief Determines the type of connector to be used for handling a request.

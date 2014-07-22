@@ -592,6 +592,7 @@ namespace DTSC {
           ret << "{" << std::endl;
           indent += 2;
           char * i = p + 1;
+          bool first = true;
           //object, scan contents
           while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
             if (i + 2 >= p + len) {
@@ -599,9 +600,13 @@ namespace DTSC {
               ret << std::string((size_t)indent, ' ') << "} //walked out of object here";
               return ret.str();
             }
+            if (!first){
+              ret << "," << std::endl;
+            }
+            first = false;
             unsigned int strlen = i[0] * 256 + i[1];
             i += 2;
-            ret << std::string((size_t)indent, ' ') << "\"" << std::string(i, strlen) << "\": " << Scan(i + strlen, len - (i - p)).toPrettyString(indent) << "," << std::endl;
+            ret << std::string((size_t)indent, ' ') << "\"" << std::string(i, strlen) << "\": " << Scan(i + strlen, len - (i - p)).toPrettyString(indent);
             i = skipDTSC(i + strlen, p + len);
             if (!i) {
               indent -= 2;
@@ -610,7 +615,7 @@ namespace DTSC {
             }
           }
           indent -= 2;
-          ret << std::string((size_t)indent, ' ') << "}";
+          ret << std::endl << std::string((size_t)indent, ' ') << "}";
           return ret.str();
         }
       case DTSC_ARR: {
@@ -619,14 +624,19 @@ namespace DTSC {
           indent += 2;
           Scan tmpScan;
           unsigned int i = 0;
+          bool first = true;
           do {
             tmpScan = getIndice(i++);
             if (tmpScan.getType()) {
-              ret << std::string((size_t)indent, ' ') << tmpScan.toPrettyString(indent) << "," << std::endl;
+              if (!first){
+                ret << "," << std::endl;
+              }
+              first = false;
+              ret << std::string((size_t)indent, ' ') << tmpScan.toPrettyString(indent);
             }
           } while (tmpScan.getType());
           indent -= 2;
-          ret << std::string((size_t)indent, ' ') << "]";
+          ret << std::endl << std::string((size_t)indent, ' ') << "]";
           return ret.str();
         }
       default:

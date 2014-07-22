@@ -597,6 +597,18 @@ namespace Mist {
           DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u - could not reload, dropping track.", nxt.tid);
         }
       }else{
+        loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
+        nxt.offset = 0;
+        if (curPages.count(nxt.tid) && curPages[nxt.tid].mapped){
+          if (getDTSCTime(curPages[nxt.tid].mapped, nxt.offset) < nxt.time){
+            DEBUG_MSG(DLVL_DEVEL, "Time going backwards in track %u - dropping track.", nxt.tid);
+          }else{
+            nxt.time = getDTSCTime(curPages[nxt.tid].mapped, nxt.offset);
+            buffer.insert(nxt);
+          }
+          prepareNext();
+          return;
+        }
         DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u - dropping track.", nxt.tid);
       }
       prepareNext();

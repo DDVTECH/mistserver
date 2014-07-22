@@ -437,7 +437,6 @@ namespace Mist {
   }
   
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
-  /// \todo Make this actually seek, instead of always loading position zero.
   void Output::seek(long long pos){
     sought = true;
     firstTime = Util::getMS() - pos;
@@ -790,7 +789,9 @@ namespace Mist {
       }
     }
     DEBUG_MSG(DLVL_MEDIUM, "MistOut client handler shutting down: %s, %s, %s", myConn.connected() ? "conn_active" : "conn_closed", wantRequest ? "want_request" : "no_want_request", parseData ? "parsing_data" : "not_parsing_data");
+    stats();
     playerConn.finish();
+    statsPage.finish();
     myConn.close();
     return 0;
   }

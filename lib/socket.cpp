@@ -746,6 +746,10 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock) {
   }
   int on = 1;
   setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+#ifdef __CYGWIN__
+  on = 0;
+  setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on));
+#endif
   if (nonblock) {
     int flags = fcntl(sock, F_GETFL, 0);
     flags |= O_NONBLOCK;

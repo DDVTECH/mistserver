@@ -494,7 +494,7 @@ namespace Mist {
       if (wantRequest){
         if ((firstData && myConn.Received().size()) || myConn.spool()){
           firstData = false;
-          DEBUG_MSG(DLVL_VERYHIGH, "OnRequest");
+          DEBUG_MSG(DLVL_DONTEVEN, "OnRequest");
           onRequest();
         }else{
           if (!isBlocking && !parseData){
@@ -507,7 +507,7 @@ namespace Mist {
           initialize();
         }
         if ( !sentHeader){
-          DEBUG_MSG(DLVL_VERYHIGH, "SendHeader");
+          DEBUG_MSG(DLVL_DONTEVEN, "SendHeader");
           sendHeader();
         }
         prepareNext();

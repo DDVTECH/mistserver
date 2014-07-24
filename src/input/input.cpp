@@ -162,7 +162,7 @@ namespace Mist {
         }
       }
       
-      DEBUG_MSG(DLVL_HIGH,"Pre-While");
+      DEBUG_MSG(DLVL_DONTEVEN,"Pre-While");
       
       long long int activityCounter = Util::getMS();
       while ((Util::getMS() - activityCounter) < 10000){//10 second timeout
@@ -202,7 +202,7 @@ namespace Mist {
   }
   
   void Input::parseHeader(){
-    DEBUG_MSG(DLVL_DEVEL,"Parsing the header");
+    DEBUG_MSG(DLVL_DONTEVEN,"Parsing the header");
     //Select all tracks for parsing header
     selectedTracks.clear();
     std::stringstream trackSpec;

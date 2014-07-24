@@ -164,7 +164,7 @@ namespace Mist {
     INFO_MSG("Buffer has indicated that incoming track %d should start writing on track %d, page %d", tid, finalTid, firstPage);
     memset(pageName, 0, 100);
     sprintf(pageName, "%s%d_%d", streamName.c_str(), finalTid, firstPage);
-    curPages[finalTid].init(pageName, 8 * 1024 * 1024);
+    curPages[finalTid].init(pageName, 25 * 1024 * 1024);
     trackMap[tid] = finalTid;
     bookKeeping[finalTid] = DTSCPageData();
   }
@@ -211,7 +211,7 @@ namespace Mist {
       char nextPage[100];
       sprintf(nextPage, "%s%llu_%d", streamName.c_str(), tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
       INFO_MSG("Continuing track %llu on page %d", tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
-      curPages[tNum].init(nextPage, 26 * 1024 * 1024);
+      curPages[tNum].init(nextPage, 25 * 1024 * 1024);
       bookKeeping[tNum].pageNum += bookKeeping[tNum].keyNum;
       bookKeeping[tNum].keyNum = 0;
       bookKeeping[tNum].curOffset = 0;
@@ -762,7 +762,7 @@ namespace Mist {
       if (wantRequest){
         if ((firstData && myConn.Received().size()) || myConn.spool()){
           firstData = false;
-          DEBUG_MSG(DLVL_VERYHIGH, "OnRequest");
+          DEBUG_MSG(DLVL_DONTEVEN, "OnRequest");
           onRequest();
         }else{
           if (!isBlocking && !parseData){
@@ -775,7 +775,7 @@ namespace Mist {
           initialize();
         }
         if ( !sentHeader){
-          DEBUG_MSG(DLVL_VERYHIGH, "SendHeader");
+          DEBUG_MSG(DLVL_DONTEVEN, "SendHeader");
           sendHeader();
         }
         prepareNext();

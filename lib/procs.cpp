@@ -464,11 +464,11 @@ pid_t Util::Procs::StartPiped(char * const * argv, int * fdin, int * fdout, int 
   //DEBUG_MSG(DLVL_DEVEL, "setHandler");
   setHandler();
   if (fdin && *fdin == -1 && pipe(pipein) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "Pipe in creation failed for process %s", argv[0]);
+    DEBUG_MSG(DLVL_ERROR, "stdin pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
     return 0;
   }
   if (fdout && *fdout == -1 && pipe(pipeout) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "Pipe out creation failed for process %s", argv[0]);
+    DEBUG_MSG(DLVL_ERROR, "stdout pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
     if (*fdin == -1) {
       close(pipein[0]);
       close(pipein[1]);
@@ -476,7 +476,7 @@ pid_t Util::Procs::StartPiped(char * const * argv, int * fdin, int * fdout, int 
     return 0;
   }
   if (fderr && *fderr == -1 && pipe(pipeerr) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "Pipe err creation failed for process %s", argv[0]);
+    DEBUG_MSG(DLVL_ERROR, "stderr pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
     if (*fdin == -1) {
       close(pipein[0]);
       close(pipein[1]);
@@ -491,7 +491,7 @@ pid_t Util::Procs::StartPiped(char * const * argv, int * fdin, int * fdout, int 
   if (!fdin || !fdout || !fderr) {
     devnull = open("/dev/null", O_RDWR);
     if (devnull == -1) {
-      DEBUG_MSG(DLVL_ERROR, "Could not open /dev/null for process %s: %s", argv[0], strerror(errno));
+      DEBUG_MSG(DLVL_ERROR, "Could not open /dev/null for process %s, reason: %s", argv[0], strerror(errno));
       if (*fdin == -1) {
         close(pipein[0]);
         close(pipein[1]);
@@ -549,10 +549,10 @@ pid_t Util::Procs::StartPiped(char * const * argv, int * fdin, int * fdout, int 
       close(devnull);
     }
     execvp(argv[0], argv);
-    DEBUG_MSG(DLVL_ERROR, "execvp() failed for process %s", argv[0]);
+    DEBUG_MSG(DLVL_ERROR, "execvp failed for process %s, reason: %s", argv[0], strerror(errno));
     exit(42);
   } else if (pid == -1) {
-    DEBUG_MSG(DLVL_ERROR, "fork() for pipe failed for process %s", argv[0]);
+    DEBUG_MSG(DLVL_ERROR, "fork failed for process %s, reason: %s", argv[0], strerror(errno));
     if (fdin && *fdin == -1) {
       close(pipein[0]);
       close(pipein[1]);

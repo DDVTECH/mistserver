@@ -238,6 +238,7 @@ namespace IPC {
   ///\brief Assignment operator
   void sharedPage::operator =(sharedPage & rhs) {
     init(rhs.name, rhs.len, rhs.master);
+    /// \todo This is bad. The assignment operator changes the rhs value? What the hell?
     rhs.master = false;//Make sure the memory does not get unlinked
   }
 
@@ -268,11 +269,12 @@ namespace IPC {
         } while (i < 10 && !handle && autoBackoff);
       }
       if (!handle) {
-        DEBUG_MSG(DLVL_FAIL, "%s for page %s failed: %s", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), strerror(errno));
+        FAIL_MSG("%s for page %s failed: %s", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), strerror(errno));
         return;
       }
       mapped = (char *)MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
       if (!mapped) {
+        FAIL_MSG("MapViewOfFile for page %s failed: %s", name.c_str(), strerror(errno));
         return;
       }
 #else
@@ -291,16 +293,16 @@ namespace IPC {
         }
       }
       if (handle == -1) {
-        DEBUG_MSG(DLVL_FAIL, "shm_open for page %s failed: %s", name.c_str(), strerror(errno));
+        FAIL_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno));
         return;
       }
       if (master) {
         if (ftruncate(handle, 0) < 0) {
-          DEBUG_MSG(DLVL_FAIL, "truncate to zero for page %s failed: %s", name.c_str(), strerror(errno));
+          FAIL_MSG("truncate to zero for page %s failed: %s", name.c_str(), strerror(errno));
           return;
         }
         if (ftruncate(handle, len) < 0) {
-          DEBUG_MSG(DLVL_FAIL, "truncate to %lld for page %s failed: %s", len, name.c_str(), strerror(errno));
+          FAIL_MSG("truncate to %lld for page %s failed: %s", len, name.c_str(), strerror(errno));
           return;
         }
       } else {
@@ -313,6 +315,7 @@ namespace IPC {
       }
       mapped = (char *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
       if (mapped == MAP_FAILED) {
+        FAIL_MSG("mmap for page %s failed: %s", name.c_str(), strerror(errno));
         mapped = 0;
         return;
       }

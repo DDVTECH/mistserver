@@ -31,10 +31,10 @@ namespace Controller {
     return true;
   }
 
-  ///\brief Starts a single stream
+  ///\brief Checks the validity of a stream, updates internal stream status.
   ///\param name The name of the stream
   ///\param data The corresponding configuration values.
-  void startStream(std::string name, JSON::Value & data){
+  void checkStream(std::string name, JSON::Value & data){
     std::string prevState = data["error"].asStringRef();
     data["online"] = (std::string)"Checking...";
     data.removeMember("error");
@@ -53,6 +53,7 @@ namespace Controller {
       return;
     }
     if (URL.substr(0, 4) == "push"){
+      //push-style stream
       if (hasViewers(name)){
         data["meta"].null();
         IPC::sharedPage streamIndex(name,0,false,false);
@@ -69,85 +70,112 @@ namespace Controller {
           }
         }
       }
-    }else{
-      if (URL.substr(0, 1) == "/"){
-        data.removeMember("error");
-        struct stat fileinfo;
-        if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
-          data["error"] = "Stream offline: Not found: " + URL;
+      return;
+    }
+    if (URL.substr(0, 1) == "/"){
+      //vod-style stream
+      data.removeMember("error");
+      struct stat fileinfo;
+      if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
+        data["error"] = "Stream offline: Not found: " + URL;
+        if (data["error"].asStringRef() != prevState){
+          Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
+        }
+        data["online"] = 0;
+        return;
+      }
+      bool getMeta = false;
+      if ( !data.isMember("l_meta") || fileinfo.st_mtime != data["l_meta"].asInt()){
+        DEBUG_MSG(DLVL_INSANE, "File for stream %s is newer than metadata - triggering reload", name.c_str());
+        getMeta = true;
+        data["l_meta"] = (long long)fileinfo.st_mtime;
+      }
+      if (stat((URL+".dtsh").c_str(), &fileinfo) == 0 && !S_ISDIR(fileinfo.st_mode)){
+        if ( !data.isMember("h_meta") || fileinfo.st_mtime != data["h_meta"].asInt()){
+          DEBUG_MSG(DLVL_INSANE, "DTSH for stream %s is newer than metadata - triggering reload", name.c_str());
+          getMeta = true;
+          data["h_meta"] = (long long)fileinfo.st_mtime;
+        }
+      }
+      if ( !getMeta && data.isMember("meta") && data["meta"].isMember("tracks")){
+        if (!data["meta"]["tracks"]){
+          data["error"] = "Stream offline: Corrupt file?";
           if (data["error"].asStringRef() != prevState){
-            Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
+            Log("WARN", "Source file " + URL + " seems to be corrupt.");
           }
           data["online"] = 0;
           return;
         }
-        bool getMeta = false;
-        if ( !data.isMember("l_meta") || fileinfo.st_mtime != data["l_meta"].asInt()){
-          getMeta = true;
-          data["l_meta"] = (long long)fileinfo.st_mtime;
-        }
-        if (stat((URL+".dtsh").c_str(), &fileinfo) == 0 && !S_ISDIR(fileinfo.st_mode)){
-          if ( !data.isMember("h_meta") || fileinfo.st_mtime != data["h_meta"].asInt()){
-            getMeta = true;
-            data["h_meta"] = (long long)fileinfo.st_mtime;
-          }
-        }
-        if ( !getMeta && data.isMember("meta") && data["meta"].isMember("tracks")){
-          if ( !data["meta"] || !data["meta"]["tracks"]){
-            data["error"] = "Stream offline: Corrupt file?";
-            if (data["error"].asStringRef() != prevState){
-              Log("WARN", "Source file " + URL + " seems to be corrupt.");
-            }
-            data["online"] = 0;
-            return;
-          }
-        }else{
-          getMeta = true;
-        }
-        if (getMeta){
-          // if the file isn't dtsc and there's no dtsh file, run getStream on it
-          // this guarantees that if the stream is playable, it now has a valid header.
-          if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
-            Util::Stream::getVod(URL, name);
-            //wait for the stream
-            {
-              IPC::sharedPage streamIndex;
-              streamIndex.init(name, 8 * 1024 * 1024);
-            }
-          }
-          //now, run mistinfo on the source - or on the accompanying dtsh file, if it exists
-          if (stat((URL+".dtsh").c_str(), &fileinfo) == 0){
-            URL += ".dtsh";
-          }
-          char * tmp_cmd[3] = {0, 0, 0};
-          std::string mistinfo = Util::getMyPath() + "MistInfo";
-          tmp_cmd[0] = (char*)mistinfo.c_str();
-          tmp_cmd[1] = (char*)URL.c_str();
-          data["meta"] = JSON::fromString(Util::Procs::getOutputOf(tmp_cmd));
-          if ( !data["meta"] || !data["meta"].isMember("tracks") || !data["meta"]["tracks"]){
-            data["error"] = "Stream offline: Corrupt file?";
-            if (data["error"].asStringRef() != prevState){
-              Log("WARN", "Source file " + URL + " seems to be corrupt.");
-            }
-            data["online"] = 0;
-            return;
-          }
-        }
-        if (!hasViewers(name)){
-          if ( !data.isMember("error")){
-            data["error"] = "Available";
-          }
-          data["online"] = 2;
-        }else{
-          data["online"] = 1;
-        }
-        return; //MistPlayer handles VoD
       }else{
-        /// \todo Implement ffmpeg pulling again?
-        //Util::Procs::Start(name, "ffmpeg -re -async 2 -i " + URL + " -f flv -", Util::getMyPath() + "MistFLV2DTSC", Util::getMyPath() + buffcmd);
-        //Log("BUFF", "(re)starting stream buffer " + name + " for ffmpeg data: ffmpeg -re -async 2 -i " + URL + " -f flv -");
+        DEBUG_MSG(DLVL_INSANE, "Invalid metadata (no tracks object) for stream %s - triggering reload", name.c_str());
+        getMeta = true;
       }
+      if (getMeta){
+        // if the file isn't dtsc and there's no dtsh file, run getStream on it
+        // this guarantees that if the stream is playable, it now has a valid header.
+        DEBUG_MSG(DLVL_INSANE, "(re)loading metadata for stream %s", name.c_str());
+        if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
+          DEBUG_MSG(DLVL_INSANE, "Stream %s is non-DTSC file without DTSH. Opening stream to generate DTSH...", name.c_str());
+          Util::Stream::getVod(URL, name);
+          DEBUG_MSG(DLVL_INSANE, "Waiting for stream %s to open...", name.c_str());
+          //wait for the stream
+          {
+            IPC::sharedPage streamIndex;
+            streamIndex.init(name, 8 * 1024 * 1024);
+            if (!streamIndex.mapped){
+              DEBUG_MSG(DLVL_INSANE, "Stream %s opening failed! Cancelling and marking as corrupt.", name.c_str());
+              data["meta"].null();
+              data["meta"]["tracks"].null();
+              data["error"] = "Stream offline: Corrupt file?";
+              if (data["error"].asStringRef() != prevState){
+                Log("WARN", "Source file " + URL + " seems to be corrupt.");
+              }
+              data["online"] = 0;
+            }
+          }
+          DEBUG_MSG(DLVL_INSANE, "Stream %s opened", name.c_str());
+        }
+        //now, run mistinfo on the source - or on the accompanying dtsh file, if it exists
+        if (stat((URL+".dtsh").c_str(), &fileinfo) == 0){
+          DEBUG_MSG(DLVL_INSANE, "Stream %s has a DTSH - opening DTSH instead of main stream file", name.c_str());
+          URL += ".dtsh";
+        }
+        char * tmp_cmd[3] = {0, 0, 0};
+        std::string mistinfo = Util::getMyPath() + "MistInfo";
+        tmp_cmd[0] = (char*)mistinfo.c_str();
+        tmp_cmd[1] = (char*)URL.c_str();
+        DEBUG_MSG(DLVL_INSANE, "Running MistInfo for stream %s on file %s", name.c_str(), tmp_cmd[1]);
+        data["meta"] = JSON::fromString(Util::Procs::getOutputOf(tmp_cmd));
+        if ( !data["meta"] || !data["meta"].isMember("tracks") || !data["meta"]["tracks"]){
+          data["error"] = "Stream offline: Corrupt file?";
+          if (data["error"].asStringRef() != prevState){
+            Log("WARN", "Source file " + URL + " seems to be corrupt.");
+          }
+          data["online"] = 0;
+          return;
+        }
+        DEBUG_MSG(DLVL_INSANE, "Metadata for stream %s succesfully (re)loaded", name.c_str());
+      }
+      if (!hasViewers(name)){
+        if ( !data.isMember("error")){
+          data["error"] = "Available";
+        }
+        data["online"] = 2;
+      }else{
+        data["online"] = 1;
+      }
+      return;
     }
+    /// \todo Implement ffmpeg pulling again?
+    //Util::Procs::Start(name, "ffmpeg -re -async 2 -i " + URL + " -f flv -", Util::getMyPath() + "MistFLV2DTSC", Util::getMyPath() + buffcmd);
+    //Log("BUFF", "(re)starting stream buffer " + name + " for ffmpeg data: ffmpeg -re -async 2 -i " + URL + " -f flv -");
+    
+    //not recognized
+    data["error"] = "Invalid source format";
+    if (data["error"].asStringRef() != prevState){
+      Log("STRM", "Invalid source format for stream " + name + "!");
+    }
+    return;
   }
 
   ///\brief Checks all streams, restoring if needed.
@@ -155,9 +183,7 @@ namespace Controller {
   void CheckAllStreams(JSON::Value & data){
     long long int currTime = Util::epoch();
     for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
-      if ( !Util::Procs::isActive(jit->first)){
-        startStream(jit->first, jit->second);
-      }
+      checkStream(jit->first, jit->second);
       if (!jit->second.isMember("name")){
         jit->second["name"] = jit->first;
       }
@@ -235,14 +261,7 @@ namespace Controller {
           }
           out[jit->first]["updated"] = 1ll;
           Log("STRM", std::string("Updated stream ") + jit->first);
-          if (out[jit->first]["source"].asStringRef().substr(0, 7) != "push://"){
-            Util::Procs::Stop(jit->first);
-            startStream(jit->first, out[jit->first]);
-          }else{
-            if ( !Util::Procs::isActive(jit->first)){
-              startStream(jit->first, out[jit->first]);
-            }
-          }
+          checkStream(jit->first, out[jit->first]);
         }
       }else{
         out[jit->first]["name"] = jit->first;
@@ -254,7 +273,7 @@ namespace Controller {
           out[jit->first]["cut"] = jit->second["cut"].asInt();
         }
         Log("STRM", std::string("New stream ") + jit->first);
-        startStream(jit->first, out[jit->first]);
+        checkStream(jit->first, out[jit->first]);
       }
     }
   }
@@ -318,7 +337,6 @@ namespace Controller {
       if ( !in.isMember(jit->first)){
         toDelete.insert(jit->first);
         Log("STRM", std::string("Deleted stream ") + jit->first);
-        Util::Procs::Stop(jit->first);
       }
     }
     //actually delete the streams

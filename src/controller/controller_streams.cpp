@@ -116,7 +116,7 @@ namespace Controller {
         DEBUG_MSG(DLVL_INSANE, "(re)loading metadata for stream %s", name.c_str());
         if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
           DEBUG_MSG(DLVL_INSANE, "Stream %s is non-DTSC file without DTSH. Opening stream to generate DTSH...", name.c_str());
-          Util::Stream::getStream(name);
+          Util::Stream::getVod(URL, name);
           DEBUG_MSG(DLVL_INSANE, "Waiting for stream %s to open...", name.c_str());
           //wait for the stream
           {

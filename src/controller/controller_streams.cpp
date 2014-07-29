@@ -125,12 +125,11 @@ namespace Controller {
         DEBUG_MSG(DLVL_INSANE, "(re)loading metadata for stream %s", name.c_str());
         if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
           DEBUG_MSG(DLVL_INSANE, "Stream %s is non-DTSC file without DTSH. Opening stream to generate DTSH...", name.c_str());
-          Util::Stream::getVod(URL, name);
+          Util::Stream::getStream(name);
           DEBUG_MSG(DLVL_INSANE, "Waiting for stream %s to open...", name.c_str());
           //wait for the stream
           {
-            IPC::sharedPage streamIndex;
-            streamIndex.init(name, 8 * 1024 * 1024);
+            IPC::sharedPage streamIndex(name, 8 * 1024 * 1024);
             if (!streamIndex.mapped){
               DEBUG_MSG(DLVL_INSANE, "Stream %s opening failed! Cancelling and marking as corrupt.", name.c_str());
               data["meta"].null();
@@ -140,6 +139,7 @@ namespace Controller {
                 Log("WARN", "Source file " + URL + " seems to be corrupt.");
               }
               data["online"] = 0;
+              return;
             }
           }
           DEBUG_MSG(DLVL_INSANE, "Stream %s opened", name.c_str());

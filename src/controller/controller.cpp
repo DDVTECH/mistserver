@@ -606,7 +606,6 @@ int main(int argc, char ** argv){
                 }
                 if (Request.isMember("streams")){
                   Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
-                  Controller::CheckAllStreams(Controller::Storage["streams"]);
                 }
                 if (Request.isMember("clearstatlogs")){
                   Controller::Storage["log"].null();
@@ -641,7 +640,6 @@ int main(int argc, char ** argv){
                   }
                   if (Request.isMember("streams")){
                     Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
-                    Controller::CheckAllStreams(Controller::Storage["streams"]);
                   }
                   /*LTS-START*/
                   /// 
@@ -759,7 +757,6 @@ int main(int argc, char ** argv){
                   }
                   /*LTS-END*/
                   //sent current configuration, no matter if it was changed or not
-                  //Response["streams"] = Storage["streams"];
                   Response["config"] = Controller::Storage["config"];
                   Response["config"]["version"] = PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE;
                   Response["streams"] = Controller::Storage["streams"];

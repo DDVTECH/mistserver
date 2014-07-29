@@ -650,6 +650,10 @@ namespace Connector_HTTP {
             }
           }else{
             proxyHandleThroughConnector(Client, conn, handler);
+            if (conn.connected()){
+              FAIL_MSG("Request %d (%s) failed - no connector started", conn.getSocket(), handler.c_str());
+            }
+            break;
           }
           DEBUG_MSG(DLVL_HIGH, "Completed request %d (%s) ", conn.getSocket(), handler.c_str());
           if (closeConnection){

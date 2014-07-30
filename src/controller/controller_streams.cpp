@@ -114,6 +114,7 @@ namespace Controller {
         // if the file isn't dtsc and there's no dtsh file, run getStream on it
         // this guarantees that if the stream is playable, it now has a valid header.
         DEBUG_MSG(DLVL_INSANE, "(re)loading metadata for stream %s", name.c_str());
+        #if !defined(__APPLE__) && !defined(__MACH__) && !defined(__CYGWIN__)
         if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
           DEBUG_MSG(DLVL_INSANE, "Stream %s is non-DTSC file without DTSH. Opening stream to generate DTSH...", name.c_str());
           Util::Stream::getVod(URL, name);
@@ -135,6 +136,7 @@ namespace Controller {
           }
           DEBUG_MSG(DLVL_INSANE, "Stream %s opened", name.c_str());
         }
+        #endif
         //now, run mistinfo on the source - or on the accompanying dtsh file, if it exists
         if (stat((URL+".dtsh").c_str(), &fileinfo) == 0){
           DEBUG_MSG(DLVL_INSANE, "Stream %s has a DTSH - opening DTSH instead of main stream file", name.c_str());

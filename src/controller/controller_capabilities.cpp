@@ -2,10 +2,48 @@
 #include <string.h>
 #include <fstream>
 #include <set>
+#include <mist/config.h>
+#include <mist/procs.h>
 #include "controller_capabilities.h"
 
 ///\brief Holds everything unique to the controller.
 namespace Controller {
+  
+  ///Create a converter class and automatically load in all encoders.
+  Converter::Converter myConverter;
+
+  JSON::Value capabilities;
+  
+  ///Aquire list of available protocols, storing in global 'capabilities' JSON::Value.
+  void checkAvailProtocols(){
+    std::deque<std::string> execs;
+    Util::getMyExec(execs);
+    std::string arg_one;
+    char const * conn_args[] = {0, "-j", 0};
+    for (std::deque<std::string>::iterator it = execs.begin(); it != execs.end(); it++){
+      if ((*it).substr(0, 8) == "MistConn"){
+        //skip if an MistOut already existed - MistOut takes precedence!
+        if (capabilities["connectors"].isMember((*it).substr(8))){
+          continue;
+        }
+        arg_one = Util::getMyPath() + (*it);
+        conn_args[0] = arg_one.c_str();
+        capabilities["connectors"][(*it).substr(8)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+        if (capabilities["connectors"][(*it).substr(8)].size() < 1){
+          capabilities["connectors"].removeMember((*it).substr(8));
+        }
+      }
+      if ((*it).substr(0, 7) == "MistOut"){
+        arg_one = Util::getMyPath() + (*it);
+        conn_args[0] = arg_one.c_str();
+        capabilities["connectors"][(*it).substr(7)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+        if (capabilities["connectors"][(*it).substr(7)].size() < 1){
+          capabilities["connectors"].removeMember((*it).substr(7));
+        }
+      }
+    }
+  }
+  
   ///\brief A class storing information about the cpu the server is running on.
   class cpudata{
     public:

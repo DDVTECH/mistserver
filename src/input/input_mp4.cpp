@@ -499,7 +499,7 @@ namespace Mist {
           thisPack["data"] = std::string(data,curPart.size);
         }else{
           ///\todo error handling
-          DEBUG_MSG(DLVL_FAIL,"read unsuccessful at %d", ftell(inFile));
+          DEBUG_MSG(DLVL_FAIL,"read unsuccessful at %ld", ftell(inFile));
           lastPack.null();
           return;
         }

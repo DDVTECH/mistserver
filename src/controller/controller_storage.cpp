@@ -6,8 +6,10 @@
 ///\brief Holds everything unique to the controller.
 namespace Controller {
 
+  Util::Config conf;
   JSON::Value Storage; ///< Global storage of data.
-  tthread::mutex logMutex;///< Mutex for log thread.
+  tthread::mutex configMutex;
+  tthread::mutex logMutex;
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.

@@ -23,6 +23,30 @@ void clock_gettime(int ign, struct timespec * ts) {
 #endif
 
 /// Sleeps for the indicated amount of milliseconds or longer.
+/// Will not sleep if ms is negative.
+/// Will not sleep for longer than 10 minutes (600000ms).
+/// If interrupted by signal, resumes sleep until at least ms milliseconds have passed.
+/// Can be slightly off (in positive direction only) depending on OS accuracy.
+void Util::wait(int ms){
+  if (ms < 0) {
+    return;
+  }
+  if (ms > 600000) {
+    ms = 600000;
+  }
+  long long int start = getMS();
+  long long int now = start;
+  while (now < start+ms){
+    sleep(start+ms-now);
+    now = getMS();
+  }
+}
+
+/// Sleeps for roughly the indicated amount of milliseconds.
+/// Will not sleep if ms is negative.
+/// Will not sleep for longer than 100 seconds (100000ms).
+/// Can be interrupted early by a signal, no guarantee of minimum sleep time.
+/// Can be slightly off depending on OS accuracy.
 void Util::sleep(int ms) {
   if (ms < 0) {
     return;

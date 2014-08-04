@@ -4,7 +4,8 @@
 #pragma once
 
 namespace Util {
-  void sleep(int ms); ///< Sleeps for the indicated amount of milliseconds or longer.
+  void wait(int ms); ///< Sleeps for the indicated amount of milliseconds or longer.
+  void sleep(int ms); ///< Sleeps for roughly the indicated amount of milliseconds.
   long long int getMS(); ///< Gets the current time in milliseconds.
   long long int bootSecs(); ///< Gets the current system uptime in seconds.
   long long unsigned int getMicros();///<Gets the current time in microseconds.

@@ -64,7 +64,7 @@ void Controller::checkConfig(JSON::Value & in, JSON::Value & out){
       Util::Config::printDebugLevel = out["debug"].asInt();
       INFO_MSG("Debug level set to %u", Util::Config::printDebugLevel);
     }
-  }    
+  }
 }
 
 ///\brief Checks an authorization request for a given user.

@@ -108,7 +108,7 @@ void statusMonitor(void * np){
       Controller::CheckAllStreams(Controller::Storage["streams"]);
       Controller::myConverter.updateStatus();
     }
-    Util::sleep(5000);//sleep 5 seconds
+    Util::wait(5000);//wait at least 5 seconds
   }
 }
 

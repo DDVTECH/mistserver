@@ -76,11 +76,14 @@ bool Util::Stream::getLive(std::string streamname) {
   }
 
   int pid = fork();
-  if (pid) {
+  if (pid == -1) {
+    FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
+    return false;
+  }
+  if (pid == 0){
     execvp(argv[0], argv);
+    FAIL_MSG("Starting process %s for stream %s failed: %s", argv[0], streamname.c_str(), strerror(errno));
     _exit(42);
-  } else if (pid == -1) {
-    perror("Could not start vod");
   }
   return true;
 }
@@ -101,11 +104,14 @@ bool Util::Stream::getVod(std::string filename, std::string streamname) {
   char * const argv[] = {(char *)player_bin.c_str(), (char *)"-p", (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str(), (char *)0};
 
   int pid = fork();
-  if (pid) {
+  if (pid == -1) {
+    FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
+    return false;
+  }
+  if (pid == 0){
     execvp(argv[0], argv);
+    FAIL_MSG("Starting process %s for stream %s failed: %s", argv[0], streamname.c_str(), strerror(errno));
     _exit(42);
-  } else if (pid == -1) {
-    perror("Could not start vod");
   }
   return true;
 }

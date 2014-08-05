@@ -132,13 +132,19 @@ namespace DTSC {
   ///\param len The length of the data pointed to by data_
   ///\param noCopy Determines whether to make a copy or not
   void Packet::reInit(const char * data_, unsigned int len, bool noCopy) {
+    if (!len){
+      null();
+      return;
+    }
     if (!data_) {
       DEBUG_MSG(DLVL_DEVEL, "ReInit received a null pointer with len %d, ignoring", len);
       null();
       return;
     }
     if (data_[0] != 'D' || data_[1] != 'T') {
-      DEBUG_MSG(DLVL_HIGH, "ReInit received a pointer that didn't start with 'DT' - data corruption?");
+      unsigned int twlen = len;
+      if (twlen > 20){twlen = 20;}
+      DEBUG_MSG(DLVL_HIGH, "ReInit received a pointer that didn't start with 'DT' but with %s (%u) - data corruption?", JSON::Value(std::string(data_, twlen)).toString().c_str(), len);
       null();
       return;
     }

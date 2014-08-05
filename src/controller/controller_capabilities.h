@@ -3,7 +3,7 @@
 
 namespace Controller {
   extern JSON::Value capabilities; ///< Global storage of capabilities
-  extern Converter::Converter myConverter;
+  //extern Converter::Converter * myConverter;
   void checkCapable(JSON::Value & capa);
   void checkAvailProtocols();
 }

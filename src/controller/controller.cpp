@@ -94,7 +94,7 @@ void statusMonitor(void * np){
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
       Controller::CheckProtocols(Controller::Storage["config"]["protocols"], Controller::capabilities);
       Controller::CheckAllStreams(Controller::Storage["streams"]);
-      Controller::myConverter.updateStatus();
+      //Controller::myConverter.updateStatus();
     }
     Util::wait(5000);//wait at least 5 seconds
   }

@@ -63,17 +63,23 @@ void Util::Stream::sanitizeName(std::string & streamname) {
 
 bool Util::Stream::getLive(std::string streamname) {
   JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
-  std::stringstream name;
+  std::string bufferTime;
+  std::string debugLvl;
   std::string player_bin = Util::getMyPath() + "MistInBuffer";
   DEBUG_MSG(DLVL_WARN, "Starting %s -p -s %s", player_bin.c_str(), streamname.c_str());
-  char * argv[15] = {(char *)player_bin.c_str(), (char *)"-p", (char *)"-s", (char *)streamname.c_str(), (char *)0};
-  int argNum = 4;
+  char * argv[15] = {(char *)player_bin.c_str(), (char *)"-p", (char *)"-s", (char *)streamname.c_str()};
+  int argNum = 3;
   if (ServConf["streams"][streamname].isMember("DVR")) {
-    std::string bufferTime = ServConf["streams"][streamname]["DVR"].asString();
-    argv[argNum++] = (char *)"-b";
-    argv[argNum++] = (char *)bufferTime.c_str();
-    argv[argNum++] = (char *)0;
+    bufferTime = ServConf["streams"][streamname]["DVR"].asString();
+    argv[++argNum] = (char *)"-b";
+    argv[++argNum] = (char *)bufferTime.c_str();
   }
+  if (Util::Config::printDebugLevel != DEBUG){
+    debugLvl = JSON::Value((long long)Util::Config::printDebugLevel).asString();
+    argv[++argNum] = (char *)"--debug";
+    argv[++argNum] = (char *)debugLvl.c_str();
+  }
+  argv[++argNum] = (char *)0;
 
   int pid = fork();
   if (pid == -1) {
@@ -101,8 +107,16 @@ bool Util::Stream::getVod(std::string filename, std::string streamname) {
     selected = true;
   }
   INFO_MSG("Starting %s -p -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
-  char * const argv[] = {(char *)player_bin.c_str(), (char *)"-p", (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str(), (char *)0};
-
+  char * argv[15] = {(char *)player_bin.c_str(), (char *)"-p", (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str()};
+  int argNum = 4;
+  std::string debugLvl;
+  if (Util::Config::printDebugLevel != DEBUG){
+    debugLvl = JSON::Value((long long)Util::Config::printDebugLevel).asString();
+    argv[++argNum] = (char *)"--debug";
+    argv[++argNum] = (char *)debugLvl.c_str();
+  }
+  argv[++argNum] = (char *)0;
+  
   int pid = fork();
   if (pid == -1) {
     FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));

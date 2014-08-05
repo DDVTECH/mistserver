@@ -102,7 +102,7 @@ namespace IPC {
     }
 #endif
     if (!(*this)){
-      FAIL_MSG("Failed to open semaphore %s: %s", name, strerror(errno));
+      DEBUG_MSG(DLVL_VERYHIGH, "Attempt to open semaphore %s: %s", name, strerror(errno));
     }
     myName = (char *)name;
   }
@@ -648,7 +648,7 @@ namespace IPC {
     sharedPage tmp(std::string(baseName + (char)(myPages.size() + (int)'A')), (4096 << myPages.size()), true);
     myPages.insert(tmp);
     tmp.master = false;
-    DEBUG_MSG(DLVL_MEDIUM, "Added a new page: %s", tmp.name.c_str());
+    DEBUG_MSG(DLVL_VERYHIGH, "Created a new page: %s", tmp.name.c_str());
   }
 
   ///\brief Deletes the highest allocated page

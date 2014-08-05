@@ -221,17 +221,23 @@ namespace Mist {
         std::string fmtStr = "/hls/" + streamName + "/%u_%u/%llu_%llu.ts";
         long long unsigned int from;
         if (sscanf(tmpStr.c_str(), fmtStr.c_str(), &vidTrack, &audTrack, &from, &until) != 4){
-          WARN_MSG("Could not parse URL: %s", HTTP_R.getUrl().c_str());
-          HTTP_S.Clean();
-          HTTP_S.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
-          myConn.SendNow(HTTP_S.BuildResponse("404", "URL mismatch"));
-          HTTP_R.Clean(); //clean for any possible next requests
-          continue;
+          fmtStr = "/hls/" + streamName + "/%u/%llu_%llu.ts";
+          if (sscanf(tmpStr.c_str(), fmtStr.c_str(), &vidTrack, &from, &until) != 3){
+            WARN_MSG("Could not parse URL: %s", HTTP_R.getUrl().c_str());
+            HTTP_S.Clean();
+            HTTP_S.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
+            myConn.SendNow(HTTP_S.BuildResponse("404", "URL mismatch"));
+            HTTP_R.Clean(); //clean for any possible next requests
+            continue;
+          }else{
+            selectedTracks.clear();
+            selectedTracks.insert(vidTrack);
+          }
+        }else{
+          selectedTracks.clear();
+          selectedTracks.insert(vidTrack);
+          selectedTracks.insert(audTrack);
         }
-        DEBUG_MSG(DLVL_DEVEL, "Vid %u, Aud %u, From %llu, Until %llu", vidTrack, audTrack, from, until);
-        selectedTracks.clear();
-        selectedTracks.insert(vidTrack);
-        selectedTracks.insert(audTrack);
         
         if (myMeta.live){
           /// \todo Detection of out-of-range parts.

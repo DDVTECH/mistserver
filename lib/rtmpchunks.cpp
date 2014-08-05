@@ -283,7 +283,7 @@ std::string & RTMPStream::Chunk::Pack() {
       if (len == prev.len) {
         if (msg_type_id == prev.msg_type_id) {
           chtype = 0x80; //do not send len and msg_type_id
-          if (timestamp == prev.timestamp) {
+          if (timestamp - prev.timestamp == prev.ts_delta) {
             chtype = 0xC0; //do not send timestamp
           }
         }
@@ -314,6 +314,7 @@ std::string & RTMPStream::Chunk::Pack() {
     } else {
       tmpi = timestamp - prev.timestamp;
     }
+    ts_delta = tmpi;
     if (tmpi >= 0x00ffffff) {
       ntime = tmpi;
       tmpi = 0x00ffffff;
@@ -543,6 +544,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata) {
       timestamp = indata[i++ ] * 256 * 256;
       timestamp += indata[i++ ] * 256;
       timestamp += indata[i++ ];
+      ts_delta = timestamp;
       len = indata[i++ ] * 256 * 256;
       len += indata[i++ ] * 256;
       len += indata[i++ ];
@@ -562,7 +564,8 @@ bool RTMPStream::Chunk::Parse(std::string & indata) {
       timestamp += indata[i++ ] * 256;
       timestamp += indata[i++ ];
       if (timestamp != 0x00ffffff) {
-        timestamp += prev.timestamp;
+        ts_delta = timestamp;
+        timestamp = prev.timestamp + ts_delta;
       }
       len = indata[i++ ] * 256 * 256;
       len += indata[i++ ] * 256;
@@ -580,7 +583,8 @@ bool RTMPStream::Chunk::Parse(std::string & indata) {
       timestamp += indata[i++ ] * 256;
       timestamp += indata[i++ ];
       if (timestamp != 0x00ffffff) {
-        timestamp += prev.timestamp;
+        ts_delta = timestamp;
+        timestamp = prev.timestamp + ts_delta;
       }
       len = prev.len;
       len_left = prev.len_left;
@@ -591,9 +595,13 @@ bool RTMPStream::Chunk::Parse(std::string & indata) {
       if (!allow_short) {
         DEBUG_MSG(DLVL_WARN, "Warning: Header type 0xC0 with no valid previous chunk!");
       }
-      timestamp = prev.timestamp;
+      timestamp = prev.timestamp + prev.ts_delta;
+      ts_delta = prev.ts_delta;
       len = prev.len;
       len_left = prev.len_left;
+      if (len_left > 0){
+        timestamp = prev.timestamp;
+      }
       msg_type_id = prev.msg_type_id;
       msg_stream_id = prev.msg_stream_id;
       break;
@@ -616,6 +624,7 @@ bool RTMPStream::Chunk::Parse(std::string & indata) {
     timestamp += indata[i++ ] * 256 * 256;
     timestamp += indata[i++ ] * 256;
     timestamp += indata[i++ ];
+    ts_delta = timestamp;
   }
 
   //read data if length > 0, and allocate it

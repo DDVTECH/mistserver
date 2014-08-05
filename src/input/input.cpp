@@ -165,14 +165,14 @@ namespace Mist {
       
       DEBUG_MSG(DLVL_DONTEVEN,"Pre-While");
       
-      long long int activityCounter = Util::getMS();
-      while ((Util::getMS() - activityCounter) < 10000){//10 second timeout
-        DEBUG_MSG(DLVL_HIGH, "Timer running");
-        Util::sleep(1000);
+      long long int activityCounter = Util::bootSecs();
+      while ((Util::getMS() - activityCounter) < 10){//10 second timeout
+        DEBUG_MSG(DLVL_INSANE, "Timer running");
+        Util::wait(1000);
         removeUnused();
         userPage.parseEach(doNothing);
         if (userPage.amount){
-          activityCounter = Util::getMS();
+          activityCounter = Util::bootSecs();
           DEBUG_MSG(DLVL_HIGH, "Connected users: %d", userPage.amount);
         }
       }

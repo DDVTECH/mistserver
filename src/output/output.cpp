@@ -304,13 +304,15 @@ namespace Mist {
     //try to fill as many codecs simultaneously as possible
     if (capa["codecs"][bestSoFar].size() > 0){
       for (JSON::ArrIter itb = capa["codecs"][bestSoFar].ArrBegin(); itb != capa["codecs"][bestSoFar].ArrEnd(); itb++){
-        if ((*itb).size() > 0){
+        if ((*itb).size() && myMeta.tracks.size()){
           bool found = false;
           for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
-            for (std::set<long unsigned int>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-              if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
-                found = true;
-                break;
+            if (selectedTracks.size()){
+              for (std::set<long unsigned int>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
+                if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
+                  found = true;
+                  break;
+                }
               }
             }
             if (!found){
@@ -327,17 +329,19 @@ namespace Mist {
       }
     }
     
-    #if DEBUG >= DLVL_MEDIUM
-    //print the selected tracks
-    std::stringstream selected;
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (it != selectedTracks.begin()){
-        selected << ", ";
+    if (Util::Config::printDebugLevel >= DLVL_MEDIUM){
+      //print the selected tracks
+      std::stringstream selected;
+      if (selectedTracks.size()){
+        for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+          if (it != selectedTracks.begin()){
+            selected << ", ";
+          }
+          selected << (*it);
+        }
       }
-      selected << (*it);
+      DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
     }
-    DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s", selected.str().c_str());    
-    #endif
     
     sought = false;
   }

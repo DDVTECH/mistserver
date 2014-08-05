@@ -9,10 +9,9 @@
 ///\brief Holds everything unique to the controller.
 namespace Controller {
   
-  ///Create a converter class and automatically load in all encoders.
-  Converter::Converter myConverter;
-
   JSON::Value capabilities;
+  //Converter::Converter * myConverter = 0;
+  
   
   ///Aquire list of available protocols, storing in global 'capabilities' JSON::Value.
   void checkAvailProtocols(){

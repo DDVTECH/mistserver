@@ -257,6 +257,8 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             Controller::checkCapable(capabilities);
             Response["capabilities"] = capabilities;
           }
+          /// \todo Re-enable conversion API at some point.
+          /*
           if (Request.isMember("conversion")){
             if (Request["conversion"].isMember("encoders")){
               Response["conversion"]["encoders"] = myConverter.getEncoders();
@@ -281,6 +283,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               Response["conversion"]["status"] = myConverter.getStatus();
             }
           }
+          */
           /// 
           /// \api
           /// `"save"` requests are always empty:

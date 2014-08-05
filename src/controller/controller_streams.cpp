@@ -61,11 +61,11 @@ namespace Controller {
       }
       return;
     }
-    if (URL.substr(0, 4) == "push"){
+    if (URL.substr(0, 1) != "/"){
       //push-style stream
       if (hasViewers(name)){
         data["meta"].null();
-        IPC::sharedPage streamIndex(name,0,false,false);
+        IPC::sharedPage streamIndex(name,8 * 1024 * 1024,false,false);
         if (!streamIndex.mapped){
           return;
         }

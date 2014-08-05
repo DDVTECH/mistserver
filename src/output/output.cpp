@@ -56,10 +56,7 @@ namespace Mist {
     myConn.setBlocking(isBlocking);
   }
   
-  Output::~Output(){
-    statsPage.finish();
-    playerConn.finish();
-  }
+  Output::~Output(){}
 
   void Output::updateMeta(){
     //read metadata from page to myMeta variable

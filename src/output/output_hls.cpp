@@ -57,6 +57,10 @@ namespace Mist {
         "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n"
         "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags << "\r\n";
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
+      if (myMeta.live && myMeta.tracks[tid].fragments.size() > 2 && it == myMeta.tracks[tid].fragments.begin()){
+        //skip the first fragment if live and there are more than 2 fragments.
+        continue;
+      }
       long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
       
       if (it != (myMeta.tracks[tid].fragments.end() - 1)){

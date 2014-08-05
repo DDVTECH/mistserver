@@ -74,29 +74,29 @@ namespace Mist {
     std::string headerFile = streamFile + ".dtsh";
     FILE * tmp = fopen(headerFile.c_str(),"r");
     if (tmp == NULL) {
-      INFO_MSG("can't open file: %s (no header times compared, nothing removed)", headerFile.c_str() );  
-	  return;   
-	} 
-	struct stat bufStream;
+      DEBUG_MSG(DLVL_HIGH, "Can't open header: %s. Assuming all is fine.", headerFile.c_str() );  
+      return;
+    } 
+    struct stat bufStream;
     struct stat bufHeader;
     //fstat(fileno(streamFile), &bufStream);
     //fstat(fileno(tmp), &bufHeader);
     if (stat(streamFile.c_str(), &bufStream) !=0 || stat(headerFile.c_str(), &bufHeader) !=0){
-      ERROR_MSG("could not get file info (no header times compared, nothing removed)");
+      DEBUG_MSG(DLVL_HIGH, "Could not compare stream and header timestamps - assuming all is fine.");
       fclose(tmp);
       return;
-	}
+    }
 
-	int timeStream = bufStream.st_mtime;
+    int timeStream = bufStream.st_mtime;
     int timeHeader = bufHeader.st_mtime;
     fclose(tmp);    
-    INFO_MSG("time header: %i time stream: %i ", timeHeader, timeStream);
     if (timeHeader < timeStream) {
-      INFO_MSG("removing old header file: %s ",headerFile.c_str());
       //delete filename
+      INFO_MSG("Overwriting outdated DTSH header file: %s ",headerFile.c_str());
       remove(headerFile.c_str());
     }
   }
+
   int Input::run() {
     if (config->getBool("json")) {
       std::cerr << capa.toString() << std::endl;
@@ -166,14 +166,15 @@ namespace Mist {
       DEBUG_MSG(DLVL_DONTEVEN,"Pre-While");
       
       long long int activityCounter = Util::bootSecs();
-      while ((Util::getMS() - activityCounter) < 10){//10 second timeout
-        DEBUG_MSG(DLVL_INSANE, "Timer running");
+      while ((Util::bootSecs() - activityCounter) < 10){//10 second timeout
         Util::wait(1000);
         removeUnused();
         userPage.parseEach(doNothing);
         if (userPage.amount){
           activityCounter = Util::bootSecs();
-          DEBUG_MSG(DLVL_HIGH, "Connected users: %d", userPage.amount);
+          DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.amount);
+        }else{
+          DEBUG_MSG(DLVL_INSANE, "Timer running");
         }
       }
       DEBUG_MSG(DLVL_DEVEL,"Closing clean");
@@ -272,9 +273,9 @@ namespace Mist {
       if (!pagesByTrack.count(it->first)){
         DEBUG_MSG(DLVL_WARN, "No pages for track %d found", it->first);
       }else{
-        DEBUG_MSG(DLVL_DEVEL, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), pagesByTrack[it->first].size());
+        DEBUG_MSG(DLVL_MEDIUM, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), pagesByTrack[it->first].size());
         for (std::map<int, DTSCPageData>::iterator it2 = pagesByTrack[it->first].begin(); it2 != pagesByTrack[it->first].end(); it2++){
-          DEBUG_MSG(DLVL_DEVEL, "Page %u-%u", it2->first, it2->first + it2->second.keyNum - 1);
+          DEBUG_MSG(DLVL_VERYHIGH, "Page %u-%u", it2->first, it2->first + it2->second.keyNum - 1);
         }
       }
     }
@@ -305,7 +306,7 @@ namespace Mist {
 #else
     dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
 #endif
-    DEBUG_MSG(DLVL_DEVEL, "Buffering track %d page %d through %d", track, pageNum, pageNum-1 + it->second.keyNum);
+    DEBUG_MSG(DLVL_HIGH, "Buffering track %d page %d through %d", track, pageNum, pageNum-1 + it->second.keyNum);
 
     std::stringstream trackSpec;
     trackSpec << track;

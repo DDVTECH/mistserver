@@ -697,6 +697,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
       timestamp = indata[i++ ] * 256 * 256;
       timestamp += indata[i++ ] * 256;
       timestamp += indata[i++ ];
+      ts_delta = timestamp;
       len = indata[i++ ] * 256 * 256;
       len += indata[i++ ] * 256;
       len += indata[i++ ];
@@ -719,7 +720,8 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
       timestamp += indata[i++ ] * 256;
       timestamp += indata[i++ ];
       if (timestamp != 0x00ffffff) {
-        timestamp += prev.timestamp;
+        ts_delta = timestamp;
+        timestamp = prev.timestamp + ts_delta;
       }
       len = indata[i++ ] * 256 * 256;
       len += indata[i++ ] * 256;
@@ -740,7 +742,8 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
       timestamp += indata[i++ ] * 256;
       timestamp += indata[i++ ];
       if (timestamp != 0x00ffffff) {
-        timestamp += prev.timestamp;
+        ts_delta = timestamp;
+        timestamp = prev.timestamp + ts_delta;
       }
       len = prev.len;
       len_left = prev.len_left;
@@ -751,9 +754,13 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
       if (prev.msg_type_id == 0) {
         DEBUG_MSG(DLVL_WARN, "Warning: Header type 0xC0 with no valid previous chunk!");
       }
-      timestamp = prev.timestamp;
+      timestamp = prev.timestamp + prev.ts_delta;
+      ts_delta = prev.ts_delta;
       len = prev.len;
       len_left = prev.len_left;
+      if (len_left > 0){
+        timestamp = prev.timestamp;
+      }
       msg_type_id = prev.msg_type_id;
       msg_stream_id = prev.msg_stream_id;
       break;
@@ -779,6 +786,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
     timestamp += indata[i++ ] * 256 * 256;
     timestamp += indata[i++ ] * 256;
     timestamp += indata[i++ ];
+    ts_delta = timestamp;
   }
 
   //read data if length > 0, and allocate it

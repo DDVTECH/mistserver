@@ -183,8 +183,11 @@ namespace Analysers {
         } //switch for type of chunk
       }else{ //if chunk parsed
         if (std::cin.good()){
-          inbuffer += std::cin.get();
-          ++read_in;
+          char newchar = std::cin.get();
+          if (std::cin.good()){
+            inbuffer += newchar;
+            ++read_in;
+          }
         }else{
           inbuffer.clear();
         }

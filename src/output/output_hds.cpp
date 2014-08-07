@@ -233,14 +233,16 @@ namespace Mist {
         HTTP_S.Chunkify("\000\000\000\000mdat", 8, myConn);
         //send init data, if needed.
         if (audioTrack > 0 && myMeta.tracks[audioTrack].init != ""){
-          tag.DTSCAudioInit(myMeta.tracks[audioTrack]);
-          tag.tagTime(mstime);
-          HTTP_S.Chunkify(tag.data, tag.len, myConn);
+          if (tag.DTSCAudioInit(myMeta.tracks[audioTrack])){
+            tag.tagTime(mstime);
+            HTTP_S.Chunkify(tag.data, tag.len, myConn);
+          }
         }
         if (tid > 0){
-          tag.DTSCVideoInit(myMeta.tracks[tid]);
-          tag.tagTime(mstime);
-          HTTP_S.Chunkify(tag.data, tag.len, myConn);
+          if (tag.DTSCVideoInit(myMeta.tracks[tid])){
+            tag.tagTime(mstime);
+            HTTP_S.Chunkify(tag.data, tag.len, myConn);
+          }
         }
         parseData = true;
         wantRequest = false;

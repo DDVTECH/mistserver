@@ -400,8 +400,23 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track) {
     if (track.codec == "H264") {
       data[11] |= 7;
     }
+    if (track.codec == "ScreenVideo2") {
+      data[11] |= 6;
+    }
+    if (track.codec == "VP6Alpha") {
+      data[11] |= 5;
+    }
+    if (track.codec == "VP6") {
+      data[11] |= 4;
+    }
+    if (track.codec == "ScreenVideo1") {
+      data[11] |= 3;
+    }
     if (track.codec == "H263") {
       data[11] |= 2;
+    }
+    if (track.codec == "JPEG") {
+      data[11] |= 1;
     }
     if (packData.getFlag("keyframe")) {
       data[11] |= 0x10;
@@ -493,6 +508,7 @@ void FLV::Tag::setLen() {
 /// FLV Video init data loader function from JSON.
 bool FLV::Tag::DTSCVideoInit(DTSC::Track & video) {
   //Unknown? Assume H264.
+  len = 0;
   if (video.codec == "?") {
     video.codec = "H264";
   }
@@ -586,16 +602,32 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Meta & M, std::set<long unsigned int> & selTra
       trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
       amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
       if (M.tracks[*it].codec == "H264") {
-        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", (std::string)"avc1"));
+        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 7, AMF::AMF0_NUMBER));
         trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"avc1"));
+      }
+      if (M.tracks[*it].codec == "ScreenVideo2") {
+        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 6, AMF::AMF0_NUMBER));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"sv2"));
+      }
+      if (M.tracks[*it].codec == "VP6Alpha") {
+        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 5, AMF::AMF0_NUMBER));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"vp6a"));
       }
       if (M.tracks[*it].codec == "VP6") {
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 4, AMF::AMF0_NUMBER));
         trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"vp6"));
       }
+      if (M.tracks[*it].codec == "ScreenVideo1") {
+        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 3, AMF::AMF0_NUMBER));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"sv1"));
+      }
       if (M.tracks[*it].codec == "H263") {
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 2, AMF::AMF0_NUMBER));
         trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"h263"));
+      }
+      if (M.tracks[*it].codec == "JPEG") {
+        amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 1, AMF::AMF0_NUMBER));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"jpeg"));
       }
       amfdata.getContentP(1)->addContent(AMF::Object("width", M.tracks[*it].width, AMF::AMF0_NUMBER));
       amfdata.getContentP(1)->addContent(AMF::Object("height", M.tracks[*it].height, AMF::AMF0_NUMBER));

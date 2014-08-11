@@ -21,6 +21,7 @@ namespace Mist {
     capa["socket"] = "http_progressive_mp4";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
@@ -113,6 +114,9 @@ namespace Mist {
                   if (myMeta.tracks[*it].codec == "AAC"){
                     ase.setCodec("mp4a");
                     ase.setDataReferenceIndex(1);
+                  }else if (myMeta.tracks[*it].codec == "MP3"){
+                    ase.setCodec("mp4a");
+                    ase.setDataReferenceIndex(1);
                   }
                   ase.setSampleRate(myMeta.tracks[*it].rate);
                   ase.setChannelCount(myMeta.tracks[*it].channels);
@@ -121,23 +125,37 @@ namespace Mist {
                   MP4::ESDS esdsBox;
                   
                   //outputting these values first, so malloc isn't called as often.
-                  esdsBox.setESHeaderStartCodes(myMeta.tracks[*it].init);
-                  esdsBox.setSLValue(2);
-                  
-                  esdsBox.setESDescriptorTypeLength(32+myMeta.tracks[*it].init.size());
+                  if (myMeta.tracks[*it].codec == "MP3"){
+                    esdsBox.setESHeaderStartCodes("\002");
+                    esdsBox.setConfigDescriptorTypeLength(1);
+                    esdsBox.setSLConfigExtendedDescriptorTypeTag(0);
+                    esdsBox.setSLDescriptorTypeLength(0);
+                    esdsBox.setESDescriptorTypeLength(27);
+                    esdsBox.setSLConfigDescriptorTypeTag(0);
+                    esdsBox.setDecoderDescriptorTypeTag(0x06);
+                    esdsBox.setSLValue(0);
+                    //esdsBox.setBufferSize(0);
+                    esdsBox.setDecoderConfigDescriptorTypeLength(13);
+                    esdsBox.setByteObjectTypeID(0x6b);
+                  }else{
+                    //AAC
+                    esdsBox.setESHeaderStartCodes(myMeta.tracks[*it].init);
+                    esdsBox.setConfigDescriptorTypeLength(myMeta.tracks[*it].init.size());
+                    esdsBox.setSLConfigExtendedDescriptorTypeTag(0x808080);
+                    esdsBox.setSLDescriptorTypeLength(1);
+                    esdsBox.setESDescriptorTypeLength(32+myMeta.tracks[*it].init.size());
+                    esdsBox.setSLConfigDescriptorTypeTag(0x6);
+                    esdsBox.setSLValue(2);
+                    esdsBox.setDecoderConfigDescriptorTypeLength(18 + myMeta.tracks[*it].init.size());
+                    esdsBox.setByteObjectTypeID(0x40);
+                  }
                   esdsBox.setESID(2);
                   esdsBox.setStreamPriority(0);
-                  esdsBox.setDecoderConfigDescriptorTypeLength(18 + myMeta.tracks[*it].init.size());
-                  esdsBox.setByteObjectTypeID(0x40);
                   esdsBox.setStreamType(5);
                   esdsBox.setReservedFlag(1);
-                  esdsBox.setBufferSize(1250000);
                   esdsBox.setMaximumBitRate(10000000);
                   esdsBox.setAverageBitRate(myMeta.tracks[*it].bps * 8);
-                  esdsBox.setConfigDescriptorTypeLength(5);
-                  esdsBox.setSLConfigDescriptorTypeTag(0x6);
-                  esdsBox.setSLConfigExtendedDescriptorTypeTag(0x808080);
-                  esdsBox.setSLDescriptorTypeLength(1);
+                  esdsBox.setBufferSize(1250000);
                   ase.setCodecBox(esdsBox);
                   stsdBox.setEntry(ase,0);
                 }

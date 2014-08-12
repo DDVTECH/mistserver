@@ -110,20 +110,35 @@ namespace TS {
   class ProgramMappingTable : public Packet {
     public:
       char getOffset();
+      void setOffset(char newVal);
       char getTableId();
+      void setTableId(char newVal);
       short getSectionLength();
+      void setSectionLength(short newVal);
       short getProgramNumber();
+      void setProgramNumber(short newVal);
       char getVersionNumber();
+      void setVersionNumber(char newVal);
       bool getCurrentNextIndicator();
+      void setCurrentNextIndicator(bool newVal);
       char getSectionNumber();
+      void setSectionNumber(char newVal);
       char getLastSectionNumber();
+      void setLastSectionNumber(char newVal);
       short getPCRPID();
+      void setPCRPID(short newVal);
       short getProgramInfoLength();
+      void setProgramInfoLength(short newVal);
       short getProgramCount();
+      void setProgramCount(short newVal);
       char getStreamType(short index);
+      void setStreamType(char newVal, short index);
       short getElementaryPID(short index);
+      void setElementaryPID(short newVal, short index);
       short getESInfoLength(short index);
+      void setESInfoLength(short newVal,short index);
       int getCRC();
+      void setCRC(int newVal);
       std::string toPrettyString(size_t indent);
   };
 

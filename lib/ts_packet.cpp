@@ -695,9 +695,19 @@ namespace TS {
     return strBuf[loc];
   }
 
+  void ProgramMappingTable::setOffset(char newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0);
+    strBuf[loc] = newVal;
+  }  
+
   char ProgramMappingTable::getTableId() {
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 1;
     return strBuf[loc];
+  }
+
+  void ProgramMappingTable::setTableId(char newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+    strBuf[loc] = newVal;
   }
 
   short ProgramMappingTable::getSectionLength() {
@@ -705,14 +715,31 @@ namespace TS {
     return (((short)strBuf[loc] & 0x0F) << 8) | strBuf[loc + 1];
   }
 
+  void ProgramMappingTable::setSectionLength(short newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 2;
+    strBuf[loc] = (char)((newVal >> 8) & 0x0F);
+    strBuf[loc+1] = (char)newVal;
+  }
+
   short ProgramMappingTable::getProgramNumber() {
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 4;
     return (((short)strBuf[loc]) << 8) | strBuf[loc + 1];
   }
 
+  void ProgramMappingTable::setProgramNumber(short newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 4;
+    strBuf[loc] = (char)(newVal >> 8);
+    strBuf[loc+1] = (char)newVal;
+  }
+
   char ProgramMappingTable::getVersionNumber() {
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
     return (strBuf[loc] >> 1) & 0x1F;
+  }
+
+  void ProgramMappingTable::setVersionNumber(char newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+    strBuf[loc] = ((newVal & 0x1F) << 1) | strBuf[loc] & 0xC1;//note: using "| strBuf" to not touch other bits
   }
 
   ///Retrieves the "current/next" indicator
@@ -721,10 +748,22 @@ namespace TS {
     return (strBuf[loc] >> 1) & 0x01;
   }
 
+  ///Sets the "current/next" indicator
+  void ProgramMappingTable::setCurrentNextIndicator(bool newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+    strBuf[loc] = (((char)newVal) << 1) | strBuf[loc] & 0xFD;
+  }
+
   ///Retrieves the section number
   char ProgramMappingTable::getSectionNumber() {
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 7;
     return strBuf[loc];
+  }
+
+  ///Sets the section number
+  void ProgramMappingTable::setSectionNumber(char newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 7;
+    strBuf[loc] = newVal;
   }
 
   ///Retrieves the last section number
@@ -733,9 +772,21 @@ namespace TS {
     return strBuf[loc];
   }
 
+  ///Sets the last section number
+  void ProgramMappingTable::setLastSectionNumber(char newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 8;
+    strBuf[loc] = newVal;
+  }
+
   short ProgramMappingTable::getPCRPID() {
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9;
     return (((short)strBuf[loc] & 0x1F) << 8) | strBuf[loc + 1];
+  }
+
+  void ProgramMappingTable::setPCRPID(short newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9;
+    strBuf[loc] = (char)((newVal >> 8) & 0x1F);
+    strBuf[loc+1] = (char)newVal;
   }
 
   short ProgramMappingTable::getProgramInfoLength() {
@@ -743,8 +794,18 @@ namespace TS {
     return (((short)strBuf[loc] & 0x0F) << 8) | strBuf[loc + 1];
   }
 
+  void ProgramMappingTable::setProgramInfoLength(short newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 11;
+    strBuf[loc] = (char)((newVal >> 8) & 0x0F);
+    strBuf[loc+1] = (char)newVal;
+  }
+
   short ProgramMappingTable::getProgramCount() {
     return (getSectionLength() - 13) / 5;
+  }
+  
+  void ProgramMappingTable::setProgramCount(short newVal) {
+    setSectionLength(newVal * 5 + 13);
   }
 
   char ProgramMappingTable::getStreamType(short index) {
@@ -755,13 +816,30 @@ namespace TS {
     return strBuf[loc + (index * 5)];
   }
 
+  void ProgramMappingTable::setStreamType(char newVal, short index) {
+    if (index > getProgramCount()) {
+      return;
+    }
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
+    strBuf[loc + (index * 5)] = newVal;
+  }
+
   short ProgramMappingTable::getElementaryPID(short index) {
-    ;
     if (index > getProgramCount()) {
       return 0;
     }
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
     return (((short)strBuf[loc + (index * 5) + 1] & 0x1F) << 8) | strBuf[loc + (index * 5) + 2];
+  }
+
+  void ProgramMappingTable::setElementaryPID(short newVal, short index) {
+    if (index > getProgramCount()) {
+      return;
+    }
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
+    //return (((short)strBuf[loc + (index * 5) + 1] & 0x1F) << 8) | strBuf[loc + (index * 5) + 2];
+    strBuf[loc + (index * 5)+1] = (newVal >> 8) & 0x1F;
+    strBuf[loc + (index * 5)+2] = (char)newVal;
   }
 
   short ProgramMappingTable::getESInfoLength(short index) {
@@ -772,9 +850,28 @@ namespace TS {
     return (((short)strBuf[loc + (index * 5) + 3] & 0x0F) << 8) | strBuf[loc + (index * 5) + 4];
   }
 
+  void ProgramMappingTable::setESInfoLength(short newVal, short index) {
+    if (index > getProgramCount()) {
+      return;
+    }
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
+    //return (((short)strBuf[loc + (index * 5) + 3] & 0x0F) << 8) | strBuf[loc + (index * 5) + 4];
+    strBuf[loc + (index * 5)+3] = (newVal >> 8) & 0x0F;
+    strBuf[loc + (index * 5)+4] = (char)newVal;
+  }
+
   int ProgramMappingTable::getCRC() {
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength() + (getProgramCount() * 5);
     return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
+  }
+
+  void ProgramMappingTable::setCRC(int newVal) {
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength() + (getProgramCount() * 5);
+    //return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
+    strBuf[loc] = newVal >> 24;
+    strBuf[loc + 1] = (newVal >> 16) & 0xFF;
+    strBuf[loc + 2] = (newVal >> 8) & 0xFF;
+    strBuf[loc + 3] = newVal & 0xFF;
   }
 
 ///Print all PMT values in a human readable format

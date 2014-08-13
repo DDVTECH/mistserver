@@ -1323,35 +1323,57 @@ function buildstreamembed(streamName,embedbase) {
   var script = document.createElement('script');
   script.src = embedbase+'embed_'+streamName+'.js';
   script.onload = function(){
-    var priority = mistvideo[streamName].source;
-    if (priority.length > 0) {
-      priority.sort(function(a,b){
-        return b.priority - a.priority;
-      });
-      var $table = $('<table>').html(
-        $('<tr>').html(
-          $('<th>').text('URL')
-        ).append(
-          $('<th>').text('Type')
-        ).append(
-          $('<th>').text('Priority')
-        )
-      );
-      for (var i in priority) {
-        $table.append(
-          $('<tr>').html(
-            $('<td>').text(priority[i].url)
-          ).append(
-            $('<td>').text(priority[i].type)
-          ).append(
-            $('<td>').addClass('align-center').text(priority[i].priority)
-          )
-        );
-      }
-      $('#listprotocols').html($table);
+    if (typeof mistvideo[streamName].error != 'undefined') {
+      $('#preview-container').text(mistvideo[streamName].error);
     }
     else {
-      $('#listprotocols').html('No data in info embed file.');
+      var priority = mistvideo[streamName].source;
+      if (priority.length > 0) {
+        $radio = $('<input>').attr('type','radio').attr('name','forcetype').attr('title','The embed type that is being used.').change(function(){
+          $('#preview-container').attr('data-forcetype',$(this).val()).html('');
+          
+          var script = document.createElement('script');
+          script.src = embedbase+'embed_'+streamName+'.js';
+          script.onload = function(){
+            
+          };
+          document.getElementById('preview-container').appendChild( script );
+        });
+        priority.sort(function(a,b){
+          return b.priority - a.priority;
+        });
+        var $table = $('<table>').html(
+          $('<tr>').html(
+            $('<th>')
+          ).append(
+            $('<th>').text('URL')
+          ).append(
+            $('<th>').text('Type')
+          ).append(
+            $('<th>').text('Priority')
+          )
+        );
+        for (var i in priority) {
+          $table.append(
+            $('<tr>').html(
+              $('<td>').html(
+                $radio.clone(true).attr('data-name',priority[i].type).val(i)
+              )
+            ).append(
+              $('<td>').text(priority[i].url)
+            ).append(
+              $('<td>').text(priority[i].type)
+            ).append(
+              $('<td>').addClass('align-center').text(priority[i].priority)
+            )
+          );
+        }
+        $('#listprotocols').html($table);
+        $table.find('[name=forcetype][data-name="'+mistvideo[streamName].embedded_type+'"]').attr('checked','checked');
+      }
+      else {
+        $('#listprotocols').html('No data in info embed file.');
+      }
     }
   }
   document.getElementById('preview-container').appendChild( script );

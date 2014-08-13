@@ -2,22 +2,31 @@
   <head>
     <title>Test the stream embedding</title>
     <style></style>
-    <script src=jquery.js></script>
+    <script src=plugins/jquery.js></script>
     <script src='../src/connectors/embed.js'></script>
     <script>
+      var embed_settings = {};
       $(function(){
-        $('button').click(function(){
-          $('#embedcontainer').html('');
+        $('button#embed').click(function(){
+          $('#embedcontainer, #button_container').html('');
           
-          var streamName = $(this).parent().children('input').val();
+          var streamName = $('input[name=streamName]').val();
+          var embedtype = $('input[name=force]').val();
           
           var info = document.createElement('script');
           info.src = 'http://localhost:8080/info_'+streamName+'.js';
           document.getElementById('embedcontainer').appendChild(info);
           info.onload = function(){
+            if (embedtype == '') {
+              $('#embedcontainer').removeAttr('data-forcetype');
+            }
+            else {
+              $('#embedcontainer').attr('data-forcetype',embedtype);
+            }
+            $('#embedcontainer').append(
+              $('<div>').text('Embedded: '+mistembed(streamName))
+            );
             console.log(mistvideo[streamName]);
-            
-            mistembed(streamName);
           };
         });
       });
@@ -26,11 +35,14 @@
   </head>
   <body>
     <label>
-      Enter the streamname:
-      <input type=text></input>
-      <button>Get video info</button>
-    </label>
-    <div id=embedcontainer>
+      Enter the streamname: <input type=text value=bunny name=streamName>
+    </label><br>
+    <label>
+      Force embed type number: <input type=number name=force min=1> (blank for auto)
+    </label><br>
+    <button id=embed>Embed</button>
+    <div id=button_container></div>
+    <div id=embedcontainer style="width: 100%; height: 35em;">
     </div>
   </body>
 </html>

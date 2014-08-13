@@ -294,9 +294,19 @@ function showTab(tabName,streamName) {
       },10000);
       updateOverview();
       
-      if (!settings.settings.config.capabilities) { saveAndReload(); }
+
+      
     break;
     case 'protocols':
+      
+      if (typeof settings.settings.capabilities == 'undefined') {
+        getData(function(data){
+          settings.settings.capabilities = data.capabilities;
+          showTab('protocols');
+        },{capabilities:true});
+        return;
+      }
+      
       var $tbody = $('<tbody>').attr('id','protocols-tbody');
       
       $('#page').html(

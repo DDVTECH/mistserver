@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include "dtsc.h"
+#include "checksum.h"
 
 /// Holds all TS processing related code.
 namespace TS {
@@ -138,7 +139,7 @@ namespace TS {
       short getESInfoLength(short index);
       void setESInfoLength(short newVal,short index);
       int getCRC();
-      void setCRC(int newVal);
+      void calcCRC();
       std::string toPrettyString(size_t indent);
   };
 

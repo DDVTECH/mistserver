@@ -7,6 +7,7 @@
 #include "theora.h"
 #include "vorbis.h"
 #include "json.h"
+#include "checksum.h"
 
 namespace OGG {
 

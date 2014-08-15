@@ -81,7 +81,7 @@ function mistembed(streamname)
     {
       case 'flash':             return flash_version() >= parseInt(typemime[1], 10);            break;
       case 'html5':             return html5_video_type(typemime[1]);                           break;
-      case 'silverlight':	return silverlight_installed();                                 break;
+      case 'silverlight':       return silverlight_installed();                                 break;
 
       default:                  return false;                                                   break;
     }
@@ -115,7 +115,7 @@ function mistembed(streamname)
     }
 
     var maintype = parseType(src.type);
-    mistvideo[streamname].embedded_type = src.type;
+    mistvideo[streamname].embedded = src;
     
     switch(maintype[0])
     {
@@ -165,6 +165,9 @@ function mistembed(streamname)
   if (me.parentNode.hasAttribute('data-forcetype')) {
     var forceType = me.parentNode.getAttribute('data-forcetype');
   }
+  if (me.parentNode.hasAttribute('data-forcesupportcheck')) {
+    var forceSupportCheck = true;
+  }
   
   if (video.width == 0) { video.width = 250; }
   if (video.height == 0) { video.height = 250; }
@@ -199,9 +202,11 @@ function mistembed(streamname)
       }
       else {
         if ( hasSupport(video.source[i].type) ) {
+          video.source[i].browser_support = true;
           buildPlayer(video.source[i], container.parentNode, video.width, video.height, vtype);
         }
         else {
+          video.source[i].browser_support = false;
           container.innerHTML = '<strong>Your browser does not support the type "'+video.source[i].type+'".</strong>';
         }
       }
@@ -213,19 +218,30 @@ function mistembed(streamname)
         //console.log("trying support for type " + video.source[i].type + " (" + parseType(video.source[i].type)[0] + "  -  " + parseType(video.source[i].type)[1] + ")");
         if( hasSupport( video.source[i].type ) )
         {
-          // we support this kind of video, so build it.
-          buildPlayer(video.source[i], container.parentNode, video.width, video.height, vtype);
-
-          // we've build a player, so we're done here
-          foundPlayer = true;
-          break;   // break for() loop
+          video.source[i].browser_support = true;
+          if (!foundPlayer) { foundPlayer = i; }
+          if (!forceSupportCheck) { 
+            // we support this kind of video, so build it.
+            buildPlayer(video.source[i], container.parentNode, video.width, video.height, vtype);
+            
+            // we've build a player, so we're done here
+            break;   // break for() loop 
+          }
+        }
+        else {
+          video.source[i].browser_support = false;
         }
       }
-
-      if(!foundPlayer)
+      
+      
+      if(foundPlayer === false)
       {
         // of all the streams given, none was supported (eg. no flash and HTML5 video). Display error
         buildPlayer({type: 'fallback'}, container.parentNode, video.width, video.height);
+      }
+      else if (forceSupportCheck) {
+        // we support this kind of video, so build it.
+        buildPlayer(video.source[foundPlayer], container.parentNode, video.width, video.height, vtype);
       }
     }
   }

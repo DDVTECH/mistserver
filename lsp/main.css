@@ -501,6 +501,9 @@ button[disabled=disabled] {
   display: inline-block;
   margin: 0 0.5em;
 }
+.outline {
+  outline: 1px solid #666;
+}
 
 @font-face {
   font-family: FuturaICGLight;

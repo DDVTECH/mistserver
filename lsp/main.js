@@ -1316,21 +1316,33 @@ function buildstreamembed(streamName,embedbase) {
   ).append(
     $('<p>').text('Preview:')
   ).append(
-    $('<div>').attr('id','preview-container')
+    $('<div>').attr('id','preview-container').attr('data-forcesupportcheck',1)
+  ).append(
+    $('<div>').addClass('input_container').append(
+      $('<label>').text('Stream embed url:').append(
+        $('<input>').attr('type','text').attr('readonly','readonly').attr('id','streamurl')
+      )
+    )
   );
   
   // jQuery doesn't work -> use DOM magic
   var script = document.createElement('script');
   script.src = embedbase+'embed_'+streamName+'.js';
+  script.onerror = function(){
+    $('#preview-container').text('Failed to load embed script.');
+  };
   script.onload = function(){
     if (typeof mistvideo[streamName].error != 'undefined') {
       $('#preview-container').text(mistvideo[streamName].error);
     }
     else {
       var priority = mistvideo[streamName].source;
-      if (priority.length > 0) {
+      if (typeof priority != 'undefined') {
         $radio = $('<input>').attr('type','radio').attr('name','forcetype').attr('title','The embed type that is being used.').change(function(){
           $('#preview-container').attr('data-forcetype',$(this).val()).html('');
+          $(this).closest('table').find('tr.outline').removeClass('outline');
+          $(this).closest('tr').addClass('outline');
+          $('#streamurl').val(mistvideo[streamName].source[$(this).val()].url)
           
           var script = document.createElement('script');
           script.src = embedbase+'embed_'+streamName+'.js';
@@ -1346,30 +1358,68 @@ function buildstreamembed(streamName,embedbase) {
           $('<tr>').html(
             $('<th>')
           ).append(
-            $('<th>').text('URL')
-          ).append(
             $('<th>').text('Type')
           ).append(
             $('<th>').text('Priority')
+          ).append(
+            $('<th>').text('Simul. tracks')
+          ).append(
+            $('<th>').text('Browser support')
           )
         );
         for (var i in priority) {
+          var type = priority[i].type.split('/');
+          var humantype = type[0];
+          switch (type.length) {
+            case 1:
+              break;
+            case 2:
+              humantype += ' v'+type[1];
+              break;
+            case 3:
+              switch (type[2]) {
+                case 'mp4':
+                  humantype += ' MP4';
+                  break;
+                case 'vnd.apple.mpegurl':
+                  humantype += ' HLS';
+                  break;
+                case 'vnd.ms-ss':
+                  humantype += ' Smooth';
+                  break;
+                default:
+                  humantype = priority[i].type;
+              }
+              break;
+            default:
+              humantype = priority[i].type;
+          }
+          humantype = humantype.charAt(0).toUpperCase()+humantype.slice(1);
+          if (priority[i].browser_support) {
+            bsup = 'yes';
+          }
+          else {
+            bsup = 'no';
+          }
           $table.append(
             $('<tr>').html(
               $('<td>').html(
                 $radio.clone(true).attr('data-name',priority[i].type).val(i)
               )
             ).append(
-              $('<td>').text(priority[i].url)
-            ).append(
-              $('<td>').text(priority[i].type)
+              $('<td>').text(humantype)
             ).append(
               $('<td>').addClass('align-center').text(priority[i].priority)
+            ).append(
+              $('<td>').text(priority[i].simul_tracks+'/'+priority[i].total_matches)
+            ).append(
+              $('<td>').text(bsup)
             )
           );
         }
         $('#listprotocols').html($table);
-        $table.find('[name=forcetype][data-name="'+mistvideo[streamName].embedded_type+'"]').attr('checked','checked');
+        $table.find('[name=forcetype][data-name="'+mistvideo[streamName].embedded.type+'"]').attr('checked','checked').closest('tr').addClass('outline');
+        $('#streamurl').val(mistvideo[streamName].embedded.url)
       }
       else {
         $('#listprotocols').html('No data in info embed file.');

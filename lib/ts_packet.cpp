@@ -690,6 +690,13 @@ namespace TS {
 
   }
 
+  ProgramMappingTable::ProgramMappingTable(){
+    strBuf.resize(4);
+    strBuf[0] = 0x47;
+    strBuf[1] = 0x50;
+    strBuf[2] = 0x00;
+    strBuf[3] = 0x10;
+  }
 
   char ProgramMappingTable::getOffset() {
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0);
@@ -767,7 +774,7 @@ namespace TS {
     if (strBuf.size() < loc + 1) {
       strBuf.resize(loc + 1);
     }
-    strBuf[loc] = (((char)newVal) << 1) | 0xFD;
+    strBuf[loc] = (((char)newVal) << 1) | (strBuf[loc] & 0xFD) | 0xC1;
   }
 
   ///Retrieves the section number
@@ -810,7 +817,7 @@ namespace TS {
     if (strBuf.size() < loc + 2) {
       strBuf.resize(loc + 2);
     }
-    strBuf[loc] = (char)((newVal >> 8) & 0x1F) | 0xE0;
+    strBuf[loc] = (char)((newVal >> 8) & 0x1F) | 0xE0;//Note: here we set reserved bits on 1
     strBuf[loc+1] = (char)newVal;
   }
 
@@ -824,7 +831,7 @@ namespace TS {
     if (strBuf.size() < loc + 2) {
       strBuf.resize(loc + 2);
     }
-    strBuf[loc] = (char)((newVal >> 8) & 0x0F) | 0xF0;
+    strBuf[loc] = (char)((newVal >> 8) & 0x0F) | 0xF0;//Note: here we set reserved bits on 1
     strBuf[loc+1] = (char)newVal;
   }
 
@@ -905,12 +912,13 @@ namespace TS {
     unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength() + (getProgramCount() * 5);
     //return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
     unsigned int newVal;//this will hold the CRC32 value;
-    unsigned int tidLoc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 1;//location of table ID
-    newVal = checksum::crc32(0, strBuf.c_str() + tidLoc, loc - tidLoc);//calculating checksum over all the fields from table ID to the last stream element
+    unsigned int pidLoc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9;;//location of PCRPID
+    
+    newVal = checksum::crc32(0, strBuf.c_str() + pidLoc, loc - pidLoc);//calculating checksum over all the fields from table ID to the last stream element
     if (strBuf.size() < 188) {
       strBuf.resize(188);
     }
-    strBuf[loc] = newVal >> 24;
+    strBuf[loc] = (newVal >> 24) & 0xFF;
     strBuf[loc + 1] = (newVal >> 16) & 0xFF;
     strBuf[loc + 2] = (newVal >> 8) & 0xFF;
     strBuf[loc + 3] = newVal & 0xFF;

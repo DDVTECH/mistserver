@@ -110,6 +110,7 @@ namespace TS {
 
   class ProgramMappingTable : public Packet {
     public:
+      ProgramMappingTable();
       char getOffset();
       void setOffset(char newVal);
       char getTableId();

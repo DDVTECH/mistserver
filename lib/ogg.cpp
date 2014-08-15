@@ -349,7 +349,7 @@ namespace OGG {
     long unsigned int retVal = 0;
     long unsigned int oldChecksum = getCRCChecksum();
     setCRCChecksum(0);
-    retVal = checksum::crc32(0, data, getPageSize());
+    retVal = checksum::crc32c(0, data, getPageSize());
     setCRCChecksum(oldChecksum);
     return retVal;
   }

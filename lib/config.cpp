@@ -419,6 +419,7 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)) {
 void Util::Config::activate() {
   if (vals.isMember("username")) {
     setUser(getString("username"));
+    vals.removeMember("username");
   }
   if (vals.isMember("daemonize") && getBool("daemonize")) {
     if (vals.isMember("logfile") && getString("logfile") != "") {
@@ -426,6 +427,7 @@ void Util::Config::activate() {
     } else {
       Daemonize(false);
     }
+    vals.removeMember("daemonize");
   }
   struct sigaction new_action;
   struct sigaction cur_action;

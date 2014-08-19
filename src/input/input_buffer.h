@@ -8,6 +8,7 @@ namespace Mist {
   class inputBuffer : public Input {
     public:
       inputBuffer(Util::Config * cfg);
+      ~inputBuffer();
     private:
       unsigned int bufferTime;
       unsigned int cutTime;

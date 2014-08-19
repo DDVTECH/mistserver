@@ -51,6 +51,13 @@ namespace Mist {
     
   }
 
+  inputBuffer::~inputBuffer(){
+    DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
+    for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      while (removeKey(it->first)){}
+    }
+  }
+
   void inputBuffer::updateMeta(){
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
@@ -73,7 +80,10 @@ namespace Mist {
   } 
 
   bool inputBuffer::removeKey(unsigned int tid){
-    if (myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2){
+    if ((myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2) && config->is_active){
+      return false;
+    }
+    if (!myMeta.tracks[tid].keys.size()){
       return false;
     }
     DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%d", tid, myMeta.tracks[tid].keys[0].getNumber());
@@ -107,7 +117,7 @@ namespace Mist {
           DEBUG_MSG(DLVL_DEVEL, "Something went wrong while trying to record a packet @ %llu, %d != %d", bpos, tmpSize, recPack.getDataLen());
           break;
         }
-        if (recPack.getTime() >= lastms){
+        if (recPack.getTime() >= lastms){/// \todo getTime never reaches >= lastms, so probably the recording bug has something to do with this
           DEBUG_MSG(DLVL_HIGH, "Stopping record, %llu >= %llu", recPack.getTime(), lastms);
           break;
         }

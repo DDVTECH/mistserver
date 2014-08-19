@@ -613,12 +613,12 @@ namespace IPC {
       mySemaphore.unlink();
     }
     myPages.clear();
-    baseName = name;
+    baseName = "/" + name;
     payLen = len;
     hasCounter = withCounter;
-    mySemaphore.open(std::string("/" + baseName).c_str(), O_CREAT | O_EXCL | O_RDWR, ACCESSPERMS, 1);
+    mySemaphore.open(baseName.c_str(), O_CREAT | O_EXCL | O_RDWR, ACCESSPERMS, 1);
     if (!mySemaphore) {
-      mySemaphore.open(std::string("/" + baseName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      mySemaphore.open(baseName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     }
     if (!mySemaphore) {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
@@ -645,7 +645,7 @@ namespace IPC {
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
     semGuard tmpGuard(&mySemaphore);
-    sharedPage tmp(std::string(baseName + (char)(myPages.size() + (int)'A')), (4096 << myPages.size()), true);
+    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), (4096 << myPages.size()), true);
     myPages.insert(tmp);
     tmp.master = false;
     DEBUG_MSG(DLVL_VERYHIGH, "Created a new page: %s", tmp.name.c_str());
@@ -797,9 +797,9 @@ namespace IPC {
     hasCounter = rhs.hasCounter;
 #ifdef __APPLE__
     //note: O_CREAT is only needed for mac, probably
-    mySemaphore.open(std::string("/" + baseName).c_str(), O_RDWR | O_CREAT, 0);
+    mySemaphore.open(baseName.c_str(), O_RDWR | O_CREAT, 0);
 #else
-    mySemaphore.open(std::string("/" + baseName).c_str(), O_RDWR);
+    mySemaphore.open(baseName.c_str(), O_RDWR);
 #endif
     if (!mySemaphore) {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
@@ -817,9 +817,9 @@ namespace IPC {
     hasCounter = rhs.hasCounter;
 #ifdef __APPLE__
     //note: O_CREAT is only needed for mac, probably
-    mySemaphore.open(std::string("/" + baseName).c_str(), O_RDWR | O_CREAT, 0);
+    mySemaphore.open(baseName.c_str(), O_RDWR | O_CREAT, 0);
 #else
-    mySemaphore.open(std::string("/" + baseName).c_str(), O_RDWR);
+    mySemaphore.open(baseName.c_str(), O_RDWR);
 #endif
     if (!mySemaphore) {
       DEBUG_MSG(DLVL_FAIL, "Creating copy of semaphore %s failed: %s", baseName.c_str(), strerror(errno));
@@ -837,9 +837,9 @@ namespace IPC {
   sharedClient::sharedClient(std::string name, int len, bool withCounter) : baseName(name), payLen(len), offsetOnPage(-1), hasCounter(withCounter) {
 #ifdef __APPLE__
     //note: O_CREAT is only needed for mac, probably
-    mySemaphore.open(std::string("/" + baseName).c_str(), O_RDWR | O_CREAT, 0);
+    mySemaphore.open(baseName.c_str(), O_RDWR | O_CREAT, 0);
 #else
-    mySemaphore.open(std::string("/" + baseName).c_str(), O_RDWR);
+    mySemaphore.open(baseName.c_str(), O_RDWR);
 #endif
     if (!mySemaphore) {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore %s failed: %s", baseName.c_str(), strerror(errno));

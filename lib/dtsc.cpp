@@ -743,8 +743,9 @@ void DTSC::File::readHeader(int pos) {
       return;
     }
   }
-  metadata.vod = true;
-  metadata.live = false;
+  if (!metadata.live){
+    metadata.vod = true;
+  }
 }
 
 long int DTSC::File::getBytePosEOF() {

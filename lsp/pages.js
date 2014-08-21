@@ -1497,6 +1497,7 @@ function showTab(tabName,streamName) {
       var config = $.extend({},settings.settings);
       delete config.statistics;
       config = JSON.stringify(config);
+      config = 'Version: '+settings.settings.config.version+"\n\nConfig:\n"+config;
       $('#page').html(
         $('<div>').addClass('description').html(
           'You can use this form to email MistServer support if you\'re having difficulties.<br>'

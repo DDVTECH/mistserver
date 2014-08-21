@@ -1706,7 +1706,9 @@ $(window).on('hashchange', function(e) {
     ignoreHashChange = false;
     return; 
   }
-  var loc = location.hash.split('&')[1].split('@');
+  var loc = location.hash.split('&')[1];
+  if (!loc) {return;}
+  loc = loc.split('@');
   if (loc[1]) {
     showTab(loc[0],loc[1]);
   }

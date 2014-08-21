@@ -139,7 +139,7 @@ function showTab(tabName,streamName) {
             location.hash = settings.credentials.username+'@'+settings.server;
             $('#user_and_host').text(settings.credentials.username+' @ '+settings.server);
             
-            saveAndReload('overview');
+            saveAndReload('acccreated');
           })
         ).append(
           $('<button>').text('Cancel').addClass('escape-to-cancel').click(function(){
@@ -147,6 +147,54 @@ function showTab(tabName,streamName) {
           })
         )
       );
+    break;
+    case 'acccreated':
+      $('#menu').css('visibility', 'hidden');
+      $('#page').html(
+        'Your account was succesfully created. You can log in with these credentials in the future.'
+      ).append(
+        $('<div>').addClass('input_container').append(
+          $('<p>').text('Enable all protocols')
+        ).append(
+          $('<div>').addClass('description').text(
+            'Would you like to enable all (currently) available protocols with default settings?'
+          )
+        ).append(
+          $('<button>').text('Skip').css('float','left').addClass('escape-to-cancel').click(function(){
+            showTab('overview');
+          })
+        ).append(
+          $('<button>').text('Enable protocols').css('float','left').addClass('enter-to-submit').click(function(){
+            if (settings.settings.config.protocols) {
+              $('#page').append('Unable to enable all protocols as protocol settings already exist.<br>');
+              return;
+            }
+            
+            $('#page').append('Retrieving available protocols..<br>');
+            getData(function(data){
+              settings.settings.capabilities = data.capabilities;
+              settings.settings.config.protocols = [];
+              
+              for (var i in settings.settings.capabilities.connectors) {
+                var connector = settings.settings.capabilities.connectors[i];
+                
+                if (connector.required) {
+                  $('#page').append('Could not enable protocol "'+i+'" because it has required settings.<br>');
+                  continue;
+                }
+                
+                settings.settings.config.protocols.push(
+                  {connector: i}
+                );
+                $('#page').append('Enabled protocol "'+i+'".<br>');
+              }
+              
+              saveAndReload('protocols');
+            },{capabilities:true});
+          })
+        )
+      );
+      
     break;
     case 'overview':
       $('#page').html(

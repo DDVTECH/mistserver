@@ -44,6 +44,7 @@ namespace Mist {
     capa["url_rel"] = "/$";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("MP3");
     
     capa["methods"][0u]["handler"] = "rtsp";
     capa["methods"][0u]["type"] = "rtsp";
@@ -88,6 +89,12 @@ namespace Mist {
     if(myMeta.tracks[tid].codec == "AAC"){
       tracks[tid].rtpPacket.setTimestamp(timestamp * ((double) myMeta.tracks[tid].rate / 1000.0));
       tracks[tid].rtpPacket.sendAAC(socket, callBack, dataPointer, dataLen, tracks[tid].channel);
+      return;
+    }
+
+    if(myMeta.tracks[tid].codec == "MP3"){
+      tracks[tid].rtpPacket.setTimestamp(timestamp * 90000);/// \todo Maybe this should be devided by 1000
+      tracks[tid].rtpPacket.sendRaw(socket, callBack, dataPointer, dataLen, tracks[tid].channel);
       return;
     }
 
@@ -239,6 +246,13 @@ namespace Mist {
         //these values are described in RFC 3640
         transportString << "; mode=AAC-hbr; SizeLength=13; IndexLength=3; IndexDeltaLength=3;\r\n"
         "a=control:track" << objIt->second.trackID << "\r\n";
+      }else if (objIt->second.codec == "MP3") {
+        transportString << "m=" << objIt->second.type << " 0 RTP/AVP 96" << "\r\n"
+        "a=rtpmap:14 MPA/" << objIt->second.rate << "/" << objIt->second.channels << "\r\n"
+        //"a=fmtp:96 streamtype=5; profile-level-id=15;";
+        //these values are described in RFC 3640
+        //transportString << " mode=AAC-hbr; SizeLength=13; IndexLength=3; IndexDeltaLength=3;\r\n"
+        "a=control:track" << objIt->second.trackID << "\r\n";
       }
     }//for tracks iterator
     transportString << "\r\n";
@@ -253,7 +267,7 @@ namespace Mist {
     unsigned int SSrc = rand();
     if (myMeta.tracks[trId].codec == "H264") {
       tracks[trId].rtpPacket = RTP::Packet(97, 1, 0, SSrc);
-    } else if(myMeta.tracks[trId].codec == "AAC"){
+    }else if(myMeta.tracks[trId].codec == "AAC" || myMeta.tracks[trId].codec == "MP3"){
       tracks[trId].rtpPacket = RTP::Packet(96, 1, 0, SSrc);
     }else{
       DEBUG_MSG(DLVL_FAIL,"Unsupported codec for RTSP: %s",myMeta.tracks[trId].codec.c_str());
@@ -370,7 +384,7 @@ namespace Mist {
       }
       if (myMeta.tracks[it->first].codec == "H264") {
         timeMap[it->first] = 90 * timeMap[it->first];
-      } else if (myMeta.tracks[it->first].codec == "AAC") {
+      } else if (myMeta.tracks[it->first].codec == "AAC" || myMeta.tracks[it->first].codec == "MP3") {
         timeMap[it->first] = timeMap[it->first] * ((double)myMeta.tracks[it->first].rate / 1000.0);
       }
       transportString << "url=" << HTTP_R.url.substr(0, HTTP_R.url.rfind('/')) << "/" << streamName << "/track" << it->first << ";"; //get the current url, not localhost

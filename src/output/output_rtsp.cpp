@@ -93,7 +93,7 @@ namespace Mist {
     }
 
     if(myMeta.tracks[tid].codec == "MP3"){
-      tracks[tid].rtpPacket.setTimestamp(timestamp * 90000);/// \todo Maybe this should be devided by 1000
+      tracks[tid].rtpPacket.setTimestamp(timestamp * ((double) myMeta.tracks[tid].rate / 1000.0));
       tracks[tid].rtpPacket.sendRaw(socket, callBack, dataPointer, dataLen, tracks[tid].channel);
       return;
     }

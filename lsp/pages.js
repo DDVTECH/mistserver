@@ -810,7 +810,7 @@ function showTab(tabName,streamName) {
         $('#page').html(
           $('<div>').addClass('table').html(
             $('<div>').addClass('row').html(
-              $('<div>').addClass('cell').attr('id','liststreams').addClass('menu')
+              $('<div>').addClass('cell').attr('id','liststreams').addClass('menu').css('vertical-align','top')
             ).append(
               $('<div>').addClass('cell').attr('id','subpage').css('padding-left','1em')
             )

@@ -451,6 +451,20 @@ button[disabled=disabled] {
 .cell {
   display: table-cell;
 }
+.embed_info {
+  float: left;
+  margin: 0 1em 1em 0;
+}
+.embed_container {
+  width: 100%;
+  float: left;
+}
+.stream_info {
+  max-height: 30em;
+  overflow-y: auto;
+  padding-right: 1em;
+  float: left;
+}
 #graphcontainer {
   width: 100%;
   background-color: white;

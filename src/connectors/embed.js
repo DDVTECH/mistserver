@@ -179,15 +179,15 @@ function mistembed(streamname)
   // remove script tag
   me.parentNode.removeChild(me);
 
-  if(video.error)
-  {
+  if(video.error) {
     // there was an error; display it
     container.innerHTML = ['<strong>Error: ', video.error, '</strong>'].join('');
-  }else if(video.source.length < 1)
-  {
+  }
+  else if ((typeof video.source == 'undefined') || (video.source.length < 1)) {
     // no stream sources
     container.innerHTML = '<strong>Error: no streams found</strong>';
-  }else{
+  }
+  else{
     // no error, and sources found. Check the video types and output the best
     // available video player.
     var i,

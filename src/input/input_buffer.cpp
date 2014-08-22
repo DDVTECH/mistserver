@@ -149,7 +149,7 @@ namespace Mist {
           negotiateTracks.erase(value);
           metaPages.erase(value);
         }
-        if (givenTracks.count(value)){
+        if (data[4] == 0xFF && data[5] == 0xFF && givenTracks.count(value)){
           givenTracks.erase(value);
           inputLoc.erase(value);
         }

@@ -107,7 +107,7 @@ namespace Mist {
     }
     int bufConnOffset = trackMap.size();
     DEBUG_MSG(DLVL_DEVEL, "Starting negotiation for incoming track %d, at offset %d", tid, bufConnOffset);
-    memset(tmp + 6 * bufConnOffset, 0, 6);
+    memset(tmp + 6 * bufConnOffset, 0, 4);
     tmp[6 * bufConnOffset] = 0x80;
     tmp[6 * bufConnOffset + 4] = 0xFF;
     tmp[6 * bufConnOffset + 5] = 0xFF;
@@ -215,7 +215,6 @@ namespace Mist {
       bookKeeping[tNum].curOffset += tmp.size();
       DEBUG_MSG(DLVL_WARN, "Can't buffer frame on page %d, track %llu, time %lld, keyNum %d, offset %llu", pageNum, tNum, pack["time"].asInt(), bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum, bookKeeping[tNum].curOffset);
     }
-    playerConn.keepAlive();
   }
 
 
@@ -635,7 +634,7 @@ namespace Mist {
       }
       buffer.insert(nxt);
     }
-    playerConn.keepAlive();
+    stats();
   }
 
   void Output::stats(){
@@ -671,22 +670,32 @@ namespace Mist {
         return;
       }
     }
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < 5; it++){
-      int tId = *it;
-      if (trackMap.count(tId)){
-        tId = trackMap[tId];
+    if (trackMap.size()){
+      for (std::map<int, int>::iterator it = trackMap.begin(); it != trackMap.end() && tNum < 5; it++){
+        int tId = it->second;
+        char * thisData = playerConn.getData() + (6 * tNum);
+        thisData[0] = ((tId >> 24) & 0xFF);
+        thisData[1] = ((tId >> 16) & 0xFF);
+        thisData[2] = ((tId >> 8) & 0xFF);
+        thisData[3] = ((tId) & 0xFF);
+        thisData[4] = 0xFF;
+        thisData[5] = 0xFF;
+        tNum ++;
       }
-      char thisData[6];
-      thisData[0] = ((tId >> 24) & 0xFF);
-      thisData[1] = ((tId >> 16) & 0xFF);
-      thisData[2] = ((tId >> 8) & 0xFF);
-      thisData[3] = ((tId) & 0xFF);
-      thisData[4] = ((nxtKeyNum[tId] >> 8) & 0xFF);
-      thisData[5] = ((nxtKeyNum[tId]) & 0xFF);
-      memcpy(playerConn.getData() + (6 * tNum), thisData, 6);
-      tNum ++;
-      playerConn.keepAlive();
+    }else{
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < 5; it++){
+        int tId = *it;
+        char * thisData = playerConn.getData() + (6 * tNum);
+        thisData[0] = ((tId >> 24) & 0xFF);
+        thisData[1] = ((tId >> 16) & 0xFF);
+        thisData[2] = ((tId >> 8) & 0xFF);
+        thisData[3] = ((tId) & 0xFF);
+        thisData[4] = ((nxtKeyNum[tId] >> 8) & 0xFF);
+        thisData[5] = ((nxtKeyNum[tId]) & 0xFF);
+        tNum ++;
+      }
     }
+    playerConn.keepAlive();
     if (tNum >= 5){
       DEBUG_MSG(DLVL_WARN, "Too many tracks selected, using only first 5");
     }

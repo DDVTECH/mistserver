@@ -16,7 +16,8 @@ namespace Mist {
       void sendNext();
     protected:
       HTTP::Parser HTTP_S;
-      HTTP::Parser HTTP_R;
+      HTTP::Parser HTTP_R;      
+      void fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter);
       std::string liveIndex();
       std::string liveIndex(int tid);
       int canSeekms(unsigned int ms);

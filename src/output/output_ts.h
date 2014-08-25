@@ -19,6 +19,7 @@ namespace Mist {
       char AudioCounter;
       MP4::AVCC avccbox;
       std::string createPMT();
+      void fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter);
   };
 }
 

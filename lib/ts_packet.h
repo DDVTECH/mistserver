@@ -85,7 +85,7 @@ namespace TS {
 
       void FillFree(std::string & PackageData);
       int FillFree(const char * PackageData, int maxLen);
-      unsigned int AddStuffing(int NumBytes);
+      void AddStuffing();
     protected:
       std::string strBuf;///<The actual data
       //char Buffer[188];///< The actual data

@@ -528,39 +528,51 @@ namespace TS {
 /// \param maxLen The maximum amount of bytes to store.
   int Packet::FillFree(const char * NewVal, int maxLen) {
     int toWrite = std::min((int)BytesFree(), maxLen);
-    strBuf += std::string(NewVal, toWrite);
+    strBuf.append(NewVal, toWrite);
     return toWrite;
   }
 
 /// Adds stuffing to the Packet depending on how much content you want to send.
 /// \param NumBytes the amount of non-stuffing content bytes you want to send.
 /// \return The amount of content bytes that can be send.
-  unsigned int Packet::AddStuffing(int NumBytes) {
-    if (BytesFree() <= NumBytes) {
-      return BytesFree();
+  void Packet::AddStuffing() {
+    int numBytes = BytesFree();
+    if (!numBytes) {
+      return;
     }
-    NumBytes = BytesFree() - NumBytes;
-    if (AdaptationField() == 3) {
-      strBuf.resize(5 + strBuf[4]);
-      strBuf[4] += NumBytes;
-      for (int i = 0; i < NumBytes; i++) {
-        strBuf.append(FILLER_DATA[i % sizeof(FILLER_DATA)], 0);
-      }
-    } else {
+    
+    if (AdaptationField() == 2){
+      FAIL_MSG("Can not handle adaptation field 2");
+      return;
+    }
+    
+
+    if (AdaptationField() == 1){
+      //Convert adaptationfield to 3
+      strBuf.insert(4, 1, (char)0);
       AdaptationField(3);
-      if (NumBytes > 1) {
-        strBuf.resize(6);
-        strBuf[4] = (char)(NumBytes - 1);
-        strBuf[5] = (char)0x00;
-        for (int i = 0; i < (NumBytes - 2); i++) {
-          strBuf += FILLER_DATA[i % sizeof(FILLER_DATA)];
-        }
-      } else {
-        strBuf.resize(5);
-        strBuf[4] = (char)(NumBytes - 1);
-      }
+      numBytes --;
     }
-    return BytesFree();
+    
+    if (AdaptationField() == 3 && numBytes ) {
+      if (strBuf[4] == 0){
+        strBuf.insert(5, numBytes, '$');
+      }else{
+        strBuf.insert(6 + strBuf[4], numBytes, '$');
+      }
+      strBuf[4] += numBytes;
+    }
+
+    if (numBytes){
+      if (numBytes == strBuf[4]){
+        strBuf[5] = 0x00;
+        numBytes --;
+      }
+      for (int i = 0; i < numBytes; i++) {
+        strBuf[5+(strBuf[4] - numBytes)+i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
+      }
+    } 
+    
   }
 
 ///Gets the string buffer, containing the raw packet data as a string

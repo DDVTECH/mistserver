@@ -52,12 +52,14 @@ namespace Mist {
 
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (myMeta.tracks[*it].type == "video"){
-        tag.DTSCVideoInit(myMeta.tracks[*it]);
-        myConn.SendNow(tag.data, tag.len);
+        if (tag.DTSCVideoInit(myMeta.tracks[*it])){
+          myConn.SendNow(tag.data, tag.len);
+        }
       }
       if (myMeta.tracks[*it].type == "audio"){
-        tag.DTSCAudioInit(myMeta.tracks[*it]);
-        myConn.SendNow(tag.data, tag.len);
+        if (tag.DTSCAudioInit(myMeta.tracks[*it])){
+          myConn.SendNow(tag.data, tag.len);
+        }
       }
     }
     sentHeader = true;

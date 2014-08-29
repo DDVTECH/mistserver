@@ -1,6 +1,7 @@
 #include "output.h"
 #include <mist/mp4_generic.h>
 #include <mist/ts_packet.h>
+#include <string>
 
 namespace Mist {
   class OutTS : public Output {
@@ -17,6 +18,8 @@ namespace Mist {
       char VideoCounter;
       char AudioCounter;
       MP4::AVCC avccbox;
+      std::string createPMT();
+      void fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter);
   };
 }
 

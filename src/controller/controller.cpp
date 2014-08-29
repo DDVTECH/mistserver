@@ -266,7 +266,7 @@ int main(int argc, char ** argv){
   }//connected to a terminal
   
   Controller::Log("CONF", "Controller started");
-  Controller::conf.is_active = true;//set this to true here already so the below threads don't instantly exit
+  Controller::conf.activate();//activate early, so threads aren't killed.
 
   /*LTS-START*/
   if (Controller::conf.getBool("update")){

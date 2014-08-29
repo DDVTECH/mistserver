@@ -1297,7 +1297,21 @@ function buildstreamembed(streamName,embedbase) {
     return $(this).text() == streamName;
   }).addClass('current');
   
+  var $embedinfo = $('<div>').addClass('embed_info');
+  var $embedcont = $('<div>').addClass('embed_container');
+  var $streaminfo = $('<div>').addClass('stream_info');
+  
   $('#subpage').html(
+    $embedinfo
+  ).append(
+    $streaminfo
+  ).append(
+    $embedcont
+  );
+  
+  //stream embed
+  
+  $embedinfo.html(
     $('<div>').addClass('input_container').html(
       $('<label>').text('The info embed URL is:').append(
         $('<input>').attr('type','text').attr('readonly','readonly').val(embedbase+'info_'+streamName+'.js')
@@ -1313,48 +1327,252 @@ function buildstreamembed(streamName,embedbase) {
     )
   ).append(
     $('<span>').attr('id','listprotocols').text('Loading..')
-  ).append(
+  );
+  $embedcont.append(
     $('<p>').text('Preview:')
   ).append(
-    $('<div>').attr('id','preview-container')
+    $('<div>').attr('id','preview-container').attr('data-forcesupportcheck',1)
+  ).append(
+    $('<div>').addClass('input_container').append(
+      $('<label>').text('Stream embed url:').append(
+        $('<input>').attr('type','text').attr('readonly','readonly').attr('id','streamurl')
+      )
+    )
   );
   
   // jQuery doesn't work -> use DOM magic
   var script = document.createElement('script');
   script.src = embedbase+'embed_'+streamName+'.js';
+  script.onerror = function(){
+    $('#preview-container').text('Failed to load embed script.');
+  };
   script.onload = function(){
-    var priority = mistvideo[streamName].source;
-    if (priority.length > 0) {
-      priority.sort(function(a,b){
-        return b.priority - a.priority;
-      });
-      var $table = $('<table>').html(
-        $('<tr>').html(
-          $('<th>').text('URL')
-        ).append(
-          $('<th>').text('Type')
-        ).append(
-          $('<th>').text('Priority')
-        )
-      );
-      for (var i in priority) {
-        $table.append(
-          $('<tr>').html(
-            $('<td>').text(priority[i].url)
-          ).append(
-            $('<td>').text(priority[i].type)
-          ).append(
-            $('<td>').addClass('align-center').text(priority[i].priority)
-          )
-        );
-      }
-      $('#listprotocols').html($table);
+    if (typeof mistvideo[streamName].error != 'undefined') {
+      $('#preview-container').text(mistvideo[streamName].error);
     }
     else {
-      $('#listprotocols').html('No data in info embed file.');
+      var priority = mistvideo[streamName].source;
+      if (typeof priority != 'undefined') {
+        $radio = $('<input>').attr('type','radio').attr('name','forcetype').attr('title','The embed type that is being used.').change(function(){
+          $('#preview-container').attr('data-forcetype',$(this).val()).html('');
+          $(this).closest('table').find('tr.outline').removeClass('outline');
+          $(this).closest('tr').addClass('outline');
+          $('#streamurl').val(mistvideo[streamName].source[$(this).val()].url)
+          
+          var script = document.createElement('script');
+          script.src = embedbase+'embed_'+streamName+'.js';
+          script.onload = function(){
+            
+          };
+          document.getElementById('preview-container').appendChild( script );
+        });
+        priority.sort(function(a,b){
+          return b.priority - a.priority;
+        });
+        var $table = $('<table>').html(
+          $('<tr>').html(
+            $('<th>')
+          ).append(
+            $('<th>').text('Type')
+          ).append(
+            $('<th>').text('Priority')
+          ).append(
+            $('<th>').text('Simul. tracks')
+          ).append(
+            $('<th>').text('Browser support')
+          )
+        );
+        for (var i in priority) {
+          var type = priority[i].type.split('/');
+          var humantype = type[0];
+          switch (type.length) {
+            case 1:
+              break;
+            case 2:
+              humantype += ' v'+type[1];
+              break;
+            case 3:
+              switch (type[2]) {
+                case 'mp4':
+                  humantype += ' MP4';
+                  break;
+                case 'vnd.apple.mpegurl':
+                  humantype += ' HLS';
+                  break;
+                case 'vnd.ms-ss':
+                  humantype += ' Smooth';
+                  break;
+                default:
+                  humantype = priority[i].type;
+              }
+              break;
+            default:
+              humantype = priority[i].type;
+          }
+          humantype = humantype.charAt(0).toUpperCase()+humantype.slice(1);
+          if (priority[i].browser_support) {
+            bsup = 'yes';
+          }
+          else {
+            bsup = 'no';
+          }
+          $table.append(
+            $('<tr>').html(
+              $('<td>').html(
+                $radio.clone(true).attr('data-name',priority[i].type).val(i)
+              )
+            ).append(
+              $('<td>').text(humantype)
+            ).append(
+              $('<td>').addClass('align-center').text(priority[i].priority)
+            ).append(
+              $('<td>').text(priority[i].simul_tracks+'/'+priority[i].total_matches)
+            ).append(
+              $('<td>').text(bsup)
+            )
+          );
+        }
+        $('#listprotocols').html($table);
+        $table.find('[name=forcetype][data-name="'+mistvideo[streamName].embedded.type+'"]').attr('checked','checked').closest('tr').addClass('outline');
+        $('#streamurl').val(mistvideo[streamName].embedded.url)
+      }
+      else {
+        $('#listprotocols').html('No data in info embed file.');
+      }
     }
   }
   document.getElementById('preview-container').appendChild( script );
+  
+  // stream info
+  getData(function(returnedData){
+    settings.settings.streams = returnedData.streams;
+    var meta = settings.settings.streams[streamName].meta;
+    if (!meta) {
+      $streaminfo.html('No info available for stream "'+streamName+'".');
+    } 
+    else {
+      $meta = $('<table>').css('width','auto');
+      if (meta.live) {
+        $meta.html(
+          $('<tr>').html(
+            $('<td>').text('Type:')
+          ).append(
+            $('<td>').text('Live')
+          )
+        );
+        if (meta.buffer_window) {
+          $meta.append(
+            $('<tr>').html(
+              $('<td>').text('Buffer window:')
+            ).append(
+              $('<td>').text(meta.buffer_window+' ms')
+            )
+          );
+        }
+      }
+      else {
+        $meta.html(
+          $('<tr>').html(
+            $('<td>').text('Type:')
+          ).append(
+            $('<td>').text('Pre-recorded (VoD)')
+          )
+        );
+      }
+      for (var index in meta.tracks) {
+        var track = meta.tracks[index];
+        if (track.type == '') { continue; }
+        var $table = $('<table>').html(
+          $('<tr>').html(
+            $('<td>').text('Type:')
+          ).append(
+            $('<td>').text(capFirstChar(track.type))
+          )
+        ).append(
+          $('<tr>').html(
+            $('<td>').text('Codec:')
+          ).append(
+            $('<td>').text(track.codec)
+          )
+        ).append(
+          $('<tr>').html(
+            $('<td>').text('Duration:')
+          ).append(
+            $('<td>').html(
+              formatDuration(track.lastms-track.firstms)+'<br>(from '+formatDuration(track.firstms)+' to '+formatDuration(track.lastms)+')'
+            )
+          )
+        ).append(
+          $('<tr>').html(
+            $('<td>').text('Average bitrate:')
+          ).append(
+            $('<td>').text(Math.round(track.bps/1024)+' KiB/s')
+          )
+        );
+        
+        if (track.height) {
+          $table.append(
+            $('<tr>').html(
+              $('<td>').text('Size:')
+            ).append(
+              $('<td>').text(track.width+'x'+track.height+' px')
+            )
+          );
+        }
+        if (track.fpks) {
+          $table.append(
+            $('<tr>').html(
+              $('<td>').text('Framerate:')
+            ).append(
+              $('<td>').text(track.fpks/1000+' fps')
+            )
+          );
+        }
+        if (track.channels) {
+          $table.append(
+            $('<tr>').html(
+              $('<td>').text('Channels:')
+            ).append(
+              $('<td>').text(track.channels)
+            )
+          );
+        }
+        if (track.rate) {
+          $table.append(
+            $('<tr>').html(
+              $('<td>').text('Samplerate:')
+            ).append(
+              $('<td>').text(seperateThousands(track.rate,' ')+' Hz')
+            )
+          );
+        }
+        
+        $meta.append(
+          $('<tr>').html(
+            $('<td>').text(capFirstChar(index)+':')
+          ).append(
+            $('<td>').html(
+              $table
+            )
+          )
+        );
+      }
+      
+      $streaminfo.append(
+        $('<p>').text('Track information')
+      ).append(
+        $('<div>').css({'display':'table','table-layout':'fixed','min-height':'300px'}).html(
+          $('<div>').css('display','table-row').html(
+            $('<div>').attr('id','info-stream-meta').css({'display':'table-cell','max-width':'50%','overflow':'auto'}).html(
+              $meta
+            )
+          ).append(
+            $('<div>').attr('id','info-stream-statistics').css({'display':'table-cell','text-align':'center','min-height':'200px'})
+          )
+        )
+      );
+    }
+  },{},0,true);
 }
 
 $(function(){
@@ -1488,7 +1706,9 @@ $(window).on('hashchange', function(e) {
     ignoreHashChange = false;
     return; 
   }
-  var loc = location.hash.split('&')[1].split('@');
+  var loc = location.hash.split('&')[1];
+  if (!loc) {return;}
+  loc = loc.split('@');
   if (loc[1]) {
     showTab(loc[0],loc[1]);
   }

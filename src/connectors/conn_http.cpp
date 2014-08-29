@@ -643,6 +643,10 @@ namespace Connector_HTTP {
           }
 
           if (handler == "none" || handler == "internal"){
+            Client.Clean();
+            conn.Received().clear();
+            conn.spool();
+            Client.Read(conn);
             if (handler == "internal"){
               proxyHandleInternal(Client, conn);
             }else{

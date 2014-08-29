@@ -81,7 +81,7 @@ function mistembed(streamname)
     {
       case 'flash':             return flash_version() >= parseInt(typemime[1], 10);            break;
       case 'html5':             return html5_video_type(typemime[1]);                           break;
-      case 'silverlight':	return silverlight_installed();                                 break;
+      case 'silverlight':       return silverlight_installed();                                 break;
 
       default:                  return false;                                                   break;
     }
@@ -115,6 +115,7 @@ function mistembed(streamname)
     }
 
     var maintype = parseType(src.type);
+    mistvideo[streamname].embedded = src;
     
     switch(maintype[0])
     {
@@ -130,7 +131,7 @@ function mistembed(streamname)
           flashplayer = 'http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf';
         }
         
-        container.innerHTML = '<object width="' + videowidth + '" height="' + videoheight + '">' +
+        container.innerHTML += '<object width="' + videowidth + '" height="' + videoheight + '">' +
                                 '<param name="movie" value="' + flashplayer + '"></param>' + 
                                 '<param name="flashvars" value="src=' + url + '"></param>' +
                                 '<param name="allowFullScreen" value="true"></param>' +
@@ -141,26 +142,32 @@ function mistembed(streamname)
       break;
 
       case 'html5':
-        container.innerHTML = '<video width="' + videowidth + '" height="' + videoheight + '" src="' + encodeURI(src.url) + '" controls="controls" ><strong>No HTML5 video support</strong></video>';
+        container.innerHTML += '<video width="' + videowidth + '" height="' + videoheight + '" src="' + encodeURI(src.url) + '" controls="controls" ><strong>No HTML5 video support</strong></video>';
         break;
         
       case 'silverlight':
-        container.innerHTML = '<object data="data:application/x-silverlight," type="application/x-silverlight" width="' + videowidth + '" height="' + videoheight + '"><param name="source" value="' + encodeURI(src.url) + '/player.xap"/><param name="onerror" value="onSilverlightError" /><param name="autoUpgrade" value="true" /><param name="background" value="white" /><param name="enableHtmlAccess" value="true" /><param name="minRuntimeVersion" value="3.0.40624.0" /><param name="initparams" value =\'autoload=false,autoplay=true,displaytimecode=false,enablecaptions=true,joinLive=true,muted=false,playlist=<playList><playListItems><playListItem title="Test" description="testing" mediaSource="' + encodeURI(src.url) + '" adaptiveStreaming="true" thumbSource="" frameRate="25.0" width="" height=""></playListItem></playListItems></playList>\' /><a href="http://go.microsoft.com/fwlink/?LinkID=124807" style="text-decoration: none;"> <img src="http://go.microsoft.com/fwlink/?LinkId=108181" alt="Get Microsoft Silverlight" style="border-style: none" /></a></object>';
+        container.innerHTML += '<object data="data:application/x-silverlight," type="application/x-silverlight" width="' + videowidth + '" height="' + videoheight + '"><param name="source" value="' + encodeURI(src.url) + '/player.xap"/><param name="onerror" value="onSilverlightError" /><param name="autoUpgrade" value="true" /><param name="background" value="white" /><param name="enableHtmlAccess" value="true" /><param name="minRuntimeVersion" value="3.0.40624.0" /><param name="initparams" value =\'autoload=false,autoplay=true,displaytimecode=false,enablecaptions=true,joinLive=true,muted=false,playlist=<playList><playListItems><playListItem title="Test" description="testing" mediaSource="' + encodeURI(src.url) + '" adaptiveStreaming="true" thumbSource="" frameRate="25.0" width="" height=""></playListItem></playListItems></playList>\' /><a href="http://go.microsoft.com/fwlink/?LinkID=124807" style="text-decoration: none;"> <img src="http://go.microsoft.com/fwlink/?LinkId=108181" alt="Get Microsoft Silverlight" style="border-style: none" /></a></object>';
       break;
 
 
       case 'fallback':
-        container.innerHTML = '<strong>No support for any player found</strong>';
+        container.innerHTML += '<strong>No support for any player found</strong>';
       break;         
     }
 
   };
   
-  
   var video = mistvideo[streamname],
   container = document.createElement('div'),
   scripts = document.getElementsByTagName('script'),
   me = scripts[scripts.length - 1];
+  
+  if (me.parentNode.hasAttribute('data-forcetype')) {
+    var forceType = me.parentNode.getAttribute('data-forcetype');
+  }
+  if (me.parentNode.hasAttribute('data-forcesupportcheck')) {
+    var forceSupportCheck = true;
+  }
   
   if (video.width == 0) { video.width = 250; }
   if (video.height == 0) { video.height = 250; }
@@ -172,41 +179,72 @@ function mistembed(streamname)
   // remove script tag
   me.parentNode.removeChild(me);
 
-  if(video.error)
-  {
+  if(video.error) {
     // there was an error; display it
     container.innerHTML = ['<strong>Error: ', video.error, '</strong>'].join('');
-  }else if(video.source.length < 1)
-  {
+  }
+  else if ((typeof video.source == 'undefined') || (video.source.length < 1)) {
     // no stream sources
     container.innerHTML = '<strong>Error: no streams found</strong>';
-  }else{
+  }
+  else{
     // no error, and sources found. Check the video types and output the best
     // available video player.
     var i,
         vtype = (video.type ? video.type : 'unknown'),
         foundPlayer = false,
         len = video.source.length;
-
-    for(i = 0; i < len; i++)
-    {
-      //console.log("trying support for type " + video.source[i].type + " (" + parseType(video.source[i].type)[0] + "  -  " + parseType(video.source[i].type)[1] + ")");
-      if( hasSupport( video.source[i].type ) )
-      {
-        // we support this kind of video, so build it.
-        buildPlayer(video.source[i], container.parentNode, video.width, video.height, vtype);
-
-        // we've build a player, so we're done here
-        foundPlayer = true;
-        break;   // break for() loop
+        
+    if (typeof forceType != 'undefined') {
+      i = forceType;
+      if (typeof video.source[i] == 'undefined') {
+        container.innerHTML = '<strong>Invalid force integer ('+i+').</strong>';
+      }
+      else {
+        if ( hasSupport(video.source[i].type) ) {
+          video.source[i].browser_support = true;
+          buildPlayer(video.source[i], container.parentNode, video.width, video.height, vtype);
+        }
+        else {
+          video.source[i].browser_support = false;
+          container.innerHTML = '<strong>Your browser does not support the type "'+video.source[i].type+'".</strong>';
+        }
       }
     }
-
-    if(!foundPlayer)
-    {
-      // of all the streams given, none was supported (eg. no flash and HTML5 video). Display error
-      buildPlayer({type: 'fallback'}, container.parentNode, video.width, video.height);
+    else {
+    
+      for(i = 0; i < len; i++)
+      {
+        //console.log("trying support for type " + video.source[i].type + " (" + parseType(video.source[i].type)[0] + "  -  " + parseType(video.source[i].type)[1] + ")");
+        if( hasSupport( video.source[i].type ) )
+        {
+          video.source[i].browser_support = true;
+          if (!foundPlayer) { foundPlayer = i; }
+          if (!forceSupportCheck) { 
+            // we support this kind of video, so build it.
+            buildPlayer(video.source[i], container.parentNode, video.width, video.height, vtype);
+            
+            // we've build a player, so we're done here
+            break;   // break for() loop 
+          }
+        }
+        else {
+          video.source[i].browser_support = false;
+        }
+      }
+      
+      
+      if(foundPlayer === false)
+      {
+        // of all the streams given, none was supported (eg. no flash and HTML5 video). Display error
+        buildPlayer({type: 'fallback'}, container.parentNode, video.width, video.height);
+      }
+      else if (forceSupportCheck) {
+        // we support this kind of video, so build it.
+        buildPlayer(video.source[foundPlayer], container.parentNode, video.width, video.height, vtype);
+      }
     }
   }
-
+  
+  return (typeof mistvideo[streamname].embedded_type != 'undefined' ? mistvideo[streamname].embedded_type : false);
 }

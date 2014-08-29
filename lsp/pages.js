@@ -139,7 +139,7 @@ function showTab(tabName,streamName) {
             location.hash = settings.credentials.username+'@'+settings.server;
             $('#user_and_host').text(settings.credentials.username+' @ '+settings.server);
             
-            saveAndReload('overview');
+            saveAndReload('acccreated');
           })
         ).append(
           $('<button>').text('Cancel').addClass('escape-to-cancel').click(function(){
@@ -147,6 +147,54 @@ function showTab(tabName,streamName) {
           })
         )
       );
+    break;
+    case 'acccreated':
+      $('#menu').css('visibility', 'hidden');
+      $('#page').html(
+        'Your account was succesfully created. You can log in with these credentials in the future.'
+      ).append(
+        $('<div>').addClass('input_container').append(
+          $('<p>').text('Enable all protocols')
+        ).append(
+          $('<div>').addClass('description').text(
+            'Would you like to enable all (currently) available protocols with default settings?'
+          )
+        ).append(
+          $('<button>').text('Skip').css('float','left').addClass('escape-to-cancel').click(function(){
+            showTab('overview');
+          })
+        ).append(
+          $('<button>').text('Enable protocols').css('float','left').addClass('enter-to-submit').click(function(){
+            if (settings.settings.config.protocols) {
+              $('#page').append('Unable to enable all protocols as protocol settings already exist.<br>');
+              return;
+            }
+            
+            $('#page').append('Retrieving available protocols..<br>');
+            getData(function(data){
+              settings.settings.capabilities = data.capabilities;
+              settings.settings.config.protocols = [];
+              
+              for (var i in settings.settings.capabilities.connectors) {
+                var connector = settings.settings.capabilities.connectors[i];
+                
+                if (connector.required) {
+                  $('#page').append('Could not enable protocol "'+i+'" because it has required settings.<br>');
+                  continue;
+                }
+                
+                settings.settings.config.protocols.push(
+                  {connector: i}
+                );
+                $('#page').append('Enabled protocol "'+i+'".<br>');
+              }
+              
+              saveAndReload('protocols');
+            },{capabilities:true});
+          })
+        )
+      );
+      
     break;
     case 'overview':
       $('#page').html(
@@ -294,9 +342,19 @@ function showTab(tabName,streamName) {
       },10000);
       updateOverview();
       
-      if (!settings.settings.config.capabilities) { saveAndReload(); }
+
+      
     break;
     case 'protocols':
+      
+      if (typeof settings.settings.capabilities == 'undefined') {
+        getData(function(data){
+          settings.settings.capabilities = data.capabilities;
+          showTab('protocols');
+        },{capabilities:true});
+        return;
+      }
+      
       var $tbody = $('<tbody>').attr('id','protocols-tbody');
       
       $('#page').html(
@@ -489,10 +547,6 @@ function showTab(tabName,streamName) {
               $('<button>').text('Preview').click(function(){
                 showTab('preview',$(this).parent().parent().data('stream'))
               })
-            ).append(
-              $('<button>').text('Info').click(function(){
-                showTab('streaminfo',$(this).parent().parent().data('stream'))
-              })
             )
           ).append(
             $('<td>').html(
@@ -653,142 +707,6 @@ function showTab(tabName,streamName) {
       })
       
     break;
-    case 'streaminfo':
-      getData(function(returnedData){
-        settings.settings.streams = returnedData.streams;
-        var meta = settings.settings.streams[streamName].meta;
-        if (!meta) {
-          $('#page').html('No info available for stream "'+streamName+'".');
-        } 
-        else {
-          $meta = $('<table>').css('width','auto');
-          if (meta.live) {
-            $meta.html(
-              $('<tr>').html(
-                $('<td>').text('Type:')
-              ).append(
-                $('<td>').text('Live')
-              )
-            );
-            if (meta.buffer_window) {
-              $meta.append(
-                $('<tr>').html(
-                  $('<td>').text('Buffer window:')
-                ).append(
-                  $('<td>').text(meta.buffer_window+' ms')
-                )
-              );
-            }
-          }
-          else {
-            $meta.html(
-              $('<tr>').html(
-                $('<td>').text('Type:')
-              ).append(
-                $('<td>').text('Pre-recorded (VoD)')
-              )
-            );
-          }
-          for (var index in meta.tracks) {
-            var track = meta.tracks[index];
-            if (track.type == '') { continue; }
-            var $table = $('<table>').html(
-              $('<tr>').html(
-                $('<td>').text('Type:')
-              ).append(
-                $('<td>').text(capFirstChar(track.type))
-              )
-            ).append(
-              $('<tr>').html(
-                $('<td>').text('Codec:')
-              ).append(
-                $('<td>').text(track.codec)
-              )
-            ).append(
-              $('<tr>').html(
-                $('<td>').text('Duration:')
-              ).append(
-                $('<td>').html(
-                  formatDuration(track.lastms-track.firstms)+'<br>(from '+formatDuration(track.firstms)+' to '+formatDuration(track.lastms)+')'
-                )
-              )
-            ).append(
-              $('<tr>').html(
-                $('<td>').text('Average bitrate:')
-              ).append(
-                $('<td>').text(Math.round(track.bps/1024)+' KiB/s')
-              )
-            );
-            
-            if (track.height) {
-              $table.append(
-                $('<tr>').html(
-                  $('<td>').text('Size:')
-                ).append(
-                  $('<td>').text(track.width+'x'+track.height+' px')
-                )
-              );
-            }
-            if (track.fpks) {
-              $table.append(
-                $('<tr>').html(
-                  $('<td>').text('Framerate:')
-                ).append(
-                  $('<td>').text(track.fpks/1000+' fps')
-                )
-              );
-            }
-            if (track.channels) {
-              $table.append(
-                $('<tr>').html(
-                  $('<td>').text('Channels:')
-                ).append(
-                  $('<td>').text(track.channels)
-                )
-              );
-            }
-            if (track.rate) {
-              $table.append(
-                $('<tr>').html(
-                  $('<td>').text('Samplerate:')
-                ).append(
-                  $('<td>').text(seperateThousands(track.rate,' ')+' Hz')
-                )
-              );
-            }
-            
-            $meta.append(
-              $('<tr>').html(
-                $('<td>').text(capFirstChar(index)+':')
-              ).append(
-                $('<td>').html(
-                  $table
-                )
-              )
-            );
-          }
-          
-          $('#page').html(
-            $('<p>').text('Detailed information about stream "'+streamName+'"')
-          ).append(
-            $('<div>').css({'width':'100%','display':'table','table-layout':'fixed','min-height':'300px'}).html(
-              $('<div>').css('display','table-row').html(
-                $('<div>').attr('id','info-stream-meta').css({'display':'table-cell','max-width':'50%','overflow':'auto'}).html(
-                  $meta
-                )
-              ).append(
-                $('<div>').attr('id','info-stream-statistics').css({'display':'table-cell','text-align':'center','min-height':'200px'})
-              )
-            )
-          );
-        }
-        $('#page').append(
-          $('<button>').text('Back').addClass('escape-to-cancel').click(function(){
-            showTab('streams');
-          })
-        );
-      },{},0,true);
-    break;
     case 'preview':
       var httpConnector = false;
       for (var index in settings.settings.config.protocols) {
@@ -800,7 +718,7 @@ function showTab(tabName,streamName) {
         $('#page').html(
           $('<div>').addClass('table').html(
             $('<div>').addClass('row').html(
-              $('<div>').addClass('cell').attr('id','liststreams').addClass('menu')
+              $('<div>').addClass('cell').attr('id','liststreams').addClass('menu').css('vertical-align','top')
             ).append(
               $('<div>').addClass('cell').attr('id','subpage').css('padding-left','1em')
             )
@@ -1579,6 +1497,7 @@ function showTab(tabName,streamName) {
       var config = $.extend({},settings.settings);
       delete config.statistics;
       config = JSON.stringify(config);
+      config = 'Version: '+settings.settings.config.version+"\n\nConfig:\n"+config;
       $('#page').html(
         $('<div>').addClass('description').html(
           'You can use this form to email MistServer support if you\'re having difficulties.<br>'

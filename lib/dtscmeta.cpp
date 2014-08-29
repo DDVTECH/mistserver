@@ -366,6 +366,11 @@ namespace DTSC {
     len = length;
   }
 
+  /// Returns whether the DTSC::Scan object contains valid data.
+  Scan::operator bool() const {
+    return (p && len);
+  }
+
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
   Scan Scan::getMember(std::string indice) {
@@ -400,8 +405,77 @@ namespace DTSC {
 
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
+  bool Scan::hasMember(std::string indice){
+    return hasMember(indice.data(), indice.size());
+  }
+
+  /// Returns whether an object representing the named indice of this object exists.
+  /// Returns false if this indice doesn't exist or this isn't an object type.
+  bool Scan::hasMember(const char * indice, const unsigned int ind_len) {
+    if (getType() != DTSC_OBJ && getType() != DTSC_CON) {
+      return false;
+    }
+    char * i = p + 1;
+    //object, scan contents
+    while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+      if (i + 2 >= p + len) {
+        return false;//out of packet!
+      }
+      unsigned int strlen = i[0] * 256 + i[1];
+      i += 2;
+      if (ind_len == strlen && strncmp(indice, i, strlen) == 0) {
+        return true;
+      } else {
+        i = skipDTSC(i + strlen, p + len);
+        if (!i) {
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Returns an object representing the named indice of this object.
+  /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
   Scan Scan::getMember(const char * indice) {
     return getMember(indice, strlen(indice));
+  }
+
+  /// Returns the amount of indices if an array, the amount of members if an object, or zero otherwise.
+  unsigned int Scan::getSize() {
+    if (getType() == DTSC_ARR) {
+      char * i = p + 1;
+      unsigned int arr_indice = 0;
+      //array, scan contents
+      while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+        //search through contents...
+        arr_indice++;
+        i = skipDTSC(i, p + len);
+        if (!i) {
+          return arr_indice;
+        }
+      }
+      return arr_indice;
+    }
+    if (getType() == DTSC_OBJ || getType() == DTSC_CON) {
+      char * i = p + 1;
+      unsigned int arr_indice = 0;
+      //object, scan contents
+      while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+        if (i + 2 >= p + len) {
+          return Scan();//out of packet!
+        }
+        unsigned int strlen = i[0] * 256 + i[1];
+        i += 2;
+        arr_indice++;
+        i = skipDTSC(i + strlen, p + len);
+        if (!i) {
+          return arr_indice;
+        }
+      }
+      return arr_indice;
+    }
+    return 0;
   }
 
   /// Returns an object representing the num-th indice of this array.
@@ -521,6 +595,15 @@ namespace DTSC {
         strlen = 0;
         return;
     }
+  }
+
+  /// Returns the DTSC scan object as a JSON value
+  /// Returns an empty object on error.
+  JSON::Value Scan::asJSON(){
+    JSON::Value result;
+    unsigned int i = 0;
+    JSON::fromDTMI2((const unsigned char*)p, len, i, result);
+    return result;
   }
 
   /// \todo Move this function to some generic area. Duplicate from json.cpp

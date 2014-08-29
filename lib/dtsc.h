@@ -71,17 +71,22 @@ namespace DTSC {
     public:
       Scan();
       Scan(char * pointer, size_t len);
+      operator bool() const;
       std::string toPrettyString(unsigned int indent = 0);
+      bool hasMember(std::string indice);
+      bool hasMember(const char * indice, const unsigned int ind_len);
       Scan getMember(std::string indice);
       Scan getMember(const char * indice);
       Scan getMember(const char * indice, const unsigned int ind_len);
       Scan getIndice(unsigned int num);
+      unsigned int getSize();
 
       char getType();
       bool asBool();
       long long asInt();
       std::string asString();
       void getString(char *& result, unsigned int & len);
+      JSON::Value asJSON();
     private:
       char * p;
       size_t len;

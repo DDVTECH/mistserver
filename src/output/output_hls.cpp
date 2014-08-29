@@ -112,8 +112,37 @@ namespace Mist {
     cfg->addBasicConnectorOptions(capa);
     config = cfg;
   }
-  //HIER
   
+  ///this function generates the PMT packet
+  std::string OutHLS::createPMT(){
+    TS::ProgramMappingTable PMT;
+    PMT.PID(4096);
+    PMT.setTableId(2);
+    PMT.setSectionLength(0xB017);
+    PMT.setProgramNumber(1);
+    PMT.setVersionNumber(0);
+    PMT.setCurrentNextIndicator(0);
+    PMT.setSectionNumber(0);
+    PMT.setLastSectionNumber(0);
+    PMT.setPCRPID(0x100 + (*(selectedTracks.begin())) - 1);
+    PMT.setProgramInfoLength(0);
+    short id = 0;
+    //for all selected tracks
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks[*it].codec == "H264"){
+        PMT.setStreamType(0x1B,id);
+      }else if (myMeta.tracks[*it].codec == "AAC"){
+        PMT.setStreamType(0x0F,id);
+      }else if (myMeta.tracks[*it].codec == "MP3"){
+        PMT.setStreamType(0x03,id);
+      }
+      PMT.setElementaryPID(0x100 + (*it) - 1, id);
+      PMT.setESInfoLength(0,id);
+      id++;
+    }
+    PMT.calcCRC();
+    return PMT.getStrBuf();
+  }
   
   void OutHLS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
     
@@ -123,7 +152,8 @@ namespace Mist {
       PackData.Clear();
       if (PacketNumber % 42 == 0){
         HTTP_S.Chunkify(TS::PAT, 188, myConn);
-        HTTP_S.Chunkify(TS::PMT, 188, myConn);
+        std::string PMT = createPMT();
+        HTTP_S.Chunkify(PMT, myConn);
         PacketNumber += 2;
       }
     }
@@ -131,11 +161,7 @@ namespace Mist {
     if (!dataLen){return;}
     
     if (PackData.BytesFree() == 184){
-      if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
-        PackData.PID(0x100);
-      }else{
-        PackData.PID(0x101);
-      }
+      PackData.PID(0x100 - 1 + currentPacket.getTrackId());
       PackData.ContinuityCounter(ContCounter++);
       if (first){
         PackData.UnitStart(1);

@@ -24,8 +24,6 @@ namespace Analysers {
     int bPos = 0;
     F.seek_bpos(0);
     F.parseNext();
-    JSON::Value tmp;
-    std::string tmpStr;
     while (F.getPacket()){
       switch (F.getPacket().getVersion()){
         case DTSC::DTSC_V1: {
@@ -36,11 +34,14 @@ namespace Analysers {
           std::cout << "DTSCv2 packet: " << F.getPacket().getScan().toPrettyString() << std::endl;
           break;
         }
+        case DTSC::DTSC_HEAD: {
+          std::cout << "DTSC header: " << F.getPacket().getScan().toPrettyString() << std::endl;
+          break;
+        }
         default:
           DEBUG_MSG(DLVL_WARN,"Invalid dtsc packet @ bpos %d", bPos);
           break;
       }
-      std::cout << tmp.toPrettyString() << std::endl;
       bPos = F.getBytePos();
       F.parseNext();
     }

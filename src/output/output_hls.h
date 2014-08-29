@@ -10,13 +10,13 @@ namespace Mist {
       OutHLS(Socket::Connection & conn);
       ~OutHLS();
       static void init(Util::Config * cfg);
-      
       void onRequest();
       void onFail();
       void sendNext();
     protected:
       HTTP::Parser HTTP_S;
-      HTTP::Parser HTTP_R;      
+      HTTP::Parser HTTP_R;
+      std::string createPMT();
       void fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter);
       std::string liveIndex();
       std::string liveIndex(int tid);

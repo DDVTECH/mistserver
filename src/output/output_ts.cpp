@@ -67,11 +67,7 @@ namespace Mist {
     if (!dataLen){return;}
     
     if (PackData.BytesFree() == 184){
-      if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
-        PackData.PID(0x100);
-      }else{
-        PackData.PID(0x101);
-      }
+      PackData.PID(0x100 - 1 + currentPacket.getTrackId());
       PackData.ContinuityCounter(ContCounter++);
       if (first){
         PackData.UnitStart(1);
@@ -138,21 +134,6 @@ namespace Mist {
 
   ///this function generates the PMT packet
   std::string OutTS::createPMT(){
-    //0x02 = table ID = 2 = PMT
-    //0xB017 = section syntax(1) = 1, 0(1)=0, reserved(2) = 3, section_len(12) = 23
-    //0x0001 = ProgNo = 1
-    //0xC1 = reserved(2) = 3, version(5)=0, curr_next_indi(1) = 1
-    //0x00 = section_number = 0
-    //0x00 = last_section_no = 0
-    //0xE100 = reserved(3) = 7, PCR_PID(13) = 0x100
-    //0xF000 = reserved(4) = 15, proginfolen = 0
-    //0x1B = streamtype = 27 = H264
-    //0xE100 = reserved(3) = 7, elem_ID(13) = 0x100
-    //0xF000 = reserved(4) = 15, es_info_len = 0
-    //0x0F = streamtype = 15 = audio with ADTS transport syntax
-    //0xE101 = reserved(3) = 7, elem_ID(13) = 0x101
-    //0xF000 = reserved(4) = 15, es_info_len = 0
-    //0x2F44B99B = CRC32
     TS::ProgramMappingTable PMT;
     PMT.PID(4096);
     PMT.setTableId(2);
@@ -179,7 +160,6 @@ namespace Mist {
       id++;
     }
     PMT.calcCRC();
-    INFO_MSG("stringsize: %d %s", PMT.getStrBuf().size(), PMT.toPrettyString(0).c_str());
     return PMT.getStrBuf();
   }
 

@@ -593,6 +593,9 @@ int Socket::Connection::iread(void * buffer, int len, int flags) {
       case EWOULDBLOCK:
         return 0;
         break;
+      case EINTR:
+        return 0;
+        break;
       default:
         if (errno != EPIPE) {
           Error = true;

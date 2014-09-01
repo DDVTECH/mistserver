@@ -30,6 +30,12 @@ namespace Mist {
     capa["url_handler"] = "http";
     capa["url_type"] = "subtitle";
     capa["socket"] = "http_srt";
+    
+    capa["codecs"][0u][0u].append("srt");
+    
+    capa["methods"][0u]["handler"] = "http";
+    capa["methods"][0u]["type"] = "html5/text/plain";
+    capa["methods"][0u]["priority"] = 8ll;
 
     cfg->addBasicConnectorOptions(capa);
     config = cfg;

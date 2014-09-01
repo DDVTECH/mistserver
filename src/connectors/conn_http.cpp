@@ -32,6 +32,9 @@
 /// Holds everything unique to HTTP Connectors.
 namespace Connector_HTTP {
 
+
+
+
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, JSON::Value & argset){
     for (JSON::ObjIter it = argset.ObjBegin(); it != argset.ObjEnd(); ++it){
       if (it->second.isMember("option") && p.isMember(it->first)){
@@ -85,6 +88,19 @@ namespace Connector_HTTP {
   tthread::thread * timeouter = 0; ///< Thread that times out connections to connectors.
   JSON::Value capabilities; ///< Holds a list of all HTTP connectors and their properties
   JSON::Value ServConf; /// < holds configuration, loads from file in main
+
+
+  void updateConfig(){
+    static unsigned long long int confUpdateTime=0;
+    static tthread::mutex updateLock;
+    if( Util::bootSecs() -confUpdateTime > 10 ){
+       tthread::lock_guard<tthread::mutex> guard(updateLock);  
+       if( Util::bootSecs() -confUpdateTime > 10 ){
+         ServConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
+         confUpdateTime=Util::bootSecs();
+       }
+    }
+  }
 
   ///\brief Function run as a thread to timeout requests on the proxy.
   ///\param n A NULL-pointer
@@ -257,7 +273,7 @@ namespace Connector_HTTP {
   ///\param conn The connection to the client that issued the request.
   ///\return A timestamp indicating when the request was parsed.
   long long int proxyHandleInternal(HTTP::Parser & H, Socket::Connection & conn){
-
+    updateConfig();
     std::string url = H.getUrl();
 
     if (url == "/crossdomain.xml"){
@@ -313,7 +329,6 @@ namespace Connector_HTTP {
     if (url.length() > 6 && url.substr(url.length() - 5, 5) == ".smil"){
       std::string streamname = url.substr(1, url.length() - 6);
       Util::Stream::sanitizeName(streamname);
-      JSON::Value ServConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
       
       std::string host = H.GetHeader("Host");
       if (host.find(':')){
@@ -366,7 +381,7 @@ namespace Connector_HTTP {
         streamname = url.substr(7, url.length() - 10);
       }
       Util::Stream::sanitizeName(streamname);
-      //JSON::Value ServConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
+      
       std::string response;
       std::string host = H.GetHeader("Host");
       if (host.find(':')){
@@ -461,21 +476,14 @@ namespace Connector_HTTP {
     return proxyHandleUnsupported(H, conn); //anything else doesn't get handled
   }
 
+  
   ///\brief Handles requests by starting a corresponding output process.
   ///\param H The request to be handled
   ///\param conn The connection to the client that issued the request.
   ///\param connector The type of connector to be invoked.
   ///\return -1 on failure, else 0.
   long long int proxyHandleThroughConnector(HTTP::Parser & H, Socket::Connection & conn, std::string & connector){
-    static unsigned long long int confUpdateTime=0;
-    static tthread::mutex updateLock;
-    if( Util::bootSecs() -confUpdateTime > 10 ){
-       tthread::lock_guard<tthread::mutex> guard(updateLock);  
-       if( Util::bootSecs() -confUpdateTime > 10 ){
-         Connector_HTTP::ServConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
-         confUpdateTime=Util::bootSecs();
-       }
-    }
+    updateConfig();
     
     //create a unique ID based on a hash of the user agent and host, followed by the stream name and connector
     std::stringstream uidtemp;

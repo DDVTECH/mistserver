@@ -41,8 +41,14 @@ namespace Mist {
     capa["name"] = "RTSP";
     capa["desc"] = "Provides Real Time Streaming Protocol output, supporting both UDP and TCP transports.";
     capa["deps"] = "";
+    capa["url_rel"] = "/$";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
+    
+    capa["methods"][0u]["handler"] = "rtsp";
+    capa["methods"][0u]["type"] = "rtsp";
+    capa["methods"][0u]["priority"] = 2ll;
+
     cfg->addConnectorOptions(554, capa);
     config = cfg;
   }

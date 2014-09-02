@@ -123,7 +123,12 @@ namespace Mist {
           myMeta.tracks[i].codec = "MP3";
           break;
         default:
-          myMeta.tracks[i].codec = strm->codec->codec_name;
+          const AVCodecDescriptor *desc = av_codec_get_codec_descriptor(strm->codec);
+          if (desc && desc->name){
+            myMeta.tracks[i].codec = desc->name;
+          }else{
+            myMeta.tracks[i].codec = "?";
+          }
           break;
       }
       if (strm->codec->extradata_size){

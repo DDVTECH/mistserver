@@ -394,11 +394,13 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
             continue;
           }
           unsigned int diff = li->first - pi->first;
-          unsigned int ddown = (li->second.down - pi->second.down) / diff;
-          unsigned int dup = (li->second.up - pi->second.up) / diff;
-          for (long long unsigned int t = pi->first; t < li->first; t++){
-            if (t >= (unsigned long long)reqStart && t <= (unsigned long long)reqEnd){
-              totalsCount[t].add(ddown, dup);
+          if (diff > 0 && diff < 600){//at least 1 second of data, at most 10 minutes
+            unsigned int ddown = (li->second.down - pi->second.down) / diff;
+            unsigned int dup = (li->second.up - pi->second.up) / diff;
+            for (long long unsigned int t = pi->first; t < li->first; t++){
+              if (t >= (unsigned long long)reqStart && t <= (unsigned long long)reqEnd){
+                totalsCount[t].add(ddown, dup);
+              }
             }
           }
           pi = li;//set previous iterator to log iterator
@@ -418,11 +420,13 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
             continue;
           }
           unsigned int diff = li->first - pi->first;
-          unsigned int ddown = (li->second.down - pi->second.down) / diff;
-          unsigned int dup = (li->second.up - pi->second.up) / diff;
-          for (long long unsigned int t = pi->first; t < li->first; t++){
-            if (t >= (unsigned long long)reqStart && t <= (unsigned long long)reqEnd){
-              totalsCount[t].add(ddown, dup);
+          if (diff > 0 && diff < 600){//at least 1 second of data, at most 10 minutes
+            unsigned int ddown = (li->second.down - pi->second.down) / diff;
+            unsigned int dup = (li->second.up - pi->second.up) / diff;
+            for (long long unsigned int t = pi->first; t < li->first; t++){
+              if (t >= (unsigned long long)reqStart && t <= (unsigned long long)reqEnd){
+                totalsCount[t].add(ddown, dup);
+              }
             }
           }
           pi = li;//set previous iterator to log iterator

@@ -77,6 +77,10 @@ analysers: MistAnalyserRTSP
 MistAnalyserRTSP: src/analysers/rtsp_rtp_analyser.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 	
+analysers: MistAnalyserStats
+MistAnalyserStats: src/analysers/stats_analyser.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+
 analysers: MistAnalyserFLV
 MistAnalyserFLV: src/analysers/flv_analyser.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@

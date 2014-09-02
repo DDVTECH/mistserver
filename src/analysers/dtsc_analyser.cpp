@@ -19,6 +19,10 @@ namespace Analysers {
   ///\return The return code of the analyser.
   int analyseDTSC(Util::Config conf){
     DTSC::File F(conf.getString("filename"));
+    if (!F){
+      std::cerr << "Not a valid DTSC file" << std::endl;
+      return 1;
+    }
     F.getMeta().toPrettyString(std::cout,0, 0x03);
 
     int bPos = 0;

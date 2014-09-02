@@ -20,7 +20,7 @@ namespace Mist {
     capa["socket"] = "http_progressive_mp3";
     capa["codecs"][0u][0u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "mp3";
+    capa["methods"][0u]["type"] = "html5/audio/mp3";
     capa["methods"][0u]["priority"] = 8ll;
 
     cfg->addBasicConnectorOptions(capa);

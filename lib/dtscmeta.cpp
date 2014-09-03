@@ -336,6 +336,9 @@ namespace DTSC {
   /// Returns a DTSC::Scan instance to the contents of this packet.
   /// May return an invalid instance if this packet is invalid.
   Scan Packet::getScan() const {
+    if (!this || !getDataLen() || !getPayloadLen() || getDataLen() <= getPayloadLen()){
+      return Scan();
+    }
     return Scan(data + (getDataLen() - getPayloadLen()), getPayloadLen());
   }
 
@@ -406,33 +409,13 @@ namespace DTSC {
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
   bool Scan::hasMember(std::string indice){
-    return hasMember(indice.data(), indice.size());
+    return getMember(indice.data(), indice.size());
   }
 
   /// Returns whether an object representing the named indice of this object exists.
   /// Returns false if this indice doesn't exist or this isn't an object type.
   bool Scan::hasMember(const char * indice, const unsigned int ind_len) {
-    if (getType() != DTSC_OBJ && getType() != DTSC_CON) {
-      return false;
-    }
-    char * i = p + 1;
-    //object, scan contents
-    while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
-      if (i + 2 >= p + len) {
-        return false;//out of packet!
-      }
-      unsigned int strlen = i[0] * 256 + i[1];
-      i += 2;
-      if (ind_len == strlen && strncmp(indice, i, strlen) == 0) {
-        return true;
-      } else {
-        i = skipDTSC(i + strlen, p + len);
-        if (!i) {
-          return false;
-        }
-      }
-    }
-    return false;
+    return getMember(indice, ind_len);
   }
 
   /// Returns an object representing the named indice of this object.

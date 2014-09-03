@@ -389,21 +389,31 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
       if (it->second.log.size() > 1 && (it->second.log.rbegin()->first >= (unsigned long long)reqStart || it->second.log.begin()->first <= (unsigned long long)reqEnd) && (!streams.size() || streams.count(it->second.streamName)) && (!protos.size() || protos.count(it->second.connector))){
         //keep track of the previous and current, starting at position 2 so there's always a delta down/up value.
         std::map<unsigned long long, statLog>::iterator pi = it->second.log.begin();
+        unsigned int ddown = 0;
+        unsigned int dup = 0;
+        long long unsigned int lastTime = 0;
         for (std::map<unsigned long long, statLog>::iterator li = ++(it->second.log.begin()); li != it->second.log.end(); li++){
           if (li->first < (unsigned long long)reqStart || pi->first > (unsigned long long)reqEnd){
             continue;
           }
           unsigned int diff = li->first - pi->first;
           if (diff > 0 && diff < 600){//at least 1 second of data, at most 10 minutes
-            unsigned int ddown = (li->second.down - pi->second.down) / diff;
-            unsigned int dup = (li->second.up - pi->second.up) / diff;
+            ddown = (li->second.down - pi->second.down) / diff;
+            dup = (li->second.up - pi->second.up) / diff;
             for (long long unsigned int t = pi->first; t < li->first; t++){
               if (t >= (unsigned long long)reqStart && t <= (unsigned long long)reqEnd){
                 totalsCount[t].add(ddown, dup);
+                lastTime = t;
               }
             }
           }
           pi = li;//set previous iterator to log iterator
+        }
+        //pretend we have data for the future. Yay, time travel!
+        if (lastTime < reqStart){lastTime = reqStart - 1;}
+        while (lastTime < reqEnd){
+          lastTime++;
+          totalsCount[lastTime].add(ddown, dup);
         }
       }
     }

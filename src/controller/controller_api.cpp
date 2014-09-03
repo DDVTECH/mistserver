@@ -196,7 +196,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           /*LTS-START*/
           /// 
           /// \api
-          /// `"addstream"` requests take the form of:
+          /// `"addstream"` requests (LTS-only) take the form of:
           /// ~~~~~~~~~~~~~~~{.js}
           /// {
           ///   "streamname": {
@@ -213,7 +213,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           }
           /// 
           /// \api
-          /// `"deletestream"` requests take the form of:
+          /// `"deletestream"` requests (LTS-only) take the form of:
           /// ~~~~~~~~~~~~~~~{.js}
           /// {
           ///   "streamname": {} //any contents in this object are ignored
@@ -300,7 +300,15 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             }
           }
           /*LTS-START*/
+          /// 
+          /// \api
+          /// LTS builds will always include an `"LTS"` response, set to 1.
+          /// 
           Response["LTS"] = 1;
+          /// 
+          /// \api
+          /// `"autoupdate"` requests (LTS-only) will cause MistServer to apply a rolling update to itself, and are not responded to.
+          /// 
           if (Request.isMember("autoupdate")){
             Controller::CheckUpdates();
           }

@@ -49,6 +49,7 @@
 /*LTS-START*/
 #include "controller_updater.h"
 #include "controller_limits.h"
+#include "controller_uplink.h"
 /*LTS-END*/
 #include "controller_api.h"
 
@@ -278,6 +279,8 @@ int main(int argc, char ** argv){
   tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);
   //start monitoring thread
   tthread::thread monitorThread(statusMonitor, 0);
+  //start monitoring thread /*LTS*/
+  tthread::thread uplinkThread(Controller::uplinkConnection, 0);/*LTS*/
   
   //start main loop
   Controller::conf.serveThreadedSocket(Controller::handleAPIConnection);
@@ -298,6 +301,7 @@ int main(int argc, char ** argv){
   //join all joinable threads
   statsThread.join();
   monitorThread.join();
+  uplinkThread.join();/*LTS*/
   //write config
   if ( !Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
     std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;

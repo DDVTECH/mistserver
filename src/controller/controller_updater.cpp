@@ -53,7 +53,7 @@ namespace Controller {
   } //writeFile
 
   /// \api
-  /// `"update"` and `"checkupdate"` requests are responded to as:
+  /// `"update"` and `"checkupdate"` requests (LTS-only) are responded to as:
   /// ~~~~~~~~~~~~~~~{.js}
   /// {
   ///   "error": "Something went wrong", // 'Optional'

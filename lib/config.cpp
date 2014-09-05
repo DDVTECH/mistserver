@@ -39,7 +39,7 @@ std::string Util::Config::libver = PACKAGE_VERSION;
 
 Util::Config::Config() {
   //global options here
-  vals["debug"]["long"] = "debug";
+  vals["debug"]["long"] = "Debug";
   vals["debug"]["short"] = "g";
   vals["debug"]["arg"] = "integer";
   vals["debug"]["help"] = "The debug level at which messages need to be printed.";

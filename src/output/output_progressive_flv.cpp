@@ -21,8 +21,18 @@ namespace Mist {
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");
+    capa["codecs"][0u][0u].append("VP6Alpha");
+    capa["codecs"][0u][0u].append("ScreenVideo2");
+    capa["codecs"][0u][0u].append("ScreenVideo1");
+    capa["codecs"][0u][0u].append("JPEG");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("Speex");
+    capa["codecs"][0u][1u].append("Nellymoser");
+    capa["codecs"][0u][1u].append("PCM");
+    capa["codecs"][0u][1u].append("ADPCM");
+    capa["codecs"][0u][1u].append("G711a");
+    capa["codecs"][0u][1u].append("G711mu");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/7";
     capa["methods"][0u]["priority"] = 5ll;

@@ -1,3 +1,5 @@
+#include <dirent.h> //for browse API call
+#include <sys/stat.h> //for browse API call
 #include <mist/http_parser.h>
 #include <mist/auth.h>
 #include <mist/config.h>
@@ -284,6 +286,62 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             }
           }
           */
+
+          /// This takes a "browse" request, and fills in the response data.
+          /// 
+          /// \api
+          /// `"browse"` requests take the form of:
+          /// ~~~~~~~~~~~~~~~{.js}
+          ///   //A string, containing the path for which to discover contents. Empty means current working directory.
+          ///   "/tmp/example"
+          /// ~~~~~~~~~~~~~~~
+          /// and are responded to as:
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// [
+          ///   //The folder path
+          ///   "path":"/tmp/example"
+          ///   //An array of strings showing all files 
+          ///   "files":
+          ///     ["file1.dtsc",
+          ///      "file2.mp3",
+          ///      "file3.exe"
+          ///     ]
+          ///   //An array of strings showing all subdirectories
+          ///   "subdirectories":[
+          ///   "folder1"
+          ///   ]
+          /// ]
+          /// ~~~~~~~~~~~~~~~
+          if(Request.isMember("browse")){                    
+            if(Request["browse"] == ""){
+              Request["browse"] = ".";
+            }
+            DIR *dir;
+            struct dirent *ent;
+            struct stat filestat;
+            char* rpath = realpath(Request["browse"].asString().c_str(),0);
+            if(rpath == NULL){
+              Response["browse"]["path"].append(Request["browse"].asString());
+            }else{
+              Response["browse"]["path"].append(rpath);//Request["browse"].asString());
+              if ((dir = opendir (Request["browse"].asString().c_str())) != NULL) {
+                while ((ent = readdir (dir)) != NULL) {
+                  if(strcmp(ent->d_name,".")!=0 && strcmp(ent->d_name,"..")!=0 ){
+                    std::string filepath = Request["browse"].asString() + "/" + std::string(ent->d_name);
+                    if (stat( filepath.c_str(), &filestat )) continue;
+                    if (S_ISDIR( filestat.st_mode)){
+                      Response["browse"]["subdirectories"].append(ent->d_name);
+                    }else{
+                      Response["browse"]["files"].append(ent->d_name);
+                    }
+                  }
+                }
+                closedir (dir);
+              }
+            }
+            free(rpath);
+          }
+
           /// 
           /// \api
           /// `"save"` requests are always empty:

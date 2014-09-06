@@ -611,6 +611,74 @@ function showTab(tabName,streamName) {
                 $('.live-only').children('label').children('input').val('');
               }
             })
+          ).append(
+            $('<button>').text('Browse').attr('id','browse_button').css('clear','both').click(function(){
+              function doBrowse(path) {
+                $folder_contents.text('Loading..');
+                getData(function(d){
+                  $path.text(d.browse.path[0]);
+                  $folder_contents.html(
+                    $folder.clone(true).text('..').attr('title','Folder up')
+                  );
+                  if (d.browse.subdirectories) {
+                    d.browse.subdirectories.sort();
+                    for (var i in d.browse.subdirectories) {
+                      var f = d.browse.subdirectories[i];
+                      $folder_contents.append(
+                        $folder.clone(true).attr('title',$path.text()+seperator+f).text(f)
+                      );
+                    }
+                  }
+                  if (d.browse.files) {
+                    d.browse.files.sort();
+                    for (var i in d.browse.files) {
+                      var f = d.browse.files[i];
+                      $folder_contents.append(
+                        $('<a>').text(f).addClass('file').attr('title',$path.text()+seperator+f).click(function(){
+                          var src = $(this).attr('title');
+                          
+                          $('#settings-streams-'+streamName+'-source').val(src);
+                          $('#browse_button').show();
+                          $('#browse_container').remove();
+                        })
+                      );
+                    }
+                  }
+                },{browse:path});
+              }
+              
+              var $path = $('<span>');
+              var $folder_contents = $('<div>').attr('id','browse_contents');
+              var $folder = $('<a>').addClass('folder').click(function(){
+                var path = $path.text()+seperator+$(this).text();
+                doBrowse(path);
+              });
+              
+              //determine file path seperator (/ for linux and \ for windows)
+              var seperator = '/';
+              if (settings.settings.config.version.indexOf('indows') > -1) {
+                //without W intended to prevent caps issues ^
+                seperator = '\\';
+              }
+              
+              $(this).after(
+                $('<div>').attr('id','browse_container').append(
+                  $('<label>').text('Current folder:').append(
+                    $('<span>').append($path)
+                  )
+                ).append(
+                  $folder_contents
+                )
+              );
+              
+              var path = $('#settings-streams-'+streamName+'-source').val();
+              path = path.split(seperator);
+              path.pop();
+              path = path.join(seperator);
+              
+              $(this).hide();
+              doBrowse(path);
+            })
           )
         ).append(
           $('<label>').text('Buffer time:').addClass('live-only').attr('for','settings-streams-'+streamName+'-DVR').append(

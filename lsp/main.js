@@ -1327,17 +1327,17 @@ function buildstreamembed(streamName,embedbase) {
     )
   ).append(
     $('<span>').attr('id','listprotocols').text('Loading..')
+  ).append(
+    $('<div>').addClass('input_container').append(
+      $('<label>').text('Stream embed url:').append(
+        $('<input>').attr('type','text').attr('readonly','readonly').attr('id','streamurl').text('Loading..')
+      )
+    )
   );
   $embedcont.append(
     $('<p>').text('Preview:')
   ).append(
     $('<div>').attr('id','preview-container').attr('data-forcesupportcheck',1)
-  ).append(
-    $('<div>').addClass('input_container').append(
-      $('<label>').text('Stream embed url:').append(
-        $('<input>').attr('type','text').attr('readonly','readonly').attr('id','streamurl')
-      )
-    )
   );
   
   // jQuery doesn't work -> use DOM magic
@@ -1379,7 +1379,7 @@ function buildstreamembed(streamName,embedbase) {
           ).append(
             $('<th>').text('Simul. tracks')
           ).append(
-            $('<th>').text('Browser support')
+            $('<th>').html('Your browser<br>support')
           )
         );
         for (var i in priority) {
@@ -1390,6 +1390,19 @@ function buildstreamembed(streamName,embedbase) {
               break;
             case 2:
               humantype += ' v'+type[1];
+              if (type[0] == 'flash') {
+                switch (type[1]) {
+                  case '7':
+                    humantype = 'Progressive ('+humantype.charAt(0).toUpperCase()+humantype.slice(1)+')';
+                    break;
+                  case '10':
+                    humantype = 'RTMP ('+humantype.charAt(0).toUpperCase()+humantype.slice(1)+')';
+                    break;
+                  case '11':
+                    humantype = 'HDS ('+humantype.charAt(0).toUpperCase()+humantype.slice(1)+')';
+                    break;
+                }
+              }
               break;
             case 3:
               switch (type[2]) {

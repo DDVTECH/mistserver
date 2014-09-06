@@ -11,6 +11,7 @@ namespace Mist {
   
   void OutHDS::getTracks(){
     /// \todo Why do we have only one audio track option?
+    /// \todo We should really support all Flash-supported codecs in HDS. These lists are too short now.
     videoTracks.clear();
     audioTrack = 0;
     for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
@@ -219,7 +220,9 @@ namespace Mist {
         
         selectedTracks.clear();
         selectedTracks.insert(tid);
-        selectedTracks.insert(audioTrack);
+        if (audioTrack){
+          selectedTracks.insert(audioTrack);
+        }
         seek(mstime);
         playUntil = mstime + mslen;
         

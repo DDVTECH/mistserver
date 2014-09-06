@@ -11,15 +11,24 @@ namespace Mist {
   
   void OutHDS::getTracks(){
     /// \todo Why do we have only one audio track option?
-    /// \todo We should really support all Flash-supported codecs in HDS. These lists are too short now.
     videoTracks.clear();
     audioTrack = 0;
+    JSON::Value & vidCapa = capa["codecs"][0u][0u];
+    JSON::Value & audCapa = capa["codecs"][0u][1u];
     for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "H264" || it->second.codec == "H263" || it->second.codec == "VP6"){
-        videoTracks.insert(it->first);
+      for (JSON::ArrIter itb = vidCapa.ArrBegin(); itb != vidCapa.ArrEnd(); itb++){
+        if (it->second.codec == (*itb).asStringRef()){
+          videoTracks.insert(it->first);
+          break;
+        }
       }
-      if (it->second.codec == "AAC" || it->second.codec == "MP3"){
-        audioTrack = it->first;
+      if (!audioTrack){
+        for (JSON::ArrIter itb = audCapa.ArrBegin(); itb != audCapa.ArrEnd(); itb++){
+          if (it->second.codec == (*itb).asStringRef()){
+            audioTrack = it->first;
+            break;
+          }
+        }
       }
     }
   }
@@ -148,8 +157,18 @@ namespace Mist {
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");
+    capa["codecs"][0u][0u].append("VP6Alpha");
+    capa["codecs"][0u][0u].append("ScreenVideo2");
+    capa["codecs"][0u][0u].append("ScreenVideo1");
+    capa["codecs"][0u][0u].append("JPEG");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("Speex");
+    capa["codecs"][0u][1u].append("Nellymoser");
+    capa["codecs"][0u][1u].append("PCM");
+    capa["codecs"][0u][1u].append("ADPCM");
+    capa["codecs"][0u][1u].append("G711a");
+    capa["codecs"][0u][1u].append("G711mu");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/11";
     capa["methods"][0u]["priority"] = 7ll;

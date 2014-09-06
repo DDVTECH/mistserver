@@ -139,23 +139,21 @@ const char * FLV::Tag::getVideoCodec() {
 const char * FLV::Tag::getAudioCodec() {
   switch (data[11] & 0xF0) {
     case 0x00:
-      return "linear PCM PE";
+      return "PCMPE";
     case 0x10:
       return "ADPCM";
     case 0x20:
       return "MP3";
     case 0x30:
-      return "linear PCM LE";
+      return "PCM";
     case 0x40:
-      return "Nelly16kHz";
     case 0x50:
-      return "Nelly8kHz";
     case 0x60:
-      return "Nelly";
+      return "Nellymoser";
     case 0x70:
-      return "G711A-law";
+      return "G711A";
     case 0x80:
-      return "G711mu-law";
+      return "G711mu";
     case 0x90:
       return "reserved";
     case 0xA0:
@@ -163,7 +161,7 @@ const char * FLV::Tag::getAudioCodec() {
     case 0xB0:
       return "Speex";
     case 0xE0:
-      return "MP38kHz";
+      return "MP3";
     case 0xF0:
       return "DeviceSpecific";
     default:
@@ -444,14 +442,42 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track) {
     } else {
       memcpy(data + 12, tmpData, len - 16);
     }
+    unsigned int datarate = track.rate;
     data[11] = 0;
     if (track.codec == "AAC") {
       data[11] |= 0xA0;
     }
     if (track.codec == "MP3") {
-      data[11] |= 0x20;
+      if (datarate == 8000){
+        data[11] |= 0xE0;
+      }else{
+        data[11] |= 0x20;
+      }
     }
-    unsigned int datarate = track.rate;
+    if (track.codec == "ADPCM") {
+      data[11] |= 0x10;
+    }
+    if (track.codec == "PCM") {
+      data[11] |= 0x30;
+    }
+    if (track.codec == "Nellymoser") {
+      if (datarate == 8000){
+        data[11] |= 0x50;
+      }else if(datarate == 16000){
+        data[11] |= 0x40;
+      }else{
+        data[11] |= 0x60;
+      }
+    }
+    if (track.codec == "G711a") {
+      data[11] |= 0x70;
+    }
+    if (track.codec == "G711mu") {
+      data[11] |= 0x80;
+    }
+    if (track.codec == "Speex") {
+      data[11] |= 0xB0;
+    }
     if (datarate >= 44100) {
       data[11] |= 0x0C;
     } else if (datarate >= 22050) {

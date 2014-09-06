@@ -70,7 +70,10 @@ namespace Mist {
       if (it != (myMeta.tracks[tid].fragments.end() - 1)){
         result << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n" << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
       } else {
-        result << "#EXTINF:" << ((myMeta.tracks[tid].lastms-starttime + 500) / 1000) << ", no desc\r\n" << starttime << "_" << myMeta.tracks[tid].lastms << ".ts\r\n";
+        //only print the last segment when VoD
+        if (myMeta.vod){
+          result << "#EXTINF:" << ((myMeta.tracks[tid].lastms-starttime + 500) / 1000) << ", no desc\r\n" << starttime << "_" << myMeta.tracks[tid].lastms << ".ts\r\n";
+        }
       }
     }
     if ( !myMeta.live){

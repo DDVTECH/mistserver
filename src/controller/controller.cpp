@@ -274,6 +274,7 @@ int main(int argc, char ** argv){
   //write config
   if ( !Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
     std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;
+    tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
     Controller::Storage.removeMember("log");
     for (JSON::ObjIter it = Controller::Storage["streams"].ObjBegin(); it != Controller::Storage["streams"].ObjEnd(); it++){
       it->second.removeMember("meta");

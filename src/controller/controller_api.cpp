@@ -402,10 +402,13 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           /// ~~~~~~~~~~~~~~~
           /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
           /// 
-          Response["log"] = Controller::Storage["log"];
-          //clear log and statistics if requested
-          if (Request.isMember("clearstatlogs")){
-            Controller::Storage["log"].null();
+          {
+            tthread::lock_guard<tthread::mutex> guard(logMutex);
+            Response["log"] = Controller::Storage["log"];
+            //clear log if requested
+            if (Request.isMember("clearstatlogs")){
+              Controller::Storage["log"].null();
+            }
           }
           if (Request.isMember("clients")){
             if (Request["clients"].isArray()){

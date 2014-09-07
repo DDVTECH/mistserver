@@ -280,13 +280,11 @@ namespace Mist {
       AppleCompat = (HTTP_R.GetHeader("User-Agent").find("Apple") != std::string::npos);
       initialize();
       if (HTTP_R.url.find(".m3u") == std::string::npos){
-        std::string tmpStr = HTTP_R.getUrl();
-        std::string fmtStr = "/hls/" + streamName + "/%u_%u/%llu_%llu.ts";
+        std::string tmpStr = HTTP_R.getUrl().substr(5+streamName.size());
         long long unsigned int from;
-        if (sscanf(tmpStr.c_str(), fmtStr.c_str(), &vidTrack, &audTrack, &from, &until) != 4){
-          fmtStr = "/hls/" + streamName + "/%u/%llu_%llu.ts";
-          if (sscanf(tmpStr.c_str(), fmtStr.c_str(), &vidTrack, &from, &until) != 3){
-            WARN_MSG("Could not parse URL: %s", HTTP_R.getUrl().c_str());
+        if (sscanf(tmpStr.c_str(), "/%u_%u/%llu_%llu.ts", &vidTrack, &audTrack, &from, &until) != 4){
+          if (sscanf(tmpStr.c_str(), "/%u/%llu_%llu.ts", &vidTrack, &from, &until) != 3){
+            DEBUG_MSG(DLVL_MEDIUM, "Could not parse URL: %s", HTTP_R.getUrl().c_str());
             HTTP_S.Clean();
             HTTP_S.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
             myConn.SendNow(HTTP_S.BuildResponse("404", "URL mismatch"));

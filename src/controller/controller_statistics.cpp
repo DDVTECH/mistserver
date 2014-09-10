@@ -126,6 +126,8 @@ bool Controller::hasViewers(std::string streamName){
 /// ~~~~~~~~~~~~~~~
 /// In case of the second method, the response is an array in the same order as the requests.
 void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
+  //memorize the current system time
+  long long currTime = Util::epoch();
   //first, figure out the timestamp wanted
   long long int reqTime = 0;
   if (req.isMember("time")){
@@ -187,6 +189,11 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   //start with current connections
   if (curConns.size()){
     for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); it++){
+      if (!it->second.log.size()){continue;}
+      //ignore users that haven't been updated in the last 5 seconds.
+      if (it->second.log.rbegin()->first < currTime - 5){
+        continue;
+      }
       unsigned long long time = reqTime;
       if (now){time = it->second.log.rbegin()->first;}
       //data present and wanted? insert it!

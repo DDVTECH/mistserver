@@ -1346,14 +1346,14 @@ function buildstreamembed(streamName,embedbase) {
   $embedcont.append(
     $('<p>').text('Preview:')
   ).append(
-    $('<div>').attr('id','preview-container').attr('data-forcesupportcheck',1)
+    $('<div>').attr('id','preview-container').attr('data-forcesupportcheck',1).text('Loading embed..')
   );
   
   // jQuery doesn't work -> use DOM magic
   var script = document.createElement('script');
   script.src = embedbase+'embed_'+streamName+'.js';
   script.onerror = function(){
-    $('#preview-container').text('Failed to load embed script.');
+    $('#preview-container').text('Error loading "'+script.src+'".');
   };
   script.onload = function(){
     if (typeof mistvideo[streamName].error != 'undefined') {
@@ -1361,23 +1361,32 @@ function buildstreamembed(streamName,embedbase) {
     }
     else {
       var priority = mistvideo[streamName].source;
+      
       if (typeof priority != 'undefined') {
+        for (var i in priority) {
+          priority[i].index = i;
+        }
+        
         $radio = $('<input>').attr('type','radio').attr('name','forcetype').attr('title','The embed type that is being used.').change(function(){
-          $('#preview-container').attr('data-forcetype',$(this).val()).html('');
+          $('#preview-container').attr('data-forcetype',$(this).data('source_object').index).html('Loading embed..');
           $(this).closest('table').find('tr.outline').removeClass('outline');
           $(this).closest('tr').addClass('outline');
-          $('#streamurl').val(mistvideo[streamName].source[$(this).val()].url)
+          
+          $('#streamurl').val($(this).data('source_object').url)
           
           var script = document.createElement('script');
           script.src = embedbase+'embed_'+streamName+'.js';
-          script.onload = function(){
-            
-          };
-          document.getElementById('preview-container').appendChild( script );
+          script.onload = function(){};
+          script.onerror = function (){
+            $('#preview-container').html('Error loading "'+script.src+'".');
+          }
+          $('#preview-container').html('')[0].appendChild( script );
         });
+        
         priority.sort(function(a,b){
           return b.priority - a.priority;
         });
+        
         var $table = $('<table>').html(
           $('<tr>').html(
             $('<th>')
@@ -1441,7 +1450,7 @@ function buildstreamembed(streamName,embedbase) {
           $table.append(
             $('<tr>').html(
               $('<td>').html(
-                $radio.clone(true).attr('data-name',priority[i].type).val(i)
+                $radio.clone(true).attr('data-name',priority[i].type).data('source_object',priority[i])
               )
             ).append(
               $('<td>').text(humantype)
@@ -1463,9 +1472,9 @@ function buildstreamembed(streamName,embedbase) {
       }
     }
   }
-  document.getElementById('preview-container').appendChild( script );
+  $('#preview-container').html('')[0].appendChild( script );
   
-  
+  $streaminfo.html('Loading stream meta info..');
   // stream info
   getData(function(returnedData){
     settings.settings.streams = returnedData.streams;
@@ -1581,7 +1590,7 @@ function buildstreamembed(streamName,embedbase) {
         );
       }
       
-      $streaminfo.append(
+      $streaminfo.html(
         $('<p>').text('Track information')
       ).append(
         $('<div>').css({'display':'table','table-layout':'fixed','min-height':'300px'}).html(

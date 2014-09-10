@@ -1266,19 +1266,19 @@ function fillServerstatsTables(data) {
       $('<tr>').html(
         $('<td>').text('1 minute:')
       ).append(
-        $('<td>').text(settings.settings.capabilities.load.one/100+'%').css('text-align','right')
+        $('<td>').text(settings.settings.capabilities.load.one/100).css('text-align','right')
       )
     ).append(
       $('<tr>').html(
         $('<td>').text('5 minutes:')
       ).append(
-        $('<td>').text(settings.settings.capabilities.load.five/100+'%').css('text-align','right')
+        $('<td>').text(settings.settings.capabilities.load.five/100).css('text-align','right')
       )
     ).append(
       $('<tr>').html(
         $('<td>').text('15 minutes:')
       ).append(
-        $('<td>').text(settings.settings.capabilities.load.fifteen/100+'%').css('text-align','right')
+        $('<td>').text(settings.settings.capabilities.load.fifteen/100).css('text-align','right')
       )
     );
   }
@@ -1292,6 +1292,15 @@ function updateServerstats() {
 }
 
 function buildstreamembed(streamName,embedbase) {
+  if (typeof streamName == 'undefined') {
+    $('#subpage').html('You\'ll have to setup a stream before you can view it.<br>').append(
+      $('<button>').text('New stream').css('float','left').click(function(){
+        showTab('edit stream','_new_');
+      })
+    );
+    return;
+  }
+  
   $('#liststreams .button.current').removeClass('current')
   $('#liststreams .button').filter(function(){
     return $(this).text() == streamName;
@@ -1455,6 +1464,7 @@ function buildstreamembed(streamName,embedbase) {
     }
   }
   document.getElementById('preview-container').appendChild( script );
+  
   
   // stream info
   getData(function(returnedData){

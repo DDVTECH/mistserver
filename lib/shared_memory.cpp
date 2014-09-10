@@ -834,7 +834,7 @@ namespace IPC {
   ///\param name The basename of the server to connect to
   ///\param len The size of the payload to allocate
   ///\param withCounter Whether or not this payload has a counter
-  sharedClient::sharedClient(std::string name, int len, bool withCounter) : baseName(name), payLen(len), offsetOnPage(-1), hasCounter(withCounter) {
+  sharedClient::sharedClient(std::string name, int len, bool withCounter) : baseName("/"+name), payLen(len), offsetOnPage(-1), hasCounter(withCounter) {
 #ifdef __APPLE__
     //note: O_CREAT is only needed for mac, probably
     mySemaphore.open(baseName.c_str(), O_RDWR | O_CREAT, 0);
@@ -856,7 +856,7 @@ namespace IPC {
       memset(empty, 0, payLen);
     }
     for (char i = 'A'; i <= 'Z'; i++) {
-      myPage.init(baseName + i, (4096 << (i - 'A')));
+      myPage.init(baseName.substr(1) + i, (4096 << (i - 'A')));
       int offset = 0;
       while (offset + payLen + (hasCounter ? 1 : 0) <= myPage.len) {
         if ((hasCounter && myPage.mapped[offset] == 0) || (!hasCounter && !memcmp(myPage.mapped + offset, empty, payLen))) {

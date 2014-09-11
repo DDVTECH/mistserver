@@ -103,7 +103,7 @@ void Controller::uplinkConnection(void * np) {
           }
         }
       }
-      if (Util::epoch() - lastSend > 2) {
+      if (Util::epoch() - lastSend >= 2) {
         JSON::Value data;
         data["tracks"].null();//make sure the data is encoded as DTSC
         if (uplink_chal.size()){
@@ -132,6 +132,6 @@ void Controller::uplinkConnection(void * np) {
     } else {
       Controller::Log("UPLK", "Could not connect to uplink.");
     }
-    Util::wait(2500);//wait for 2.5 seconds
+    Util::wait(2000);//wait for 2.5 seconds
   }
 }

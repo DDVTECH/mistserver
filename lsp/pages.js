@@ -1511,53 +1511,57 @@ function showTab(tabName,streamName) {
     case 'server stats':
       var $cont = $('<div>').addClass('input_container');
       
-      $cont.append(
-        $('<p>').text('CPU')
-      );
-      for (var index in settings.settings.capabilities.cpu) {
-        if (settings.settings.capabilities.cpu.length > 1) {
-          $cont.append(
-            $('<span>').text('CPU '+index+1)
-          );
+      getData(function(d){
+        settings.settings.capabilities = d.capabilities;
+        
+        $cont.append(
+          $('<p>').text('CPU')
+        );
+        for (var index in settings.settings.capabilities.cpu) {
+          if (settings.settings.capabilities.cpu.length > 1) {
+            $cont.append(
+              $('<span>').text('CPU '+index+1)
+            );
+          }
+          for (var property in settings.settings.capabilities.cpu[index]) {
+            $cont.append(
+              $('<label>').text(property.charAt(0).toUpperCase()+property.slice(1)+':').append(
+                $('<span>').text(seperateThousands(settings.settings.capabilities.cpu[index][property],' '))
+              )
+            );
+          }
         }
-        for (var property in settings.settings.capabilities.cpu[index]) {
+        
+        if (settings.settings.capabilities.mem) {
           $cont.append(
-            $('<label>').text(property.charAt(0).toUpperCase()+property.slice(1)+':').append(
-              $('<span>').text(seperateThousands(settings.settings.capabilities.cpu[index][property],' '))
+            $('<p>').text('Memory')
+          ).append(
+            $('<label>').text('Physical memory:').append(
+              $('<table>').attr('id','stats-physical-memory')
+            )
+          ).append(
+            $('<label>').text('Swap memory:').append(
+              $('<table>').attr('id','stats-swap-memory')
             )
           );
         }
-      }
-      
-      if (settings.settings.capabilities.mem) {
-        $cont.append(
-          $('<p>').text('Memory')
-        ).append(
-          $('<label>').text('Physical memory:').append(
-            $('<table>').attr('id','stats-physical-memory')
-          )
-        ).append(
-          $('<label>').text('Swap memory:').append(
-            $('<table>').attr('id','stats-swap-memory')
-          )
-        );
-      }
-      
-      if (settings.settings.capabilities.load) {
-        $cont.append(
-          $('<p>').text('CPU Load')
-        ).append(
-          $('<label>').text('Loading averages:').append(
-            $('<table>').attr('id','stats-loading')
-          )
-        );
-      }
-      fillServerstatsTables(settings.settings);
-      
-      theInterval = setInterval(function(){
+        
+        if (settings.settings.capabilities.load) {
+          $cont.append(
+            $('<p>').text('Loading average')
+          ).append(
+            $('<label>').text('Loading averages:').append(
+              $('<table>').attr('id','stats-loading')
+            )
+          );
+        }
+        fillServerstatsTables(settings.settings);
+        
+        theInterval = setInterval(function(){
+          updateServerstats();
+        },10000);
         updateServerstats();
-      },10000);
-      updateServerstats();
+      },{capabilities:{}});
       
       $('#page').html($cont);
     break;

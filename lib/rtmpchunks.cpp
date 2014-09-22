@@ -538,6 +538,9 @@ bool RTMPStream::Chunk::Parse(std::string & indata) {
 
   //process the rest of the header, for each chunk type
   headertype = chunktype & 0xC0;
+  
+  DEBUG_MSG(DLVL_DONTEVEN, "Parsing RTMP chunk header (%#.2hhX) at offset %#X", chunktype, RTMPStream::rec_cnt);
+  
   switch (headertype) {
     case 0x00:
       if (indata.size() < i + 11) return false; //can't read whole header
@@ -617,6 +620,9 @@ bool RTMPStream::Chunk::Parse(std::string & indata) {
     len_left += real_len - RTMPStream::chunk_rec_max;
     real_len = RTMPStream::chunk_rec_max;
   }
+  
+  DEBUG_MSG(DLVL_DONTEVEN, "Parsing RTMP chunk result: len_left=%d, real_len=%d", len_left, real_len);
+  
   //read extended timestamp, if neccesary
   if (timestamp == 0x00ffffff) {
     if (indata.size() < i + 4) return false; //can't read whole header

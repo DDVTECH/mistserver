@@ -92,6 +92,17 @@ std::string & HTTP::Parser::BuildResponse(std::string code, std::string message)
   return builder;
 }
 
+/// Returns a string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
+/// The response is partly build from internal variables set before this call is made.
+/// To be precise, protocol, headers and body are used.
+/// \param code The HTTP response code. Usually you want 200.
+/// \param message The HTTP response message. Usually you want "OK".
+/// \return A string containing a valid HTTP 1.0 or 1.1 response, ready for sending.
+/// This function calls this->BuildResponse(this->method,this->url)
+std::string & HTTP::Parser::BuildResponse() {
+ return BuildResponse(method,url);
+}
+
 /// Creates and sends a valid HTTP 1.0 or 1.1 response.
 /// The response is partly build from internal variables set before this call is made.
 /// To be precise, protocol, headers and body are used.

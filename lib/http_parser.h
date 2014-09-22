@@ -25,6 +25,7 @@ namespace HTTP {
       void SetBody(std::string s);
       void SetBody(char * buffer, int len);
       std::string & BuildRequest();
+      std::string & BuildResponse();
       std::string & BuildResponse(std::string code, std::string message);
       void SendRequest(Socket::Connection & conn);
       void SendResponse(std::string code, std::string message, Socket::Connection & conn);

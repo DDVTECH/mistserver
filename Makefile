@@ -264,6 +264,13 @@ MistOutHDS: override LDLIBS += $(GEOIP) # /*LTS*/
 MistOutHDS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_hds.h\""
 MistOutHDS: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_hds.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+	
+outputs: MistOutDASHMP4
+MistOutDASHMP4: override LDLIBS += $(THREADLIB)
+MistOutDASHMP4: override LDLIBS += $(GEOIP) # /*LTS*/
+MistOutDASHMP4: override CPPFLAGS += "-DOUTPUTTYPE=\"output_dash_mp4.h\""
+MistOutDASHMP4: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_dash_mp4.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutSRT
 MistOutSRT: override LDLIBS += $(THREADLIB)

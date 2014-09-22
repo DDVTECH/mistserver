@@ -20,7 +20,7 @@ namespace Mist {
       }
     }
     for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "H264"){
+      if (it->second.codec == "H264" || it->second.codec == "HEVC"){
         int bWidth = it->second.bps * 2;
         if (audioId != -1){
           bWidth += myMeta.tracks[audioId].bps * 2;
@@ -88,6 +88,7 @@ namespace Mist {
   
   OutHLS::OutHLS(Socket::Connection & conn) : Output(conn) {
     haveAvcc = false;
+    haveHvcc = false;
     myConn.setHost(config->getString("ip"));
     streamName = config->getString("streamname");
   }
@@ -109,6 +110,7 @@ namespace Mist {
     capa["url_rel"] = "/hls/$/index.m3u8";
     capa["url_prefix"] = "/hls/$/";
     capa["socket"] = "http_hls";
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["methods"][0u]["handler"] = "http";
@@ -136,6 +138,8 @@ namespace Mist {
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (myMeta.tracks[*it].codec == "H264"){
         PMT.setStreamType(0x1B,id);
+      }else if (myMeta.tracks[*it].codec == "HEVC"){
+        PMT.setStreamType(0x06,id);
       }else if (myMeta.tracks[*it].codec == "AAC"){
         PMT.setStreamType(0x0F,id);
       }else if (myMeta.tracks[*it].codec == "MP3"){
@@ -148,17 +152,15 @@ namespace Mist {
     PMT.calcCRC();
     return PMT.getStrBuf();
   }
-  
+
   void OutHLS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
-    
     if (!PackData.BytesFree()){
       HTTP_S.Chunkify(PackData.ToString(), 188, myConn);
       PacketNumber ++;
       PackData.Clear();
       if (PacketNumber % 42 == 0){
         HTTP_S.Chunkify(TS::PAT, 188, myConn);
-        std::string PMT = createPMT();
-        HTTP_S.Chunkify(PMT, myConn);
+        HTTP_S.Chunkify(createPMT().c_str(), 188, myConn);
         PacketNumber += 2;
       }
     }
@@ -209,11 +211,29 @@ namespace Mist {
     if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){      
       bs = TS::Packet::getPESVideoLeadIn(0ul, currentPacket.getTime() * 90);
       fillPacket(first, bs.data(), bs.size(), VideoCounter);
+      if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
+        //End of previous nal unit, somehow needed for h264
+        bs = "\000\000\000\001\011\360";
+        fillPacket(first, bs.data(), bs.size(),VideoCounter);
+      }
+      
       
       if (currentPacket.getInt("keyframe")){
-        if (!haveAvcc){
-          avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
-          haveAvcc = true;
+        if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
+          if (!haveAvcc){
+            avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
+            haveAvcc = true;
+          }
+          bs = avccbox.asAnnexB();
+          fillPacket(first, bs.data(), bs.size(),VideoCounter);
+        }
+        if (myMeta.tracks[currentPacket.getTrackId()].codec == "HEVC"){
+          if (!haveHvcc){
+            hvccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
+            haveHvcc = true;
+          }
+          bs = hvccbox.asAnnexB();
+          fillPacket(first, bs.data(), bs.size(),VideoCounter);
         }
         bs = avccbox.asAnnexB();
         fillPacket(first, bs.data(), bs.size(), VideoCounter);

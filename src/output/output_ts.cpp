@@ -5,6 +5,7 @@
 namespace Mist {
   OutTS::OutTS(Socket::Connection & conn) : Output(conn){
     haveAvcc = false;
+    haveHvcc = false;
     AudioCounter = 0;
     VideoCounter = 0;
     streamName = config->getString("streamname");
@@ -47,6 +48,7 @@ namespace Mist {
     capa["optional"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
     capa["optional"]["tracks"]["type"] = "str";
     capa["optional"]["tracks"]["option"] = "--tracks";
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
@@ -98,14 +100,29 @@ namespace Mist {
     if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
       bs = TS::Packet::getPESVideoLeadIn(0ul, currentPacket.getTime() * 90);
       fillPacket(first, bs.data(), bs.size(),VideoCounter);
+      if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
+        //End of previous nal unit, somehow needed for h264
+        bs = "\000\000\000\001\011\360";
+        fillPacket(first, bs.data(), bs.size(),VideoCounter);
+      }
       
       if (currentPacket.getInt("keyframe")){
-        if (!haveAvcc){
-          avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
-          haveAvcc = true;
+        if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
+          if (!haveAvcc){
+            avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
+            haveAvcc = true;
+          }
+          bs = avccbox.asAnnexB();
+          fillPacket(first, bs.data(), bs.size(),VideoCounter);
         }
-        bs = avccbox.asAnnexB();
-        fillPacket(first, bs.data(), bs.size(),VideoCounter);
+        if (myMeta.tracks[currentPacket.getTrackId()].codec == "HEVC"){
+          if (!haveHvcc){
+            hvccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
+            haveHvcc = true;
+          }
+          bs = hvccbox.asAnnexB();
+          fillPacket(first, bs.data(), bs.size(),VideoCounter);
+        }
       }
       unsigned int i = 0;
       while (i + 4 < (unsigned int)dataLen){
@@ -150,6 +167,8 @@ namespace Mist {
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (myMeta.tracks[*it].codec == "H264"){
         PMT.setStreamType(0x1B,id);
+      }else if (myMeta.tracks[*it].codec == "HEVC"){
+        PMT.setStreamType(0x06,id);
       }else if (myMeta.tracks[*it].codec == "AAC"){
         PMT.setStreamType(0x0F,id);
       }else if (myMeta.tracks[*it].codec == "MP3"){

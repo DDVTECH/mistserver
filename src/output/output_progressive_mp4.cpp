@@ -20,6 +20,7 @@ namespace Mist {
     capa["url_match"] = "/$.mp4";
     capa["socket"] = "http_progressive_mp4";
     capa["codecs"][0u][0u].append("H264");
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
@@ -102,12 +103,22 @@ namespace Mist {
                   if (myMeta.tracks[*it].codec == "H264"){
                     vse.setCodec("avc1");
                   }
+                  if (myMeta.tracks[*it].codec == "HEVC"){
+                    vse.setCodec("hev1");
+                  }
                   vse.setDataReferenceIndex(1);
                   vse.setWidth(myMeta.tracks[*it].width);
                   vse.setHeight(myMeta.tracks[*it].height);
-                  MP4::AVCC avccBox;
-                  avccBox.setPayload(myMeta.tracks[*it].init);
-                  vse.setCLAP(avccBox);
+                  if (myMeta.tracks[*it].codec == "H264"){
+                    MP4::AVCC avccBox;
+                    avccBox.setPayload(myMeta.tracks[*it].init);
+                    vse.setCLAP(avccBox);
+                  }
+                  if (myMeta.tracks[*it].codec == "HEVC"){
+                    MP4::HVCC hvccBox;
+                    hvccBox.setPayload(myMeta.tracks[*it].init);
+                    vse.setCLAP(hvccBox);
+                  }
                   stsdBox.setEntry(vse,0);
                 }else if(myMeta.tracks[*it].type == "audio"){//boxname = codec
                   MP4::AudioSampleEntry ase;
@@ -480,11 +491,15 @@ namespace Mist {
         temp.time = sortSet.begin()->endTime;//timeplace of frame
         temp.endTime = sortSet.begin()->endTime + myMeta.tracks[temp.trackID].parts[temp.index].getDuration();
         temp.size = myMeta.tracks[temp.trackID].parts[temp.index].getSize();//bytesize of frame 
+        currPos += sortSet.begin()->size;
+        //remove highest keyPart
+        sortSet.erase(sortSet.begin());
         sortSet.insert(temp);
-      }
+      }else{
       currPos += sortSet.begin()->size;
       //remove highest keyPart
       sortSet.erase(sortSet.begin());
+      }
     }
     
     

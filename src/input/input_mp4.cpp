@@ -153,6 +153,7 @@ namespace Mist {
     malSize = 4;//initialise data read buffer to 0;
     data = (char*)malloc(malSize);
     capa["decs"] = "Enables MP4 Input";
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");
@@ -222,13 +223,7 @@ namespace Mist {
           }
         }
       }else if (boxType == "erro"){
-        if (feof(inFile)){
-          break;
-        }else{
-          DEBUG_MSG(DLVL_DEVEL,"Unexpected Erro box returned, probably corrupt file, handling as end of file...");
-          //return true;
-          break;
-        }
+        break;
       }else{
         if (!MP4::skipBox(inFile)){//moving on to next box
           DEBUG_MSG(DLVL_FAIL,"Error in skipping box, exiting");
@@ -291,6 +286,12 @@ namespace Mist {
                   if (mdiaBoxType == "mdhd"){
                     timeScale = ((MP4::MDHD&)mdiaLoopPeek).getTimeScale();
                   }else if (mdiaBoxType == "hdlr"){//fi mdhd
+                    std::string handlerType = ((MP4::HDLR&)mdiaLoopPeek).getHandlerType();
+                    if (handlerType != "vide" && handlerType !="soun"){
+                      myMeta.tracks.erase(trackNo);
+                      //skip meta boxes for now
+                      break;
+                    }
                   }else if (mdiaBoxType == "minf"){//fi hdlr
                     //for all in minf
                     //get all boxes: stco stsz,stss
@@ -326,13 +327,21 @@ namespace Mist {
                             //check for codec in here
                             MP4::Box & tmpBox = ((MP4::STSD&)stblLoopPeek).getEntry(0);
                             std::string tmpType = tmpBox.getType();
+                            INFO_MSG("Found track of type %s", tmpType.c_str()); 
                             if (tmpType == "avc1" || tmpType == "h264"){
                               myMeta.tracks[trackNo].type = "video";
                               myMeta.tracks[trackNo].codec = "H264";
                               myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
                               myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
                               myMeta.tracks[trackNo].init = std::string(((MP4::VisualSampleEntry&)tmpBox).getCLAP().payload(),((MP4::VisualSampleEntry&)tmpBox).getCLAP().payloadSize());
-                            }else if (tmpType == "mp4a" || tmpType == "aac "){
+                            }else if (tmpType == "hev1"){
+                              myMeta.tracks[trackNo].type = "video";
+                              myMeta.tracks[trackNo].codec = "HEVC";
+                              myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
+                              myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
+                              MP4::Box tmpBox2 = ((MP4::VisualSampleEntry&)tmpBox).getCLAP();
+                              myMeta.tracks[trackNo].init = std::string(tmpBox2.payload(),tmpBox2.payloadSize());
+                             }else if (tmpType == "mp4a" || tmpType == "aac "){
                               myMeta.tracks[trackNo].codec = "AAC";
                               myMeta.tracks[trackNo].type = "audio";
                               myMeta.tracks[trackNo].channels = ((MP4::AudioSampleEntry&)tmpBox).getChannelCount();
@@ -341,7 +350,6 @@ namespace Mist {
                               myMeta.tracks[trackNo].size = 16;///\todo this might be nice to calculate from mp4 file;
                               //get Visual sample entry -> esds -> startcodes
                             }
-                          }else{
                           }
                         }//rof stbl
                         uint64_t totaldur = 0;///\todo note: set this to begin time
@@ -420,13 +428,7 @@ namespace Mist {
           }//endif trak
         }//rof moov
       }else if (boxType == "erro"){
-        if (feof(inFile)){
-          break;
-        }else{
-          DEBUG_MSG(DLVL_DEVEL,"Unexpected Erro box returned, probably corrupt file, handling as end of file...");
-          //return true;
-          break;
-        }
+        break;
       }else{
         if (!MP4::skipBox(inFile)){//moving on to next box
           DEBUG_MSG(DLVL_FAIL,"Error in Skipping box, exiting");
@@ -443,7 +445,8 @@ namespace Mist {
         if (it->size > malSize){
           data = (char*)malloc(it->size);
         }
-        if (fread(data, it->size, 1, inFile)==1){
+        int tmp = fread(data, it->size, 1, inFile);
+        if (tmp == 1){
           lastPack.null();
           //add data
           if (it->keyframe){

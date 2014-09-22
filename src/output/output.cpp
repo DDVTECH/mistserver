@@ -445,7 +445,9 @@ namespace Mist {
     }
     buffer.clear();
     currentPacket.null();
-    updateMeta();
+    if (myMeta.live){
+      updateMeta();
+    }
     DEBUG_MSG(DLVL_MEDIUM, "Seeking to %llims", pos);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       seek(*it, pos);

@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <mist/auth.h>
 #include <mist/dtsc.h>
 #include <mist/config.h>

@@ -48,6 +48,7 @@ namespace Analysers {
       inbuffer += std::cin.get();
     } //read all of std::cin to temp
     inbuffer.erase(0, 3073); //strip the handshake part
+    RTMPStream::rec_cnt += 3073;
     RTMPStream::Chunk next;
     FLV::Tag F; //FLV holder
     AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
@@ -183,10 +184,15 @@ namespace Analysers {
         } //switch for type of chunk
       }else{ //if chunk parsed
         if (std::cin.good()){
-          char newchar = std::cin.get();
-          if (std::cin.good()){
-            inbuffer += newchar;
-            ++read_in;
+          unsigned int charCount = 0;
+          inbuffer.reserve(4096);
+          while (std::cin.good() && charCount < 4096){
+            char newchar = std::cin.get();
+            if (std::cin.good()){
+              inbuffer += newchar;
+              ++read_in;
+              ++charCount;
+            }
           }
         }else{
           inbuffer.clear();

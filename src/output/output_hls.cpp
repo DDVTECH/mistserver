@@ -277,6 +277,18 @@ namespace Mist {
   void OutHLS::onRequest(){
     while (HTTP_R.Read(myConn)){
       DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.getUrl().c_str());
+      
+      if (HTTP_R.url == "/crossdomain.xml"){
+        HTTP_S.Clean();
+        HTTP_S.SetHeader("Content-Type", "text/xml");
+        HTTP_S.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+        HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
+        HTTP_S.SendResponse("200", "OK", myConn);
+        HTTP_R.Clean(); //clean for any possible next requests
+        continue;
+      } //crossdomain.xml
+      
+      
       AppleCompat = (HTTP_R.GetHeader("User-Agent").find("Apple") != std::string::npos);
       initialize();
       if (HTTP_R.url.find(".m3u") == std::string::npos){

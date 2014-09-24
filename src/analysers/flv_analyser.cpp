@@ -14,25 +14,22 @@
 #include <mist/flv_tag.h> //FLV support
 #include <mist/config.h>
 
-///\brief Holds everything unique to the analysers.
-namespace Analysers {
-  ///\brief Debugging tool for FLV data.
-  ///
-  /// Expects FLV data through stdin, outputs human-readable information to stderr.
-  ///\return The return code of the analyser.
-  int analyseFLV(){
-    FLV::Tag flvData; // Temporary storage for incoming FLV data.
-    while ( !feof(stdin)){
-      if (flvData.FileLoader(stdin)){
-        std::cout << "Tag: " << flvData.tagType() << "\n\tTime: " << flvData.tagTime() << std::endl;
-      }
-    }
-    return 0;
-  }
-}
-
+///Debugging tool for FLV data.
+/// Expects FLV data through stdin, outputs human-readable information to stderr.
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  conf.addOption("filter", JSON::fromString("{\"arg\":\"num\", \"short\":\"f\", \"long\":\"filter\", \"default\":0, \"help\":\"Only print info about this tag type (8 = audio, 9 = video, 0 = all)\"}"));
   conf.parseArgs(argc, argv);
-  return Analysers::analyseFLV();
+  
+  long long filter = conf.getInteger("filter");
+
+  FLV::Tag flvData; // Temporary storage for incoming FLV data.
+  while ( !feof(stdin)){
+    if (flvData.FileLoader(stdin)){
+      if (!filter || filter == flvData.data[0]){
+        std::cout << "[" << flvData.tagTime() << "+" << flvData.offset() << "] " << flvData.tagType() << std::endl;
+      }
+    }
+  }
+  return 0;
 }

@@ -160,15 +160,15 @@ int FTP::User::ParseCommand(std::string Command) {
     case CMD_LIST: {
         Socket::Connection Connected = Passive.accept();
         if (Connected.connected()) {
-          Conn.Send("125 Data connection already open; transfer starting.\n");
+          Conn.SendNow("125 Data connection already open; transfer starting.\n");
         } else {
-          Conn.Send("150 File status okay; about to open data connection.\n");
+          Conn.SendNow("150 File status okay; about to open data connection.\n");
         }
         while (!Connected.connected()) {
           Connected = Passive.accept();
         }
         std::string tmpstr = MyDir.LIST(ActiveStreams);
-        Connected.Send(tmpstr);
+        Connected.SendNow(tmpstr);
         Connected.close();
         return 226;
         break;
@@ -218,15 +218,15 @@ int FTP::User::ParseCommand(std::string Command) {
         } //Access denied.
         Socket::Connection Connected = Passive.accept();
         if (Connected.connected()) {
-          Conn.Send("125 Data connection already open; transfer starting.\n");
+          Conn.SendNow("125 Data connection already open; transfer starting.\n");
         } else {
-          Conn.Send("150 File status okay; about to open data connection.\n");
+          Conn.SendNow("150 File status okay; about to open data connection.\n");
         }
         while (!Connected.connected()) {
           Connected = Passive.accept();
         }
         std::string tmpstr = MyDir.RETR(Command);
-        Connected.Send(tmpstr);
+        Connected.SendNow(tmpstr);
         Connected.close();
         return 226;
         break;
@@ -243,9 +243,9 @@ int FTP::User::ParseCommand(std::string Command) {
         } //Access denied.
         Socket::Connection Connected = Passive.accept();
         if (Connected.connected()) {
-          Conn.Send("125 Data connection already open; transfer starting.\n");
+          Conn.SendNow("125 Data connection already open; transfer starting.\n");
         } else {
-          Conn.Send("150 File status okay; about to open data connection.\n");
+          Conn.SendNow("150 File status okay; about to open data connection.\n");
         }
         while (!Connected.connected()) {
           Connected = Passive.accept();

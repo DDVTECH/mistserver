@@ -336,7 +336,7 @@ namespace DTSC {
   /// Returns a DTSC::Scan instance to the contents of this packet.
   /// May return an invalid instance if this packet is invalid.
   Scan Packet::getScan() const {
-    if (!this || !getDataLen() || !getPayloadLen() || getDataLen() <= getPayloadLen()){
+    if (!*this || !getDataLen() || !getPayloadLen() || getDataLen() <= getPayloadLen()){
       return Scan();
     }
     return Scan(data + (getDataLen() - getPayloadLen()), getPayloadLen());

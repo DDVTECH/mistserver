@@ -363,10 +363,10 @@ namespace Mist {
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
       app_name = app_name.substr(app_name.find('/', 7) + 1);
       RTMPStream::chunk_snd_max = 4096;
-      myConn.Send(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
-      myConn.Send(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
-      myConn.Send(RTMPStream::SendCTL(6, RTMPStream::rec_window_size)); //send rec window acknowledgement size (msg 6)
-      myConn.Send(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
+      myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
+      myConn.SendNow(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
+      myConn.SendNow(RTMPStream::SendCTL(6, RTMPStream::rec_window_size)); //send rec window acknowledgement size (msg 6)
+      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       //send a _result reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
       amfReply.addContent(AMF::Object("", "_result")); //result success
@@ -400,7 +400,7 @@ namespace Mist {
       amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
       amfReply.addContent(AMF::Object("", (double)1)); //stream ID - we use 1
       sendCommand(amfReply, messageType, streamId);
-      myConn.Send(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
+      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       return;
     } //createStream
     if ((amfData.getContentP(0)->StrValue() == "closeStream") || (amfData.getContentP(0)->StrValue() == "deleteStream")) {
@@ -479,7 +479,7 @@ namespace Mist {
       amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
       amfReply.addContent(AMF::Object("", 1, AMF::AMF0_BOOL)); //publish success?
       sendCommand(amfReply, messageType, streamId);
-      myConn.Send(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
+      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       //send a status reply
       amfReply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
       amfReply.addContent(AMF::Object("", "onStatus")); //status reply
@@ -533,10 +533,10 @@ namespace Mist {
       sendCommand(amfreply, playMessageType, playStreamId);
       //send streamisrecorded if stream, well, is recorded.
       if (myMeta.vod) { //isMember("length") && Strm.metadata["length"].asInt() > 0){
-        myConn.Send(RTMPStream::SendUSR(4, 1)); //send UCM StreamIsRecorded (4), stream 1
+        myConn.SendNow(RTMPStream::SendUSR(4, 1)); //send UCM StreamIsRecorded (4), stream 1
       }
       //send streambegin
-      myConn.Send(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
+      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       //and more reply
       amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
       amfreply.addContent(AMF::Object("", "onStatus")); //status reply
@@ -550,9 +550,9 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
       sendCommand(amfreply, playMessageType, playStreamId);
       RTMPStream::chunk_snd_max = 102400; //100KiB
-      myConn.Send(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
+      myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       //send dunno?
-      myConn.Send(RTMPStream::SendUSR(32, 1)); //send UCM no clue?, stream 1
+      myConn.SendNow(RTMPStream::SendUSR(32, 1)); //send UCM no clue?, stream 1
 
       parseData = true;
       return;
@@ -590,10 +590,10 @@ namespace Mist {
       sendCommand(amfreply, playMessageType, playStreamId);
       //send streamisrecorded if stream, well, is recorded.
       if (myMeta.vod) { //isMember("length") && Strm.metadata["length"].asInt() > 0){
-        myConn.Send(RTMPStream::SendUSR(4, 1)); //send UCM StreamIsRecorded (4), stream 1
+        myConn.SendNow(RTMPStream::SendUSR(4, 1)); //send UCM StreamIsRecorded (4), stream 1
       }
       //send streambegin
-      myConn.Send(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
+      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       //and more reply
       amfreply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
       amfreply.addContent(AMF::Object("", "onStatus")); //status reply
@@ -607,9 +607,9 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
       sendCommand(amfreply, playMessageType, playStreamId);
       RTMPStream::chunk_snd_max = 102400; //100KiB
-      myConn.Send(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
+      myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       //send dunno?
-      myConn.Send(RTMPStream::SendUSR(32, 1)); //send UCM no clue?, stream 1
+      myConn.SendNow(RTMPStream::SendUSR(32, 1)); //send UCM no clue?, stream 1
 
       return;
     } //seek
@@ -671,7 +671,7 @@ namespace Mist {
       //send ACK if we received a whole window
       if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size)) {
         RTMPStream::rec_window_at = RTMPStream::rec_cnt;
-        myConn.Send(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); //send ack (msg 3)
+        myConn.SendNow(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); //send ack (msg 3)
       }
 
       switch (next.msg_type_id) {
@@ -752,7 +752,7 @@ namespace Mist {
 #endif
           RTMPStream::rec_window_size = ntohl(*(int *)next.data.c_str());
           RTMPStream::rec_window_at = RTMPStream::rec_cnt;
-          myConn.Send(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); //send ack (msg 3)
+          myConn.SendNow(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); //send ack (msg 3)
           break;
         case 6:
 #if DEBUG >= 5
@@ -760,7 +760,7 @@ namespace Mist {
 #endif
           //4 bytes window size, 1 byte limit type (ignored)
           RTMPStream::snd_window_size = ntohl(*(int *)next.data.c_str());
-          myConn.Send(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
+          myConn.SendNow(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
           break;
         case 8: //audio data
         case 9: //video data

@@ -570,7 +570,8 @@ namespace Mist {
   }
   
   bool Output::isBlacklisted(std::string host, std::string streamName, int timeConnected){
-    JSON::Value Storage = JSON::fromFile(Util::getTmpFolder() + "streamlist");    
+    return false;//blacklisting temporarily disabled for performance reasons
+    JSON::Value Storage = JSON::fromFile(Util::getTmpFolder() + "streamlist");
     std::string myHostName = hostLookup(host);
     if (myHostName == "\n"){
       return false;

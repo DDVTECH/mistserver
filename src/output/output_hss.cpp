@@ -45,6 +45,7 @@ std::string toUTF16(std::string original) {
 
 namespace Mist {
   OutHSS::OutHSS(Socket::Connection & conn) : Output(conn) { 
+    realTime = 0;
     myConn.setHost(config->getString("ip"));
     streamName = config->getString("streamname");
   }

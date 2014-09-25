@@ -33,9 +33,7 @@ namespace Mist {
         result << "/index.m3u8\r\n";
       }
     }
-#if DEBUG >= 8
-    std::cerr << "Sending this index:" << std::endl << result.str() << std::endl;
-#endif
+    DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
     return result.str();
   }
 
@@ -89,7 +87,9 @@ namespace Mist {
   OutHLS::OutHLS(Socket::Connection & conn) : Output(conn) {
     haveAvcc = false;
     haveHvcc = false;
+    realTime = 0;
     myConn.setHost(config->getString("ip"));
+    myConn.setBlocking(true);
     streamName = config->getString("streamname");
   }
   
@@ -188,27 +188,25 @@ namespace Mist {
  
   }
   
-  void OutHLS::sendNext(){    
-    bool first = true;   
+  void OutHLS::sendNext(){
+    bool first = true;
     char * ContCounter = 0;
     char * dataPointer = 0;
     unsigned int dataLen = 0;
     currentPacket.getString("data", dataPointer, dataLen); //data
     
     if (currentPacket.getTime() >= until){
-      DEBUG_MSG(DLVL_DEVEL, "(%d) Done sending fragment", getpid() );
       stop();
       wantRequest = true;
+      parseData = false;
       HTTP_S.Chunkify("", 0, myConn);
       HTTP_S.Clean();
       return;
     }
 
-     
-    
-    std::string bs;    
+    std::string bs;
     //prepare bufferstring
-    if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){      
+    if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
       bs = TS::Packet::getPESVideoLeadIn(0ul, currentPacket.getTime() * 90);
       fillPacket(first, bs.data(), bs.size(), VideoCounter);
       if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
@@ -270,9 +268,6 @@ namespace Mist {
         fillPacket(first, 0, 0, AudioCounter);
       }
     }
-    
-
-    
   }
 
   int OutHLS::canSeekms(unsigned int ms){
@@ -296,8 +291,7 @@ namespace Mist {
 
   void OutHLS::onRequest(){
     while (HTTP_R.Read(myConn)){
-      DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.getUrl().c_str());
-      
+      DEBUG_MSG(DLVL_MEDIUM, "Received request: %s", HTTP_R.getUrl().c_str());
       if (HTTP_R.url == "/crossdomain.xml"){
         HTTP_S.Clean();
         HTTP_S.SetHeader("Content-Type", "text/xml");

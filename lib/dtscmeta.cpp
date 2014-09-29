@@ -79,15 +79,15 @@ namespace DTSC {
       return false;
     }
     if (dataLen < 8) {
-      DEBUG_MSG(DLVL_DONTEVEN, "Datalen < 8");
+      DEBUG_MSG(DLVL_VERYHIGH, "Datalen < 8");
       return false;
     }
     if (version == DTSC_INVALID) {
-      DEBUG_MSG(DLVL_DONTEVEN, "No valid version");
+      DEBUG_MSG(DLVL_VERYHIGH, "No valid version");
       return false;
     }
-    if (ntohl(((int *)data)[1]) + 8 != dataLen) {
-      DEBUG_MSG(DLVL_DONTEVEN, "Length mismatch");
+    if (ntohl(((int *)data)[1]) + 8 > dataLen) {
+      DEBUG_MSG(DLVL_VERYHIGH, "Length mismatch");
       return false;
     }
     return true;
@@ -1366,7 +1366,7 @@ namespace DTSC {
     do {
       tmpTrack = tmpTracks.getIndice(num);
       if (tmpTrack.asBool()) {
-        int trackId = tmpTrack.getMember("trackid").asInt();
+        unsigned int trackId = tmpTrack.getMember("trackid").asInt();
         if (trackId) {
           tracks[trackId] = Track(tmpTrack);
         }

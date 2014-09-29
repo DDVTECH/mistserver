@@ -74,7 +74,6 @@ namespace Mist {
     if (streamIndex.mapped){
       DTSC::Packet tmpMeta(streamIndex.mapped, streamIndex.len, true);
       if (tmpMeta.getVersion()){
-        /// \todo Make sure this doesn't go wrong when overwritten by MistInBuffer during parse
         myMeta.reinit(tmpMeta);
       }
     }
@@ -238,7 +237,7 @@ namespace Mist {
       return;
     }
     isInitialized = true;
-    streamIndex.init(streamName,8 * 1024 * 1024);
+    streamIndex.init(streamName, 8 * 1024 * 1024);
     if (!streamIndex.mapped){
       DEBUG_MSG(DLVL_FAIL, "Could not connect to server for %s\n", streamName.c_str());
       onFail();

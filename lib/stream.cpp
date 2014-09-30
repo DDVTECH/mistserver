@@ -42,18 +42,25 @@ std::string Util::getTmpFolder() {
   return dir + "/";
 }
 
-
 /// Filters the streamname, removing invalid characters and converting all
 /// letters to lowercase. If a '?' character is found, everything following
-/// that character is deleted. The original string is modified.
+/// that character is deleted. The original string is modified. If a '+'
+/// exists, then only the part before the + is sanitized.
 void Util::Stream::sanitizeName(std::string & streamname) {
   //strip anything that isn't numbers, digits or underscores
+  size_t index = streamname.find('+');
+  if(index != std::string::npos){
+    std::string preplus = streamname.substr(0,index);
+    sanitizeName(preplus);
+    streamname = preplus +"+"+streamname.substr(index+1);
+    return;
+  }
   for (std::string::iterator i = streamname.end() - 1; i >= streamname.begin(); --i) {
     if (*i == '?') {
       streamname.erase(i, streamname.end());
       break;
     }
-    if (!isalpha(*i) && !isdigit(*i) && *i != '_') {
+    if ( !isalpha( *i) && !isdigit( *i) && *i != '_' && *i != '+' && *i != '.'){
       streamname.erase(i);
     } else {
       *i = tolower(*i);
@@ -134,12 +141,17 @@ bool Util::Stream::getVod(std::string filename, std::string streamname) {
 bool Util::Stream::getStream(std::string streamname) {
   sanitizeName(streamname);
   JSON::Value ServConf = JSON::fromFile(getTmpFolder() + "streamlist");
-  if (ServConf["streams"].isMember(streamname)) {
-    //check if the stream is already active, if yes, don't re-activate
+  std::string smp = streamname.substr(0,(streamname.find('+')));
+  //check if smp (everything before +) exists
+  ///\todo Check if the input type used for this stream supports + syntax, if not, reject the request if smp != streamname.
+  if (ServConf["streams"].isMember(smp)){
+    //Check if the stream is already active, if yes, don't activate again.
+    //Note: this uses the _whole_ stream name, including + (if any).
+    //This means "test+a" and "test+b" have separate locks and do not interact with each other.
     IPC::semaphore playerLock(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     if (!playerLock.tryWait()) {
       playerLock.close();
-      DEBUG_MSG(DLVL_MEDIUM, "Playerlock for %s already active - not re-activating stream", streamname.c_str());
+      DEBUG_MSG(DLVL_MEDIUM, "Stream %s already active - not activating again", streamname.c_str());
       return true;
     }
     playerLock.post();

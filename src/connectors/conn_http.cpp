@@ -384,7 +384,7 @@ namespace Connector_HTTP {
       
       std::string response;
       std::string host = H.GetHeader("Host");
-      if (host.find(':')){
+      if (host.find(':') != std::string::npos){
         host.resize(host.find(':'));
       }
       H.Clean();

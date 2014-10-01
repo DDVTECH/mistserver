@@ -239,6 +239,7 @@ MistOutRaw: src/output/mist_out.cpp src/output/output.cpp src/output/output_raw.
 
 outputs: MistOutHTTPTS
 MistOutHTTPTS: override LDLIBS += $(THREADLIB)
+MistOutHTTPTS: override LDLIBS += $(GEOIP) # /*LTS*/
 MistOutHTTPTS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_httpts.h\""
 MistOutHTTPTS: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_httpts.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@

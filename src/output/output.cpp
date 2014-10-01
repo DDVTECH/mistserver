@@ -175,6 +175,7 @@ namespace Mist {
   }
 
   void Output::bufferPacket(JSON::Value & pack){
+    if (!pack["trackid"].asInt()){return;}
     if (myMeta.tracks[pack["trackid"].asInt()].type != "video"){
       if ((pack["time"].asInt() - bookKeeping[trackMap[pack["trackid"].asInt()]].lastKeyTime) >= 5000){
         pack["keyframe"] = 1LL;

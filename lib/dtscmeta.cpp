@@ -506,6 +506,33 @@ namespace DTSC {
     return Scan();
   }
 
+  /// Returns the name of the num-th member of this object.
+  /// Returns an empty string on error or when not an object.
+  std::string Scan::getIndiceName(unsigned int num) {
+    if (getType() == DTSC_OBJ || getType() == DTSC_CON) {
+      char * i = p + 1;
+      unsigned int arr_indice = 0;
+      //object, scan contents
+      while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+        if (i + 2 >= p + len) {
+          return "";//out of packet!
+        }
+        unsigned int strlen = i[0] * 256 + i[1];
+        i += 2;
+        if (arr_indice == num) {
+          return std::string(i, strlen);
+        } else {
+          arr_indice++;
+          i = skipDTSC(i + strlen, p + len);
+          if (!i) {
+            return "";
+          }
+        }
+      }
+    }
+    return "";
+  }
+  
   /// Returns the first byte of this DTSC value, or 0 on error.
   char Scan::getType() {
     if (!p) {
@@ -555,13 +582,26 @@ namespace DTSC {
   }
 
   /// Returns the string value of this DTSC string value.
-  /// Uses getString internally, does no conversion.
+  /// Uses getString internally, if a string.
+  /// Converts integer values to strings.
   /// Returns an empty string on error.
   std::string Scan::asString() {
-    char * str;
-    unsigned int strlen;
-    getString(str, strlen);
-    return std::string(str, strlen);
+    switch (getType()) {
+      case DTSC_INT:{
+        std::stringstream st;
+        st << asInt();
+        return st.str();
+      }
+      break;
+      case DTSC_STR:{
+        char * str;
+        unsigned int strlen;
+        getString(str, strlen);
+        return std::string(str, strlen);
+      }
+      break;
+    }
+    return "";
   }
 
   /// Sets result to a pointer to the string, and strlen to the lenght of it.
@@ -585,7 +625,7 @@ namespace DTSC {
   JSON::Value Scan::asJSON(){
     JSON::Value result;
     unsigned int i = 0;
-    JSON::fromDTMI2((const unsigned char*)p, len, i, result);
+    JSON::fromDTMI((const unsigned char*)p, len, i, result);
     return result;
   }
 

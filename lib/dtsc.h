@@ -79,6 +79,7 @@ namespace DTSC {
       Scan getMember(const char * indice);
       Scan getMember(const char * indice, const unsigned int ind_len);
       Scan getIndice(unsigned int num);
+      std::string getIndiceName(unsigned int num);
       unsigned int getSize();
 
       char getType();

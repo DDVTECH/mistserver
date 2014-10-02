@@ -22,16 +22,6 @@ FTP::User::User(Socket::Connection NewConnection, std::map<std::string, std::str
   MyDir.SetVisibility("Converted", Filesystem::S_INACTIVE);
   MyDir.SetVisibility("OnDemand", Filesystem::S_ACTIVE);
 
-  JSON::Value MyConfig = JSON::fromFile("/tmp/mist/streamlist");
-  for (JSON::ObjIter it = MyConfig["streams"].ObjBegin(); it != MyConfig["streams"].ObjEnd(); it++) {
-    std::string ThisStream = (*it).second["channel"]["URL"].toString();
-    ThisStream.erase(ThisStream.begin());
-    ThisStream.erase(ThisStream.end() - 1);
-    while (ThisStream.find('/') != std::string::npos) {
-      ThisStream.erase(0, ThisStream.find('/') + 1);
-    }
-    ActiveStreams.push_back(ThisStream);
-  }
 }
 
 FTP::User::~User() {

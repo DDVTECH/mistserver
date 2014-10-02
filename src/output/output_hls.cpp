@@ -155,14 +155,14 @@ namespace Mist {
 
   void OutHLS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
     if (!PackData.BytesFree()){
-      HTTP_S.Chunkify(PackData.ToString(), 188, myConn);
-      PacketNumber ++;
-      PackData.Clear();
       if (PacketNumber % 42 == 0){
         HTTP_S.Chunkify(TS::PAT, 188, myConn);
         HTTP_S.Chunkify(createPMT().c_str(), 188, myConn);
         PacketNumber += 2;
       }
+      HTTP_S.Chunkify(PackData.ToString(), 188, myConn);
+      PacketNumber ++;
+      PackData.Clear();
     }
     
     if (!dataLen){return;}

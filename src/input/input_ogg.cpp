@@ -14,6 +14,7 @@
 
 namespace Mist {
   inputOGG::inputOGG(Util::Config * cfg) : Input(cfg) {
+    capa["name"] = "OGG";
     capa["decs"] = "Enables OGG Input";
     capa["codecs"][0u][0u].append("theora");
     capa["codecs"][0u][1u].append("vorbis");
@@ -24,7 +25,7 @@ namespace Mist {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
-    if (!config->getBool("player")){
+    if (!config->getString("streamname").size()){
       if (config->getString("output") == "-") {
         std::cerr << "Output to stdout not yet supported" << std::endl;
         return false;

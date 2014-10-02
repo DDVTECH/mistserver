@@ -6,6 +6,7 @@ namespace Mist {
   class inputBuffer : public Input {
     public:
       inputBuffer(Util::Config * cfg);
+      ~inputBuffer();
     private:
       unsigned int bufferTime;
       unsigned int cutTime;
@@ -26,6 +27,7 @@ namespace Mist {
       std::map<unsigned long, IPC::sharedPage> metaPages;
       ///Maps trackid to a pagenum->pageData map
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > inputLoc;
+      std::map<unsigned long, char *> pushedLoc;
       inputBuffer * singleton;
   };
 }

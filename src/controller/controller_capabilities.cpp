@@ -40,6 +40,14 @@ namespace Controller {
           capabilities["connectors"].removeMember((*it).substr(7));
         }
       }
+      if ((*it).substr(0, 6) == "MistIn" && (*it) != "MistInfo"){
+        arg_one = Util::getMyPath() + (*it);
+        conn_args[0] = arg_one.c_str();
+        capabilities["inputs"][(*it).substr(6)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+        if (capabilities["inputs"][(*it).substr(6)].size() < 1){
+          capabilities["inputs"].removeMember((*it).substr(6));
+        }
+      }
     }
   }
   

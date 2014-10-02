@@ -1,7 +1,11 @@
+#include <sys/stat.h>
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 #include <mist/timing.h>
+#include <mist/shared_memory.h>
 #include "controller_storage.h"
+#include "controller_capabilities.h"
 
 ///\brief Holds everything unique to the controller.
 namespace Controller {
@@ -68,5 +72,23 @@ namespace Controller {
     fclose(output);
     close((long long int)err);
   }
+  
+  /// Writes the current config to shared memory to be used in other processes
+  void writeConfig(){
+    JSON::Value writeConf;
+    writeConf["config"] = Storage["config"];
+    writeConf["streams"] = Storage["streams"];
+    writeConf["capabilities"] = capabilities;
 
+    static IPC::sharedPage mistConfOut("!mistConfig", 4*1024*1024, true);
+    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    //lock semaphore
+    configLock.wait();
+    //write config
+    std::string temp = writeConf.toPacked();
+    memcpy(mistConfOut.mapped, temp.data(), std::min(temp.size(), (unsigned long)mistConfOut.len));
+    //unlock semaphore
+    configLock.post();
+  }
+  
 }

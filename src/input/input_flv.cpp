@@ -13,7 +13,10 @@
 
 namespace Mist {
   inputFLV::inputFLV(Util::Config * cfg) : Input(cfg) {
+    capa["name"] = "FLV";
     capa["decs"] = "Enables FLV Input";
+    capa["source_match"] = "/*.flv";
+    capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");
@@ -26,7 +29,7 @@ namespace Mist {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
-    if (!config->getBool("player")){
+    if (!config->getString("streamname").size()){
       if (config->getString("output") == "-") {
         std::cerr << "Output to stdout not yet supported" << std::endl;
         return false;

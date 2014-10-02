@@ -14,31 +14,39 @@
 
 namespace Mist {
   inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg) {
+    capa["name"] = "Buffer";
     JSON::Value option;
     option["arg"] = "integer";
     option["long"] = "buffer";
     option["short"] = "b";
-    option["help"] = "Buffertime for this stream.";
+    option["help"] = "DVR buffer time in ms";
     option["value"].append(30000LL);
     config->addOption("bufferTime", option);
-    
-    capa["desc"] = "Enables buffered live input";
+    capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
+    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes.";
+    capa["optional"]["DVR"]["option"] = "--buffer";
+    capa["optional"]["DVR"]["type"] = "uint";
+    capa["optional"]["DVR"]["default"] = 30000LL;
+    capa["source_match"] = "push://*";
+    capa["priority"] = 9ll;
+    capa["desc"] = "Provides buffered live input";
     capa["codecs"][0u][0u].append("*");
     capa["codecs"][0u][1u].append("*");
     capa["codecs"][0u][2u].append("*");
-    capa["codecs"][0u][3u].append("*");
-    capa["codecs"][0u][4u].append("*");
-    capa["codecs"][0u][5u].append("*");
-    capa["codecs"][0u][6u].append("*");
-    capa["codecs"][0u][7u].append("*");
-    capa["codecs"][0u][8u].append("*");
-    capa["codecs"][0u][9u].append("*");
-    DEBUG_MSG(DLVL_DEVEL, "Started MistInBuffer");
     isBuffer = true;
     singleton = this;
     bufferTime = 0;
     cutTime = 0;
     
+  }
+
+  inputBuffer::~inputBuffer(){
+    if (myMeta.tracks.size()){
+      DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
+      for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        while (removeKey(it->first)){}
+      }
+    }
   }
 
   void inputBuffer::updateMeta(){
@@ -55,15 +63,18 @@ namespace Mist {
     myMeta.bufferWindow = lastms - firstms;
     myMeta.vod = false;
     myMeta.live = true;
-    myMeta.writeTo(metaPage.mapped);
     IPC::semaphore liveMeta(std::string("liveMeta@" + config->getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     liveMeta.wait();
+    myMeta.writeTo(metaPage.mapped);
     memset(metaPage.mapped+myMeta.getSendLen(), 0, metaPage.len > myMeta.getSendLen() ? std::min(metaPage.len-myMeta.getSendLen(), 4ll) : 0);
     liveMeta.post();
   } 
 
   bool inputBuffer::removeKey(unsigned int tid){
-    if (myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2){
+    if ((myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2) && config->is_active){
+      return false;
+    }
+    if (!myMeta.tracks[tid].keys.size()){
       return false;
     }
     DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%d", tid, myMeta.tracks[tid].keys[0].getNumber());
@@ -144,16 +155,19 @@ namespace Mist {
         //Skip value 0 as this indicates an empty track
         continue;
       }
-      if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
-        if (negotiateTracks.count(value)){
-          negotiateTracks.erase(value);
-          metaPages.erase(value);
+      if (pushedLoc[value] == thisData){
+        if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
+          pushedLoc.erase(value);
+          if (negotiateTracks.count(value)){
+            negotiateTracks.erase(value);
+            metaPages.erase(value);
+          }
+          if (data[4] == 0xFF && data[5] == 0xFF && givenTracks.count(value)){
+            givenTracks.erase(value);
+            inputLoc.erase(value);
+          }
+          continue;
         }
-        if (data[4] == 0xFF && data[5] == 0xFF && givenTracks.count(value)){
-          givenTracks.erase(value);
-          inputLoc.erase(value);
-        }
-        continue;
       }
       if (value & 0x80000000){
         //Track is set to "New track request", assign new track id and create shared memory page
@@ -226,6 +240,7 @@ namespace Mist {
               }
             }
             givenTracks.insert(finalMap);
+            pushedLoc[finalMap] = thisData;
             if (!myMeta.tracks.count(finalMap)){
               DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %d", finalMap);
               myMeta.tracks[finalMap] = tmpMeta.tracks.begin()->second;
@@ -249,7 +264,7 @@ namespace Mist {
           }
         }
       }
-      if (givenTracks.count(value)){
+      if (givenTracks.count(value) && pushedLoc[value] == thisData){
         //First check if the previous page has been finished:
         if (!inputLoc[value].count(dataPages[value].rbegin()->first) || !inputLoc[value][dataPages[value].rbegin()->first].curOffset){
           if (dataPages[value].size() > 1){
@@ -307,16 +322,21 @@ namespace Mist {
     if (!bufferTime){
       bufferTime = config->getInteger("bufferTime");
     }
-    JSON::Value servConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");    
-    if (servConf.isMember("streams") && servConf["streams"].isMember(config->getString("streamname"))){
-      JSON::Value & streamConfig = servConf["streams"][config->getString("streamname")];
-      if (streamConfig.isMember("DVR") && streamConfig["DVR"].asInt()){
-        if (bufferTime != streamConfig["DVR"].asInt()){
-          DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, streamConfig["DVR"].asInt());
-          bufferTime = streamConfig["DVR"].asInt();
-        }
+    
+    IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
+    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    configLock.wait();
+    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(config->getString("streamname"));
+    if (streamCfg && streamCfg.getMember("DVR")){
+      long long bufTime = streamCfg.getMember("DVR").asInt();
+      if (bufferTime != bufTime){
+        DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, bufTime);
+        bufferTime = bufTime;
       }
     }
+    configLock.post();
+    configLock.close();
+    
     return true;
   }
 

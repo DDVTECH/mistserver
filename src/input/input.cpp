@@ -31,7 +31,7 @@ namespace Mist {
     JSON::Value option;
     option["long"] = "json";
     option["short"] = "j";
-    option["help"] = "Output MistIn info in JSON format, then exit.";
+    option["help"] = "Output MistIn info in JSON format, then exit";
     option["value"].append(0ll);
     config->addOption("json", option);
     option.null();
@@ -50,13 +50,13 @@ namespace Mist {
     option["arg"] = "string";
     option["short"] = "s";
     option["long"] = "stream";
-    option["help"] = "The name of the stream that this connector will transmit.";
+    option["help"] = "The name of the stream that this connector will provide in player mode";
     config->addOption("streamname", option);
-    option.null();
-    option["short"] = "p";
-    option["long"] = "player";
-    option["help"] = "Makes this connector into a player";
-    config->addOption("player", option);
+
+    capa["optional"]["debug"]["name"] = "debug";
+    capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
+    capa["optional"]["debug"]["option"] = "--debug";
+    capa["optional"]["debug"]["type"] = "uint";
     
     packTime = 0;
     lastActive = Util::epoch();
@@ -99,7 +99,7 @@ namespace Mist {
 
   int Input::run() {
     if (config->getBool("json")) {
-      std::cerr << capa.toString() << std::endl;
+      std::cout << capa.toString() << std::endl;
       return 0;
     }
     if (!setup()) {
@@ -113,7 +113,7 @@ namespace Mist {
     }
     parseHeader();
     
-    if (!config->getBool("player")){
+    if (!config->getString("streamname").size()){
       //check filename for no -
       if (config->getString("output") != "-"){
         std::string filename = config->getString("output");

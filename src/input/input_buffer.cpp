@@ -426,21 +426,20 @@ namespace Mist {
         bufferTime = bufTime;
       }
       /*LTS-START*/
-      if (streamConfig.isMember("cut") && streamConfig["cut"].asInt()){
-        if (cutTime != streamConfig["cut"].asInt()){
-          DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, streamConfig["cut"].asInt());
-          cutTime = streamConfig["cut"].asInt();
-        }
+      bufTime = streamCfg.getMember("cut").asInt();
+      if (cutTime != bufTime){
+        DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, bufTime);
+        cutTime = bufTime;
       }
-
-      if (streamConfig.isMember("record") && streamConfig["record"].asString() != ""){
-        if (recName != streamConfig["record"].asString()){
+      std::string rec = streamCfg.getMember("record").asString();
+      if (rec != ""){
+        if (recName != rec){
           //close currently recording file, for we should open a new one
           recFile.close();
           recMeta.tracks.clear();
         }
         if (!recFile.is_open()){
-          recName = streamConfig["record"].asString();
+          recName = rec;
           DEBUG_MSG(DLVL_DEVEL, "Starting to record stream %s to %s", config->getString("streamname").c_str(), recName.c_str());
           recFile.open(recName.c_str());
           if (recFile.fail()){
@@ -449,7 +448,6 @@ namespace Mist {
           recBpos = 0;
         }
       }
-
       /*LTS-END*/
     }
     configLock.post();

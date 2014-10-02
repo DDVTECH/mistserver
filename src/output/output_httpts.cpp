@@ -72,15 +72,15 @@ namespace Mist {
   
   void OutHTTPTS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
     if (!PackData.BytesFree()){
-      HTTP_S.Chunkify(PackData.ToString(), 188, myConn);
-      PacketNumber ++;
-      PackData.Clear();
       if (PacketNumber % 42 == 0){
         HTTP_S.Chunkify(TS::PAT, 188, myConn);
         std::string PMT = createPMT();
         HTTP_S.Chunkify(PMT, myConn);
         PacketNumber += 2;
       }
+      HTTP_S.Chunkify(PackData.ToString(), 188, myConn);
+      PacketNumber ++;
+      PackData.Clear();
     }
     if (!dataLen){return;}
     if (PackData.BytesFree() == 184){

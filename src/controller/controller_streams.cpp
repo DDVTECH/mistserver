@@ -6,6 +6,7 @@
 #include <mist/defines.h>
 #include <mist/shared_memory.h>
 #include "controller_streams.h"
+#include "controller_capabilities.h"
 #include "controller_storage.h"
 #include "controller_statistics.h"
 #include "controller_limits.h" /*LTS*/
@@ -23,21 +24,15 @@ namespace Controller {
     if (one.isMember("source") != two.isMember("source") || one["source"] != two["source"]){
       return false;
     }
-    if (one.isMember("DVR") != two.isMember("DVR") || (one.isMember("DVR") && one["DVR"] != two["DVR"])){
-      return false;
-    }
-    if (one.isMember("cut") != two.isMember("cut") || (one.isMember("cut") && one["cut"] != two["cut"])){
-      return false;
-    }
-    /*LTS-START*/
-    if (one.isMember("record") != two.isMember("record") || (one.isMember("record") && one["record"] != two["record"])){
-      return false;
-    }
-    if (one.isMember("limits") != two.isMember("limits") || (one.isMember("limits") && one["limits"] != two["limits"])){
-      return false;
-    }
-    /*LTS-END*/
-    return true;
+    
+    /// \todo Change this to use capabilities["inputs"] and only compare required/optional parameters.
+    /// \todo Maybe change this to check for correct source and/or required parameters.
+    
+    //temporary: compare the two JSON::Value objects.
+    return one==two;
+    
+    //nothing different? return true by default
+    //return true;
   }
 
   ///\brief Checks the validity of a stream, updates internal stream status.
@@ -125,7 +120,7 @@ namespace Controller {
         DEBUG_MSG(DLVL_INSANE, "(re)loading metadata for stream %s", name.c_str());
         if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
           DEBUG_MSG(DLVL_INSANE, "Stream %s is non-DTSC file without DTSH. Opening stream to generate DTSH...", name.c_str());
-          Util::Stream::getVod(URL, name);
+          Util::startInput(name);
           DEBUG_MSG(DLVL_INSANE, "Waiting for stream %s to open...", name.c_str());
           //wait for the stream
           {
@@ -256,7 +251,7 @@ namespace Controller {
       changed = true;
     }
     if (changed){
-      WriteFile(Util::getTmpFolder() + "streamlist", strlist.toString());
+      writeConfig();
     }
   }
   
@@ -265,40 +260,14 @@ namespace Controller {
     for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
       if (out.isMember(jit->first)){
         if ( !streamsEqual(jit->second, out[jit->first])){
-          out[jit->first].null();
+          out[jit->first] = jit->second;
           out[jit->first]["name"] = jit->first;
-          out[jit->first]["source"] = jit->second["source"];
-          if (jit->second.isMember("DVR")){
-            out[jit->first]["DVR"] = jit->second["DVR"].asInt();
-          }
-          if (jit->second.isMember("cut")){
-            out[jit->first]["cut"] = jit->second["cut"].asInt();
-          }
-          out[jit->first]["updated"] = 1ll;
-          out[jit->first]["keyseed"] = jit->second["keyseed"].asString();/*LTS*/
-          out[jit->first]["keyid"] = jit->second["keyid"].asString();/*LTS*/
-          out[jit->first]["contentkey"] = jit->second["contentkey"].asString();/*LTS*/
-          out[jit->first]["la_url"] = jit->second["la_url"].asString();/*LTS*/
-          out[jit->first]["limits"] = jit->second["limits"];/*LTS*/
-          out[jit->first]["record"] = jit->second["record"];/*LTS*/
           Log("STRM", std::string("Updated stream ") + jit->first);
           checkStream(jit->first, out[jit->first]);
         }
       }else{
+        out[jit->first] = jit->second;
         out[jit->first]["name"] = jit->first;
-        out[jit->first]["source"] = jit->second["source"];
-        if (jit->second.isMember("DVR")){
-          out[jit->first]["DVR"] = jit->second["DVR"].asInt();
-        }
-        if (jit->second.isMember("cut")){
-          out[jit->first]["cut"] = jit->second["cut"].asInt();
-        }
-        out[jit->first]["keyseed"] = jit->second["keyseed"].asString();/*LTS*/
-        out[jit->first]["keyid"] = jit->second["keyid"].asString();/*LTS*/
-        out[jit->first]["contentkey"] = jit->second["contentkey"].asString();/*LTS*/
-        out[jit->first]["la_url"] = jit->second["la_url"].asString();/*LTS*/
-        out[jit->first]["limits"] = jit->second["limits"];/*LTS*/
-        out[jit->first]["record"] = jit->second["record"];/*LTS*/
         Log("STRM", std::string("New stream ") + jit->first);
         checkStream(jit->first, out[jit->first]);
       }

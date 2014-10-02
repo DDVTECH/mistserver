@@ -17,4 +17,6 @@ namespace Controller {
   
   void handleMsg(void * err);
 
+  void writeConfig();
+
 }

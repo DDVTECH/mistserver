@@ -25,6 +25,8 @@
 #include <mist/procs.h>
 #include <mist/tinythread.h>
 #include <mist/defines.h>
+#include <mist/dtsc.h>
+#include <mist/shared_memory.h>
 
 #include "embed.js.h"
 
@@ -91,21 +93,7 @@ namespace Connector_HTTP {
   tthread::mutex timeoutStartMutex; ///< Mutex for starting timeout thread.
   tthread::mutex timeoutMutex; ///< Mutex for timeout thread.
   tthread::thread * timeouter = 0; ///< Thread that times out connections to connectors.
-  JSON::Value capabilities; ///< Holds a list of all HTTP connectors and their properties
-  JSON::Value ServConf; /// < holds configuration, loads from file in main
-
-
-  void updateConfig(){
-    static unsigned long long int confUpdateTime=0;
-    static tthread::mutex updateLock;
-    if( Util::bootSecs() -confUpdateTime > 10 ){
-       tthread::lock_guard<tthread::mutex> guard(updateLock);  
-       if( Util::bootSecs() -confUpdateTime > 10 ){
-         ServConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
-         confUpdateTime=Util::bootSecs();
-       }
-    }
-  }
+  IPC::sharedPage serverCfg; ///< Contains server configuration and capabilities
 
   ///\brief Function run as a thread to timeout requests on the proxy.
   ///\param n A NULL-pointer
@@ -278,7 +266,6 @@ namespace Connector_HTTP {
   ///\param conn The connection to the client that issued the request.
   ///\return A timestamp indicating when the request was parsed.
   long long int proxyHandleInternal(HTTP::Parser & H, Socket::Connection & conn){
-    updateConfig();
     std::string url = H.getUrl();
 
     if (url == "/crossdomain.xml"){
@@ -330,20 +317,20 @@ namespace Connector_HTTP {
     // send logo icon
     if (url.length() > 6 && url.substr(url.length() - 5, 5) == ".html"){
       std::string streamname = url.substr(1, url.length() - 6);
-      Util::Stream::sanitizeName(streamname);
+      Util::sanitizeName(streamname);
       H.Clean();
       H.SetHeader("Content-Type", "text/html");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetBody("<!DOCTYPE html><html><head><title>Stream "+streamname+"</title><style>BODY{color:white;background:black;}</style></head><body><script src=\"embed_"+streamname+".js\"></script></body></html>");
       long long int ret = Util::getMS();
-      conn.SendNow(H.BuildResponse("200", "OK"));
+      H.SendResponse("200", "OK", conn);
       return ret;
     }
     
     // send smil MBR index
     if (url.length() > 6 && url.substr(url.length() - 5, 5) == ".smil"){
       std::string streamname = url.substr(1, url.length() - 6);
-      Util::Stream::sanitizeName(streamname);
+      Util::sanitizeName(streamname);
       
       std::string host = H.GetHeader("Host");
       if (host.find(':')){
@@ -352,38 +339,45 @@ namespace Connector_HTTP {
       
       std::string port, url_rel;
       
-      for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-        const std::string & cName = ( *it)["connector"].asStringRef();
-        if (cName != "RTMP"){continue;}
-        //if we have the RTMP port,
-        if (capabilities.isMember(cName) && capabilities[cName].isMember("optional") && capabilities[cName]["optional"].isMember("port")){
-          //get the default port if none is set
-          if (( *it)["port"].asInt() == 0){
-            port = capabilities[cName]["optional"]["port"]["default"].asString();
-          }
-          //extract url
-          if (capabilities[cName].isMember("url_rel")){
-            url_rel = capabilities[cName]["url_rel"].asString();
-            if (url_rel.find('$')){
-              url_rel.resize(url_rel.find('$'));
-            }
-          }
+      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      configLock.wait();
+      DTSC::Scan prtcls = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
+      DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember("RTMP");
+      unsigned int pro_cnt = prtcls.getSize();
+      for (unsigned int i = 0; i < pro_cnt; ++i){
+        if (prtcls.getIndice(i).getMember("connector").asString() != "RTMP"){
+          continue;
+        }
+        port = prtcls.getIndice(i).getMember("port").asString();
+        //get the default port if none is set
+        if (!port.size()){
+          port = capa.getMember("optional").getMember("port").getMember("default").asString();
+        }
+        //extract url
+        url_rel = capa.getMember("url_rel").asString();
+        if (url_rel.find('$')){
+          url_rel.resize(url_rel.find('$'));
         }
       }
 
       std::string trackSources;//this string contains all track sources for MBR smil
-      for (JSON::ObjIter it = ServConf["streams"][streamname]["meta"]["tracks"].ObjBegin(); it != ServConf["streams"][streamname]["meta"]["tracks"].ObjEnd(); it++){//for all tracks
-        if (it->second.isMember("type") && it->second["type"].asString() == "video"){
-          trackSources += "      <video src='"+ streamname + "?track=" + it->second["trackid"].asString() + "' height='" + it->second["height"].asString() + "' system-bitrate='" + it->second["bps"].asString() + "' width='" + it->second["width"].asString() + "' />\n";
+      DTSC::Scan tracks = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamname).getMember("meta").getMember("tracks");
+      unsigned int track_ctr = tracks.getSize();
+      for (unsigned int i = 0; i < track_ctr; ++i){//for all video tracks
+        DTSC::Scan trk = tracks.getIndice(i);
+        if (trk.getMember("type").asString() == "video"){
+          trackSources += "      <video src='"+ streamname + "?track=" + trk.getMember("trackid").asString() + "' height='" + trk.getMember("height").asString() + "' system-bitrate='" + trk.getMember("bps").asString() + "' width='" + trk.getMember("width").asString() + "' />\n";
         }
       }
+      configLock.post();
+      configLock.close();
 
       H.Clean();
       H.SetHeader("Content-Type", "application/smil");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetBody("<smil>\n  <head>\n    <meta base='rtmp://" + host + ":" + port + url_rel + "' />\n  </head>\n  <body>\n    <switch>\n"+trackSources+"    </switch>\n  </body>\n</smil>");
       long long int ret = Util::getMS();
-      conn.SendNow(H.BuildResponse("200", "OK"));
+      H.SendResponse("200", "OK", conn);
       return ret;
     }
     
@@ -395,7 +389,7 @@ namespace Connector_HTTP {
       }else{
         streamname = url.substr(7, url.length() - 10);
       }
-      Util::Stream::sanitizeName(streamname);
+      Util::sanitizeName(streamname);
       
       std::string response;
       std::string host = H.GetHeader("Host");
@@ -407,57 +401,68 @@ namespace Connector_HTTP {
       H.SetHeader("Content-Type", "application/javascript");
       response = "// Generating info code for stream " + streamname + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
-      if (ServConf["streams"].isMember(streamname) && ServConf["config"]["protocols"].size() > 0){
-        if (ServConf["streams"][streamname]["meta"].isMember("tracks") && ServConf["streams"][streamname]["meta"]["tracks"].size() > 0){
-          for (JSON::ObjIter it = ServConf["streams"][streamname]["meta"]["tracks"].ObjBegin(); it != ServConf["streams"][streamname]["meta"]["tracks"].ObjEnd(); it++){
-            if (it->second.isMember("width") && it->second["width"].asInt() > json_resp["width"].asInt()){
-              json_resp["width"] = it->second["width"].asInt();
-            }
-            if (it->second.isMember("height") && it->second["height"].asInt() > json_resp["height"].asInt()){
-              json_resp["height"] = it->second["height"].asInt();
-            }
+      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      configLock.wait();
+      DTSC::Scan strm = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamname).getMember("meta");
+      DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
+      if (strm && prots){
+        DTSC::Scan trcks = strm.getMember("tracks");
+        unsigned int trcks_ctr = trcks.getSize();
+        for (unsigned int i = 0; i < trcks_ctr; ++i){
+          if (trcks.getIndice(i).getMember("width").asInt() > json_resp["width"].asInt()){
+            json_resp["width"] = trcks.getIndice(i).getMember("width").asInt();
+          }
+          if (trcks.getIndice(i).getMember("height").asInt() > json_resp["height"].asInt()){
+            json_resp["height"] = trcks.getIndice(i).getMember("height").asInt();
           }
         }
         if (json_resp["width"].asInt() < 1 || json_resp["height"].asInt() < 1){
           json_resp["width"] = 640ll;
           json_resp["height"] = 480ll;
         }
-        if (ServConf["streams"][streamname]["meta"].isMember("vod")){
+        if (strm.getMember("vod")){
           json_resp["type"] = "vod";
         }
-        if (ServConf["streams"][streamname]["meta"].isMember("live")){
+        if (strm.getMember("live")){
           json_resp["type"] = "live";
         }
 
         // show ALL the meta datas!
-        json_resp["meta"] = ServConf["streams"][streamname]["meta"];
+        json_resp["meta"] = strm.asJSON();
 
         //create a set for storing source information
         std::set<JSON::Value, sourceCompare> sources;
 
         //find out which connectors are enabled
         std::set<std::string> conns;
-        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          conns.insert(( *it)["connector"].asStringRef());
+        unsigned int prots_ctr = prots.getSize();
+        for (unsigned int i = 0; i < prots_ctr; ++i){
+          conns.insert(prots.getIndice(i).getMember("connector").asString());
         }
         //loop over the connectors.
-        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          const std::string & cName = ( *it)["connector"].asStringRef();
+        for (unsigned int i = 0; i < prots_ctr; ++i){
+          std::string cName = prots.getIndice(i).getMember("connector").asString();
+          DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(cName);
           //if the connector has a port,
-          if (capabilities.isMember(cName) && capabilities[cName].isMember("optional") && capabilities[cName]["optional"].isMember("port")){
+          if (capa.getMember("optional").getMember("port")){
             //get the default port if none is set
-            if (( *it)["port"].asInt() == 0){
-              ( *it)["port"] = capabilities[cName]["optional"]["port"]["default"];
+            std::string port = prots.getIndice(i).getMember("port").asString();
+            if (!port.size()){
+              port = capa.getMember("optional").getMember("port").getMember("default").asString();
             }
             //and a URL - then list the URL
-            if (capabilities[cName].isMember("url_rel")){
-              addSources(streamname, capabilities[cName]["url_rel"].asStringRef(), sources, host, ( *it)["port"].asString(), capabilities[cName], ServConf["streams"][streamname]["meta"]);
+            if (capa.getMember("url_rel")){
+              JSON::Value capa_json = capa.asJSON();
+              addSources(streamname, capa.getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"]);
             }
             //check each enabled protocol separately to see if it depends on this connector
-            for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
+            DTSC::Scan capa_lst = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
+            unsigned int capa_lst_ctr = capa_lst.getSize();
+            for (unsigned int j = 0; j < capa_lst_ctr; ++j){
               //if it depends on this connector and has a URL, list it
-              if (conns.count(oit->first) && (oit->second["deps"].asStringRef() == cName || oit->second["deps"].asStringRef() + ".exe" == cName) && oit->second.isMember("methods")){
-                addSources(streamname, oit->second["url_rel"].asStringRef(), sources, host, ( *it)["port"].asString(), oit->second, ServConf["streams"][streamname]["meta"]);
+              if (conns.count(capa_lst.getIndiceName(j)) && (capa_lst.getIndice(j).getMember("deps").asString() == cName || capa_lst.getIndice(j).getMember("deps").asString() + ".exe" == cName) && capa_lst.getIndice(j).getMember("methods")){
+                JSON::Value capa_json = capa_lst.getIndice(j).asJSON();
+                addSources(streamname, capa_lst.getIndice(j).getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"]);
               }
             }
           }
@@ -472,6 +477,8 @@ namespace Connector_HTTP {
       }else{
         json_resp["error"] = "The specified stream is not available on this server.";
       }
+      configLock.post();
+      configLock.close();
       response += "mistvideo['" + streamname + "'] = " + json_resp.toString() + ";\n";
       if (url.substr(0, 6) != "/info_" && !json_resp.isMember("error")){
         response.append("\n(");
@@ -484,7 +491,7 @@ namespace Connector_HTTP {
       }
       H.SetBody(response);
       long long int ret = Util::getMS();
-      conn.SendNow(H.BuildResponse("200", "OK"));
+      H.SendResponse("200", "OK", conn);
       return ret;
     } //embed code generator
 
@@ -498,8 +505,6 @@ namespace Connector_HTTP {
   ///\param connector The type of connector to be invoked.
   ///\return -1 on failure, else 0.
   long long int proxyHandleThroughConnector(HTTP::Parser & H, Socket::Connection & conn, std::string & connector){
-    updateConfig();
-    
     //create a unique ID based on a hash of the user agent and host, followed by the stream name and connector
     std::stringstream uidtemp;
     /// \todo verify the correct formation of the uid
@@ -515,14 +520,21 @@ namespace Connector_HTTP {
     for (int i=0; i<20; i++){argarr[i] = 0;}
     int id = -1;
 
-    for (unsigned int i=0; i < ServConf["config"]["protocols"].size(); ++i){
-      if ( ServConf["config"]["protocols"][i]["connector"].asStringRef() == connector ) {
+    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    configLock.wait();
+    DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
+    unsigned int prots_ctr = prots.getSize();
+    
+    for (unsigned int i=0; i < prots_ctr; ++i){
+      if (prots.getIndice(i).getMember("connector").asString() == connector) {
         id =  i;
         break;  	//pick the first protocol in the list that matches the connector 
       }
     }
     if (id == -1) {
       DEBUG_MSG(DLVL_ERROR, "No connector found for: %s", connector.c_str());
+      configLock.post();
+      configLock.close();
       return -1;
     }
 
@@ -534,16 +546,18 @@ namespace Connector_HTTP {
     std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
 
     std::string tmparg;
-    tmparg = Util::getMyPath() + std::string("MistOut") + ServConf["config"]["protocols"][id]["connector"].asStringRef();
+    tmparg = Util::getMyPath() + std::string("MistOut") + connector;
     struct stat buf;
     if (::stat(tmparg.c_str(), &buf) != 0){
-      tmparg = Util::getMyPath() + std::string("MistConn") + ServConf["config"]["protocols"][id]["connector"].asStringRef();
+      tmparg = Util::getMyPath() + std::string("MistConn") + connector;
     }
 
     int argnum = 0;
     argarr[argnum++] = (char*)tmparg.c_str();
-    JSON::Value & p = ServConf["config"]["protocols"][id];
-    JSON::Value & pipedCapa = capabilities[p["connector"].asStringRef()];
+    JSON::Value p = prots.getIndice(id).asJSON();
+    JSON::Value pipedCapa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(connector).asJSON();
+    configLock.post();
+    configLock.close();
     argarr[argnum++] = (char*)"-i";
     argarr[argnum++] = (char*)(temphost.c_str());
     argarr[argnum++] = (char*)"-s";
@@ -572,41 +586,7 @@ namespace Connector_HTTP {
   /// - anything else: The request should be dispatched to a connector on the named socket.
   std::string proxyGetHandleType(HTTP::Parser & H){
     std::string url = H.getUrl();
-    
-    //loop over the connectors
-    for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
-      //if it depends on HTTP and has a match or prefix...
-      if (oit->second["deps"].asStringRef() == "HTTP" && oit->second.isMember("socket") && (oit->second.isMember("url_match") || oit->second.isMember("url_prefix"))){
-        //if there is a matcher, try to match
-        if (oit->second.isMember("url_match")){
-          size_t found = oit->second["url_match"].asStringRef().find('$');
-          if (found != std::string::npos){
-            if (oit->second["url_match"].asStringRef().substr(0, found) == url.substr(0, found) && oit->second["url_match"].asStringRef().substr(found+1) == url.substr(url.size() - (oit->second["url_match"].asStringRef().size() - found) + 1)){
-              //it matched - handle it now
-              std::string streamname = url.substr(found, url.size() - oit->second["url_match"].asStringRef().size() + 1);
-              Util::Stream::sanitizeName(streamname);
-              H.SetVar("stream", streamname);             
-              return oit->first;
-            }
-          }
-        }
-        //if there is a prefix, try to match
-        if (oit->second.isMember("url_prefix")){
-          size_t found = oit->second["url_prefix"].asStringRef().find('$');
-          if (found != std::string::npos){
-            size_t found_suf = url.find(oit->second["url_prefix"].asStringRef().substr(found+1), found);
-            if (oit->second["url_prefix"].asStringRef().substr(0, found) == url.substr(0, found) && found_suf != std::string::npos){
-              //it matched - handle it now
-              std::string streamname = url.substr(found, found_suf - found);
-              Util::Stream::sanitizeName(streamname);
-              H.SetVar("stream", streamname);
-              return oit->first;
-            }
-          }
-        }
-      }
-    }
-  
+
     if (url.length() > 4){
       std::string ext = url.substr(url.length() - 4, 4);
       if (ext == ".ico"){
@@ -631,6 +611,54 @@ namespace Connector_HTTP {
     if (url.length() > 9 && url.substr(0, 6) == "/info_" && url.substr(url.length() - 3, 3) == ".js"){
       return "internal";
     }
+    
+    //loop over the connectors
+    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    configLock.wait();
+    DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
+    unsigned int capa_ctr = capa.getSize();
+    for (unsigned int i = 0; i < capa_ctr; ++i){
+      DTSC::Scan c = capa.getIndice(i);
+      //if it depends on HTTP and has a match or prefix...
+      if (c.getMember("deps").asString() == "HTTP" && (c.getMember("url_match") || c.getMember("url_prefix"))){
+        //if there is a matcher, try to match
+        if (c.getMember("url_match")){
+          std::string m = c.getMember("url_match").asString();
+          size_t found = m.find('$');
+          if (found != std::string::npos){
+            if (m.substr(0, found) == url.substr(0, found) && m.substr(found+1) == url.substr(url.size() - (m.size() - found) + 1)){
+              //it matched - handle it now
+              std::string streamname = url.substr(found, url.size() - m.size() + 1);
+              Util::sanitizeName(streamname);
+              H.SetVar("stream", streamname);
+              configLock.post();
+              configLock.close();
+              return capa.getIndiceName(i);
+            }
+          }
+        }
+        //if there is a prefix, try to match
+        if (c.getMember("url_prefix")){
+          std::string m = c.getMember("url_prefix").asString();
+          size_t found = m.find('$');
+          if (found != std::string::npos){
+            size_t found_suf = url.find(m.substr(found+1), found);
+            if (m.substr(0, found) == url.substr(0, found) && found_suf != std::string::npos){
+              //it matched - handle it now
+              std::string streamname = url.substr(found, found_suf - found);
+              Util::sanitizeName(streamname);
+              H.SetVar("stream", streamname);
+              configLock.post();
+              configLock.close();
+              return capa.getIndiceName(i);
+            }
+          }
+        }
+      }
+    }
+    configLock.post();
+    configLock.close();
+    
     return "none";
   }
 
@@ -690,7 +718,6 @@ int main(int argc, char ** argv){
   capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
   capa["optional"]["debug"]["option"] = "--debug";
   capa["optional"]["debug"]["type"] = "uint";
-  Connector_HTTP::ServConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
   capa["desc"] = "Enables the generic HTTP listener, required by all other HTTP protocols. Needs other HTTP protocols enabled to do much of anything.";
   capa["deps"] = "";
   conf.addConnectorOptions(8080, capa);
@@ -699,30 +726,6 @@ int main(int argc, char ** argv){
     std::cout << capa.toString() << std::endl;
     return -1;
   }
-  
-  //list available protocols and report about them
-  std::deque<std::string> execs;
-  Util::getMyExec(execs);
-  std::string arg_one;
-  char const * conn_args[] = {0, "-j", 0};
-  for (std::deque<std::string>::iterator it = execs.begin(); it != execs.end(); it++){
-    if ((*it).substr(0, 8) == "MistConn"){
-      arg_one = Util::getMyPath() + (*it);
-      conn_args[0] = arg_one.c_str();
-      Connector_HTTP::capabilities[(*it).substr(8)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
-      if (Connector_HTTP::capabilities[(*it).substr(8)].size() < 1){
-        Connector_HTTP::capabilities.removeMember((*it).substr(8));
-      }
-    }
-    if ((*it).substr(0, 7) == "MistOut"){
-      arg_one = Util::getMyPath() + (*it);
-      conn_args[0] = arg_one.c_str();
-      Connector_HTTP::capabilities[(*it).substr(7)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
-      if (Connector_HTTP::capabilities[(*it).substr(7)].size() < 1){
-        Connector_HTTP::capabilities.removeMember((*it).substr(7));
-      }
-    }
-  }
-  
+  Connector_HTTP::serverCfg.init("!mistConfig", 4*1024*1024);
   return conf.serveThreadedSocket(Connector_HTTP::proxyHandleHTTPConnection);
-} //main
+}

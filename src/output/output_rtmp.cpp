@@ -2,6 +2,7 @@
 #include <mist/http_parser.h>
 #include <mist/defines.h>
 #include <mist/stream.h>
+#include <sys/stat.h>
 #include <cstring>
 #include <cstdlib>
 
@@ -446,47 +447,51 @@ namespace Mist {
     if ((amfData.getContentP(0)->StrValue() == "publish")) {
       if (amfData.getContentP(3)) {
         streamName = amfData.getContentP(3)->StrValue();
-        Util::Stream::sanitizeName(streamName);
+        Util::sanitizeName(streamName);
         //pull the server configuration
-        JSON::Value servConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");    
-        if (servConf.isMember("streams") && servConf["streams"].isMember(streamName)){
-          JSON::Value & streamConfig = servConf["streams"][streamName];
-          if (!streamConfig.isMember("source") || streamConfig["source"].asStringRef().substr(0, 7) != "push://"){
-            DEBUG_MSG(DLVL_FAIL, "Push rejected - stream not a push-able stream. (%s != push://*)", streamConfig["source"].asStringRef().c_str());
+        IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
+        IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+        configLock.wait();
+        
+        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName);
+        if (streamCfg){
+          if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
+            DEBUG_MSG(DLVL_FAIL, "Push rejected - stream not a push-able stream. (%s != push://*)", streamCfg.getMember("source").asString().c_str());
             myConn.close();
-            return;
-          }
-          std::string source = streamConfig["source"].asStringRef().substr(7);
-          std::string IP = source.substr(0, source.find('@'));
-          /*LTS-START*/
-          std::string password;
-          if (source.find('@') != std::string::npos){
-            password = source.substr(source.find('@')+1);
-            if (password != ""){
-              if (password == app_name){
-                DEBUG_MSG(DLVL_DEVEL, "Password accepted - ignoring IP settings.");
-                IP = "";
-              }else{
-                DEBUG_MSG(DLVL_DEVEL, "Password rejected - checking IP.");
-                if (IP == ""){
-                  IP = "deny-all.invalid";
+          }else{
+            std::string source = streamCfg.getMember("source").asString().substr(7);
+            std::string IP = source.substr(0, source.find('@'));
+            /*LTS-START*/
+            std::string password;
+            if (source.find('@') != std::string::npos){
+              password = source.substr(source.find('@')+1);
+              if (password != ""){
+                if (password == app_name){
+                  DEBUG_MSG(DLVL_DEVEL, "Password accepted - ignoring IP settings.");
+                  IP = "";
+                }else{
+                  DEBUG_MSG(DLVL_DEVEL, "Password rejected - checking IP.");
+                  if (IP == ""){
+                    IP = "deny-all.invalid";
+                  }
                 }
               }
             }
-          }
-          /*LTS-END*/
-          if (IP != ""){
-            if (!myConn.isAddress(IP)){
-              DEBUG_MSG(DLVL_FAIL, "Push rejected - source host not whitelisted");
-              myConn.close();
-              return;
+            /*LTS-END*/
+            if (IP != ""){
+              if (!myConn.isAddress(IP)){
+                DEBUG_MSG(DLVL_FAIL, "Push rejected - source host not whitelisted");
+                myConn.close();
+              }
             }
           }
         }else{
           DEBUG_MSG(DLVL_FAIL, "Push rejected - stream not configured.");
           myConn.close();
-          return;
         }
+        configLock.post();
+        configLock.close();
+        if (!myConn){return;}//do not initialize if rejected
         initialize();
       }
       //send a _result reply
@@ -530,8 +535,8 @@ namespace Mist {
       //handle variables
       if (streamName.find('?') != std::string::npos){
         std::string tmpVars = streamName.substr(streamName.find('?') + 1);
-        Util::Stream::sanitizeName(streamName);
         parseVars(tmpVars);
+        Util::sanitizeName(streamName);
       }
 
       initialize();

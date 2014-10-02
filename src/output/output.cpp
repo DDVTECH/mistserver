@@ -31,7 +31,7 @@ namespace Mist {
     return ((long long int)timePoint[0] << 56) | ((long long int)timePoint[1] << 48) | ((long long int)timePoint[2] << 40) | ((long long int)timePoint[3] << 32) | ((long long int)timePoint[4] << 24) | ((long long int)timePoint[5] << 16) | ((long long int)timePoint[6] << 8) | timePoint[7];
   }
 
-   void Output::init(Util::Config * cfg){
+  void Output::init(Util::Config * cfg){
     capa["optional"]["debug"]["name"] = "debug";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
@@ -232,7 +232,7 @@ namespace Mist {
     if (streamIndex.mapped){
       return;
     }
-    if (!Util::Stream::getStream(streamName)){
+    if (!Util::startInput(streamName)){
       DEBUG_MSG(DLVL_FAIL, "Opening stream disallowed - aborting initalization");
       onFail();
       return;

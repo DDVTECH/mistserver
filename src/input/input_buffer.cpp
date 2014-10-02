@@ -14,11 +14,12 @@
 
 namespace Mist {
   inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg) {
+    capa["name"] = "Buffer";
     JSON::Value option;
     option["arg"] = "integer";
     option["long"] = "buffer";
     option["short"] = "b";
-    option["help"] = "Buffertime for this stream.";
+    option["help"] = "DVR buffer time in ms";
     option["value"].append(30000LL);
     config->addOption("bufferTime", option);
     /*LTS-start*/
@@ -29,21 +30,22 @@ namespace Mist {
     option["help"] = "Record the stream to a file";
     option["value"].append("");
     config->addOption("record", option);
+    capa["optional"]["record"]["name"] = "Record to file";
+    capa["optional"]["record"]["help"] = "Filename to record the stream to.";
+    capa["optional"]["record"]["option"] = "--record";
+    capa["optional"]["record"]["type"] = "str";
     /*LTS-end*/
-        
-    
-    capa["desc"] = "Enables buffered live input";
+    capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
+    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes.";
+    capa["optional"]["DVR"]["option"] = "--buffer";
+    capa["optional"]["DVR"]["type"] = "uint";
+    capa["optional"]["DVR"]["default"] = 30000LL;
+    capa["source_match"] = "push://*";
+    capa["priority"] = 9ll;
+    capa["desc"] = "Provides buffered live input";
     capa["codecs"][0u][0u].append("*");
     capa["codecs"][0u][1u].append("*");
     capa["codecs"][0u][2u].append("*");
-    capa["codecs"][0u][3u].append("*");
-    capa["codecs"][0u][4u].append("*");
-    capa["codecs"][0u][5u].append("*");
-    capa["codecs"][0u][6u].append("*");
-    capa["codecs"][0u][7u].append("*");
-    capa["codecs"][0u][8u].append("*");
-    capa["codecs"][0u][9u].append("*");
-    DEBUG_MSG(DLVL_DEVEL, "Started MistInBuffer");
     isBuffer = true;
     singleton = this;
     bufferTime = 0;
@@ -52,9 +54,11 @@ namespace Mist {
   }
 
   inputBuffer::~inputBuffer(){
-    DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
-    for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      while (removeKey(it->first)){}
+    if (myMeta.tracks.size()){
+      DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
+      for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        while (removeKey(it->first)){}
+      }
     }
   }
 
@@ -72,9 +76,9 @@ namespace Mist {
     myMeta.bufferWindow = lastms - firstms;
     myMeta.vod = false;
     myMeta.live = true;
-    myMeta.writeTo(metaPage.mapped);
     IPC::semaphore liveMeta(std::string("liveMeta@" + config->getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     liveMeta.wait();
+    myMeta.writeTo(metaPage.mapped);
     memset(metaPage.mapped+myMeta.getSendLen(), 0, metaPage.len > myMeta.getSendLen() ? std::min(metaPage.len-myMeta.getSendLen(), 4ll) : 0);
     liveMeta.post();
   } 
@@ -410,14 +414,16 @@ namespace Mist {
     if (!bufferTime){
       bufferTime = config->getInteger("bufferTime");
     }
-    JSON::Value servConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");    
-    if (servConf.isMember("streams") && servConf["streams"].isMember(config->getString("streamname"))){
-      JSON::Value & streamConfig = servConf["streams"][config->getString("streamname")];
-      if (streamConfig.isMember("DVR") && streamConfig["DVR"].asInt()){
-        if (bufferTime != streamConfig["DVR"].asInt()){
-          DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, streamConfig["DVR"].asInt());
-          bufferTime = streamConfig["DVR"].asInt();
-        }
+    
+    IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
+    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    configLock.wait();
+    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(config->getString("streamname"));
+    if (streamCfg && streamCfg.getMember("DVR")){
+      long long bufTime = streamCfg.getMember("DVR").asInt();
+      if (bufferTime != bufTime){
+        DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, bufTime);
+        bufferTime = bufTime;
       }
       /*LTS-START*/
       if (streamConfig.isMember("cut") && streamConfig["cut"].asInt()){
@@ -446,6 +452,9 @@ namespace Mist {
 
       /*LTS-END*/
     }
+    configLock.post();
+    configLock.close();
+    
     return true;
   }
 

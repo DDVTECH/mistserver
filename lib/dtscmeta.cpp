@@ -1151,7 +1151,7 @@ namespace DTSC {
       }
       keys.push_back(newKey);
       firstms = keys[0].getTime();
-      if (!fragments.size() || pack.getTime() - 5000 >= (unsigned long long)getKey(fragments.rbegin()->getNumber()).getTime()) {
+      if (!fragments.size() || (pack.getTime() > 5000 && pack.getTime() - 5000 >= (unsigned long long)getKey(fragments.rbegin()->getNumber()).getTime())) {
         //new fragment
         Fragment newFrag;
         newFrag.setDuration(0);
@@ -1212,7 +1212,7 @@ namespace DTSC {
       }
       keys.push_back(newKey);
       firstms = keys[0].getTime();
-      if (!fragments.size() || pack["time"].asInt() - 5000 >= getKey(fragments.rbegin()->getNumber()).getTime()) {
+      if (!fragments.size() || (pack["time"].asInt() > 5000 && pack["time"].asInt() - 5000 >= getKey(fragments.rbegin()->getNumber()).getTime())) {
         //new fragment
         Fragment newFrag;
         newFrag.setDuration(0);

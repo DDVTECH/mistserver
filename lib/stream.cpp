@@ -155,6 +155,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   unsigned int opt_size = optional.getSize();
   for (unsigned int i = 0; i < opt_size; ++i){
     std::string opt = optional.getIndiceName(i);
+    DEBUG_MSG(DLVL_VERYHIGH, "Checking optional %u: %s", i, opt.c_str());
     if (stream_cfg.getMember(opt)){
       str_args[optional.getIndice(i).getMember("option").asString()] = stream_cfg.getMember(opt).asString();
     }
@@ -163,7 +164,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   //finally, unlock the config semaphore
   configLock.post();
 
-  INFO_MSG("Starting %s -p -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
+  INFO_MSG("Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
   char * argv[30] = {(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str()};
   int argNum = 3;
   std::string debugLvl;
@@ -178,15 +179,20 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
   argv[++argNum] = (char *)0;
   
-  int pid = 1;
+  int pid = 0;
   if (forkFirst){
+    DEBUG_MSG(DLVL_DONTEVEN, "Forking");
     pid = fork();
     if (pid == -1) {
       FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
       return false;
     }
+  }else{
+    DEBUG_MSG(DLVL_DONTEVEN, "Not forking");
   }
+  
   if (pid == 0){
+    DEBUG_MSG(DLVL_DONTEVEN, "execvp");
     execvp(argv[0], argv);
     FAIL_MSG("Starting process %s for stream %s failed: %s", argv[0], streamname.c_str(), strerror(errno));
     _exit(42);

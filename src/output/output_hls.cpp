@@ -51,13 +51,8 @@ namespace Mist {
         longestFragment = it->getDuration();
       }
     }
-    result << "#EXTM3U\r\n"
-        "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
-    if (myMeta.live && myMeta.tracks[tid].fragments.size() > 2){
-      result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags+1 << "\r\n";
-    }else{
-      result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags << "\r\n";
-    }
+    result << "#EXTM3U\r\n#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
+        
     std::deque<std::string> lines;
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
       long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
@@ -67,9 +62,11 @@ namespace Mist {
     }
     
     //skip the first fragment if live and there are more than 2 fragments.
+    unsigned int skippedLines = 0;
     if (myMeta.live){
       if (lines.size() > 2){
         lines.pop_front();
+        skippedLines++;
       }
       //only print the last segment when VoD
       lines.pop_back();
@@ -78,16 +75,18 @@ namespace Mist {
         unsigned long listlimit = config->getInteger("listlimit");
         while (lines.size() > listlimit){
           lines.pop_front();
+          skippedLines++;
         }
       }
       /*LTS-END*/
     }
     
+    result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags + skippedLines << "\r\n";
+    
     while (lines.size()){
       result << lines.front();
       lines.pop_front();
     }
-    
     if ( !myMeta.live){
       result << "#EXT-X-ENDLIST\r\n";
     }

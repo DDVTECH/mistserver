@@ -153,6 +153,8 @@ namespace Mist {
     malSize = 4;//initialise data read buffer to 0;
     data = (char*)malloc(malSize);
     capa["decs"] = "Enables MP4 Input";
+    capa["source_match"] = "/*.mp4";
+    capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");

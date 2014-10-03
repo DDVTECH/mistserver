@@ -187,7 +187,6 @@ MistInBuffer: override CPPFLAGS += "-DINPUTTYPE=\"input_buffer.h\""
 MistInBuffer: src/input/mist_in.cpp src/input/input.cpp src/input/input_buffer.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
-inputs: MistInAV
 MistInAV: override LDLIBS += -lavformat -lavcodec -lavutil $(THREADLIB)
 MistInAV: override CPPFLAGS += "-DINPUTTYPE=\"input_av.h\""
 MistInAV: src/input/mist_in.cpp src/input/input.cpp src/input/input_av.cpp

@@ -14,6 +14,8 @@ namespace Mist {
   inputAV::inputAV(Util::Config * cfg) : Input(cfg) {
     pFormatCtx = 0;
     capa["decs"] = "Enables generic avformat/avcodec based input";
+    capa["source_match"] = "/*";
+    capa["priority"] = 1ll;
     capa["codecs"][0u][0u].null();
     capa["codecs"][0u][1u].null();
     capa["codecs"][0u][2u].null();

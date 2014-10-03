@@ -22,6 +22,10 @@ namespace Mist {
     option["help"] = "DVR buffer time in ms";
     option["value"].append(30000LL);
     config->addOption("bufferTime", option);
+    capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
+    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes.";
+    capa["optional"]["DVR"]["option"] = "--buffer";
+    capa["optional"]["DVR"]["type"] = "uint";
     /*LTS-start*/
     option.null();
     option["arg"] = "string";
@@ -34,11 +38,19 @@ namespace Mist {
     capa["optional"]["record"]["help"] = "Filename to record the stream to.";
     capa["optional"]["record"]["option"] = "--record";
     capa["optional"]["record"]["type"] = "str";
+    option.null();
+    option["arg"] = "integer";
+    option["long"] = "cut";
+    option["short"] = "c";
+    option["help"] = "Any timestamps before this will be cut from the live buffer";
+    option["value"].append(0LL);
+    config->addOption("cut", option);
+    capa["optional"]["cut"]["name"] = "Cut time (ms)";
+    capa["optional"]["cut"]["help"] = "Any timestamps before this will be cut from the live buffer.";
+    capa["optional"]["cut"]["option"] = "--cut";
+    capa["optional"]["cut"]["type"] = "uint";
+    capa["optional"]["cut"]["default"] = 0LL;
     /*LTS-end*/
-    capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
-    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes.";
-    capa["optional"]["DVR"]["option"] = "--buffer";
-    capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 30000LL;
     capa["source_match"] = "push://*";
     capa["priority"] = 9ll;
@@ -411,15 +423,12 @@ namespace Mist {
 
   bool inputBuffer::setup() {
     lastReTime = Util::epoch(); /*LTS*/
-    if (!bufferTime){
-      bufferTime = config->getInteger("bufferTime");
-    }
-    
+    std::string strName = config->getString("streamname");
     IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
-    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(config->getString("streamname"));
-    if (streamCfg && streamCfg.getMember("DVR")){
+    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
+    if (streamCfg){
       long long bufTime = streamCfg.getMember("DVR").asInt();
       if (bufferTime != bufTime){
         DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, bufTime);
@@ -432,6 +441,32 @@ namespace Mist {
         cutTime = bufTime;
       }
       std::string rec = streamCfg.getMember("record").asString();
+      if (rec != ""){
+        if (recName != rec){
+          //close currently recording file, for we should open a new one
+          recFile.close();
+          recMeta.tracks.clear();
+        }
+        if (!recFile.is_open()){
+          recName = rec;
+          DEBUG_MSG(DLVL_DEVEL, "Starting to record stream %s to %s", config->getString("streamname").c_str(), recName.c_str());
+          recFile.open(recName.c_str());
+          if (recFile.fail()){
+            DEBUG_MSG(DLVL_DEVEL, "Error occured during record opening: %s", strerror(errno));
+          }
+          recBpos = 0;
+        }
+      }
+      /*LTS-END*/
+    }else{
+      if (!bufferTime){
+        bufferTime = config->getInteger("bufferTime");
+      }
+      /*LTS-START*/
+      if (!cutTime){
+        cutTime = config->getInteger("cut");
+      }
+      std::string rec = config->getString("record");
       if (rec != ""){
         if (recName != rec){
           //close currently recording file, for we should open a new one

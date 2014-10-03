@@ -20,6 +20,8 @@ namespace Mist {
   /// \arg cfg Util::Config that contains all current configurations.
   inputTS::inputTS(Util::Config * cfg) : Input(cfg) {
     capa["decs"] = "Enables TS Input";
+    capa["source_match"] = "/*.ts";
+    capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
   }

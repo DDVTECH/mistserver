@@ -51,28 +51,32 @@ namespace Mist {
         longestFragment = it->getDuration();
       }
     }
-    result << "#EXTM3U\r\n"
-        "#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
-    if (myMeta.live && myMeta.tracks[tid].fragments.size() > 2){
-      result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags+1 << "\r\n";
-    }else{
-      result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags << "\r\n";
-    }
+    result << "#EXTM3U\r\n#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
+        
+    std::deque<std::string> lines;
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
-      if (myMeta.live && myMeta.tracks[tid].fragments.size() > 2 && it == myMeta.tracks[tid].fragments.begin()){
-        //skip the first fragment if live and there are more than 2 fragments.
-        continue;
-      }
       long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
-      
-      if (it != (myMeta.tracks[tid].fragments.end() - 1)){
-        result << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n" << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
-      } else {
-        //only print the last segment when VoD
-        if (myMeta.vod){
-          result << "#EXTINF:" << ((myMeta.tracks[tid].lastms-starttime + 500) / 1000) << ", no desc\r\n" << starttime << "_" << myMeta.tracks[tid].lastms << ".ts\r\n";
-        }
+      std::stringstream line;
+      line << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n" << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
+      lines.push_back(line.str());
+    }
+    
+    //skip the first fragment if live and there are more than 2 fragments.
+    unsigned int skippedLines = 0;
+    if (myMeta.live){
+      if (lines.size() > 2){
+        lines.pop_front();
+        skippedLines++;
       }
+      //only print the last segment when VoD
+      lines.pop_back();
+    }
+    
+    result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags + skippedLines << "\r\n";
+    
+    while (lines.size()){
+      result << lines.front();
+      lines.pop_front();
     }
     if ( !myMeta.live){
       result << "#EXT-X-ENDLIST\r\n";
@@ -111,6 +115,7 @@ namespace Mist {
     capa["socket"] = "http_hls";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9ll;
@@ -207,6 +212,12 @@ namespace Mist {
     if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
       bs = TS::Packet::getPESVideoLeadIn(0ul, currentPacket.getTime() * 90);
       fillPacket(first, bs.data(), bs.size(), VideoCounter);
+      if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
+        //End of previous nal unit, somehow needed for h264
+        bs = "\000\000\000\001\011\360";
+        fillPacket(first, bs.data(), bs.size(),VideoCounter);
+      }
+      
       
       if (currentPacket.getInt("keyframe")){
         if (!haveAvcc){

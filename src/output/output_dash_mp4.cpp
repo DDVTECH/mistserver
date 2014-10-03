@@ -540,7 +540,7 @@ namespace Mist {
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
     capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/video/mp4";
+    capa["methods"][0u]["type"] = "dash/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
     capa["methods"][0u]["nolive"] = 1;
 

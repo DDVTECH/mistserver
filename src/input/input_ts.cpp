@@ -19,6 +19,7 @@ namespace Mist {
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
   inputTS::inputTS(Util::Config * cfg) : Input(cfg) {
+    capa["name"] = "TS";
     capa["decs"] = "Enables TS Input";
     capa["source_match"] = "/*.ts";
     capa["priority"] = 9ll;

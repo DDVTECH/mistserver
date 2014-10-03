@@ -449,11 +449,12 @@ namespace Mist {
         streamName = amfData.getContentP(3)->StrValue();
         Util::sanitizeName(streamName);
         //pull the server configuration
+        std::string smp = streamName.substr(0,(streamName.find('+')));
         IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
         IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
         configLock.wait();
         
-        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName);
+        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(smp);
         if (streamCfg){
           if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
             DEBUG_MSG(DLVL_FAIL, "Push rejected - stream not a push-able stream. (%s != push://*)", streamCfg.getMember("source").asString().c_str());

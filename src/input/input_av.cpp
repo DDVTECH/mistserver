@@ -13,6 +13,7 @@
 namespace Mist {
   inputAV::inputAV(Util::Config * cfg) : Input(cfg) {
     pFormatCtx = 0;
+    capa["name"] = "AV";
     capa["decs"] = "Enables generic avformat/avcodec based input";
     capa["source_match"] = "/*";
     capa["priority"] = 1ll;
@@ -45,7 +46,7 @@ namespace Mist {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
-    if (!config->getBool("player")){
+    if (!config->getString("streamname").size()){
       if (config->getString("output") == "-") {
         std::cerr << "Output to stdout not yet supported" << std::endl;
         return false;

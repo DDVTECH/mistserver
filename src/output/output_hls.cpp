@@ -58,22 +58,36 @@ namespace Mist {
     }else{
       result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags << "\r\n";
     }
+    std::deque<std::string> lines;
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
-      if (myMeta.live && myMeta.tracks[tid].fragments.size() > 2 && it == myMeta.tracks[tid].fragments.begin()){
-        //skip the first fragment if live and there are more than 2 fragments.
-        continue;
-      }
       long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
-      
-      if (it != (myMeta.tracks[tid].fragments.end() - 1)){
-        result << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n" << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
-      } else {
-        //only print the last segment when VoD
-        if (myMeta.vod){
-          result << "#EXTINF:" << ((myMeta.tracks[tid].lastms-starttime + 500) / 1000) << ", no desc\r\n" << starttime << "_" << myMeta.tracks[tid].lastms << ".ts\r\n";
+      std::stringstream line;
+      line << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n" << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
+      lines.push_back(line.str());
+    }
+    
+    //skip the first fragment if live and there are more than 2 fragments.
+    if (myMeta.live){
+      if (lines.size() > 2){
+        lines.pop_front();
+      }
+      //only print the last segment when VoD
+      lines.pop_back();
+      /*LTS-START*/
+      if (config->getInteger("listlimit")){
+        unsigned long listlimit = config->getInteger("listlimit");
+        while (lines.size() > listlimit){
+          lines.pop_front();
         }
       }
+      /*LTS-END*/
     }
+    
+    while (lines.size()){
+      result << lines.front();
+      lines.pop_front();
+    }
+    
     if ( !myMeta.live){
       result << "#EXT-X-ENDLIST\r\n";
     }
@@ -113,10 +127,19 @@ namespace Mist {
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9ll;
     cfg->addBasicConnectorOptions(capa);
+    /*LTS-START*/
+    cfg->addOption("listlimit", JSON::fromString("{\"arg\":\"integer\",\"default\":0,\"short\":\"y\",\"long\":\"list-limit\",\"help\":\"Maximum number of parts in live playlists (0 = infinite).\"}"));
+    capa["optional"]["listlimit"]["name"] = "Live playlist limit";
+    capa["optional"]["listlimit"]["help"] = "Maximum number of parts in live playlists. (0 = infinite)";
+    capa["optional"]["listlimit"]["default"] = 0ll;
+    capa["optional"]["listlimit"]["type"] = "uint";
+    capa["optional"]["listlimit"]["option"] = "--list-limit";
+    /*LTS-END*/
     config = cfg;
   }
   

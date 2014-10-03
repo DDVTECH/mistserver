@@ -152,6 +152,7 @@ namespace Mist {
   inputMP4::inputMP4(Util::Config * cfg) : Input(cfg) {
     malSize = 4;//initialise data read buffer to 0;
     data = (char*)malloc(malSize);
+    capa["name"] = "MP4";
     capa["decs"] = "Enables MP4 Input";
     capa["source_match"] = "/*.mp4";
     capa["priority"] = 9ll;
@@ -172,7 +173,7 @@ namespace Mist {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
-    if (!config->getBool("player")){
+    if (!config->getString("streamname").size()){
       if (config->getString("output") == "-") {
         std::cerr << "Output to stdout not yet supported" << std::endl;
         return false;

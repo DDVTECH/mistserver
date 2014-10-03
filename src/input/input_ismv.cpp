@@ -12,6 +12,7 @@
 
 namespace Mist {
   inputISMV::inputISMV(Util::Config * cfg) : Input(cfg) {
+    capa["name"] = "ISMV";
     capa["decs"] = "Enables ISMV Input";
     capa["source_match"] = "/*.ismv";
     capa["priority"] = 9ll;
@@ -26,7 +27,7 @@ namespace Mist {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
-    if (!config->getBool("player")){
+    if (!config->getString("streamname").size()){
       if (config->getString("output") == "-") {
         std::cerr << "Output to stdout not yet supported" << std::endl;
         return false;

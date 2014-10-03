@@ -26,6 +26,7 @@ namespace Mist {
     capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
+    capa["optional"]["DVR"]["default"] = 30000LL;
     /*LTS-start*/
     option.null();
     option["arg"] = "string";
@@ -50,8 +51,19 @@ namespace Mist {
     capa["optional"]["cut"]["option"] = "--cut";
     capa["optional"]["cut"]["type"] = "uint";
     capa["optional"]["cut"]["default"] = 0LL;
+    option.null();
+    option["arg"] = "integer";
+    option["long"] = "segment-size";
+    option["short"] = "S";
+    option["help"] = "Target time duration in milliseconds for segments";
+    option["value"].append(10000LL);
+    config->addOption("segmentsize", option);
+    capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
+    capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
+    capa["optional"]["segmentsize"]["option"] = "--segment-size";
+    capa["optional"]["segmentsize"]["type"] = "uint";
+    capa["optional"]["segmentsize"]["default"] = 10000LL;
     /*LTS-end*/
-    capa["optional"]["DVR"]["default"] = 30000LL;
     capa["source_match"] = "push://*";
     capa["priority"] = 9ll;
     capa["desc"] = "Provides buffered live input";
@@ -62,7 +74,7 @@ namespace Mist {
     singleton = this;
     bufferTime = 0;
     cutTime = 0;
-    
+    segmentSize = 0;
   }
 
   inputBuffer::~inputBuffer(){
@@ -410,7 +422,7 @@ namespace Mist {
       return;
     }
     while (tmpPack) {
-      myMeta.update(tmpPack);
+      myMeta.update(tmpPack, segmentSize);/*LTS*/
       if (inputLoc[tNum][pageNum].firstTime == 0){
         inputLoc[tNum][pageNum].firstTime = tmpPack.getTime();
       }
@@ -424,6 +436,8 @@ namespace Mist {
   bool inputBuffer::setup() {
     lastReTime = Util::epoch(); /*LTS*/
     std::string strName = config->getString("streamname");
+    Util::sanitizeName(strName);
+    strName = strName.substr(0,(strName.find('+')));
     IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
@@ -439,6 +453,11 @@ namespace Mist {
       if (cutTime != bufTime){
         DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, bufTime);
         cutTime = bufTime;
+      }
+      bufTime = streamCfg.getMember("segmentsize").asInt();
+      if (segmentSize != bufTime){
+        DEBUG_MSG(DLVL_DEVEL, "Setting segmentSize from %u to new value of %lli", segmentSize, bufTime);
+        segmentSize = bufTime;
       }
       std::string rec = streamCfg.getMember("record").asString();
       if (rec != ""){
@@ -465,6 +484,9 @@ namespace Mist {
       /*LTS-START*/
       if (!cutTime){
         cutTime = config->getInteger("cut");
+      }
+      if (!segmentSize){
+        segmentSize = config->getInteger("segmentsize");
       }
       std::string rec = config->getString("record");
       if (rec != ""){

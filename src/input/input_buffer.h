@@ -12,6 +12,7 @@ namespace Mist {
     private:
       unsigned int bufferTime;
       unsigned int cutTime;
+      unsigned int segmentSize; /*LTS*/
       unsigned int lastReTime; /*LTS*/
     protected:
       //Private Functions

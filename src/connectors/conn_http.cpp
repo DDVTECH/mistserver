@@ -307,9 +307,8 @@ namespace Connector_HTTP {
       H.SetHeader("Content-Type", "image/x-icon");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetHeader("Content-Length", icon_len);
-      H.SetBody("");
       long long int ret = Util::getMS();
-      conn.SendNow(H.BuildResponse("200", "OK"));
+      H.SendResponse("200", "OK", conn);
       conn.SendNow((const char*)icon_data, icon_len);
       return ret;
     }
@@ -404,6 +403,20 @@ namespace Connector_HTTP {
       IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
       configLock.wait();
       DTSC::Scan strm = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamname).getMember("meta");
+      IPC::sharedPage streamIndex;
+      if (!strm){
+        //Stream metadata not found - attempt to start it
+        if (Util::startInput(streamname)){
+          streamIndex.init(streamname, 8 * 1024 * 1024);
+          if (streamIndex.mapped){
+            strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
+          }
+        }
+        if (!strm){
+          //stream failed to start or isn't configured
+          response += "// Stream isn't configured and/or couldn't be started. Sorry.\n";
+        }
+      }
       DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
       if (strm && prots){
         DTSC::Scan trcks = strm.getMember("tracks");

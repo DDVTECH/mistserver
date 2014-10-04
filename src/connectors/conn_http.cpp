@@ -401,14 +401,19 @@ namespace Connector_HTTP {
       response = "// Generating info code for stream " + streamname + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
       IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      IPC::semaphore metaLocker(std::string("liveMeta@" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      bool metaLock = false;
       configLock.wait();
       DTSC::Scan strm = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamname).getMember("meta");
       IPC::sharedPage streamIndex;
       if (!strm){
+        configLock.post();
         //Stream metadata not found - attempt to start it
         if (Util::startInput(streamname)){
           streamIndex.init(streamname, 8 * 1024 * 1024);
           if (streamIndex.mapped){
+            metaLock = true;
+            metaLocker.wait();
             strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
           }
         }
@@ -416,6 +421,7 @@ namespace Connector_HTTP {
           //stream failed to start or isn't configured
           response += "// Stream isn't configured and/or couldn't be started. Sorry.\n";
         }
+        configLock.wait();
       }
       DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
       if (strm && prots){
@@ -442,7 +448,12 @@ namespace Connector_HTTP {
 
         // show ALL the meta datas!
         json_resp["meta"] = strm.asJSON();
+        for (JSON::ObjIter it = json_resp["meta"]["tracks"].ObjBegin(); it != json_resp["meta"]["tracks"].ObjEnd(); ++it){
+          it->second.removeMember("fragments");
+          it->second.removeMember("keys");
+          it->second.removeMember("parts");
           it->second.removeMember("ivecs");/*LTS*/
+        }
 
         //create a set for storing source information
         std::set<JSON::Value, sourceCompare> sources;
@@ -491,6 +502,10 @@ namespace Connector_HTTP {
       }else{
         json_resp["error"] = "The specified stream is not available on this server.";
       }
+      if (metaLock){
+        metaLocker.post();
+      }
+      
       configLock.post();
       configLock.close();
       response += "mistvideo['" + streamname + "'] = " + json_resp.toString() + ";\n";

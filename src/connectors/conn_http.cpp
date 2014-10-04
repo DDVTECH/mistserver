@@ -292,9 +292,8 @@ namespace Connector_HTTP {
       H.SetHeader("Content-Type", "image/x-icon");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
       H.SetHeader("Content-Length", icon_len);
-      H.SetBody("");
       long long int ret = Util::getMS();
-      conn.SendNow(H.BuildResponse("200", "OK"));
+      H.SendResponse("200", "OK", conn);
       conn.SendNow((const char*)icon_data, icon_len);
       return ret;
     }
@@ -387,8 +386,28 @@ namespace Connector_HTTP {
       response = "// Generating info code for stream " + streamname + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
       IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      IPC::semaphore metaLocker(std::string("liveMeta@" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      bool metaLock = false;
       configLock.wait();
       DTSC::Scan strm = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamname).getMember("meta");
+      IPC::sharedPage streamIndex;
+      if (!strm){
+        configLock.post();
+        //Stream metadata not found - attempt to start it
+        if (Util::startInput(streamname)){
+          streamIndex.init(streamname, 8 * 1024 * 1024);
+          if (streamIndex.mapped){
+            metaLock = true;
+            metaLocker.wait();
+            strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
+          }
+        }
+        if (!strm){
+          //stream failed to start or isn't configured
+          response += "// Stream isn't configured and/or couldn't be started. Sorry.\n";
+        }
+        configLock.wait();
+      }
       DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
       if (strm && prots){
         DTSC::Scan trcks = strm.getMember("tracks");
@@ -414,6 +433,11 @@ namespace Connector_HTTP {
 
         // show ALL the meta datas!
         json_resp["meta"] = strm.asJSON();
+        for (JSON::ObjIter it = json_resp["meta"]["tracks"].ObjBegin(); it != json_resp["meta"]["tracks"].ObjEnd(); ++it){
+          it->second.removeMember("fragments");
+          it->second.removeMember("keys");
+          it->second.removeMember("parts");
+        }
 
         //create a set for storing source information
         std::set<JSON::Value, sourceCompare> sources;
@@ -462,6 +486,10 @@ namespace Connector_HTTP {
       }else{
         json_resp["error"] = "The specified stream is not available on this server.";
       }
+      if (metaLock){
+        metaLocker.post();
+      }
+      
       configLock.post();
       configLock.close();
       response += "mistvideo['" + streamname + "'] = " + json_resp.toString() + ";\n";

@@ -4,6 +4,8 @@
 #include <cstring>
 #include <iomanip>
 
+#define AUDIO_KEY_INTERVAL 5000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
+
 /// Retrieves a short in network order from the pointer p.
 static short btohs(char * p) {
   return (p[0] << 8) + p[1];
@@ -1133,7 +1135,7 @@ namespace DTSC {
     }
     parts.push_back(newPart);
     lastms = pack.getTime();
-    if (pack.getFlag("keyframe") || !keys.size() || (type != "video" && pack.getTime() > 5000 && pack.getTime() - 5000 > (unsigned long long)keys[keys.size() - 1].getTime())) {
+    if (pack.getFlag("keyframe") || !keys.size() || (type != "video" && pack.getTime() >= AUDIO_KEY_INTERVAL && pack.getTime() - (unsigned long long)keys[keys.size() - 1].getTime() >= AUDIO_KEY_INTERVAL)){
       Key newKey;
       newKey.setTime(pack.getTime());
       newKey.setParts(0);
@@ -1194,7 +1196,7 @@ namespace DTSC {
     }
     parts.push_back(newPart);
     lastms = pack["time"].asInt();
-    if (pack.isMember("keyframe") || !keys.size() || (type != "video" && pack["time"].asInt() - 5000 > keys[keys.size() - 1].getTime())) {
+    if (pack.isMember("keyframe") || !keys.size() || (type != "video" && pack["time"].asInt() >= AUDIO_KEY_INTERVAL && pack["time"].asInt() - keys[keys.size() - 1].getTime() >= AUDIO_KEY_INTERVAL)) {
       Key newKey;
       newKey.setTime(pack["time"].asInt());
       newKey.setParts(0);

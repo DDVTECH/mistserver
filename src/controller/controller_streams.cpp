@@ -71,6 +71,7 @@ namespace Controller {
             trackIt->second.removeMember("fragments");
             trackIt->second.removeMember("keys");
             trackIt->second.removeMember("parts");
+            trackIt->second.removeMember("ivecs");/*LTS*/
           }
         }
       }

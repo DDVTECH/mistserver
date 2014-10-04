@@ -442,6 +442,7 @@ namespace Connector_HTTP {
 
         // show ALL the meta datas!
         json_resp["meta"] = strm.asJSON();
+          it->second.removeMember("ivecs");/*LTS*/
 
         //create a set for storing source information
         std::set<JSON::Value, sourceCompare> sources;

@@ -57,7 +57,11 @@ namespace Mist {
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
       long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
       std::stringstream line;
-      line << "#EXTINF:" << ((it->getDuration() + 500) / 1000) << ", no desc\r\n" << starttime << "_" << it->getDuration() + starttime << ".ts\r\n";
+      long long duration = it->getDuration();
+      if (duration < 0){
+        duration = myMeta.tracks[tid].lastms - starttime;
+      }
+      line << "#EXTINF:" << ((duration + 500) / 1000) << ", no desc\r\n" << starttime << "_" << duration + starttime << ".ts\r\n";
       lines.push_back(line.str());
     }
     
@@ -293,6 +297,10 @@ namespace Mist {
         continue;
       } //crossdomain.xml
       
+      if (HTTP_R.url.find("hls") == std::string::npos){
+        myConn.close();
+        continue;
+      }
       
       AppleCompat = (HTTP_R.GetHeader("User-Agent").find("Apple") != std::string::npos);
       initialize();

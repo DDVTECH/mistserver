@@ -118,6 +118,7 @@ namespace Mist {
       unsigned int maxSkipAhead;///< Maximum ms that we will go ahead of the intended timestamps.
       unsigned int minSkipAhead;///< Minimum ms that we will go ahead of the intended timestamps.
       unsigned int realTime;///< Playback speed times 1000 (1000 == 1.0X). Zero is infinite.
+      bool completeKeysOnly;///< Bool if we send whole keys only, so the metadata is complete and the output knows in advance what will be sent.
 
       //Read/write status variables
       Socket::Connection & myConn;///< Connection to the client.

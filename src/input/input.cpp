@@ -249,7 +249,7 @@ namespace Mist {
         sprintf(tmpId, "%d", tid);
         indexPages[tid].init(config->getString("streamname") + tmpId, 8 * 1024, true);//Pages of 8kb in size, room for 512 parts.
       }
-      if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() == curData[tid].partNum){
+      if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() + 1 == curData[tid].partNum){
         if (curData[tid].dataSize > 8 * 1024 * 1024) {
           pagesByTrack[tid][bookKeeping[tid].first] = curData[tid];
           bookKeeping[tid].first += curData[tid].keyNum;
@@ -264,6 +264,7 @@ namespace Mist {
       curData[tid].dataSize += lastPack.getDataLen();
       curData[tid].partNum ++;
       bookKeeping[tid].curPart ++;
+      DEBUG_MSG(DLVL_DONTEVEN, "Track %d:%d on page %d, being part %d of key %d", lastPack.getTrackId(), lastPack.getTime(), bookKeeping[tid].first, curData[tid].partNum, curData[tid].keyNum);
       getNext(false);
     }
     for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {

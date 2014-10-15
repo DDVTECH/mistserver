@@ -132,7 +132,10 @@ namespace Mist {
     ///\todo Maybe optimize this by keeping track of the byte positions
     if (recFile.good()){
       long long unsigned int firstms = myMeta.tracks[tid].keys[0].getTime();
-      long long unsigned int lastms = myMeta.tracks[tid].keys[1].getTime();
+      long long unsigned int lastms = myMeta.tracks[tid].lastms;
+      if (myMeta.tracks[tid].keys.size() > 1){
+        lastms = myMeta.tracks[tid].keys[1].getTime();
+      }
       DEBUG_MSG(DLVL_DEVEL, "Recording track %d from %llums to %llums", tid, firstms, lastms);
       long long unsigned int bpos = 0;
       DTSC::Packet recPack;

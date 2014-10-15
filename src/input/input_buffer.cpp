@@ -78,6 +78,7 @@ namespace Mist {
   }
 
   inputBuffer::~inputBuffer(){
+    config->is_active = false;
     if (myMeta.tracks.size()){
       DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
       for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
@@ -155,7 +156,7 @@ namespace Mist {
           recJSON["bpos"] = recBpos;
           recFile << recJSON.toNetPacked();
           recFile.flush();
-          recBpos += recPack.getDataLen();
+          recBpos = recFile.tellp();
           recMeta.update(recJSON);
         }
         bpos += recPack.getDataLen();

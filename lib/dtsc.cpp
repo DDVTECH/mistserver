@@ -574,7 +574,7 @@ DTSC::File::operator bool() const {
 /// Open a filename for DTSC reading/writing.
 /// If create is true and file does not exist, attempt to create.
 DTSC::File::File(std::string filename, bool create) {
-  buffer = malloc(4);
+  buffer = malloc(8);
   if (create) {
     F = fopen(filename.c_str(), "w+b");
     if (!F) {
@@ -985,7 +985,10 @@ bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek) {
     seek_bpos(tmpPos.bytePos);
     //read the header
     char header[20];
-    fread((void *)header, 20, 1, F);
+    if (fread((void *)header, 20, 1, F) != 1){
+      DEBUG_MSG(DLVL_WARN, "Could not read header from file. Much sadface.");
+      return false;
+    }
     //check if packetID matches, if not, skip size + 8 bytes.
     int packSize = ntohl(((int *)header)[1]);
     int packID = ntohl(((int *)header)[2]);
@@ -1020,7 +1023,7 @@ bool DTSC::File::seek_time(unsigned int ms) {
   currentPositions.clear();
   if (selectedTracks.size()) {
     for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
-      seek_time(ms, (*it));
+      seek_time(ms, (*it), true);
     }
   }
   return true;

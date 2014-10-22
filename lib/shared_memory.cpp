@@ -546,12 +546,15 @@ namespace IPC {
 
   ///\brief Sets the host of this connection
   void statExchange::host(std::string name) {
+    if (name.size() < 16){
+      memset(data+32, 0, 16);
+    }
     memcpy(data + 32, name.c_str(), std::min((int)name.size(), 16));
   }
 
   ///\brief Gets the host of this connection
   std::string statExchange::host() {
-    return std::string(data + 32, std::min((int)strlen(data + 32), 16));
+    return std::string(data + 32, 16);
   }
 
   ///\brief Sets the name of the stream this user is viewing

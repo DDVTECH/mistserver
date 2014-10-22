@@ -581,6 +581,40 @@ std::string Socket::Connection::getHost() {
   return remotehost;
 }
 
+/// Gets hostname for connection, if available.
+/// Guaranteed to be either empty or 16 bytes long.
+std::string Socket::Connection::getBinHost() {
+  if (remotehost.size()){
+    struct addrinfo * result, *rp, hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_ADDRCONFIG;
+    hints.ai_protocol = 0;
+    hints.ai_canonname = NULL;
+    hints.ai_addr = NULL;
+    hints.ai_next = NULL;
+    int s = getaddrinfo(remotehost.c_str(), 0, &hints, &result);
+    if (s != 0) {
+      DEBUG_MSG(DLVL_FAIL, "Could not resolve '%s'! Error: %s", remotehost.c_str(), gai_strerror(s));
+      return "";
+    }
+    char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+      if (rp->ai_family == AF_INET){
+        memcpy(tmpBuffer + 12, &((sockaddr_in *)rp->ai_addr)->sin_addr.s_addr, 4);
+      }
+      if (rp->ai_family == AF_INET6){
+        memcpy(tmpBuffer, ((sockaddr_in6 *)rp->ai_addr)->sin6_addr.s6_addr, 16);
+      }
+    }
+    freeaddrinfo(result);
+    return std::string(tmpBuffer, 16);
+  }else{
+    return "";
+  }
+}
+
 /// Sets hostname for connection manually.
 /// Overwrites the detected host, thus possibily making it incorrect.
 void Socket::Connection::setHost(std::string host) {
@@ -618,7 +652,6 @@ bool Socket::Connection::isAddress(std::string addr) {
   hints.ai_addr = NULL;
   hints.ai_next = NULL;
   int s = getaddrinfo(addr.c_str(), 0, &hints, &result);
-  DEBUG_MSG(DLVL_DEVEL, "Meh: %s", addr.c_str());
   if (s != 0) {
     return false;
   }

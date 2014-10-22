@@ -909,6 +909,7 @@ namespace Mist {
   }
 
   void Output::stats(){
+    static bool setHost = true;
     if (!isInitialized){
       return;
     }
@@ -924,7 +925,10 @@ namespace Mist {
         lastStats = now;
         IPC::statExchange tmpEx(statsPage.getData());
         tmpEx.now(now);
-        tmpEx.host(myConn.getHost());
+        if (setHost){
+          tmpEx.host(myConn.getBinHost());
+          setHost = false;
+        }
         tmpEx.streamName(streamName);
         tmpEx.connector(capa["name"].asString());
         tmpEx.up(myConn.dataUp());

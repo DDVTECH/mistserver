@@ -264,7 +264,7 @@ namespace Mist {
       curData[tid].dataSize += lastPack.getDataLen();
       curData[tid].partNum ++;
       bookKeeping[tid].curPart ++;
-      DEBUG_MSG(DLVL_DONTEVEN, "Track %d:%d on page %d, being part %d of key %d", lastPack.getTrackId(), lastPack.getTime(), bookKeeping[tid].first, curData[tid].partNum, curData[tid].keyNum);
+      DEBUG_MSG(DLVL_DONTEVEN, "Track %ld:%llu on page %d, being part %d of key %d", lastPack.getTrackId(), lastPack.getTime(), bookKeeping[tid].first, curData[tid].partNum, curData[tid].keyNum);
       getNext(false);
     }
     for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {

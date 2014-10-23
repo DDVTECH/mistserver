@@ -78,6 +78,7 @@ namespace Mist {
       std::map<unsigned long, unsigned long> lastKeyTime;///< Stores the time of the last keyframe, for preventing duplicates
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
+      unsigned int crc;///< Checksum, if any, for usage in the stats.
       unsigned int getKeyForTime(long unsigned int trackId, long long timeStamp);
       IPC::sharedPage streamIndex;///< Shared memory used for metadata
       std::map<int,IPC::sharedPage> indexPages;///< Maintains index pages of each track, holding information about available pages with DTSC packets.

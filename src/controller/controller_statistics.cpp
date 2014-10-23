@@ -15,6 +15,7 @@
 #define STAT_CLI_UP 64
 #define STAT_CLI_BPS_DOWN 128
 #define STAT_CLI_BPS_UP 256
+#define STAT_CLI_CRC 512
 #define STAT_CLI_ALL 0xFFFF
 // These are used to store "totals" field requests in a bitfield for speedup.
 #define STAT_TOT_CLIENTS 1
@@ -31,7 +32,7 @@ std::map<unsigned long, Controller::statStorage> Controller::curConns;///<Connec
 /// old statistics that have disconnected over 10 minutes ago.
 void Controller::SharedMemStats(void * config){
   DEBUG_MSG(DLVL_HIGH, "Starting stats thread");
-  IPC::sharedServer statServer("statistics", 88, true);
+  IPC::sharedServer statServer("statistics", STAT_EX_SIZE, true);
   while(((Util::Config*)config)->is_active){
     //parse current users
     statServer.parseEach(parseStatistics);
@@ -63,6 +64,7 @@ void Controller::statStorage::update(IPC::statExchange & data) {
   if (!connector.size()){
     connector = data.connector();
   }
+  crc = data.crc();
   statLog tmp;
   tmp.time = data.time();
   tmp.lastSecond = data.lastSecond();
@@ -193,6 +195,7 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   if (fields & STAT_CLI_UP){rep["fields"].append("up");}
   if (fields & STAT_CLI_BPS_DOWN){rep["fields"].append("downbps");}
   if (fields & STAT_CLI_BPS_UP){rep["fields"].append("upbps");}
+  if (fields & STAT_CLI_CRC){rep["fields"].append("crc");}
   //output the data itself
   rep["data"].null();
   //start with current connections
@@ -233,6 +236,7 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
             d.append(statRef->second.up);
           }
         }
+        if (fields & STAT_CLI_CRC){d.append((long long)it->second.crc);}
         rep["data"].append(d);
       }
     }
@@ -272,6 +276,7 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
             d.append(statRef->second.up);
           }
         }
+        if (fields & STAT_CLI_CRC){d.append((long long)it->second.crc);}
         rep["data"].append(d);
       }
     }

@@ -3,7 +3,6 @@
 #include <mist/http_parser.h>
 #include <mist/stream.h>
 #include <unistd.h>
-
 #include <mist/amf.h>
 #include <mist/mp4_adobe.h>
 
@@ -191,6 +190,8 @@ namespace Mist {
   void OutHDS::onRequest(){
     HTTP_R.Clean();
     while (HTTP_R.Read(myConn)){
+      std::string ua = HTTP_R.GetHeader("User-Agent");
+      crc = checksum::crc32(0, ua.data(), ua.size());
       DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.getUrl().c_str());
       if (HTTP_R.url.find(".abst") != std::string::npos){
         initialize();

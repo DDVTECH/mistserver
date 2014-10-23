@@ -1,6 +1,7 @@
 #include "output_srt.h"
 #include <mist/http_parser.h>
 #include <mist/defines.h>
+#include <mist/checksum.h>
 #include <iomanip>
 
 namespace Mist {
@@ -75,6 +76,8 @@ namespace Mist {
   void OutProgressiveSRT::onRequest(){
     HTTP::Parser HTTP_R;
     while (HTTP_R.Read(myConn)){
+      std::string ua = HTTP_R.GetHeader("User-Agent");
+      crc = checksum::crc32(0, ua.data(), ua.size());
       DEBUG_MSG(DLVL_DEVEL, "Received request %s", HTTP_R.getUrl().c_str());
       lastNum = 0;
       webVTT = (HTTP_R.url.find(".webvtt") != std::string::npos);

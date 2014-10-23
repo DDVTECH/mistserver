@@ -1,6 +1,7 @@
 #include "output_progressive_mp3.h"
 #include <mist/http_parser.h>
 #include <mist/defines.h>
+#include <mist/checksum.h>
 
 namespace Mist {
   OutProgressiveMP3::OutProgressiveMP3(Socket::Connection & conn) : Output(conn) {
@@ -54,6 +55,8 @@ namespace Mist {
   void OutProgressiveMP3::onRequest(){
     HTTP::Parser HTTP_R;
     while (HTTP_R.Read(myConn)){
+      std::string ua = HTTP_R.GetHeader("User-Agent");
+      crc = checksum::crc32(0, ua.data(), ua.size());
       DEBUG_MSG(DLVL_DEVEL, "Received request %s", HTTP_R.getUrl().c_str());
       if (HTTP_R.GetVar("audio") != ""){
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("audio")).asInt());

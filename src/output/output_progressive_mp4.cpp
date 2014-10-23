@@ -2,6 +2,7 @@
 #include <mist/defines.h>
 #include <mist/mp4.h>
 #include <mist/mp4_generic.h>
+#include <mist/checksum.h>
 
 namespace Mist {
   OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : Output(conn) {
@@ -432,6 +433,8 @@ namespace Mist {
   
   void OutProgressiveMP4::onRequest(){
     if (HTTP_R.Read(myConn)){
+      std::string ua = HTTP_R.GetHeader("User-Agent");
+      crc = checksum::crc32(0, ua.data(), ua.size());
       DEBUG_MSG(DLVL_MEDIUM, "Received request: %s", HTTP_R.getUrl().c_str());
       if (HTTP_R.GetVar("audio") != ""){
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("audio")).asInt());

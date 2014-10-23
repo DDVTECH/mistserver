@@ -40,6 +40,7 @@ namespace Mist {
   
   Output::Output(Socket::Connection & conn) : myConn(conn) {
     firstTime = 0;
+    crc = 0;
     parseData = false;
     wantRequest = true;
     sought = false;
@@ -244,7 +245,7 @@ namespace Mist {
       onFail();
       return;
     }
-    statsPage = IPC::sharedClient("statistics", 88, true);
+    statsPage = IPC::sharedClient("statistics", STAT_EX_SIZE, true);
     playerConn = IPC::sharedClient(streamName + "_users", 30, true);
     
     updateMeta();
@@ -929,6 +930,7 @@ namespace Mist {
           tmpEx.host(myConn.getBinHost());
           setHost = false;
         }
+        tmpEx.crc(crc);
         tmpEx.streamName(streamName);
         tmpEx.connector(capa["name"].asString());
         tmpEx.up(myConn.dataUp());

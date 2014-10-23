@@ -7,6 +7,7 @@
 #include <mist/base64.h>
 #include <mist/http_parser.h>
 #include <mist/stream.h>
+#include <mist/checksum.h>
 #include <unistd.h>
 
 
@@ -517,6 +518,8 @@ namespace Mist {
     sentHeader = false;
     while (HTTP_R.Read(myConn)) {
       initialize();
+      std::string ua = HTTP_R.GetHeader("User-Agent");
+      crc = checksum::crc32(0, ua.data(), ua.size());
       if (HTTP_R.url.find("Manifest") != std::string::npos) {
         //Manifest, direct reply
         HTTP_S.Clean();

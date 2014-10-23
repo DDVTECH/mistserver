@@ -154,6 +154,8 @@ namespace Mist {
 
   void OutHTTPTS::onRequest(){
     while (HTTP_R.Read(myConn)){
+      std::string ua = HTTP_R.GetHeader("User-Agent");
+      crc = checksum::crc32(0, ua.data(), ua.size());
       DEBUG_MSG(DLVL_MEDIUM, "Received request: %s", HTTP_R.getUrl().c_str());
       initialize();
       HTTP_S.Clean();

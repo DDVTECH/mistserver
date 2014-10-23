@@ -18,6 +18,7 @@ namespace Controller {
     public:
       void update(IPC::statExchange & data);
       std::string host;
+      unsigned int crc;
       std::string streamName;
       std::string connector;
       std::map<unsigned long long, statLog> log;

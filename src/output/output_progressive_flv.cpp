@@ -1,4 +1,5 @@
 #include "output_progressive_flv.h"
+#include <mist/checksum.h>
 #include <mist/http_parser.h>
 #include <mist/defines.h>
 
@@ -86,6 +87,8 @@ namespace Mist {
   void OutProgressiveFLV::onRequest(){
     HTTP::Parser HTTP_R;
     while (HTTP_R.Read(myConn)){
+      std::string ua = HTTP_R.GetHeader("User-Agent");
+      crc = checksum::crc32(0, ua.data(), ua.size());
       DEBUG_MSG(DLVL_DEVEL, "Received request %s", HTTP_R.getUrl().c_str());
       if (HTTP_R.GetVar("audio") != ""){
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("audio")).asInt());

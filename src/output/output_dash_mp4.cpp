@@ -3,6 +3,7 @@
 #include <mist/mp4.h>
 #include <mist/mp4_generic.h>
 #include <mist/mp4_dash.h>
+#include <mist/checksum.h>
 
 namespace Mist {
   OutDashMP4::OutDashMP4(Socket::Connection & conn) : Output(conn) {
@@ -588,6 +589,8 @@ namespace Mist {
     long long int byteStart = -1;
     long long int byteEnd = -1;
     while (HTTP_R.Read(myConn)){
+      std::string ua = HTTP_R.GetHeader("User-Agent");
+      crc = checksum::crc32(0, ua.data(), ua.size());
       DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.url.c_str());
       initialize();
       if (HTTP_R.method == "OPTIONS"){

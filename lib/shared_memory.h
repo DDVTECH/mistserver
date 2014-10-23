@@ -10,6 +10,8 @@
 #include <semaphore.h>
 #endif
 
+#define STAT_EX_SIZE 92
+
 namespace IPC {
 
   ///\brief A class used for the exchange of statistics over shared memory.
@@ -32,7 +34,9 @@ namespace IPC {
       std::string streamName();
       void connector(std::string name);
       std::string connector();
-    private:
+      void crc(unsigned int sum);
+      unsigned int crc();
+  private:
       ///\brief The payload for the stat exchange
       /// - 8 byte - now (timestamp of last statistics)
       /// - 4 byte - time (duration of the current connection)
@@ -42,6 +46,7 @@ namespace IPC {
       /// - 16 byte - host (ip address of the peer)
       /// - 20 byte - streamName (name of the stream peer is viewing)
       /// - 20 byte - connector (name of the connector the peer is using)
+      /// - 4 byte - CRC32 of user agent (or zero if none)
       char * data;
   };
 

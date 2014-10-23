@@ -39,6 +39,11 @@ namespace IPC {
     val = ((long)p[0] << 24) | ((long)p[1] << 16) | ((long)p[2] << 8) | p[3];
   }
 
+  /// Reads a long value of p in host order to val.
+  static void btohl(char * p, unsigned int & val) {
+    val = ((long)p[0] << 24) | ((long)p[1] << 16) | ((long)p[2] << 8) | p[3];
+  }
+  
   /// Reads a long long value of p in host order to val.
   static void btohll(char * p, long long & val) {
     val = ((long long)p[0] << 56) | ((long long)p[1] << 48) | ((long long)p[2] << 40) | ((long long)p[3] << 32) | ((long long)p[4] << 24) | ((long long)p[5] << 16) | ((long long)p[6] << 8) | p[7];
@@ -575,6 +580,18 @@ namespace IPC {
   ///\brief Gets the name of the connector through which this user is viewing
   std::string statExchange::connector() {
     return std::string(data + 68, std::min((int)strlen(data + 68), 20));
+  }
+
+  ///\brief Sets checksum field
+  void statExchange::crc(unsigned int sum) {
+    htobl(data + 88, sum);
+  }
+
+  ///\brief Gets checksum field
+  unsigned int statExchange::crc() {
+    unsigned int result;
+    btohl(data + 88, result);
+    return result;
   }
 
   ///\brief Creates a semaphore guard, locks the semaphore on call

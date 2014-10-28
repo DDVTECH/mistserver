@@ -245,15 +245,13 @@ namespace Mist {
         }
       }
       if(PATIds.count(packet.PID())){
-        for (int i = 0; i < ((TS::ProgramMappingTable&)packet).getProgramCount(); i++){
-          //Set the correct stream type for each defined PID 
-          int pid = (((TS::ProgramMappingTable&)packet).getElementaryPID(i));
-          int sType = (((TS::ProgramMappingTable&)packet).getStreamType(i));
-
-          pidToType[pid] = sType;
+        TS::ProgramMappingEntry entry = ((TS::ProgramMappingTable&)packet).getEntry(0); 
+        while(entry){
+          unsigned int pid = entry.elementaryPid();
+          pidToType[pid] = entry.streamType();
           //Check if the track exists in metadata 
           if (!myMeta.tracks.count(pid)){
-            switch (sType){
+            switch (entry.streamType()){
               case 0x1B:
                 myMeta.tracks[pid].codec = "H264";
                 myMeta.tracks[pid].type = "video";
@@ -265,10 +263,11 @@ namespace Mist {
                 myMeta.tracks[pid].trackID = pid;
                 break;
               default:
-                DEBUG_MSG(DLVL_WARN, "Ignoring unsupported track type %0.2X", pid);
+                DEBUG_MSG(DLVL_WARN, "Ignoring unsupported track type %0.2X, on pid %d", entry.streamType(), pid);
                 break;
             }
           }
+          entry.advance();
         }
       }
       if(pidToType.count(packet.PID())){

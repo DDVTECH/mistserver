@@ -118,6 +118,10 @@ void Controller::checkConfig(JSON::Value & in, JSON::Value & out){
 /// Please note that this is NOT secure. At all. Never use this mechanism over a public network!
 /// A status of `"ACC_MADE"` indicates the account was created successfully and can now be used to login as normal.
 bool Controller::authorize(JSON::Value & Request, JSON::Value & Response, Socket::Connection & conn){
+  #ifdef NOAUTH
+  Response["authorize"]["status"] = "OK";
+  return true;
+  #endif
   time_t Time = time(0);
   tm * TimeInfo = localtime( &Time);
   std::stringstream Date;

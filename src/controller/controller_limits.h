@@ -1,11 +1,15 @@
 #pragma once
-#include <GeoIP.h>
 #include <mist/json.h>
 #include <map>
 #include <string>
 
+/*LTS-START*/
+#ifdef GEOIP
+#include <GeoIP.h>
 #define GEOIPV4 "/usr/share/GeoIP/GeoIP.dat"
 #define GEOIPV6 "/usr/share/GeoIP/GeoIPv6.dat"
+#endif
+/*LTS-END*/
 
 namespace Controller{
   void checkStreamLimits(std::string streamName, long long currentKbps, long long connectedUsers);

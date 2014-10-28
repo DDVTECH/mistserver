@@ -741,16 +741,20 @@ namespace Mist {
     return false;
   }
 
+  #ifdef GEOIP
   GeoIP * Output::geoIP4 = 0;
   GeoIP * Output::geoIP6 = 0;
+  #endif
   std::string Output::getCountry(std::string ip){
     char * code = NULL;
+    #ifdef GEOIP
     if (geoIP4){
       code = (char*)GeoIP_country_code_by_addr(geoIP4, ip.c_str());
     }
     if (!code && geoIP6){
       code = (char*)GeoIP_country_code_by_addr_v6(geoIP6, ip.c_str());
     }
+    #endif
     if (!code){
       return "";
     }

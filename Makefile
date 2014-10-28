@@ -14,6 +14,14 @@ endif
 CPPFLAGS = -Wall -g -O2
 override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\"" -DRELEASE="\"$(RELEASE)\""
 
+ifdef GEOIP
+override CPPFLAGS += -DGEOIP=1
+endif
+
+ifdef NOAUTH
+override CPPFLAGS += -DNOAUTH=1
+endif
+
 ifdef WITH_THREADNAMES
 override CPPFLAGS += -DWITH_THREADNAMES=1
 endif

@@ -374,6 +374,7 @@ namespace Controller{
 
   std::string getCountry(std::string ip){
     char * code = NULL;
+    #ifdef GEOIP
     GeoIP * geoIP;
     geoIP = GeoIP_open(GEOIPV4, GEOIP_STANDARD | GEOIP_CHECK_CACHE);
     if (!geoIP){
@@ -391,6 +392,7 @@ namespace Controller{
         GeoIP_delete(geoIP);
       }
     }
+    #endif
     if (!code){
       return "";
     }

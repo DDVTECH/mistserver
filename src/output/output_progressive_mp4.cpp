@@ -5,21 +5,15 @@
 #include <mist/checksum.h>
 
 namespace Mist {
-  OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : Output(conn) {
-    myConn.setHost(config->getString("ip"));
-    streamName = config->getString("streamname");
-  }
-  
+  OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : HTTPOutput(conn){}
   OutProgressiveMP4::~OutProgressiveMP4() {}
   
   void OutProgressiveMP4::init(Util::Config * cfg){
-    Output::init(cfg);
+    HTTPOutput::init(cfg);
     capa["name"] = "MP4";
     capa["desc"] = "Enables HTTP protocol progressive streaming.";
-    capa["deps"] = "HTTP";
     capa["url_rel"] = "/$.mp4";
     capa["url_match"] = "/$.mp4";
-    capa["socket"] = "http_progressive_mp4";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
@@ -28,10 +22,6 @@ namespace Mist {
     capa["methods"][0u]["type"] = "html5/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
     capa["methods"][0u]["nolive"] = 1;
-
-
-    cfg->addBasicConnectorOptions(capa);
-    config = cfg;
   }
   
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size){
@@ -431,47 +421,83 @@ namespace Mist {
     }
   }
   
-  void OutProgressiveMP4::onRequest(){
-    if (HTTP_R.Read(myConn)){
-      std::string ua = HTTP_R.GetHeader("User-Agent");
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      DEBUG_MSG(DLVL_MEDIUM, "Received request: %s", HTTP_R.getUrl().c_str());
-      if (HTTP_R.GetVar("audio") != ""){
-        selectedTracks.insert(JSON::Value(HTTP_R.GetVar("audio")).asInt());
-      }
-      if (HTTP_R.GetVar("video") != ""){
-        selectedTracks.insert(JSON::Value(HTTP_R.GetVar("video")).asInt());
-      }
-
-      /*LTS-START*/
-      //allow setting of max lead time through buffer variable.
-      //max lead time is set in MS, but the variable is in integer seconds for simplicity.
-      if (HTTP_R.GetVar("buffer") != ""){
-        maxSkipAhead = JSON::Value(HTTP_R.GetVar("buffer")).asInt() * 1000;
-        minSkipAhead = maxSkipAhead - std::min(2500u, maxSkipAhead / 2);
-      }
-      /*LTS-END*/
-      parseData = true;
-      wantRequest = false;
-      sentHeader = false;
+  void OutProgressiveMP4::onHTTP(){
+    /*LTS-START*/
+    //allow setting of max lead time through buffer variable.
+    //max lead time is set in MS, but the variable is in integer seconds for simplicity.
+    if (H.GetVar("buffer") != ""){
+      maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;
+      minSkipAhead = maxSkipAhead - std::min(2500u, maxSkipAhead / 2);
     }
-  }
-  
-  /*
-  bool OutProgressiveMP4::onFinish(){
-    //HTTP_S.Chunkify("", myConn);
-    HTTP_R.Clean();
-    parseData = false;
-    wantRequest = true;
-    return true;
-  }
-  */
-  
-  void OutProgressiveMP4::onFail(){
-    HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-    HTTP_S.SetBody("Stream not found. Sorry, we tried.");
-    HTTP_S.SendResponse("404", "Stream not found", myConn);
-    Output::onFail();
+    /*LTS-END*/
+    initialize();
+    parseData = true;
+    wantRequest = false;
+    sentHeader = false;
+    fileSize = 0;
+    std::string headerData = DTSCMeta2MP4Header(fileSize);
+    byteStart = 0;
+    byteEnd = fileSize - 1;
+    seekPoint = 0;
+    char rangeType = ' ';
+    currPos = 0;
+    sortSet.clear();
+    for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
+      keyPart temp;
+      temp.trackID = *subIt;
+      temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
+      temp.endTime = myMeta.tracks[*subIt].firstms + myMeta.tracks[*subIt].parts[0].getDuration();
+      temp.size = myMeta.tracks[*subIt].parts[0].getSize();//bytesize of frame (alle parts all together)
+      temp.index = 0;
+      sortSet.insert(temp);
+    }
+    if (H.GetHeader("Range") != ""){
+      parseRange(H.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerData.size());
+      rangeType = H.GetHeader("Range")[0];
+    }
+    H.Clean(); //make sure no parts of old requests are left in any buffers
+    H.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for MP4 files
+    H.SetHeader("Accept-Ranges", "bytes, parsec");
+    if (rangeType != ' '){
+      if (!byteEnd){
+        if (rangeType == 'p'){
+          H.SetBody("Starsystem not in communications range");
+          H.SendResponse("416", "Starsystem not in communications range", myConn);
+          return;
+        }else{
+          H.SetBody("Requested Range Not Satisfiable");
+          H.SendResponse("416", "Requested Range Not Satisfiable", myConn);
+          return;
+        }
+      }else{
+        std::stringstream rangeReply;
+        rangeReply << "bytes " << byteStart << "-" << byteEnd << "/" << fileSize;
+        H.SetHeader("Content-Length", byteEnd - byteStart + 1);
+        //do not multiplex requests that are > 1MiB
+        if (byteEnd - byteStart + 1 > 1024*1024){
+          H.SetHeader("MistMultiplex", "No");
+        }
+        H.SetHeader("Content-Range", rangeReply.str());
+        /// \todo Switch to chunked?
+        H.SendResponse("206", "Partial content", myConn);
+        //H.StartResponse("206", "Partial content", HTTP_R, conn);
+      }
+    }else{
+      H.SetHeader("Content-Length", byteEnd - byteStart + 1);
+      //do not multiplex requests that aren't ranged
+      H.SetHeader("MistMultiplex", "No");
+      /// \todo Switch to chunked?
+      H.SendResponse("200", "OK", myConn);
+      //HTTP_S.StartResponse(HTTP_R, conn);
+    }
+    leftOver = byteEnd - byteStart + 1;//add one byte, because range "0-0" = 1 byte of data
+    if (byteStart < (long long)headerData.size()){
+      /// \todo Switch to chunked?
+      //H.Chunkify(headerData.data()+byteStart, std::min((long long)headerData.size(), byteEnd) - byteStart, conn);//send MP4 header
+      myConn.SendNow(headerData.data()+byteStart, std::min((long long)headerData.size(), byteEnd) - byteStart);//send MP4 header
+      leftOver -= std::min((long long)headerData.size(), byteEnd) - byteStart;
+    }
+    currPos += headerData.size();//we're now guaranteed to be past the header point, no matter what
   }
   
   void OutProgressiveMP4::sendNext(){
@@ -481,7 +507,7 @@ namespace Mist {
     currentPacket.getString("data", dataPointer, len);
     if ((unsigned long)currentPacket.getTrackId() != sortSet.begin()->trackID || currentPacket.getTime() != sortSet.begin()->time){
       if (perfect){
-        DEBUG_MSG(DLVL_WARN, "Warning: input is inconsistent, playback may not be perfect");
+        DEBUG_MSG(DLVL_WARN, "Warning: input is inconsistent. Expected %lu:%llu but got %ld:%llu", sortSet.begin()->trackID, sortSet.begin()->time, currentPacket.getTrackId(), currentPacket.getTime());
         perfect = false;
       }
     }
@@ -508,7 +534,7 @@ namespace Mist {
     
     if (currPos >= byteStart){
       myConn.SendNow(dataPointer, std::min(leftOver, (long long)len));
-      //HTTP_S.Chunkify(Strm.lastData().data(), Strm.lastData().size(), conn);
+      //H.Chunkify(Strm.lastData().data(), Strm.lastData().size(), conn);
       leftOver -= len;
     }else{
       if (currPos + (long long)len > byteStart){
@@ -526,70 +552,6 @@ namespace Mist {
   }
 
   void OutProgressiveMP4::sendHeader(){
-    fileSize = 0;
-    std::string headerData = DTSCMeta2MP4Header(fileSize);
-    byteStart = 0;
-    byteEnd = fileSize - 1;
-    long long seekPoint = 0;
-    char rangeType = ' ';
-    currPos = 0;
-    sortSet.clear();
-    for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
-      keyPart temp;
-      temp.trackID = *subIt;
-      temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
-      temp.endTime = myMeta.tracks[*subIt].firstms + myMeta.tracks[*subIt].parts[0].getDuration();
-      temp.size = myMeta.tracks[*subIt].parts[0].getSize();//bytesize of frame (alle parts all together)
-      temp.index = 0;
-      sortSet.insert(temp);
-    }
-    if (HTTP_R.GetHeader("Range") != ""){
-      parseRange(HTTP_R.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerData.size());
-      rangeType = HTTP_R.GetHeader("Range")[0];
-    }
-    HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-    HTTP_S.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for MP4 files
-    HTTP_S.SetHeader("Accept-Ranges", "bytes, parsec");
-    if (rangeType != ' '){
-      if (!byteEnd){
-        if (rangeType == 'p'){
-          HTTP_S.SetBody("Starsystem not in communications range");
-          HTTP_S.SendResponse("416", "Starsystem not in communications range", myConn);
-          return;
-        }else{
-          HTTP_S.SetBody("Requested Range Not Satisfiable");
-          HTTP_S.SendResponse("416", "Requested Range Not Satisfiable", myConn);
-          return;
-        }
-      }else{
-        std::stringstream rangeReply;
-        rangeReply << "bytes " << byteStart << "-" << byteEnd << "/" << fileSize;
-        HTTP_S.SetHeader("Content-Length", byteEnd - byteStart + 1);
-        //do not multiplex requests that are > 1MiB
-        if (byteEnd - byteStart + 1 > 1024*1024){
-          HTTP_S.SetHeader("MistMultiplex", "No");
-        }
-        HTTP_S.SetHeader("Content-Range", rangeReply.str());
-        /// \todo Switch to chunked?
-        HTTP_S.SendResponse("206", "Partial content", myConn);
-        //HTTP_S.StartResponse("206", "Partial content", HTTP_R, conn);
-      }
-    }else{
-      HTTP_S.SetHeader("Content-Length", byteEnd - byteStart + 1);
-      //do not multiplex requests that aren't ranged
-      HTTP_S.SetHeader("MistMultiplex", "No");
-      /// \todo Switch to chunked?
-      HTTP_S.SendResponse("200", "OK", myConn);
-      //HTTP_S.StartResponse(HTTP_R, conn);
-    }
-    leftOver = byteEnd - byteStart + 1;//add one byte, because range "0-0" = 1 byte of data
-    if (byteStart < (long long)headerData.size()){
-      /// \todo Switch to chunked?
-      //HTTP_S.Chunkify(headerData.data()+byteStart, std::min((long long)headerData.size(), byteEnd) - byteStart, conn);//send MP4 header
-      myConn.SendNow(headerData.data()+byteStart, std::min((long long)headerData.size(), byteEnd) - byteStart);//send MP4 header
-      leftOver -= std::min((long long)headerData.size(), byteEnd) - byteStart;
-    }
-    currPos += headerData.size();//we're now guaranteed to be past the header point, no matter what
     seek(seekPoint);
     sentHeader = true;
   }

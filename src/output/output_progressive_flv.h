@@ -1,17 +1,17 @@
-#include "output.h"
+#include "output_http.h"
 
 
 namespace Mist {
-  class OutProgressiveFLV : public Output {
+  class OutProgressiveFLV : public HTTPOutput {
     public:
       OutProgressiveFLV(Socket::Connection & conn);
       ~OutProgressiveFLV();
       static void init(Util::Config * cfg);
-      void onRequest();
+      void onHTTP();
       void sendNext();
-      void onFail();
       void sendHeader();
-    protected:
+    private:
+      FLV::Tag tag;
   };
 }
 

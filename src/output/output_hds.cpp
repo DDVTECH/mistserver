@@ -1,6 +1,4 @@
 #include "output_hds.h"
-#include <mist/defines.h>
-#include <mist/http_parser.h>
 #include <mist/stream.h>
 #include <unistd.h>
 #include <mist/amf.h>
@@ -129,30 +127,19 @@ namespace Mist {
     return Result.str();
   } //BuildManifest
   
-  OutHDS::OutHDS(Socket::Connection & conn) : Output(conn) {
+  OutHDS::OutHDS(Socket::Connection & conn) : HTTPOutput(conn) {
     audioTrack = 0;
     playUntil = 0;
-    myConn.setHost(config->getString("ip"));
-    streamName = config->getString("streamname");
   }
 
-  void OutHDS::onFail(){
-    HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-    HTTP_S.SetBody("Stream not found. Sorry, we tried.");
-    HTTP_S.SendResponse("404", "Stream not found", myConn);
-    Output::onFail();
-  }
-  
   OutHDS::~OutHDS() {}
   
   void OutHDS::init(Util::Config * cfg){
-    Output::init(cfg);
+    HTTPOutput::init(cfg);
     capa["name"] = "HDS";
     capa["desc"] = "Enables HTTP protocol Adobe-specific dynamic streaming (also known as HDS).";
-    capa["deps"] = "HTTP";
     capa["url_rel"] = "/dynamic/$/manifest.f4m";
     capa["url_prefix"] = "/dynamic/$/";
-    capa["socket"] = "http_hds";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");
@@ -171,8 +158,6 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/11";
     capa["methods"][0u]["priority"] = 7ll;
-    cfg->addBasicConnectorOptions(capa);
-    config = cfg;
   }
   
   void OutHDS::sendNext(){
@@ -180,106 +165,100 @@ namespace Mist {
       DEBUG_MSG(DLVL_DEVEL, "(%d) Done sending fragment", getpid() );
       stop();
       wantRequest = true;
-      HTTP_S.Chunkify("", 0, myConn);
+      H.Chunkify("", 0, myConn);
       return;
     }
     tag.DTSCLoader(currentPacket, myMeta.tracks[currentPacket.getTrackId()]);
-    HTTP_S.Chunkify(tag.data, tag.len, myConn);
+    H.Chunkify(tag.data, tag.len, myConn);
   }
 
-  void OutHDS::onRequest(){
-    HTTP_R.Clean();
-    while (HTTP_R.Read(myConn)){
-      std::string ua = HTTP_R.GetHeader("User-Agent");
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.getUrl().c_str());
-      if (HTTP_R.url.find(".abst") != std::string::npos){
-        initialize();
-        std::string streamID = HTTP_R.url.substr(streamName.size() + 10);
-        streamID = streamID.substr(0, streamID.find(".abst"));
-        HTTP_S.Clean();
-        HTTP_S.SetBody(dynamicBootstrap(atoll(streamID.c_str())));
-        HTTP_S.SetHeader("Content-Type", "binary/octet");
-        HTTP_S.SetHeader("Cache-Control", "no-cache");
-        HTTP_S.SendResponse("200", "OK", myConn);
-        HTTP_R.Clean(); //clean for any possible next requests
-        continue;
+  void OutHDS::onHTTP(){
+
+    if (H.url.find(".abst") != std::string::npos){
+      initialize();
+      std::string streamID = H.url.substr(streamName.size() + 10);
+      streamID = streamID.substr(0, streamID.find(".abst"));
+      H.Clean();
+      H.SetBody(dynamicBootstrap(atoll(streamID.c_str())));
+      H.SetHeader("Content-Type", "binary/octet");
+      H.SetHeader("Cache-Control", "no-cache");
+      H.SendResponse("200", "OK", myConn);
+      H.Clean(); //clean for any possible next requests
+      return;
+    }
+    if (H.url.find("f4m") == std::string::npos){
+      initialize();
+      std::string tmp_qual = H.url.substr(H.url.find("/", 10) + 1);
+      unsigned int tid;
+      unsigned int fragNum;
+      tid = atoi(tmp_qual.substr(0, tmp_qual.find("Seg") - 1).c_str());
+      int temp;
+      temp = H.url.find("Seg") + 3;
+      temp = H.url.find("Frag") + 4;
+      fragNum = atoi(H.url.substr(temp).c_str()) - 1;
+      DEBUG_MSG(DLVL_MEDIUM, "Video track %d, fragment %d\n", tid, fragNum);
+      if (!audioTrack){getTracks();}
+      unsigned int mstime = 0;
+      unsigned int mslen = 0;
+      if (fragNum < (unsigned int)myMeta.tracks[tid].missedFrags){
+        H.Clean();
+        H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+        H.SendResponse("412", "Fragment out of range", myConn);
+        H.Clean(); //clean for any possible next requests
+        std::cout << "Fragment " << fragNum << " too old" << std::endl;
+        return;
       }
-      if (HTTP_R.url.find("f4m") == std::string::npos){
-        initialize();
-        std::string tmp_qual = HTTP_R.url.substr(HTTP_R.url.find("/", 10) + 1);
-        unsigned int tid;
-        unsigned int fragNum;
-        tid = atoi(tmp_qual.substr(0, tmp_qual.find("Seg") - 1).c_str());
-        int temp;
-        temp = HTTP_R.url.find("Seg") + 3;
-        temp = HTTP_R.url.find("Frag") + 4;
-        fragNum = atoi(HTTP_R.url.substr(temp).c_str()) - 1;
-        DEBUG_MSG(DLVL_MEDIUM, "Video track %d, fragment %d\n", tid, fragNum);
-        if (!audioTrack){getTracks();}
-        unsigned int mstime = 0;
-        unsigned int mslen = 0;
-        if (fragNum < (unsigned int)myMeta.tracks[tid].missedFrags){
-          HTTP_S.Clean();
-          HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-          HTTP_S.SendResponse("412", "Fragment out of range", myConn);
-          HTTP_R.Clean(); //clean for any possible next requests
-          std::cout << "Fragment " << fragNum << " too old" << std::endl;
-          continue;
-        }
-        if (fragNum > myMeta.tracks[tid].missedFrags + myMeta.tracks[tid].fragments.size() - 1){
-          HTTP_S.Clean();
-          HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-          HTTP_S.SendResponse("208", "Ask again later", myConn);
-          HTTP_R.Clean(); //clean for any possible next requests
-          std::cout << "Fragment after fragment " << fragNum << " not available yet" << std::endl;
-          continue;
-        }
-        mstime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getNumber()).getTime();
-        mslen = myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getDuration();
-        
-        selectedTracks.clear();
-        selectedTracks.insert(tid);
-        if (audioTrack){
-          selectedTracks.insert(audioTrack);
-        }
-        seek(mstime);
-        playUntil = mstime + mslen;
-        
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type", "video/mp4");
-        HTTP_S.StartResponse(HTTP_R, myConn);
-        //send the bootstrap
-        std::string bootstrap = dynamicBootstrap(tid);
-        HTTP_S.Chunkify(bootstrap, myConn);
-        //send a zero-size mdat, meaning it stretches until end of file.
-        HTTP_S.Chunkify("\000\000\000\000mdat", 8, myConn);
-        //send init data, if needed.
-        if (audioTrack > 0 && myMeta.tracks[audioTrack].init != ""){
-          if (tag.DTSCAudioInit(myMeta.tracks[audioTrack])){
-            tag.tagTime(mstime);
-            HTTP_S.Chunkify(tag.data, tag.len, myConn);
-          }
-        }
-        if (tid > 0){
-          if (tag.DTSCVideoInit(myMeta.tracks[tid])){
-            tag.tagTime(mstime);
-            HTTP_S.Chunkify(tag.data, tag.len, myConn);
-          }
-        }
-        parseData = true;
-        wantRequest = false;
-      }else{
-        initialize();
-        std::stringstream tmpstr;
-        myMeta.toPrettyString(tmpstr);
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type", "text/xml");
-        HTTP_S.SetHeader("Cache-Control", "no-cache");
-        HTTP_S.SetBody(dynamicIndex());
-        HTTP_S.SendResponse("200", "OK", myConn);
+      if (fragNum > myMeta.tracks[tid].missedFrags + myMeta.tracks[tid].fragments.size() - 1){
+        H.Clean();
+        H.SetBody("Proxy, re-request this in a second or two.\n");
+        H.SendResponse("208", "Ask again later", myConn);
+        H.Clean(); //clean for any possible next requests
+        std::cout << "Fragment after fragment " << fragNum << " not available yet" << std::endl;
+        return;
       }
-      HTTP_R.Clean(); //clean for any possible next requests
+      mstime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getNumber()).getTime();
+      mslen = myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getDuration();
+      
+      selectedTracks.clear();
+      selectedTracks.insert(tid);
+      if (audioTrack){
+        selectedTracks.insert(audioTrack);
+      }
+      seek(mstime);
+      playUntil = mstime + mslen;
+      
+      H.Clean();
+      H.SetHeader("Content-Type", "video/mp4");
+      H.StartResponse(H, myConn);
+      //send the bootstrap
+      std::string bootstrap = dynamicBootstrap(tid);
+      H.Chunkify(bootstrap, myConn);
+      //send a zero-size mdat, meaning it stretches until end of file.
+      H.Chunkify("\000\000\000\000mdat", 8, myConn);
+      //send init data, if needed.
+      if (audioTrack > 0 && myMeta.tracks[audioTrack].init != ""){
+        if (tag.DTSCAudioInit(myMeta.tracks[audioTrack])){
+          tag.tagTime(mstime);
+          H.Chunkify(tag.data, tag.len, myConn);
+        }
+      }
+      if (tid > 0){
+        if (tag.DTSCVideoInit(myMeta.tracks[tid])){
+          tag.tagTime(mstime);
+          H.Chunkify(tag.data, tag.len, myConn);
+        }
+      }
+      parseData = true;
+      wantRequest = false;
+    }else{
+      initialize();
+      std::stringstream tmpstr;
+      myMeta.toPrettyString(tmpstr);
+      H.Clean();
+      H.SetHeader("Content-Type", "text/xml");
+      H.SetHeader("Cache-Control", "no-cache");
+      H.SetBody(dynamicIndex());
+      H.SendResponse("200", "OK", myConn);
     }
   }
 }

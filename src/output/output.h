@@ -69,6 +69,7 @@ namespace Mist {
       void stop();
       void setBlocking(bool blocking);
       void updateMeta();
+      static bool listenMode(){return true;}
       //virtuals. The optional virtuals have default implementations that do as little as possible.
       virtual void sendNext() {}//REQUIRED! Others are optional.
       virtual void prepareNext();
@@ -79,6 +80,7 @@ namespace Mist {
       virtual void initialize();
       virtual void sendHeader();
       virtual void onFail();
+      virtual void requestHandler();
     private://these *should* not be messed with in child classes.
       /*LTS-START*/
       void Log(std::string type, std::string message);
@@ -90,15 +92,15 @@ namespace Mist {
       /*LTS-END*/
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
-      bool isBlocking;///< If true, indicates that myConn is blocking.
       unsigned int lastStats;///<Time of last sending of stats.
-      IPC::sharedClient statsPage;///< Shared memory used for statistics reporting.
       long long unsigned int firstTime;///< Time of first packet after last seek. Used for real-time sending.
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       std::map<unsigned long, unsigned long> lastKeyTime;///< Stores the time of the last keyframe, for preventing duplicates
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
+      IPC::sharedClient statsPage;///< Shared memory used for statistics reporting.
+      bool isBlocking;///< If true, indicates that myConn is blocking.
       unsigned int crc;///< Checksum, if any, for usage in the stats.
       unsigned int getKeyForTime(long unsigned int trackId, long long timeStamp);
       IPC::sharedPage streamIndex;///< Shared memory used for metadata

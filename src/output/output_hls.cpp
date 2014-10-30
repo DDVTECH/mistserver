@@ -1,6 +1,4 @@
 #include "output_hls.h"
-#include <mist/defines.h>
-#include <mist/http_parser.h>
 #include <mist/stream.h>
 #include <unistd.h>
 
@@ -101,32 +99,21 @@ namespace Mist {
   } //liveIndex
   
   
-  OutHLS::OutHLS(Socket::Connection & conn) : Output(conn) {
+  OutHLS::OutHLS(Socket::Connection & conn) : HTTPOutput(conn) {
     haveAvcc = false;
     haveHvcc = false;
     realTime = 0;
-    myConn.setHost(config->getString("ip"));
     myConn.setBlocking(true);
-    streamName = config->getString("streamname");
   }
   
   OutHLS::~OutHLS() {}
-
-  void OutHLS::onFail(){
-    HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-    HTTP_S.SetBody("Stream not found. Sorry, we tried.");
-    HTTP_S.SendResponse("404", "Stream not found", myConn);
-    Output::onFail();
-  }
   
   void OutHLS::init(Util::Config * cfg){
-    Output::init(cfg);
+    HTTPOutput::init(cfg);
     capa["name"] = "HLS";
     capa["desc"] = "Enables HTTP protocol Apple-specific streaming (also known as HLS).";
-    capa["deps"] = "HTTP";
     capa["url_rel"] = "/hls/$/index.m3u8";
     capa["url_prefix"] = "/hls/$/";
-    capa["socket"] = "http_hls";
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
@@ -134,7 +121,6 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9ll;
-    cfg->addBasicConnectorOptions(capa);
     /*LTS-START*/
     cfg->addOption("listlimit", JSON::fromString("{\"arg\":\"integer\",\"default\":0,\"short\":\"y\",\"long\":\"list-limit\",\"help\":\"Maximum number of parts in live playlists (0 = infinite).\"}"));
     capa["optional"]["listlimit"]["name"] = "Live playlist limit";
@@ -143,7 +129,6 @@ namespace Mist {
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
     /*LTS-END*/
-    config = cfg;
   }
   
   ///this function generates the PMT packet
@@ -182,11 +167,11 @@ namespace Mist {
   void OutHLS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
     if (!PackData.BytesFree()){
       if (PacketNumber % 42 == 0){
-        HTTP_S.Chunkify(TS::PAT, 188, myConn);
-        HTTP_S.Chunkify(createPMT().c_str(), 188, myConn);
+        H.Chunkify(TS::PAT, 188, myConn);
+        H.Chunkify(createPMT().c_str(), 188, myConn);
         PacketNumber += 2;
       }
-      HTTP_S.Chunkify(PackData.ToString(), 188, myConn);
+      H.Chunkify(PackData.ToString(), 188, myConn);
       PacketNumber ++;
       PackData.Clear();
     }
@@ -216,7 +201,6 @@ namespace Mist {
   
   void OutHLS::sendNext(){
     bool first = true;
-    char * ContCounter = 0;
     char * dataPointer = 0;
     unsigned int dataLen = 0;
     currentPacket.getString("data", dataPointer, dataLen); //data
@@ -225,8 +209,8 @@ namespace Mist {
       stop();
       wantRequest = true;
       parseData = false;
-      HTTP_S.Chunkify("", 0, myConn);
-      HTTP_S.Clean();
+      H.Chunkify("", 0, myConn);
+      H.Clean();
       return;
     }
 
@@ -287,7 +271,6 @@ namespace Mist {
       fillPacket(first, bs.data(), bs.size(), AudioCounter);
       bs = TS::GetAudioHeader(dataLen, myMeta.tracks[currentPacket.getTrackId()].init);      
       fillPacket(first, bs.data(), bs.size(), AudioCounter);
-      ContCounter = &AudioCounter;
       fillPacket(first, dataPointer,dataLen, AudioCounter);
       if (PackData.BytesFree() < 184){
         PackData.AddStuffing();
@@ -315,100 +298,93 @@ namespace Mist {
     return 0;
   }
 
-  void OutHLS::onRequest(){
-    while (HTTP_R.Read(myConn)){
-      std::string ua = HTTP_R.GetHeader("User-Agent");
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      DEBUG_MSG(DLVL_MEDIUM, "Received request: %s", HTTP_R.getUrl().c_str());
-      if (HTTP_R.url == "/crossdomain.xml"){
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type", "text/xml");
-        HTTP_S.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
-        HTTP_S.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
-        HTTP_S.SendResponse("200", "OK", myConn);
-        HTTP_R.Clean(); //clean for any possible next requests
-        continue;
-      } //crossdomain.xml
-      
-      if (HTTP_R.url.find("hls") == std::string::npos){
-        myConn.close();
-        continue;
-      }
-      
-      AppleCompat = (HTTP_R.GetHeader("User-Agent").find("Apple") != std::string::npos);
-      initialize();
-      if (HTTP_R.url.find(".m3u") == std::string::npos){
-        std::string tmpStr = HTTP_R.getUrl().substr(5+streamName.size());
-        long long unsigned int from;
-        if (sscanf(tmpStr.c_str(), "/%u_%u/%llu_%llu.ts", &vidTrack, &audTrack, &from, &until) != 4){
-          if (sscanf(tmpStr.c_str(), "/%u/%llu_%llu.ts", &vidTrack, &from, &until) != 3){
-            DEBUG_MSG(DLVL_MEDIUM, "Could not parse URL: %s", HTTP_R.getUrl().c_str());
-            HTTP_S.Clean();
-            HTTP_S.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
-            myConn.SendNow(HTTP_S.BuildResponse("404", "URL mismatch"));
-            HTTP_R.Clean(); //clean for any possible next requests
-            continue;
-          }else{
-            selectedTracks.clear();
-            selectedTracks.insert(vidTrack);
-          }
+  void OutHLS::onHTTP(){
+    if (H.url == "/crossdomain.xml"){
+      H.Clean();
+      H.SetHeader("Content-Type", "text/xml");
+      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+      H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
+      H.SendResponse("200", "OK", myConn);
+      H.Clean(); //clean for any possible next requests
+      return;
+    } //crossdomain.xml
+    
+    if (H.url.find("hls") == std::string::npos){
+      myConn.close();
+      return;
+    }
+    
+    AppleCompat = (H.GetHeader("User-Agent").find("Apple") != std::string::npos);
+    initialize();
+    if (H.url.find(".m3u") == std::string::npos){
+      std::string tmpStr = H.getUrl().substr(5+streamName.size());
+      long long unsigned int from;
+      if (sscanf(tmpStr.c_str(), "/%u_%u/%llu_%llu.ts", &vidTrack, &audTrack, &from, &until) != 4){
+        if (sscanf(tmpStr.c_str(), "/%u/%llu_%llu.ts", &vidTrack, &from, &until) != 3){
+          DEBUG_MSG(DLVL_MEDIUM, "Could not parse URL: %s", H.getUrl().c_str());
+          H.Clean();
+          H.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
+          myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
+          H.Clean(); //clean for any possible next requests
+          return;
         }else{
           selectedTracks.clear();
           selectedTracks.insert(vidTrack);
-          selectedTracks.insert(audTrack);
         }
-        
-        if (myMeta.live){
-          /// \todo Detection of out-of-range parts.
-          int seekable = canSeekms(from);
-          if (seekable < 0){
-            HTTP_S.Clean();
-            HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-            myConn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
-            HTTP_R.Clean(); //clean for any possible next requests
-            DEBUG_MSG(DLVL_WARN, "Fragment @ %llu too old", from);
-            continue;
-          }
-          if (seekable > 0){
-            HTTP_S.Clean();
-            HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-            myConn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
-            HTTP_R.Clean(); //clean for any possible next requests
-            DEBUG_MSG(DLVL_WARN, "Fragment @ %llu not available yet", from);
-            continue;
-          }
-        }
-        
-        seek(from);
-        lastVid = from * 90;
-        
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type", "video/mp2t");
-        HTTP_S.StartResponse(HTTP_R, myConn);
-        PacketNumber = 0;
-        parseData = true;
-        wantRequest = false;
       }else{
-        initialize();
-        std::string request = HTTP_R.url.substr(HTTP_R.url.find("/", 5) + 1);
-        HTTP_S.Clean();
-        if (HTTP_R.url.find(".m3u8") != std::string::npos){
-          HTTP_S.SetHeader("Content-Type", "audio/x-mpegurl");
-        }else{
-          HTTP_S.SetHeader("Content-Type", "audio/mpegurl");
-        }
-        HTTP_S.SetHeader("Cache-Control", "no-cache");
-        std::string manifest;
-        if (request.find("/") == std::string::npos){
-          manifest = liveIndex();
-        }else{
-          int selectId = atoi(request.substr(0,request.find("/")).c_str());
-          manifest = liveIndex(selectId);
-        }
-        HTTP_S.SetBody(manifest);
-        HTTP_S.SendResponse("200", "OK", myConn);
+        selectedTracks.clear();
+        selectedTracks.insert(vidTrack);
+        selectedTracks.insert(audTrack);
       }
-      HTTP_R.Clean(); //clean for any possible next requests
+      
+      if (myMeta.live){
+        /// \todo Detection of out-of-range parts.
+        int seekable = canSeekms(from);
+        if (seekable < 0){
+          H.Clean();
+          H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+          myConn.SendNow(H.BuildResponse("412", "Fragment out of range"));
+          H.Clean(); //clean for any possible next requests
+          DEBUG_MSG(DLVL_WARN, "Fragment @ %llu too old", from);
+          return;
+        }
+        if (seekable > 0){
+          H.Clean();
+          H.SetBody("Proxy, re-request this in a second or two.\n");
+          myConn.SendNow(H.BuildResponse("208", "Ask again later"));
+          H.Clean(); //clean for any possible next requests
+          DEBUG_MSG(DLVL_WARN, "Fragment @ %llu not available yet", from);
+          return;
+        }
+      }
+      
+      seek(from);
+      lastVid = from * 90;
+      
+      H.StartResponse(H, myConn);
+      H.SetHeader("Content-Type", "video/mp2t");
+      PacketNumber = 0;
+      parseData = true;
+      wantRequest = false;
+    }else{
+      initialize();
+      std::string request = H.url.substr(H.url.find("/", 5) + 1);
+      H.Clean();
+      if (H.url.find(".m3u8") != std::string::npos){
+        H.SetHeader("Content-Type", "audio/x-mpegurl");
+      }else{
+        H.SetHeader("Content-Type", "audio/mpegurl");
+      }
+      H.SetHeader("Cache-Control", "no-cache");
+      std::string manifest;
+      if (request.find("/") == std::string::npos){
+        manifest = liveIndex();
+      }else{
+        int selectId = atoi(request.substr(0,request.find("/")).c_str());
+        manifest = liveIndex(selectId);
+      }
+      H.SetBody(manifest);
+      H.SendResponse("200", "OK", myConn);
     }
   }
 }

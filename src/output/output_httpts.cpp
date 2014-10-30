@@ -5,27 +5,17 @@
 #include <unistd.h>
 
 namespace Mist {
-  OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : Output(conn) {
+  OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : HTTPOutput(conn) {
     haveAvcc = false;
-    myConn.setHost(config->getString("ip"));
     myConn.setBlocking(true);
-    streamName = config->getString("streamname");
   }
   
   OutHTTPTS::~OutHTTPTS() {}
 
-  void OutHTTPTS::onFail(){
-    HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-    HTTP_S.SetBody("Stream not found. Sorry, we tried.");
-    HTTP_S.SendResponse("404", "Stream not found", myConn);
-    Output::onFail();
-  }
-  
   void OutHTTPTS::init(Util::Config * cfg){
-    Output::init(cfg);
+    HTTPOutput::init(cfg);
     capa["name"] = "HTTPTS";
     capa["desc"] = "Enables HTTP protocol MPEG2/TS pseudostreaming.";
-    capa["deps"] = "HTTP";
     capa["url_rel"] = "/$.ts";
     capa["url_match"] = "/$.ts";
     capa["socket"] = "http_ts";
@@ -35,8 +25,6 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp2t";
     capa["methods"][0u]["priority"] = 1ll;
-    cfg->addBasicConnectorOptions(capa);
-    config = cfg;
   }
   
   ///this function generates the PMT packet
@@ -73,12 +61,12 @@ namespace Mist {
   void OutHTTPTS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
     if (!PackData.BytesFree()){
       if (PacketNumber % 42 == 0){
-        HTTP_S.Chunkify(TS::PAT, 188, myConn);
+        H.Chunkify(TS::PAT, 188, myConn);
         std::string PMT = createPMT();
-        HTTP_S.Chunkify(PMT, myConn);
+        H.Chunkify(PMT, myConn);
         PacketNumber += 2;
       }
-      HTTP_S.Chunkify(PackData.ToString(), 188, myConn);
+      H.Chunkify(PackData.ToString(), 188, myConn);
       PacketNumber ++;
       PackData.Clear();
     }
@@ -152,19 +140,15 @@ namespace Mist {
     }
   }
 
-  void OutHTTPTS::onRequest(){
-    while (HTTP_R.Read(myConn)){
-      std::string ua = HTTP_R.GetHeader("User-Agent");
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      DEBUG_MSG(DLVL_MEDIUM, "Received request: %s", HTTP_R.getUrl().c_str());
-      initialize();
-      HTTP_S.Clean();
-      HTTP_S.SetHeader("Content-Type", "video/mp2t");
-      HTTP_S.StartResponse(HTTP_R, myConn);
-      PacketNumber = 0;
-      parseData = true;
-      wantRequest = false;
-      HTTP_R.Clean(); //clean for any possible next requests
-    }
+  void OutHTTPTS::onHTTP(){
+
+    initialize();
+    H.Clean();
+    H.SetHeader("Content-Type", "video/mp2t");
+    H.StartResponse(H, myConn);
+    PacketNumber = 0;
+    parseData = true;
+    wantRequest = false;
+    H.Clean(); //clean for any possible next requests
   }
 }

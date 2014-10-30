@@ -1,21 +1,18 @@
-#include "output.h"
+#include "output_http.h"
 #include <mist/http_parser.h>
 #include <mist/ts_packet.h>
 #include <mist/mp4.h>
 #include <mist/mp4_generic.h>
 
 namespace Mist {
-  class OutHTTPTS : public Output {
+  class OutHTTPTS : public HTTPOutput {
     public:
       OutHTTPTS(Socket::Connection & conn);
       ~OutHTTPTS();
       static void init(Util::Config * cfg);
-      void onRequest();
-      void onFail();
+      void onHTTP();
       void sendNext();
     protected:
-      HTTP::Parser HTTP_S;
-      HTTP::Parser HTTP_R;
       std::string createPMT();
       void fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter);
       int keysToSend;

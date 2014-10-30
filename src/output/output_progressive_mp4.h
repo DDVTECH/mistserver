@@ -1,4 +1,4 @@
-#include "output.h"
+#include "output_http.h"
 #include <mist/http_parser.h>
 
 namespace Mist {
@@ -22,7 +22,7 @@ namespace Mist {
       long unsigned int index;
   };
   
-  class OutProgressiveMP4 : public Output {
+  class OutProgressiveMP4 : public HTTPOutput {
     public:
       OutProgressiveMP4(Socket::Connection & conn);
       ~OutProgressiveMP4();
@@ -30,20 +30,17 @@ namespace Mist {
       void parseRange(std::string header, long long & byteStart, long long & byteEnd, long long & seekPoint, unsigned int headerSize);
       std::string DTSCMeta2MP4Header(long long & size);
       void findSeekPoint(long long byteStart, long long & seekPoint, unsigned int headerSize);
-      
-      void onRequest();
+      void onHTTP();
       void sendNext();
-      //bool onFinish();
       void sendHeader();
-      void onFail();
     protected:
       long long fileSize;
       long long byteStart;
       long long byteEnd;
       long long leftOver;
       long long currPos;
+      long long seekPoint;
       std::set <keyPart> sortSet;//filling sortset for interleaving parts
-      HTTP::Parser HTTP_R, HTTP_S;
   };
 }
 

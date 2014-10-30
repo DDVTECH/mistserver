@@ -23,7 +23,7 @@ LDLIBS = -lmist -lrt
 
 .DEFAULT_GOAL := all
 
-all: MistConnHTTP controller analysers inputs outputs
+all: controller analysers inputs outputs
 
 DOXYGEN := $(shell doxygen -v 2> /dev/null)
 ifdef DOXYGEN
@@ -36,11 +36,6 @@ controller: MistController
 MistController: override LDLIBS += $(THREADLIB)
 MistController: src/controller/server.html.h src/controller/*
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) src/controller/*.cpp $(LDLIBS) -o $@
-
-connectors: MistConnHTTP
-MistConnHTTP: override LDLIBS += $(THREADLIB)
-MistConnHTTP: src/connectors/conn_http.cpp src/connectors/embed.js.h src/connectors/icon.h
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $< $(LDLIBS) -o $@
 
 analysers: MistAnalyserRTMP
 MistAnalyserRTMP: src/analysers/rtmp_analyser.cpp
@@ -70,34 +65,6 @@ analysers: MistInfo
 MistInfo: src/analysers/info.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
-converters: MistDTSC2FLV
-MistDTSC2FLV: src/converters/dtsc2flv.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
-
-converters: MistFLV2DTSC
-MistFLV2DTSC: src/converters/flv2dtsc.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
-
-converters: MistDTSCFix
-MistDTSCFix: src/converters/dtscfix.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
-
-converters: MistDTSCMerge
-MistDTSCMerge: src/converters/dtscmerge.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
-
-converters: MistDTSC2TS
-MistDTSC2TS: src/converters/dtsc2ts.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
-
-converters: MistSRT2DTSC
-MistSRT2DTSC: src/converters/srt2dtsc.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
-
-converters: MistDTSC2SRT
-MistDTSC2SRT: src/converters/dtsc2srt.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
-
 inputs: MistInDTSC
 MistInDTSC: override LDLIBS += $(THREADLIB)
 MistInDTSC: override CPPFLAGS += "-DINPUTTYPE=\"input_dtsc.h\""
@@ -125,19 +92,19 @@ MistInBuffer: src/input/mist_in.cpp src/input/input.cpp src/input/input_buffer.c
 outputs: MistOutFLV
 MistOutFLV: override LDLIBS += $(THREADLIB)
 MistOutFLV: override CPPFLAGS += "-DOUTPUTTYPE=\"output_progressive_flv.h\""
-MistOutFLV: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_progressive_flv.cpp
+MistOutFLV: src/output/mist_out.cpp src/output/output_http.cpp src/output/output.cpp src/output/output_progressive_flv.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutMP4
 MistOutMP4: override LDLIBS += $(THREADLIB)
 MistOutMP4: override CPPFLAGS += "-DOUTPUTTYPE=\"output_progressive_mp4.h\""
-MistOutMP4: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_progressive_mp4.cpp
+MistOutMP4: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_progressive_mp4.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutMP3
 MistOutMP3: override LDLIBS += $(THREADLIB)
 MistOutMP3: override CPPFLAGS += "-DOUTPUTTYPE=\"output_progressive_mp3.h\""
-MistOutMP3: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_progressive_mp3.cpp
+MistOutMP3: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_progressive_mp3.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutRTMP
@@ -155,7 +122,7 @@ MistOutRaw: src/output/mist_out.cpp src/output/output.cpp src/output/output_raw.
 outputs: MistOutHTTPTS
 MistOutHTTPTS: override LDLIBS += $(THREADLIB)
 MistOutHTTPTS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_httpts.h\""
-MistOutHTTPTS: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_httpts.cpp
+MistOutHTTPTS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_httpts.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutTS
@@ -164,37 +131,42 @@ MistOutTS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_ts.h\""
 MistOutTS: src/output/mist_out.cpp src/output/output.cpp src/output/output_ts.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
+outputs: MistOutHTTP
+MistOutHTTP: override LDLIBS += $(THREADLIB)
+MistOutHTTP: override CPPFLAGS += "-DOUTPUTTYPE=\"output_http_internal.h\""
+MistOutHTTP: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_http_internal.cpp src/embed.js.h
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_http_internal.cpp $(LDLIBS) -o $@
+
 outputs: MistOutHSS
 MistOutHSS: override LDLIBS += $(THREADLIB)
 MistOutHSS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_hss.h\""
-MistOutHSS: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_hss.cpp
+MistOutHSS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_hss.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 	
 outputs: MistOutHLS
 MistOutHLS: override LDLIBS += $(THREADLIB)
 MistOutHLS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_hls.h\""
-MistOutHLS: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_hls.cpp
+MistOutHLS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_hls.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 	
 outputs: MistOutHDS
 MistOutHDS: override LDLIBS += $(THREADLIB)
 MistOutHDS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_hds.h\""
-MistOutHDS: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_hds.cpp
+MistOutHDS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_hds.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutSRT
 MistOutSRT: override LDLIBS += $(THREADLIB)
 MistOutSRT: override CPPFLAGS += "-DOUTPUTTYPE=\"output_srt.h\""
-MistOutSRT: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_srt.cpp
+MistOutSRT: src/output/mist_out.cpp src/output/output_http.cpp src/output/output.cpp src/output/output_srt.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 	
 outputs: MistOutJSON
 MistOutJSON: override LDLIBS += $(THREADLIB)
 MistOutJSON: override CPPFLAGS += "-DOUTPUTTYPE=\"output_json.h\""
-MistOutJSON: src/output/mist_out_http.cpp src/output/output.cpp src/output/output_json.cpp
+MistOutJSON: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_json.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
-BUILT_SOURCES=controller/server.html.h connectors/embed.js.h
 lspSOURCES=lsp/plugins/jquery.js lsp/plugins/placeholder.js lsp/plugins/md5.js lsp/main.js lsp/pages.js lsp/plugins/tablesort.js lsp/plugins/jquery.flot.min.js lsp/plugins/jquery.flot.time.min.js lsp/plugins/jquery.flot.crosshair.min.js
 lspDATA=lsp/header.html lsp/main.css lsp/footer.html
 
@@ -209,9 +181,9 @@ endif
 sourcery: src/sourcery.cpp
 	$(CXX) -o $@ $(CPPFLAGS) $^
 
-src/connectors/embed.js.h: src/connectors/embed.js sourcery
-	$(CLOSURE) src/connectors/embed.js > embed.min.js
-	./sourcery embed.min.js embed_js > src/connectors/embed.js.h
+src/embed.js.h: src/embed.js sourcery
+	$(CLOSURE) src/embed.js > embed.min.js
+	./sourcery embed.min.js embed_js > src/embed.js.h
 	rm embed.min.js
 
 src/controller/server.html: $(lspDATA) $(lspSOURCES)

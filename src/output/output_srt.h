@@ -1,15 +1,14 @@
-#include "output.h"
+#include "output_http.h"
 
 
 namespace Mist {
-  class OutProgressiveSRT : public Output {
+  class OutProgressiveSRT : public HTTPOutput {
     public:
       OutProgressiveSRT(Socket::Connection & conn);
       ~OutProgressiveSRT();
       static void init(Util::Config * cfg);
-      void onRequest();
+      void onHTTP();
       void sendNext();
-      void onFail();
       void sendHeader();
     protected:
       bool webVTT;

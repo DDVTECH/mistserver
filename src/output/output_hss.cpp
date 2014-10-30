@@ -9,8 +9,6 @@
 #include <mist/checksum.h>
 #include <unistd.h>
 
-
-
 ///\todo Maybe move to util?
 long long unsigned int binToInt(std::string & binary) {
   long long int result = 0;
@@ -45,22 +43,15 @@ std::string toUTF16(std::string original) {
 
 
 namespace Mist {
-  OutHSS::OutHSS(Socket::Connection & conn) : Output(conn) { 
-    realTime = 0;
-    myConn.setHost(config->getString("ip"));
-    streamName = config->getString("streamname");
-  }
-
-  OutHSS::~OutHSS() {}
+  OutHSS::OutHSS(Socket::Connection & conn) : HTTPOutput(conn){realTime = 0;}
+  OutHSS::~OutHSS(){}
 
   void OutHSS::init(Util::Config * cfg) {
-    Output::init(cfg);
+    HTTPOutput::init(cfg);
     capa["name"] = "HSS";
     capa["desc"] = "Enables HTTP protocol Microsoft-specific smooth streaming through silverlight (also known as HSS).";
-    capa["deps"] = "HTTP";
     capa["url_rel"] = "/smooth/$.ism/Manifest";
     capa["url_prefix"] = "/smooth/$.ism/";
-    capa["socket"] = "http_hss";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["methods"][0u]["handler"] = "http";
@@ -71,31 +62,22 @@ namespace Mist {
     capa["methods"][1u]["type"] = "silverlight";
     capa["methods"][1u]["priority"] = 1ll;
     capa["methods"][1u]["nolive"] = 1;
-    cfg->addBasicConnectorOptions(capa);
-    config = cfg;
   }
 
   void OutHSS::sendNext() {
     if (currentPacket.getTime() >= playUntil) {
       stop();
       wantRequest = true;
-      HTTP_S.Chunkify("", 0, myConn);
-      HTTP_R.Clean();
+      H.Chunkify("", 0, myConn);
+      H.Clean();
       return;
     }
     char * dataPointer = 0;
     unsigned int len = 0;
     currentPacket.getString("data", dataPointer, len);
-    HTTP_S.Chunkify(dataPointer, len, myConn);
+    H.Chunkify(dataPointer, len, myConn);
   }
 
-  void OutHSS::onFail(){
-    HTTP_S.Clean(); //make sure no parts of old requests are left in any buffers
-    HTTP_S.SetBody("Stream not found. Sorry, we tried.");
-    HTTP_S.SendResponse("404", "Stream not found", myConn);
-    Output::onFail();
-  }
-  
   int OutHSS::canSeekms(unsigned int ms) {
     //no tracks? Frame too new by definition.
     if (!myMeta.tracks.size()) {
@@ -118,12 +100,11 @@ namespace Mist {
     return 0;
   }
 
-
   void OutHSS::sendHeader() {
     //We have a non-manifest request, parse it.
-    std::string Quality = HTTP_R.url.substr(HTTP_R.url.find("TrackID=", 8) + 8);
+    std::string Quality = H.url.substr(H.url.find("TrackID=", 8) + 8);
     Quality = Quality.substr(0, Quality.find(")"));
-    std::string parseString = HTTP_R.url.substr(HTTP_R.url.find(")/") + 2);
+    std::string parseString = H.url.substr(H.url.find(")/") + 2);
     parseString = parseString.substr(parseString.find("(") + 1);
     long long int seekTime = atoll(parseString.substr(0, parseString.find(")")).c_str()) / 10000;
     unsigned int tid = atoll(Quality.c_str());
@@ -144,20 +125,20 @@ namespace Mist {
         }
       }
       if (seekable < 0){
-        HTTP_S.Clean();
-        HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-        myConn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
-        HTTP_R.Clean(); //clean for any possible next requests
+        H.Clean();
+        H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+        myConn.SendNow(H.BuildResponse("412", "Fragment out of range"));
+        H.Clean(); //clean for any possible next requests
         std::cout << "Fragment @ " << seekTime << "ms too old (" << myMeta.tracks[tid].firstms << " - " << myMeta.tracks[tid].lastms << " ms)" << std::endl;
         stop();
         wantRequest = true;
         return;
       }
       if (seekable > 0){
-        HTTP_S.Clean();
-        HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-        myConn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
-        HTTP_R.Clean(); //clean for any possible next requests
+        H.Clean();
+        H.SetBody("Proxy, re-request this in a second or two.\n");
+        myConn.SendNow(H.BuildResponse("208", "Ask again later"));
+        H.Clean(); //clean for any possible next requests
         std::cout << "Fragment @ " << seekTime << "ms not available yet (" << myMeta.tracks[tid].firstms << " - " << myMeta.tracks[tid].lastms << " ms)" << std::endl;
         stop();
         wantRequest = true;
@@ -181,10 +162,10 @@ namespace Mist {
         nextIt++;
         if (nextIt == myMeta.tracks[tid].keys.end()) {
           if (myMeta.live) {
-            HTTP_S.Clean();
-            HTTP_S.SetBody("Proxy, re-request this in a second or two.\n");
-            myConn.SendNow(HTTP_S.BuildResponse("208", "Ask again later"));
-            HTTP_R.Clean(); //clean for any possible next requests
+            H.Clean();
+            H.SetBody("Proxy, re-request this in a second or two.\n");
+            myConn.SendNow(H.BuildResponse("208", "Ask again later"));
+            H.Clean(); //clean for any possible next requests
             std::cout << "Fragment after fragment @ " << seekTime << " not available yet" << std::endl;
           }
         }
@@ -192,16 +173,16 @@ namespace Mist {
       }
       partOffset += it->getParts();
     }
-    if (HTTP_R.url == "/") {
+    if (H.url == "/") {
       return; //Don't continue, but continue instead.
     }
     /*
     if (myMeta.live) {
       if (mstime == 0 && seekTime > 1){
-        HTTP_S.Clean();
-        HTTP_S.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-        myConn.SendNow(HTTP_S.BuildResponse("412", "Fragment out of range"));
-        HTTP_R.Clean(); //clean for any possible next requests
+        H.Clean();
+        H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
+        myConn.SendNow(H.BuildResponse("412", "Fragment out of range"));
+        H.Clean(); //clean for any possible next requests
         std::cout << "Fragment @ " << seekTime << " too old" << std::endl;
         continue;
       }
@@ -289,15 +270,15 @@ namespace Mist {
     traf_box.setContent(trun_box, 1);
     moof_box.setContent(traf_box, 1);
 
-    HTTP_S.Clean();
-    HTTP_S.SetHeader("Content-Type", "video/mp4");
-    HTTP_S.StartResponse(HTTP_R, myConn);
-    HTTP_S.Chunkify(moof_box.asBox(), moof_box.boxedSize(), myConn);
+    H.Clean();
+    H.SetHeader("Content-Type", "video/mp4");
+    H.StartResponse(H, myConn);
+    H.Chunkify(moof_box.asBox(), moof_box.boxedSize(), myConn);
     int size = htonl(keySize + 8);
-    HTTP_S.Chunkify((char *)&size, 4, myConn);
-    HTTP_S.Chunkify("mdat", 4, myConn);
+    H.Chunkify((char *)&size, 4, myConn);
+    H.Chunkify("mdat", 4, myConn);
     sentHeader = true;
-    HTTP_R.Clean();
+    H.Clean();
   }
 
 
@@ -446,25 +427,21 @@ namespace Mist {
   } //smoothIndex
 
 
-  void OutHSS::onRequest() {
-    sentHeader = false;
-    while (HTTP_R.Read(myConn)) {
-      initialize();
-      std::string ua = HTTP_R.GetHeader("User-Agent");
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      if (HTTP_R.url.find("Manifest") != std::string::npos) {
-        //Manifest, direct reply
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type", "text/xml");
-        HTTP_S.SetHeader("Cache-Control", "no-cache");
-        std::string manifest = smoothIndex();
-        HTTP_S.SetBody(manifest);
-        HTTP_S.SendResponse("200", "OK", myConn);
-        HTTP_R.Clean();
-      } else {
-        parseData = true;
-        wantRequest = false;
-      }
+  void OutHSS::onHTTP() {
+    initialize();
+    if (H.url.find("Manifest") != std::string::npos) {
+      //Manifest, direct reply
+      H.Clean();
+      H.SetHeader("Content-Type", "text/xml");
+      H.SetHeader("Cache-Control", "no-cache");
+      std::string manifest = smoothIndex();
+      H.SetBody(manifest);
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+    } else {
+      parseData = true;
+      wantRequest = false;
+      sendHeader();
     }
   }
 
@@ -477,6 +454,4 @@ namespace Mist {
     }
   }
 
-
 }
-

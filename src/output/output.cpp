@@ -486,29 +486,33 @@ namespace Mist {
       return false;
     }
   }
+  
+  void Output::requestHandler(){
+    static bool firstData = true;//only the first time, we call onRequest if there's data buffered already.
+    if ((firstData && myConn.Received().size()) || myConn.spool()){
+      firstData = false;
+      DEBUG_MSG(DLVL_DONTEVEN, "onRequest");
+      onRequest();
+    }else{
+      if (!isBlocking && !parseData){
+        Util::sleep(500);
+      }
+    }
+  }
  
   int Output::run() {
-    bool firstData = true;//only the first time, we call OnRequest if there's data buffered already.
     DEBUG_MSG(DLVL_MEDIUM, "MistOut client handler started");
     while (myConn.connected() && (wantRequest || parseData)){
       stats();
       if (wantRequest){
-        if ((firstData && myConn.Received().size()) || myConn.spool()){
-          firstData = false;
-          DEBUG_MSG(DLVL_DONTEVEN, "OnRequest");
-          onRequest();
-        }else{
-          if (!isBlocking && !parseData){
-            Util::sleep(500);
-          }
-        }
+        requestHandler();
       }
       if (parseData){
         if (!isInitialized){
           initialize();
         }
         if ( !sentHeader){
-          DEBUG_MSG(DLVL_DONTEVEN, "SendHeader");
+          DEBUG_MSG(DLVL_DONTEVEN, "sendHeader");
           sendHeader();
         }
         prepareNext();

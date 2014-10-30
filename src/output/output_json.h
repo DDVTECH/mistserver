@@ -1,13 +1,13 @@
-#include "output.h"
+#include "output_http.h"
 
 
 namespace Mist {
-  class OutJSON : public Output {
+  class OutJSON : public HTTPOutput {
     public:
       OutJSON(Socket::Connection & conn);
       ~OutJSON();
       static void init(Util::Config * cfg);
-      void onRequest();
+      void onHTTP();
       bool onFinish();
       void sendNext();
       void sendHeader();

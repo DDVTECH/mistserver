@@ -1,30 +1,18 @@
 #include "output_json.h"
-#include <mist/http_parser.h>
-#include <mist/defines.h>
-#include <mist/checksum.h>
 #include <iomanip>
 
 namespace Mist {
-  OutJSON::OutJSON(Socket::Connection & conn) : Output(conn){
-    realTime = 0;
-    myConn.setHost(config->getString("ip"));
-    streamName = config->getString("streamname");
-  }
-  
+  OutJSON::OutJSON(Socket::Connection & conn) : HTTPOutput(conn){realTime = 0;}
   OutJSON::~OutJSON() {}
   
   void OutJSON::init(Util::Config * cfg){
-    Output::init(cfg);
+    HTTPOutput::init(cfg);
     capa["name"] = "JSON";
     capa["desc"] = "Enables HTTP protocol JSON streaming.";
-    capa["deps"] = "HTTP";
     capa["url_rel"] = "/$.json";
     capa["url_match"] = "/$.json";
     capa["url_handler"] = "http";
     capa["url_type"] = "json";
-    capa["socket"] = "http_json";
-    cfg->addBasicConnectorOptions(capa);
-    config = cfg;
   }
   
   void OutJSON::sendNext(){
@@ -42,11 +30,9 @@ namespace Mist {
   }
 
   void OutJSON::sendHeader(){
-    HTTP::Parser HTTP_S;
-    FLV::Tag tag;
-    HTTP_S.SetHeader("Content-Type", "text/javascript");
-    HTTP_S.protocol = "HTTP/1.0";
-    myConn.SendNow(HTTP_S.BuildResponse("200", "OK"));
+    H.SetHeader("Content-Type", "text/javascript");
+    H.protocol = "HTTP/1.0";
+    H.SendResponse("200", "OK", myConn);
     sentHeader = true;
   }
   
@@ -59,31 +45,20 @@ namespace Mist {
     return false;
   }
 
-  void OutJSON::onRequest(){
-    HTTP::Parser HTTP_R;
-    while (HTTP_R.Read(myConn)){
-      std::string ua = HTTP_R.GetHeader("User-Agent");
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      DEBUG_MSG(DLVL_DEVEL, "Received request %s", HTTP_R.getUrl().c_str());
-      first = true;
-      jsonp = "";
-      if (HTTP_R.GetVar("callback") != ""){
-        jsonp = HTTP_R.GetVar("callback");
+  void OutJSON::onHTTP(){
+    first = true;
+    jsonp = "";
+    if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
+    if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
+    initialize();
+    for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      if (it->second.type == "meta" ){
+        selectedTracks.insert(it->first);
       }
-      if (HTTP_R.GetVar("jsonp") != ""){
-        jsonp = HTTP_R.GetVar("jsonp");
-      }
-      initialize();
-      for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.type == "meta" ){
-          selectedTracks.insert(it->first);
-        }
-      }
-      seek(0);
-      parseData = true;
-      wantRequest = false;
-      HTTP_R.Clean();
     }
+    seek(0);
+    parseData = true;
+    wantRequest = false;
   }
 
 }

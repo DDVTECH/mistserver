@@ -118,7 +118,7 @@ namespace Controller {
       
       #define connCapa capabilities["connectors"][connName]
       
-      if (connCapa.isMember("socket")){
+      if (connCapa.isMember("socket") || (connCapa.isMember("deps") && connCapa["deps"].asStringRef() == "HTTP")){
         ( *ait)["online"] = "Enabled";
         continue;
       }

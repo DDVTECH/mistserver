@@ -15,7 +15,13 @@ int main(int argc, char * argv[]) {
       std::cout << mistOut::capa.toString() << std::endl;
       return -1;
     }
-    conf.serveForkedSocket(spawnForked);
+    if (mistOut::listenMode()){
+      conf.serveForkedSocket(spawnForked);
+    }else{
+      Socket::Connection S(fileno(stdout),fileno(stdin) );
+      mistOut tmp(S);
+      return tmp.run();
+    }
   }
   return 0;
 }

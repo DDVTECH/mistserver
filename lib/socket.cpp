@@ -515,8 +515,10 @@ int Socket::Connection::iread(void * buffer, int len, int flags) {
   if (sock >= 0) {
     r = recv(sock, buffer, len, flags);
   } else {
-    //(pipes[1] >=0) {
-    r = read(pipes[1], buffer, len);
+    r = recv(pipes[1], buffer, len, flags);
+    if (r < 0 && errno == ENOTSOCK){
+      r = read(pipes[1], buffer, len);
+    }
   }
   if (r < 0) {
     switch (errno) {

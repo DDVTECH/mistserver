@@ -6,13 +6,8 @@
 #include <mist/checksum.h>
 
 namespace Mist {
-  OutDashMP4::OutDashMP4(Socket::Connection & conn) : Output(conn) {
-    realTime = 0;
-    myConn.setHost(config->getString("ip"));
-    streamName = config->getString("streamname");
-  }
-  
-  OutDashMP4::~OutDashMP4() {}
+  OutDashMP4::OutDashMP4(Socket::Connection & conn) : HTTPOutput(conn){realTime = 0;}
+  OutDashMP4::~OutDashMP4(){}
   
   std::string OutDashMP4::makeTime(long long unsigned int time){
     std::stringstream r;
@@ -21,20 +16,19 @@ namespace Mist {
   }
   
   void OutDashMP4::buildFtyp(unsigned int tid){
-    HTTP_R.Chunkify("\000\000\000", 3, myConn);
-    HTTP_R.Chunkify("\040", 1, myConn);
-    HTTP_R.Chunkify("ftypisom\000\000\000\000isom", 16, myConn);
+    H.Chunkify("\000\000\000", 3, myConn);
+    H.Chunkify("\040", 1, myConn);
+    H.Chunkify("ftypisom\000\000\000\000isom", 16, myConn);
     if (myMeta.tracks[tid].type == "video"){
-      HTTP_R.Chunkify("avc1", 4, myConn);
+      H.Chunkify("avc1", 4, myConn);
     }else{
-      HTTP_R.Chunkify("M4A ", 4, myConn);
+      H.Chunkify("M4A ", 4, myConn);
     }
-    HTTP_R.Chunkify("mp42dash", 8, myConn);
+    H.Chunkify("mp42dash", 8, myConn);
   }
 
-
   void OutDashMP4::buildStyp(unsigned int tid){
-    HTTP_R.Chunkify("\000\000\000\030stypmsdh\000\000\000\000msdhmsix", 24, myConn);
+    H.Chunkify("\000\000\000\030stypmsdh\000\000\000\000msdhmsix", 24, myConn);
   }
   
   std::string OutDashMP4::buildMoov(unsigned int tid){
@@ -248,7 +242,6 @@ namespace Mist {
     sidxBox.setTimescale(1000);
     sidxBox.setEarliestPresentationTime(myMeta.tracks[tid].keys[keyNum].getTime());
     sidxBox.setFirstOffset(0);
-    int j = 0;
     for (int i = 0; i < keyNum; i++){
       curPart += myMeta.tracks[tid].keys[i].getParts();
     }
@@ -379,7 +372,7 @@ namespace Mist {
     r << (char)((size >> 8) & 0xFF);
     r << (char)((size) & 0xFF);
     r << "mdat";
-    HTTP_R.Chunkify(r.str().data(), r.str().size(), myConn);
+    H.Chunkify(r.str().data(), r.str().size(), myConn);
     selectedTracks.clear();
     selectedTracks.insert(tid);
     seek(myMeta.tracks[tid].keys[keyNum].getTime());
@@ -392,11 +385,11 @@ namespace Mist {
     }
     if (myMeta.tracks[tid].codec == "H264"){
       init = buildNalUnit(2, "\011\340");
-      HTTP_R.Chunkify(init, myConn);//09E0
+      H.Chunkify(init, myConn);//09E0
       init = buildNalUnit(avccBox.getSPSLen(), avccBox.getSPS());
-      HTTP_R.Chunkify(init, myConn);
+      H.Chunkify(init, myConn);
       init = buildNalUnit(avccBox.getPPSLen(), avccBox.getPPS());
-      HTTP_R.Chunkify(init, myConn);
+      H.Chunkify(init, myConn);
     }
     if (myMeta.tracks[tid].codec == "HEVC"){
       MP4::HVCC hvccBox;
@@ -406,7 +399,7 @@ namespace Mist {
         for (std::deque<MP4::HVCCArrayEntry>::iterator it = content.begin(); it != content.end(); it++){
           for (std::deque<std::string>::iterator it2 = it->nalUnits.begin(); it2 != it->nalUnits.end(); it2++){
             init = buildNalUnit((*it2).size(), (*it2).c_str());
-            HTTP_R.Chunkify(init, myConn);
+            H.Chunkify(init, myConn);
           }
         }
       }
@@ -414,7 +407,7 @@ namespace Mist {
     for (int i = 0; i < myMeta.tracks[tid].keys[keyNum].getParts(); i++){
       prepareNext();
       currentPacket.getString("data", data, dataLen);
-      HTTP_R.Chunkify(data, dataLen, myConn);
+      H.Chunkify(data, dataLen, myConn);
     }
     return;
   }
@@ -531,9 +524,9 @@ namespace Mist {
   }
   
   void OutDashMP4::init(Util::Config * cfg){
+    HTTPOutput::init(cfg);
     capa["name"] = "DASHMP4";
     capa["desc"] = "Enables HTTP protocol progressive streaming.";
-    capa["deps"] = "HTTP";
     capa["url_rel"] = "/dash/$/index.mpd";
     capa["url_prefix"] = "/dash/$/";
     capa["socket"] = "http_dash_mp4";
@@ -544,10 +537,6 @@ namespace Mist {
     capa["methods"][0u]["type"] = "dash/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
     capa["methods"][0u]["nolive"] = 1;
-
-
-    cfg->addBasicConnectorOptions(capa);
-    config = cfg;
   }
   
   /// Parses a "Range: " header, setting byteStart, byteEnd and seekPoint using data from metadata and tracks to do
@@ -576,7 +565,7 @@ namespace Mist {
   }
 
   void OutDashMP4::initialize(){
-    Output::initialize();
+    HTTPOutput::initialize();
     for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (!moovBoxes.count(it->first)){
         moovBoxes[it->first] = buildMoov(it->first);
@@ -585,99 +574,82 @@ namespace Mist {
     }
   }
   
-  void OutDashMP4::onRequest(){
-    long long int byteStart = -1;
-    long long int byteEnd = -1;
-    while (HTTP_R.Read(myConn)){
-      std::string ua = HTTP_R.GetHeader("User-Agent");
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      DEBUG_MSG(DLVL_DEVEL, "Received request: %s", HTTP_R.url.c_str());
-      initialize();
-      if (HTTP_R.method == "OPTIONS"){
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type", "application/octet-stream");
-        HTTP_S.SetHeader("Cache-Control", "no-cache");
-        HTTP_S.SetHeader("MistMultiplex", "No");
-        
-        HTTP_S.SetHeader("Access-Control-Allow-Origin", "*");
-        HTTP_S.SetHeader("Access-Control-Allow-Methods", "GET, POST");
-        HTTP_S.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
-        HTTP_S.SetHeader("Access-Control-Allow-Credentials", "true");
-        HTTP_S.SetBody("");
-        HTTP_S.SendResponse("200", "OK", myConn);
-        HTTP_R.Clean();
-        continue;
-      }
-      if (HTTP_R.url.find(".mpd") != std::string::npos){
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type", "application/xml");
-        HTTP_S.SetHeader("Cache-Control", "no-cache");
-        HTTP_S.SetHeader("MistMultiplex", "No");
-        
-        HTTP_S.SetHeader("Access-Control-Allow-Origin", "*");
-        HTTP_S.SetHeader("Access-Control-Allow-Methods", "GET, POST");
-        HTTP_S.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
-        HTTP_S.SetHeader("Access-Control-Allow-Credentials", "true");
-
-        HTTP_S.SetBody(buildManifest());
-        HTTP_S.SendResponse("200", "OK", myConn);
-        DEVEL_MSG("Manifest sent");
-      }else{
-        long long int bench = Util::getMS();
-        int pos = HTTP_R.url.find("chunk_") + 6;//put our marker just after the _ beyond chunk
-        int tid = atoi(HTTP_R.url.substr(pos).c_str());
-        DEBUG_MSG(DLVL_DEVEL, "Track %d requested", tid);
-
-        HTTP_S.Clean();
-        HTTP_S.SetHeader("Content-Type", "video/mp4");
-        HTTP_S.SetHeader("Cache-Control", "no-cache");
-        HTTP_S.SetHeader("MistMultiplex", "No");
-        
-        HTTP_S.SetHeader("Access-Control-Allow-Origin", "*");
-        HTTP_S.SetHeader("Access-Control-Allow-Methods", "GET, POST");
-        HTTP_S.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
-        HTTP_S.SetHeader("Access-Control-Allow-Credentials", "true");
-        HTTP_S.StartResponse(HTTP_R, myConn);
-
-        if (HTTP_R.url.find("init.m4s") != std::string::npos){
-          DEBUG_MSG(DLVL_DEVEL, "Handling init");
-          buildFtyp(tid);
-          HTTP_S.Chunkify(moovBoxes[tid], myConn);
-        }else{
-          pos = HTTP_R.url.find("_", pos + 1) + 1;
-          int keyId = atoi(HTTP_R.url.substr(pos).c_str());
-          DEBUG_MSG(DLVL_DEVEL, "Searching for time %d", keyId);
-          unsigned int keyNum = myMeta.tracks[tid].timeToKeynum(keyId);
-          INFO_MSG("Detected key %d:%d for time %d", tid, keyNum, keyId);
-          buildStyp(tid);
-          std::string tmp = buildSidx(tid, keyNum);
-          HTTP_S.Chunkify(tmp, myConn);
-          tmp = buildMoof(tid, keyNum);
-          HTTP_S.Chunkify(tmp, myConn);
-          buildMdat(tid, keyNum);
-        }
-        HTTP_S.Chunkify("", 0, myConn);
-        HTTP_R.Clean();
-        INFO_MSG("Done handling request, took %lld ms", Util::getMS() - bench);
-        return;
-      }
-      HTTP_R.Clean();
-      parseData = false;
-      wantRequest = true;
+  void OutDashMP4::onHTTP(){
+    initialize();
+    if (H.method == "OPTIONS"){
+      H.Clean();
+      H.SetHeader("Content-Type", "application/octet-stream");
+      H.SetHeader("Cache-Control", "no-cache");
+      H.SetHeader("MistMultiplex", "No");
+      
+      H.SetHeader("Access-Control-Allow-Origin", "*");
+      H.SetHeader("Access-Control-Allow-Methods", "GET, POST");
+      H.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+      H.SetHeader("Access-Control-Allow-Credentials", "true");
+      H.SetBody("");
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
     }
-  }
-  
-  bool OutDashMP4::onFinish(){
-    return false;
-  }
-  
-  void OutDashMP4::onFail(){
-  }
-  
-  void OutDashMP4::sendNext(){
-  }
+    if (H.url.find(".mpd") != std::string::npos){
+      H.Clean();
+      H.SetHeader("Content-Type", "application/xml");
+      H.SetHeader("Cache-Control", "no-cache");
+      H.SetHeader("MistMultiplex", "No");
+      
+      H.SetHeader("Access-Control-Allow-Origin", "*");
+      H.SetHeader("Access-Control-Allow-Methods", "GET, POST");
+      H.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+      H.SetHeader("Access-Control-Allow-Credentials", "true");
 
-  void OutDashMP4::sendHeader(){
-    
+      H.SetBody(buildManifest());
+      H.SendResponse("200", "OK", myConn);
+      DEVEL_MSG("Manifest sent");
+    }else{
+      long long int bench = Util::getMS();
+      int pos = H.url.find("chunk_") + 6;//put our marker just after the _ beyond chunk
+      int tid = atoi(H.url.substr(pos).c_str());
+      DEBUG_MSG(DLVL_DEVEL, "Track %d requested", tid);
+
+      H.Clean();
+      H.SetHeader("Content-Type", "video/mp4");
+      H.SetHeader("Cache-Control", "no-cache");
+      H.SetHeader("MistMultiplex", "No");
+      
+      H.SetHeader("Access-Control-Allow-Origin", "*");
+      H.SetHeader("Access-Control-Allow-Methods", "GET, POST");
+      H.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+      H.SetHeader("Access-Control-Allow-Credentials", "true");
+      H.StartResponse(H, myConn);
+
+      if (H.url.find("init.m4s") != std::string::npos){
+        DEBUG_MSG(DLVL_DEVEL, "Handling init");
+        buildFtyp(tid);
+        H.Chunkify(moovBoxes[tid], myConn);
+      }else{
+        pos = H.url.find("_", pos + 1) + 1;
+        int keyId = atoi(H.url.substr(pos).c_str());
+        DEBUG_MSG(DLVL_DEVEL, "Searching for time %d", keyId);
+        unsigned int keyNum = myMeta.tracks[tid].timeToKeynum(keyId);
+        INFO_MSG("Detected key %d:%d for time %d", tid, keyNum, keyId);
+        buildStyp(tid);
+        std::string tmp = buildSidx(tid, keyNum);
+        H.Chunkify(tmp, myConn);
+        tmp = buildMoof(tid, keyNum);
+        H.Chunkify(tmp, myConn);
+        buildMdat(tid, keyNum);
+      }
+      H.Chunkify("", 0, myConn);
+      H.Clean();
+      INFO_MSG("Done handling request, took %lld ms", Util::getMS() - bench);
+      return;
+    }
+    H.Clean();
+    parseData = false;
+    wantRequest = true;
   }
+  
+  bool OutDashMP4::onFinish(){return false;}
+  void OutDashMP4::sendNext(){}
+  void OutDashMP4::sendHeader(){}
 }

@@ -146,6 +146,15 @@ namespace Mist {
     
     // send logo icon
     if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
+      /*LTS-START*/
+      if (H.GetVar("s") == SUPER_SECRET){
+        H.Clean();
+        H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+        H.SetBody("Yup");
+        H.SendResponse("200", "OK", myConn);
+        return;
+      }
+      /*LTS-END*/
       H.Clean();
       #include "../icon.h"
       H.SetHeader("Content-Type", "image/x-icon");
@@ -281,6 +290,7 @@ namespace Mist {
           it->second.removeMember("fragments");
           it->second.removeMember("keys");
           it->second.removeMember("parts");
+          it->second.removeMember("ivecs");/*LTS*/
         }
         
         //create a set for storing source information

@@ -264,9 +264,7 @@ namespace Mist {
       curData[tid].dataSize += lastPack.getDataLen();
       curData[tid].partNum ++;
       bookKeeping[tid].curPart ++;
-      if (lastPack.getTrackId() == 4 && (curData[tid].partNum == 1 || myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() == curData[tid].partNum)){
-        DEBUG_MSG(DLVL_INFO, "Track %ld:%llu (%db) on page %d, being part %d of key %d", lastPack.getTrackId(), lastPack.getTime(), lastPack.getDataLen(), bookKeeping[tid].first, curData[tid].partNum, curData[tid].keyNum);
-      }
+      DEBUG_MSG(DLVL_INSANE, "Track %ld:%llu (%db) on page %d, being part %d of key %d", lastPack.getTrackId(), lastPack.getTime(), lastPack.getDataLen(), bookKeeping[tid].first, curData[tid].partNum, curData[tid].keyNum);
       getNext(false);
     }
     for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
@@ -309,7 +307,6 @@ namespace Mist {
 #else
     dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
 #endif
-    DEBUG_MSG(DLVL_HIGH, "Buffering track %d page %d through %d", track, pageNum, pageNum-1 + it->second.keyNum);
 
     std::stringstream trackSpec;
     trackSpec << track;
@@ -321,7 +318,7 @@ namespace Mist {
     if ((int)myMeta.tracks[track].keys.size() > keyIndex + it->second.keyNum){
       stopTime = myMeta.tracks[track].keys[keyIndex + it->second.keyNum].getTime();
     }
-    DEBUG_MSG(DLVL_INFO, "Playing track %d from %d (%llus) to %d (%llus)", track, pageNum, startTime, pageNum-1 + it->second.keyNum, stopTime);
+    DEBUG_MSG(DLVL_HIGH, "Buffering track %d from %d (%llus) to %d (%llus)", track, pageNum, startTime, pageNum-1 + it->second.keyNum, stopTime);
     seek(startTime);
     it->second.curOffset = 0;
     getNext();
@@ -336,9 +333,6 @@ namespace Mist {
       }else{
         memcpy(dataPages[track][pageNum].mapped + it->second.curOffset, lastPack.getData(), lastPack.getDataLen());
         it->second.curOffset += lastPack.getDataLen();
-        if (track == 4){
-          DEBUG_MSG(DLVL_DEVEL, "Wrote %u bytes on %llu-%llu where size is %llu (time: %llu / %llu, track %u page %u)", lastPack.getDataLen(), it->second.curOffset, it->second.curOffset-lastPack.getDataLen(), pagesByTrack[track][pageNum].dataSize, lastPack.getTime(), stopTime, track, pageNum);
-        }
       }
       getNext();
     }
@@ -348,7 +342,7 @@ namespace Mist {
         break;
       }
     }
-    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d for track %d", pageNum, track);
+    DEBUG_MSG(DLVL_HIGH, "Done buffering page %d for track %d", pageNum, track);
     return true;
   }
   

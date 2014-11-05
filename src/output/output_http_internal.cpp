@@ -147,7 +147,7 @@ namespace Mist {
     // send logo icon
     if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
       /*LTS-START*/
-      if (H.GetVar("s") == SUPER_SECRET){
+      if (H.GetVar("s").size() && H.GetVar("s") == SUPER_SECRET){
         H.Clean();
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
         H.SetBody("Yup");

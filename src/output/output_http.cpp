@@ -257,10 +257,20 @@ namespace Mist {
       }
     }
     if (id == -1) {
-      DEBUG_MSG(DLVL_ERROR, "No connector found for: %s", connector.c_str());
-      configLock.post();
-      configLock.close();
-      return;
+      connector = connector + ".exe";
+      for (unsigned int i=0; i < prots_ctr; ++i){
+        if (prots.getIndice(i).getMember("connector").asString() == connector) {
+          id =  i;
+          break;    //pick the first protocol in the list that matches the connector 
+        }
+      }
+      if (id == -1) {
+        connector = connector.substr(0, connector.size() - 4);
+        DEBUG_MSG(DLVL_ERROR, "No connector found for: %s", connector.c_str());
+        configLock.post();
+        configLock.close();
+        return;
+      }
     }
     
     DEBUG_MSG(DLVL_HIGH, "Connector found: %s", connector.c_str());

@@ -228,6 +228,7 @@ namespace Mist {
     
     if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
       std::string response;
+      std::string rURL = H.url;
       std::string host = H.GetHeader("Host");
       if (host.find(':') != std::string::npos){
         host.resize(host.find(':'));
@@ -348,7 +349,7 @@ namespace Mist {
       configLock.close();
       #include "../embed.js.h"
       response += "mistvideo['" + streamName + "'] = " + json_resp.toString() + ";\n";
-      if (H.url.substr(0, 6) != "/info_" && !json_resp.isMember("error")){
+      if (rURL.substr(0, 6) != "/info_" && !json_resp.isMember("error")){
         response.append("\n(");
         if (embed_js[embed_js_len - 2] == ';'){//check if we have a trailing ;\n or just \n
           response.append((char*)embed_js, (size_t)embed_js_len - 2); //remove trailing ";\n" from xxd conversion

@@ -93,13 +93,17 @@ void createAccount (std::string account){
 /// Status monitoring thread.
 /// Will check outputs, inputs and converters every five seconds
 void statusMonitor(void * np){
+  #ifdef UPDATER
   unsigned long updatechecker = Util::epoch(); /*LTS*/
+  #endif
   while (Controller::conf.is_active){
     /*LTS-START*/
+    #ifdef UPDATER
     if (Util::epoch() - updatechecker > 3600){
       updatechecker = Util::epoch();
       Controller::CheckUpdateInfo();
     }
+    #endif
     /*LTS-END*/
 
     //this scope prevents the configMutex from being locked constantly
@@ -140,7 +144,9 @@ int main(int argc, char ** argv){
   Controller::conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
   Controller::conf.addOption("logfile", JSON::fromString("{\"long\":\"logfile\", \"short\":\"L\", \"arg\":\"string\" \"default\":\"\",\"help\":\"Redirect all standard output to a log file, provided with an argument\"}"));
   Controller::conf.addOption("configFile", JSON::fromString("{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" \"default\":\"config.json\", \"help\":\"Specify a config file other than default.\"}"));
+  #ifdef UPDATER
   Controller::conf.addOption("update", JSON::fromString("{\"default\":0, \"help\":\"Check for and install updates before starting.\", \"short\":\"D\", \"long\":\"update\"}")); /*LTS*/
+  #endif
   Controller::conf.addOption("uplink", JSON::fromString("{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host and port.\", \"short\":\"U\", \"long\":\"uplink\"}")); /*LTS*/
   Controller::conf.addOption("uplink-name", JSON::fromString("{\"default\":\"" COMPILED_USERNAME "\", \"arg\":\"string\", \"help\":\"MistSteward uplink username.\", \"short\":\"N\", \"long\":\"uplink-name\"}")); /*LTS*/
   Controller::conf.addOption("uplink-pass", JSON::fromString("{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}")); /*LTS*/
@@ -270,9 +276,11 @@ int main(int argc, char ** argv){
   Controller::conf.activate();//activate early, so threads aren't killed.
 
   /*LTS-START*/
+  #ifdef UPDATER
   if (Controller::conf.getBool("update")){
     Controller::CheckUpdates();
   }
+  #endif
   /*LTS-END*/
 
   //start stats thread

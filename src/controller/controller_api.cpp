@@ -371,6 +371,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           /// \api
           /// `"autoupdate"` requests (LTS-only) will cause MistServer to apply a rolling update to itself, and are not responded to.
           /// 
+          #ifdef UPDATER
           if (Request.isMember("autoupdate")){
             Controller::CheckUpdates();
           }
@@ -380,6 +381,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           if (Request.isMember("update") || Request.isMember("checkupdate")){
             Response["update"] = Controller::updates;
           }
+          #endif
           /*LTS-END*/
           //sent current configuration, no matter if it was changed or not
           Response["config"] = Controller::Storage["config"];

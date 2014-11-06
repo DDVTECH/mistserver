@@ -18,6 +18,10 @@ ifdef GEOIP
 override CPPFLAGS += -DGEOIP=1
 endif
 
+ifndef NOUPDATE
+override CPPFLAGS += -DUPDATER=1
+endif
+
 ifdef NOAUTH
 override CPPFLAGS += -DNOAUTH=1
 endif

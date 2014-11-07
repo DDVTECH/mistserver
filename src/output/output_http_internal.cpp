@@ -16,7 +16,6 @@ namespace Mist {
   OutHTTP::~OutHTTP() {}
   
   bool OutHTTP::listenMode(){
-    INFO_MSG("Listen mode: %s", config->getString("ip").c_str());
     return !(config->getString("ip").size());
   }
   

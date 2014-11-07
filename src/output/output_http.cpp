@@ -286,9 +286,9 @@ namespace Mist {
     JSON::Value pipedCapa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(connector).asJSON();
     configLock.post();
     configLock.close();
-    argarr[argnum++] = (char*)"-i";
+    argarr[argnum++] = (char*)"--ip";
     argarr[argnum++] = (char*)(temphost.c_str());
-    argarr[argnum++] = (char*)"-s";
+    argarr[argnum++] = (char*)"--stream";
     argarr[argnum++] = (char*)(streamName.c_str());
     //set the debug level if non-default
     if (Util::Config::printDebugLevel != DEBUG){

@@ -457,7 +457,7 @@ namespace Mist {
         DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(smp);
         if (streamCfg){
           if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
-            DEBUG_MSG(DLVL_FAIL, "Push rejected - stream not a push-able stream. (%s != push://*)", streamCfg.getMember("source").asString().c_str());
+            DEBUG_MSG(DLVL_FAIL, "Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), streamCfg.getMember("source").asString().c_str());
             myConn.close();
           }else{
             std::string source = streamCfg.getMember("source").asString().substr(7);
@@ -481,13 +481,13 @@ namespace Mist {
             /*LTS-END*/
             if (IP != ""){
               if (!myConn.isAddress(IP)){
-                DEBUG_MSG(DLVL_FAIL, "Push rejected - source host not whitelisted");
+                DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - source host not whitelisted", myConn.getHost().c_str(), streamName.c_str());
                 myConn.close();
               }
             }
           }
         }else{
-          DEBUG_MSG(DLVL_FAIL, "Push rejected - stream not configured.");
+          DEBUG_MSG(DLVL_FAIL, "Push from %s rejected - stream '%s' not configured.", myConn.getHost().c_str(), streamName.c_str());
           myConn.close();
         }
         configLock.post();

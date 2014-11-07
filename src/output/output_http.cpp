@@ -25,7 +25,7 @@ namespace Mist {
     capa["forward"]["ip"]["type"] = "str";
     capa["forward"]["ip"]["option"] = "--ip";
     cfg->addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
-    cfg->addOption("ip", JSON::fromString("{\"arg\":\"string\",\"short\":\"i\",\"long\":\"ip\",\"help\":\"Ip addr of connection.\"}"));
+    cfg->addOption("ip", JSON::fromString("{\"arg\":\"string\",\"short\":\"I\",\"long\":\"ip\",\"help\":\"IP address of connection on stdio.\"}"));
     cfg->addBasicConnectorOptions(capa);
     config = cfg;
   }

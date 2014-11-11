@@ -110,6 +110,11 @@ namespace Controller {
           }
           data["online"] = 0;
           return;
+        }else{
+          if (!getMeta && data["meta"].packedSize() > 1*1024 * data["meta"]["tracks"].size()){
+            DEBUG_MSG(DLVL_WARN, "Metadata for stream %s is quite big (%u b) - assuming corruption and forcing reload", name.c_str(), data["meta"].packedSize());
+            getMeta = true;
+          }
         }
       }else{
         DEBUG_MSG(DLVL_INSANE, "Invalid metadata (no tracks object) for stream %s - triggering reload", name.c_str());
@@ -137,29 +142,49 @@ namespace Controller {
               data["online"] = 0;
               return;
             }
+            unsigned int i = 0;
+            JSON::fromDTMI((const unsigned char*)streamIndex.mapped + 8, streamIndex.len - 8, i, data["meta"]);
+            if (data["meta"].isMember("tracks") && data["meta"]["tracks"].size()){
+              for(JSON::ObjIter trackIt = data["meta"]["tracks"].ObjBegin(); trackIt != data["meta"]["tracks"].ObjEnd(); trackIt++){
+                trackIt->second.removeMember("fragments");
+                trackIt->second.removeMember("keys");
+                trackIt->second.removeMember("parts");
+                trackIt->second.removeMember("ivecs");/*LTS*/
+              }
+            }
+            if ( !data["meta"] || !data["meta"].isMember("tracks") || !data["meta"]["tracks"]){
+              data["error"] = "Stream offline: Corrupt file?";
+              if (data["error"].asStringRef() != prevState){
+                Log("WARN", "Source file " + URL + " seems to be corrupt.");
+              }
+              data["online"] = 0;
+              return;
+            }
+            DEBUG_MSG(DLVL_INSANE, "Metadata for stream %s (re)loaded", name.c_str());
           }
           DEBUG_MSG(DLVL_INSANE, "Stream %s opened", name.c_str());
-        }
-        //now, run mistinfo on the source - or on the accompanying dtsh file, if it exists
-        if (stat((URL+".dtsh").c_str(), &fileinfo) == 0){
-          DEBUG_MSG(DLVL_INSANE, "Stream %s has a DTSH - opening DTSH instead of main stream file", name.c_str());
-          URL += ".dtsh";
-        }
-        char * tmp_cmd[3] = {0, 0, 0};
-        std::string mistinfo = Util::getMyPath() + "MistInfo";
-        tmp_cmd[0] = (char*)mistinfo.c_str();
-        tmp_cmd[1] = (char*)URL.c_str();
-        DEBUG_MSG(DLVL_INSANE, "Running MistInfo for stream %s on file %s", name.c_str(), tmp_cmd[1]);
-        data["meta"] = JSON::fromString(Util::Procs::getOutputOf(tmp_cmd));
-        if ( !data["meta"] || !data["meta"].isMember("tracks") || !data["meta"]["tracks"]){
-          data["error"] = "Stream offline: Corrupt file?";
-          if (data["error"].asStringRef() != prevState){
-            Log("WARN", "Source file " + URL + " seems to be corrupt.");
+        }else{
+          //now, run mistinfo on the source - or on the accompanying dtsh file, if it exists
+          if (stat((URL+".dtsh").c_str(), &fileinfo) == 0){
+            DEBUG_MSG(DLVL_INSANE, "Stream %s has a DTSH - opening DTSH instead of main stream file", name.c_str());
+            URL += ".dtsh";
           }
-          data["online"] = 0;
-          return;
+          char * tmp_cmd[3] = {0, 0, 0};
+          std::string mistinfo = Util::getMyPath() + "MistInfo";
+          tmp_cmd[0] = (char*)mistinfo.c_str();
+          tmp_cmd[1] = (char*)URL.c_str();
+          DEBUG_MSG(DLVL_INSANE, "Running MistInfo for stream %s on file %s", name.c_str(), tmp_cmd[1]);
+          data["meta"] = JSON::fromString(Util::Procs::getOutputOf(tmp_cmd));
+          if ( !data["meta"] || !data["meta"].isMember("tracks") || !data["meta"]["tracks"]){
+            data["error"] = "Stream offline: Corrupt file?";
+            if (data["error"].asStringRef() != prevState){
+              Log("WARN", "Source file " + URL + " seems to be corrupt.");
+            }
+            data["online"] = 0;
+            return;
+          }
+          DEBUG_MSG(DLVL_INSANE, "Metadata for stream %s succesfully (re)loaded", name.c_str());
         }
-        DEBUG_MSG(DLVL_INSANE, "Metadata for stream %s succesfully (re)loaded", name.c_str());
       }
       if (!hasViewers(name)){
         if ( !data.isMember("error")){
@@ -264,13 +289,11 @@ namespace Controller {
           out[jit->first] = jit->second;
           out[jit->first]["name"] = jit->first;
           Log("STRM", std::string("Updated stream ") + jit->first);
-          checkStream(jit->first, out[jit->first]);
         }
       }else{
         out[jit->first] = jit->second;
         out[jit->first]["name"] = jit->first;
         Log("STRM", std::string("New stream ") + jit->first);
-        checkStream(jit->first, out[jit->first]);
       }
     }
   }

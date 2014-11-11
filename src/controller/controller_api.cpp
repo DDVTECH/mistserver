@@ -344,6 +344,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               Controller::fillTotals(Request["totals"], Response["totals"]);
             }
           }
+          
+          Controller::writeConfig();
+          
         }else{//unauthorized
           Util::sleep(1000);//sleep a second to prevent bruteforcing 
           logins++;

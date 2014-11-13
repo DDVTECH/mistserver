@@ -313,8 +313,8 @@ namespace Mist {
       seek(from);
       lastVid = from * 90;
       
-      H.StartResponse(H, myConn);
       H.SetHeader("Content-Type", "video/mp2t");
+      H.StartResponse(H, myConn);
       PacketNumber = 0;
       parseData = true;
       wantRequest = false;

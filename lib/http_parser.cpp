@@ -138,9 +138,15 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 /// \param request The HTTP request to respond to.
 /// \param conn The connection to send over.
 void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Parser & request, Socket::Connection & conn) {
-  protocol = request.protocol;
-  body = "";
-  if (protocol == "HTTP/1.1") {
+  std::string prot = request.protocol;
+  std::string contentType = GetHeader("Content-Type");
+  sendingChunks = (protocol == "HTTP/1.1" && request.GetHeader("Connection")!="close");
+  Clean();
+  protocol = prot;
+  if (contentType.size()){
+    SetHeader("Content-Type", contentType);
+  }
+  if (sendingChunks){
     SetHeader("Transfer-Encoding", "chunked");
   } else {
     SetBody("");
@@ -546,7 +552,7 @@ void HTTP::Parser::Chunkify(std::string & bodypart, Socket::Connection & conn) {
 /// \param conn The connection to use for sending.
 void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connection & conn) {
   static char hexa[] = "0123456789abcdef";
-  if (protocol == "HTTP/1.1") {
+  if (sendingChunks) {
     //prepend the chunk size and \r\n
     if (!size){
       conn.SendNow("0\r\n\r\n\r\n", 7);

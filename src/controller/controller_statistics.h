@@ -29,6 +29,7 @@ namespace Controller {
   extern std::map<unsigned long, statStorage> curConns;
   void parseStatistics(char * data, size_t len, unsigned int id);
   void fillClients(JSON::Value & req, JSON::Value & rep);
+  void fillActive(JSON::Value & req, JSON::Value & rep);
   void fillTotals(JSON::Value & req, JSON::Value & rep);
   void SharedMemStats(void * config);
   bool hasViewers(std::string streamName);

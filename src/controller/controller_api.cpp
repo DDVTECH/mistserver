@@ -434,6 +434,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               Controller::fillTotals(Request["totals"], Response["totals"]);
             }
           }
+          if (Request.isMember("active_streams")){
+            Controller::fillActive(Request["active_streams"], Response["active_streams"]);
+          }
           
           Controller::writeConfig();
           

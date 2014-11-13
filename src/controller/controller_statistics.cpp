@@ -291,6 +291,43 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   //all done! return is by reference, so no need to return anything here.
 }
 
+/// This takes a "active_streams" request, and fills in the response data.
+/// 
+/// \api
+/// `"active_streams"` requests are always empty (passed data is ignored), and are responded to as:
+/// ~~~~~~~~~~~~~~~{.js}
+/// [
+///   //Array of stream names
+///   "streamA",
+///   "streamB",
+///   "streamC"
+/// ]
+/// ~~~~~~~~~~~~~~~
+/// All streams that any statistics data is available for are listed, and only those streams.
+void Controller::fillActive(JSON::Value & req, JSON::Value & rep){
+  //collect the data first
+  std::set<std::string> streams;
+  //start with current connections
+  if (curConns.size()){
+    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); it++){
+      if (!it->second.log.size()){continue;}
+      streams.insert(it->second.streamName);
+    }
+  }
+  //look at history
+  if (oldConns.size()){
+    for (std::map<unsigned long long int, statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); it++){
+      streams.insert(it->second.streamName);
+    }
+  }
+  //Good, now output what we found...
+  rep.null();
+  for (std::set<std::string>::iterator it = streams.begin(); it != streams.end(); it++){
+    rep.append(*it);
+  }
+  //all done! return is by reference, so no need to return anything here.
+}
+
 class totalsData {
   public:
     totalsData(){

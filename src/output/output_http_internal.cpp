@@ -29,6 +29,7 @@ namespace Mist {
     capa["url_match"].append("/$.html");
     capa["url_match"].append("/$.ico");
     capa["url_match"].append("/info_$.js");
+    capa["url_match"].append("/json_$.js");
     capa["url_match"].append("/embed_$.js");
     cfg->addConnectorOptions(8080, capa);
   }
@@ -225,7 +226,7 @@ namespace Mist {
       return;
     }
     
-    if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
+    if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 9 && H.url.substr(0, 6) == "/json_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
       std::string response;
       std::string rURL = H.url;
       std::string host = H.GetHeader("Host");
@@ -234,7 +235,11 @@ namespace Mist {
       }
       H.Clean();
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
-      H.SetHeader("Content-Type", "application/javascript");
+      if (rURL.substr(0, 6) != "/json_"){
+        H.SetHeader("Content-Type", "application/javascript");
+      }else{
+        H.SetHeader("Content-Type", "application/json");
+      }
       response = "// Generating info code for stream " + streamName + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
       IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
@@ -346,9 +351,13 @@ namespace Mist {
       
       configLock.post();
       configLock.close();
-      #include "../embed.js.h"
-      response += "mistvideo['" + streamName + "'] = " + json_resp.toString() + ";\n";
-      if (rURL.substr(0, 6) != "/info_" && !json_resp.isMember("error")){
+      if (rURL.substr(0, 6) != "/json_"){
+        response += "mistvideo['" + streamName + "'] = " + json_resp.toString() + ";\n";
+      }else{
+        response = json_resp.toString();
+      }
+      if (rURL.substr(0, 7) == "/embed_" && !json_resp.isMember("error")){
+        #include "../embed.js.h"
         response.append("\n(");
         if (embed_js[embed_js_len - 2] == ';'){//check if we have a trailing ;\n or just \n
           response.append((char*)embed_js, (size_t)embed_js_len - 2); //remove trailing ";\n" from xxd conversion

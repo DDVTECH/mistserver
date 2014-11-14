@@ -50,7 +50,7 @@ namespace TS {
 ///the first 188 characters of a char array
 ///\param Data The char array that contains the data to be read into the packet
 ///\return true if successful (which always happens, or else a segmentation fault should occur)
-  bool Packet::FromPointer(char * Data) {
+  bool Packet::FromPointer(const char * Data) {
     strBuf = std::string(Data, 188);
     return true;
   }

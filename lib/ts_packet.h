@@ -34,7 +34,7 @@ namespace TS {
       Packet();
       ~Packet();
       bool FromString(std::string & Data);
-      bool FromPointer(char * Data);
+      bool FromPointer(const char * Data);
       bool FromFile(FILE * data);
       void PID(int NewPID);
       unsigned int PID();
@@ -108,6 +108,22 @@ namespace TS {
       std::string toPrettyString(size_t indent);
   };
 
+  class ProgramMappingEntry {
+    public:
+      ProgramMappingEntry(char * begin, char * end);
+      
+      operator bool() const;
+
+      int streamType();
+      int elementaryPid();
+      int ESInfoLength();
+      char * ESInfo();
+      void advance();
+    private:
+      char* data;
+      char* boundary;
+  };
+
   class ProgramMappingTable : public Packet {
     public:
       ProgramMappingTable();
@@ -133,6 +149,7 @@ namespace TS {
       void setProgramInfoLength(short newVal);
       short getProgramCount();
       void setProgramCount(short newVal);
+      ProgramMappingEntry getEntry(int index);
       char getStreamType(short index);
       void setStreamType(char newVal, short index);
       short getElementaryPID(short index);

@@ -205,8 +205,7 @@ namespace Mist {
       fillPacket(first, bs.data(), bs.size(), VideoCounter);
       if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
         //End of previous nal unit, somehow needed for h264
-        bs = "\000\000\000\001\011\360";
-        fillPacket(first, bs.data(), bs.size(),VideoCounter);
+        fillPacket(first, "\000\000\000\001\011\360", 6, VideoCounter);
       }
       
       

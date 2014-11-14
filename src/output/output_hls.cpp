@@ -165,10 +165,16 @@ namespace Mist {
   }
 
   void OutHLS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
+    static std::map<int, int> contCounter;
     if (!PackData.BytesFree()){
       if (PacketNumber % 42 == 0){
-        H.Chunkify(TS::PAT, 188, myConn);
-        H.Chunkify(createPMT().c_str(), 188, myConn);
+        TS::Packet tmpPack;
+        tmpPack.FromPointer(TS::PAT);
+        tmpPack.ContinuityCounter(++contCounter[tmpPack.PID()]);
+        H.Chunkify(tmpPack.ToString(), 188, myConn);
+        tmpPack.FromPointer(createPMT().c_str());
+        tmpPack.ContinuityCounter(++contCounter[tmpPack.PID()]);
+        H.Chunkify(tmpPack.ToString(), 188, myConn);
         PacketNumber += 2;
       }
       H.Chunkify(PackData.ToString(), 188, myConn);
@@ -196,7 +202,6 @@ namespace Mist {
     if (tmp != dataLen){
       fillPacket(first, data+tmp, dataLen-tmp, ContCounter);
     }
- 
   }
   
   void OutHLS::sendNext(){

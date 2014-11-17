@@ -919,20 +919,20 @@ namespace TS {
     return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
   }
   
-  /// \todo checksum is calculated wrong, but the stream plays. Fix checksum when deadlines are less tight.
   void ProgramMappingTable::calcCRC() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength() + (getProgramCount() * 5);
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + getSectionLength();
     unsigned int newVal;//this will hold the CRC32 value;
-    unsigned int pidLoc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9;;//location of PCRPID
-    newVal = checksum::crc32LE(0, strBuf.c_str() + pidLoc, loc - pidLoc);//calculating checksum over all the fields from table ID to the last stream element
+    unsigned int pidLoc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 1;//location of PCRPID
+    INFO_MSG("Calculating checksum from offset %d, over %d bytes", pidLoc, loc - pidLoc);
+    newVal = checksum::crc32(-1, strBuf.c_str() + pidLoc, loc - pidLoc);//calculating checksum over all the fields from table ID to the last stream element
     if (strBuf.size() < 188) {
       strBuf.resize(188);
     }
-    strBuf[loc] = (newVal >> 24) & 0xFF;
-    strBuf[loc + 1] = (newVal >> 16) & 0xFF;
-    strBuf[loc + 2] = (newVal >> 8) & 0xFF;
-    strBuf[loc + 3] = newVal & 0xFF;
-    memset((void*)(strBuf.c_str() + loc + 4), 0xFF, 180 - loc);
+    strBuf[loc + 3] = (newVal >> 24) & 0xFF;
+    strBuf[loc + 2] = (newVal >> 16) & 0xFF;
+    strBuf[loc + 1] = (newVal >> 8) & 0xFF;
+    strBuf[loc] = newVal & 0xFF;
+    memset((void*)(strBuf.c_str() + loc + 4), 0xFF, 184 - loc);
   }
 
 ///Print all PMT values in a human readable format

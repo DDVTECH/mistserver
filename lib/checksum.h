@@ -219,10 +219,10 @@ namespace checksum {
       0x6D66B4BCU, 0xDA7B75B8U, 0x035D36B5U, 0xB440F7B1U
     };
 
-    while (len > 0) {
-      crc = table[*data ^ ((crc >> 24) & 0xff)] ^ (crc << 8);
-      data++;
-      len--;
+    const char * tmpData = data;
+    const char * end = tmpData + len;
+    while(tmpData < end){
+      crc = table[((unsigned char) crc) ^ *tmpData++] ^ (crc >> 8);
     }
     return crc;
   }

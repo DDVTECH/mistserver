@@ -143,7 +143,7 @@ namespace Mist {
     PMT.setSectionNumber(0);
     PMT.setLastSectionNumber(0);
     int vidTrack = -1;
-    for (std::set<int>::iterator it == selectedTracks.begin(); it != selectedTracks.end(); it++){
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (myMeta.tracks[*it].type == "video"){
         vidTrack = *it;
         break;

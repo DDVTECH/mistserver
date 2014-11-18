@@ -123,7 +123,17 @@ namespace Mist {
     PMT.setCurrentNextIndicator(0);
     PMT.setSectionNumber(0);
     PMT.setLastSectionNumber(0);
-    PMT.setPCRPID(0x100 + (*(selectedTracks.begin())) - 1);
+    int vidTrack = -1;
+    for (std::set<int>::iterator it == selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks[*it].type == "video"){
+        vidTrack = *it;
+        break;
+      }
+    }
+    if (vidTrack == -1){
+      vidTrack = *(selectedTracks.begin());
+    }
+    PMT.setPCRPID(0x100 + vidTrack - 1);
     PMT.setProgramInfoLength(0);
     short id = 0;
     //for all selected tracks

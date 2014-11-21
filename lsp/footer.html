@@ -2,8 +2,9 @@
   <script>
     //these are placed here because the compression compiler does not deal with the eval function properly.
     //enter the values of the settings object into their input fields
-    function enterSettings(){
-      $('.isSetting').each(function(){
+    function enterSettings($container){
+      $container = $container || $('body');
+      $container.find('.isSetting').each(function(){
         var objpath = findObjPath($(this));
         var val = '';
         try {

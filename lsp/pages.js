@@ -576,6 +576,16 @@ function showTab(tabName,streamName) {
       });
     break;
     case 'edit stream':
+      
+      if (typeof settings.settings.capabilities == 'undefined') {
+        $('#page').html('Loading..');
+        getData(function(d){
+          settings.settings.capabilities = d.capabilities;
+          showTab(tabName,streamName);
+        },{capabilities: true})
+        return;
+      }
+      
       if (streamName == '_new_') {
         $('#page').html(
           $('<p>').text('Adding a new stream')
@@ -586,6 +596,71 @@ function showTab(tabName,streamName) {
           $('<p>').text('Editing stream "'+streamName+'"')
         );
       }
+      var $source = $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-source').addClass('isSetting').addClass('validate-required').keyup(function(){
+        $('#input-validation-info').remove();
+        if (($(this).val().substring(0,7) != 'push://') && ($(this).val().substring(0,1) != '/')) {
+          $(this).parent().append(
+            $('<div>').attr('id','input-validation-info').html(
+              'The stream source should start with "push://" or "/".'
+            ).addClass('orange')
+          );
+        }
+        
+        $inputoptions.html('');
+        for (var i in settings.settings.capabilities.inputs) {
+          var input = settings.settings.capabilities.inputs[i];
+          if (typeof input.source_match == 'undefined') { continue; }
+          var query = input.source_match.replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
+          query = query.replace(/\\\?/g,'.').replace(/\\\*/g,'(?:.)*'); //replace ? with . and * with any amount of .
+          var regex = new RegExp('^'+query+'$','i'); //case insensitive
+          if (regex.test($(this).val())) {
+            var $fields = $('<span>').attr('data-input-type',i).append(
+              $('<div>').text(input.name)
+            );
+            if (typeof input.desc != 'undefined') {
+              $fields.append(
+                $('<span>').addClass('description').text(input.desc)
+              );
+            }
+            $inputoptions.append(
+              $fields
+            );
+            for (var j in input.optional) {
+              var field = input.optional[j];
+              var $input = $('<input>').addClass('isSetting').attr('objpath','settings.streams.'+streamName+'.'+j);
+              $fields.append(
+                $('<label>').text(field.name+':').append(
+                  $input
+                )
+              );
+              
+              if (typeof field['default'] != 'undefined') {
+                $input.attr('placeholder',field['default']);
+              }
+              if (typeof field.help != 'undefined') {
+                $input.attr('title',field.help);
+              }
+              switch (field.type) {
+                case 'int':
+                  $input.addClass('validate-integer');
+                  break;
+                case 'uint':
+                  $input.addClass('validate-positive-integer');
+                  break;
+                case 'str':
+                default:
+                  break;
+              }
+            }
+            enterSettings($fields);
+          }
+        }
+        if ($inputoptions.html() == '') { 
+          $inputoptions.html('None for this source.')
+        }
+      });
+      var $inputoptions = $('<span>');
+      
       $('#page').append(
         $('<div>').addClass('input_container').html(
           $('<label>').text('Stream name:').attr('for','settings-streams-'+streamName+'-name').append(
@@ -593,24 +668,7 @@ function showTab(tabName,streamName) {
           )
         ).append(
           $('<label>').text('Source:').attr('for','settings-streams-'+streamName+'-source').attr('title','The path to the stream, usually "/path/to/filename.dtsc" for files or "push://hostname/streamname" for live streams.').append(
-            $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-source').addClass('isSetting').addClass('validate-required').keyup(function(){
-              $('#input-validation-info').remove();
-              if (($(this).val().substring(0,7) != 'push://') && ($(this).val().substring(0,1) != '/')) {
-                $(this).parent().append(
-                  $('<div>').attr('id','input-validation-info').html(
-                    'The stream source should start with "push://" or "/".'
-                  ).addClass('orange')
-                );
-              }
-              
-              if(isLive($(this).val())){
-                $('.live-only').show();
-              }
-              else{
-                $('.live-only').hide();
-                $('.live-only').children('label').children('input').val('');
-              }
-            })
+            $source
           ).append(
             $('<button>').text('Browse').attr('id','browse_button').css('clear','both').click(function(){
               function doBrowse(path) {
@@ -681,23 +739,9 @@ function showTab(tabName,streamName) {
             })
           )
         ).append(
-          $('<label>').text('Buffer time:').addClass('live-only').attr('for','settings-streams-'+streamName+'-DVR').append(
-            $('<span>').addClass('unit').text('[ms]')
-          ).append(
-            $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-DVR').attr('placeholder','30000').addClass('isSetting').addClass('').addClass('validate-positive-integer')
-          )
+          $('<p>').text('Input options')
         ).append(
-          $('<label>').text('Record to:').addClass('live-only').addClass('LTS-only').attr('for','settings-streams-'+streamName+'-record').attr('title','The path to the file to record to. Leave this field blank if you do not wish to record to file.').append(
-            $('<span>').addClass('unit').text('[.dtsc]')
-          ).append(
-            $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-record').addClass('isSetting')
-          )
-        ).append(
-          $('<label>').text('Cut first section:').addClass('live-only').addClass('LTS-only').attr('for','settings-streams-'+streamName+'-cut').attr('title','Remove the first part of a stream.').append(
-            $('<span>').addClass('unit').text('[ms]')
-          ).append(
-            $('<input>').attr('type','text').attr('id','settings-streams-'+streamName+'-cut').addClass('isSetting').addClass('validate-positive-integer')
-          )
+          $inputoptions
         ).append(
           $('<br>')
         ).append(
@@ -740,7 +784,7 @@ function showTab(tabName,streamName) {
             }
             else {
               var filename = $('#settings-streams-'+streamName+'-record').val()
-              if (filename != '') {
+              if ((filename != '') && (typeof filename != 'undefined')) {
                 filename = filename.split('.');
                 if (filename[filename.length-1] != 'dtsc') {
                   filename.push('dtsc');
@@ -762,17 +806,7 @@ function showTab(tabName,streamName) {
         enterSettings();
       }
       
-      if(isLive($('#settings-streams-'+streamName+'-source').val())){
-        $('.live-only').show();
-      }
-      else{
-        $('.live-only').hide();
-        $('.live-only').children('label').children('input').val('');
-      }
-      $('.live-only').each(function(){
-        var newtitle = [$(this).attr('title'),'Only applies to live streams.']
-        $(this).attr('title',newtitle.join(' '));
-      })
+      $source.trigger('keyup');
       
     break;
     case 'preview':

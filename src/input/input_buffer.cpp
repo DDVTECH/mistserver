@@ -465,6 +465,75 @@ namespace Mist {
       DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, tmpNum);
       bufferTime = tmpNum;
     }
+    
+    /*LTS-START*/
+    //if stream is configured and setting is present, use it, always
+    if (streamCfg && streamCfg.getMember("cut")){
+      tmpNum = streamCfg.getMember("cut").asInt();
+    }else{
+      if (streamCfg){
+        //otherwise, if stream is configured use the default
+        tmpNum = config->getOption("cut", true)[0u].asInt();
+      }else{
+        //if not, use the commandline argument
+        tmpNum = config->getOption("cut").asInt();
+      }
+    }
+    //if the new value is different, print a message and apply it
+    if (cutTime != tmpNum){
+      DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, tmpNum);
+      cutTime = tmpNum;
+    }
+
+    
+    //if stream is configured and setting is present, use it, always
+    if (streamCfg && streamCfg.getMember("segmentsize")){
+      tmpNum = streamCfg.getMember("segmentsize").asInt();
+    }else{
+      if (streamCfg){
+        //otherwise, if stream is configured use the default
+        tmpNum = config->getOption("segmentsize", true)[0u].asInt();
+      }else{
+        //if not, use the commandline argument
+        tmpNum = config->getOption("segmentsize").asInt();
+      }
+    }
+    //if the new value is different, print a message and apply it
+    if (segmentSize != tmpNum){
+      DEBUG_MSG(DLVL_DEVEL, "Setting segmentSize from %u to new value of %lli", segmentSize, tmpNum);
+      segmentSize = tmpNum;
+    }
+
+    //if stream is configured and setting is present, use it, always
+    std::string rec;
+    if (streamCfg && streamCfg.getMember("record")){
+      rec = streamCfg.getMember("record").asInt();
+    }else{
+      if (streamCfg){
+        //otherwise, if stream is configured use the default
+        rec = config->getOption("record", true)[0u].asString();
+      }else{
+        //if not, use the commandline argument
+        rec = config->getOption("record").asString();
+      }
+    }
+    //if the new value is different, print a message and apply it
+    if (recName != rec){
+      //close currently recording file, for we should open a new one
+      DEBUG_MSG(DLVL_DEVEL, "Stopping recording of %s to %s", config->getString("streamname").c_str(), recName.c_str());
+      recFile.close();
+      recMeta.tracks.clear();
+      recName = rec;
+    }
+    if (recName != "" && !recFile.is_open()){
+      DEBUG_MSG(DLVL_DEVEL, "Starting recording of %s to %s", config->getString("streamname").c_str(), recName.c_str());
+      recFile.open(recName.c_str());
+      if (recFile.fail()){
+        DEBUG_MSG(DLVL_DEVEL, "Error occured during record opening: %s", strerror(errno));
+      }
+      recBpos = 0;
+    }
+    /*LTS-END*/
     configLock.post();
     configLock.close();
     return true;

@@ -446,74 +446,27 @@ namespace Mist {
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
     DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
-    if (streamCfg){
-      long long bufTime = streamCfg.getMember("DVR").asInt();
-      if (bufferTime != bufTime){
-        DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, bufTime);
-        bufferTime = bufTime;
-      }
-      /*LTS-START*/
-      bufTime = streamCfg.getMember("cut").asInt();
-      if (cutTime != bufTime){
-        DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, bufTime);
-        cutTime = bufTime;
-      }
-      bufTime = streamCfg.getMember("segmentsize").asInt();
-      if (segmentSize != bufTime){
-        DEBUG_MSG(DLVL_DEVEL, "Setting segmentSize from %u to new value of %lli", segmentSize, bufTime);
-        segmentSize = bufTime;
-      }
-      std::string rec = streamCfg.getMember("record").asString();
-      if (rec != ""){
-        if (recName != rec){
-          //close currently recording file, for we should open a new one
-          recFile.close();
-          recMeta.tracks.clear();
-        }
-        if (!recFile.is_open()){
-          recName = rec;
-          DEBUG_MSG(DLVL_DEVEL, "Starting to record stream %s to %s", config->getString("streamname").c_str(), recName.c_str());
-          recFile.open(recName.c_str());
-          if (recFile.fail()){
-            DEBUG_MSG(DLVL_DEVEL, "Error occured during record opening: %s", strerror(errno));
-          }
-          recBpos = 0;
-        }
-      }
-      /*LTS-END*/
+    long long tmpNum;
+    
+    //if stream is configured and setting is present, use it, always
+    if (streamCfg && streamCfg.getMember("DVR")){
+      tmpNum = streamCfg.getMember("DVR").asInt();
     }else{
-      if (!bufferTime){
-        bufferTime = config->getInteger("bufferTime");
+      if (streamCfg){
+        //otherwise, if stream is configured use the default
+        tmpNum = config->getOption("bufferTime", true)[0u].asInt();
+      }else{
+        //if not, use the commandline argument
+        tmpNum = config->getOption("bufferTime").asInt();
       }
-      /*LTS-START*/
-      if (!cutTime){
-        cutTime = config->getInteger("cut");
-      }
-      if (!segmentSize){
-        segmentSize = config->getInteger("segmentsize");
-      }
-      std::string rec = config->getString("record");
-      if (rec != ""){
-        if (recName != rec){
-          //close currently recording file, for we should open a new one
-          recFile.close();
-          recMeta.tracks.clear();
-        }
-        if (!recFile.is_open()){
-          recName = rec;
-          DEBUG_MSG(DLVL_DEVEL, "Starting to record stream %s to %s", config->getString("streamname").c_str(), recName.c_str());
-          recFile.open(recName.c_str());
-          if (recFile.fail()){
-            DEBUG_MSG(DLVL_DEVEL, "Error occured during record opening: %s", strerror(errno));
-          }
-          recBpos = 0;
-        }
-      }
-      /*LTS-END*/
+    }
+    //if the new value is different, print a message and apply it
+    if (bufferTime != tmpNum){
+      DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, tmpNum);
+      bufferTime = tmpNum;
     }
     configLock.post();
     configLock.close();
-    
     return true;
   }
 

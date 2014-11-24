@@ -319,24 +319,37 @@ namespace Mist {
   }
 
   bool inputBuffer::setup() {
-    if (!bufferTime){
-      bufferTime = config->getInteger("bufferTime");
-    }
-    
+    std::string strName = config->getString("streamname");
+    Util::sanitizeName(strName);
+    strName = strName.substr(0,(strName.find('+')));
     IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
-    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(config->getString("streamname"));
+    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
+    long long tmpNum;
+    
+    //if stream is configured and setting is present, use it, always
     if (streamCfg && streamCfg.getMember("DVR")){
-      long long bufTime = streamCfg.getMember("DVR").asInt();
-      if (bufferTime != bufTime){
-        DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, bufTime);
-        bufferTime = bufTime;
+      tmpNum = streamCfg.getMember("DVR").asInt();
+    }else{
+      if (streamCfg){
+        //otherwise, if stream is configured use the default
+        tmpNum = config->getOption("bufferTime", true)[0u].asInt();
+      }else{
+        //if not, use the commandline argument
+        tmpNum = config->getOption("bufferTime").asInt();
+      }
+    }
+    //if the new value is different, print a message and apply it
+    if (bufferTime != tmpNum){
+      DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, tmpNum);
+      bufferTime = tmpNum;
+    }
+    
       }
     }
     configLock.post();
     configLock.close();
-    
     return true;
   }
 

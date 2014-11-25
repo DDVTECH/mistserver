@@ -11,7 +11,8 @@ namespace Mist {
       static void init(Util::Config * cfg);
       void sendNext();
       void sendHeader();
-    protected:
+      static bool listenMode(){return false;}
+  protected:
       TS::Packet PackData;
       unsigned int PacketNumber;
       bool haveAvcc;

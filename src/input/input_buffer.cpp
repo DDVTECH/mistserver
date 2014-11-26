@@ -346,8 +346,6 @@ namespace Mist {
       bufferTime = tmpNum;
     }
     
-      }
-    }
     configLock.post();
     configLock.close();
     return true;

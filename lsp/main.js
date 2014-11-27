@@ -713,6 +713,8 @@ function buildProtocolParameterFields(data,required,objpath) {
     var $input = $('<input>').attr('type','text').attr('id','protocol-'+index).attr('objpath',objpath+'.'+index).addClass('isSetting');
     switch (data[index].type) {
       case 'int':
+        $input.addClass('validate-integer');
+        break;
       case 'uint':
         $input.addClass('validate-positive-integer');
         break;
@@ -1633,19 +1635,33 @@ $(function(){
       break;
     }
   });
+  $('#page').on('input','.validate-integer',function(e){
+    var curpos = this.selectionStart;       //store the cursor position
+    var v = $(this).val();                  //validate the current value
+    v = v.replace(/[^\d]/g,'');
+    
+    $('#input-validation-info').remove();
+    if (v != Math.abs($(this).val())) {
+      $(this).parent().append(
+        $('<div>').attr('id','input-validation-info').html(
+          'Invalid input.<br>Input in this field must be an integer.'
+        ).addClass('red')
+      );
+    }
+    
+    $(this).val(v);
+    this.setSelectionRange(curpos,curpos);  //set the cursor to its original position
+  });
   $('#page').on('input','.validate-positive-integer',function(e){
     var curpos = this.selectionStart;       //store the cursor position
     var v = $(this).val();                  //validate the current value
     v = v.replace(/[^\d]/g,'');
-    if (Number(v) == 0) {
-      v = '';
-    }
     
     $('#input-validation-info').remove();
     if (v != $(this).val()) {
       $(this).parent().append(
         $('<div>').attr('id','input-validation-info').html(
-          'Invalid input.<br>Input in this field must be a positive nonzero integer.'
+          'Invalid input.<br>Input in this field must be a positive integer.'
         ).addClass('red')
       );
     }

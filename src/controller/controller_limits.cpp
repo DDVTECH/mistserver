@@ -77,6 +77,7 @@ namespace Controller{
     std::map<std::string, long long> strmUsers;
     std::map<std::string, long long> strmBandw;
     
+    /*
     if (curConns.size()){
       for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); it++){
         if (it->second.log.size() < 2){continue;}
@@ -89,6 +90,7 @@ namespace Controller{
         currentKbps += (((statRef->second.down - prevRef->second.down) + (statRef->second.up - prevRef->second.up)) / diff);
       }
     }
+    */
     
     //check stream limits
     if (Storage["streams"].size()){

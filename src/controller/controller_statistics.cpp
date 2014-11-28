@@ -487,17 +487,10 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
 void Controller::fillActive(JSON::Value & req, JSON::Value & rep){
   //collect the data first
   std::set<std::string> streams;
-  //start with current connections
-  if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); it++){
-      if (!it->second.log.size()){continue;}
-      streams.insert(it->second.streamName);
-    }
-  }
-  //look at history
-  if (oldConns.size()){
-    for (std::map<unsigned long long int, statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); it++){
-      streams.insert(it->second.streamName);
+  //check all sessions
+  if (sessions.size()){
+    for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+      streams.insert(it->first.streamName);
     }
   }
   //Good, now output what we found...

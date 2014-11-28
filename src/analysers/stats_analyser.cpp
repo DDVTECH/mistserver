@@ -56,6 +56,7 @@ int main(int argc, char ** argv){
         IPC::statExchange tmpEx(clients[i]->getData());
         tmpEx.now(now);
         tmpEx.host("::42");
+        tmpEx.crc(i);
         tmpEx.streamName(streamName);
         tmpEx.connector("TEST");
         if (scale){

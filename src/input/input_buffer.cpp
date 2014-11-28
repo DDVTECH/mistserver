@@ -12,6 +12,10 @@
 
 #include "input_buffer.h"
 
+#ifndef TIMEOUTMULTIPLIER
+  #define TIMEOUTMULTIPLIER 2
+#endif
+
 namespace Mist {
   inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "Buffer";
@@ -39,6 +43,7 @@ namespace Mist {
     capa["optional"]["record"]["help"] = "Filename to record the stream to.";
     capa["optional"]["record"]["option"] = "--record";
     capa["optional"]["record"]["type"] = "str";
+    capa["optional"]["record"]["default"] = "";
     option.null();
     option["arg"] = "integer";
     option["long"] = "cut";
@@ -201,6 +206,57 @@ namespace Mist {
   }
 
   void inputBuffer::removeUnused(){
+    //first remove all tracks that have not been updated for too long
+    bool changed = true;
+    while (changed){
+      changed = false;
+      long long unsigned int time = Util::bootSecs();
+      for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        bool eraseTrack = false;
+        long long unsigned int compareFirst = 0xFFFFFFFFFFFFFFFFull;
+        long long unsigned int compareLast = 0;
+        if ((time - lastUpdated[it->first]) > 5){
+          for(std::map<int,DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++){
+            if (it2->first == it->first){
+              continue;
+            }
+            if ((time - lastUpdated[it2->first]) > 5){
+              continue;
+            }
+            if (it2->second.lastms > compareLast){
+              compareLast = it2->second.lastms;
+            }
+            if (it2->second.firstms < compareFirst){
+              compareFirst = it2->second.firstms;
+            }
+          }
+          if (compareLast){
+            if ((myMeta.tracks[it->first].firstms - compareLast) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)){
+              eraseTrack = true;
+            }
+            if ((compareFirst - myMeta.tracks[it->first].lastms) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)){
+              eraseTrack = true;
+            }
+          }
+        }
+        if ((time - lastUpdated[it->first]) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)){
+          eraseTrack = true;
+        }
+        if (eraseTrack){
+          //erase this track
+          INFO_MSG("Erasing track %d because of timeout", it->first);
+          lastUpdated.erase(it->first);
+          inputLoc.erase(it->first);
+          dataPages.erase(it->first);
+          metaPages.erase(it->first);
+          givenTracks.erase(it->first);
+          pushedLoc.erase(it->first);
+          myMeta.tracks.erase(it);
+          changed = true;
+          break;
+        }
+      }
+    }
     //find the earliest video keyframe stored
     unsigned int firstVideo = 1;
     for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
@@ -359,6 +415,7 @@ namespace Mist {
               }
             }
             givenTracks.insert(finalMap);
+            lastUpdated[finalMap] = Util::bootSecs();
             pushedLoc[finalMap] = thisData;
             if (!myMeta.tracks.count(finalMap)){
               DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %d", finalMap);
@@ -424,6 +481,9 @@ namespace Mist {
     tmpPack.reInit(dataPages[tNum][pageNum].mapped + inputLoc[tNum][pageNum].curOffset, 0);
     if (!tmpPack && inputLoc[tNum][pageNum].curOffset == 0){
       return;
+    }
+    if (tmpPack){
+      lastUpdated[tNum] = Util::bootSecs();
     }
     while (tmpPack) {
       myMeta.update(tmpPack, segmentSize);/*LTS*/

@@ -804,6 +804,18 @@ namespace Mist {
           F.ChunkLoader(next);
           JSON::Value pack_out = F.toJSON(meta_out);
           if ( !pack_out.isNull()){
+            //Check for backwards timestamps
+            if (pack_out["time"].asInt() < meta_out.tracks[pack_out["trackid"].asInt()].lastms){
+              ///Reset all internals
+              sending = false;
+              counter = 0;
+              preBuf.clear();
+              meta_out = DTSC::Meta();
+              pack_out = F.toJSON(meta_out);//Reinitialize the metadata with this packet.
+              ///Reset negotiation with buffer
+              playerConn.finish();
+              playerConn = IPC::sharedClient(streamName + "_users", 30, true);
+            }
             if ( !sending){
               counter++;
               if (counter > 8){

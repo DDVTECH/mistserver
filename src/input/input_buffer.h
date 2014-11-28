@@ -29,6 +29,7 @@ namespace Mist {
       std::set<unsigned long> negotiateTracks;
       std::set<unsigned long> givenTracks;
       std::map<unsigned long, IPC::sharedPage> metaPages;
+      std::map<unsigned long, unsigned long long> lastUpdated;
       ///Maps trackid to a pagenum->pageData map
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > inputLoc;
       std::map<unsigned long, char *> pushedLoc;

@@ -266,11 +266,13 @@ int main(int argc, char ** argv){
     Controller::Log("CONF", "Controller shutting down because of socket problem (API port closed)");
   }
   Controller::conf.is_active = false;
-  //close stderr to make the stderr reading thread exit
-  close(STDERR_FILENO);
   //join all joinable threads
   statsThread.join();
   monitorThread.join();
+  //give everything some time to print messages
+  Util::wait(100);
+  //close stderr to make the stderr reading thread exit
+  close(STDERR_FILENO);
   //write config
   if ( !Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
     std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;

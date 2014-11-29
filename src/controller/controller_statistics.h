@@ -10,6 +10,9 @@
 
 
 namespace Controller {
+  
+  extern bool killOnExit;
+  
   struct statLog {
     long time;
     long lastSecond;
@@ -75,6 +78,7 @@ namespace Controller {
   extern std::map<sessIndex, statSession> sessions;
   extern std::map<unsigned long, sessIndex> connToSession;
   void parseStatistics(char * data, size_t len, unsigned int id);
+  void killStatistics(char * data, size_t len, unsigned int id);
   void fillClients(JSON::Value & req, JSON::Value & rep);
   void fillActive(JSON::Value & req, JSON::Value & rep);
   void fillTotals(JSON::Value & req, JSON::Value & rep);

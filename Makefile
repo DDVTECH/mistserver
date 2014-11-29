@@ -26,6 +26,10 @@ ifdef NOAUTH
 override CPPFLAGS += -DNOAUTH=1
 endif
 
+ifdef KILLONEXIT
+override CPPFLAGS += -DKILL_ON_EXIT=true
+endif
+
 ifdef WITH_THREADNAMES
 override CPPFLAGS += -DWITH_THREADNAMES=1
 endif

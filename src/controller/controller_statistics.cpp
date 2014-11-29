@@ -3,6 +3,10 @@
 #include "controller_statistics.h"
 #include "controller_limits.h"
 
+#ifndef KILL_ON_EXIT
+#define KILL_ON_EXIT false
+#endif
+
 // These are used to store "clients" field requests in a bitfield for speedup.
 #define STAT_CLI_HOST 1
 #define STAT_CLI_STREAM 2
@@ -24,6 +28,7 @@
 
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
+bool Controller::killOnExit = KILL_ON_EXIT;
 
 Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::string dstreamName, std::string dconnector){
   host = dhost;
@@ -79,6 +84,10 @@ bool Controller::sessIndex::operator>= (const Controller::sessIndex &b) const{
   return !(*this < b);
 }
 
+/// Forces a disconnect to all users.
+void Controller::killStatistics(char * data, size_t len, unsigned int id){
+  (*(data - 1)) = 128;//Send disconnect message;
+}
 
 /// This function runs as a thread and roughly once per second retrieves
 /// statistics from all connected clients, as well as wipes
@@ -95,6 +104,14 @@ void Controller::SharedMemStats(void * config){
     Util::sleep(1000);
   }
   DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
+  if (Controller::killOnExit){
+    DEBUG_MSG(DLVL_WARN, "Killing all connected clients to force full shutdown");
+    unsigned int c = 0;//to prevent eternal loops
+    do{
+      statServer.parseEach(killStatistics);
+      Util::wait(250);
+    }while(statServer.amount && c++ < 10);
+  }
 }
 
 /// Updates the given active connection with new stats data.

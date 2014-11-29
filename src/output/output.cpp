@@ -926,7 +926,7 @@ namespace Mist {
       unsigned long long int now = Util::epoch();
       if (now != lastStats){
         /*LTS-START*/
-        if (isBlacklisted(myConn.getHost(), streamName, myConn.connTime())){
+        if (statsPage.getData()[-1] > 127){
           myConn.close();
           return;
         }

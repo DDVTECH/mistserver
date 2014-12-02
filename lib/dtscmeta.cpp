@@ -985,9 +985,11 @@ namespace DTSC {
       height = trackRef["height"].asInt();
       fpks = trackRef["fpks"].asInt();
     }
-    if (codec == "vorbis" || codec == "theora") {
-      idHeader = trackRef["idheader"].asStringRef();
-      commentHeader = trackRef["commentheader"].asStringRef();
+    if (trackRef.isMember("keysizes") && trackRef["keysizes"].isString()) {
+      std::string tmp = trackRef["keysizes"].asStringRef();
+      for (int i = 0; i < tmp.size(); i += 4){
+        keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
+      }
     }
   }
 
@@ -1022,8 +1024,6 @@ namespace DTSC {
     width = rhs.width;
     height = rhs.height;
     fpks = rhs.fpks;
-    idHeader = rhs.idHeader;
-    commentHeader = rhs.commentHeader;
     if (rhs.fragments && rhs.fragLen) {
       fragments = std::deque<Fragment>(rhs.fragments, rhs.fragments + rhs.fragLen);
     }
@@ -1032,6 +1032,9 @@ namespace DTSC {
     }
     if (rhs.parts && rhs.partLen) {
       parts = std::deque<Part>(rhs.parts, rhs.parts + rhs.partLen);
+    }
+    for(std::vector<long unsigned>::const_iterator it = rhs.keySizes.begin(); it != rhs.keySizes.end(); it++){
+      keySizes.push_back(*it);
     }
   }
 
@@ -1067,9 +1070,11 @@ namespace DTSC {
       height = trackRef["height"].asInt();
       fpks = trackRef["fpks"].asInt();
     }
-    if (codec == "vorbis" || codec == "theora") {
-      idHeader = trackRef["idheader"].asStringRef();
-      commentHeader = trackRef["commentheader"].asStringRef();
+    if (trackRef.isMember("keysizes") && trackRef["keysizes"].isString()) {
+      std::string tmp = trackRef["keysizes"].asStringRef();
+      for (int i = 0; i < tmp.size(); i += 4){
+        keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
+      }
     }
   }
 
@@ -1110,6 +1115,14 @@ namespace DTSC {
       width = trackRef.getMember("width").asInt();
       height = trackRef.getMember("height").asInt();
       fpks = trackRef.getMember("fpks").asInt();
+    }
+    if (trackRef.getMember("keysizes").getType() == DTSC_STR) {
+      char * tmp = 0;
+      unsigned int tmplen = 0;
+      trackRef.getMember("keysizes").getString(tmp, tmplen);
+      for (int i = 0; i < tmplen; i += 4){
+        keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
+      }
     }
   }
 
@@ -1152,6 +1165,7 @@ namespace DTSC {
         newKey.setBpos(0);
       }
       keys.push_back(newKey);
+      keySizes.push_back(0);
       firstms = keys[0].getTime();
       if (!fragments.size() || (pack.getTime() > 5000 && pack.getTime() - 5000 >= (unsigned long long)getKey(fragments.rbegin()->getNumber()).getTime())) {
         //new fragment
@@ -1174,6 +1188,7 @@ namespace DTSC {
       }
     }
     keys.rbegin()->setParts(keys.rbegin()->getParts() + 1);
+    (*keySizes.rbegin()) += pack.getDataLen();
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + dataLen);
   }
 
@@ -1213,6 +1228,7 @@ namespace DTSC {
         newKey.setBpos(0);
       }
       keys.push_back(newKey);
+      keySizes.push_back(0);
       firstms = keys[0].getTime();
       if (!fragments.size() || (pack["time"].asInt() > 5000 && pack["time"].asInt() - 5000 >= getKey(fragments.rbegin()->getNumber()).getTime())) {
         //new fragment
@@ -1235,6 +1251,8 @@ namespace DTSC {
       }
     }
     keys.rbegin()->setParts(keys.rbegin()->getParts() + 1);
+    std::string tmp = pack.toNetPacked();
+    keySizes[keySizes.size() - 1] += tmp.size();
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + pack["data"].asStringRef().size());
   }
 
@@ -1346,10 +1364,6 @@ namespace DTSC {
       str << std::string(indent + 2, ' ') << "Height: " << height << std::endl;
       str << std::string(indent + 2, ' ') << "Fpks: " << fpks << std::endl;
     }
-    if (codec == "vorbis" || codec == "theora") {
-      str << std::string(indent + 2, ' ') << "IdHeader: " << idHeader << std::endl;
-      str << std::string(indent + 2, ' ') << "CommentHeader: " << commentHeader << std::endl;
-    }
     str << std::string(indent + 2, ' ') << "Fragments: " << fragLen << std::endl;
     if (fragments && verbosity & 0x01) {
       for (unsigned int i = 0; i < fragLen; i++) {
@@ -1360,6 +1374,12 @@ namespace DTSC {
     if (keys && verbosity & 0x02) {
       for (unsigned int i = 0; i < keyLen; i++) {
         keys[i].toPrettyString(str, indent + 4);
+      }
+    }
+    str << std::string(indent + 2, ' ') << "KeySizes: " << keySizes.size() << std::endl;
+    if (keySizes.size() && verbosity & 0x02){
+      for (unsigned int i = 0; i < keySizes.size(); i++){
+        str << std::string(indent + 4, ' ') << "[" << i << "] " << keySizes[i] << std::endl;
       }
     }
     str << std::string(indent + 2, ' ') << "Parts: " << partLen << std::endl;
@@ -1485,10 +1505,6 @@ namespace DTSC {
       str << std::string(indent + 2, ' ') << "Height: " << height << std::endl;
       str << std::string(indent + 2, ' ') << "Fpks: " << fpks << std::endl;
     }
-    if (codec == "vorbis" || codec == "theora") {
-      str << std::string(indent + 2, ' ') << "IdHeader: " << idHeader << std::endl;
-      str << std::string(indent + 2, ' ') << "CommentHeader: " << commentHeader << std::endl;
-    }
     str << std::string(indent + 2, ' ') << "Fragments: " << fragments.size() << std::endl;
     if (verbosity & 0x01) {
       for (unsigned int i = 0; i < fragments.size(); i++) {
@@ -1499,6 +1515,12 @@ namespace DTSC {
     if (verbosity & 0x02) {
       for (unsigned int i = 0; i < keys.size(); i++) {
         keys[i].toPrettyString(str, indent + 4);
+      }
+    }
+    str << std::string(indent + 2, ' ') << "KeySizes: " << keySizes.size() << std::endl;
+    if (keySizes.size() && verbosity & 0x02){
+      for (unsigned int i = 0; i < keySizes.size(); i++){
+        str << std::string(indent + 4, ' ') << "[" << i << "] " << keySizes[i] << std::endl;
       }
     }
     str << std::string(indent + 2, ' ') << "Parts: " << parts.size() << std::endl;
@@ -1546,15 +1568,14 @@ namespace DTSC {
     int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
     result += fragLen * 11;
     result += keyLen * 16;
+    if (keySizes.size()){
+      result += 11 + (keySizes.size() * 4) + 4;
+    }
     result += partLen * 9;
     if (type == "audio") {
       result += 49;
     } else if (type == "video") {
       result += 48;
-    }
-    if (codec == "vorbis" || codec == "theora") {
-      result += 15 + idHeader.size();//idheader
-      result += 20 + commentHeader.size();//commentheader
     }
     if (missedFrags) {
       result += 23;
@@ -1567,15 +1588,14 @@ namespace DTSC {
     int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
     result += fragments.size() * 11;
     result += keys.size() * 16;
+    if (keySizes.size()){
+      result += 11 + (keySizes.size() * 4) + 4;
+    }
     result += parts.size() * 9;
     if (type == "audio") {
       result += 49;
     } else if (type == "video") {
       result += 48;
-    }
-    if (codec == "vorbis" || codec == "theora") {
-      result += 15 + idHeader.size();//idheader
-      result += 20 + commentHeader.size();//commentheader
     }
     if (missedFrags) {
       result += 23;
@@ -1610,6 +1630,17 @@ namespace DTSC {
     writePointer(p, "\000\004keys\002", 7);
     writePointer(p, convertInt(keyLen * 16), 4);
     writePointer(p, (char *)keys, keyLen * 16);
+    writePointer(p, "\000\010keysizes\002,", 11);
+    writePointer(p, convertInt(keySizes.size() * 4), 4);
+    std::string tmp;
+    tmp.reserve(keySizes.size() * 4);
+    for (int i = 0; i < keySizes.size(); i++){
+      tmp += ((char)keySizes[i] >> 24);
+      tmp += ((char)keySizes[i] >> 16);
+      tmp += ((char)keySizes[i] >> 8);
+      tmp += ((char)keySizes[i]);
+    }
+    writePointer(p, tmp.data(), tmp.size());
     writePointer(p, "\000\005parts\002", 8);
     writePointer(p, convertInt(partLen * 9), 4);
     writePointer(p, (char *)parts, partLen * 9);
@@ -1649,14 +1680,6 @@ namespace DTSC {
       writePointer(p, "\000\004fpks\001", 7);
       writePointer(p, convertLongLong(fpks), 8);
     }
-    if (codec == "vorbis" || codec == "theora") {
-      writePointer(p, "\000\010idheader\002", 11);
-      writePointer(p, convertInt(idHeader.size()), 4);
-      writePointer(p, idHeader);
-      writePointer(p, "\000\015commentheader\002", 16);
-      writePointer(p, convertInt(commentHeader.size()), 4);
-      writePointer(p, commentHeader);
-    }
     writePointer(p, "\000\000\356", 3);//End this track Object
   }
 
@@ -1671,6 +1694,17 @@ namespace DTSC {
     conn.SendNow("\000\004keys\002", 7);
     conn.SendNow(convertInt(keyLen * 16), 4);
     conn.SendNow((char *)keys, keyLen * 16);
+    conn.SendNow("\000\010keysizes\002,", 11);
+    conn.SendNow(convertInt(keySizes.size() * 4), 4);
+    std::string tmp;
+    tmp.reserve(keySizes.size() * 4);
+    for (int i = 0; i < keySizes.size(); i++){
+      tmp += ((char)keySizes[i] >> 24);
+      tmp += ((char)keySizes[i] >> 16);
+      tmp += ((char)keySizes[i] >> 8);
+      tmp += ((char)keySizes[i]);
+    }
+    conn.SendNow(tmp.data(), tmp.size());
     conn.SendNow("\000\005parts\002", 8);
     conn.SendNow(convertInt(partLen * 9), 4);
     conn.SendNow((char *)parts, partLen * 9);
@@ -1710,14 +1744,6 @@ namespace DTSC {
       conn.SendNow("\000\004fpks\001", 7);
       conn.SendNow(convertLongLong(fpks), 8);
     }
-    if (codec == "vorbis" || codec == "theora") {
-      conn.SendNow("\000\010idheader\002", 11);
-      conn.SendNow(convertInt(idHeader.size()), 4);
-      conn.SendNow(idHeader);
-      conn.SendNow("\000\015commentheader\002", 16);
-      conn.SendNow(convertInt(commentHeader.size()), 4);
-      conn.SendNow(commentHeader);
-    }
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
 
@@ -1736,6 +1762,17 @@ namespace DTSC {
     for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
       writePointer(p, it->getData(), 16);
     }
+    writePointer(p, "\000\010keysizes\002,", 11);
+    writePointer(p, convertInt(keySizes.size() * 4), 4);
+    std::string tmp;
+    tmp.reserve(keySizes.size() * 4);
+    for (int i = 0; i < keySizes.size(); i++){
+      tmp += ((char)keySizes[i] >> 24);
+      tmp += ((char)keySizes[i] >> 16);
+      tmp += ((char)keySizes[i] >> 8);
+      tmp += ((char)keySizes[i]);
+    }
+    writePointer(p, tmp.data(), tmp.size());
     writePointer(p, "\000\005parts\002", 8);
     writePointer(p, convertInt(parts.size() * 9), 4);
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
@@ -1777,14 +1814,6 @@ namespace DTSC {
       writePointer(p, "\000\004fpks\001", 7);
       writePointer(p, convertLongLong(fpks), 8);
     }
-    if (codec == "vorbis" || codec == "theora") {
-      writePointer(p, "\000\010idheader\002", 11);
-      writePointer(p, convertInt(idHeader.size()), 4);
-      writePointer(p, idHeader);
-      writePointer(p, "\000\015commentheader\002", 16);
-      writePointer(p, convertInt(commentHeader.size()), 4);
-      writePointer(p, commentHeader);
-    }
     writePointer(p, "\000\000\356", 3);//End this track Object
   }
 
@@ -1803,6 +1832,17 @@ namespace DTSC {
     for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
       conn.SendNow(it->getData(), 16);
     }
+    conn.SendNow("\000\010keysizes\002,", 11);
+    conn.SendNow(convertInt(keySizes.size() * 4), 4);
+    std::string tmp;
+    tmp.reserve(keySizes.size() * 4);
+    for (int i = 0; i < keySizes.size(); i++){
+      tmp += ((char)keySizes[i] >> 24);
+      tmp += ((char)keySizes[i] >> 16);
+      tmp += ((char)keySizes[i] >> 8);
+      tmp += ((char)keySizes[i]);
+    }
+    conn.SendNow(tmp.data(), tmp.size());
     conn.SendNow("\000\005parts\002", 8);
     conn.SendNow(convertInt(parts.size() * 9), 4);
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
@@ -1843,14 +1883,6 @@ namespace DTSC {
       conn.SendNow(convertLongLong(height), 8);
       conn.SendNow("\000\004fpks\001", 7);
       conn.SendNow(convertLongLong(fpks), 8);
-    }
-    if (codec == "vorbis" || codec == "theora") {
-      conn.SendNow("\000\010idheader\002", 11);
-      conn.SendNow(convertInt(idHeader.size()), 4);
-      conn.SendNow(idHeader);
-      conn.SendNow("\000\015commentheader\002", 16);
-      conn.SendNow(convertInt(commentHeader.size()), 4);
-      conn.SendNow(commentHeader);
     }
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
@@ -2006,6 +2038,17 @@ namespace DTSC {
     if (keys) {
       result["keys"] = std::string((char *)keys, keyLen * 16);
     }
+    if (keySizes.size()){
+      std::string tmp;
+      tmp.reserve(keySizes.size() * 4);
+      for (int i = 0; i < keySizes.size(); i++){
+        tmp += ((char)(keySizes[i] >> 24));
+        tmp += ((char)(keySizes[i] >> 16));
+        tmp += ((char)(keySizes[i] >> 8));
+        tmp += ((char)keySizes[i]);
+      }
+      result["keysizes"] = tmp;
+    }
     if (parts) {
       result["parts"] = std::string((char *)parts, partLen * 9);
     }
@@ -2028,10 +2071,6 @@ namespace DTSC {
       result["height"] = height;
       result["fpks"] = fpks;
     }
-    if (codec == "vorbis" || codec == "theora") {
-      result["idheader"] = idHeader;
-      result["commentheader"] = commentHeader;
-    }
     return result;
   }
 
@@ -2050,6 +2089,15 @@ namespace DTSC {
       tmp.append(it->getData(), 16);
     }
     result["keys"] = tmp;
+    tmp = "";
+    tmp.reserve(keySizes.size() * 4);
+    for (int i = 0; i < keySizes.size(); i++){
+      tmp += ((char)(keySizes[i] >> 24));
+      tmp += ((char)(keySizes[i] >> 16));
+      tmp += ((char)(keySizes[i] >> 8));
+      tmp += ((char)keySizes[i]);
+    }
+    result["keysizes"] = tmp;
     tmp = "";
     tmp.reserve(parts.size() * 9);
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
@@ -2074,10 +2122,6 @@ namespace DTSC {
       result["width"] = width;
       result["height"] = height;
       result["fpks"] = fpks;
-    }
-    if (codec == "vorbis" || codec == "theora") {
-      result["idheader"] = idHeader;
-      result["commentheader"] = commentHeader;
     }
     return result;
   }

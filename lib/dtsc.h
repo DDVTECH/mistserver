@@ -250,6 +250,9 @@ namespace DTSC {
     public:
       readOnlyTrack();
       readOnlyTrack(JSON::Value & trackRef);
+      inline operator bool() const {
+        return (partLen && keySizes.size() && (keySizes.size() == keyLen));
+      }
       int getSendLen();
       void send(Socket::Connection & conn);
       void writeTo(char *& p);
@@ -260,6 +263,7 @@ namespace DTSC {
       Fragment * fragments;
       long long unsigned int keyLen;
       Key * keys;
+      std::vector<unsigned long> keySizes;
       long long unsigned int partLen;
       Part * parts;
       int trackID;
@@ -278,9 +282,6 @@ namespace DTSC {
       int width;
       int height;
       int fpks;
-      //vorbis and theora only
-      std::string idHeader;
-      std::string commentHeader;
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
@@ -292,7 +293,7 @@ namespace DTSC {
       Track(JSON::Value & trackRef);
       Track(Scan & trackRef);
       inline operator bool() const {
-        return parts.size();
+        return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
       }
       void update(DTSC::Packet & pack);
       void update(JSON::Value & pack);
@@ -302,6 +303,7 @@ namespace DTSC {
       JSON::Value toJSON();
       std::deque<Fragment> fragments;
       std::deque<Key> keys;
+      std::deque<unsigned long> keySizes;
       std::deque<Part> parts;
       Key & getKey(unsigned int keyNum);
       void reset();

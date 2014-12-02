@@ -205,79 +205,26 @@ namespace Mist {
   
   void Input::parseHeader(){
     DEBUG_MSG(DLVL_DONTEVEN,"Parsing the header");
-    //Select all tracks for parsing header
-    selectedTracks.clear();
-    std::stringstream trackSpec;
     for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      DEBUG_MSG(DLVL_VERYHIGH, "Track %d encountered", it->first);
-      if (trackSpec.str() != ""){
-        trackSpec << " ";
-      }
-      trackSpec << it->first;
-      DEBUG_MSG(DLVL_VERYHIGH, "Trackspec now %s", trackSpec.str().c_str());
-      for (std::deque<DTSC::Key>::iterator it2 = it->second.keys.begin(); it2 != it->second.keys.end(); it2++){
-        keyTimes[it->first].insert(it2->getTime());
+      bool newData = true;
+      for (int i = 0; i < it->second.keys.size(); i++){
+        if (newData){
+          //i+1 because keys are 1-indexed
+          pagesByTrack[it->first][i+1].firstTime = it->second.keys[i].getTime();
+          newData = false;
+        }
+        pagesByTrack[it->first].rbegin()->second.keyNum++;
+        pagesByTrack[it->first].rbegin()->second.partNum += it->second.keys[i].getParts();
+        pagesByTrack[it->first].rbegin()->second.dataSize += it->second.keySizes[i];
+        if (pagesByTrack[it->first].rbegin()->second.dataSize > 8 * 1024 * 1024){
+          newData = true;
+        }
       }
     }
-    trackSelect(trackSpec.str());
-    
-    std::map<int, DTSCPageData> curData;
-    std::map<int, booking> bookKeeping;
-    
-    seek(0);
-    getNext();
-
-    while(lastPack){//loop through all
-      int tid = lastPack.getTrackId();
-      if (!tid){
-        getNext(false);
-        continue;
-      }
-      if (!bookKeeping.count(tid)){
-        bookKeeping[tid].first = 1;
-        bookKeeping[tid].curPart = 0;
-        bookKeeping[tid].curKey = 0;
-        
-        curData[tid].lastKeyTime = 0xFFFFFFFF;
-        curData[tid].keyNum = 1;
-        curData[tid].partNum = 0;
-        curData[tid].dataSize = 0;
-        curData[tid].curOffset = 0;
-        curData[tid].firstTime = myMeta.tracks[tid].keys[0].getTime();
-
-        char tmpId[20];
-        sprintf(tmpId, "%d", tid);
-        indexPages[tid].init(config->getString("streamname") + tmpId, 8 * 1024, true);//Pages of 8kb in size, room for 512 parts.
-      }
-      if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() == curData[tid].partNum){
-        if (curData[tid].dataSize > 8 * 1024 * 1024) {
-          pagesByTrack[tid][bookKeeping[tid].first] = curData[tid];
-          bookKeeping[tid].first += curData[tid].keyNum;
-          curData[tid].keyNum = 0;
-          curData[tid].dataSize = 0;
-          curData[tid].firstTime = myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getTime();
-        }
-        bookKeeping[tid].curKey++;
-        curData[tid].keyNum++;
-        curData[tid].partNum = 0;
-      }
-      curData[tid].dataSize += lastPack.getDataLen();
-      curData[tid].partNum ++;
-      bookKeeping[tid].curPart ++;
-      DEBUG_MSG(DLVL_INSANE, "Track %ld:%llu (%db) on page %d, being part %d of key %d", lastPack.getTrackId(), lastPack.getTime(), lastPack.getDataLen(), bookKeeping[tid].first, curData[tid].partNum, curData[tid].keyNum);
-      getNext(false);
-    }
     for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (curData.count(it->first) && !pagesByTrack[it->first].count(bookKeeping[it->first].first)){
-        pagesByTrack[it->first][bookKeeping[it->first].first] = curData[it->first];
-      }
-      if (!pagesByTrack.count(it->first)){
-        DEBUG_MSG(DLVL_WARN, "No pages for track %d found", it->first);
-      }else{
-        DEBUG_MSG(DLVL_MEDIUM, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), pagesByTrack[it->first].size());
-        for (std::map<int, DTSCPageData>::iterator it2 = pagesByTrack[it->first].begin(); it2 != pagesByTrack[it->first].end(); it2++){
-          DEBUG_MSG(DLVL_VERYHIGH, "Page %u-%u", it2->first, it2->first + it2->second.keyNum - 1);
-        }
+      DEBUG_MSG(DLVL_MEDIUM, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), pagesByTrack[it->first].size());
+      for (std::map<int, DTSCPageData>::iterator it2 = pagesByTrack[it->first].begin(); it2 != pagesByTrack[it->first].end(); it2++){
+        DEBUG_MSG(DLVL_VERYHIGH, "Page %u-%u, (%llu bytes)", it2->first, it2->first + it2->second.keyNum - 1, it2->second.dataSize);
       }
     }
   }

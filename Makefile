@@ -57,9 +57,9 @@ analysers: MistAnalyserMP4
 MistAnalyserMP4: src/analysers/mp4_analyser.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
-analysers: MistAnalyserOGG
-MistAnalyserOGG: src/analysers/ogg_analyser.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+#analysers: MistAnalyserOGG
+#MistAnalyserOGG: src/analysers/ogg_analyser.cpp
+#	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 analysers: MistInfo
 MistInfo: src/analysers/info.cpp
@@ -77,11 +77,11 @@ MistInFLV: override CPPFLAGS += "-DINPUTTYPE=\"input_flv.h\""
 MistInFLV: src/input/mist_in.cpp src/input/input.cpp src/input/input_flv.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
-inputs: MistInOGG
-MistInOGG: override LDLIBS += $(THREADLIB)
-MistInOGG: override CPPFLAGS += "-DINPUTTYPE=\"input_ogg.h\""
-MistInOGG: src/input/mist_in.cpp src/input/input.cpp src/input/input_ogg.cpp
-	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+#inputs: MistInOGG
+#MistInOGG: override LDLIBS += $(THREADLIB)
+#MistInOGG: override CPPFLAGS += "-DINPUTTYPE=\"input_ogg.h\""
+#MistInOGG: src/input/mist_in.cpp src/input/input.cpp src/input/input_ogg.cpp
+#	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 inputs: MistInBuffer
 MistInBuffer: override LDLIBS += $(THREADLIB)

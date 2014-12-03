@@ -69,6 +69,7 @@ namespace Controller {
           for(JSON::ObjIter trackIt = data["meta"]["tracks"].ObjBegin(); trackIt != data["meta"]["tracks"].ObjEnd(); trackIt++){
             trackIt->second.removeMember("fragments");
             trackIt->second.removeMember("keys");
+            trackIt->second.removeMember("keysizes");
             trackIt->second.removeMember("parts");
           }
         }

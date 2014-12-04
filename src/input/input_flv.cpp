@@ -58,7 +58,11 @@ namespace Mist {
     DTSC::File tmp(config->getString("input") + ".dtsh");
     if (tmp){
       myMeta = tmp.getMeta();
-      return true;
+      if (myMeta){
+        return true;
+      }else{
+        myMeta = DTSC::Meta();
+      }
     }
     //Create header file from FLV data
     fseek(inFile, 13, SEEK_SET);

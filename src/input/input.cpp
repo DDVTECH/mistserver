@@ -214,6 +214,9 @@ namespace Mist {
     }
     if (hasKeySizes){
       for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        char tmpId[20];
+        sprintf(tmpId, "%d", it->first);
+        indexPages[it->first].init(config->getString("streamname") + tmpId, 8 * 1024, true);//Pages of 8kb in size, room for 512 parts.
         bool newData = true;
         for (int i = 0; i < it->second.keys.size(); i++){
           if (newData){

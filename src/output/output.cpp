@@ -40,7 +40,7 @@ namespace Mist {
   
   Output::Output(Socket::Connection & conn) : myConn(conn) {
     firstTime = 0;
-    crc = 0;
+    crc = getpid();
     parseData = false;
     wantRequest = true;
     sought = false;

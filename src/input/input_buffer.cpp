@@ -84,6 +84,7 @@ namespace Mist {
     }
     //remove the key itself
     myMeta.tracks[tid].keys.pop_front();
+    myMeta.tracks[tid].keySizes.pop_front();
     //re-calculate firstms
     myMeta.tracks[tid].firstms = myMeta.tracks[tid].keys[0].getTime();
     //delete the fragment if it's no longer fully buffered

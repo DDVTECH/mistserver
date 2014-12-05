@@ -283,7 +283,16 @@ void Socket::Connection::drop() {
 
 /// Returns internal socket number.
 int Socket::Connection::getSocket() {
-  return sock;
+  if (sock != -1){
+    return sock;
+  }
+  if (pipes[0] != -1) {
+    return pipes[0];
+  }
+  if (pipes[1] != -1) {
+    return pipes[1];
+  }
+  return -1;
 }
 
 /// Returns a string describing the last error that occured.

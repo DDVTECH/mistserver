@@ -2,6 +2,7 @@
 #include <mist/timing.h>
 #include <mist/defines.h>
 #include <mist/json.h>
+#include <mist/tinythread.h>
 #include <string>
 #include <map>
 
@@ -55,12 +56,15 @@ namespace Controller {
       std::deque<statStorage> oldConns;
       std::map<unsigned long, statStorage> curConns;
     public:
+      statSession();
+      void wipeOld(unsigned long long);
       void finish(unsigned long index);
       void switchOverTo(statSession & newSess, unsigned long index);
       void update(unsigned long index, IPC::statExchange & data);
       unsigned long long getStart();
       unsigned long long getEnd();
       bool hasDataFor(unsigned long long time);
+      bool hasData();
       long long getConnTime(unsigned long long time);
       long long getLastSecond(unsigned long long time);
       long long getDown(unsigned long long time);
@@ -74,6 +78,7 @@ namespace Controller {
   
   extern std::map<sessIndex, statSession> sessions;
   extern std::map<unsigned long, sessIndex> connToSession;
+  extern tthread::mutex statsMutex;
   void parseStatistics(char * data, size_t len, unsigned int id);
   void fillClients(JSON::Value & req, JSON::Value & rep);
   void fillTotals(JSON::Value & req, JSON::Value & rep);

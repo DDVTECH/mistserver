@@ -295,6 +295,11 @@ int Socket::Connection::getSocket() {
   return -1;
 }
 
+/// Returns non-piped internal socket number.
+int Socket::Connection::getPureSocket() {
+  return sock;
+}
+
 /// Returns a string describing the last error that occured.
 /// Only reports errors if an error actually occured - returns the host address or empty string otherwise.
 std::string Socket::Connection::getError() {

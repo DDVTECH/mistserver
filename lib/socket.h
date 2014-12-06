@@ -75,6 +75,7 @@ namespace Socket {
       std::string getBinHost();
       void setHost(std::string host); ///< Sets hostname for connection manually.
       int getSocket(); ///< Returns internal socket number.
+      int getPureSocket(); ///< Returns non-piped internal socket number.
       std::string getError(); ///< Returns a string describing the last error that occured.
       bool connected() const; ///< Returns the connected-state for this socket.
       bool isAddress(std::string addr);

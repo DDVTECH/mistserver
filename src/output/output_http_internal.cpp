@@ -4,7 +4,7 @@
 
 namespace Mist {
   OutHTTP::OutHTTP(Socket::Connection & conn) : HTTPOutput(conn){
-    if (myConn.getSocket() >= 0){
+    if (myConn.getPureSocket() >= 0){
       std::string host = myConn.getHost();
       dup2(myConn.getSocket(), STDIN_FILENO);
       dup2(myConn.getSocket(), STDOUT_FILENO);

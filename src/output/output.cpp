@@ -40,7 +40,7 @@ namespace Mist {
     capa["optional"]["startpos"]["help"] = "For live, where in the buffer the stream starts playback by default. 0 = beginning, 100 = end";
     capa["optional"]["startpos"]["option"] = "--startPos";
     capa["optional"]["startpos"]["type"] = "uint";
-    cfg->addOption("startpos", JSON::fromString("{\"arg\":\"uint\",\"default\":50,\"short\":\"P\",\"long\":\"startPos\",\"help\":\"For live, where in the buffer the stream starts playback by default. 0 = beginning, 100 = end\"}"));
+    cfg->addOption("startpos", JSON::fromString("{\"arg\":\"uint\",\"default\":500,\"short\":\"P\",\"long\":\"startPos\",\"help\":\"For live, where in the buffer the stream starts playback by default. 0 = beginning, 1000 = end\"}"));
   }
   
   Output::Output(Socket::Connection & conn) : myConn(conn) {
@@ -831,7 +831,7 @@ namespace Mist {
     if (!sought){
       if (myMeta.live){
         long unsigned int mainTrack = getMainSelectedTrack();
-        unsigned int skip = ((myMeta.tracks[mainTrack].keys.size()-1) * config->getInteger("startpos")) / 100u;
+        unsigned int skip = ((myMeta.tracks[mainTrack].keys.size()-1) * config->getInteger("startpos")) / 1000u;
         std::deque<DTSC::Key>::iterator it = myMeta.tracks[mainTrack].keys.begin();
         for (unsigned int i = 0; i < skip; ++i){
           ++it;

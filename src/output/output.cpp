@@ -533,20 +533,29 @@ namespace Mist {
     return 0;
   }
   
+  /// Returns the ID of the main selected track, or 0 if no tracks are selected.
+  /// The main track is the first video track, if any, and otherwise the first other track.
+  long unsigned int Output::getMainSelectedTrack(){
+    if (!selectedTracks.size()){
+      return 0;
+    }
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks[*it].type == "video"){
+        return *it;
+      }
+    }
+    return *(selectedTracks.begin());
+  }
+  
   void Output::prepareNext(){
     if (!sought){
-      unsigned int firstms = 0x0;
-      for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-        lastKeyTime[*it] = 0xFFFFFFFF;
-        if (myMeta.tracks[*it].firstms > firstms){
-          firstms = myMeta.tracks[*it].firstms;
-        }
-      }
       if (myMeta.live){
-        if (firstms < 5000){
-          firstms = 0;
+        long unsigned int mainTrack = getMainSelectedTrack();
+        unsigned long long seekPos = mymeta.tracks[mainTrack].keys.begin()->getTime();
+        if (seekPos < 5000){
+          seekPos = 0;
         }
-        seek(firstms);
+        seek(seekPos);
       }else{
         seek(0);
       }

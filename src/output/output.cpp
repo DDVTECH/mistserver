@@ -36,6 +36,11 @@ namespace Mist {
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
     capa["optional"]["debug"]["type"] = "uint";
+    capa["optional"]["startpos"]["name"] = "Starting position in live buffer";
+    capa["optional"]["startpos"]["help"] = "For live, where in the buffer the stream starts playback by default. 0 = beginning, 100 = end";
+    capa["optional"]["startpos"]["option"] = "--startPos";
+    capa["optional"]["startpos"]["type"] = "uint";
+    cfg->addOption("startpos", JSON::fromString("{\"arg\":\"uint\",\"default\":50,\"short\":\"P\",\"long\":\"startPos\",\"help\":\"For live, where in the buffer the stream starts playback by default. 0 = beginning, 100 = end\"}"));
   }
   
   Output::Output(Socket::Connection & conn) : myConn(conn) {
@@ -826,7 +831,12 @@ namespace Mist {
     if (!sought){
       if (myMeta.live){
         long unsigned int mainTrack = getMainSelectedTrack();
-        unsigned long long seekPos = mymeta.tracks[mainTrack].keys.begin()->getTime();
+        unsigned int skip = ((myMeta.tracks[mainTrack].keys.size()-1) * config->getInteger("startpos")) / 100u;
+        std::deque<DTSC::Key>::iterator it = myMeta.tracks[mainTrack].keys.begin();
+        for (unsigned int i = 0; i < skip; ++i){
+          ++it;
+        }
+        unsigned long long seekPos = it->getTime();
         if (seekPos < 5000){
           seekPos = 0;
         }

@@ -205,6 +205,21 @@ namespace Mist {
   
   void Input::parseHeader(){
     DEBUG_MSG(DLVL_DONTEVEN,"Parsing the header");
+    selectedTracks.clear();
+    std::stringstream trackSpec;
+    for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      DEBUG_MSG(DLVL_VERYHIGH, "Track %d encountered", it->first);
+      if (trackSpec.str() != ""){
+        trackSpec << " ";
+      }
+      trackSpec << it->first;
+      DEBUG_MSG(DLVL_VERYHIGH, "Trackspec now %s", trackSpec.str().c_str());
+      for (std::deque<DTSC::Key>::iterator it2 = it->second.keys.begin(); it2 != it->second.keys.end(); it2++){
+        keyTimes[it->first].insert(it2->getTime());
+      }
+    }
+    trackSelect(trackSpec.str());
+    
     bool hasKeySizes = true;
     for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (!it->second.keySizes.size()){
@@ -233,21 +248,6 @@ namespace Mist {
         }
       }
     }else{
-      selectedTracks.clear();
-      std::stringstream trackSpec;
-      for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        DEBUG_MSG(DLVL_VERYHIGH, "Track %d encountered", it->first);
-        if (trackSpec.str() != ""){
-          trackSpec << " ";
-        }
-        trackSpec << it->first;
-        DEBUG_MSG(DLVL_VERYHIGH, "Trackspec now %s", trackSpec.str().c_str());
-        for (std::deque<DTSC::Key>::iterator it2 = it->second.keys.begin(); it2 != it->second.keys.end(); it2++){
-          keyTimes[it->first].insert(it2->getTime());
-        }
-      }
-      trackSelect(trackSpec.str());
-      
       std::map<int, DTSCPageData> curData;
       std::map<int, booking> bookKeeping;
       

@@ -204,6 +204,7 @@ namespace Mist {
       std::string ua = H.GetHeader("User-Agent");
       crc = checksum::crc32(0, ua.data(), ua.size());
       INFO_MSG("Received request %s", H.getUrl().c_str());
+      selectedTracks.clear();
       if (H.GetVar("audio") != ""){
         selectedTracks.insert(JSON::Value(H.GetVar("audio")).asInt());
       }

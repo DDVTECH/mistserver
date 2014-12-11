@@ -242,7 +242,7 @@ namespace Controller {
           jit->second["error"] = "No (valid) source connected ";
         }else{
           // for live streams, keep track of activity
-          if (jit->second["meta"].isMember("live")){
+          if (jit->second.isMember("meta") && jit->second["meta"].isMember("live")){
             static std::map<std::string, liveCheck> checker;
             //check H264 tracks for optimality
             if (jit->second.isMember("meta") && jit->second["meta"].isMember("tracks")){

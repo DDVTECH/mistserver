@@ -446,7 +446,8 @@ namespace Mist {
     for (std::set<mp4PartBpos>::iterator it = BPosSet.begin(); it != BPosSet.end(); it++){
       if (!fseek(inFile,it->bpos,SEEK_SET)){
         if (it->size > malSize){
-          data = (char*)malloc(it->size);
+          data = (char*)realloc(data, it->size);
+          malSize = it->size;
         }
         int tmp = fread(data, it->size, 1, inFile);
         if (tmp == 1){

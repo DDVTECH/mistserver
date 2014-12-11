@@ -557,7 +557,7 @@ namespace Mist {
     if (!sought){
       if (myMeta.live){
         long unsigned int mainTrack = getMainSelectedTrack();
-        unsigned long long seekPos = mymeta.tracks[mainTrack].keys.begin()->getTime();
+        unsigned long long seekPos = myMeta.tracks[mainTrack].keys.begin()->getTime();
         if (seekPos < 5000){
           seekPos = 0;
         }

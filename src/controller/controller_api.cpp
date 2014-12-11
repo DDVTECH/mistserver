@@ -215,7 +215,6 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           /// 
           if (Request.isMember("addstream")){
             Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
-            Controller::CheckAllStreams(Controller::Storage["streams"]);
           }
           /// 
           /// \api
@@ -256,7 +255,6 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
                 Controller::Storage["streams"].removeMember(it->first);
               }
             }
-            Controller::CheckAllStreams(Controller::Storage["streams"]);
           }
           /*LTS-END*/
           if (Request.isMember("capabilities")){

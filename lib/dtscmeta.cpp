@@ -1251,8 +1251,7 @@ namespace DTSC {
       }
     }
     keys.rbegin()->setParts(keys.rbegin()->getParts() + 1);
-    std::string tmp = pack.toNetPacked();
-    keySizes[keySizes.size() - 1] += tmp.size();
+    keySizes[keySizes.size() - 1] += pack.packedSize();
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + pack["data"].asStringRef().size());
   }
 

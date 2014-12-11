@@ -19,6 +19,23 @@ namespace Mist {
     return !(config->getString("ip").size());
   }
   
+  void OutHTTP::onFail(){
+    INFO_MSG("Failing: %s", H.url.c_str());
+    if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
+      if (H.url.size() >= 5 && H.url.substr(0, 5) == "/json"){
+          H.Clean();
+          H.SetBody("{\"error\":\"Could not retrieve stream. Sorry.\"}\n");
+        }else{
+          H.Clean();
+          H.SetBody("mistvideo['" + streamName + "'] = {\"error\":\"Could not retrieve stream. Sorry.\"};\n");
+        }
+        H.SendResponse("200", "Stream not found", myConn);
+    }else{
+      HTTPOutput::onFail();
+    }
+    Output::onFail();
+  }
+  
   void OutHTTP::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa.removeMember("deps");

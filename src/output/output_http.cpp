@@ -211,6 +211,7 @@ namespace Mist {
       if (H.GetVar("video") != ""){
         selectedTracks.insert(JSON::Value(H.GetVar("video")).asInt());
       }
+      selectDefaultTracks();
       onHTTP();
       H.Clean();
     }

@@ -241,9 +241,16 @@ namespace Mist {
     }
     statsPage = IPC::sharedClient("statistics", STAT_EX_SIZE, true);
     playerConn = IPC::sharedClient(streamName + "_users", 30, true);
-    
     updateMeta();
-    
+    selectDefaultTracks();
+    sought = false;
+  }
+  
+  void Output::selectDefaultTracks(){
+    if (!isInitialized){
+      initialize();
+      return;
+    }
     //check which tracks don't actually exist
     std::set<long unsigned int> toRemove;
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
@@ -343,7 +350,6 @@ namespace Mist {
       DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
     }
     
-    sought = false;
   }
   
   /// Clears the buffer, sets parseData to false, and generally makes not very much happen at all.

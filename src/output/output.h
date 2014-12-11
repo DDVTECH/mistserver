@@ -59,6 +59,7 @@ namespace Mist {
       void setBlocking(bool blocking);
       long unsigned int getMainSelectedTrack();
       void updateMeta();
+      void selectDefaultTracks();
       static bool listenMode(){return true;}
       //virtuals. The optional virtuals have default implementations that do as little as possible.
       virtual void sendNext() {}//REQUIRED! Others are optional.

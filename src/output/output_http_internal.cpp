@@ -27,7 +27,7 @@ namespace Mist {
           H.SetBody("{\"error\":\"Could not retrieve stream. Sorry.\"}\n");
         }else{
           H.Clean();
-          H.SetBody("mistvideo['" + streamName + "'] = {\"error\":\"Could not retrieve stream. Sorry.\"};\n");
+          H.SetBody("if (!mistvideo){var mistvideo = {};}\nmistvideo['" + streamName + "'] = {\"error\":\"Could not retrieve stream. Sorry.\"};\n");
         }
         H.SendResponse("200", "Stream not found", myConn);
     }else{

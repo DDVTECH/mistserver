@@ -10,7 +10,7 @@ namespace Mist {
       virtual ~HTTPOutput(){};
       static void init(Util::Config * cfg);
       void onRequest();
-      void onFail();
+      virtual void onFail();
       virtual void onHTTP(){};
       virtual void requestHandler();
       static bool listenMode(){return false;}

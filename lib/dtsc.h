@@ -341,6 +341,7 @@ namespace DTSC {
       Meta(JSON::Value & meta);
       void reinit(const DTSC::Packet & source);
       void update(DTSC::Packet & pack, unsigned long segment_size = 5000);
+      void updatePosOverride(DTSC::Packet & pack, unsigned long bpos);
       void update(JSON::Value & pack, unsigned long segment_size = 5000);
       void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
       unsigned int getSendLen();

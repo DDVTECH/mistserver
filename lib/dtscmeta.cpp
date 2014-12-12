@@ -1457,7 +1457,15 @@ namespace DTSC {
     pack.getString("data", data, dataLen);
     update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, pack.hasMember("bpos")?pack.getInt("bpos"):-1, pack.hasMember("keyframe"), pack.getDataLen(), segment_size);
   }
-  
+
+  ///\brief Updates a meta object given a DTSC::Packet with byte position override.
+  void Meta::updatePosOverride(DTSC::Packet & pack, unsigned long bpos) {
+    char * data;
+    unsigned int dataLen;
+    pack.getString("data", data, dataLen);
+    update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, bpos, pack.hasMember("keyframe"), pack.getDataLen());
+  }
+
   void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size){
     if (!packSendSize){
       //time and trackID are part of the 20-byte header.

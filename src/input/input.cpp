@@ -123,16 +123,13 @@ namespace Mist {
         //output to dtsc
         DTSC::Meta newMeta = myMeta;
         newMeta.reset();
-        JSON::Value tempVal;
         std::ofstream file(filename.c_str());
         long long int bpos = 0;
         seek(0);
         getNext();
         while (lastPack){
-          tempVal = lastPack.toJSON();
-          tempVal["bpos"] = bpos;
-          newMeta.update(tempVal);
-          file << std::string(lastPack.getData(), lastPack.getDataLen());
+          newMeta.updatePosOverride(lastPack, bpos);
+          file.write(lastPack.getData(), lastPack.getDataLen());
           bpos += lastPack.getDataLen();
           getNext();
         }

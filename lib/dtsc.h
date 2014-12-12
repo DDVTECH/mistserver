@@ -109,6 +109,7 @@ namespace DTSC {
       operator bool() const;
       packType getVersion() const;
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
+      void genericFill(long long packTime, long long packOffset, long long packTrack, char * packData, long long packDataSize, long long packBytePos, bool isKeyframe);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
       void getString(const char * identifier, std::string & result) const;
       void getInt(const char * identifier, int & result) const;
@@ -295,8 +296,7 @@ namespace DTSC {
       inline operator bool() const {
         return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
       }
-      void update(DTSC::Packet & pack);
-      void update(JSON::Value & pack);
+      void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
       int getSendLen();
       void send(Socket::Connection & conn);
       void writeTo(char *& p);
@@ -340,8 +340,9 @@ namespace DTSC {
       Meta(const readOnlyMeta & meta);
       Meta(JSON::Value & meta);
       void reinit(const DTSC::Packet & source);
-      void update(DTSC::Packet & pack);
-      void update(JSON::Value & pack);
+      void update(DTSC::Packet & pack, unsigned long segment_size = 5000);
+      void update(JSON::Value & pack, unsigned long segment_size = 5000);
+      void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
       unsigned int getSendLen();
       void send(Socket::Connection & conn);
       void writeTo(char * p);

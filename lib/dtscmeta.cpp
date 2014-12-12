@@ -189,6 +189,61 @@ namespace DTSC {
       return;
     }
   }
+  
+  /// Re-initializes this Packet to contain a generic DTSC packet with the given data fields.
+  void Packet::genericFill(long long packTime, long long packOffset, long long packTrack, char * packData, long long packDataSize, long long packBytePos, bool isKeyframe){
+    null();
+    master = true;
+    //time and trackID are part of the 20-byte header.
+    //the container object adds 4 bytes (plus 2+namelen for each content, see below)
+    //offset, if non-zero, adds 9 bytes (integer type) and 8 bytes (2+namelen)
+    //bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)
+    //keyframe, if true, adds 9 bytes (integer type) and 10 bytes (2+namelen)
+    //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
+    unsigned int sendLen = 24 + (packOffset?17:0) + (packBytePos>=0?15:0) + (isKeyframe?19:0) + packDataSize+11;
+    resize(sendLen);
+    //set internal variables
+    version = DTSC_V2;
+    dataLen = sendLen;
+    //write the first 20 bytes
+    memcpy(data, "DTP2", 4);
+    unsigned int tmpLong = htonl(sendLen - 8);
+    memcpy(data+4, (char *)&tmpLong, 4);
+    tmpLong = htonl(packTrack);
+    memcpy(data+8, (char *)&tmpLong, 4);
+    tmpLong = htonl((int)(packTime >> 32));
+    memcpy(data+12, (char *)&tmpLong, 4);
+    tmpLong = htonl((int)(packTime & 0xFFFFFFFF));
+    memcpy(data+16, (char *)&tmpLong, 4);
+    data[20] = 0xE0;//start container object
+    unsigned int offset = 21;
+    if (packOffset){
+      memcpy(data+offset, "\000\006offset\001", 9);
+      tmpLong = htonl((int)(packOffset >> 32));
+      memcpy(data+offset+9, (char *)&tmpLong, 4);
+      tmpLong = htonl((int)(packOffset & 0xFFFFFFFF));
+      memcpy(data+offset+13, (char *)&tmpLong, 4);
+      offset += 17;
+    }
+    if (packBytePos){
+      memcpy(data+offset, "\000\004bpos\001", 7);
+      tmpLong = htonl((int)(packBytePos >> 32));
+      memcpy(data+offset+7, (char *)&tmpLong, 4);
+      tmpLong = htonl((int)(packBytePos & 0xFFFFFFFF));
+      memcpy(data+offset+11, (char *)&tmpLong, 4);
+      offset += 15;
+    }
+    if (isKeyframe){
+      memcpy(data+offset, "\000\010keyframe\001\000\000\000\000\000\000\000\001", 19);
+      offset += 19;
+    }
+    memcpy(data+offset, "\000\004data\002", 7);
+    tmpLong = htonl(packDataSize);
+    memcpy(data+offset+7, (char *)&tmpLong, 4);
+    memcpy(data+offset+11, packData, packDataSize);
+    //finish container with 0x0000EE
+    memcpy(data+offset+11+packDataSize, "\000\000\356", 3);
+  }
 
   /// Helper function for skipping over whole DTSC parts
   static char * skipDTSC(char * p, char * max) {
@@ -1126,55 +1181,51 @@ namespace DTSC {
     }
   }
 
-  ///\brief Updates a track and its metadata given a DTSC::Packet.
-  ///
+  ///\brief Updates a track and its metadata given new packet properties.
   ///Will also insert keyframes on non-video tracks, and creates fragments
-  void Track::update(DTSC::Packet & pack) {
-    if (pack.getTime() < lastms) {
-      DEBUG_MSG(DLVL_WARN, "Received packets for track %d in wrong order (%d < %d) - ignoring!", (int)trackID, (int)pack.getTime(), (int)lastms);
+  void Track::update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size) {
+    if (packTime < lastms) {
+      DEBUG_MSG(DLVL_WARN, "Received packets for track %d in wrong order (%lld < %d) - ignoring!", (int)trackID, packTime, (int)lastms);
       return;
     }
     Part newPart;
-    char * data;
-    unsigned int dataLen;
-    pack.getString("data", data, dataLen);
-    newPart.setSize(dataLen);
-    newPart.setOffset(pack.getInt("offset"));
+    newPart.setSize(packDataSize);
+    newPart.setOffset(packOffset);
     if (parts.size()) {
-      parts[parts.size() - 1].setDuration(pack.getTime() - lastms);
-      newPart.setDuration(pack.getTime() - lastms);
+      parts[parts.size() - 1].setDuration(packTime - lastms);
+      newPart.setDuration(packTime - lastms);
     } else {
       newPart.setDuration(0);
     }
     parts.push_back(newPart);
-    lastms = pack.getTime();
-    if (pack.getFlag("keyframe") || !keys.size() || (type != "video" && pack.getTime() >= AUDIO_KEY_INTERVAL && pack.getTime() - (unsigned long long)keys[keys.size() - 1].getTime() >= AUDIO_KEY_INTERVAL)){
+    lastms = packTime;
+    if (isKeyframe || !keys.size() || (type != "video" && packTime >= AUDIO_KEY_INTERVAL && packTime - (unsigned long long)keys[keys.size() - 1].getTime() >= AUDIO_KEY_INTERVAL)){
       Key newKey;
-      newKey.setTime(pack.getTime());
+      newKey.setTime(packTime);
       newKey.setParts(0);
       newKey.setLength(0);
       if (keys.size()) {
         newKey.setNumber(keys[keys.size() - 1].getNumber() + 1);
-        keys[keys.size() - 1].setLength(pack.getTime() - keys[keys.size() - 1].getTime());
+        keys[keys.size() - 1].setLength(packTime - keys[keys.size() - 1].getTime());
       } else {
         newKey.setNumber(1);
       }
-      if (pack.hasMember("bpos")) { //For VoD
-        newKey.setBpos(pack.getInt("bpos"));
+      if (packBytePos >= 0) { //For VoD
+        newKey.setBpos(packBytePos);
       } else {
         newKey.setBpos(0);
       }
       keys.push_back(newKey);
       keySizes.push_back(0);
       firstms = keys[0].getTime();
-      if (!fragments.size() || (pack.getTime() > 5000 && pack.getTime() - 5000 >= (unsigned long long)getKey(fragments.rbegin()->getNumber()).getTime())) {
+      if (!fragments.size() || (packTime > segment_size && packTime - segment_size >= (unsigned long long)getKey(fragments.rbegin()->getNumber()).getTime())) {
         //new fragment
         Fragment newFrag;
         newFrag.setDuration(0);
         newFrag.setLength(1);
         newFrag.setNumber(keys[keys.size() - 1].getNumber());
         if (fragments.size()) {
-          fragments[fragments.size() - 1].setDuration(pack.getTime() - getKey(fragments[fragments.size() - 1].getNumber()).getTime());
+          fragments[fragments.size() - 1].setDuration(packTime - getKey(fragments[fragments.size() - 1].getNumber()).getTime());
           if (!bps && fragments[fragments.size() - 1].getDuration() > 1000) {
             bps = (fragments[fragments.size() - 1].getSize() * 1000) / fragments[fragments.size() - 1].getDuration();
           }
@@ -1188,73 +1239,10 @@ namespace DTSC {
       }
     }
     keys.rbegin()->setParts(keys.rbegin()->getParts() + 1);
-    (*keySizes.rbegin()) += pack.getDataLen();
-    fragments.rbegin()->setSize(fragments.rbegin()->getSize() + dataLen);
+    (*keySizes.rbegin()) += packSendSize;
+    fragments.rbegin()->setSize(fragments.rbegin()->getSize() + packDataSize);
   }
-
-  ///\brief Updates a track and its metadata given a JSON::Value
-  ///
-  ///Will also insert keyframes on non-video tracks, and creates fragments
-  void Track::update(JSON::Value & pack) {
-    if ((unsigned long long)pack["time"].asInt() < lastms) {
-      DEBUG_MSG(DLVL_WARN, "Received packets for track %d in wrong order (%d < %d) - ignoring!", (int)trackID, (int)pack["time"].asInt(), (int)lastms);
-      return;
-    }
-    Part newPart;
-    newPart.setSize(pack["data"].asStringRef().size());
-    newPart.setOffset(pack["offset"].asInt());
-    if (parts.size()) {
-      parts[parts.size() - 1].setDuration(pack["time"].asInt() - lastms);
-      newPart.setDuration(pack["time"].asInt() - lastms);
-    } else {
-      newPart.setDuration(0);
-    }
-    parts.push_back(newPart);
-    lastms = pack["time"].asInt();
-    if (pack.isMember("keyframe") || !keys.size() || (type != "video" && pack["time"].asInt() >= AUDIO_KEY_INTERVAL && pack["time"].asInt() - keys[keys.size() - 1].getTime() >= AUDIO_KEY_INTERVAL)) {
-      Key newKey;
-      newKey.setTime(pack["time"].asInt());
-      newKey.setParts(0);
-      newKey.setLength(0);
-      if (keys.size()) {
-        newKey.setNumber(keys[keys.size() - 1].getNumber() + 1);
-        keys[keys.size() - 1].setLength(pack["time"].asInt() - keys[keys.size() - 1].getTime());
-      } else {
-        newKey.setNumber(1);
-      }
-      if (pack.isMember("bpos")) { //For VoD
-        newKey.setBpos(pack["bpos"].asInt());
-      } else {
-        newKey.setBpos(0);
-      }
-      keys.push_back(newKey);
-      keySizes.push_back(0);
-      firstms = keys[0].getTime();
-      if (!fragments.size() || (pack["time"].asInt() > 5000 && pack["time"].asInt() - 5000 >= getKey(fragments.rbegin()->getNumber()).getTime())) {
-        //new fragment
-        Fragment newFrag;
-        newFrag.setDuration(0);
-        newFrag.setLength(1);
-        newFrag.setNumber(keys[keys.size() - 1].getNumber());
-        if (fragments.size()) {
-          fragments[fragments.size() - 1].setDuration(pack["time"].asInt() - getKey(fragments[fragments.size() - 1].getNumber()).getTime());
-          if (!bps && fragments[fragments.size() - 1].getDuration() > 1000) {
-            bps = (fragments[fragments.size() - 1].getSize() * 1000) / fragments[fragments.size() - 1].getDuration();
-          }
-        }
-        newFrag.setDuration(0);
-        newFrag.setSize(0);
-        fragments.push_back(newFrag);
-      } else {
-        Fragment & lastFrag = fragments[fragments.size() - 1];
-        lastFrag.setLength(lastFrag.getLength() + 1);
-      }
-    }
-    keys.rbegin()->setParts(keys.rbegin()->getParts() + 1);
-    keySizes[keySizes.size() - 1] += pack.packedSize();
-    fragments.rbegin()->setSize(fragments.rbegin()->getSize() + pack["data"].asStringRef().size());
-  }
-
+  
   ///\brief Returns a key given its number, or an empty key if the number is out of bounds
   Key & Track::getKey(unsigned int keyNum) {
     static Key empty;
@@ -1458,20 +1446,32 @@ namespace DTSC {
   }
 
   ///\brief Updates a meta object given a JSON::Value
-  void Meta::update(JSON::Value & pack) {
-    vod = pack.isMember("bpos");
-    live = !vod;
-    if (pack["trackid"].asInt() && tracks.count(pack["trackid"].asInt())) {
-      tracks[pack["trackid"].asInt()].update(pack);
-    }
+  void Meta::update(JSON::Value & pack, unsigned long segment_size) {
+    update(pack["time"].asInt(), pack.isMember("offset")?pack["offset"].asInt():0, pack["trackid"].asInt(), pack["data"].asStringRef().size(), pack.isMember("bpos")?pack["bpos"].asInt():-1, pack.isMember("keyframe"), pack.packedSize(), segment_size);
   }
 
   ///\brief Updates a meta object given a DTSC::Packet
-  void Meta::update(DTSC::Packet & pack) {
-    vod = pack.hasMember("bpos");
+  void Meta::update(DTSC::Packet & pack, unsigned long segment_size) {
+    char * data;
+    unsigned int dataLen;
+    pack.getString("data", data, dataLen);
+    update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, pack.hasMember("bpos")?pack.getInt("bpos"):-1, pack.hasMember("keyframe"), pack.getDataLen(), segment_size);
+  }
+  
+  void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size){
+    if (!packSendSize){
+      //time and trackID are part of the 20-byte header.
+      //the container object adds 4 bytes (plus 2+namelen for each content, see below)
+      //offset, if non-zero, adds 9 bytes (integer type) and 8 bytes (2+namelen)
+      //bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)
+      //keyframe, if true, adds 9 bytes (integer type) and 10 bytes (2+namelen)
+      //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
+      packSendSize = 24 + (packOffset?17:0) + (packBytePos>=0?15:0) + (isKeyframe?19:0) + packDataSize+11;
+    }
+    vod = (packBytePos >= 0);
     live = !vod;
-    if (pack.getTrackId() && tracks.count(pack.getTrackId())) {
-      tracks[pack.getTrackId()].update(pack);
+    if (packTrack > 0 && tracks.count(packTrack)){
+      tracks[packTrack].update(packTime, packOffset, packDataSize, packBytePos, isKeyframe, packSendSize, segment_size);
     }
   }
 

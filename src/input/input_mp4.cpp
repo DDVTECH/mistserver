@@ -195,7 +195,6 @@ namespace Mist {
   }
 
   bool inputMP4::readHeader() {
-    JSON::Value lastPack;
     if (!inFile) {
       return false;
     }
@@ -442,7 +441,6 @@ namespace Mist {
     //for all in bpos set, find its data
     clearerr(inFile);
     
-    //JSON::Value lastPack;
     for (std::set<mp4PartBpos>::iterator it = BPosSet.begin(); it != BPosSet.end(); it++){
       if (!fseek(inFile,it->bpos,SEEK_SET)){
         if (it->size > malSize){
@@ -451,16 +449,8 @@ namespace Mist {
         }
         int tmp = fread(data, it->size, 1, inFile);
         if (tmp == 1){
-          lastPack.null();
           //add data
-          if (it->keyframe){
-            lastPack["keyframe"] = 1;
-          }
-          lastPack["time"] = (long long int)it->time;
-          lastPack["trackid"] = (long long int)it->trackID;
-          lastPack["data"] = std::string(data,it->size);
-          lastPack["bpos"] = (long long int)it->bpos;
-          myMeta.update(lastPack);
+          myMeta.update(it->time, 0,/*no offset? much sadface :-(*/ it->trackID, it->size, it->bpos, it->keyframe);
         }else{
           return false;
         }
@@ -476,58 +466,46 @@ namespace Mist {
   }
   
   void inputMP4::getNext(bool smart) {//get next part from track in stream
-    if (!curPositions.empty()){
-      //pop uit set
-      mp4PartTime curPart = *curPositions.begin();
-      curPositions.erase(curPositions.begin());
-      
-      //creating next packet to be sent out
-      JSON::Value thisPack;
-      thisPack["time"] = (long long int)curPart.time;
-      thisPack["trackid"] = (long long int)curPart.trackID;
-      
-      if(nextKeyframe[curPart.trackID] < myMeta.tracks[curPart.trackID].keys.size()){
-        //checking if this is a keyframe
-        if (myMeta.tracks[curPart.trackID].type == "video" && (long long int) thisPack["time"] == myMeta.tracks[curPart.trackID].keys[(nextKeyframe[curPart.trackID])].getTime()){
-          thisPack["keyframe"] = 1;
-        }
-        //if a keyframe has passed, we find the next keyframe
-        if (myMeta.tracks[curPart.trackID].keys[(nextKeyframe[curPart.trackID])].getTime() < (long long int)thisPack["time"]){
-          nextKeyframe[curPart.trackID] ++;
-        }
+    if (curPositions.empty()){
+      lastPack.null();
+      return;
+    }
+    //pop uit set
+    mp4PartTime curPart = *curPositions.begin();
+    curPositions.erase(curPositions.begin());
+    
+    bool isKeyframe = false;
+    if(nextKeyframe[curPart.trackID] < myMeta.tracks[curPart.trackID].keys.size()){
+      //checking if this is a keyframe
+      if (myMeta.tracks[curPart.trackID].type == "video" && (long long int) curPart.time == myMeta.tracks[curPart.trackID].keys[(nextKeyframe[curPart.trackID])].getTime()){
+        isKeyframe = true;
       }
-      if (!fseek(inFile,curPart.bpos,SEEK_SET)){
-        if (curPart.size > malSize){
-          data = (char*)realloc(data, curPart.size);
-          malSize = curPart.size;
-        }
-        //something with fread here
-        if (fread(data, curPart.size, 1, inFile)==1){
-          thisPack["data"] = std::string(data,curPart.size);
-        }else{
-          ///\todo error handling
-          DEBUG_MSG(DLVL_FAIL,"read unsuccessful at %ld", ftell(inFile));
-          lastPack.null();
-          return;
-        }
-      }else{
-        ///\todo error handling
-        DEBUG_MSG(DLVL_FAIL,"seek unsuccessful; bpos: %llu error: %s",curPart.bpos, strerror(errno));
-        lastPack.null();
-        return;
+      //if a keyframe has passed, we find the next keyframe
+      if (myMeta.tracks[curPart.trackID].keys[(nextKeyframe[curPart.trackID])].getTime() < (long long int)curPart.time){
+        nextKeyframe[curPart.trackID] ++;
       }
-      
-      std::string tmpStr = thisPack.toNetPacked();
-      lastPack.reInit(tmpStr.data(), tmpStr.size());
-      
-      //get the next part for this track
-      curPart.index ++;
-      if (curPart.index < headerData[curPart.trackID].size()){
-        headerData[curPart.trackID].getPart(curPart.index, curPart.bpos, curPart.size, curPart.time);
-        curPositions.insert(curPart);
-      }
-    }else{
-      lastPack.reInit(0,0);
+    }
+    if (fseek(inFile,curPart.bpos,SEEK_SET)){
+      DEBUG_MSG(DLVL_FAIL,"seek unsuccessful; bpos: %llu error: %s",curPart.bpos, strerror(errno));
+      lastPack.null();
+      return;
+    }
+    if (curPart.size > malSize){
+      data = (char*)realloc(data, curPart.size);
+      malSize = curPart.size;
+    }
+    if (fread(data, curPart.size, 1, inFile)!=1){
+      DEBUG_MSG(DLVL_FAIL,"read unsuccessful at %ld", ftell(inFile));
+      lastPack.null();
+      return;
+    }
+    lastPack.genericFill(curPart.time, 0,/*No offset?!*/ curPart.trackID, data, curPart.size, 0/*Note: no bpos*/, isKeyframe);
+    
+    //get the next part for this track
+    curPart.index ++;
+    if (curPart.index < headerData[curPart.trackID].size()){
+      headerData[curPart.trackID].getPart(curPart.index, curPart.bpos, curPart.size, curPart.time);
+      curPositions.insert(curPart);
     }
   }
 

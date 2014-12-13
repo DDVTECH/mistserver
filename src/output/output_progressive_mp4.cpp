@@ -28,7 +28,7 @@ namespace Mist {
     std::stringstream header;
     //ftyp box
     MP4::FTYP ftypBox;
-    header << std::string(ftypBox.asBox(),ftypBox.boxedSize());
+    header.write(ftypBox.asBox(),ftypBox.boxedSize());
     
     uint64_t mdatSize = 0;
     //moov box
@@ -50,30 +50,31 @@ namespace Mist {
       moovBox.setContent(mvhdBox, moovOffset++);
     }
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
+      DTSC::Track & thisTrack = myMeta.tracks[*it];
       MP4::TRAK trakBox;
       {
         {
-          MP4::TKHD tkhdBox(*it, myMeta.tracks[*it].lastms - myMeta.tracks[*it].firstms, myMeta.tracks[*it].width, myMeta.tracks[*it].height);
+          MP4::TKHD tkhdBox(*it, thisTrack.lastms - thisTrack.firstms, thisTrack.width, thisTrack.height);
           trakBox.setContent(tkhdBox, 0);
         }{
           MP4::MDIA mdiaBox;
           unsigned int mdiaOffset = 0;
           {
-            MP4::MDHD mdhdBox(myMeta.tracks[*it].lastms - myMeta.tracks[*it].firstms);
+            MP4::MDHD mdhdBox(thisTrack.lastms - thisTrack.firstms);
             mdiaBox.setContent(mdhdBox, mdiaOffset++);
           }//MDHD box
           {
-            MP4::HDLR hdlrBox(myMeta.tracks[*it].type, myMeta.tracks[*it].getIdentifier());
+            MP4::HDLR hdlrBox(thisTrack.type, thisTrack.getIdentifier());
             mdiaBox.setContent(hdlrBox, mdiaOffset++);
           }//hdlr box
           {
             MP4::MINF minfBox;
             unsigned int minfOffset = 0;
-            if (myMeta.tracks[*it].type== "video"){
+            if (thisTrack.type== "video"){
               MP4::VMHD vmhdBox;
               vmhdBox.setFlags(1);
               minfBox.setContent(vmhdBox,minfOffset++);
-            }else if (myMeta.tracks[*it].type == "audio"){
+            }else if (thisTrack.type == "audio"){
               MP4::SMHD smhdBox;
               minfBox.setContent(smhdBox,minfOffset++);
             }//type box
@@ -89,45 +90,47 @@ namespace Mist {
               {
                 MP4::STSD stsdBox;
                 stsdBox.setVersion(0);
-                if (myMeta.tracks[*it].type == "video"){//boxname = codec
+                if (thisTrack.type == "video"){//boxname = codec
                   MP4::VisualSampleEntry vse;
-                  if (myMeta.tracks[*it].codec == "H264"){
+                  if (thisTrack.codec == "H264"){
                     vse.setCodec("avc1");
                   }
-                  if (myMeta.tracks[*it].codec == "HEVC"){
+                  if (thisTrack.codec == "HEVC"){
                     vse.setCodec("hev1");
                   }
                   vse.setDataReferenceIndex(1);
-                  vse.setWidth(myMeta.tracks[*it].width);
-                  vse.setHeight(myMeta.tracks[*it].height);
-                  if (myMeta.tracks[*it].codec == "H264"){
+                  vse.setWidth(thisTrack.width);
+                  vse.setHeight(thisTrack.height);
+                  if (thisTrack.codec == "H264"){
                     MP4::AVCC avccBox;
-                    avccBox.setPayload(myMeta.tracks[*it].init);
+                    avccBox.setPayload(thisTrack.init);
                     vse.setCLAP(avccBox);
                   }
-                  if (myMeta.tracks[*it].codec == "HEVC"){
+                  /*LTS-START*/
+                  if (thisTrack.codec == "HEVC"){
                     MP4::HVCC hvccBox;
-                    hvccBox.setPayload(myMeta.tracks[*it].init);
+                    hvccBox.setPayload(thisTrack.init);
                     vse.setCLAP(hvccBox);
                   }
+                  /*LTS-END*/
                   stsdBox.setEntry(vse,0);
-                }else if(myMeta.tracks[*it].type == "audio"){//boxname = codec
+                }else if(thisTrack.type == "audio"){//boxname = codec
                   MP4::AudioSampleEntry ase;
-                  if (myMeta.tracks[*it].codec == "AAC"){
+                  if (thisTrack.codec == "AAC"){
                     ase.setCodec("mp4a");
                     ase.setDataReferenceIndex(1);
-                  }else if (myMeta.tracks[*it].codec == "MP3"){
+                  }else if (thisTrack.codec == "MP3"){
                     ase.setCodec("mp4a");
                     ase.setDataReferenceIndex(1);
                   }
-                  ase.setSampleRate(myMeta.tracks[*it].rate);
-                  ase.setChannelCount(myMeta.tracks[*it].channels);
-                  ase.setSampleSize(myMeta.tracks[*it].size);
-                  //MP4::ESDS esdsBox(myMeta.tracks[*it].init, myMeta.tracks[*it].bps);
+                  ase.setSampleRate(thisTrack.rate);
+                  ase.setChannelCount(thisTrack.channels);
+                  ase.setSampleSize(thisTrack.size);
+                  //MP4::ESDS esdsBox(thisTrack.init, thisTrack.bps);
                   MP4::ESDS esdsBox;
                   
                   //outputting these values first, so malloc isn't called as often.
-                  if (myMeta.tracks[*it].codec == "MP3"){
+                  if (thisTrack.codec == "MP3"){
                     esdsBox.setESHeaderStartCodes("\002");
                     esdsBox.setConfigDescriptorTypeLength(1);
                     esdsBox.setSLConfigExtendedDescriptorTypeTag(0);
@@ -141,14 +144,14 @@ namespace Mist {
                     esdsBox.setByteObjectTypeID(0x6b);
                   }else{
                     //AAC
-                    esdsBox.setESHeaderStartCodes(myMeta.tracks[*it].init);
-                    esdsBox.setConfigDescriptorTypeLength(myMeta.tracks[*it].init.size());
+                    esdsBox.setESHeaderStartCodes(thisTrack.init);
+                    esdsBox.setConfigDescriptorTypeLength(thisTrack.init.size());
                     esdsBox.setSLConfigExtendedDescriptorTypeTag(0x808080);
                     esdsBox.setSLDescriptorTypeLength(1);
-                    esdsBox.setESDescriptorTypeLength(32+myMeta.tracks[*it].init.size());
+                    esdsBox.setESDescriptorTypeLength(32+thisTrack.init.size());
                     esdsBox.setSLConfigDescriptorTypeTag(0x6);
                     esdsBox.setSLValue(2);
-                    esdsBox.setDecoderConfigDescriptorTypeLength(18 + myMeta.tracks[*it].init.size());
+                    esdsBox.setDecoderConfigDescriptorTypeLength(18 + thisTrack.init.size());
                     esdsBox.setByteObjectTypeID(0x40);
                   }
                   esdsBox.setESID(2);
@@ -156,7 +159,7 @@ namespace Mist {
                   esdsBox.setStreamType(5);
                   esdsBox.setReservedFlag(1);
                   esdsBox.setMaximumBitRate(10000000);
-                  esdsBox.setAverageBitRate(myMeta.tracks[*it].bps * 8);
+                  esdsBox.setAverageBitRate(thisTrack.bps * 8);
                   esdsBox.setBufferSize(1250000);
                   ase.setCodecBox(esdsBox);
                   stsdBox.setEntry(ase,0);
@@ -166,23 +169,23 @@ namespace Mist {
               {
                 MP4::STTS sttsBox;
                 sttsBox.setVersion(0);
-                if (myMeta.tracks[*it].parts.size()){
-                  for (unsigned int part = 0; part < myMeta.tracks[*it].parts.size(); part++){
+                if (thisTrack.parts.size()){
+                  for (unsigned int part = thisTrack.parts.size(); part > 0; --part){
                     MP4::STTSEntry newEntry;
                     newEntry.sampleCount = 1;
-                    newEntry.sampleDelta = myMeta.tracks[*it].parts[part].getDuration();
-                    sttsBox.setSTTSEntry(newEntry, part);
+                    newEntry.sampleDelta = thisTrack.parts[part-1].getDuration();
+                    sttsBox.setSTTSEntry(newEntry, part-1);
                   }
                 }
                 stblBox.setContent(sttsBox,offset++);
               }//stts box
-              if (myMeta.tracks[*it].type == "video"){
+              if (thisTrack.type == "video"){
                 //STSS Box here
                 MP4::STSS stssBox;
                 stssBox.setVersion(0);
                 int tmpCount = 0;
                 int tmpItCount = 0;
-                for ( std::deque< DTSC::Key>::iterator tmpIt = myMeta.tracks[*it].keys.begin(); tmpIt != myMeta.tracks[*it].keys.end(); tmpIt ++) {
+                for ( std::deque< DTSC::Key>::iterator tmpIt = thisTrack.keys.begin(); tmpIt != thisTrack.keys.end(); tmpIt ++) {
                   stssBox.setSampleNumber(tmpCount,tmpItCount);
                   tmpCount += tmpIt->getParts();
                   tmpItCount ++;
@@ -200,24 +203,25 @@ namespace Mist {
                 stblBox.setContent(stscBox,offset++);
               }//stsc box
               {
-                uint32_t total = 0;
                 MP4::STSZ stszBox;
                 stszBox.setVersion(0);
-                total = 0;
-                for (std::deque< DTSC::Part>::iterator partIt = myMeta.tracks[*it].parts.begin(); partIt != myMeta.tracks[*it].parts.end(); partIt ++) {
-                  stszBox.setEntrySize(partIt->getSize(), total);//in bytes in file
-                  size += partIt->getSize();
-                  total++;
+                if (thisTrack.parts.size()){
+                  std::deque<DTSC::Part>::reverse_iterator tmpIt = thisTrack.parts.rbegin();
+                  for (unsigned int part = thisTrack.parts.size(); part > 0; --part){
+                    unsigned int partSize = tmpIt->getSize();
+                    tmpIt++;
+                    stszBox.setEntrySize(partSize, part-1);//in bytes in file
+                    size += partSize;
+                  }
                 }
                 stblBox.setContent(stszBox,offset++);
               }//stsz box
-              //add STCO boxes here
               {
                 MP4::STCO stcoBox;
                 stcoBox.setVersion(1);
                 //Inserting empty values on purpose here, will be fixed later.
-                if (myMeta.tracks[*it].parts.size() != 0){
-                  stcoBox.setChunkOffset(0, myMeta.tracks[*it].parts.size() - 1);//this inserts all empty entries at once
+                if (thisTrack.parts.size() != 0){
+                  stcoBox.setChunkOffset(0, thisTrack.parts.size() - 1);//this inserts all empty entries at once
                 }
                 stblBox.setContent(stcoBox,offset++);
               }//stco box
@@ -229,7 +233,7 @@ namespace Mist {
         }
       }//trak Box
       moovBox.setContent(trakBox, moovOffset++);
-    }
+    }//for each selected track
     //initial offset length ftyp, length moov + 8
     unsigned long long int byteOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
     //update all STCO from the following map;
@@ -287,26 +291,28 @@ namespace Mist {
       sortSet.insert(temp);
     }
     while (!sortSet.empty()){
+      std::set<keyPart>::iterator keyBegin = sortSet.begin();
       //setting the right STCO size in the STCO box
-      checkStcoBoxes[sortSet.begin()->trackID].setChunkOffset(totalByteOffset + byteOffset, sortSet.begin()->index);
-      totalByteOffset += sortSet.begin()->size;
+      checkStcoBoxes[keyBegin->trackID].setChunkOffset(totalByteOffset + byteOffset, keyBegin->index);
+      totalByteOffset += keyBegin->size;
       //add keyPart to sortSet
       keyPart temp;
-      temp.index = sortSet.begin()->index + 1;
-      temp.trackID = sortSet.begin()->trackID;
-      if(temp.index < myMeta.tracks[temp.trackID].parts.size() ){//only insert when there are parts left
-        temp.time = sortSet.begin()->endTime;//timeplace of frame
-        temp.endTime = sortSet.begin()->endTime + myMeta.tracks[temp.trackID].parts[temp.index].getDuration();
-        temp.size = myMeta.tracks[temp.trackID].parts[temp.index].getSize();//bytesize of frame 
+      temp.index = keyBegin->index + 1;
+      temp.trackID = keyBegin->trackID;
+      DTSC::Track & thisTrack = myMeta.tracks[temp.trackID];
+      if(temp.index < thisTrack.parts.size() ){//only insert when there are parts left
+        temp.time = keyBegin->endTime;//timeplace of frame
+        temp.endTime = keyBegin->endTime + thisTrack.parts[temp.index].getDuration();
+        temp.size = thisTrack.parts[temp.index].getSize();//bytesize of frame 
         sortSet.insert(temp);
       }
       //remove highest keyPart
-      sortSet.erase(sortSet.begin());
+      sortSet.erase(keyBegin);
     }
 
     mdatSize = totalByteOffset+8;
     
-    header << std::string(moovBox.asBox(),moovBox.boxedSize());
+    header.write(moovBox.asBox(),moovBox.boxedSize());
     
     header << (char)((mdatSize>>24) & 0xFF) << (char)((mdatSize>>16) & 0xFF) << (char)((mdatSize>>8) & 0xFF) << (char)(mdatSize & 0xFF) << "mdat";
     //end of header
@@ -520,15 +526,11 @@ namespace Mist {
         temp.time = sortSet.begin()->endTime;//timeplace of frame
         temp.endTime = sortSet.begin()->endTime + myMeta.tracks[temp.trackID].parts[temp.index].getDuration();
         temp.size = myMeta.tracks[temp.trackID].parts[temp.index].getSize();//bytesize of frame 
-        currPos += sortSet.begin()->size;
-        //remove highest keyPart
-        sortSet.erase(sortSet.begin());
         sortSet.insert(temp);
-      }else{
+      }
       currPos += sortSet.begin()->size;
       //remove highest keyPart
       sortSet.erase(sortSet.begin());
-      }
     }
     
     

@@ -238,6 +238,9 @@ namespace Mist {
     if (streamIndex.mapped){
       return;
     }
+    if (streamName.size() < 1){
+      return; //abort - no stream to initialize...
+    }
     if (!Util::startInput(streamName)){
       DEBUG_MSG(DLVL_FAIL, "Opening stream disallowed - aborting initalization");
       onFail();

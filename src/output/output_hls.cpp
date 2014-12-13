@@ -73,6 +73,11 @@ namespace Mist {
       //only print the last segment when VoD
       lines.pop_back();
       /*LTS-START*/
+      unsigned int skip = (( myMeta.tracks[tid].fragments.size()-1) * config->getInteger("startpos")) / 1000u;
+      while (skippedLines < skip && lines.size()){
+        lines.pop_front();
+        skippedLines++;
+      }
       if (config->getInteger("listlimit")){
         unsigned long listlimit = config->getInteger("listlimit");
         while (lines.size() > listlimit){

@@ -56,31 +56,35 @@ namespace Mist {
     int i = 0;
     int j = 0;
     if (myMeta.tracks[tid].fragments.size()){
-      unsigned int firstTime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments.begin()->getNumber()).getTime();
-      for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
-        if (myMeta.vod || it->getDuration() > 0){
+      std::deque<DTSC::Fragment>::iterator fragIt = myMeta.tracks[tid].fragments.begin();
       /*LTS-START*/
-      unsigned int skip = (( myMeta.tracks[tid].fragments.size()-1) * config->getInteger("startpos")) / 1000u;
-      for (unsigned int z = 0; z < skip; ++z){
-        ++fragIt;
-        ++j;
-      }
-      if (skip && fragIt == myMeta.tracks[tid].fragments.end()){
-        --fragIt;
-        --j;
+      if (myMeta.live){
+        unsigned int skip = (( myMeta.tracks[tid].fragments.size()-1) * config->getInteger("startpos")) / 1000u;
+        for (unsigned int z = 0; z < skip; ++z){
+          ++fragIt;
+          ++j;
+        }
+        if (skip && fragIt == myMeta.tracks[tid].fragments.end()){
+          --fragIt;
+          --j;
+        }
       }
       /*LTS-END*/
+      unsigned int firstTime = myMeta.tracks[tid].getKey(fragIt->getNumber()).getTime();
+      while (fragIt != myMeta.tracks[tid].fragments.end()){
+        if (myMeta.vod || fragIt->getDuration() > 0){
           afrtrun.firstFragment = myMeta.tracks[tid].missedFrags + j + 1;
-          afrtrun.firstTimestamp = myMeta.tracks[tid].getKey(it->getNumber()).getTime() - firstTime;
-          if (it->getDuration() > 0){
-            afrtrun.duration = it->getDuration();
+          afrtrun.firstTimestamp = myMeta.tracks[tid].getKey(fragIt->getNumber()).getTime() - firstTime;
+          if (fragIt->getDuration() > 0){
+            afrtrun.duration = fragIt->getDuration();
           }else{
             afrtrun.duration = myMeta.tracks[tid].lastms - afrtrun.firstTimestamp;
           }
           afrt.setFragmentRun(afrtrun, i);
-          i++;
+          ++i;
         }
-        j++;
+        ++j;
+        ++fragIt;
       }
     }
     

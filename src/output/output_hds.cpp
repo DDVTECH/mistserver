@@ -59,6 +59,17 @@ namespace Mist {
       unsigned int firstTime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments.begin()->getNumber()).getTime();
       for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
         if (myMeta.vod || it->getDuration() > 0){
+      /*LTS-START*/
+      unsigned int skip = (( myMeta.tracks[tid].fragments.size()-1) * config->getInteger("startpos")) / 1000u;
+      for (unsigned int z = 0; z < skip; ++z){
+        ++fragIt;
+        ++j;
+      }
+      if (skip && fragIt == myMeta.tracks[tid].fragments.end()){
+        --fragIt;
+        --j;
+      }
+      /*LTS-END*/
           afrtrun.firstFragment = myMeta.tracks[tid].missedFrags + j + 1;
           afrtrun.firstTimestamp = myMeta.tracks[tid].getKey(it->getNumber()).getTime() - firstTime;
           if (it->getDuration() > 0){

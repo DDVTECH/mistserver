@@ -2251,13 +2251,16 @@ namespace MP4 {
   }
 
   void STCO::setChunkOffset(uint32_t newChunkOffset, uint32_t no) {
-    if (no + 1 > getEntryCount()) {
-      for (unsigned int i = getEntryCount(); i < no; i++) {
-        setInt32(0, 8 + i * 4);//filling undefined entries
-      }
-      setEntryCount(no + 1);
-    }
     setInt32(newChunkOffset, 8 + no * 4);
+    uint32_t entryCount = getEntryCount();
+    //if entrycount is lower than new entry count, update it and fill any skipped entries with zeroes.
+    if (no + 1 > entryCount) {
+      setEntryCount(no + 1);
+      //fill undefined entries, if any (there's only undefined entries if we skipped an entry)
+      if (no > entryCount){
+        memset(data+payloadOffset+8+entryCount*4, 0, 4*(no-entryCount));
+      }
+    }
   }
 
   uint32_t STCO::getChunkOffset(uint32_t no) {

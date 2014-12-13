@@ -479,8 +479,7 @@ namespace MP4 {
         return;
       }
     }
-    newData = htonl(newData);
-    memcpy(data + index, (char *) &newData, 4);
+    ((int *)(data + index))[0] = htonl(newData);
   }
 
   /// Gets the 32 bits integer at the given index.
@@ -494,9 +493,7 @@ namespace MP4 {
       }
       setInt32(0, index - payloadOffset);
     }
-    uint32_t result;
-    memcpy((char *) &result, data + index, 4);
-    return ntohl(result);
+    return ntohl(((int *)(data + index))[0]);
   }
 
   /// Sets the 64 bits integer at the given index.

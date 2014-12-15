@@ -840,6 +840,16 @@ namespace Mist {
     if (!sought){
       if (myMeta.live){
         long unsigned int mainTrack = getMainSelectedTrack();
+        if (myMeta.tracks[mainTrack].keys.size() < 2){
+          if (!myMeta.tracks[mainTrack].keys.size()){
+            myConn.close();
+            return;
+          }else{
+            seek(myMeta.tracks[mainTrack].keys.begin()->getTime());
+            prepareNext();
+            return;
+          }
+        }
         unsigned int skip = ((myMeta.tracks[mainTrack].keys.size()-1) * config->getInteger("startpos")) / 1000u;
         std::deque<DTSC::Key>::iterator it = myMeta.tracks[mainTrack].keys.begin();
         for (unsigned int i = 0; i < skip; ++i){

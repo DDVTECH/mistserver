@@ -168,20 +168,14 @@ int main(int argc, char ** argv){
   }
   //check for port, interface and username in arguments
   //if they are not there, take them from config file, if there
-  if (Controller::conf.getOption("listen_port", true).size() <= 1){
-    if (Controller::Storage["config"]["controller"]["port"]){
-      Controller::conf.getOption("listen_port") = Controller::Storage["config"]["controller"]["port"];
-    }
+  if (Controller::Storage["config"]["controller"]["port"]){
+    Controller::conf.getOption("listen_port", true)[0u] = Controller::Storage["config"]["controller"]["port"];
   }
-  if (Controller::conf.getOption("listen_interface", true).size() <= 1){
-    if (Controller::Storage["config"]["controller"]["interface"]){
-      Controller::conf.getOption("listen_interface") = Controller::Storage["config"]["controller"]["interface"];
-    }
+  if (Controller::Storage["config"]["controller"]["interface"]){
+    Controller::conf.getOption("listen_interface", true)[0u] = Controller::Storage["config"]["controller"]["interface"];
   }
-  if (Controller::conf.getOption("username", true).size() <= 1){
-    if (Controller::Storage["config"]["controller"]["username"]){
-      Controller::conf.getOption("username") = Controller::Storage["config"]["controller"]["username"];
-    }
+  if (Controller::Storage["config"]["controller"]["username"]){
+    Controller::conf.getOption("username", true)[0u] = Controller::Storage["config"]["controller"]["username"];
   }
   Controller::checkAvailProtocols();
   createAccount(Controller::conf.getString("account"));

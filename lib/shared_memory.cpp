@@ -718,6 +718,7 @@ namespace IPC {
       empty = (char *)malloc(payLen * sizeof(char));
       memset(empty, 0, payLen);
     }
+    semGuard tmpGuard(&mySemaphore);
     unsigned int id = 0;
     for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
@@ -915,6 +916,7 @@ namespace IPC {
       return;
     }
     if (myPage.mapped) {
+      semGuard tmpGuard(&mySemaphore);
       myPage.mapped[offsetOnPage] = 127;
     }
   }

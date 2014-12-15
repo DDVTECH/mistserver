@@ -17,6 +17,12 @@
 
 #define BUFFER_BLOCKSIZE 4096 //set buffer blocksize to 4KiB
 
+#ifdef __CYGWIN__
+#define SOCKETSIZE 8092ul
+#else
+#define SOCKETSIZE 51200ul
+#endif
+
 std::string uint2string(unsigned int i) {
   std::stringstream st;
   st << i;
@@ -456,9 +462,9 @@ void Socket::Connection::SendNow(const char * data, size_t len) {
   if (!bing) {
     setBlocking(true);
   }
-  unsigned int i = iwrite(data, std::min((long unsigned int)len, 51200ul));
+  unsigned int i = iwrite(data, std::min((long unsigned int)len, SOCKETSIZE));
   while (i < len && connected()) {
-    i += iwrite(data + i, std::min((long unsigned int)(len - i), 51200ul));
+    i += iwrite(data + i, std::min((long unsigned int)(len - i), SOCKETSIZE));
   }
   if (!bing) {
     setBlocking(false);

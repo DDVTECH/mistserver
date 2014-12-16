@@ -41,6 +41,10 @@ namespace MP4 {
 
   Box & Box::operator = (const Box & rs) {
     clear();
+    if (data) {
+      free(data);
+      data = 0;
+    }
     data = rs.data;
     managed = false;
     payloadOffset = rs.payloadOffset;
@@ -55,7 +59,7 @@ namespace MP4 {
 
   /// If managed, this will free the data pointer.
   Box::~Box() {
-    if (managed && data != 0) {
+    if (managed && data) {
       free(data);
       data = 0;
     }

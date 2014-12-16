@@ -256,6 +256,90 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               }
             }
           }
+          /// 
+          /// \api
+          /// `"addprotocol"` requests (LTS-only) take the form of:
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// {
+          ///   "connector": "HTTP" //Name of the connector to enable
+          ///   //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+          /// }
+          /// ~~~~~~~~~~~~~~~
+          /// OR
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// [
+          ///   {
+          ///     "connector": "HTTP" //Name of the connector to enable
+          ///     //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+          ///   }
+          ///   /// Optionally, repeat for more protocols.
+          /// ]
+          /// ~~~~~~~~~~~~~~~
+          /// These requests will add the given protocol configurations, without touching existing configurations. In other words, this call can be used for incremental updates to the protocols list instead of complete updates, like the "config" call.
+          /// There is no response to this call.
+          ///
+          if (Request.isMember("addprotocol")){
+            if (Request["addprotocol"].isArray()){
+              for (JSON::ArrIter it = Request["addprotocol"].ArrBegin(); it != Request["addprotocol"].ArrEnd(); ++it){
+                Controller::Storage["config"]["protocols"].append(*it);
+              }
+            }
+            if (Request["addprotocol"].isObject()){
+              Controller::Storage["config"]["protocols"].append(Request["addprotocol"]);
+            }
+            Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
+          }
+          /// 
+          /// \api
+          /// `"deleteprotocol"` requests (LTS-only) take the form of:
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// {
+          ///   "connector": "HTTP" //Name of the connector to enable
+          ///   //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+          /// }
+          /// ~~~~~~~~~~~~~~~
+          /// OR
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// [
+          ///   {
+          ///     "connector": "HTTP" //Name of the connector to enable
+          ///     //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+          ///   }
+          ///   /// Optionally, repeat for more protocols.
+          /// ]
+          /// ~~~~~~~~~~~~~~~
+          /// These requests will remove the given protocol configurations (exact matches only), without touching other configurations. In other words, this call can be used for incremental updates to the protocols list instead of complete updates, like the "config" call.
+          /// There is no response to this call.
+          ///
+          if (Request.isMember("deleteprotocol")){
+            if (Request["deleteprotocol"].isArray() && Request["deleteprotocol"].size()){
+              JSON::Value newProtocols;
+              for (JSON::ArrIter it = Controller::Storage["config"]["protocols"].ArrBegin(); it != Controller::Storage["config"]["protocols"].ArrEnd(); ++it){
+                bool add = true;
+                for (JSON::ArrIter pit = Request["deleteprotocol"].ArrBegin(); pit != Request["deleteprotocol"].ArrEnd(); ++pit){
+                  if (*it == *pit){
+                    add = false;
+                    break;
+                  }
+                }
+                if (add){
+                  newProtocols.append(*it);
+                }
+              }
+              Controller::Storage["config"]["protocols"] = newProtocols;
+              Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
+            }
+            if (Request["deleteprotocol"].isObject()){
+              JSON::Value newProtocols;
+              for (JSON::ArrIter it = Controller::Storage["config"]["protocols"].ArrBegin(); it != Controller::Storage["config"]["protocols"].ArrEnd(); ++it){
+                if (*it != Request["deleteprotocol"]){
+                  newProtocols.append(*it);
+                }
+              }
+              Controller::Storage["config"]["protocols"] = newProtocols;
+              Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
+            }
+          }
           /*LTS-END*/
           if (Request.isMember("capabilities")){
             Controller::checkCapable(capabilities);

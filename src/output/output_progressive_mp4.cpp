@@ -512,10 +512,16 @@ namespace Mist {
     unsigned int len = 0;
     currentPacket.getString("data", dataPointer, len);
     if ((unsigned long)currentPacket.getTrackId() != sortSet.begin()->trackID || currentPacket.getTime() != sortSet.begin()->time){
-      if (perfect){
-        DEBUG_MSG(DLVL_WARN, "Warning: input is inconsistent. Expected %lu:%llu but got %ld:%llu", sortSet.begin()->trackID, sortSet.begin()->time, currentPacket.getTrackId(), currentPacket.getTime());
-        perfect = false;
+      if (currentPacket.getTime() >= sortSet.begin()->time || (unsigned long)currentPacket.getTrackId() >= sortSet.begin()->trackID){
+        if (perfect){
+          DEBUG_MSG(DLVL_WARN, "Warning: input is inconsistent. Expected %lu:%llu but got %ld:%llu - cancelling playback", sortSet.begin()->trackID, sortSet.begin()->time, currentPacket.getTrackId(), currentPacket.getTime());
+          perfect = false;
+          myConn.close();
+        }
+      }else{
+        DEBUG_MSG(DLVL_HIGH, "Did not receive expected %lu:%llu but got %ld:%llu - throwing it away", sortSet.begin()->trackID, sortSet.begin()->time, currentPacket.getTrackId(), currentPacket.getTime());
       }
+      return;
     }
     //keep track of where we are
     if (!sortSet.empty()){

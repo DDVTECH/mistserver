@@ -11,6 +11,7 @@ namespace Mist {
     if (config->getString("streamname").size()){
       streamName = config->getString("streamname");
     }
+    config->activate();
   }
   
   void HTTPOutput::init(Util::Config * cfg){

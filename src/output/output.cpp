@@ -367,8 +367,15 @@ namespace Mist {
       return 0;
     }
     unsigned int keyNo = trk.keys.begin()->getNumber();
-    for (std::deque<DTSC::Key>::iterator it = trk.keys.begin(); it != trk.keys.end() && it->getTime() <= timeStamp; it++){
+    unsigned int partCount = 0;
+    std::deque<DTSC::Key>::iterator it;
+    for (it = trk.keys.begin(); it != trk.keys.end() && it->getTime() <= timeStamp; it++){
       keyNo = it->getNumber();
+      partCount += it->getParts();
+    }
+    //if the time is before the next keyframe but after the last part, correctly seek to next keyframe
+    if (partCount && it != trk.keys.end() && timeStamp > it->getTime() - trk.parts[partCount-1].getDuration()){
+      ++keyNo;
     }
     return keyNo;
   }
@@ -481,10 +488,10 @@ namespace Mist {
       if (curPages[tid].mapped[tmp.offset] != 0){
         DEBUG_MSG(DLVL_FAIL, "Noes! Couldn't find packet on track %d because of some kind of corruption error or somesuch.", tid);
       }else{
-        DEBUG_MSG(DLVL_FAIL, "Track %d no data (key %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
+        DEBUG_MSG(DLVL_FAIL, "Track %d no data (key %u @ %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         unsigned int i = 0;
-        while (curPages[tid].mapped[tmp.offset] == 0 && ++i < 10){
-          Util::sleep(100);
+        while (curPages[tid].mapped[tmp.offset] == 0 && ++i < 42){
+          Util::wait(100);
         }
         if (curPages[tid].mapped[tmp.offset] == 0){
           DEBUG_MSG(DLVL_FAIL, "Track %d no data (key %u) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
@@ -741,4 +748,3 @@ namespace Mist {
   }
   
 }
-

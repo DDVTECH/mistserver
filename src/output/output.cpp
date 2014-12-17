@@ -981,7 +981,9 @@ namespace Mist {
     if (completeKeysOnly){
       bool completeKeyReady = false;
       int timeoutTries = 28;//attempts to updateMeta before timeOut and moving on; approximately 7 seconds to timeout
-      while(!completeKeyReady){
+      while(!completeKeyReady && timeoutTries>0){
+        static int prevParts = 0;//prevParts and curParts are used to check for changes in the metaData
+        int curParts;
         completeKeyReady = true;
         for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
           if(it->second.keys.size()){
@@ -989,8 +991,7 @@ namespace Mist {
             unsigned int tmpKeyIndex = it->second.timeToKeynum(nxt.time) - it->second.keys.begin()->getNumber();//getting keyframe index
             long long unsigned int keyEndTime = it->second.keys[tmpKeyIndex].getTime() + it->second.keys[tmpKeyIndex].getLength();//calculating endTime of keyFrame
             if( keyEndTime >= it->second.keys.rbegin()->getTime() && it->second.keys.rbegin()->getLength() == 0 ){
-              INFO_MSG("Track %d ungood; packetTrack %d keyEndTime %llu, trackEndTime: %ld, keyframe length: %lu", nxt.tid, it->first, keyEndTime, it->second.keys.rbegin()->getTime(), it->second.keys.rbegin()->getLength());
-              INFO_MSG("track Parts %hd", it->second.keys.rbegin()->getParts());
+              curParts = it->second.keys.rbegin()->getParts();
               completeKeyReady = false;
               break;
             }
@@ -999,15 +1000,18 @@ namespace Mist {
           }
         }
         if (!completeKeyReady){
-          timeoutTries--;
-          INFO_MSG("Waiting for full keyframe remaining try: %d", timeoutTries);
+          if (curParts != prevParts){//if the metadata has changed
+            prevParts = curParts;//we notify the new state
+            timeoutTries = 28;//and reset the timeout
+          }else{//if not
+            timeoutTries--;//we count down
+          }
           Util::sleep(250);
           updateMeta();
-          if (timeoutTries<=0){
-            INFO_MSG("Wait for keyframe Timeout triggered! What happens next is anybody's guess");
-            completeKeyReady = true;
-          }
         }
+      }
+      if (timeoutTries<=0){
+        INFO_MSG("Wait for keyframe Timeout triggered! Ended to avoid endless loops");
       }
     }
     if (curPages[nxt.tid]){

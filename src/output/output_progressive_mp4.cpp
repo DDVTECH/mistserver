@@ -24,19 +24,6 @@ namespace Mist {
     capa["methods"][0u]["type"] = "html5/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
     capa["methods"][0u]["nolive"] = 1;
-
-    JSON::Value option;
-    option["long"] = "fragmented";
-    option["short"] = "f";
-    option["arg"] = "integer";
-    option["help"] = "Makes the MP4 output to fragmented form";
-    option["value"].append(0ll);
-    config->addOption("fragmented", option);
-    
-    capa["optional"]["fragmented"]["name"] = "Fragmented";
-    capa["optional"]["fragmented"]["help"] = "Sets MP4 to fragmented mode. Handy for live streams";
-    capa["optional"]["fragmented"]["type"] = "int";
-    capa["optional"]["fragmented"]["option"] = "--fragmented";
   }
   
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size, int fragmented){
@@ -578,14 +565,11 @@ namespace Mist {
     wantRequest = false;
     sentHeader = false;
     fileSize = 0;
-    
-    if (myMeta.live){
-      config->getOption("fragmented") = 1ll;
-    }
-    
+
     std::string headerData;
     seekPoint = 0;
-    if (config->getBool("fragmented") == true){
+    if (myMeta.live){
+      //for live we use fragmented mode
       headerData = DTSCMeta2MP4Header(fileSize, 1);
       fragSeqNum = 0;
       partListSent = 0;
@@ -621,7 +605,7 @@ namespace Mist {
       temp.index = 0;
       sortSet.insert(temp);
     }
-    if (config->getBool("fragmented") == false){
+    if (myMeta.vod){
       if (H.GetHeader("Range") != ""){
         parseRange(H.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerData.size());
         rangeType = H.GetHeader("Range")[0];
@@ -629,7 +613,7 @@ namespace Mist {
     }
     H.Clean(); //make sure no parts of old requests are left in any buffers
     H.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for MP4 files
-    if (config->getBool("fragmented") == false){
+    if (myMeta.vod){
       H.SetHeader("Accept-Ranges", "bytes, parsec");
     }
     if (rangeType != ' '){
@@ -657,7 +641,7 @@ namespace Mist {
         //H.StartResponse("206", "Partial content", H, conn);
       }
     }else{
-      if (config->getBool("fragmented") == false){
+      if (myMeta.vod){
         H.SetHeader("Content-Length", byteEnd - byteStart + 1);
       }
       //do not multiplex requests that aren't ranged
@@ -788,7 +772,7 @@ namespace Mist {
     static bool perfect = true;
     char * dataPointer = 0;
     unsigned int len = 0;
-    if (config->getBool("fragmented") == true){
+    if (myMeta.live){
       //if header needed
       if (partList.empty() || partListSent >= partList.size()){
         buildTrafPart();

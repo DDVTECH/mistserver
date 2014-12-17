@@ -306,7 +306,9 @@ namespace Mist {
         continue;
       }
       if (pushedLoc[value] == thisData){
+        //currently pushed track has timed out or disconnected
         if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
+          myMeta.tracks[value].finalize();
           pushedLoc.erase(value);
           if (negotiateTracks.count(value)){
             negotiateTracks.erase(value);

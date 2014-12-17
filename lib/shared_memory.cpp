@@ -649,6 +649,7 @@ namespace IPC {
     newPage();
     newPage();
     newPage();
+    newPage();
   }
 
   ///\brief The deconstructor
@@ -665,7 +666,7 @@ namespace IPC {
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
     semGuard tmpGuard(&mySemaphore);
-    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), (8192 << myPages.size()), true);
+    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), ((8192 * 2)<< myPages.size()), true);
     myPages.insert(tmp);
     tmp.master = false;
     DEBUG_MSG(DLVL_VERYHIGH, "Created a new page: %s", tmp.name.c_str());

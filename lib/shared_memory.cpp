@@ -644,12 +644,16 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
       return;
     }
+    for (int i = 0; i < 11; i++){
+      newPage();
+    }
+    /*
     newPage();
     newPage();
     newPage();
     newPage();
     newPage();
-    newPage();
+    */
   }
 
   ///\brief The deconstructor
@@ -666,7 +670,7 @@ namespace IPC {
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
     semGuard tmpGuard(&mySemaphore);
-    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), ((8192 * 2)<< myPages.size()), true);
+    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2)<< myPages.size()),  (32 * 1024 * 1024)), true);
     myPages.insert(tmp);
     tmp.master = false;
     DEBUG_MSG(DLVL_VERYHIGH, "Created a new page: %s", tmp.name.c_str());

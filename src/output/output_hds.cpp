@@ -223,13 +223,16 @@ namespace Mist {
         std::cout << "Fragment " << fragNum << " too old" << std::endl;
         return;
       }
-      if (fragNum > myMeta.tracks[tid].missedFrags + myMeta.tracks[tid].fragments.size() - 1){
-        H.Clean();
-        H.SetBody("Proxy, re-request this in a second or two.\n");
-        H.SendResponse("208", "Ask again later", myConn);
-        H.Clean(); //clean for any possible next requests
-        std::cout << "Fragment after fragment " << fragNum << " not available yet" << std::endl;
-        return;
+      //delay if we don't have the next fragment available yet
+      unsigned int timeout = 0;
+      while (myConn && fragNum > myMeta.tracks[tid].missedFrags + myMeta.tracks[tid].fragments.size() - 1){
+        //time out after 21 seconds
+        if (++timeout > 42){
+          myConn.close();
+          break;
+        }
+        Util::sleep(500);
+        updateMeta();
       }
       mstime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getNumber()).getTime();
       mslen = myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getDuration();

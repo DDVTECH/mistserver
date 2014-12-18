@@ -112,34 +112,37 @@ namespace Mist {
     selectedTracks.insert(tid);
     if (myMeta.live) {
       updateMeta();
-      int seekable = canSeekms(seekTime);
-      if (seekable == 0){
-        // iff the fragment in question is available, check if the next is available too
-        for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[tid].keys.begin(); it != myMeta.tracks[tid].keys.end(); it++){
-          if (it->getTime() >= seekTime){
-            if ((it + 1) == myMeta.tracks[tid].keys.end()){
-              seekable = 1;
+      unsigned int timeout = 0;
+      int seekable;
+      do {
+        seekable = canSeekms(seekTime);
+        if (seekable == 0){
+          // iff the fragment in question is available, check if the next is available too
+          for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[tid].keys.begin(); it != myMeta.tracks[tid].keys.end(); it++){
+            if (it->getTime() >= seekTime){
+              if ((it + 1) == myMeta.tracks[tid].keys.end()){
+                seekable = 1;
+              }
+              break;
             }
-            break;
           }
         }
-      }
+        if (seekable > 0){
+          //time out after 21 seconds
+          if (++timeout > 42){
+            myConn.close();
+            break;
+          }
+          Util::sleep(500);
+          updateMeta();
+        }
+      }while (myConn && seekable > 0);
       if (seekable < 0){
         H.Clean();
         H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
         myConn.SendNow(H.BuildResponse("412", "Fragment out of range"));
         H.Clean(); //clean for any possible next requests
         std::cout << "Fragment @ " << seekTime << "ms too old (" << myMeta.tracks[tid].firstms << " - " << myMeta.tracks[tid].lastms << " ms)" << std::endl;
-        stop();
-        wantRequest = true;
-        return;
-      }
-      if (seekable > 0){
-        H.Clean();
-        H.SetBody("Proxy, re-request this in a second or two.\n");
-        myConn.SendNow(H.BuildResponse("208", "Ask again later"));
-        H.Clean(); //clean for any possible next requests
-        std::cout << "Fragment @ " << seekTime << "ms not available yet (" << myMeta.tracks[tid].firstms << " - " << myMeta.tracks[tid].lastms << " ms)" << std::endl;
         stop();
         wantRequest = true;
         return;

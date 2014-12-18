@@ -304,22 +304,27 @@ namespace Mist {
       }
       
       if (myMeta.live){
-        /// \todo Detection of out-of-range parts.
-        int seekable = canSeekms(from);
+        unsigned int timeout = 0;
+        int seekable;
+        do {
+          seekable = canSeekms(from);
+          /// \todo Detection of out-of-range parts.
+          if (seekable > 0){
+            //time out after 21 seconds
+            if (++timeout > 42){
+              myConn.close();
+              break;
+            }
+            Util::sleep(500);
+            updateMeta();
+          }
+        }while (myConn && seekable > 0);
         if (seekable < 0){
           H.Clean();
           H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
           myConn.SendNow(H.BuildResponse("412", "Fragment out of range"));
           H.Clean(); //clean for any possible next requests
           DEBUG_MSG(DLVL_WARN, "Fragment @ %llu too old", from);
-          return;
-        }
-        if (seekable > 0){
-          H.Clean();
-          H.SetBody("Proxy, re-request this in a second or two.\n");
-          myConn.SendNow(H.BuildResponse("208", "Ask again later"));
-          H.Clean(); //clean for any possible next requests
-          DEBUG_MSG(DLVL_WARN, "Fragment @ %llu not available yet", from);
           return;
         }
       }

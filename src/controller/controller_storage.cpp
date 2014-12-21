@@ -86,7 +86,7 @@ namespace Controller {
     configLock.wait();
     //write config
     std::string temp = writeConf.toPacked();
-    memcpy(mistConfOut.mapped, temp.data(), std::min((unsigned long)temp.size(), (unsigned long)mistConfOut.len));
+    memcpy(mistConfOut.mapped, temp.data(), std::min(temp.size(), (size_t)mistConfOut.len));
     //unlock semaphore
     configLock.post();
   }

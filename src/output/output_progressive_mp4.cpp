@@ -43,7 +43,6 @@ namespace Mist {
 
     long long int firstms = -1;
     long long int lastms = -1;
-    
     MP4::MVHD mvhdBox(0);
     if (fragmented == 0){
       //calculating longest duration
@@ -67,11 +66,11 @@ namespace Mist {
       {
         {//fix tfhd here
           MP4::TKHD tkhdBox(*it, -1, thisTrack.width, thisTrack.height);
-          if (!fragmented){
+          if (fragmented == 0){
             tkhdBox.setDuration(thisTrack.lastms - thisTrack.firstms);
           }
           trakBox.setContent(tkhdBox, 0);
-        }{//after this not in moof box
+        }{
           MP4::MDIA mdiaBox;
           unsigned int mdiaOffset = 0;
           {
@@ -100,7 +99,7 @@ namespace Mist {
               minfBox.setContent(dinfBox,minfOffset++);
             }//dinf box
             {
-              MP4::STBL stblBox;//all in stbl is empty when fragmented, fix this
+              MP4::STBL stblBox;//all in stbl is empty when fragmented
               unsigned int offset = 0;
               {
                 MP4::STSD stsdBox;
@@ -188,8 +187,8 @@ namespace Mist {
                   for (unsigned int part = 0; part < thisTrack.parts.size(); part++){
                     MP4::STTSEntry newEntry;
                     newEntry.sampleCount = 1;
-                    newEntry.sampleDelta = thisTrack.parts[part-1].getDuration();
-                    sttsBox.setSTTSEntry(newEntry, part-1);
+                    newEntry.sampleDelta = thisTrack.parts[part].getDuration();
+                    sttsBox.setSTTSEntry(newEntry, part);
                   }
                 }
                 stblBox.setContent(sttsBox,offset++);
@@ -258,6 +257,7 @@ namespace Mist {
       }//trak Box
       moovBox.setContent(trakBox, moovOffset++);
     }//for each selected track
+
     //add mvex
     if (fragmented == 1){
       MP4::MVEX mvexBox;
@@ -581,7 +581,6 @@ namespace Mist {
         myConn.close();
         return;
       }else{
-        INFO_MSG("Checking: vidTrack %lu keySize %lu keyLength %ld", vidTrack, myMeta.tracks[vidTrack].keys.size(), myMeta.tracks[vidTrack].keys.begin()->getLength());
       }
       ///\todo Note: Not necessary, but we might want to think of a method that does not use seeking
       if (myMeta.live){
@@ -591,6 +590,7 @@ namespace Mist {
     }else{
       headerData = DTSCMeta2MP4Header(fileSize);
     }
+
     byteStart = 0;
     byteEnd = fileSize - 1;
     char rangeType = ' ';
@@ -605,7 +605,7 @@ namespace Mist {
       temp.index = 0;
       sortSet.insert(temp);
     }
-    if (myMeta.vod){
+    if (!myMeta.live){
       if (H.GetHeader("Range") != ""){
         parseRange(H.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerData.size());
         rangeType = H.GetHeader("Range")[0];
@@ -613,7 +613,7 @@ namespace Mist {
     }
     H.Clean(); //make sure no parts of old requests are left in any buffers
     H.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for MP4 files
-    if (myMeta.vod){
+    if (!myMeta.live){
       H.SetHeader("Accept-Ranges", "bytes, parsec");
     }
     if (rangeType != ' '){
@@ -641,7 +641,7 @@ namespace Mist {
         //H.StartResponse("206", "Partial content", H, conn);
       }
     }else{
-      if (myMeta.vod){
+      if (!myMeta.live){
         H.SetHeader("Content-Length", byteEnd - byteStart + 1);
       }
       //do not multiplex requests that aren't ranged
@@ -849,7 +849,9 @@ namespace Mist {
 
   void OutProgressiveMP4::sendHeader(){
     seek(seekPoint);
-    setvidTrack();
+    if (myMeta.live){
+      setvidTrack();
+    }
     sentHeader = true;
   }
 }

@@ -14,10 +14,13 @@ int main(int argc, char * argv[]) {
   Util::Config conf(argv[0], PACKAGE_VERSION);
   mistIn conv(&conf);
   if (conf.parseArgs(argc, argv)) {
-    IPC::semaphore playerLock(std::string("/lock_" + conf.getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    if (!playerLock.tryWait()){
-      DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", conf.getString("streamname").c_str());
-      return 1;
+    IPC::semaphore playerLock;
+    if(conf.getString("streamname").size()){
+      playerLock.open(std::string("/lock_" + conf.getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      if (!playerLock.tryWait()){
+        DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", conf.getString("streamname").c_str());
+        return 1;
+      }
     }
     conf.activate();
     while (conf.is_active){

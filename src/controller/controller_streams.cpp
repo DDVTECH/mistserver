@@ -110,7 +110,7 @@ namespace Controller {
           data["online"] = 0;
           return;
         }else{
-          if (!getMeta && data["meta"].packedSize() > 1*1024 * data["meta"]["tracks"].size()){
+          if (!getMeta && data["meta"].packedSize() > 10*1024 * data["meta"]["tracks"].size()){
             DEBUG_MSG(DLVL_WARN, "Metadata for stream %s is quite big (%u b) - assuming corruption and forcing reload", name.c_str(), data["meta"].packedSize());
             getMeta = true;
           }

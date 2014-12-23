@@ -45,7 +45,7 @@ namespace Mist {
       virtual void userCallback(char * data, size_t len, unsigned int id);
       
       void parseHeader();
-      bool bufferFrame(int track, int keyNum);
+      bool bufferFrame(unsigned int track, unsigned int keyNum);
 
       unsigned int packTime;///Media-timestamp of the last packet.
       int lastActive;///Timestamp of the last time we received or sent something.
@@ -53,7 +53,7 @@ namespace Mist {
       int playing;
       unsigned int playUntil;
       unsigned int benchMark;
-      std::set<int> selectedTracks;
+      std::set<unsigned int> selectedTracks;
 
       bool isBuffer;
 

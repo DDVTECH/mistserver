@@ -10,14 +10,14 @@ namespace Mist {
     result << "#EXTM3U\r\n";
     int audioId = -1;
     std::string audioName;
-    for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.codec == "AAC"){
         audioId = it->first;
         audioName = it->second.getIdentifier();
         break;
       }
     }
-    for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.codec == "H264"){
         int bWidth = it->second.bps * 2;
         if (audioId != -1){
@@ -266,7 +266,7 @@ namespace Mist {
       return 1;
     }
     //loop trough all the tracks
-    for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       //return "too late" if one track is past this point
       if (ms < it->second.firstms){
         return -1;

@@ -51,7 +51,7 @@ namespace Mist {
     if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
     if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
     initialize();
-    for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.type == "meta" ){
         selectedTracks.insert(it->first);
       }

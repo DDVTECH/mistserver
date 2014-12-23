@@ -173,6 +173,7 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/11";
     capa["methods"][0u]["priority"] = 7ll;
+    cfg->getOption("startpos", true)[0u] = 0ll;
   }
   
   void OutHDS::sendNext(){

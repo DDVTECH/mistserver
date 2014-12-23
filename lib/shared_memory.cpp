@@ -56,7 +56,6 @@ namespace IPC {
 #else
     mySem = SEM_FAILED;
 #endif
-    myName = 0;
   }
 
   ///\brief Constructs a named semaphore
@@ -177,11 +176,11 @@ namespace IPC {
   void semaphore::unlink() {
     close();
 #ifndef __CYGWIN__
-    if (myName) {
-      sem_unlink(myName);
+    if (myName.size()) {
+      sem_unlink(myName.c_str());
     }
 #endif
-    myName = 0;
+    myName.clear();
   }
 
 

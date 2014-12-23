@@ -70,7 +70,7 @@ namespace IPC {
 #else
       sem_t * mySem;
 #endif
-      char * myName;
+      std::string myName;
   };
 
   ///\brief A class used as a semaphore guard

@@ -5,7 +5,7 @@
 #include <sstream>
 #include <arpa/inet.h>
 #include <iomanip>
-#include <mist/bitstream.h>
+#include "bitstream.h"
 
 namespace OGG {
 

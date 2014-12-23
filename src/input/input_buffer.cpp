@@ -212,12 +212,12 @@ namespace Mist {
     while (changed){
       changed = false;
       long long unsigned int time = Util::bootSecs();
-      for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      for(std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         bool eraseTrack = false;
         long long unsigned int compareFirst = 0xFFFFFFFFFFFFFFFFull;
         long long unsigned int compareLast = 0;
         if ((time - lastUpdated[it->first]) > 5){
-          for(std::map<int,DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++){
+          for(std::map<unsigned int,DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++){
             if (it2->first == it->first){
               continue;
             }
@@ -353,7 +353,7 @@ namespace Mist {
           LTS*/
           /*LTS-START*/
           int collidesWith = -1;
-          for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+          for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
             if (it->second.getIdentifier() == tempId) {
               collidesWith = it->first;
               break;

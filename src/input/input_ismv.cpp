@@ -161,7 +161,7 @@ namespace Mist {
     thisPack["bpos"] = buffered.begin()->position;
     buffered.erase(buffered.begin());
     if (buffered.size() < 2 * selectedTracks.size()){
-      for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      for (std::set<unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
         parseFragHeader(*it, lastKeyNum[*it]);
         lastKeyNum[*it]++;
       }
@@ -178,7 +178,7 @@ namespace Mist {
   void inputISMV::seek(int seekTime) {
     buffered.clear();
     //Seek to corresponding keyframes on EACH track
-    for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    for (std::set<unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       unsigned int i;
       for (i = 0; i < myMeta.tracks[*it].keys.size(); i++){
         if (myMeta.tracks[*it].keys[i].getTime() > seekTime && i > 0){//Ehh, whut?

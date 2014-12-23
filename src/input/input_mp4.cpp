@@ -513,7 +513,7 @@ namespace Mist {
     nextKeyframe.clear();
     //for all tracks
     curPositions.clear();
-    for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    for (std::set<unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       nextKeyframe[*it] = 0;
       mp4PartTime addPart;
       addPart.bpos = 0;

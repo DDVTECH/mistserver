@@ -190,7 +190,7 @@ namespace Mist {
     //calculate begin/end of stream
     unsigned int firstms = myMeta.tracks.begin()->second.firstms;
     unsigned int lastms = myMeta.tracks.begin()->second.lastms;
-    for (std::map<int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); objIt ++) {
+    for (std::map<unsigned int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); objIt ++) {
       if (objIt->second.firstms < firstms){
         firstms = objIt->second.firstms;
       }
@@ -218,7 +218,7 @@ namespace Mist {
     
     //loop over all tracks, add them to the SDP.
     /// \todo Make sure this works correctly for multibitrate streams.
-    for (std::map<int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); objIt ++) {
+    for (std::map<unsigned int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); objIt ++) {
       if (objIt->second.codec == "H264") {
         MP4::AVCC avccbox;
         avccbox.setPayload(objIt->second.init);
@@ -332,7 +332,7 @@ namespace Mist {
     //calculate first and last possible timestamps
     unsigned int firstms = myMeta.tracks.begin()->second.firstms;
     unsigned int lastms = myMeta.tracks.begin()->second.lastms;
-    for (std::map<int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); objIt ++) {
+    for (std::map<unsigned int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); objIt ++) {
       if (objIt->second.firstms < firstms){
         firstms = objIt->second.firstms;
       }

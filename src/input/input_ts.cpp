@@ -451,7 +451,7 @@ namespace Mist {
   
   ///Seeks to a specific time
   void inputTS::seek(int seekTime){
-    for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    for (std::set<unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (feof(inFile)){
         clearerr(inFile);
         fseek(inFile, 0, SEEK_SET);

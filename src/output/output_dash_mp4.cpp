@@ -421,7 +421,7 @@ namespace Mist {
     int lastAudTime = 0;
     int audKeys = 0;
     int audInitTrack = 0;
-    for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it ++){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it ++){
       if (it->second.lastms > lastTime){
         lastTime = it->second.lastms;
       }
@@ -457,7 +457,7 @@ namespace Mist {
       r << "          <S d=\"" << lastDur << "\" />" << std::endl;
       r << "        </SegmentTimeline>" << std::endl;
       r << "      </SegmentTemplate>" << std::endl;
-      for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         if (it->second.codec == "H264"){
           MP4::AVCC avccBox;
           avccBox.setPayload(it->second.init);
@@ -504,7 +504,7 @@ namespace Mist {
       r << "        </SegmentTimeline>" << std::endl;
       r << "      </SegmentTemplate>" << std::endl;
  
-      for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         if (it->second.codec == "AAC"){
           r << "      <Representation ";
           r << "id=\"" << it->first << "\" ";
@@ -566,7 +566,7 @@ namespace Mist {
 
   void OutDashMP4::initialize(){
     HTTPOutput::initialize();
-    for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (!moovBoxes.count(it->first)){
         moovBoxes[it->first] = buildMoov(it->first);
         buildSidx(it->first);

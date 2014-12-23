@@ -163,8 +163,8 @@ namespace DTSC {
       }
       return (trackID < rhs.trackID);
     }
-    volatile long long unsigned int seekTime;
-    volatile unsigned int trackID;
+    long long unsigned int seekTime;
+    unsigned int trackID;
   };
 
   /// A part from the DTSC::Stream ringbuffer.
@@ -267,7 +267,7 @@ namespace DTSC {
       std::vector<unsigned long> keySizes;
       long long unsigned int partLen;
       Part * parts;
-      int trackID;
+      unsigned int trackID;
       unsigned long long firstms;
       unsigned long long lastms;
       int bps;
@@ -318,7 +318,7 @@ namespace DTSC {
       inline operator bool() const {
         return vod || live;
       }
-      std::map<int, readOnlyTrack> tracks;
+      std::map<unsigned int, readOnlyTrack> tracks;
       bool vod;
       bool live;
       bool merged;
@@ -352,7 +352,7 @@ namespace DTSC {
       bool isFixed();
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
       //members:
-      std::map<int, Track> tracks;
+      std::map<unsigned int, Track> tracks;
   };
 
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
@@ -375,20 +375,20 @@ namespace DTSC {
       void parseNext();
       DTSC::Packet & getPacket();
       bool seek_time(unsigned int ms);
-      bool seek_time(unsigned int ms, int trackNo, bool forceSeek = false);
+      bool seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek = false);
       bool seek_bpos(int bpos);
       void rewritePacket(std::string & newPacket, int bytePos);
       void writePacket(std::string & newPacket);
       void writePacket(JSON::Value & newPacket);
       bool atKeyframe();
-      void selectTracks(std::set<int> & tracks);
+      void selectTracks(std::set<unsigned int> & tracks);
     private:
       long int endPos;
       void readHeader(int pos);
       DTSC::Packet myPack;
       JSON::Value metaStorage;
       readOnlyMeta metadata;
-      std::map<int, std::string> trackMapping;
+      std::map<unsigned int, std::string> trackMapping;
       long long int currtime;
       long long int lastreadpos;
       int currframe;
@@ -397,7 +397,7 @@ namespace DTSC {
       void * buffer;
       bool created;
       std::set<seekPos> currentPositions;
-      std::set<int> selectedTracks;
+      std::set<unsigned int> selectedTracks;
   };
   //FileWriter
 
@@ -425,10 +425,10 @@ namespace DTSC {
       unsigned int getTime();
       void dropRing(Ring * ptr);
       int canSeekms(unsigned int ms);
-      livePos msSeek(unsigned int ms, std::set<int> & allowedTracks);
+      livePos msSeek(unsigned int ms, std::set<unsigned int> & allowedTracks);
       void setBufferTime(unsigned int ms);
-      bool isNewest(DTSC::livePos & pos, std::set<int> & allowedTracks);
-      DTSC::livePos getNext(DTSC::livePos & pos, std::set<int> & allowedTracks);
+      bool isNewest(DTSC::livePos & pos, std::set<unsigned int> & allowedTracks);
+      DTSC::livePos getNext(DTSC::livePos & pos, std::set<unsigned int> & allowedTracks);
       void endStream();
       void waitForMeta(Socket::Connection & sourceSocket, bool closeOnError = true);
       void waitForPause(Socket::Connection & sourceSocket);
@@ -442,7 +442,7 @@ namespace DTSC {
       datatype datapointertype;
       unsigned int buffercount;
       unsigned int buffertime;
-      std::map<int, std::string> trackMapping;
+      std::map<unsigned int, std::string> trackMapping;
       virtual void deletionCallback(livePos deleting);
   };
 }

@@ -4,11 +4,12 @@
 #include<string>
 
 namespace theora {
+
+  bool isHeader(const char * newData, unsigned int length);
   class header {
-    public:
-      header();
-      header(char * newData, unsigned int length);
-      bool read(char * newData, unsigned int length);
+    public:      
+      ~header();
+      header(char * newData, unsigned int length); // if managed is true, this class manages the data pointer
       int getHeaderType();
       char getVMAJ();
       char getVMIN();
@@ -32,9 +33,13 @@ namespace theora {
       long unsigned int getNComments();
       std::string getUserComment(size_t index);
       char getLFLIMS(size_t index);
-      std::string toPrettyString(size_t indent = 0);
-      long long unsigned int parseGranuleUpper(long long unsigned int granPos);
-      long long unsigned int parseGranuleLower(long long unsigned int granPos);
+      std::string toPrettyString(size_t indent = 0); //update this, it should check (header) type and output relevant stuff only.
+      //long long unsigned int parseGranuleUpper(long long unsigned int granPos);
+      //long long unsigned int parseGranuleLower(long long unsigned int granPos);
+      ///\todo put this back in pravate
+      unsigned int datasize;
+      bool isHeader();
+      char getFTYPE();//for frames
     protected:
       uint32_t getInt32(size_t index);
       uint32_t getInt24(size_t index);
@@ -42,22 +47,22 @@ namespace theora {
       uint32_t commentLen(size_t index);
     private:
       char * data;
-      unsigned int datasize;
-      bool checkDataSize(unsigned int size);
-      bool validateIdentificationHeader();
+      bool checkDataSize(unsigned int size);      
   };
-
-  class frame {
-    public:
-      frame();
-      bool read(char * newData, unsigned int length);
-      char getFTYPE();
-      char getNQIS();
-      char getQIS(size_t index);
-      std::string toPrettyString(size_t indent = 0);
-    private:
-      char * data;
-      unsigned int datasize;
-      bool checkDataSize(unsigned int size);
-  };
+  /*
+    class frame{ // we don't need this. I hope.
+      public:
+        frame();
+        ~frame();
+        bool read(const char* newData, unsigned int length);
+        char getFTYPE();
+        char getNQIS();
+        char getQIS(size_t index);
+        std::string toPrettyString(size_t indent = 0);
+      private:
+        char * data;
+        unsigned int datasize;
+        bool checkDataSize(unsigned int size);
+    };*/
 }
+

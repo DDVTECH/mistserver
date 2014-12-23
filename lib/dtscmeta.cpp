@@ -1285,6 +1285,7 @@ namespace DTSC {
   void Track::reset() {
     fragments.clear();
     parts.clear();
+    keySizes.clear();
     keys.clear();
     bps = 0;
     firstms = 0;
@@ -1392,7 +1393,7 @@ namespace DTSC {
     live = rhs.live;
     merged = rhs.merged;
     bufferWindow = rhs.bufferWindow;
-    for (std::map<int, readOnlyTrack>::const_iterator it = rhs.tracks.begin(); it != rhs.tracks.end(); it++) {
+    for (std::map<unsigned int, readOnlyTrack>::const_iterator it = rhs.tracks.begin(); it != rhs.tracks.end(); it++) {
       tracks[it->first] = it->second;
     }
     moreheader = rhs.moreheader;
@@ -1897,7 +1898,7 @@ namespace DTSC {
   ///\brief Determines the "packed" size of a read-only meta object
   unsigned int readOnlyMeta::getSendLen() {
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
-    for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       dataLen += it->second.getSendLen();
     }
     return dataLen + 8; //add 8 bytes header length
@@ -1909,7 +1910,7 @@ namespace DTSC {
     writePointer(p, DTSC::Magic_Header, 4);
     writePointer(p, convertInt(dataLen), 4);
     writePointer(p, "\340\000\006tracks\340", 10);
-    for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.writeTo(p);
     }
     writePointer(p, "\000\000\356", 3);
@@ -1940,7 +1941,7 @@ namespace DTSC {
     conn.SendNow(DTSC::Magic_Header, 4);
     conn.SendNow(convertInt(dataLen), 4);
     conn.SendNow("\340\000\006tracks\340", 10);
-    for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.send(conn);
     }
     conn.SendNow("\000\000\356", 3);
@@ -1968,7 +1969,7 @@ namespace DTSC {
   ///\brief Determines the "packed" size of a meta object
   unsigned int Meta::getSendLen() {
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
-    for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       dataLen += it->second.getSendLen();
     }
     return dataLen + 8; //add 8 bytes header
@@ -1980,7 +1981,7 @@ namespace DTSC {
     writePointer(p, DTSC::Magic_Header, 4);
     writePointer(p, convertInt(dataLen), 4);
     writePointer(p, "\340\000\006tracks\340", 10);
-    for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.writeTo(p);
     }
     writePointer(p, "\000\000\356", 3);//End tracks object
@@ -2011,7 +2012,7 @@ namespace DTSC {
     conn.SendNow(DTSC::Magic_Header, 4);
     conn.SendNow(convertInt(dataLen), 4);
     conn.SendNow("\340\000\006tracks\340", 10);
-    for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.send(conn);
     }
     conn.SendNow("\000\000\356", 3);//End tracks object
@@ -2136,7 +2137,7 @@ namespace DTSC {
   ///\brief Converts a meta object to a JSON::Value
   JSON::Value Meta::toJSON() {
     JSON::Value result;
-    for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       result["tracks"][it->second.getWritableIdentifier()] = it->second.toJSON();
     }
     if (vod) {
@@ -2160,7 +2161,7 @@ namespace DTSC {
   ///\param indent the amount of indentation needed
   ///\param verbosity How verbose the output needs to be
   void readOnlyMeta::toPrettyString(std::ostream & str, int indent, int verbosity) {
-    for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.toPrettyString(str, indent, verbosity);
     }
     if (vod) {
@@ -2183,7 +2184,7 @@ namespace DTSC {
   ///\param indent the amount of indentation needed
   ///\param verbosity How verbose the output needs to be
   void Meta::toPrettyString(std::ostream & str, int indent, int verbosity) {
-    for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.toPrettyString(str, indent, verbosity);
     }
     if (vod) {
@@ -2204,7 +2205,7 @@ namespace DTSC {
   ///\brief Converts a read-only meta object to a JSON::Value
   JSON::Value readOnlyMeta::toJSON() {
     JSON::Value result;
-    for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       result["tracks"][it->second.getWritableIdentifier()] = it->second.toJSON();
     }
     if (vod) {
@@ -2225,14 +2226,14 @@ namespace DTSC {
 
   ///\brief Resets a meta object, removes all unimportant meta values
   void Meta::reset() {
-    for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.reset();
     }
   }
 
   ///\brief Returns whether a read-only meta object is fixed or not
   bool readOnlyMeta::isFixed() {
-    for (std::map<int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       if (!it->second.keyLen || !(it->second.keys[it->second.keyLen - 1].getBpos())) {
         return false;
       }
@@ -2242,7 +2243,7 @@ namespace DTSC {
 
   ///\brief Returns whether a meta object is fixed or not
   bool Meta::isFixed() {
-    for (std::map<int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       if (it->second.type == "meta" || it->second.type == "") {
         continue;
       }

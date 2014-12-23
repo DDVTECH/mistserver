@@ -172,7 +172,7 @@ void DTSC::Stream::endStream() {
   if (!metadata.tracks.size()) {
     return;
   }
-  for (std::map<int, Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++) {
+  for (std::map<unsigned int, Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++) {
     JSON::Value newPack;
     newPack["time"] = (long long)it->second.lastms;
     newPack["trackid"] = it->first;
@@ -387,7 +387,7 @@ DTSC::datatype DTSC::Stream::lastType() {
 
 /// Returns true if the current stream contains at least one video track.
 bool DTSC::Stream::hasVideo() {
-  for (std::map<int, Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++) {
+  for (std::map<unsigned int, Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++) {
     if (it->second.type == "video") {
       return true;
     }
@@ -397,7 +397,7 @@ bool DTSC::Stream::hasVideo() {
 
 /// Returns true if the current stream contains at least one audio track.
 bool DTSC::Stream::hasAudio() {
-  for (std::map<int, Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++) {
+  for (std::map<unsigned int, Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++) {
     if (it->second.type == "audio") {
       return true;
     }
@@ -470,7 +470,7 @@ int DTSC::Stream::canSeekms(unsigned int ms) {
     return 1;
   }
   //loop trough all the tracks
-  for (std::map<int, Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++) {
+  for (std::map<unsigned int, Track>::iterator it = metadata.tracks.begin(); it != metadata.tracks.end(); it++) {
     if (it->second.keys.size()) {
       if (it->second.keys[0].getTime() <= ms && it->second.keys[it->second.keys.size() - 1].getTime() >= ms) {
         return 0;
@@ -488,10 +488,10 @@ int DTSC::Stream::canSeekms(unsigned int ms) {
   return 1;
 }
 
-DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> & allowedTracks) {
-  std::set<int> seekTracks = allowedTracks;
+DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<unsigned int> & allowedTracks) {
+  std::set<unsigned int> seekTracks = allowedTracks;
   livePos result = buffers.begin()->first;
-  for (std::set<int>::iterator it = allowedTracks.begin(); it != allowedTracks.end(); it++) {
+  for (std::set<unsigned int>::iterator it = allowedTracks.begin(); it != allowedTracks.end(); it++) {
     if (metadata.tracks[*it].type == "video") {
       int trackNo = *it;
       seekTracks.clear();
@@ -514,12 +514,12 @@ DTSC::livePos DTSC::Stream::msSeek(unsigned int ms, std::set<int> & allowedTrack
 
 /// Returns whether the current position is the last currently available position within allowedTracks.
 /// Simply returns the result of getNext(pos, allowedTracks) == pos
-bool DTSC::Stream::isNewest(DTSC::livePos & pos, std::set<int> & allowedTracks) {
+bool DTSC::Stream::isNewest(DTSC::livePos & pos, std::set<unsigned int> & allowedTracks) {
   return getNext(pos, allowedTracks) == pos;
 }
 
 /// Returns the next available position within allowedTracks, or the current position if no next is availble.
-DTSC::livePos DTSC::Stream::getNext(DTSC::livePos & pos, std::set<int> & allowedTracks) {
+DTSC::livePos DTSC::Stream::getNext(DTSC::livePos & pos, std::set<unsigned int> & allowedTracks) {
   std::map<livePos, JSON::Value>::iterator iter = buffers.upper_bound(pos);
   while (iter != buffers.end()) {
     if (allowedTracks.count(iter->first.trackID)) {
@@ -856,7 +856,10 @@ void DTSC::File::seekNext() {
         }
       }
     }
-    if (insert) {
+    if (insert){
+      if (tmpPos.seekTime > 0xffffffffffffff00ll){
+        tmpPos.seekTime = 0;
+      }
       currentPositions.insert(tmpPos);
     } else {
       seek_time(myPack.getTime() + 1, myPack.getTrackId(), true);
@@ -865,8 +868,7 @@ void DTSC::File::seekNext() {
   }
 }
 
-
-void DTSC::File::parseNext() {
+void DTSC::File::parseNext(){
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1) {
     if (feof(F)) {
@@ -947,7 +949,7 @@ DTSC::Packet & DTSC::File::getPacket() {
   return myPack;
 }
 
-bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek) {
+bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek) {
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
   if (!forceSeek && myPack && ms > myPack.getTime() && trackNo >= myPack.getTrackId()) {
@@ -1012,7 +1014,10 @@ bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek) {
       continue;
     }
   }
-  DEBUG_MSG(DLVL_HIGH, "Seek to %d:%d resulted in %lli", trackNo, ms, tmpPos.seekTime);
+  //DEBUG_MSG(DLVL_HIGH, "Seek to %u:%d resulted in %lli", trackNo, ms, tmpPos.seekTime);
+  if (tmpPos.seekTime > 0xffffffffffffff00ll){
+    tmpPos.seekTime = 0;
+  }
   currentPositions.insert(tmpPos);
   return true;
 }
@@ -1022,7 +1027,7 @@ bool DTSC::File::seek_time(unsigned int ms, int trackNo, bool forceSeek) {
 bool DTSC::File::seek_time(unsigned int ms) {
   currentPositions.clear();
   if (selectedTracks.size()) {
-    for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
+    for (std::set<unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       seek_time(ms, (*it), true);
     }
   }
@@ -1070,7 +1075,7 @@ bool DTSC::File::atKeyframe() {
   return false;
 }
 
-void DTSC::File::selectTracks(std::set<int> & tracks) {
+void DTSC::File::selectTracks(std::set<unsigned int> & tracks) {
   selectedTracks = tracks;
   currentPositions.clear();
   seek_time(0);

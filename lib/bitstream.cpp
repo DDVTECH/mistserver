@@ -158,10 +158,11 @@ namespace Utils {
   }
 
   void bitstreamLSBF::append(char * input, size_t bytes) {
-    append(std::string(input, bytes));
+    data.append(input, bytes);
+    fixData();
   }
 
-  void bitstreamLSBF::append(std::string input) {
+  void bitstreamLSBF::append(std::string & input) {
     data += input;
     fixData();
   }
@@ -203,11 +204,12 @@ namespace Utils {
   }
 
   void bitstreamLSBF::fixData() {
+    unsigned int pos=0;
     while (readBufferOffset <= 32 && data.size() != 0) {
-      //readBuffer = readBuffer & ((1 << readBufferOffset) - 1) | (data[0] << readBufferOffset);
-      readBuffer |= (((long long unsigned int)data[0]) << readBufferOffset);
-      data = data.substr(1);
+      readBuffer |= (((long long unsigned int)data[pos]) << readBufferOffset);
+      pos++;
       readBufferOffset += 8;
     }
+    data.erase(0, pos);
   }
 }

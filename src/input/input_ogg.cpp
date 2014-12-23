@@ -9,269 +9,426 @@
 #include <mist/ogg.h>
 #include <mist/defines.h>
 #include <mist/bitstream.h>
-
 #include "input_ogg.h"
 
+///\todo Whar be Opus support?
+
 namespace Mist {
-  inputOGG::inputOGG(Util::Config * cfg) : Input(cfg) {
+
+  JSON::Value segment::toJSON(OGG::oggCodec myCodec){
+    JSON::Value retval;
+    retval["time"] = (long long int)time;
+    retval["trackid"] = (long long int)tid;
+    std::string tmpString = "";
+    for (unsigned int i = 0; i < parts.size(); i++){
+      tmpString += parts[i];
+    }
+    retval["data"] = tmpString;
+//    INFO_MSG("Setting bpos for packet on track %llu, time %llu, to %llu", tid, time, bytepos);
+    retval["bpos"] = (long long int)bytepos;
+    if (myCodec == OGG::THEORA){
+      if (!theora::isHeader(tmpString.data(), tmpString.size())){
+        theora::header tmpHeader((char*)tmpString.data(), tmpString.size());
+        if (tmpHeader.getFTYPE() == 0){
+          retval["keyframe"] = 1LL;
+        }
+      }
+    }
+    return retval;
+  }
+
+/*
+  unsigned long oggTrack::getBlockSize(unsigned int vModeIndex){ //WTF!!?
+    return blockSize[vModes[vModeIndex].blockFlag];
+
+  }
+*/
+  inputOGG::inputOGG(Util::Config * cfg) : Input(cfg){
     capa["name"] = "OGG";
-    capa["decs"] = "Enables OGG Input";
+    capa["desc"] = "Enables OGG input";
     capa["codecs"][0u][0u].append("theora");
     capa["codecs"][0u][1u].append("vorbis");
   }
 
-  bool inputOGG::setup() {
-    if (config->getString("input") == "-") {
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+  bool inputOGG::setup(){
+    if (config->getString("input") == "-"){
+      std::cerr << "Input from stream not yet supported" << std::endl;
       return false;
     }
-    if (!config->getString("streamname").size()){
-      if (config->getString("output") == "-") {
-        std::cerr << "Output to stdout not yet supported" << std::endl;
-        return false;
-      }
-    }else{
-      if (config->getString("output") != "-") {
-        std::cerr << "File output in player mode not supported" << std::endl;
-        return false;
-      }
-    }
-    
+
     //open File
     inFile = fopen(config->getString("input").c_str(), "r");
-    if (!inFile) {
+    if (!inFile){
       return false;
     }
     return true;
   }
 
-  void inputOGG::parseBeginOfStream(OGG::Page & bosPage) {
-    long long int tid = snum2tid.size() + 1;
-    snum2tid[bosPage.getBitstreamSerialNumber()] = tid;
-    if (!memcmp(bosPage.getFullPayload() + 1, "theora", 6)) {
-      oggTracks[tid].codec = THEORA;
-      theora::header tmpHead(bosPage.getFullPayload(), bosPage.getPayloadSize());
-      oggTracks[tid].msPerFrame = (double)(tmpHead.getFRD() * 1000) / tmpHead.getFRN();
+  ///\todo check if all trackID (tid) instances are replaced with bitstream serial numbers
+  void inputOGG::parseBeginOfStream(OGG::Page & bosPage){
+    //long long int tid = snum2tid.size() + 1;
+    unsigned int tid = bosPage.getBitstreamSerialNumber();
+    if (memcmp(bosPage.getSegment(0) + 1, "theora", 6) == 0){
+      theora::header tmpHead((char*)bosPage.getSegment(0), bosPage.getSegmentLen(0));
+      oggTracks[tid].codec = OGG::THEORA;
+      oggTracks[tid].msPerFrame = (double)(tmpHead.getFRD() * 1000) / (double)tmpHead.getFRN();   //this should be: 1000/( tmpHead.getFRN()/ tmpHead.getFRD() )
+      DEBUG_MSG(DLVL_DEVEL, "theora trackID: %u msperFrame %f ", tid, oggTracks[tid].msPerFrame);
+      oggTracks[tid].KFGShift = tmpHead.getKFGShift(); //store KFGShift for granule calculations
+      DEVEL_MSG("read theora header size: %d, tid: %u", tmpHead.datasize, tid);
+
+      myMeta.tracks[tid].type = "video";
+      myMeta.tracks[tid].codec = "theora";
+      myMeta.tracks[tid].trackID = tid;
+      myMeta.tracks[tid].fpks = (tmpHead.getFRN() * 1000) / tmpHead.getFRD();
+      myMeta.tracks[tid].height = tmpHead.getPICH();
+      myMeta.tracks[tid].width = tmpHead.getPICW();
+      if (!myMeta.tracks[tid].init.size()){
+        myMeta.tracks[tid].init = (char)((bosPage.getPayloadSize() >> 8) & 0xFF);
+        myMeta.tracks[tid].init += (char)(bosPage.getPayloadSize() & 0xFF);
+        myMeta.tracks[tid].init.append(bosPage.getSegment(0), bosPage.getSegmentLen(0));
+      }
     }
-    if (!memcmp(bosPage.getFullPayload() + 1, "vorbis", 6)) {
-      oggTracks[tid].codec = VORBIS;
-      vorbis::header tmpHead(bosPage.getFullPayload(), bosPage.getPayloadSize());
-      oggTracks[tid].msPerFrame = (double)1000 / ntohl(tmpHead.getAudioSampleRate());
+    if (memcmp(bosPage.getSegment(0) + 1, "vorbis", 6) == 0){
+      vorbis::header tmpHead((char*)bosPage.getSegment(0), bosPage.getSegmentLen(0));
+
+      oggTracks[tid].codec = OGG::VORBIS;
+      oggTracks[tid].msPerFrame = (double)1000.0f / tmpHead.getAudioSampleRate();
+      DEBUG_MSG(DLVL_DEVEL, "vorbis trackID: %d msperFrame %f ", tid, oggTracks[tid].msPerFrame);
+      oggTracks[tid].channels = tmpHead.getAudioChannels();
+      oggTracks[tid].blockSize[0] =  1 << tmpHead.getBlockSize0();
+      oggTracks[tid].blockSize[1] =  1 << tmpHead.getBlockSize1();
+      //Abusing .contBuffer for temporarily storing the idHeader
+      bosPage.getSegment(0, oggTracks[tid].contBuffer);
+
+      myMeta.tracks[tid].type = "audio";
+      myMeta.tracks[tid].codec = "vorbis";
+      myMeta.tracks[tid].rate = tmpHead.getAudioSampleRate();
+      myMeta.tracks[tid].trackID = tid;
+      myMeta.tracks[tid].channels = tmpHead.getAudioChannels();
     }
   }
 
-  bool inputOGG::readHeader() {
-    JSON::Value lastPack;
-    if (!inFile) {
-      return false;
-    }
-    //See whether a separate header file exists.
-    DTSC::File tmp(config->getString("input") + ".dtsh");
-    if (tmp) {
-      myMeta = tmp.getMeta();
-      return true;
-    }
-    //Create header file from OGG data
+  bool inputOGG::readHeader(){
+    OGG::Page myPage;
     fseek(inFile, 0, SEEK_SET);
-    OGG::Page tmpPage;
-    long long int lastBytePos = 0;
-    while (tmpPage.read(inFile)) {
-      DEBUG_MSG(DLVL_WARN,"Read a page");
-      if (tmpPage.getHeaderType() & OGG::BeginOfStream){
-        parseBeginOfStream(tmpPage);
-        DEBUG_MSG(DLVL_WARN,"Read BOS page for stream %lu, now track %lld", tmpPage.getBitstreamSerialNumber(), snum2tid[tmpPage.getBitstreamSerialNumber()]);
+    while (myPage.read(inFile)){ //assumes all headers are sent before any data
+      unsigned int tid = myPage.getBitstreamSerialNumber();
+      if (myPage.getHeaderType() & OGG::BeginOfStream){
+        parseBeginOfStream(myPage);
+        INFO_MSG("Read BeginOfStream for track %d", tid);
+        continue; //Continue reading next pages
       }
-      int offset = 0;
-      long long int tid = snum2tid[tmpPage.getBitstreamSerialNumber()];
-      for (std::deque<unsigned int>::iterator it = tmpPage.getSegmentTableDeque().begin(); it != tmpPage.getSegmentTableDeque().end(); it++) {
-        if (oggTracks[tid].parsedHeaders) {
-          DEBUG_MSG(DLVL_WARN,"Parsing a page segment on track %lld", tid);
-          if ((it == (tmpPage.getSegmentTableDeque().end() - 1)) && (int)(tmpPage.getPageSegments()) == 255 && (int)(tmpPage.getSegmentTable()[254]) == 255) {
-            oggTracks[tid].contBuffer.append(tmpPage.getFullPayload() + offset, (*it));
-          } else {
-            lastPack["trackid"] = tid;
-            lastPack["time"] = (long long)oggTracks[tid].lastTime;
-            if (oggTracks[tid].contBuffer.size()) {
-              lastPack["data"] = oggTracks[tid].contBuffer + std::string(tmpPage.getFullPayload() + offset, (*it));
-              oggTracks[tid].contBuffer.clear();
-            } else {
-              lastPack["data"] = std::string(tmpPage.getFullPayload() + offset, (*it));
-            }
-            if (oggTracks[tid].codec == VORBIS) {
-              unsigned int blockSize = 0;
-              Utils::bitstreamLSBF packet;
-              packet.append(lastPack["data"].asString());
-              if (!packet.get(1)) {
-                blockSize = oggTracks[tid].blockSize[oggTracks[tid].vModes[packet.get(vorbis::ilog(oggTracks[tid].vModes.size() - 1))].blockFlag];
-              } else {
-                DEBUG_MSG(DLVL_WARN, "Packet type != 0");
-              }
-              oggTracks[tid].lastTime += oggTracks[tid].msPerFrame * (blockSize / oggTracks[tid].channels);
-            }
-            if (oggTracks[tid].codec == THEORA) {
-              oggTracks[tid].lastTime += oggTracks[tid].msPerFrame;
-              if (it == (tmpPage.getSegmentTableDeque().end() - 1)) {
-                if (oggTracks[tid].idHeader.parseGranuleUpper(oggTracks[tid].lastGran) != oggTracks[tid].idHeader.parseGranuleUpper(tmpPage.getGranulePosition())) {
-                  lastPack["keyframe"] = 1ll;
-                  oggTracks[tid].lastGran = tmpPage.getGranulePosition();
-                } else {
-                  lastPack["interframe"] = 1ll;
-                }
-              }
-            }
-            lastPack["bpos"] = 0ll;
-            DEBUG_MSG(DLVL_WARN,"Parsed a packet of track %lld, new timestamp %f", tid, oggTracks[tid].lastTime);
-            myMeta.update(lastPack);
-          }
-        } else {
-          //Parsing headers
-          switch (oggTracks[tid].codec) {
-            case THEORA: {
-                theora::header tmpHead(tmpPage.getFullPayload() + offset, (*it));
-                DEBUG_MSG(DLVL_WARN,"Theora header, type %d", tmpHead.getHeaderType());
-                switch (tmpHead.getHeaderType()) {
-                  case 0: {
-                      oggTracks[tid].idHeader = tmpHead;
-                      myMeta.tracks[tid].height = tmpHead.getPICH();
-                      myMeta.tracks[tid].width = tmpHead.getPICW();
-                      myMeta.tracks[tid].idHeader = std::string(tmpPage.getFullPayload() + offset, (*it));
-                      break;
-                    }
-                  case 1: {
-                      myMeta.tracks[tid].commentHeader = std::string(tmpPage.getFullPayload() + offset, (*it));
-                      break;
-                    }
-                  case 2: {
-                      myMeta.tracks[tid].codec = "theora";
-                      myMeta.tracks[tid].trackID = tid;
-                      myMeta.tracks[tid].type = "video";
-                      myMeta.tracks[tid].init = std::string(tmpPage.getFullPayload() + offset, (*it));
-                      oggTracks[tid].parsedHeaders = true;
-                      oggTracks[tid].lastGran = 0;
-                      break;
-                    }
-                }
-                break;
-              }
-            case VORBIS: {
-                vorbis::header tmpHead(tmpPage.getFullPayload() + offset, (*it));
-                DEBUG_MSG(DLVL_WARN,"Vorbis header, type %d", tmpHead.getHeaderType());
-                switch (tmpHead.getHeaderType()) {
-                  case 1: {
-                      myMeta.tracks[tid].channels = tmpHead.getAudioChannels();
-                      myMeta.tracks[tid].idHeader = std::string(tmpPage.getFullPayload() + offset, (*it));
-                      oggTracks[tid].channels = tmpHead.getAudioChannels();
-                      oggTracks[tid].blockSize[0] =  1 << tmpHead.getBlockSize0();
-                      oggTracks[tid].blockSize[1] =  1 << tmpHead.getBlockSize1();
-                      break;
-                    }
-                  case 3: {
-                      myMeta.tracks[tid].commentHeader = std::string(tmpPage.getFullPayload() + offset, (*it));
-                      break;
-                    }
-                  case 5: {
-                      myMeta.tracks[tid].codec = "vorbis";
-                      myMeta.tracks[tid].trackID = tid;
-                      myMeta.tracks[tid].type = "audio";
-                      DEBUG_MSG(DLVL_WARN,"Set default values");
-                      myMeta.tracks[tid].init = std::string(tmpPage.getFullPayload() + offset, (*it));
-                      DEBUG_MSG(DLVL_WARN,"Set init values");
-                      oggTracks[tid].vModes = tmpHead.readModeDeque(oggTracks[tid].channels);
-                      DEBUG_MSG(DLVL_WARN,"Set vmodevalues");
-                      oggTracks[tid].parsedHeaders = true;
-                      break;
-                    }
-                }
-                break;
-              }
-          }
-          offset += (*it);
+
+      bool readAllHeaders = true;
+      for (std::map<long unsigned int, OGG::oggTrack>::iterator it = oggTracks.begin(); it != oggTracks.end(); it++){
+        if (!it->second.parsedHeaders){
+          readAllHeaders = false;
+          break;
         }
       }
-      lastBytePos = ftell(inFile);
-      DEBUG_MSG(DLVL_WARN,"End of Loop, @ filepos %lld", lastBytePos);
+      if (readAllHeaders){
+        break;
+      }
+
+      // INFO_MSG("tid: %d",tid);
+
+      //Parsing headers
+//      INFO_MSG("parsing headers for tid: %d",tid);
+      ///\todo make sure the header is ffmpeg compatible
+      if (myMeta.tracks[tid].codec == "theora"){
+        //    INFO_MSG("theora");
+        for (int i = 0; i < myPage.getAllSegments().size(); i++){
+          unsigned long len = myPage.getSegmentLen(i);
+          INFO_MSG("Length for segment %d: %lu", i, len);
+          theora::header tmpHead((char*)myPage.getSegment(i),len);
+          if (!tmpHead.isHeader()){ //not copying the header anymore, should this check isHeader?
+            DEBUG_MSG(DLVL_FAIL, "Theora Header read failed!");
+            return false;
+          }
+          DEBUG_MSG(DLVL_WARN, "Theora header, type %d", tmpHead.getHeaderType());
+          switch (tmpHead.getHeaderType()){
+            //Case 0 is being handled by parseBeginOfStream
+            case 1: {
+                myMeta.tracks[tid].init += (char)((len >> 8) & 0xFF);
+                myMeta.tracks[tid].init += (char)(len & 0xFF);
+                myMeta.tracks[tid].init.append(myPage.getSegment(i), len);
+                break;
+              }
+            case 2: {
+                myMeta.tracks[tid].init += (char)((len >> 8) & 0xFF);
+                myMeta.tracks[tid].init += (char)(len & 0xFF);
+                myMeta.tracks[tid].init.append(myPage.getSegment(i), len);
+                oggTracks[tid].lastGran = 0;
+                oggTracks[tid].parsedHeaders = true;
+                break;
+              }
+          }
+        }
+      }
+
+      if (myMeta.tracks[tid].codec == "vorbis"){                
+        for (int i = 0; i < myPage.getAllSegments().size(); i++){
+          unsigned long len = myPage.getSegmentLen(i);
+          vorbis::header tmpHead((char*)myPage.getSegment(i), len);
+          if (!tmpHead.isHeader()){
+            DEBUG_MSG(DLVL_FAIL, "Header read failed!");
+            return false;
+          }
+          DEBUG_MSG(DLVL_WARN, "Vorbis header, type %d", tmpHead.getHeaderType());
+          switch (tmpHead.getHeaderType()){
+            //Case 1 is being handled by parseBeginOfStream
+            case 3: {
+                //we have the first header stored in contBuffer
+                myMeta.tracks[tid].init += (char)0x02;
+                //ID header size
+                for (int i = 0; i < (oggTracks[tid].contBuffer.size() / 255); i++){
+                  myMeta.tracks[tid].init += (char)0xFF;
+                }
+                myMeta.tracks[tid].init += (char)(oggTracks[tid].contBuffer.size() % 255);
+                //Comment header size
+                for (int i = 0; i < (len / 255); i++){
+                  myMeta.tracks[tid].init += (char)0xFF;
+                }
+                myMeta.tracks[tid].init += (char)(len % 255);
+                myMeta.tracks[tid].init += oggTracks[tid].contBuffer;
+                oggTracks[tid].contBuffer.clear();
+                myMeta.tracks[tid].init.append(myPage.getSegment(i), len);
+                break;
+              }
+            case 5: {
+                myMeta.tracks[tid].init.append(myPage.getSegment(i), len);
+                oggTracks[tid].vModes = tmpHead.readModeDeque(oggTracks[tid].channels);
+                oggTracks[tid].parsedHeaders = true;
+                break;
+              }
+          }
+        }
+      }
     }
-    DEBUG_MSG(DLVL_WARN,"Exited while loop");
+
+    for (std::map<long unsigned int, OGG::oggTrack>::iterator it = oggTracks.begin(); it != oggTracks.end(); it++){
+      fseek(inFile, 0, SEEK_SET);
+      position tmp = seekFirstData(it->first);
+      if (tmp.trackID){
+        currentPositions.insert(tmp);
+      } else {
+        INFO_MSG("missing track: %lu", it->first);
+      }
+    }
+    getNext();
+    while (lastPack){
+      myMeta.update(lastPack);
+      getNext();
+    }
+
     std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
     oFile << myMeta.toJSON().toNetPacked();
     oFile.close();
+
+    //myMeta.toPrettyString(std::cout);
     return true;
   }
 
-  bool inputOGG::seekNextPage(int tid){
-    fseek(inFile, oggTracks[tid].lastPageOffset, SEEK_SET);
-    bool res = true;
-    do {
-      res = oggTracks[tid].myPage.read(inFile);
-    } while(res && snum2tid[oggTracks[tid].myPage.getBitstreamSerialNumber()] != tid);
-    oggTracks[tid].lastPageOffset = ftell(inFile);
-    oggTracks[tid].nxtSegment = 0;
+  position inputOGG::seekFirstData(long long unsigned int tid){
+    fseek(inFile, 0, SEEK_SET);
+    position res;
+    res.time = 0;
+    res.trackID = tid;
+    res.segmentNo = 0;
+    bool readSuccesfull = true;
+    bool quitloop = false;
+    while (!quitloop){
+      quitloop = true;
+      res.bytepos = ftell(inFile);
+      readSuccesfull = oggTracks[tid].myPage.read(inFile);
+      if (!readSuccesfull){
+        quitloop = true; //break :(
+        break;
+      }
+      if (oggTracks[tid].myPage.getBitstreamSerialNumber() != tid){
+        quitloop = false;
+        continue;
+      }
+      if (oggTracks[tid].myPage.getHeaderType() != OGG::Plain){
+        quitloop = false;
+        continue;
+      }
+      if (oggTracks[tid].codec == OGG::VORBIS){
+        vorbis::header tmpHead((char*)oggTracks[tid].myPage.getSegment(0), oggTracks[tid].myPage.getSegmentLen(0));
+        if (tmpHead.isHeader()){
+          quitloop = false;
+        }
+      }
+      if (oggTracks[tid].codec == OGG::THEORA){
+        theora::header tmpHead((char*)oggTracks[tid].myPage.getSegment(0), oggTracks[tid].myPage.getSegmentLen(0));
+        if (tmpHead.isHeader()){
+          quitloop = false;
+        }
+      }
+    }// while ( oggTracks[tid].myPage.getHeaderType() != OGG::Plain && readSuccesfull && oggTracks[tid].myPage.getBitstreamSerialNumber() != tid);
+    INFO_MSG("seek first bytepos: %llu tid: %llu oggTracks[tid].myPage.getHeaderType(): %d ", res.bytepos, tid, oggTracks[tid].myPage.getHeaderType());
+    if (!readSuccesfull){
+      res.trackID = 0;
+    }
     return res;
   }
 
-  void inputOGG::getNext(bool smart) {
-    if (!sortedSegments.size()){
-      for (std::set<int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-        seekNextPage((*it));
-      }
+  void inputOGG::getNext(bool smart){
+    if (!currentPositions.size()){
+      lastPack.null();
+      return;
     }
-    if (sortedSegments.size()){
-      int tid = (*(sortedSegments.begin())).tid;
-      bool addedPacket = false;
-      while (!addedPacket){
-        segPart tmpPart;
-        if (oggTracks[tid].myPage.getSegment(oggTracks[tid].nxtSegment, tmpPart.segData, tmpPart.len)){
-          if (oggTracks[tid].nxtSegment == 0 && oggTracks[tid].myPage.getHeaderType() && OGG::Continued){
-            segment tmpSeg = *(sortedSegments.begin());
-            tmpSeg.parts.push_back(tmpPart);
-            sortedSegments.erase(sortedSegments.begin());
-            sortedSegments.insert(tmpSeg);
-          }else{
-            segment tmpSeg;
-            tmpSeg.parts.push_back(tmpPart);
-            tmpSeg.tid = tid;
-            tmpSeg.time = oggTracks[tid].lastTime;
-            if (oggTracks[tid].codec == VORBIS) {
-              std::string data;
-              data.append(tmpPart.segData, tmpPart.len);
-              unsigned int blockSize = 0;
-              Utils::bitstreamLSBF packet;
-              packet.append(data);
-              if (!packet.get(1)) {
-                blockSize = oggTracks[tid].blockSize[oggTracks[tid].vModes[packet.get(vorbis::ilog(oggTracks[tid].vModes.size() - 1))].blockFlag];
-              }
-              oggTracks[tid].lastTime += oggTracks[tid].msPerFrame * (blockSize / oggTracks[tid].channels);
-            }
-            if (oggTracks[tid].codec == THEORA) {
-              oggTracks[tid].lastTime += oggTracks[tid].msPerFrame;
-            }
-            sortedSegments.insert(tmpSeg);
-            addedPacket = true;
-          }
-          oggTracks[tid].nxtSegment ++;
-        }else{
-          if (!seekNextPage(tid)){
-            break;
-          }
+    bool lastCompleteSegment = false;
+    position curPos = *currentPositions.begin();
+    currentPositions.erase(currentPositions.begin());
+    segment thisSegment;
+    thisSegment.tid = curPos.trackID;
+    thisSegment.time = curPos.time;
+    thisSegment.bytepos = curPos.bytepos + curPos.segmentNo;
+    unsigned int oldSegNo = curPos.segmentNo;
+    fseek(inFile, curPos.bytepos, SEEK_SET);
+    OGG::Page curPage;
+    curPage.read(inFile);
+    thisSegment.parts.push_back(std::string(curPage.getSegment(curPos.segmentNo), curPage.getSegmentLen(curPos.segmentNo)));
+    bool readFullPacket = false;
+    if (curPos.segmentNo == curPage.getAllSegments().size() - 1){
+      OGG::Page tmpPage;
+      unsigned int bPos;
+      while (!readFullPacket){
+        bPos = ftell(inFile);//<-- :(
+        if (!tmpPage.read(inFile)){
+          break;
         }
-      }  
-      std::string data;
+        if (tmpPage.getBitstreamSerialNumber() != thisSegment.tid){
+          continue;
+        }
+        curPos.bytepos = bPos;
+        curPos.segmentNo = 0;
+        if (tmpPage.getHeaderType() == OGG::Continued){
+          thisSegment.parts.push_back(std::string(tmpPage.getSegment(0), tmpPage.getSegmentLen(0)));
+          curPos.segmentNo = 1;
+          if (tmpPage.getAllSegments().size() == 1){
+            continue;
+          }
+        } else {
+          lastCompleteSegment = true; //if this segment ends on the page, use granule to sync video time
+        }
+        readFullPacket = true;
+      }
+    } else {
+      curPos.segmentNo++;
+     
+     // if (oggTracks[thisSegment.tid].codec == OGG::THEORA && curPage.getGranulePosition() != (0xFFFFFFFFFFFFFFFFull) && curPos.segmentNo == curPage.getAllSegments().size() - 1){ //if the next segment is the last one on the page, the (theora) granule should be used to sync the time for the current segment
+      if ((oggTracks[thisSegment.tid].codec == OGG::THEORA ||oggTracks[thisSegment.tid].codec == OGG::VORBIS)&& curPage.getGranulePosition() != (0xFFFFFFFFFFFFFFFFull) && curPos.segmentNo == curPage.getAllSegments().size() - 1){ //if the next segment is the last one on the page, the (theora) granule should be used to sync the time for the current segment
+        OGG::Page tmpPage;
+        while (tmpPage.read(inFile) && tmpPage.getBitstreamSerialNumber() != thisSegment.tid){}
+        if ((tmpPage.getBitstreamSerialNumber() == thisSegment.tid) && tmpPage.getHeaderType() == OGG::Continued){
+          lastCompleteSegment = true; //this segment should be used to sync time using granule
+        }
+      }
+      readFullPacket = true;
+    }
+    std::string tmpStr = thisSegment.toJSON(oggTracks[thisSegment.tid].codec).toNetPacked();
+    lastPack.reInit(tmpStr.data(), tmpStr.size());
+
+    if (oggTracks[thisSegment.tid].codec == OGG::VORBIS){
+      unsigned long blockSize = 0;
+      Utils::bitstreamLSBF packet;
+      packet.append((char*)curPage.getSegment(oldSegNo), curPage.getSegmentLen(oldSegNo));
+      if (!packet.get(1)){
+        //Read index first
+        unsigned long vModeIndex = packet.get(vorbis::ilog(oggTracks[thisSegment.tid].vModes.size() - 1));
+        blockSize= oggTracks[thisSegment.tid].blockSize[oggTracks[thisSegment.tid].vModes[vModeIndex].blockFlag]; //almost readable.        
+      } else {
+        DEBUG_MSG(DLVL_WARN, "Packet type != 0");
+      }
+      curPos.time += oggTracks[thisSegment.tid].msPerFrame * (blockSize / oggTracks[thisSegment.tid].channels);    
+    } else if (oggTracks[thisSegment.tid].codec == OGG::THEORA){
+      if (lastCompleteSegment == true && curPage.getGranulePosition() != (0xFFFFFFFFFFFFFFFFull)){ //this segment should be used to sync time using granule
+        long long unsigned int parseGranuleUpper = curPage.getGranulePosition() >> oggTracks[thisSegment.tid].KFGShift ;
+        long long unsigned int parseGranuleLower(curPage.getGranulePosition() & ((1 << oggTracks[thisSegment.tid].KFGShift) - 1));
+        thisSegment.time = oggTracks[thisSegment.tid].msPerFrame * (parseGranuleUpper + parseGranuleLower - 1);
+        curPos.time = thisSegment.time;
+        std::string tmpStr = thisSegment.toJSON(oggTracks[thisSegment.tid].codec).toNetPacked();
+        lastPack.reInit(tmpStr.data(), tmpStr.size());
+        //  INFO_MSG("thisTime: %d", lastPack.getTime());
+      }
+      curPos.time += oggTracks[thisSegment.tid].msPerFrame;
+    }
+    if (readFullPacket){
+      currentPositions.insert(curPos);
+    }
+  }//getnext()
+
+  long long unsigned int inputOGG::calcGranuleTime(unsigned long tid, long long unsigned int granule){
+    switch (oggTracks[tid].codec){
+      case OGG::VORBIS:
+        return granule * oggTracks[tid].msPerFrame ; //= samples * samples per second
+        break;
+      case OGG::THEORA:{
+        long long unsigned int parseGranuleUpper = granule >> oggTracks[tid].KFGShift ;
+        long long unsigned int parseGranuleLower = (granule & ((1 << oggTracks[tid].KFGShift) - 1));
+        return (parseGranuleUpper + parseGranuleLower) * oggTracks[tid].msPerFrame ; //= frames * msPerFrame
+        break;
+      }
+      default:
+        DEBUG_MSG(DLVL_WARN, "Unknown codec, can not calculate time from granule");
+        break;
+    }
+    return 0;
+  }
+
+
+  void inputOGG::seek(int seekTime){
+    currentPositions.clear();
+    DEBUG_MSG(DLVL_MEDIUM, "Seeking to %dms", seekTime);
+
+    //for every track
+    for (std::set<unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      //find first keyframe before keyframe with ms > seektime
+      position tmpPos;
+      tmpPos.trackID = *it;
+      tmpPos.time = myMeta.tracks[*it].keys.begin()->getTime();
+      tmpPos.bytepos = myMeta.tracks[*it].keys.begin()->getBpos();
+      for (std::deque<DTSC::Key>::iterator ot = myMeta.tracks[*it].keys.begin(); ot != myMeta.tracks[*it].keys.end(); ot++){
+        if (ot->getTime() > seekTime){
+          break;
+        } else {
+          tmpPos.time = ot->getTime();
+          tmpPos.bytepos = ot->getBpos();
+        }
+      }
+      INFO_MSG("Found %dms for track %u at %llu bytepos %llu", seekTime, *it, tmpPos.time, tmpPos.bytepos);
+      int backChrs=std::min(280ull, tmpPos.bytepos - 1);
+      fseek(inFile, tmpPos.bytepos - backChrs, SEEK_SET);
+      char buffer[300];
+      fread(buffer, 300, 1, inFile);
+      char * loc = buffer + backChrs + 2; //start at tmpPos.bytepos+2
+      while (loc && !(loc[0] == 'O' && loc[1] == 'g' && loc[2] == 'g' && loc[3] == 'S')){
+        loc = (char *)memrchr(buffer, 'O',  (loc-buffer) -1 );//seek reverse
+      }
+      if (!loc){
+        INFO_MSG("Unable to find a page boundary starting @ %llu, track %u", tmpPos.bytepos, *it);
+        for (int i = 0; i < 300; i++){
+          fprintf(stderr, "%0.2X ", buffer[i]);
+        }
+        continue;
+      }
+      tmpPos.segmentNo = backChrs - (loc - buffer);
+      tmpPos.bytepos -= tmpPos.segmentNo;
+      INFO_MSG("Track %u, segment %llu found at bytepos %llu", *it, tmpPos.segmentNo, tmpPos.bytepos);
+
+      currentPositions.insert(tmpPos);
     }
   }
 
-  void inputOGG::seek(int seekTime) {
-    DEBUG_MSG(DLVL_WARN,"Seeking is not yet supported for ogg files");
-    //Do nothing, seeking is not yet implemented for ogg
-  }
-
-  void inputOGG::trackSelect(std::string trackSpec) {
+  void inputOGG::trackSelect(std::string trackSpec){
     selectedTracks.clear();
     size_t index;
-    while (trackSpec != "") {
+    while (trackSpec != ""){
       index = trackSpec.find(' ');
-      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      DEBUG_MSG(DLVL_WARN, "Added track %d, index = %lu, (index == npos) = %d", atoi(trackSpec.substr(0, index).c_str()), index, index == std::string::npos);
-      if (index != std::string::npos) {
+      selectedTracks.insert(atoll(trackSpec.substr(0, index).c_str()));
+      if (index != std::string::npos){
         trackSpec.erase(0, index + 1);
       } else {
         trackSpec = "";
@@ -279,5 +436,11 @@ namespace Mist {
     }
   }
 }
+
+
+
+
+
+
 
 

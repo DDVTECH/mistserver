@@ -353,14 +353,14 @@ namespace Mist {
            "MajorVersion=\"2\" "
            "MinorVersion=\"0\" "
            "TimeScale=\"10000000\" ";
-    std::deque<std::map<int, DTSC::Track>::iterator> audioIters;
-    std::deque<std::map<int, DTSC::Track>::iterator> videoIters;
+    std::deque<std::map<unsigned int, DTSC::Track>::iterator> audioIters;
+    std::deque<std::map<unsigned int, DTSC::Track>::iterator> videoIters;
     long long int maxWidth = 0;
     long long int maxHeight = 0;
     long long int minWidth = 99999999;
     long long int minHeight = 99999999;
     bool encrypted = false;/*LTS*/
-    for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
       if (it->second.codec == "AAC") {
         audioIters.push_back(it);
       }
@@ -402,7 +402,7 @@ namespace Mist {
              "Chunks=\"" << (*audioIters.begin())->second.keys.size() << "\" "
              "Url=\"Q({bitrate},{CustomAttributes})/A({start time})\">\n";
       int index = 0;
-      for (std::deque<std::map<int, DTSC::Track>::iterator>::iterator it = audioIters.begin(); it != audioIters.end(); it++) {
+      for (std::deque<std::map<unsigned int, DTSC::Track>::iterator>::iterator it = audioIters.begin(); it != audioIters.end(); it++) {
         encrypted |= ((*it)->second.keys.size() == (*it)->second.ivecs.size()); /*LTS*/
         Result << "<QualityLevel "
                "Index=\"" << index << "\" "
@@ -448,7 +448,7 @@ namespace Mist {
              "DisplayWidth=\"" << maxWidth << "\" "
              "DisplayHeight=\"" << maxHeight << "\">\n";
       int index = 0;
-      for (std::deque<std::map<int, DTSC::Track>::iterator>::iterator it = videoIters.begin(); it != videoIters.end(); it++) {
+      for (std::deque<std::map<unsigned int, DTSC::Track>::iterator>::iterator it = videoIters.begin(); it != videoIters.end(); it++) {
         encrypted |= ((*it)->second.keys.size() == (*it)->second.ivecs.size()); /*LTS*/
         //Add video qualities
         Result << "<QualityLevel "
@@ -521,7 +521,7 @@ namespace Mist {
 
   void OutHSS::initialize() {
     Output::initialize();
-    for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
       for (std::deque<DTSC::Key>::iterator it2 = it->second.keys.begin(); it2 != it->second.keys.end(); it2++) {
         keyTimes[it->first].insert(it2->getTime());
       }

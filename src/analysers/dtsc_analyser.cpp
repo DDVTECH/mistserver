@@ -35,7 +35,7 @@ namespace Analysers {
           break;
         }
         case DTSC::DTSC_V2: {
-          std::cout << "DTSCv2 packet (" << F.getPacket().getTrackId() << ":" << F.getPacket().getTime() << "): " << F.getPacket().getScan().toPrettyString() << std::endl;
+          std::cout << "DTSCv2 packet (Track " << F.getPacket().getTrackId() << ", time " << F.getPacket().getTime() << "): " << F.getPacket().getScan().toPrettyString() << std::endl;
           break;
         }
         case DTSC::DTSC_HEAD: {

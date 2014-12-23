@@ -86,7 +86,7 @@ namespace Mist {
     config->is_active = false;
     if (myMeta.tracks.size()){
       DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
-      for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      for(std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         while (removeKey(it->first)){}
       }
     }
@@ -95,7 +95,7 @@ namespace Mist {
   void inputBuffer::updateMeta(){
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
-    for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.firstms < firstms){
         firstms = it->second.firstms;
       }
@@ -260,14 +260,14 @@ namespace Mist {
     }
     //find the earliest video keyframe stored
     unsigned int firstVideo = 1;
-    for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for(std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.type == "video"){
         if (it->second.firstms < firstVideo || firstVideo == 1){
           firstVideo = it->second.firstms;
         }
       }
     }
-    for(std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for(std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       //non-video tracks need to have a second keyframe that is <= firstVideo
       if (it->second.type != "video"){
         if (it->second.keys.size() < 2 || it->second.keys[1].getTime() > firstVideo){

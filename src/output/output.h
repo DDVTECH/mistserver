@@ -25,7 +25,7 @@ namespace Mist {
       }
       return (time == rhs.time && tid < rhs.tid);
     }
-    int tid;
+    unsigned int tid;
     long long unsigned int time;
     unsigned int offset;
   };
@@ -64,8 +64,8 @@ namespace Mist {
       //non-virtual generic functions
       int run();
       void stats();
-      void seek(long long pos);
-      bool seek(int tid, long long pos, bool getNextKey = false);
+      void seek(unsigned long long pos);
+      bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
       void stop();
       void setBlocking(bool blocking);
       long unsigned int getMainSelectedTrack();

@@ -174,7 +174,7 @@ namespace Mist {
 
   void Output::negotiatePushTracks() {
     int i = 0;
-    for (std::map<int, DTSC::Track>::iterator it = meta_out.tracks.begin(); it != meta_out.tracks.end() && i < 5; it++){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = meta_out.tracks.begin(); it != meta_out.tracks.end() && i < 5; it++){
       negotiateWithBuffer(it->first);
       i++;
     }
@@ -297,7 +297,7 @@ namespace Mist {
                 }
               }
               if (!found){
-                for (std::map<int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+                for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
                   if (trit->second.codec == (*itc).asStringRef()){
                     genCounter++;
                     found = true;
@@ -337,7 +337,7 @@ namespace Mist {
               }
             }
             if (!found){
-              for (std::map<int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+              for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
                 if (trit->second.codec == (*itc).asStringRef()){
                   selectedTracks.insert(trit->first);
                   found = true;
@@ -449,8 +449,8 @@ namespace Mist {
       return;
     }
     char id[100];
-    sprintf(id, "%s%lu_%d", streamName.c_str(), trackId, pageNum);
-    curPages[trackId].init(std::string(id),26 * 1024 * 1024);
+    snprintf(id, 100, "%s%lu_%d", streamName.c_str(), trackId, pageNum);
+    curPages[trackId].init(id, 26 * 1024 * 1024);
     if (!(curPages[trackId].mapped)){
       DEBUG_MSG(DLVL_FAIL, "Initializing page %s failed", curPages[trackId].name.c_str());
       return;
@@ -459,7 +459,7 @@ namespace Mist {
   }
   
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
-  void Output::seek(long long pos){
+  void Output::seek(unsigned long long pos){
     sought = true;
     firstTime = Util::getMS() - pos;
     if (!isInitialized){
@@ -470,16 +470,16 @@ namespace Mist {
     if (myMeta.live){
       updateMeta();
     }
-    DEBUG_MSG(DLVL_MEDIUM, "Seeking to %llims", pos);
+    DEBUG_MSG(DLVL_MEDIUM, "Seeking to %llums", pos);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       seek(*it, pos);
     }
   }
 
-  bool Output::seek(int tid, long long pos, bool getNextKey){
+  bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
     loadPageForKey(tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
     if (!curPages.count(tid) || !curPages[tid].mapped){
-      DEBUG_MSG(DLVL_DEVEL, "Aborting seek to %llims in track %d, not available.", pos, tid);
+      DEBUG_MSG(DLVL_DEVEL, "Aborting seek to %llums in track %u, not available.", pos, tid);
       return false;
     }
     sortedPageInfo tmp;
@@ -1025,7 +1025,7 @@ namespace Mist {
     }
     if (trackMap.size()){
       for (std::map<int, int>::iterator it = trackMap.begin(); it != trackMap.end() && tNum < 5; it++){
-        int tId = it->second;
+        unsigned int tId = it->second;
         char * thisData = playerConn.getData() + (6 * tNum);
         thisData[0] = ((tId >> 24) & 0xFF);
         thisData[1] = ((tId >> 16) & 0xFF);
@@ -1037,7 +1037,7 @@ namespace Mist {
       }
     }else{
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < 5; it++){
-        int tId = *it;
+        unsigned int tId = *it;
         char * thisData = playerConn.getData() + (6 * tNum);
         thisData[0] = ((tId >> 24) & 0xFF);
         thisData[1] = ((tId >> 16) & 0xFF);

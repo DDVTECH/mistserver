@@ -83,46 +83,7 @@ namespace IPC {
       semaphore * mySemaphore;
   };
 
-#if !defined __APPLE__
-  ///\brief A class for managing shared memory pages.
-  class sharedPage {
-    public:
-      sharedPage(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
-      sharedPage(const sharedPage & rhs);
-      ~sharedPage();
-      operator bool() const;
-      void init(std::string name_, unsigned int len_, bool master_ =  false, bool autoBackoff = true);
-      void operator =(sharedPage & rhs);
-      bool operator < (const sharedPage & rhs) const {
-        return name < rhs.name;
-      }
-      void unmap();
-      void close();
-#ifdef __CYGWIN__
-      ///\brief The handle of the opened shared memory page
-      HANDLE handle;
-#else
-      ///\brief The fd handle of the opened shared memory page
-      int handle;
-#endif
-      ///\brief The name of the opened shared memory page
-      std::string name;
-      ///\brief The size in bytes of the opened shared memory page
-      long long int len;
-      ///\brief Whether this class should unlink the shared memory upon deletion or not
-      bool master;
-      ///\brief A pointer to the payload of the page
-      char * mapped;
-  };
-#else
-  class sharedPage;
-#endif
-
-#if !defined __APPLE__
-  ///\brief A class for managing shared files in the same form as shared memory pages
-#else
   ///\brief A class for managing shared files.
-#endif
   class sharedFile {
     public:
       sharedFile(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
@@ -134,6 +95,7 @@ namespace IPC {
       bool operator < (const sharedFile & rhs) const {
         return name < rhs.name;
       }
+      void close();
       void unmap();
       ///\brief The fd handle of the opened shared file
       int handle;
@@ -147,9 +109,39 @@ namespace IPC {
       char * mapped;
   };
 
-#ifdef __APPLE__
+#ifdef SHM_ENABLED
+  ///\brief A class for managing shared memory pages.
+  class sharedPage {
+  public:
+    sharedPage(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
+    sharedPage(const sharedPage & rhs);
+    ~sharedPage();
+    operator bool() const;
+    void init(std::string name_, unsigned int len_, bool master_ =  false, bool autoBackoff = true);
+    void operator =(sharedPage & rhs);
+    bool operator < (const sharedPage & rhs) const {
+      return name < rhs.name;
+    }
+    void unmap();
+    void close();
+    #ifdef __CYGWIN__
+    ///\brief The handle of the opened shared memory page
+    HANDLE handle;
+    #else
+    ///\brief The fd handle of the opened shared memory page
+    int handle;
+    #endif
+    ///\brief The name of the opened shared memory page
+    std::string name;
+    ///\brief The size in bytes of the opened shared memory page
+    long long int len;
+    ///\brief Whether this class should unlink the shared memory upon deletion or not
+    bool master;
+    ///\brief A pointer to the payload of the page
+    char * mapped;
+  };
+#else
   ///\brief A class for handling shared memory pages.
-  ///
   ///Uses shared files at its backbone, defined for portability
   class sharedPage: public sharedFile {
     public:

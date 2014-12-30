@@ -13,6 +13,10 @@ endif
 CPPFLAGS = -Wall -g -O2 -fPIC
 override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\""
 
+ifndef NOSHM
+override CPPFLAGS += -DSHM_ENABLED=1
+endif
+
 LDLIBS = -lcrypto
 THREADLIB = -lpthread -lrt
 LDLIBS = -lcrypto $(THREADLIB)

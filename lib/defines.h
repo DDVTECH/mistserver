@@ -22,7 +22,6 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 
 #if !defined(__APPLE__) && !defined(__MACH__) && defined(__GNUC__)
 #include <errno.h>
-extern char * program_invocation_short_name;
 
 #if DEBUG >= DLVL_DEVEL
 #define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|%s|%d|%s:%d|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, getpid(), __FILE__, __LINE__, ##__VA_ARGS__);}

@@ -105,7 +105,7 @@ namespace MP4 {
       } else if (size == 0) {
         fseek(newData, 0, SEEK_END);
       }
-      DEBUG_MSG(DLVL_DEVEL, "skipping size 0x%0.8lX", size);
+      DEBUG_MSG(DLVL_DEVEL, "skipping size 0x%.8lX", size);
       if (fseek(newData, pos + size, SEEK_SET) == 0) {
         return true;
       } else {

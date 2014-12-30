@@ -1042,7 +1042,7 @@ namespace DTSC {
     }
     if (trackRef.isMember("keysizes") && trackRef["keysizes"].isString()) {
       std::string tmp = trackRef["keysizes"].asStringRef();
-      for (int i = 0; i < tmp.size(); i += 4){
+      for (unsigned int i = 0; i < tmp.size(); i += 4){
         keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
       }
     }
@@ -1127,7 +1127,7 @@ namespace DTSC {
     }
     if (trackRef.isMember("keysizes") && trackRef["keysizes"].isString()) {
       std::string tmp = trackRef["keysizes"].asStringRef();
-      for (int i = 0; i < tmp.size(); i += 4){
+      for (unsigned int i = 0; i < tmp.size(); i += 4){
         keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
       }
     }
@@ -1175,7 +1175,7 @@ namespace DTSC {
       char * tmp = 0;
       unsigned int tmplen = 0;
       trackRef.getMember("keysizes").getString(tmp, tmplen);
-      for (int i = 0; i < tmplen; i += 4){
+      for (unsigned int i = 0; i < tmplen; i += 4){
         keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
       }
     }
@@ -1184,8 +1184,8 @@ namespace DTSC {
   ///\brief Updates a track and its metadata given new packet properties.
   ///Will also insert keyframes on non-video tracks, and creates fragments
   void Track::update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size) {
-    if (packTime < lastms) {
-      DEBUG_MSG(DLVL_WARN, "Received packets for track %d in wrong order (%lld < %d) - ignoring!", (int)trackID, packTime, (int)lastms);
+    if ((unsigned long long)packTime < lastms) {
+      DEBUG_MSG(DLVL_WARN, "Received packets for track %u in wrong order (%lld < %llu) - ignoring!", trackID, packTime, lastms);
       return;
     }
     Part newPart;
@@ -1218,7 +1218,7 @@ namespace DTSC {
       keys.push_back(newKey);
       keySizes.push_back(0);
       firstms = keys[0].getTime();
-      if (!fragments.size() || (packTime > segment_size && packTime - segment_size >= (unsigned long long)getKey(fragments.rbegin()->getNumber()).getTime())) {
+      if (!fragments.size() || ((unsigned long long)packTime > segment_size && (unsigned long long)packTime - segment_size >= (unsigned long long)getKey(fragments.rbegin()->getNumber()).getTime())) {
         //new fragment
         Fragment newFrag;
         newFrag.setDuration(0);
@@ -1642,7 +1642,7 @@ namespace DTSC {
     writePointer(p, convertInt(keySizes.size() * 4), 4);
     std::string tmp;
     tmp.reserve(keySizes.size() * 4);
-    for (int i = 0; i < keySizes.size(); i++){
+    for (unsigned int i = 0; i < keySizes.size(); i++){
       tmp += ((char)keySizes[i] >> 24);
       tmp += ((char)keySizes[i] >> 16);
       tmp += ((char)keySizes[i] >> 8);
@@ -1706,7 +1706,7 @@ namespace DTSC {
     conn.SendNow(convertInt(keySizes.size() * 4), 4);
     std::string tmp;
     tmp.reserve(keySizes.size() * 4);
-    for (int i = 0; i < keySizes.size(); i++){
+    for (unsigned int i = 0; i < keySizes.size(); i++){
       tmp += ((char)keySizes[i] >> 24);
       tmp += ((char)keySizes[i] >> 16);
       tmp += ((char)keySizes[i] >> 8);
@@ -1774,7 +1774,7 @@ namespace DTSC {
     writePointer(p, convertInt(keySizes.size() * 4), 4);
     std::string tmp;
     tmp.reserve(keySizes.size() * 4);
-    for (int i = 0; i < keySizes.size(); i++){
+    for (unsigned int i = 0; i < keySizes.size(); i++){
       tmp += ((char)keySizes[i] >> 24);
       tmp += ((char)keySizes[i] >> 16);
       tmp += ((char)keySizes[i] >> 8);
@@ -1844,7 +1844,7 @@ namespace DTSC {
     conn.SendNow(convertInt(keySizes.size() * 4), 4);
     std::string tmp;
     tmp.reserve(keySizes.size() * 4);
-    for (int i = 0; i < keySizes.size(); i++){
+    for (unsigned int i = 0; i < keySizes.size(); i++){
       tmp += ((char)keySizes[i] >> 24);
       tmp += ((char)keySizes[i] >> 16);
       tmp += ((char)keySizes[i] >> 8);
@@ -2049,7 +2049,7 @@ namespace DTSC {
     if (keySizes.size()){
       std::string tmp;
       tmp.reserve(keySizes.size() * 4);
-      for (int i = 0; i < keySizes.size(); i++){
+      for (unsigned int i = 0; i < keySizes.size(); i++){
         tmp += ((char)(keySizes[i] >> 24));
         tmp += ((char)(keySizes[i] >> 16));
         tmp += ((char)(keySizes[i] >> 8));
@@ -2099,7 +2099,7 @@ namespace DTSC {
     result["keys"] = tmp;
     tmp = "";
     tmp.reserve(keySizes.size() * 4);
-    for (int i = 0; i < keySizes.size(); i++){
+    for (unsigned int i = 0; i < keySizes.size(); i++){
       tmp += ((char)(keySizes[i] >> 24));
       tmp += ((char)(keySizes[i] >> 16));
       tmp += ((char)(keySizes[i] >> 8));

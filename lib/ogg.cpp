@@ -19,7 +19,7 @@ namespace OGG {
   std::deque<unsigned int> decodeXiphSize(char * data, size_t len){
     std::deque<unsigned int> res;
     res.push_back(0);
-    for (int i = 0; i < len; i++){
+    for (unsigned int i = 0; i < len; i++){
       *res.rbegin() += data[i];
       if (data[i] != 0xFF){
         res.push_back(0);
@@ -98,7 +98,7 @@ namespace OGG {
 
   unsigned int Page::calcPayloadSize(){
     unsigned int retVal = 0;
-    for (int i = 0; i < segments.size(); i++){
+    for (unsigned int i = 0; i < segments.size(); i++){
       retVal += segments[i].size();
     }
     return retVal;
@@ -301,7 +301,7 @@ namespace OGG {
     r << std::string(indent + 2, ' ') << "Checksum: " << getCRCChecksum() << std::endl;
     r << std::string(indent + 2, ' ') << (int)getPageSegments() << " segments:" << std::endl;
     r << std::string(indent + 3, ' ');
-    for (int i = 0; i < segments.size(); i++){
+    for (unsigned int i = 0; i < segments.size(); i++){
       r << " " << segments[i].size();
     }
     r << std::endl;
@@ -405,7 +405,7 @@ namespace OGG {
 
   int Page::getPayloadSize(){
     size_t res = 0;
-    for (int i = 0; i < segments.size(); i++){
+    for (unsigned int i = 0; i < segments.size(); i++){
       res += segments[i].size();
     }
     return res;
@@ -536,7 +536,7 @@ namespace OGG {
     char tableSize = 0;
     //char table[255];
     char * table = (char *)malloc(255);
-    int bytesLeft = 0;
+    unsigned int bytesLeft = 0;
     for (unsigned int i = 0; i < numSegments; i++){
       //calculate amount of 255 bytes needed to store size (remainder not counted)
       temp = (oggSegments[i].dataString.size() / 255);

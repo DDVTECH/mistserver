@@ -993,7 +993,7 @@ bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek
     }
     //check if packetID matches, if not, skip size + 8 bytes.
     int packSize = ntohl(((int *)header)[1]);
-    int packID = ntohl(((int *)header)[2]);
+    unsigned int packID = ntohl(((int *)header)[2]);
     if (memcmp(header, Magic_Packet2, 4) != 0 || packID != trackNo) {
       if (memcmp(header, "DT", 2) != 0) {
         DEBUG_MSG(DLVL_WARN, "Invalid header during seek to %u in track %d @ %lld - resetting bytePos from %lld to zero", ms, trackNo, lastreadpos, tmpPos.bytePos);

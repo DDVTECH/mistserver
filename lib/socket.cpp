@@ -526,6 +526,7 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len) {
 /// returning the amount of bytes it actually read.
 /// \param buffer Location of the buffer to read to.
 /// \param len Amount of bytes to read.
+/// \param flags Flags to use in the recv call. Ignored on fake sockets.
 /// \returns The amount of bytes actually read.
 int Socket::Connection::iread(void * buffer, int len, int flags) {
   if (!connected() || len < 1) {
@@ -570,6 +571,7 @@ int Socket::Connection::iread(void * buffer, int len, int flags) {
 /// Data is read using iread (which is nonblocking if the Socket::Connection itself is),
 /// then appended to end of buffer.
 /// \param buffer Socket::Buffer to append data to.
+/// \param flags Flags to use in the recv call. Ignored on fake sockets.
 /// \return True if new data arrived, false otherwise.
 bool Socket::Connection::iread(Buffer & buffer, int flags) {
   char cbuffer[BUFFER_BLOCKSIZE];

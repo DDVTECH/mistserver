@@ -184,7 +184,35 @@ namespace IPC {
   }
 
 
-#if !defined __APPLE__
+  ///brief Creates a shared page
+  ///\param name_ The name of the page to be created
+  ///\param len_ The size to make the page
+  ///\param master_ Whether to create or merely open the page
+  ///\param autoBackoff When only opening the page, wait for it to appear or fail
+  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff){
+    handle = 0;
+    len = 0;
+    master = false;
+    mapped = 0;
+    init(name_, len_, master_, autoBackoff);
+  }
+
+  ///\brief Creates a copy of a shared page
+  ///\param rhs The page to copy
+  sharedPage::sharedPage(const sharedPage & rhs) {
+    handle = 0;
+    len = 0;
+    master = false;
+    mapped = 0;
+    init(rhs.name, rhs.len, rhs.master);
+  }
+
+  ///\brief Default destructor
+  sharedPage::~sharedPage() {
+    close();
+  }
+
+#ifdef SHM_ENABLED
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap() {
     if (mapped && len) {
@@ -212,26 +240,6 @@ namespace IPC {
 #endif
       handle = 0;
     }
-  }
-
-
-  ///brief Creates a shared page
-  ///\param name_ The name of the page to be created
-  ///\param len_ The size to make the page
-  ///\param master_ Whether to create or merely open the page
-  ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) : handle(0), len(0), master(false), mapped(0) {
-    init(name_, len_, master_, autoBackoff);
-  }
-
-  ///\brief Creates a copy of a shared page
-  ///\param rhs The page to copy
-  sharedPage::sharedPage(const sharedPage & rhs) {
-    handle = 0;
-    len = 0;
-    master = false;
-    mapped = 0;
-    init(rhs.name, rhs.len, rhs.master);
   }
 
   ///\brief Returns whether the shared page is valid or not
@@ -327,45 +335,6 @@ namespace IPC {
     }
   }
 
-  ///\brief Default destructor
-  sharedPage::~sharedPage() {
-    close();
-  }
-
-#else
-
-  ///brief Creates a shared page
-  ///\param name_ The name of the page to be created
-  ///\param len_ The size to make the page
-  ///\param master_ Whether to create or merely open the page
-  ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
-    handle = 0;
-    len = 0;
-    master = false;
-    mapped = 0;
-    init(name_, len_, master_, autoBackoff);
-  }
-
-  ///\brief Creates a copy of a shared page
-  ///\param rhs The page to copy
-  sharedPage::sharedPage(const sharedPage & rhs) {
-    handle = 0;
-    len = 0;
-    master = false;
-    mapped = 0;
-    init(rhs.name, rhs.len, rhs.master);
-  }
-
-  ///\brief Default destructor
-  sharedPage::~sharedPage() {
-    unmap();
-    close(handle);
-    if (master && name != "") {
-      unlink(name.c_str());
-    }
-  }
-
 #endif
 
   ///brief Creates a shared file
@@ -413,6 +382,18 @@ namespace IPC {
       len = 0;
     }
   }
+  
+  /// Unmaps, closes and unlinks (if master and name is set) the shared file.
+  void sharedFile::close() {
+    unmap();
+    if (handle > 0) {
+      ::close(handle);
+      if (master && name != "") {
+        unlink(name.c_str());
+      }
+      handle = 0;
+    }
+  }
 
   ///\brief Initialize a page, de-initialize before if needed
   ///\param name_ The name of the page to be created
@@ -420,14 +401,7 @@ namespace IPC {
   ///\param master_ Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
   void sharedFile::init(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
-    unmap();
-    if (master) {
-      unlink(name.c_str());
-    }
-    if (handle > 0) {
-      close(handle);
-    }
-    handle = 0;
+    close();
     name = name_;
     len = len_;
     master = master_;
@@ -475,13 +449,7 @@ namespace IPC {
 
   ///\brief Default destructor
   sharedFile::~sharedFile() {
-    unmap();
-    if (master) {
-      unlink(name.c_str());
-    }
-    if (handle > 0) {
-      close(handle);
-    }
+    close();
   }
 
 

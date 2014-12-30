@@ -445,8 +445,9 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
 /// Returns true if this stream has at least one connected client.
 bool Controller::hasViewers(std::string streamName){
   if (sessions.size()){
+    long long currTime = Util::epoch();
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      if (it->first.streamName == streamName){
+      if (it->first.streamName == streamName && it->second.hasDataFor(currTime)){
         return true;
       }
     }

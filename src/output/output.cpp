@@ -390,7 +390,7 @@ namespace Mist {
       long amountKey = ntohl((((long long int*)indexPages[trackId].mapped)[i]) & 0xFFFFFFFF);
       if (amountKey == 0){continue;}
       long tmpKey = ntohl(((((long long int*)indexPages[trackId].mapped)[i]) >> 32) & 0xFFFFFFFF);
-      if (tmpKey <= keyNum && (tmpKey + amountKey) > keyNum){
+      if (tmpKey <= keyNum && ((tmpKey?tmpKey:1) + amountKey) > keyNum){
         return tmpKey;
       }
     }
@@ -629,7 +629,7 @@ namespace Mist {
           buffer.insert(nxt);
         }else{
           //after ~10 seconds, give up and drop the track.
-          DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u - could not reload, dropping track.", nxt.tid);
+          DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, nxtKeyNum[nxt.tid]+1, nextPage);
         }
         //keep updating the metadata at 250ms intervals while waiting for more data
         Util::sleep(250);
@@ -661,7 +661,13 @@ namespace Mist {
       if (currentPacket.getTime() != nxt.time && nxt.time){
         DEBUG_MSG(DLVL_MEDIUM, "ACTUALLY Loaded track %ld (next=%lu), %llu ms", currentPacket.getTrackId(), nxtKeyNum[nxt.tid], currentPacket.getTime());
       }
-      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, currentPacket.getTime());
+      if (currentPacket.getFlag("keyframe")){
+        if (myMeta.live){
+          updateMeta();
+        }
+        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, currentPacket.getTime());
+        DEBUG_MSG(DLVL_VERYHIGH, "Track %u @ %llums = key %lu", nxt.tid, currentPacket.getTime(), nxtKeyNum[nxt.tid]);
+      }
       emptyCount = 0;
     }
     nxt.offset += currentPacket.getDataLen();

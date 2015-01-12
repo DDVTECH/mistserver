@@ -96,15 +96,25 @@ namespace IPC {
   ///\param value The initial value of the semaphore if O_CREAT is given in oflag, ignored otherwise
   void semaphore::open(const char * name, int oflag, mode_t mode, unsigned int value) {
     close();
+    int timer = 0;
+    while (!(*this) && timer++ < 10){
 #ifdef __CYGWIN__
-    mySem = CreateSemaphore(0, value, 1 , std::string("Global\\" + std::string(name)).c_str());
+      mySem = CreateSemaphore(0, value, 1 , std::string("Global\\" + std::string(name)).c_str());
 #else
-    if (oflag & O_CREAT) {
-      mySem = sem_open(name, oflag, mode, value);
-    } else {
-      mySem = sem_open(name, oflag);
-    }
+      if (oflag & O_CREAT) {
+        mySem = sem_open(name, oflag, mode, value);
+      } else {
+        mySem = sem_open(name, oflag);
+      }
 #endif
+      if (!(*this)){
+        if (errno == ENOENT){
+          Util::wait(500);
+        }else{
+          break;
+        }
+      }
+    }
     if (!(*this)){
       DEBUG_MSG(DLVL_VERYHIGH, "Attempt to open semaphore %s: %s", name, strerror(errno));
     }

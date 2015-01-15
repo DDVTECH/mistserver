@@ -13,6 +13,10 @@ endif
 CPPFLAGS = -Wall -g -O2
 override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\"" -DRELEASE="\"$(RELEASE)\""
 
+ifndef NOSHM
+override CPPFLAGS += -DSHM_ENABLED=1
+endif
+
 ifdef WITH_THREADNAMES
 override CPPFLAGS += -DWITH_THREADNAMES=1
 endif

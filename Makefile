@@ -30,6 +30,10 @@ ifdef KILLONEXIT
 override CPPFLAGS += -DKILL_ON_EXIT=true
 endif
 
+ifndef NOSHM
+override CPPFLAGS += -DSHM_ENABLED=1
+endif
+
 ifdef WITH_THREADNAMES
 override CPPFLAGS += -DWITH_THREADNAMES=1
 endif

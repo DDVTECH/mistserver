@@ -178,7 +178,7 @@ namespace Mist {
   
   void OutHDS::sendNext(){
     if (currentPacket.getTime() >= playUntil){
-      DEBUG_MSG(DLVL_DEVEL, "(%d) Done sending fragment", getpid() );
+      DEBUG_MSG(DLVL_HIGH, "(%d) Done sending fragment", getpid() );
       stop();
       wantRequest = true;
       H.Chunkify("", 0, myConn);

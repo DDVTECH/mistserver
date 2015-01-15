@@ -164,7 +164,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   //finally, unlock the config semaphore
   configLock.post();
 
-  INFO_MSG("Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
+  DEBUG_MSG(DLVL_MEDIUM, "Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
   char * argv[30] = {(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str()};
   int argNum = 3;
   std::string debugLvl;

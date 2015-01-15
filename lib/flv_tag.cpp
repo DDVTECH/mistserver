@@ -1064,8 +1064,8 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata) {
       } else {
         metadata.tracks[1].height = 0;
       }
-      if (tmp->getContentP("framerate")) {
-        metadata.tracks[1].fpks = (long long int)(tmp->getContentP("framerate")->NumValue() * 1000.0);
+      if (tmp->getContentP("videoframerate")) {
+        metadata.tracks[1].fpks = (long long int)(tmp->getContentP("videoframerate")->NumValue() * 1000.0);
       } else {
         metadata.tracks[1].fpks = 0;
       }
@@ -1099,7 +1099,7 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata) {
         metadata.tracks[2].channels = 1;
       }
       for (int i = 0; i < tmp->hasContent(); ++i) {
-        if (tmp->getContentP(i)->Indice() == "videocodecid" || tmp->getContentP(i)->Indice() == "audiocodecid" || tmp->getContentP(i)->Indice() == "width" || tmp->getContentP(i)->Indice() == "height" || tmp->getContentP(i)->Indice() == "framerate" || tmp->getContentP(i)->Indice() == "videodatarate" || tmp->getContentP(i)->Indice() == "audiodatarate" || tmp->getContentP(i)->Indice() == "audiosamplerate" || tmp->getContentP(i)->Indice() == "audiosamplesize" || tmp->getContentP(i)->Indice() == "audiochannels") {
+        if (tmp->getContentP(i)->Indice() == "videocodecid" || tmp->getContentP(i)->Indice() == "audiocodecid" || tmp->getContentP(i)->Indice() == "width" || tmp->getContentP(i)->Indice() == "height" || tmp->getContentP(i)->Indice() == "videodatarate" || tmp->getContentP(i)->Indice() == "videoframerate" || tmp->getContentP(i)->Indice() == "audiodatarate" || tmp->getContentP(i)->Indice() == "audiosamplerate" || tmp->getContentP(i)->Indice() == "audiosamplesize" || tmp->getContentP(i)->Indice() == "audiochannels") {
           continue;
         }
         if (tmp->getContentP(i)->NumValue()) {

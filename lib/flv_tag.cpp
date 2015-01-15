@@ -1065,7 +1065,11 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata) {
         metadata.tracks[1].height = 0;
       }
       if (tmp->getContentP("videoframerate")) {
-        metadata.tracks[1].fpks = (long long int)(tmp->getContentP("videoframerate")->NumValue() * 1000.0);
+        if (tmp->getContentP("videoframerate")->NumValue()){
+          metadata.tracks[1].fpks = (long long int)(tmp->getContentP("videoframerate")->NumValue() * 1000.0);
+        }else{
+          metadata.tracks[1].fpks = JSON::Value(tmp->getContentP("videoframerate")->StrValue()).asInt() * 1000.0;
+        }
       } else {
         metadata.tracks[1].fpks = 0;
       }

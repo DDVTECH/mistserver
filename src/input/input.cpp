@@ -224,12 +224,11 @@ namespace Mist {
         break;
       }
     }
-    INFO_MSG("%s", (hasKeySizes ? "hasKeysizes" : "noHasKeysizes"));
     if (hasKeySizes){
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         char tmpId[20];
         sprintf(tmpId, "%u", it->first);
-        INFO_MSG("Making page %s", std::string(config->getString("streamname") + tmpId).c_str());
+        DEBUG_MSG(DLVL_HIGH, "Making page %s", std::string(config->getString("streamname") + tmpId).c_str());
         indexPages[it->first].init(config->getString("streamname") + tmpId, 8 * 1024, true);//Pages of 8kb in size, room for 512 parts.
         bool newData = true;
         for (int i = 0; i < it->second.keys.size(); i++){
@@ -373,7 +372,7 @@ namespace Mist {
         break;
       }
     }
-    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %u for track %u", pageNum, track);
+    DEBUG_MSG(DLVL_HIGH, "Done buffering page %u for track %u", pageNum, track);
     return true;
   }
   

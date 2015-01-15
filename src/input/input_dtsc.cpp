@@ -56,7 +56,7 @@ namespace Mist {
     DTSC::File tmp(config->getString("input") + ".dtsh");
     if (tmp) {
       myMeta = tmp.getMeta();
-      DEBUG_MSG(DLVL_DEVEL,"Meta read in with %lu tracks", myMeta.tracks.size());
+      DEBUG_MSG(DLVL_HIGH,"Meta read in with %lu tracks", myMeta.tracks.size());
       return true;
     }
     if (inFile.getMeta().moreheader < 0 || inFile.getMeta().tracks.size() == 0) {

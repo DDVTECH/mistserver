@@ -564,6 +564,7 @@ namespace Mist {
   }
   
   void Output::prepareNext(){
+    static int nonVideoCount = 0;
     if (!sought){
       if (myMeta.live){
         long unsigned int mainTrack = getMainSelectedTrack();
@@ -661,7 +662,7 @@ namespace Mist {
       if (currentPacket.getTime() != nxt.time && nxt.time){
         DEBUG_MSG(DLVL_MEDIUM, "ACTUALLY Loaded track %ld (next=%lu), %llu ms", currentPacket.getTrackId(), nxtKeyNum[nxt.tid], currentPacket.getTime());
       }
-      if (currentPacket.getFlag("keyframe")){
+      if ((myMeta.tracks[nxt.tid].type == "video" && currentPacket.getFlag("keyframe")) || (++nonVideoCount % 30 == 0)){
         if (myMeta.live){
           updateMeta();
         }

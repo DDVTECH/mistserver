@@ -37,7 +37,7 @@ namespace Mist {
     capa["optional"]["debug"]["option"] = "--debug";
     capa["optional"]["debug"]["type"] = "uint";
     capa["optional"]["startpos"]["name"] = "Starting position in live buffer";
-    capa["optional"]["startpos"]["help"] = "For live, where in the buffer the stream starts playback by default. 0 = beginning, 100 = end";
+    capa["optional"]["startpos"]["help"] = "For live, where in the buffer the stream starts playback by default. 0 = beginning, 1000 = end";
     capa["optional"]["startpos"]["option"] = "--startPos";
     capa["optional"]["startpos"]["type"] = "uint";
     cfg->addOption("startpos", JSON::fromString("{\"arg\":\"uint\",\"default\":500,\"short\":\"P\",\"long\":\"startPos\",\"help\":\"For live, where in the buffer the stream starts playback by default. 0 = beginning, 1000 = end\"}"));

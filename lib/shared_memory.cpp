@@ -227,7 +227,8 @@ namespace IPC {
   void sharedPage::unmap() {
     if (mapped && len) {
 #ifdef __CYGWIN__
-      UnmapViewOfFile(mapped);
+      //under Cygwin, the mapped location is shifted by 4 to contain the page size.
+      UnmapViewOfFile(mapped-4);
 #else
       munmap(mapped, len);
 #endif
@@ -279,7 +280,8 @@ namespace IPC {
     if (name.size()) {
 #ifdef __CYGWIN__
       if (master) {
-        handle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len, name.c_str());
+        //Under cygwin, all pages are 4 bytes longer than claimed.
+        handle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len+4, name.c_str());
       } else {
         int i = 0;
         do {
@@ -299,6 +301,14 @@ namespace IPC {
         FAIL_MSG("MapViewOfFile for page %s failed: %s", name.c_str(), strerror(errno));
         return;
       }
+      //Under cygwin, the extra 4 bytes contain the real size of the page.
+      if (master){
+        ((unsigned int*)mapped)[0] = len_;
+      }else{
+        len = ((unsigned int*)mapped)[0];
+      }
+      //Now shift by those 4 bytes.
+      mapped += 4;
 #else
       handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
       if (handle == -1) {

@@ -121,7 +121,7 @@ namespace Mist {
 
     char pageName[100];
     sprintf(pageName, "liveStream_%s%d", streamName.c_str(), newTid); 
-    metaPages[newTid].init(pageName, 8 * 1024 * 1024);
+    metaPages[newTid].init(pageName, DEFAULT_META_PAGE_SIZE);
     DTSC::Meta tmpMeta = meta_out;
     tmpMeta.tracks.clear();
     tmpMeta.tracks[newTid] = meta_out.tracks[tid];
@@ -155,7 +155,7 @@ namespace Mist {
     INFO_MSG("Buffer has indicated that incoming track %d should start writing on track %d, page %d", tid, finalTid, firstPage);
     memset(pageName, 0, 100);
     sprintf(pageName, "%s%d_%d", streamName.c_str(), finalTid, firstPage);
-    curPages[finalTid].init(pageName, 25 * 1024 * 1024);
+    curPages[finalTid].init(pageName, DEFAULT_DATA_PAGE_SIZE);
     trackMap[tid] = finalTid;
     bookKeeping[finalTid] = DTSCPageData();
   }
@@ -203,7 +203,7 @@ namespace Mist {
       char nextPage[100];
       sprintf(nextPage, "%s%llu_%d", streamName.c_str(), tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
       INFO_MSG("Continuing track %llu on page %d", tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
-      curPages[tNum].init(nextPage, 25 * 1024 * 1024);
+      curPages[tNum].init(nextPage, DEFAULT_DATA_PAGE_SIZE);
       bookKeeping[tNum].pageNum += bookKeeping[tNum].keyNum;
       bookKeeping[tNum].keyNum = 0;
       bookKeeping[tNum].curOffset = 0;
@@ -236,7 +236,7 @@ namespace Mist {
       return;
     }
     isInitialized = true;
-    streamIndex.init(streamName, 8 * 1024 * 1024);
+    streamIndex.init(streamName, DEFAULT_META_PAGE_SIZE);
     if (!streamIndex.mapped){
       DEBUG_MSG(DLVL_FAIL, "Could not connect to server for %s\n", streamName.c_str());
       onFail();
@@ -439,7 +439,7 @@ namespace Mist {
     }
     char id[100];
     snprintf(id, 100, "%s%lu_%d", streamName.c_str(), trackId, pageNum);
-    curPages[trackId].init(id, 26 * 1024 * 1024);
+    curPages[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
     if (!(curPages[trackId].mapped)){
       DEBUG_MSG(DLVL_FAIL, "Initializing page %s failed", curPages[trackId].name.c_str());
       return;

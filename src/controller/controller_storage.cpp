@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <mist/timing.h>
 #include <mist/shared_memory.h>
+#include <mist/defines.h>
 #include "controller_storage.h"
 #include "controller_capabilities.h"
 
@@ -80,7 +81,7 @@ namespace Controller {
     writeConf["streams"] = Storage["streams"];
     writeConf["capabilities"] = capabilities;
 
-    static IPC::sharedPage mistConfOut("!mistConfig", 4*1024*1024, true);
+    static IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE, true);
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     //lock semaphore
     configLock.wait();

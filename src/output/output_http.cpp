@@ -102,7 +102,7 @@ namespace Mist {
     //loop over the connectors
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
-    IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024);
+    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
     DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
     unsigned int capa_ctr = capa.getSize();
     for (unsigned int i = 0; i < capa_ctr; ++i){
@@ -249,7 +249,7 @@ namespace Mist {
     
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
-    IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024);
+    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
     DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
     unsigned int prots_ctr = prots.getSize();
     

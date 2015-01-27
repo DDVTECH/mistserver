@@ -194,7 +194,7 @@ namespace Mist {
       
       IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
       configLock.wait();
-      IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024);
+      IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
       DTSC::Scan prtcls = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
       DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember("RTMP");
       unsigned int pro_cnt = prtcls.getSize();
@@ -254,14 +254,14 @@ namespace Mist {
       IPC::semaphore metaLocker(std::string("liveMeta@" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
       bool metaLock = false;
       configLock.wait();
-      IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024);
+      IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
       DTSC::Scan strm = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName).getMember("meta");
       IPC::sharedPage streamIndex;
       if (!strm){
         configLock.post();
         //Stream metadata not found - attempt to start it
         if (Util::startInput(streamName)){
-          streamIndex.init(streamName, 8 * 1024 * 1024);
+          streamIndex.init(streamName, DEFAULT_META_PAGE_SIZE);
           if (streamIndex.mapped){
             metaLock = true;
             metaLocker.wait();

@@ -86,7 +86,7 @@ namespace MP4 {
 
   ///\todo make good working calcBoxSize with size and payloadoffset calculation
   unsigned long int calcBoxSize(char readVal[16]) {
-    return (readVal[0] << 24) | (readVal[1] << 16) | (readVal[2] << 8) | (readVal[3]);
+    return (unsigned int)ntohl(((int *)readVal)[0]);
   }
 
   bool skipBox(FILE * newData) {

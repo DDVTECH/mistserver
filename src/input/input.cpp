@@ -144,12 +144,7 @@ namespace Mist {
       }
     }else{
       //after this player functionality
-      
-#ifdef __CYGWIN__
-    metaPage.init(config->getString("streamname"), DEFAULT_META_PAGE_SIZE, true);
-#else
-    metaPage.init(config->getString("streamname"), (isBuffer ? DEFAULT_META_PAGE_SIZE : myMeta.getSendLen()), true);
-#endif
+      metaPage.init(config->getString("streamname"), (isBuffer ? DEFAULT_META_PAGE_SIZE : myMeta.getSendLen()), true);
       myMeta.writeTo(metaPage.mapped);
       userPage.init(config->getString("streamname") + "_users", 30, true);
       
@@ -330,11 +325,7 @@ namespace Mist {
     char pageId[100];
     int pageIdLen = snprintf(pageId, 100, "%s%u_%u", config->getString("streamname").c_str(), track, pageNum);
     std::string tmpString(pageId, pageIdLen);
-#ifdef __CYGWIN__
-    dataPages[track][pageNum].init(tmpString, DEFAULT_DATA_PAGE_SIZE, true);
-#else
     dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
-#endif
     DEBUG_MSG(DLVL_HIGH, "Buffering track %u page %u through %u datasize: %llu", track, pageNum, pageNum-1 + it->second.keyNum, it->second.dataSize);
 
     std::stringstream trackSpec;

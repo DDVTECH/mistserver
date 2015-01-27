@@ -71,7 +71,7 @@ void Util::sanitizeName(std::string & streamname) {
 
 /// Starts a process for a VoD stream.
 bool Util::startInput(std::string streamname, std::string filename, bool forkFirst) {
-  IPC::sharedPage mistConfOut("!mistConfig", 4*1024*1024);
+  IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
   IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
   configLock.wait();
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);

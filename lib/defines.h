@@ -49,3 +49,15 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #define INFO_MSG(msg, ...) DEBUG_MSG(DLVL_DEVEL, msg, ##__VA_ARGS__)
 
 #endif
+
+/// The size used for stream header pages under Windows, where they cannot be size-detected.
+#define DEFAULT_META_PAGE_SIZE 16 * 1024 * 1024
+
+/// The size used for stream data pages under Windows, where they cannot be size-detected.
+#define DEFAULT_DATA_PAGE_SIZE 25 * 1024 * 1024
+
+/// The size used for server configuration pages.
+#define DEFAULT_CONF_PAGE_SIZE 4 * 1024 * 1024
+
+/// The position from where on stream data pages are switched over to the next page.
+#define FLIP_DATA_PAGE_SIZE 8 * 1024 * 1024

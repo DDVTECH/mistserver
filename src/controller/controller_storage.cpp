@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <mist/timing.h>
 #include <mist/shared_memory.h>
+#include <mist/defines.h>
 #include "controller_storage.h"
 #include "controller_capabilities.h"
 

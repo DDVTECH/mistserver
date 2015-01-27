@@ -503,7 +503,7 @@ namespace Mist {
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
     strName = strName.substr(0,(strName.find('+')));
-    IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024, false, false); ///< Contains server configuration and capabilities
+    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
     DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);

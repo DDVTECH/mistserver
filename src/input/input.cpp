@@ -146,9 +146,9 @@ namespace Mist {
       //after this player functionality
       
 #ifdef __CYGWIN__
-  metaPage.init(config->getString("streamname"), 8 * 1024 * 1024, true);
+    metaPage.init(config->getString("streamname"), DEFAULT_META_PAGE_SIZE, true);
 #else
-  metaPage.init(config->getString("streamname"), (isBuffer ? 8 * 1024 * 1024 : myMeta.getSendLen()), true);
+    metaPage.init(config->getString("streamname"), (isBuffer ? DEFAULT_META_PAGE_SIZE : myMeta.getSendLen()), true);
 #endif
       myMeta.writeTo(metaPage.mapped);
       userPage.init(config->getString("streamname") + "_users", 30, true);
@@ -240,7 +240,7 @@ namespace Mist {
           pagesByTrack[it->first].rbegin()->second.keyNum++;
           pagesByTrack[it->first].rbegin()->second.partNum += it->second.keys[i].getParts();
           pagesByTrack[it->first].rbegin()->second.dataSize += it->second.keySizes[i];
-          if (pagesByTrack[it->first].rbegin()->second.dataSize > 8 * 1024 * 1024){
+          if (pagesByTrack[it->first].rbegin()->second.dataSize > FLIP_DATA_PAGE_SIZE){
             newData = true;
           }
         }
@@ -275,7 +275,7 @@ namespace Mist {
         indexPages[tid].init(tmpId, 8 * 1024, true);//Pages of 8kb in size, room for 512 parts.
       }
       if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() + 1 == curData[tid].partNum){
-        if (curData[tid].dataSize > 8 * 1024 * 1024) {          
+        if (curData[tid].dataSize > FLIP_DATA_PAGE_SIZE) {          
           pagesByTrack[tid][bookKeeping[tid].first] = curData[tid];
           bookKeeping[tid].first += curData[tid].keyNum;
           curData[tid].keyNum = 0;
@@ -331,7 +331,7 @@ namespace Mist {
     int pageIdLen = snprintf(pageId, 100, "%s%u_%u", config->getString("streamname").c_str(), track, pageNum);
     std::string tmpString(pageId, pageIdLen);
 #ifdef __CYGWIN__
-    dataPages[track][pageNum].init(tmpString, 26 * 1024 * 1024, true);
+    dataPages[track][pageNum].init(tmpString, DEFAULT_DATA_PAGE_SIZE, true);
 #else
     dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
 #endif

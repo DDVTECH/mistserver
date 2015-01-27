@@ -450,7 +450,7 @@ namespace Mist {
         Util::sanitizeName(streamName);
         //pull the server configuration
         std::string smp = streamName.substr(0,(streamName.find('+')));
-        IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
+        IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE); ///< Contains server configuration and capabilities
         IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
         configLock.wait();
         

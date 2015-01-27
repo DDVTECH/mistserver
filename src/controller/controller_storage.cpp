@@ -80,7 +80,7 @@ namespace Controller {
     writeConf["streams"] = Storage["streams"];
     writeConf["capabilities"] = capabilities;
 
-    static IPC::sharedPage mistConfOut("!mistConfig", 4*1024*1024, true);
+    static IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE, true);
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     //lock semaphore
     configLock.wait();

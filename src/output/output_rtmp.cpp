@@ -449,7 +449,7 @@ namespace Mist {
         streamName = amfData.getContentP(3)->StrValue();
         Util::sanitizeName(streamName);
         //pull the server configuration
-        IPC::sharedPage serverCfg("!mistConfig", 4*1024*1024); ///< Contains server configuration and capabilities
+        IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE); ///< Contains server configuration and capabilities
         IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
         configLock.wait();
         

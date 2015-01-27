@@ -59,7 +59,7 @@ namespace Controller {
       //push-style stream
       if (hasViewers(name)){
         data["meta"].null();
-        IPC::sharedPage streamIndex(name,8 * 1024 * 1024,false,false);
+        IPC::sharedPage streamIndex(name, DEFAULT_META_PAGE_SIZE, false, false);
         if (!streamIndex.mapped){
           return;
         }
@@ -129,7 +129,7 @@ namespace Controller {
           DEBUG_MSG(DLVL_INSANE, "Waiting for stream %s to open...", name.c_str());
           //wait for the stream
           {
-            IPC::sharedPage streamIndex(name, 8 * 1024 * 1024);
+            IPC::sharedPage streamIndex(name, DEFAULT_META_PAGE_SIZE);
             if (!streamIndex.mapped){
               DEBUG_MSG(DLVL_INSANE, "Stream %s opening failed! Cancelling and marking as corrupt.", name.c_str());
               data["meta"].null();

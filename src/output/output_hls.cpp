@@ -155,6 +155,7 @@ namespace Mist {
 
   void OutHLS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
     static std::map<int, int> contCounter;
+    static unsigned int lastPCR = 0;
     if (!PackData.BytesFree()){
       if (PacketNumber % 42 == 0){
         TS::Packet tmpPack;
@@ -178,9 +179,10 @@ namespace Mist {
       PackData.ContinuityCounter(ContCounter++);
       if (first){
         PackData.UnitStart(1);
-        if (currentPacket.getInt("keyframe")){
+        if (currentPacket.getInt("keyframe") || currentPacket.getTime() / 70 != lastPCR / 70){
           PackData.RandomAccess(1);
           PackData.PCR(currentPacket.getTime() * 27000);
+          lastPCR = currentPacket.getTime();
         }
         first = false;
       }

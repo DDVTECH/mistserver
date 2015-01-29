@@ -518,10 +518,16 @@ namespace Mist {
       //handle variables
       if (streamName.find('?') != std::string::npos){
         std::string tmpVars = streamName.substr(streamName.find('?') + 1);
+        streamName = streamName.substr(0, streamName.find('?'));
         parseVars(tmpVars);
-        Util::sanitizeName(streamName);
       }
-
+      
+      size_t colonPos = streamName.find(':');
+      if (colonPos != std::string::npos && colonPos < 6){
+        std::string oldName = streamName;
+        streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
+      }
+      Util::sanitizeName(streamName);
       initialize();
       
       //send a status reply

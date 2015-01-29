@@ -197,16 +197,20 @@ namespace Mist {
     }
     int pageNum = bookKeeping[tNum].pageNum;
     std::string tmp = pack.toNetPacked();
-    if (bookKeeping[tNum].curOffset > 8388608 && pack.isMember("keyframe") && pack["keyframe"]){
-      Util::sleep(500);
+    if (bookKeeping[tNum].curOffset > FLIP_DATA_PAGE_SIZE && pack.isMember("keyframe") && pack["keyframe"]){
       //open new page
       char nextPage[100];
       sprintf(nextPage, "%s%llu_%d", streamName.c_str(), tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
-      INFO_MSG("Continuing track %llu on page %d", tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
+      INFO_MSG("Continuing track %llu on page %d, from pos %llu", tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum, bookKeeping[tNum].curOffset);
       curPages[tNum].init(nextPage, DEFAULT_DATA_PAGE_SIZE);
       bookKeeping[tNum].pageNum += bookKeeping[tNum].keyNum;
       bookKeeping[tNum].keyNum = 0;
       bookKeeping[tNum].curOffset = 0;
+    }
+    if (!curPages[tNum].mapped){
+      //prevent page init failures from crashing everything.
+      myConn.close();//closes the connection to trigger a clean shutdown
+      return;
     }
     if (bookKeeping[tNum].curOffset + tmp.size() < (unsigned long long)curPages[tNum].len){
       bookKeeping[tNum].keyNum += (pack.isMember("keyframe") && pack["keyframe"]);

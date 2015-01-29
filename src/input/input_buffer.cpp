@@ -183,7 +183,7 @@ namespace Mist {
         
         char tempMetaName[100];
         sprintf(tempMetaName, "liveStream_%s%d", config->getString("streamname").c_str(), tmpTid);
-        metaPages[tmpTid].init(tempMetaName, 8388608, true);
+        metaPages[tmpTid].init(tempMetaName, DEFAULT_META_PAGE_SIZE, true);
       }
       if (negotiateTracks.count(value)){
         //Track is currently under negotiation, check whether the metadata has been submitted
@@ -261,7 +261,7 @@ namespace Mist {
             ((long long int *)indexPages[finalMap].mapped)[0] = htonl(1000);
             sprintf(firstPage, "%s%d_%d", config->getString("streamname").c_str(), finalMap, keyNum);
             ///\todo Make size dynamic / other solution. 25mb is too much.
-            dataPages[finalMap][0].init(firstPage, 26214400, true);
+            dataPages[finalMap][0].init(firstPage, DEFAULT_DATA_PAGE_SIZE, true);
           }
         }
       }
@@ -276,12 +276,12 @@ namespace Mist {
         //update current page
         int currentPage = dataPages[value].rbegin()->first;
         updateMetaFromPage(value, currentPage);
-        if (inputLoc[value][currentPage].curOffset > 8388608) {
+        if (inputLoc[value][currentPage].curOffset > FLIP_DATA_PAGE_SIZE) {
           int nextPage = currentPage + inputLoc[value][currentPage].keyNum;
           char nextPageName[100];
           sprintf(nextPageName, "%s%lu_%d", config->getString("streamname").c_str(), value, nextPage);
-          dataPages[value][nextPage].init(nextPageName, 20971520, true);
-          DEVEL_MSG("Created page %s", nextPageName);
+          dataPages[value][nextPage].init(nextPageName, DEFAULT_DATA_PAGE_SIZE, true);
+          DEVEL_MSG("Created page %s, from pos %llu", nextPageName, inputLoc[value][currentPage].curOffset);
           bool createdNew = false;
           for (int i = 0; i < 8192; i += 8){
             unsigned int thisKeyNum = ((((long long int *)(indexPages[value].mapped + i))[0]) >> 32) & 0xFFFFFFFF;

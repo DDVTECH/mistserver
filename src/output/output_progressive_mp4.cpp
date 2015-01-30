@@ -23,7 +23,6 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
-    capa["methods"][0u]["nolive"] = 1;
   }
   
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size, int fragmented){

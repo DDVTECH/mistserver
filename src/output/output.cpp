@@ -985,7 +985,7 @@ namespace Mist {
         static int prevParts = 0;//prevParts and curParts are used to check for changes in the metaData
         int curParts;
         completeKeyReady = true;
-        for (std::map<int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
           if(it->second.keys.size()){
             //get the time of the end of this keyframe and use it to determine if other track keyframes are finished
             unsigned int tmpKeyIndex = it->second.timeToKeynum(nxt.time) - it->second.keys.begin()->getNumber();//getting keyframe index

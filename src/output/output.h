@@ -120,7 +120,6 @@ namespace Mist {
       DTSC::Meta meta_out;
       std::deque<JSON::Value> preBuf;
       std::map<int,int> trackMap;
-      std::map<int,IPC::sharedPage> metaPages;
       std::map<int,DTSCPageData> bookKeeping;
   };
 

@@ -121,14 +121,14 @@ namespace Mist {
 
     char pageName[100];
     sprintf(pageName, "liveStream_%s%d", streamName.c_str(), newTid); 
-    metaPages[newTid].init(pageName, DEFAULT_META_PAGE_SIZE);
+    IPC::sharedPage metaPage(pageName, 8 * 1024 * 1024);
     DTSC::Meta tmpMeta = meta_out;
     tmpMeta.tracks.clear();
     tmpMeta.tracks[newTid] = meta_out.tracks[tid];
     tmpMeta.tracks[newTid].trackID = newTid;
     JSON::Value tmpVal = tmpMeta.toJSON();
     std::string tmpStr = tmpVal.toNetPacked();
-    memcpy(metaPages[newTid].mapped, tmpStr.data(), tmpStr.size());
+    memcpy(metaPage.mapped, tmpStr.data(), tmpStr.size());
     DEBUG_MSG(DLVL_VERYHIGH, "Temporary metadata written for incoming track %d, handling as track %d", tid, newTid);
 
     unsigned short firstPage = 0xFFFF;

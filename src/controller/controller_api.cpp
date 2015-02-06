@@ -293,6 +293,25 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               Controller::Log("ERROR", "Config " + Controller::conf.getString("configFile") + " could not be written");
             }
           }
+          /// 
+          /// \api
+          /// `"ui_settings"` requests can take two forms. The first is the "set" form:
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// {
+          ///    //Any data here
+          /// }
+          /// ~~~~~~~~~~~~~~~
+          /// The second is the "request" form, and takes any non-object as argument.
+          /// When using the set form, this will write the given object verbatim into the controller storage.
+          /// No matter which form is used, the current contents of the ui_settings object are always returned in the response.
+          /// This API call is intended to store User Interface settings across sessions, and its contents are completely ignored by the controller itself. Besides the requirement of being an object, the contents are entirely free-form and may technically be used for any purpose.
+          /// 
+          if (Request.isMember("ui_settings")){
+            if (Request["ui_settings"].isObject()){
+              Storage["ui_settings"] = Request["ui_settings"];
+            }
+            Response["ui_settings"] = Storage["ui_settings"];
+          }
           //sent current configuration, no matter if it was changed or not
           Response["config"] = Controller::Storage["config"];
           Response["config"]["version"] = PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE;

@@ -191,8 +191,8 @@ namespace Mist {
       if (myMeta.tracks[tid].keys[0].getNumber() >= (++(inputLoc[tid].begin()))->first){
         //Find page in indexpage and null it
         for (int i = 0; i < 8192; i += 8){
-          unsigned int thisKeyNum = ((((long long int *)(indexPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
-          if (thisKeyNum == htonl(pagesByTrack[tid].begin()->first) && ((((long long int *)(indexPages[tid].mapped + i))[0]) != 0)){
+          unsigned int thisKeyNum = ntohl(((((long long int *)(indexPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
+          if (thisKeyNum < myMeta.tracks[tid].keys[0].getNumber()){
             (((long long int *)(indexPages[tid].mapped + i))[0]) = 0;
           }
         }
@@ -471,6 +471,9 @@ namespace Mist {
               createdNew = true;
               ((long long int *)(indexPages[value].mapped + i))[0] = (((long long int)htonl(nextPage)) << 32) | htonl(1000);
             }
+          }
+          if (!createdNew){
+            ERROR_MSG("Could not create index for new page - out of empty indexes!");
           }
         }
       }

@@ -111,47 +111,6 @@ namespace Mist {
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9ll;
   }
-  
-  ///this function generates the PMT packet
-  std::string OutHLS::createPMT(){
-    TS::ProgramMappingTable PMT;
-    PMT.PID(4096);
-    PMT.setTableId(2);
-    PMT.setSectionLength(0xB017);
-    PMT.setProgramNumber(1);
-    PMT.setVersionNumber(0);
-    PMT.setCurrentNextIndicator(0);
-    PMT.setSectionNumber(0);
-    PMT.setLastSectionNumber(0);
-    int vidTrack = -1;
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (myMeta.tracks[*it].type == "video"){
-        vidTrack = *it;
-        break;
-      }
-    }
-    if (vidTrack == -1){
-      vidTrack = *(selectedTracks.begin());
-    }
-    PMT.setPCRPID(0x100 + vidTrack - 1);
-    PMT.setProgramInfoLength(0);
-    short id = 0;
-    //for all selected tracks
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (myMeta.tracks[*it].codec == "H264"){
-        PMT.setStreamType(0x1B,id);
-      }else if (myMeta.tracks[*it].codec == "AAC"){
-        PMT.setStreamType(0x0F,id);
-      }else if (myMeta.tracks[*it].codec == "MP3"){
-        PMT.setStreamType(0x03,id);
-      }
-      PMT.setElementaryPID(0x100 + (*it) - 1, id);
-      PMT.setESInfoLength(0,id);
-      id++;
-    }
-    PMT.calcCRC();
-    return PMT.getStrBuf();
-  }
 
   void OutHLS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
     static std::map<int, int> contCounter;
@@ -162,7 +121,7 @@ namespace Mist {
         tmpPack.FromPointer(TS::PAT);
         tmpPack.ContinuityCounter(++contCounter[tmpPack.PID()]);
         H.Chunkify(tmpPack.ToString(), 188, myConn);
-        tmpPack.FromPointer(createPMT().c_str());
+        tmpPack.FromPointer(TS::createPMT(selectedTracks, myMeta).c_str());
         tmpPack.ContinuityCounter(++contCounter[tmpPack.PID()]);
         H.Chunkify(tmpPack.ToString(), 188, myConn);
         PacketNumber += 2;
@@ -220,7 +179,6 @@ namespace Mist {
         fillPacket(first, "\000\000\000\001\011\360", 6, VideoCounter);
       }
       
-      
       if (currentPacket.getInt("keyframe")){
         if (!haveAvcc){
           avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
@@ -245,15 +203,23 @@ namespace Mist {
         PackData.AddStuffing();
         fillPacket(first, 0, 0, VideoCounter);
       }
-    }else if (myMeta.tracks[currentPacket.getTrackId()].type == "audio"){      
+    }else if (myMeta.tracks[currentPacket.getTrackId()].type == "audio"){
+      long long unsigned int tempTime;
       if (AppleCompat){
-        bs = TS::Packet::getPESAudioLeadIn(7+dataLen, lastVid);
+        tempTime = lastVid;
       }else{
-        bs = TS::Packet::getPESAudioLeadIn(7+dataLen, currentPacket.getTime() * 90);
+        tempTime = currentPacket.getTime() * 90;
       }
+      long unsigned int tempLen = dataLen;
+      if ( myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
+        tempLen += 7;
+      }
+      bs = TS::Packet::getPESAudioLeadIn(tempLen, tempTime);
       fillPacket(first, bs.data(), bs.size(), AudioCounter);
-      bs = TS::GetAudioHeader(dataLen, myMeta.tracks[currentPacket.getTrackId()].init);      
-      fillPacket(first, bs.data(), bs.size(), AudioCounter);
+      if (myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
+        bs = TS::GetAudioHeader(dataLen, myMeta.tracks[currentPacket.getTrackId()].init);      
+        fillPacket(first, bs.data(), bs.size(), AudioCounter);
+      }
       fillPacket(first, dataPointer,dataLen, AudioCounter);
       if (PackData.BytesFree() < 184){
         PackData.AddStuffing();

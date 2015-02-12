@@ -447,6 +447,18 @@ namespace Mist {
     if ((amfData.getContentP(0)->StrValue() == "publish")) {
       if (amfData.getContentP(3)) {
         streamName = amfData.getContentP(3)->StrValue();
+        
+        
+        size_t colonPos = streamName.find(':');
+        if (colonPos != std::string::npos && colonPos < 6){
+          std::string oldName = streamName;
+          if (std::string(".")+oldName.substr(0, colonPos) == oldName.substr(oldName.size() - colonPos - 1)){
+            streamName = oldName.substr(colonPos + 1);
+          }else{
+            streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
+          }
+        }
+        
         Util::sanitizeName(streamName);
         //pull the server configuration
         std::string smp = streamName.substr(0,(streamName.find('+')));
@@ -543,7 +555,11 @@ namespace Mist {
       size_t colonPos = streamName.find(':');
       if (colonPos != std::string::npos && colonPos < 6){
         std::string oldName = streamName;
-        streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
+        if (std::string(".")+oldName.substr(0, colonPos) == oldName.substr(oldName.size() - colonPos - 1)){
+          streamName = oldName.substr(colonPos + 1);
+        }else{
+          streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
+        }
       }
       Util::sanitizeName(streamName);
       initialize();

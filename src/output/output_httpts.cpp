@@ -7,7 +7,9 @@
 namespace Mist {
   OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : HTTPOutput(conn) {
     haveAvcc = false;
+    haveHvcc = false;
     myConn.setBlocking(true);
+    
   }
   
   OutHTTPTS::~OutHTTPTS() {}
@@ -20,8 +22,10 @@ namespace Mist {
     capa["url_match"] = "/$.ts";
     capa["socket"] = "http_ts";
     capa["codecs"][0u][0u].append("H264");
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("AC3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp2t";
     capa["methods"][0u]["priority"] = 1ll;
@@ -71,12 +75,22 @@ namespace Mist {
       fillPacket(first, bs.data(), bs.size(), VideoCounter);
       
       if (currentPacket.getInt("keyframe")){
-        if (!haveAvcc){
-          avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
-          haveAvcc = true;
+        if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
+          if (!haveAvcc){
+            avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
+            haveAvcc = true;
+          }
+          bs = avccbox.asAnnexB();
+          fillPacket(first, bs.data(), bs.size(),VideoCounter);
         }
-        bs = avccbox.asAnnexB();
-        fillPacket(first, bs.data(), bs.size(), VideoCounter);
+        if (myMeta.tracks[currentPacket.getTrackId()].codec == "HEVC"){
+          if (!haveHvcc){
+            hvccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
+            haveHvcc = true;
+          }
+          bs = hvccbox.asAnnexB();
+          fillPacket(first, bs.data(), bs.size(),VideoCounter);
+        }
       }
       
       unsigned int i = 0;

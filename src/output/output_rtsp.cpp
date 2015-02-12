@@ -45,6 +45,7 @@ namespace Mist {
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("AC3");
     
     capa["methods"][0u]["handler"] = "rtsp";
     capa["methods"][0u]["type"] = "rtsp";
@@ -92,7 +93,7 @@ namespace Mist {
       return;
     }
 
-    if(myMeta.tracks[tid].codec == "MP3"){
+    if(myMeta.tracks[tid].codec == "MP3" || myMeta.tracks[tid].codec == "AC3"){
       tracks[tid].rtpPacket.setTimestamp(timestamp * ((double) myMeta.tracks[tid].rate / 1000.0));
       tracks[tid].rtpPacket.sendRaw(socket, callBack, dataPointer, dataLen, tracks[tid].channel);
       return;
@@ -384,7 +385,7 @@ namespace Mist {
       }
       if (myMeta.tracks[it->first].codec == "H264") {
         timeMap[it->first] = 90 * timeMap[it->first];
-      } else if (myMeta.tracks[it->first].codec == "AAC" || myMeta.tracks[it->first].codec == "MP3") {
+      } else if (myMeta.tracks[it->first].codec == "AAC" || myMeta.tracks[it->first].codec == "MP3" || myMeta.tracks[it->first].codec == "AC3") {
         timeMap[it->first] = timeMap[it->first] * ((double)myMeta.tracks[it->first].rate / 1000.0);
       }
       transportString << "url=" << HTTP_R.url.substr(0, HTTP_R.url.rfind('/')) << "/" << streamName << "/track" << it->first << ";"; //get the current url, not localhost

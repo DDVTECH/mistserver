@@ -161,6 +161,7 @@ namespace Mist {
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("MP3");
   }
   
@@ -196,6 +197,7 @@ namespace Mist {
 
   bool inputMP4::readHeader() {
     if (!inFile) {
+      INFO_MSG("inFile failed!");
       return false;
     }
     //make trackmap here from inFile
@@ -343,14 +345,24 @@ namespace Mist {
                               myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
                               MP4::Box tmpBox2 = ((MP4::VisualSampleEntry&)tmpBox).getCLAP();
                               myMeta.tracks[trackNo].init = std::string(tmpBox2.payload(),tmpBox2.payloadSize());
-                             }else if (tmpType == "mp4a" || tmpType == "aac "){
-                              myMeta.tracks[trackNo].codec = "AAC";
+                            }else if (tmpType == "mp4a" || tmpType == "aac " || tmpType == "ac-3"){
+                              if (tmpType == "ac-3"){
+                                myMeta.tracks[trackNo].codec = "AC3";
+                              }else{
+                                myMeta.tracks[trackNo].init = ((MP4::ESDS&)(((MP4::AudioSampleEntry&)tmpBox).getCodecBox())).getESHeaderStartCodes();
+                                if (myMeta.tracks[trackNo].init.size() > 2){
+                                  myMeta.tracks[trackNo].codec = "AAC";
+                                }else{
+                                  myMeta.tracks[trackNo].codec = "MP3";
+                                }
+                              }
                               myMeta.tracks[trackNo].type = "audio";
                               myMeta.tracks[trackNo].channels = ((MP4::AudioSampleEntry&)tmpBox).getChannelCount();
                               myMeta.tracks[trackNo].rate = (long long int)(((MP4::AudioSampleEntry&)tmpBox).getSampleRate());
-                              myMeta.tracks[trackNo].init = ((MP4::ESDS&)(((MP4::AudioSampleEntry&)tmpBox).getCodecBox())).getESHeaderStartCodes();
                               myMeta.tracks[trackNo].size = 16;///\todo this might be nice to calculate from mp4 file;
                               //get Visual sample entry -> esds -> startcodes
+                            }else{
+                              myMeta.tracks.erase(trackNo);
                             }
                           }
                         }//rof stbl
@@ -452,9 +464,11 @@ namespace Mist {
           //add data
           myMeta.update(it->time, 0,/*no offset? much sadface :-(*/ it->trackID, it->size, it->bpos, it->keyframe);
         }else{
+          INFO_MSG("fread did not return 1, bpos: %d size: %d keyframe: %d error: %s", it->bpos, it->size, it->keyframe, strerror(errno));
           return false;
         }
       }else{
+        INFO_MSG("fseek failed!");
         return false;
       }
     }//rof bpos set

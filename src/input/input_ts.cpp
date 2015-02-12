@@ -25,6 +25,7 @@ namespace Mist {
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("AC3");
   }
   
   ///Setup of TS Input
@@ -262,6 +263,11 @@ namespace Mist {
                 myMeta.tracks[pid].type = "audio";
                 myMeta.tracks[pid].trackID = pid;
                 break;
+              case 0x81:
+                myMeta.tracks[pid].codec = "AC3";
+                myMeta.tracks[pid].type = "audio";
+                myMeta.tracks[pid].trackID = pid;
+                break;
               default:
                 DEBUG_MSG(DLVL_WARN, "Ignoring unsupported track type %0.2X, on pid %d", entry.streamType(), pid);
                 break;
@@ -318,11 +324,13 @@ namespace Mist {
             lastPack["trackid"] = tid;//last trackid
             lastPack["bpos"] = lastBuffer[tid].bpos;
             lastPack["time"] = lastBuffer[tid].time ;
-            if (lastBuffer[tid].offset){
-              lastPack["offset"] = lastBuffer[tid].offset;
-            }
-            if (lastBuffer[tid].isKey){
-              lastPack["keyframe"] = 1LL;
+            if (myMeta.tracks[tid].type == "video"){
+              if (lastBuffer[tid].offset){
+                lastPack["offset"] = lastBuffer[tid].offset;
+              }
+              if (lastBuffer[tid].isKey){
+                lastPack["keyframe"] = 1LL;
+              }
             }
             myMeta.update(lastPack);//metadata was read in
           }

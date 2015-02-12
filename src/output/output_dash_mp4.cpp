@@ -146,6 +146,41 @@ namespace Mist {
       ase.setCodecBox(esdsBox);
       stsdBox.setEntry(ase,0);
     }
+    if (myMeta.tracks[tid].codec == "AC3"){
+      ///\todo Note: this code is copied, note for muxing seperation
+      MP4::AudioSampleEntry ase;
+      ase.setCodec("ac-3");
+      ase.setDataReferenceIndex(1);
+      ase.setSampleRate(myMeta.tracks[tid].rate);
+      ase.setChannelCount(myMeta.tracks[tid].channels);
+      ase.setSampleSize(myMeta.tracks[tid].size);
+      MP4::DAC3 dac3Box;
+      switch (myMeta.tracks[tid].rate){
+        case 48000:
+          dac3Box.setSampleRateCode(0);
+          break;
+        case 44100:
+          dac3Box.setSampleRateCode(1);
+          break;
+        case 32000:
+          dac3Box.setSampleRateCode(2);
+          break;
+        default:
+          dac3Box.setSampleRateCode(3);
+          break;
+      }
+      /// \todo the next settings are set to generic values, we might want to make these flexible
+      dac3Box.setBitStreamIdentification(8);//check the docs, this is a weird property
+      dac3Box.setBitStreamMode(0);//set to main, mixed audio
+      dac3Box.setAudioConfigMode(2);///\todo find out if ACMode should be different
+      if (myMeta.tracks[tid].channels > 4){
+        dac3Box.setLowFrequencyEffectsChannelOn(1);
+      }else{
+        dac3Box.setLowFrequencyEffectsChannelOn(0);
+      }
+      dac3Box.setFrameSizeCode(20);//should be OK, but test this.
+      ase.setCodecBox(dac3Box);
+    }
     
     stblBox.setContent(stsdBox, 0);
     
@@ -533,6 +568,7 @@ namespace Mist {
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("AC3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "dash/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;

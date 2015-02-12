@@ -125,6 +125,10 @@ namespace Mist {
         case AV_CODEC_ID_MP3:
           myMeta.tracks[i].codec = "MP3";
           break;
+        case AV_CODEC_ID_AC3:
+        case AV_CODEC_ID_EAC3:
+          myMeta.tracks[i].codec = "AC3";
+          break;  
         default:
           const AVCodecDescriptor *desc = av_codec_get_codec_descriptor(strm->codec);
           if (desc && desc->name){

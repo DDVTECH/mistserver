@@ -11,7 +11,7 @@ namespace Mist {
     int audioId = -1;
     std::string audioName;
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "AAC"){
+      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3"){
         audioId = it->first;
         audioName = it->second.getIdentifier();
         break;
@@ -123,6 +123,7 @@ namespace Mist {
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("AC3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9ll;

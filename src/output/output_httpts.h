@@ -20,9 +20,11 @@ namespace Mist {
       TS::Packet PackData;
       unsigned int PacketNumber;
       bool haveAvcc;
+      bool haveHvcc;
       char VideoCounter;
       char AudioCounter;
       MP4::AVCC avccbox;
+      MP4::HVCC hvccbox;
       bool AppleCompat;
       long long unsigned int lastVid;
       long long unsigned int until;

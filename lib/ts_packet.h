@@ -76,12 +76,14 @@ namespace TS {
       int getPayloadLength();
 
       const char * ToString();
-      void PESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS = 1);
-      void PESAudioLeadIn(unsigned int NewLen, uint64_t PTS = 0);
-      static void PESAudioLeadIn(std::string & toSend, long long unsigned int PTS);
-      static void PESVideoLeadIn(std::string & toSend, long long unsigned int PTS);
-      static std::string & getPESAudioLeadIn(unsigned int NewLen, long long unsigned int PTS);
-      static std::string & getPESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS);
+
+      void PESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset);
+      static void PESVideoLeadIn(std::string & toSend, unsigned long long PTS, unsigned long long offset);
+      static std::string & getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset);
+
+      void PESAudioLeadIn(unsigned int len, unsigned long long PTS);
+      static void PESAudioLeadIn(std::string & toSend, unsigned long long PTS);
+      static std::string & getPESAudioLeadIn(unsigned int len, unsigned long long PTS);
 
       void FillFree(std::string & PackageData);
       int FillFree(const char * PackageData, int maxLen);

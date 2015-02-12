@@ -364,84 +364,79 @@ namespace TS {
     return strBuf.c_str();
   }
 
+  ///\brief Appends the PES-encoded timestamp to a string.
+  ///\param strBuf The string to append to
+  ///\param fixedLead The "fixed" 4-bit lead value to use
+  ///\param time The timestamp to encode
+  void encodePESTimestamp(std::string & strBuf, char fixedLead, unsigned long long time){
+    //FixedLead of 4 bits, bits 32-30 time, 1 marker bit
+    strBuf += (char)(fixedLead | ((time & 0x1C0000000LL) >> 29) | 0x01);
+    //Bits 29-22 time
+    strBuf += (char)((time & 0x03FC00000LL) >> 22);
+    //Bits 21-15 time, 1 marker bit
+    strBuf += (char)(((time & 0x0003F8000LL) >> 14) | 0x01);
+    //Bits 14-7 time
+    strBuf += (char)((time & 0x000007F80LL) >> 7);
+    //Bits 7-0 time, 1 marker bit
+    strBuf += (char)(((time & 0x00000007FLL) << 1) | 0x01);
+  }
+  
 /// Generates a PES Lead-in for a video frame.
 /// Starts at the first Free byte.
-/// \param NewLen The length of this frame.
+/// \param len The length of this frame.
 /// \param PTS The timestamp of the frame.
-  void Packet::PESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS) {
-    //NewLen += 19;
-    NewLen = 0;
-    strBuf += (char)0x00; //PacketStartCodePrefix
-    strBuf += (char)0x00; //PacketStartCodePrefix (Cont)
-    strBuf += (char)0x01; //PacketStartCodePrefix (Cont)
-    strBuf += (char)0xe0; //StreamType Video
-    strBuf += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
-    strBuf += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
-    strBuf += (char)0x84; //Reserved + Flags
-    strBuf += (char)0xC0; //PTSOnlyFlag + Flags
-    strBuf += (char)0x0A; //PESHeaderDataLength
-    strBuf += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + PTS
-    strBuf += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
-    strBuf += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
-    strBuf += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
-    strBuf += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
-    strBuf += (char)(0x10 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + DTS
-    strBuf += (char)((PTS & 0x03FC00000LL) >> 22); //DTS (Cont)
-    strBuf += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //DTS (Cont)
-    strBuf += (char)((PTS & 0x000007F80LL) >> 7); //DTS (Cont)
-    strBuf += (char)(((PTS & 0x00000007FLL) << 1) + 1); //DTS (Cont)
-    //PesPacket-Wise Prepended Data
-    strBuf += (char)0x00; //NALU StartCode
-    strBuf += (char)0x00; //NALU StartCode (Cont)
-    strBuf += (char)0x00; //NALU StartCode (Cont)
-    strBuf += (char)0x01; //NALU StartCode (Cont)
-    strBuf += (char)0x09; //NALU EndOfPacket (Einde Vorige Packet)
-    strBuf += (char)0xF0; //NALU EndOfPacket (Cont)
-  }
-
-/// Generates a PES Lead-in for an audio frame.
-/// Starts at the first Free byte.
-/// \param NewLen The length of this frame.
-/// \param PTS The timestamp of the frame.
-  void Packet::PESAudioLeadIn(unsigned int NewLen, uint64_t PTS) {
-    NewLen += 5;
-    strBuf += (char)0x00; //PacketStartCodePrefix
-    strBuf += (char)0x00; //PacketStartCodePrefix (Cont)
-    strBuf += (char)0x01; //PacketStartCodePrefix (Cont)
-    strBuf += (char)0xc0; //StreamType Audio
-    strBuf += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
-    strBuf += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
-    strBuf += (char)0x84; //Reserved + Flags
-    strBuf += (char)0x80; //PTSOnlyFlag + Flags
-    strBuf += (char)0x05; //PESHeaderDataLength
-    strBuf += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
-    strBuf += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
-    strBuf += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
-    strBuf += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
-    strBuf += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
+/// \param offset The timestamp of the frame.
+  void Packet::PESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset) {
+    strBuf.append("\000\000\001\340\000\000\204", 7);
+    strBuf += (char)(offset ? 0xC0 : 0x80); //PTS/DTS + Flags
+    strBuf += (char)(offset ? 0x0A : 0x05); //PESHeaderDataLength
+    encodePESTimestamp(strBuf, (offset ? 0x30 : 0x20), PTS);
+    if (offset){
+      encodePESTimestamp(strBuf, 0x10, PTS + offset);
+    }
   }
 
 /// Generates a PES Lead-in for a video frame.
 /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
 /// \param toSend Data that is to be send, will be modified.
 /// \param PTS The timestamp of the frame.
-  void Packet::PESVideoLeadIn(std::string & toSend, long long unsigned int PTS) {
+  void Packet::PESVideoLeadIn(std::string & toSend, unsigned long long PTS, unsigned long long offset) {
     std::string tmpStr;
     tmpStr.reserve(25);
-    tmpStr.append("\000\000\001\340\000\000\204\300\012", 9);
-    tmpStr += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + PTS
-    tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
-    tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
-    tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
-    tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
-    tmpStr += (char)(0x10 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + DTS
-    tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //DTS (Cont)
-    tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //DTS (Cont)
-    tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //DTS (Cont)
-    tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //DTS (Cont)
-    tmpStr.append("\000\000\000\001\011\360", 6);
+    tmpStr.append("\000\000\001\340\000\000\204", 7);
+    tmpStr += (char)(offset ? 0xC0 : 0x80); //PTS/DTS + Flags
+    tmpStr += (char)(offset ? 0x0A : 0x05); //PESHeaderDataLength
+    encodePESTimestamp(tmpStr, (offset ? 0x30 : 0x20), PTS);
+    if (offset){
+      encodePESTimestamp(tmpStr, 0x10, PTS + offset);
+    }
     toSend.insert(0, tmpStr);
   }
+
+/// Generates a PES Lead-in for a video frame.
+/// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
+/// \param len The length of this frame.
+/// \param PTS The timestamp of the frame.
+  std::string & Packet::getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset) {
+    static std::string tmpStr;
+    tmpStr.clear();
+    PESVideoLeadIn(tmpStr, PTS, offset);
+    return tmpStr;
+  }
+
+/// Generates a PES Lead-in for an audio frame.
+/// Starts at the first Free byte.
+/// \param len The length of this frame.
+/// \param PTS The timestamp of the frame.
+  void Packet::PESAudioLeadIn(unsigned int len, unsigned long long PTS) {
+    len += 8;
+    strBuf.append("\000\000\001\300", 4);
+    strBuf += (char)((len & 0xFF00) >> 8); //PES PacketLength
+    strBuf += (char)(len & 0x00FF); //PES PacketLength (Cont)
+    strBuf.append("\204\200\005", 3);
+    encodePESTimestamp(strBuf, 0x30, PTS);
+  }
+
 
 /// Generates a PES Lead-in for an audio frame.
 /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
@@ -450,60 +445,29 @@ namespace TS {
   void Packet::PESAudioLeadIn(std::string & toSend, long long unsigned int PTS) {
     std::string tmpStr;
     tmpStr.reserve(14);
-    unsigned int NewLen = toSend.size() + 5;
+    unsigned int len = toSend.size() + 8;
     tmpStr.append("\000\000\001\300", 4);
-    tmpStr += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
-    tmpStr += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
+    tmpStr += (char)((len & 0xFF00) >> 8); //PES PacketLength
+    tmpStr += (char)(len & 0x00FF); //PES PacketLength (Cont)
     tmpStr.append("\204\200\005", 3);
-    tmpStr += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
-    tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
-    tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
-    tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
-    tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
+    encodePESTimestamp(tmpStr, 0x30, PTS);
     toSend.insert(0, tmpStr);
-  }
-
-/// Generates a PES Lead-in for a video frame.
-/// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
-/// \param NewLen The length of this frame.
-/// \param PTS The timestamp of the frame.
-  std::string & Packet::getPESVideoLeadIn(unsigned int NewLen, long long unsigned int PTS) {
-    static std::string tmpStr;
-    tmpStr.clear();
-    tmpStr.reserve(25);
-    tmpStr.append("\000\000\001\340\000\000\204\300\012", 9);
-    tmpStr += (char)(0x30 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + PTS
-    tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
-    tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
-    tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
-    tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
-    tmpStr += (char)(0x10 + ((PTS & 0x1C0000000LL) >> 29) + 1); //Fixed + DTS
-    tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //DTS (Cont)
-    tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //DTS (Cont)
-    tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //DTS (Cont)
-    tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //DTS (Cont)
-    tmpStr.append("\000\000\000\001\011\360", 6);
-    return tmpStr;
   }
 
 /// Generates a PES Lead-in for an audio frame.
 /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
-/// \param NewLen The length of this frame.
+/// \param len The length of this frame.
 /// \param PTS The timestamp of the frame.
-  std::string & Packet::getPESAudioLeadIn(unsigned int NewLen, long long unsigned int PTS) {
+  std::string & Packet::getPESAudioLeadIn(unsigned int len, unsigned long long PTS) {
     static std::string tmpStr;
     tmpStr.clear();
     tmpStr.reserve(14);
-    NewLen = NewLen + 8;
+    len += 8;
     tmpStr.append("\000\000\001\300", 4);
-    tmpStr += (char)((NewLen & 0xFF00) >> 8); //PES PacketLength
-    tmpStr += (char)(NewLen & 0x00FF); //PES PacketLength (Cont)
+    tmpStr += (char)((len & 0xFF00) >> 8); //PES PacketLength
+    tmpStr += (char)(len & 0x00FF); //PES PacketLength (Cont)
     tmpStr.append("\204\200\005", 3);
-    tmpStr += (char)(0x20 + ((PTS & 0x1C0000000LL) >> 29) + 1); //PTS
-    tmpStr += (char)((PTS & 0x03FC00000LL) >> 22); //PTS (Cont)
-    tmpStr += (char)(((PTS & 0x0003F8000LL) >> 14) + 1); //PTS (Cont)
-    tmpStr += (char)((PTS & 0x000007F80LL) >> 7); //PTS (Cont)
-    tmpStr += (char)(((PTS & 0x00000007FLL) << 1) + 1); //PTS (Cont)
+    encodePESTimestamp(tmpStr, 0x30, PTS);
     return tmpStr;
   }
 

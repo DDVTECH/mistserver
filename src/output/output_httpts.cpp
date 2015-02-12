@@ -71,7 +71,7 @@ namespace Mist {
     std::string bs;
     //prepare bufferstring
     if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
-      bs = TS::Packet::getPESVideoLeadIn(0ul, currentPacket.getTime() * 90);
+      bs = TS::Packet::getPESVideoLeadIn(0ul, currentPacket.getTime() * 90, currentPacket.getInt("offset") * 90);
       fillPacket(first, bs.data(), bs.size(), VideoCounter);
       
       if (currentPacket.getInt("keyframe")){

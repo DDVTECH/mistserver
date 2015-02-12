@@ -1,71 +1,78 @@
-function mistembed(streamname)
-{
+function mistembed(streamname) {
   // return the current flash version
-  function flash_version()
-  {
+  function flash_version() {
     var version = 0;
 
-    try
-    {
+    try {
       // check in the mimeTypes
       version = navigator.mimeTypes['application/x-shockwave-flash'].enabledPlugin.description.replace(/([^0-9\.])/g, '').split('.')[0];
-    }catch(e){}
-    try
-    {
+    } catch(e){}
+    try {
       // for our special friend IE
       version = new ActiveXObject('ShockwaveFlash.ShockwaveFlash').GetVariable("$version").replace(/([^0-9\,])/g, '').split(',')[0];
-    }catch(e){}
+    } catch(e){}
 
     return parseInt(version, 10);
   };
 
   // return true if silverlight is installed
-  function silverlight_installed()
-  {
+  function silverlight_installed() {
     var plugin;
     
-    try
-    {
+    try {
       // check in the mimeTypes
       plugin = navigator.plugins["Silverlight Plug-In"];
       return !!plugin;
-    }catch(e){}
-    try
-    {
+    } catch(e){}
+    try {
       // for our special friend IE
       plugin = new ActiveXObject('AgControl.AgControl');
       return true;
-    }catch(e){}
+    } catch(e){}
 
     return false;
   };
 
   // return true if the browser thinks it can play the mimetype
-  function html5_video_type(type)
-  {
+  function html5_video_type(type) {
     var support = false;
 
-    try
-    {
+    try {
       var v = document.createElement('video');
 
       if( v && v.canPlayType(type) != "" )
       {
         support = true; // true-ish, anyway
       }
-    }catch(e){}
+    } catch(e){}
 
     return support;
+  }
+  
+  //return true if rtsp is supported
+  function rtsp_support() {
+    var plugin;
+    
+    try {
+      // check in the mimeTypes
+      plugin = navigator.mimeTypes["application/x-google-vlc-plugin"];
+      return !!plugin;
+    } catch(e){}
+    try {
+      // for our special friend IE
+      plugin = new ActiveXObject('VideoLAN.Vlcplugin.1');
+      return true;
+    } catch(e){}
+    
+    return false;
   }
 
   // parse a "type" string from the controller. Format:
   // xxx/# (e.g. flash/3) or xxx/xxx/xxx (e.g. html5/application/ogg)
-  function parseType(type)
-  {
+  function parseType(type) {
     var split = type.split('/');
     
-    if( split.length > 2 )
-    {
+    if( split.length > 2 ) {
       split[1] += '/' + split[2];
     }
     
@@ -73,24 +80,21 @@ function mistembed(streamname)
   }
   
   // return true if a type is supported
-  function hasSupport(type)
-  {
+  function hasSupport(type) {
     var typemime = parseType(type);
     
-    switch(typemime[0])
-    {
+    switch(typemime[0]) {
       case 'flash':             return flash_version() >= parseInt(typemime[1], 10);            break;
       case 'html5':             return html5_video_type(typemime[1]);                           break;
+      case 'rtsp':              return rtsp_support();                                          break;
       case 'silverlight':       return silverlight_installed();                                 break;
-
       default:                  return false;                                                   break;
     }
-  };
+  }
 
   
   // build HTML for certain kinds of types
-  function buildPlayer(src, container, videowidth, videoheight, vtype)
-  {
+  function buildPlayer(src, container, videowidth, videoheight, vtype) {
     // used to recalculate the width/height
     var ratio;
 
@@ -98,16 +102,14 @@ function mistembed(streamname)
     var containerwidth = parseInt(container.scrollWidth, 10);
     var containerheight = parseInt(container.scrollHeight, 10);
 
-    if(videowidth > containerwidth && containerwidth > 0)
-    {
+    if(videowidth > containerwidth && containerwidth > 0) {
       ratio = videowidth / containerwidth;
 
       videowidth /= ratio;
       videoheight /= ratio;
     }
 
-    if(videoheight > containerheight && containerheight > 0)
-    {
+    if(videoheight > containerheight && containerheight > 0) {
       ratio = videoheight / containerheight;
 
       videowidth /= ratio;
@@ -117,17 +119,16 @@ function mistembed(streamname)
     var maintype = parseType(src.type);
     mistvideo[streamname].embedded = src;
     
-    switch(maintype[0])
-    {
+    switch(maintype[0]) {
       case 'flash':
         // maintype[1] is already checked (i.e. user has version > maintype[1])
         var flashplayer,
-            url = encodeURIComponent(src.url) + '&controlBarMode=floating&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3' + (vtype == 'live' ? "&streamType=live" : "");
+        url = encodeURIComponent(src.url) + '&controlBarMode=floating&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3' + (vtype == 'live' ? "&streamType=live" : "") + (autoplay ? '&autoPlay=true' : '');
         
-        if( parseInt(maintype[1], 10) >= 10 )
-        {
+        if( parseInt(maintype[1], 10) >= 10 ) {
           flashplayer = 'http://fpdownload.adobe.com/strobe/FlashMediaPlayback_101.swf';
-        }else{
+        }
+        else {
           flashplayer = 'http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf';
         }
         
@@ -137,25 +138,54 @@ function mistembed(streamname)
                                 '<param name="allowFullScreen" value="true"></param>' +
                                 '<param name="allowscriptaccess" value="always"></param>' + 
                                 '<param name="wmode" value="direct"></param>' +
+                                (autoplay ? '<param name="autoPlay" value="true">' : '') +
                                 '<embed src="' + flashplayer + '" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="' + videowidth + '" height="' + videoheight + '" flashvars="src=' + url + '"></embed>' + 
                               '</object>';
       break;
 
       case 'html5':
-        container.innerHTML += '<video width="' + videowidth + '" height="' + videoheight + '" src="' + encodeURI(src.url) + '" controls="controls" ><strong>No HTML5 video support</strong></video>';
+        container.innerHTML += '<video width="' + videowidth + '" height="' + videoheight + '" src="' + encodeURI(src.url) + '" controls="controls" '+(autoplay ? 'autoplay="autoplay"' : '')+'><strong>No HTML5 video support</strong></video>';
         break;
         
-      case 'silverlight':
-        container.innerHTML += '<object data="data:application/x-silverlight," type="application/x-silverlight" width="' + videowidth + '" height="' + videoheight + '"><param name="source" value="' + encodeURI(src.url) + '/player.xap"/><param name="onerror" value="onSilverlightError" /><param name="autoUpgrade" value="true" /><param name="background" value="white" /><param name="enableHtmlAccess" value="true" /><param name="minRuntimeVersion" value="3.0.40624.0" /><param name="initparams" value =\'autoload=false,autoplay=true,displaytimecode=false,enablecaptions=true,joinLive=true,muted=false,playlist=<playList><playListItems><playListItem title="Test" description="testing" mediaSource="' + encodeURI(src.url) + '" adaptiveStreaming="true" thumbSource="" frameRate="25.0" width="" height=""></playListItem></playListItems></playList>\' /><a href="http://go.microsoft.com/fwlink/?LinkID=124807" style="text-decoration: none;"> <img src="http://go.microsoft.com/fwlink/?LinkId=108181" alt="Get Microsoft Silverlight" style="border-style: none" /></a></object>';
+      case 'rtsp':
+        /*container.innerHTML += '<object classid="clsid:CFCDAA03-8BE4-11cf-B84B-0020AFBBCCFA" width="'+videowidth+'" height="'+videoheight+'">'+
+                                  '<param name="src" value="'+encodeURI(src.url)+'">'+
+                                  '<param name="console" value="video1">'+
+                                  '<param name="controls" value="All">'+
+                                  '<param name="autostart" value="false">'+
+                                  '<param name="loop" value="false">'+
+                                  '<embed name="myMovie" src="'+encodeURI(src.url)+'" width="'+videowidth+'" height="'+videoheight+'" autostart="false" loop="false" nojava="true" console="video1" controls="All"></embed>'+
+                                  '<noembed>Something went wrong.</noembed>'+
+                                '</object>'; //realplayer, doesnt work */
+        container.innerHTML +=  '<embed type="application/x-google-vlc-plugin"'+
+                                  'pluginspage="http://www.videolan.org"'+
+                                  'width="'+videowidth+'"'+
+                                  'height="'+videoheight+'"'+
+                                  'target="'+encodeURI(src.url)+'"'+
+                                  'autoplay="'+(autoplay ? 'yes' : 'no')+'"'+
+                                '>'+
+                                '</embed>'+
+                                '<object classid="clsid:9BE31822-FDAD-461B-AD51-BE1D1C159921" codebase="http://downloads.videolan.org/pub/videolan/vlc/latest/win32/axvlc.cab">'+
+                                '</object>'; //vlc, seems to work, sort of. it's trying anyway
       break;
+        
+      case 'silverlight':
+        container.innerHTML +=  '<object data="data:application/x-silverlight," type="application/x-silverlight" width="' + videowidth + '" height="' + videoheight + '">'+
+                                  '<param name="source" value="' + encodeURI(src.url) + '/player.xap"/>'+
+                                  '<param name="onerror" value="onSilverlightError" />'+
+                                  '<param name="autoUpgrade" value="true" />'+
+                                  '<param name="background" value="white" />'+
+                                  '<param name="enableHtmlAccess" value="true" />'+
+                                  '<param name="minRuntimeVersion" value="3.0.40624.0" />'+
+                                  '<param name="initparams" value =\'autoload=false,'+(autoplay ? 'autoplay=true' : 'autoplay=false')+',displaytimecode=false,enablecaptions=true,joinLive=true,muted=false,playlist=<playList><playListItems><playListItem title="Test" description="testing" mediaSource="' + encodeURI(src.url) + '" adaptiveStreaming="true" thumbSource="" frameRate="25.0" width="" height=""></playListItem></playListItems></playList>\' />'+
+                                  '<a href="http://go.microsoft.com/fwlink/?LinkID=124807" style="text-decoration: none;"> <img src="http://go.microsoft.com/fwlink/?LinkId=108181" alt="Get Microsoft Silverlight" style="border-style: none" /></a>'+
+                                '</object>';
+      break;
+      default:
+        container.innerHTML += '<strong>Missing embed code for output type "'+src.type+'"</strong>';
 
-
-      case 'fallback':
-        container.innerHTML += '<strong>No support for any player found</strong>';
-      break;         
     }
-
-  };
+  }
   
   var video = mistvideo[streamname],
   container = document.createElement('div'),
@@ -167,6 +197,9 @@ function mistembed(streamname)
   }
   if (me.parentNode.hasAttribute('data-forcesupportcheck')) {
     var forceSupportCheck = true;
+  }
+  if (me.parentNode.hasAttribute('data-autoplay')) {
+    var autoplay = true;
   }
   
   if (video.width == 0) { video.width = 250; }
@@ -185,66 +218,39 @@ function mistembed(streamname)
   }
   else if ((typeof video.source == 'undefined') || (video.source.length < 1)) {
     // no stream sources
-    container.innerHTML = '<strong>Error: no streams found</strong>';
+    container.innerHTML = '<strong>Error: no protocols found</strong>';
   }
-  else{
+  else {
     // no error, and sources found. Check the video types and output the best
     // available video player.
     var i,
-        vtype = (video.type ? video.type : 'unknown'),
-        foundPlayer = false,
-        len = video.source.length;
-        
-    if (typeof forceType != 'undefined') {
-      i = forceType;
-      if (typeof video.source[i] == 'undefined') {
-        container.innerHTML = '<strong>Invalid force integer ('+i+').</strong>';
-      }
-      else {
-        if ( hasSupport(video.source[i].type) ) {
-          video.source[i].browser_support = true;
-          buildPlayer(video.source[i], container.parentNode, video.width, video.height, vtype);
-        }
-        else {
-          video.source[i].browser_support = false;
-          container.innerHTML = '<strong>Your browser does not support the type "'+video.source[i].type+'".</strong>';
+      vtype = (video.type ? video.type : 'unknown'),
+      foundPlayer = false,
+      len = video.source.length;
+      
+    for (var i in video.source) {
+      var support = hasSupport(video.source[i].type);
+      video.source[i].browser_support = support;
+      if ((support) || (forceType)) {
+        if ((!forceType) || ((forceType) && (video.source[i].type.indexOf(forceType) >= 0))) {
+          if (foundPlayer === false) { 
+            foundPlayer = i;
+            if (!forceSupportCheck) {
+              break;
+            }
+          }
         }
       }
     }
+    if (foundPlayer === false) {
+      // of all the streams given, none was supported (eg. no flash and HTML5 video). Display error
+      container.innerHTML = '<strong>No support for any player found</strong>';
+    }
     else {
-    
-      for(i = 0; i < len; i++)
-      {
-        //console.log("trying support for type " + video.source[i].type + " (" + parseType(video.source[i].type)[0] + "  -  " + parseType(video.source[i].type)[1] + ")");
-        if( hasSupport( video.source[i].type ) )
-        {
-          video.source[i].browser_support = true;
-          if (!foundPlayer) { foundPlayer = i; }
-          if (!forceSupportCheck) { 
-            // we support this kind of video, so build it.
-            buildPlayer(video.source[i], container.parentNode, video.width, video.height, vtype);
-            
-            // we've build a player, so we're done here
-            break;   // break for() loop 
-          }
-        }
-        else {
-          video.source[i].browser_support = false;
-        }
-      }
-      
-      
-      if(foundPlayer === false)
-      {
-        // of all the streams given, none was supported (eg. no flash and HTML5 video). Display error
-        buildPlayer({type: 'fallback'}, container.parentNode, video.width, video.height);
-      }
-      else if (forceSupportCheck) {
-        // we support this kind of video, so build it.
-        buildPlayer(video.source[foundPlayer], container.parentNode, video.width, video.height, vtype);
-      }
+      // we support this kind of video, so build it.
+      buildPlayer(video.source[foundPlayer], container, video.width, video.height, vtype);
     }
   }
   
-  return (typeof mistvideo[streamname].embedded_type != 'undefined' ? mistvideo[streamname].embedded_type : false);
+  return (mistvideo[streamname].embedded ? mistvideo[streamname].embedded.type : false);
 }

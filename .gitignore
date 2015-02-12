@@ -36,4 +36,5 @@ server.html*
 .settings
 .cproject
 .project
+.sync
 

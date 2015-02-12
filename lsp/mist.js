@@ -2591,7 +2591,7 @@ var UI = {
           },{
             label: 'Embed code',
             type: 'textarea',
-            value: '<div>'+"\n"+'   <script src="'+embedbase+'embed_'+other+'.js"></script>'+"\n"+'</div>',
+            value: '<div>'+"\n"+'   <"+"script src="'+embedbase+'embed_'+other+'.js"><"+"/script>'+"\n"+'</div>',
             rows: 4,
             readonly: true
           },{

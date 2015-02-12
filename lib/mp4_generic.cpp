@@ -2318,7 +2318,12 @@ namespace MP4 {
     if (no >= getSampleCount()) {
       return 0;
     }
-    return getInt32(12 + no * 4);
+    long unsigned int retVal = getInt32(12 + no * 4);
+    if (retVal == 0){
+      return getSampleSize();
+    }else{
+      return retVal;
+    }
   }
 
   std::string STSZ::toPrettyString(uint32_t indent) {

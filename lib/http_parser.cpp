@@ -540,7 +540,7 @@ void HTTP::Parser::parseVars(std::string data) {
 /// Sends a string in chunked format if protocol is HTTP/1.1, sends as-is otherwise.
 /// \param bodypart The data to send.
 /// \param conn The connection to use for sending.
-void HTTP::Parser::Chunkify(std::string & bodypart, Socket::Connection & conn) {
+void HTTP::Parser::Chunkify(const std::string & bodypart, Socket::Connection & conn) {
   Chunkify(bodypart.c_str(), bodypart.size(), conn);
 }
 

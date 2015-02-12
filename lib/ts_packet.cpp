@@ -51,7 +51,7 @@ namespace TS {
 ///\param Data The char array that contains the data to be read into the packet
 ///\return true if successful (which always happens, or else a segmentation fault should occur)
   bool Packet::FromPointer(const char * Data) {
-    strBuf = std::string(Data, 188);
+    strBuf.assign(Data, 188);
     return true;
   }
 
@@ -577,7 +577,7 @@ namespace TS {
 
 ///Gets the string buffer, containing the raw packet data as a string
 ///\return The raw TS data as a string
-  std::string Packet::getStrBuf() {
+  const std::string& Packet::getStrBuf() {
     return strBuf;
   }
 
@@ -961,6 +961,48 @@ namespace TS {
     output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;
     return output.str();
   }
+  
+  const std::string& createPMT(std::set<unsigned long>& selectedTracks, DTSC::Meta& myMeta){
+    static ProgramMappingTable PMT;
+    PMT.PID(4096);
+    PMT.setTableId(2);
+    //section length met 2 tracks: 0xB017
+    PMT.setSectionLength(0xB00D + (selectedTracks.size() * 5));
+    PMT.setProgramNumber(1);
+    PMT.setVersionNumber(0);
+    PMT.setCurrentNextIndicator(0);
+    PMT.setSectionNumber(0);
+    PMT.setLastSectionNumber(0);
+    int vidTrack = -1;
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks[*it].type == "video"){
+        vidTrack = *it;
+        break;
+      }
+    }
+    if (vidTrack == -1){
+      vidTrack = *(selectedTracks.begin());
+    }
+    PMT.setPCRPID(0x100 + vidTrack - 1);
+    PMT.setProgramInfoLength(0);
+    short id = 0;
+    //for all selected tracks
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks[*it].codec == "H264"){
+        PMT.setStreamType(0x1B,id);
+      }else if (myMeta.tracks[*it].codec == "AAC"){
+        PMT.setStreamType(0x0F,id);
+      }else if (myMeta.tracks[*it].codec == "MP3"){
+        PMT.setStreamType(0x03,id);
+      }
+      PMT.setElementaryPID(0x100 + (*it) - 1, id);
+      PMT.setESInfoLength(0,id);
+      id++;
+    }
+    PMT.calcCRC();
+    return PMT.getStrBuf();
+  }
+
 }
 
 

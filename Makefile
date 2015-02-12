@@ -178,7 +178,8 @@ MistOutJSON: override CPPFLAGS += "-DOUTPUTTYPE=\"output_json.h\""
 MistOutJSON: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_json.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
-lspSOURCES=lsp/plugins/jquery.js lsp/plugins/placeholder.js lsp/plugins/md5.js lsp/main.js lsp/pages.js lsp/plugins/tablesort.js lsp/plugins/jquery.flot.min.js lsp/plugins/jquery.flot.time.min.js lsp/plugins/jquery.flot.crosshair.min.js
+lspSOURCES=lsp/plugins/md5.js lsp/plugins/cattablesort.js lsp/mist.js
+lspSOURCESmin=lsp/plugins/jquery.js lsp/plugins/jquery.flot.min.js lsp/plugins/jquery.flot.time.min.js
 lspDATA=lsp/header.html lsp/main.css lsp/footer.html
 
 JAVA := $(shell which java 2> /dev/null)
@@ -197,9 +198,10 @@ src/embed.js.h: src/embed.js sourcery
 	./sourcery embed.min.js embed_js > src/embed.js.h
 	rm embed.min.js
 
-src/controller/server.html: $(lspDATA) $(lspSOURCES)
-	cat lsp/header.html > $@
+src/controller/server.html: $(lspDATA) $(lspSOURCES) $(lspSOURCESmin)
+	cat lsp/header.html >> $@
 	echo "<script>" >> $@
+	cat $(lspSOURCESmin) >> $@
 	$(CLOSURE) $(lspSOURCES) >> $@
 	echo "</script><style>" >> $@
 	cat lsp/main.css >> $@
@@ -226,4 +228,3 @@ uninstall:
 	rm -f $(DESTDIR)$(bindir)/Mist*
 
 .PHONY: clean uninstall
-

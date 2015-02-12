@@ -138,7 +138,7 @@ namespace Mist {
       ///\todo make sure the header is ffmpeg compatible
       if (myMeta.tracks[tid].codec == "theora"){
         //    INFO_MSG("theora");
-        for (int i = 0; i < myPage.getAllSegments().size(); i++){
+        for (unsigned int i = 0; i < myPage.getAllSegments().size(); i++){
           unsigned long len = myPage.getSegmentLen(i);
           INFO_MSG("Length for segment %d: %lu", i, len);
           theora::header tmpHead((char*)myPage.getSegment(i),len);
@@ -168,7 +168,7 @@ namespace Mist {
       }
 
       if (myMeta.tracks[tid].codec == "vorbis"){                
-        for (int i = 0; i < myPage.getAllSegments().size(); i++){
+        for (unsigned int i = 0; i < myPage.getAllSegments().size(); i++){
           unsigned long len = myPage.getSegmentLen(i);
           vorbis::header tmpHead((char*)myPage.getSegment(i), len);
           if (!tmpHead.isHeader()){
@@ -182,12 +182,12 @@ namespace Mist {
                 //we have the first header stored in contBuffer
                 myMeta.tracks[tid].init += (char)0x02;
                 //ID header size
-                for (int i = 0; i < (oggTracks[tid].contBuffer.size() / 255); i++){
+                for (unsigned int j = 0; j < (oggTracks[tid].contBuffer.size() / 255); j++){
                   myMeta.tracks[tid].init += (char)0xFF;
                 }
                 myMeta.tracks[tid].init += (char)(oggTracks[tid].contBuffer.size() % 255);
                 //Comment header size
-                for (int i = 0; i < (len / 255); i++){
+                for (unsigned int j = 0; j < (len / 255); j++){
                   myMeta.tracks[tid].init += (char)0xFF;
                 }
                 myMeta.tracks[tid].init += (char)(len % 255);
@@ -379,6 +379,19 @@ namespace Mist {
     return 0;
   }
 
+  #ifndef _GNU_SOURCE  
+    void * memrchr(const void *s, int c, size_t n){      
+      const unsigned char *cp;
+      if (n != 0) {
+        cp = (unsigned char *)s + n;
+        do {
+          if (*(--cp) == (unsigned char)c)
+            return((void *)cp);
+        } while (--n != 0);
+      }
+      return((void *)0);
+    }  
+  #endif 
 
   void inputOGG::seek(int seekTime){
     currentPositions.clear();
@@ -409,10 +422,7 @@ namespace Mist {
         loc = (char *)memrchr(buffer, 'O',  (loc-buffer) -1 );//seek reverse
       }
       if (!loc){
-        INFO_MSG("Unable to find a page boundary starting @ %llu, track %u", tmpPos.bytepos, *it);
-        for (int i = 0; i < 300; i++){
-          fprintf(stderr, "%0.2X ", buffer[i]);
-        }
+        INFO_MSG("Unable to find a page boundary starting @ %llu, track %u", tmpPos.bytepos, *it);        
         continue;
       }
       tmpPos.segmentNo = backChrs - (loc - buffer);

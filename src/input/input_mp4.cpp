@@ -464,7 +464,7 @@ namespace Mist {
           //add data
           myMeta.update(it->time, 0,/*no offset? much sadface :-(*/ it->trackID, it->size, it->bpos, it->keyframe);
         }else{
-          INFO_MSG("fread did not return 1, bpos: %d size: %d keyframe: %d error: %s", it->bpos, it->size, it->keyframe, strerror(errno));
+          INFO_MSG("fread did not return 1, bpos: %llu size: %llu keyframe: %d error: %s", it->bpos, it->size, it->keyframe, strerror(errno));
           return false;
         }
       }else{

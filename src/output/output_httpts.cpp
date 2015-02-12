@@ -27,43 +27,11 @@ namespace Mist {
     capa["methods"][0u]["priority"] = 1ll;
   }
   
-  ///this function generates the PMT packet
-  std::string OutHTTPTS::createPMT(){
-    TS::ProgramMappingTable PMT;
-    PMT.PID(4096);
-    PMT.setTableId(2);
-    PMT.setSectionLength(0xB017);
-    PMT.setProgramNumber(1);
-    PMT.setVersionNumber(0);
-    PMT.setCurrentNextIndicator(0);
-    PMT.setSectionNumber(0);
-    PMT.setLastSectionNumber(0);
-    PMT.setPCRPID(0x100 + (*(selectedTracks.begin())) - 1);
-    PMT.setProgramInfoLength(0);
-    short id = 0;
-    //for all selected tracks
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (myMeta.tracks[*it].codec == "H264"){
-        PMT.setStreamType(0x1B,id);
-      }else if (myMeta.tracks[*it].codec == "AAC"){
-        PMT.setStreamType(0x0F,id);
-      }else if (myMeta.tracks[*it].codec == "MP3"){
-        PMT.setStreamType(0x03,id);
-      }
-      PMT.setElementaryPID(0x100 + (*it) - 1, id);
-      PMT.setESInfoLength(0,id);
-      id++;
-    }
-    PMT.calcCRC();
-    return PMT.getStrBuf();
-  }
-  
   void OutHTTPTS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
     if (!PackData.BytesFree()){
       if (PacketNumber % 42 == 0){
         H.Chunkify(TS::PAT, 188, myConn);
-        std::string PMT = createPMT();
-        H.Chunkify(PMT, myConn);
+        H.Chunkify(TS::createPMT(selectedTracks, myMeta), myConn);
         PacketNumber += 2;
       }
       H.Chunkify(PackData.ToString(), 188, myConn);
@@ -127,10 +95,16 @@ namespace Mist {
         fillPacket(first, 0, 0, VideoCounter);
       }
     }else if (myMeta.tracks[currentPacket.getTrackId()].type == "audio"){
-      bs = TS::Packet::getPESAudioLeadIn(7+dataLen, currentPacket.getTime() * 90);
+      unsigned int tempLen = dataLen;
+      if ( myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
+        tempLen += 7;
+      }
+      bs = TS::Packet::getPESAudioLeadIn(tempLen, currentPacket.getTime() * 90);
       fillPacket(first, bs.data(), bs.size(), AudioCounter);
-      bs = TS::GetAudioHeader(dataLen, myMeta.tracks[currentPacket.getTrackId()].init);
-      fillPacket(first, bs.data(), bs.size(), AudioCounter);
+      if (myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
+        bs = TS::GetAudioHeader(dataLen, myMeta.tracks[currentPacket.getTrackId()].init);
+        fillPacket(first, bs.data(), bs.size(), AudioCounter);
+      }
       ContCounter = &AudioCounter;
       fillPacket(first, dataPointer,dataLen, AudioCounter);
       if (PackData.BytesFree() < 184){

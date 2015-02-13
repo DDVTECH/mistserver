@@ -183,7 +183,7 @@ function mistembed(streamname) {
       break;
       default:
         container.innerHTML += '<strong>Missing embed code for output type "'+src.type+'"</strong>';
-
+        video.error = 'Missing embed code for output type "'+src.type;
     }
   }
   

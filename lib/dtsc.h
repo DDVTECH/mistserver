@@ -206,16 +206,16 @@ namespace DTSC {
   /// When deleting this object, make sure to remove all DTSC::Part associated with it, if any. If you fail doing this, it *will* cause data corruption.
   class Key {
     public:
-      long long unsigned int getBpos();
-      void setBpos(long long unsigned int newBpos);
-      long getLength();
-      void setLength(long newLength);
-      unsigned short getNumber();
-      void setNumber(unsigned short newNumber);
-      short getParts();
-      void setParts(short newParts);
-      long getTime();
-      void setTime(long newTime);
+      unsigned long long getBpos();
+      void setBpos(unsigned long long newBpos);
+      unsigned long getLength();
+      void setLength(unsigned long newLength);
+      unsigned long getNumber();
+      void setNumber(unsigned long newNumber);
+      unsigned short getParts();
+      void setParts(unsigned short newParts);
+      unsigned long long getTime();
+      void setTime(unsigned long long newTime);
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
@@ -232,14 +232,14 @@ namespace DTSC {
   ///\brief Basic class for storage of data associated with fragments.
   class Fragment {
     public:
-      long getDuration();
-      void setDuration(long newDuration);
+      unsigned long getDuration();
+      void setDuration(unsigned long newDuration);
       char getLength();
       void setLength(char newLength);
-      short getNumber();
-      void setNumber(short newNumber);
-      long getSize();
-      void setSize(long newSize);
+      unsigned long getNumber();
+      void setNumber(unsigned long newNumber);
+      unsigned long getSize();
+      void setSize(unsigned long newSize);
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:

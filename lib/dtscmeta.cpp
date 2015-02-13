@@ -7,27 +7,44 @@
 #define AUDIO_KEY_INTERVAL 5000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
 
 /// Retrieves a short in network order from the pointer p.
-static short btohs(char * p) {
-  return (p[0] << 8) + p[1];
+static unsigned short btohs(char * p) {
+  return ((unsigned short)p[0] << 8) | p[1];
 }
 
 /// Stores a short value of val in network order to the pointer p.
-static void htobs(char * p, short val) {
+static void htobs(char * p, unsigned short val) {
   p[0] = (val >> 8) & 0xFF;
   p[1] = val & 0xFF;
 }
 
 /// Retrieves a long in network order from the pointer p.
-static long btohl(char * p) {
-  return (p[0] << 24) + (p[1] << 16) + (p[2] << 8) + p[3];
+static unsigned long btohl(char * p) {
+  return ((unsigned long)p[0] << 24) | ((unsigned long)p[1] << 16) | ((unsigned long)p[2] << 8) | p[3];
 }
 
 /// Stores a long value of val in network order to the pointer p.
-static void htobl(char * p, long val) {
+static void htobl(char * p, unsigned long val) {
   p[0] = (val >> 24) & 0xFF;
   p[1] = (val >> 16) & 0xFF;
   p[2] = (val >> 8) & 0xFF;
   p[3] = val & 0xFF;
+}
+
+/// Retrieves a long long in network order from the pointer p.
+static unsigned long long btohll(char * p) {
+  return ((unsigned long long)p[0] << 56) | ((unsigned long long)p[1] << 48) | ((unsigned long long)p[2] << 40) | ((unsigned long long)p[3] << 32) | ((unsigned long)p[4] << 24) | ((unsigned long)p[5] << 16) | ((unsigned long)p[6] << 8) | p[7];
+}
+
+/// Stores a long value of val in network order to the pointer p.
+static void htobll(char * p, unsigned long long val) {
+  p[0] = (val >> 56) & 0xFF;
+  p[1] = (val >> 48) & 0xFF;
+  p[2] = (val >> 40) & 0xFF;
+  p[3] = (val >> 32) & 0xFF;
+  p[4] = (val >> 24) & 0xFF;
+  p[5] = (val >> 16) & 0xFF;
+  p[6] = (val >> 8) & 0xFF;
+  p[7] = val & 0xFF;
 }
 
 namespace DTSC {
@@ -860,58 +877,51 @@ namespace DTSC {
   }
 
   ///\brief Returns the byteposition of a keyframe
-  long long unsigned int Key::getBpos() {
-    return (((long long unsigned int)data[0] << 32) | (data[1] << 24) | (data[2] << 16) | (data[3] << 8) | data[4]);
+  unsigned long long Key::getBpos() {
+    return btohll(data);
   }
 
-  ///\brief Returns the byteposition of a keyframe
-  void Key::setBpos(long long unsigned int newBpos) {
-    data[4] = newBpos & 0xFF;
-    data[3] = (newBpos >> 8) & 0xFF;
-    data[2] = (newBpos >> 16) & 0xFF;
-    data[1] = (newBpos >> 24) & 0xFF;
-    data[0] = (newBpos >> 32) & 0xFF;
+  void Key::setBpos(unsigned long long newBpos) {
+    htobll(data, newBpos);
   }
 
-  ///\brief Returns the byteposition of a keyframe
-  long Key::getLength() {
+  unsigned long Key::getLength() {
     return ((data[5] << 16) | (data[6] << 8) | data[7]);
   }
 
-  ///\brief Sets the byteposition of a keyframe
-  void Key::setLength(long newLength) {
+  void Key::setLength(unsigned long newLength) {
     data[7] = newLength & 0xFF;
     data[6] = (newLength >> 8) & 0xFF;
     data[5] = (newLength >> 16) & 0xFF;
   }
 
   ///\brief Returns the number of a keyframe
-  unsigned short Key::getNumber() {
+  unsigned long Key::getNumber() {
     return btohs(data + 8);
   }
 
   ///\brief Sets the number of a keyframe
-  void Key::setNumber(unsigned short newNumber) {
+  void Key::setNumber(unsigned long newNumber) {
     htobs(data + 8, newNumber);
   }
 
   ///\brief Returns the number of parts of a keyframe
-  short Key::getParts() {
+  unsigned short Key::getParts() {
     return btohs(data + 10);
   }
 
   ///\brief Sets the number of parts of a keyframe
-  void Key::setParts(short newParts) {
+  void Key::setParts(unsigned short newParts) {
     htobs(data + 10, newParts);
   }
 
   ///\brief Returns the timestamp of a keyframe
-  long Key::getTime() {
+  unsigned long long Key::getTime() {
     return btohl(data + 12);
   }
 
   ///\brief Sets the timestamp of a keyframe
-  void Key::setTime(long newTime) {
+  void Key::setTime(unsigned long long newTime) {
     htobl(data + 12, newTime);
   }
 
@@ -928,12 +938,12 @@ namespace DTSC {
   }
 
   ///\brief Returns the duration of this fragment
-  long Fragment::getDuration() {
+  unsigned long Fragment::getDuration() {
     return btohl(data);
   }
 
   ///\brief Sets the duration of this fragment
-  void Fragment::setDuration(long newDuration) {
+  void Fragment::setDuration(unsigned long newDuration) {
     htobl(data, newDuration);
   }
 
@@ -948,22 +958,22 @@ namespace DTSC {
   }
 
   ///\brief Returns the number of the first keyframe in this fragment
-  short Fragment::getNumber() {
+  unsigned long Fragment::getNumber() {
     return btohs(data + 5);
   }
 
   ///\brief Sets the number of the first keyframe in this fragment
-  void Fragment::setNumber(short newNumber) {
+  void Fragment::setNumber(unsigned long newNumber) {
     htobs(data + 5, newNumber);
   }
 
   ///\brief Returns the size of a fragment
-  long Fragment::getSize() {
+  unsigned long Fragment::getSize() {
     return btohl(data + 7);
   }
 
   ///\brief Sets the size of a fragement
-  void Fragment::setSize(long newSize) {
+  void Fragment::setSize(unsigned long newSize) {
     htobl(data + 7, newSize);
   }
 

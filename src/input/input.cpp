@@ -187,6 +187,12 @@ namespace Mist {
           if (!it2->second){
             dataPages[it->first].erase(it2->first);
             pageCounter[it->first].erase(it2->first);
+            for (int i = 0; i < 8192; i += 8){
+              unsigned int thisKeyNum = ntohl(((((long long int *)(indexPages[it->first].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
+              if (thisKeyNum == it2->first){
+                (((long long int *)(indexPages[it->first].mapped + i))[0]) = 0;
+              }
+            }
             change = true;
             break;
           }

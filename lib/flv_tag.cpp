@@ -386,11 +386,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track) {
     if (track.codec == "H264") {
       memcpy(data + 16, tmpData, len - 20);
       data[12] = 1;
-      if (packData.getInt("offset") < 0) {
-        offset(0);
-      } else {
-        offset(packData.getInt("offset"));
-      }
+      offset(packData.getInt("offset"));
     } else {
       memcpy(data + 12, tmpData, len - 16);
     }
@@ -512,9 +508,6 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track) {
   data[9] = 0;
   data[10] = 0;
   tagTime(packData.getTime());
-  if (packData.getInt("offset")) {
-    tagTime(packData.getTime() + packData.getInt("offset"));
-  }
   return true;
 }
 

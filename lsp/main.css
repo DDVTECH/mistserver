@@ -258,7 +258,6 @@ main > button {
 }
 textarea {
   font-size: 0.8em;
-  height: 20em;
 }
 .unit {
   color: #777;
@@ -401,13 +400,14 @@ table td.vheader {
   padding: 0.8em 0.2em;
   border-right: 1px solid #ccc;
   background-image: linear-gradient(to left, #ddd, #eee);
+  width: 1.5em;
 }
 table td.vheader span {
   transform: translate( calc(-50% + 0.75em) ) rotate(-90deg);
   transform-origin: 50% 50%;
   white-space: nowrap;
   display: block;
-  width: 1.5em;
+  position: absolute;
 }
 table td, table th, .flextable .td, .flextable .th {
   padding: 0.2em 0.8em;
@@ -589,6 +589,11 @@ input[type=radio] {
   border: 1px solid #ccc;
   padding: 0.5em 1em;
 }
+.legend > .close {
+  position: absolute;
+  top: 0.5em;
+  right: 0.5em;
+}
 .legend-list > label {
   display: block;
 }
@@ -598,6 +603,10 @@ input[type=radio] {
   display: inline-block;
   margin: 0 0.5em;
   box-shadow: 0.1em 0.1em 0.2em rgba(0,0,0,0.2);
+}
+.legend-list .close {
+  position: absolute;
+  right: 0.5em;
 }
 #tooltip {
   position: absolute;
@@ -639,7 +648,36 @@ body:not(.helpme) .input_container .description {
 body:not(.helpme) .input_container .ih_balloon {
   display: none;
 }
-
+#popup {
+  position: fixed;
+  top: 5%;
+  left: 5%;
+  bottom: 5%;
+  right: 5%;
+  border: 1px solid #b4b4b4;
+  background-color: #fff;
+  box-shadow: 0.2em 0.2em 0.5em rgba(0,0,0,0.2);
+  padding: 0.5em;
+  z-index: 10;
+  color: rgba(0,0,0,0.9);
+}
+#popup > .close {
+  position: absolute;
+  top: 0.5em;
+  right: 0.5em;
+}
+.qr_container {
+  display: flex;
+  flex-flow: column nowrap;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  padding: 1em;
+  box-sizing: border-box;
+}
+.qr_container .qrcode {
+  flex-grow: 1;
+}
 
 @font-face {
   font-family: FuturaICGLight;

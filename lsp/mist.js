@@ -58,7 +58,26 @@ var UI = {
       helpme: true
     }
   },
-  interval: false,
+  interval: {
+    clear: function(){
+      if (typeof this.opts == 'undefined') {
+        return;
+      }
+      clearInterval(this.opts.id);
+      delete this.opts;
+    },
+    set: function(callback,delay){
+      if (this.opts) {
+        log('[interval]','Set called on interval, but an interval is already active.');
+      }
+      
+      this.opts = {
+        delay: delay,
+        callback: callback
+      };
+      this.opts.id = setInterval(callback,delay);
+    }
+  },
   returnTab: ['Overview'],
   countrylist: {'AF':'Afghanistan','AX':'&Aring;land Islands','AL':'Albania','DZ':'Algeria','AS':'American Samoa','AD':'Andorra',
     'AO':'Angola','AI':'Anguilla','AQ':'Antarctica','AG':'Antigua and Barbuda','AR':'Argentina','AM':'Armenia','AW':'Aruba',
@@ -130,6 +149,20 @@ var UI = {
       },500);
     },
     element: $('<div>').attr('id','tooltip')
+  },
+  popup: {
+    element: null,
+    show: function(content) {
+      this.element = $('<div>').attr('id','popup').append(
+        $('<button>').text('Close').addClass('close').click(function(){
+          UI.popup.element.fadeOut('fast',function(){
+            UI.popup.element.remove();
+            UI.popup.element = null;
+          });
+        })
+      ).append(content);
+      $('body').append(this.element);
+    }
   },
   menu: [
     {
@@ -429,7 +462,7 @@ var UI = {
           $field = $('<div>').addClass('radioselect');
           for (var i in e.radioselect) {
             var $radio = $('<input>').attr('type','radio').val(e.radioselect[i][0]).attr('name',e.label);
-            if (('LTSonly' in e) && (!mist.data.LTS)) {
+            if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
               $radio.prop('disabled',true);
             }
             var $label = $('<label>').append(
@@ -443,7 +476,7 @@ var UI = {
                 $(this).parent().find('input[type=radio]:enabled').prop('checked','true');
               });
               $label.append($select);
-              if (('LTSonly' in e) && (!mist.data.LTS)) {
+              if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
                 $select.prop('disabled',true);
               }
               for (var j in e.radioselect[i][2]) {
@@ -485,6 +518,25 @@ var UI = {
         $field.click(function(){
           $(this).select();
         });
+      }
+      if ('qrcode' in e) {
+        $fc.append(
+          $('<span>').addClass('unit').html(
+            $('<button>').text('QR').click(function(){
+              var text = String($(this).closest('.field_container').find('.field').getval());
+              var $qr = $('<div>').addClass('qrcode');
+              UI.popup.show(
+                $('<span>').addClass('qr_container').append(
+                  $('<p>').text(text)
+                ).append($qr)
+              );
+              $qr.qrcode({
+                text: text,
+                size: Math.min($qr.width(),$qr.height())
+              })
+            })
+          )
+        );
       }
       if ('rows' in e) {
         $field.attr('rows',e.rows);
@@ -792,7 +844,9 @@ var UI = {
           var f = $(this).data('validate');
           f($(this));
         });
-        $field.trigger('change');
+        if ($field.getval() != '') {
+          $field.trigger('change');
+        }
       }
       
       if ('function' in e) {
@@ -1014,7 +1068,28 @@ var UI = {
     return $c.children();
   },
   plot: {
+    addGraph: function(saveas,$graph_c){
+      var graph = {
+        id: saveas.id,
+        xaxis: saveas.xaxis,
+        datasets: [],
+        elements: {
+          cont: $('<div>').addClass('graph'),
+          plot: $('<div>').addClass('plot'),
+          legend: $('<div>').addClass('legend')
+        }
+      }
+      graph.elements.cont.append(
+        graph.elements.plot
+      ).append(
+        graph.elements.legend
+      );
+      $graph_c.append(graph.elements.cont);
+      return graph;
+    },
     go: function(graphs) {
+      if (Object.keys(graphs).length < 1) { return; }
+      
       //get plotdata
       //build request object
       var reqobj = {
@@ -1093,10 +1168,25 @@ var UI = {
               var $list = $('<div>').addClass('legend-list').addClass('checklist');
               graph.elements.legend.html(
                 $('<h3>').text(graph.id)
+              ).append(
+                $('<button>').data('opts',graph).text('X').addClass('close').click(function(){
+                  var graph = $(this).data('opts');
+                  if (confirm('Are you sure you want to remove '+graph.id+'?')) {
+                    graph.elements.cont.remove();
+                    var $opt = $('.graph_ids option:contains('+graph.id+')');
+                    var $select = $opt.parent();
+                    $opt.remove();
+                    UI.plot.del(graph.id);
+                    delete graphs[graph.id];
+                    $select.trigger('change');
+                    UI.plot.go(graphs);
+                  }
+                })
               ).append($list);
               var plotdata = graph.plot.getOptions();
               for (var i in graph.datasets) {
-                var $checkbox = $('<input>').attr('type','checkbox').data('index',i).click(function(){
+                var $checkbox = $('<input>').attr('type','checkbox').data('index',i).data('graph',graph).click(function(){
+                  var graph = $(this).data('graph');
                   if ($(this).is(':checked')) {
                     graph.datasets[$(this).data('index')].display = true;
                   }
@@ -1117,6 +1207,32 @@ var UI = {
                     $('<div>').addClass('series-color').css('background-color',graph.datasets[i].color)
                   ).append(
                     graph.datasets[i].label
+                  ).append(
+                    $('<button>').text('X').addClass('close').data('index',i).data('graph',graph).click(function(){
+                      var i = $(this).data('index');
+                      var graph = $(this).data('graph');
+                      if (confirm('Are you sure you want to remove '+graph.datasets[i].label+' from '+graph.id+'?')) {
+                        graph.datasets.splice(i,1);
+                        
+                        if (graph.datasets.length == 0) {
+                          graph.elements.cont.remove();
+                          var $opt = $('.graph_ids option:contains('+graph.id+')');
+                          var $select = $opt.parent();
+                          $opt.remove();
+                          $select.trigger('change');
+                          UI.plot.del(graph.id);
+                          delete graphs[graph.id];
+                          UI.plot.go(graphs);
+                        }
+                        else {
+                          UI.plot.save(graph);
+                          
+                          var obj = {};
+                          obj[graph.id] = graph;
+                          UI.plot.go(obj);
+                        }
+                      }
+                    })
                   )
                 );
               }
@@ -1159,6 +1275,29 @@ var UI = {
         }
       },reqobj)
     },
+    save: function(opts){
+      var graph = {
+        id: opts.id,
+        xaxis: opts.xaxis,
+        datasets: []
+      };
+      for (var i in opts.datasets) {
+        graph.datasets.push({
+          origin: opts.datasets[i].origin,
+          datatype: opts.datasets[i].datatype
+        });
+      }
+      
+      var graphs = mist.stored.get().graphs || {};
+      
+      graphs[graph.id] = graph;
+      mist.stored.set('graphs',graphs);
+    },
+    del: function(graphid){
+      var graphs = mist.stored.get().graphs || {};
+      delete graphs[graphid];
+      mist.stored.set('graphs',graphs);
+    },
     datatype: {
       getOptions: function (opts) {
         var general = $.extend(true,{},UI.plot.datatype.templates.general);
@@ -1185,7 +1324,7 @@ var UI = {
         
         //slightly randomize the color
         var color = [];
-        var variation = 75;
+        var variation = 50;
         for (var i in opts.basecolor) {
           var c = opts.basecolor[i];
           c += variation * (0.5 - Math.random());
@@ -1514,20 +1653,38 @@ var UI = {
     }
   },
   navto: function(tab,other){
-    var hash = location.hash.split('@');
+    var prevhash = location.hash;
+    var hash = prevhash.split('@');
     hash[0] = [mist.user.name,mist.user.host].join('&');
     hash[1] = [tab,other].join('&');
     location.hash = hash.join('@');
-    $(window).trigger('hashchange');
-    clearInterval(UI.interval);
+    if (location.hash == prevhash) {
+      //manually trigger hashchange even though hash hasn't changed
+      $(window).trigger('hashchange');
+    }
   },
   showTab: function(tab,other) {
-    UI.elements.menu.css('visibility','visible').find('.button').removeClass('active').filter(function(){
-      if ($(this).find('.plain').text() == tab) { return true; }
-    }).addClass('active');
-    UI.elements.secondary_menu.html('');
     var $main = UI.elements.main;
-    clearInterval(UI.interval);
+    
+    if ((mist.user.loggedin) && (!('ui_settings' in mist.data))) {
+      $main.html('Loading..');
+      mist.send(function(){
+        UI.showTab(tab,other);
+      },{ui_settings: true});
+      return;
+    }
+    
+    var $currbut = UI.elements.menu.css('visibility','visible').find('.button').filter(function(){
+      if ($(this).find('.plain').text() == tab) { return true; }
+    });
+    if ($currbut.length > 0) {
+      //only remove previous button highlight if the current tab is found in the menu
+      UI.elements.menu.find('.button.active').removeClass('active');
+      $currbut.addClass('active');
+    }
+    
+    UI.elements.secondary_menu.html('');
+    UI.interval.clear();
     $main.html(
       $('<h2>').text(tab)
     );
@@ -1793,15 +1950,16 @@ var UI = {
         ]));
         if (mist.data.LTS) {
           function update_update() {
-            if (!('uptodate' in mist.data.update)) {
+            var info = mist.stored.get().update || {};
+            if (!('uptodate' in info)) {
               $versioncheck.text('Unknown');
               return;
             }
-            else if (mist.data.update.error) {
-              $versioncheck.addClass('red').text(mist.data.update.error);
+            else if (info.error) {
+              $versioncheck.addClass('red').text(info.error);
               return;
             }
-            else if (mist.data.update.uptodate) {
+            else if (info.uptodate) {
               $versioncheck.text('Your version is up to date.').addClass('green');
               return;
             }
@@ -1816,10 +1974,11 @@ var UI = {
             }
           }
           
-          if ((!mist.data.update) || (!mist.data.update.lastchecked) || ((new Date()).getTime()-mist.data.update.lastchecked > 3600e3)) {
-            if (!('update' in mist.data)) { mist.data.update = {}; }
-            mist.data.update.lastchecked = (new Date()).getTime();
+          if ((!mist.stored.get().update) || ((new Date()).getTime()-mist.stored.get().update.lastchecked > 24*3600e3)) {
+            var update = mist.stored.get().update || {};
+            update.lastchecked = (new Date()).getTime();
             mist.send(function(d){
+              mist.stored.set('update',$.extend(true,update,d.update));
               update_update();
             },{checkupdate: true});
           }
@@ -1848,7 +2007,7 @@ var UI = {
           else {
             var active = '?';
           }
-          $streamsonline.text(active+' active, '+Object.keys(mist.data.streams).length+' configured');
+          $streamsonline.text(active+' active, '+(mist.data.streams ? Object.keys(mist.data.streams).length : 0)+' configured');
           if (('totals' in mist.data) && ('all_streams' in mist.data.totals)) {
             var clients = mist.data.totals.all_streams.all_protocols.clients;
             clients = (clients.length ? UI.format.number(clients[clients.length-1][1]) : 0);
@@ -1861,7 +2020,7 @@ var UI = {
         }
         updateViewers();
         enterStats();
-        UI.interval = setInterval(updateViewers,30e3);
+        UI.interval.set(updateViewers,30e3);
         
         break;
       case 'Protocols':
@@ -1953,7 +2112,7 @@ var UI = {
           }
         }
         updateProtocols();
-        UI.interval = setInterval(function(){
+        UI.interval.set(function(){
           mist.send(function(){
             updateProtocols();
           });
@@ -1993,6 +2152,9 @@ var UI = {
                   mist.data.config.protocols[other] = saveas;
                 }
                 else {
+                  if (!mist.data.config.protocols) {
+                    mist.data.config.protocols = [];
+                  }
                   mist.data.config.protocols.push(saveas);
                 }
                 mist.send(function(d){
@@ -2177,7 +2339,7 @@ var UI = {
               $('<tr>').data('index',streamname).html(
                 $('<td>').html(streamnamelabel).attr('title',streamname).addClass('overflow_ellipsis')
               ).append(
-                $('<td>').text(stream.source).addClass('description')
+                $('<td>').text(stream.source).attr('title',stream.source).addClass('description').addClass('overflow_ellipsis').css('max-width','20em')
               ).append(
                 $('<td>').data('sort-value',stream.online).html(UI.format.status(stream))
               ).append(
@@ -2231,13 +2393,16 @@ var UI = {
           for (var s in mist.data.streams) {
             if (mist.inputMatch(mist.data.capabilities.inputs.Folder.source_match,mist.data.streams[s].source)) {
               //this is a folder stream
-              mist.send(function(){
+              allstreams[s].source += '*';
+              mist.send(function(d,opts){
+                var s = opts.stream;
                 for (var i in mist.data.browse.files) {
                   for (var j in mist.data.capabilities.inputs) {
                     if ((j == 'Buffer') || (j == 'Folder')) { continue; }
                     if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+mist.data.browse.files[i])) {
                       var streamname = s+'+'+mist.data.browse.files[i];
                       allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
+                      allstreams[streamname].source = mist.data.streams[s].source+mist.data.browse.files[i];
                     }
                   }
                 }
@@ -2247,11 +2412,11 @@ var UI = {
                     updateStreams();
                   },{active_streams: true});
                   
-                  UI.interval = setInterval(function(){
+                  UI.interval.set(function(){
                     updateStreams();
                   },30e3);
                 }
-              },{browse:mist.data.streams[s].source});
+              },{browse:mist.data.streams[s].source},{stream: s});
               browserequests++;
             }
           }
@@ -2260,7 +2425,7 @@ var UI = {
               updateStreams();
             },{active_streams: true});
             
-            UI.interval = setInterval(function(){
+            UI.interval.set(function(){
               updateStreams();
             },30e3);
           }
@@ -2270,7 +2435,7 @@ var UI = {
             updateStreams();
           },{active_streams: true});
           
-          UI.interval = setInterval(function(){
+          UI.interval.set(function(){
             updateStreams();
           },30e3);
         }
@@ -2407,6 +2572,10 @@ var UI = {
                 type: 'save',
                 label: 'Save',
                 'function': function(){
+                  if (!mist.data.streams) {
+                    mist.data.streams = {};
+                  }
+                  
                   mist.data.streams[saveas.name] = saveas;
                   if (other != saveas.name) {
                     delete mist.data.streams[other];
@@ -2580,6 +2749,20 @@ var UI = {
           return retobj;
         }
         var embedbase = 'http://'+parseURL(mist.user.host).host+http_port+'/';
+        var embedoptions = {};
+        function embedhtml(opts) {
+          var open = ['div'];
+          var inner = "\n"+'   <script src="'+embedbase+'embed_'+other+'.js"><'+'/script>'+"\n"; //don't leave the closing script tag complete
+          if (opts.autoplay) {
+            open.push('data-autoplay');
+          }
+          if ((opts.forceprotocol) && (opts.forceprotocol != '')) {
+            open.push('data-forcetype="'+opts.forceprotocol+'"');
+          }
+          return '<'+open.join(' ')+'>'+inner+'</div>';
+        }
+        
+        var $protocolurls = $('<span>');
         $embedlinks.append(
           $('<h3>').text('Embed urls')
         ).append(UI.buildUI([
@@ -2587,20 +2770,48 @@ var UI = {
             label: 'Embed url',
             type: 'str',
             value: embedbase+'embed_'+other+'.js',
-            readonly: true
-          },{
-            label: 'Embed code',
-            type: 'textarea',
-            value: '<div>'+"\n"+'   <"+"script src="'+embedbase+'embed_'+other+'.js"><"+"/script>'+"\n"+'</div>',
-            rows: 4,
-            readonly: true
+            readonly: true,
+            qrcode: true
           },{
             label: 'Info url',
             type: 'str',
             value: embedbase+'info_'+other+'.js',
+            qrcode: true,
             readonly: true
-          }
+          },$('<h3>').text('Embed code'),{
+            label: 'Embed code',
+            type: 'textarea',
+            value: embedhtml(embedoptions),
+            rows: 4,
+            readonly: true,
+            classes: ['embed_code']
+          },$('<h4>').text('Embed code options').css('margin-top',0),{
+            label: 'Autoplay',
+            type: 'checkbox',
+            pointer: {
+              main: embedoptions,
+              index: 'autoplay'
+            },
+            'function': function(){
+              embedoptions.autoplay = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            }
+          },{
+            label: 'Force protocol',
+            type: 'select',
+            select: [['','Automatic']],
+            pointer: {
+              main: embedoptions,
+              index: 'protocol'
+            },
+            classes: ['embed_code_forceprotocol'],
+            'function': function(){
+              embedoptions.forceprotocol = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            }
+          },$('<h3>').text('Protocol stream urls'),$protocolurls
         ]));
+        
         
         var $trackinfo = $('<span>').append(
           $('<h3>').text('Meta information')
@@ -2714,7 +2925,7 @@ var UI = {
         var $protocols = $('<div>').css('float','left');
         $preview.append($video).append($protocols);
         
-        if (UI.stored.vars.autoplay) {
+        if (mist.stored.get().autoplay) {
           $video.attr('data-autoplay','');
         }
         
@@ -2726,26 +2937,37 @@ var UI = {
           var script = document.createElement('script');
           script.src = embedbase+'embed_'+other+'.js';
           script.onerror = function(){
-            $video.text('Error loading "'+script.src+'".');
+            $video.html('Error loading "'+script.src+'".<br>').append(
+              $('<button>').text('Try again').click(function(){
+                loadVideo();
+              })
+            );
+            $protocols.text('');
           };
           script.onload = function(){
             if (typeof mistvideo[other].error != 'undefined') {
-              $video.text(mistvideo[other].error);
+              $video.html(mistvideo[other].error+'"<br>').append(
+                $('<button>').text('Try again').click(function(){
+                  loadVideo();
+                })
+              );
+              $protocols.text('');
               return;
             }
             
             var vid = mistvideo[other];
             var $url = UI.buildUI([{
-              label: 'Stream embed url',
+              label: 'Protocol stream url',
               type: 'str',
               readonly: true,
-              value: (vid.embedded ? vid.embedded.url : '')
+              value: (vid.embedded ? vid.embedded.url : ''),
+              qrcode: true
             },{
               label: 'Autoplay (from now on)',
               type: 'checkbox',
-              value: UI.stored.vars.autoplay,
+              value: mist.stored.get().autoplay,
               'function': function(){
-                UI.stored.saveOpt('autoplay',$(this).getval());
+                mist.stored.set('autoplay',($(this).getval() ? 1 : 0));
               }
             }]);
             $url.find('.help_container').remove();
@@ -2771,48 +2993,72 @@ var UI = {
             $protocols.html($table);
             var $tbody = $('<tbody>');
             $table.append($tbody);
+            var $protoselect = $('.embed_code_forceprotocol');
+            var buildurls = [];
+            $protoselect.find('.clear').remove();
             for (var i in vid.source) {
               var source = vid.source[i];
               var type = source.type.split('/');
               var humantype = type[0];
+              if (humantype.length < 6) {
+                humantype = humantype.toUpperCase();
+              }
               switch (type.length) {
                 case 1:
                   break;
                 case 2:
-                  humantype += ' v'+type[1];
+                  humantype = UI.format.capital(type[0])+' v'+type[1];
                   if (type[0] == 'flash') {
                     switch (type[1]) {
                       case '7':
-                        humantype = 'Progressive ('+humantype.charAt(0).toUpperCase()+humantype.slice(1)+')';
+                        humantype = 'Progressive ('+humantype+')';
                         break;
                       case '10':
-                        humantype = 'RTMP ('+humantype.charAt(0).toUpperCase()+humantype.slice(1)+')';
+                        humantype = 'RTMP ('+humantype+')';
                         break;
                       case '11':
-                        humantype = 'HDS ('+humantype.charAt(0).toUpperCase()+humantype.slice(1)+')';
+                        humantype = 'HDS ('+humantype+')';
                         break;
                     }
                   }
                   break;
                 case 3:
                   switch (type[2]) {
-                    case 'mp4':
-                      humantype += ' MP4';
-                      break;
                     case 'vnd.apple.mpegurl':
                       humantype += ' HLS';
                       break;
                     case 'vnd.ms-ss':
                       humantype += ' Smooth';
                       break;
+                    case 'mp2t':
+                      humantype += ' TS';
+                      break;
                     default:
-                      humantype = source.type;
+                      if (type[2].length < 6) {
+                        type[2] = type[2].toUpperCase();
+                      }
+                      humantype += ' '+type[2];
+                      if (type[1] != 'video') {
+                        humantype += ' ('+type[1]+')';
+                      }
                   }
                   break;
                 default:
                   humantype = source.type;
               }
               humantype = UI.format.capital(humantype);
+              
+              $protoselect.append(
+                $('<option>').text(humantype).val(source.type).addClass('clear')
+              );
+              buildurls.push({
+                label: humantype,
+                type: 'str',
+                value: source.url,
+                readonly: true,
+                qrcode: true
+              });
+              
               var $tr = $('<tr>');
               $tbody.append($tr);
               $tr.html(
@@ -2836,6 +3082,9 @@ var UI = {
                 $tr.find('input[type=radio]').prop('checked',true);
               }
             }
+            $protocolurls.html(
+              UI.buildUI(buildurls)
+            );
           };
           $video.html('')[0].appendChild(script);
         }
@@ -2908,10 +3157,7 @@ var UI = {
             ['server','The entire server'],
             ['stream','The stream:',thestreams]
           ];
-          if ((UI.returnTab[0] == 'Edit Stream') && (UI.returnTab[1])) {
-            var value = ['stream',UI.returnTab[1]];
-          }
-          build.push({
+          var appliesto = {
             label: 'Applies to',
             type: 'radioselect',
             radioselect: select,
@@ -2920,9 +3166,13 @@ var UI = {
               index: 'applies_to'
             },
             LTSonly: true,
-            validate: ['required'],
-            value: value
-          });
+            validate: ['required']
+          };
+          if ((UI.returnTab[0] == 'Edit Stream') && (UI.returnTab[1])) {
+            appliesto.value = ['stream',UI.returnTab[1]];
+            appliesto.readonly = true;
+          }
+          build.push(appliesto);
         }
         else {
           var pointer = other.split('^');
@@ -3049,7 +3299,7 @@ var UI = {
                   delete saveas.applies_to;
                   switch (pointer[0]) {
                     case 'server':
-                      if (typeof mist.data.config.limits == 'undefined') {
+                      if (!mist.data.config.limits) {
                         mist.data.config.limits = [];
                       }
                       mist.data.config.limits.push(saveas);
@@ -3103,7 +3353,7 @@ var UI = {
           value: 30,
           'function': function(){
             clearInterval(UI.interval);
-            UI.interval = setInterval(function(){
+            UI.interval.set(function(){
               mist.send(function(){
                 buildLogsTable();
               });
@@ -3166,7 +3416,7 @@ var UI = {
         $main.append($UI);
         
         var saveas = {};
-        var graphs = {};
+        var graphs = (mist.stored.get().graphs ? $.extend(true,{},mist.stored.get().graphs) : {});
         
         var thestreams = {};
         //let's not bother with folder streams, if they aren't active anyway
@@ -3205,18 +3455,38 @@ var UI = {
             'function': function(){
               if (! $(this).val()) { return; }
               var $s = $UI.find('.graph_xaxis');
+              var $id = $UI.find('.graph_id');
               if ($(this).val() == 'new') {
                 $s.children('option').prop('disabled',false);
+                $id.setval('Graph '+(Object.keys(graphs).length +1)).closest('label').show();
               }
               else {
                 var xaxistype = graphs[$(this).val()].xaxis;
                 $s.children('option').prop('disabled',true).filter('[value="'+xaxistype+'"]').prop('disabled',false);
+                $id.closest('label').hide();
               }
               if ($s.children('option[value="'+$s.val()+'"]:disabled').length) {
                 $s.val($s.children('option:enabled').first().val());
-                $s.trigger('change');
               }
+              $s.trigger('change');
             }
+          },{
+            label: 'Graph id',
+            type: 'str',
+            pointer: {
+              main: saveas,
+              index: 'id'
+            },
+            classes: ['graph_id'],
+            validate: [function(val,me){
+              if (val in graphs) {
+                return { 
+                  msg:'This graph id has already been used. Please enter something else.',
+                  classes: ['red']
+                }
+              }
+              return false;
+            }]
           },{
             label: 'Axis type',
             type: 'select',
@@ -3239,7 +3509,7 @@ var UI = {
                   $s.children('option').prop('disabled',false).filter('[value="coords"]').prop('disabled',true);
                   break;
               }
-              if ($s.children('option[value="'+$s.val()+'"]:disabled').length) {
+              if ((!$s.val()) || ($s.children('option[value="'+$s.val()+'"]:disabled').length)) {
                 $s.val($s.children('option:enabled').first().val());
                 $s.trigger('change');
               }
@@ -3294,24 +3564,10 @@ var UI = {
               type: 'save',
               'function': function(){
                 //the graph options
+                var graph;
                 if (saveas.graph == 'new') {
-                  var graph = {
-                    id: 'Graph '+(Object.keys(graphs).length+1),
-                    xaxis: saveas.xaxis,
-                    datasets: [],
-                    elements: {
-                      cont: $('<div>').addClass('graph'),
-                      plot: $('<div>').addClass('plot'),
-                      legend: $('<div>').addClass('legend')
-                    }
-                  }
+                  graph = UI.plot.addGraph(saveas,$graph_c);
                   graphs[graph.id] = graph;
-                  graph.elements.cont.append(
-                    graph.elements.plot
-                  ).append(
-                    graph.elements.legend
-                  );
-                  $graph_c.append(graph.elements.cont);
                   $UI.find('select.graph_ids').append(
                     $('<option>').text(graph.id)
                   ).val(graph.id).trigger('change');
@@ -3325,20 +3581,42 @@ var UI = {
                   origin: saveas.origin
                 });
                 graph.datasets.push(opts);
+                UI.plot.save(graph);
                 UI.plot.go(graphs);
               }
             }]
           }]));
-          $UI.find('.graph_xaxis').trigger('change');
           
           var $graph_c = $('<div>').addClass('graph_container');
           $main.append($graph_c);
           
-        },{active_streams: true, capabilities: true});
-        
-        UI.interval = setInterval(function(){
+          var $graph_ids = $UI.find('select.graph_ids');
+          for (var i in graphs) {
+            var graph = UI.plot.addGraph(graphs[i],$graph_c);
+            $graph_ids.append(
+              $('<option>').text(graph.id)
+            ).val(graph.id);
+            
+            //the dataset options
+            var datasets = [];
+            for (var j in graphs[i].datasets) {
+              var opts = UI.plot.datatype.getOptions({
+                datatype: graphs[i].datasets[j].datatype,
+                origin: graphs[i].datasets[j].origin
+              });
+              datasets.push(opts);
+            }
+            graph.datasets = datasets;
+            graphs[graph.id] = graph;
+          }
+          $graph_ids.trigger('change');
           UI.plot.go(graphs);
-        },10e3);
+          
+          UI.interval.set(function(){
+            UI.plot.go(graphs);
+          },10e3);
+          
+        },{active_streams: true, capabilities: true});
         
         break;
       case 'Server Stats':
@@ -3411,19 +3689,11 @@ var UI = {
             vheader: 'Load average',
             labels: ['1 minute','5 minutes','15 minutes',''],
             content: [{
-              header: 'Absolute',
+              header: '&nbsp;',
               body: [
                 UI.format.number(load.one/100),
                 UI.format.number(load.five/100),
                 UI.format.number(load.fifteen/100),
-                ''
-              ]
-            },{
-              header: 'Per core',
-              body: [
-                UI.format.addUnit(load.one/cores,'%'),
-                UI.format.addUnit(load.five/cores,'%'),
-                UI.format.addUnit(load.fifteen/cores,'%'),
                 ''
               ]
             }]
@@ -3453,7 +3723,7 @@ var UI = {
           )
         );
         
-        UI.interval = setInterval(function(){
+        UI.interval.set(function(){
           mist.send(function(){
             buildstattables();
           },{capabilities: true});
@@ -3509,6 +3779,7 @@ var UI = {
             }
           },{
             type: 'textarea',
+            rows: 20,
             label: 'Your message',
             validate: ['required'],
             pointer: {
@@ -3517,6 +3788,7 @@ var UI = {
             }
           },{
             type: 'textarea',
+            rows: 20,
             label: 'Your config file',
             readonly: true,
             value: config,
@@ -3565,7 +3837,7 @@ var mist = {
   user: {
     name: '',
     password: '',
-    host: 'http://localhost:4242/api'
+    host: 'http://'+(location.hostname ? location.hostname : 'localhost')+':4242/api'
   },
   send: function(callback,sendData,opts){
     sendData = sendData || {};
@@ -3591,34 +3863,36 @@ var mist = {
       timeout: opts.timeout*1000,
       async: true,
       error: function(jqXHR,textStatus,errorThrown){
-          //connection failed
-          
-          if (!opts.hide) {
-            switch (textStatus) {
-              case 'timeout':
-                textStatus = $('<i>').text('The connection timed out. ');
-                break;
-              case 'abort':
-                textStatus = $('<i>').text('The connection was aborted. ');
-                break;
-              default:
-                textStatus = $('<i>').text(textStatus+'. ').css('text-transform','capitalize');
-            }
-            $('#message').addClass('red').text('An error occurred while attempting to communicate with MistServer:').append(
-              $('<br>')
-            ).append(
-              textStatus
-            ).append(
-              $('<a>').text('Send server request again').click(function(){
-                mist.send(callback,sendData,opts);
-              })
-            );
+        //connection failed
+        delete mist.user.loggedin;
+        
+        if (!opts.hide) {
+          switch (textStatus) {
+            case 'timeout':
+              textStatus = $('<i>').text('The connection timed out. ');
+              break;
+            case 'abort':
+              textStatus = $('<i>').text('The connection was aborted. ');
+              break;
+            default:
+              textStatus = $('<i>').text(textStatus+'. ').css('text-transform','capitalize');
           }
-          
-          UI.navto('Login');
+          $('#message').addClass('red').text('An error occurred while attempting to communicate with MistServer:').append(
+            $('<br>')
+          ).append(
+            textStatus
+          ).append(
+            $('<a>').text('Send server request again').click(function(){
+              mist.send(callback,sendData,opts);
+            })
+          );
+        }
+        
+        UI.navto('Login');
       },
       success: function(d){
-        log('Received',$.extend(true,{},d));
+        log('Receive',$.extend(true,{},d));
+        delete mist.user.loggedin;
         switch (d.authorize.status) {
           case 'OK':
             //communication succesfull
@@ -3747,7 +4021,7 @@ var mist = {
               }
             }
             
-            if (callback) { callback(d); }
+            if (callback) { callback(d,opts); }
             break;
           case 'CHALL':
             if (d.authorize.challenge == mist.user.authstring) {
@@ -3862,6 +4136,24 @@ var mist = {
       }
     }
     return build;
+  },
+  stored: {
+    get: function(){
+      return mist.data.ui_settings || {};
+    },
+    set: function(name,val){
+      var settings = this.get();
+      settings[name] = val;
+      mist.send(function(){
+        
+      },{ui_settings: settings});
+    },
+    del: function(name){
+      delete mist.data.ui_settings[name];
+      mist.send(function(){
+        
+      },{ui_settings: mist.data.ui_settings});
+    }
   }
 };
 

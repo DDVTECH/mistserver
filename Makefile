@@ -179,7 +179,7 @@ MistOutJSON: src/output/mist_out.cpp src/output/output.cpp src/output/output_htt
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 lspSOURCES=lsp/plugins/md5.js lsp/plugins/cattablesort.js lsp/mist.js
-lspSOURCESmin=lsp/plugins/jquery.js lsp/plugins/jquery.flot.min.js lsp/plugins/jquery.flot.time.min.js
+lspSOURCESmin=lsp/plugins/jquery.js lsp/plugins/jquery.flot.min.js lsp/plugins/jquery.flot.time.min.js lsp/plugins/jquery.qrcode.min.js
 lspDATA=lsp/header.html lsp/main.css lsp/footer.html
 
 JAVA := $(shell which java 2> /dev/null)

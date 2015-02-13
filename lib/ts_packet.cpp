@@ -390,9 +390,9 @@ namespace TS {
     strBuf.append("\000\000\001\340\000\000\204", 7);
     strBuf += (char)(offset ? 0xC0 : 0x80); //PTS/DTS + Flags
     strBuf += (char)(offset ? 0x0A : 0x05); //PESHeaderDataLength
-    encodePESTimestamp(strBuf, (offset ? 0x30 : 0x20), PTS);
+    encodePESTimestamp(strBuf, (offset ? 0x30 : 0x20), PTS + offset);
     if (offset){
-      encodePESTimestamp(strBuf, 0x10, PTS + offset);
+      encodePESTimestamp(strBuf, 0x10, PTS);
     }
   }
 
@@ -406,9 +406,9 @@ namespace TS {
     tmpStr.append("\000\000\001\340\000\000\204", 7);
     tmpStr += (char)(offset ? 0xC0 : 0x80); //PTS/DTS + Flags
     tmpStr += (char)(offset ? 0x0A : 0x05); //PESHeaderDataLength
-    encodePESTimestamp(tmpStr, (offset ? 0x30 : 0x20), PTS);
+    encodePESTimestamp(tmpStr, (offset ? 0x30 : 0x20), PTS + offset);
     if (offset){
-      encodePESTimestamp(tmpStr, 0x10, PTS + offset);
+      encodePESTimestamp(tmpStr, 0x10, PTS);
     }
     toSend.insert(0, tmpStr);
   }

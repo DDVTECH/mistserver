@@ -878,11 +878,15 @@ namespace DTSC {
 
   ///\brief Returns the byteposition of a keyframe
   unsigned long long Key::getBpos() {
-    return btohll(data);
+    return (((unsigned long long)data[0] << 32) | (data[1] << 24) | (data[2] << 16) | (data[3] << 8) | data[4]);
   }
 
   void Key::setBpos(unsigned long long newBpos) {
-    htobll(data, newBpos);
+    data[4] = newBpos & 0xFF;
+    data[3] = (newBpos >> 8) & 0xFF;
+    data[2] = (newBpos >> 16) & 0xFF;
+    data[1] = (newBpos >> 24) & 0xFF;
+    data[0] = (newBpos >> 32) & 0xFF;
   }
 
   unsigned long Key::getLength() {

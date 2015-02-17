@@ -2664,7 +2664,8 @@ var UI = {
             for (var s in mist.data.streams) {
               if (mist.inputMatch(mist.data.capabilities.inputs.Folder.source_match,mist.data.streams[s].source)) {
                 //this is a folder stream
-                mist.send(function(){
+                mist.send(function(d,opts){
+                  var s = opts.stream;
                   for (var i in mist.data.browse.files) {
                     for (var j in mist.data.capabilities.inputs) {
                       if ((j == 'Buffer') || (j == 'Folder')) { continue; }
@@ -2688,7 +2689,7 @@ var UI = {
                       selectastream(select);
                     },{active_streams: true});
                   }
-                },{browse:mist.data.streams[s].source});
+                },{browse:mist.data.streams[s].source},{stream: s});
                 browserequests++;
               }
             }
@@ -2921,7 +2922,7 @@ var UI = {
         var $preview = $('<span>').hide();
         tabs['Preview'] = $preview;
         $main.append($preview);
-        var $video = $('<div>').css('float','left').attr('data-forcesupportcheck','');
+        var $video = $('<div>').css('float','left').css('margin-right','1em').attr('data-forcesupportcheck','');
         var $protocols = $('<div>').css('float','left');
         $preview.append($video).append($protocols);
         
@@ -2931,7 +2932,6 @@ var UI = {
         
         function loadVideo() {
           $video.text('Loading..');
-          $protocols.text('Loading..');
           
           // jQuery doesn't work -> use DOM magic
           var script = document.createElement('script');
@@ -2942,7 +2942,6 @@ var UI = {
                 loadVideo();
               })
             );
-            $protocols.text('');
           };
           script.onload = function(){
             if (typeof mistvideo[other].error != 'undefined') {
@@ -2951,7 +2950,6 @@ var UI = {
                   loadVideo();
                 })
               );
-              $protocols.text('');
               return;
             }
             
@@ -3063,7 +3061,7 @@ var UI = {
               $tbody.append($tr);
               $tr.html(
                 $('<td>').html(
-                  $('<input>').attr('type','radio').change(function(){
+                  $('<input>').attr('type','radio').attr('name','protocolforce').change(function(){
                     $video.attr('data-forcetype',$(this).val()).html('Loading embed..');
                     loadVideo();
                   }).val(source.type)

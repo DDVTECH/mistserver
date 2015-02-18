@@ -639,261 +639,309 @@ namespace MP4 {
     memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
   }
 
-  //fullbox, start at 4
+  Descriptor::Descriptor(){
+    data = (char*)malloc(2);
+    data[0] = 0;
+    data[1] = 0;
+    size = 2;
+    master = true;
+  }
+  
+  Descriptor::Descriptor(const char* p, const long unsigned s, const bool m){
+    master = m;
+    if (m){
+      Descriptor();
+      Descriptor tmp = Descriptor(p, s, false);
+      resize(tmp.getDataSize());
+      memcpy(data, p, s);
+    }else{
+      data = (char*)p;
+      size = s;
+    }
+  }
+  
+  char Descriptor::getTag(){
+    return data[0];
+  }
+  
+  void Descriptor::setTag(char t){
+    data[0] = t;
+  }
+  
+  unsigned long Descriptor::getDataSize(){
+    unsigned int i = 1;
+    unsigned long s = 0;
+    for (i = 1; i< size-1; i++){
+      s <<= 7;
+      s |= data[i] & 0x7f; 
+      if ((data[i] & 0x80) != 0x80){
+        break;
+      }
+    }
+    return s;
+  }
+  
+  unsigned long Descriptor::getFullSize(){
+    unsigned long tmp = getDataSize();
+    unsigned long r = tmp+2;
+    if (tmp > 0x7F){
+      ++r;
+    }
+    if (tmp > 0x3FFF){
+      ++r;
+    }
+    if (tmp > 0x1FFFFF){
+      ++r;
+    }
+    return r;
+  }
+
+  void Descriptor::resize(unsigned long t){
+    if (!master){return;}
+    unsigned long realLen = t+2;
+    if (t > 0x7F){
+      ++realLen;
+    }
+    if (t > 0x3FFF){
+      ++realLen;
+    }
+    if (t > 0x1FFFFF){
+      ++realLen;
+    }
+    if (size < realLen){
+      char* tmpData = (char*)realloc(data,realLen);
+      if (tmpData){
+        size = realLen;
+        data = tmpData;
+        unsigned long offset = realLen-t;
+        char continueBit = 0;
+        while (realLen){
+          data[--offset] = (0x7f & realLen) | continueBit;
+          continueBit = 0x80;
+          realLen >>= 7;
+        }
+      }else{
+        return;
+      }
+    }
+  }
+  
+  char* Descriptor::getData(){
+    unsigned int i = 1;
+    for (i = 1; i< size-1; i++){
+      if ((data[i] & 0x80) != 0x80){
+        break;
+      }
+    }
+    return data + i + 1;
+  }
+  
+  std::string Descriptor::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[" << (int)data[0] << "] Unimplemented descriptor (" << getDataSize() << ")" << std::endl;
+    return r.str();
+  }
+  
+  ESDescriptor::ESDescriptor (const char* p, const unsigned long l, const bool m) : Descriptor(p,l,m){
+  }
+
+  DCDescriptor ESDescriptor::getDecoderConfig(){
+    char * p = getData();
+    char * max_p = p + getDataSize();
+    bool dep = (p[2] & 0x80);
+    bool url = (p[2] & 0x40);
+    bool ocr = (p[2] & 0x20);
+    p += 3;
+    if (dep){p += 2;}
+    if (url){p += (1+p[0]);}
+    if (ocr){p += 2;}
+    return DCDescriptor(p, max_p-p);
+  }
+
+  std::string ESDescriptor::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[" << (int)data[0] << "] ES Descriptor (" << getDataSize() << ")" << std::endl;
+    char * p = getData();
+    char * max_p = p + getDataSize();
+    r << std::string(indent+1, ' ') << "ES ID: " << (unsigned int)(((unsigned int)p[0] << 8) | (unsigned int)p[1]) << std::endl;
+    bool dep = (p[2] & 0x80);
+    bool url = (p[2] & 0x40);
+    bool ocr = (p[2] & 0x20);
+    r << std::string(indent+1, ' ') << "Priority: " << int(p[2] & 0x1f) << std::endl;
+    p += 3;
+    if (dep){
+      r << std::string(indent+1, ' ') << "Depends on ES ID: " << (unsigned int)(((unsigned int)p[0] << 8) | (unsigned int)p[1]) << std::endl;
+      p += 2;
+    }
+    if (url){
+      r << std::string(indent+1, ' ') << "URL: " << std::string(p+1, (unsigned int)p[0]) << std::endl;
+      p += (1+p[0]);
+    }
+    if (ocr){
+      r << std::string(indent+1, ' ') << "Timebase derived from ES ID: " << (unsigned int)(((unsigned int)p[0] << 8) | (unsigned int)p[1]) << std::endl;
+      p += 2;
+    }
+    while (p < max_p){
+      switch (p[0]){
+        case 0x4: {
+          DCDescriptor d(p, max_p - p);
+          r << d.toPrettyString(indent+1);
+          p += d.getFullSize();
+        }
+        default: {
+          Descriptor d(p, max_p - p);
+          r << d.toPrettyString(indent+1);
+          p += d.getFullSize();
+        }
+      }
+    }
+    return r.str();
+  }
+
+  DCDescriptor::DCDescriptor (const char* p, const unsigned long l, const bool m) : Descriptor(p,l,m){
+  }
+
+  DSDescriptor DCDescriptor::getSpecific(){
+    char * p = getData();
+    char * max_p = p + getDataSize();
+    p += 13;
+    if (p[0] == 0x05){
+      return DSDescriptor(p, max_p-p);
+    }else{
+      FAIL_MSG("Expected DSDescriptor (5), but found %d!", (int)p[0]);
+      return DSDescriptor(0,0);
+    }
+  }
+
+  bool DCDescriptor::isAAC(){
+    return (getData()[0] == 0x40);
+  }
+
+  std::string DCDescriptor::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[" << (int)data[0] << "] DecoderConfig Descriptor (" << getDataSize() << ")" << std::endl;
+    char * p = getData();
+    char * max_p = p + getDataSize();
+    int objType = p[0];
+    r << std::string(indent+1, ' ') << "Object type: ";
+    switch (objType){
+      case 0x40: r << "AAC (0x40)"; break;
+      case 0x69: r << "MP3 (0x69)"; break;
+      default: r << "Unknown (" << objType << ")"; break;
+    }
+    r << std::endl;
+    int streamType = (p[1] >> 2) & 0x3F;
+    r << std::string(indent+1, ' ') << "Stream type: ";
+    switch (streamType){
+      case 0x4: r << "Video (4)"; break;
+      case 0x5: r << "Audio (5)"; break;
+      default: r << "Unknown (" << streamType << ")"; break;
+    }
+    r << std::endl;
+    if (p[1] & 0x2){
+      r << std::string(indent+1, ' ') << "Upstream" << std::endl;
+    }
+    r << std::string(indent+1, ' ') << "Buffer size: " << (int)(((int)p[2] << 16) | ((int)p[3] << 8) | ((int)p[4])) << std::endl;
+    r << std::string(indent+1, ' ') << "Max bps: " << (unsigned int)(((unsigned int)p[5] << 24) | ((int)p[6] << 16) | ((int)p[7] << 8) | (int)p[8]) << std::endl;
+    r << std::string(indent+1, ' ') << "Avg bps: " << (unsigned int)(((unsigned int)p[9] << 24) | ((int)p[10] << 16) | ((int)p[11] << 8) | (int)p[12]) << std::endl;
+    p += 13;
+    while (p < max_p){
+      switch (p[0]){
+        case 0x5: {
+          DSDescriptor d(p, max_p - p);
+          r << d.toPrettyString(indent+1);
+          p += d.getFullSize();
+        }
+        default: {
+          Descriptor d(p, max_p - p);
+          r << d.toPrettyString(indent+1);
+          p += d.getFullSize();
+        }
+      }
+    }
+    return r.str();
+  }
+
+  DSDescriptor::DSDescriptor (const char* p, const unsigned long l, const bool m) : Descriptor(p,l,m){
+  }
+
+  std::string DSDescriptor::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[" << (int)data[0] << "] Decoder Specific Info (" << getDataSize() << ")" << std::endl;
+    char * p = getData();
+    char * max_p = p + getDataSize();
+    r << std::string(indent+1, ' ') << "Data: ";
+    while (p < max_p) {
+      r << std::hex << std::setw(2) << std::setfill('0') << (int)p[0] << std::dec;
+      ++p;
+    }
+    r << std::endl;
+    return r.str();
+  }
+
+  std::string DSDescriptor::toString(){
+    if (!data){
+      return "";
+    }
+    return std::string(getData(), getDataSize());
+  }
+
   ESDS::ESDS() {
     memcpy(data + 4, "esds", 4);
-    setESDescriptorType(0x03);
-    setExtendedESDescriptorType(0x808080);
-    setStreamPriority(16);
-    setDecoderConfigDescriptorTag(0x04);
-    setExtendedDecoderConfigDescriptorTag(0x808080);
-    setReservedFlag(true);
-    setDecoderDescriptorTypeTag(0x05);
-    setExtendedDecoderDescriptorTypeTag(0x808080);
-    setSLConfigDescriptorTypeTag(0x06);
-    setSLConfigExtendedDescriptorTypeTag(0x808010);
-    setSLValue(0x02);
   }
 
-  ESDS::ESDS(std::string init, uint32_t bps) {
+  ESDS::ESDS(std::string init) {
+    ///\todo Do this better, in a non-hardcoded way.
     memcpy(data + 4, "esds", 4);
-    char temp[] = {0x00, 0x00, 0x00, 0x00, 0x03, 0x80, 0x80, 0x80, 0x00, 0x00, 0x02, 0x10, 0x04, 0x80, 0x80, 0x80, 0x00, 0x40, 0x15, 0x13, 0x12, 0xD0, 0x00, 0x98, 0x96, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05, 0x80, 0x80, 0x80, 0x05};
-    setString(temp, 0x23, 0);
-    setESDescriptorTypeLength(32 + init.size());
-    setDecoderConfigDescriptorTypeLength(18 + init.size());
-    setAverageBitRate(bps * 8);
-    setESHeaderStartCodes(init);
-    char temp2[] = {0x05, 0x80, 0x80, 0x10, 0x01, 0x02};
-    setString(temp2, 0x06, 0x23 + 32 + init.size());
-  }
-
-  char ESDS::getESDescriptorType() {
-    return getInt8(4);
-  }
-
-  void ESDS::setESDescriptorType(char newVal) {
-    setInt8(newVal, 4);
-  }
-
-  uint32_t ESDS::getExtendedESDescriptorType() {
-    return getInt24(5);
-  }
-  //3 bytes
-  void ESDS::setExtendedESDescriptorType(uint32_t newVal) {
-    setInt24(newVal, 5);
-  }
-  //3 bytes
-  char ESDS::getESDescriptorTypeLength() {
-    return getInt8(8);
-  }
-
-  void ESDS::setESDescriptorTypeLength(char newVal) {
-    setInt8(newVal, 8);
-  }
-  //ESID 2 bytes
-  uint16_t ESDS::getESID() {
-    return getInt16(9);
-  }
-
-  void ESDS::setESID(uint16_t newVal) {
-    setInt16(newVal, 9);
-  }
-
-  //stream priority 1 byte
-  char ESDS::getStreamPriority() {
-    return getInt8(11);
-  }
-
-  void ESDS::setStreamPriority(char newVal) {
-    setInt8(newVal, 11);
-  }
-
-  //decoder config descriptor tag 1byte
-  char ESDS::getDecoderConfigDescriptorTag() {
-    return getInt8(12);
-  }
-
-  void ESDS::setDecoderConfigDescriptorTag(char newVal) {
-    setInt8(newVal, 12);
-  }
-
-  //extended decoder config descriptor tag 3 bytes
-  uint32_t ESDS::getExtendedDecoderConfigDescriptorTag() {
-    return getInt24(13);
-  }
-  //3 bytes
-  void ESDS::setExtendedDecoderConfigDescriptorTag(uint32_t newVal) {
-    setInt24(newVal, 13);
-  }
-  //3 bytes
-  //decoder config descriptor type length
-  char ESDS::getDecoderConfigDescriptorTypeLength() {
-    return getInt8(16);
-  }
-
-  void ESDS::setDecoderConfigDescriptorTypeLength(char newVal) {
-    setInt8(newVal, 16);
-  }
-  //Note: count 8 bytes extra in the next four functions
-  char ESDS::getByteObjectTypeID() {
-    return getInt8(17);
-  }
-
-  void ESDS::setByteObjectTypeID(char newVal) {
-    setInt8(newVal, 17);
-  }
-
-  char ESDS::getStreamType() {
-    return getInt8(18) >> 2;
-  }
-  //6 bits
-  void ESDS::setStreamType(char newVal) {
-    setInt8(((newVal << 2) & 0xFC) + (getInt8(18) & 0x03), 18);
-  }
-  //6 bits
-  bool ESDS::getUpstreamFlag() {
-    return (((getInt8(18) >> 1) & 0x01) == 1);
-  }
-
-  void ESDS::setUpstreamFlag(bool newVal) {
-    setInt8((getStreamType() << 2) + ((uint8_t)newVal << 1) + (uint8_t)getReservedFlag() , 18);
-  }
-
-  bool ESDS::getReservedFlag() {
-    return ((getInt8(18) & 0x01) == 1);
-  }
-
-  void ESDS::setReservedFlag(bool newVal) {
-    setInt8((getInt8(18) & 0xFE) + (int)newVal, 18);
-  }
-
-  uint32_t ESDS::getBufferSize() {
-    return getInt24(19);
-  }
-  //3 bytes
-  void ESDS::setBufferSize(uint32_t newVal) {
-    setInt24(newVal, 19);
-  }
-  //3 bytes
-  uint32_t ESDS::getMaximumBitRate() {
-    return getInt32(22);
-  }
-
-  void ESDS::setMaximumBitRate(uint32_t newVal) {
-    setInt32(newVal, 22);
-  }
-
-  uint32_t ESDS::getAverageBitRate() {
-    return getInt32(26);
-  }
-
-  void ESDS::setAverageBitRate(uint32_t newVal) {
-    setInt32(newVal, 26);
-  }
-
-  char ESDS::getDecoderDescriptorTypeTag() {
-    return getInt8(30);
-  }
-
-  void ESDS::setDecoderDescriptorTypeTag(char newVal) {
-    setInt8(newVal, 30);
-  }
-
-  uint32_t ESDS::getExtendedDecoderDescriptorTypeTag() {
-    return getInt24(31);
-  }
-
-  //3 bytes
-  void ESDS::setExtendedDecoderDescriptorTypeTag(uint32_t newVal) {
-    setInt24(newVal, 31);
-  }
-
-  //3 bytes
-  char ESDS::getConfigDescriptorTypeLength() {
-    return getInt8(34);
-  }
-
-  void ESDS::setConfigDescriptorTypeLength(char newVal) {
-    setInt8(newVal, 34);
-  }
-
-  std::string ESDS::getESHeaderStartCodes() {
-    std::string result;
-    for (int i = 0; i < getInt8(34); i++) {
-      result += getInt8(35 + i);
+    reserve(payloadOffset, 0, init.size() ? init.size()+26 : 24);
+    unsigned int i = 12;
+    data[i++] = 3;//ES_DescrTag
+    data[i++] = init.size() ? init.size()+20 : 18;//size
+    data[i++] = 0;//es_id
+    data[i++] = 2;//es_id
+    data[i++] = 0;//priority
+    data[i++] = 4;//DecoderConfigDescrTag
+    data[i++] = init.size() ? init.size()+15 : 13;//size
+    if (init.size()){
+      data[i++] = 0x40;//objType AAC
+    }else{
+      data[i++] = 0x69;//objType MP3
     }
-    return result;
-  }
-
-  void ESDS::setESHeaderStartCodes(std::string newVal) {
-    setConfigDescriptorTypeLength(newVal.size());
-    for (unsigned int i = 0; i < newVal.size(); i++) {
-      setInt8(newVal[i], 35 + i);
+    data[i++] = 0x14;//streamType audio (5<<2)
+    data[i++] = 0;//buffer size
+    data[i++] = 0;//buffer size
+    data[i++] = 0;//buffer size
+    data[i++] = 0;//maxbps
+    data[i++] = 0;//maxbps
+    data[i++] = 0;//maxbps
+    data[i++] = 0;//maxbps
+    data[i++] = 0;//avgbps
+    data[i++] = 0;//avgbps
+    data[i++] = 0;//avgbps
+    data[i++] = 0;//avgbps
+    if (init.size()){
+      data[i++] = 0x5;//DecSpecificInfoTag
+      data[i++] = init.size();
+      memcpy(data+i, init.data(), init.size());
     }
   }
-
-  char ESDS::getSLConfigDescriptorTypeTag() {
-    return getInt8(35 + getInt8(34));
+ 
+  bool ESDS::isAAC(){
+    return getESDescriptor().getDecoderConfig().isAAC();
   }
-
-  void ESDS::setSLConfigDescriptorTypeTag(char newVal) {
-    setInt8(newVal, 35 + getInt8(34));
+  
+  std::string ESDS::getInitData(){
+    return getESDescriptor().getDecoderConfig().getSpecific().toString();
   }
-
-  uint32_t ESDS::getSLConfigExtendedDescriptorTypeTag() {
-    return getInt24(36 + getInt8(34));
-  }
-  //3 bytes
-  void ESDS::setSLConfigExtendedDescriptorTypeTag(uint32_t newVal) {
-    setInt24(newVal, 36 + getInt8(34));
-  }
-  //3 bytes
-  char ESDS::getSLDescriptorTypeLength() {
-    return getInt8(39 + getInt8(34));
-  }
-
-  void ESDS::setSLDescriptorTypeLength(char newVal) {
-    setInt8(newVal, 39 + getInt8(34));
-  }
-
-  char ESDS::getSLValue() {
-    return getInt8(40 + getInt8(34));
-  }
-
-  void ESDS::setSLValue(char newVal) {
-    setInt8(newVal, 40 + getInt8(34));
+  
+  ESDescriptor ESDS::getESDescriptor(){
+    return ESDescriptor(data+12,boxedSize()-12);
   }
 
   std::string ESDS::toPrettyString(uint32_t indent) {
     std::stringstream r;
     r << std::string(indent, ' ') << "[esds] ES Descriptor Box (" << boxedSize() << ")" << std::endl;
-    r << fullBox::toPrettyString(indent);
-    r << std::string(indent + 1, ' ') << "ESDescriptorType: 0x" << std::hex << (int)getESDescriptorType() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "ExtendedESDescriptorType: 0x" << std::hex << (int)getExtendedESDescriptorType() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "ESDescriptorTypeLength:"  << (int)getESDescriptorTypeLength() << std::endl;
-    r << std::string(indent + 1, ' ') << "ESID: 0x" << std::hex << (int)getESID() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "StreamPriority: 0x" << std::hex << (int)getStreamPriority() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "DecoderConfigDescriptorTag: 0x" << std::hex << (int)getDecoderConfigDescriptorTag() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "ExtendedDecoderConfigDescriptorTag: 0x" << std::hex << (int)getExtendedDecoderConfigDescriptorTag() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "DecoderConfigDescriptorTypeLength: " << (int)getDecoderConfigDescriptorTypeLength() << std::endl;
-    r << std::string(indent + 1, ' ') << "ByteObjectTypeID: 0x" << std::hex << (int)getByteObjectTypeID() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "StreamType: 0x" << std::hex << (int)getStreamType() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "UpstreamFlag: 0x" << std::hex << (int)getUpstreamFlag() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "BufferSize: 0x" << std::hex << (int)getBufferSize() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "MaximumBitRate: 0x" << std::hex << (int)getMaximumBitRate() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "AverageBitRate: 0x" << std::hex << (int)getAverageBitRate() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "DecoderDescriptorTypeTag: 0x" << std::hex << (int)getDecoderDescriptorTypeTag() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "ExtendedDecoderDescriptorTypeTag: 0x" << std::hex << (int)getExtendedDecoderDescriptorTypeTag() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "ConfigDescriptorTypeLength: 0x" << std::hex << (int)getConfigDescriptorTypeLength() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "ESHeaderStartCodes: 0x";
-    for (unsigned int i = 0; i < getESHeaderStartCodes().size(); i++) {
-      r << std::hex << std::setw(2) << std::setfill('0') << (int)getESHeaderStartCodes()[i] << std::dec;
-    }
-    r << std::endl;
-    r << std::string(indent + 1, ' ') << "SLConfigDescriptorTypeTag: 0x" << std::hex << (int)getSLConfigDescriptorTypeTag() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "SLConfigExtendedDescriptorTypeTag: 0x" << std::hex << (int)getSLConfigExtendedDescriptorTypeTag() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "SLDescriptorTypeLength: 0x" << std::hex << (int)getSLDescriptorTypeLength() << std::dec << std::endl;
-    r << std::string(indent + 1, ' ') << "SLValue: 0x" << std::hex << (int)getSLValue() << std::dec << std::endl;
+    r << getESDescriptor().toPrettyString(indent+1);
     return r.str();
   }
 

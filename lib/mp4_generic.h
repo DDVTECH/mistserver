@@ -122,62 +122,61 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  ///\todo : ESDS is filthy implemented, clean up when optimising
+  class Descriptor{
+    public:
+      Descriptor();
+      Descriptor(const char* pointer, const unsigned long length, const bool master = false);
+      char getTag();///< Get type of descriptor
+      void setTag(char t);///< Set type of descriptor
+      unsigned long getDataSize();///< Get internal size of descriptor
+      unsigned long getFullSize();///< Get external size of descriptor
+      void resize(unsigned long t);///< Resize descriptor
+      char* getData();///< Returns pointer to start of internal data
+      std::string toPrettyString(uint32_t indent = 0);///< put it into a pretty string
+    protected:
+      unsigned long size;///< Length of data 
+      char* data;///< Pointer to data in memory
+      bool master;
+  };
+
+  /// Implements ISO 14496-1 DecSpecificInfoTag
+  class DSDescriptor: public Descriptor{
+    public:
+      DSDescriptor (const char* pointer, const unsigned long length, const bool master = false);
+      std::string toPrettyString(uint32_t indent = 0);///< put it into a pretty string
+      std::string toString(); ///< Return decoder specific info as standard string in binary format.
+  };
+
+  /// Implements ISO 14496-1 DecoderConfigDescrTag
+  class DCDescriptor: public Descriptor{
+    public:
+      DCDescriptor (const char* pointer, const unsigned long length, const bool master = false);
+      bool isAAC(); ///< Returns true if this track is AAC.
+      DSDescriptor getSpecific();
+      std::string toPrettyString(uint32_t indent = 0);///< put it into a pretty string
+  };
+
+  /// Implements ISO 14496-1 ES_DescrTag
+  class ESDescriptor: public Descriptor{
+    public:
+      ESDescriptor (const char* pointer, const unsigned long length, const bool master = false);
+      DCDescriptor getDecoderConfig();
+      std::string toPrettyString(uint32_t indent = 0);///< put it into a pretty string
+  };
+
+
+
+  /// Implements ISO 14496-1 SLConfigDescrTag
+  class SLCDescriptor: public Descriptor{
+  };
+
   class ESDS: public fullBox {
     public:
       ESDS();
-      ESDS(std::string init, uint32_t bps);
-      char getESDescriptorType();
-      void setESDescriptorType(char newVal);
-      uint32_t getExtendedESDescriptorType();//3 bytes
-      void setExtendedESDescriptorType(uint32_t newVal);//3 bytes
-      char getESDescriptorTypeLength();
-      void setESDescriptorTypeLength(char newVal);
-      //ESID 2 bytes
-      uint16_t getESID();
-      void setESID(uint16_t newVal);
-      //stream priority 1 byte
-      char getStreamPriority();
-      void setStreamPriority(char newVal);
-      //decoder config descriptor tag 1byte
-      char getDecoderConfigDescriptorTag();
-      void setDecoderConfigDescriptorTag(char newVal);
-      //extended decoder config descriptor tag 3 bytes
-      uint32_t getExtendedDecoderConfigDescriptorTag();
-      void setExtendedDecoderConfigDescriptorTag(uint32_t newVal);//3 bytes
-      //decoder config descriptor type length
-      char getDecoderConfigDescriptorTypeLength();
-      void setDecoderConfigDescriptorTypeLength(char newVal);
-      char getByteObjectTypeID();
-      void setByteObjectTypeID(char newVal);
-      char getStreamType();//6 bits
-      void setStreamType(char newVal);//6 bits
-      bool getUpstreamFlag();
-      void setUpstreamFlag(bool newVal);
-      bool getReservedFlag();
-      void setReservedFlag(bool newVal);
-      uint32_t getBufferSize();//3 bytes
-      void setBufferSize(uint32_t newVal);//3 bytes
-      uint32_t getMaximumBitRate();
-      void setMaximumBitRate(uint32_t newVal);
-      uint32_t getAverageBitRate();
-      void setAverageBitRate(uint32_t newVal);
-      char getDecoderDescriptorTypeTag();
-      void setDecoderDescriptorTypeTag(char newVal);
-      uint32_t getExtendedDecoderDescriptorTypeTag();//3 bytes
-      void setExtendedDecoderDescriptorTypeTag(uint32_t newVal);//3 bytes
-      char getConfigDescriptorTypeLength();
-      void setConfigDescriptorTypeLength(char newVal);
-      std::string getESHeaderStartCodes();
-      void setESHeaderStartCodes(std::string newVal);
-      char getSLConfigDescriptorTypeTag();
-      void setSLConfigDescriptorTypeTag(char newVal);
-      uint32_t getSLConfigExtendedDescriptorTypeTag();//3 bytes
-      void setSLConfigExtendedDescriptorTypeTag(uint32_t newVal);//3 bytes
-      char getSLDescriptorTypeLength();
-      void setSLDescriptorTypeLength(char newVal);
-      char getSLValue();
-      void setSLValue(char newVal);
+      ESDS(std::string init);
+      ESDescriptor getESDescriptor();
+      bool isAAC();
+      std::string getInitData();
       std::string toPrettyString(uint32_t indent = 0);
   };
 

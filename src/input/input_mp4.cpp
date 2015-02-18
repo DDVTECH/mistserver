@@ -349,9 +349,10 @@ namespace Mist {
                               if (tmpType == "ac-3"){
                                 myMeta.tracks[trackNo].codec = "AC3";
                               }else{
-                                myMeta.tracks[trackNo].init = ((MP4::ESDS&)(((MP4::AudioSampleEntry&)tmpBox).getCodecBox())).getESHeaderStartCodes();
-                                if (myMeta.tracks[trackNo].init.size()){
+                                MP4::Box esds = ((MP4::AudioSampleEntry&)tmpBox).getCodecBox();
+                                if (((MP4::ESDS&)esds).isAAC()){
                                   myMeta.tracks[trackNo].codec = "AAC";
+                                  myMeta.tracks[trackNo].init = ((MP4::ESDS&)esds).getInitData();
                                 }else{
                                   myMeta.tracks[trackNo].codec = "MP3";
                                 }

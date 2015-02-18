@@ -120,29 +120,7 @@ namespace Mist {
       ase.setSampleRate(myMeta.tracks[tid].rate);
       ase.setChannelCount(myMeta.tracks[tid].channels);
       ase.setSampleSize(myMeta.tracks[tid].size);
-      
-      MP4::ESDS esdsBox;
-      //esDescriptorType
-      //extendedESDescriptorType
-      esdsBox.setESDescriptorTypeLength(32+myMeta.tracks[tid].init.size());
-      esdsBox.setESID(2);
-      esdsBox.setStreamPriority(0);
-      esdsBox.setDecoderConfigDescriptorTypeLength(18 + myMeta.tracks[tid].init.size());
-      esdsBox.setByteObjectTypeID(0x40);
-      esdsBox.setStreamType(5);
-      //upstreamFlag
-      esdsBox.setReservedFlag(1);
-      esdsBox.setBufferSize(1250000);
-      esdsBox.setMaximumBitRate(10000000);
-      esdsBox.setAverageBitRate(myMeta.tracks[tid].bps * 8);
-      //decoderDescriptorTypeTag
-      //extendedDescriptorTypeTag
-      esdsBox.setConfigDescriptorTypeLength(myMeta.tracks[tid].init.size());
-      esdsBox.setESHeaderStartCodes(myMeta.tracks[tid].init);
-      esdsBox.setSLConfigDescriptorTypeTag(0x6);
-      esdsBox.setSLConfigExtendedDescriptorTypeTag(0x808080);
-      esdsBox.setSLDescriptorTypeLength(1);
-      esdsBox.setSLValue(2);
+      MP4::ESDS esdsBox(myMeta.tracks[tid].init);
       ase.setCodecBox(esdsBox);
       stsdBox.setEntry(ase,0);
     }

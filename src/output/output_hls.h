@@ -28,6 +28,7 @@ namespace Mist {
       MP4::AVCC avccbox;
       MP4::HVCC hvccbox;
       bool AppleCompat;
+      bool VLCworkaround;
       long long unsigned int lastVid;
       long long unsigned int until;
       unsigned int vidTrack;

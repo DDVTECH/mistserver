@@ -299,6 +299,14 @@ namespace Mist {
     }
     
     AppleCompat = (H.GetHeader("User-Agent").find("Apple") != std::string::npos);
+    VLCworkaround = false;
+    if (H.GetHeader("User-Agent").substr(0, 3) == "VLC"){
+      std::string vlcver = H.GetHeader("User-Agent").substr(4);
+      if (vlcver[0] == '0' || vlcver[0] == '1' || (vlcver[0] == '2' && vlcver[2] < '2')){
+        DEBUG_MSG(DLVL_INFO, "Enabling VLC version < 2.2.0 bug workaround.");
+        VLCworkaround = true;
+      }
+    }
     initialize();
     if (H.url.find(".m3u") == std::string::npos){
       std::string tmpStr = H.getUrl().substr(5+streamName.size());
@@ -351,7 +359,7 @@ namespace Mist {
       lastVid = from * 90;
       
       H.SetHeader("Content-Type", "video/mp2t");
-      H.StartResponse(H, myConn);
+      H.StartResponse(H, myConn, VLCworkaround);
       PacketNumber = 0;
       parseData = true;
       wantRequest = false;

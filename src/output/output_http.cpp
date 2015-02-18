@@ -214,7 +214,9 @@ namespace Mist {
       }
       selectDefaultTracks();
       onHTTP();
-      H.Clean();
+      if (!H.bufferChunks){
+        H.Clean();
+      }
     }
   }
   

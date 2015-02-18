@@ -130,7 +130,6 @@ namespace Mist {
                   ase.setSampleRate(thisTrack.rate);
                   ase.setChannelCount(thisTrack.channels);
                   ase.setSampleSize(thisTrack.size);
-                  //MP4::ESDS esdsBox(thisTrack.init, thisTrack.bps);
                   if (myMeta.tracks[*it].codec == "AC3"){
                     MP4::DAC3 dac3Box;
                     switch (myMeta.tracks[*it].rate){
@@ -159,41 +158,8 @@ namespace Mist {
                     dac3Box.setFrameSizeCode(20);//should be OK, but test this.
                     ase.setCodecBox(dac3Box);
                   }else{//other codecs use the ESDS box
-                    MP4::ESDS esdsBox;
-                    
-                    //outputting these values first, so malloc isn't called as often.
-                    if (thisTrack.codec == "MP3"){
-                      esdsBox.setESHeaderStartCodes("\002");
-                      esdsBox.setConfigDescriptorTypeLength(1);
-                      esdsBox.setSLConfigExtendedDescriptorTypeTag(0);
-                      esdsBox.setSLDescriptorTypeLength(0);
-                      esdsBox.setESDescriptorTypeLength(27);
-                      esdsBox.setSLConfigDescriptorTypeTag(0);
-                      esdsBox.setDecoderDescriptorTypeTag(0x06);
-                      esdsBox.setSLValue(0);
-                      //esdsBox.setBufferSize(0);
-                      esdsBox.setDecoderConfigDescriptorTypeLength(13);
-                      esdsBox.setByteObjectTypeID(0x6b);
-                    }else{
-                      //AAC
-                      esdsBox.setESHeaderStartCodes(thisTrack.init);
-                      esdsBox.setConfigDescriptorTypeLength(thisTrack.init.size());
-                      esdsBox.setSLConfigExtendedDescriptorTypeTag(0x808080);
-                      esdsBox.setSLDescriptorTypeLength(1);
-                      esdsBox.setESDescriptorTypeLength(32+thisTrack.init.size());
-                      esdsBox.setSLConfigDescriptorTypeTag(0x6);
-                      esdsBox.setSLValue(2);
-                      esdsBox.setDecoderConfigDescriptorTypeLength(18 + thisTrack.init.size());
-                      esdsBox.setByteObjectTypeID(0x40);
-                    }
-                    esdsBox.setESID(2);
-                    esdsBox.setStreamPriority(0);
-                    esdsBox.setStreamType(5);
-                    esdsBox.setReservedFlag(1);
-                    esdsBox.setMaximumBitRate(10000000);
-                    esdsBox.setAverageBitRate(thisTrack.bps * 8);
-                    esdsBox.setBufferSize(1250000);
-                    ase.setCodecBox(esdsBox);
+                  MP4::ESDS esdsBox(thisTrack.init);
+                  ase.setCodecBox(esdsBox);
                   }
                   stsdBox.setEntry(ase,0);
                 }

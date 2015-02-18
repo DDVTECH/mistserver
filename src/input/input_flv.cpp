@@ -103,7 +103,7 @@ namespace Mist {
       }
     }
     if (FLV::Parse_Error){
-      std::cerr << FLV::Error_Str << std::endl;
+      FAIL_MSG("FLV error: %s", FLV::Error_Str.c_str());
       thisPack.null();
       lastPack.null();
       return;

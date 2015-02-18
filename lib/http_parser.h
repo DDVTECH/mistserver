@@ -29,8 +29,8 @@ namespace HTTP {
       std::string & BuildResponse(std::string code, std::string message);
       void SendRequest(Socket::Connection & conn);
       void SendResponse(std::string code, std::string message, Socket::Connection & conn);
-      void StartResponse(std::string code, std::string message, Parser & request, Socket::Connection & conn);
-      void StartResponse(Parser & request, Socket::Connection & conn);
+      void StartResponse(std::string code, std::string message, Parser & request, Socket::Connection & conn, bool bufferAllChunks = false);
+      void StartResponse(Parser & request, Socket::Connection & conn, bool bufferAllChunks = false);
       void Chunkify(const std::string & bodypart, Socket::Connection & conn);
       void Chunkify(const char * data, unsigned int size, Socket::Connection & conn);
       void Proxy(Socket::Connection & from, Socket::Connection & to);
@@ -43,6 +43,7 @@ namespace HTTP {
       std::string protocol;
       unsigned int length;
       bool headerOnly; ///< If true, do not parse body if the length is a known size.
+      bool bufferChunks;
     private:
       bool seenHeaders;
       bool seenReq;

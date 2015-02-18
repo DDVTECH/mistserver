@@ -17,6 +17,7 @@ void HTTP::Parser::Clean() {
   seenReq = false;
   getChunks = false;
   doingChunk = 0;
+  bufferChunks = false;
   method = "GET";
   url = "/";
   protocol = "HTTP/1.1";
@@ -135,10 +136,10 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 /// \param message The HTTP response message. Usually you want "OK".
 /// \param request The HTTP request to respond to.
 /// \param conn The connection to send over.
-void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Parser & request, Socket::Connection & conn) {
+void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Parser & request, Socket::Connection & conn, bool bufferAllChunks) {
   std::string prot = request.protocol;
   std::string contentType = GetHeader("Content-Type");
-  sendingChunks = (protocol == "HTTP/1.1" && request.GetHeader("Connection")!="close");
+  sendingChunks = (!bufferAllChunks && protocol == "HTTP/1.1" && request.GetHeader("Connection")!="close");
   Clean();
   protocol = prot;
   if (contentType.size()){
@@ -147,9 +148,12 @@ void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Pa
   if (sendingChunks){
     SetHeader("Transfer-Encoding", "chunked");
   } else {
-    SetBody("");
+    SetHeader("Connection", "close");
   }
-  SendResponse(code, message, conn);
+  bufferChunks = bufferAllChunks;
+  if (!bufferAllChunks){
+    SendResponse(code, message, conn);
+  }
 }
 
 /// Creates and sends a valid HTTP 1.0 or 1.1 response, based on the given request.
@@ -158,8 +162,8 @@ void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Pa
 /// This call simply calls StartResponse("200", "OK", request, conn)
 /// \param request The HTTP request to respond to.
 /// \param conn The connection to send over.
-void HTTP::Parser::StartResponse(HTTP::Parser & request, Socket::Connection & conn) {
-  StartResponse("200", "OK", request, conn);
+void HTTP::Parser::StartResponse(HTTP::Parser & request, Socket::Connection & conn, bool bufferAllChunks) {
+  StartResponse("200", "OK", request, conn, bufferAllChunks);
 }
 
 /// After receiving a header with this object, this function call will:
@@ -550,6 +554,15 @@ void HTTP::Parser::Chunkify(const std::string & bodypart, Socket::Connection & c
 /// \param conn The connection to use for sending.
 void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connection & conn) {
   static char hexa[] = "0123456789abcdef";
+  if (bufferChunks){
+    if (size){
+      body.append(data, size);
+    }else{
+      SetHeader("Content-Length", body.length());
+      SendResponse("200", "OK", conn);
+    }
+    return;
+  }
   if (sendingChunks) {
     //prepend the chunk size and \r\n
     if (!size){

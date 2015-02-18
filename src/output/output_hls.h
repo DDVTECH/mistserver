@@ -26,6 +26,7 @@ namespace Mist {
       char AudioCounter;
       MP4::AVCC avccbox;
       bool AppleCompat;
+      bool VLCworkaround;
       long long unsigned int lastVid;
       long long unsigned int until;
       unsigned int vidTrack;

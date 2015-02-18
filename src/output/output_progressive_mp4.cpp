@@ -118,7 +118,7 @@ namespace Mist {
                   ase.setSampleRate(thisTrack.rate);
                   ase.setChannelCount(thisTrack.channels);
                   ase.setSampleSize(thisTrack.size);
-                  MP4::ESDS esdsBox("");
+                  MP4::ESDS esdsBox(thisTrack.init);
                   ase.setCodecBox(esdsBox);
                   stsdBox.setEntry(ase,0);
                 }

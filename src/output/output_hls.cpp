@@ -97,9 +97,7 @@ namespace Mist {
     if ( !myMeta.live){
       result << "#EXT-X-ENDLIST\r\n";
     }
-#if DEBUG >= 8
-    std::cerr << "Sending this index:" << std::endl << result.str() << std::endl;
-#endif
+    DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
     return result.str();
   } //liveIndex
   
@@ -164,6 +162,8 @@ namespace Mist {
         PackData.UnitStart(1);
         if (currentPacket.getInt("keyframe")){
           PackData.RandomAccess(1);
+        }
+        if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
           PackData.PCR(currentPacket.getTime() * 27000);
         }
         first = false;
@@ -219,8 +219,6 @@ namespace Mist {
           bs = hvccbox.asAnnexB();
           fillPacket(first, bs.data(), bs.size(),VideoCounter);
         }
-        bs = avccbox.asAnnexB();
-        fillPacket(first, bs.data(), bs.size(), VideoCounter);
       }
       
       unsigned int i = 0;

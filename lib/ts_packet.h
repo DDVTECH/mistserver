@@ -31,66 +31,69 @@ namespace TS {
   ///and calculating key values
   class Packet {
     public:
+      //Constructors and fillers
       Packet();
       ~Packet();
       bool FromString(std::string & Data);
       bool FromPointer(const char * Data);
       bool FromFile(FILE * data);
+
+      //Base properties
       void PID(int NewPID);
       unsigned int PID();
-      void ContinuityCounter(int NewContinuity);
-      int ContinuityCounter();
-      void Clear();
+      void continuityCounter(int NewContinuity);
+      int continuityCounter();
       void PCR(int64_t NewVal);
       int64_t PCR();
       int64_t OPCR();
       void AdaptationField(int NewVal);
       int AdaptationField();
       int AdaptationFieldLen();
-      void DefaultPAT();
-      void DefaultPMT();
-      int UnitStart();
-      void UnitStart(int NewVal);
-      int RandomAccess();
-      void RandomAccess(int NewVal);
-
-      int DiscontinuityIndicator();
-      int elementaryStreamPriorityIndicator();
-      int PCRFlag();
-      int OPCRFlag();
-      int splicingPointFlag();
-      //int transportPrivateDataFlag();
-      //int adaptationFieldExtensionFlag();
-
-      int BytesFree();
-      unsigned int getSyncByte();
-      unsigned int getTransportErrorIndicator();
-      unsigned int getPayloadUnitStartIndicator();
-      unsigned int getTransportPriority();
       unsigned int getTransportScramblingControl();
 
-      std::string toPrettyString(size_t indent = 0);
+      //Flags
+      bool unitStart();
+      void unitStart(bool newVal);
+      bool randomAccess();
+      void randomAccess(bool newVal);
+      bool discontinuity();
+      bool hasPCR();
+      bool hasOPCR();
+      bool splicingPoint();
+      bool transportError();
+      bool priority();
+      bool ESpriority();
+      
+      //Helper functions
+      operator bool();
+      bool isPMT();
+      void Clear();
+      void DefaultPAT();
+      void DefaultPMT();
+      unsigned int dataSize();
+      char * dataPointer();
+      int BytesFree();
+      void FillFree(std::string & PackageData);
+      int FillFree(const char * PackageData, int maxLen);
+      void AddStuffing();
+      
+      //Printers and writers
+      std::string toPrettyString(size_t indent = 0, int detailLevel = 3);
       const std::string& getStrBuf();
       const char * getBuffer();
       const char * getPayload();
       int getPayloadLength();
-
       const char * ToString();
 
+      //PES helpers
       void PESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset);
       static void PESVideoLeadIn(std::string & toSend, unsigned long long PTS, unsigned long long offset);
       static std::string & getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset);
-
       void PESAudioLeadIn(unsigned int len, unsigned long long PTS);
       static void PESAudioLeadIn(std::string & toSend, unsigned long long PTS);
       static std::string & getPESAudioLeadIn(unsigned int len, unsigned long long PTS);
-
-      void FillFree(std::string & PackageData);
-      int FillFree(const char * PackageData, int maxLen);
-      void AddStuffing();
     protected:
-      std::string strBuf;///<The actual data
-      //char Buffer[188];///< The actual data
+      std::string strBuf;///< Internal string buffer
   };
 
   class ProgramAssociationTable : public Packet {
@@ -117,6 +120,8 @@ namespace TS {
       operator bool() const;
 
       int streamType();
+      std::string codec();
+      std::string streamTypeString();
       int elementaryPid();
       int ESInfoLength();
       char * ESInfo();

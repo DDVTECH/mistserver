@@ -4,12 +4,18 @@
 #include <sstream>
 #include <iomanip>
 #include <string.h>
+#include <set>
+#include <map>
 #include "ts_packet.h"
 #include "defines.h"
 
 #ifndef FILLER_DATA
 #define FILLER_DATA "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent commodo vulputate urna eu commodo. Cras tempor velit nec nulla placerat volutpat. Proin eleifend blandit quam sit amet suscipit. Pellentesque vitae tristique lorem. Maecenas facilisis consequat neque, vitae iaculis eros vulputate ut. Suspendisse ut arcu non eros vestibulum pulvinar id sed erat. Nam dictum tellus vel tellus rhoncus ut mollis tellus fermentum. Fusce volutpat consectetur ante, in mollis nisi euismod vulputate. Curabitur vitae facilisis ligula. Sed sed gravida dolor. Integer eu eros a dolor lobortis ullamcorper. Mauris interdum elit non neque interdum dictum. Suspendisse imperdiet eros sed sapien cursus pulvinar. Vestibulum ut dolor lectus, id commodo elit. Cras convallis varius leo eu porta. Duis luctus sapien nec dui adipiscing quis interdum nunc congue. Morbi pharetra aliquet mauris vitae tristique. Etiam feugiat sapien quis augue elementum id ultricies magna vulputate. Phasellus luctus, leo id egestas consequat, eros tortor commodo neque, vitae hendrerit nunc sem ut odio."
 #endif
+
+std::set<unsigned int> pmt_pids;
+std::map<unsigned int, std::string> stream_pids;
+
 
 namespace TS {
 /// This constructor creates an empty Packet, ready for use for either reading or writing.
@@ -39,7 +45,12 @@ namespace TS {
 /// \return true if it was possible to read in a full packet, false otherwise.
   bool Packet::FromFile(FILE * data) {
     strBuf.resize(188);
+    long long int pos = ftell(data);
     if (!fread((void *)strBuf.data(), 188, 1, data)) {
+      return false;
+    }
+    if (strBuf[0] != 0x47){
+      INFO_MSG("Failed to read a good packet on pos %lld", pos);
       return false;
     }
     return true;
@@ -76,16 +87,16 @@ namespace TS {
 
 /// Sets the Continuity Counter of a single Packet.
 /// \param NewContinuity The new Continuity Counter of the packet.
-  void Packet::ContinuityCounter(int NewContinuity) {
+  void Packet::continuityCounter(int NewContinuity) {
     if (strBuf.size() < 4) {
       strBuf.resize(4);
     }
-    strBuf[3] = (strBuf[3] & 0xF0) + (NewContinuity & 0x0F);
+    strBuf[3] = (strBuf[3] & 0xF0) | (NewContinuity & 0x0F);
   }
 
 /// Gets the Continuity Counter of a single Packet.
 /// \return The value of the Continuity Counter.
-  int Packet::ContinuityCounter() {
+  int Packet::continuityCounter() {
     return (strBuf[3] & 0x0F);
   }
 
@@ -154,10 +165,9 @@ namespace TS {
     if (!(strBuf[5] & 0x10)) {
       return -1;
     }
-    int64_t Result = 0;
-    Result = (((strBuf[6] << 24) + (strBuf[7] << 16) + (strBuf[8] << 8) + strBuf[9]) << 1) + (strBuf[10] & 0x80 >> 7);
-    Result = Result * 300;
-    Result += (((strBuf[10] & 0x01) << 8) + strBuf[11]);
+    int64_t Result = (((strBuf[6] << 24) | (strBuf[7] << 16) | (strBuf[8] << 8) | strBuf[9]) << 1) | (strBuf[10] >> 7);
+    Result *= 300;
+    Result |= (((strBuf[10] & 0x01) << 8) + strBuf[11]);
     return Result;
   }
 
@@ -176,28 +186,23 @@ namespace TS {
     Result += (((strBuf[10 + 6] & 0x01) << 8) + strBuf[11 + 6]);
     return Result;
   }
-/// Gets the sync byte of a Packet.
-/// \return The packet's sync byte
-  unsigned int Packet::getSyncByte() {
-    return (unsigned int)strBuf[0];
-  }
 
 /// Gets the transport error inficator of a Packet
 /// \return  The transport error inficator of a Packet
-  unsigned int Packet::getTransportErrorIndicator() {
-    return (unsigned int)((strBuf[1] >> 7) & (0x01));
+  bool Packet::transportError() {
+    return strBuf[1] & 0x80;
   }
 
 /// Gets the payload unit start inficator of a Packet
 /// \return  The payload unit start inficator of a Packet
-  unsigned int Packet::getPayloadUnitStartIndicator() {
-    return (unsigned int)((strBuf[1] >> 6) & (0x01));
+  bool Packet::unitStart() {
+    return strBuf[1] & 0x40;
   }
 
 /// Gets the transport priority of a Packet
 /// \return  The transport priority of a Packet
-  unsigned int Packet::getTransportPriority() {
-    return (unsigned int)((strBuf[1] >> 5) & (0x01));
+  bool Packet::priority() {
+    return strBuf[1] & 0x20;
   }
 
 /// Gets the transport scrambling control of a Packet
@@ -215,55 +220,105 @@ namespace TS {
     return (int)strBuf[4];
   }
 
+  Packet::operator bool(){
+    return strBuf.size() && strBuf[0] == 0x47;
+  }
+
 /// Prints a packet to stdout, for analyser purposes.
-  std::string Packet::toPrettyString(size_t indent) {
+  std::string Packet::toPrettyString(size_t indent, int detailLevel) {
+    if (!(*this)){
+      return "[Invalid packet - no sync byte]";
+    }
     std::stringstream output;
-    output << std::string(indent, ' ') << "TS Packet: " << (strBuf[0] == 0x47) << std::endl;
-    output << std::string(indent + 2, ' ') << "Transport Error Indicator: " << getTransportErrorIndicator() << std::endl;
-    output << std::string(indent + 2, ' ') << "Payload Unit Start Indicator: " << getPayloadUnitStartIndicator() << std::endl;
-    output << std::string(indent + 2, ' ') << "Transport Priority: " << getTransportPriority() << std::endl;
-    output << std::string(indent + 2, ' ') << "PID: " << PID() << std::endl;
-    output << std::string(indent + 2, ' ') << "Transport Scrambling Control: " << getTransportScramblingControl() << std::endl;
-    output << std::string(indent + 2, ' ') << "Adaptation Field: " << AdaptationField() << std::endl;
-    output << std::string(indent + 2, ' ') << "Continuity Counter: " << ContinuityCounter() << std::endl;
-    if (AdaptationField() > 1) {
-      output << std::string(indent + 4, ' ') << "Adaptation Length: " << AdaptationFieldLen() << std::endl;
-      if (AdaptationFieldLen()) {
-        output << std::string(indent + 4, ' ') << "Discontinuity Indicator: " << DiscontinuityIndicator() << std::endl;
-        output << std::string(indent + 4, ' ') << "Random Access: " << RandomAccess() << std::endl;
-        output << std::string(indent + 4, ' ') << "Elementary Stream Priority Indicator: " << elementaryStreamPriorityIndicator() << std::endl;
-        output << std::string(indent + 4, ' ') << "PCRFlag: " << PCRFlag() << std::endl;
-        output << std::string(indent + 4, ' ') << "OPCRFlag: " << OPCRFlag() << std::endl;
-        output << std::string(indent + 4, ' ') << "Splicing Point Flag: " << splicingPointFlag() << std::endl;
-        ///\todo Implement this
-        //output << std::string(indent + 4, ' ') << "Transport Private Data Flag: " << transportPrivateDataFlag() << std::endl;
-        //output << std::string(indent + 4, ' ') << "Adaptation Field Extension Flag: " << adaptationFieldExtensionFlag() << std::endl;
-        if (PCRFlag()) {
-          output << std::string(indent + 6, ' ') << "PCR: " << PCR() << "( " << (double)PCR() / 27000000 << " s )" << std::endl;
-        }
-        if (OPCRFlag()) {
-          output << std::string(indent + 6, ' ') << "OPCR: " << PCR() << "( " << (double)OPCR() / 27000000 << " s )" << std::endl;
+    output << std::string(indent, ' ') << "[PID " << PID() << "|" << std::hex << continuityCounter() << std::dec << ": " << dataSize() << "b ";
+    if (!PID()){
+      output << "PAT";
+    }else{
+      if (pmt_pids.count(PID())){
+        output << "PMT";
+      }else{
+        if (stream_pids.count(PID())){
+          output << stream_pids[PID()];
+        }else{
+          output << "Unknown";
         }
       }
     }
-    if (PID() == 0x00) {
-      //program association table
-      output << ((ProgramAssociationTable *)this)->toPrettyString(indent + 2);
-    } else {
-      output << std::string(indent + 2, ' ') << "Data: " << 184 - ((AdaptationField() > 1) ? AdaptationFieldLen() + 1 : 0) << " bytes" << std::endl;
+    output << "]";
+    if (unitStart()){
+      output << " [Start]";
     }
+    if (AdaptationField() > 1 && AdaptationFieldLen()) {
+      if (discontinuity()){
+        output << " [Discontinuity]";
+      }
+      if (randomAccess()){
+        output << " [RandomXS]";
+      }
+      if (hasPCR()) {
+        output << " [PCR " << (double)PCR() / 27000000 << "s]";
+      }
+      if (hasOPCR()) {
+        output<< " [OPCR: " << (double)OPCR() / 27000000 << "s]";
+      }
+    }
+    output << std::endl;
+    if (!PID()) {
+      //PAT
+      if (detailLevel >= 2){
+        output << ((ProgramAssociationTable *)this)->toPrettyString(indent + 2);
+      }else{
+        ((ProgramAssociationTable *)this)->toPrettyString(indent + 2);
+      }
+      return output.str();
+    }
+    
+    if (pmt_pids.count(PID())){
+      //PMT
+      if (detailLevel >= 2){
+        output << ((ProgramMappingTable *)this)->toPrettyString(indent + 2);
+      }else{
+        ((ProgramMappingTable *)this)->toPrettyString(indent + 2);
+      }
+      return output.str();
+    }
+    
+    if (detailLevel >= 3){
+      output << std::string(indent+2, ' ') << "Raw data bytes:";
+      unsigned int size = dataSize();
+      char * dPointer = dataPointer();
+      for (unsigned int i = 0; i < size; ++i){
+        if (!(i % 32)){
+          output << std::endl << std::string(indent + 4, ' ');
+        }
+        output << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)dPointer[i] << " ";
+        if ((i % 4) == 3){
+          output << " ";
+        }
+      }
+      output << std::endl;
+    }
+    
     return output.str();
   }
+  
+  char * Packet::dataPointer(){
+    return (char*)strBuf.data() + 188 - dataSize();
+  }
+  
+  unsigned int Packet::dataSize(){
+    return 184 - ((AdaptationField() > 1) ? AdaptationFieldLen() + 1 : 0);
+  }
 
-/// Gets whether a new unit starts in this Packet.
-/// \return The start of a new unit.
-  int Packet::UnitStart() {
-    return (strBuf[1] & 0x40) >> 6;
+  /// Returns true if this PID contains a PMT.
+  /// Important caveat: only works if the corresponding PAT has been pretty-printed earlier!
+  bool Packet::isPMT(){
+    return pmt_pids.count(PID());
   }
 
 /// Sets the start of a new unit in this Packet.
 /// \param NewVal The new value for the start of a unit.
-  void Packet::UnitStart(int NewVal) {
+  void Packet::unitStart(bool NewVal) {
     if (NewVal) {
       strBuf[1] |= 0x40;
     } else {
@@ -273,46 +328,44 @@ namespace TS {
 
 /// Gets the elementary stream priority indicator of a Packet
 /// \return  The elementary stream priority indicator of a Packet
-  int Packet::elementaryStreamPriorityIndicator() {
-    return (strBuf[5] >> 5) & 0x01;
+  bool Packet::ESpriority() {
+    return strBuf[5] & 0x20;
   }
 
-
+  bool Packet::discontinuity() {
+    return strBuf[5] & 0x80;
+  }
 
 /// Gets whether this Packet can be accessed at random (indicates keyframe).
 /// \return Whether or not this Packet contains a keyframe.
-  int Packet::DiscontinuityIndicator() {
-    return (strBuf[5] >> 7) & 0x01;
-  }
-
-  int Packet::RandomAccess() {
+  bool Packet::randomAccess() {
     if (AdaptationField() < 2) {
-      return -1;
+      return false;
     }
-    return (strBuf[5] & 0x40) >> 6;
+    return strBuf[5] & 0x40;
   }
 
 ///Gets the value of the PCR flag
 ///\return true if there is a PCR, false otherwise
-  int Packet::PCRFlag() {
-    return (strBuf[5] >> 4) & 0x01;
+  bool Packet::hasPCR() {
+    return strBuf[5] & 0x10;
   }
 
 ///Gets the value of the OPCR flag
 ///\return true if there is an OPCR, false otherwise
-  int Packet::OPCRFlag() {
-    return (strBuf[5] >> 3) & 0x01;
+  bool Packet::hasOPCR() {
+    return strBuf[5] & 0x08;
   }
 
 ///Gets the value of the splicing point  flag
 ///\return the value of the splicing point flag
-  int Packet::splicingPointFlag() {
-    return (strBuf[5] >> 2) & 0x01;
+  bool Packet::splicingPoint() {
+    return strBuf[5] & 0x04;
   }
 
 ///Gets the value of the transport private data point flag
 ///\return the value of the transport private data point flag
-  void Packet::RandomAccess(int NewVal) {
+  void Packet::randomAccess(bool NewVal) {
     if (AdaptationField() == 3) {
       if (strBuf.size() < 6) {
         strBuf.resize(6);
@@ -343,7 +396,7 @@ namespace TS {
   void Packet::DefaultPAT() {
     static int MyCntr = 0;
     strBuf = std::string(PAT, 188);
-    ContinuityCounter(MyCntr++);
+    continuityCounter(MyCntr++);
     MyCntr %= 0x10;
   }
 
@@ -351,7 +404,7 @@ namespace TS {
   void Packet::DefaultPMT() {
     static int MyCntr = 0;
     strBuf = std::string(PMT, 188);
-    ContinuityCounter(MyCntr++);
+    continuityCounter(MyCntr++);
     MyCntr %= 0x10;
   }
 
@@ -681,6 +734,7 @@ namespace TS {
       output << std::string(indent + 4, ' ') << "[" << i + 1 << "] ";
       output << "Program Number: " << getProgramNumber(i) << ", ";
       output << (getProgramNumber(i) == 0 ? "Network" : "Program Map") << " PID: " << getProgramPID(i);
+      pmt_pids.insert(getProgramPID(i));
       output << std::endl;
     }
     output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;
@@ -688,6 +742,80 @@ namespace TS {
 
   }
 
+  ProgramMappingEntry::ProgramMappingEntry(char * begin, char * end){
+    data = begin;
+    boundary = end;
+  }
+
+  ProgramMappingEntry::operator bool() const {
+    return data && (data < boundary);
+  }
+
+  int ProgramMappingEntry::streamType(){
+    return data[0];
+  }
+
+  std::string ProgramMappingEntry::codec(){
+    switch (streamType()){
+      case 0x01:
+      case 0x03: return "MPEG1";
+      case 0x02: return "MPEG1/2";
+      case 0x04:
+      case 0x05:
+      case 0x06: return "MPEG2";
+      case 0x07: return "MHEG";
+      case 0x08: return "MPEG2 DSM CC";
+      case 0x09: return "H.222.1";
+      case 0x0A: return "DSM CC encapsulation";
+      case 0x0B: return "DSM CC U-N";
+      case 0x0C: return "DSM CC descriptor";
+      case 0x0D: return "DSM CC section";
+      case 0x0E: return "MPEG2 aux";
+      case 0x0F: return "ADTS";
+      case 0x10: return "MPEG4";
+      case 0x11: return "LATM";
+      case 0x12: return "SL/Flex PES";
+      case 0x13: return "SL/Flex section";
+      case 0x14: return "SDP";
+      case 0x15: return "meta PES";
+      case 0x16: return "meta section";
+      case 0x1B: return "H264";
+      case 0x81: return "AC3";
+      default: return "unknown";
+    }
+  }
+
+  std::string ProgramMappingEntry::streamTypeString(){
+    switch (streamType()){
+      case 0x01:
+      case 0x02:
+      case 0x09:
+      case 0x10:
+      case 0x1B: return "video";
+      case 0x03:
+      case 0x04:
+      case 0x11:
+      case 0x81:
+      case 0x0F: return "audio";
+      default: return "data";
+    }
+  }
+  
+  int ProgramMappingEntry::elementaryPid(){
+    return ((data[1] << 8) | data[2]) & 0x1FFF;
+  }
+
+  int ProgramMappingEntry::ESInfoLength(){
+    return ((data[3] << 8) | data[4]) & 0x0FFF;
+  }
+
+  void ProgramMappingEntry::advance(){
+    if (!(*this)) {
+      return;
+    }
+    data += 5 + ESInfoLength();
+  }
+  
   ProgramMappingTable::ProgramMappingTable(){
     strBuf.resize(4);
     strBuf[0] = 0x47;
@@ -841,6 +969,15 @@ namespace TS {
     setSectionLength(newVal * 5 + 13);
   }
 
+  ProgramMappingEntry ProgramMappingTable::getEntry(int index){
+    int dataOffset = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset();
+    ProgramMappingEntry res((char*)(strBuf.data() + dataOffset + 13 + getProgramInfoLength()), (char*)(strBuf.data() + dataOffset + getSectionLength()) );
+    for (int i = 0; i < index; i++){
+      res.advance();
+    }
+    return res;
+  }
+
   char ProgramMappingTable::getStreamType(short index) {
     if (index > getProgramCount()) {
       return 0;
@@ -901,7 +1038,7 @@ namespace TS {
   }
 
   int ProgramMappingTable::getCRC() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength() + (getProgramCount() * 5);
+    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + getSectionLength();
     return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
   }
   
@@ -936,13 +1073,12 @@ namespace TS {
     output << std::string(indent + 2, ' ') << "Last Section number: " << (int)getLastSectionNumber() << std::endl;
     output << std::string(indent + 2, ' ') << "PCR PID: " << getPCRPID() << std::endl;
     output << std::string(indent + 2, ' ') << "Program Info Length: " << getProgramInfoLength() << std::endl;
-    output << std::string(indent + 2, ' ') << "Programs [" << getProgramCount() << "]" << std::endl;
-    for (int i = 0; i < getProgramCount(); i++) {
-      output << std::string(indent + 4, ' ') << "[" << i + 1 << "] ";
-      output << "StreamType: 0x" << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)getStreamType(i) << std::dec << ", ";
-      output << "Elementary PID: " << getElementaryPID(i) << ", ";
-      output << "ES Info Length: " << getESInfoLength(i);
-      output << std::endl;
+    ProgramMappingEntry entry = getEntry(0);
+    while (entry) {
+      output << std::string(indent + 4, ' ');
+      stream_pids[entry.elementaryPid()] = entry.codec() + std::string(" ") + entry.streamTypeString();
+      output << "Stream " << entry.elementaryPid() << ": " << stream_pids[entry.elementaryPid()] << " (" << entry.streamType() << "), InfoLen = " << entry.ESInfoLength() << std::endl;
+      entry.advance();
     }
     output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;
     return output.str();

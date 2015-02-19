@@ -181,6 +181,8 @@ namespace Mist {
         if (!haveAvcc){
           avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
           haveAvcc = true;
+          bs = avccbox.asAnnexB();
+          fillPacket(first, bs.data(), bs.size(), VideoCounter);
         }
       }
       

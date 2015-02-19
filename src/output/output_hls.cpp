@@ -209,7 +209,7 @@ namespace Mist {
             haveAvcc = true;
           }
           bs = avccbox.asAnnexB();
-          fillPacket(first, bs.data(), bs.size(),VideoCounter);
+          fillPacket(first, bs.data(), bs.size(), VideoCounter);
         }
         if (myMeta.tracks[currentPacket.getTrackId()].codec == "HEVC"){
           if (!haveHvcc){

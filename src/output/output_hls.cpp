@@ -160,10 +160,10 @@ namespace Mist {
       PackData.continuityCounter(ContCounter++);
       if (first){
         PackData.unitStart(1);
-        if (currentPacket.getInt("keyframe")){
-          PackData.randomAccess(1);
-        }
         if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
+          if (currentPacket.getInt("keyframe")){
+            PackData.randomAccess(1);
+          }
           PackData.PCR(currentPacket.getTime() * 27000);
         }
         first = false;

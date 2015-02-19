@@ -45,11 +45,11 @@ namespace Mist {
     if (!dataLen){return;}
     if (PackData.BytesFree() == 184){
       PackData.PID(0x100 - 1 + currentPacket.getTrackId());
-      PackData.ContinuityCounter(ContCounter++);
+      PackData.continuityCounter(ContCounter++);
       if (first){
-        PackData.UnitStart(1);
+        PackData.unitStart(1);
         if (currentPacket.getInt("keyframe")){
-          PackData.RandomAccess(1);
+          PackData.randomAccess(1);
           PackData.PCR(currentPacket.getTime() * 27000);
         }
         first = false;

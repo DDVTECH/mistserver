@@ -281,7 +281,7 @@ namespace Mist {
         //we have audio/video payload
         //get trackID of this packet
         int tid = packet.PID();
-        if (packet.UnitStart() && lastBuffer.count(tid) && lastBuffer[tid].len){
+        if (packet.unitStart() && lastBuffer.count(tid) && lastBuffer[tid].len){
           parsePESPayload(tid, lastBuffer[tid]);
           lastPack.null();
           lastPack["data"] = lastBuffer[tid].data;
@@ -360,7 +360,7 @@ namespace Mist {
     TS::Packet tsBuf;
     tsBuf.FromFile(inFile);
     //Find first PES start on the selected track
-    while (tsBuf.PID() != tid || !tsBuf.UnitStart()){
+    while (tsBuf.PID() != tid || !tsBuf.unitStart()){
       lastPos = ftell(inFile);
       tsBuf.FromFile(inFile);
       if (feof(inFile)){
@@ -374,7 +374,7 @@ namespace Mist {
     while (pesBuf.data.size() != pesBuf.len){
       //ReadNextPage
       tsBuf.FromFile(inFile);
-      if (tsBuf.PID() == tid && tsBuf.UnitStart()){
+      if (tsBuf.PID() == tid && tsBuf.unitStart()){
         unbound = true;
         break;
       }

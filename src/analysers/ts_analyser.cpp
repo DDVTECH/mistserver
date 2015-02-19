@@ -15,55 +15,108 @@
 
 
 namespace Analysers {
-  std::string printPES(const std::string & pesPacket){
+  std::string printPES(const std::string & d, unsigned long PID){
     std::stringstream res;
-    res << "PES Packet" << std::endl;
-    res << "  Packet Start Code Prefix: "
-      << std::hex << std::setw(2) << std::setfill('0')
-      << (int)pesPacket[0] << (int)pesPacket[1] << (int)pesPacket[2];
-    res << std::endl;
-    res << "  Stream Id: "
-      << std::hex << std::setw(2) << std::setfill('0')
-      << (int)pesPacket[3];
-    res << std::endl;
-    res << "  Packet Length: " << (((int)pesPacket[4]) << 8 | pesPacket[5]) << std::endl;
-    res << "  PES Scrambling Control: " << (int)((pesPacket[6] & 0x30) >> 4) << std::endl;
-    res << "  PES Priority: " << (int)((pesPacket[6] & 0x08) >> 3) << std::endl;
-    res << "  Data Alginment Indicator: " << (int)((pesPacket[6] & 0x04) >> 2) << std::endl;
-    res << "  Copyright: " << (int)((pesPacket[6] & 0x02) >> 1) << std::endl;
-    res << "  Original or Copy: " << (int)((pesPacket[6] & 0x01)) << std::endl;
-    int timeFlags = ((pesPacket[7] & 0xC0) >> 6);
-    res << "  PTS/DTS Flags: " << timeFlags << std::endl;
-    res << "  ESCR Flag: " << (int)((pesPacket[7] & 0x20) >> 5) << std::endl;
-    res << "  ES Rate Flag: " << (int)((pesPacket[6] & 0x10) >> 4) << std::endl;
-    res << "  DSM Trick Mode Flag: " << (int)((pesPacket[6] & 0x08) >> 3) << std::endl;
-    res << "  Additional Copy Info Flag: " << (int)((pesPacket[6] & 0x04) >> 2) << std::endl;
-    res << "  PES CRC Flag: " << (int)((pesPacket[6] & 0x02) >> 1) << std::endl;
-    res << "  PES Extension Flag: " << (int)((pesPacket[6] & 0x01)) << std::endl;
-    res << "  PES Header Data Length: " << (int)pesPacket[7] << std::endl;
-    if (timeFlags & 0x02){
-      long long unsigned int time = ((pesPacket[8] >> 1) & 0x07);
-      time <<= 15;
-      time |= ((int)pesPacket[9] << 7) | ((pesPacket[10] >> 1) & 0x7F);
-      time <<= 15;
-      time |= ((int)pesPacket[11] << 7) | ((pesPacket[12] >> 1) & 0x7F);
-      res << "  PTS: " << std::dec << time << std::endl;
+    bool known = false;
+    res << "[PES " << PID << "]";
+    if ((d[3] & 0xF0) == 0xE0){
+      res << " [Video " << (int)(d[3] & 0xF) << "]";
+      known = true;
     }
-    if (timeFlags & 0x01){
-      long long unsigned int time = ((pesPacket[13] >> 1) & 0x07);
-      time <<= 15;
-      time |= ((int)pesPacket[14] << 7) | (pesPacket[15] >> 1);
-      time <<= 15;
-      time |= ((int)pesPacket[16] << 7) | (pesPacket[17] >> 1);
-      res << "  DTS: " << std::dec << time << std::endl;
+    if (!known && (d[3] & 0xE0) == 0xC0){
+      res << " [Audio " << (int)(d[3] & 0x1F) << "]";
+      known = true;
     }
+    if (!known){
+      res << " [Unknown stream ID]";
+    }
+    if (d[0] != 0 || d[1] != 0 || d[2] != 1){
+      res << " [!INVALID START CODE!]";
+    }
+    if (known){
+      if ((d[6] & 0xC0) != 0x80){
+        res << " [!INVALID FIRST BITS!]";
+      }
+      if (d[6] & 0x30){
+        res << " [SCRAMBLED]";
+      }
+      if (d[6] & 0x08){
+        res << " [Priority]";
+      }
+      if (d[6] & 0x04){
+        res << " [Aligned]";
+      }
+      if (d[6] & 0x02){
+        res << " [Copyrighted]";
+      }
+      if (d[6] & 0x01){
+        res << " [Original]";
+      }else{
+        res << " [Copy]";
+      }
+      unsigned int headSize = 0;
+      if (d[7] & 0x20){
+        res << " [ESCR present, not decoded!]";
+        headSize += 6;
+      }
+      if (d[7] & 0x10){
+        res << " [ESR present, not decoded!]";
+        headSize += 3;
+      }
+      if (d[7] & 0x08){
+        res << " [Trick mode present, not decoded!]";
+        headSize += 1;
+      }
+      if (d[7] & 0x04){
+        res << " [Add. copy present, not decoded!]";
+        headSize += 1;
+      }
+      if (d[7] & 0x02){
+        res << " [CRC present, not decoded!]";
+        headSize += 2;
+      }
+      if (d[7] & 0x01){
+        res << " [Extension present, not decoded!]";
+        headSize += 0; /// \todo Implement this. Complicated field, bah.
+      }
+      int timeFlags = ((d[7] & 0xC0) >> 6);
+      if (timeFlags == 2){
+        headSize += 5;
+      }
+      if (timeFlags == 3){
+        headSize += 10;
+      }
+      if (d[8] != headSize){
+        res << " [Padding: " << ((int)d[8] - headSize) << "b]";
+      }
+      if (timeFlags & 0x02){
+        long long unsigned int time = (((unsigned int)d[9] & 0xE) >> 1);
+        time <<= 15;
+        time |= ((unsigned int)d[10] << 7) | (((unsigned int)d[11] >> 1) & 0x7F);
+        time <<= 15;
+        time |= ((unsigned int)d[12] << 7) | (((unsigned int)d[13] >> 1) & 0x7F);
+        res << " [PTS " << ((double)time / 90000) << "s]";
+      }
+      if (timeFlags & 0x01){
+        long long unsigned int time = ((d[14] >> 1) & 0x07);
+        time <<= 15;
+        time |= ((int)d[15] << 7) | (d[16] >> 1);
+        time <<= 15;
+        time |= ((int)d[17] << 7) | (d[18] >> 1);
+        res << " [DTS " << ((double)time/90000) << "s]";
+      }
+    }
+    if ((((int)d[4]) << 8 | d[5]) != (d.size() - 6)){
+      res << " [Size " << (((int)d[4]) << 8 | d[5]) << " => " << (d.size() - 6) << "]";
+    }
+    res << std::endl;
     return res.str();
   }
 
   /// Debugging tool for TS data.
   /// Expects TS data through stdin, outputs human-readable information to stderr.
   /// \return The return code of the analyser.
-  int analyseTS(bool validate, bool analyse){
+  int analyseTS(bool validate, bool analyse, int detailLevel){
     std::map<unsigned long long, std::string> payloads;
     TS::Packet packet;
     long long int upTime = Util::bootSecs();
@@ -76,14 +129,16 @@ namespace Analysers {
       bytes += 188;
       if(packet.FromPointer(packetPtr)){
         if(analyse){
-          std::cout << packet.toPrettyString();
-          if (packet.UnitStart() && payloads[packet.PID()] != ""){
-            std::cout << printPES(payloads[packet.PID()]);
+          if (packet.unitStart() && payloads[packet.PID()] != ""){
+            std::cout << printPES(payloads[packet.PID()], packet.PID());
             payloads.erase(packet.PID());
           }
-          payloads[packet.PID()].append(packet.getPayload(), packet.getPayloadLength());
+          std::cout << packet.toPrettyString(0, detailLevel);
+          if (packet.PID() && !packet.isPMT()){
+            payloads[packet.PID()].append(packet.getPayload(), packet.getPayloadLength());
+          }
         }
-        if(packet.getSyncByte() == 0x47 && packet.AdaptationField() > 1 && packet.PCRFlag()){pcr = packet.PCR();}
+        if(packet && packet.AdaptationField() > 1 && packet.hasPCR()){pcr = packet.PCR();}
       }
       if(bytes > 1024){
         long long int tTime = Util::bootSecs();
@@ -97,7 +152,7 @@ namespace Analysers {
     for (std::map<unsigned long long, std::string>::iterator it = payloads.begin(); it != payloads.end(); it++){
       if (!it->first || it->first == 4096){ continue; }
       std::cout << "Remainder of a packet on track " << it->first << ":" << std::endl;
-      std::cout << printPES(it->second);
+      std::cout << printPES(it->second, it->first);
     }
     long long int finTime = Util::bootSecs();
     if(validate){
@@ -112,6 +167,7 @@ int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
   conf.addOption("analyse", JSON::fromString("{\"long\":\"analyse\", \"short\":\"a\", \"default\":1, \"long_off\":\"notanalyse\", \"short_off\":\"b\", \"help\":\"Analyse a file's contents (-a), or don't (-b) returning false on error. Default is analyse.\"}"));
   conf.addOption("validate", JSON::fromString("{\"long\":\"validate\", \"short\":\"V\", \"default\":0, \"long_off\":\"notvalidate\", \"short_off\":\"X\", \"help\":\"Validate (-V) the file contents or don't validate (-X) its integrity, returning false on error. Default is don't validate.\"}"));
+  conf.addOption("detail", JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", \"default\":3, \"help\":\"Detail level of analysis.\"}"));
   conf.parseArgs(argc, argv);
-  return Analysers::analyseTS(conf.getBool("validate"),conf.getBool("analyse"));
+  return Analysers::analyseTS(conf.getBool("validate"),conf.getBool("analyse"),conf.getInteger("detail"));
 }

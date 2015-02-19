@@ -346,6 +346,9 @@ namespace Mist {
                               MP4::Box tmpBox2 = ((MP4::VisualSampleEntry&)tmpBox).getCLAP();
                               myMeta.tracks[trackNo].init = std::string(tmpBox2.payload(),tmpBox2.payloadSize());
                             }else if (tmpType == "mp4a" || tmpType == "aac " || tmpType == "ac-3"){
+                              myMeta.tracks[trackNo].type = "audio";
+                              myMeta.tracks[trackNo].channels = ((MP4::AudioSampleEntry&)tmpBox).getChannelCount();
+                              myMeta.tracks[trackNo].rate = (long long int)(((MP4::AudioSampleEntry&)tmpBox).getSampleRate());
                               if (tmpType == "ac-3"){
                                 myMeta.tracks[trackNo].codec = "AC3";
                               }else{
@@ -357,9 +360,6 @@ namespace Mist {
                                   myMeta.tracks[trackNo].codec = "MP3";
                                 }
                               }
-                              myMeta.tracks[trackNo].type = "audio";
-                              myMeta.tracks[trackNo].channels = ((MP4::AudioSampleEntry&)tmpBox).getChannelCount();
-                              myMeta.tracks[trackNo].rate = (long long int)(((MP4::AudioSampleEntry&)tmpBox).getSampleRate());
                               myMeta.tracks[trackNo].size = 16;///\todo this might be nice to calculate from mp4 file;
                               //get Visual sample entry -> esds -> startcodes
                             }else{

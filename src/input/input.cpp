@@ -56,7 +56,7 @@ namespace Mist {
     capa["optional"]["debug"]["name"] = "debug";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
-    capa["optional"]["debug"]["type"] = "uint";
+    capa["optional"]["debug"]["type"] = "debug";
     
     packTime = 0;
     lastActive = Util::epoch();

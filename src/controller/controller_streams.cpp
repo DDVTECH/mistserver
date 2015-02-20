@@ -82,7 +82,7 @@ namespace Controller {
       //vod-style stream
       data.removeMember("error");
       struct stat fileinfo;
-      if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
+      if (stat(URL.c_str(), &fileinfo) != 0){
         data["error"] = "Stream offline: Not found: " + URL;
         if (data["error"].asStringRef() != prevState){
           Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
@@ -120,6 +120,9 @@ namespace Controller {
       }else{
         DEBUG_MSG(DLVL_INSANE, "Invalid metadata (no tracks object) for stream %s - triggering reload", name.c_str());
         getMeta = true;
+      }
+      if (*(URL.rbegin()) == '/'){
+        getMeta = false;
       }
       if (getMeta){
         // if the file isn't dtsc and there's no dtsh file, run getStream on it

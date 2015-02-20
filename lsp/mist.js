@@ -2391,14 +2391,15 @@ var UI = {
           var browserequests = 0;
           var browsecomplete = 0;
           for (var s in mist.data.streams) {
-            if (mist.inputMatch(mist.data.capabilities.inputs.Folder.source_match,mist.data.streams[s].source)) {
+            var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
+            if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
               //this is a folder stream
               allstreams[s].source += '*';
               mist.send(function(d,opts){
                 var s = opts.stream;
                 for (var i in mist.data.browse.files) {
                   for (var j in mist.data.capabilities.inputs) {
-                    if ((j == 'Buffer') || (j == 'Folder')) { continue; }
+                    if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
                     if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+mist.data.browse.files[i])) {
                       var streamname = s+'+'+mist.data.browse.files[i];
                       allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
@@ -2662,13 +2663,14 @@ var UI = {
             var browsecomplete = 0;
             var select = {};
             for (var s in mist.data.streams) {
-              if (mist.inputMatch(mist.data.capabilities.inputs.Folder.source_match,mist.data.streams[s].source)) {
+              var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
+              if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
                 //this is a folder stream
                 mist.send(function(d,opts){
                   var s = opts.stream;
                   for (var i in mist.data.browse.files) {
                     for (var j in mist.data.capabilities.inputs) {
-                      if ((j == 'Buffer') || (j == 'Folder')) { continue; }
+                      if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
                       if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+mist.data.browse.files[i])) {
                         select[s+'+'+mist.data.browse.files[i]] = true;
                       }

@@ -315,7 +315,7 @@ src/embed.js.h: src/embed.js sourcery
 	rm embed.min.js
 
 src/controller/server.html: $(lspDATA) $(lspSOURCES) $(lspSOURCESmin)
-	cat lsp/header.html >> $@
+	cat lsp/header.html > $@
 	echo "<script>" >> $@
 	cat $(lspSOURCESmin) >> $@
 	$(CLOSURE) $(lspSOURCES) >> $@

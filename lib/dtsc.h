@@ -193,7 +193,7 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
-      ///\brief Data storage for this packet.
+      ///\brief Data storage for this Part.
       ///
       /// - 3 bytes: MSB storage of the payload size of this packet in bytes.
       /// - 2 bytes: MSB storage of the duration of this packet in milliseconds.
@@ -219,7 +219,7 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
-      ///\brief Data storage for this packet.
+      ///\brief Data storage for this Key.
       ///
       /// - 5 bytes: MSB storage of the position of the first packet of this keyframe within the file.
       /// - 3 bytes: MSB storage of the duration of this keyframe.
@@ -243,6 +243,12 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
+      ///\Brief Data storage for this Fragment.
+      ///
+      /// - 4 bytes: duration (in milliseconds)
+      /// - 1 byte: length (amount of keyframes)
+      /// - 2 bytes: number of first keyframe in fragment
+      /// - 4 bytes: size of fragment in bytes
       char data[11];
   };
 

@@ -337,7 +337,15 @@ namespace Mist {
                               myMeta.tracks[trackNo].codec = "H264";
                               myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
                               myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
-                              myMeta.tracks[trackNo].init = std::string(((MP4::VisualSampleEntry&)tmpBox).getCLAP().payload(),((MP4::VisualSampleEntry&)tmpBox).getCLAP().payloadSize());
+                              MP4::Box tmpBox2 = tmpBox;
+                              MP4::Box tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getCLAP();
+                              if (tmpContent.getType() == "avcC"){
+                                myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
+                              }
+                              tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getPASP();
+                              if (tmpContent.getType() == "avcC"){
+                                myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
+                              }
                             }else if (tmpType == "hev1"){
                               myMeta.tracks[trackNo].type = "video";
                               myMeta.tracks[trackNo].codec = "HEVC";

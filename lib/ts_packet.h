@@ -85,12 +85,8 @@ namespace TS {
       int getPayloadLength();
       const char * ToString();
 
-      //PES helpers
-      void PESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset);
-      static void PESVideoLeadIn(std::string & toSend, unsigned long long PTS, unsigned long long offset);
-      static std::string & getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset);
-      void PESAudioLeadIn(unsigned int len, unsigned long long PTS);
-      static void PESAudioLeadIn(std::string & toSend, unsigned long long PTS);
+      //PES helpers     
+      static std::string & getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset);      
       static std::string & getPESAudioLeadIn(unsigned int len, unsigned long long PTS);
     protected:
       std::string strBuf;///< Internal string buffer

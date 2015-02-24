@@ -590,6 +590,7 @@ namespace Mist {
   
   void OutDashMP4::onHTTP(){
     initialize();
+    std::string url = H.url;
     if (H.method == "OPTIONS"){
       H.Clean();
       H.SetHeader("Content-Type", "application/octet-stream");
@@ -605,7 +606,7 @@ namespace Mist {
       H.Clean();
       return;
     }
-    if (H.url.find(".mpd") != std::string::npos){
+    if (url.find(".mpd") != std::string::npos){
       H.Clean();
       H.SetHeader("Content-Type", "application/xml");
       H.SetHeader("Cache-Control", "no-cache");
@@ -621,10 +622,10 @@ namespace Mist {
       DEVEL_MSG("Manifest sent");
     }else{
       long long int bench = Util::getMS();
-      int pos = H.url.find("chunk_") + 6;//put our marker just after the _ beyond chunk
-      int tid = atoi(H.url.substr(pos).c_str());
+      int pos = url.find("chunk_") + 6;//put our marker just after the _ beyond chunk
+      int tid = atoi(url.substr(pos).c_str());
       DEBUG_MSG(DLVL_DEVEL, "Track %d requested", tid);
-
+      
       H.Clean();
       H.SetHeader("Content-Type", "video/mp4");
       H.SetHeader("Cache-Control", "no-cache");
@@ -636,13 +637,13 @@ namespace Mist {
       H.SetHeader("Access-Control-Allow-Credentials", "true");
       H.StartResponse(H, myConn);
 
-      if (H.url.find("init.m4s") != std::string::npos){
+      if (url.find("init.m4s") != std::string::npos){
         DEBUG_MSG(DLVL_DEVEL, "Handling init");
         buildFtyp(tid);
         H.Chunkify(moovBoxes[tid], myConn);
       }else{
-        pos = H.url.find("_", pos + 1) + 1;
-        int keyId = atoi(H.url.substr(pos).c_str());
+        pos = url.find("_", pos + 1) + 1;
+        int keyId = atoi(url.substr(pos).c_str());
         DEBUG_MSG(DLVL_DEVEL, "Searching for time %d", keyId);
         unsigned int keyNum = myMeta.tracks[tid].timeToKeynum(keyId);
         INFO_MSG("Detected key %d:%d for time %d", tid, keyNum, keyId);

@@ -401,10 +401,12 @@ namespace Mist {
       sprintf(id, "%s%lu", streamName.c_str(), trackId);
       indexPages[trackId].init(id, 8 * 1024);
     }
-    for (int i = 0; i < indexPages[trackId].len / 8; i++){
-      long amountKey = ntohl((((long long int*)indexPages[trackId].mapped)[i]) & 0xFFFFFFFF);
+    char * mpd = indexPages[trackId].mapped;
+    int len = indexPages[trackId].len / 8;
+    for (int i = 0; i < len; i++){
+      long amountKey = ntohl((((long long int*)mpd)[i]) & 0xFFFFFFFF);
       if (amountKey == 0){continue;}
-      long tmpKey = ntohl(((((long long int*)indexPages[trackId].mapped)[i]) >> 32) & 0xFFFFFFFF);
+      long tmpKey = ntohl(((((long long int*)mpd)[i]) >> 32) & 0xFFFFFFFF);
       if (tmpKey <= keyNum && ((tmpKey?tmpKey:1) + amountKey) > keyNum){
         return tmpKey;
       }
@@ -492,9 +494,10 @@ namespace Mist {
     DTSC::Packet tmpPack;
     tmpPack.reInit(curPages[tid].mapped + tmp.offset, 0, true);
     tmp.time = tmpPack.getTime();
+    char * mpd = curPages[tid].mapped;
     while ((long long)tmp.time < pos && tmpPack){
       tmp.offset += tmpPack.getDataLen();
-      tmpPack.reInit(curPages[tid].mapped + tmp.offset, 0, true);
+      tmpPack.reInit(mpd + tmp.offset, 0, true);
       tmp.time = tmpPack.getTime();
     }
     if (tmpPack){

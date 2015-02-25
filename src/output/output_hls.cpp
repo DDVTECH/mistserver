@@ -106,7 +106,7 @@ namespace Mist {
     haveAvcc = false;
     haveHvcc = false;
     realTime = 0;
-    myConn.setBlocking(true);
+    setBlocking(true);
   }
   
   OutHLS::~OutHLS() {}

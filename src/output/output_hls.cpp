@@ -91,7 +91,7 @@ namespace Mist {
   OutHLS::OutHLS(Socket::Connection & conn) : HTTPOutput(conn) {
     haveAvcc = false;
     realTime = 0;
-    myConn.setBlocking(true);
+    setBlocking(true);
   }
   
   OutHLS::~OutHLS() {}

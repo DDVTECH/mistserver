@@ -191,6 +191,9 @@ namespace Mist {
             DEBUG_MSG(DLVL_DONTEVEN, "onRequest");
             onRequest();
           }
+          if (!myConn.Received().size()){
+            Util::sleep(500);
+          }
         }
       }else{
         if (!isBlocking && !parseData){

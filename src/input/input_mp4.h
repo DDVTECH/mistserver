@@ -5,7 +5,7 @@
 namespace Mist {
   class mp4PartTime{
     public:
-      mp4PartTime() : time(0), trackID(0), bpos(0), size(0), index(0) {}
+      mp4PartTime() : time(0), offset(0), trackID(0), bpos(0), size(0), index(0) {}
       bool operator < (const mp4PartTime & rhs) const {
         if (time < rhs.time){
           return true;
@@ -19,6 +19,7 @@ namespace Mist {
         return false;
       }
       long long unsigned int time;
+      long long unsigned int offset;
       unsigned int trackID;
       long long unsigned int bpos;
       unsigned int size;
@@ -44,9 +45,10 @@ namespace Mist {
       MP4::STCO stcoBox;
       MP4::STSZ stszBox;
       MP4::STTS sttsBox;
+      MP4::CTTS cttsBox;
       MP4::STSC stscBox;
       long unsigned int timeScale;
-      void getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp);
+      void getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp, long long unsigned int & timeOffset);
       long unsigned int size();
     private:
       long long unsigned int lastIndex;//remembers the last called sample index
@@ -60,7 +62,6 @@ namespace Mist {
       //next variables are needed for the stts loop
       long long unsigned int totalDelta;//total of time delta;
       long long unsigned int prevTotalDelta;//total of time delta, from previous stsc box;
-      long long unsigned int sttsStart;
       long long unsigned int countedSamples;//the amount of samples we're walking through
   };
 

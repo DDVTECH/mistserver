@@ -17,6 +17,7 @@ namespace Mist {
     lastIndex = 0;
     initialised = false;
     sttsBox.clear();
+    cttsBox.clear();
     stszBox.clear();
     stcoBox.clear();
   }
@@ -63,6 +64,10 @@ namespace Mist {
                     tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
                     sttsBox.clear();
                     sttsBox.read(tmp);
+                  }else if (stblBoxType == "ctts"){
+                    tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
+                    cttsBox.clear();
+                    cttsBox.read(tmp);
                   }else if (stblBoxType == "stsz"){
                     tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
                     stszBox.clear();
@@ -85,10 +90,7 @@ namespace Mist {
     }//rof trak
   }
 
-  void mp4TrackHeader::getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp){
-    if (index > lastIndex && initialised){//
-      //smile!
-    }else{
+  void mp4TrackHeader::getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp, long long unsigned int & timeOffset){
       //for loop stsc
       //using private variables
       stcoPlace = 0;
@@ -101,9 +103,7 @@ namespace Mist {
       //using private variables
       totalDelta = 0;//total of time delta;
       prevTotalDelta = 0;
-      sttsStart = 0;
       countedSamples = 0;//the amount of samples we're walking through
-    }
     //seek in boxes
    
     for (int i = stscStart; i < stscBox.getEntryCount(); i++){
@@ -129,9 +129,8 @@ namespace Mist {
     }
 
     MP4::STTSEntry tmpSTTS;
-    for (int i = sttsStart; i < sttsBox.getEntryCount(); i++){
+    for (int i = 0; i < sttsBox.getEntryCount(); i++){
       tmpSTTS = sttsBox.getSTTSEntry(i);
-      sttsStart = i;
       if ((index - countedSamples) < tmpSTTS.sampleCount){
         totalDelta = prevTotalDelta + ((index-countedSamples) * tmpSTTS.sampleDelta);
         break;
@@ -143,6 +142,17 @@ namespace Mist {
     }
     timestamp = (totalDelta*1000)/timeScale;
     initialised = true;
+
+    MP4::CTTSEntry tmpCTTS;
+    countedSamples = 0;
+    for (int i = 0; i < cttsBox.getEntryCount(); i++){
+      tmpCTTS = cttsBox.getCTTSEntry(i);
+      if ((index - countedSamples) < tmpCTTS.sampleCount){
+        timeOffset = (tmpCTTS.sampleOffset*1000)/timeScale;
+        break;
+      }
+      countedSamples += tmpCTTS.sampleCount;
+    }
 
     //next lines are common for next-getting and seeking
     size = stszBox.getEntrySize(index);
@@ -522,12 +532,12 @@ namespace Mist {
       lastPack.null();
       return;
     }
-    lastPack.genericFill(curPart.time, 0,/*No offset?!*/ curPart.trackID, data, curPart.size, 0/*Note: no bpos*/, isKeyframe);
+    lastPack.genericFill(curPart.time, curPart.offset, curPart.trackID, data, curPart.size, 0/*Note: no bpos*/, isKeyframe);
     
     //get the next part for this track
     curPart.index ++;
     if (curPart.index < headerData[curPart.trackID].size()){
-      headerData[curPart.trackID].getPart(curPart.index, curPart.bpos, curPart.size, curPart.time);
+      headerData[curPart.trackID].getPart(curPart.index, curPart.bpos, curPart.size, curPart.time, curPart.offset);
       curPositions.insert(curPart);
     }
   }
@@ -546,7 +556,7 @@ namespace Mist {
       //for all indexes in those tracks
       for (unsigned int i = 0; i < headerData[*it].size(); i++){
         //if time > seekTime
-        headerData[*it].getPart(i, addPart.bpos, addPart.size, addPart.time);
+        headerData[*it].getPart(i, addPart.bpos, addPart.size, addPart.time, addPart.offset);
         //check for keyframe time in myMeta and update nextKeyframe
         //
         if (myMeta.tracks[*it].keys[(nextKeyframe[*it])].getTime() < addPart.time){

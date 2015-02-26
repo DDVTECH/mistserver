@@ -45,6 +45,7 @@ namespace Mist {
     capa["url_match"].append("/clientaccesspolicy.xml");
     capa["url_match"].append("/$.html");
     capa["url_match"].append("/$.ico");
+    capa["url_match"].append("/$.smil");
     capa["url_match"].append("/info_$.js");
     capa["url_match"].append("/json_$.js");
     capa["url_match"].append("/embed_$.js");

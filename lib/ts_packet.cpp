@@ -575,7 +575,7 @@ namespace TS {
 /// \param NumBytes the amount of non-stuffing content bytes you want to send.
 /// \return The amount of content bytes that can be send.
   void Packet::AddStuffing() {
-    int numBytes = BytesFree();
+    size_t numBytes = BytesFree();
     if (!numBytes) {
       return;
     }
@@ -587,26 +587,38 @@ namespace TS {
     
 
     if (AdaptationField() == 1){
-      //Convert adaptationfield to 3
+      //Move data from byte [4] onwards to byte [5] onwards
       strBuf.insert(4, 1, (char)0);
+      //Convert adaptationfield to 3
       AdaptationField(3);
+      //Since we inserted 1 bytes for the adaptation_field_length, add one less byte stuffing
       numBytes --;
     }
     
+    //If we have more stuffing to add
     if (AdaptationField() == 3 && numBytes ) {
       if (strBuf[4] == 0){
-        strBuf.insert(5, numBytes, '$');
+        //No data is present in adapationfield yet
+        //Add numbytes Bytes of "$"
+        strBuf.insert((size_t)5, numBytes, '?');
       }else{
-        strBuf.insert(6 + strBuf[4], numBytes, '$');
+        //Data is already present in adaptationfield
+        //Append numbytes Bytes of "$"
+        strBuf.insert((size_t)(5 + strBuf[4]), numBytes, '$');
       }
+      //Update the adaptation_field_length with the amount of bytes added.
       strBuf[4] += numBytes;
     }
 
     if (numBytes){
+      //We have added stuffing (other than just the field_length)
       if (numBytes == strBuf[4]){
+        //We have added a new adaptation field, set the flags to 0
         strBuf[5] = 0x00;
         numBytes --;
       }
+
+      //Set the stuffing 'backwards' from the end of all stuffing to FILLER_DATA
       for (int i = 0; i < numBytes; i++) {
         strBuf[5+(strBuf[4] - numBytes)+i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
       }

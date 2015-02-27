@@ -2397,13 +2397,13 @@ var UI = {
               allstreams[s].source += '*';
               mist.send(function(d,opts){
                 var s = opts.stream;
-                for (var i in mist.data.browse.files) {
+                for (var i in d.browse.files) {
                   for (var j in mist.data.capabilities.inputs) {
                     if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
-                    if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+mist.data.browse.files[i])) {
-                      var streamname = s+'+'+mist.data.browse.files[i];
+                    if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
+                      var streamname = s+'+'+d.browse.files[i];
                       allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
-                      allstreams[streamname].source = mist.data.streams[s].source+mist.data.browse.files[i];
+                      allstreams[streamname].source = mist.data.streams[s].source+d.browse.files[i];
                     }
                   }
                 }
@@ -2947,7 +2947,7 @@ var UI = {
           };
           script.onload = function(){
             if (typeof mistvideo[other].error != 'undefined') {
-              $video.html(mistvideo[other].error+'"<br>').append(
+              $video.html(mistvideo[other].error+'<br>').append(
                 $('<button>').text('Try again').click(function(){
                   loadVideo();
                 })
@@ -3843,9 +3843,9 @@ var mist = {
     sendData = sendData || {};
     opts = opts || {};
     opts = $.extend(true,{
-      timeout: 30
+      timeout: 30,
+      sendData: sendData
     },opts);
-    delete sendData.logs;
     var data = {
       authorize: {
         password: (mist.user.authstring ? MD5(MD5(mist.user.password)+mist.user.authstring) : ''),
@@ -3891,7 +3891,7 @@ var mist = {
         UI.navto('Login');
       },
       success: function(d){
-        log('Receive',$.extend(true,{},d));
+        log('Receive',$.extend(true,{},d),'as reply to',opts.sendData);
         delete mist.user.loggedin;
         switch (d.authorize.status) {
           case 'OK':

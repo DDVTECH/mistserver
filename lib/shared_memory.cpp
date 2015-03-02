@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <unistd.h>
-
+#include <mist/procs.h>
 #include <iostream>
 #include "defines.h"
 #include "shared_memory.h"
@@ -21,6 +21,13 @@ namespace IPC {
     p[2] = (val >> 8) & 0xFF;
     p[3] = val & 0xFF;
   }
+
+  /// Stores a short value of val in network order to the pointer p.
+  static void htobs(char * p, short val) {
+    p[0] = (val >> 8) & 0xFF;
+    p[1] = val & 0xFF;
+  }
+
 
   /// Stores a long long value of val in network order to the pointer p.
   static void htobll(char * p, long long val) {
@@ -37,6 +44,11 @@ namespace IPC {
   /// Reads a long value of p in host order to val.
   static void btohl(char * p, long & val) {
     val = ((long)p[0] << 24) | ((long)p[1] << 16) | ((long)p[2] << 8) | p[3];
+  }
+
+  /// Reads a short value of p in host order to val.
+  static void btohs(char * p, unsigned short & val) {
+    val = ((short)p[0] << 8) | p[1];
   }
 
   /// Reads a long value of p in host order to val.
@@ -581,6 +593,18 @@ namespace IPC {
     return result;
   }
 
+///\brief Sets PID field
+  void statExchange::pid(unsigned short id) {
+    htobs(data + 92, id);
+  }
+
+  ///\brief Gets PID field
+  unsigned short statExchange::pid() {
+    unsigned short result;
+    btohs(data + 92, result);
+    return result;
+  }
+
   ///\brief Creates a semaphore guard, locks the semaphore on call
   semGuard::semGuard(semaphore * thisSemaphore) : mySemaphore(thisSemaphore) {
     mySemaphore->wait();
@@ -721,14 +745,20 @@ namespace IPC {
       while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
         if (hasCounter) {
           if (it->mapped[offset] != 0) {
-            int counter = it->mapped[offset];
+            char * counter = it->mapped+offset;
             //increase the count if needed
             if (id >= amount) {
               amount = id + 1;
               DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+            }            
+            unsigned short tmpPID = *((unsigned short *)(it->mapped+1+offset+payLen-2));
+            DEBUG_MSG(DLVL_FAIL, "get PID: %d ", tmpPID);
+            if(!Util::Procs::isRunnning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)){
+              WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);    
+              *counter = 126; //if process is already dead, instant timeout.
             }
             callback(it->mapped + offset + 1, payLen, id);
-            switch (counter) {
+            switch (*counter) {
               case 127:
                 DEBUG_MSG(DLVL_HIGH, "Client %u requested disconnect", id);
                 break;
@@ -742,9 +772,18 @@ namespace IPC {
                 DEBUG_MSG(DLVL_WARN, "Client %u disconnect timed out", id);
                 break;
               default:
+                if(*counter > 10 && *counter < 126 ){
+                  if(*counter < 30){
+                    ERROR_MSG("process unresponsive. sending sigterm to pid %d",tmpPID);
+                    Util::Procs::Stop(tmpPID); //soft kill  
+                  } else {      
+                    FAIL_MSG("process really unresponsive. sending sigkill to pid %d", tmpPID);
+                    Util::Procs::Murder(tmpPID); //improved kill      
+                  }
+                }
                 break;
             }
-            if (counter == 127 || counter == 126 || counter == 255 || counter == 254) {
+            if (*counter == 127 || *counter == 126 || *counter == 255 || *counter == 254) {
               memset(it->mapped + offset + 1, 0, payLen);
               it->mapped[offset] = 0;
             } else {
@@ -876,6 +915,8 @@ namespace IPC {
           offsetOnPage = offset;
           if (hasCounter) {
             myPage.mapped[offset] = 1;
+            *((unsigned short *)(myPage.mapped+1+offset+len-2))=getpid();
+            DEBUG_MSG(DLVL_FAIL, "set PID: %d ", *((unsigned short *)(myPage.mapped+1+offset+len-2)));
           }
           break;
         }

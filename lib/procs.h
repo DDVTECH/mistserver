@@ -34,10 +34,12 @@ namespace Util {
       static pid_t StartPiped2(std::string name, std::string cmd1, std::string cmd2, int * fdin, int * fdout, int * fderr1, int * fderr2);
       static void Stop(std::string name);
       static void Stop(pid_t name);
+      static void Murder(pid_t name);
       static void StopAll();
       static int Count();
       static bool isActive(std::string name);
       static bool isActive(pid_t name);
+      static bool isRunnning(pid_t pid);
       static pid_t getPid(std::string name);
       static std::string getName(pid_t name);
       static bool SetTerminationNotifier(pid_t pid, TerminationNotifier notifier);

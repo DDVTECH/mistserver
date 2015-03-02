@@ -25,6 +25,8 @@ std::map<pid_t, std::string> Util::Procs::plist;
 std::map<pid_t, Util::TerminationNotifier> Util::Procs::exitHandlers;
 bool Util::Procs::handler_set = false;
 
+
+
 static bool childRunning(pid_t p) {
   pid_t ret = waitpid(p, 0, WNOHANG);
   if (ret == p) {
@@ -33,10 +35,12 @@ static bool childRunning(pid_t p) {
   if (ret < 0 && errno == EINTR) {
     return childRunning(p);
   }
-  if (kill(p, 0) == 0) {
-    return true;
-  }
-  return false;
+  return !kill(p, 0);
+}
+
+/// sends sig 0 to process (pid). returns true if process is running
+bool Util::Procs::isRunnning(pid_t pid){
+  return !kill(pid, 0);
 }
 
 /// Called at exit of any program that used a Start* function.
@@ -657,9 +661,13 @@ void Util::Procs::Stop(std::string name) {
 /// Stops the process with this pid, if running.
 /// \arg name The PID of the process to stop.
 void Util::Procs::Stop(pid_t name) {
-  if (isActive(name)) {
-    kill(name, SIGTERM);
-  }
+  kill(name, SIGTERM);  
+}
+
+/// Stops the process with this pid, if running.
+/// \arg name The PID of the process to murder.
+void Util::Procs::Murder(pid_t name) {
+  kill(name, SIGKILL);  
 }
 
 /// (Attempts to) stop all running child processes.

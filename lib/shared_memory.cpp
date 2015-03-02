@@ -655,16 +655,8 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
       return;
     }
-    for (int i = 0; i < 11; i++){
-      newPage();
-    }
-    /*
+    semGuard tmpGuard(&mySemaphore);
     newPage();
-    newPage();
-    newPage();
-    newPage();
-    newPage();
-    */
   }
 
   ///\brief The deconstructor
@@ -680,7 +672,6 @@ namespace IPC {
 
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
-    semGuard tmpGuard(&mySemaphore);
     sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2)<< myPages.size()),  (32 * 1024 * 1024)), true);
     myPages.insert(tmp);
     tmp.master = false;
@@ -693,7 +684,6 @@ namespace IPC {
       DEBUG_MSG(DLVL_WARN, "Can't remove last page for %s", baseName.c_str());
       return;
     }
-    semGuard tmpGuard(&mySemaphore);
     myPages.erase((*myPages.rbegin()));
   }
 
@@ -736,23 +726,26 @@ namespace IPC {
     }
     semGuard tmpGuard(&mySemaphore);
     unsigned int id = 0;
+    unsigned int userCount=0;
+    unsigned int emptyCount = 0;
     for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
         DEBUG_MSG(DLVL_FAIL, "Something went terribly wrong?");
         break;
       }
+      userCount = 0;
       unsigned int offset = 0;
       while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
         if (hasCounter) {
           if (it->mapped[offset] != 0) {
             char * counter = it->mapped+offset;
             //increase the count if needed
+            ++userCount;
             if (id >= amount) {
               amount = id + 1;
               DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
             }            
-            unsigned short tmpPID = *((unsigned short *)(it->mapped+1+offset+payLen-2));
-            DEBUG_MSG(DLVL_FAIL, "get PID: %d ", tmpPID);
+            unsigned short tmpPID = *((unsigned short *)(it->mapped+1+offset+payLen-2));            
             if(!Util::Procs::isRunnning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)){
               WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);    
               *counter = 126; //if process is already dead, instant timeout.
@@ -798,11 +791,12 @@ namespace IPC {
                 DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point
-              return;
+              break;
             }
           }
         } else {
           if (memcmp(empty, it->mapped + offset, payLen)) {
+            ++userCount;
             //increase the count if needed
             if (id >= amount) {
               amount = id + 1;
@@ -821,14 +815,26 @@ namespace IPC {
               if (empty) {
                 free(empty);
               }
-              return;
+              break;
             }
           }
         }
         offset += payLen + (hasCounter ? 1 : 0);
         id ++;
+      }      
+      if(userCount==0) {
+        ++emptyCount;
+      } else {
+        emptyCount=0;
       }
     }
+    
+    if( emptyCount > 1){
+      deletePage();
+    } else if( !emptyCount ){
+      newPage();
+    }
+    
     if (empty) {
       free(empty);
     }
@@ -897,7 +903,6 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore %s failed: %s", baseName.c_str(), strerror(errno));
       return;
     }
-    semGuard tmpGuard(&mySemaphore);
     char * empty = 0;
     if (!hasCounter) {
       empty = (char *)malloc(payLen * sizeof(char));
@@ -907,24 +912,32 @@ namespace IPC {
       }
       memset(empty, 0, payLen);
     }
-    for (char i = 'A'; i <= 'Z'; i++) {
-      myPage.init(baseName.substr(1) + i, (4096 << (i - 'A')));
-      int offset = 0;
-      while (offset + payLen + (hasCounter ? 1 : 0) <= myPage.len) {
-        if ((hasCounter && myPage.mapped[offset] == 0) || (!hasCounter && !memcmp(myPage.mapped + offset, empty, payLen))) {
-          offsetOnPage = offset;
-          if (hasCounter) {
-            myPage.mapped[offset] = 1;
-            *((unsigned short *)(myPage.mapped+1+offset+len-2))=getpid();
-            DEBUG_MSG(DLVL_FAIL, "set PID: %d ", *((unsigned short *)(myPage.mapped+1+offset+len-2)));
+    while (offsetOnPage == -1){
+      {
+        semGuard tmpGuard(&mySemaphore);
+        for (char i = 'A'; i <= 'Z'; i++) {
+          myPage.init(baseName.substr(1) + i, (4096 << (i - 'A')), false, false);
+          if (!myPage.mapped){
+            break;
           }
-          break;
+          int offset = 0;
+          while (offset + payLen + (hasCounter ? 1 : 0) <= myPage.len) {
+            if ((hasCounter && myPage.mapped[offset] == 0) || (!hasCounter && !memcmp(myPage.mapped + offset, empty, payLen))) {
+              offsetOnPage = offset;
+              if (hasCounter) {
+                myPage.mapped[offset] = 1;
+                *((unsigned short *)(myPage.mapped+1+offset+len-2))=getpid();           
+              }
+              break;
+            }
+            offset += payLen + (hasCounter ? 1 : 0);
+          }
+          if (offsetOnPage != -1) {
+            break;
+          }
         }
-        offset += payLen + (hasCounter ? 1 : 0);
       }
-      if (offsetOnPage != -1) {
-        break;
-      }
+      Util::wait(500);
     }
     free(empty);
   }

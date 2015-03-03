@@ -1,53 +1,100 @@
-#include <time.h>
-#include <openssl/rsa.h>
-#include <openssl/md5.h>
-#include <openssl/x509.h>
-
 #include "auth.h"
-#include "base64.h"
+#include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 namespace Secure {
 
-  static unsigned char __gbv2keypub_der[] = {0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01,
-                                             0x05, 0x00, 0x03, 0x82, 0x01, 0x0f, 0x00, 0x30, 0x82, 0x01, 0x0a, 0x02, 0x82, 0x01, 0x01, 0x00, 0xe5, 0xd7, 0x9c, 0x7d, 0x73, 0xc6, 0xe6, 0xfb,
-                                             0x35, 0x7e, 0xd7, 0x57, 0x99, 0x07, 0xdb, 0x99, 0x70, 0xc9, 0xd0, 0x3e, 0x53, 0x57, 0x3c, 0x1e, 0x55, 0xda, 0x0f, 0x69, 0xbf, 0x26, 0x79, 0xc7,
-                                             0xb6, 0xdd, 0x8e, 0x83, 0x32, 0x65, 0x74, 0x0d, 0x74, 0x48, 0x42, 0x49, 0x22, 0x52, 0x58, 0x56, 0xc3, 0xe4, 0x49, 0x5d, 0xac, 0x6a, 0x94, 0xb1,
-                                             0x64, 0x14, 0xbf, 0x4d, 0xd5, 0xd7, 0x3a, 0xca, 0x5c, 0x1e, 0x6f, 0x42, 0x30, 0xac, 0x29, 0xaa, 0xa0, 0x85, 0xd2, 0x16, 0xa2, 0x8e, 0x89, 0x12,
-                                             0xc4, 0x92, 0x06, 0xea, 0xed, 0x48, 0xf6, 0xdb, 0xed, 0x4f, 0x62, 0x6c, 0xfa, 0xcf, 0xc2, 0xb9, 0x8d, 0x04, 0xb2, 0xba, 0x63, 0xc9, 0xcc, 0xee,
-                                             0x23, 0x64, 0x46, 0x14, 0x12, 0xc8, 0x38, 0x67, 0x69, 0x6b, 0xaf, 0xd1, 0x7c, 0xb1, 0xb5, 0x79, 0xe4, 0x4e, 0x3a, 0xa7, 0xe8, 0x28, 0x89, 0x25,
-                                             0xc0, 0xd0, 0xd8, 0xc7, 0xd2, 0x26, 0xaa, 0xf5, 0xbf, 0x36, 0x55, 0x01, 0x89, 0x58, 0x1f, 0x1e, 0xf5, 0xa5, 0x42, 0x8f, 0x60, 0x2e, 0xc2, 0xd8,
-                                             0x21, 0x0b, 0x6c, 0x8d, 0xbb, 0x72, 0xf2, 0x19, 0x30, 0xe3, 0x4c, 0x3e, 0x80, 0xe7, 0xf2, 0xe3, 0x89, 0x4f, 0xd4, 0xee, 0x96, 0x3e, 0x4a, 0x9b,
-                                             0xe5, 0x16, 0x01, 0xf1, 0x98, 0xc9, 0x0b, 0xd6, 0xdf, 0x8a, 0x64, 0x47, 0xc4, 0x44, 0xcc, 0x92, 0x69, 0x28, 0xee, 0x7d, 0xac, 0xdc, 0x30, 0x56,
-                                             0x3a, 0xe7, 0xbc, 0xba, 0x45, 0x16, 0x2c, 0x4c, 0x46, 0x6b, 0x2b, 0x20, 0xfb, 0x3d, 0x20, 0x35, 0xbb, 0x48, 0x49, 0x13, 0x65, 0xc9, 0x9a, 0x38,
-                                             0x10, 0x84, 0x1a, 0x8c, 0xc9, 0xd7, 0xde, 0x07, 0x10, 0x5a, 0xfb, 0xb4, 0x95, 0xae, 0x18, 0xf2, 0xe3, 0x15, 0xe8, 0xad, 0x7e, 0xe5, 0x3c, 0xa8,
-                                             0x47, 0x85, 0xd6, 0x1f, 0x54, 0xb5, 0xa3, 0x79, 0x02, 0x03, 0x01, 0x00, 0x01
-                                            }; ///< The GBv2 public key file.
-  static unsigned int __gbv2keypub_der_len = 294; ///< Length of GBv2 public key data
-
-  /// Attempts to load the GBv2 public key.
-  Auth::Auth() {
-    const unsigned char * key = __gbv2keypub_der;
-    pubkey = (void *)d2i_RSAPublicKey(0, &key, __gbv2keypub_der_len);
-  }
-
-  /// Attempts to verify RSA signature using the public key.
-  /// Assumes basesign argument is base64 encoded RSA signature for data.
-  /// Returns true if the data could be verified, false otherwise.
-  bool Auth::PubKey_Check(std::string & data, std::string basesign) {
-    std::string sign = Base64::decode(basesign);
-    return (RSA_verify(NID_md5, (unsigned char *)data.c_str(), data.size(), (unsigned char *)sign.c_str(), sign.size(), (RSA *)pubkey) == 1);
-  }
-
-  /// Wrapper function for openssl MD5 implementation
+  /// Calculates a MD5 digest as per rfc1321, returning it as a hexadecimal alphanumeric string.
   std::string md5(std::string input) {
-    char tmp[3];
-    std::string ret;
-    const unsigned char * res = MD5((const unsigned char *)input.c_str(), input.length(), 0);
-    for (int i = 0; i < 16; ++i) {
-      snprintf(tmp, 3, "%02x", res[i]);
-      ret += tmp;
+    return md5(input.data(), input.size());
+  }
+
+
+  /// Adds 64 bytes of data to the current MD5 hash.
+  /// hash is the current hash, represented by 4 unsigned longs.
+  /// data is the 64 bytes of data that need to be added.
+  static inline void md5_add64(uint32_t * hash, const char * data){
+    //Inspired by the pseudocode as available on Wikipedia on March 2nd, 2015.
+    uint32_t M[16];
+    for (unsigned int i = 0; i < 16; ++i){
+      M[i] = data[i << 2] | (data[(i<<2)+1] << 8) | (data[(i<<2)+2] << 16) | (data[(i<<2)+3] << 24);
     }
-    return ret;
+    static unsigned char shift[] = {7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22, 5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20, 4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23, 6, 10, 15, 21,  6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21};
+    static uint32_t K[] = { 0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821, 0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8, 0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a, 0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70, 0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665, 0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1, 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
+    uint32_t A = hash[0];
+    uint32_t B = hash[1];
+    uint32_t C = hash[2];
+    uint32_t D = hash[3];
+    for (unsigned int i = 0; i < 64; ++i){
+      uint32_t F, g;
+      if (i < 16){
+        F = (B & C) | ((~B) & D);
+        g = i;
+      }else if (i < 32){
+        F = (D & B) | ((~D) & C);
+        g = (5*i + 1) % 16;
+      }else if (i < 48){
+        F = B ^ C ^ D;
+        g = (3*i + 5) % 16;
+      }else{
+        F = C ^ (B | (~D));
+        g = (7*i) % 16;
+      }
+      uint32_t dTemp = D;
+      D = C;
+      C = B;
+      uint32_t x = A + F + K[i] + M[g];
+      B += (x << shift[i] | (x >> (32-shift[i])));
+      A = dTemp;
+    }
+    hash[0] += A;
+    hash[1] += B;
+    hash[2] += C;
+    hash[3] += D;
+  }
+
+  /// Calculates a MD5 digest as per rfc1321, returning it as a hexadecimal alphanumeric string.
+  std::string md5(const char * input, const unsigned int in_len){
+    //Initialize the hash, according to MD5 spec.
+    uint32_t hash[] = {0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476};
+    //Add as many whole blocks of 64 bytes as possible from the input, until < 64 are left.
+    unsigned int offset = 0;
+    while (offset+64 <= in_len){
+      md5_add64(hash, input+offset);
+      offset += 64;
+    }
+    //now, copy the remainder to a 64 byte buffer.
+    char buffer[64];
+    memcpy(buffer, input+offset, in_len-offset);
+    //Calculate how much we've filled in that buffer
+    offset = in_len - offset;
+    //We know at least 1 byte must be empty, so we can safely do this
+    buffer[offset] = 0x80;//append 0x80
+    //fill to the end of the buffer with zeroes
+    memset(buffer+offset+1, 0, 64-offset-1);
+    if (offset > 55){
+      //There's no space for the length, add what we have and zero it
+      md5_add64(hash, buffer);
+      memset(buffer, 0, 64);
+    }
+    unsigned long long bit_len = in_len << 3;
+    //Write the length into the last 8 bytes
+    buffer[56] = (bit_len >> 0) & 0xff;
+    buffer[57] = (bit_len >> 8) & 0xff;
+    buffer[58] = (bit_len >> 16) & 0xff;
+    buffer[59] = (bit_len >> 24) & 0xff;
+    buffer[60] = (bit_len >> 32) & 0xff;
+    buffer[61] = (bit_len >> 40) & 0xff;
+    buffer[62] = (bit_len >> 48) & 0xff;
+    buffer[63] = (bit_len >> 54) & 0xff;
+    //Add the last bit of buffer
+    md5_add64(hash, buffer);
+    //convert hash to hexadecimal string
+    char outstr[33];
+    snprintf(outstr, 33, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", hash[0] & 0xff, (hash[0] >> 8) & 0xff, (hash[0] >> 16) & 0xff, (hash[0] >> 24) & 0xff, hash[1] & 0xff, (hash[1] >> 8) & 0xff, (hash[1] >> 16) & 0xff, (hash[1] >> 24) & 0xff, hash[2] & 0xff, (hash[2] >> 8) & 0xff, (hash[2] >> 16) & 0xff, (hash[2] >> 24) & 0xff, hash[3] & 0xff, (hash[3] >> 8) & 0xff, (hash[3] >> 16) & 0xff, (hash[3] >> 24) & 0xff);
+    return std::string(outstr);
   }
 
 }
+

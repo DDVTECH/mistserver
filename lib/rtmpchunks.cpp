@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "flv_tag.h"
 #include "timing.h"
+#include "auth.h"
 
 #ifndef FILLER_DATA
 #define FILLER_DATA "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent commodo vulputate urna eu commodo. Cras tempor velit nec nulla placerat volutpat. Proin eleifend blandit quam sit amet suscipit. Pellentesque vitae tristique lorem. Maecenas facilisis consequat neque, vitae iaculis eros vulputate ut. Suspendisse ut arcu non eros vestibulum pulvinar id sed erat. Nam dictum tellus vel tellus rhoncus ut mollis tellus fermentum. Fusce volutpat consectetur ante, in mollis nisi euismod vulputate. Curabitur vitae facilisis ligula. Sed sed gravida dolor. Integer eu eros a dolor lobortis ullamcorper. Mauris interdum elit non neque interdum dictum. Suspendisse imperdiet eros sed sapien cursus pulvinar. Vestibulum ut dolor lectus, id commodo elit. Cras convallis varius leo eu porta. Duis luctus sapien nec dui adipiscing quis interdum nunc congue. Morbi pharetra aliquet mauris vitae tristique. Etiam feugiat sapien quis augue elementum id ultricies magna vulputate. Phasellus luctus, leo id egestas consequat, eros tortor commodo neque, vitae hendrerit nunc sem ut odio."
@@ -29,28 +30,19 @@ std::map<unsigned int, RTMPStream::Chunk> RTMPStream::lastsend;
 /// Holds the last received chunk for every msg_id.
 std::map<unsigned int, RTMPStream::Chunk> RTMPStream::lastrecv;
 
-#include <openssl/bn.h>
-#include <openssl/dh.h>
-#include <openssl/rc4.h>
-#include <openssl/ssl.h>
-#include <openssl/rand.h>
-#include <openssl/err.h>
-#include <openssl/bio.h>
-#include <openssl/hmac.h>
-
 #define P1024 \
   "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DD" \
   "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED" \
   "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF"
 
-uint8_t genuineFMSKey[] = {0x47, 0x65, 0x6e, 0x75, 0x69, 0x6e, 0x65, 0x20, 0x41, 0x64, 0x6f, 0x62, 0x65, 0x20, 0x46, 0x6c, 0x61, 0x73, 0x68, 0x20,
+char genuineFMSKey[] = {0x47, 0x65, 0x6e, 0x75, 0x69, 0x6e, 0x65, 0x20, 0x41, 0x64, 0x6f, 0x62, 0x65, 0x20, 0x46, 0x6c, 0x61, 0x73, 0x68, 0x20,
                            0x4d, 0x65, 0x64, 0x69, 0x61, 0x20, 0x53, 0x65, 0x72,
                            0x76, // Genuine Adobe Flash Media Server 001
                            0x65, 0x72, 0x20, 0x30, 0x30, 0x31, 0xf0, 0xee, 0xc2, 0x4a, 0x80, 0x68, 0xbe, 0xe8, 0x2e, 0x00, 0xd0, 0xd1, 0x02, 0x9e, 0x7e, 0x57, 0x6e, 0xec,
                            0x5d, 0x2d, 0x29, 0x80, 0x6f, 0xab, 0x93, 0xb8, 0xe6, 0x36, 0xcf, 0xeb, 0x31, 0xae
                           }; // 68
 
-uint8_t genuineFPKey[] = {0x47, 0x65, 0x6e, 0x75, 0x69, 0x6e, 0x65, 0x20, 0x41, 0x64, 0x6f, 0x62, 0x65, 0x20, 0x46, 0x6c, 0x61, 0x73, 0x68, 0x20,
+char genuineFPKey[] = {0x47, 0x65, 0x6e, 0x75, 0x69, 0x6e, 0x65, 0x20, 0x41, 0x64, 0x6f, 0x62, 0x65, 0x20, 0x46, 0x6c, 0x61, 0x73, 0x68, 0x20,
                           0x50, 0x6c, 0x61,
                           0x79, // Genuine Adobe Flash Player 001
                           0x65, 0x72, 0x20, 0x30, 0x30, 0x31, 0xf0, 0xee, 0xc2, 0x4a, 0x80, 0x68, 0xbe, 0xe8, 0x2e, 0x00, 0xd0, 0xd1, 0x02, 0x9e, 0x7e, 0x57, 0x6e, 0xec,
@@ -65,205 +57,15 @@ inline uint32_t GetDigestOffset(uint8_t * pBuffer, uint8_t scheme) {
   }
 }
 
-inline uint32_t GetDHOffset(uint8_t * pBuffer, uint8_t scheme) {
-  if (scheme == 0) {
-    return ((pBuffer[1532] + pBuffer[1533] + pBuffer[1534] + pBuffer[1535]) % 632) + 772;
-  } else {
-    return ((pBuffer[768] + pBuffer[769] + pBuffer[770] + pBuffer[771]) % 632) + 8;
-  }
-}
-
-class DHWrapper {
-  private:
-    int32_t _bitsCount;
-    DH * _pDH;
-    uint8_t * _pSharedKey;
-    int32_t _sharedKeyLength;
-    BIGNUM * _peerPublickey;
-  public:
-    DHWrapper(int32_t bitsCount);
-    virtual ~DHWrapper();
-    bool Initialize();
-    bool CopyPublicKey(uint8_t * pDst, int32_t dstLength);
-    bool CopyPrivateKey(uint8_t * pDst, int32_t dstLength);
-    bool CreateSharedKey(uint8_t * pPeerPublicKey, int32_t length);
-    bool CopySharedKey(uint8_t * pDst, int32_t dstLength);
-  private:
-    void Cleanup();
-    bool CopyKey(BIGNUM * pNum, uint8_t * pDst, int32_t dstLength);
-};
-
-DHWrapper::DHWrapper(int32_t bitsCount) {
-  _bitsCount = bitsCount;
-  _pDH = 0;
-  _pSharedKey = 0;
-  _sharedKeyLength = 0;
-  _peerPublickey = 0;
-}
-
-DHWrapper::~DHWrapper() {
-  Cleanup();
-}
-
-bool DHWrapper::Initialize() {
-  Cleanup();
-  _pDH = DH_new();
-  if (!_pDH) {
-    Cleanup();
-    return false;
-  }
-  _pDH->p = BN_new();
-  if (!_pDH->p) {
-    Cleanup();
-    return false;
-  }
-  _pDH->g = BN_new();
-  if (!_pDH->g) {
-    Cleanup();
-    return false;
-  }
-  if (BN_hex2bn(&_pDH->p, P1024) == 0) {
-    Cleanup();
-    return false;
-  }
-  if (BN_set_word(_pDH->g, 2) != 1) {
-    Cleanup();
-    return false;
-  }
-  _pDH->length = _bitsCount;
-  if (DH_generate_key(_pDH) != 1) {
-    Cleanup();
-    return false;
-  }
-  return true;
-}
-
-bool DHWrapper::CopyPublicKey(uint8_t * pDst, int32_t dstLength) {
-  if (!_pDH) {
-    return false;
-  }
-  return CopyKey(_pDH->pub_key, pDst, dstLength);
-}
-
-bool DHWrapper::CopyPrivateKey(uint8_t * pDst, int32_t dstLength) {
-  if (!_pDH) {
-    return false;
-  }
-  return CopyKey(_pDH->priv_key, pDst, dstLength);
-}
-
-bool DHWrapper::CreateSharedKey(uint8_t * pPeerPublicKey, int32_t length) {
-  if (!_pDH) {
-    return false;
-  }
-  if (_sharedKeyLength != 0 || _pSharedKey) {
-    return false;
-  }
-
-  _sharedKeyLength = DH_size(_pDH);
-  if (_sharedKeyLength <= 0 || _sharedKeyLength > 1024) {
-    return false;
-  }
-
-  _pSharedKey = new uint8_t[_sharedKeyLength];
-  _peerPublickey = BN_bin2bn(pPeerPublicKey, length, 0);
-  if (!_peerPublickey) {
-    return false;
-  }
-
-  DH_compute_key(_pSharedKey, _peerPublickey, _pDH);
-  return true;
-}
-
-bool DHWrapper::CopySharedKey(uint8_t * pDst, int32_t dstLength) {
-  if (!_pDH) {
-    return false;
-  }
-  if (dstLength != _sharedKeyLength) {
-    return false;
-  }
-  memcpy(pDst, _pSharedKey, _sharedKeyLength);
-  return true;
-}
-
-void DHWrapper::Cleanup() {
-  if (_pDH) {
-    if (_pDH->p) {
-      BN_free(_pDH->p);
-      _pDH->p = 0;
-    }
-    if (_pDH->g) {
-      BN_free(_pDH->g);
-      _pDH->g = 0;
-    }
-    DH_free(_pDH);
-    _pDH = 0;
-  }
-  if (_pSharedKey) {
-    delete[] _pSharedKey;
-    _pSharedKey = 0;
-  }
-  _sharedKeyLength = 0;
-  if (_peerPublickey) {
-    BN_free(_peerPublickey);
-    _peerPublickey = 0;
-  }
-}
-
-bool DHWrapper::CopyKey(BIGNUM * pNum, uint8_t * pDst, int32_t dstLength) {
-  int32_t keySize = BN_num_bytes(pNum);
-  if ((keySize <= 0) || (dstLength <= 0) || (keySize > dstLength)) {
-    return false;
-  }
-  if (BN_bn2bin(pNum, pDst) != keySize) {
-    return false;
-  }
-  return true;
-}
-
-void InitRC4Encryption(uint8_t * secretKey, uint8_t * pubKeyIn, uint8_t * pubKeyOut, RC4_KEY * rc4keyIn, RC4_KEY * rc4keyOut) {
-  uint8_t digest[SHA256_DIGEST_LENGTH];
-  unsigned int digestLen = 0;
-
-  HMAC_CTX ctx;
-  HMAC_CTX_init(&ctx);
-  HMAC_Init_ex(&ctx, secretKey, 128, EVP_sha256(), 0);
-  HMAC_Update(&ctx, pubKeyIn, 128);
-  HMAC_Final(&ctx, digest, &digestLen);
-  HMAC_CTX_cleanup(&ctx);
-
-  RC4_set_key(rc4keyOut, 16, digest);
-
-  HMAC_CTX_init(&ctx);
-  HMAC_Init_ex(&ctx, secretKey, 128, EVP_sha256(), 0);
-  HMAC_Update(&ctx, pubKeyOut, 128);
-  HMAC_Final(&ctx, digest, &digestLen);
-  HMAC_CTX_cleanup(&ctx);
-
-  RC4_set_key(rc4keyIn, 16, digest);
-}
-
-void HMACsha256(const void * pData, uint32_t dataLength, const void * pKey, uint32_t keyLength, void * pResult) {
-  unsigned int digestLen;
-  HMAC_CTX ctx;
-  HMAC_CTX_init(&ctx);
-  HMAC_Init_ex(&ctx, (unsigned char *)pKey, keyLength, EVP_sha256(), 0);
-  HMAC_Update(&ctx, (unsigned char *)pData, dataLength);
-  HMAC_Final(&ctx, (unsigned char *)pResult, &digestLen);
-  HMAC_CTX_cleanup(&ctx);
-}
-
 bool ValidateClientScheme(uint8_t * pBuffer, uint8_t scheme) {
   uint32_t clientDigestOffset = GetDigestOffset(pBuffer, scheme);
-  uint8_t * pTempBuffer = new uint8_t[1536 - 32];
+  uint8_t pTempBuffer[1536-32];
   memcpy(pTempBuffer, pBuffer, clientDigestOffset);
   memcpy(pTempBuffer + clientDigestOffset, pBuffer + clientDigestOffset + 32, 1536 - clientDigestOffset - 32);
-  uint8_t * pTempHash = new uint8_t[512];
-  HMACsha256(pTempBuffer, 1536 - 32, genuineFPKey, 30, pTempHash);
+  char pTempHash[32];
+  Secure::hmac_sha256bin((char*)pTempBuffer, 1536 - 32, genuineFPKey, 30, pTempHash);
   bool result = (memcmp(pBuffer + clientDigestOffset, pTempHash, 32) == 0);
   DEBUG_MSG(DLVL_MEDIUM, "Client scheme validation %hhi %s", scheme, result ? "success" : "failed");
-  delete[] pTempBuffer;
-  delete[] pTempHash;
   return result;
 }
 
@@ -823,6 +625,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
   }
 } //Parse
 
+#include <iomanip>
 /// Does the handshake. Expects handshake_in to be filled, and fills handshake_out.
 /// After calling this function, don't forget to read and ignore 1536 extra bytes,
 /// these are the handshake response and not interesting for us because we don't do client
@@ -854,58 +657,22 @@ bool RTMPStream::doHandshake() {
   if (ValidateClientScheme(Client, 1)) _validationScheme = 1;
 
   DEBUG_MSG(DLVL_HIGH, "Handshake type is %hhi, encryption is %s", _validationScheme, encrypted ? "on" : "off");
-
-  //FIRST 1536 bytes from server response
-  //compute DH key position
-  uint32_t serverDHOffset = GetDHOffset(Server, _validationScheme);
-  uint32_t clientDHOffset = GetDHOffset(Client, _validationScheme);
-
-  //generate DH key
-  DHWrapper dhWrapper(1024);
-  if (!dhWrapper.Initialize()) {
-    return false;
-  }
-  if (!dhWrapper.CreateSharedKey(Client + clientDHOffset, 128)) {
-    return false;
-  }
-  if (!dhWrapper.CopyPublicKey(Server + serverDHOffset, 128)) {
-    return false;
-  }
-
-  if (encrypted) {
-    uint8_t secretKey[128];
-    if (!dhWrapper.CopySharedKey(secretKey, sizeof(secretKey))) {
-      return false;
-    }
-    RC4_KEY _pKeyIn;
-    RC4_KEY _pKeyOut;
-    InitRC4Encryption(secretKey, (uint8_t *) &Client[clientDHOffset], (uint8_t *) &Server[serverDHOffset], &_pKeyIn, &_pKeyOut);
-    uint8_t data[1536];
-    RC4(&_pKeyIn, 1536, data, data);
-    RC4(&_pKeyOut, 1536, data, data);
-  }
-  //generate the digest
   uint32_t serverDigestOffset = GetDigestOffset(Server, _validationScheme);
-  uint8_t * pTempBuffer = new uint8_t[1536 - 32];
-  memcpy(pTempBuffer, Server, serverDigestOffset);
-  memcpy(pTempBuffer + serverDigestOffset, Server + serverDigestOffset + 32, 1536 - serverDigestOffset - 32);
-  uint8_t * pTempHash = new uint8_t[512];
-  HMACsha256(pTempBuffer, 1536 - 32, genuineFMSKey, 36, pTempHash);
-  memcpy(Server + serverDigestOffset, pTempHash, 32);
-  delete[] pTempBuffer;
-  delete[] pTempHash;
-
-  //SECOND 1536 bytes from server response
   uint32_t keyChallengeIndex = GetDigestOffset(Client, _validationScheme);
-  pTempHash = new uint8_t[512];
-  HMACsha256(Client + keyChallengeIndex, 32, genuineFMSKey, 68, pTempHash);
-  uint8_t * pLastHash = new uint8_t[512];
-  HMACsha256(Server + 1536, 1536 - 32, pTempHash, 32, pLastHash);
-  memcpy(Server + 1536 * 2 - 32, pLastHash, 32);
-  delete[] pTempHash;
-  delete[] pLastHash;
-  //DONE BUILDING THE RESPONSE ***//
+
+  //FIRST 1536 bytes for server response
+  char pTempBuffer[1504];
+  memcpy(pTempBuffer, Server, serverDigestOffset);
+  memcpy(pTempBuffer + serverDigestOffset, Server + serverDigestOffset + 32, 1504 - serverDigestOffset);
+  Secure::hmac_sha256bin(pTempBuffer, 1504, genuineFMSKey, 36, (char*)Server + serverDigestOffset);
+
+  //SECOND 1536 bytes for server response
+  char pTempHash[32];
+  Secure::hmac_sha256bin((char*)Client + keyChallengeIndex, 32, genuineFMSKey, 68, pTempHash);
+  Secure::hmac_sha256bin((char*)Server + 1536, 1536 - 32, pTempHash, 32, (char*)Server + 1536 * 2 - 32);
+
   Server[ -1] = Version;
   RTMPStream::snd_cnt += 3073;
   return true;
 }
+

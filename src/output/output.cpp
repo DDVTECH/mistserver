@@ -247,7 +247,7 @@ namespace Mist {
       return;
     }
     statsPage = IPC::sharedClient("statistics", STAT_EX_SIZE, true);
-    playerConn = IPC::sharedClient(streamName + "_users", 30, true);
+    playerConn = IPC::sharedClient(streamName + "_users", PLAY_EX_SIZE , true);
     updateMeta();
     selectDefaultTracks();
     sought = false;
@@ -729,7 +729,7 @@ namespace Mist {
     }
     int tNum = 0;
     if (!playerConn.getData()){
-      playerConn = IPC::sharedClient(streamName + "_users", 30, true);
+      playerConn = IPC::sharedClient(streamName + "_users", PLAY_EX_SIZE, true);
       if (!playerConn.getData()){
         DEBUG_MSG(DLVL_WARN, "Player connection failure - aborting output");
         myConn.close();

@@ -836,7 +836,7 @@ namespace Mist {
               pack_out = F.toJSON(meta_out);//Reinitialize the metadata with this packet.
               ///Reset negotiation with buffer
               playerConn.finish();
-              playerConn = IPC::sharedClient(streamName + "_users", 30, true);
+              playerConn = IPC::sharedClient(streamName + "_users", PLAY_EX_SIZE, true);
             }
             if ( !sending){
               counter++;

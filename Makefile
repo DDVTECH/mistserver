@@ -5,7 +5,7 @@ bindir = $(prefix)/bin
 PACKAGE_VERSION := $(shell git describe --tags 2> /dev/null || cat VERSION 2> /dev/null || echo "Unknown")
 DEBUG = 4
 RELEASE = Generic_$(shell getconf LONG_BIT)
-GEOIP = -lGeoIP # /*LTS*/
+GEOIP= # /*LTS*/
 
 ifeq ($(PACKAGE_VERSION),Unknown)
   $(warning Version is unknown - consider creating a VERSION file or fixing your git setup.)

@@ -17,9 +17,9 @@ ifndef NOSHM
 override CPPFLAGS += -DSHM_ENABLED=1
 endif
 
-LDLIBS = -lcrypto
+LDLIBS = 
 THREADLIB = -lpthread -lrt
-LDLIBS = -lcrypto $(THREADLIB)
+LDLIBS = $(THREADLIB)
 
 
 .DEFAULT_GOAL := all

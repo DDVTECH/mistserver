@@ -7,11 +7,11 @@
 #include <cstdlib>
 #include <cstdio>
 #include <unistd.h>
-#include <mist/procs.h>
 #include <iostream>
 #include "defines.h"
 #include "shared_memory.h"
 #include "stream.h"
+#include "procs.h"
 
 namespace IPC {
   /// Stores a long value of val in network order to the pointer p.

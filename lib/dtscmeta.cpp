@@ -1,51 +1,11 @@
 #include "dtsc.h"
 #include "defines.h"
+#include "bitfields.h"
 #include <cstdlib>
 #include <cstring>
 #include <iomanip>
 
 #define AUDIO_KEY_INTERVAL 5000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
-
-/// Retrieves a short in network order from the pointer p.
-static unsigned short btohs(char * p) {
-  return ((unsigned short)p[0] << 8) | p[1];
-}
-
-/// Stores a short value of val in network order to the pointer p.
-static void htobs(char * p, unsigned short val) {
-  p[0] = (val >> 8) & 0xFF;
-  p[1] = val & 0xFF;
-}
-
-/// Retrieves a long in network order from the pointer p.
-static unsigned long btohl(char * p) {
-  return ((unsigned long)p[0] << 24) | ((unsigned long)p[1] << 16) | ((unsigned long)p[2] << 8) | p[3];
-}
-
-/// Stores a long value of val in network order to the pointer p.
-static void htobl(char * p, unsigned long val) {
-  p[0] = (val >> 24) & 0xFF;
-  p[1] = (val >> 16) & 0xFF;
-  p[2] = (val >> 8) & 0xFF;
-  p[3] = val & 0xFF;
-}
-
-/// Retrieves a long long in network order from the pointer p.
-static unsigned long long btohll(char * p) {
-  return ((unsigned long long)p[0] << 56) | ((unsigned long long)p[1] << 48) | ((unsigned long long)p[2] << 40) | ((unsigned long long)p[3] << 32) | ((unsigned long)p[4] << 24) | ((unsigned long)p[5] << 16) | ((unsigned long)p[6] << 8) | p[7];
-}
-
-/// Stores a long value of val in network order to the pointer p.
-static void htobll(char * p, unsigned long long val) {
-  p[0] = (val >> 56) & 0xFF;
-  p[1] = (val >> 48) & 0xFF;
-  p[2] = (val >> 40) & 0xFF;
-  p[3] = (val >> 32) & 0xFF;
-  p[4] = (val >> 24) & 0xFF;
-  p[5] = (val >> 16) & 0xFF;
-  p[6] = (val >> 8) & 0xFF;
-  p[7] = val & 0xFF;
-}
 
 namespace DTSC {
   /// Default constructor for packets - sets a null pointer and invalid packet.
@@ -275,7 +235,7 @@ namespace DTSC {
       if (p + 4 >= max) {
         return 0;//out of packet!
       }
-      return p + 5 + p[1] * 256 * 256 * 256 + p[2] * 256 * 256 + p[3] * 256 + p[4];
+      return p + 5 + Bit::btohl(p+1);
     }
     if (p[0] == DTSC_OBJ || p[0] == DTSC_CON) {
       p++;
@@ -284,7 +244,7 @@ namespace DTSC {
         if (p + 2 >= max) {
           return 0;//out of packet!
         }
-        p += 2 + (p[0] * 256 + p[1]);//skip size
+        p += 2 + Bit::btohs(p);//skip size
         //otherwise, search through the contents, if needed, and continue
         p = skipDTSC(p, max);
         if (!p) {
@@ -373,7 +333,7 @@ namespace DTSC {
       }
       return getInt("time");
     }
-    return ((long long int)ntohl(((int *)(data + 12))[0]) << 32) | ntohl(((int *)(data + 12))[1]);
+    return Bit::btohll(data + 12);
   }
 
   ///\brief Returns the track id of the packet.
@@ -382,7 +342,7 @@ namespace DTSC {
     if (version != DTSC_V2) {
       return getInt("trackid");
     }
-    return ntohl(((int *)data)[2]);
+    return Bit::btohl(data+8);
   }
 
   ///\brief Returns a pointer to the payload of this packet.
@@ -466,7 +426,7 @@ namespace DTSC {
       if (i + 2 >= p + len) {
         return Scan();//out of packet!
       }
-      unsigned int strlen = i[0] * 256 + i[1];
+      unsigned int strlen = Bit::btohs(i);
       i += 2;
       if (ind_len == strlen && strncmp(indice, i, strlen) == 0) {
         return Scan(i + strlen, len - (i - p));
@@ -522,7 +482,7 @@ namespace DTSC {
         if (i + 2 >= p + len) {
           return Scan();//out of packet!
         }
-        unsigned int strlen = i[0] * 256 + i[1];
+        unsigned int strlen = Bit::btohs(i);
         i += 2;
         arr_indice++;
         i = skipDTSC(i + strlen, p + len);
@@ -564,7 +524,7 @@ namespace DTSC {
         if (i + 2 >= p + len) {
           return Scan();//out of packet!
         }
-        unsigned int strlen = i[0] * 256 + i[1];
+        unsigned int strlen = Bit::btohs(i);
         i += 2;
         if (arr_indice == num) {
           return Scan(i + strlen, len - (i - p));
@@ -591,7 +551,7 @@ namespace DTSC {
         if (i + 2 >= p + len) {
           return "";//out of packet!
         }
-        unsigned int strlen = i[0] * 256 + i[1];
+        unsigned int strlen = Bit::btohs(i);
         i += 2;
         if (arr_indice == num) {
           return std::string(i, strlen);
@@ -641,7 +601,7 @@ namespace DTSC {
   long long Scan::asInt() {
     switch (getType()) {
       case DTSC_INT:
-        return ((long long int)p[1] << 56) | ((long long int)p[2] << 48) | ((long long int)p[3] << 40) | ((long long int)p[4] << 32) | ((long long int)p[5] << 24) | ((long long int)p[6] << 16) | ((long long int)p[7] << 8) | p[8];
+        return Bit::btohll(p+1);
       case DTSC_STR:
         char * str;
         unsigned int strlen;
@@ -685,7 +645,7 @@ namespace DTSC {
     switch (getType()) {
       case DTSC_STR:
         result = p + 5;
-        strlen = p[1] * 256 * 256 * 256 + p[2] * 256 * 256 + p[3] * 256 + p[4];
+        strlen = Bit::btohl(p+1);
         return;
       default:
         result = 0;
@@ -759,7 +719,7 @@ namespace DTSC {
   std::string Scan::toPrettyString(unsigned int indent) {
     switch (getType()) {
       case DTSC_STR: {
-          unsigned int strlen = p[1] * 256 * 256 * 256 + p[2] * 256 * 256 + p[3] * 256 + p[4];
+          unsigned int strlen = Bit::btohl(p+1);
           if (strlen > 250) {
             std::stringstream ret;
             ret << "\"" << strlen << " bytes of data\"";
@@ -790,7 +750,7 @@ namespace DTSC {
               ret << "," << std::endl;
             }
             first = false;
-            unsigned int strlen = i[0] * 256 + i[1];
+            unsigned int strlen = Bit::btohs(i);
             i += 2;
             ret << std::string((size_t)indent, ' ') << "\"" << std::string(i, strlen) << "\": " << Scan(i + strlen, len - (i - p)).toPrettyString(indent);
             i = skipDTSC(i + strlen, p + len);
@@ -834,34 +794,32 @@ namespace DTSC {
 
   ///\brief Returns the payloadsize of a part
   long Part::getSize() {
-    return ((long)data[0] << 16) | ((long)data[1] << 8) | data[2];
+    return Bit::btoh24(data);
   }
 
   ///\brief Sets the payloadsize of a part
   void Part::setSize(long newSize) {
-    data[0] = (newSize & 0xFF0000) >> 16;
-    data[1] = (newSize & 0x00FF00) >> 8;
-    data[2] = (newSize & 0x0000FF);
+    Bit::htob24(data, newSize);
   }
 
   ///\brief Retruns the duration of a part
   short Part::getDuration() {
-    return btohs(data + 3);
+    return Bit::btohs(data + 3);
   }
 
   ///\brief Sets the duration of a part
   void Part::setDuration(short newDuration) {
-    htobs(data + 3, newDuration);
+    Bit::htobs(data + 3, newDuration);
   }
 
   ///\brief returns the offset of a part
   long Part::getOffset() {
-    return btohl(data + 5);
+    return Bit::btohl(data + 5);
   }
 
   ///\brief Sets the offset of a part
   void Part::setOffset(long newOffset) {
-    htobl(data + 5, newOffset);
+    Bit::htobl(data + 5, newOffset);
   }
 
   ///\brief Returns the data of a part
@@ -890,43 +848,41 @@ namespace DTSC {
   }
 
   unsigned long Key::getLength() {
-    return ((data[5] << 16) | (data[6] << 8) | data[7]);
+    return Bit::btoh24(data+5);
   }
 
   void Key::setLength(unsigned long newLength) {
-    data[7] = newLength & 0xFF;
-    data[6] = (newLength >> 8) & 0xFF;
-    data[5] = (newLength >> 16) & 0xFF;
+    Bit::htob24(data+5, newLength);
   }
 
   ///\brief Returns the number of a keyframe
   unsigned long Key::getNumber() {
-    return btohs(data + 8);
+    return Bit::btohs(data + 8);
   }
 
   ///\brief Sets the number of a keyframe
   void Key::setNumber(unsigned long newNumber) {
-    htobs(data + 8, newNumber);
+    Bit::htobs(data + 8, newNumber);
   }
 
   ///\brief Returns the number of parts of a keyframe
   unsigned short Key::getParts() {
-    return btohs(data + 10);
+    return Bit::btohs(data + 10);
   }
 
   ///\brief Sets the number of parts of a keyframe
   void Key::setParts(unsigned short newParts) {
-    htobs(data + 10, newParts);
+    Bit::htobs(data + 10, newParts);
   }
 
   ///\brief Returns the timestamp of a keyframe
   unsigned long long Key::getTime() {
-    return btohl(data + 12);
+    return Bit::btohl(data + 12);
   }
 
   ///\brief Sets the timestamp of a keyframe
   void Key::setTime(unsigned long long newTime) {
-    htobl(data + 12, newTime);
+    Bit::htobl(data + 12, newTime);
   }
 
   ///\brief Returns the data of this keyframe struct
@@ -943,12 +899,12 @@ namespace DTSC {
 
   ///\brief Returns the duration of this fragment
   unsigned long Fragment::getDuration() {
-    return btohl(data);
+    return Bit::btohl(data);
   }
 
   ///\brief Sets the duration of this fragment
   void Fragment::setDuration(unsigned long newDuration) {
-    htobl(data, newDuration);
+    Bit::htobl(data, newDuration);
   }
 
   ///\brief Returns the length of this fragment
@@ -963,22 +919,22 @@ namespace DTSC {
 
   ///\brief Returns the number of the first keyframe in this fragment
   unsigned long Fragment::getNumber() {
-    return btohs(data + 5);
+    return Bit::btohs(data + 5);
   }
 
   ///\brief Sets the number of the first keyframe in this fragment
   void Fragment::setNumber(unsigned long newNumber) {
-    htobs(data + 5, newNumber);
+    Bit::htobs(data + 5, newNumber);
   }
 
   ///\brief Returns the size of a fragment
   unsigned long Fragment::getSize() {
-    return btohl(data + 7);
+    return Bit::btohl(data + 7);
   }
 
   ///\brief Sets the size of a fragement
   void Fragment::setSize(unsigned long newSize) {
-    htobl(data + 7, newSize);
+    Bit::htobl(data + 7, newSize);
   }
 
   ///\brief Returns thte data of this fragment structure

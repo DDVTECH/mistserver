@@ -146,7 +146,7 @@ namespace Mist {
       //after this player functionality
       metaPage.init(config->getString("streamname"), (isBuffer ? DEFAULT_META_PAGE_SIZE : myMeta.getSendLen()), true);
       myMeta.writeTo(metaPage.mapped);
-      userPage.init(config->getString("streamname") + "_users", 30, true);
+      userPage.init(config->getString("streamname") + "_users", PLAY_EX_SIZE, true);
       
       
       if (!isBuffer){

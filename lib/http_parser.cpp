@@ -13,6 +13,12 @@ HTTP::Parser::Parser() {
 
 /// Completely re-initializes the HTTP::Parser, leaving it ready for either reading or writing usage.
 void HTTP::Parser::Clean() {
+  CleanPreserveHeaders();
+  headers.clear();
+}
+
+/// Completely re-initializes the HTTP::Parser, leaving it ready for either reading or writing usage.
+void HTTP::Parser::CleanPreserveHeaders() {
   seenHeaders = false;
   seenReq = false;
   getChunks = false;
@@ -23,7 +29,6 @@ void HTTP::Parser::Clean() {
   protocol = "HTTP/1.1";
   body.clear();
   length = 0;
-  headers.clear();
   vars.clear();
 }
 
@@ -138,13 +143,9 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 /// \param conn The connection to send over.
 void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Parser & request, Socket::Connection & conn, bool bufferAllChunks) {
   std::string prot = request.protocol;
-  std::string contentType = GetHeader("Content-Type");
   sendingChunks = (!bufferAllChunks && protocol == "HTTP/1.1" && request.GetHeader("Connection")!="close");
-  Clean();
+  CleanPreserveHeaders();
   protocol = prot;
-  if (contentType.size()){
-    SetHeader("Content-Type", contentType);
-  }
   if (sendingChunks){
     SetHeader("Transfer-Encoding", "chunked");
   } else {

@@ -35,6 +35,7 @@ namespace HTTP {
       void Chunkify(const char * data, unsigned int size, Socket::Connection & conn);
       void Proxy(Socket::Connection & from, Socket::Connection & to);
       void Clean();
+      void CleanPreserveHeaders();
       static std::string urlunescape(const std::string & in);
       static std::string urlencode(const std::string & in);
       std::string body;

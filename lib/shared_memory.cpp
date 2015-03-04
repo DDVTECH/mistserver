@@ -767,10 +767,12 @@ namespace IPC {
               default:
                 if(*counter > 10 && *counter < 126 ){
                   if(*counter < 30){
-                    ERROR_MSG("process unresponsive. sending sigterm to pid %d",tmpPID);
+                    if (*counter > 15){
+                      WARN_MSG("Process %d is unresponsive",tmpPID);
+                    }
                     Util::Procs::Stop(tmpPID); //soft kill  
                   } else {      
-                    FAIL_MSG("process really unresponsive. sending sigkill to pid %d", tmpPID);
+                    ERROR_MSG("Killing unresponsive process %d", tmpPID);
                     Util::Procs::Murder(tmpPID); //improved kill      
                   }
                 }

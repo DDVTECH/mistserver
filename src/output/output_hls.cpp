@@ -56,7 +56,7 @@ namespace Mist {
       long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
       std::stringstream line;
       long long duration = it->getDuration();
-      if (duration < 0){
+      if (duration <= 0){
         duration = myMeta.tracks[tid].lastms - starttime;
       }
       line << "#EXTINF:" << ((duration + 500) / 1000) << ", no desc\r\n" << starttime << "_" << duration + starttime << ".ts\r\n";

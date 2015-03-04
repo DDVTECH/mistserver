@@ -805,7 +805,7 @@ namespace Mist {
  
   int Output::run() {
     DEBUG_MSG(DLVL_MEDIUM, "MistOut client handler started");
-    while (myConn.connected() && (wantRequest || parseData)){
+    while (config->is_active && myConn.connected() && (wantRequest || parseData)){
       stats();
       if (wantRequest){
         requestHandler();

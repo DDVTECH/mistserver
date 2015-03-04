@@ -597,6 +597,7 @@ namespace Mist {
     DEBUG_MSG(DLVL_DONTEVEN, "Loading track %u (next=%lu), %llu ms", nxt.tid, nxtKeyNum[nxt.tid], nxt.time);
     
     if (nxt.offset >= curPages[nxt.tid].len){
+      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, currentPacket.getTime());
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
       if (curPages.count(nxt.tid) && curPages[nxt.tid].mapped){
@@ -644,6 +645,7 @@ namespace Mist {
         updateMeta();
       }else{
         //if we're not live, we've simply reached the end of the page. Load the next key.
+        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, currentPacket.getTime());
         loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
         nxt.offset = 0;
         if (curPages.count(nxt.tid) && curPages[nxt.tid].mapped){

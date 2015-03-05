@@ -45,6 +45,7 @@ namespace TS {
       void setRandomAccess(bool newVal);
       bool getRandomAccess() const;
       
+      void setDiscontinuity(bool newVal);
       bool hasDiscontinuity() const;
       bool hasPCR() const;
       bool hasOPCR() const;

@@ -47,6 +47,12 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #define WARN_MSG(msg, ...) DEBUG_MSG(DLVL_WARN, msg, ##__VA_ARGS__)
 #define DEVEL_MSG(msg, ...) DEBUG_MSG(DLVL_DEVEL, msg, ##__VA_ARGS__)
 #define INFO_MSG(msg, ...) DEBUG_MSG(DLVL_DEVEL, msg, ##__VA_ARGS__)
+#define MEDIUM_MSG(msg, ...) DEBUG_MSG(DLVL_MEDIUM, msg, ##__VA_ARGS__)
+#define HIGH_MSG(msg, ...) DEBUG_MSG(DLVL_HIGH, msg, ##__VA_ARGS__)
+#define VERYHIGH_MSG(msg, ...) DEBUG_MSG(DLVL_VERYHIGH, msg, ##__VA_ARGS__)
+#define EXTREME_MSG(msg, ...) DEBUG_MSG(DLVL_EXTREME, msg, ##__VA_ARGS__)
+#define INSANE_MSG(msg, ...) DEBUG_MSG(DLVL_INSANE, msg, ##__VA_ARGS__)
+#define DONTEVEN_MSG(msg, ...) DEBUG_MSG(DLVL_DONTEVEN, msg, ##__VA_ARGS__)
 
 #endif
 

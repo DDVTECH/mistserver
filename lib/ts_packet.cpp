@@ -329,6 +329,28 @@ namespace TS {
   bool Packet::hasDiscontinuity() const{
     return strBuf[5] & 0x80;
   }
+  
+  void Packet::setDiscontinuity(bool newVal){
+    updPos(6);
+    if (getAdaptationField() == 3) {
+      if (!strBuf[4]) {
+        strBuf[4] = 1;
+      }
+      if (newVal) {
+        strBuf[5] |= 0x80;
+      } else {
+        strBuf[5] &= 0x7F;
+      }
+    } else {
+      setAdaptationField(3);
+      strBuf[4] = 1;
+      if (newVal) {
+        strBuf[5] = 0x80;
+      } else {
+        strBuf[5] = 0x00;
+      }
+    }
+  }
 
 /// Gets whether this Packet can be accessed at random (indicates keyframe).
 /// \return Whether or not this Packet contains a keyframe.

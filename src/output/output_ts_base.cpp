@@ -4,6 +4,7 @@ namespace Mist {
   TSOutput::TSOutput(Socket::Connection & conn) : TS_BASECLASS(conn){
     packCounter=0;
     haveAvcc = false;
+    haveHvcc = false;
     until=0xFFFFFFFFFFFFFFFFull;
     setBlocking(true);
     sendRepeatingHeaders = false;
@@ -80,6 +81,16 @@ namespace Mist {
           bs = avccbox.asAnnexB();
           extraSize += bs.size();
         }
+        /*LTS-START*/
+        if (myMeta.tracks[currentPacket.getTrackId()].codec == "HEVC"){
+          if (!haveHvcc){
+            hvccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
+            haveHvcc = true;
+          }
+          bs = hvccbox.asAnnexB();
+          extraSize += bs.size();
+        }
+        /*LTS-END*/
       }
       
       unsigned int watKunnenWeIn1Ding = 65490-13;
@@ -104,6 +115,13 @@ namespace Mist {
               fillPacket(bs.data(), bs.size());
               alreadySent += bs.size();
             }
+            /*LTS-START*/
+            if (myMeta.tracks[currentPacket.getTrackId()].codec == "HEVC"){
+              bs = hvccbox.asAnnexB();
+              fillPacket(bs.data(), bs.size());
+              alreadySent += bs.size();
+            }
+            /*LTS-END*/
           }
         }
         while (i + 4 < (unsigned int)dataLen){

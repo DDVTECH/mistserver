@@ -663,8 +663,7 @@ namespace Mist {
     parseData = false;
     wantRequest = true;
   }
-  
-  bool OutDashMP4::onFinish(){return false;}
+    
   void OutDashMP4::sendNext(){}
   void OutDashMP4::sendHeader(){}
 }

@@ -239,20 +239,20 @@ namespace Mist {
     long long int lastBpos = 0;
     while (packet.FromFile(inFile)){
       //Handle special packets (PAT/PMT)
-      if(packet.PID() == 0x00){
+      if(packet.getPID() == 0x00){
         PATIds.clear();
         for (int i = 0; i < ((TS::ProgramAssociationTable&)packet).getProgramCount(); i++){
           PATIds.insert(((TS::ProgramAssociationTable&)packet).getProgramPID(i));
         }
       }
-      if(PATIds.count(packet.PID())){
+      if(PATIds.count(packet.getPID())){
         TS::ProgramMappingEntry entry = ((TS::ProgramMappingTable&)packet).getEntry(0); 
         while(entry){
-          unsigned int pid = entry.elementaryPid();
-          pidToType[pid] = entry.streamType();
+          unsigned int pid = entry.getElementaryPid();
+          pidToType[pid] = entry.getStreamType();
           //Check if the track exists in metadata 
           if (!myMeta.tracks.count(pid)){
-            switch (entry.streamType()){
+            switch (entry.getStreamType()){
               case 0x1B:
                 myMeta.tracks[pid].codec = "H264";
                 myMeta.tracks[pid].type = "video";
@@ -269,19 +269,19 @@ namespace Mist {
                 myMeta.tracks[pid].trackID = pid;
                 break;
               default:
-                DEBUG_MSG(DLVL_WARN, "Ignoring unsupported track type %0.2X, on pid %d", entry.streamType(), pid);
+                DEBUG_MSG(DLVL_WARN, "Ignoring unsupported track type %0.2X, on pid %d", entry.getStreamType(), pid);
                 break;
             }
           }
           entry.advance();
         }
       }
-      if(pidToType.count(packet.PID())){
+      if(pidToType.count(packet.getPID())){
         //analyzing audio/video
         //we have audio/video payload
         //get trackID of this packet
-        int tid = packet.PID();
-        if (packet.unitStart() && lastBuffer.count(tid) && lastBuffer[tid].len){
+        int tid = packet.getPID();
+        if (packet.getUnitStart() && lastBuffer.count(tid) && lastBuffer[tid].len){
           parsePESPayload(tid, lastBuffer[tid]);
           lastPack.null();
           lastPack["data"] = lastBuffer[tid].data;
@@ -360,7 +360,7 @@ namespace Mist {
     TS::Packet tsBuf;
     tsBuf.FromFile(inFile);
     //Find first PES start on the selected track
-    while (tsBuf.PID() != tid || !tsBuf.unitStart()){
+    while (tsBuf.getPID() != tid || !tsBuf.getUnitStart()){
       lastPos = ftell(inFile);
       tsBuf.FromFile(inFile);
       if (feof(inFile)){
@@ -374,7 +374,7 @@ namespace Mist {
     while (pesBuf.data.size() != pesBuf.len){
       //ReadNextPage
       tsBuf.FromFile(inFile);
-      if (tsBuf.PID() == tid && tsBuf.unitStart()){
+      if (tsBuf.getPID() == tid && tsBuf.getUnitStart()){
         unbound = true;
         break;
       }
@@ -382,7 +382,7 @@ namespace Mist {
         DEBUG_MSG(DLVL_DEVEL, "Reached EOF at an unexpected point... what happened?");
         return pesBuf;
       }
-      if (tsBuf.PID() == tid){
+      if (tsBuf.getPID() == tid){
         pesBuf.data.append(tsBuf.getPayload(), tsBuf.getPayloadLength());
         pesBuf.lastPos = ftell(inFile);
       }

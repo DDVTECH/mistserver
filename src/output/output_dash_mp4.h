@@ -9,8 +9,7 @@ namespace Mist {
       ~OutDashMP4();
       static void init(Util::Config * cfg);
       void onHTTP();
-      void sendNext();
-      bool onFinish();
+      void sendNext();      
       void sendHeader();
       void initialize();
     protected:

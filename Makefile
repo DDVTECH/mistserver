@@ -242,7 +242,7 @@ outputs: MistOutTSPush
 MistOutTSPush: override LDLIBS += $(THREADLIB)
 MistOutTSPush: override LDLIBS += $(GEOIP) # /*LTS*/
 MistOutTSPush: override CPPFLAGS += "-DOUTPUTTYPE=\"output_ts_push.h\""
-MistOutTSPush: src/output/mist_out.cpp src/output/output.cpp src/output/output_ts_push.cpp
+MistOutTSPush: src/output/mist_out.cpp src/output/output.cpp src/output/output_ts_push.cpp  src/output/output_ts_base.cpp 
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutHTTP

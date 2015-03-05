@@ -1,28 +1,14 @@
-#include "output.h"
-#include <mist/mp4_generic.h>
-#include <mist/ts_packet.h>
-#include <string>
+#include "output_ts_base.h"
 
 namespace Mist {
-  class OutTSPush : public Output {
+  class OutTSPush : public TSOutput{
     public:
       OutTSPush(Socket::Connection & conn);
       ~OutTSPush();
       static void init(Util::Config * cfg);
-      void sendNext();
-      void sendHeader();
       static bool listenMode(){return false;}
-  protected:
-      TS::Packet PackData;
-      unsigned int PacketNumber;
-      bool haveAvcc;
-      bool haveHvcc;
-      char VideoCounter;
-      char AudioCounter;
-      MP4::AVCC avccbox;
-      MP4::HVCC hvccbox;
-      std::string createPMT();
-      void fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter);
+      void sendTS(const char * tsData, unsigned int len=188);
+  protected:    
       void fillBuffer(const char * data, size_t dataLen);
       std::string packetBuffer;
       Socket::UDPConnection pushSock;

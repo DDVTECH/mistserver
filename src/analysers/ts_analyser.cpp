@@ -15,7 +15,8 @@
 
 
 namespace Analysers {
-  std::string printPES(const std::string & d, unsigned long PID){
+  std::string printPES(const std::string & d, unsigned long PID, int detailLevel){    
+    unsigned int headSize = 0;
     std::stringstream res;
     bool known = false;
     res << "[PES " << PID << "]";
@@ -54,7 +55,7 @@ namespace Analysers {
       }else{
         res << " [Copy]";
       }
-      unsigned int headSize = 0;
+      
       if (d[7] & 0x20){
         res << " [ESCR present, not decoded!]";
         headSize += 6;
@@ -110,6 +111,17 @@ namespace Analysers {
       res << " [Size " << (((int)d[4]) << 8 | d[5]) << " => " << (d.size() - 6) << "]";
     }
     res << std::endl;
+    
+    if(detailLevel==1){
+      unsigned int counter = 0;
+      for (unsigned int i = 9+headSize; i<d.size(); ++i){
+        if ((i < d.size() - 4) && d[i] == 0 && d[i+1] == 0 && d[i+2] == 0 && d[i+3] == 1){res << std::endl; counter = 0;}
+        res << std::hex << std::setw(2) << std::setfill('0') << (int)(d[i]&0xff) << " ";
+        counter++;
+        if ((counter) % 32 == 31){res << std::endl;}
+      }
+      res << std::endl;
+    }
     return res.str();
   }
 
@@ -129,16 +141,21 @@ namespace Analysers {
       bytes += 188;
       if(packet.FromPointer(packetPtr)){
         if(analyse){
-          if (packet.unitStart() && payloads[packet.PID()] != ""){
-            std::cout << printPES(payloads[packet.PID()], packet.PID());
-            payloads.erase(packet.PID());
+          if (packet.getUnitStart() && payloads[packet.getPID()] != ""){
+            std::cout << printPES(payloads[packet.getPID()], packet.getPID(), detailLevel);
+            payloads.erase(packet.getPID());
           }
-          std::cout << packet.toPrettyString(0, detailLevel);
-          if (packet.PID() && !packet.isPMT()){
-            payloads[packet.PID()].append(packet.getPayload(), packet.getPayloadLength());
+          if (detailLevel < 2){
+            std::stringstream nul;
+            nul << packet.toPrettyString(0, detailLevel);
+          }else{
+            std::cout << packet.toPrettyString(0, detailLevel);
+          }
+          if (packet.getPID() && !packet.isPMT()){
+            payloads[packet.getPID()].append(packet.getPayload(), packet.getPayloadLength());
           }
         }
-        if(packet && packet.AdaptationField() > 1 && packet.hasPCR()){pcr = packet.PCR();}
+        if(packet && packet.getAdaptationField() > 1 && packet.hasPCR()){pcr = packet.getPCR();}
       }
       if(bytes > 1024){
         long long int tTime = Util::bootSecs();
@@ -150,9 +167,8 @@ namespace Analysers {
       }
     }
     for (std::map<unsigned long long, std::string>::iterator it = payloads.begin(); it != payloads.end(); it++){
-      if (!it->first || it->first == 4096){ continue; }
-      std::cout << "Remainder of a packet on track " << it->first << ":" << std::endl;
-      std::cout << printPES(it->second, it->first);
+      if (!it->first || it->first == 4096){ continue; }      
+      std::cout << printPES(it->second, it->first, detailLevel);
     }
     long long int finTime = Util::bootSecs();
     if(validate){

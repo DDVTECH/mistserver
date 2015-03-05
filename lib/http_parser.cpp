@@ -561,6 +561,7 @@ void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connec
     }else{
       SetHeader("Content-Length", body.length());
       SendResponse("200", "OK", conn);
+      Clean();
     }
     return;
   }
@@ -587,6 +588,7 @@ void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connec
     //close the connection if this was the end of the file
     if (!size) {
       conn.close();
+      Clean();
     }
   }
 }

@@ -961,6 +961,9 @@ namespace IPC {
 
   ///\brief Indicate that the process is done using this piece of memory, set the counter to finished
   void sharedClient::finish() {
+    if (!myPage.mapped) {
+      return;
+    }
     if (!hasCounter) {
       DEBUG_MSG(DLVL_WARN, "Trying to time-out an element without counters");
       return;

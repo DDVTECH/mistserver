@@ -16,97 +16,85 @@
 /// Holds all TS processing related code.
 namespace TS {
 
-
-  ///stores all the data of a pmt table. It must be mapped to a PID, and this is done in the function TS::getPMTTable(TS::Packet& packet)
-  ///\todo Add more necessary variables, or find a more efficient way to store metadata
-  struct pmtinfo {
-    unsigned short streamtype;//the streamtype, 0x1b is h264, 0x0f is aac. These are used in aac, there may be (undiscovered) others
-    unsigned int trackid;//track id
-    std::string curPayload;//payload without PES/TS headers
-    long long int lastPEStime;//the pes time of the packet that was last seen
-  };
-
-
   ///Class for reading and writing TS Streams. The class is capable of analyzing a packet of 188 bytes
   ///and calculating key values
   class Packet {
     public:
       //Constructors and fillers
       Packet();
-      ~Packet();
-      bool FromString(std::string & Data);
-      bool FromPointer(const char * Data);
+      ~Packet();      
+      bool FromPointer(const char * data);
       bool FromFile(FILE * data);
 
       //Base properties
-      void PID(int NewPID);
-      unsigned int PID();
-      void continuityCounter(int NewContinuity);
-      int continuityCounter();
-      void PCR(int64_t NewVal);
-      int64_t PCR();
-      int64_t OPCR();
-      void AdaptationField(int NewVal);
-      int AdaptationField();
-      int AdaptationFieldLen();
-      unsigned int getTransportScramblingControl();
+      void setPID(int NewPID);
+      unsigned int getPID() const;
+      void setContinuityCounter(int NewContinuity);
+      int getContinuityCounter() const;
+      void setPCR(int64_t NewVal);
+      int64_t getPCR() const;
+      int64_t getOPCR() const;
+      void setAdaptationField(int NewVal);
+      int getAdaptationField() const;
+      int getAdaptationFieldLen() const;
+      unsigned int getTransportScramblingControl() const;
 
-      //Flags
-      bool unitStart();
-      void unitStart(bool newVal);
-      bool randomAccess();
-      void randomAccess(bool newVal);
-      bool discontinuity();
-      bool hasPCR();
-      bool hasOPCR();
-      bool splicingPoint();
-      bool transportError();
-      bool priority();
-      bool ESpriority();
+      //Flags      
+      void setUnitStart(bool newVal);
+      bool getUnitStart() const;      
+      void setRandomAccess(bool newVal);
+      bool getRandomAccess() const;
       
+      bool hasDiscontinuity() const;
+      bool hasPCR() const;
+      bool hasOPCR() const;
+      bool hasSplicingPoint() const;
+      bool hasTransportError() const;
+      bool hasPriority() const;
+      bool hasESpriority() const;
+
       //Helper functions
-      operator bool();
-      bool isPMT();
-      void Clear();
-      void DefaultPAT();
-      void DefaultPMT();
-      unsigned int dataSize();
-      char * dataPointer();
-      int BytesFree();
-      void FillFree(std::string & PackageData);
-      int FillFree(const char * PackageData, int maxLen);
-      void AddStuffing();
+      operator bool() const;
+      bool isPMT() const;
+      void clear();
+      void setDefaultPAT();      
+      unsigned int getDataSize() const;
+      
+      unsigned int getBytesFree() const;      
+      int fillFree(const char * PackageData, int maxLen);      
+      void addStuffing();
+      void updPos(unsigned int newPos);
+      
+      //PES helpers      
+      static std::string & getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset, bool isAligned);      
+      static std::string & getPESAudioLeadIn(unsigned int len, unsigned long long PTS);
       
       //Printers and writers
-      std::string toPrettyString(size_t indent = 0, int detailLevel = 3);
-      const std::string& getStrBuf();
-      const char * getBuffer();
-      const char * getPayload();
-      int getPayloadLength();
-      const char * ToString();
-
-      //PES helpers     
-      static std::string & getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset);      
-      static std::string & getPESAudioLeadIn(unsigned int len, unsigned long long PTS);
+      std::string toPrettyString(size_t indent = 0, int detailLevel = 3) const;
+      const char * getPayload() const;
+      int getPayloadLength() const;      
+      const char * checkAndGetBuffer() const;
+      
     protected:
-      std::string strBuf;///< Internal string buffer
+      char strBuf[189];
+      unsigned int pos;
   };
 
   class ProgramAssociationTable : public Packet {
     public:
-      char getOffset();
-      char getTableId();
-      short getSectionLength();
-      short getTransportStreamId();
-      char getVersionNumber();
-      bool getCurrentNextIndicator();
-      char getSectionNumber();
-      char getLastSectionNumber();
-      short getProgramCount();
-      short getProgramNumber(short index);
-      short getProgramPID(short index);
-      int getCRC();
-      std::string toPrettyString(size_t indent);
+      char getOffset() const;
+      char getTableId() const;
+      short getSectionLength() const;
+      short getTransportStreamId() const;
+      char getVersionNumber() const;
+      bool getCurrentNextIndicator() const;
+      char getSectionNumber() const;
+      char getLastSectionNumber() const;
+      short getProgramCount() const;
+      short getProgramNumber(short index) const;
+      short getProgramPID(short index) const;
+      int getCRC() const;
+      std::string toPrettyString(size_t indent) const;
   };
 
   class ProgramMappingEntry {
@@ -115,12 +103,12 @@ namespace TS {
       
       operator bool() const;
 
-      int streamType();
-      std::string codec();
-      std::string streamTypeString();
-      int elementaryPid();
-      int ESInfoLength();
-      char * ESInfo();
+      int getStreamType() const;
+      std::string getCodec() const;
+      std::string getStreamTypeString() const;
+      int getElementaryPid() const;
+      int getESInfoLength() const;
+      char * getESInfo() const;
       void advance();
     private:
       char* data;
@@ -130,38 +118,38 @@ namespace TS {
   class ProgramMappingTable : public Packet {
     public:
       ProgramMappingTable();
-      char getOffset();
+      char getOffset() const;
       void setOffset(char newVal);
-      char getTableId();
+      char getTableId() const;
       void setTableId(char newVal);
-      short getSectionLength();
+      short getSectionLength() const;
       void setSectionLength(short newVal);
-      short getProgramNumber();
+      short getProgramNumber() const;
       void setProgramNumber(short newVal);
-      char getVersionNumber();
+      char getVersionNumber() const;
       void setVersionNumber(char newVal);
-      bool getCurrentNextIndicator();
+      bool getCurrentNextIndicator() const;
       void setCurrentNextIndicator(bool newVal);
-      char getSectionNumber();
+      char getSectionNumber() const;
       void setSectionNumber(char newVal);
-      char getLastSectionNumber();
+      char getLastSectionNumber() const;
       void setLastSectionNumber(char newVal);
-      short getPCRPID();
+      short getPCRPID() const;
       void setPCRPID(short newVal);
-      short getProgramInfoLength();
+      short getProgramInfoLength() const;
       void setProgramInfoLength(short newVal);
-      short getProgramCount();
+      short getProgramCount() const;
       void setProgramCount(short newVal);
-      ProgramMappingEntry getEntry(int index);
-      char getStreamType(short index);
+      ProgramMappingEntry getEntry(int index) const;      
       void setStreamType(char newVal, short index);
-      short getElementaryPID(short index);
+      char getStreamType(short index) const;
       void setElementaryPID(short newVal, short index);
-      short getESInfoLength(short index);
+      short getElementaryPID(short index) const;
       void setESInfoLength(short newVal,short index);
-      int getCRC();
+      short getESInfoLength(short index) const;      
+      int getCRC() const;
       void calcCRC();
-      std::string toPrettyString(size_t indent);
+      std::string toPrettyString(size_t indent) const;
   };
 
   /// Constructs an audio header to be used on each audio frame.
@@ -169,7 +157,7 @@ namespace TS {
   /// prepended on each audio frame.
   /// \param FrameLen the length of the current audio frame.
   /// \param initData A string containing the initalization data for this track's codec.
-  static inline std::string GetAudioHeader(int FrameLen, std::string initData) {
+  static inline std::string getAudioHeader(int FrameLen, std::string initData) {
     char StandardHeader[7] = {0xFF, 0xF1, 0x00, 0x00, 0x00, 0x1F, 0xFC};
     FrameLen += 7;
     StandardHeader[2] = ((((initData[0] >> 3) - 1) << 6) & 0xC0); //AAC Profile - 1 ( First two bits )
@@ -208,38 +196,7 @@ namespace TS {
                           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
                          };
 
-  /// A standard Program Mapping Table, as generated by FFMPEG.
-  /// Contains both Audio and Video mappings, works also on video- or audio-only streams.
-  //0x47 = sync byte
-  //0x5000 = transport error(1) = 0, payload unit start(1) = 1, priority(1) = 0, PID(13) = 4096
-  //0x10 = transportscrambling(2) = 0, adaptation(2) = 1, continuity(4) = 0
-  //0x00 = pointer = 0
-  //0x02 = table ID = 2 = PMT
-  //0xB017 = section syntax(1) = 1, 0(1)=0, reserved(2) = 3, section_len(12) = 23
-  //0x0001 = ProgNo = 1
-  //0xC1 = reserved(2) = 3, version(5)=0, curr_next_indi(1) = 1
-  //0x00 = section_number = 0
-  //0x00 = last_section_no = 0
-  //0xE100 = reserved(3) = 7, PCR_PID(13) = 0x100
-  //0xF000 = reserved(4) = 15, proginfolen = 0
-  //0x1B = streamtype = 27 = H264
-  //0xE100 = reserved(3) = 7, elem_ID(13) = 0x100
-  //0xF000 = reserved(4) = 15, es_info_len = 0
-  //0x0F = streamtype = 15 = audio with ADTS transport syntax
-  //0xE101 = reserved(3) = 7, elem_ID(13) = 0x101
-  //0xF000 = reserved(4) = 15, es_info_len = 0
-  //0x2F44B99B = CRC32
-  static char PMT[188] = {0x47, 0x50, 0x00, 0x10, 0x00, 0x02, 0xB0, 0x17, 0x00, 0x01, 0xC1, 0x00, 0x00, 0xE1, 0x00, 0xF0, 0x00, 0x1B, 0xE1, 0x00,
-                          0xF0, 0x00, 0x0F, 0xE1, 0x01, 0xF0, 0x00, 0x2F, 0x44, 0xB9, 0x9B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-                         };
-
-  const std::string& createPMT(std::set<unsigned long>& selectedTracks, DTSC::Meta& myMeta);
+  const char * createPMT(std::set<unsigned long>& selectedTracks, DTSC::Meta& myMeta, int contCounter=0);
 
 } //TS namespace
 

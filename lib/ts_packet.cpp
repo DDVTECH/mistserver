@@ -19,36 +19,22 @@ std::map<unsigned int, std::string> stream_pids;
 
 namespace TS {
 /// This constructor creates an empty Packet, ready for use for either reading or writing.
-/// All this constructor does is call Packet::Clear().
+/// All this constructor does is call Packet::clear().
   Packet::Packet() {
-    strBuf.reserve(188);
-    Clear();
-  }
-
-/// This function fills a Packet from provided Data.
-/// It fills the content with the first 188 bytes of Data.
-/// \param Data The data to be read into the packet.
-/// \return true if it was possible to read in a full packet, false otherwise.
-  bool Packet::FromString(std::string & Data) {
-    if (Data.size() < 188) {
-      return false;
-    } else {
-      strBuf = Data.substr(0, 188);
-      Data.erase(0, 188);
-    }
-    return true;
+    pos=0;
+    clear();
   }
 
 /// This function fills a Packet from a file.
 /// It fills the content with the next 188 bytes int he file.
 /// \param Data The data to be read into the packet.
 /// \return true if it was possible to read in a full packet, false otherwise.
-  bool Packet::FromFile(FILE * data) {
-    strBuf.resize(188);
+  bool Packet::FromFile(FILE * data) {    
     long long int pos = ftell(data);
-    if (!fread((void *)strBuf.data(), 188, 1, data)) {
+    if (!fread((void *)strBuf, 188, 1, data)) {
       return false;
     }
+    pos=188;
     if (strBuf[0] != 0x47){
       INFO_MSG("Failed to read a good packet on pos %lld", pos);
       return false;
@@ -61,58 +47,68 @@ namespace TS {
 ///the first 188 characters of a char array
 ///\param Data The char array that contains the data to be read into the packet
 ///\return true if successful (which always happens, or else a segmentation fault should occur)
-  bool Packet::FromPointer(const char * Data) {
-    strBuf.assign(Data, 188);
+  bool Packet::FromPointer(const char * data) {    
+    memcpy((void *)strBuf, (void *)data, 188);
+    pos=188;    
     return true;
   }
-
-
 
 /// The deconstructor deletes all space that may be occupied by a Packet.
   Packet::~Packet() {
   }
 
+  ///update position in character array (pos), 
+  void Packet::updPos(unsigned int newPos){
+    if(pos < newPos){
+      pos=newPos;
+    }
+  }
+  
 /// Sets the PID of a single Packet.
 /// \param NewPID The new PID of the packet.
-  void Packet::PID(int NewPID) {
+  void Packet::setPID(int NewPID) {
     strBuf[1] = (strBuf[1] & 0xE0) + ((NewPID & 0x1F00) >> 8);
     strBuf[2] = (NewPID & 0x00FF);
+    updPos(2);    
   }
 
 /// Gets the PID of a single Packet.
 /// \return The value of the PID.
-  unsigned int Packet::PID() {
+  unsigned int Packet::getPID() const{
     return (unsigned int)(((strBuf[1] & 0x1F) << 8) + strBuf[2]);
   }
 
 /// Sets the Continuity Counter of a single Packet.
 /// \param NewContinuity The new Continuity Counter of the packet.
-  void Packet::continuityCounter(int NewContinuity) {
-    if (strBuf.size() < 4) {
-      strBuf.resize(4);
-    }
+  void Packet::setContinuityCounter(int NewContinuity) {
     strBuf[3] = (strBuf[3] & 0xF0) | (NewContinuity & 0x0F);
+    updPos(3);
   }
 
 /// Gets the Continuity Counter of a single Packet.
 /// \return The value of the Continuity Counter.
-  int Packet::continuityCounter() {
+  int Packet::getContinuityCounter() const{
     return (strBuf[3] & 0x0F);
   }
 
 /// Gets the amount of bytes that are not written yet in a Packet.
 /// \return The amount of bytes that can still be written to this packet.
-  int Packet::BytesFree() {
-    return 188 - strBuf.size();
+  unsigned int Packet::getBytesFree() const{
+    if(pos > 188){
+      FAIL_MSG("pos is > 188. Actual pos: %d segfaulting gracefully :)", pos);
+      ((char*)0)[0] = 1;
+    }
+    return 188 - pos;
   }
 
-/// Clears a Packet.
-  void Packet::Clear() {
-    strBuf.resize(4);
+/// Sets the packet pos to 4, and resets the first 4 fields to defaults (including sync byte on pos 0)
+  void Packet::clear() {    
+    memset(strBuf,(char)0, 188);
     strBuf[0] = 0x47;
     strBuf[1] = 0x00;
     strBuf[2] = 0x00;
-    strBuf[3] = 0x10;
+    strBuf[3] = 0x10;    
+    pos=4;
   }
 
 /// Sets the selection value for an adaptationfield of a Packet.
@@ -120,12 +116,12 @@ namespace TS {
 /// - 1: No AdaptationField.
 /// - 2: AdaptationField Only.
 /// - 3: AdaptationField followed by Data.
-  void Packet::AdaptationField(int NewSelector) {
+  void Packet::setAdaptationField(int NewSelector) {
     strBuf[3] = (strBuf[3] & 0xCF) + ((NewSelector & 0x03) << 4);
     if (NewSelector & 0x02) {
       strBuf[4] = 0x00;
     } else {
-      strBuf.resize(4);
+      pos=4;
     }
   }
 
@@ -133,17 +129,15 @@ namespace TS {
 /// \return The existence of an adaptationfield.
 /// - 0: No adaptationfield present.
 /// - 1: Adaptationfield is present.
-  int Packet::AdaptationField() {
+  int Packet::getAdaptationField() const{
     return ((strBuf[3] & 0x30) >> 4);
   }
 
 /// Sets the PCR (Program Clock Reference) of a Packet.
 /// \param NewVal The new PCR Value.
-  void Packet::PCR(int64_t NewVal) {
-    if (strBuf.size() < 12) {
-      strBuf.resize(12);
-    }
-    AdaptationField(3);
+  void Packet::setPCR(int64_t NewVal) {    
+    updPos(12);    
+    setAdaptationField(3);
     strBuf[4] = 0x07;
     strBuf[5] = (strBuf[5] | 0x10);
     int64_t TmpVal = NewVal / 300;
@@ -158,8 +152,8 @@ namespace TS {
 
 /// Gets the PCR (Program Clock Reference) of a Packet.
 /// \return The value of the PCR.
-  int64_t Packet::PCR() {
-    if (!AdaptationField()) {
+  int64_t Packet::getPCR() const{
+    if (!getAdaptationField()) {
       return -1;
     }
     if (!(strBuf[5] & 0x10)) {
@@ -173,8 +167,8 @@ namespace TS {
 
 /// Gets the OPCR (Original Program Clock Reference) of a Packet.
 /// \return The value of the OPCR.
-  int64_t Packet::OPCR() {
-    if (!AdaptationField()) {
+  int64_t Packet::getOPCR() const{
+    if (!getAdaptationField()) {
       return -1;
     }
     if (!(strBuf[5 + 6] & 0x10)) {
@@ -189,81 +183,81 @@ namespace TS {
 
 /// Gets the transport error inficator of a Packet
 /// \return  The transport error inficator of a Packet
-  bool Packet::transportError() {
+  bool Packet::hasTransportError() const{
     return strBuf[1] & 0x80;
   }
 
 /// Gets the payload unit start inficator of a Packet
 /// \return  The payload unit start inficator of a Packet
-  bool Packet::unitStart() {
+  bool Packet::getUnitStart() const{
     return strBuf[1] & 0x40;
   }
 
 /// Gets the transport priority of a Packet
 /// \return  The transport priority of a Packet
-  bool Packet::priority() {
+  bool Packet::hasPriority() const{
     return strBuf[1] & 0x20;
   }
 
 /// Gets the transport scrambling control of a Packet
 /// \return  The transport scrambling control of a Packet
-  unsigned int Packet::getTransportScramblingControl() {
+  unsigned int Packet::getTransportScramblingControl() const{
     return (unsigned int)((strBuf[3] >> 6) & (0x03));
   }
 
 /// Gets the current length of the adaptationfield.
 /// \return The length of the adaptationfield.
-  int Packet::AdaptationFieldLen() {
-    if (!AdaptationField()) {
+  int Packet::getAdaptationFieldLen() const{
+    if (!getAdaptationField()) {
       return -1;
     }
     return (int)strBuf[4];
   }
 
-  Packet::operator bool(){
-    return strBuf.size() && strBuf[0] == 0x47;
+  Packet::operator bool() const{
+    return pos && strBuf[0] == 0x47;
   }
 
 /// Prints a packet to stdout, for analyser purposes.
-  std::string Packet::toPrettyString(size_t indent, int detailLevel) {
+  std::string Packet::toPrettyString(size_t indent, int detailLevel) const{
     if (!(*this)){
       return "[Invalid packet - no sync byte]";
     }
     std::stringstream output;
-    output << std::string(indent, ' ') << "[PID " << PID() << "|" << std::hex << continuityCounter() << std::dec << ": " << dataSize() << "b ";
-    if (!PID()){
+    output << std::string(indent, ' ') << "[PID " << getPID() << "|" << std::hex << getContinuityCounter() << std::dec << ": " << getDataSize() << "b ";
+    if (!getPID()){
       output << "PAT";
     }else{
-      if (pmt_pids.count(PID())){
+      if (pmt_pids.count(getPID())){
         output << "PMT";
       }else{
-        if (stream_pids.count(PID())){
-          output << stream_pids[PID()];
+        if (stream_pids.count(getPID())){
+          output << stream_pids[getPID()];
         }else{
           output << "Unknown";
         }
       }
     }
     output << "]";
-    if (unitStart()){
+    if (getUnitStart()){
       output << " [Start]";
     }
-    if (AdaptationField() > 1 && AdaptationFieldLen()) {
-      if (discontinuity()){
+    if (getAdaptationField() > 1 && getAdaptationFieldLen()) {
+      if (hasDiscontinuity()){
         output << " [Discontinuity]";
       }
-      if (randomAccess()){
+      if (getRandomAccess()){
         output << " [RandomXS]";
       }
       if (hasPCR()) {
-        output << " [PCR " << (double)PCR() / 27000000 << "s]";
+        output << " [PCR " << (double)getPCR() / 27000000 << "s]";
       }
       if (hasOPCR()) {
-        output<< " [OPCR: " << (double)OPCR() / 27000000 << "s]";
+        output<< " [OPCR: " << (double)getOPCR() / 27000000 << "s]";
       }
     }
     output << std::endl;
-    if (!PID()) {
+    if (!getPID()) {
       //PAT
       if (detailLevel >= 2){
         output << ((ProgramAssociationTable *)this)->toPrettyString(indent + 2);
@@ -273,7 +267,7 @@ namespace TS {
       return output.str();
     }
     
-    if (pmt_pids.count(PID())){
+    if (pmt_pids.count(getPID())){
       //PMT
       if (detailLevel >= 2){
         output << ((ProgramMappingTable *)this)->toPrettyString(indent + 2);
@@ -285,13 +279,13 @@ namespace TS {
     
     if (detailLevel >= 3){
       output << std::string(indent+2, ' ') << "Raw data bytes:";
-      unsigned int size = dataSize();
-      char * dPointer = dataPointer();
+      unsigned int size = getDataSize();
+      
       for (unsigned int i = 0; i < size; ++i){
         if (!(i % 32)){
           output << std::endl << std::string(indent + 4, ' ');
         }
-        output << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)dPointer[i] << " ";
+        output << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)(strBuf+pos)[i] << " ";
         if ((i % 4) == 3){
           output << " ";
         }
@@ -301,24 +295,24 @@ namespace TS {
     
     return output.str();
   }
-  
+  /*
   char * Packet::dataPointer(){
-    return (char*)strBuf.data() + 188 - dataSize();
-  }
+    return (char*)strBuf+pos;//.data() + 188 - dataSize();
+  }*/
   
-  unsigned int Packet::dataSize(){
-    return 184 - ((AdaptationField() > 1) ? AdaptationFieldLen() + 1 : 0);
+  unsigned int Packet::getDataSize() const{
+    return 184 - ((getAdaptationField() > 1) ? getAdaptationFieldLen() + 1 : 0);
   }
 
   /// Returns true if this PID contains a PMT.
   /// Important caveat: only works if the corresponding PAT has been pretty-printed earlier!
-  bool Packet::isPMT(){
-    return pmt_pids.count(PID());
+  bool Packet::isPMT() const{
+    return pmt_pids.count(getPID());
   }
 
 /// Sets the start of a new unit in this Packet.
 /// \param NewVal The new value for the start of a unit.
-  void Packet::unitStart(bool NewVal) {
+  void Packet::setUnitStart(bool NewVal) {
     if (NewVal) {
       strBuf[1] |= 0x40;
     } else {
@@ -328,18 +322,18 @@ namespace TS {
 
 /// Gets the elementary stream priority indicator of a Packet
 /// \return  The elementary stream priority indicator of a Packet
-  bool Packet::ESpriority() {
+  bool Packet::hasESpriority() const{
     return strBuf[5] & 0x20;
   }
 
-  bool Packet::discontinuity() {
+  bool Packet::hasDiscontinuity() const{
     return strBuf[5] & 0x80;
   }
 
 /// Gets whether this Packet can be accessed at random (indicates keyframe).
 /// \return Whether or not this Packet contains a keyframe.
-  bool Packet::randomAccess() {
-    if (AdaptationField() < 2) {
+  bool Packet::getRandomAccess() const{
+    if (getAdaptationField() < 2) {
       return false;
     }
     return strBuf[5] & 0x40;
@@ -347,29 +341,27 @@ namespace TS {
 
 ///Gets the value of the PCR flag
 ///\return true if there is a PCR, false otherwise
-  bool Packet::hasPCR() {
+  bool Packet::hasPCR() const{
     return strBuf[5] & 0x10;
   }
 
 ///Gets the value of the OPCR flag
 ///\return true if there is an OPCR, false otherwise
-  bool Packet::hasOPCR() {
+  bool Packet::hasOPCR() const{
     return strBuf[5] & 0x08;
   }
 
 ///Gets the value of the splicing point  flag
 ///\return the value of the splicing point flag
-  bool Packet::splicingPoint() {
+  bool Packet::hasSplicingPoint() const{
     return strBuf[5] & 0x04;
   }
 
 ///Gets the value of the transport private data point flag
 ///\return the value of the transport private data point flag
-  void Packet::randomAccess(bool NewVal) {
-    if (AdaptationField() == 3) {
-      if (strBuf.size() < 6) {
-        strBuf.resize(6);
-      }
+  void Packet::setRandomAccess(bool NewVal) {
+    updPos(6);
+    if (getAdaptationField() == 3) {
       if (!strBuf[4]) {
         strBuf[4] = 1;
       }
@@ -379,11 +371,7 @@ namespace TS {
         strBuf[5] &= 0xBF;
       }
     } else {
-      ///\todo this code doesn't check for existing data, causing corruption.
-      if (strBuf.size() < 6) {
-        strBuf.resize(6);
-      }
-      AdaptationField(3);
+      setAdaptationField(3);
       strBuf[4] = 1;
       if (NewVal) {
         strBuf[5] = 0x40;
@@ -394,62 +382,61 @@ namespace TS {
   }
 
 /// Transforms the Packet into a standard Program Association Table
-  void Packet::DefaultPAT() {
+  void Packet::setDefaultPAT() {
     static int MyCntr = 0;
-    strBuf = std::string(PAT, 188);
-    continuityCounter(MyCntr++);
+    memcpy((void*)strBuf, (void*)PAT, 188);
+    pos=188;
+    setContinuityCounter(MyCntr++);
     MyCntr %= 0x10;
   }
 
-/// Transforms the Packet into a standard Program Mapping Table
-  void Packet::DefaultPMT() {
-    static int MyCntr = 0;
-    strBuf = std::string(PMT, 188);
-    continuityCounter(MyCntr++);
-    MyCntr %= 0x10;
-  }
-
-/// Generates a string from the contents of the Packet
-/// \return A string representation of the packet.
-  const char * Packet::ToString() {
-    if (strBuf.size() != 188) {
-      DEBUG_MSG(DLVL_ERROR, "Size invalid (%i) - invalid data from this point on", (int)strBuf.size());
+/// Checks the size of the internal packet buffer (prints error if size !=188), then returns a pointer to the data.
+/// \return A character pointer to the internal packet buffer data
+  const char * Packet::checkAndGetBuffer() const{
+    if (pos != 188) {
+      DEBUG_MSG(DLVL_ERROR, "Size invalid (%d) - invalid data from this point on", pos);
     }
-    return strBuf.c_str();
+    return strBuf;
   }
 
+
+//BEGIN PES FUNCTIONS
+//pes functons do not use the internal strBuf character buffer
   ///\brief Appends the PES-encoded timestamp to a string.
   ///\param strBuf The string to append to
   ///\param fixedLead The "fixed" 4-bit lead value to use
   ///\param time The timestamp to encode
-  void encodePESTimestamp(std::string & strBuf, char fixedLead, unsigned long long time){
+  void encodePESTimestamp(std::string & tmpBuf, char fixedLead, unsigned long long time){
     //FixedLead of 4 bits, bits 32-30 time, 1 marker bit
-    strBuf += (char)(fixedLead | ((time & 0x1C0000000LL) >> 29) | 0x01);
+    tmpBuf += (char)(fixedLead | ((time & 0x1C0000000LL) >> 29) | 0x01);
     //Bits 29-22 time
-    strBuf += (char)((time & 0x03FC00000LL) >> 22);
+    tmpBuf += (char)((time & 0x03FC00000LL) >> 22);
     //Bits 21-15 time, 1 marker bit
-    strBuf += (char)(((time & 0x0003F8000LL) >> 14) | 0x01);
+    tmpBuf += (char)(((time & 0x0003F8000LL) >> 14) | 0x01);
     //Bits 14-7 time
-    strBuf += (char)((time & 0x000007F80LL) >> 7);
+    tmpBuf += (char)((time & 0x000007F80LL) >> 7);
     //Bits 7-0 time, 1 marker bit
-    strBuf += (char)(((time & 0x00000007FLL) << 1) | 0x01);
+    tmpBuf += (char)(((time & 0x00000007FLL) << 1) | 0x01);
   }
 
 /// Generates a PES Lead-in for a video frame.
 /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
 /// \param len The length of this frame.
 /// \param PTS The timestamp of the frame.
-  std::string & Packet::getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset) {
+  std::string & Packet::getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset, bool isAligned) {
     len += (offset ? 13 : 8);
-    len = 0;
     static std::string tmpStr;
     tmpStr.clear();
     tmpStr.reserve(25);
     tmpStr.append("\000\000\001\340", 4);
     tmpStr += (char)((len >> 8) & 0xFF);
     tmpStr += (char)(len & 0xFF);
-    tmpStr.append("\204", 1);
-    tmpStr += (char)(offset ? 0xC0 : 0x80); //PTS/DTS + Flags
+    if (isAligned){
+      tmpStr.append("\204", 1);
+    }else{
+      tmpStr.append("\200", 1);
+    }
+    tmpStr += (char)(offset ? 0xC0 : 0x80) ; //PTS/DTS + Flags
     tmpStr += (char)(offset ? 0x0A : 0x05); //PESHeaderDataLength
     encodePESTimestamp(tmpStr, (offset ? 0x30 : 0x20), PTS + offset);
     if (offset){
@@ -474,184 +461,163 @@ namespace TS {
     encodePESTimestamp(tmpStr, 0x20, PTS);
     return tmpStr;
   }
-
-/// Fills the free bytes of the Packet.
-/// Stores as many bytes from NewVal as possible in the packet.
-/// \param NewVal The data to store in the packet.
-  void Packet::FillFree(std::string & NewVal) {
-    unsigned int toWrite = BytesFree();
-    if (toWrite == NewVal.size()) {
-      strBuf += NewVal;
-      NewVal.clear();
-    } else {
-      strBuf += NewVal.substr(0, toWrite);
-      NewVal.erase(0, toWrite);
-    }
-  }
+//END PES FUNCTIONS
 
 /// Fills the free bytes of the Packet.
 /// Stores as many bytes from NewVal as possible in the packet.
 /// The minimum of Packet::BytesFree and maxLen is used.
 /// \param NewVal The data to store in the packet.
 /// \param maxLen The maximum amount of bytes to store.
-  int Packet::FillFree(const char * NewVal, int maxLen) {
-    int toWrite = std::min((int)BytesFree(), maxLen);
-    strBuf.append(NewVal, toWrite);
+  int Packet::fillFree(const char * NewVal, int maxLen) {
+    int toWrite = std::min((int)getBytesFree(), maxLen);    
+    memcpy((void*)(strBuf+pos), (void*)NewVal, toWrite);
+    pos+=toWrite;
     return toWrite;
   }
 
 /// Adds stuffing to the Packet depending on how much content you want to send.
 /// \param NumBytes the amount of non-stuffing content bytes you want to send.
 /// \return The amount of content bytes that can be send.
-  void Packet::AddStuffing() {
-    size_t numBytes = BytesFree();
+  void Packet::addStuffing() {
+    unsigned int numBytes = getBytesFree();
     if (!numBytes) {
       return;
     }
     
-    if (AdaptationField() == 2){
-      FAIL_MSG("Can not handle adaptation field 2");
+    if (getAdaptationField() == 2){
+      FAIL_MSG("Can not handle adaptation field 2 - should stuff the entire packet, no data will follow after the adaptation field"); ///\todo more stuffing required
       return;
     }
-    
-
-    if (AdaptationField() == 1){
-      //Move data from byte [4] onwards to byte [5] onwards
-      strBuf.insert(4, 1, (char)0);
-      //Convert adaptationfield to 3
-      AdaptationField(3);
-      //Since we inserted 1 bytes for the adaptation_field_length, add one less byte stuffing
-      numBytes --;
-    }
-    
-    //If we have more stuffing to add
-    if (AdaptationField() == 3 && numBytes ) {
-      if (strBuf[4] == 0){
-        //No data is present in adapationfield yet
-        //Add numbytes Bytes of "$"
-        strBuf.insert((size_t)5, numBytes, '?');
+        
+    if (getAdaptationField() == 1){
+      //Convert adaptationfield to 3, by shifting the \001 at [4] (and all after it) to [5].
+      if (numBytes == 184){
+        strBuf[pos++]=0x0; //strBuf.append("\000", 1);
       }else{
-        //Data is already present in adaptationfield
-        //Append numbytes Bytes of "$"
-        strBuf.insert((size_t)(5 + strBuf[4]), numBytes, '$');
+        //strBuf.insert(4, 1, (char)0);
+        memmove((void*) (strBuf+5), (void*)(strBuf+4), 188-4-1);
+        pos++;
       }
-      //Update the adaptation_field_length with the amount of bytes added.
-      strBuf[4] += numBytes;
+      setAdaptationField(3);//sets [4] to 0
     }
 
-    if (numBytes){
-      //We have added stuffing (other than just the field_length)
-      if (numBytes == strBuf[4]){
-        //We have added a new adaptation field, set the flags to 0
-        strBuf[5] = 0x00;
-        numBytes --;
-      }
+    numBytes=getBytesFree(); //get the most recent strBuf len before stuffing
 
-      //Set the stuffing 'backwards' from the end of all stuffing to FILLER_DATA
+    if (getAdaptationField() == 3 && numBytes ) {
+      if (strBuf[4] == 0){//if we already have stuffing
+        memmove((void*) (strBuf+5+numBytes), (void*)(strBuf+5), 188-5-numBytes);
+        memset((void*)(strBuf+5),'$',numBytes);
+        pos+=numBytes;
+      }else{
+        memmove((void*)(strBuf+5+strBuf[4]+numBytes), (void*)(strBuf+5+strBuf[4]) , 188-5-strBuf[4]-numBytes);
+        memset((void*)(strBuf+5+strBuf[4]),'$',numBytes);
+        pos+=numBytes;      
+      }
+      strBuf[4] += numBytes;//add stuffing to the stuffing counter at [4]
+    }
+    if (numBytes){//if we added stuffing...
+      if (numBytes == strBuf[4]){//and the stuffing is ALL the stuffing...
+        strBuf[5] = 0x00;//set [5] to zero for some reason...?
+        numBytes --;//decrease the stuffing needed by one
+      }
+      //overwrite bytes [5+currStuffing-newStuffing] onward with newStuffing bytes of prettier filler data
       for (int i = 0; i < numBytes; i++) {
         strBuf[5+(strBuf[4] - numBytes)+i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
       }
-    } 
-    
+    }  
   }
 
-///Gets the string buffer, containing the raw packet data as a string
+///returns the character buffer with a std::string wrapper
 ///\return The raw TS data as a string
-  const std::string& Packet::getStrBuf() {
-    return strBuf;
-  }
-
-///Gets the buffer, containing the raw packet data as a char arrya
-///\return The raw TS data as char array.
-  const char * Packet::getBuffer() {
-    return strBuf.data();
-  }
+  //const std::string& Packet::getStrBuf() const{
+//    return std::string(strBuf);
+//  }
 
 ///Gets the payload of this packet, as a raw char array
 ///\return The payload of this ts packet as a char pointer
-  const char * Packet::getPayload() {
-    return strBuf.data() + (4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0));
+  const char * Packet::getPayload() const{
+    return strBuf + (4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0));
   }
 
   ///Gets the length of the payload for this apcket
   ///\return The amount of bytes payload in this packet
-  int Packet::getPayloadLength() {
-    return 184 - ((AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0));
+  int Packet::getPayloadLength() const{
+    return 184 - ((getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0));
   }
 
 
-  ///Retrieves the current offset value for a PAT
-  char ProgramAssociationTable::getOffset() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0);
+  ///Retrieves the current addStuffingoffset value for a PAT
+  char ProgramAssociationTable::getOffset() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0);
     return strBuf[loc];
   }
 
   ///Retrieves the ID of this table
-  char ProgramAssociationTable::getTableId() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+  char ProgramAssociationTable::getTableId() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;
     return strBuf[loc];
   }
 
   ///Retrieves the current section length
-  short ProgramAssociationTable::getSectionLength() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 2;
+  short ProgramAssociationTable::getSectionLength() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 2;
     return (short)(strBuf[loc] & 0x0F) << 8 | strBuf[loc + 1];
   }
 
   ///Retrieves the Transport Stream ID
-  short ProgramAssociationTable::getTransportStreamId() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 4;
+  short ProgramAssociationTable::getTransportStreamId() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 4;
     return (short)(strBuf[loc] & 0x0F) << 8 | strBuf[loc + 1];
   }
 
   ///Retrieves the version number
-  char ProgramAssociationTable::getVersionNumber() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+  char ProgramAssociationTable::getVersionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
     return (strBuf[loc] >> 1) & 0x1F;
   }
 
   ///Retrieves the "current/next" indicator
-  bool ProgramAssociationTable::getCurrentNextIndicator() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+  bool ProgramAssociationTable::getCurrentNextIndicator() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
     return (strBuf[loc] >> 1) & 0x01;
   }
 
   ///Retrieves the section number
-  char ProgramAssociationTable::getSectionNumber() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 7;
+  char ProgramAssociationTable::getSectionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 7;
     return strBuf[loc];
   }
 
   ///Retrieves the last section number
-  char ProgramAssociationTable::getLastSectionNumber() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 8;
+  char ProgramAssociationTable::getLastSectionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 8;
     return strBuf[loc];
   }
 
   ///Returns the amount of programs in this table
-  short ProgramAssociationTable::getProgramCount() {
+  short ProgramAssociationTable::getProgramCount() const{
     //This is correct, not -12 since we already parsed 4 bytes here
     return (getSectionLength() - 8) / 4;
   }
 
-  short ProgramAssociationTable::getProgramNumber(short index) {
+  short ProgramAssociationTable::getProgramNumber(short index) const{
     if (index > getProgramCount()) {
       return 0;
     }
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9;
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 9;
     return ((short)(strBuf[loc + (index * 4)]) << 8) | strBuf[loc + (index * 4) + 1];
   }
 
-  short ProgramAssociationTable::getProgramPID(short index) {
+  short ProgramAssociationTable::getProgramPID(short index) const{
     if (index > getProgramCount()) {
       return 0;
     }
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9;
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 9;
     return (((short)(strBuf[loc + (index * 4) + 2]) << 8) | strBuf[loc + (index * 4) + 3]) & 0x1FFF;
   }
 
-  int ProgramAssociationTable::getCRC() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9 + (getProgramCount() * 4);
+  int ProgramAssociationTable::getCRC() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 9 + (getProgramCount() * 4);
     return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
   }
 
@@ -659,7 +625,7 @@ namespace TS {
 ///prints all values in a human readable format
 ///\param indent The indentation of the string printed as wanted by the user
 ///\return The string with human readable data from a PAT
-  std::string ProgramAssociationTable::toPrettyString(size_t indent) {
+  std::string ProgramAssociationTable::toPrettyString(size_t indent) const{
     std::stringstream output;
     output << std::string(indent, ' ') << "[Program Association Table]" << std::endl;
     output << std::string(indent + 2, ' ') << "Pointer Field: " << (int)getOffset() << std::endl;
@@ -692,12 +658,12 @@ namespace TS {
     return data && (data < boundary);
   }
 
-  int ProgramMappingEntry::streamType(){
+  int ProgramMappingEntry::getStreamType() const{
     return data[0];
   }
 
-  std::string ProgramMappingEntry::codec(){
-    switch (streamType()){
+  std::string ProgramMappingEntry::getCodec() const{
+    switch (getStreamType()){
       case 0x01:
       case 0x03: return "MPEG1";
       case 0x02: return "MPEG1/2";
@@ -726,8 +692,8 @@ namespace TS {
     }
   }
 
-  std::string ProgramMappingEntry::streamTypeString(){
-    switch (streamType()){
+  std::string ProgramMappingEntry::getStreamTypeString() const{
+    switch (getStreamType()){
       case 0x01:
       case 0x02:
       case 0x09:
@@ -742,11 +708,11 @@ namespace TS {
     }
   }
   
-  int ProgramMappingEntry::elementaryPid(){
+  int ProgramMappingEntry::getElementaryPid() const{
     return ((data[1] << 8) | data[2]) & 0x1FFF;
   }
 
-  int ProgramMappingEntry::ESInfoLength(){
+  int ProgramMappingEntry::getESInfoLength() const{
     return ((data[3] << 8) | data[4]) & 0x0FFF;
   }
 
@@ -754,155 +720,137 @@ namespace TS {
     if (!(*this)) {
       return;
     }
-    data += 5 + ESInfoLength();
+    data += 5 + getESInfoLength();
   }
   
-  ProgramMappingTable::ProgramMappingTable(){
-    strBuf.resize(4);
+  ProgramMappingTable::ProgramMappingTable(){        
     strBuf[0] = 0x47;
     strBuf[1] = 0x50;
     strBuf[2] = 0x00;
     strBuf[3] = 0x10;
+    pos=4;
   }
 
-  char ProgramMappingTable::getOffset() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0);
+  char ProgramMappingTable::getOffset() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0);
     return strBuf[loc];
   }
 
   void ProgramMappingTable::setOffset(char newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0);
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0);
     strBuf[loc] = newVal;
   }  
 
-  char ProgramMappingTable::getTableId() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+  char ProgramMappingTable::getTableId() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;
     return strBuf[loc];
   }
 
   void ProgramMappingTable::setTableId(char newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 1;
-    if (strBuf.size() < loc + 1) {
-      strBuf.resize(loc + 1);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+    updPos(loc+1);    
     strBuf[loc] = newVal;
   }
 
-  short ProgramMappingTable::getSectionLength() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 2;
+  short ProgramMappingTable::getSectionLength() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 2;
     return (((short)strBuf[loc] & 0x0F) << 8) | strBuf[loc + 1];
   }
 
   void ProgramMappingTable::setSectionLength(short newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 2;
-    if (strBuf.size() < loc + 2) {
-      strBuf.resize(loc + 2);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 2;
+    updPos(loc+2);
     strBuf[loc] = (char)(newVal >> 8);
     strBuf[loc+1] = (char)newVal;
   }
 
-  short ProgramMappingTable::getProgramNumber() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 4;
+  short ProgramMappingTable::getProgramNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 4;
     return (((short)strBuf[loc]) << 8) | strBuf[loc + 1];
   }
 
   void ProgramMappingTable::setProgramNumber(short newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 4;
-    if (strBuf.size() < loc + 2) {
-      strBuf.resize(loc + 2);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 4;
+    updPos(loc+2);
     strBuf[loc] = (char)(newVal >> 8);
     strBuf[loc+1] = (char)newVal;
   }
 
-  char ProgramMappingTable::getVersionNumber() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+  char ProgramMappingTable::getVersionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
     return (strBuf[loc] >> 1) & 0x1F;
   }
 
   void ProgramMappingTable::setVersionNumber(char newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
-    if (strBuf.size() < loc + 1) {
-      strBuf.resize(loc + 1);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+    updPos(loc+1);
     strBuf[loc] = ((newVal & 0x1F) << 1) | 0xC1;
   }
 
   ///Retrieves the "current/next" indicator
-  bool ProgramMappingTable::getCurrentNextIndicator() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+  bool ProgramMappingTable::getCurrentNextIndicator() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
     return (strBuf[loc] >> 1) & 0x01;
   }
 
   ///Sets the "current/next" indicator
   void ProgramMappingTable::setCurrentNextIndicator(bool newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 6;
-    if (strBuf.size() < loc + 1) {
-      strBuf.resize(loc + 1);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+    updPos(loc+1);
     strBuf[loc] = (((char)newVal) << 1) | (strBuf[loc] & 0xFD) | 0xC1;
   }
 
   ///Retrieves the section number
-  char ProgramMappingTable::getSectionNumber() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 7;
+  char ProgramMappingTable::getSectionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 7;
     return strBuf[loc];
   }
 
   ///Sets the section number
   void ProgramMappingTable::setSectionNumber(char newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 7;
-    if (strBuf.size() < loc + 1) {
-      strBuf.resize(loc + 1);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 7;
+    updPos(loc+1);
     strBuf[loc] = newVal;
   }
 
   ///Retrieves the last section number
-  char ProgramMappingTable::getLastSectionNumber() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 8;
+  char ProgramMappingTable::getLastSectionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 8;
     return strBuf[loc];
   }
 
   ///Sets the last section number
   void ProgramMappingTable::setLastSectionNumber(char newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 8;
-    if (strBuf.size() < loc + 1) {
-      strBuf.resize(loc + 1);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 8;
+    updPos(loc+1);
     strBuf[loc] = newVal;
   }
 
-  short ProgramMappingTable::getPCRPID() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9;
+  short ProgramMappingTable::getPCRPID() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 9;
     return (((short)strBuf[loc] & 0x1F) << 8) | strBuf[loc + 1];
   }
 
   void ProgramMappingTable::setPCRPID(short newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 9;
-    if (strBuf.size() < loc + 2) {
-      strBuf.resize(loc + 2);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 9;
+    updPos(loc+2);
     strBuf[loc] = (char)((newVal >> 8) & 0x1F) | 0xE0;//Note: here we set reserved bits on 1
     strBuf[loc+1] = (char)newVal;
   }
 
-  short ProgramMappingTable::getProgramInfoLength() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 11;
+  short ProgramMappingTable::getProgramInfoLength() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 11;
     return (((short)strBuf[loc] & 0x0F) << 8) | strBuf[loc + 1];
   }
 
   void ProgramMappingTable::setProgramInfoLength(short newVal) {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 11;
-    if (strBuf.size() < loc + 2) {
-      strBuf.resize(loc + 2);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 11;
+    updPos(loc+2);
     strBuf[loc] = (char)((newVal >> 8) & 0x0F) | 0xF0;//Note: here we set reserved bits on 1
     strBuf[loc+1] = (char)newVal;
   }
 
-  short ProgramMappingTable::getProgramCount() {
+  short ProgramMappingTable::getProgramCount() const{
     return (getSectionLength() - 13) / 5;
   }
   
@@ -910,39 +858,37 @@ namespace TS {
     setSectionLength(newVal * 5 + 13);
   }
 
-  ProgramMappingEntry ProgramMappingTable::getEntry(int index){
-    int dataOffset = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset();
-    ProgramMappingEntry res((char*)(strBuf.data() + dataOffset + 13 + getProgramInfoLength()), (char*)(strBuf.data() + dataOffset + getSectionLength()) );
+  ProgramMappingEntry ProgramMappingTable::getEntry(int index) const{
+    int dataOffset = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset();
+    ProgramMappingEntry res((char*)(strBuf + dataOffset + 13 + getProgramInfoLength()), (char*)(strBuf + dataOffset + getSectionLength()) );
     for (int i = 0; i < index; i++){
       res.advance();
     }
     return res;
   }
 
-  char ProgramMappingTable::getStreamType(short index) {
+  char ProgramMappingTable::getStreamType(short index) const{
     if (index > getProgramCount()) {
       return 0;
     }
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
     return strBuf[loc + (index * 5)];
   }
 
   void ProgramMappingTable::setStreamType(char newVal, short index) {
     if (index > getProgramCount()) {
       return;
-    }
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
-    if (strBuf.size() < loc + (index*5) + 1) {
-      strBuf.resize(loc + (index*5) + 1);
-    }
+    }    
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength(); //TODO
+    updPos(loc+(index*5)+1);  
     strBuf[loc + (index * 5)] = newVal;
   }
 
-  short ProgramMappingTable::getElementaryPID(short index) {
+  short ProgramMappingTable::getElementaryPID(short index) const{
     if (index > getProgramCount()) {
       return 0;
     }
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
     return (((short)strBuf[loc + (index * 5) + 1] & 0x1F) << 8) | strBuf[loc + (index * 5) + 2];
   }
 
@@ -950,19 +896,17 @@ namespace TS {
     if (index > getProgramCount()) {
       return;
     }
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
-    if (strBuf.size() < loc + (index*5) + 3) {
-      strBuf.resize(loc + (index*5) + 3);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
+    updPos(loc+(index*5)+3);
     strBuf[loc + (index * 5)+1] = ((newVal >> 8) & 0x1F )| 0xE0;
     strBuf[loc + (index * 5)+2] = (char)newVal;
   }
 
-  short ProgramMappingTable::getESInfoLength(short index) {
+  short ProgramMappingTable::getESInfoLength(short index) const{
     if (index > getProgramCount()) {
       return 0;
     }
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
     return (((short)strBuf[loc + (index * 5) + 3] & 0x0F) << 8) | strBuf[loc + (index * 5) + 4];
   }
 
@@ -970,38 +914,34 @@ namespace TS {
     if (index > getProgramCount()) {
       return;
     }
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
-    if (strBuf.size() < loc + (index*5) + 5) {
-      strBuf.resize(loc + (index*5) + 5);
-    }
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
+    updPos(loc+(index*5)+5);
     strBuf[loc + (index * 5)+3] = ((newVal >> 8) & 0x0F) | 0xF0;
     strBuf[loc + (index * 5)+4] = (char)newVal;
   }
 
-  int ProgramMappingTable::getCRC() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + getSectionLength();
+  int ProgramMappingTable::getCRC() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + getSectionLength();
     return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
   }
   
   void ProgramMappingTable::calcCRC() {
-    unsigned int loc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + getSectionLength();
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + getSectionLength();
     unsigned int newVal;//this will hold the CRC32 value;
-    unsigned int pidLoc = 4 + (AdaptationField() > 1 ? AdaptationFieldLen() + 1 : 0) + getOffset() + 1;//location of PCRPID
-    newVal = checksum::crc32(-1, strBuf.c_str() + pidLoc, loc - pidLoc);//calculating checksum over all the fields from table ID to the last stream element
-    if (strBuf.size() < 188) {
-      strBuf.resize(188);
-    }
+    unsigned int pidLoc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;//location of PCRPID
+    newVal = checksum::crc32(-1, strBuf + pidLoc, loc - pidLoc);//calculating checksum over all the fields from table ID to the last stream element
+    updPos(188);  
     strBuf[loc + 3] = (newVal >> 24) & 0xFF;
     strBuf[loc + 2] = (newVal >> 16) & 0xFF;
     strBuf[loc + 1] = (newVal >> 8) & 0xFF;
     strBuf[loc] = newVal & 0xFF;
-    memset((void*)(strBuf.c_str() + loc + 4), 0xFF, 184 - loc);
+    memset((void*)(strBuf + loc + 4), 0xFF, 184 - loc);
   }
 
 ///Print all PMT values in a human readable format
 ///\param indent The indentation of the string printed as wanted by the user
 ///\return The string with human readable data from a PMT table
-  std::string ProgramMappingTable::toPrettyString(size_t indent) {
+  std::string ProgramMappingTable::toPrettyString(size_t indent) const{
     std::stringstream output;
     output << std::string(indent, ' ') << "[Program Mapping Table]" << std::endl;
     output << std::string(indent + 2, ' ') << "Pointer Field: " << (int)getOffset() << std::endl;
@@ -1017,17 +957,24 @@ namespace TS {
     ProgramMappingEntry entry = getEntry(0);
     while (entry) {
       output << std::string(indent + 4, ' ');
-      stream_pids[entry.elementaryPid()] = entry.codec() + std::string(" ") + entry.streamTypeString();
-      output << "Stream " << entry.elementaryPid() << ": " << stream_pids[entry.elementaryPid()] << " (" << entry.streamType() << "), InfoLen = " << entry.ESInfoLength() << std::endl;
+      stream_pids[entry.getElementaryPid()] = entry.getCodec() + std::string(" ") + entry.getStreamTypeString();
+      output << "Stream " << entry.getElementaryPid() << ": " << stream_pids[entry.getElementaryPid()] << " (" << entry.getStreamType() << "), InfoLen = " << entry.getESInfoLength() << std::endl;
       entry.advance();
     }
     output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;
     return output.str();
   }
   
-  const std::string& createPMT(std::set<unsigned long>& selectedTracks, DTSC::Meta& myMeta){
+  
+  /// Construct a PMT (special 188B ts packet) from a set of selected tracks and metadata.
+  /// This function is not part of the packet class, but it is in the TS namespace.
+  /// It uses an internal static TS packet for PMT storage.
+  ///\param selectedTracks tracks to include in PMT creation
+  ///\param myMeta 
+  ///\returns character pointer to a static 188B TS packet
+  const char * createPMT(std::set<unsigned long>& selectedTracks, DTSC::Meta& myMeta, int contCounter){
     static ProgramMappingTable PMT;
-    PMT.PID(4096);
+    PMT.setPID(4096);
     PMT.setTableId(2);
     //section length met 2 tracks: 0xB017
     PMT.setSectionLength(0xB00D + (selectedTracks.size() * 5));
@@ -1036,6 +983,7 @@ namespace TS {
     PMT.setCurrentNextIndicator(0);
     PMT.setSectionNumber(0);
     PMT.setLastSectionNumber(0);
+    PMT.setContinuityCounter(contCounter);
     int vidTrack = -1;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (myMeta.tracks[*it].type == "video"){
@@ -1048,8 +996,7 @@ namespace TS {
     }
     PMT.setPCRPID(0x100 + vidTrack - 1);
     PMT.setProgramInfoLength(0);
-    short id = 0;
-    //for all selected tracks
+    short id = 0;    
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (myMeta.tracks[*it].codec == "H264"){
         PMT.setStreamType(0x1B,id);
@@ -1063,7 +1010,7 @@ namespace TS {
       id++;
     }
     PMT.calcCRC();
-    return PMT.getStrBuf();
+    return PMT.checkAndGetBuffer();
   }
 
 }

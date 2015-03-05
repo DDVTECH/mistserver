@@ -939,7 +939,9 @@ namespace IPC {
           }
         }
       }
-      Util::wait(500);
+      if (offsetOnPage == -1){
+        Util::wait(500);
+      }
     }
     free(empty);
   }

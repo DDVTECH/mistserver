@@ -602,7 +602,7 @@ namespace Mist {
       nxt.offset = 0;
       if (curPages.count(nxt.tid) && curPages[nxt.tid].mapped){
         if (getDTSCTime(curPages[nxt.tid].mapped, nxt.offset) < nxt.time){
-          DEBUG_MSG(DLVL_DEVEL, "Time going backwards in track %u - dropping track.", nxt.tid);
+          ERROR_MSG("Time going backwards in track %u - dropping track.", nxt.tid);
         }else{
           nxt.time = getDTSCTime(curPages[nxt.tid].mapped, nxt.offset);
           buffer.insert(nxt);

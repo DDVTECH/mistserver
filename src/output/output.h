@@ -1,3 +1,4 @@
+#pragma once
 #include <set>
 #include <cstdlib>
 #include <map>

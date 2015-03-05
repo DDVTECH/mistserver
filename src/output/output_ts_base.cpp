@@ -17,9 +17,9 @@ namespace Mist {
       if ( (sendRepeatingHeaders && packCounter % 42 == 0) || !packCounter){
         TS::Packet tmpPack;
         tmpPack.FromPointer(TS::PAT);
-        tmpPack.setContinuityCounter(++contCounters[tmpPack.getPID()]);
+        tmpPack.setContinuityCounter(++contCounters[0]);
         sendTS(tmpPack.checkAndGetBuffer());
-        sendTS(TS::createPMT(selectedTracks, myMeta, ++contCounters[tmpPack.getPID()]));
+        sendTS(TS::createPMT(selectedTracks, myMeta, ++contCounters[4096]));
         packCounter += 2;
       }
       sendTS(packData.checkAndGetBuffer());
@@ -35,6 +35,7 @@ namespace Mist {
       packData.setContinuityCounter(++contCounters[packData.getPID()]);
       if (first[currentPacket.getTrackId()]){
         packData.setUnitStart(1);
+        packData.setDiscontinuity(true);
         if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
           if (currentPacket.getInt("keyframe")){
             packData.setRandomAccess(1);

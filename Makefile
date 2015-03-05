@@ -132,14 +132,14 @@ MistOutRaw: src/output/mist_out.cpp src/output/output.cpp src/output/output_raw.
 
 outputs: MistOutHTTPTS
 MistOutHTTPTS: override LDLIBS += $(THREADLIB)
-MistOutHTTPTS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_httpts.h\""
-MistOutHTTPTS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_httpts.cpp
+MistOutHTTPTS: override CPPFLAGS += -DOUTPUTTYPE=\"output_httpts.h\" -DTS_BASECLASS=HTTPOutput
+MistOutHTTPTS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_httpts.cpp  src/output/output_ts_base.cpp 
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutTS
 MistOutTS: override LDLIBS += $(THREADLIB)
 MistOutTS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_ts.h\""
-MistOutTS: src/output/mist_out.cpp src/output/output.cpp src/output/output_ts.cpp
+MistOutTS: src/output/mist_out.cpp src/output/output.cpp src/output/output_ts.cpp  src/output/output_ts_base.cpp 
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
 outputs: MistOutHTTP
@@ -156,8 +156,8 @@ MistOutHSS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http
 	
 outputs: MistOutHLS
 MistOutHLS: override LDLIBS += $(THREADLIB)
-MistOutHLS: override CPPFLAGS += "-DOUTPUTTYPE=\"output_hls.h\""
-MistOutHLS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_hls.cpp
+MistOutHLS: override CPPFLAGS += -DOUTPUTTYPE=\"output_hls.h\" -DTS_BASECLASS=HTTPOutput
+MistOutHLS: src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_hls.cpp src/output/output_ts_base.cpp 
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 	
 outputs: MistOutHDS

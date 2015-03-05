@@ -3,10 +3,7 @@
 #include <mist/defines.h>
 
 namespace Mist {
-  OutTS::OutTS(Socket::Connection & conn) : Output(conn){
-    haveAvcc = false;
-    AudioCounter = 0;
-    VideoCounter = 0;
+  OutTS::OutTS(Socket::Connection & conn) : TSOutput(conn){
     streamName = config->getString("streamname");
     parseData = true;
     wantRequest = false;
@@ -57,92 +54,8 @@ namespace Mist {
     cfg->addConnectorOptions(8888, capa);
     config = cfg;
   }
-  
-  void OutTS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
-    if (!PackData.BytesFree()){
-      myConn.SendNow(PackData.ToString(), 188);
-      PackData.Clear();     
-    }
-    
-    if (!dataLen){return;}
-    
-    if (PackData.BytesFree() == 184){
-      PackData.PID(0x100 - 1 + currentPacket.getTrackId());
-      PackData.continuityCounter(ContCounter++);
-      if (first){
-        PackData.unitStart(1);
-        if (currentPacket.getInt("keyframe")){
-          PackData.randomAccess(1);
-          PackData.PCR(currentPacket.getTime() * 27000);
-        }
-        first = false;
-      }
-    }
-    
-    unsigned int tmp = PackData.FillFree(data, dataLen);
-    if (tmp != dataLen){
-      fillPacket(first, data+tmp, dataLen-tmp, ContCounter);
-    }
- 
-  }
-  
-  
-  void OutTS::sendNext(){
-    char * dataPointer = 0;
-    unsigned int dataLen = 0;
-    currentPacket.getString("data", dataPointer, dataLen); //data
-    
-    bool first = true;    
-    std::string bs;    
-    //prepare bufferstring
-    if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
-      bs = TS::Packet::getPESVideoLeadIn(0ul, currentPacket.getTime() * 90, currentPacket.getInt("offset") * 90);
-      fillPacket(first, bs.data(), bs.size(),VideoCounter);
-      
-      if (currentPacket.getInt("keyframe")){
-        if (!haveAvcc){
-          avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
-          haveAvcc = true;
-        }
-        bs = avccbox.asAnnexB();
-        fillPacket(first, bs.data(), bs.size(),VideoCounter);
-      }
-      unsigned int i = 0;
-      while (i + 4 < (unsigned int)dataLen){
-        unsigned int ThisNaluSize = (dataPointer[i] << 24) + (dataPointer[i+1] << 16) + (dataPointer[i+2] << 8) + dataPointer[i+3];
-        if (ThisNaluSize + i + 4 > (unsigned int)dataLen){
-          DEBUG_MSG(DLVL_WARN, "Too big NALU detected (%u > %d) - skipping!", ThisNaluSize + i + 4, dataLen);
-          break;
-        }
-        fillPacket(first, "\000\000\000\001",4,VideoCounter);
-        fillPacket(first, dataPointer+i+4,ThisNaluSize,VideoCounter);      
-        i += ThisNaluSize+4;
-      }
-    }else if (myMeta.tracks[currentPacket.getTrackId()].type == "audio"){      
-      unsigned int tempLen = dataLen;
-      if (myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
-        tempLen += 7;
-      }
-      bs = TS::Packet::getPESAudioLeadIn(tempLen, currentPacket.getTime() * 90);
-      fillPacket(first, bs.data(), bs.size(),AudioCounter);
-      if (myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
-        bs = TS::GetAudioHeader(dataLen, myMeta.tracks[currentPacket.getTrackId()].init);      
-        fillPacket(first, bs.data(), bs.size(),AudioCounter);
-      }else{
-      }
-      fillPacket(first, dataPointer,dataLen,AudioCounter);
-    }
-    
-    if (PackData.BytesFree() < 184){
-      PackData.AddStuffing();
-      fillPacket(first, 0,0,VideoCounter);
-    }
-  }
 
-  void OutTS::sendHeader(){
-    myConn.SendNow(TS::PAT, 188);
-    myConn.SendNow(TS::createPMT(selectedTracks, myMeta));
-    sentHeader = true;
+  void OutTS::sendTS(const char * tsData, unsigned int len){
+    myConn.SendNow(tsData, len);
   }
-
 }

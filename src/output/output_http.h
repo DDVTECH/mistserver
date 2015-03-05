@@ -1,3 +1,4 @@
+#pragma once
 #include <mist/defines.h>
 #include <mist/http_parser.h>
 #include "output.h"

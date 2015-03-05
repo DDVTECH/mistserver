@@ -102,11 +102,8 @@ namespace Mist {
   } //liveIndex
   
   
-  OutHLS::OutHLS(Socket::Connection & conn) : HTTPOutput(conn) {
-    haveAvcc = false;
-    haveHvcc = false;
+  OutHLS::OutHLS(Socket::Connection & conn) : TSOutput(conn){
     realTime = 0;
-    setBlocking(true);
   }
   
   OutHLS::~OutHLS() {}
@@ -133,132 +130,6 @@ namespace Mist {
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
     /*LTS-END*/
-  }
-
-  void OutHLS::fillPacket(bool & first, const char * data, size_t dataLen, char & ContCounter){
-    static std::map<int, int> contCounter;
-    if (!PackData.BytesFree()){
-      if (PacketNumber % 42 == 0){
-        TS::Packet tmpPack;
-        tmpPack.FromPointer(TS::PAT);
-        tmpPack.continuityCounter(++contCounter[tmpPack.PID()]);
-        H.Chunkify(tmpPack.ToString(), 188, myConn);
-        tmpPack.FromPointer(TS::createPMT(selectedTracks, myMeta).c_str());
-        tmpPack.continuityCounter(++contCounter[tmpPack.PID()]);
-        H.Chunkify(tmpPack.ToString(), 188, myConn);
-        PacketNumber += 2;
-      }
-      H.Chunkify(PackData.ToString(), 188, myConn);
-      PacketNumber ++;
-      PackData.Clear();
-    }
-    
-    if (!dataLen){return;}
-    
-    if (PackData.BytesFree() == 184){
-      PackData.PID(0x100 - 1 + currentPacket.getTrackId());
-      PackData.continuityCounter(ContCounter++);
-      if (first){
-        PackData.unitStart(1);
-        if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
-          if (currentPacket.getInt("keyframe")){
-            PackData.randomAccess(1);
-          }
-          PackData.PCR(currentPacket.getTime() * 27000);
-        }
-        first = false;
-      }
-
-    }
-    
-    int tmp = PackData.FillFree(data, dataLen);
-    if (tmp != dataLen){
-      fillPacket(first, data+tmp, dataLen-tmp, ContCounter);
-    }
-  }
-  
-  void OutHLS::sendNext(){
-    bool first = true;
-    char * dataPointer = 0;
-    unsigned int dataLen = 0;
-    currentPacket.getString("data", dataPointer, dataLen); //data
-    
-    if (currentPacket.getTime() >= until){
-      stop();
-      wantRequest = true;
-      parseData = false;
-      H.Chunkify("", 0, myConn);
-      H.Clean();
-      return;
-    }
-
-    std::string bs;
-    //prepare bufferstring
-    if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
-      bs = TS::Packet::getPESVideoLeadIn(0ul, currentPacket.getTime() * 90, currentPacket.getInt("offset") * 90);
-      fillPacket(first, bs.data(), bs.size(), VideoCounter);
-      if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
-        //End of previous nal unit, somehow needed for h264
-        fillPacket(first, "\000\000\000\001\011\360", 6, VideoCounter);
-      }
-      
-      if (currentPacket.getInt("keyframe")){
-        if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
-          if (!haveAvcc){
-            avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
-            haveAvcc = true;
-          }
-          bs = avccbox.asAnnexB();
-          fillPacket(first, bs.data(), bs.size(), VideoCounter);
-        }
-        if (myMeta.tracks[currentPacket.getTrackId()].codec == "HEVC"){
-          if (!haveHvcc){
-            hvccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
-            haveHvcc = true;
-          }
-          bs = hvccbox.asAnnexB();
-          fillPacket(first, bs.data(), bs.size(),VideoCounter);
-        }
-      }
-      
-      unsigned int i = 0;
-      while (i + 4 < (unsigned int)dataLen){
-        unsigned int ThisNaluSize = (dataPointer[i] << 24) + (dataPointer[i+1] << 16) + (dataPointer[i+2] << 8) + dataPointer[i+3];
-        if (ThisNaluSize + i + 4 > (unsigned int)dataLen){
-          DEBUG_MSG(DLVL_WARN, "Too big NALU detected (%u > %d) - skipping!", ThisNaluSize + i + 4, dataLen);
-          break;
-        }
-        fillPacket(first, "\000\000\000\001",4, VideoCounter);
-        fillPacket(first, dataPointer+i+4,ThisNaluSize, VideoCounter);      
-        i += ThisNaluSize+4;
-      }
-      if (PackData.BytesFree() < 184){
-        PackData.AddStuffing();
-        fillPacket(first, 0, 0, VideoCounter);
-      }
-    }else if (myMeta.tracks[currentPacket.getTrackId()].type == "audio"){
-      long long unsigned int tempTime;
-      if (AppleCompat){
-        tempTime = lastVid;
-      }else{
-        tempTime = currentPacket.getTime() * 90;
-      }
-      long unsigned int tempLen = dataLen;
-      if ( myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
-        tempLen += 7;
-      }
-      bs = TS::Packet::getPESAudioLeadIn(tempLen, tempTime);
-      fillPacket(first, bs.data(), bs.size(), AudioCounter);
-      if (myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
-        bs = TS::GetAudioHeader(dataLen, myMeta.tracks[currentPacket.getTrackId()].init);      
-        fillPacket(first, bs.data(), bs.size(), AudioCounter);
-      }
-      fillPacket(first, dataPointer,dataLen, AudioCounter);
-      if (PackData.BytesFree() < 184){
-        PackData.AddStuffing();
-        fillPacket(first, 0, 0, AudioCounter);
-      }
-    }
   }
 
   int OutHLS::canSeekms(unsigned int ms){
@@ -296,8 +167,8 @@ namespace Mist {
       return;
     }
     
-    AppleCompat = (H.GetHeader("User-Agent").find("Apple") != std::string::npos);
-    VLCworkaround = false;
+    appleCompat = (H.GetHeader("User-Agent").find("Apple") != std::string::npos);
+    bool VLCworkaround = false;
     if (H.GetHeader("User-Agent").substr(0, 3) == "VLC"){
       std::string vlcver = H.GetHeader("User-Agent").substr(4);
       if (vlcver[0] == '0' || vlcver[0] == '1' || (vlcver[0] == '2' && vlcver[2] < '2')){
@@ -358,7 +229,7 @@ namespace Mist {
       
       H.SetHeader("Content-Type", "video/mp2t");
       H.StartResponse(H, myConn, VLCworkaround);
-      PacketNumber = 0;
+      packCounter = 0;
       parseData = true;
       wantRequest = false;
     }else{
@@ -381,5 +252,10 @@ namespace Mist {
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);
     }
+  }
+
+
+  void OutHLS::sendTS(const char * tsData, unsigned int len){    
+    H.Chunkify(tsData, len, myConn);
   }
 }

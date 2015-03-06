@@ -24,13 +24,13 @@ namespace Mist {
     option["long"] = "buffer";
     option["short"] = "b";
     option["help"] = "DVR buffer time in ms";
-    option["value"].append(30000LL);
+    option["value"].append(50000LL);
     config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
-    capa["optional"]["DVR"]["default"] = 30000LL;
+    capa["optional"]["DVR"]["default"] = 50000LL;
     /*LTS-start*/
     option.null();
     option["arg"] = "string";

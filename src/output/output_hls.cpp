@@ -229,6 +229,18 @@ namespace Mist {
       
       H.SetHeader("Content-Type", "video/mp2t");
       H.StartResponse(H, myConn, VLCworkaround);
+
+      unsigned int fragCounter = myMeta.tracks[vidTrack].missedFrags;
+      for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[vidTrack].fragments.begin(); it != myMeta.tracks[vidTrack].fragments.end(); it++){
+        long long int starttime = myMeta.tracks[vidTrack].getKey(it->getNumber()).getTime();        
+        if (starttime <= from && starttime + it->getDuration() > from){
+          EXTREME_MSG("setting continuity counter for PAT/PMT to %d",fragCounter);
+          contCounters[0]=fragCounter;     //PAT continuity counter
+          contCounters[4096]=fragCounter;  //PMT continuity counter
+          break;
+        }
+        ++fragCounter;
+      }
       packCounter = 0;
       parseData = true;
       wantRequest = false;

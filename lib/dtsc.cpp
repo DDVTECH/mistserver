@@ -645,10 +645,12 @@ DTSC::File::File(std::string filename, bool create) {
   currframe = 0;
 }
 
+
 /// Returns the header metadata for this file as JSON::Value.
-DTSC::readOnlyMeta & DTSC::File::getMeta() {
+DTSC::Meta & DTSC::File::getMeta() {
   return metadata;
 }
+
 
 /// (Re)writes the given string to the header area if the size is the same as the existing header.
 /// Forces a write if force is set to true.
@@ -704,30 +706,30 @@ void DTSC::File::readHeader(int pos) {
     } else {
       DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", pos);
     }
-    metadata = readOnlyMeta();
+    metadata = Meta();
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) != 0) {
     DEBUG_MSG(DLVL_ERROR, "Invalid header - %.4s != %.4s  @ %i", (char *)buffer, DTSC::Magic_Header, pos);
-    metadata = readOnlyMeta();
+    metadata = Meta();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1) {
     DEBUG_MSG(DLVL_ERROR, "Could not read header size @ %i", pos);
-    metadata = readOnlyMeta();
+    metadata = Meta();
     return;
   }
-  long packSize = ntohl(((unsigned long *)buffer)[0]);
+  long packSize = ntohl(((unsigned long *)buffer)[0]) + 8;
   std::string strBuffer;
   strBuffer.resize(packSize);
   if (packSize) {
+    fseek(F, pos, SEEK_SET);
     if (fread((void *)strBuffer.c_str(), packSize, 1, F) != 1) {
       DEBUG_MSG(DLVL_ERROR, "Could not read header packet @ %i", pos);
-      metadata = readOnlyMeta();
+      metadata = Meta();
       return;
     }
-    JSON::fromDTMI(strBuffer, metaStorage);
-    metadata = readOnlyMeta(metaStorage);//make readonly
+    metadata = Meta(DTSC::Packet(strBuffer.data(), strBuffer.size(),true));
   }
   //if there is another header, read it and replace metadata with that one.
   if (metadata.moreheader) {
@@ -836,7 +838,7 @@ void DTSC::File::seekNext() {
           insert = true;
         } else {
           long tid = myPack.getTrackId();
-          for (unsigned int i = 0; i != metadata.tracks[tid].keyLen; i++) {
+          for (unsigned int i = 0; i != metadata.tracks[tid].keys.size(); i++) {
             if ((unsigned long long)metadata.tracks[tid].keys[i].getTime() > myPack.getTime()) {
               tmpPos.seekTime = metadata.tracks[tid].keys[i].getTime();
               tmpPos.bytePos = metadata.tracks[tid].keys[i].getBpos();
@@ -965,8 +967,8 @@ bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek
     tmpPos.bytePos = 0;
     tmpPos.seekTime = 0;
   }
-  DTSC::readOnlyTrack & trackRef = metadata.tracks[trackNo];
-  for (unsigned int i = 0; i < trackRef.keyLen; i++) {
+  DTSC::Track & trackRef = metadata.tracks[trackNo];
+  for (unsigned int i = 0; i < trackRef.keys.size(); i++) {
     long keyTime = trackRef.keys[i].getTime();
     if (keyTime > ms) {
       break;
@@ -1066,8 +1068,8 @@ bool DTSC::File::atKeyframe() {
     return true;
   }
   long long int bTime = myPack.getTime();
-  DTSC::readOnlyTrack & trackRef = metadata.tracks[myPack.getTrackId()];
-  for (unsigned int i = 0; i < trackRef.keyLen; i++) {
+  DTSC::Track & trackRef = metadata.tracks[myPack.getTrackId()];
+  for (unsigned int i = 0; i < trackRef.keys.size(); i++) {
     if (trackRef.keys[i].getTime() >= bTime) {
       return (trackRef.keys[i].getTime() == bTime);
     }
@@ -1088,32 +1090,4 @@ DTSC::File::~File() {
     F = 0;
   }
   free(buffer);
-}
-
-
-bool DTSC::isFixed(JSON::Value & metadata) {
-  if (metadata.isMember("is_fixed")) {
-    return true;
-  }
-  if (!metadata.isMember("tracks")) {
-    return false;
-  }
-  for (JSON::ObjIter it = metadata["tracks"].ObjBegin(); it != metadata["tracks"].ObjEnd(); it++) {
-    if (it->second["type"].asString() == "meta") {
-      continue;
-    }
-    if (!it->second["keys"].isString()) {
-      return false;
-    }
-    //Check for bpos: last element bpos != 0
-    std::string keyRef = it->second["keys"].asStringRef();
-    if (keyRef.size() < 16) {
-      return false;
-    }
-    int offset = keyRef.size() - 17;
-    if (!(keyRef[offset] | keyRef[offset + 1] | keyRef[offset + 2] | keyRef[offset + 3] | keyRef[offset + 4])) {
-      return false;
-    }
-  }
-  return true;
 }

@@ -949,75 +949,6 @@ namespace DTSC {
     str << std::string(indent, ' ') << "Fragment " << getNumber() << ": Dur(" << getDuration() << "), Len(" << (int)getLength() << "), Size(" << getSize() << ")" << std::endl;
   }
 
-  ///\brief Constructs an empty readOnlyTrack
-  readOnlyTrack::readOnlyTrack() {
-    fragments = NULL;
-    fragLen = 0;
-    keys = NULL;
-    keyLen = 0;
-    parts = NULL;
-    partLen = 0;
-    missedFrags = 0;
-    firstms = 0;
-    lastms = 0;
-    bps = 0;
-    rate = 0;
-    size = 0;
-    channels = 0;
-    width = 0;
-    height = 0;
-    fpks = 0;
-  }
-
-  ///\brief Constructs a readOnlyTrack from a JSON::Value
-  readOnlyTrack::readOnlyTrack(JSON::Value & trackRef) {
-    if (trackRef.isMember("fragments") && trackRef["fragments"].isString()) {
-      fragments = (Fragment *)trackRef["fragments"].asStringRef().data();
-      fragLen = trackRef["fragments"].asStringRef().size() / 11;
-    } else {
-      fragments = 0;
-      fragLen = 0;
-    }
-    if (trackRef.isMember("keys") && trackRef["keys"].isString()) {
-      keys = (Key *)trackRef["keys"].asStringRef().data();
-      keyLen = trackRef["keys"].asStringRef().size() / 16;
-    } else {
-      keys = 0;
-      keyLen = 0;
-    }
-    if (trackRef.isMember("parts") && trackRef["parts"].isString()) {
-      parts = (Part *)trackRef["parts"].asStringRef().data();
-      partLen = trackRef["parts"].asStringRef().size() / 9;
-    } else {
-      parts = 0;
-      partLen = 0;
-    }
-    trackID = trackRef["trackid"].asInt();
-    firstms = trackRef["firstms"].asInt();
-    lastms = trackRef["lastms"].asInt();
-    bps = trackRef["bps"].asInt();
-    missedFrags = trackRef["missed_frags"].asInt();
-    codec = trackRef["codec"].asStringRef();
-    type = trackRef["type"].asStringRef();
-    init = trackRef["init"].asStringRef();
-    if (type == "audio") {
-      rate = trackRef["rate"].asInt();
-      size = trackRef["size"].asInt();
-      channels = trackRef["channels"].asInt();
-    }
-    if (type == "video") {
-      width = trackRef["width"].asInt();
-      height = trackRef["height"].asInt();
-      fpks = trackRef["fpks"].asInt();
-    }
-    if (trackRef.isMember("keysizes") && trackRef["keysizes"].isString()) {
-      std::string tmp = trackRef["keysizes"].asStringRef();
-      for (unsigned int i = 0; i < tmp.size(); i += 4){
-        keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
-      }
-    }
-  }
-
   ///\brief Constructs an empty track
   Track::Track() {
     trackID = 0;
@@ -1031,36 +962,6 @@ namespace DTSC {
     width = 0;
     height = 0;
     fpks = 0;
-  }
-
-  ///\brief Constructs a track from a readOnlyTrack
-  Track::Track(const readOnlyTrack & rhs) {
-    trackID = rhs.trackID;
-    firstms = rhs.firstms;
-    lastms = rhs.lastms;
-    bps = rhs.bps;
-    missedFrags = rhs.missedFrags;
-    init = rhs.init;
-    codec = rhs.codec;
-    type = rhs.type;
-    rate = rhs.rate;
-    size = rhs.size;
-    channels = rhs.channels;
-    width = rhs.width;
-    height = rhs.height;
-    fpks = rhs.fpks;
-    if (rhs.fragments && rhs.fragLen) {
-      fragments = std::deque<Fragment>(rhs.fragments, rhs.fragments + rhs.fragLen);
-    }
-    if (rhs.keys && rhs.keyLen) {
-      keys = std::deque<Key>(rhs.keys, rhs.keys + rhs.keyLen);
-    }
-    if (rhs.parts && rhs.partLen) {
-      parts = std::deque<Part>(rhs.parts, rhs.parts + rhs.partLen);
-    }
-    for(std::vector<long unsigned>::const_iterator it = rhs.keySizes.begin(); it != rhs.keySizes.end(); it++){
-      keySizes.push_back(*it);
-    }
   }
 
   ///\brief Constructs a track from a JSON::Value
@@ -1225,30 +1126,26 @@ namespace DTSC {
     return keys[keyNum - keys[0].getNumber()];
   }
 
-  ///\brief Returns a unique identifier for a track
-  std::string readOnlyTrack::getIdentifier() {
-    std::stringstream result;
-    if (type == "") {
-      result << "metadata_" << trackID;
-      return result.str();
+  unsigned int Track::timeToKeynum(unsigned int timestamp){
+    unsigned int result = 0;
+    for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++){
+      if (it->getTime() >= timestamp){
+        break;
+      }
+      result = it->getNumber();
     }
-    result << type << "_";
-    result << codec << "_";
-    if (type == "audio") {
-      result << channels << "ch_";
-      result << rate << "hz";
-    } else if (type == "video") {
-      result << width << "x" << height << "_";
-      result << (double)fpks / 1000 << "fps";
-    }
-    return result.str();
+    return result;
   }
 
-  ///\brief Returns a writable identifier for a track, to prevent overwrites on readout
-  std::string readOnlyTrack::getWritableIdentifier() {
-    std::stringstream result;
-    result << getIdentifier() << "_" << trackID;
-    return result.str();
+  unsigned int Track::timeToFragnum(unsigned int timestamp){
+    unsigned long long int totalTime = firstms;
+    for (unsigned int i = 0; i<fragments.size(); i++){
+      if (timestamp <= totalTime){
+        return i;
+      }
+      totalTime += fragments[i].getDuration();
+    }
+    return fragments.size()-1;
   }
 
   ///\brief Resets a track, clears all meta values
@@ -1262,92 +1159,6 @@ namespace DTSC {
     lastms = 0;
   }
 
-  ///\brief Creates an empty read-only meta object
-  readOnlyMeta::readOnlyMeta() {
-    vod = false;
-    live = false;
-    merged = false;
-    moreheader = 0;
-    merged = false;
-    bufferWindow = 0;
-  }
-
-  ///\brief Creates a read-only meta object from a given JSON::Value
-  readOnlyMeta::readOnlyMeta(JSON::Value & meta) {
-    vod = meta.isMember("vod") && meta["vod"];
-    live = meta.isMember("live") && meta["live"];
-    merged = meta.isMember("merged") && meta["merged"];
-    bufferWindow = 0;
-    if (meta.isMember("buffer_window")) {
-      bufferWindow = meta["buffer_window"].asInt();
-    }
-    for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++) {
-      if (it->second.isMember("trackid") && it->second["trackid"]) {
-        tracks[it->second["trackid"].asInt()] = readOnlyTrack(it->second);
-      }
-    }
-    if (meta.isMember("moreheader")) {
-      moreheader = meta["moreheader"].asInt();
-    } else {
-      moreheader = 0;
-    }
-  }
-
-  ///\brief Converts a read-only track to a human readable string
-  ///\param str The stringstream to append to
-  ///\param indent the amount of indentation needed
-  ///\param verbosity How verbose the output needs to be
-  void readOnlyTrack::toPrettyString(std::ostream & str, int indent, int verbosity) {
-    str << std::string(indent, ' ') << "Track " << getWritableIdentifier() << std::endl;
-    str << std::string(indent + 2, ' ') << "ID: " << trackID << std::endl;
-    str << std::string(indent + 2, ' ') << "Firstms: " << firstms << std::endl;
-    str << std::string(indent + 2, ' ') << "Lastms: " << lastms << std::endl;
-    str << std::string(indent + 2, ' ') << "Bps: " << bps << std::endl;
-    if (missedFrags) {
-      str << std::string(indent + 2, ' ') << "missedFrags: " << missedFrags << std::endl;
-    }
-    str << std::string(indent + 2, ' ') << "Codec: " << codec << std::endl;
-    str << std::string(indent + 2, ' ') << "Type: " << type << std::endl;
-    str << std::string(indent + 2, ' ') << "Init: ";
-    for (unsigned int i = 0; i < init.size(); ++i) {
-      str << std::hex << std::setw(2) << std::setfill('0') << (int)init[i];
-    }
-    str << std::dec << std::endl;
-    if (type == "audio") {
-      str << std::string(indent + 2, ' ') << "Rate: " << rate << std::endl;
-      str << std::string(indent + 2, ' ') << "Size: " << size << std::endl;
-      str << std::string(indent + 2, ' ') << "Channel: " << channels << std::endl;
-    } else if (type == "video") {
-      str << std::string(indent + 2, ' ') << "Width: " << width << std::endl;
-      str << std::string(indent + 2, ' ') << "Height: " << height << std::endl;
-      str << std::string(indent + 2, ' ') << "Fpks: " << fpks << std::endl;
-    }
-    str << std::string(indent + 2, ' ') << "Fragments: " << fragLen << std::endl;
-    if (fragments && verbosity & 0x01) {
-      for (unsigned int i = 0; i < fragLen; i++) {
-        fragments[i].toPrettyString(str, indent + 4);
-      }
-    }
-    str << std::string(indent + 2, ' ') << "Keys: " << keyLen << std::endl;
-    if (keys && verbosity & 0x02) {
-      for (unsigned int i = 0; i < keyLen; i++) {
-        keys[i].toPrettyString(str, indent + 4);
-      }
-    }
-    str << std::string(indent + 2, ' ') << "KeySizes: " << keySizes.size() << std::endl;
-    if (keySizes.size() && verbosity & 0x02){
-      for (unsigned int i = 0; i < keySizes.size(); i++){
-        str << std::string(indent + 4, ' ') << "[" << i << "] " << keySizes[i] << std::endl;
-      }
-    }
-    str << std::string(indent + 2, ' ') << "Parts: " << partLen << std::endl;
-    if (parts && verbosity & 0x04) {
-      for (unsigned int i = 0; i < partLen; i++) {
-        parts[i].toPrettyString(str, indent + 4);
-      }
-    }
-  }
-
   ///\brief Creates an empty meta object
   Meta::Meta() {
     vod = false;
@@ -1355,18 +1166,6 @@ namespace DTSC {
     moreheader = 0;
     merged = false;
     bufferWindow = 0;
-  }
-
-  ///\brief Creates a meta object from a read-only meta object
-  Meta::Meta(const readOnlyMeta & rhs) {
-    vod = rhs.vod;
-    live = rhs.live;
-    merged = rhs.merged;
-    bufferWindow = rhs.bufferWindow;
-    for (std::map<unsigned int, readOnlyTrack>::const_iterator it = rhs.tracks.begin(); it != rhs.tracks.end(); it++) {
-      tracks[it->first] = it->second;
-    }
-    moreheader = rhs.moreheader;
   }
 
   Meta::Meta(const DTSC::Packet & source) {
@@ -1541,24 +1340,31 @@ namespace DTSC {
     return result;
   }
 
-  ///\brief Determines the "packed" size of a read-only track
-  int readOnlyTrack::getSendLen() {
-    int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
-    result += fragLen * 11;
-    result += keyLen * 16;
-    if (keySizes.size()){
-      result += 11 + (keySizes.size() * 4) + 4;
+
+  ///\brief Returns a unique identifier for a track
+  std::string Track::getIdentifier() {
+    std::stringstream result;
+    if (type == "") {
+      result << "metadata_" << trackID;
+      return result.str();
     }
-    result += partLen * 9;
+    result << type << "_";
+    result << codec << "_";
     if (type == "audio") {
-      result += 49;
+      result << channels << "ch_";
+      result << rate << "hz";
     } else if (type == "video") {
-      result += 48;
+      result << width << "x" << height << "_";
+      result << (double)fpks / 1000 << "fps";
     }
-    if (missedFrags) {
-      result += 23;
-    }
-    return result;
+    return result.str();
+  }
+
+  ///\brief Returns a writable identifier for a track, to prevent overwrites on readout
+  std::string Track::getWritableIdentifier() {
+    std::stringstream result;
+    result << getIdentifier() << "_" << trackID;
+    return result.str();
   }
 
   ///\brief Determines the "packed" size of a track
@@ -1594,135 +1400,6 @@ namespace DTSC {
   ///Does a memcpy and increases the destination pointer accordingly
   static void writePointer(char *& p, const std::string & src) {
     writePointer(p, src.data(), src.size());
-  }
-
-  ///\brief Writes a read-only track to a pointer
-  void readOnlyTrack::writeTo(char *& p) {
-    std::string iden = getWritableIdentifier();
-    writePointer(p, convertShort(iden.size()), 2);
-    writePointer(p, iden);
-    writePointer(p, "\340", 1);//Begin track object
-    writePointer(p, "\000\011fragments\002", 12);
-    writePointer(p, convertInt(fragLen * 11), 4);
-    writePointer(p, (char *)fragments, fragLen * 11);
-    writePointer(p, "\000\004keys\002", 7);
-    writePointer(p, convertInt(keyLen * 16), 4);
-    writePointer(p, (char *)keys, keyLen * 16);
-    writePointer(p, "\000\010keysizes\002,", 11);
-    writePointer(p, convertInt(keySizes.size() * 4), 4);
-    std::string tmp;
-    tmp.reserve(keySizes.size() * 4);
-    for (unsigned int i = 0; i < keySizes.size(); i++){
-      tmp += ((char)keySizes[i] >> 24);
-      tmp += ((char)keySizes[i] >> 16);
-      tmp += ((char)keySizes[i] >> 8);
-      tmp += ((char)keySizes[i]);
-    }
-    writePointer(p, tmp.data(), tmp.size());
-    writePointer(p, "\000\005parts\002", 8);
-    writePointer(p, convertInt(partLen * 9), 4);
-    writePointer(p, (char *)parts, partLen * 9);
-    writePointer(p, "\000\007trackid\001", 10);
-    writePointer(p, convertLongLong(trackID), 8);
-    if (missedFrags) {
-      writePointer(p, "\000\014missed_frags\001", 15);
-      writePointer(p, convertLongLong(missedFrags), 8);
-    }
-    writePointer(p, "\000\007firstms\001", 10);
-    writePointer(p, convertLongLong(firstms), 8);
-    writePointer(p, "\000\006lastms\001", 9);
-    writePointer(p, convertLongLong(lastms), 8);
-    writePointer(p, "\000\003bps\001", 6);
-    writePointer(p, convertLongLong(bps), 8);
-    writePointer(p, "\000\004init\002", 7);
-    writePointer(p, convertInt(init.size()), 4);
-    writePointer(p, init);
-    writePointer(p, "\000\005codec\002", 8);
-    writePointer(p, convertInt(codec.size()), 4);
-    writePointer(p, codec);
-    writePointer(p, "\000\004type\002", 7);
-    writePointer(p, convertInt(type.size()), 4);
-    writePointer(p, type);
-    if (type == "audio") {
-      writePointer(p, "\000\004rate\001", 7);
-      writePointer(p, convertLongLong(rate), 8);
-      writePointer(p, "\000\004size\001", 7);
-      writePointer(p, convertLongLong(size), 8);
-      writePointer(p, "\000\010channels\001", 11);
-      writePointer(p, convertLongLong(channels), 8);
-    } else if (type == "video") {
-      writePointer(p, "\000\005width\001", 8);
-      writePointer(p, convertLongLong(width), 8);
-      writePointer(p, "\000\006height\001", 9);
-      writePointer(p, convertLongLong(height), 8);
-      writePointer(p, "\000\004fpks\001", 7);
-      writePointer(p, convertLongLong(fpks), 8);
-    }
-    writePointer(p, "\000\000\356", 3);//End this track Object
-  }
-
-  ///\brief Writes a read-only track to a socket
-  void readOnlyTrack::send(Socket::Connection & conn) {
-    conn.SendNow(convertShort(getWritableIdentifier().size()), 2);
-    conn.SendNow(getWritableIdentifier());
-    conn.SendNow("\340", 1);//Begin track object
-    conn.SendNow("\000\011fragments\002", 12);
-    conn.SendNow(convertInt(fragLen * 11), 4);
-    conn.SendNow((char *)fragments, fragLen * 11);
-    conn.SendNow("\000\004keys\002", 7);
-    conn.SendNow(convertInt(keyLen * 16), 4);
-    conn.SendNow((char *)keys, keyLen * 16);
-    conn.SendNow("\000\010keysizes\002,", 11);
-    conn.SendNow(convertInt(keySizes.size() * 4), 4);
-    std::string tmp;
-    tmp.reserve(keySizes.size() * 4);
-    for (unsigned int i = 0; i < keySizes.size(); i++){
-      tmp += ((char)keySizes[i] >> 24);
-      tmp += ((char)keySizes[i] >> 16);
-      tmp += ((char)keySizes[i] >> 8);
-      tmp += ((char)keySizes[i]);
-    }
-    conn.SendNow(tmp.data(), tmp.size());
-    conn.SendNow("\000\005parts\002", 8);
-    conn.SendNow(convertInt(partLen * 9), 4);
-    conn.SendNow((char *)parts, partLen * 9);
-    conn.SendNow("\000\007trackid\001", 10);
-    conn.SendNow(convertLongLong(trackID), 8);
-    if (missedFrags) {
-      conn.SendNow("\000\014missed_frags\001", 15);
-      conn.SendNow(convertLongLong(missedFrags), 8);
-    }
-    conn.SendNow("\000\007firstms\001", 10);
-    conn.SendNow(convertLongLong(firstms), 8);
-    conn.SendNow("\000\006lastms\001", 9);
-    conn.SendNow(convertLongLong(lastms), 8);
-    conn.SendNow("\000\003bps\001", 6);
-    conn.SendNow(convertLongLong(bps), 8);
-    conn.SendNow("\000\004init\002", 7);
-    conn.SendNow(convertInt(init.size()), 4);
-    conn.SendNow(init);
-    conn.SendNow("\000\005codec\002", 8);
-    conn.SendNow(convertInt(codec.size()), 4);
-    conn.SendNow(codec);
-    conn.SendNow("\000\004type\002", 7);
-    conn.SendNow(convertInt(type.size()), 4);
-    conn.SendNow(type);
-    if (type == "audio") {
-      conn.SendNow("\000\004rate\001", 7);
-      conn.SendNow(convertLongLong(rate), 8);
-      conn.SendNow("\000\004size\001", 7);
-      conn.SendNow(convertLongLong(size), 8);
-      conn.SendNow("\000\010channels\001", 11);
-      conn.SendNow(convertLongLong(channels), 8);
-    } else if (type == "video") {
-      conn.SendNow("\000\005width\001", 8);
-      conn.SendNow(convertLongLong(width), 8);
-      conn.SendNow("\000\006height\001", 9);
-      conn.SendNow(convertLongLong(height), 8);
-      conn.SendNow("\000\004fpks\001", 7);
-      conn.SendNow(convertLongLong(fpks), 8);
-    }
-    conn.SendNow("\000\000\356", 3);//End this track Object
   }
 
   ///\brief Writes a track to a pointer
@@ -1865,77 +1542,6 @@ namespace DTSC {
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
 
-  ///\brief Determines the "packed" size of a read-only meta object
-  unsigned int readOnlyMeta::getSendLen() {
-    unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
-    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      dataLen += it->second.getSendLen();
-    }
-    return dataLen + 8; //add 8 bytes header length
-  }
-
-  ///\brief Writes a read-only meta object to a pointer
-  void readOnlyMeta::writeTo(char * p) {
-    int dataLen = getSendLen() - 8;//strip 8 bytes header
-    writePointer(p, DTSC::Magic_Header, 4);
-    writePointer(p, convertInt(dataLen), 4);
-    writePointer(p, "\340\000\006tracks\340", 10);
-    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      it->second.writeTo(p);
-    }
-    writePointer(p, "\000\000\356", 3);
-    if (vod) {
-      writePointer(p, "\000\003vod\001", 6);
-      writePointer(p, convertLongLong(1), 8);
-    }
-    if (live) {
-      writePointer(p, "\000\004live\001", 7);
-      writePointer(p, convertLongLong(1), 8);
-    }
-    if (merged) {
-      writePointer(p, "\000\006merged\001", 9);
-      writePointer(p, convertLongLong(1), 8);
-    }
-    if (bufferWindow) {
-      writePointer(p, "\000\015buffer_window\001", 16);
-      writePointer(p, convertLongLong(bufferWindow), 8);
-    }
-    writePointer(p, "\000\012moreheader\001", 13);
-    writePointer(p, convertLongLong(moreheader), 8);
-    writePointer(p, "\000\000\356", 3);//End global object
-  }
-
-  ///\brief Writes a read-only meta object to a socket
-  void readOnlyMeta::send(Socket::Connection & conn) {
-    int dataLen = getSendLen() - 8; //strip 8 bytes header
-    conn.SendNow(DTSC::Magic_Header, 4);
-    conn.SendNow(convertInt(dataLen), 4);
-    conn.SendNow("\340\000\006tracks\340", 10);
-    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      it->second.send(conn);
-    }
-    conn.SendNow("\000\000\356", 3);
-    if (vod) {
-      conn.SendNow("\000\003vod\001", 6);
-      conn.SendNow(convertLongLong(1), 8);
-    }
-    if (live) {
-      conn.SendNow("\000\004live\001", 7);
-      conn.SendNow(convertLongLong(1), 8);
-    }
-    if (merged) {
-      conn.SendNow("\000\006merged\001", 9);
-      conn.SendNow(convertLongLong(1), 8);
-    }
-    if (bufferWindow) {
-      conn.SendNow("\000\015buffer_window\001", 16);
-      conn.SendNow(convertLongLong(bufferWindow), 8);
-    }
-    conn.SendNow("\000\012moreheader\001", 13);
-    conn.SendNow(convertLongLong(moreheader), 8);
-    conn.SendNow("\000\000\356", 3);//End global object
-  }
-
   ///\brief Determines the "packed" size of a meta object
   unsigned int Meta::getSendLen() {
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
@@ -2005,51 +1611,6 @@ namespace DTSC {
     conn.SendNow("\000\012moreheader\001", 13);
     conn.SendNow(convertLongLong(moreheader), 8);
     conn.SendNow("\000\000\356", 3);//End global object
-  }
-
-  ///\brief Converts a read-only track to a JSON::Value
-  JSON::Value readOnlyTrack::toJSON() {
-    JSON::Value result;
-    if (fragments) {
-      result["fragments"] = std::string((char *)fragments, fragLen * 11);
-    }
-    if (keys) {
-      result["keys"] = std::string((char *)keys, keyLen * 16);
-    }
-    if (keySizes.size()){
-      std::string tmp;
-      tmp.reserve(keySizes.size() * 4);
-      for (unsigned int i = 0; i < keySizes.size(); i++){
-        tmp += ((char)(keySizes[i] >> 24));
-        tmp += ((char)(keySizes[i] >> 16));
-        tmp += ((char)(keySizes[i] >> 8));
-        tmp += ((char)keySizes[i]);
-      }
-      result["keysizes"] = tmp;
-    }
-    if (parts) {
-      result["parts"] = std::string((char *)parts, partLen * 9);
-    }
-    result["trackid"] = trackID;
-    result["firstms"] = (long long)firstms;
-    result["lastms"] = (long long)lastms;
-    result["bps"] = bps;
-    if (missedFrags) {
-      result["missed_frags"] = missedFrags;
-    }
-    result["codec"] = codec;
-    result["type"] = type;
-    result["init"] = init;
-    if (type == "audio") {
-      result["rate"] = rate;
-      result["size"] = size;
-      result["channels"] = channels;
-    } else if (type == "video") {
-      result["width"] = width;
-      result["height"] = height;
-      result["fpks"] = fpks;
-    }
-    return result;
   }
 
   ///\brief Converts a track to a JSON::Value
@@ -2126,29 +1687,6 @@ namespace DTSC {
     return result;
   }
 
-  ///\brief Converts a read-only meta object to a human readable string
-  ///\param str The stringstream to append to
-  ///\param indent the amount of indentation needed
-  ///\param verbosity How verbose the output needs to be
-  void readOnlyMeta::toPrettyString(std::ostream & str, int indent, int verbosity) {
-    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      it->second.toPrettyString(str, indent, verbosity);
-    }
-    if (vod) {
-      str << std::string(indent, ' ') << "Video on Demand" << std::endl;
-    }
-    if (live) {
-      str << std::string(indent, ' ') << "Live" << std::endl;
-    }
-    if (merged) {
-      str << std::string(indent, ' ') << "Merged file" << std::endl;
-    }
-    if (bufferWindow) {
-      str << std::string(indent, ' ') << "Buffer Window: " << bufferWindow << std::endl;
-    }
-    str << std::string(indent, ' ') << "More Header: " << moreheader << std::endl;
-  }
-
   ///\brief Converts a meta object to a human readable string
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed
@@ -2172,56 +1710,11 @@ namespace DTSC {
     str << std::string(indent, ' ') << "More Header: " << moreheader << std::endl;
   }
 
-  ///\brief Converts a read-only meta object to a JSON::Value
-  JSON::Value readOnlyMeta::toJSON() {
-    JSON::Value result;
-    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      result["tracks"][it->second.getWritableIdentifier()] = it->second.toJSON();
-    }
-    if (vod) {
-      result["vod"] = 1ll;
-    }
-    if (live) {
-      result["live"] = 1ll;
-    }
-    if (merged) {
-      result["merged"] = 1ll;
-    }
-    result["moreheader"] = moreheader;
-    if (bufferWindow) {
-      result["buffer_window"] = bufferWindow;
-    }
-    return result;
-  }
-
   ///\brief Resets a meta object, removes all unimportant meta values
   void Meta::reset() {
     for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.reset();
     }
-  }
-
-  ///\brief Returns whether a read-only meta object is fixed or not
-  bool readOnlyMeta::isFixed() {
-    for (std::map<unsigned int, readOnlyTrack>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      if (!it->second.keyLen || !(it->second.keys[it->second.keyLen - 1].getBpos())) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  ///\brief Returns whether a meta object is fixed or not
-  bool Meta::isFixed() {
-    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      if (it->second.type == "meta" || it->second.type == "") {
-        continue;
-      }
-      if (!it->second.keys.size() || !(it->second.keys.rbegin()->getBpos())) {
-        return false;
-      }
-    }
-    return true;
   }
 }
 

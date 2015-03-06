@@ -20,7 +20,6 @@
 #define DTSC_CON 0xFF
 
 namespace DTSC {
-  bool isFixed(JSON::Value & metadata);
 
   ///\brief This enum holds all possible datatypes for DTSC packets.
   enum datatype {
@@ -252,27 +251,33 @@ namespace DTSC {
       char data[11];
   };
 
-  ///\brief Basic class for storage of a read-only track
-  class readOnlyTrack {
+  ///\brief Class for storage of track data
+  class Track {
     public:
-      readOnlyTrack();
-      readOnlyTrack(JSON::Value & trackRef);
+      Track();      
+      Track(JSON::Value & trackRef);
+      Track(Scan & trackRef);
+            
       inline operator bool() const {
-        return (partLen && keySizes.size() && (keySizes.size() == keyLen));
+        return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
       }
+      void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
       int getSendLen();
       void send(Socket::Connection & conn);
       void writeTo(char *& p);
+      JSON::Value toJSON();
+      std::deque<Fragment> fragments;
+      std::deque<Key> keys;
+      std::deque<unsigned long> keySizes;
+      std::deque<Part> parts;
+      Key & getKey(unsigned int keyNum);
+      unsigned int timeToKeynum(unsigned int timestamp);
+      unsigned int timeToFragnum(unsigned int timestamp);
+      void reset();
+      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
+      
       std::string getIdentifier();
       std::string getWritableIdentifier();
-      JSON::Value toJSON();
-      long long unsigned int fragLen;
-      Fragment * fragments;
-      long long unsigned int keyLen;
-      Key * keys;
-      std::vector<unsigned long> keySizes;
-      long long unsigned int partLen;
-      Part * parts;
       unsigned int trackID;
       unsigned long long firstms;
       unsigned long long lastms;
@@ -289,62 +294,19 @@ namespace DTSC {
       int width;
       int height;
       int fpks;
-      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
-  };
-
-  ///\brief Class for storage of track data
-  class Track : public readOnlyTrack {
-    public:
-      Track();
-      Track(const readOnlyTrack & rhs);
-      Track(JSON::Value & trackRef);
-      Track(Scan & trackRef);
-      inline operator bool() const {
-        return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
-      }
-      void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
-      int getSendLen();
-      void send(Socket::Connection & conn);
-      void writeTo(char *& p);
-      JSON::Value toJSON();
-      std::deque<Fragment> fragments;
-      std::deque<Key> keys;
-      std::deque<unsigned long> keySizes;
-      std::deque<Part> parts;
-      Key & getKey(unsigned int keyNum);
-      void reset();
-      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
-  };
-
-  ///\brief Class for storage of read-only meta data
-  class readOnlyMeta {
-    public:
-      readOnlyMeta();
-      readOnlyMeta(JSON::Value & meta);
-      inline operator bool() const {
-        return vod || live;
-      }
-      std::map<unsigned int, readOnlyTrack> tracks;
-      bool vod;
-      bool live;
-      bool merged;
-      long long int moreheader;
-      long long int bufferWindow;
-      unsigned int getSendLen();
-      void send(Socket::Connection & conn);
-      void writeTo(char * p);
-      JSON::Value toJSON();
-      bool isFixed();
-      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
   };
 
   ///\brief Class for storage of meta data
-  class Meta : public readOnlyMeta {
+  class Meta{
+      /// \todo Make toJSON().toNetpacked() shorter
     public:
       Meta();
       Meta(const DTSC::Packet & source);
-      Meta(const readOnlyMeta & meta);
       Meta(JSON::Value & meta);
+
+      inline operator bool() const { //returns if the object contains valid meta data BY LOOKING AT vod/live FLAGS
+        return vod || live;
+      }
       void reinit(const DTSC::Packet & source);
       void update(DTSC::Packet & pack, unsigned long segment_size = 5000);
       void updatePosOverride(DTSC::Packet & pack, unsigned long bpos);
@@ -355,10 +317,14 @@ namespace DTSC {
       void writeTo(char * p);
       JSON::Value toJSON();
       void reset();
-      bool isFixed();
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
       //members:
       std::map<unsigned int, Track> tracks;
+      bool vod;
+      bool live;
+      bool merged;
+      long long int moreheader;
+      long long int bufferWindow;
   };
 
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
@@ -370,7 +336,7 @@ namespace DTSC {
       File & operator = (const File & rhs);
       operator bool() const;
       ~File();
-      readOnlyMeta & getMeta();
+      Meta & getMeta();
       long long int getLastReadPos();
       bool writeHeader(std::string & header, bool force = false);
       long long int addHeader(std::string & header);
@@ -393,7 +359,7 @@ namespace DTSC {
       void readHeader(int pos);
       DTSC::Packet myPack;
       JSON::Value metaStorage;
-      readOnlyMeta metadata;
+      Meta metadata;
       std::map<unsigned int, std::string> trackMapping;
       long long int currtime;
       long long int lastreadpos;

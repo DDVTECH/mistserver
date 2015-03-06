@@ -20,6 +20,9 @@ namespace Mist {
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.codec == "H264" || it->second.codec == "HEVC"){
         int bWidth = it->second.bps * 2;
+        if (bWidth < 5){
+          bWidth = 5;
+        }
         if (audioId != -1){
           bWidth += myMeta.tracks[audioId].bps * 2;
         }
@@ -48,6 +51,9 @@ namespace Mist {
       if (it->getDuration() > longestFragment){
         longestFragment = it->getDuration();
       }
+    }
+    if ((myMeta.tracks[tid].lastms - myMeta.tracks[tid].firstms) / myMeta.tracks[tid].fragments.size() > longestFragment){
+      longestFragment = (myMeta.tracks[tid].lastms - myMeta.tracks[tid].firstms) / myMeta.tracks[tid].fragments.size();
     }
     result << "#EXTM3U\r\n#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
         

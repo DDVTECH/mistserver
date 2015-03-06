@@ -61,13 +61,13 @@ namespace Mist {
     option["long"] = "segment-size";
     option["short"] = "S";
     option["help"] = "Target time duration in milliseconds for segments";
-    option["value"].append(10000LL);
+    option["value"].append(5000LL);
     config->addOption("segmentsize", option);
     capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
     capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
-    capa["optional"]["segmentsize"]["default"] = 10000LL;
+    capa["optional"]["segmentsize"]["default"] = 5000LL;
     /*LTS-end*/
     capa["source_match"] = "push://*";
     capa["priority"] = 9ll;

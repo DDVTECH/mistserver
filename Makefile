@@ -75,6 +75,12 @@ MistInDTSC: override CPPFLAGS += "-DINPUTTYPE=\"input_dtsc.h\""
 MistInDTSC: src/input/mist_in.cpp src/input/input.cpp src/input/input_dtsc.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
+inputs: MistInMP3
+MistInMP3: override LDLIBS += $(THREADLIB)
+MistInMP3: override CPPFLAGS += "-DINPUTTYPE=\"input_mp3.h\""
+MistInMP3: src/input/mist_in.cpp src/input/input.cpp src/input/input_mp3.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+
 inputs: MistInFLV
 MistInFLV: override LDLIBS += $(THREADLIB)
 MistInFLV: override CPPFLAGS += "-DINPUTTYPE=\"input_flv.h\""

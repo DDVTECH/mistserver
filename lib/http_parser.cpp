@@ -402,7 +402,9 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
               method = tmpA;
               if (url.find('?') != std::string::npos) {
                 parseVars(url.substr(url.find('?') + 1)); //parse GET variables
+                url.erase(url.find('?'));
               }
+              url = urlunescape(url);
             } else {
               seenReq = false;
             }
@@ -416,7 +418,9 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
               protocol = tmpA;
               if (url.find('?') != std::string::npos) {
                 parseVars(url.substr(url.find('?') + 1)); //parse GET variables
+                url.erase(url.find('?'));
               }
+              url = urlunescape(url);
             } else {
               seenReq = false;
             }

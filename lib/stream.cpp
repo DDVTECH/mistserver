@@ -45,15 +45,15 @@ std::string Util::getTmpFolder() {
 
 /// Filters the streamname, removing invalid characters and converting all
 /// letters to lowercase. If a '?' character is found, everything following
-/// that character is deleted. The original string is modified. If a '+'
-/// exists, then only the part before the + is sanitized.
+/// that character is deleted. The original string is modified. If a '+' or space
+/// exists, then only the part before that is sanitized.
 void Util::sanitizeName(std::string & streamname) {
   //strip anything that isn't numbers, digits or underscores
-  size_t index = streamname.find('+');
+  size_t index = streamname.find_first_of("+ ");
   if(index != std::string::npos){
     std::string preplus = streamname.substr(0,index);
     sanitizeName(preplus);
-    streamname = preplus +"+"+streamname.substr(index+1);
+    streamname = preplus+"+"+streamname.substr(index+1);
     return;
   }
   for (std::string::iterator i = streamname.end() - 1; i >= streamname.begin(); --i) {
@@ -61,7 +61,7 @@ void Util::sanitizeName(std::string & streamname) {
       streamname.erase(i, streamname.end());
       break;
     }
-    if ( !isalpha( *i) && !isdigit( *i) && *i != '_' && *i != '+' && *i != '.'){
+    if ( !isalpha( *i) && !isdigit( *i) && *i != '_' && *i != '.'){
       streamname.erase(i);
     } else {
       *i = tolower(*i);
@@ -81,8 +81,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
   
   sanitizeName(streamname);
-  std::string smp = streamname.substr(0, streamname.find('+'));
-  //check if smp (everything before +) exists
+  std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
+  //check if smp (everything before + or space) exists
   DTSC::Scan stream_cfg = config.getMember("streams").getMember(smp);
   if (!stream_cfg){
     DEBUG_MSG(DLVL_MEDIUM, "Stream %s not configured", streamname.c_str());

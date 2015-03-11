@@ -10,7 +10,7 @@
 #include <semaphore.h>
 #endif
 
-#define STAT_EX_SIZE 94
+#define STAT_EX_SIZE 172
 #define PLAY_EX_SIZE 32
 
 namespace IPC {
@@ -37,8 +37,6 @@ namespace IPC {
       std::string connector();
       void crc(unsigned int sum);
       unsigned int crc();
-      void pid(unsigned short id);
-      unsigned short pid();
   private:
       ///\brief The payload for the stat exchange
       /// - 8 byte - now (timestamp of last statistics)
@@ -47,10 +45,9 @@ namespace IPC {
       /// - 8 byte - down (Number of bytes received from peer)
       /// - 8 byte - up (Number of bytes sent to peer)
       /// - 16 byte - host (ip address of the peer)
-      /// - 20 byte - streamName (name of the stream peer is viewing)
+      /// - 100 byte - streamName (name of the stream peer is viewing)
       /// - 20 byte - connector (name of the connector the peer is using)
       /// - 4 byte - CRC32 of user agent (or zero if none)
-      /// - 2 byte - process PID
       char * data;
   };
 

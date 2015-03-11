@@ -563,45 +563,37 @@ namespace IPC {
 
   ///\brief Sets the name of the stream this user is viewing
   void statExchange::streamName(std::string name) {
-    memcpy(data + 48, name.c_str(), std::min((int)name.size(), 20));
+    size_t splitChar = name.find_first_of("+ ");
+    if (splitChar != std::string::npos){
+      name[splitChar] = '+';
+    }
+    memcpy(data + 48, name.c_str(), std::min((int)name.size(), 100));
   }
 
   ///\brief Gets the name of the stream this user is viewing
   std::string statExchange::streamName() {
-    return std::string(data + 48, std::min((int)strlen(data + 48), 20));
+    return std::string(data + 48, strnlen(data + 48, 100));
   }
 
   ///\brief Sets the name of the connector through which this user is viewing
   void statExchange::connector(std::string name) {
-    memcpy(data + 68, name.c_str(), std::min((int)name.size(), 20));
+    memcpy(data + 148, name.c_str(), std::min((int)name.size(), 20));
   }
 
   ///\brief Gets the name of the connector through which this user is viewing
   std::string statExchange::connector() {
-    return std::string(data + 68, std::min((int)strlen(data + 68), 20));
+    return std::string(data + 148, std::min((int)strlen(data + 148), 20));
   }
 
   ///\brief Sets checksum field
   void statExchange::crc(unsigned int sum) {
-    htobl(data + 88, sum);
+    htobl(data + 186, sum);
   }
 
   ///\brief Gets checksum field
   unsigned int statExchange::crc() {
     unsigned int result;
-    btohl(data + 88, result);
-    return result;
-  }
-
-///\brief Sets PID field
-  void statExchange::pid(unsigned short id) {
-    htobs(data + 92, id);
-  }
-
-  ///\brief Gets PID field
-  unsigned short statExchange::pid() {
-    unsigned short result;
-    btohs(data + 92, result);
+    btohl(data + 186, result);
     return result;
   }
 

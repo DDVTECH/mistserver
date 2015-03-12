@@ -71,6 +71,10 @@ void Util::sanitizeName(std::string & streamname) {
 
 /// Starts a process for a VoD stream.
 bool Util::startInput(std::string streamname, std::string filename, bool forkFirst) {
+  if (streamname.size() > 100){
+    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
+    return false;
+  }
   IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
   IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
   configLock.wait();

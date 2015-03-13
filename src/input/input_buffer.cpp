@@ -325,7 +325,7 @@ namespace Mist {
   bool inputBuffer::setup() {
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
-    strName = strName.substr(0,(strName.find('+')));
+    strName = strName.substr(0,(strName.find_first_of("+ ")));
     IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();

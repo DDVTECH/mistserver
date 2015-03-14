@@ -17,8 +17,10 @@ namespace Mist {
         break;
       }
     }
+    unsigned int vidTracks = 0;
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.codec == "H264"){
+        vidTracks++;
         int bWidth = it->second.bps * 2;
         if (bWidth < 5){
           bWidth = 5;
@@ -33,6 +35,10 @@ namespace Mist {
         }
         result << "/index.m3u8\r\n";
       }
+    }
+    if (!vidTracks && audioId){
+      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << myMeta.tracks[audioId].bps * 20 << "\r\n";
+      result << audioId << "/index.m3u8\r\n";
     }
     DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
     return result.str();

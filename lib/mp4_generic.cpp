@@ -2275,10 +2275,7 @@ namespace MP4 {
     for (unsigned int i = 0; i < getEntryCount(); i++) {
       static STSCEntry temp;
       temp = getSTSCEntry(i);
-      r << std::string(indent + 1, ' ') << "Entry[" << i << "]:" << std::endl;
-      r << std::string(indent + 2, ' ') << "FirstChunk: " << temp.firstChunk << std::endl;
-      r << std::string(indent + 2, ' ') << "SamplesPerChunk: " << temp.samplesPerChunk << std::endl;
-      r << std::string(indent + 2, ' ') << "SampleDescriptionIndex: " << temp.sampleDescriptionIndex << std::endl;
+      r << std::string(indent + 1, ' ') << "Entry[" << i << "]: Chunks " << temp.firstChunk << " onward contain " << temp.samplesPerChunk << " samples, description " << temp.sampleDescriptionIndex << std::endl;
     }
     return r.str();
   }
@@ -2323,9 +2320,65 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stco] Chunk Offset Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
-    for (unsigned int i = 0; i < getEntryCount(); i++) {
-      r << std::string(indent + 1, ' ') << "ChunkOffset[" << i << "]: " << getChunkOffset(i) << std::endl;
+    r << std::string(indent + 1, ' ') << "Offsets: ";
+    for (unsigned long i = 0; i < getEntryCount(); i++) {
+      r << getChunkOffset(i);
+      if (i != getEntryCount() - 1){
+        r << ", ";
+      }
     }
+    r << std::endl;
+    return r.str();
+  }
+
+  CO64::CO64(char v, uint32_t f) {
+    memcpy(data + 4, "co64", 4);
+    setVersion(v);
+    setFlags(f);
+    setEntryCount(0);
+  }
+
+  void CO64::setEntryCount(uint32_t newEntryCount) {
+    setInt32(newEntryCount, 4);
+  }
+
+  uint32_t CO64::getEntryCount() {
+    return getInt32(4);
+  }
+
+  void CO64::setChunkOffset(uint64_t newChunkOffset, uint32_t no) {
+    setInt64(newChunkOffset, 8 + no * 8);
+    uint32_t entryCount = getEntryCount();
+    //if entrycount is lower than new entry count, update it and fill any skipped entries with zeroes.
+    if (no + 1 > entryCount) {
+      setEntryCount(no + 1);
+      //fill undefined entries, if any (there's only undefined entries if we skipped an entry)
+      if (no > entryCount){
+        memset(data+payloadOffset+8+entryCount*8, 0, 8*(no-entryCount));
+      }
+    }
+  }
+
+  uint64_t CO64::getChunkOffset(uint32_t no) {
+    if (no >= getEntryCount()) {
+      return 0;
+    }
+    return getInt64(8 + no * 8);
+  }
+
+  std::string CO64::toPrettyString(uint32_t indent) {
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[co64] 64-bits Chunk Offset Box (" << boxedSize() << ")" << std::endl;
+    r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    r << std::string(indent + 1, ' ') << "Offsets: ";
+    for (unsigned long i = 0; i < getEntryCount(); i++) {
+      r << getChunkOffset(i);
+      if (i != getEntryCount() - 1){
+        r << ", ";
+      }
+    }
+    r << std::endl;
     return r.str();
   }
 
@@ -2378,11 +2431,17 @@ namespace MP4 {
     std::stringstream r;
     r << std::string(indent, ' ') << "[stsz] Sample Size Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
-    r << std::string(indent + 1, ' ') << "SampleSize: " << getSampleSize() << std::endl;
-    r << std::string(indent + 1, ' ') << "SampleCount: " << getSampleCount() << std::endl;
-    for (unsigned int i = 0; i < getSampleCount(); i++) {
-      r << std::string(indent + 1, ' ') << "EntrySize[" << i << "]: " << getEntrySize(i) << std::endl;
+    r << std::string(indent + 1, ' ') << "Global Sample Size: " << getSampleSize() << std::endl;
+    r << std::string(indent + 1, ' ') << "Sample Count: " << getSampleCount() << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Sample sizes: ";
+    for (unsigned long i = 0; i < getSampleCount(); i++) {
+      r << getEntrySize(i);
+      if (i != getSampleCount() - 1){
+        r << ", ";
+      }
     }
+    r << std::endl;
     return r.str();
   }
 
@@ -2841,9 +2900,15 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stss] Sync Sample Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
-    for (unsigned int i = 0; i < getEntryCount(); i++) {
-      r << std::string(indent + 1, ' ') << "SampleNumber[" << i << "] : " << getSampleNumber(i) << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Keyframe sample indexes: ";
+    for (unsigned long i = 0; i < getEntryCount(); i++) {
+      r << getSampleNumber(i);
+      if (i != getEntryCount() - 1){
+        r << ", ";
+      }
     }
+    r << std::endl;
     return r.str();
   }
 

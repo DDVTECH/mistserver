@@ -495,6 +495,16 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class CO64: public fullBox {
+    public:
+      CO64(char v = 1, uint32_t f = 0);
+      void setEntryCount(uint32_t newEntryCount);
+      uint32_t getEntryCount();
+      void setChunkOffset(uint64_t newChunkOffset, uint32_t no);
+      uint64_t getChunkOffset(uint32_t no);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class STSZ: public fullBox {
     public:
       STSZ(char v = 1, uint32_t f = 0);

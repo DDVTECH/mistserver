@@ -333,6 +333,9 @@ namespace MP4 {
       case 0x7374636F:
         return ((STCO *)this)->toPrettyString(indent);
         break;
+      case 0x636F3634:
+        return ((CO64 *)this)->toPrettyString(indent);
+        break;
       case 0x7374737A:
         return ((STSZ *)this)->toPrettyString(indent);
         break;

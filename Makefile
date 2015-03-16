@@ -24,7 +24,7 @@ override CPPFLAGS += -DWITH_THREADNAMES=1
 endif
 
 THREADLIB = -lpthread -lrt
-LDLIBS = 
+LDLIBS = ${THREADLIB}
 LDFLAGS = -I${includedir} -L${libdir} -lmist
 
 

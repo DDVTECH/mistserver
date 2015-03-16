@@ -365,7 +365,7 @@ namespace Mist {
         response = json_resp.toString();
       }
       if (rURL.substr(0, 7) == "/embed_" && !json_resp.isMember("error")){
-        #include "../embed.js.h"
+        #include "embed.js.h"
         response.append("\n(");
         if (embed_js[embed_js_len - 2] == ';'){//check if we have a trailing ;\n or just \n
           response.append((char*)embed_js, (size_t)embed_js_len - 2); //remove trailing ";\n" from xxd conversion

@@ -1,6 +1,8 @@
-prefix = /usr
+prefix = ./usr
 exec_prefix = $(prefix)
 bindir = $(prefix)/bin
+includedir = $(prefix)/include
+libdir = $(exec_prefix)/lib
 
 PACKAGE_VERSION := $(shell git describe --tags 2> /dev/null || cat VERSION 2> /dev/null || echo "Unknown")
 DEBUG = 4
@@ -10,7 +12,7 @@ ifeq ($(PACKAGE_VERSION),Unknown)
   $(warning Version is unknown - consider creating a VERSION file or fixing your git setup.)
 endif
 
-CPPFLAGS = -Wall -g -O2
+CPPFLAGS = -Wall -g -O2 -fPIC
 override CPPFLAGS += -funsigned-char -DDEBUG="$(DEBUG)" -DPACKAGE_VERSION="\"$(PACKAGE_VERSION)\"" -DRELEASE="\"$(RELEASE)\""
 
 ifndef NOSHM
@@ -21,13 +23,15 @@ ifdef WITH_THREADNAMES
 override CPPFLAGS += -DWITH_THREADNAMES=1
 endif
 
-THREADLIB = -lpthread
-LDLIBS = -lmist -lrt
+THREADLIB = -lpthread -lrt
+LDLIBS = 
+LDFLAGS = -I${includedir} -L${libdir} -lmist
 
 
 .DEFAULT_GOAL := all
 
-all: controller analysers inputs outputs
+lib: libmist.so libmist.a
+all: install-lib controller analysers inputs outputs
 
 DOXYGEN := $(shell doxygen -v 2> /dev/null)
 ifdef DOXYGEN
@@ -217,20 +221,42 @@ src/controller/server.html: $(lspDATA) $(lspSOURCES) $(lspSOURCESmin)
 src/controller/server.html.h: src/controller/server.html sourcery
 	cd src/controller; ../../sourcery server.html server_html > server.html.h
 
-docs: src/* Doxyfile
+lib_objects := $(patsubst %.cpp,%.o,$(wildcard lib/*.cpp))
+
+libmist.so: $(lib_objects)
+	$(CXX) -shared -o $@ $(LDLIBS) $^
+
+libmist.a: $(lib_objects)
+	$(AR) -rcs $@ $^
+
+docs: lib/* src/* Doxyfile Doxyfile
 	doxygen ./Doxyfile > /dev/null
 
 clean:
-	rm -f *.o Mist* sourcery src/controller/server.html src/connectors/embed.js.h src/controller/server.html.h
+	rm -f lib/*.o libmist.so libmist.a
 	rm -rf ./docs
+	rm -f *.o Mist* sourcery src/controller/server.html src/connectors/embed.js.h src/controller/server.html.h
 
 distclean: clean
 
+install-lib: libmist.so libmist.a lib/*.h
+	mkdir -p $(DESTDIR)$(includedir)/mist
+	install -m 644 lib/*.h $(DESTDIR)$(includedir)/mist/
+	mkdir -p $(DESTDIR)$(libdir)
+	install -m 644 libmist.a $(DESTDIR)$(libdir)/libmist.a
+	install -m 644 libmist.so $(DESTDIR)$(libdir)/libmist.so
+	$(POST_INSTALL)
+
 install: all
+	if [ "$$USER" = "root" ]; then ldconfig; else echo "run: sudo ldconfig"; fi
 	mkdir -p $(DESTDIR)$(bindir)
 	install -m 755 ./Mist* $(DESTDIR)$(bindir)
 
 uninstall:
 	rm -f $(DESTDIR)$(bindir)/Mist*
+	rm -f $(DESTDIR)$(includedir)/mist/*.h
+	rmdir $(DESTDIR)$(includedir)/mist
+	rm -f $(DESTDIR)$(libdir)/libmist.so
+	rm -f $(DESTDIR)$(libdir)/libmist.a
 
 .PHONY: clean uninstall

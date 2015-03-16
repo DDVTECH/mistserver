@@ -3,6 +3,7 @@
 *.la
 *.lo
 *.swp
+*.orig
 *.bak
 *~
 .deps
@@ -12,6 +13,8 @@ docs
 nbproject
 autom4te.cache
 /Mist*
+/libmist.so
+/libmist.a
 /configure
 /config.*
 /aclocal.m4
@@ -37,4 +40,6 @@ server.html*
 .cproject
 .project
 .sync
+*.pc
+*.swp
 

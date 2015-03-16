@@ -1,11 +1,13 @@
  _________________________________________________
 |                  MistServer                     |
-| Copyright 2010-2014 DDVTech BV, The Netherlands |
+| Copyright 2010-2015 DDVTech BV, The Netherlands |
 |                                                 |
 |        Licensed under the aGPLv3 license        |
 |        See COPYING file for full license        |
 |_________________________________________________|
 
+NOTE: TinyThread++ is included also, but *not* copyright DDVTech BV.
+License and author information for TinyThread++ can be found in the tinythread.h/cpp files.
 
 The latest version of this code can always be found at:
   https://github.com/DDVTECH/mistserver
@@ -19,9 +21,7 @@ Code contributions and bug reports are welcomed! Please submit at:
 To install using default options, simply run:
   make && sudo make install
 
-Dependencies:
-  libmist ( https://github.com/DDVTECH/mistlib )
-  libpthread
+Dependencies: none
 
 The makefile will listen to the following variables:
   DEBUG            Sets the debug message level. 4 is the default (and recommended setting for development), 0 is quiet, 10 is insanely high.
@@ -29,10 +29,12 @@ The makefile will listen to the following variables:
   RELEASE          Overrides the release name. You shouldn't need to use this, normally.
   prefix           Prefix to install files to. Defaults to /usr
   exec_prefix      Prefix to install object code and binaries to. Defaults to $(prefix)
+  includedir       Directory to install headers to. Defaults to $(prefix)/include
+  libdir           Directory to install libraries to. Defaults to $(exec_prefix)/lib
   bindir           Directory to install binaries to. Defaults to $(exec_prefix)/bin
   DESTDIR          Global prefix that will be put in front of any and all other file paths.
   CPPFLAGS         Flags for compiling object files. Defaults to -Wall -g -O2
-  LDLIBS           Libraries to include. Defaults to -lmist
+  LDLIBS           Libraries to include. Defaults to none.
   THREADLIB        Libraries to include for threaded binaries. Defaults to -lpthread
   WITH_THREADNAMES If set, this will set names of threads in threaded binaries. Defaults to being unset.
 

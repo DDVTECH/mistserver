@@ -88,6 +88,7 @@ namespace Mist {
       unsigned int currPack = 0;
       unsigned int ThisNaluSize = 0;
       unsigned int i = 0;
+      unsigned int nalLead = 0;
       
       while (currPack <= splitCount){
         unsigned int alreadySent = 0;
@@ -108,6 +109,12 @@ namespace Mist {
           }
         }
         while (i + 4 < (unsigned int)dataLen){
+          if (nalLead){
+            fillPacket("\000\000\000\001"+4-nalLead,nalLead);
+            i += nalLead;
+            alreadySent += nalLead;
+            nalLead = 0;
+          }
           if (!ThisNaluSize){
             ThisNaluSize = (dataPointer[i] << 24) + (dataPointer[i+1] << 16) + (dataPointer[i+2] << 8) + dataPointer[i+3];
             if (ThisNaluSize + i + 4 > (unsigned int)dataLen){
@@ -115,13 +122,15 @@ namespace Mist {
               break;
             }
             if (alreadySent + 4 > watKunnenWeIn1Ding){
-              /// \todo Houd rekening met deze relatief zelfdzame sub-optimale situatie
-              //Kom op, wat is de kans nou? ~_~
-              FAIL_MSG("Encountered lazy coders. Maybe someone should fix this.");
+              nalLead = 4 - watKunnenWeIn1Ding-alreadySent;
+              fillPacket("\000\000\000\001",watKunnenWeIn1Ding-alreadySent);
+              i += watKunnenWeIn1Ding-alreadySent;
+              alreadySent += watKunnenWeIn1Ding-alreadySent;
+            }else{
+              fillPacket("\000\000\000\001",4);
+              alreadySent += 4;
+              i += 4;
             }
-            fillPacket("\000\000\000\001",4);
-            alreadySent += 4;
-            i += 4;
           }
           if (alreadySent + ThisNaluSize > watKunnenWeIn1Ding){
             fillPacket(dataPointer+i,watKunnenWeIn1Ding-alreadySent);

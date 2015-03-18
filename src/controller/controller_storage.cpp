@@ -31,8 +31,8 @@ namespace Controller {
     char buffer [100];
     time (&rawtime);
     timeinfo = localtime (&rawtime);
-    strftime (buffer,100,"%b %d %Y -- %H:%M",timeinfo);
-    std::cout << "(" << buffer << ") [" << kind << "] " << message << std::endl;
+    strftime(buffer,100,"%F %H:%M:%S",timeinfo);
+    std::cout << "[" << buffer << "] " << kind << ": " << message << std::endl;
   }
 
   ///\brief Write contents to Filename

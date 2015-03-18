@@ -280,7 +280,7 @@ namespace Mist {
     unsigned long pageNum = pageNumForKey(trackId, keyNum);
     while (pageNum == -1){
       if (!timeout){
-        DEBUG_MSG(DLVL_DEVEL, "Requesting/waiting for page that has key %lu:%lld...", trackId, keyNum);
+        DEBUG_MSG(DLVL_VERYHIGH, "Requesting page with key %lu:%lld", trackId, keyNum);
       }
       if (timeout++ > 100){
         DEBUG_MSG(DLVL_FAIL, "Timeout while waiting for requested page. Aborting.");

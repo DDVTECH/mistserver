@@ -244,13 +244,20 @@ std::string & RTMPStream::SendCTL(unsigned char type, unsigned int data) {
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
   ch.timestamp = Util::getMS();
-  ch.len = 4;
-  ch.real_len = 4;
-  ch.len_left = 0;
   ch.msg_type_id = type;
   ch.msg_stream_id = 0;
-  ch.data.resize(4);
-  *(int *)((char *)ch.data.c_str()) = htonl(data);
+  ch.len_left = 0;
+  if (type == 6){
+    ch.len = 5;
+    ch.real_len = 5;
+    ch.data.resize(5);
+    ((char*)ch.data.data())[4] = 0;
+  }else{
+    ch.len = 4;
+    ch.real_len = 4;
+    ch.data.resize(4);
+  }
+  *(int *)((char *)ch.data.data()) = htonl(data);
   return ch.Pack();
 } //SendCTL
 

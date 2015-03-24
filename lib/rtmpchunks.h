@@ -36,6 +36,7 @@ namespace RTMPStream {
       unsigned int cs_id; ///< ContentStream ID
       unsigned int timestamp; ///< Timestamp of this chunk.
       unsigned int ts_delta; ///< Last timestamp delta.
+      unsigned int ts_header; ///< Last header timestamp without extensions or deltas.
       unsigned int len; ///< Length of the complete chunk.
       unsigned int real_len; ///< Length of this particular part of it.
       unsigned int len_left; ///< Length not yet received, out of complete chunk.
@@ -44,7 +45,6 @@ namespace RTMPStream {
       std::string data; ///< Payload of chunk.
 
       Chunk();
-      bool Parse(std::string & data);
       bool Parse(Socket::Buffer & data);
       std::string & Pack();
   };

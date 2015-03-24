@@ -10,6 +10,7 @@
 #include <mist/amf.h>
 #include <mist/rtmpchunks.h>
 #include <mist/config.h>
+#include <mist/socket.h>
 
 #define DETAIL_RECONSTRUCT 1
 #define DETAIL_EXPLICIT 2
@@ -54,9 +55,10 @@ namespace Analysers {
     AMF::Object amfdata("empty", AMF::AMF0_DDV_CONTAINER);
     AMF::Object3 amf3data("empty", AMF::AMF3_DDV_CONTAINER);
     unsigned int read_in = 0;
+    Socket::Buffer strbuf;
 
-    while (std::cin.good() || inbuffer.size()){
-      if (next.Parse(inbuffer)){
+    while (std::cin.good() || strbuf.size()){
+      if (next.Parse(strbuf)){
         if (Detail & DETAIL_VERBOSE){
           fprintf(stderr, "Chunk info: [%#2X] CS ID %u, timestamp %u, len %u, type ID %u, Stream ID %u\n", next.headertype, next.cs_id, next.timestamp,
               next.len, next.msg_type_id, next.msg_stream_id);
@@ -185,17 +187,19 @@ namespace Analysers {
       }else{ //if chunk parsed
         if (std::cin.good()){
           unsigned int charCount = 0;
-          inbuffer.reserve(4096);
-          while (std::cin.good() && charCount < 4096){
+          std::string tmpbuffer;
+          tmpbuffer.reserve(1024);
+          while (std::cin.good() && charCount < 1024){
             char newchar = std::cin.get();
             if (std::cin.good()){
-              inbuffer += newchar;
+              tmpbuffer += newchar;
               ++read_in;
               ++charCount;
             }
           }
+          strbuf.append(tmpbuffer);
         }else{
-          inbuffer.clear();
+          strbuf.get().clear();
         }
       }
     }//while std::cin.good()

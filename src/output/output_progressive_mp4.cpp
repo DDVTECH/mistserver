@@ -23,12 +23,22 @@ namespace Mist {
     capa["methods"][0u]["nolive"] = 1;
   }
   
+  long long unsigned OutProgressiveMP4::estimateFileSize(){
+    long long unsigned retVal = 0;
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      for (std::deque<unsigned long>::iterator keyIt = myMeta.tracks[*it].keySizes.begin(); keyIt != myMeta.tracks[*it].keySizes.end(); keyIt++){
+        retVal += *keyIt;
+      }
+    }
+    return retVal * (1 + (double)selectedTracks.size() * 0.1);
+  }
+  
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size){
     std::stringstream header;
     //ftyp box
     MP4::FTYP ftypBox;
     header.write(ftypBox.asBox(),ftypBox.boxedSize());
-    
+    bool biggerThan4G = (estimateFileSize() > 0xFFFFFFFFull);
     uint64_t mdatSize = 0;
     //moov box
     MP4::MOOV moovBox;
@@ -161,27 +171,63 @@ namespace Mist {
                 stblBox.setContent(stscBox,offset++);
               }//stsc box
               {
+                bool makeCTTS = false;
                 MP4::STSZ stszBox;
                 stszBox.setVersion(0);
                 if (thisTrack.parts.size()){
                   std::deque<DTSC::Part>::reverse_iterator tmpIt = thisTrack.parts.rbegin();
                   for (unsigned int part = thisTrack.parts.size(); part > 0; --part){
                     unsigned int partSize = tmpIt->getSize();
-                    tmpIt++;
                     stszBox.setEntrySize(partSize, part-1);//in bytes in file
                     size += partSize;
+                    makeCTTS |= tmpIt->getOffset();
+                    tmpIt++;
                   }
                 }
+                if (makeCTTS){
+                  MP4::CTTS cttsBox;
+                  cttsBox.setVersion(0);
+                  if (thisTrack.parts.size()){
+                    std::deque<DTSC::Part>::iterator tmpIt = thisTrack.parts.begin();
+                    MP4::CTTSEntry tmpEntry;
+                    tmpEntry.sampleCount = 1;
+                    tmpEntry.sampleOffset = tmpIt->getOffset();
+                    unsigned int totalEntries = 0;
+                    tmpIt++;
+                    while (tmpIt != thisTrack.parts.end()){
+                      unsigned int timeOffset = tmpIt->getOffset();
+                      if (timeOffset == tmpEntry.sampleOffset){
+                        tmpEntry.sampleCount++;
+                      }else{
+                        cttsBox.setCTTSEntry(tmpEntry, totalEntries++);
+                        tmpEntry.sampleCount = 1;
+                        tmpEntry.sampleOffset = timeOffset;
+                      }
+                      tmpIt++;
+                    }
+                    cttsBox.setCTTSEntry(tmpEntry, totalEntries++);
+                    //cttsBox.setEntryCount(totalEntries);
+                  }
+                  stblBox.setContent(cttsBox,offset++);
+                }//ctts
                 stblBox.setContent(stszBox,offset++);
               }//stsz box
               {
-                MP4::STCO stcoBox;
-                stcoBox.setVersion(1);
-                //Inserting empty values on purpose here, will be fixed later.
-                if (thisTrack.parts.size() != 0){
-                  stcoBox.setChunkOffset(0, thisTrack.parts.size() - 1);//this inserts all empty entries at once
+                if (biggerThan4G){
+                  MP4::CO64 CO64Box;
+                  //Inserting empty values on purpose here, will be fixed later.
+                  if (thisTrack.parts.size() != 0){
+                    CO64Box.setChunkOffset(0, thisTrack.parts.size() - 1);//this inserts all empty entries at once
+                  }
+                  stblBox.setContent(CO64Box,offset++);
+                }else{
+                  MP4::STCO stcoBox;
+                  //Inserting empty values on purpose here, will be fixed later.
+                  if (thisTrack.parts.size() != 0){
+                    stcoBox.setChunkOffset(0, thisTrack.parts.size() - 1);//this inserts all empty entries at once
+                  }
+                  stblBox.setContent(stcoBox,offset++);
                 }
-                stblBox.setContent(stcoBox,offset++);
               }//stco box
               minfBox.setContent(stblBox,minfOffset++);
             }//stbl box
@@ -194,8 +240,9 @@ namespace Mist {
     }//for each selected track
     //initial offset length ftyp, length moov + 8
     unsigned long long int byteOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
-    //update all STCO from the following map;
-    std::map <int, MP4::STCO> checkStcoBoxes;
+    //update all STCO or CO64 from the following maps;
+    std::map <long unsigned, MP4::STCO> checkStcoBoxes;
+    std::map <long unsigned, MP4::CO64> checkCO64Boxes;
     //for all tracks
     for (unsigned int i = 1; i < moovBox.getContentCount(); i++){
       //10 lines to get the STCO box.
@@ -229,7 +276,11 @@ namespace Mist {
       }
       for (unsigned int j = 0; j < checkStblBox.getContentCount(); j++){
         if (checkStblBox.getContent(j).isType("stco")){
-          checkStcoBoxes.insert( std::pair<int, MP4::STCO>(((MP4::TKHD&)checkTkhdBox).getTrackID(), ((MP4::STCO&)checkStblBox.getContent(j)) ));
+          checkStcoBoxes.insert( std::pair<long unsigned, MP4::STCO>(((MP4::TKHD&)checkTkhdBox).getTrackID(), ((MP4::STCO&)checkStblBox.getContent(j)) ));
+          break;
+        }
+        if (checkStblBox.getContent(j).isType("co64")){
+          checkCO64Boxes.insert( std::pair<long unsigned, MP4::CO64>(((MP4::TKHD&)checkTkhdBox).getTrackID(), ((MP4::CO64&)checkStblBox.getContent(j)) ));
           break;
         }
       }
@@ -251,7 +302,11 @@ namespace Mist {
     while (!sortSet.empty()){
       std::set<keyPart>::iterator keyBegin = sortSet.begin();
       //setting the right STCO size in the STCO box
-      checkStcoBoxes[keyBegin->trackID].setChunkOffset(totalByteOffset + byteOffset, keyBegin->index);
+      if (checkCO64Boxes.count(keyBegin->trackID)){
+        checkCO64Boxes[keyBegin->trackID].setChunkOffset(totalByteOffset + byteOffset, keyBegin->index);
+      }else{
+        checkStcoBoxes[keyBegin->trackID].setChunkOffset(totalByteOffset + byteOffset, keyBegin->index);
+      }
       totalByteOffset += keyBegin->size;
       //add keyPart to sortSet
       keyPart temp;
@@ -375,7 +430,7 @@ namespace Mist {
           }
           break;
         }
-        if (byteEnd > size-1){byteEnd = size;}
+        if (byteEnd > size - 1){byteEnd = size - 1;}
       }else{
         byteEnd = size;
       }

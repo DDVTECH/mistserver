@@ -152,6 +152,7 @@ namespace MP4 {
     public:
       DCDescriptor (const char* pointer, const unsigned long length, const bool master = false);
       bool isAAC(); ///< Returns true if this track is AAC.
+      std::string getCodec();
       DSDescriptor getSpecific();
       std::string toPrettyString(uint32_t indent = 0);///< put it into a pretty string
   };
@@ -176,6 +177,7 @@ namespace MP4 {
       ESDS(std::string init);
       ESDescriptor getESDescriptor();
       bool isAAC();
+      std::string getCodec();
       std::string getInitData();
       std::string toPrettyString(uint32_t indent = 0);
   };

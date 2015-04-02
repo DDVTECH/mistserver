@@ -41,6 +41,8 @@ namespace Mist {
       long long currPos;
       long long seekPoint;
       std::set <keyPart> sortSet;//filling sortset for interleaving parts
+      
+      long long unsigned estimateFileSize();
   };
 }
 

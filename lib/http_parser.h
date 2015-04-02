@@ -20,7 +20,7 @@ namespace HTTP {
       std::string GetVar(std::string i);
       std::string getUrl();
       void SetHeader(std::string i, std::string v);
-      void SetHeader(std::string i, int v);
+      void SetHeader(std::string i, long long v);
       void SetVar(std::string i, std::string v);
       void SetBody(std::string s);
       void SetBody(char * buffer, int len);

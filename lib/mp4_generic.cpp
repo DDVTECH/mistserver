@@ -817,6 +817,20 @@ namespace MP4 {
     return (getData()[0] == 0x40);
   }
 
+  std::string DCDescriptor::getCodec(){
+    switch(getData()[0]){
+      case 0x40:
+        return "AAC";
+        break;
+      case 0x69:
+      case 0x6B:
+        return "MP3";
+        break;
+      default:
+        return "UNKNOWN";
+    }
+  }
+
   std::string DCDescriptor::toPrettyString(uint32_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "[" << (int)data[0] << "] DecoderConfig Descriptor (" << getDataSize() << ")" << std::endl;
@@ -893,10 +907,10 @@ namespace MP4 {
   ESDS::ESDS(std::string init) {
     ///\todo Do this better, in a non-hardcoded way.
     memcpy(data + 4, "esds", 4);
-    reserve(payloadOffset, 0, init.size() ? init.size()+26 : 24);
+    reserve(payloadOffset, 0, init.size() ? init.size()+29 : 26);
     unsigned int i = 12;
     data[i++] = 3;//ES_DescrTag
-    data[i++] = init.size() ? init.size()+20 : 18;//size
+    data[i++] = init.size() ? init.size()+23 : 21;//size
     data[i++] = 0;//es_id
     data[i++] = 2;//es_id
     data[i++] = 0;//priority
@@ -907,7 +921,7 @@ namespace MP4 {
     }else{
       data[i++] = 0x69;//objType MP3
     }
-    data[i++] = 0x14;//streamType audio (5<<2)
+    data[i++] = 0x15;//streamType audio (5<<2 + 1)
     data[i++] = 0;//buffer size
     data[i++] = 0;//buffer size
     data[i++] = 0;//buffer size
@@ -923,11 +937,19 @@ namespace MP4 {
       data[i++] = 0x5;//DecSpecificInfoTag
       data[i++] = init.size();
       memcpy(data+i, init.data(), init.size());
+      i += init.size();
     }
+    data[i++] = 6;//SLConfigDescriptor
+    data[i++] = 1;//size
+    data[i++] = 2;//predefined, reserverd for use in MP4 files
   }
  
   bool ESDS::isAAC(){
     return getESDescriptor().getDecoderConfig().isAAC();
+  }
+  
+  std::string ESDS::getCodec(){
+    return getESDescriptor().getDecoderConfig().getCodec();
   }
   
   std::string ESDS::getInitData(){
@@ -2195,6 +2217,7 @@ namespace MP4 {
       for (unsigned int i = getEntryCount(); i < no; i++) {
         setInt64(0, 8 + (i * 8));//filling up undefined entries of 64 bits
       }
+      setEntryCount(no + 1);
     }
     setInt32(newCTTSEntry.sampleCount, 8 + no * 8);
     setInt32(newCTTSEntry.sampleOffset, 8 + (no * 8) + 4);
@@ -2213,7 +2236,7 @@ namespace MP4 {
 
   std::string CTTS::toPrettyString(uint32_t indent) {
     std::stringstream r;
-    r << std::string(indent, ' ') << "[stts] Sample Table Box (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent, ' ') << "[ctts] Composition Time To Sample Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
     for (unsigned int i = 0; i < getEntryCount(); i++) {

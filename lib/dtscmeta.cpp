@@ -1422,10 +1422,10 @@ namespace DTSC {
     std::string tmp;
     tmp.reserve(keySizes.size() * 4);
     for (unsigned int i = 0; i < keySizes.size(); i++){
-      tmp += ((char)keySizes[i] >> 24);
-      tmp += ((char)keySizes[i] >> 16);
-      tmp += ((char)keySizes[i] >> 8);
-      tmp += ((char)keySizes[i]);
+      tmp += (char)(keySizes[i] >> 24);
+      tmp += (char)(keySizes[i] >> 16);
+      tmp += (char)(keySizes[i] >> 8);
+      tmp += (char)(keySizes[i]);
     }
     writePointer(p, tmp.data(), tmp.size());
     writePointer(p, "\000\005parts\002", 8);
@@ -1492,10 +1492,10 @@ namespace DTSC {
     std::string tmp;
     tmp.reserve(keySizes.size() * 4);
     for (unsigned int i = 0; i < keySizes.size(); i++){
-      tmp += ((char)keySizes[i] >> 24);
-      tmp += ((char)keySizes[i] >> 16);
-      tmp += ((char)keySizes[i] >> 8);
-      tmp += ((char)keySizes[i]);
+      tmp += (char)(keySizes[i] >> 24);
+      tmp += (char)(keySizes[i] >> 16);
+      tmp += (char)(keySizes[i] >> 8);
+      tmp += (char)(keySizes[i]);
     }
     conn.SendNow(tmp.data(), tmp.size());
     conn.SendNow("\000\005parts\002", 8);
@@ -1631,10 +1631,10 @@ namespace DTSC {
     tmp = "";
     tmp.reserve(keySizes.size() * 4);
     for (unsigned int i = 0; i < keySizes.size(); i++){
-      tmp += ((char)(keySizes[i] >> 24));
-      tmp += ((char)(keySizes[i] >> 16));
-      tmp += ((char)(keySizes[i] >> 8));
-      tmp += ((char)keySizes[i]);
+      tmp += (char)((keySizes[i] >> 24));
+      tmp += (char)((keySizes[i] >> 16));
+      tmp += (char)((keySizes[i] >> 8));
+      tmp += (char)(keySizes[i]);
     }
     result["keysizes"] = tmp;
     tmp = "";

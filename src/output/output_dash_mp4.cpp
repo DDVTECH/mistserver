@@ -113,7 +113,7 @@ namespace Mist {
       hev1Box.setCLAP(hvccBox);
       stsdBox.setEntry(hev1Box, 0);
     }
-    if (myMeta.tracks[tid].codec == "AAC"){
+    if (myMeta.tracks[tid].codec == "AAC" || myMeta.tracks[tid].codec == "MP3"){
       MP4::AudioSampleEntry ase;
       ase.setCodec("mp4a");
       ase.setDataReferenceIndex(1);
@@ -284,7 +284,7 @@ namespace Mist {
     if (myMeta.tracks[tid].codec == "H264" || myMeta.tracks[tid].codec == "HEVC"){
       tfhdBox.setTrackID(1);
     }
-    if (myMeta.tracks[tid].codec == "AAC"){
+    if (myMeta.tracks[tid].codec == "AAC" || myMeta.tracks[tid].codec == "AC3" || myMeta.tracks[tid].codec == "MP3"){
       tfhdBox.setFlags(MP4::tfhdSampleFlag);
       tfhdBox.setTrackID(1);
       tfhdBox.setDefaultSampleFlags(MP4::isKeySample);
@@ -347,7 +347,7 @@ namespace Mist {
         i++;
       }
     }
-    if (myMeta.tracks[tid].codec == "AAC"){
+    if (myMeta.tracks[tid].codec == "AAC" || myMeta.tracks[tid].codec == "AC3" || myMeta.tracks[tid].codec == "MP3"){
       trunBox.setFlags(MP4::trundataOffset | MP4::trunsampleSize | MP4::trunsampleDuration);
       trunBox.setDataOffset(88 + (8 * myMeta.tracks[tid].keys[keyNum].getParts()) + 8);
       for (int j = 0; j < myMeta.tracks[tid].keys[keyNum].getParts(); j++){
@@ -434,6 +434,7 @@ namespace Mist {
     int lastAudTime = 0;
     int audKeys = 0;
     int audInitTrack = 0;
+    ///\todo Dash automatically selects the last audio and video track for manifest, maybe make this expandable/selectable?
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it ++){
       if (it->second.lastms > lastTime){
         lastTime = it->second.lastms;
@@ -448,7 +449,7 @@ namespace Mist {
         vidKeys = it->second.keys.size();
         vidInitTrack = it->first;
       }
-      if (it->second.codec == "AAC" && it->second.lastms > lastAudTime){
+      if ((it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3")&& it->second.lastms > lastAudTime){
         lastAudTime = it->second.lastms;
         audKeys = it->second.keys.size();
         audInitTrack = it->first;
@@ -518,10 +519,17 @@ namespace Mist {
       r << "      </SegmentTemplate>" << std::endl;
  
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.codec == "AAC"){
+        if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3"){
           r << "      <Representation ";
           r << "id=\"" << it->first << "\" ";
-          r << "codecs=\"mp4a.40.2\" ";
+          // (see RFC6381): sample description entry , ObjectTypeIndication [MP4RA, RFC], ObjectTypeIndication [MP4A ISO/IEC 14496-3:2009]
+          if (it->second.codec == "AAC" ){
+            r << "codecs=\"mp4a.40.2\" ";
+          }else if (it->second.codec == "MP3" ){
+            r << "codecs=\"mp4a.40.34\" ";
+          }else if (it->second.codec == "AC3" ){
+            r << "codecs=\"ec-3\" ";
+          }
           r << "audioSamplingRate=\"" << it->second.rate << "\" ";
           r << "bandwidth=\"" << it->second.bps << "\">" << std::endl;
           r << "        <AudioChannelConfiguration schemeIdUri=\"urn:mpeg:dash:23003:3:audio_channel_configuration:2011\" value=\"" << it->second.channels << "\" />" << std::endl;
@@ -547,6 +555,7 @@ namespace Mist {
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("AC3");
+    capa["codecs"][0u][1u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "dash/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;

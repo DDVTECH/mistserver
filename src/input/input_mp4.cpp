@@ -71,6 +71,7 @@ namespace Mist {
                     sttsBox.clear();
                     sttsBox.read(tmp);
                   }else if (stblBoxType == "ctts"){
+                    ///\todo this box should not have to be read, since its information is taken from the DTSH
                     tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
                     cttsBox.clear();
                     cttsBox.read(tmp);
@@ -341,6 +342,8 @@ namespace Mist {
                         MP4::STSZ stszBox;
                         MP4::STCO stcoBox;
                         MP4::STSC stscBox;
+                        MP4::CTTS cttsBox;//optional ctts box
+                        bool hasCTTS = false;
                         for (uint32_t m = 0; m < ((MP4::STBL&)minfLoopPeek).getContentCount(); m++){
                           tmp = std::string(((MP4::STBL&)minfLoopPeek).getContent(m).asBox(),((MP4::STBL&)minfLoopPeek).getContent(m).boxedSize());
                           std::string stboxRead = tmp;
@@ -356,6 +359,9 @@ namespace Mist {
                             stcoBox.read(stboxRead);
                           }else if (stblBoxType == "stsc"){
                             stscBox.read(stboxRead);
+                          }else if (stblBoxType == "ctts"){
+                            cttsBox.read(stboxRead);
+                            hasCTTS = true;
                           }else if (stblBoxType == "stsd"){
                             //check for codec in here
                             MP4::Box & tmpBox = ((MP4::STSD&)stblLoopPeek).getEntry(0);
@@ -390,18 +396,15 @@ namespace Mist {
                                 myMeta.tracks[trackNo].codec = "AC3";
                               }else{
                                 MP4::Box esds = ((MP4::AudioSampleEntry&)tmpBox).getCodecBox();
-                                if (((MP4::ESDS&)esds).isAAC()){
-                                  myMeta.tracks[trackNo].codec = "AAC";
-                                  myMeta.tracks[trackNo].init = ((MP4::ESDS&)esds).getInitData();
-                                }else{
-                                  myMeta.tracks[trackNo].codec = "MP3";
-                                }
+                                myMeta.tracks[trackNo].codec = ((MP4::ESDS&)esds).getCodec();
+                                myMeta.tracks[trackNo].init = ((MP4::ESDS&)esds).getInitData();
                               }
                               myMeta.tracks[trackNo].size = 16;///\todo this might be nice to calculate from mp4 file;
                               //get Visual sample entry -> esds -> startcodes
                             }else{
                               myMeta.tracks.erase(trackNo);
                             }
+                            
                           }
                         }//rof stbl
                         uint64_t totaldur = 0;///\todo note: set this to begin time
@@ -415,6 +418,10 @@ namespace Mist {
                         //change to for over all samples
                         unsigned int stcoIndex = 0;
                         unsigned int stscIndex = 0;
+                        unsigned int cttsIndex = 0;//current ctts Index we are reading
+                        unsigned int cttsEntryRead = 0;//current part of ctts we are reading
+                        MP4::CTTSEntry cttsEntry;
+                        
                         unsigned int fromSTCOinSTSC = 0;
                         long long unsigned int tempOffset;
                         bool stcoIs64 = (stcoBox.getType() == "co64");
@@ -479,6 +486,19 @@ namespace Mist {
                               tempSTTS = sttsBox.getSTTSEntry(entryNo);
                             }
                           }
+                          //set time offset
+                          if (hasCTTS){
+                            
+                            cttsEntry = cttsBox.getCTTSEntry(cttsIndex);
+                            cttsEntryRead++;
+                            if (cttsEntryRead >= cttsEntry.sampleCount){
+                              cttsIndex++;
+                              cttsEntryRead = 0;
+                            }
+                            BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000)/timeScale;
+                          }else{
+                            BsetPart.timeOffset = 0;
+                          }
                           //set size, that's easy
                           BsetPart.size = stszBox.getEntrySize(sampleIndex);
                           //trackid
@@ -523,7 +543,7 @@ namespace Mist {
         int tmp = fread(data, it->size, 1, inFile);
         if (tmp == 1){
           //add data
-          myMeta.update(it->time, 1, it->trackID, it->size, it->bpos, it->keyframe);
+          myMeta.update(it->time, it->timeOffset, it->trackID, it->size, it->bpos, it->keyframe);
         }else{
           INFO_MSG("fread did not return 1, bpos: %llu size: %llu keyframe: %d error: %s", it->bpos, it->size, it->keyframe, strerror(errno));
           return false;

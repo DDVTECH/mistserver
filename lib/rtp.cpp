@@ -107,24 +107,27 @@ namespace RTP {
     }
   }
 
-  void Packet::sendAAC(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel) {
+  void Packet::sendData(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel, std::string codec) {
     /// \todo This function probably belongs in DMS somewhere.
     data[1] |= 0x80;//setting the RTP marker bit to 1
-    /// \todo This 0x100000 value - What is it? Why is it hardcoded?
-    /// \todo The least significant 3 bits are used to signal some stuff from RFC 3640. Why do we send them always as 000?
-    *((int *)(data + getHsize())) = htonl(((payloadlen << 3) & 0x0010fff8) | 0x00100000);
-    memcpy(data + getHsize() + 4, payload, payloadlen);
-    callBack(socket, data, getHsize() + 4 + payloadlen, channel);
-    sentPackets++;
-    sentBytes += payloadlen;
-    increaseSequence();
-  }
-
-  void Packet::sendRaw(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel) {
-    /// \todo This function probably belongs in DMS somewhere.
-    data[1] |= 0x80;//setting the RTP marker bit to 1
-    memcpy(data + getHsize(), payload, payloadlen);
-    callBack(socket, data, getHsize() + payloadlen, channel);
+    long offsetLen = 0;
+    if (codec == "AAC"){
+      INFO_MSG("send AAC codec");
+      *((long *)(data + getHsize())) = htonl(((payloadlen << 3) & 0x0010fff8) | 0x00100000);
+      offsetLen = 4;
+    }else if (codec == "MP3"){
+      INFO_MSG("send MP3 codec");
+      *((long *)(data + getHsize())) = 0;//this is MBZ and Frag_Offset, which is always 0
+      offsetLen = 4;
+    }else if (codec == "AC3"){
+      INFO_MSG("send AC3 codec");
+      *((short *)(data + getHsize())) = htons(0x0001) ;//this is 6 bits MBZ, 2 bits FT = 0 = full frames and 8 bits saying we send 1 frame
+      offsetLen = 2;
+    }else{
+      INFO_MSG("send Raw");
+    }
+    memcpy(data + getHsize() + offsetLen, payload, payloadlen);
+    callBack(socket, data, getHsize() + offsetLen + payloadlen, channel);
     sentPackets++;
     sentBytes += payloadlen;
     increaseSequence();
@@ -162,12 +165,12 @@ namespace RTP {
     
     ((int *)rtcpData)[2] = htonl(2208988800UL + Util::epoch()); //epoch is in seconds
     ((int *)rtcpData)[3]  = htonl((Util::getMS() % 1000) * 4294967.295);
-    if (metadata.tracks[tid].codec == "H264") {
+    if (metadata.tracks[tid].codec == "H264" || metadata.tracks[tid].codec == "MP3") {
       ((int *)rtcpData)[4] = htonl((ntpTime - 0) * 90000); //rtpts
-    } else if (metadata.tracks[tid].codec == "AAC") {
+    } else if (metadata.tracks[tid].codec == "AAC" || metadata.tracks[tid].codec == "AC3") {
       ((int *)rtcpData)[4] = htonl((ntpTime - 0) * metadata.tracks[tid].rate); //rtpts
     } else {
-      DEBUG_MSG(DLVL_FAIL, "Unsupported codec");
+      DEBUG_MSG(DLVL_FAIL, "Unsupported codec: %s", metadata.tracks[tid].codec.c_str());
       return;
     }
     //it should be the time packet was sent maybe, after all?

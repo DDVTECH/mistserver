@@ -44,6 +44,7 @@ namespace Mist {
     long long unsigned int bpos;
     long long unsigned int size;
     long long unsigned int stcoNr;
+    long unsigned int timeOffset;
     bool keyframe;
   };
 

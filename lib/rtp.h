@@ -45,8 +45,7 @@ namespace RTP {
       void setTimestamp(unsigned int t);
       void increaseSequence();
       void sendH264(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel);
-      void sendAAC(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel);
-      void sendRaw(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel);
+      void sendData(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel, std::string codec);
       void sendRTCP(long long & connectedAt, void * socket,  unsigned int tid, DTSC::Meta & metadata, void callBack(void *, char *, unsigned int, unsigned int));
 
 

@@ -87,15 +87,15 @@ namespace Mist {
       callBack = sendTCP;
     }
     
-    if(myMeta.tracks[tid].codec == "AAC"){
-      tracks[tid].rtpPacket.setTimestamp(timestamp * ((double) myMeta.tracks[tid].rate / 1000.0));
-      tracks[tid].rtpPacket.sendAAC(socket, callBack, dataPointer, dataLen, tracks[tid].channel);
+    if(myMeta.tracks[tid].codec == "MP3"){
+      tracks[tid].rtpPacket.setTimestamp(timestamp * 90);
+      tracks[tid].rtpPacket.sendData(socket, callBack, dataPointer, dataLen, tracks[tid].channel, "MP3");
       return;
     }
 
-    if(myMeta.tracks[tid].codec == "MP3" || myMeta.tracks[tid].codec == "AC3"){
+    if( myMeta.tracks[tid].codec == "AC3" || myMeta.tracks[tid].codec == "AAC"){
       tracks[tid].rtpPacket.setTimestamp(timestamp * ((double) myMeta.tracks[tid].rate / 1000.0));
-      tracks[tid].rtpPacket.sendRaw(socket, callBack, dataPointer, dataLen, tracks[tid].channel);
+      tracks[tid].rtpPacket.sendData(socket, callBack, dataPointer, dataLen, tracks[tid].channel,myMeta.tracks[tid].codec);
       return;
     }
 
@@ -220,6 +220,7 @@ namespace Mist {
     //loop over all tracks, add them to the SDP.
     /// \todo Make sure this works correctly for multibitrate streams.
     for (std::map<unsigned int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); objIt ++) {
+      INFO_MSG("Codec: %s", objIt->second.codec.c_str());
       if (objIt->second.codec == "H264") {
         MP4::AVCC avccbox;
         avccbox.setPayload(objIt->second.init);
@@ -248,11 +249,12 @@ namespace Mist {
         transportString << "; mode=AAC-hbr; SizeLength=13; IndexLength=3; IndexDeltaLength=3;\r\n"
         "a=control:track" << objIt->second.trackID << "\r\n";
       }else if (objIt->second.codec == "MP3") {
-        transportString << "m=" << objIt->second.type << " 0 RTP/AVP 96" << "\r\n"
-        "a=rtpmap:14 MPA/" << objIt->second.rate << "/" << objIt->second.channels << "\r\n"
-        //"a=fmtp:96 streamtype=5; profile-level-id=15;";
-        //these values are described in RFC 3640
-        //transportString << " mode=AAC-hbr; SizeLength=13; IndexLength=3; IndexDeltaLength=3;\r\n"
+        transportString << "m=" << objIt->second.type << " 0 RTP/AVP 14" << "\r\n"
+        "a=rtpmap:14 MPA/90000/" << objIt->second.channels << "\r\n"
+        "a=control:track" << objIt->second.trackID << "\r\n";
+      }else if ( objIt->second.codec == "AC3") {
+        transportString << "m=" << objIt->second.type << " 0 RTP/AVP 100" << "\r\n"
+        "a=rtpmap:100 AC3/" << objIt->second.rate << "/" << objIt->second.channels << "\r\n"
         "a=control:track" << objIt->second.trackID << "\r\n";
       }
     }//for tracks iterator
@@ -268,8 +270,12 @@ namespace Mist {
     unsigned int SSrc = rand();
     if (myMeta.tracks[trId].codec == "H264") {
       tracks[trId].rtpPacket = RTP::Packet(97, 1, 0, SSrc);
-    }else if(myMeta.tracks[trId].codec == "AAC" || myMeta.tracks[trId].codec == "MP3"){
+    }else if(myMeta.tracks[trId].codec == "AAC"){
       tracks[trId].rtpPacket = RTP::Packet(96, 1, 0, SSrc);
+    }else if(myMeta.tracks[trId].codec == "AC3"){
+      tracks[trId].rtpPacket = RTP::Packet(100, 1, 0, SSrc);
+    }else if(myMeta.tracks[trId].codec == "MP3"){
+      tracks[trId].rtpPacket = RTP::Packet(14, 1, 0, SSrc);
     }else{
       DEBUG_MSG(DLVL_FAIL,"Unsupported codec for RTSP: %s",myMeta.tracks[trId].codec.c_str());
     }

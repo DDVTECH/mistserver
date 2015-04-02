@@ -33,9 +33,6 @@ macro(makeOutput outputName format)
   target_link_libraries( MistOut${outputName} mist )
 endmacro()
 
-set(lspSOURCES lsp/plugins/md5.js lsp/plugins/cattablesort.js lsp/mist.js)
-set(lspSOURCESmin lsp/plugins/jquery.js lsp/plugins/jquery.flot.min.js lsp/plugins/jquery.flot.time.min.js lsp/plugins/jquery.qrcode.min.js)
-set(lspDATA lsp/header.html lsp/main.css lsp/footer.html)
 SET(SOURCE_DIR ${PROJECT_SOURCE_DIR})
 SET(BINARY_DIR ${PROJECT_BINARY_DIR})
 include_directories(${SOURCE_DIR})
@@ -212,12 +209,21 @@ add_custom_target( embedcode
   VERBATIM
 )
 
-add_custom_target( lsp
-  ${SOURCE_DIR}/lsp/generateLSP.sh ${BINARY_DIR}/server.html "${CLOSURE}"
-  DEPENDS ${SOURCE_DIR}/lsp/generateLSP.sh ${lspSOURCES} ${lspSOURCESmin} ${lspDATA}
-  WORKING_DIRECTORY ${SOURCE_DIR}/lsp
-  VERBATIM
-)
+set(lspSOURCES ${SOURCE_DIR}/lsp/plugins/jquery.js ${SOURCE_DIR}/lsp/plugins/jquery.flot.min.js ${SOURCE_DIR}/lsp/plugins/jquery.flot.time.min.js ${SOURCE_DIR}/lsp/plugins/jquery.qrcode.min.js ${SOURCE_DIR}/lsp/minified.js)
+set(lspDATA lsp/header.html lsp/main.css lsp/footer.html)
+set(lspCode "")
+foreach (f ${lspSOURCES} )
+  file (READ ${f} s)
+  set (lspCode "${lspCode}${s}")
+endforeach()
+file(READ ${SOURCE_DIR}/lsp/main.css lspCSS)
+file(READ ${SOURCE_DIR}/lsp/header.html lspHeader)
+file(READ ${SOURCE_DIR}/lsp/footer.html lspFooter)
+file(WRITE ${SOURCE_DIR}/server.html "${lspHeader}<script>${lspCode}</script><style>${lspCSS}</style>${lspFooter}")
+set (lspCSS "")
+set (lspHeader "")
+set (lspFooter "")
+
 add_custom_target( localSettingsPage
   ./sourcery ${BINARY_DIR}/server.html server_html ${CMAKE_CURRENT_BINARY_DIR}/server.html.h
   DEPENDS sourcery lsp

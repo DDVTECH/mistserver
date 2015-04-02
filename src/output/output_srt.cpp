@@ -25,17 +25,17 @@ namespace Mist {
   void OutProgressiveSRT::sendNext(){
     char * dataPointer = 0;
     unsigned int len = 0;
-    currentPacket.getString("data", dataPointer, len);
+    thisPacket.getString("data", dataPointer, len);
     std::stringstream tmp;
     if(!webVTT) {
       tmp << lastNum++ << std::endl;
     }
-    long long unsigned int time = currentPacket.getTime();
+    long long unsigned int time = thisPacket.getTime();
     char tmpBuf[50];
     int tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu,%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << " --> ";
-    time += currentPacket.getInt("duration");
+    time += thisPacket.getInt("duration");
     tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu,%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << std::endl;

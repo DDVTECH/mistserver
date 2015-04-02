@@ -16,18 +16,20 @@ namespace Mist {
       void updateMeta();
       bool readHeader();
       void getNext(bool smart = true);
-      void updateMetaFromPage(int tNum, int pageNum);
+      void updateTrackMeta(unsigned long tNum);
+      void updateMetaFromPage(unsigned long tNum, unsigned long pageNum);
       void seek(int seekTime);
       void trackSelect(std::string trackSpec); 
       bool removeKey(unsigned int tid);
       void removeUnused();
+      void finish();
       void userCallback(char * data, size_t len, unsigned int id);
-      std::set<unsigned long> negotiateTracks;
-      std::set<unsigned long> givenTracks;
-      std::map<unsigned long, IPC::sharedPage> metaPages;
+      std::set<unsigned long> negotiatingTracks;
+      std::set<unsigned long> activeTracks;
+      std::map<unsigned long, unsigned long long> lastUpdated;
       ///Maps trackid to a pagenum->pageData map
-      std::map<unsigned long, std::map<unsigned long, DTSCPageData> > inputLoc;
-      std::map<unsigned long, char *> pushedLoc;
+      std::map<unsigned long, std::map<unsigned long, DTSCPageData> > bufferLocations;
+      std::map<unsigned long, char *> pushLocation;
       inputBuffer * singleton;
   };
 }

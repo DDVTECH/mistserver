@@ -31,7 +31,7 @@ namespace Mist {
   }
   
   void OutProgressiveFLV::sendNext(){
-    tag.DTSCLoader(currentPacket, myMeta.tracks[currentPacket.getTrackId()]);
+    tag.DTSCLoader(thisPacket, myMeta.tracks[thisPacket.getTrackId()]);
     myConn.SendNow(tag.data, tag.len); 
   }
 

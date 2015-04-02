@@ -105,11 +105,11 @@ namespace Mist {
     if (FLV::Parse_Error){
       FAIL_MSG("FLV error: %s", FLV::Error_Str.c_str());
       thisPack.null();
-      lastPack.null();
+      thisPacket.null();
       return;
     }
     std::string tmpStr = thisPack.toNetPacked();
-    lastPack.reInit(tmpStr.data(), tmpStr.size());
+    thisPacket.reInit(tmpStr.data(), tmpStr.size());
   }
 
   void inputFLV::seek(int seekTime) {

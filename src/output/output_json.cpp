@@ -26,7 +26,7 @@ namespace Mist {
       }
       first = false;
     }
-    myConn.SendNow(currentPacket.toJSON().toString());
+    myConn.SendNow(thisPacket.toJSON().toString());
   }
 
   void OutJSON::sendHeader(){

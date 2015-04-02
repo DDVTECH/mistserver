@@ -21,13 +21,14 @@ namespace Mist {
     }
   }
   
-  void Input::doNothing(char * data, size_t len, unsigned int id){
-    DEBUG_MSG(DLVL_DONTEVEN, "Doing 'nothing'");
+  void Input::callbackWrapper(char * data, size_t len, unsigned int id){    
     singleton->userCallback(data, 30, id);//call the userCallback for this input
   }
   
-  Input::Input(Util::Config * cfg){
+  Input::Input(Util::Config * cfg) : InOutBase() {
     config = cfg;
+    standAlone = true;
+    
     JSON::Value option;
     option["long"] = "json";
     option["short"] = "j";
@@ -52,7 +53,7 @@ namespace Mist {
     option["long"] = "stream";
     option["help"] = "The name of the stream that this connector will provide in player mode";
     config->addOption("streamname", option);
-
+    
     capa["optional"]["debug"]["name"] = "debug";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
@@ -97,8 +98,9 @@ namespace Mist {
     }
   }
 
-  int Input::run(){
-    if (config->getBool("json")){
+  int Input::run() {
+    streamName = config->getString("streamname");
+    if (config->getBool("json")) {
       std::cout << capa.toString() << std::endl;
       return 0;
     }
@@ -127,10 +129,10 @@ namespace Mist {
         long long int bpos = 0;
         seek(0);
         getNext();
-        while (lastPack){
-          newMeta.updatePosOverride(lastPack, bpos);
-          file.write(lastPack.getData(), lastPack.getDataLen());
-          bpos += lastPack.getDataLen();
+        while (thisPacket){
+          newMeta.updatePosOverride(thisPacket, bpos);
+          file.write(thisPacket.getData(), thisPacket.getDataLen());
+          bpos += thisPacket.getDataLen();
           getNext();
         }
         //close file
@@ -143,12 +145,9 @@ namespace Mist {
         DEBUG_MSG(DLVL_FAIL,"No filename specified, exiting");
       }
     }else{
-      //after this player functionality
-      metaPage.init(config->getString("streamname"), (isBuffer ? DEFAULT_META_PAGE_SIZE : myMeta.getSendLen()), true);
-      myMeta.writeTo(metaPage.mapped);
-      userPage.init(config->getString("streamname") + "_users", PLAY_EX_SIZE, true);
-      
-      
+      char userPageName[NAME_BUFFER_SIZE];
+      snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+      userPage.init(userPageName, PLAY_EX_SIZE, true);
       if (!isBuffer){
         for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
           bufferFrame(it->first, 1);
@@ -161,7 +160,7 @@ namespace Mist {
       while ((Util::bootSecs() - activityCounter) < 10){//10 second timeout
         Util::wait(1000);
         removeUnused();
-        userPage.parseEach(doNothing);
+        userPage.parseEach(callbackWrapper);
         if (userPage.amount){
           activityCounter = Util::bootSecs();
           DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.amount);
@@ -169,10 +168,25 @@ namespace Mist {
           DEBUG_MSG(DLVL_INSANE, "Timer running");
         }
       }
+      finish();
       DEBUG_MSG(DLVL_DEVEL,"Closing clean");
       //end player functionality
     }
     return 0;
+  }
+
+  void Input::finish(){
+    for( std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = pageCounter.begin(); it != pageCounter.end(); it++){
+      for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
+        it2->second = 1;
+      }
+    }
+    removeUnused();
+    if (standAlone){
+      for (std::map<unsigned long, IPC::sharedPage>::iterator it = metaPages.begin(); it != metaPages.end(); it++){
+        it->second.master = true;
+      }
+    }
   }
 
   void Input::removeUnused(){
@@ -185,12 +199,12 @@ namespace Mist {
         change = false;
         for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
           if (!it2->second){
-            dataPages[it->first].erase(it2->first);
+            bufferRemove(it->first, it2->first);
             pageCounter[it->first].erase(it2->first);
             for (int i = 0; i < 8192; i += 8){
-              unsigned int thisKeyNum = ntohl(((((long long int *)(indexPages[it->first].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
+              unsigned int thisKeyNum = ntohl(((((long long int *)(metaPages[it->first].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
               if (thisKeyNum == it2->first){
-                (((long long int *)(indexPages[it->first].mapped + i))[0]) = 0;
+                (((long long int *)(metaPages[it->first].mapped + i))[0]) = 0;
               }
             }
             change = true;
@@ -227,10 +241,6 @@ namespace Mist {
     }
     if (hasKeySizes){
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        char tmpId[20];
-        sprintf(tmpId, "%u", it->first);
-        DEBUG_MSG(DLVL_HIGH, "Making page %s", std::string(config->getString("streamname") + tmpId).c_str());
-        indexPages[it->first].init(config->getString("streamname") + tmpId, 8 * 1024, true);//Pages of 8kb in size, room for 512 parts.
         bool newData = true;
         for (int i = 0; i < it->second.keys.size(); i++){
           if (newData){
@@ -253,8 +263,8 @@ namespace Mist {
     seek(0);
     getNext();
 
-    while(lastPack){//loop through all
-      unsigned int tid = lastPack.getTrackId();
+    while(thisPacket){//loop through all
+      unsigned int tid = thisPacket.getTrackId();
       if (!tid){
         getNext(false);
         continue;
@@ -271,9 +281,6 @@ namespace Mist {
         curData[tid].curOffset = 0;
         curData[tid].firstTime = myMeta.tracks[tid].keys[0].getTime();
 
-        char tmpId[80];
-        snprintf(tmpId, 80, "%s%u", config->getString("streamname").c_str(), tid);
-        indexPages[tid].init(tmpId, 8 * 1024, true);//Pages of 8kb in size, room for 512 parts.
       }
       if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() + 1 == curData[tid].partNum){
         if (curData[tid].dataSize > FLIP_DATA_PAGE_SIZE) {          
@@ -287,10 +294,10 @@ namespace Mist {
         curData[tid].keyNum++;
         curData[tid].partNum = 0;
       }
-      curData[tid].dataSize += lastPack.getDataLen();
+      curData[tid].dataSize += thisPacket.getDataLen();
       curData[tid].partNum ++;
       bookKeeping[tid].curPart ++;      
-      DEBUG_MSG(DLVL_DONTEVEN, "Track %ld:%llu on page %d@%llu (len:%d), being part %d of key %d", lastPack.getTrackId(), lastPack.getTime(), bookKeeping[tid].first, curData[tid].dataSize, lastPack.getDataLen(), curData[tid].partNum, bookKeeping[tid].first+curData[tid].keyNum);
+      DEBUG_MSG(DLVL_DONTEVEN, "Track %ld:%llu on page %d@%llu (len:%d), being part %lu of key %lu", thisPacket.getTrackId(), thisPacket.getTime(), bookKeeping[tid].first, curData[tid].dataSize, thisPacket.getDataLen(), curData[tid].partNum, bookKeeping[tid].first+curData[tid].keyNum);
       getNext(false);
     }
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
@@ -304,8 +311,8 @@ namespace Mist {
 	DEBUG_MSG(DLVL_WARN, "No pages for track %d found", it->first);
       }else{
 	DEBUG_MSG(DLVL_MEDIUM, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), pagesByTrack[it->first].size());
-	for (std::map<int, DTSCPageData>::iterator it2 = pagesByTrack[it->first].begin(); it2 != pagesByTrack[it->first].end(); it2++){
-	  DEBUG_MSG(DLVL_VERYHIGH, "Page %u-%u, (%llu bytes)", it2->first, it2->first + it2->second.keyNum - 1, it2->second.dataSize);
+	for (std::map<unsigned long, DTSCPageData>::iterator it2 = pagesByTrack[it->first].begin(); it2 != pagesByTrack[it->first].end(); it2++){
+	  DEBUG_MSG(DLVL_VERYHIGH, "Page %lu-%lu, (%llu bytes)", it2->first, it2->first + it2->second.keyNum - 1, it2->second.dataSize);
 	}
       }
     }
@@ -313,79 +320,71 @@ namespace Mist {
   
   
   bool Input::bufferFrame(unsigned int track, unsigned int keyNum){
+    if (keyNum >= myMeta.tracks[track].keys.size()){
+      //End of movie here, returning true to avoid various error messages
+      return true;
+    }
     if (keyNum < 1){keyNum = 1;}
+    if (isBuffered(track, keyNum)){
+      //get corresponding page number
+      int pageNumber = 0;
+      for (std::map<unsigned long, DTSCPageData>::iterator it = pagesByTrack[track].begin(); it != pagesByTrack[track].end(); it++){
+        if (it->first <= keyNum){
+          pageNumber = it->first;
+        }else{
+          break;
+        }
+      }
+      pageCounter[track][pageNumber] = 15;
+      return true;
+    }
     if (!pagesByTrack.count(track)){
       return false;
     }
-    std::map<int, DTSCPageData>::iterator it = pagesByTrack[track].upper_bound(keyNum);
-    if (it != pagesByTrack[track].begin()){
-      it--;
+    //Update keynum to point to the corresponding page
+    INFO_MSG("Updating keynum %u to %lu", keyNum, (--(pagesByTrack[track].upper_bound(keyNum)))->first);
+    keyNum = (--(pagesByTrack[track].upper_bound(keyNum)))->first;
+    if (!bufferStart(track, keyNum)){
+      return false;
     }
-    unsigned int pageNum = it->first;
-    pageCounter[track][pageNum] = 15;///Keep page 15seconds in memory after last use
-    
-    DEBUG_MSG(DLVL_DONTEVEN, "Attempting to buffer page %u key %d->%d", track, keyNum, pageNum);
-    if (dataPages[track].count(pageNum)){
-      return true;
-    }
-    char pageId[100];
-    int pageIdLen = snprintf(pageId, 100, "%s%u_%u", config->getString("streamname").c_str(), track, pageNum);
-    std::string tmpString(pageId, pageIdLen);
-    dataPages[track][pageNum].init(tmpString, it->second.dataSize, true);
-    DEBUG_MSG(DLVL_HIGH, "Buffering track %u page %u through %u datasize: %llu", track, pageNum, pageNum-1 + it->second.keyNum, it->second.dataSize);
 
     std::stringstream trackSpec;
     trackSpec << track;
     trackSelect(trackSpec.str());
-    unsigned int keyIndex = pageNum-1;
-    //if (keyIndex > 0){++keyIndex;}
-    long long unsigned int startTime = myMeta.tracks[track].keys[keyIndex].getTime();
+    seek(myMeta.tracks[track].keys[keyNum - 1].getTime());
     long long unsigned int stopTime = myMeta.tracks[track].lastms + 1;
-    if ((int)myMeta.tracks[track].keys.size() > keyIndex + it->second.keyNum){
-      stopTime = myMeta.tracks[track].keys[keyIndex + it->second.keyNum].getTime();
+    if ((int)myMeta.tracks[track].keys.size() > keyNum - 1 + pagesByTrack[track][keyNum].keyNum){
+      stopTime = myMeta.tracks[track].keys[keyNum - 1 + pagesByTrack[track][keyNum].keyNum].getTime();
     }
-    DEBUG_MSG(DLVL_HIGH, "Buffering track %d from %d (%llus) to %d (%llus)", track, pageNum, startTime, pageNum-1 + it->second.keyNum, stopTime);
-    seek(startTime);
-    it->second.curOffset = 0;
+    DEBUG_MSG(DLVL_HIGH, "Playing from %llu to %llu", myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime);
     getNext();
     //in case earlier seeking was inprecise, seek to the exact point
-    while (lastPack && lastPack.getTime() < startTime){
+    while (thisPacket && thisPacket.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()){
       getNext();
     }
-    while (lastPack && lastPack.getTime() < stopTime){
-      if (it->second.curOffset + lastPack.getDataLen() > pagesByTrack[track][pageNum].dataSize){
-        DEBUG_MSG(DLVL_WARN, "Trying to write %u bytes on pos %llu where size is %llu (time: %llu / %llu, track %u page %u)", lastPack.getDataLen(), it->second.curOffset, pagesByTrack[track][pageNum].dataSize, lastPack.getTime(), stopTime, track, pageNum);
-        break;
-      }else{
-//        DEBUG_MSG(DLVL_WARN, "Writing %u bytes on pos %llu where size is %llu (time: %llu / %llu, track %u page %u)", lastPack.getDataLen(), it->second.curOffset, pagesByTrack[track][pageNum].dataSize, lastPack.getTime(), stopTime, track, pageNum);
-        memcpy(dataPages[track][pageNum].mapped + it->second.curOffset, lastPack.getData(), lastPack.getDataLen());
-        it->second.curOffset += lastPack.getDataLen();
-      }
+    while (thisPacket && thisPacket.getTime() < stopTime){
+      bufferNext(thisPacket);
       getNext();
     }
-    for (int i = 0; i < indexPages[track].len / 8; i++){
-      if (((long long int*)indexPages[track].mapped)[i] == 0){
-        ((long long int*)indexPages[track].mapped)[i] = (((long long int)htonl(pageNum)) << 32) | htonl(it->second.keyNum);
-        break;
-      }
-    }
-    DEBUG_MSG(DLVL_HIGH, "Done buffering page %u for track %u", pageNum, track);
+    bufferFinalize(track);
+    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d for track %d", keyNum, track);
+    pageCounter[track][keyNum] = 15;
     return true;
   }
   
   bool Input::atKeyFrame(){
     static std::map<int, unsigned long long> lastSeen;
     //not in keyTimes? We're not at a keyframe.
-    unsigned int c = keyTimes[lastPack.getTrackId()].count(lastPack.getTime());
+    unsigned int c = keyTimes[thisPacket.getTrackId()].count(thisPacket.getTime());
     if (!c){
       return false;
     }
     //skip double times
-    if (lastSeen.count(lastPack.getTrackId()) && lastSeen[lastPack.getTrackId()] == lastPack.getTime()){
+    if (lastSeen.count(thisPacket.getTrackId()) && lastSeen[thisPacket.getTrackId()] == thisPacket.getTime()){
       return false;
     }
     //set last seen, and return true
-    lastSeen[lastPack.getTrackId()] = lastPack.getTime();
+    lastSeen[thisPacket.getTrackId()] = thisPacket.getTime();
     return true;
   }
   

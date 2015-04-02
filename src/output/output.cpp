@@ -13,7 +13,6 @@
 #include "output.h"
 
 namespace Mist {
-  Util::Config * Output::config = NULL;
   JSON::Value Output::capa = JSON::Value();
 
   int getDTSCLen(char * mapped, long long int offset){
@@ -61,13 +60,15 @@ namespace Mist {
 
   void Output::updateMeta(){
     //read metadata from page to myMeta variable
-    IPC::semaphore liveMeta(std::string("liveMeta@" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    static char liveSemName[NAME_BUFFER_SIZE];
+    snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
+    IPC::semaphore liveMeta(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     bool lock = myMeta.live;
     if (lock){
       liveMeta.wait();
     }
-    if (streamIndex.mapped){
-      DTSC::Packet tmpMeta(streamIndex.mapped, streamIndex.len, true);
+    if (metaPages[0].mapped){
+      DTSC::Packet tmpMeta(metaPages[0].mapped, metaPages[0].len, true);
       if (tmpMeta.getVersion()){
         myMeta.reinit(tmpMeta);
       }
@@ -85,150 +86,11 @@ namespace Mist {
     myConn.close();
   }
 
-  void Output::negotiateWithBuffer(int tid){
-    //Check whether the track exists
-    if (!meta_out.tracks.count(tid)) {
-      return;
-    }
-    //Do not re-negotiate already confirmed tracks
-    if (trackMap.count(tid)){
-      return;
-    }
-    //Do not re-negotiate if already at maximum for push tracks
-    if (trackMap.size() >= 5){
-      DEBUG_MSG(DLVL_FAIL, "Failed to negotiate for incoming track %d, already at maximum number of tracks", tid);
-      return;
-    }
-
-    char * tmp = playerConn.getData();
-    if (!tmp){
-      DEBUG_MSG(DLVL_FAIL, "Failed to negotiate for incoming track %d, there does not seem to be a connection with the buffer", tid);
-      return;
-    }
-    int bufConnOffset = trackMap.size();
-    DEBUG_MSG(DLVL_DEVEL, "Starting negotiation for incoming track %d, at offset %d", tid, bufConnOffset);
-    memset(tmp + 6 * bufConnOffset, 0, 4);
-    tmp[6 * bufConnOffset] = 0x80;
-    tmp[6 * bufConnOffset + 4] = 0xFF;
-    tmp[6 * bufConnOffset + 5] = 0xFF;
-    playerConn.keepAlive();
-    unsigned int newTid = 0x80000000u;
-    while (newTid == 0x80000000u){
-      Util::sleep(100);
-      newTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
-    }
-    DEBUG_MSG(DLVL_VERYHIGH, "Track %d temporarily mapped to %d", tid, newTid);
-
-    char pageName[100];
-    sprintf(pageName, "liveStream_%s%d", streamName.c_str(), newTid); 
-    IPC::sharedPage metaPage(pageName, 8 * 1024 * 1024);
-    DTSC::Meta tmpMeta = meta_out;
-    tmpMeta.tracks.clear();
-    tmpMeta.tracks[newTid] = meta_out.tracks[tid];
-    tmpMeta.tracks[newTid].trackID = newTid;
-    JSON::Value tmpVal = tmpMeta.toJSON();
-    std::string tmpStr = tmpVal.toNetPacked();
-    memcpy(metaPage.mapped, tmpStr.data(), tmpStr.size());
-    DEBUG_MSG(DLVL_VERYHIGH, "Temporary metadata written for incoming track %d, handling as track %d", tid, newTid);
-
-    unsigned short firstPage = 0xFFFF;
-    unsigned int finalTid = newTid;
-    while (firstPage == 0xFFFF){
-      DEBUG_MSG(DLVL_VERYHIGH, "Re-checking at offset %d",  bufConnOffset);
-      Util::sleep(100);
-      finalTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
-      firstPage = ((long)(tmp[6 * bufConnOffset + 4]) << 8) | tmp[6 * bufConnOffset + 5];
-      if (finalTid == 0xFFFFFFFF){
-        WARN_MSG("Buffer has declined incoming track %d", tid);
-        return;
-      }
-    }
-    //Reinitialize so we make sure we got the right values here
-    finalTid = ((long)(tmp[6 * bufConnOffset]) << 24) |  ((long)(tmp[6 * bufConnOffset + 1]) << 16) | ((long)(tmp[6 * bufConnOffset + 2]) << 8) | tmp[6 * bufConnOffset + 3];
-    firstPage = ((long)(tmp[6 * bufConnOffset + 4]) << 8) | tmp[6 * bufConnOffset + 5];
-    if (finalTid == 0xFFFFFFFF){
-      WARN_MSG("Buffer has declined incoming track %d", tid);
-      memset(tmp + 6 * bufConnOffset, 0, 6);
-      return;
-    }
-
-    INFO_MSG("Buffer has indicated that incoming track %d should start writing on track %d, page %d", tid, finalTid, firstPage);
-    memset(pageName, 0, 100);
-    sprintf(pageName, "%s%d_%d", streamName.c_str(), finalTid, firstPage);
-    curPages[finalTid].init(pageName, DEFAULT_DATA_PAGE_SIZE);
-    trackMap[tid] = finalTid;
-    bookKeeping[finalTid] = DTSCPageData();
-  }
-  
-
-  void Output::negotiatePushTracks() {
-    int i = 0;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = meta_out.tracks.begin(); it != meta_out.tracks.end() && i < 5; it++){
-      negotiateWithBuffer(it->first);
-      i++;
-    }
-  }
-
-  void Output::bufferPacket(JSON::Value & pack){
-    if (!pack["trackid"].asInt()){return;}
-    if (myMeta.tracks[pack["trackid"].asInt()].type != "video"){
-      if ((pack["time"].asInt() - bookKeeping[trackMap[pack["trackid"].asInt()]].lastKeyTime) >= 5000){
-        pack["keyframe"] = 1LL;
-        bookKeeping[trackMap[pack["trackid"].asInt()]].lastKeyTime = pack["time"].asInt();
-      }
-    }
-    if (pack["trackid"].asInt() == 0){
-      return;
-    }
-    //Re-negotiate declined tracks on each keyframe, to compensate for "broken" tracks
-    if (!trackMap.count(pack["trackid"].asInt()) || !trackMap[pack["trackid"].asInt()]){
-      if (pack.isMember("keyframe") && pack["keyframe"]){
-        negotiateWithBuffer(pack["trackid"].asInt());
-      }
-    }
-    if (!trackMap.count(pack["trackid"].asInt()) || !trackMap[pack["trackid"].asInt()]){
-      //declined track;
-      return;
-    }
-    pack["trackid"] = trackMap[pack["trackid"].asInt()];
-    long long unsigned int tNum = pack["trackid"].asInt();
-    if (!bookKeeping.count(tNum)){
-      return;
-    }
-    int pageNum = bookKeeping[tNum].pageNum;
-    std::string tmp = pack.toNetPacked();
-    if (bookKeeping[tNum].curOffset > FLIP_DATA_PAGE_SIZE && pack.isMember("keyframe") && pack["keyframe"]){
-      //open new page
-      char nextPage[100];
-      sprintf(nextPage, "%s%llu_%d", streamName.c_str(), tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum);
-      INFO_MSG("Continuing track %llu on page %d, from pos %llu", tNum, bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum, bookKeeping[tNum].curOffset);
-      curPages[tNum].init(nextPage, DEFAULT_DATA_PAGE_SIZE);
-      bookKeeping[tNum].pageNum += bookKeeping[tNum].keyNum;
-      bookKeeping[tNum].keyNum = 0;
-      bookKeeping[tNum].curOffset = 0;
-    }
-    if (!curPages[tNum].mapped){
-      //prevent page init failures from crashing everything.
-      myConn.close();//closes the connection to trigger a clean shutdown
-      return;
-    }
-    if (bookKeeping[tNum].curOffset + tmp.size() < (unsigned long long)curPages[tNum].len){
-      bookKeeping[tNum].keyNum += (pack.isMember("keyframe") && pack["keyframe"]);
-      memcpy(curPages[tNum].mapped + bookKeeping[tNum].curOffset, tmp.data(), tmp.size());
-      bookKeeping[tNum].curOffset += tmp.size();
-    }else{
-      bookKeeping[tNum].curOffset += tmp.size();
-      DEBUG_MSG(DLVL_WARN, "Can't buffer frame on page %d, track %llu, time %lld, keyNum %d, offset %llu", pageNum, tNum, pack["time"].asInt(), bookKeeping[tNum].pageNum + bookKeeping[tNum].keyNum, bookKeeping[tNum].curOffset);
-    }
-  }
-
-
-  
   void Output::initialize(){
     if (isInitialized){
       return;
     }
-    if (streamIndex.mapped){
+    if (metaPages[0].mapped){
       return;
     }
     if (streamName.size() < 1){
@@ -240,14 +102,20 @@ namespace Mist {
       return;
     }
     isInitialized = true;
-    streamIndex.init(streamName, DEFAULT_META_PAGE_SIZE);
-    if (!streamIndex.mapped){
+    char pageId[NAME_BUFFER_SIZE];
+    snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
+    metaPages[0].init(pageId, DEFAULT_META_PAGE_SIZE);
+    if (!metaPages[0].mapped){
       DEBUG_MSG(DLVL_FAIL, "Could not connect to server for %s\n", streamName.c_str());
       onFail();
       return;
     }
-    statsPage = IPC::sharedClient("statistics", STAT_EX_SIZE, true);
-    playerConn = IPC::sharedClient(streamName + "_users", PLAY_EX_SIZE , true);
+    statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
+    char userPageName[NAME_BUFFER_SIZE];
+    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+    if (!userClient.getData()){
+      userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+    }
     updateMeta();
     selectDefaultTracks();
     sought = false;
@@ -259,14 +127,14 @@ namespace Mist {
       return;
     }
     //check which tracks don't actually exist
-    std::set<long unsigned int> toRemove;
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    std::set<unsigned long> toRemove;
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (!myMeta.tracks.count(*it)){
         toRemove.insert(*it);
       }
     }
     //remove those from selectedtracks
-    for (std::set<long unsigned int>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
+    for (std::set<unsigned long>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
       selectedTracks.erase(*it);
     }
     
@@ -282,7 +150,7 @@ namespace Mist {
           if ((*itb).size() > 0){
             bool found = false;
             for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
-              for (std::set<long unsigned int>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
+              for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
                 if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
                   selCounter++;
                   found = true;
@@ -321,12 +189,10 @@ namespace Mist {
         if ((*itb).size() && myMeta.tracks.size()){
           bool found = false;
           for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
-            if (selectedTracks.size()){
-              for (std::set<long unsigned int>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-                if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
-                  found = true;
-                  break;
-                }
+            for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
+              if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
+                found = true;
+                break;
               }
             }
             if (!found){
@@ -385,17 +251,17 @@ namespace Mist {
   }
   
   int Output::pageNumForKey(long unsigned int trackId, long long int keyNum){
-    if (!indexPages.count(trackId)){
-      char id[100];
-      sprintf(id, "%s%lu", streamName.c_str(), trackId);
-      indexPages[trackId].init(id, 8 * 1024);
+    if (!metaPages.count(trackId)){
+      char id[NAME_BUFFER_SIZE];
+      snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), trackId);
+      metaPages[trackId].init(id, 8 * 1024);
     }
-    char * mpd = indexPages[trackId].mapped;
-    int len = indexPages[trackId].len / 8;
+    int len = metaPages[trackId].len / 8;
     for (int i = 0; i < len; i++){
-      long amountKey = ntohl((((long long int*)mpd)[i]) & 0xFFFFFFFF);
+      int * tmpOffset = (int *)(metaPages[trackId].mapped + (i * 8));
+      long amountKey = ntohl(tmpOffset[1]);
       if (amountKey == 0){continue;}
-      long tmpKey = ntohl(((((long long int*)mpd)[i]) >> 32) & 0xFFFFFFFF);
+      long tmpKey = ntohl(tmpOffset[0]);
       if (tmpKey <= keyNum && ((tmpKey?tmpKey:1) + amountKey) > keyNum){
         return tmpKey;
       }
@@ -405,20 +271,20 @@ namespace Mist {
   
   void Output::loadPageForKey(long unsigned int trackId, long long int keyNum){
     if (myMeta.vod && keyNum > myMeta.tracks[trackId].keys.rbegin()->getNumber()){
-      curPages.erase(trackId);
+      curPage.erase(trackId);
       currKeyOpen.erase(trackId);
       return;
     }
     DEBUG_MSG(DLVL_HIGH, "Loading track %lu, containing key %lld", trackId, keyNum);
     unsigned int timeout = 0;
-    int pageNum = pageNumForKey(trackId, keyNum);
+    unsigned long pageNum = pageNumForKey(trackId, keyNum);
     while (pageNum == -1){
       if (!timeout){
         DEBUG_MSG(DLVL_DEVEL, "Requesting/waiting for page that has key %lu:%lld...", trackId, keyNum);
       }
       if (timeout++ > 100){
         DEBUG_MSG(DLVL_FAIL, "Timeout while waiting for requested page. Aborting.");
-        curPages.erase(trackId);
+        curPage.erase(trackId);
         currKeyOpen.erase(trackId);
         return;
       }
@@ -443,11 +309,11 @@ namespace Mist {
     if (currKeyOpen.count(trackId) && currKeyOpen[trackId] == (unsigned int)pageNum){
       return;
     }
-    char id[100];
-    snprintf(id, 100, "%s%lu_%d", streamName.c_str(), trackId, pageNum);
-    curPages[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
-    if (!(curPages[trackId].mapped)){
-      DEBUG_MSG(DLVL_FAIL, "Initializing page %s failed", curPages[trackId].name.c_str());
+    char id[NAME_BUFFER_SIZE];
+    snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
+    curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
+    if (!(curPage[trackId].mapped)){
+      DEBUG_MSG(DLVL_FAIL, "Initializing page %s failed", curPage[trackId].name.c_str());
       return;
     }
     currKeyOpen[trackId] = pageNum;
@@ -461,8 +327,10 @@ namespace Mist {
       initialize();
     }
     buffer.clear();
-    currentPacket.null();
-    updateMeta();
+    thisPacket.null();
+    if (myMeta.live){
+      updateMeta();
+    }
     DEBUG_MSG(DLVL_MEDIUM, "Seeking to %llums", pos);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       seek(*it, pos);
@@ -471,7 +339,7 @@ namespace Mist {
 
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
     loadPageForKey(tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
-    if (!curPages.count(tid) || !curPages[tid].mapped){
+    if (!curPage.count(tid) || !curPage[tid].mapped){
       DEBUG_MSG(DLVL_DEVEL, "Aborting seek to %llums in track %u, not available.", pos, tid);
       return false;
     }
@@ -479,9 +347,9 @@ namespace Mist {
     tmp.tid = tid;
     tmp.offset = 0;
     DTSC::Packet tmpPack;
-    tmpPack.reInit(curPages[tid].mapped + tmp.offset, 0, true);
+    tmpPack.reInit(curPage[tid].mapped + tmp.offset, 0, true);
     tmp.time = tmpPack.getTime();
-    char * mpd = curPages[tid].mapped;
+    char * mpd = curPage[tid].mapped;
     while ((long long)tmp.time < pos && tmpPack){
       tmp.offset += tmpPack.getDataLen();
       tmpPack.reInit(mpd + tmp.offset, 0, true);
@@ -492,15 +360,15 @@ namespace Mist {
       return true;
     }else{
       //don't print anything for empty packets - not sign of corruption, just unfinished stream.
-      if (curPages[tid].mapped[tmp.offset] != 0){
+      if (curPage[tid].mapped[tmp.offset] != 0){
         DEBUG_MSG(DLVL_FAIL, "Noes! Couldn't find packet on track %d because of some kind of corruption error or somesuch.", tid);
       }else{
         DEBUG_MSG(DLVL_FAIL, "Track %d no data (key %u @ %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         unsigned int i = 0;
-        while (curPages[tid].mapped[tmp.offset] == 0 && ++i < 42){
+        while (curPage[tid].mapped[tmp.offset] == 0 && ++i < 42){
           Util::wait(100);
         }
-        if (curPages[tid].mapped[tmp.offset] == 0){
+        if (curPage[tid].mapped[tmp.offset] == 0){
           DEBUG_MSG(DLVL_FAIL, "Track %d no data (key %u) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
         }else{
           return seek(tid, pos, getNextKey);
@@ -539,7 +407,7 @@ namespace Mist {
           sendHeader();
         }
         prepareNext();
-        if (currentPacket){
+        if (thisPacket){
           sendNext();
         }else{
           if (!onFinish()){
@@ -550,7 +418,7 @@ namespace Mist {
     }
     DEBUG_MSG(DLVL_MEDIUM, "MistOut client handler shutting down: %s, %s, %s", myConn.connected() ? "conn_active" : "conn_closed", wantRequest ? "want_request" : "no_want_request", parseData ? "parsing_data" : "not_parsing_data");
     stats();
-    playerConn.finish();
+    userClient.finish();
     statsPage.finish();
     myConn.close();
     return 0;
@@ -575,7 +443,22 @@ namespace Mist {
     if (!sought){
       if (myMeta.live){
         long unsigned int mainTrack = getMainSelectedTrack();
-        unsigned long long seekPos = myMeta.tracks[mainTrack].keys.begin()->getTime();
+        if (myMeta.tracks[mainTrack].keys.size() < 2){
+          if (!myMeta.tracks[mainTrack].keys.size()){
+            myConn.close();
+            return;
+          }else{
+            seek(myMeta.tracks[mainTrack].keys.begin()->getTime());
+            prepareNext();
+            return;
+          }
+        }
+        unsigned int skip = ((myMeta.tracks[mainTrack].keys.size()-1) * config->getInteger("startpos")) / 1000u;
+        std::deque<DTSC::Key>::iterator it = myMeta.tracks[mainTrack].keys.begin();
+        for (unsigned int i = 0; i < skip; ++i){
+          ++it;
+        }
+        unsigned long long seekPos = it->getTime();
         if (seekPos < 5000){
           seekPos = 0;
         }
@@ -586,7 +469,7 @@ namespace Mist {
     }
     static unsigned int emptyCount = 0;
     if (!buffer.size()){
-      currentPacket.null();
+      thisPacket.null();
       DEBUG_MSG(DLVL_DEVEL, "Buffer completely played out");
       onFinish();
       return;
@@ -596,15 +479,15 @@ namespace Mist {
 
     DEBUG_MSG(DLVL_DONTEVEN, "Loading track %u (next=%lu), %llu ms", nxt.tid, nxtKeyNum[nxt.tid], nxt.time);
     
-    if (nxt.offset >= curPages[nxt.tid].len){
-      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, currentPacket.getTime());
+    if (nxt.offset >= curPage[nxt.tid].len){
+      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
-      if (curPages.count(nxt.tid) && curPages[nxt.tid].mapped){
-        if (getDTSCTime(curPages[nxt.tid].mapped, nxt.offset) < nxt.time){
+      if (curPage.count(nxt.tid) && curPage[nxt.tid].mapped){
+        if (getDTSCTime(curPage[nxt.tid].mapped, nxt.offset) < nxt.time){
           ERROR_MSG("Time going backwards in track %u - dropping track.", nxt.tid);
         }else{
-          nxt.time = getDTSCTime(curPages[nxt.tid].mapped, nxt.offset);
+          nxt.time = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset);
           buffer.insert(nxt);
         }
         prepareNext();
@@ -612,7 +495,7 @@ namespace Mist {
       }
     }
     
-    if (!curPages.count(nxt.tid) || !curPages[nxt.tid].mapped){
+    if (!curPage.count(nxt.tid) || !curPage[nxt.tid].mapped){
       //mapping failure? Drop this track and go to next.
       //not an error - usually means end of stream.
       DEBUG_MSG(DLVL_DEVEL, "Track %u no page - dropping track.", nxt.tid);
@@ -621,7 +504,7 @@ namespace Mist {
     }
     
     //have we arrived at the end of the memory page? (4 zeroes mark the end)
-    if (!memcmp(curPages[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4)){
+    if (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4)){
       //if we don't currently know where we are, we're lost. We should drop the track.
       if (!nxt.time){
         DEBUG_MSG(DLVL_DEVEL, "Timeless empty packet on track %u - dropping track.", nxt.tid);
@@ -645,11 +528,11 @@ namespace Mist {
         updateMeta();
       }else{
         //if we're not live, we've simply reached the end of the page. Load the next key.
-        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, currentPacket.getTime());
+        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
         loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
         nxt.offset = 0;
-        if (curPages.count(nxt.tid) && curPages[nxt.tid].mapped){
-          unsigned long long nextTime = getDTSCTime(curPages[nxt.tid].mapped, nxt.offset);
+        if (curPage.count(nxt.tid) && curPage[nxt.tid].mapped){
+          unsigned long long nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset);
           if (nextTime && nextTime < nxt.time){
             DEBUG_MSG(DLVL_DEVEL, "Time going backwards in track %u - dropping track.", nxt.tid);
           }else{
@@ -666,29 +549,29 @@ namespace Mist {
       prepareNext();
       return;
     }
-    currentPacket.reInit(curPages[nxt.tid].mapped + nxt.offset, 0, true);
-    if (currentPacket){
-      if (currentPacket.getTime() != nxt.time && nxt.time){
-        DEBUG_MSG(DLVL_MEDIUM, "ACTUALLY Loaded track %ld (next=%lu), %llu ms", currentPacket.getTrackId(), nxtKeyNum[nxt.tid], currentPacket.getTime());
+    thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+    if (thisPacket){
+      if (thisPacket.getTime() != nxt.time && nxt.time){
+        DEBUG_MSG(DLVL_MEDIUM, "ACTUALLY Loaded track %ld (next=%lu), %llu ms", thisPacket.getTrackId(), nxtKeyNum[nxt.tid], thisPacket.getTime());
       }
-      if ((myMeta.tracks[nxt.tid].type == "video" && currentPacket.getFlag("keyframe")) || (++nonVideoCount % 30 == 0)){
+      if ((myMeta.tracks[nxt.tid].type == "video" && thisPacket.getFlag("keyframe")) || (++nonVideoCount % 30 == 0)){
         if (myMeta.live){
           updateMeta();
         }
-        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, currentPacket.getTime());
-        DEBUG_MSG(DLVL_VERYHIGH, "Track %u @ %llums = key %lu", nxt.tid, currentPacket.getTime(), nxtKeyNum[nxt.tid]);
+        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
+        DEBUG_MSG(DLVL_VERYHIGH, "Track %u @ %llums = key %lu", nxt.tid, thisPacket.getTime(), nxtKeyNum[nxt.tid]);
       }
       emptyCount = 0;
     }
-    nxt.offset += currentPacket.getDataLen();
+    nxt.offset += thisPacket.getDataLen();
     if (realTime){
       while (nxt.time > (Util::getMS() - firstTime + maxSkipAhead)*1000/realTime) {
         Util::sleep(nxt.time - (Util::getMS() - firstTime + minSkipAhead)*1000/realTime);
       }
     }
-    if (curPages[nxt.tid]){
-      if (nxt.offset < curPages[nxt.tid].len){
-        unsigned long long nextTime = getDTSCTime(curPages[nxt.tid].mapped, nxt.offset);
+    if (curPage[nxt.tid]){
+      if (nxt.offset < curPage[nxt.tid].len){
+        unsigned long long nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset);
         if (nextTime){
           nxt.time = nextTime;
         }else{
@@ -721,8 +604,8 @@ namespace Mist {
         tmpEx.up(myConn.dataUp());
         tmpEx.down(myConn.dataDown());
         tmpEx.time(now - myConn.connTime());
-        if (currentPacket){
-          tmpEx.lastSecond(currentPacket.getTime());
+        if (thisPacket){
+          tmpEx.lastSecond(thisPacket.getTime());
         }else{
           tmpEx.lastSecond(0);
         }
@@ -730,18 +613,20 @@ namespace Mist {
       }
     }
     int tNum = 0;
-    if (!playerConn.getData()){
-      playerConn = IPC::sharedClient(streamName + "_users", PLAY_EX_SIZE, true);
-      if (!playerConn.getData()){
+    if (!userClient.getData()){
+      char userPageName[NAME_BUFFER_SIZE];
+      snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+      userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+      if (!userClient.getData()){
         DEBUG_MSG(DLVL_WARN, "Player connection failure - aborting output");
         myConn.close();
         return;
       }
     }
     if (trackMap.size()){
-      for (std::map<int, int>::iterator it = trackMap.begin(); it != trackMap.end() && tNum < 5; it++){
+      for (std::map<unsigned long, unsigned long>::iterator it = trackMap.begin(); it != trackMap.end() && tNum < 5; it++){
         unsigned int tId = it->second;
-        char * thisData = playerConn.getData() + (6 * tNum);
+        char * thisData = userClient.getData() + (6 * tNum);
         thisData[0] = ((tId >> 24) & 0xFF);
         thisData[1] = ((tId >> 16) & 0xFF);
         thisData[2] = ((tId >> 8) & 0xFF);
@@ -753,7 +638,7 @@ namespace Mist {
     }else{
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < 5; it++){
         unsigned int tId = *it;
-        char * thisData = playerConn.getData() + (6 * tNum);
+        char * thisData = userClient.getData() + (6 * tNum);
         thisData[0] = ((tId >> 24) & 0xFF);
         thisData[1] = ((tId >> 16) & 0xFF);
         thisData[2] = ((tId >> 8) & 0xFF);
@@ -763,7 +648,7 @@ namespace Mist {
         tNum ++;
       }
     }
-    playerConn.keepAlive();
+    userClient.keepAlive();
     if (tNum >= 5){
       DEBUG_MSG(DLVL_WARN, "Too many tracks selected, using only first 5");
     }
@@ -779,5 +664,4 @@ namespace Mist {
     //just set the sentHeader bool to true, by default
     sentHeader = true;
   }
-  
 }

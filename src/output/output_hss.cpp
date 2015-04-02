@@ -65,7 +65,7 @@ namespace Mist {
   }
 
   void OutHSS::sendNext() {
-    if (currentPacket.getTime() >= playUntil) {
+    if (thisPacket.getTime() >= playUntil) {
       stop();
       wantRequest = true;
       H.Chunkify("", 0, myConn);
@@ -74,7 +74,7 @@ namespace Mist {
     }
     char * dataPointer = 0;
     unsigned int len = 0;
-    currentPacket.getString("data", dataPointer, len);
+    thisPacket.getString("data", dataPointer, len);
     H.Chunkify(dataPointer, len, myConn);
   }
 
@@ -149,7 +149,13 @@ namespace Mist {
       }
     }
     seek(seekTime);
-    playUntil = (*(keyTimes[tid].upper_bound(seekTime)));
+    ///\todo Rewrite to fragments
+    for (std::deque<DTSC::Key>::iterator it2 = myMeta.tracks[tid].keys.begin(); it2 != myMeta.tracks[tid].keys.end(); it2++) {
+      if (it2->getTime() > seekTime){
+        playUntil = it2->getTime();
+        break;
+      }
+    }
     myTrackStor = tid;
     myKeyStor = seekTime;
     keysToSend = 1;
@@ -450,11 +456,6 @@ namespace Mist {
 
   void OutHSS::initialize() {
     Output::initialize();
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      for (std::deque<DTSC::Key>::iterator it2 = it->second.keys.begin(); it2 != it->second.keys.end(); it2++) {
-        keyTimes[it->first].insert(it2->getTime());
-      }
-    }
   }
 
 }

@@ -59,7 +59,7 @@ namespace Mist {
   }
   
   void OutRaw::sendNext(){
-    myConn.SendNow(currentPacket.getData(), currentPacket.getDataLen());
+    myConn.SendNow(thisPacket.getData(), thisPacket.getDataLen());
   }
 
   void OutRaw::sendHeader(){

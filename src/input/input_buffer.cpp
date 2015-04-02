@@ -12,6 +12,10 @@
 
 #include "input_buffer.h"
 
+#ifndef TIMEOUTMULTIPLIER
+#define TIMEOUTMULTIPLIER 10
+#endif
+
 namespace Mist {
   inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "Buffer";
@@ -37,49 +41,57 @@ namespace Mist {
     singleton = this;
     bufferTime = 0;
     cutTime = 0;
-    
   }
 
-  inputBuffer::~inputBuffer(){
-    if (myMeta.tracks.size()){
+  inputBuffer::~inputBuffer() {
+    config->is_active = false;
+    if (myMeta.tracks.size()) {
       DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
-      for(std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        while (removeKey(it->first)){}
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+        while (removeKey(it->first)) {}
       }
     }
   }
 
-  void inputBuffer::updateMeta(){
+  void inputBuffer::updateMeta() {
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
-    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.firstms < firstms){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+      if (it->second.firstms < firstms) {
         firstms = it->second.firstms;
       }
-      if (it->second.firstms > lastms){
+      if (it->second.firstms > lastms) {
         lastms = it->second.lastms;
       }
     }
     myMeta.bufferWindow = lastms - firstms;
     myMeta.vod = false;
     myMeta.live = true;
-    IPC::semaphore liveMeta(std::string("liveMeta@" + config->getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    static char liveSemName[NAME_BUFFER_SIZE];
+    snprintf(liveSemName, NAME_BUFFER_SIZE,  SHM_STREAM_INDEX, config->getString("streamname").c_str());
+    IPC::semaphore liveMeta(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     liveMeta.wait();
-    myMeta.writeTo(metaPage.mapped);
-    memset(metaPage.mapped+myMeta.getSendLen(), 0, metaPage.len > myMeta.getSendLen() ? std::min(metaPage.len-myMeta.getSendLen(), 4ll) : 0);
+    if (!metaPages.count(0) || !metaPages[0].mapped) {
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
+      metaPages[0].init(pageName, 8 * 1024 * 1024, true);
+      metaPages[0].master = false;
+    }
+    myMeta.writeTo(metaPages[0].mapped);
+    memset(metaPages[0].mapped + myMeta.getSendLen(), 0, (metaPages[0].len > myMeta.getSendLen() ? std::min(metaPages[0].len - myMeta.getSendLen(), 4ll) : 0));
     liveMeta.post();
-  } 
+  }
 
-  bool inputBuffer::removeKey(unsigned int tid){
-    if ((myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2) && config->is_active){
+  bool inputBuffer::removeKey(unsigned int tid) {
+    if ((myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2) && config->is_active) {
       return false;
     }
-    if (!myMeta.tracks[tid].keys.size()){
+    if (!myMeta.tracks[tid].keys.size()) {
       return false;
     }
-    DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%d", tid, myMeta.tracks[tid].keys[0].getNumber());
+    DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%lu", tid, myMeta.tracks[tid].keys[0].getNumber());
     //remove all parts of this key
-    for (int i = 0; i < myMeta.tracks[tid].keys[0].getParts(); i++){
+    for (int i = 0; i < myMeta.tracks[tid].keys[0].getParts(); i++) {
       myMeta.tracks[tid].parts.pop_front();
     }
     //remove the key itself
@@ -88,268 +100,402 @@ namespace Mist {
     //re-calculate firstms
     myMeta.tracks[tid].firstms = myMeta.tracks[tid].keys[0].getTime();
     //delete the fragment if it's no longer fully buffered
-    if (myMeta.tracks[tid].fragments[0].getNumber() < myMeta.tracks[tid].keys[0].getNumber()){
+    if (myMeta.tracks[tid].fragments[0].getNumber() < myMeta.tracks[tid].keys[0].getNumber()) {
       myMeta.tracks[tid].fragments.pop_front();
       myMeta.tracks[tid].missedFrags ++;
     }
     //if there is more than one page buffered for this track...
-    if (inputLoc[tid].size() > 1){
+    if (bufferLocations[tid].size() > 1) {
       //Check if the first key starts on the second page or higher
-      if (myMeta.tracks[tid].keys[0].getNumber() >= (++(inputLoc[tid].begin()))->first){
+      if (myMeta.tracks[tid].keys[0].getNumber() >= (++(bufferLocations[tid].begin()))->first || !config->is_active) {
         //Find page in indexpage and null it
-        for (int i = 0; i < 8192; i += 8){
-          unsigned int thisKeyNum = ntohl(((((long long int *)(indexPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
-          if (thisKeyNum < myMeta.tracks[tid].keys[0].getNumber()){
-            (((long long int *)(indexPages[tid].mapped + i))[0]) = 0;
+        for (int i = 0; i < 8192; i += 8) {
+          unsigned int thisKeyNum = ((((long long int *)(metaPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
+          if (thisKeyNum == htonl(pagesByTrack[tid].begin()->first) && ((((long long int *)(metaPages[tid].mapped + i))[0]) != 0)) {
+            (((long long int *)(metaPages[tid].mapped + i))[0]) = 0;
           }
         }
-        DEBUG_MSG(DLVL_DEVEL, "Erasing track %d, keys %lu-%lu from buffer", tid, inputLoc[tid].begin()->first, inputLoc[tid].begin()->first + inputLoc[tid].begin()->second.keyNum - 1);
-        inputLoc[tid].erase(inputLoc[tid].begin());
-        dataPages[tid].erase(dataPages[tid].begin());
-      }else{
-        DEBUG_MSG(DLVL_HIGH, "%d still on first page (%lu - %lu)", myMeta.tracks[tid].keys[0].getNumber(), inputLoc[tid].begin()->first, inputLoc[tid].begin()->first + inputLoc[tid].begin()->second.keyNum - 1);
+        DEBUG_MSG(DLVL_DEVEL, "Erasing track %d, keys %lu-%lu from buffer", tid, bufferLocations[tid].begin()->first, bufferLocations[tid].begin()->first + bufferLocations[tid].begin()->second.keyNum - 1);
+        bufferRemove(tid, bufferLocations[tid].begin()->first);
+        for (int i = 0; i < 1024; i++) {
+          int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
+          int tmpNum = ntohl(tmpOffset[0]);
+          if (tmpNum == bufferLocations[tid].begin()->first) {
+            tmpOffset[0] = 0;
+            tmpOffset[1] = 0;
+          }
+        }
+
+        curPageNum.erase(tid);
+        char thisPageName[NAME_BUFFER_SIZE];
+        snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), (unsigned long)tid, bufferLocations[tid].begin()->first);
+        curPage[tid].init(thisPageName, 20971520);
+        curPage[tid].master = true;
+        curPage.erase(tid);
+
+        bufferLocations[tid].erase(bufferLocations[tid].begin());
+      } else {
+        DEBUG_MSG(DLVL_HIGH, "%lu still on first page (%lu - %lu)", myMeta.tracks[tid].keys[0].getNumber(), bufferLocations[tid].begin()->first, bufferLocations[tid].begin()->first + bufferLocations[tid].begin()->second.keyNum - 1);
       }
     }
     return true;
   }
 
-  void inputBuffer::removeUnused(){
+  void inputBuffer::finish() {
+    Input::finish();
+    for (std::map<unsigned long, std::map<unsigned long, DTSCPageData> >::iterator it = bufferLocations.begin(); it != bufferLocations.end(); it++) {
+      for (std::map<unsigned long, DTSCPageData>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
+        char thisPageName[NAME_BUFFER_SIZE];
+        snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), it->first, it2->first);
+        curPage[it->first].init(thisPageName, 20971520, false, false);
+        curPage[it->first].master = true;
+        curPage.erase(it->first);
+      }
+    }
+  }
+
+  void inputBuffer::removeUnused() {
+    //first remove all tracks that have not been updated for too long
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      long long unsigned int time = Util::bootSecs();
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+        bool eraseTrack = false;
+        long long unsigned int compareFirst = 0xFFFFFFFFFFFFFFFFull;
+        long long unsigned int compareLast = 0;
+        if ((time - lastUpdated[it->first]) > 5) {
+          for (std::map<unsigned int, DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++) {
+            if (it2->first == it->first) {
+              continue;
+            }
+            if ((time - lastUpdated[it2->first]) > 5) {
+              continue;
+            }
+            if (it2->second.lastms > compareLast) {
+              compareLast = it2->second.lastms;
+            }
+            if (it2->second.firstms < compareFirst) {
+              compareFirst = it2->second.firstms;
+            }
+          }
+          if (compareLast) {
+            if ((myMeta.tracks[it->first].firstms - compareLast) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)) {
+              eraseTrack = true;
+            }
+            if ((compareFirst - myMeta.tracks[it->first].lastms) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)) {
+              eraseTrack = true;
+            }
+          }
+        }
+        if ((time - lastUpdated[it->first]) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)) {
+          eraseTrack = true;
+        }
+        if (eraseTrack) {
+          //erase this track
+          INFO_MSG("Erasing track %d because of timeout", it->first);
+          lastUpdated.erase(it->first);
+          bufferLocations.erase(it->first);
+          curPage[it->first].master = true;
+          curPage.erase(it->first);
+          curPageNum.erase(it->first);
+          metaPages[it->first].master = true;
+          metaPages.erase(it->first);
+          activeTracks.erase(it->first);
+          pushLocation.erase(it->first);
+          myMeta.tracks.erase(it);
+          changed = true;
+          break;
+        }
+      }
+    }
     //find the earliest video keyframe stored
     unsigned int firstVideo = 1;
-    for(std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.type == "video"){
-        if (it->second.firstms < firstVideo || firstVideo == 1){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+      if (it->second.type == "video") {
+        if (it->second.firstms < firstVideo || firstVideo == 1) {
           firstVideo = it->second.firstms;
         }
       }
     }
-    for(std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
       //non-video tracks need to have a second keyframe that is <= firstVideo
-      if (it->second.type != "video"){
-        if (it->second.keys.size() < 2 || it->second.keys[1].getTime() > firstVideo){
+      if (it->second.type != "video") {
+        if (it->second.keys.size() < 2 || it->second.keys[1].getTime() > firstVideo) {
           continue;
         }
       }
       //Buffer cutting
-      while(it->second.keys.size() > 1 && it->second.keys[0].getTime() < cutTime){
-        if (!removeKey(it->first)){break;}
+      while (it->second.keys.size() > 1 && it->second.keys[0].getTime() < cutTime) {
+        if (!removeKey(it->first)) {
+          break;
+        }
       }
       //Buffer size management
-      while(it->second.keys.size() > 1 && (it->second.lastms - it->second.keys[1].getTime()) > bufferTime){
-        if (!removeKey(it->first)){break;}
+      while (it->second.keys.size() > 1 && (it->second.lastms - it->second.keys[1].getTime()) > bufferTime) {
+        if (!removeKey(it->first)) {
+          break;
+        }
       }
     }
     updateMeta();
   }
 
   void inputBuffer::userCallback(char * data, size_t len, unsigned int id) {
+    //Static variable keeping track of the next temporary mapping to use for a track.
     static int nextTempId = 1001;
+    //Get the counter of this user
     char counter = (*(data - 1));
-    for (int index = 0; index < 5; index++){
-      char* thisData = data + (index * 6);
+    //Each user can have at maximum 5 elements in their userpage.
+    for (int index = 0; index < 5; index++) {
+      char * thisData = data + (index * 6);
+      //Get the track id from the current element
       unsigned long value = ((long)(thisData[0]) << 24) | ((long)(thisData[1]) << 16) | ((long)(thisData[2]) << 8) | thisData[3];
-      if (value == 0xFFFFFFFF){
-        //Skip value 0xFFFFFFFF as this indicates a previously declined track
+
+      //Skip value 0xFFFFFFFF as this indicates a previously declined track
+      if (value == 0xFFFFFFFF) {
         continue;
       }
-      if (value == 0){
-        //Skip value 0 as this indicates an empty track
+      //Skip value 0 as this indicates an empty track
+      if (value == 0) {
         continue;
       }
-      if (pushedLoc[value] == thisData){
-        if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
-          pushedLoc.erase(value);
-          if (negotiateTracks.count(value)){
-            negotiateTracks.erase(value);
+
+      //If the current value indicates a valid trackid, and it is pushed from this user
+      if (pushLocation[value] == thisData) {
+        //Check for timeouts, and erase the track if necessary
+        if (counter == 126 || counter == 127 || counter == 254 || counter == 255) {
+          pushLocation.erase(value);
+          if (negotiatingTracks.count(value)) {
+            negotiatingTracks.erase(value);
+            metaPages[value].master = true;
             metaPages.erase(value);
           }
-          if (data[4] == 0xFF && data[5] == 0xFF && givenTracks.count(value)){
-            givenTracks.erase(value);
-            inputLoc.erase(value);
+          if (data[4] == 0xFF && data[5] == 0xFF && activeTracks.count(value)) {
+            activeTracks.erase(value);
+            bufferLocations.erase(value);
           }
           continue;
         }
       }
-      if (value & 0x80000000){
-        //Track is set to "New track request", assign new track id and create shared memory page
-        int tmpTid = nextTempId++;
-        negotiateTracks.insert(tmpTid);
-        thisData[0] = (tmpTid >> 24) & 0xFF;
-        thisData[1] = (tmpTid >> 16) & 0xFF;
-        thisData[2] = (tmpTid >> 8) & 0xFF;
-        thisData[3] = (tmpTid) & 0xFF;
-        unsigned long tNum = ((long)(thisData[4]) << 8) | thisData[5];
-        DEBUG_MSG(DLVL_HIGH, "Assigning temporary ID %d to incoming track %lu for user %d", tmpTid, tNum, id);
-        
-        char tempMetaName[100];
-        sprintf(tempMetaName, "liveStream_%s%d", config->getString("streamname").c_str(), tmpTid);
-        metaPages[tmpTid].init(tempMetaName, DEFAULT_META_PAGE_SIZE, true);
+      //Track is set to "New track request", assign new track id and create shared memory page
+      //This indicates that the 'current key' part of the element is set to contain the original track id from the pushing process
+      if (value & 0x80000000) {
+        //Set the temporary track id for this item, and increase the temporary value for use with the next track
+        unsigned long long tempMapping = nextTempId++;
+        //Add the temporary track id to the list of tracks that are currently being negotiated
+        negotiatingTracks.insert(tempMapping);
+        //Write the temporary id to the userpage element
+        thisData[0] = (tempMapping >> 24) & 0xFF;
+        thisData[1] = (tempMapping >> 16) & 0xFF;
+        thisData[2] = (tempMapping >> 8) & 0xFF;
+        thisData[3] = (tempMapping) & 0xFF;
+        //Obtain the original track number for the pushing process
+        unsigned long originalTrack = ((long)(thisData[4]) << 8) | thisData[5];
+        //Overwrite it with 0xFFFF
+        thisData[4] = 0xFF;
+        thisData[5] = 0xFF;
+        DEBUG_MSG(DLVL_HIGH, "Incoming track %lu from pushing process %d has now been assigned temporary id %llu", originalTrack, id, tempMapping);
       }
-      if (negotiateTracks.count(value)){
-        //Track is currently under negotiation, check whether the metadata has been submitted
-        if (metaPages[value].mapped){
-          unsigned int len = ntohl(((int *)metaPages[value].mapped)[1]);
-          unsigned int i = 0;
-          JSON::Value JSONMeta;
-          JSON::fromDTMI((const unsigned char *)metaPages[value].mapped + 8, len, i, JSONMeta);
-          DTSC::Meta tmpMeta(JSONMeta);
-          if (!tmpMeta.tracks.count(value)){//Track not yet added
-            continue;
-          }
 
-          std::string tempId = tmpMeta.tracks.begin()->second.getIdentifier();
-          DEBUG_MSG(DLVL_HIGH, "Attempting colision detection for track %s", tempId.c_str());
-          int finalMap = -1;
-          if (tmpMeta.tracks.begin()->second.type == "video"){
-            finalMap = 1;
-          }
-          if (tmpMeta.tracks.begin()->second.type == "audio"){
-            finalMap = 2;
-          }
-          //Remove the "negotiate" status in either case
-          negotiateTracks.erase(value);
-          metaPages.erase(value);
-          if (finalMap != -1 && givenTracks.count(finalMap)) {
-            WARN_MSG("Collision of new track %lu with track %d detected! Declining track", value, finalMap);
-            thisData[0] = 0xFF;
-            thisData[1] = 0xFF;
-            thisData[2] = 0xFF;
-            thisData[3] = 0xFF;
+      //The track id is set to the value of a track that we are currently negotiating about
+      if (negotiatingTracks.count(value)) {
+        //If the metadata page for this track is not yet registered, initialize it
+        if (!metaPages.count(value) || !metaPages[value].mapped) {
+          char tempMetaName[NAME_BUFFER_SIZE];
+          snprintf(tempMetaName, NAME_BUFFER_SIZE, SHM_TRACK_META, config->getString("streamname").c_str(), value);
+          metaPages[value].init(tempMetaName, 8388608, false, false);
+        }
+        //If this tracks metdata page is not initialize, skip the entire element for now. It will be instantiated later
+        if (!metaPages[value].mapped) {
+          ///\todo Maybe add a timeout counter here, for when we dont expect the track to appear anymore
+          continue;
+        }
+
+        //The page exist, now we try to read in the metadata of the track
+
+        //Store the size of the dtsc packet to read.
+        unsigned int len = ntohl(((int *)metaPages[value].mapped)[1]);
+        //Temporary variable, won't be used again
+        unsigned int tempForReadingMeta = 0;
+        //Read in the metadata through a temporary JSON object
+        ///\todo Optimize this part. Find a way to not have to store the metadata in JSON first, but read it from the page immediately
+        JSON::Value tempJSONForMeta;
+        JSON::fromDTMI((const unsigned char *)metaPages[value].mapped + 8, len, tempForReadingMeta, tempJSONForMeta);
+        //Construct a metadata object for the current track
+        DTSC::Meta trackMeta(tempJSONForMeta);
+        //If the track metadata does not contain the negotiated track, assume the metadata is currently being written, and skip the element for now. It will be instantiated in the next call.
+        if (!trackMeta.tracks.count(value)) {
+          continue;
+        }
+
+        std::string trackIdentifier = trackMeta.tracks.find(value)->second.getIdentifier();
+        DEBUG_MSG(DLVL_HIGH, "Attempting colision detection for track %s", trackIdentifier.c_str());
+
+        //Remove the "negotiate" status in either case
+        negotiatingTracks.erase(value);
+        //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
+        metaPages[value].master = true;
+        metaPages.erase(value);
+
+        int finalMap = (trackMeta.tracks.find(value)->second.type == "video" ? 1 : 2);
+        //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared")
+        //or if the firstms of the replacement track is later than the lastms on the existing track
+        if (!myMeta.tracks.count(finalMap) || trackMeta.tracks.find(value)->second.keys.size() > 1 || trackMeta.tracks.find(value)->second.firstms >= myMeta.tracks[finalMap].lastms) {
+          if (myMeta.tracks.count(finalMap) && myMeta.tracks[finalMap].lastms > 0) {
+            INFO_MSG("Resume of track %d detected, coming from temporary track %lu of user %u", finalMap, value, id);
           } else {
-            if (finalMap == -1){
-              WARN_MSG("Invalid track type detected, declining.");
-              thisData[0] = 0xFF;
-              thisData[1] = 0xFF;
-              thisData[2] = 0xFF;
-              thisData[3] = 0xFF;
-              continue;
-            }else{
-              //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared"
-              //or if the firstms of the replacement track is later than the lastms on the existing track
-              if (tmpMeta.tracks.begin()->second.keys.size() > 1 || !myMeta.tracks.count(finalMap) || tmpMeta.tracks.begin()->second.firstms >= myMeta.tracks[finalMap].lastms){
-                if (myMeta.tracks.count(finalMap) && myMeta.tracks[finalMap].lastms > 0){
-                  INFO_MSG("Allowing negotiation track %lu, from user %u, to resume pushing final track number %d", value, id, finalMap);
-                }else{
-                  INFO_MSG("Allowing negotiation track %lu, from user %u, to start pushing final track number %d", value, id, finalMap);
-                }
-              }else{
-              //Otherwise replace existing track
-                INFO_MSG("Re-push initiated for track %lu, from user %u, will replace final track number %d", value, id, finalMap);
-                myMeta.tracks.erase(finalMap);
-                dataPages.erase(finalMap);
-                inputLoc.erase(finalMap);
-              }
-            }
-            givenTracks.insert(finalMap);
-            pushedLoc[finalMap] = thisData;
-            if (!myMeta.tracks.count(finalMap)){
-              DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %d", finalMap);
-              myMeta.tracks[finalMap] = tmpMeta.tracks.begin()->second;
-              myMeta.tracks[finalMap].trackID = finalMap;
-            }
-            thisData[0] = (finalMap >> 24) & 0xFF;
-            thisData[1] = (finalMap >> 16) & 0xFF;
-            thisData[2] = (finalMap >> 8) & 0xFF;
-            thisData[3] = (finalMap) & 0xFF;
-            int keyNum = myMeta.tracks[finalMap].keys.size();
-            thisData[4] = (keyNum >> 8) & 0xFF;
-            thisData[5] = keyNum & 0xFF;
-            updateMeta();
-            char firstPage[100];
-            sprintf(firstPage, "%s%d", config->getString("streamname").c_str(), finalMap);
-            indexPages[finalMap].init(firstPage, 8192, true);
-            ((long long int *)indexPages[finalMap].mapped)[0] = htonl(1000);
-            sprintf(firstPage, "%s%d_%d", config->getString("streamname").c_str(), finalMap, keyNum);
-            ///\todo Make size dynamic / other solution. 25mb is too much.
-            dataPages[finalMap][0].init(firstPage, DEFAULT_DATA_PAGE_SIZE, true);
+            INFO_MSG("New track detected, assigned track id %d, coming from temporary track %lu of user %u", finalMap, value, id);
           }
         }
+
+        //Register the new track as an active track.
+        activeTracks.insert(finalMap);
+        //Register the time of registration as initial value for the lastUpdated field.
+        lastUpdated[finalMap] = Util::bootSecs();
+        //Register the user thats is pushing this element
+        pushLocation[finalMap] = thisData;
+        //Initialize the metadata for this track if it was not in place yet.
+        if (!myMeta.tracks.count(finalMap)) {
+          DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %d", finalMap);
+          myMeta.tracks[finalMap] = trackMeta.tracks.begin()->second;
+          myMeta.tracks[finalMap].trackID = finalMap;
+        }
+        //Write the final mapped track number to the user page element
+        thisData[0] = (finalMap >> 24) & 0xFF;
+        thisData[1] = (finalMap >> 16) & 0xFF;
+        thisData[2] = (finalMap >> 8) & 0xFF;
+        thisData[3] = (finalMap) & 0xFF;
+        //Write the key number to start pushing from to to the userpage element.
+        //This is used to resume pushing as well as pushing new tracks
+        unsigned long keyNum = myMeta.tracks[finalMap].keys.size();
+        thisData[4] = (keyNum >> 8) & 0xFF;
+        thisData[5] = keyNum & 0xFF;
+        //Update the metadata to reflect all changes
+        updateMeta();
       }
-      if (givenTracks.count(value) && pushedLoc[value] == thisData){
-        //First check if the previous page has been finished:
-        if (!inputLoc[value].count(dataPages[value].rbegin()->first) || !inputLoc[value][dataPages[value].rbegin()->first].curOffset){
-          if (dataPages[value].size() > 1){
-            int previousPage = (++dataPages[value].rbegin())->first;
-            updateMetaFromPage(value, previousPage);
-          }
+      //If the track is active, and this is the element responsible for pushing it
+      if (activeTracks.count(value) && pushLocation[value] == thisData) {
+        //Open the track index page if we dont have it open yet
+        if (!metaPages.count(value) || !metaPages[value].mapped) {
+          char firstPage[NAME_BUFFER_SIZE];
+          snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), value);
+          metaPages[value].init(firstPage, 8192, false, false);
         }
-        //update current page
-        int currentPage = dataPages[value].rbegin()->first;
-        updateMetaFromPage(value, currentPage);
-        if (inputLoc[value][currentPage].curOffset > FLIP_DATA_PAGE_SIZE) {
-          int nextPage = currentPage + inputLoc[value][currentPage].keyNum;
-          char nextPageName[100];
-          sprintf(nextPageName, "%s%lu_%d", config->getString("streamname").c_str(), value, nextPage);
-          dataPages[value][nextPage].init(nextPageName, DEFAULT_DATA_PAGE_SIZE, true);
-          DEVEL_MSG("Created page %s, from pos %llu", nextPageName, inputLoc[value][currentPage].curOffset);
-          bool createdNew = false;
-          for (int i = 0; i < 8192; i += 8){
-            unsigned int thisKeyNum = ((((long long int *)(indexPages[value].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
-            if (thisKeyNum == htonl(currentPage)){
-              if((ntohl((((long long int*)(indexPages[value].mapped + i))[0]) & 0xFFFFFFFF) == 1000)){
-                ((long long int *)(indexPages[value].mapped + i))[0] &= 0xFFFFFFFF00000000ull;
-                ((long long int *)(indexPages[value].mapped + i))[0] |= htonl(inputLoc[value][currentPage].keyNum);
-              }
-            }
-            if (!createdNew && (((long long int*)(indexPages[value].mapped + i))[0]) == 0){
-              createdNew = true;
-              ((long long int *)(indexPages[value].mapped + i))[0] = (((long long int)htonl(nextPage)) << 32) | htonl(1000);
-            }
-          }
-          if (!createdNew){
-            ERROR_MSG("Could not create index for new page - out of empty indexes!");
-          }
+        if (metaPages[value].mapped) {
+          //Update the metadata for this track
+          updateTrackMeta(value);
         }
       }
     }
   }
 
-  void inputBuffer::updateMetaFromPage(int tNum, int pageNum){
-    DTSC::Packet tmpPack;
-    tmpPack.reInit(dataPages[tNum][pageNum].mapped + inputLoc[tNum][pageNum].curOffset, 0);
-    if (!tmpPack && inputLoc[tNum][pageNum].curOffset == 0){
-      return;
-    }
-    while (tmpPack) {
-      myMeta.update(tmpPack);
-      if (inputLoc[tNum][pageNum].firstTime == 0){
-        inputLoc[tNum][pageNum].firstTime = tmpPack.getTime();
+  void inputBuffer::updateTrackMeta(unsigned long tNum) {
+    //Store a reference for easier access
+    std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
+
+    //First detect all entries on metaPage
+    for (int i = 0; i < 8192; i += 8) {
+      int * tmpOffset = (int *)(metaPages[tNum].mapped + i);
+      if (tmpOffset[0] == 0 && tmpOffset[1] == 0) {
+        continue;
       }
-      inputLoc[tNum][pageNum].keyNum += tmpPack.getFlag("keyframe");
-      inputLoc[tNum][pageNum].curOffset += tmpPack.getDataLen();
-      tmpPack.reInit(dataPages[tNum][pageNum].mapped + inputLoc[tNum][pageNum].curOffset, 0);
+      unsigned long keyNum = ntohl(tmpOffset[0]);
+
+      //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
+      if (!locations.count(keyNum)) {
+        locations[keyNum].curOffset = 0;
+      }
+      locations[keyNum].pageNum = keyNum;
+      locations[keyNum].keyNum = ntohl(tmpOffset[1]);
+    }
+
+    //Since the map is ordered by keynumber, this loop updates the metadata for each page from oldest to newest
+    for (std::map<unsigned long, DTSCPageData>::iterator pageIt = locations.begin(); pageIt != locations.end(); pageIt++) {
+      updateMetaFromPage(tNum, pageIt->first);
     }
     updateMeta();
+  }
+
+  void inputBuffer::updateMetaFromPage(unsigned long tNum, unsigned long pageNum) {
+    DTSCPageData & pageData = bufferLocations[tNum][pageNum];
+
+    //If the current page is over its 8mb "splitting" boundary
+    if (pageData.curOffset > (8 * 1024 * 1024)) {
+      //And the last keyframe in the parsed metadata is further in the stream than this page
+      if (pageData.pageNum + pageData.keyNum < myMeta.tracks[tNum].keys.rbegin()->getNumber()) {
+        //Assume the entire page is already parsed
+        return;
+      }
+    }
+
+    //Otherwise open and parse the page
+
+    //Open the page if it is not yet open
+    if (!curPageNum.count(tNum) || curPageNum[tNum] != pageNum) {
+      //DO NOT ERASE THE PAGE HERE, master is not set to true
+      curPageNum.erase(tNum);
+      char nextPageName[NAME_BUFFER_SIZE];
+      snprintf(nextPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), tNum, pageNum);
+      curPage[tNum].init(nextPageName, 20971520);
+      //If the page can not be opened, stop here
+      if (!curPage[tNum].mapped) {
+        ///\todo Maybe generate a warning here?
+        return;
+      }
+      curPageNum[tNum] = pageNum;
+    }
+
+
+    DTSC::Packet tmpPack;
+    tmpPack.reInit(curPage[tNum].mapped + pageData.curOffset, 0);
+    //No new data has been written on the page since last update
+    if (!tmpPack) {
+      return;
+    }
+    lastUpdated[tNum] = Util::bootSecs();
+    while (tmpPack) {
+      //Update the metadata with this packet
+      myMeta.update(tmpPack);
+      //Set the first time when appropriate
+      if (pageData.firstTime == 0) {
+        pageData.firstTime = tmpPack.getTime();
+      }
+      //Update the offset on the page with the size of the current packet
+      pageData.curOffset += tmpPack.getDataLen();
+      //Attempt to read in the next packet
+      tmpPack.reInit(curPage[tNum].mapped + pageData.curOffset, 0);
+    }
   }
 
   bool inputBuffer::setup() {
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
-    strName = strName.substr(0,(strName.find_first_of("+ ")));
+    strName = strName.substr(0, (strName.find_first_of("+ ")));
     IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
     DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
     long long tmpNum;
-    
+
     //if stream is configured and setting is present, use it, always
-    if (streamCfg && streamCfg.getMember("DVR")){
+    if (streamCfg && streamCfg.getMember("DVR")) {
       tmpNum = streamCfg.getMember("DVR").asInt();
-    }else{
-      if (streamCfg){
+    } else {
+      if (streamCfg) {
         //otherwise, if stream is configured use the default
         tmpNum = config->getOption("bufferTime", true)[0u].asInt();
-      }else{
+      } else {
         //if not, use the commandline argument
         tmpNum = config->getOption("bufferTime").asInt();
       }
     }
     //if the new value is different, print a message and apply it
-    if (bufferTime != tmpNum){
+    if (bufferTime != tmpNum) {
       DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, tmpNum);
       bufferTime = tmpNum;
     }
-    
+
     configLock.post();
     configLock.close();
     return true;

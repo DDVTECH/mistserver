@@ -27,43 +27,31 @@ namespace Mist {
   }
 
   void OutProgressiveOGG::sendNext(){
-    unsigned int track = currentPacket.getTrackId();
+    unsigned int track = thisPacket.getTrackId();
 
 
     OGG::oggSegment newSegment;
-    currentPacket.getString("data", newSegment.dataString);
-  //      if (currentPacket.getTime() > 315800){// && currentPacket.getTime() < 316200){
-      //INFO_MSG("Found a packet of time %llu, size: %d", currentPacket.getTime(),  newSegment.dataString.size());
-    //}
-    pageBuffer[track].totalFrames = ((double)currentPacket.getTime() / (1000000.0f / myMeta.tracks[track].fpks)) + 1.5; //should start at 1. added .5 for rounding.
-//    INFO_MSG("track: %u totalFrames %llu timestamp: %llu totalframe value: %f", track, pageBuffer[track].totalFrames, currentPacket.getTime(), ((double)currentPacket.getTime() / (1000000.0f / myMeta.tracks[track].fpks)) + 1);
+    thisPacket.getString("data", newSegment.dataString);
+    pageBuffer[track].totalFrames = ((double)thisPacket.getTime() / (1000000.0f / myMeta.tracks[track].fpks)) + 1.5; //should start at 1. added .5 for rounding.
 
     if (pageBuffer[track].codec == OGG::THEORA){
-      newSegment.isKeyframe = currentPacket.getFlag("keyframe");
+      newSegment.isKeyframe = thisPacket.getFlag("keyframe");
       if (newSegment.isKeyframe == true){
         pageBuffer[track].sendTo(myConn);//send data remaining in buffer (expected to fit on a page), keyframe will allways start on new page
-        //     INFO_MSG("segments left in buffer: %d", pageBuffer[track].oggSegments.size());
         pageBuffer[track].lastKeyFrame = pageBuffer[track].totalFrames;
       }
       newSegment.framesSinceKeyFrame = pageBuffer[track].totalFrames - pageBuffer[track].lastKeyFrame;
       newSegment.lastKeyFrameSeen = pageBuffer[track].lastKeyFrame;
-//      theora::frame tmpFrame;
-//      tmpFrame.read(newSegment.dataString.data(),newSegment.dataString.size());
-//      INFO_MSG("FTYPE: %d ISKEYFRAME: %d",tmpFrame.getFTYPE(),newSegment.isKeyframe );
     }
 
     newSegment.frameNumber = pageBuffer[track].totalFrames;
-    newSegment.timeStamp = currentPacket.getTime();
+    newSegment.timeStamp = thisPacket.getTime();
 
     pageBuffer[track].oggSegments.push_back(newSegment);
 
     if (pageBuffer[track].codec == OGG::VORBIS){
       pageBuffer[track].vorbisStuff();//this updates lastKeyFrame
     }
-
-  //  while (pageBuffer[track].oggSegments.size()){
-      //pageBuffer[track].sendTo(myConn);
-    //}
     while (pageBuffer[track].shouldSend()){ 
       pageBuffer[track].sendTo(myConn);
     }

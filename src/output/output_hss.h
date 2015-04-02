@@ -9,7 +9,7 @@ namespace Mist {
       static void init(Util::Config * cfg);
       void onHTTP();
       void sendNext();
-      void initialize();
+      void initialize();/*LTS*/
       void sendHeader();
     protected:
       JSON::Value encryption;

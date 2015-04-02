@@ -353,7 +353,7 @@ namespace DTSC {
       void writePacket(std::string & newPacket);
       void writePacket(JSON::Value & newPacket);
       bool atKeyframe();
-      void selectTracks(std::set<unsigned int> & tracks);
+      void selectTracks(std::set<unsigned long> & tracks);
     private:
       long int endPos;
       void readHeader(int pos);
@@ -369,7 +369,7 @@ namespace DTSC {
       void * buffer;
       bool created;
       std::set<seekPos> currentPositions;
-      std::set<unsigned int> selectedTracks;
+      std::set<unsigned long> selectedTracks;
   };
   //FileWriter
 

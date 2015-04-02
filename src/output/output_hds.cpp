@@ -163,14 +163,14 @@ namespace Mist {
   }
   
   void OutHDS::sendNext(){
-    if (currentPacket.getTime() >= playUntil){
+    if (thisPacket.getTime() >= playUntil){
       DEBUG_MSG(DLVL_HIGH, "(%d) Done sending fragment", getpid() );
       stop();
       wantRequest = true;
       H.Chunkify("", 0, myConn);
       return;
     }
-    tag.DTSCLoader(currentPacket, myMeta.tracks[currentPacket.getTrackId()]);
+    tag.DTSCLoader(thisPacket, myMeta.tracks[thisPacket.getTrackId()]);
     H.Chunkify(tag.data, tag.len, myConn);
   }
 

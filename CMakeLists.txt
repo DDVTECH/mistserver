@@ -11,7 +11,7 @@ macro(makeAnalyser analyserName format)
 endmacro()
 
 macro(makeInput inputName format)
-  add_executable( MistIn${inputName} src/input/mist_in.cpp src/input/input.cpp src/input/input_${format}.cpp )
+  add_executable( MistIn${inputName} src/input/mist_in.cpp src/input/input.cpp src/input/input_${format}.cpp src/io.cpp)
   set_target_properties( MistIn${inputName} PROPERTIES COMPILE_DEFINITIONS INPUTTYPE=\"input_${format}.h\")
   target_link_libraries( MistIn${inputName} mist )
 endmacro()
@@ -28,7 +28,7 @@ macro(makeOutput outputName format)
   if (";${ARGN};" MATCHES ";ts;")
     SET(tsOutput src/output/output_ts_base.cpp)
   endif()
-  add_executable( MistOut${outputName} src/output/mist_out.cpp src/output/output.cpp ${httpOutput} ${tsOutput} src/output/output_${format}.cpp )
+  add_executable( MistOut${outputName} src/output/mist_out.cpp src/output/output.cpp ${httpOutput} ${tsOutput} src/output/output_${format}.cpp src/io.cpp)
   set_target_properties( MistOut${outputName} PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}")
   target_link_libraries( MistOut${outputName} mist )
 endmacro()
@@ -36,8 +36,6 @@ endmacro()
 set(lspSOURCES lsp/plugins/md5.js lsp/plugins/cattablesort.js lsp/mist.js)
 set(lspSOURCESmin lsp/plugins/jquery.js lsp/plugins/jquery.flot.min.js lsp/plugins/jquery.flot.time.min.js lsp/plugins/jquery.qrcode.min.js)
 set(lspDATA lsp/header.html lsp/main.css lsp/footer.html)
-
-
 SET(SOURCE_DIR ${PROJECT_SOURCE_DIR})
 SET(BINARY_DIR ${PROJECT_BINARY_DIR})
 include_directories(${SOURCE_DIR})
@@ -81,9 +79,7 @@ set(PACKAGE_VERSION \"${PACKAGE_VERSION}\" )
 if (NOT DEBUG)
   set(DEBUG 4)
 endif()
-
 message("Builing release ${RELEASE} for version ${PACKAGE_VERSION} @ debug level ${DEBUG}")
-
 add_definitions(-g -funsigned-char -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -DDEBUG=${DEBUG} -DPACKAGE_VERSION=${PACKAGE_VERSION} -DRELEASE=${RELEASE})
 if (NOT DEFINED ${NOSHM} )
   add_definitions(-DSHM_ENABLED=1)
@@ -104,7 +100,6 @@ if(DOXYGEN_FOUND)
     VERBATIM
   )
 endif(DOXYGEN_FOUND)
-
 #Compile the lib
 set(libHeaders
 ${SOURCE_DIR}/lib/config.h
@@ -229,7 +224,7 @@ add_custom_target( localSettingsPage
   VERBATIM
 )
 
-add_executable( MistOutHTTP src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_http_internal.cpp)
+add_executable( MistOutHTTP src/output/mist_out.cpp src/output/output.cpp src/output/output_http.cpp src/output/output_http_internal.cpp src/io.cpp)
 set_target_properties( MistOutHTTP PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_http_internal.h\"")
 add_dependencies(MistOutHTTP embedcode)
 target_link_libraries( MistOutHTTP mist )

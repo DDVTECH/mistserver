@@ -86,8 +86,8 @@ namespace Mist {
 
 
     getNext();
-    while (lastPack){
-      myMeta.update(lastPack);
+    while (thisPacket){
+      myMeta.update(thisPacket);
       getNext();
     }
 
@@ -100,7 +100,7 @@ namespace Mist {
   }
   
   void inputMP3::getNext(bool smart) {
-    lastPack.null();
+    thisPacket.null();
     static char packHeader[3000];
     size_t filePos = ftell(inFile);
     size_t read = fread(packHeader, 1, 3000, inFile);
@@ -169,7 +169,7 @@ namespace Mist {
     thisPack["time"] = (long long)timestamp;
     //Write the json value to lastpack
     std::string tmpStr = thisPack.toNetPacked();
-    lastPack.reInit(tmpStr.data(), tmpStr.size());
+    thisPacket.reInit(tmpStr.data(), tmpStr.size());
 
 
     //Update the internal timestamp

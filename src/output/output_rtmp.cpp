@@ -89,7 +89,7 @@ namespace Mist {
       pos = nextpos + 1;
     }
     if (trackSwitch){
-      seek(currentPacket.getTime());
+      seek(thisPacket.getTime());
     }
   }
 
@@ -133,8 +133,8 @@ namespace Mist {
     unsigned int dheader_len = 1;
     char * tmpData = 0;//pointer to raw media data
     unsigned int data_len = 0;//length of processed media data
-    currentPacket.getString("data", tmpData, data_len);
-    DTSC::Track & track = myMeta.tracks[currentPacket.getTrackId()];
+    thisPacket.getString("data", tmpData, data_len);
+    DTSC::Track & track = myMeta.tracks[thisPacket.getTrackId()];
     
     //set msg_type_id
     if (track.type == "video"){
@@ -143,8 +143,8 @@ namespace Mist {
         dheader_len += 4;
         dataheader[0] = 7;
         dataheader[1] = 1;
-        if (currentPacket.getInt("offset") > 0){
-          long long offset = currentPacket.getInt("offset");
+        if (thisPacket.getInt("offset") > 0){
+          long long offset = thisPacket.getInt("offset");
           dataheader[2] = (offset >> 16) & 0xFF;
           dataheader[3] = (offset >> 8) & 0xFF;
           dataheader[4] = offset & 0xFF;
@@ -153,12 +153,12 @@ namespace Mist {
       if (track.codec == "H263"){
         dataheader[0] = 2;
       }
-      if (currentPacket.getFlag("keyframe")){
+      if (thisPacket.getFlag("keyframe")){
         dataheader[0] |= 0x10;
       }else{
         dataheader[0] |= 0x20;
       }
-      if (currentPacket.getFlag("disposableframe")){
+      if (thisPacket.getFlag("disposableframe")){
         dataheader[0] |= 0x30;
       }
     }
@@ -189,7 +189,7 @@ namespace Mist {
     }
     data_len += dheader_len;
     
-    unsigned int timestamp = currentPacket.getTime();
+    unsigned int timestamp = thisPacket.getTime();
     
     bool allow_short = RTMPStream::lastsend.count(4);
     RTMPStream::Chunk & prev = RTMPStream::lastsend[4];
@@ -808,22 +808,43 @@ namespace Mist {
           F.ChunkLoader(next);
           JSON::Value pack_out = F.toJSON(meta_out);
           if ( !pack_out.isNull()){
+            //Check for backwards timestamps
+            if (pack_out["time"].asInt() < meta_out.tracks[pack_out["trackid"].asInt()].lastms){
+              ///Reset all internals
+              sending = false;
+              counter = 0;
+              preBuf.clear();
+              meta_out = DTSC::Meta();
+              pack_out = F.toJSON(meta_out);//Reinitialize the metadata with this packet.
+              ///Reset negotiation with buffer
+              userClient.finish();
+              userClient = IPC::sharedClient(streamName + "_users", PLAY_EX_SIZE, true);
+            }
             if ( !sending){
               counter++;
               if (counter > 8){
                 sending = true;
                 myMeta = meta_out;
-                negotiatePushTracks();
+                if (!userClient.getData()){
+                  char userPageName[NAME_BUFFER_SIZE];
+                  snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+                  userClient = IPC::sharedClient(userPageName, 30, true);
+                }
+                for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+                  DEBUG_MSG(DLVL_MEDIUM, "Starting negotiation for track %d", it->first);
+                  continueNegotiate(it->first);
+                }
+                //negotiatePushTracks();
                 for (std::deque<JSON::Value>::iterator it = preBuf.begin(); it != preBuf.end(); it++){
-                  bufferPacket((*it));
+                  bufferLivePacket((*it));
                 }
                 preBuf.clear(); //clear buffer
-                bufferPacket(pack_out);
+                bufferLivePacket(pack_out);
               }else{
                 preBuf.push_back(pack_out);
               }
             }else{
-              bufferPacket(pack_out);
+              bufferLivePacket(pack_out);
             }
           }
           break;

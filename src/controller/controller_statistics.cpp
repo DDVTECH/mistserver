@@ -85,7 +85,7 @@ bool Controller::sessIndex::operator>= (const Controller::sessIndex &b) const{
 /// old statistics that have disconnected over 10 minutes ago.
 void Controller::SharedMemStats(void * config){
   DEBUG_MSG(DLVL_HIGH, "Starting stats thread");
-  IPC::sharedServer statServer("statistics", STAT_EX_SIZE, true);
+  IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
   while(((Util::Config*)config)->is_active){
     {
       tthread::lock_guard<tthread::mutex> guard(statsMutex);

@@ -31,18 +31,18 @@ namespace Mist {
     
     if (packData.getBytesFree() == 184){
       packData.clear();      
-      packData.setPID(0x100 - 1 + currentPacket.getTrackId());      
+      packData.setPID(0x100 - 1 + thisPacket.getTrackId());      
       packData.setContinuityCounter(++contCounters[packData.getPID()]);
-      if (first[currentPacket.getTrackId()]){
+      if (first[thisPacket.getTrackId()]){
         packData.setUnitStart(1);
         packData.setDiscontinuity(true);
-        if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){
-          if (currentPacket.getInt("keyframe")){
+        if (myMeta.tracks[thisPacket.getTrackId()].type == "video"){
+          if (thisPacket.getInt("keyframe")){
             packData.setRandomAccess(1);
           }      
-          packData.setPCR(currentPacket.getTime() * 27000);      
+          packData.setPCR(thisPacket.getTime() * 27000);      
         }
-        first[currentPacket.getTrackId()] = false;
+        first[thisPacket.getTrackId()] = false;
       }
     }
     
@@ -53,11 +53,11 @@ namespace Mist {
   }
 
   void TSOutput::sendNext(){
-    first[currentPacket.getTrackId()] = true;
+    first[thisPacket.getTrackId()] = true;
     char * dataPointer = 0;
     unsigned int dataLen = 0;
-    currentPacket.getString("data", dataPointer, dataLen); //data
-    if (currentPacket.getTime() >= until){ //this if should only trigger for HLS       
+    thisPacket.getString("data", dataPointer, dataLen); //data
+    if (thisPacket.getTime() >= until){ //this if should only trigger for HLS       
       stop();
       wantRequest = true;
       parseData = false;
@@ -66,16 +66,16 @@ namespace Mist {
     }
     std::string bs;
     //prepare bufferstring    
-    if (myMeta.tracks[currentPacket.getTrackId()].type == "video"){      
+    if (myMeta.tracks[thisPacket.getTrackId()].type == "video"){      
       unsigned int extraSize = 0;      
       //dataPointer[4] & 0x1f is used to check if this should be done later: fillPacket("\000\000\000\001\011\360", 6);
-      if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
+      if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
         extraSize += 6;
       }
-      if (currentPacket.getInt("keyframe")){
-        if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
+      if (thisPacket.getInt("keyframe")){
+        if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264"){
           if (!haveAvcc){
-            avccbox.setPayload(myMeta.tracks[currentPacket.getTrackId()].init);
+            avccbox.setPayload(myMeta.tracks[thisPacket.getTrackId()].init);
             haveAvcc = true;
           }
           bs = avccbox.asAnnexB();
@@ -91,16 +91,16 @@ namespace Mist {
       
       while (currPack <= splitCount){
         unsigned int alreadySent = 0;
-        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), currentPacket.getTime() * 90, currentPacket.getInt("offset") * 90, !currPack);
+        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), thisPacket.getTime() * 90, thisPacket.getInt("offset") * 90, !currPack);
         fillPacket(bs.data(), bs.size());
         if (!currPack){
-          if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
+          if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
             //End of previous nal unit, if not already present
             fillPacket("\000\000\000\001\011\360", 6);
             alreadySent += 6;
           }
-          if (currentPacket.getInt("keyframe")){
-            if (myMeta.tracks[currentPacket.getTrackId()].codec == "H264"){
+          if (thisPacket.getInt("keyframe")){
+            if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264"){
               bs = avccbox.asAnnexB();
               fillPacket(bs.data(), bs.size());
               alreadySent += bs.size();
@@ -137,32 +137,32 @@ namespace Mist {
           if (alreadySent == watKunnenWeIn1Ding){
             packData.addStuffing();
             fillPacket(0, 0);
-            first[currentPacket.getTrackId()] = true;
+            first[thisPacket.getTrackId()] = true;
             break;
           }
         }
         currPack++;
       }
-    }else if (myMeta.tracks[currentPacket.getTrackId()].type == "audio"){
+    }else if (myMeta.tracks[thisPacket.getTrackId()].type == "audio"){
       long unsigned int tempLen = dataLen;
-      if ( myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){
+      if ( myMeta.tracks[thisPacket.getTrackId()].codec == "AAC"){
         tempLen += 7;
       }
       long long unsigned int tempTime;
       if (appleCompat){
-        tempTime = 0;// myMeta.tracks[currentPacket.getTrackId()].rate / 1000;
+        tempTime = 0;// myMeta.tracks[thisPacket.getTrackId()].rate / 1000;
       }else{
-        tempTime = currentPacket.getTime() * 90;
+        tempTime = thisPacket.getTime() * 90;
       }
       ///\todo stuur 70ms aan audio per PES pakket om applecompat overbodig te maken.
-      //static unsigned long long lastSent=currentPacket.getTime() * 90;
-      //if( (currentPacket.getTime() * 90)-lastSent >= 70*90 ){
-      //   lastSent=(currentPacket.getTime() * 90);
+      //static unsigned long long lastSent=thisPacket.getTime() * 90;
+      //if( (thisPacket.getTime() * 90)-lastSent >= 70*90 ){
+      //   lastSent=(thisPacket.getTime() * 90);
       //}      
-      bs = TS::Packet::getPESAudioLeadIn(tempLen, tempTime);// myMeta.tracks[currentPacket.getTrackId()].rate / 1000 );
+      bs = TS::Packet::getPESAudioLeadIn(tempLen, tempTime);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
       fillPacket(bs.data(), bs.size());
-      if (myMeta.tracks[currentPacket.getTrackId()].codec == "AAC"){        
-        bs = TS::getAudioHeader(dataLen, myMeta.tracks[currentPacket.getTrackId()].init);      
+      if (myMeta.tracks[thisPacket.getTrackId()].codec == "AAC"){        
+        bs = TS::getAudioHeader(dataLen, myMeta.tracks[thisPacket.getTrackId()].init);      
         fillPacket(bs.data(), bs.size());
       }
       fillPacket(dataPointer,dataLen);

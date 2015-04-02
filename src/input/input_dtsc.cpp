@@ -74,7 +74,7 @@ namespace Mist {
     }else{
       inFile.parseNext();
     }
-    lastPack = inFile.getPacket();
+    thisPacket = inFile.getPacket();
   }
 
   void inputDTSC::seek(int seekTime) {

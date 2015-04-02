@@ -1029,7 +1029,7 @@ bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek
 bool DTSC::File::seek_time(unsigned int ms) {
   currentPositions.clear();
   if (selectedTracks.size()) {
-    for (std::set<unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       seek_time(ms, (*it), true);
     }
   }
@@ -1077,7 +1077,7 @@ bool DTSC::File::atKeyframe() {
   return false;
 }
 
-void DTSC::File::selectTracks(std::set<unsigned int> & tracks) {
+void DTSC::File::selectTracks(std::set<unsigned long> & tracks) {
   selectedTracks = tracks;
   currentPositions.clear();
   seek_time(0);

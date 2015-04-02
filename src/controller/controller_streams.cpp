@@ -59,7 +59,9 @@ namespace Controller {
       //push-style stream
       if (hasViewers(name)){
         data["meta"].null();
-        IPC::sharedPage streamIndex(name, DEFAULT_META_PAGE_SIZE, false, false);
+        char streamPageName[NAME_BUFFER_SIZE];
+        snprintf(streamPageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, name.c_str());
+        IPC::sharedPage streamIndex(streamPageName, DEFAULT_META_PAGE_SIZE, false, false);
         if (!streamIndex.mapped){
           return;
         }

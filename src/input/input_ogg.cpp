@@ -217,8 +217,8 @@ namespace Mist {
       }
     }
     getNext();
-    while (lastPack){
-      myMeta.update(lastPack);
+    while (thisPacket){
+      myMeta.update(thisPacket);
       getNext();
     }
 
@@ -276,7 +276,7 @@ namespace Mist {
 
   void inputOGG::getNext(bool smart){
     if (!currentPositions.size()){
-      lastPack.null();
+      thisPacket.null();
       return;
     }
     bool lastCompleteSegment = false;
@@ -330,7 +330,7 @@ namespace Mist {
       readFullPacket = true;
     }
     std::string tmpStr = thisSegment.toJSON(oggTracks[thisSegment.tid].codec).toNetPacked();
-    lastPack.reInit(tmpStr.data(), tmpStr.size());
+    thisPacket.reInit(tmpStr.data(), tmpStr.size());
 
     if (oggTracks[thisSegment.tid].codec == OGG::VORBIS){
       unsigned long blockSize = 0;
@@ -351,8 +351,8 @@ namespace Mist {
         thisSegment.time = oggTracks[thisSegment.tid].msPerFrame * (parseGranuleUpper + parseGranuleLower - 1);
         curPos.time = thisSegment.time;
         std::string tmpStr = thisSegment.toJSON(oggTracks[thisSegment.tid].codec).toNetPacked();
-        lastPack.reInit(tmpStr.data(), tmpStr.size());
-        //  INFO_MSG("thisTime: %d", lastPack.getTime());
+        thisPacket.reInit(tmpStr.data(), tmpStr.size());
+        //  INFO_MSG("thisTime: %d", thisPacket.getTime());
       }
       curPos.time += oggTracks[thisSegment.tid].msPerFrame;
     }
@@ -398,7 +398,7 @@ namespace Mist {
     DEBUG_MSG(DLVL_MEDIUM, "Seeking to %dms", seekTime);
 
     //for every track
-    for (std::set<unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       //find first keyframe before keyframe with ms > seektime
       position tmpPos;
       tmpPos.trackID = *it;
@@ -412,7 +412,7 @@ namespace Mist {
           tmpPos.bytepos = ot->getBpos();
         }
       }
-      INFO_MSG("Found %dms for track %u at %llu bytepos %llu", seekTime, *it, tmpPos.time, tmpPos.bytepos);
+      INFO_MSG("Found %dms for track %lu at %llu bytepos %llu", seekTime, *it, tmpPos.time, tmpPos.bytepos);
       int backChrs=std::min(280ull, tmpPos.bytepos - 1);
       fseek(inFile, tmpPos.bytepos - backChrs, SEEK_SET);
       char buffer[300];
@@ -422,12 +422,12 @@ namespace Mist {
         loc = (char *)memrchr(buffer, 'O',  (loc-buffer) -1 );//seek reverse
       }
       if (!loc){
-        INFO_MSG("Unable to find a page boundary starting @ %llu, track %u", tmpPos.bytepos, *it);        
+        INFO_MSG("Unable to find a page boundary starting @ %llu, track %lu", tmpPos.bytepos, *it);        
         continue;
       }
       tmpPos.segmentNo = backChrs - (loc - buffer);
       tmpPos.bytepos -= tmpPos.segmentNo;
-      INFO_MSG("Track %u, segment %llu found at bytepos %llu", *it, tmpPos.segmentNo, tmpPos.bytepos);
+      INFO_MSG("Track %lu, segment %llu found at bytepos %llu", *it, tmpPos.segmentNo, tmpPos.bytepos);
 
       currentPositions.insert(tmpPos);
     }

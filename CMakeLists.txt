@@ -8,12 +8,14 @@ endif(COMMAND cmake_policy)
 macro(makeAnalyser analyserName format)
   add_executable( MistAnalyser${analyserName} src/analysers/${format}_analyser.cpp )
   target_link_libraries( MistAnalyser${analyserName} mist )
+  install( TARGETS MistAnalyser${analyserName} DESTINATION bin)
 endmacro()
 
 macro(makeInput inputName format)
   add_executable( MistIn${inputName} src/input/mist_in.cpp src/input/input.cpp src/input/input_${format}.cpp src/io.cpp)
   set_target_properties( MistIn${inputName} PROPERTIES COMPILE_DEFINITIONS INPUTTYPE=\"input_${format}.h\")
   target_link_libraries( MistIn${inputName} mist )
+  install( TARGETS MistIn${inputName} DESTINATION bin)
 endmacro()
 
 macro(makeOutput outputName format)
@@ -31,6 +33,7 @@ macro(makeOutput outputName format)
   add_executable( MistOut${outputName} src/output/mist_out.cpp src/output/output.cpp ${httpOutput} ${tsOutput} src/output/output_${format}.cpp src/io.cpp)
   set_target_properties( MistOut${outputName} PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}")
   target_link_libraries( MistOut${outputName} mist )
+  install( TARGETS MistOut${outputName} DESTINATION bin)
 endmacro()
 
 SET(SOURCE_DIR ${PROJECT_SOURCE_DIR})
@@ -50,6 +53,10 @@ else()
   SET(CLOSURE cat)
 endif()  
 
+if (NOT CMAKE_INSTALL_PREFIX)
+  set (CMAKE_INSTALL_PREFIX /usr)
+endif()
+  
 if (RELEASE)
   set (RELEASE_RAW ${RELEASE})
 else()
@@ -165,6 +172,8 @@ ${SOURCE_DIR}/lib/json.cpp
   )
 add_library ( mist ${libHeaders} ${libSources} )
 target_link_libraries( mist -lpthread -lrt)
+install( FILES ${libHeaders} DESTINATION include/mist )
+install( TARGETS mist DESTINATION lib )
 
 add_custom_command(TARGET mist
   POST_BUILD
@@ -181,6 +190,7 @@ makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
 add_executable( MistInfo src/analysers/info.cpp )
 target_link_libraries( MistInfo mist )
+install( TARGETS MistInfo DESTINATION bin)
 
 makeInput(DTSC dtsc)
 makeInput(MP3 mp3)
@@ -234,6 +244,7 @@ add_executable( MistOutHTTP src/output/mist_out.cpp src/output/output.cpp src/ou
 set_target_properties( MistOutHTTP PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_http_internal.h\"")
 add_dependencies(MistOutHTTP embedcode)
 target_link_libraries( MistOutHTTP mist )
+install( TARGETS MistOutHTTP DESTINATION bin)
 
 set(controllerHeaders
   ${SOURCE_DIR}/src/controller/controller_api.h
@@ -257,6 +268,7 @@ add_executable( MistController ${controllerHeaders} ${controllerSources} )
 set_target_properties( MistController PROPERTIES COMPILE_DEFINITIONS RELEASE=${RELEASE})
 target_link_libraries( MistController mist )
 add_dependencies(MistController localSettingsPage)
+install( TARGETS MistController DESTINATION bin)
 
 #make clean stuff
 add_custom_target(clean-all

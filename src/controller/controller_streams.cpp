@@ -131,7 +131,9 @@ namespace Controller {
           DEBUG_MSG(DLVL_INSANE, "Waiting for stream %s to open...", name.c_str());
           //wait for the stream
           {
-            IPC::sharedPage streamIndex(name, DEFAULT_META_PAGE_SIZE);
+            char streamPageName[NAME_BUFFER_SIZE];
+            snprintf(streamPageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, name.c_str());
+            IPC::sharedPage streamIndex(streamPageName, DEFAULT_META_PAGE_SIZE, false, false);
             if (!streamIndex.mapped){
               DEBUG_MSG(DLVL_INSANE, "Stream %s opening failed! Cancelling and marking as corrupt.", name.c_str());
               data["meta"].null();

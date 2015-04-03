@@ -336,7 +336,7 @@ if (EXISTS "${SOURCE_DIR}/sourcery")
   add_custom_target(sourcery 
     COMMAND cp ${SOURCE_DIR}/sourcery ${BINARY_DIR}/sourcery
   )
-elseif()
+else()
   add_executable(sourcery
     src/sourcery.cpp
   )
@@ -346,8 +346,8 @@ endif()
 # Embed Code                           #
 ########################################
 add_custom_target(embedcode
-  ./sourcery ${CMAKE_CURRENT_SOURCE_DIR}/src/embed.js embed_js ${CMAKE_CURRENT_BINARY_DIR}/embed.js.h
-  DEPENDS sourcery ${CMAKE_CURRENT_SOURCE_DIR}/src/embed.js 
+  ./sourcery ${SOURCE_DIR}/src/embed.js embed_js ${BINARY_DIR}/embed.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/src/embed.js 
   VERBATIM
 )
 
@@ -369,13 +369,13 @@ endforeach()
 file(READ ${SOURCE_DIR}/lsp/main.css lspCSS)
 file(READ ${SOURCE_DIR}/lsp/header.html lspHeader)
 file(READ ${SOURCE_DIR}/lsp/footer.html lspFooter)
-file(WRITE ${SOURCE_DIR}/server.html "${lspHeader}<script>${lspCode}</script><style>${lspCSS}</style>${lspFooter}")
+file(WRITE ${BINARY_DIR}/server.html "${lspHeader}<script>${lspCode}</script><style>${lspCSS}</style>${lspFooter}")
 set (lspCSS "")
 set (lspHeader "")
 set (lspFooter "")
 
 add_custom_target(localSettingsPage
-  ./sourcery ${BINARY_DIR}/server.html server_html ${CMAKE_CURRENT_BINARY_DIR}/server.html.h
+  ./sourcery ${BINARY_DIR}/server.html server_html ${BINARY_DIR}/server.html.h
   DEPENDS sourcery
   VERBATIM
 )

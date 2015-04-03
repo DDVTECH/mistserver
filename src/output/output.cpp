@@ -453,12 +453,7 @@ namespace Mist {
             return;
           }
         }
-        unsigned int skip = ((myMeta.tracks[mainTrack].keys.size()-1) * config->getInteger("startpos")) / 1000u;
-        std::deque<DTSC::Key>::iterator it = myMeta.tracks[mainTrack].keys.begin();
-        for (unsigned int i = 0; i < skip; ++i){
-          ++it;
-        }
-        unsigned long long seekPos = it->getTime();
+        unsigned long long seekPos = myMeta.tracks[mainTrack].keys.rbegin()->getTime();
         if (seekPos < 5000){
           seekPos = 0;
         }

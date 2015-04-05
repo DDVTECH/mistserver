@@ -333,9 +333,13 @@ endif(DOXYGEN_FOUND)
 # Sourcery                             #
 ########################################
 if (EXISTS "${SOURCE_DIR}/sourcery")
-  add_custom_target(sourcery 
-    COMMAND cp ${SOURCE_DIR}/sourcery ${BINARY_DIR}/sourcery
-  )
+  if (EXISTS "${BINARY_DIR}/sourcery")
+    add_custom_target(sourcery )
+  else()
+    add_custom_target(sourcery 
+      COMMAND cp ${SOURCE_DIR}/sourcery ${BINARY_DIR}/sourcery
+    )
+  endif()
 else()
   add_executable(sourcery
     src/sourcery.cpp

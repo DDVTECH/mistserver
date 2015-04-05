@@ -79,6 +79,12 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
   configLock.wait();
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
+
+  /*LTS-START*/
+  if (config.getMember("hardlimit_active")) {
+    return false;
+  }
+  /*LTS-END*/
   
   sanitizeName(streamname);
   std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
@@ -89,6 +95,13 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     configLock.post();//unlock the config semaphore
     return false;
   }
+
+  /*LTS-START*/
+  if (stream_cfg.getMember("hardlimit_active")) {
+    return false;
+  }
+  /*LTS-END*/
+
   
   //If starting without filename parameter, check if the stream is already active.
   //If yes, don't activate again to prevent duplicate inputs.

@@ -9,15 +9,20 @@
 #include <mist/dtsc.h>
 #include <mist/socket.h>
 #include <mist/shared_memory.h>
+/*LTS-START*/
+#ifdef GEOIP
+#include <GeoIP.h>
+#endif
+/*LTS-END*/
 #include "../io.h"
 
 namespace Mist {
-  
+
   /// This struct keeps packet information sorted in playback order, so the
   /// Mist::Output class knows when to buffer which packet.
-  struct sortedPageInfo{
+  struct sortedPageInfo {
     bool operator < (const sortedPageInfo & rhs) const {
-      if (time < rhs.time){
+      if (time < rhs.time) {
         return true;
       }
       return (time == rhs.time && tid < rhs.tid);
@@ -41,6 +46,12 @@ namespace Mist {
       //static members for initialization and capabilities
       static void init(Util::Config * cfg);
       static JSON::Value capa;
+      /*LTS-START*/
+      #ifdef GEOIP
+      static GeoIP * geoIP4;
+      static GeoIP * geoIP6;
+      #endif
+      /*LTS-END*/
       //non-virtual generic functions
       int run();
       void stats();
@@ -64,6 +75,14 @@ namespace Mist {
       virtual void onFail();
       virtual void requestHandler();
     private://these *should* not be messed with in child classes.
+      /*LTS-START*/
+      void Log(std::string type, std::string message);
+      bool checkLimits();
+      bool isBlacklisted(std::string host, std::string streamName, int timeConnected);
+      std::string hostLookup(std::string ip);
+      bool onList(std::string ip, std::string list);
+      std::string getCountry(std::string ip);
+      /*LTS-END*/
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
       int pageNumForKey(long unsigned int trackId, long long int keyNum);
@@ -82,7 +101,7 @@ namespace Mist {
       unsigned int maxSkipAhead;///< Maximum ms that we will go ahead of the intended timestamps.
       unsigned int minSkipAhead;///< Minimum ms that we will go ahead of the intended timestamps.
       unsigned int realTime;///< Playback speed times 1000 (1000 == 1.0X). Zero is infinite.
-      
+
       //Read/write status variables
       Socket::Connection & myConn;///< Connection to the client.
 
@@ -97,3 +116,4 @@ namespace Mist {
   };
 
 }
+

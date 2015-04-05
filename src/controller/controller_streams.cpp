@@ -9,6 +9,7 @@
 #include "controller_capabilities.h"
 #include "controller_storage.h"
 #include "controller_statistics.h"
+#include "controller_limits.h" /*LTS*/
 #include <sys/stat.h>
 #include <map>
 
@@ -73,6 +74,7 @@ namespace Controller {
             trackIt->second.removeMember("keys");
             trackIt->second.removeMember("keysizes");
             trackIt->second.removeMember("parts");
+            trackIt->second.removeMember("ivecs");/*LTS*/
           }
         }
       }
@@ -82,7 +84,7 @@ namespace Controller {
       //vod-style stream
       data.removeMember("error");
       struct stat fileinfo;
-      if (stat(URL.c_str(), &fileinfo) != 0 || S_ISDIR(fileinfo.st_mode)){
+      if (stat(URL.c_str(), &fileinfo) != 0){
         data["error"] = "Stream offline: Not found: " + URL;
         if (data["error"].asStringRef() != prevState){
           Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
@@ -120,6 +122,9 @@ namespace Controller {
       }else{
         DEBUG_MSG(DLVL_INSANE, "Invalid metadata (no tracks object) for stream %s - triggering reload", name.c_str());
         getMeta = true;
+      }
+      if (*(URL.rbegin()) == '/'){
+        getMeta = false;
       }
       if (getMeta){
         // if the file isn't dtsc and there's no dtsh file, run getStream on it
@@ -198,6 +203,7 @@ namespace Controller {
       }else{
         data["online"] = 1;
       }
+      checkServerLimits(); /*LTS*/
       return;
     }
     /// \todo Implement ffmpeg pulling again?
@@ -231,6 +237,7 @@ namespace Controller {
           }
           jit->second["online"] = 0;
         }
+        checkServerLimits(); /*LTS*/
       }else{
         // assume all is fine
         jit->second.removeMember("error");
@@ -242,7 +249,7 @@ namespace Controller {
           jit->second["error"] = "No (valid) source connected ";
         }else{
           // for live streams, keep track of activity
-          if (jit->second["meta"].isMember("live")){
+          if (jit->second.isMember("meta") && jit->second["meta"].isMember("live")){
             static std::map<std::string, liveCheck> checker;
             //check H264 tracks for optimality
             if (jit->second.isMember("meta") && jit->second["meta"].isMember("tracks")){
@@ -251,7 +258,11 @@ namespace Controller {
                   checker[jit->first].lastms = trIt->second["lastms"].asInt();
                   checker[jit->first].last_active = currTime;
                 }
-
+                /*LTS-START*/
+                if (trIt->second["firstms"].asInt() > Storage["streams"][jit->first]["cut"].asInt()){
+                  Storage["streams"][jit->first].removeMember("cut");
+                }
+                /*LTS-END*/
               }
             }
             // mark stream as offline if no activity for 5 seconds
@@ -289,14 +300,8 @@ namespace Controller {
           Log("STRM", std::string("Updated stream ") + jit->first);
         }
       }else{
+        out[jit->first] = jit->second;
         out[jit->first]["name"] = jit->first;
-        out[jit->first]["source"] = jit->second["source"];
-        if (jit->second.isMember("DVR")){
-          out[jit->first]["DVR"] = jit->second["DVR"].asInt();
-        }
-        if (jit->second.isMember("cut")){
-          out[jit->first]["cut"] = jit->second["cut"].asInt();
-        }
         Log("STRM", std::string("New stream ") + jit->first);
       }
     }

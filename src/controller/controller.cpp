@@ -46,6 +46,11 @@
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
 #include "controller_statistics.h"
+/*LTS-START*/
+#include "controller_updater.h"
+#include "controller_limits.h"
+#include "controller_uplink.h"
+/*LTS-END*/
 #include "controller_api.h"
 
 #ifndef COMPILED_USERNAME
@@ -88,7 +93,19 @@ void createAccount (std::string account){
 /// Status monitoring thread.
 /// Will check outputs, inputs and converters every five seconds
 void statusMonitor(void * np){
+  #ifdef UPDATER
+  unsigned long updatechecker = Util::epoch(); /*LTS*/
+  #endif
   while (Controller::conf.is_active){
+    /*LTS-START*/
+    #ifdef UPDATER
+    if (Util::epoch() - updatechecker > 3600){
+      updatechecker = Util::epoch();
+      Controller::CheckUpdateInfo();
+    }
+    #endif
+    /*LTS-END*/
+
     //this scope prevents the configMutex from being locked constantly
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
@@ -127,6 +144,12 @@ int main(int argc, char ** argv){
   Controller::conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
   Controller::conf.addOption("logfile", JSON::fromString("{\"long\":\"logfile\", \"short\":\"L\", \"arg\":\"string\" \"default\":\"\",\"help\":\"Redirect all standard output to a log file, provided with an argument\"}"));
   Controller::conf.addOption("configFile", JSON::fromString("{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" \"default\":\"config.json\", \"help\":\"Specify a config file other than default.\"}"));
+  #ifdef UPDATER
+  Controller::conf.addOption("update", JSON::fromString("{\"default\":0, \"help\":\"Check for and install updates before starting.\", \"short\":\"D\", \"long\":\"update\"}")); /*LTS*/
+  #endif
+  Controller::conf.addOption("uplink", JSON::fromString("{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host and port.\", \"short\":\"U\", \"long\":\"uplink\"}")); /*LTS*/
+  Controller::conf.addOption("uplink-name", JSON::fromString("{\"default\":\"" COMPILED_USERNAME "\", \"arg\":\"string\", \"help\":\"MistSteward uplink username.\", \"short\":\"N\", \"long\":\"uplink-name\"}")); /*LTS*/
+  Controller::conf.addOption("uplink-pass", JSON::fromString("{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}")); /*LTS*/
   Controller::conf.parseArgs(argc, argv);
   if(Controller::conf.getString("logfile")!= ""){
     //open logfile, dup stdout to logfile
@@ -246,14 +269,29 @@ int main(int argc, char ** argv){
   Controller::Log("CONF", "Controller started");
   Controller::conf.activate();//activate early, so threads aren't killed.
 
+  /*LTS-START*/
+  #ifdef UPDATER
+  if (Controller::conf.getBool("update")){
+    Controller::CheckUpdates();
+  }
+  #endif
+  /*LTS-END*/
+
   //start stats thread
   tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);
   //start monitoring thread
   tthread::thread monitorThread(statusMonitor, 0);
+  //start monitoring thread /*LTS*/
+  tthread::thread uplinkThread(Controller::uplinkConnection, 0);/*LTS*/
   
   //start main loop
   Controller::conf.serveThreadedSocket(Controller::handleAPIConnection);
   //print shutdown reason
+  /*LTS-START*/
+  if (Controller::restarting){
+    Controller::Log("CONF", "Controller restarting for update");
+  }
+  /*LTS-END*/
   if (!Controller::conf.is_active){
     Controller::Log("CONF", "Controller shutting down because of user request (received shutdown signal)");
   }else{
@@ -263,6 +301,7 @@ int main(int argc, char ** argv){
   //join all joinable threads
   statsThread.join();
   monitorThread.join();
+  uplinkThread.join();/*LTS*/
   //give everything some time to print messages
   Util::wait(100);
   //close stderr to make the stderr reading thread exit
@@ -282,5 +321,12 @@ int main(int argc, char ** argv){
   //stop all child processes
   Util::Procs::StopAll();
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
+  /*LTS-START*/
+  if (Controller::restarting){
+    std::string myFile = Util::getMyPath() + "MistController";
+    execvp(myFile.c_str(), argv);
+    std::cout << "Error restarting: " << strerror(errno) << std::endl;
+  }
+  /*LTS-END*/
   return 0;
 }

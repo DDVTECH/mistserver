@@ -1,3 +1,4 @@
+#pragma once
 #include "mp4.h"
 
 namespace MP4 {
@@ -122,6 +123,56 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
+  struct HVCCArrayEntry {
+    char arrayCompleteness;
+    char nalUnitType;
+    std::deque<std::string> nalUnits;
+  };
+
+  class HVCC: public Box {
+    public:
+      HVCC();
+      void setConfigurationVersion(char newVersion);
+      char getConfigurationVersion();
+      void setGeneralProfileSpace(char newGeneral);
+      char getGeneralProfileSpace();
+      void setGeneralTierFlag(char newGeneral);
+      char getGeneralTierFlag();
+      void setGeneralProfileIdc(char newGeneral);
+      char getGeneralProfileIdc();
+      void setGeneralProfileCompatibilityFlags(unsigned long newGeneral);
+      unsigned long getGeneralProfileCompatibilityFlags();
+      void setGeneralConstraintIndicatorFlags(unsigned long long newGeneral);
+      unsigned long long getGeneralConstraintIndicatorFlags();
+      void setGeneralLevelIdc(char newGeneral);
+      char getGeneralLevelIdc();
+      void setMinSpatialSegmentationIdc(short newIdc);
+      short getMinSpatialSegmentationIdc();
+      void setParallelismType(char newType);
+      char getParallelismType();
+      void setChromaFormat(char newFormat);
+      char getChromaFormat();
+      void setBitDepthLumaMinus8(char newBitDepthLumaMinus8);
+      char getBitDepthLumaMinus8();
+      void setBitDepthChromaMinus8(char newBitDepthChromaMinus8);
+      char getBitDepthChromaMinus8();
+      void setAverageFramerate(short newFramerate);
+      short getAverageFramerate();
+      void setConstantFramerate(char newFramerate);
+      char getConstantFramerate();
+      void setNumberOfTemporalLayers(char newNumber);
+      char getNumberOfTemporalLayers();
+      void setTemporalIdNested(char newNested);
+      char getTemporalIdNested();
+      void setLengthSizeMinus1(char newLengthSizeMinus1);
+      char getLengthSizeMinus1();
+      ///\todo Add setter for the array entries
+      std::deque<HVCCArrayEntry> getArrays();
+      std::string asAnnexB();
+      void setPayload(std::string newPayload);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class Descriptor{
     public:
       Descriptor();
@@ -182,9 +233,27 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class DAC3: public Box {
+    public:
+      DAC3();
+      char getSampleRateCode();//2bits
+      void setSampleRateCode(char newVal);//2bits
+      char getBitStreamIdentification();//5bits
+      void setBitStreamIdentification(char newVal);//5bits
+      char getBitStreamMode();//3 bits
+      void setBitStreamMode(char newVal);//3 bits
+      char getAudioConfigMode();//3 bits
+      void setAudioConfigMode(char newVal);//3 bits
+      bool getLowFrequencyEffectsChannelOn();//1bit
+      void setLowFrequencyEffectsChannelOn(bool newVal);//1bit
+      char getFrameSizeCode();//6bits
+      void setFrameSizeCode(char newVal);//6bits
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class FTYP: public Box {
     public:
-      FTYP();
+      FTYP(bool fillDefaults = true);
       void setMajorBrand(const char * newMajorBrand);
       std::string getMajorBrand();
       void setMinorVersion(const char * newMinorVersion);
@@ -192,6 +261,12 @@ namespace MP4 {
       size_t getCompatibleBrandsCount();
       void setCompatibleBrands(const char * newCompatibleBrand, size_t index);
       std::string getCompatibleBrands(size_t index);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class STYP: public FTYP {
+    public:
+      STYP(bool fillDefaults = true);
       std::string toPrettyString(uint32_t indent = 0);
   };
 
@@ -205,7 +280,7 @@ namespace MP4 {
       MVEX();
   };
 
-  class TREX: public Box {
+  class TREX: public fullBox {
     public:
       TREX();
       void setTrackID(uint32_t newTrackID);
@@ -600,6 +675,7 @@ namespace MP4 {
       uint32_t getSampleRate();
       void setCodecBox(Box & newBox);
       Box & getCodecBox();
+      Box & getSINFBox(); /*LTS*/
       std::string toPrettyAudioString(uint32_t indent = 0, std::string name = "");
   };
 
@@ -615,6 +691,12 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class HEV1: public VisualSampleEntry {
+    public:
+      HEV1();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class AVC1: public VisualSampleEntry {
     public:
       AVC1();
@@ -627,6 +709,16 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class FIEL: public Box {
+    public:
+      FIEL();
+      void setTotal(char newTotal);
+      char getTotal();
+      void setOrder(char newOrder);
+      char getOrder();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
   class STSD: public fullBox {
     public:
       STSD(char v = 1, uint32_t f = 0);
@@ -635,6 +727,16 @@ namespace MP4 {
       void setEntry(Box & newContent, uint32_t no);
       Box & getEntry(uint32_t no);
       std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  class GMHD: public containerBox {
+    public:
+      GMHD();
+  };
+
+  class TREF: public containerBox {
+    public:
+      TREF();
   };
 
   class EDTS: public containerBox {
@@ -677,3 +779,4 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 }
+

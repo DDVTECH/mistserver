@@ -179,6 +179,26 @@ namespace DTSC {
       volatile int playCount;
   };
 
+  /*LTS-START*/
+  ///\brief Basic class supporting initialization Vectors.
+  ///
+  ///These are used for encryption of data.
+  class Ivec {
+    public:
+      Ivec();
+      Ivec(long long int iVec);
+      void setIvec(long long int iVec);
+      void setIvec(std::string iVec);
+      void setIvec(char * iVec, int len);
+      long long int asInt();
+      char * getData();
+    private:
+      ///\brief Data storage for this initialization vector.
+      ///
+      /// - 8 bytes: MSB storage of the initialization vector.
+      char data[8];
+  };
+  /*LTS-END*/
 
   ///\brief Basic class for storage of data associated with single DTSC packets, a.k.a. parts.
   class Part {
@@ -270,6 +290,7 @@ namespace DTSC {
       std::deque<Key> keys;
       std::deque<unsigned long> keySizes;
       std::deque<Part> parts;
+      std::deque<Ivec> ivecs; /*LTS*/
       Key & getKey(unsigned int keyNum);
       unsigned int timeToKeynum(unsigned int timestamp);
       unsigned int timeToFragnum(unsigned int timestamp);
@@ -394,6 +415,7 @@ namespace DTSC {
       std::string & outPacket(livePos num);
       std::string & outHeader();
       Ring * getRing();
+      void setRecord(std::string path); /*LTS*/
       unsigned int getTime();
       void dropRing(Ring * ptr);
       int canSeekms(unsigned int ms);
@@ -411,9 +433,13 @@ namespace DTSC {
       std::map<int, std::set<livePos> > keyframes;
       virtual void addPacket(JSON::Value & newPack);
       virtual void addMeta(JSON::Value & newMeta);
+      void recordPacket(JSON::Value & packet); /*LTS*/
       datatype datapointertype;
       unsigned int buffercount;
       unsigned int buffertime;
+      std::string recordPath; /*LTS*/
+      File * recordFile; /*LTS*/
+      bool headerRecorded; /*LTS*/
       std::map<unsigned int, std::string> trackMapping;
       virtual void deletionCallback(livePos deleting);
   };

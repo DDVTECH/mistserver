@@ -1,6 +1,11 @@
 #include <cstdio>
 #include <mist/config.h>
 #include "controller_statistics.h"
+#include "controller_limits.h"
+
+#ifndef KILL_ON_EXIT
+#define KILL_ON_EXIT false
+#endif
 
 // These are used to store "clients" field requests in a bitfield for speedup.
 #define STAT_CLI_HOST 1
@@ -23,6 +28,7 @@
 
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
+bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
 
 Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::string dstreamName, std::string dconnector){
@@ -79,6 +85,10 @@ bool Controller::sessIndex::operator>= (const Controller::sessIndex &b) const{
   return !(*this < b);
 }
 
+/// Forces a disconnect to all users.
+void Controller::killStatistics(char * data, size_t len, unsigned int id){
+  (*(data - 1)) = 128;//Send disconnect message;
+}
 
 /// This function runs as a thread and roughly once per second retrieves
 /// statistics from all connected clients, as well as wipes
@@ -98,10 +108,19 @@ void Controller::SharedMemStats(void * config){
           it->second.wipeOld(cutOffPoint);
         }
       }
+      Controller::checkServerLimits(); /*LTS*/
     }
     Util::sleep(1000);
   }
   DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
+  if (Controller::killOnExit){
+    DEBUG_MSG(DLVL_WARN, "Killing all connected clients to force full shutdown");
+    unsigned int c = 0;//to prevent eternal loops
+    do{
+      statServer.parseEach(killStatistics);
+      Util::wait(250);
+    }while(statServer.amount && c++ < 10);
+  }
 }
 
 /// Updates the given active connection with new stats data.
@@ -416,6 +435,11 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
     sessions[idx].finish(id);
     connToSession.erase(id);
   }
+  /*LTS-START*/
+  //if (counter < 125 && Controller::isBlacklisted(tmpEx.host(), ID, tmpEx.time())){
+  //  (*(data - 1)) = 128;//Send disconnect message;
+  //}
+  /*LTS-END*/
 }
 
 /// Returns true if this stream has at least one connected client.
@@ -550,6 +574,36 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
         }
       }
     }
+  }
+  //all done! return is by reference, so no need to return anything here.
+}
+
+/// This takes a "active_streams" request, and fills in the response data.
+/// 
+/// \api
+/// `"active_streams"` requests are always empty (passed data is ignored), and are responded to as:
+/// ~~~~~~~~~~~~~~~{.js}
+/// [
+///   //Array of stream names
+///   "streamA",
+///   "streamB",
+///   "streamC"
+/// ]
+/// ~~~~~~~~~~~~~~~
+/// All streams that any statistics data is available for are listed, and only those streams.
+void Controller::fillActive(JSON::Value & req, JSON::Value & rep){
+  //collect the data first
+  std::set<std::string> streams;
+  //check all sessions
+  if (sessions.size()){
+    for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+      streams.insert(it->first.streamName);
+    }
+  }
+  //Good, now output what we found...
+  rep.null();
+  for (std::set<std::string>::iterator it = streams.begin(); it != streams.end(); it++){
+    rep.append(*it);
   }
   //all done! return is by reference, so no need to return anything here.
 }

@@ -44,9 +44,11 @@ namespace Mist {
     capa["optional"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
     capa["optional"]["tracks"]["type"] = "str";
     capa["optional"]["tracks"]["option"] = "--tracks";
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("AC3");
     cfg->addOption("streamname",
                    JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
     cfg->addOption("tracks",

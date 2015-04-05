@@ -68,6 +68,24 @@ if (NOT DEFINED ${NOSHM} )
   add_definitions(-DSHM_ENABLED=1)
 endif()
 
+
+if (NOT DEFINED FILLER_DATA OR NOT DEFINED SHARED_SECRET OR NOT DEFINED SUPER_SECRET)#LTS
+  message(WARNING "Not all LTS variables have been set and this is an LTS build - are you sure about this?")#LTS
+endif()#LTS
+add_definitions(-DFILLER_DATA="${FILLER_DATA}" -DSHARED_SECRET="${SHARED_SECRET}" -DSUPER_SECRET="${SUPER_SECRET}")#LTS
+if (DEFINED ${GEOIP} )
+  add_definitions(-DGEOIP=1)
+endif()
+if (NOT DEFINED ${NOUPDATE} )
+  add_definitions(-DUPDATER=1)
+endif()
+if (DEFINED ${NOAUTH} )
+  add_definitions(-DNOAUTH=1)
+endif()
+if (DEFINED ${KILLONEXIT} )
+  add_definitions(-DKILLONEXIT=true)
+endif()
+
 ########################################
 # Build Variables - Thread Names       #
 ########################################
@@ -95,12 +113,16 @@ set(libHeaders
   ${SOURCE_DIR}/lib/converter.h
   ${SOURCE_DIR}/lib/defines.h
   ${SOURCE_DIR}/lib/dtsc.h
+  ${SOURCE_DIR}/lib/encryption.h
   ${SOURCE_DIR}/lib/filesystem.h
   ${SOURCE_DIR}/lib/flv_tag.h
   ${SOURCE_DIR}/lib/ftp.h
   ${SOURCE_DIR}/lib/http_parser.h
   ${SOURCE_DIR}/lib/json.h
   ${SOURCE_DIR}/lib/mp4_adobe.h
+  ${SOURCE_DIR}/lib/mp4_dash.cpp
+  ${SOURCE_DIR}/lib/mp4_dash.h
+  ${SOURCE_DIR}/lib/mp4_encryption.h
   ${SOURCE_DIR}/lib/mp4_generic.h
   ${SOURCE_DIR}/lib/mp4.h
   ${SOURCE_DIR}/lib/mp4_ms.h
@@ -108,6 +130,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/ogg.h
   ${SOURCE_DIR}/lib/procs.h
   ${SOURCE_DIR}/lib/rtmpchunks.h
+  ${SOURCE_DIR}/lib/rtp.h
   ${SOURCE_DIR}/lib/shared_memory.h
   ${SOURCE_DIR}/lib/socket.h
   ${SOURCE_DIR}/lib/stream.h
@@ -131,6 +154,7 @@ set(libSources
   ${SOURCE_DIR}/lib/converter.cpp
   ${SOURCE_DIR}/lib/dtsc.cpp
   ${SOURCE_DIR}/lib/dtscmeta.cpp
+  ${SOURCE_DIR}/lib/encryption.cpp
   ${SOURCE_DIR}/lib/filesystem.cpp
   ${SOURCE_DIR}/lib/flv_tag.cpp
   ${SOURCE_DIR}/lib/ftp.cpp
@@ -138,12 +162,15 @@ set(libSources
   ${SOURCE_DIR}/lib/json.cpp
   ${SOURCE_DIR}/lib/mp4_adobe.cpp
   ${SOURCE_DIR}/lib/mp4.cpp
+  ${SOURCE_DIR}/lib/mp4_dash.cpp
+  ${SOURCE_DIR}/lib/mp4_encryption.cpp
   ${SOURCE_DIR}/lib/mp4_generic.cpp
   ${SOURCE_DIR}/lib/mp4_ms.cpp
   ${SOURCE_DIR}/lib/nal.cpp
   ${SOURCE_DIR}/lib/ogg.cpp
   ${SOURCE_DIR}/lib/procs.cpp
   ${SOURCE_DIR}/lib/rtmpchunks.cpp
+  ${SOURCE_DIR}/lib/rtp.cpp
   ${SOURCE_DIR}/lib/shared_memory.cpp
   ${SOURCE_DIR}/lib/socket.cpp
   ${SOURCE_DIR}/lib/stream.cpp
@@ -153,7 +180,6 @@ set(libSources
   ${SOURCE_DIR}/lib/ts_packet.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
 )
-
 ########################################
 # MistLib - Build                      #
 ########################################
@@ -206,6 +232,9 @@ makeAnalyser(DTSC dtsc)
 makeAnalyser(AMF amf)
 makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
+makeAnalyser(RTP rtp) #LTS
+makeAnalyser(RTSP rtsp_rtp) #LTS
+makeAnalyser(Stats stats) #LTS
 add_executable(MistInfo
   src/analysers/info.cpp
 )
@@ -244,6 +273,10 @@ makeInput(MP3 mp3)
 makeInput(FLV flv)
 makeInput(OGG ogg)
 makeInput(Buffer buffer)
+makeInput(ISMV ismv)#LTS
+makeInput(MP4 mp4)#LTS
+makeInput(TS ts)#LTS
+makeInput(Folder folder)#LTS
 
 ########################################
 # MistServer - Outputs                 #
@@ -292,6 +325,10 @@ makeOutput(JSON json           http)
 makeOutput(TS ts                    ts)
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
+makeOutput(RTSP rtsp)#LTS
+makeOutput(TSPush ts_push           ts)#LTS
+makeOutput(DASH dash_mp4       http)#LTS
+
 add_executable(MistOutHTTP 
   src/output/mist_out.cpp
   src/output/output.cpp
@@ -388,10 +425,13 @@ add_custom_target(localSettingsPage
 # MistController - Header Files        #
 ########################################
 set(controllerHeaders
+  ${SOURCE_DIR}/src/controller/controller_limits.h
+  ${SOURCE_DIR}/src/controller/controller_uplink.h
   ${SOURCE_DIR}/src/controller/controller_api.h
   ${SOURCE_DIR}/src/controller/controller_statistics.h
   ${SOURCE_DIR}/src/controller/controller_connectors.h
   ${SOURCE_DIR}/src/controller/controller_storage.h
+  ${SOURCE_DIR}/src/controller/controller_updater.h
   ${SOURCE_DIR}/src/controller/controller_capabilities.h
   ${SOURCE_DIR}/src/controller/controller_streams.h
 )
@@ -401,14 +441,16 @@ set(controllerHeaders
 ########################################
 set(controllerSources
   ${SOURCE_DIR}/src/controller/controller.cpp
+  ${SOURCE_DIR}/src/controller/controller_updater.cpp
   ${SOURCE_DIR}/src/controller/controller_streams.cpp
   ${SOURCE_DIR}/src/controller/controller_storage.cpp
   ${SOURCE_DIR}/src/controller/controller_connectors.cpp
   ${SOURCE_DIR}/src/controller/controller_statistics.cpp
+  ${SOURCE_DIR}/src/controller/controller_limits.cpp
   ${SOURCE_DIR}/src/controller/controller_capabilities.cpp
+  ${SOURCE_DIR}/src/controller/controller_uplink.cpp
   ${SOURCE_DIR}/src/controller/controller_api.cpp
 )
-
 ########################################
 # MistController - Build               #
 ########################################

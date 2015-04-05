@@ -639,6 +639,192 @@ namespace MP4 {
     memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
   }
 
+  HVCC::HVCC() {
+    memcpy(data + 4, "hvcC", 4);
+  }
+
+  void HVCC::setConfigurationVersion(char newVersion) {
+    setInt8(newVersion, 0);
+  }
+  char HVCC::getConfigurationVersion() {
+    return getInt8(0);
+  }
+
+  void HVCC::setGeneralProfileSpace(char newGeneral) {
+    setInt8(((newGeneral << 6) & 0xC0) | (getInt8(1) & 0x3F), 1);
+  }
+  char HVCC::getGeneralProfileSpace(){
+    return ((getInt8(1) >> 6) & 0x03);
+  }
+
+  void HVCC::setGeneralTierFlag(char newGeneral){
+    setInt8(((newGeneral << 5) & 0x20) | (getInt8(1) & 0xDF), 1);
+  }
+  char HVCC::getGeneralTierFlag(){
+    return ((getInt8(1) >> 5) & 0x01);
+  }
+  
+  void HVCC::setGeneralProfileIdc(char newGeneral){
+    setInt8((newGeneral & 0x1F) | (getInt8(1) & 0xE0), 1);
+  }
+  char HVCC::getGeneralProfileIdc(){
+    return getInt8(1) & 0x1F;
+  }
+
+  void HVCC::setGeneralProfileCompatibilityFlags(unsigned long newGeneral){
+    setInt32(newGeneral, 2);
+  }
+  unsigned long HVCC::getGeneralProfileCompatibilityFlags(){
+    return getInt32(2);
+  }
+  
+  void HVCC::setGeneralConstraintIndicatorFlags(unsigned long long newGeneral){
+    setInt32((newGeneral >> 16) & 0x0000FFFF,6);
+    setInt16(newGeneral & 0xFFFFFF, 10);
+  }
+  unsigned long long HVCC::getGeneralConstraintIndicatorFlags(){
+    unsigned long long result = getInt32(6);
+    result <<= 16;
+    return result | getInt16(10);
+  }
+  
+  void HVCC::setGeneralLevelIdc(char newGeneral){
+    setInt8(newGeneral, 12);
+  }
+  char HVCC::getGeneralLevelIdc(){
+    return getInt8(12);
+  }
+
+  void HVCC::setMinSpatialSegmentationIdc(short newIdc){
+    setInt16(newIdc | 0xF000, 13);
+  }
+  short HVCC::getMinSpatialSegmentationIdc(){
+    return getInt16(13) & 0x0FFF;
+  }
+  
+  void HVCC::setParallelismType(char newType){
+    setInt8(newType | 0xFC, 15);
+  }
+  char HVCC::getParallelismType(){
+    return getInt8(15) & 0x03;
+  }
+  
+  void HVCC::setChromaFormat(char newFormat){
+    setInt8(newFormat | 0xFC, 16);
+  }
+  char HVCC::getChromaFormat(){
+    return getInt8(16) & 0x03;
+  }
+  
+  void HVCC::setBitDepthLumaMinus8(char newBitDepthLumaMinus8){
+    setInt8(newBitDepthLumaMinus8 | 0xF8, 17);
+  }
+  char HVCC::getBitDepthLumaMinus8(){
+    return getInt8(17) & 0x07;
+  }
+
+  void HVCC::setBitDepthChromaMinus8(char newBitDepthChromaMinus8){
+    setInt8(newBitDepthChromaMinus8 | 0xF8, 18);
+  }
+  char HVCC::getBitDepthChromaMinus8(){
+    return getInt8(18) & 0x07;
+  }
+  
+  void setAverageFramerate(short newFramerate);
+  short HVCC::getAverageFramerate(){
+    return getInt16(19);
+  }
+  void setConstantFramerate(char newFramerate);
+  char HVCC::getConstantFramerate(){
+    return (getInt8(21) >> 6) & 0x03;
+  }
+  void setNumberOfTemporalLayers(char newNumber);
+  char HVCC::getNumberOfTemporalLayers(){
+    return (getInt8(21) >> 3) & 0x07;
+  }
+  void setTemporalIdNested(char newNested);
+  char HVCC::getTemporalIdNested(){
+    return (getInt8(21) >> 2) & 0x01;
+  }
+  void setLengthSizeMinus1(char newLengthSizeMinus1);
+  char HVCC::getLengthSizeMinus1(){
+    return getInt8(21) & 0x03;
+  }
+
+  std::deque<HVCCArrayEntry> HVCC::getArrays(){
+    std::deque<HVCCArrayEntry> r;
+    char arrayCount = getInt8(22);
+    int offset = 23;
+    for(int i = 0; i < arrayCount; i++){
+      HVCCArrayEntry entry;
+      entry.arrayCompleteness = ((getInt8(offset) >> 7) & 0x01);
+      entry.nalUnitType = (getInt8(offset) & 0x3F);
+      offset++;
+      short naluCount = getInt16(offset);
+      offset += 2;
+      for (int j = 0; j < naluCount; j++){
+        short naluSize = getInt16(offset);
+        offset += 2;
+        std::string nalu;
+        for (int k = 0; k < naluSize; k++){
+          nalu += (char)getInt8(offset++);
+        }
+        entry.nalUnits.push_back(nalu);
+      }
+      r.push_back(entry);
+    }
+    return r;
+  }
+
+  std::string HVCC::toPrettyString(uint32_t indent) {
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[hvcC] H.265 Init Data (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "Configuration Version: " << (int)getConfigurationVersion() << std::endl;
+    r << std::string(indent + 1, ' ') << "General Profile Space: " << (int)getGeneralProfileSpace() << std::endl;
+    r << std::string(indent + 1, ' ') << "General Tier Flag: " << (int)getGeneralTierFlag() << std::endl;
+    r << std::string(indent + 1, ' ') << "General Profile IDC: " << (int)getGeneralProfileIdc() << std::endl;
+    r << std::string(indent + 1, ' ') << "General Profile Compatibility Flags: 0x" << std::hex << std::setw(8) << std::setfill('0') << getGeneralProfileCompatibilityFlags() << std::dec << std::endl;
+    r << std::string(indent + 1, ' ') << "General Constraint Indicator Flags: 0x" << std::hex << std::setw(12) << std::setfill('0') << getGeneralConstraintIndicatorFlags() << std::dec << std::endl;
+    r << std::string(indent + 1, ' ') << "General Level IDC: " << (int)getGeneralLevelIdc() << std::endl;
+    r << std::string(indent + 1, ' ') << "Minimum Spatial Segmentation IDC: " << (int)getMinSpatialSegmentationIdc() << std::endl;
+    r << std::string(indent + 1, ' ') << "Parallelism Type: " << (int)getParallelismType() << std::endl;
+    r << std::string(indent + 1, ' ') << "Chroma Format: " << (int)getChromaFormat() << std::endl;
+    r << std::string(indent + 1, ' ') << "Bit Depth Luma - 8: " << (int)getBitDepthLumaMinus8() << std::endl;
+    r << std::string(indent + 1, ' ') << "Average Framerate: " << (int)getAverageFramerate() << std::endl;
+    r << std::string(indent + 1, ' ') << "Constant Framerate: " << (int)getConstantFramerate() << std::endl;
+    r << std::string(indent + 1, ' ') << "Number of Temporal Layers: " << (int)getNumberOfTemporalLayers() << std::endl;
+    r << std::string(indent + 1, ' ') << "Temporal ID Nested: " << (int)getTemporalIdNested() << std::endl;
+    r << std::string(indent + 1, ' ') << "Length Size - 1: " << (int)getLengthSizeMinus1() << std::endl;
+    r << std::string(indent + 1, ' ') << "Arrays:" << std::endl;
+    std::deque<HVCCArrayEntry> arrays = getArrays();
+    for (unsigned int i = 0; i < arrays.size(); i++){
+      r << std::string(indent + 2, ' ') << "Array with type " << (int)arrays[i].nalUnitType << std::endl;
+      for (unsigned int j = 0; j < arrays[i].nalUnits.size(); j++){
+        r << std::string(indent + 3, ' ') << "Nal unit of " << arrays[i].nalUnits[j].size() << " bytes" << std::endl;
+      }
+    }
+    return r.str();
+  }
+
+  void HVCC::setPayload(std::string newPayload) {
+    if (!reserve(0, payloadSize(), newPayload.size())) {
+      DEBUG_MSG(DLVL_ERROR, "Cannot allocate enough memory for payload");
+      return;
+    }
+    memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
+  }
+
+  std::string HVCC::asAnnexB() {
+    std::deque<HVCCArrayEntry> arrays = getArrays();
+    std::stringstream r;
+    for (unsigned int i = 0; i < arrays.size(); i++){
+      for (unsigned int j = 0; j < arrays[i].nalUnits.size(); j++){
+        r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01 << arrays[i].nalUnits[j];
+      }
+    }
+    return r.str();
+  }
+
   Descriptor::Descriptor(){
     data = (char*)malloc(2);
     data[0] = 0;
@@ -967,19 +1153,85 @@ namespace MP4 {
     return r.str();
   }
 
-  FTYP::FTYP() {
-    memcpy(data + 4, "ftyp", 4);
-    setMajorBrand("mp41");
-    setMinorVersion("Mist");
-    setCompatibleBrands("isom", 0);
-    setCompatibleBrands("iso2", 1);
-    setCompatibleBrands("avc1", 2);
-    setCompatibleBrands("mp41", 3);
+  DAC3::DAC3(){
+    memcpy(data + 4, "dac3", 4);
+    setInt24(0,0);
   }
 
-  void FTYP::setMajorBrand(const char * newMajorBrand) {
-    if (payloadOffset + 3 >= boxedSize()) {
-      if (!reserve(payloadOffset, 0, 4)) {
+  char DAC3::getSampleRateCode(){
+    return getInt8(0) >> 6;
+  }
+  
+  void DAC3::setSampleRateCode(char newVal){
+    setInt8(((newVal << 6) & 0xC0) | (getInt8(0) & 0x3F), 0);
+  }
+
+  char DAC3::getBitStreamIdentification(){
+    return (getInt8(0) >> 1) & 0x1F;
+  }
+
+  void DAC3::setBitStreamIdentification(char newVal){
+    setInt8(((newVal << 1) & 0x3E) | (getInt8(0) & 0xC1), 0);
+  }
+
+  char DAC3::getBitStreamMode(){
+    return (getInt16(0) >> 6) & 0x7;
+  }
+
+  void DAC3::setBitStreamMode(char newVal){
+    setInt16(((newVal & 0x7) << 6) | (getInt16(0) & 0xFE3F), 0);
+  }
+
+  char DAC3::getAudioConfigMode(){
+    return (getInt8(1) >> 3) & 0x7;
+  }
+
+  void DAC3::setAudioConfigMode(char newVal){
+    setInt8(((newVal & 0x7) << 3) | (getInt8(1) & 0x38),1);
+  }
+
+  bool DAC3::getLowFrequencyEffectsChannelOn(){
+    return (getInt8(1) >> 2) & 0x1;
+  }
+
+  void DAC3::setLowFrequencyEffectsChannelOn(bool newVal){
+    setInt8(((unsigned int)(newVal & 0x1) << 2) | (getInt8(1) & 0x4),1);
+  }
+
+  char DAC3::getFrameSizeCode(){
+    return ((getInt8(1) & 0x3) << 4) | ((getInt8(2) & 0xF0) >> 4);
+  }
+
+  void DAC3::setFrameSizeCode(char newVal){
+    setInt16(((newVal & 0x3F) << 4) | (getInt16(1) & 0x03F0),1);
+  }
+
+  std::string DAC3::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[dac3] D-AC3 box (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "FSCOD: " << (int)getSampleRateCode() << std::endl;
+    r << std::string(indent + 1, ' ') << "BSID: " << (int)getBitStreamIdentification() << std::endl;
+    r << std::string(indent + 1, ' ') << "BSMOD: " << (int)getBitStreamMode() << std::endl;
+    r << std::string(indent + 1, ' ') << "ACMOD: " << (int)getAudioConfigMode() << std::endl;
+    r << std::string(indent + 1, ' ') << "LFEON: " << (int)getLowFrequencyEffectsChannelOn() << std::endl;
+    r << std::string(indent + 1, ' ') << "FrameSizeCode: " << (int)getFrameSizeCode() << std::endl;
+    return r.str();
+  }
+
+  FTYP::FTYP(bool fillDefaults){
+    memcpy(data + 4, "ftyp", 4);
+    if (fillDefaults){
+      setMajorBrand("mp41");
+      setMinorVersion("Mist");
+      setCompatibleBrands("isom",0);
+      setCompatibleBrands("iso2",1);
+      setCompatibleBrands("avc1",2);
+    }
+  }
+  
+  void FTYP::setMajorBrand(const char * newMajorBrand){
+    if (payloadOffset + 3 >= boxedSize()){
+      if ( !reserve(payloadOffset, 0, 4)){
         return;
       }
     }
@@ -996,11 +1248,16 @@ namespace MP4 {
         return;
       }
     }
+    memset(data + payloadOffset + 4, 0, 4);
     memcpy(data + payloadOffset + 4, newMinorVersion, 4);
   }
-
-  std::string FTYP::getMinorVersion() {
-    return std::string(data + payloadOffset + 4, 4);
+  
+  std::string FTYP::getMinorVersion(){
+    static char zero[4] = {0,0,0,0};
+    if (memcmp(zero, data+payloadOffset+4, 4) == 0){
+      return "";
+    }
+    return std::string(data+payloadOffset+4, 4);
   }
 
   size_t FTYP::getCompatibleBrandsCount() {
@@ -1035,6 +1292,22 @@ namespace MP4 {
     return r.str();
   }
 
+  STYP::STYP(bool fillDefaults) : FTYP(fillDefaults) {
+    memcpy(data + 4, "styp", 4);
+  }
+  
+  std::string STYP::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[styp] Fragment Type (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "MajorBrand: " << getMajorBrand() << std::endl;
+    r << std::string(indent + 1, ' ') << "MinorVersion: " << getMinorVersion() << std::endl;
+    r << std::string(indent + 1, ' ') << "CompatibleBrands (" << getCompatibleBrandsCount() << "):" << std::endl;
+    for (unsigned int i = 0; i < getCompatibleBrandsCount(); i++){
+      r << std::string(indent + 2, ' ') << "[" << i << "] CompatibleBrand: " << getCompatibleBrands(i) << std::endl;
+    }
+    return r.str();
+  }
+
   MOOV::MOOV() {
     memcpy(data + 4, "moov", 4);
   }
@@ -1045,46 +1318,51 @@ namespace MP4 {
 
   TREX::TREX() {
     memcpy(data + 4, "trex", 4);
+    setTrackID(0);
+    setDefaultSampleDescriptionIndex(1);
+    setDefaultSampleDuration(0);
+    setDefaultSampleSize(0);
+    setDefaultSampleFlags(0);
   }
-
-  void TREX::setTrackID(uint32_t newTrackID) {
-    setInt32(newTrackID, 0);
+  
+  void TREX::setTrackID(uint32_t newTrackID){
+    setInt32(newTrackID, 4);
   }
-
-  uint32_t TREX::getTrackID() {
-    return getInt32(0);
-  }
-
-  void TREX::setDefaultSampleDescriptionIndex(uint32_t newDefaultSampleDescriptionIndex) {
-    setInt32(newDefaultSampleDescriptionIndex, 4);
-  }
-
-  uint32_t TREX::getDefaultSampleDescriptionIndex() {
+  
+  uint32_t TREX::getTrackID(){
     return getInt32(4);
   }
-
-  void TREX::setDefaultSampleDuration(uint32_t newDefaultSampleDuration) {
-    setInt32(newDefaultSampleDuration, 8);
+  
+  void TREX::setDefaultSampleDescriptionIndex(uint32_t newDefaultSampleDescriptionIndex){
+    setInt32(newDefaultSampleDescriptionIndex,8);
   }
-
-  uint32_t TREX::getDefaultSampleDuration() {
+  
+  uint32_t TREX::getDefaultSampleDescriptionIndex(){
     return getInt32(8);
   }
-
-  void TREX::setDefaultSampleSize(uint32_t newDefaultSampleSize) {
-    setInt32(newDefaultSampleSize, 12);
+  
+  void TREX::setDefaultSampleDuration(uint32_t newDefaultSampleDuration){
+    setInt32(newDefaultSampleDuration,12);
   }
-
-  uint32_t TREX::getDefaultSampleSize() {
+  
+  uint32_t TREX::getDefaultSampleDuration(){
     return getInt32(12);
   }
-
-  void TREX::setDefaultSampleFlags(uint32_t newDefaultSampleFlags) {
-    setInt32(newDefaultSampleFlags, 16);
+  
+  void TREX::setDefaultSampleSize(uint32_t newDefaultSampleSize){
+    setInt32(newDefaultSampleSize,16);
   }
-
-  uint32_t TREX::getDefaultSampleFlags() {
+  
+  uint32_t TREX::getDefaultSampleSize(){
     return getInt32(16);
+  }
+  
+  void TREX::setDefaultSampleFlags(uint32_t newDefaultSampleFlags){
+    setInt32(newDefaultSampleFlags,20);
+  }
+  
+  uint32_t TREX::getDefaultSampleFlags(){
+    return getInt32(20);
   }
 
   std::string TREX::toPrettyString(uint32_t indent) {
@@ -1576,28 +1854,28 @@ namespace MP4 {
 
   int32_t MVHD::getMatrix(size_t index) {
     int offset = 0;
-    if (getVersion() == 0) {
-      offset = 24 + 2 + 10;
-    } else {
-      offset = 36 + 2 + 10;
+    if (getVersion() == 0){
+      offset = 36;
+    }else{
+      offset = 48;
     }
     return getInt32(offset + index * 4);
   }
 
   //24 bytes of pre-defined in between
-  void MVHD::setTrackID(uint32_t newTrackID) {
-    if (getVersion() == 0) {
-      setInt32(newTrackID, 86);
-    } else {
-      setInt32(newTrackID, 98);
+  void MVHD::setTrackID(uint32_t newTrackID){
+    if (getVersion() == 0){
+      setInt32(newTrackID, 96);
+    }else{
+      setInt32(newTrackID, 108);
     }
   }
-
-  uint32_t MVHD::getTrackID() {
-    if (getVersion() == 0) {
-      return getInt32(86);
-    } else {
-      return getInt32(98);
+  
+  uint32_t MVHD::getTrackID(){
+    if (getVersion() == 0){
+      return getInt32(96);
+    }else{
+      return getInt32(108);
     }
   }
 
@@ -2775,6 +3053,13 @@ namespace MP4 {
     return getBox(28);
   }
 
+  /*LTS-START*/
+  Box & AudioSampleEntry::getSINFBox() {
+    static Box ret = Box(getBox(28 + getBoxLen(28)).asBox(), false);
+    return ret;
+  }
+  /*LTS-END*/
+
   std::string AudioSampleEntry::toPrettyAudioString(uint32_t indent, std::string name) {
     std::stringstream r;
     r << std::string(indent, ' ') << name << " (" << boxedSize() << ")" << std::endl;
@@ -2784,6 +3069,11 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
     r << std::string(indent + 1, ' ') << "SampleRate: " << getSampleRate() << std::endl;
     r << getCodecBox().toPrettyString(indent + 1) << std::endl;
+    /*LTS-START*/
+    if (isType("enca")) {
+      r << getSINFBox().toPrettyString(indent + 1);
+    }
+    /*LTS-END*/
     return r.str();
   }
 
@@ -2803,6 +3093,14 @@ namespace MP4 {
     return toPrettyAudioString(indent, "[aac ] Advanced Audio Codec");
   }
 
+  HEV1::HEV1() {
+    memcpy(data + 4, "hev1", 4);
+  }
+
+  std::string HEV1::toPrettyString(uint32_t indent) {
+    return toPrettyVisualString(indent, "[hev1] High Efficiency Video Codec 1");
+  }
+
   AVC1::AVC1() {
     memcpy(data + 4, "avc1", 4);
   }
@@ -2817,6 +3115,34 @@ namespace MP4 {
 
   std::string H264::toPrettyString(uint32_t indent) {
     return toPrettyVisualString(indent, "[h264] H.264/MPEG-4 AVC");
+  }
+
+  FIEL::FIEL(){
+    memcpy(data + 4, "fiel", 4);
+  }
+
+  void FIEL::setTotal(char newTotal){
+    setInt8(newTotal, 0);
+  }
+  
+  char FIEL::getTotal(){
+    return getInt8(0);
+  }
+
+  void FIEL::setOrder(char newOrder){
+    setInt8(newOrder, 1);
+  }
+  
+  char FIEL::getOrder(){
+    return getInt8(1);
+  }
+
+  std::string FIEL::toPrettyString(uint32_t indent) {
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[fiel] Video Field Order Box (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "Total: " << (int)getTotal() << std::endl;
+    r << std::string(indent + 1, ' ') << "Order: " << (int)getOrder() << std::endl;
+    return r.str();
   }
 
   STSD::STSD(char v, uint32_t f) {
@@ -2879,6 +3205,14 @@ namespace MP4 {
       r << curBox.toPrettyString(indent + 1);
     }
     return r.str();
+  }
+
+  GMHD::GMHD() {
+    memcpy(data + 4, "gmhd", 4);
+  }
+
+  TREF::TREF() {
+    memcpy(data + 4, "tref", 4);
   }
 
   EDTS::EDTS() {
@@ -3022,3 +3356,4 @@ namespace MP4 {
     return r.str();
   }
 }
+

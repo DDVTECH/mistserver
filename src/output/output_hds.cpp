@@ -57,6 +57,19 @@ namespace Mist {
     int j = 0;
     if (myMeta.tracks[tid].fragments.size()){
       std::deque<DTSC::Fragment>::iterator fragIt = myMeta.tracks[tid].fragments.begin();
+      /*LTS-START*/
+      if (myMeta.live){
+        unsigned int skip = (( myMeta.tracks[tid].fragments.size()-1) * config->getInteger("startpos")) / 1000u;
+        for (unsigned int z = 0; z < skip; ++z){
+          ++fragIt;
+          ++j;
+        }
+        if (skip && fragIt == myMeta.tracks[tid].fragments.end()){
+          --fragIt;
+          --j;
+        }
+      }
+      /*LTS-END*/
       unsigned int firstTime = myMeta.tracks[tid].getKey(fragIt->getNumber()).getTime();
       while (fragIt != myMeta.tracks[tid].fragments.end()){
         if (myMeta.vod || fragIt->getDuration() > 0){
@@ -160,6 +173,7 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/11";
     capa["methods"][0u]["priority"] = 7ll;
+    cfg->getOption("startpos", true)[0u] = 0ll;
   }
   
   void OutHDS::sendNext(){

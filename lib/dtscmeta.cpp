@@ -790,7 +790,37 @@ namespace DTSC {
     }
   }
 
+  /*LTS-START*/
+  Ivec::Ivec() {
+    setIvec(0);
+  }
 
+  Ivec::Ivec(long long int iVec) {
+    setIvec(iVec);
+  }
+
+  void Ivec::setIvec(long long int iVec) {
+    Bit::htobll(data, iVec);
+  }
+
+  void Ivec::setIvec(std::string iVec) {
+    memset(data, 0, 8);
+    memcpy(data, iVec.data(), std::min(8, (int)iVec.size()));
+  }
+
+  void Ivec::setIvec(char * iVec, int len) {
+    memset(data, 0, 8);
+    memcpy(data, iVec, std::min(8, len));
+  }
+
+  long long int Ivec::asInt() {
+    return Bit::btohll(data);
+  }
+
+  char * Ivec::getData() {
+    return data;
+  }
+  /*LTS-END*/
 
   ///\brief Returns the payloadsize of a part
   long Part::getSize() {
@@ -978,6 +1008,12 @@ namespace DTSC {
       Part * tmp = (Part *)trackRef["parts"].asStringRef().data();
       parts = std::deque<Part>(tmp, tmp + (trackRef["parts"].asStringRef().size() / 9));
     }
+    /*LTS-START*/
+    if (trackRef.isMember("ivecs") && trackRef["ivecs"].isString()) {
+      Ivec * tmp = (Ivec *)trackRef["ivecs"].asString().data();
+      ivecs = std::deque<Ivec>(tmp, tmp + (trackRef["ivecs"].asString().size() / 8));
+    }
+    /*LTS-END*/
     trackID = trackRef["trackid"].asInt();
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
@@ -1024,6 +1060,14 @@ namespace DTSC {
       trackRef.getMember("parts").getString(tmp, tmplen);
       parts = std::deque<Part>((Part *)tmp, ((Part *)tmp) + (tmplen / 9));
     }
+    /*LTS-START*/
+    if (trackRef.getMember("ivecs").getType() == DTSC_STR) {
+      char * tmp = 0;
+      unsigned int tmplen = 0;
+      trackRef.getMember("ivecs").getString(tmp, tmplen);
+      ivecs = std::deque<Ivec>((Ivec *)tmp, ((Ivec *)tmp) + (tmplen / 8));
+    }
+    /*LTS-END*/
     trackID = trackRef.getMember("trackid").asInt();
     firstms = trackRef.getMember("firstms").asInt();
     lastms = trackRef.getMember("lastms").asInt();
@@ -1086,6 +1130,13 @@ namespace DTSC {
       } else {
         newKey.setBpos(0);
       }
+      /*LTS-START
+      if (pack.isMember("ivec")) {
+        Ivec newIvec;
+        newIvec.setIvec((char *)pack["ivec"].asString().data(), 8);
+        ivecs.push_back(newIvec);
+      }
+      LTS-END*/
       keys.push_back(newKey);
       keySizes.push_back(0);
       firstms = keys[0].getTime();
@@ -1376,6 +1427,7 @@ namespace DTSC {
       result += 11 + (keySizes.size() * 4) + 4;
     }
     result += parts.size() * 9;
+    result += (ivecs.size() * 8) + 12; /*LTS*/
     if (type == "audio") {
       result += 49;
     } else if (type == "video") {
@@ -1433,6 +1485,13 @@ namespace DTSC {
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
       writePointer(p, it->getData(), 9);
     }
+    /*LTS-START*/
+    writePointer(p, "\000\005ivecs\002", 8);
+    writePointer(p, convertInt(ivecs.size() * 8), 4);
+    for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
+      writePointer(p, it->getData(), 8);
+    }
+    /*LTS-END*/
     writePointer(p, "\000\007trackid\001", 10);
     writePointer(p, convertLongLong(trackID), 8);
     if (missedFrags) {
@@ -1503,6 +1562,13 @@ namespace DTSC {
     for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
       conn.SendNow(it->getData(), 9);
     }
+    /*LTS-START*/
+    conn.SendNow("\000\005ivecs\002", 8);
+    conn.SendNow(convertInt(ivecs.size() * 8), 4);
+    for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
+      conn.SendNow(it->getData(), 8);
+    }
+    /*LTS-END*/
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
     if (missedFrags) {
@@ -1643,6 +1709,14 @@ namespace DTSC {
       tmp.append(it->getData(), 9);
     }
     result["parts"] = tmp;
+    /*LTS-START*/
+    tmp = "";
+    tmp.reserve(ivecs.size() * 8);
+    for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
+      tmp.append(it->getData(), 8);
+    }
+    result["ivecs"] = tmp;
+    /*LTS-END*/
     result["trackid"] = trackID;
     result["firstms"] = (long long)firstms;
     result["lastms"] = (long long)lastms;

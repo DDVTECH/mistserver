@@ -157,14 +157,14 @@ namespace tthread {
     // Get thread startup information
     _thread_start_info * ti = (_thread_start_info *) aArg;
 
-    try {
+    //try {
       // Call the actual client thread function
       ti->mFunction(ti->mArg);
-    } catch (...) {
+    //} catch (...) {
       // Uncaught exceptions will terminate the application (default behavior
       // according to C++11)
-      std::terminate();
-    }
+      //std::terminate();
+    //}
 
     // The thread is no longer executing
     if (ti->mThread) {

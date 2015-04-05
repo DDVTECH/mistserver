@@ -356,6 +356,11 @@ void DTSC::Stream::cutOneBuffer() {
       metadata.tracks[trid].fragments.clear();
     }
   }
+  /*LTS-START*/
+  if (!recordPath.empty()) {
+    recordPacket(buffers.begin()->second);
+  }
+  /*LTS-END*/
   deletionCallback(buffers.begin()->first);
   buffers.erase(buffers.begin());
 }
@@ -452,6 +457,35 @@ DTSC::Ring * DTSC::Stream::getRing() {
   }
   return new DTSC::Ring(tmp);
 }
+
+/*LTS-START*/
+/// Sets the recording path and writes the file header in preperation for the recording.
+/// If the file cannot be opened the path is assumed to be invalid and an error is written.
+void DTSC::Stream::setRecord(std::string path) {
+  if (path.empty()) {
+    return;
+  }
+  recordFile = new File(path, true);
+  if (!recordFile) {
+    DEBUG_MSG(DLVL_ERROR, "Failed to create file: %s", path.c_str());
+  }
+  headerRecorded = false;
+  recordPath = path;
+}
+/*LTS-END*/
+
+/*LTS-START*/
+/// Writes a packet to file, if the header was not yet written it writes that first.
+void DTSC::Stream::recordPacket(JSON::Value & packet) {
+  if (!headerRecorded) {
+    metadata.moreheader = 0;
+    std::string header = metadata.toJSON().toPacked();
+    recordFile->writeHeader(header, true);
+    headerRecorded = true;
+  }
+  recordFile->writePacket(packet);
+}
+/*LTS-END*/
 
 /// Deletes a given out Ring class from memory and internal Ring list.
 /// Checks for NULL pointers and invalid pointers, silently discarding them.
@@ -764,16 +798,13 @@ void DTSC::File::seekNext() {
     myPack.null();
     return;
   }
-  fseek(F, currentPositions.begin()->bytePos, SEEK_SET);
+  seekPos thisPos = *currentPositions.begin();
+  fseek(F, thisPos.bytePos, SEEK_SET);
   if (reachedEOF()) {
     myPack.null();
     return;
   }
   clearerr(F);
-  if (!metadata.merged) {
-    seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
-    fseek(F, currentPositions.begin()->bytePos, SEEK_SET);
-  }
   currentPositions.erase(currentPositions.begin());
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1) {
@@ -786,7 +817,7 @@ void DTSC::File::seekNext() {
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) == 0) {
-    seek_time(myPack.getTime() + 1, myPack.getTrackId(), true);
+    seek_time(myPack.getTime(), myPack.getTrackId(), true);
     return seekNext();
   }
   long long unsigned int version = 0;
@@ -864,9 +895,12 @@ void DTSC::File::seekNext() {
       }
       currentPositions.insert(tmpPos);
     } else {
-      seek_time(myPack.getTime() + 1, myPack.getTrackId(), true);
+      seek_time(myPack.getTime(), myPack.getTrackId(), true);
     }
     seek_bpos(tempLoc);
+  }else{
+    seek_time(thisPos.seekTime, thisPos.trackID);
+    fseek(F, thisPos.bytePos, SEEK_SET);
   }
 }
 
@@ -954,9 +988,14 @@ DTSC::Packet & DTSC::File::getPacket() {
 bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek) {
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
-  if (!forceSeek && myPack && ms > myPack.getTime() && trackNo >= myPack.getTrackId()) {
+  if (!forceSeek && myPack && ms >= myPack.getTime() && trackNo >= myPack.getTrackId()) {
     tmpPos.seekTime = myPack.getTime();
     tmpPos.bytePos = getBytePos();
+    /*
+    if (trackNo == myPack.getTrackId()){
+      tmpPos.bytePos += myPack.getDataLen();
+    }
+    */
   } else {
     tmpPos.seekTime = 0;
     tmpPos.bytePos = 0;

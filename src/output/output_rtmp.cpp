@@ -461,11 +461,12 @@ namespace Mist {
         
         Util::sanitizeName(streamName);
         //pull the server configuration
+        std::string smp = streamName.substr(0,(streamName.find_first_of("+ ")));
         IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE); ///< Contains server configuration and capabilities
         IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
         configLock.wait();
         
-        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName);
+        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(smp);
         if (streamCfg){
           if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
             DEBUG_MSG(DLVL_FAIL, "Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), streamCfg.getMember("source").asString().c_str());
@@ -473,6 +474,23 @@ namespace Mist {
           }else{
             std::string source = streamCfg.getMember("source").asString().substr(7);
             std::string IP = source.substr(0, source.find('@'));
+            /*LTS-START*/
+            std::string password;
+            if (source.find('@') != std::string::npos){
+              password = source.substr(source.find('@')+1);
+              if (password != ""){
+                if (password == app_name){
+                  DEBUG_MSG(DLVL_DEVEL, "Password accepted - ignoring IP settings.");
+                  IP = "";
+                }else{
+                  DEBUG_MSG(DLVL_DEVEL, "Password rejected - checking IP.");
+                  if (IP == ""){
+                    IP = "deny-all.invalid";
+                  }
+                }
+              }
+            }
+            /*LTS-END*/
             if (IP != ""){
               if (!myConn.isAddress(IP)){
                 DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - source host not whitelisted", myConn.getHost().c_str(), streamName.c_str());

@@ -4,7 +4,9 @@
 #include "mp4.h"
 #include "mp4_adobe.h"
 #include "mp4_ms.h"
+#include "mp4_dash.h"
 #include "mp4_generic.h"
+#include "mp4_encryption.h" // /*LTS*/
 #include "json.h"
 
 #include "defines.h"
@@ -104,6 +106,7 @@ namespace MP4 {
         }
       } else if (size == 0) {
         fseek(newData, 0, SEEK_END);
+        return true;
       }
       DONTEVEN_MSG("skipping size 0x%.8lX", size);
       if (fseek(newData, pos + size, SEEK_SET) == 0) {
@@ -132,6 +135,10 @@ namespace MP4 {
           return false;
         }
       }
+      if (size == 0){//no else if, because the extended size MAY be 0...
+        fseek(newData, 0, SEEK_END);
+        size = ftell(newData) - pos;
+      }
       fseek(newData, pos, SEEK_SET);
       data = (char *)realloc(data, size);
       data_size = size;
@@ -159,6 +166,9 @@ namespace MP4 {
         } else {
           return false;
         }
+      }
+      if (size == 0){
+        size = newData.size();
       }
       if (newData.size() >= size) {
         data = (char *)realloc(data, size);
@@ -243,6 +253,9 @@ namespace MP4 {
       case 0x74666864:
         return ((TFHD *)this)->toPrettyString(indent);
         break;
+      case 0x68766343:
+        return ((HVCC *)this)->toPrettyString(indent);
+        break;
       case 0x61766343:
         return ((AVCC *)this)->toPrettyString(indent);
         break;
@@ -251,6 +264,9 @@ namespace MP4 {
         break;
       case 0x66747970:
         return ((FTYP *)this)->toPrettyString(indent);
+        break;
+      case 0x73747970:
+        return ((STYP*)this)->toPrettyString(indent);
         break;
       case 0x6D6F6F76:
         return ((MOOV *)this)->toPrettyString(indent);
@@ -344,10 +360,17 @@ namespace MP4 {
         break;
       case 0x6D703461://mp4a
       case 0x656E6361://enca
+      case 0x61632D33://ac-3
         return ((MP4A *)this)->toPrettyString(indent);
+        break;
+      case 0x64616333:
+        return ((DAC3 *)this)->toPrettyString(indent);
         break;
       case 0x61616320:
         return ((AAC *)this)->toPrettyString(indent);
+        break;
+      case 0x68657631:
+        return ((HEV1 *)this)->toPrettyString(indent);
         break;
       case 0x61766331:
         return ((AVC1 *)this)->toPrettyString(indent);
@@ -355,6 +378,15 @@ namespace MP4 {
       case 0x68323634://h264
       case 0x656E6376://encv
         return ((H264 *)this)->toPrettyString(indent);
+        break;
+      case 0x6669656C:
+        return ((FIEL *)this)->toPrettyString(indent);
+        break;
+      case 0x74726566:
+        return ((TREF *)this)->toPrettyString(indent);
+        break;
+      case 0x676D6864:
+        return ((GMHD *)this)->toPrettyString(indent);
         break;
       case 0x65647473:
         return ((EDTS *)this)->toPrettyString(indent);
@@ -377,12 +409,36 @@ namespace MP4 {
       case 0x75756964:
         return ((UUID *)this)->toPrettyString(indent);
         break;
+      case 0x73696478:
+        return ((SIDX*)this)->toPrettyString(indent);
+        break;
+      case 0x74666474:
+        return ((TFDT*)this)->toPrettyString(indent);
+        break;
+      case 0x696F6473:
+        return ((IODS*)this)->toPrettyString(indent);
+        break;
+      /*LTS-START*/
+      case 0x73696E66:
+        return ((SINF *)this)->toPrettyString(indent);
+        break;
+      case 0x66726D61:
+        return ((FRMA *)this)->toPrettyString(indent);
+        break;
+      case 0x7363686D:
+        return ((SCHM *)this)->toPrettyString(indent);
+        break;
+      case 0x73636869:
+        return ((SCHI *)this)->toPrettyString(indent);
+        break;
+      /*LTS-END*/
       default:
         break;
     }
-    std::string retval = std::string(indent, ' ') + "Unimplemented pretty-printing for box " + std::string(data + 4, 4) + "\n";
+    std::stringstream retval;
+    retval << std::string(indent, ' ') << "Unimplemented pretty-printing for box " << std::string(data + 4, 4) << " (" << ntohl(((int*)data)[0]) << ")\n";
     /// \todo Implement hexdump for unimplemented boxes?
-    return retval;
+    return retval.str();
   }
 
   /// Sets the 8 bits integer at the given index.
@@ -804,4 +860,5 @@ namespace MP4 {
     }
     return r.str();
   }
+
 }

@@ -31,6 +31,44 @@ namespace Mist {
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 50000LL;
+    /*LTS-start*/
+    option.null();
+    option["arg"] = "string";
+    option["long"] = "record";
+    option["short"] = "r";
+    option["help"] = "Record the stream to a file";
+    option["value"].append("");
+    config->addOption("record", option);
+    capa["optional"]["record"]["name"] = "Record to file";
+    capa["optional"]["record"]["help"] = "Filename to record the stream to.";
+    capa["optional"]["record"]["option"] = "--record";
+    capa["optional"]["record"]["type"] = "str";
+    capa["optional"]["record"]["default"] = "";
+    option.null();
+    option["arg"] = "integer";
+    option["long"] = "cut";
+    option["short"] = "c";
+    option["help"] = "Any timestamps before this will be cut from the live buffer";
+    option["value"].append(0LL);
+    config->addOption("cut", option);
+    capa["optional"]["cut"]["name"] = "Cut time (ms)";
+    capa["optional"]["cut"]["help"] = "Any timestamps before this will be cut from the live buffer.";
+    capa["optional"]["cut"]["option"] = "--cut";
+    capa["optional"]["cut"]["type"] = "uint";
+    capa["optional"]["cut"]["default"] = 0LL;
+    option.null();
+    option["arg"] = "integer";
+    option["long"] = "segment-size";
+    option["short"] = "S";
+    option["help"] = "Target time duration in milliseconds for segments";
+    option["value"].append(5000LL);
+    config->addOption("segmentsize", option);
+    capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
+    capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
+    capa["optional"]["segmentsize"]["option"] = "--segment-size";
+    capa["optional"]["segmentsize"]["type"] = "uint";
+    capa["optional"]["segmentsize"]["default"] = 5000LL;
+    /*LTS-end*/
     capa["source_match"] = "push://*";
     capa["priority"] = 9ll;
     capa["desc"] = "Provides buffered live input";
@@ -41,6 +79,7 @@ namespace Mist {
     singleton = this;
     bufferTime = 0;
     cutTime = 0;
+    segmentSize = 0;
   }
 
   inputBuffer::~inputBuffer() {
@@ -48,7 +87,29 @@ namespace Mist {
     if (myMeta.tracks.size()) {
       DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-        while (removeKey(it->first)) {}
+        std::map<unsigned long, DTSCPageData> & locations = bufferLocations[it->first];
+
+        //First detect all entries on metaPage
+        for (int i = 0; i < 8192; i += 8) {
+          int * tmpOffset = (int *)(metaPages[it->first].mapped + i);
+          if (tmpOffset[0] == 0 && tmpOffset[1] == 0) {
+            continue;
+          }
+          unsigned long keyNum = ntohl(tmpOffset[0]);
+
+          //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
+          if (!locations.count(keyNum)) {
+            locations[keyNum].curOffset = 0;
+          }
+          locations[keyNum].pageNum = keyNum;
+          locations[keyNum].keyNum = ntohl(tmpOffset[1]);
+        }
+        for (std::map<unsigned long, DTSCPageData>::iterator it2 = locations.begin(); it2 != locations.end(); it2++){
+          char thisPageName[NAME_BUFFER_SIZE];
+          snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), it->first, it2->first);
+          IPC::sharedPage erasePage(thisPageName, 20971520);
+          erasePage.master = true;
+        }
       }
     }
   }
@@ -92,8 +153,59 @@ namespace Mist {
     DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%lu", tid, myMeta.tracks[tid].keys[0].getNumber());
     //remove all parts of this key
     for (int i = 0; i < myMeta.tracks[tid].keys[0].getParts(); i++) {
+      /*LTS-START*/
+      if (recFile.is_open()) {
+        if (!recMeta.tracks.count(tid)) {
+          recMeta.tracks[tid] = myMeta.tracks[tid];
+          recMeta.tracks[tid].reset();
+        }
+      }
+      /*LTS-END*/
       myMeta.tracks[tid].parts.pop_front();
     }
+    ///\todo Fix recording
+    /*LTS-START
+    ///\todo Maybe optimize this by keeping track of the byte positions
+    if (recFile.good()){
+      long long unsigned int firstms = myMeta.tracks[tid].keys[0].getTime();
+      long long unsigned int lastms = myMeta.tracks[tid].lastms;
+      if (myMeta.tracks[tid].keys.size() > 1){
+        lastms = myMeta.tracks[tid].keys[1].getTime();
+      }
+      DEBUG_MSG(DLVL_DEVEL, "Recording track %d from %llums to %llums", tid, firstms, lastms);
+      long long unsigned int bpos = 0;
+      DTSC::Packet recPack;
+      int pageLen = dataPages[tid][bufferLocations[tid].begin()->first].len;
+      char * pageMapped = dataPages[tid][bufferLocations[tid].begin()->first].mapped;
+      while( bpos < (unsigned long long)pageLen) {
+        int tmpSize = ((int)pageMapped[bpos + 4] << 24) | ((int)pageMapped[bpos + 5] << 16) | ((int)pageMapped[bpos + 6] << 8) | (int)pageMapped[bpos + 7];
+        tmpSize += 8;
+        recPack.reInit(pageMapped + bpos, tmpSize, true);
+        if (tmpSize != recPack.getDataLen()){
+          DEBUG_MSG(DLVL_DEVEL, "Something went wrong while trying to record a packet @ %llu, %d != %d", bpos, tmpSize, recPack.getDataLen());
+          break;
+        }
+        if (recPack.getTime() >= lastms){/// \todo getTime never reaches >= lastms, so probably the recording bug has something to do with this
+          DEBUG_MSG(DLVL_HIGH, "Stopping record, %llu >= %llu", recPack.getTime(), lastms);
+          break;
+        }
+        if (recPack.getTime() >= firstms){
+          //Actually record to file here
+          JSON::Value recJSON = recPack.toJSON();
+          recJSON["bpos"] = recBpos;
+          recFile << recJSON.toNetPacked();
+          recFile.flush();
+          recBpos = recFile.tellp();
+          recMeta.update(recJSON);
+        }
+        bpos += recPack.getDataLen();
+      }
+      recFile.flush();
+      std::ofstream tmp(std::string(recName + ".dtsh").c_str());
+      tmp << recMeta.toJSON().toNetPacked();
+      tmp.close();
+    }
+    LTS-END*/
     //remove the key itself
     myMeta.tracks[tid].keys.pop_front();
     myMeta.tracks[tid].keySizes.pop_front();
@@ -242,6 +354,12 @@ namespace Mist {
   }
 
   void inputBuffer::userCallback(char * data, size_t len, unsigned int id) {
+    /*LTS-START*/
+    //Reload the configuration to make sure we stay up to date with changes through the api
+    if (Util::epoch() - lastReTime > 4) {
+      setup();
+    }
+    /*LTS-END*/
     //Static variable keeping track of the next temporary mapping to use for a track.
     static int nextTempId = 1001;
     //Get the counter of this user
@@ -331,6 +449,18 @@ namespace Mist {
 
         std::string trackIdentifier = trackMeta.tracks.find(value)->second.getIdentifier();
         DEBUG_MSG(DLVL_HIGH, "Attempting colision detection for track %s", trackIdentifier.c_str());
+        /*LTS-START*/
+        //Get the identifier for the track, and attempt colission detection.
+        int collidesWith = -1;
+        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+          //If the identifier of an existing track and the current track match, assume the are the same track and reject the negotiated one.
+          ///\todo Maybe switch to a new form of detecting collisions, especially with regards to multiple audio languages and camera angles.
+          if (it->second.getIdentifier() == trackIdentifier) {
+            collidesWith = it->first;
+            break;
+          }
+        }
+        /*LTS-END*/
 
         //Remove the "negotiate" status in either case
         negotiatingTracks.erase(value);
@@ -338,15 +468,49 @@ namespace Mist {
         metaPages[value].master = true;
         metaPages.erase(value);
 
-        int finalMap = (trackMeta.tracks.find(value)->second.type == "video" ? 1 : 2);
+        //Check if the track collides, and whether the track it collides with is active.
+        if (collidesWith != -1 && activeTracks.count(collidesWith)) {/*LTS*/
+          //Print a warning message and set the state of the track to rejected.
+          WARN_MSG("Collision of temporary track %lu with existing track %d detected. Handling as a new valid track.", value, collidesWith);
+          collidesWith = -1;
+        }
+        /*LTS-START*/
+        unsigned long finalMap = collidesWith;
+        if (finalMap == -1) {
+          //No collision has been detected, assign a new final number
+          finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
+          DEBUG_MSG(DLVL_DEVEL, "No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
+        }
+        /*LTS-END*/
         //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared")
         //or if the firstms of the replacement track is later than the lastms on the existing track
         if (!myMeta.tracks.count(finalMap) || trackMeta.tracks.find(value)->second.keys.size() > 1 || trackMeta.tracks.find(value)->second.firstms >= myMeta.tracks[finalMap].lastms) {
           if (myMeta.tracks.count(finalMap) && myMeta.tracks[finalMap].lastms > 0) {
-            INFO_MSG("Resume of track %d detected, coming from temporary track %lu of user %u", finalMap, value, id);
+            INFO_MSG("Resume of track %lu detected, coming from temporary track %lu of user %u", finalMap, value, id);
           } else {
-            INFO_MSG("New track detected, assigned track id %d, coming from temporary track %lu of user %u", finalMap, value, id);
+            INFO_MSG("New track detected, assigned track id %lu, coming from temporary track %lu of user %u", finalMap, value, id);
           }
+        } else {
+          //Otherwise replace existing track
+          INFO_MSG("Replacement of track %lu detected, coming from temporary track %lu of user %u", finalMap, value, id);
+          myMeta.tracks.erase(finalMap);
+          //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
+          metaPages[finalMap].master = true;
+          metaPages.erase(finalMap);
+          bufferLocations.erase(finalMap);
+        }
+
+        //Register the new track as an active track.
+        activeTracks.insert(finalMap);
+        //Register the time of registration as initial value for the lastUpdated field.
+        lastUpdated[finalMap] = Util::bootSecs();
+        //Register the user thats is pushing this element
+        pushLocation[finalMap] = thisData;
+        //Initialize the metadata for this track if it was not in place yet.
+        if (!myMeta.tracks.count(finalMap)) {
+          DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %lu", finalMap);
+          myMeta.tracks[finalMap] = trackMeta.tracks.begin()->second;
+          myMeta.tracks[finalMap].trackID = finalMap;
         }
 
         //Register the new track as an active track.
@@ -456,7 +620,8 @@ namespace Mist {
     lastUpdated[tNum] = Util::bootSecs();
     while (tmpPack) {
       //Update the metadata with this packet
-      myMeta.update(tmpPack);
+      ///\todo Why is there an LTS tag here?
+      myMeta.update(tmpPack, segmentSize);/*LTS*/
       //Set the first time when appropriate
       if (pageData.firstTime == 0) {
         pageData.firstTime = tmpPack.getTime();
@@ -469,6 +634,7 @@ namespace Mist {
   }
 
   bool inputBuffer::setup() {
+    lastReTime = Util::epoch(); /*LTS*/
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
     strName = strName.substr(0, (strName.find_first_of("+ ")));
@@ -496,6 +662,74 @@ namespace Mist {
       bufferTime = tmpNum;
     }
 
+    /*LTS-START*/
+    //if stream is configured and setting is present, use it, always
+    if (streamCfg && streamCfg.getMember("cut")) {
+      tmpNum = streamCfg.getMember("cut").asInt();
+    } else {
+      if (streamCfg) {
+        //otherwise, if stream is configured use the default
+        tmpNum = config->getOption("cut", true)[0u].asInt();
+      } else {
+        //if not, use the commandline argument
+        tmpNum = config->getOption("cut").asInt();
+      }
+    }
+    //if the new value is different, print a message and apply it
+    if (cutTime != tmpNum) {
+      DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, tmpNum);
+      cutTime = tmpNum;
+    }
+
+
+    //if stream is configured and setting is present, use it, always
+    if (streamCfg && streamCfg.getMember("segmentsize")) {
+      tmpNum = streamCfg.getMember("segmentsize").asInt();
+    } else {
+      if (streamCfg) {
+        //otherwise, if stream is configured use the default
+        tmpNum = config->getOption("segmentsize", true)[0u].asInt();
+      } else {
+        //if not, use the commandline argument
+        tmpNum = config->getOption("segmentsize").asInt();
+      }
+    }
+    //if the new value is different, print a message and apply it
+    if (segmentSize != tmpNum) {
+      DEBUG_MSG(DLVL_DEVEL, "Setting segmentSize from %u to new value of %lli", segmentSize, tmpNum);
+      segmentSize = tmpNum;
+    }
+
+    //if stream is configured and setting is present, use it, always
+    std::string rec;
+    if (streamCfg && streamCfg.getMember("record")) {
+      rec = streamCfg.getMember("record").asInt();
+    } else {
+      if (streamCfg) {
+        //otherwise, if stream is configured use the default
+        rec = config->getOption("record", true)[0u].asString();
+      } else {
+        //if not, use the commandline argument
+        rec = config->getOption("record").asString();
+      }
+    }
+    //if the new value is different, print a message and apply it
+    if (recName != rec) {
+      //close currently recording file, for we should open a new one
+      DEBUG_MSG(DLVL_DEVEL, "Stopping recording of %s to %s", config->getString("streamname").c_str(), recName.c_str());
+      recFile.close();
+      recMeta.tracks.clear();
+      recName = rec;
+    }
+    if (recName != "" && !recFile.is_open()) {
+      DEBUG_MSG(DLVL_DEVEL, "Starting recording of %s to %s", config->getString("streamname").c_str(), recName.c_str());
+      recFile.open(recName.c_str());
+      if (recFile.fail()) {
+        DEBUG_MSG(DLVL_DEVEL, "Error occured during record opening: %s", strerror(errno));
+      }
+      recBpos = 0;
+    }
+    /*LTS-END*/
     configLock.post();
     configLock.close();
     return true;

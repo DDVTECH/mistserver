@@ -13,7 +13,11 @@ namespace Mist {
       void sendHeader();
     protected:
       JSON::Value encryption;
+      std::string protectionHeader(JSON::Value & encParams);/*LTS*/
+      /*LTS
       std::string smoothIndex();
+      LTS*/
+      std::string smoothIndex(JSON::Value encParams = JSON::Value());/*LTS*/
       int canSeekms(unsigned int ms);
       int keysToSend;
       int myTrackStor;

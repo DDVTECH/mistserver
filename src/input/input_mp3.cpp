@@ -122,7 +122,7 @@ namespace Mist {
         }
       }
       if (!offset){
-        DEBUG_MSG(DLVL_FAIL, "Sync byte not found from offset %llu", filePos);
+        DEBUG_MSG(DLVL_FAIL, "Sync byte not found from offset %lu", filePos);
         return;
       }
       filePos += offset;

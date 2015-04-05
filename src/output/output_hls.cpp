@@ -11,7 +11,7 @@ namespace Mist {
     int audioId = -1;
     std::string audioName;
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "AAC"){
+      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3"){
         audioId = it->first;
         audioName = it->second.getIdentifier();
         break;
@@ -19,7 +19,7 @@ namespace Mist {
     }
     unsigned int vidTracks = 0;
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "H264"){
+      if (it->second.codec == "H264" || it->second.codec == "HEVC"){
         vidTracks++;
         int bWidth = it->second.bps * 2;
         if (bWidth < 5){
@@ -84,6 +84,20 @@ namespace Mist {
       }
       //only print the last segment when VoD
       lines.pop_back();
+      /*LTS-START*/
+      unsigned int skip = (( myMeta.tracks[tid].fragments.size()-1) * config->getInteger("startpos")) / 1000u;
+      while (skippedLines < skip && lines.size()){
+        lines.pop_front();
+        skippedLines++;
+      }
+      if (config->getInteger("listlimit")){
+        unsigned long listlimit = config->getInteger("listlimit");
+        while (lines.size() > listlimit){
+          lines.pop_front();
+          skippedLines++;
+        }
+      }
+      /*LTS-END*/
     }
     
     result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags + skippedLines << "\r\n";
@@ -112,12 +126,22 @@ namespace Mist {
     capa["desc"] = "Enables HTTP protocol Apple-specific streaming (also known as HLS).";
     capa["url_rel"] = "/hls/$/index.m3u8";
     capa["url_prefix"] = "/hls/$/";
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("AC3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9ll;
+    /*LTS-START*/
+    cfg->addOption("listlimit", JSON::fromString("{\"arg\":\"integer\",\"default\":0,\"short\":\"y\",\"long\":\"list-limit\",\"help\":\"Maximum number of parts in live playlists (0 = infinite).\"}"));
+    capa["optional"]["listlimit"]["name"] = "Live playlist limit";
+    capa["optional"]["listlimit"]["help"] = "Maximum number of parts in live playlists. (0 = infinite)";
+    capa["optional"]["listlimit"]["default"] = 0ll;
+    capa["optional"]["listlimit"]["type"] = "uint";
+    capa["optional"]["listlimit"]["option"] = "--list-limit";
+    /*LTS-END*/
   }
 
   int OutHLS::canSeekms(unsigned int ms){

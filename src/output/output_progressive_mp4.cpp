@@ -15,8 +15,10 @@ namespace Mist {
     capa["url_rel"] = "/$.mp4";
     capa["url_match"] = "/$.mp4";
     capa["codecs"][0u][0u].append("H264");
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("AC3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
@@ -115,6 +117,13 @@ namespace Mist {
                     avccBox.setPayload(thisTrack.init);
                     vse.setCLAP(avccBox);
                   }
+                  /*LTS-START*/
+                  if (thisTrack.codec == "HEVC"){
+                    MP4::HVCC hvccBox;
+                    hvccBox.setPayload(thisTrack.init);
+                    vse.setCLAP(hvccBox);
+                  }
+                  /*LTS-END*/
                   stsdBox.setEntry(vse,0);
                 }else if(thisTrack.type == "audio"){//boxname = codec
                   MP4::AudioSampleEntry ase;
@@ -124,12 +133,44 @@ namespace Mist {
                   }else if (thisTrack.codec == "MP3"){
                     ase.setCodec("mp4a");
                     ase.setDataReferenceIndex(1);
+                  }else if (thisTrack.codec == "AC3"){
+                    ase.setCodec("ac-3");
+                    ase.setDataReferenceIndex(1);
                   }
                   ase.setSampleRate(thisTrack.rate);
                   ase.setChannelCount(thisTrack.channels);
                   ase.setSampleSize(thisTrack.size);
+                  if (myMeta.tracks[*it].codec == "AC3"){
+                    MP4::DAC3 dac3Box;
+                    switch (myMeta.tracks[*it].rate){
+                      case 48000:
+                        dac3Box.setSampleRateCode(0);
+                        break;
+                      case 44100:
+                        dac3Box.setSampleRateCode(1);
+                        break;
+                      case 32000:
+                        dac3Box.setSampleRateCode(2);
+                        break;
+                      default:
+                        dac3Box.setSampleRateCode(3);
+                        break;
+                    }
+                    /// \todo the next settings are set to generic values, we might want to make these flexible
+                    dac3Box.setBitStreamIdentification(8);//check the docs, this is a weird property
+                    dac3Box.setBitStreamMode(0);//set to main, mixed audio
+                    dac3Box.setAudioConfigMode(2);///\todo find out if ACMode should be different
+                    if (thisTrack.channels > 4){
+                      dac3Box.setLowFrequencyEffectsChannelOn(1);
+                    }else{
+                      dac3Box.setLowFrequencyEffectsChannelOn(0);
+                    }
+                    dac3Box.setFrameSizeCode(20);//should be OK, but test this.
+                    ase.setCodecBox(dac3Box);
+                  }else{//other codecs use the ESDS box
                   MP4::ESDS esdsBox(thisTrack.init);
                   ase.setCodecBox(esdsBox);
+                  }
                   stsdBox.setEntry(ase,0);
                 }
                 stblBox.setContent(stsdBox,offset++);
@@ -138,6 +179,7 @@ namespace Mist {
                 MP4::STTS sttsBox;
                 sttsBox.setVersion(0);
                 if (thisTrack.parts.size()){
+                  /// \todo Optimize for speed. We're currently parsing backwards, to prevent massive reallocs. Better would be to not set sampleCount to 1 for every single entry, calculate in advance, *then* set backwards. Volunteers?
                   for (unsigned int part = thisTrack.parts.size(); part > 0; --part){
                     MP4::STTSEntry newEntry;
                     newEntry.sampleCount = 1;
@@ -441,6 +483,14 @@ namespace Mist {
   }
   
   void OutProgressiveMP4::onHTTP(){
+    /*LTS-START*/
+    //allow setting of max lead time through buffer variable.
+    //max lead time is set in MS, but the variable is in integer seconds for simplicity.
+    if (H.GetVar("buffer") != ""){
+      maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;
+      minSkipAhead = maxSkipAhead - std::min(2500u, maxSkipAhead / 2);
+    }
+    /*LTS-END*/
     initialize();
     parseData = true;
     wantRequest = false;

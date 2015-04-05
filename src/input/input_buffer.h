@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "input.h"
 #include <mist/dtsc.h>
 #include <mist/shared_memory.h>
@@ -10,6 +12,8 @@ namespace Mist {
     private:
       unsigned int bufferTime;
       unsigned int cutTime;
+      unsigned int segmentSize; /*LTS*/
+      unsigned int lastReTime; /*LTS*/
     protected:
       //Private Functions
       bool setup();
@@ -31,6 +35,11 @@ namespace Mist {
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > bufferLocations;
       std::map<unsigned long, char *> pushLocation;
       inputBuffer * singleton;
+
+      std::string recName;/*LTS*/
+      DTSC::Meta recMeta;/*LTS*/
+      std::ofstream recFile;/*LTS*/
+      long long int recBpos;/*LTS*/
   };
 }
 

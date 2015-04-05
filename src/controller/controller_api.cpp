@@ -11,6 +11,10 @@
 #include "controller_connectors.h"
 #include "controller_capabilities.h"
 #include "controller_statistics.h"
+/*LTS-START*/
+#include "controller_updater.h"
+#include "controller_limits.h"
+/*LTS-END*/
 
 ///\brief Check the submitted configuration and handle things accordingly.
 ///\param in The new configuration.
@@ -114,6 +118,10 @@ void Controller::checkConfig(JSON::Value & in, JSON::Value & out){
 /// Please note that this is NOT secure. At all. Never use this mechanism over a public network!
 /// A status of `"ACC_MADE"` indicates the account was created successfully and can now be used to login as normal.
 bool Controller::authorize(JSON::Value & Request, JSON::Value & Response, Socket::Connection & conn){
+  #ifdef NOAUTH
+  Response["authorize"]["status"] = "OK";
+  return true;
+  #endif
   time_t Time = time(0);
   tm * TimeInfo = localtime( &Time);
   std::stringstream Date;
@@ -191,6 +199,148 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           if (Request.isMember("streams")){
             Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
           }
+          /*LTS-START*/
+          /// 
+          /// \api
+          /// `"addstream"` requests (LTS-only) take the form of:
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// {
+          ///   "streamname": {
+          ///     //Stream configuration - see the "streams" call for details on this format.
+          ///   }
+          ///   /// Optionally, repeat for more streams.
+          /// }
+          /// ~~~~~~~~~~~~~~~
+          /// These requests will add new streams or update existing streams with the same names, without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
+          /// 
+          if (Request.isMember("addstream")){
+            Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
+          }
+          /// 
+          /// \api
+          /// `"deletestream"` requests (LTS-only) take the form of:
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// {
+          ///   "streamname": {} //any contents in this object are ignored
+          ///   /// Optionally, repeat for more streams.
+          /// }
+          /// ~~~~~~~~~~~~~~~
+          /// OR
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// [
+          ///   "streamname",
+          ///   /// Optionally, repeat for more streams.
+          /// ]
+          /// ~~~~~~~~~~~~~~~
+          /// OR
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// "streamname"
+          /// ~~~~~~~~~~~~~~~
+          /// These requests will remove the named stream(s), without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
+          ///
+          if (Request.isMember("deletestream")){
+            //if array, delete all elements
+            //if object, delete all entries
+            //if string, delete just the one
+            if (Request["deletestream"].isString()){
+              Controller::Storage["streams"].removeMember(Request["deletestream"].asStringRef());
+            }
+            if (Request["deletestream"].isArray()){
+              for (JSON::ArrIter it = Request["deletestream"].ArrBegin(); it != Request["deletestream"].ArrEnd(); ++it){
+                Controller::Storage["streams"].removeMember(it->asString());
+              }
+            }
+            if (Request["deletestream"].isObject()){
+              for (JSON::ObjIter it = Request["deletestream"].ObjBegin(); it != Request["deletestream"].ObjEnd(); ++it){
+                Controller::Storage["streams"].removeMember(it->first);
+              }
+            }
+          }
+          /// 
+          /// \api
+          /// `"addprotocol"` requests (LTS-only) take the form of:
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// {
+          ///   "connector": "HTTP" //Name of the connector to enable
+          ///   //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+          /// }
+          /// ~~~~~~~~~~~~~~~
+          /// OR
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// [
+          ///   {
+          ///     "connector": "HTTP" //Name of the connector to enable
+          ///     //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+          ///   }
+          ///   /// Optionally, repeat for more protocols.
+          /// ]
+          /// ~~~~~~~~~~~~~~~
+          /// These requests will add the given protocol configurations, without touching existing configurations. In other words, this call can be used for incremental updates to the protocols list instead of complete updates, like the "config" call.
+          /// There is no response to this call.
+          ///
+          if (Request.isMember("addprotocol")){
+            if (Request["addprotocol"].isArray()){
+              for (JSON::ArrIter it = Request["addprotocol"].ArrBegin(); it != Request["addprotocol"].ArrEnd(); ++it){
+                Controller::Storage["config"]["protocols"].append(*it);
+              }
+            }
+            if (Request["addprotocol"].isObject()){
+              Controller::Storage["config"]["protocols"].append(Request["addprotocol"]);
+            }
+            Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
+          }
+          /// 
+          /// \api
+          /// `"deleteprotocol"` requests (LTS-only) take the form of:
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// {
+          ///   "connector": "HTTP" //Name of the connector to enable
+          ///   //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+          /// }
+          /// ~~~~~~~~~~~~~~~
+          /// OR
+          /// ~~~~~~~~~~~~~~~{.js}
+          /// [
+          ///   {
+          ///     "connector": "HTTP" //Name of the connector to enable
+          ///     //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+          ///   }
+          ///   /// Optionally, repeat for more protocols.
+          /// ]
+          /// ~~~~~~~~~~~~~~~
+          /// These requests will remove the given protocol configurations (exact matches only), without touching other configurations. In other words, this call can be used for incremental updates to the protocols list instead of complete updates, like the "config" call.
+          /// There is no response to this call.
+          ///
+          if (Request.isMember("deleteprotocol")){
+            if (Request["deleteprotocol"].isArray() && Request["deleteprotocol"].size()){
+              JSON::Value newProtocols;
+              for (JSON::ArrIter it = Controller::Storage["config"]["protocols"].ArrBegin(); it != Controller::Storage["config"]["protocols"].ArrEnd(); ++it){
+                bool add = true;
+                for (JSON::ArrIter pit = Request["deleteprotocol"].ArrBegin(); pit != Request["deleteprotocol"].ArrEnd(); ++pit){
+                  if (*it == *pit){
+                    add = false;
+                    break;
+                  }
+                }
+                if (add){
+                  newProtocols.append(*it);
+                }
+              }
+              Controller::Storage["config"]["protocols"] = newProtocols;
+              Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
+            }
+            if (Request["deleteprotocol"].isObject()){
+              JSON::Value newProtocols;
+              for (JSON::ArrIter it = Controller::Storage["config"]["protocols"].ArrBegin(); it != Controller::Storage["config"]["protocols"].ArrEnd(); ++it){
+                if (*it != Request["deleteprotocol"]){
+                  newProtocols.append(*it);
+                }
+              }
+              Controller::Storage["config"]["protocols"] = newProtocols;
+              Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
+            }
+          }
+          /*LTS-END*/
           if (Request.isMember("capabilities")){
             Controller::checkCapable(capabilities);
             Response["capabilities"] = capabilities;
@@ -248,6 +398,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           ///   ]
           /// ]
           /// ~~~~~~~~~~~~~~~
+          /// 
           if(Request.isMember("browse")){                    
             if(Request["browse"] == ""){
               Request["browse"] = ".";
@@ -312,6 +463,28 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             }
             Response["ui_settings"] = Storage["ui_settings"];
           }
+          /*LTS-START*/
+          /// 
+          /// \api
+          /// LTS builds will always include an `"LTS"` response, set to 1.
+          /// 
+          Response["LTS"] = 1;
+          /// 
+          /// \api
+          /// `"autoupdate"` requests (LTS-only) will cause MistServer to apply a rolling update to itself, and are not responded to.
+          /// 
+          #ifdef UPDATER
+          if (Request.isMember("autoupdate")){
+            Controller::CheckUpdates();
+          }
+          if (Request.isMember("checkupdate")){
+            Controller::updates = Controller::CheckUpdateInfo();
+          }
+          if (Request.isMember("update") || Request.isMember("checkupdate")){
+            Response["update"] = Controller::updates;
+          }
+          #endif
+          /*LTS-END*/
           //sent current configuration, no matter if it was changed or not
           Response["config"] = Controller::Storage["config"];
           Response["config"]["version"] = PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE;
@@ -363,6 +536,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               Controller::fillTotals(Request["totals"], Response["totals"]);
             }
           }
+          if (Request.isMember("active_streams")){
+            Controller::fillActive(Request["active_streams"], Response["active_streams"]);
+          }
           
           Controller::writeConfig();
           
@@ -370,6 +546,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           Util::sleep(1000);//sleep a second to prevent bruteforcing 
           logins++;
         }
+        Controller::checkServerLimits(); /*LTS*/
       }//config mutex lock
       //send the response, either normally or through JSONP callback.
       std::string jsonp = "";

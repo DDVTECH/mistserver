@@ -1022,10 +1022,14 @@ namespace TS {
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (myMeta.tracks[*it].codec == "H264"){
         PMT.setStreamType(0x1B,id);
+      }else if (myMeta.tracks[*it].codec == "HEVC"){
+        PMT.setStreamType(0x06,id);
       }else if (myMeta.tracks[*it].codec == "AAC"){
         PMT.setStreamType(0x0F,id);
       }else if (myMeta.tracks[*it].codec == "MP3"){
         PMT.setStreamType(0x03,id);
+      }else if (myMeta.tracks[*it].codec == "AC3"){
+        PMT.setStreamType(0x81,id);
       }
       PMT.setElementaryPID(0x100 + (*it) - 1, id);
       PMT.setESInfoLength(0,id);

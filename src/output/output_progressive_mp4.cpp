@@ -32,7 +32,7 @@ namespace Mist {
         retVal += *keyIt;
       }
     }
-    return retVal * (1 + (double)selectedTracks.size() * 0.1);
+    return retVal * 1.1;
   }
   
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size){

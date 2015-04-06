@@ -161,9 +161,12 @@ add_library (mist
   ${libHeaders}
   ${libSources} 
 )
+if (NOT APPLE)
+  set (LIBRT -lrt)
+endif()
 target_link_libraries(mist 
   -lpthread 
-  -lrt
+  ${LIBRT}
 )
 install(
   FILES ${libHeaders}

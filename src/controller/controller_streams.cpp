@@ -15,6 +15,7 @@
 
 ///\brief Holds everything unique to the controller.
 namespace Controller {
+  std::map<std::string, pid_t> inputProcesses;
 
   ///\brief Checks whether two streams are equal.
   ///\param one The first stream for the comparison.
@@ -58,6 +59,31 @@ namespace Controller {
     }
     if (URL.substr(0, 1) != "/"){
       //push-style stream
+      if (data["udpport"].asInt()){
+        std::string udpPort = data["udpport"].asString();
+        //Check running
+        if (!inputProcesses.count(name) || !Util::Procs::isRunning(inputProcesses[name])){
+          //  False: start TS input
+          INFO_MSG("No TS Input running on port %s for stream %s, starting it", udpPort.c_str(), name.c_str());
+          std::deque<std::string> command;
+          command.push_back(Util::getMyPath() + "MistInTSStream");
+          command.push_back("-s");
+          command.push_back(name);
+          command.push_back("-p");
+          command.push_back(udpPort);
+          command.push_back(URL);
+          int stdIn = 0;
+          int stdOut = 1;
+          int stdErr = 2;
+          pid_t program = Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
+          if (program){
+            inputProcesses[name] = program;
+          }
+        }
+        //Check hasViewers
+        //  True: data["online"] = 2;
+        //  False: data["online"] =11;
+      }
       return;
     }
     if (URL.substr(0, 1) == "/"){
@@ -204,13 +230,12 @@ namespace Controller {
     for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
       if ( !in.isMember(jit->first)){
         toDelete.insert(jit->first);
-        Log("STRM", std::string("Deleted stream ") + jit->first);
       }
     }
     //actually delete the streams
     while (toDelete.size() > 0){
       std::string deleting = *(toDelete.begin());
-      out.removeMember(deleting);
+      deleteStream(deleting, out);
       toDelete.erase(deleting);
     }
 
@@ -227,6 +252,21 @@ namespace Controller {
       }
     }
 
+  }
+
+  void deleteStream(const std::string & name, JSON::Value & out) {
+    if (!out.isMember(name)){
+      return;
+    }
+    Log("STRM", std::string("Deleted stream ") + name);
+    out.removeMember(name);
+    if (inputProcesses.count(name)){
+      pid_t procId = inputProcesses[name];
+      if (Util::Procs::isRunning(procId)){
+        Util::Procs::Stop(procId);
+      }
+      inputProcesses.erase(name);
+    }
   }
 
 } //Controller namespace

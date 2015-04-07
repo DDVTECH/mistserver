@@ -26,7 +26,7 @@ namespace Utils {
     }
   }
 
-  void bitstream::append(char * input, size_t bytes) {
+  void bitstream::append(const char * input, size_t bytes) {
     if (checkBufferSize(dataSize + bytes)) {
       memcpy(data + dataSize, input, bytes);
       dataSize += bytes;

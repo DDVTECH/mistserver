@@ -6,6 +6,7 @@
 #include <string>
 #include <set>
 #include <vector>
+#include <deque>
 
 /// Contains utility code, not directly related to streaming media
 namespace Util {
@@ -19,9 +20,12 @@ namespace Util {
       static void exit_handler();
       static void runCmd(std::string & cmd);
       static void setHandler();
+      static char* const* dequeToArgv(std::deque<std::string> & argDeq);
     public:
       static std::string getOutputOf(char * const * argv);
+      static std::string getOutputOf(std::deque<std::string> & argDeq);
       static pid_t StartPiped(char * const * argv, int * fdin, int * fdout, int * fderr);
+      static pid_t StartPiped(std::deque<std::string> & argDeq, int * fdin, int * fdout, int * fderr);
       static void Stop(pid_t name);
       static void Murder(pid_t name);
       static void StopAll();

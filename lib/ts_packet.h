@@ -22,6 +22,7 @@ namespace TS {
     public:
       //Constructors and fillers
       Packet();
+      Packet(const Packet & rhs);
       ~Packet();      
       bool FromPointer(const char * data);
       bool FromFile(FILE * data);
@@ -83,6 +84,7 @@ namespace TS {
 
   class ProgramAssociationTable : public Packet {
     public:
+      ProgramAssociationTable & operator = (const Packet & rhs);
       char getOffset() const;
       char getTableId() const;
       short getSectionLength() const;
@@ -119,6 +121,7 @@ namespace TS {
   class ProgramMappingTable : public Packet {
     public:
       ProgramMappingTable();
+      ProgramMappingTable & operator = (const Packet & rhs);
       char getOffset() const;
       void setOffset(char newVal);
       char getTableId() const;

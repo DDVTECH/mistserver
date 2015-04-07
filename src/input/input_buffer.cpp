@@ -13,7 +13,7 @@
 #include "input_buffer.h"
 
 #ifndef TIMEOUTMULTIPLIER
-#define TIMEOUTMULTIPLIER 10
+#define TIMEOUTMULTIPLIER 2
 #endif
 
 namespace Mist {
@@ -71,6 +71,17 @@ namespace Mist {
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 5000LL;
     option.null();
+    option["arg"] = "integer";
+    option["long"] = "udp-port";
+    option["short"] = "U";
+    option["help"] = "The UDP port on which to listen for TS Packets";
+    option["value"].append(0LL);
+    config->addOption("udpport", option);
+    capa["optional"]["udpport"]["name"] = "TS/UDP port";
+    capa["optional"]["udpport"]["help"] = "The UDP port on which to listen for TS Packets, or 0 for disabling TS Input";
+    capa["optional"]["udpport"]["option"] = "--udp-port";
+    capa["optional"]["udpport"]["type"] = "uint";
+    capa["optional"]["udpport"]["default"] = 0LL;
     /*LTS-end*/
     capa["source_match"] = "push://*";
     capa["priority"] = 9ll;
@@ -334,12 +345,21 @@ namespace Mist {
             curPage.erase(tid);
             bufferLocations[tid].erase(bufferLocations[tid].begin());
           }
+          //Reset the userpage, to allow repushing from TS
+          IPC::userConnection userConn(pushLocation[it->first]);
+          for (int i = 0; i < SIMUL_TRACKS; i++){
+            if (userConn.getTrackId(i) == it->first) {
+              userConn.setTrackId(i, 0);
+              userConn.setKeynum(i, 0);
+              break;
+            }
+          }
           curPageNum.erase(it->first);
           metaPages[it->first].master = true;
           metaPages.erase(it->first);
           activeTracks.erase(it->first);
           pushLocation.erase(it->first);
-          myMeta.tracks.erase(it);
+          myMeta.tracks.erase(it->first);
           changed = true;
           break;
         }
@@ -389,10 +409,10 @@ namespace Mist {
     //Get the counter of this user
     char counter = (*(data - 1));
     //Each user can have at maximum SIMUL_TRACKS elements in their userpage.
+    IPC::userConnection userConn(data);
     for (int index = 0; index < SIMUL_TRACKS; index++){
-      char * thisData = data + (index * 6);
       //Get the track id from the current element
-      unsigned long value = ((long)(thisData[0]) << 24) | ((long)(thisData[1]) << 16) | ((long)(thisData[2]) << 8) | thisData[3];
+      unsigned long value = userConn.getTrackId(index);
       //Skip value 0xFFFFFFFF as this indicates a previously declined track
       if (value == 0xFFFFFFFF){
         continue;
@@ -429,15 +449,11 @@ namespace Mist {
         //Add the temporary track id to the list of tracks that are currently being negotiated
         negotiatingTracks.insert(tempMapping);
         //Write the temporary id to the userpage element
-        thisData[0] = (tempMapping >> 24) & 0xFF;
-        thisData[1] = (tempMapping >> 16) & 0xFF;
-        thisData[2] = (tempMapping >> 8) & 0xFF;
-        thisData[3] = (tempMapping) & 0xFF;
+        userConn.setTrackId(index, tempMapping);
         //Obtain the original track number for the pushing process
-        unsigned long originalTrack = ((long)(thisData[4]) << 8) | thisData[5];
+        unsigned long originalTrack = userConn.getKeynum(index);
         //Overwrite it with 0xFFFF
-        thisData[4] = 0xFF;
-        thisData[5] = 0xFF;
+        userConn.setKeynum(index, 0xFFFF);
         DEBUG_MSG(DLVL_HIGH, "Incoming track %lu from pushing process %d has now been assigned temporary id %llu", originalTrack, id, tempMapping);
       }
 
@@ -498,7 +514,6 @@ namespace Mist {
           }
         }
         /*LTS-END*/
-
         //Remove the "negotiate" status in either case
         negotiatingTracks.erase(value);
         //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
@@ -547,25 +562,20 @@ namespace Mist {
         pushLocation[finalMap] = data;
         //Initialize the metadata for this track if it was not in place yet.
         if (!myMeta.tracks.count(finalMap)){
-          DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %d", finalMap);
+          DEBUG_MSG(DLVL_MEDIUM, "Inserting metadata for track number %d", finalMap);
           myMeta.tracks[finalMap] = trackMeta.tracks.begin()->second;
           myMeta.tracks[finalMap].trackID = finalMap;
         }
-        //Write the final mapped track number to the user page element
-        thisData[0] = (finalMap >> 24) & 0xFF;
-        thisData[1] = (finalMap >> 16) & 0xFF;
-        thisData[2] = (finalMap >> 8) & 0xFF;
-        thisData[3] = (finalMap) & 0xFF;
-        //Write the key number to start pushing from to to the userpage element.
+        //Write the final mapped track number and keyframe number to the user page element
         //This is used to resume pushing as well as pushing new tracks
-        unsigned long keyNum = myMeta.tracks[finalMap].keys.size();
-        thisData[4] = (keyNum >> 8) & 0xFF;
-        thisData[5] = keyNum & 0xFF;
+        userConn.setTrackId(index, finalMap);
+        userConn.setKeynum(index, myMeta.tracks[finalMap].keys.size());
         //Update the metadata to reflect all changes
         updateMeta();
       }
       //If the track is active, and this is the element responsible for pushing it
       if (activeTracks.count(value) && pushLocation[value] == data){
+        INFO_MSG("Track is live and pushin'");
         //Open the track index page if we dont have it open yet
         if (!metaPages.count(value) || !metaPages[value].mapped){
           char firstPage[NAME_BUFFER_SIZE];
@@ -581,6 +591,7 @@ namespace Mist {
   }
 
   void inputBuffer::updateTrackMeta(unsigned long tNum){
+    INFO_MSG("Updating meta for track %d", tNum);
     //Store a reference for easier access
     std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
 
@@ -591,6 +602,7 @@ namespace Mist {
         continue;
       }
       unsigned long keyNum = ntohl(tmpOffset[0]);
+      INFO_MSG("Page %d detected, with %d keys", keyNum, ntohl(tmpOffset[1]));
 
       //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
       if (!locations.count(keyNum)){
@@ -599,7 +611,6 @@ namespace Mist {
       locations[keyNum].pageNum = keyNum;
       locations[keyNum].keyNum = ntohl(tmpOffset[1]);
     }
-
     //Since the map is ordered by keynumber, this loop updates the metadata for each page from oldest to newest
     for (std::map<unsigned long, DTSCPageData>::iterator pageIt = locations.begin(); pageIt != locations.end(); pageIt++){
       updateMetaFromPage(tNum, pageIt->first);
@@ -608,6 +619,7 @@ namespace Mist {
   }
 
   void inputBuffer::updateMetaFromPage(unsigned long tNum, unsigned long pageNum){
+    INFO_MSG("Updating meta for track %d page %d", tNum, pageNum);
     DTSCPageData & pageData = bufferLocations[tNum][pageNum];
 
     //If the current page is over its 8mb "splitting" boundary
@@ -615,6 +627,7 @@ namespace Mist {
       //And the last keyframe in the parsed metadata is further in the stream than this page
       if (pageData.pageNum + pageData.keyNum < myMeta.tracks[tNum].keys.rbegin()->getNumber()){
         //Assume the entire page is already parsed
+        INFO_MSG("Assuming its already done", tNum, pageNum);
         return;
       }
     }

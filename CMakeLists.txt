@@ -113,6 +113,7 @@ add_definitions(-g -funsigned-char -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D
 # MistLib - Header Files               #
 ########################################
 set(libHeaders
+  ${SOURCE_DIR}/lib/adts.h
   ${SOURCE_DIR}/lib/amf.h
   ${SOURCE_DIR}/lib/auth.h
   ${SOURCE_DIR}/lib/base64.h
@@ -124,6 +125,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/dtsc.h
   ${SOURCE_DIR}/lib/encryption.h
   ${SOURCE_DIR}/lib/flv_tag.h
+  ${SOURCE_DIR}/lib/h264.h
   ${SOURCE_DIR}/lib/http_parser.h
   ${SOURCE_DIR}/lib/json.h
   ${SOURCE_DIR}/lib/mp4_adobe.h
@@ -146,6 +148,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/timing.h
   ${SOURCE_DIR}/lib/tinythread.h
   ${SOURCE_DIR}/lib/ts_packet.h
+  ${SOURCE_DIR}/lib/ts_stream.h
   ${SOURCE_DIR}/lib/vorbis.h
 )
 
@@ -153,6 +156,7 @@ set(libHeaders
 # MistLib - Source Files               #
 ########################################
 set(libSources 
+  ${SOURCE_DIR}/lib/adts.cpp
   ${SOURCE_DIR}/lib/amf.cpp
   ${SOURCE_DIR}/lib/auth.cpp
   ${SOURCE_DIR}/lib/base64.cpp
@@ -163,6 +167,7 @@ set(libSources
   ${SOURCE_DIR}/lib/dtscmeta.cpp
   ${SOURCE_DIR}/lib/encryption.cpp
   ${SOURCE_DIR}/lib/flv_tag.cpp
+  ${SOURCE_DIR}/lib/h264.cpp
   ${SOURCE_DIR}/lib/http_parser.cpp
   ${SOURCE_DIR}/lib/json.cpp
   ${SOURCE_DIR}/lib/mp4_adobe.cpp
@@ -184,6 +189,7 @@ set(libSources
   ${SOURCE_DIR}/lib/timing.cpp
   ${SOURCE_DIR}/lib/tinythread.cpp
   ${SOURCE_DIR}/lib/ts_packet.cpp
+  ${SOURCE_DIR}/lib/ts_stream.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
 )
 ########################################
@@ -243,6 +249,8 @@ makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
 makeAnalyser(RTP rtp) #LTS
 makeAnalyser(RTSP rtsp_rtp) #LTS
+makeAnalyser(TS ts) #LTS
+makeAnalyser(TSStream tsstream) #LTS
 makeAnalyser(Stats stats) #LTS
 
 ########################################
@@ -260,9 +268,21 @@ macro(makeInput inputName format)
     src/input/input_${format}.cpp 
     src/io.cpp
   )
+
+  #Set compile definitions
+  unset(my_definitions)
+  if (";${ARGN};" MATCHES ";nolock;")#Currently only used in TSStream
+    list(APPEND my_definitions "INPUT_NOLOCK")
+  endif()
+  if (";${ARGN};" MATCHES ";live;")#Currently only used in TSStream
+    list(APPEND my_definitions "INPUT_LIVE")
+  endif()
+  list(APPEND my_definitions "INPUTTYPE=\"input_${format}.h\"")
+
   set_target_properties(MistIn${inputName} 
-    PROPERTIES COMPILE_DEFINITIONS INPUTTYPE=\"input_${format}.h\"
+    PROPERTIES COMPILE_DEFINITIONS "${my_definitions}"
   )
+
   target_link_libraries(MistIn${inputName} 
     mist 
   )
@@ -281,6 +301,7 @@ makeInput(Buffer buffer)
 makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS
+makeInput(TSStream ts nolock live)#LTS
 makeInput(Folder folder folder)#LTS
 
 ########################################

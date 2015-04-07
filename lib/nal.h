@@ -1,9 +1,17 @@
+#pragma once
+#include <deque>
 #include <string>
 #include <cstdio>
 #include <deque>
 #include "dtsc.h"
 
 namespace h264 {
+  struct nalData {
+    unsigned char nalType;
+    unsigned long nalSize;
+  };
+
+  std::deque<nalData> analyseH264Packet(const char * data, unsigned long len);
   std::deque<int> parseNalSizes(DTSC::Packet & pack);
 
   ///Struct containing pre-calculated metadata of an SPS nal unit. Width and height in pixels, fps in Hz
@@ -44,5 +52,15 @@ namespace h264 {
       PPS(): NAL() {};
       PPS(std::string & InputData): NAL(InputData) {};
       void analyzePPS();
+  };
+
+
+  class sequenceParameterSet {
+    public:
+      sequenceParameterSet(const char * _data, unsigned long _dataLen);
+      SPSMeta getCharacteristics() const;
+    private:
+      const char * data;
+      unsigned long dataLen;
   };
 }//ns h264

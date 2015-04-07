@@ -108,7 +108,7 @@ namespace DTSC {
       operator bool() const;
       packType getVersion() const;
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
-      void genericFill(long long packTime, long long packOffset, long long packTrack, char * packData, long long packDataSize, long long packBytePos, bool isKeyframe);
+      void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, long long packBytePos, bool isKeyframe);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
       void getString(const char * identifier, std::string & result) const;
       void getInt(const char * identifier, int & result) const;

@@ -25,6 +25,11 @@ namespace TS {
     clear();
   }
 
+  Packet::Packet(const Packet & rhs){
+    memcpy(strBuf, rhs.strBuf, 188);
+    pos = 188;
+  }
+
 /// This function fills a Packet from a file.
 /// It fills the content with the next 188 bytes int he file.
 /// \param Data The data to be read into the packet.
@@ -34,11 +39,11 @@ namespace TS {
     if (!fread((void *)strBuf, 188, 1, data)) {
       return false;
     }
-    pos=188;
     if (strBuf[0] != 0x47){
       INFO_MSG("Failed to read a good packet on pos %lld", pos);
       return false;
     }
+    pos=188;
     return true;
   }
 
@@ -416,7 +421,7 @@ namespace TS {
 /// \return A character pointer to the internal packet buffer data
   const char * Packet::checkAndGetBuffer() const{
     if (pos != 188) {
-      DEBUG_MSG(DLVL_ERROR, "Size invalid (%d) - invalid data from this point on", pos);
+      DEBUG_MSG(DLVL_HIGH, "Size invalid (%d) - invalid data from this point on", pos);
     }
     return strBuf;
   }
@@ -568,6 +573,11 @@ namespace TS {
   }
 
 
+  ProgramAssociationTable & ProgramAssociationTable::operator = (const Packet & rhs){
+    memcpy(strBuf, rhs.checkAndGetBuffer(), 188);
+    pos = 188;
+    return *this;
+  }
   ///Retrieves the current addStuffingoffset value for a PAT
   char ProgramAssociationTable::getOffset() const{
     unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0);
@@ -751,6 +761,12 @@ namespace TS {
     strBuf[2] = 0x00;
     strBuf[3] = 0x10;
     pos=4;
+  }
+
+  ProgramMappingTable & ProgramMappingTable::operator = (const Packet & rhs) {
+    memcpy(strBuf, rhs.checkAndGetBuffer(), 188);
+    pos = 188;
+    return *this;
   }
 
   char ProgramMappingTable::getOffset() const{

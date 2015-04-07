@@ -201,6 +201,31 @@ std::string Util::Procs::getOutputOf(char * const * argv) {
   return ret;
 }
 
+
+///This function prepares a deque for getOutputOf and automatically inserts a NULL at the end of the char* const*
+char* const* Util::Procs::dequeToArgv(std::deque<std::string> & argDeq){
+  char** ret = (char**)malloc((argDeq.size()+1)*sizeof(char*));
+  for (int i = 0; i<argDeq.size(); i++){
+    ret[i] = (char*)argDeq[i].c_str();
+  }
+  ret[argDeq.size()] = NULL;
+  return ret;
+}
+
+std::string Util::Procs::getOutputOf(std::deque<std::string> & argDeq){
+  std::string ret;
+  char* const* argv = dequeToArgv(argDeq);//Note: Do not edit deque before executing command
+  ret = getOutputOf(argv);
+  return ret;
+}
+
+pid_t Util::Procs::StartPiped(std::deque<std::string> & argDeq, int * fdin, int * fdout, int * fderr) {
+  pid_t ret;
+  char* const* argv = dequeToArgv(argDeq);//Note: Do not edit deque before executing command
+  ret = Util::Procs::StartPiped(argv, fdin, fdout, fderr); 
+  return ret;
+}
+
 /// Starts a new process with given fds if the name is not already active.
 /// \return 0 if process was not started, process PID otherwise.
 /// \arg argv Command for this process.

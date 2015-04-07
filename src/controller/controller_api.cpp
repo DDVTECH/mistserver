@@ -244,16 +244,16 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             //if object, delete all entries
             //if string, delete just the one
             if (Request["deletestream"].isString()){
-              Controller::Storage["streams"].removeMember(Request["deletestream"].asStringRef());
+              Controller::deleteStream(Request["deletestream"].asStringRef(), Controller::Storage["streams"]); 
             }
             if (Request["deletestream"].isArray()){
               for (JSON::ArrIter it = Request["deletestream"].ArrBegin(); it != Request["deletestream"].ArrEnd(); ++it){
-                Controller::Storage["streams"].removeMember(it->asString());
+                Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"]); 
               }
             }
             if (Request["deletestream"].isObject()){
               for (JSON::ObjIter it = Request["deletestream"].ObjBegin(); it != Request["deletestream"].ObjEnd(); ++it){
-                Controller::Storage["streams"].removeMember(it->first);
+                Controller::deleteStream(it->first, Controller::Storage["streams"]); 
               }
             }
           }

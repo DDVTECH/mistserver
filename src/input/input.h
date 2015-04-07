@@ -20,6 +20,7 @@ namespace Mist {
     public:
       Input(Util::Config * cfg);
       virtual int run();
+      virtual void argumentsParsed(){}
       virtual ~Input() {};
     protected:
       static void callbackWrapper(char * data, size_t len, unsigned int id);
@@ -36,11 +37,10 @@ namespace Mist {
       virtual void removeUnused();
       virtual void trackSelect(std::string trackSpec){};
       virtual void userCallback(char * data, size_t len, unsigned int id);
-
-      void serve();
-      void convert();
+      virtual void convert();
+      virtual void serve();
       
-      void parseHeader();
+      virtual void parseHeader();
       bool bufferFrame(unsigned int track, unsigned int keyNum);
 
       unsigned int packTime;///Media-timestamp of the last packet.

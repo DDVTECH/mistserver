@@ -36,6 +36,7 @@ namespace Mist {
       void bufferFinalize(unsigned long tid);
       void bufferRemove(unsigned long tid, unsigned long pageNumber);
       void bufferLivePacket(JSON::Value & packet);
+      void bufferLivePacket(DTSC::Packet & packet);
       bool isBuffered(unsigned long tid, unsigned long keyNum);
       unsigned long bufferedOnPage(unsigned long tid, unsigned long keyNum);
     protected:
@@ -53,15 +54,12 @@ namespace Mist {
       DTSC::Meta myMeta;///< Stores either the input or output metadata
 
       std::set<unsigned long> selectedTracks;///< Stores the track id's that are either selected for playback or input
-
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > pagesByTrack;///<Holds the data for all pages of a track. Based on unmapped tids
 
       //Negotiation stuff (from unmapped tid's)
       std::map<unsigned long, unsigned long> trackOffset; ///< Offset of data on user page
       std::map<unsigned long, negotiationState> trackState; ///< State of the negotiation for tracks
       std::map<unsigned long, unsigned long> trackMap;///<Determines which input track maps onto which "final" track
-
-      //Using mapped tid's
       std::map<unsigned long, IPC::sharedPage> metaPages;///< For each track, holds the page that describes which dataPages are mapped
       std::map<unsigned long, unsigned long> curPageNum;///< For each track, holds the number page that is currently being written.
       std::map<unsigned long, IPC::sharedPage> curPage;///< For each track, holds the page that is currently being written.

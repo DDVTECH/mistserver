@@ -69,9 +69,11 @@ namespace Mist {
     VERYHIGH_MSG("bufferStart for stream %s, track %lu, page %lu", streamName.c_str(), tid, pageNumber);
     initiateEncryption();
     //Initialize the stream metadata if it does not yet exist
+#ifndef INPUT_LIVE
     if (!metaPages.count(0)) {
       initiateMeta();
     }
+#endif
     //If we are a stand-alone player skip track negotiation, as there will be nothing to negotiate with.
     if (standAlone) {
       if (!trackMap.count(tid)) {
@@ -86,7 +88,6 @@ namespace Mist {
       ///\return false if the track has not been accepted (yet)
       return false;
     }
-
     //If the track is accepted, we will have a mapped tid
     unsigned long mapTid = trackMap[tid];
 
@@ -196,7 +197,6 @@ namespace Mist {
     IPC::releasePage(pageName);
 #endif
     toErase.master = true;
-
     //Remove the page from the tracks index page
     DEBUG_MSG(DLVL_HIGH, "Removing page %lu on track %lu~>%lu from the corresponding metaPage", pageNumber, tid, mapTid);
     for (int i = 0; i < 1024; i++) {
@@ -266,7 +266,7 @@ namespace Mist {
     size_t curOffset = pagesByTrack[tid][curPageNum[tid]].curOffset;
     //Do nothing when there is not enough free space on the page to add the packet.
     if (pagesByTrack[tid][curPageNum[tid]].dataSize - curOffset < pack.getDataLen()) {
-      FAIL_MSG("Trying to buffer a packet on page %lu for track %lu~>%lu, but we have a size mismatch. The packet is %lu bytes long, so won't fit at offset %lu on a page of %lu bytes!", curPageNum[tid], tid, mapTid, pack.getDataLen(), curOffset, pagesByTrack[tid][curPageNum[tid]].dataSize);
+      FAIL_MSG("Trying to buffer a packet on page %lu for track %lu~>%lu, but we have a size mismatch. The packet is %d bytes long, so won't fit at offset %lu on a page of %llu bytes!", curPageNum[tid], tid, mapTid, pack.getDataLen(), curOffset, pagesByTrack[tid][curPageNum[tid]].dataSize);
       return;
     }
 
@@ -385,15 +385,24 @@ namespace Mist {
     curPageNum.erase(tid);
   }
 
+  void InOutBase::bufferLivePacket(JSON::Value & packet) {
+    DTSC::Packet realPacket;
+    realPacket.genericFill(packet["time"].asInt(), packet["offset"].asInt(), packet["trackid"].asInt(), packet["data"].asStringRef().c_str(), packet["data"].asStringRef().size(), packet["bpos"].asInt(), packet["keyframe"].asInt());
+    bufferLivePacket(realPacket);
+  }
+
+
   ///Buffers a live packet to a page.
   ///
   ///Handles both buffering and creation of new pages
   ///
   ///Initiates/continues negotiation with the buffer as well
   ///\param packet The packet to buffer
-  void InOutBase::bufferLivePacket(JSON::Value & packet) {
+  void InOutBase::bufferLivePacket(DTSC::Packet & packet){
+    myMeta.vod = false;
+    myMeta.live = true;
     //Store the trackid for easier access
-    unsigned long tid = packet["trackid"].asInt();
+    unsigned long tid = packet.getTrackId();
     //Do nothing if the trackid is invalid
     if (!tid) {
       INFO_MSG("Packet without trackid");
@@ -430,7 +439,7 @@ namespace Mist {
     ///\todo Figure out how to act with declined track here
     bool isKeyframe = false;
     if (myMeta.tracks[tid].type == "video") {
-      if (packet.isMember("keyframe") && packet["keyframe"]) {
+      if (packet.hasMember("keyframe") && packet.getFlag("keyframe")) {
         isKeyframe = true;
       }
     } else {
@@ -439,7 +448,7 @@ namespace Mist {
         isKeyframe = true;
       } else {
         unsigned long lastKey = pagesByTrack[tid].rbegin()->second.lastKeyTime;
-        if (packet["time"].asInt() - lastKey > 5000) {
+        if (packet.getTime() - lastKey > 5000) {
           isKeyframe = true;
         }
       }
@@ -463,7 +472,7 @@ namespace Mist {
         pagesByTrack[tid][nextPageNum].dataSize = (25 * 1024 * 1024);
         pagesByTrack[tid][nextPageNum].pageNum = nextPageNum;
       }
-      pagesByTrack[tid].rbegin()->second.lastKeyTime = packet["time"].asInt();
+      pagesByTrack[tid].rbegin()->second.lastKeyTime = packet.getTime();
       pagesByTrack[tid].rbegin()->second.keyNum++;
     }
     //Set the pageNumber if it has not been set yet
@@ -535,6 +544,11 @@ namespace Mist {
     }
     //Now we either returned or the track has an offset for the user page.
     //Get the data from the userPage
+    if (!userClient.getData()){
+      char userPageName[100];
+      sprintf(userPageName, SHM_USERS, streamName.c_str());
+      userClient = IPC::sharedClient(userPageName, 30, true);
+    }
     char * tmp = userClient.getData();
     if (!tmp) {
       DEBUG_MSG(DLVL_FAIL, "Failed to negotiate for incoming track %lu, there does not seem to be a connection with the buffer", tid);

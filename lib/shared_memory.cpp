@@ -12,6 +12,7 @@
 #include "shared_memory.h"
 #include "stream.h"
 #include "procs.h"
+#include "bitfields.h"
 
 namespace IPC {
 
@@ -1024,6 +1025,44 @@ namespace IPC {
       return 0;
     }
     return (myPage.mapped + offsetOnPage + (hasCounter ? 1 : 0));
+  }
+
+  userConnection::userConnection(char * _data) {
+    data = _data; 
+  }
+
+  unsigned long userConnection::getTrackId(size_t offset) const {
+    if (offset >= SIMUL_TRACKS){
+      WARN_MSG("Trying to get track id for entry %lu, while there are only %d entries allowed", offset, SIMUL_TRACKS);
+      return 0;
+    }
+    return Bit::btohl(data + (offset * 6));
+  }
+
+  void userConnection::setTrackId(size_t offset, unsigned long trackId) const {
+    if (offset >= SIMUL_TRACKS){
+      WARN_MSG("Trying to set track id for entry %lu, while there are only %d entries allowed", offset, SIMUL_TRACKS);
+      return;
+    }
+    Bit::htobl(data + (offset * 6), trackId);
+    
+  }
+
+  unsigned long userConnection::getKeynum(size_t offset) const {
+    if (offset >= SIMUL_TRACKS){
+      WARN_MSG("Trying to get keynum for entry %lu, while there are only %d entries allowed", offset, SIMUL_TRACKS);
+      return 0;
+    }
+    return Bit::btohs(data + (offset * 6) + 4);
+  }
+
+  void userConnection::setKeynum(size_t offset, unsigned long keynum) {
+    if (offset >= SIMUL_TRACKS){
+      WARN_MSG("Trying to set keynum for entry %lu, while there are only %d entries allowed", offset, SIMUL_TRACKS);
+      return;
+    }
+    Bit::htobs(data + (offset * 6) + 4, keynum);
+    
   }
 }
 

@@ -152,6 +152,12 @@ MistInTS: override CPPFLAGS += "-DINPUTTYPE=\"input_ts.h\""
 MistInTS: src/input/mist_in.cpp src/input/input.cpp src/input/input_ts.cpp src/io.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
 
+inputs: MistInTSLive
+MistInTSLive: override LDLIBS += $(THREADLIB)
+MistInTSLive: override CPPFLAGS += "-DINPUTTYPE=\"input_tslive.h\""
+MistInTSLive: src/input/mist_in.cpp src/input/input.cpp src/input/input_tslive.cpp src/io.cpp
+	$(CXX) $(LDFLAGS) $(CPPFLAGS) $^ $(LDLIBS) -o $@
+
 inputs: MistInMP4
 MistInMP4: override LDLIBS += $(THREADLIB)
 MistInMP4: override CPPFLAGS += "-DINPUTTYPE=\"input_mp4.h\""

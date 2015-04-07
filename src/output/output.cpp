@@ -966,15 +966,10 @@ namespace Mist {
       }
     }
     if (!trackMap.size()){
+      IPC::userConnection userConn(userClient.getData());
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < SIMUL_TRACKS; it++){
-        unsigned int tId = *it;
-        char * thisData = userClient.getData() + (6 * tNum);
-        thisData[0] = ((tId >> 24) & 0xFF);
-        thisData[1] = ((tId >> 16) & 0xFF);
-        thisData[2] = ((tId >> 8) & 0xFF);
-        thisData[3] = ((tId) & 0xFF);
-        thisData[4] = ((nxtKeyNum[tId] >> 8) & 0xFF);
-        thisData[5] = ((nxtKeyNum[tId]) & 0xFF);
+        userConn.setTrackId(tNum, *it);
+        userConn.setKeynum(tNum, nxtKeyNum[*it]);
         tNum ++;
       }
     }

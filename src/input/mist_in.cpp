@@ -16,6 +16,8 @@ int main(int argc, char * argv[]) {
   mistIn conv(&conf);
   if (conf.parseArgs(argc, argv)) {
     std::string streamName = conf.getString("streamname");
+    conv.argumentsParsed();
+#ifndef INPUT_NOLOCK
     IPC::semaphore playerLock;
     if (streamName.size()){
       playerLock.open(std::string("/lock_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
@@ -24,16 +26,21 @@ int main(int argc, char * argv[]) {
         return 1;
       }
     }
+#endif
     conf.activate();
     while (conf.is_active){
       pid_t pid = fork();
       if (pid == 0){
+#ifndef INPUT_NOLOCK
         playerLock.close();
+#endif
         return conv.run();
       }
       if (pid == -1){
         DEBUG_MSG(DLVL_FAIL, "Unable to spawn player process");
+#ifndef INPUT_NOLOCK
         playerLock.post();
+#endif
         return 2;
       }
       //wait for the process to exit
@@ -57,8 +64,10 @@ int main(int argc, char * argv[]) {
         DEBUG_MSG(DLVL_DEVEL, "Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
       }
     }
+#ifndef INPUT_NOLOCK
     playerLock.post();
     playerLock.close();
+#endif
   }
   return 0;
 }

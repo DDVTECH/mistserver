@@ -271,7 +271,9 @@ namespace Mist {
         configLock.post();
         //Stream metadata not found - attempt to start it
         if (Util::startInput(streamName)){
-          streamIndex.init(streamName, DEFAULT_META_PAGE_SIZE);
+          char streamPageName[NAME_BUFFER_SIZE];
+          snprintf(streamPageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
+          streamIndex.init(streamPageName, DEFAULT_META_PAGE_SIZE);
           if (streamIndex.mapped){
             metaLock = true;
             metaLocker.wait();

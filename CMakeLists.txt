@@ -253,8 +253,13 @@ install(
 # MistServer - Inputs                  #
 ########################################
 macro(makeInput inputName format)
+  if (";${ARGN};" MATCHES ";folder;")
+    set(mainScript src/input/mist_in_folder.cpp)
+  else()
+    set(mainScript src/input/mist_in.cpp)
+  endif()
   add_executable(MistIn${inputName} 
-    src/input/mist_in.cpp 
+    ${mainScript}
     src/input/input.cpp 
     src/input/input_${format}.cpp 
     src/io.cpp
@@ -279,7 +284,7 @@ makeInput(Buffer buffer)
 makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS
-makeInput(Folder folder)#LTS
+makeInput(Folder folder folder)#LTS
 
 ########################################
 # MistServer - Outputs                 #

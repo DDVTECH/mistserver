@@ -327,7 +327,7 @@ var UI = {
                 var error = false;
                 $ic.find('.hasValidate').each(function(){
                   var vf = $(this).data('validate');
-                  error = vf(this);
+                  error = vf(this,true); //focus the field if validation failed
                   if (error) {
                     return false; //break loop
                   }
@@ -822,7 +822,7 @@ var UI = {
           }
           fs.push(f);
         }
-        $field.data('validate_functions',fs).data('help_container',$ihc).data('validate',function(me){
+        $field.data('validate_functions',fs).data('help_container',$ihc).data('validate',function(me,focusonerror){
           var val = $(me).getval();
           var fs = $(me).data('validate_functions');
           var $ihc = $(me).data('help_container');
@@ -835,7 +835,7 @@ var UI = {
                 $err.addClass(error.classes[j]);
               }
               $ihc.prepend($err);
-              $(me).focus();
+              if (focusonerror) { $(me).focus(); }
               return true;
             }
           }
@@ -1914,7 +1914,7 @@ var UI = {
               main: mist.data.config,
               index: 'name'
             },
-            help: 'You can name your MistServer here for personal use. You’ll still need to set host name within your network yourself.'
+            help: 'You can name your MistServer here for personal use. You???ll still need to set host name within your network yourself.'
           },{
             type: 'debug',
             label: 'Debug level',
@@ -1930,7 +1930,7 @@ var UI = {
               main: mist.data,
               index: 'save'
             },
-            help: 'Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don’t forget to press save after ticking the box.'
+            help: 'Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don???t forget to press save after ticking the box.'
           },{
             type: 'buttons',
             buttons: [{
@@ -2493,7 +2493,7 @@ var UI = {
               main: saveas,
               index: 'source'
             },
-            help: 'Set the stream source.<br>VoD: You can browse to the file or folder as a source or simply enter the path to the file.<br>Live: You’ll need to enter "push://IP" with the IP of the machine pushing towards MistServer. You can use "push://" to accept any source.<br>Pro only: use "push://(IP)@password" to set a password protection for pushes.<br>If you\'re unsure how to set the source properly please view our Live pushing guide at the tools section.',
+            help: 'Set the stream source.<br>VoD: You can browse to the file or folder as a source or simply enter the path to the file.<br>Live: You???ll need to enter "push://IP" with the IP of the machine pushing towards MistServer. You can use "push://" to accept any source.<br>Pro only: use "push://(IP)@password" to set a password protection for pushes.<br>If you\'re unsure how to set the source properly please view our Live pushing guide at the tools section.',
             'function': function(){
               var source = $(this).val();
               var type = null;

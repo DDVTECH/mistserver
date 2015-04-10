@@ -2129,6 +2129,10 @@ var UI = {
         
         var editing = false;
         if ((other != '') && (other >= 0)) { editing = true; }
+        var current = {};
+        for (var i in mist.data.config.protocols) {
+          current[mist.data.config.protocols[i].connector] = 1;
+        }
         
         function buildProtocolSettings(kind) {
           var input = mist.data.capabilities.connectors[kind];
@@ -2179,7 +2183,8 @@ var UI = {
             for (var i in input.deps) {
               var $li = $('<li>').text(input.deps[i]+' ');
               $ul.append($li);
-              if (typeof current[input.deps[i]] != 'undefined') {
+              if ((typeof current[input.deps[i]] != 'undefined') || (typeof current[input.deps[i]+'.exe'] != 'undefined')) {
+                //also check for the windows executable
                 $li.append(
                   $('<span>').addClass('green').text('(Configured)')
                 );

@@ -43,4 +43,11 @@ server.html*
 .sync
 *.pc
 *.swp
+Makefile
+CMakeFiles
+mist
+*.cmake
+Doxyfile
+CMakeCache.txt
+DartConfiguration.tcl
 

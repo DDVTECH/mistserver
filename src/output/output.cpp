@@ -903,7 +903,7 @@ namespace Mist {
       }
     }
     if (trackMap.size()){
-      for (std::map<unsigned long, unsigned long>::iterator it = trackMap.begin(); it != trackMap.end() && tNum < 5; it++){
+      for (std::map<unsigned long, unsigned long>::iterator it = trackMap.begin(); it != trackMap.end() && tNum < SIMUL_TRACKS; it++){
         unsigned int tId = it->second;
         char * thisData = userClient.getData() + (6 * tNum);
         thisData[0] = ((tId >> 24) & 0xFF);
@@ -915,7 +915,7 @@ namespace Mist {
         tNum ++;
       }
     }else{
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < 5; it++){
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < SIMUL_TRACKS; it++){
         unsigned int tId = *it;
         char * thisData = userClient.getData() + (6 * tNum);
         thisData[0] = ((tId >> 24) & 0xFF);
@@ -928,8 +928,8 @@ namespace Mist {
       }
     }
     userClient.keepAlive();
-    if (tNum >= 5){
-      DEBUG_MSG(DLVL_WARN, "Too many tracks selected, using only first 5");
+    if (tNum > SIMUL_TRACKS){
+      DEBUG_MSG(DLVL_WARN, "Too many tracks selected, using only first %d", SIMUL_TRACKS);
     }
   }
   

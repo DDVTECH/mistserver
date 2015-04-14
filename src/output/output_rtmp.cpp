@@ -30,9 +30,6 @@ namespace Mist {
       DEBUG_MSG(DLVL_DEVEL, "Handshake fail!");
     }
     setBlocking(false);
-    counter = 0;
-    sending = false;
-    streamReset = false;
     maxSkipAhead = 1500;
     minSkipAhead = 500;
   }
@@ -448,6 +445,9 @@ namespace Mist {
       if (amfData.getContentP(3)) {
         streamName = amfData.getContentP(3)->StrValue();
         
+        if (streamName.find('/')){
+          streamName = streamName.substr(0, streamName.find('/'));
+        }
         
         size_t colonPos = streamName.find(':');
         if (colonPos != std::string::npos && colonPos < 6){
@@ -810,39 +810,40 @@ namespace Mist {
         case 8: //audio data
         case 9: //video data
         case 18: {//meta data
+          pushData & p = pushes[next.cs_id];
           if (!isInitialized) {
             DEBUG_MSG(DLVL_MEDIUM, "Received useless media data\n");
             myConn.close();
             break;
           }
-          if (streamReset) {
-            //reset push data to empty, in case stream properties change
-            meta_out.reset();
-            preBuf.clear();
-            sending = false;
-            counter = 0;
-            streamReset = false;
-          }
           F.ChunkLoader(next);
-          JSON::Value pack_out = F.toJSON(meta_out);
+          JSON::Value pack_out = F.toJSON(p.meta);
           if ( !pack_out.isNull()){
             //Check for backwards timestamps
-            if (pack_out["time"].asInt() < meta_out.tracks[pack_out["trackid"].asInt()].lastms){
+            if (pack_out["time"].asInt() < p.meta.tracks[pack_out["trackid"].asInt()].lastms){
               ///Reset all internals
-              sending = false;
-              counter = 0;
-              preBuf.clear();
-              meta_out = DTSC::Meta();
-              pack_out = F.toJSON(meta_out);//Reinitialize the metadata with this packet.
+              p.sending = false;
+              p.counter = 0;
+              p.preBuf.clear();
+              p.meta = DTSC::Meta();
+              pack_out = F.toJSON(p.meta);//Reinitialize the metadata with this packet.
               ///Reset negotiation with buffer
               userClient.finish();
               userClient = IPC::sharedClient(streamName + "_users", PLAY_EX_SIZE, true);
             }
-            if ( !sending){
-              counter++;
-              if (counter > 8){
-                sending = true;
-                myMeta = meta_out;
+            pack_out["trackid"] = pack_out["trackid"].asInt() + next.cs_id * 3;
+            if ( !p.sending){
+              p.counter++;
+              if (p.counter > 8){
+                p.sending = true;
+                if (myMeta.tracks.count(1)){
+                  myMeta = DTSC::Meta();
+                }
+                for (unsigned int i = 1; i < 4; ++i){
+                  if (p.meta.tracks.count(i)){
+                    myMeta.tracks[next.cs_id*3+i] = p.meta.tracks[i];
+                  }
+                }
                 if (!userClient.getData()){
                   char userPageName[NAME_BUFFER_SIZE];
                   snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
@@ -852,14 +853,13 @@ namespace Mist {
                   DEBUG_MSG(DLVL_MEDIUM, "Starting negotiation for track %d", it->first);
                   continueNegotiate(it->first);
                 }
-                //negotiatePushTracks();
-                for (std::deque<JSON::Value>::iterator it = preBuf.begin(); it != preBuf.end(); it++){
+                for (std::deque<JSON::Value>::iterator it = p.preBuf.begin(); it != p.preBuf.end(); it++){
                   bufferLivePacket((*it));
                 }
-                preBuf.clear(); //clear buffer
+                p.preBuf.clear(); //clear buffer
                 bufferLivePacket(pack_out);
               }else{
-                preBuf.push_back(pack_out);
+                p.preBuf.push_back(pack_out);
               }
             }else{
               bufferLivePacket(pack_out);

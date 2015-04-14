@@ -110,8 +110,6 @@ namespace Mist {
       bool isInitialized;///< If false, triggers initialization if parseData is true.
       bool sentHeader;///< If false, triggers sendHeader if parseData is true.
 
-      DTSC::Meta meta_out;
-      std::deque<JSON::Value> preBuf;
       std::map<int,DTSCPageData> bookKeeping;
   };
 

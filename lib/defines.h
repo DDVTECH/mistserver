@@ -1,3 +1,4 @@
+#pragma once
 // Defines to print debug messages.
 #ifndef MIST_DEBUG
 #define MIST_DEBUG 1
@@ -76,4 +77,6 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #define SHM_USERS "MstUSER%s" //%s stream name
 #define SEM_LIVE "MstLIVE%s" //%s stream name
 #define NAME_BUFFER_SIZE 200    //char buffer size for snprintf'ing shm filenames
+
+#define SIMUL_TRACKS 10
 

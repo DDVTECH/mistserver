@@ -407,12 +407,12 @@ namespace Mist {
       return;
     }
     if (!trackOffset.count(tid)) {
-      if (trackOffset.size() >= 5) {
+      if (trackOffset.size() > SIMUL_TRACKS) {
         INFO_MSG("Trackoffset too high");
         return;
       }
       //Find a free offset for the new track
-      for (int i = 0; i < 5; i++) {
+      for (int i = 0; i < SIMUL_TRACKS; i++) {
         bool isFree = true;
         for (std::map<unsigned long, unsigned long>::iterator it = trackOffset.begin(); it != trackOffset.end(); it++) {
           if (it->second == i) {

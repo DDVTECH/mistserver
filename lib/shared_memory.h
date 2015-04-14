@@ -3,6 +3,7 @@
 #include <set>
 
 #include "timing.h"
+#include "defines.h"
 
 #ifdef __CYGWIN__
 #include <windows.h>
@@ -11,7 +12,7 @@
 #endif
 
 #define STAT_EX_SIZE 172
-#define PLAY_EX_SIZE 32
+#define PLAY_EX_SIZE 2+6*SIMUL_TRACKS
 
 namespace IPC {
 

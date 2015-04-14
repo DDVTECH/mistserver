@@ -246,12 +246,11 @@ namespace Mist {
     static int nextTempId = 1001;
     //Get the counter of this user
     char counter = (*(data - 1));
-    //Each user can have at maximum 5 elements in their userpage.
-    for (int index = 0; index < 5; index++) {
+    //Each user can have at maximum SIMUL_TRACKS elements in their userpage.
+    for (int index = 0; index < SIMUL_TRACKS; index++) {
       char * thisData = data + (index * 6);
       //Get the track id from the current element
       unsigned long value = ((long)(thisData[0]) << 24) | ((long)(thisData[1]) << 16) | ((long)(thisData[2]) << 8) | thisData[3];
-
       //Skip value 0xFFFFFFFF as this indicates a previously declined track
       if (value == 0xFFFFFFFF) {
         continue;
@@ -262,7 +261,7 @@ namespace Mist {
       }
 
       //If the current value indicates a valid trackid, and it is pushed from this user
-      if (pushLocation[value] == thisData) {
+      if (pushLocation[value] == data) {
         //Check for timeouts, and erase the track if necessary
         if (counter == 126 || counter == 127 || counter == 254 || counter == 255) {
           pushLocation.erase(value);
@@ -271,7 +270,7 @@ namespace Mist {
             metaPages[value].master = true;
             metaPages.erase(value);
           }
-          if (data[4] == 0xFF && data[5] == 0xFF && activeTracks.count(value)) {
+          if (activeTracks.count(value)) {
             activeTracks.erase(value);
             bufferLocations.erase(value);
           }
@@ -347,6 +346,14 @@ namespace Mist {
           } else {
             INFO_MSG("New track detected, assigned track id %d, coming from temporary track %lu of user %u", finalMap, value, id);
           }
+        } else {
+          //Otherwise replace existing track
+          INFO_MSG("Replacement of track %lu detected, coming from temporary track %lu of user %u", finalMap, value, id);
+          myMeta.tracks.erase(finalMap);
+          //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
+          metaPages[finalMap].master = true;
+          metaPages.erase(finalMap);
+          bufferLocations.erase(finalMap);
         }
 
         //Register the new track as an active track.
@@ -354,7 +361,7 @@ namespace Mist {
         //Register the time of registration as initial value for the lastUpdated field.
         lastUpdated[finalMap] = Util::bootSecs();
         //Register the user thats is pushing this element
-        pushLocation[finalMap] = thisData;
+        pushLocation[finalMap] = data;
         //Initialize the metadata for this track if it was not in place yet.
         if (!myMeta.tracks.count(finalMap)) {
           DEBUG_MSG(DLVL_HIGH, "Inserting metadata for track number %d", finalMap);
@@ -375,7 +382,7 @@ namespace Mist {
         updateMeta();
       }
       //If the track is active, and this is the element responsible for pushing it
-      if (activeTracks.count(value) && pushLocation[value] == thisData) {
+      if (activeTracks.count(value) && pushLocation[value] == data) {
         //Open the track index page if we dont have it open yet
         if (!metaPages.count(value) || !metaPages[value].mapped) {
           char firstPage[NAME_BUFFER_SIZE];
@@ -440,7 +447,7 @@ namespace Mist {
       curPage[tNum].init(nextPageName, 20971520);
       //If the page can not be opened, stop here
       if (!curPage[tNum].mapped) {
-        ///\todo Maybe generate a warning here?
+        WARN_MSG("Could not open page: %s", nextPageName);
         return;
       }
       curPageNum[tNum] = pageNum;

@@ -160,44 +160,35 @@ namespace Mist {
     while (changed) {
       changed = false;
       long long unsigned int time = Util::bootSecs();
+      long long unsigned int compareFirst = 0xFFFFFFFFFFFFFFFFull;
+      long long unsigned int compareLast = 0;
+      //for tracks that were updated in the last 5 seconds, get the first and last ms edges.
+      for (std::map<unsigned int, DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++) {
+        if ((time - lastUpdated[it2->first]) > 5) {
+          continue;
+        }
+        if (it2->second.lastms > compareLast) {
+          compareLast = it2->second.lastms;
+        }
+        if (it2->second.firstms < compareFirst) {
+          compareFirst = it2->second.firstms;
+        }
+      }
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-        bool eraseTrack = false;
-        long long unsigned int compareFirst = 0xFFFFFFFFFFFFFFFFull;
-        long long unsigned int compareLast = 0;
-        if ((time - lastUpdated[it->first]) > 5) {
-          for (std::map<unsigned int, DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++) {
-            if (it2->first == it->first) {
-              continue;
-            }
-            if ((time - lastUpdated[it2->first]) > 5) {
-              continue;
-            }
-            if (it2->second.lastms > compareLast) {
-              compareLast = it2->second.lastms;
-            }
-            if (it2->second.firstms < compareFirst) {
-              compareFirst = it2->second.firstms;
-            }
-          }
-          if (compareLast) {
-            if ((myMeta.tracks[it->first].firstms - compareLast) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)) {
-              eraseTrack = true;
-            }
-            if ((compareFirst - myMeta.tracks[it->first].lastms) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)) {
-              eraseTrack = true;
-            }
-          }
-        }
-        if ((time - lastUpdated[it->first]) > ((TIMEOUTMULTIPLIER * bufferTime) / 1000)) {
-          eraseTrack = true;
-        }
-        if (eraseTrack) {
+        //if not updated for an entire buffer duration, or last updated track and this track differ by an entire buffer duration, erase the track.
+        if ((time - lastUpdated[it->first]) > (bufferTime / 1000) || (compareLast && (time - lastUpdated[it->first]) > 5 && ((myMeta.tracks[it->first].firstms - compareLast) > bufferTime || (compareFirst - myMeta.tracks[it->first].lastms) > bufferTime))) {
+          unsigned int tid = it->first;
           //erase this track
           INFO_MSG("Erasing track %d because of timeout", it->first);
-          lastUpdated.erase(it->first);
-          bufferLocations.erase(it->first);
-          curPage[it->first].master = true;
-          curPage.erase(it->first);
+          lastUpdated.erase(tid);
+          while (bufferLocations[tid].size()){
+            char thisPageName[NAME_BUFFER_SIZE];
+            snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), (unsigned long)tid, bufferLocations[tid].begin()->first);
+            curPage[tid].init(thisPageName, 20971520);
+            curPage[tid].master = true;
+            curPage.erase(tid);
+            bufferLocations[tid].erase(bufferLocations[tid].begin());
+          }
           curPageNum.erase(it->first);
           metaPages[it->first].master = true;
           metaPages.erase(it->first);

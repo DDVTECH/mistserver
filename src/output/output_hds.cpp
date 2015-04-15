@@ -164,14 +164,16 @@ namespace Mist {
   
   void OutHDS::sendNext(){
     if (thisPacket.getTime() >= playUntil){
-      DEBUG_MSG(DLVL_HIGH, "(%d) Done sending fragment", getpid() );
+      VERYHIGH_MSG("Done sending fragment (%llu >= %llu)", thisPacket.getTime(), playUntil);
       stop();
       wantRequest = true;
       H.Chunkify("", 0, myConn);
       return;
     }
     tag.DTSCLoader(thisPacket, myMeta.tracks[thisPacket.getTrackId()]);
-    H.Chunkify(tag.data, tag.len, myConn);
+    if (tag.len){
+      H.Chunkify(tag.data, tag.len, myConn);
+    }
   }
 
   void OutHDS::onHTTP(){
@@ -212,7 +214,7 @@ namespace Mist {
       }
       //delay if we don't have the next fragment available yet
       unsigned int timeout = 0;
-      while (myConn && fragNum > myMeta.tracks[tid].missedFrags + myMeta.tracks[tid].fragments.size() - 1){
+      while (myConn && fragNum >= myMeta.tracks[tid].missedFrags + myMeta.tracks[tid].fragments.size() - 1){
         //time out after 21 seconds
         if (++timeout > 42){
           myConn.close();
@@ -223,6 +225,7 @@ namespace Mist {
       }
       mstime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getNumber()).getTime();
       mslen = myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getDuration();
+      VERYHIGH_MSG("Playing from %llu for %llu ms", mstime, mslen);
       
       selectedTracks.clear();
       selectedTracks.insert(tid);

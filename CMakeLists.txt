@@ -92,12 +92,9 @@ set(libHeaders
   ${SOURCE_DIR}/lib/bitstream.h
   ${SOURCE_DIR}/lib/checksum.h
   ${SOURCE_DIR}/lib/config.h
-  ${SOURCE_DIR}/lib/converter.h
   ${SOURCE_DIR}/lib/defines.h
   ${SOURCE_DIR}/lib/dtsc.h
-  ${SOURCE_DIR}/lib/filesystem.h
   ${SOURCE_DIR}/lib/flv_tag.h
-  ${SOURCE_DIR}/lib/ftp.h
   ${SOURCE_DIR}/lib/http_parser.h
   ${SOURCE_DIR}/lib/json.h
   ${SOURCE_DIR}/lib/mp4_adobe.h
@@ -128,12 +125,9 @@ set(libSources
   ${SOURCE_DIR}/lib/bitfields.cpp
   ${SOURCE_DIR}/lib/bitstream.cpp
   ${SOURCE_DIR}/lib/config.cpp
-  ${SOURCE_DIR}/lib/converter.cpp
   ${SOURCE_DIR}/lib/dtsc.cpp
   ${SOURCE_DIR}/lib/dtscmeta.cpp
-  ${SOURCE_DIR}/lib/filesystem.cpp
   ${SOURCE_DIR}/lib/flv_tag.cpp
-  ${SOURCE_DIR}/lib/ftp.cpp
   ${SOURCE_DIR}/lib/http_parser.cpp
   ${SOURCE_DIR}/lib/json.cpp
   ${SOURCE_DIR}/lib/mp4_adobe.cpp

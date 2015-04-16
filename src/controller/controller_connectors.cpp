@@ -149,8 +149,12 @@ namespace Controller {
     std::map<std::string, pid_t>::iterator it;
     for (it = currentConnectors.begin(); it != currentConnectors.end(); it++){
       if (!runningConns.count(it->first)){
-        Log("CONF", "Stopping connector " + it->first);
-        Util::Procs::Stop(it->second);
+        if (Util::Procs::isActive(it->second)){
+          Log("CONF", "Stopping connector " + it->first);
+          Util::Procs::Stop(it->second);
+        }
+        currentConnectors.erase(it);
+        it = currentConnectors.begin();
       }
     }
 

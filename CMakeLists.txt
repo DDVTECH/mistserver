@@ -203,16 +203,6 @@ makeAnalyser(DTSC dtsc)
 makeAnalyser(AMF amf)
 makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
-add_executable(MistInfo
-  src/analysers/info.cpp
-)
-target_link_libraries(MistInfo 
-  mist 
-)
-install( 
-  TARGETS MistInfo 
-  DESTINATION bin
-)
 
 ########################################
 # MistServer - Inputs                  #

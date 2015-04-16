@@ -130,60 +130,35 @@ namespace Controller {
         // if the file isn't dtsc and there's no dtsh file, run getStream on it
         // this guarantees that if the stream is playable, it now has a valid header.
         DEBUG_MSG(DLVL_INSANE, "(re)loading metadata for stream %s", name.c_str());
-        if ((URL.substr(URL.size() - 5) != ".dtsc") && (stat((URL+".dtsh").c_str(), &fileinfo) != 0)){
-          DEBUG_MSG(DLVL_INSANE, "Stream %s is non-DTSC file without DTSH. Opening stream to generate DTSH...", name.c_str());
-          Util::startInput(name);
-          DEBUG_MSG(DLVL_INSANE, "Waiting for stream %s to open...", name.c_str());
-          //wait for the stream
-          {
-            char streamPageName[NAME_BUFFER_SIZE];
-            snprintf(streamPageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, name.c_str());
-            IPC::sharedPage streamIndex(streamPageName, DEFAULT_META_PAGE_SIZE, false, false);
-            if (!streamIndex.mapped){
-              DEBUG_MSG(DLVL_INSANE, "Stream %s opening failed! Cancelling and marking as corrupt.", name.c_str());
-              data["meta"].null();
-              data["meta"]["tracks"].null();
-              data["error"] = "Stream offline: Corrupt file?";
-              if (data["error"].asStringRef() != prevState){
-                Log("WARN", "Source file " + URL + " seems to be corrupt.");
-              }
-              data["online"] = 0;
-              return;
+        Util::startInput(name);
+        DEBUG_MSG(DLVL_INSANE, "Waiting for stream %s to open...", name.c_str());
+        //wait for the stream
+        {
+          char streamPageName[NAME_BUFFER_SIZE];
+          snprintf(streamPageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, name.c_str());
+          IPC::sharedPage streamIndex(streamPageName, DEFAULT_META_PAGE_SIZE, false, false);
+          if (!streamIndex.mapped){
+            DEBUG_MSG(DLVL_INSANE, "Stream %s opening failed! Cancelling and marking as corrupt.", name.c_str());
+            data["meta"].null();
+            data["meta"]["tracks"].null();
+            data["error"] = "Stream offline: Corrupt file?";
+            if (data["error"].asStringRef() != prevState){
+              Log("WARN", "Source file " + URL + " seems to be corrupt.");
             }
-            unsigned int i = 0;
-            JSON::fromDTMI((const unsigned char*)streamIndex.mapped + 8, streamIndex.len - 8, i, data["meta"]);
-            if (data["meta"].isMember("tracks") && data["meta"]["tracks"].size()){
-              for(JSON::ObjIter trackIt = data["meta"]["tracks"].ObjBegin(); trackIt != data["meta"]["tracks"].ObjEnd(); trackIt++){
-                trackIt->second.removeMember("fragments");
-                trackIt->second.removeMember("keys");
-                trackIt->second.removeMember("keysizes");
-                trackIt->second.removeMember("parts");
-                trackIt->second.removeMember("ivecs");/*LTS*/
-              }
-            }
-            if ( !data["meta"] || !data["meta"].isMember("tracks") || !data["meta"]["tracks"]){
-              data["error"] = "Stream offline: Corrupt file?";
-              if (data["error"].asStringRef() != prevState){
-                Log("WARN", "Source file " + URL + " seems to be corrupt.");
-              }
-              data["online"] = 0;
-              return;
-            }
-            DEBUG_MSG(DLVL_INSANE, "Metadata for stream %s (re)loaded", name.c_str());
+            data["online"] = 0;
+            return;
           }
-          DEBUG_MSG(DLVL_INSANE, "Stream %s opened", name.c_str());
-        }else{
-          //now, run mistinfo on the source - or on the accompanying dtsh file, if it exists
-          if (stat((URL+".dtsh").c_str(), &fileinfo) == 0){
-            DEBUG_MSG(DLVL_INSANE, "Stream %s has a DTSH - opening DTSH instead of main stream file", name.c_str());
-            URL += ".dtsh";
+          unsigned int i = 0;
+          JSON::fromDTMI((const unsigned char*)streamIndex.mapped + 8, streamIndex.len - 8, i, data["meta"]);
+          if (data["meta"].isMember("tracks") && data["meta"]["tracks"].size()){
+            for(JSON::ObjIter trackIt = data["meta"]["tracks"].ObjBegin(); trackIt != data["meta"]["tracks"].ObjEnd(); trackIt++){
+              trackIt->second.removeMember("fragments");
+              trackIt->second.removeMember("keys");
+              trackIt->second.removeMember("keysizes");
+              trackIt->second.removeMember("parts");
+              trackIt->second.removeMember("ivecs");
+            }
           }
-          char * tmp_cmd[3] = {0, 0, 0};
-          std::string mistinfo = Util::getMyPath() + "MistInfo";
-          tmp_cmd[0] = (char*)mistinfo.c_str();
-          tmp_cmd[1] = (char*)URL.c_str();
-          DEBUG_MSG(DLVL_INSANE, "Running MistInfo for stream %s on file %s", name.c_str(), tmp_cmd[1]);
-          data["meta"] = JSON::fromString(Util::Procs::getOutputOf(tmp_cmd));
           if ( !data["meta"] || !data["meta"].isMember("tracks") || !data["meta"]["tracks"]){
             data["error"] = "Stream offline: Corrupt file?";
             if (data["error"].asStringRef() != prevState){
@@ -192,8 +167,9 @@ namespace Controller {
             data["online"] = 0;
             return;
           }
-          DEBUG_MSG(DLVL_INSANE, "Metadata for stream %s succesfully (re)loaded", name.c_str());
+          DEBUG_MSG(DLVL_INSANE, "Metadata for stream %s (re)loaded", name.c_str());
         }
+        DEBUG_MSG(DLVL_INSANE, "Stream %s opened", name.c_str());
       }
       if (!hasViewers(name)){
         if ( !data.isMember("error")){

@@ -293,7 +293,7 @@ namespace IPC {
 #ifdef __CYGWIN__
       if (master) {
         //Under cygwin, all pages are 4 bytes longer than claimed.
-        handle = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len+4, name.c_str());
+        handle = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len+4, std::string("Global\\" + name).c_str());
       } else {
         int i = 0;
         do {

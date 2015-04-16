@@ -289,8 +289,8 @@ namespace IPC {
     len = len_;
     master = master_;
     mapped = 0;
-    INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(), master?"master":"client", autoBackoff?"with":"without");
     if (name.size()) {
+      INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(), master?"master":"client", autoBackoff?"with":"without");
 #ifdef __CYGWIN__
       if (master) {
         //Under cygwin, all pages are 4 bytes longer than claimed.
@@ -422,6 +422,7 @@ namespace IPC {
   void sharedFile::close() {
     unmap();
     if (handle > 0) {
+      INSANE_MSG("Closing page %s in %s mode", name.c_str(), master?"master":"client");
       ::close(handle);
       if (master && name != "") {
         unlink(name.c_str());

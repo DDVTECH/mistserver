@@ -289,6 +289,7 @@ namespace IPC {
     len = len_;
     master = master_;
     mapped = 0;
+    INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(), master?"master":"client", autoBackoff?"with":"without");
     if (name.size()) {
 #ifdef __CYGWIN__
       if (master) {

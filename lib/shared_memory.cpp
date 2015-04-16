@@ -14,6 +14,17 @@
 #include "procs.h"
 
 namespace IPC {
+
+#if defined(__CYGWIN__) || defined(_WIN32)
+  static std::map<std::string, sharedPage> preservedPages;
+  void preservePage(std::string p){
+    preservedPages[p].init(p, 0, false, false);
+  }
+  void releasePage(std::string p){
+    preservedPages.erase(p);
+  }
+#endif
+
   /// Stores a long value of val in network order to the pointer p.
   static void htobl(char * p, long val) {
     p[0] = (val >> 24) & 0xFF;
@@ -63,7 +74,7 @@ namespace IPC {
 
   ///\brief Empty semaphore constructor, clears all values
   semaphore::semaphore() {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
     mySem = 0;
 #else
     mySem = SEM_FAILED;
@@ -76,7 +87,7 @@ namespace IPC {
   ///\param mode The mode in which to create the semaphore, if O_CREAT is given in oflag, ignored otherwise
   ///\param value The initial value of the semaphore if O_CREAT is given in oflag, ignored otherwise
   semaphore::semaphore(const char * name, int oflag, mode_t mode, unsigned int value) {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
     mySem = 0;
 #else
     mySem = SEM_FAILED;
@@ -92,7 +103,7 @@ namespace IPC {
 
   ///\brief Returns whether we have a valid semaphore
   semaphore::operator bool() const {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
     return mySem != 0;
 #else
     return mySem != SEM_FAILED;
@@ -110,7 +121,7 @@ namespace IPC {
     close();
     int timer = 0;
     while (!(*this) && timer++ < 10){
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
       mySem = CreateSemaphore(0, value, 1 , std::string("Global\\" + std::string(name)).c_str());
 #else
       if (oflag & O_CREAT) {
@@ -135,7 +146,7 @@ namespace IPC {
 
   ///\brief Returns the current value of the semaphore
   int semaphore::getVal() const {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
     LONG res;
     ReleaseSemaphore(mySem, 0, &res);//not really release.... just checking to see if I can get the value this way
 #else
@@ -148,7 +159,7 @@ namespace IPC {
   ///\brief Posts to the semaphore, increases its value by one
   void semaphore::post() {
     if (*this) {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
       ReleaseSemaphore(mySem, 1, 0);
 #else
       sem_post(mySem);
@@ -159,7 +170,7 @@ namespace IPC {
   ///\brief Waits for the semaphore, decreases its value by one
   void semaphore::wait() {
     if (*this) {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
       WaitForSingleObject(mySem, INFINITE);
 #else
       int tmp;
@@ -173,7 +184,7 @@ namespace IPC {
   ///\brief Tries to wait for the semaphore, returns true if successfull, false otherwise
   bool semaphore::tryWait() {
     bool result;
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
     result = WaitForSingleObject(mySem, 0);//wait at most 1ms
 #else
     result = sem_trywait(mySem);
@@ -184,7 +195,7 @@ namespace IPC {
   ///\brief Closes the currently opened semaphore
   void semaphore::close() {
     if (*this) {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
       CloseHandle(mySem);
       mySem = 0;
 #else
@@ -197,7 +208,7 @@ namespace IPC {
   ///\brief Unlinks the previously opened semaphore
   void semaphore::unlink() {
     close();
-#ifndef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
     if (myName.size()) {
       sem_unlink(myName.c_str());
     }
@@ -238,7 +249,7 @@ namespace IPC {
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap() {
     if (mapped && len) {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
       //under Cygwin, the mapped location is shifted by 4 to contain the page size.
       UnmapViewOfFile(mapped-4);
 #else
@@ -253,7 +264,8 @@ namespace IPC {
   void sharedPage::close() {
     unmap();
     if (handle > 0) {
-#ifdef __CYGWIN__
+      INSANE_MSG("Closing page %s in %s mode", name.c_str(), master?"master":"client");
+#if defined(__CYGWIN__) || defined(_WIN32)
       CloseHandle(handle);
 #else
       ::close(handle);
@@ -291,7 +303,7 @@ namespace IPC {
     mapped = 0;
     if (name.size()) {
       INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(), master?"master":"client", autoBackoff?"with":"without");
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
       if (master) {
         //Under cygwin, all pages are 4 bytes longer than claimed.
         handle = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len+4, name.c_str());
@@ -422,7 +434,6 @@ namespace IPC {
   void sharedFile::close() {
     unmap();
     if (handle > 0) {
-      INSANE_MSG("Closing page %s in %s mode", name.c_str(), master?"master":"client");
       ::close(handle);
       if (master && name != "") {
         unlink(name.c_str());

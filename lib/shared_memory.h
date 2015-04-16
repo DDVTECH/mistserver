@@ -111,13 +111,12 @@ namespace IPC {
       char * mapped;
   };
 
-#ifdef SHM_ENABLED
-
 #if defined(__CYGWIN__) || defined(_WIN32)
   void preservePage(std::string);
   void releasePage(std::string);
 #endif
 
+#ifdef SHM_ENABLED
   ///\brief A class for managing shared memory pages.
   class sharedPage {
   public:

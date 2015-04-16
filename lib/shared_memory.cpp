@@ -208,7 +208,7 @@ namespace IPC {
   ///\brief Unlinks the previously opened semaphore
   void semaphore::unlink() {
     close();
-#if defined(__CYGWIN__) || defined(_WIN32)
+#if !defined(__CYGWIN__) && !defined(_WIN32)
     if (myName.size()) {
       sem_unlink(myName.c_str());
     }

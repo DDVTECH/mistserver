@@ -300,7 +300,7 @@ namespace IPC {
           if (i != 0) {
             Util::sleep(1000);
           }
-          handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());
+          handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, std::string("Global\\" + name).c_str());
           i++;
         } while (i < 10 && !handle && autoBackoff);
       }

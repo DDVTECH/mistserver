@@ -143,6 +143,9 @@ namespace Mist {
     toErase.init(pageName, pagesByTrack[tid][pageNumber].dataSize, false);
 #endif
     //Set the master flag so that the page will be destoryed once it leaves scope
+#if defined(__CYGWIN__) || defined(_WIN32)
+    IPC::releasePage(pageName);
+#endif
     toErase.master = true;
 
     //Remove the page from the tracks index page
@@ -275,6 +278,9 @@ namespace Mist {
       INFO_MSG("Succesfully registered page %lu on the metaPage of track %lu~>%lu.", curPageNum[tid], tid, mapTid);
     }
     //Close our link to the page. This will NOT destroy the shared page, as we've set master to false upon construction
+#if defined(__CYGWIN__) || defined(_WIN32)
+    IPC::preservePage(curPage[tid].name);
+#endif
     curPage.erase(tid);
     curPageNum.erase(tid);
   }

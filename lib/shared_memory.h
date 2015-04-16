@@ -5,7 +5,7 @@
 #include "timing.h"
 #include "defines.h"
 
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
 #include <windows.h>
 #else
 #include <semaphore.h>
@@ -67,7 +67,7 @@ namespace IPC {
       void close();
       void unlink();
     private:
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
       HANDLE mySem;
 #else
       sem_t * mySem;
@@ -112,6 +112,12 @@ namespace IPC {
   };
 
 #ifdef SHM_ENABLED
+
+#if defined(__CYGWIN__) || defined(_WIN32)
+  void preservePage(std::string);
+  void releasePage(std::string);
+#endif
+
   ///\brief A class for managing shared memory pages.
   class sharedPage {
   public:
@@ -126,7 +132,7 @@ namespace IPC {
     }
     void unmap();
     void close();
-    #ifdef __CYGWIN__
+    #if defined(__CYGWIN__) || defined(_WIN32)
     ///\brief The handle of the opened shared memory page
     HANDLE handle;
     #else

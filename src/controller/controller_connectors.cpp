@@ -18,21 +18,16 @@
 ///\brief Holds everything unique to the controller.
 namespace Controller {
 
-  static std::map<long long, std::string> currentConnectors; ///<The currently running connectors.
-
-
-  static inline std::string toConn(long long i){
-    return std::string("Conn") + JSON::Value(i).asString();
-  }
+  static std::map<std::string, pid_t> currentConnectors; ///<The currently running connectors.
 
   ///\brief Checks if the binary mentioned in the protocol argument is currently active, if so, restarts it.
   ///\param protocol The protocol to check.
   void UpdateProtocol(std::string protocol){
-    std::map<long long, std::string>::iterator iter;
+    std::map<std::string, pid_t>::iterator iter;
     for (iter = currentConnectors.begin(); iter != currentConnectors.end(); iter++){
-      if (iter->second.substr(0, protocol.size()) == protocol){
-        Log("CONF", "Killing connector for update: " + iter->second);
-        Util::Procs::Stop(toConn(iter->first));
+      if (iter->first.substr(0, protocol.size()) == protocol){
+        Log("CONF", "Killing connector for update: " + iter->first);
+        Util::Procs::Stop(iter->second);
       }
     }
   }
@@ -65,7 +60,8 @@ namespace Controller {
     }
   }
   
-  static inline void buildPipedArguments(JSON::Value & p, char * argarr[], JSON::Value & capabilities){
+  static inline void buildPipedArguments(const std::string & proto, char * argarr[], JSON::Value & capabilities){
+    JSON::Value p = JSON::fromString(proto);
     int argnum = 0;
     static std::string tmparg;
     tmparg = Util::getMyPath() + std::string("MistOut") + p["connector"].asStringRef();
@@ -82,12 +78,11 @@ namespace Controller {
     if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
   }
   
-  ///\brief Checks current protocol coguration, updates state of enabled connectors if neccesary.
+  ///\brief Checks current protocol configuration, updates state of enabled connectors if neccessary.
   ///\param p An object containing all protocols.
   ///\param capabilities An object containing the detected capabilities.
   void CheckProtocols(JSON::Value & p, JSON::Value & capabilities){
-    std::map<long long, std::string> new_connectors;
-    std::map<long long, std::string>::iterator iter;
+    std::set<std::string> runningConns;
 
     // used for building args
     int zero = 0;
@@ -102,12 +97,13 @@ namespace Controller {
     for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
       counter = ait - p.ArrBegin();
       std::string prevOnline = ( *ait)["online"].asString();
-      #define connName (*ait)["connector"].asStringRef()
+      const std::string & connName = (*ait)["connector"].asStringRef();
+      //do not further parse if there's no connector name
       if ( !(*ait).isMember("connector") || connName == ""){
         ( *ait)["online"] = "Missing connector name";
         continue;
       }
-      
+      //ignore connectors that are not installed
       if ( !capabilities["connectors"].isMember(connName)){
         ( *ait)["online"] = "Not installed";
         if (( *ait)["online"].asString() != prevOnline){
@@ -115,14 +111,13 @@ namespace Controller {
         }
         continue;
       }
-      
-      #define connCapa capabilities["connectors"][connName]
-      
+      //list connectors that go through HTTP as 'enabled' without actually running them.
+      JSON::Value & connCapa = capabilities["connectors"][connName];
       if (connCapa.isMember("socket") || (connCapa.isMember("deps") && connCapa["deps"].asStringRef() == "HTTP")){
         ( *ait)["online"] = "Enabled";
         continue;
       }
-      
+      //check required parameters, skip if anything is missing
       if (connCapa.isMember("required")){
         bool gotAll = true;
         for (JSON::ObjIter it = connCapa["required"].ObjBegin(); it != connCapa["required"].ObjEnd(); ++it){
@@ -137,12 +132,13 @@ namespace Controller {
         }
         if (!gotAll){continue;}
       }
-      
+      //remove current online status
       ( *ait).removeMember("online");
       /// \todo Check dependencies?
-
-      new_connectors[counter] = (*ait).toString();
-      if (Util::Procs::isActive(toConn(counter))){
+      //set current online status
+      std::string myCmd = (*ait).toString();
+      runningConns.insert(myCmd);
+      if (currentConnectors.count(myCmd) && Util::Procs::isActive(currentConnectors[myCmd])){
         ( *ait)["online"] = 1;
       }else{
         ( *ait)["online"] = 0;
@@ -150,28 +146,28 @@ namespace Controller {
     }
 
     //shut down deleted/changed connectors
-    for (iter = currentConnectors.begin(); iter != currentConnectors.end(); iter++){
-      if (new_connectors.count(iter->first) != 1 || new_connectors[iter->first] != iter->second){
-        Log("CONF", "Stopping connector " + iter->second);
-        Util::Procs::Stop(toConn(iter->first));
+    std::map<std::string, pid_t>::iterator it;
+    for (it = currentConnectors.begin(); it != currentConnectors.end(); it++){
+      if (!runningConns.count(it->first)){
+        Log("CONF", "Stopping connector " + it->first);
+        Util::Procs::Stop(it->second);
       }
     }
 
     //start up new/changed connectors
-    for (iter = new_connectors.begin(); iter != new_connectors.end(); iter++){
-      if (currentConnectors.count(iter->first) != 1 || currentConnectors[iter->first] != iter->second || !Util::Procs::isActive(toConn(iter->first))){
-        Log("CONF", "Starting connector: " + iter->second);
+    while (runningConns.size() && conf.is_active){
+      if (!currentConnectors.count(*runningConns.begin()) || !Util::Procs::isActive(currentConnectors[*runningConns.begin()])){
+        Log("CONF", "Starting connector: " + *runningConns.begin());
         // clear out old args
         for (i=0; i<15; i++){argarr[i] = 0;}
         // get args for this connector
-        buildPipedArguments(p[(long long unsigned)iter->first], (char **)&argarr, capabilities);
+        buildPipedArguments(*runningConns.begin(), (char **)&argarr, capabilities);
         // start piped w/ generated args
-        Util::Procs::StartPiped(toConn(iter->first), argarr, &zero, &out, &err);//redirects output to out. Must make a new pipe, redirect std err
+        currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, &zero, &out, &err);
       }
+      runningConns.erase(runningConns.begin());
     }
-
-    //store new state
-    currentConnectors = new_connectors;
   }
 
 }
+

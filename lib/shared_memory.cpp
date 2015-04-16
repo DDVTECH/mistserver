@@ -305,12 +305,12 @@ namespace IPC {
         } while (i < 10 && !handle && autoBackoff);
       }
       if (!handle) {
-        FAIL_MSG("%s for page %s failed: %s", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), strerror(errno));
+        FAIL_MSG("%s for page %s failed with error code %u", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), GetLastError());
         return;
       }
       mapped = (char *)MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
       if (!mapped) {
-        FAIL_MSG("MapViewOfFile for page %s failed: %s", name.c_str(), strerror(errno));
+        FAIL_MSG("MapViewOfFile for page %s failed with error code %u", name.c_str(), GetLastError());
         return;
       }
       //Under cygwin, the extra 4 bytes contain the real size of the page.
@@ -740,7 +740,7 @@ namespace IPC {
               DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
             }            
             unsigned short tmpPID = *((unsigned short *)(it->mapped+1+offset+payLen-2));            
-            if(!Util::Procs::isRunnning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)){
+            if(!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)){
               WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);    
               *counter = 126; //if process is already dead, instant timeout.
             }

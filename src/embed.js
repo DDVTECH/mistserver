@@ -214,11 +214,19 @@ function mistembed(streamname) {
 
   if(video.error) {
     // there was an error; display it
-    container.innerHTML = ['<strong>Error: ', video.error, '</strong>'].join('');
+    if (video.on_error){
+      container.innerHTML = video.on_error;
+    }else{
+      container.innerHTML = ['<strong>Error: ', video.error, '</strong>'].join('');
+    }
   }
   else if ((typeof video.source == 'undefined') || (video.source.length < 1)) {
     // no stream sources
-    container.innerHTML = '<strong>Error: no protocols found</strong>';
+    if (video.on_error){
+      container.innerHTML = video.on_error;
+    }else{
+      container.innerHTML = '<strong>Error: no protocols found</strong>';
+    }
   }
   else {
     // no error, and sources found. Check the video types and output the best

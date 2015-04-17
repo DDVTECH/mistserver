@@ -50,6 +50,14 @@ namespace Mist {
     capa["url_match"].append("/json_$.js");
     capa["url_match"].append("/embed_$.js");
     cfg->addConnectorOptions(8080, capa);
+    /*LTS-START*/
+    cfg->addOption("nostreamtext", JSON::fromString("{\"arg\":\"string\", \"default\":\"\", \"short\":\"t\",\"long\":\"nostreamtext\",\"help\":\"Text or HTML to display when streams are unavailable.\"}"));
+    capa["optional"]["nostreamtext"]["name"] = "Stream unavailable text";
+    capa["optional"]["nostreamtext"]["help"] = "Text or HTML to display when streams are unavailable.";
+    capa["optional"]["nostreamtext"]["default"] = "";
+    capa["optional"]["nostreamtext"]["type"] = "str";
+    capa["optional"]["nostreamtext"]["option"] = "--nostreamtext";
+    /*LTS-END*/
   }
   
   /// Sorts the JSON::Value objects that hold source information by preference.
@@ -260,6 +268,9 @@ namespace Mist {
       }
       response = "// Generating info code for stream " + streamName + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
+      if (config->getString("nostreamtext") != ""){
+        json_resp["on_error"] = config->getString("nostreamtext");
+      }
       IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
       IPC::semaphore metaLocker(std::string("liveMeta@" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
       bool metaLock = false;

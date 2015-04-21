@@ -68,7 +68,7 @@ namespace Mist {
     myMeta.vod = false;
     myMeta.live = true;
     static char liveSemName[NAME_BUFFER_SIZE];
-    snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, config->getString("streamname").c_str());
+    snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
     IPC::semaphore liveMeta(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     liveMeta.wait();
     if (!metaPages.count(0) || !metaPages[0].mapped) {

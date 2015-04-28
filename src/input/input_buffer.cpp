@@ -677,6 +677,7 @@ namespace Mist {
       segmentSize = tmpNum;
     }
 
+    /*
     //if stream is configured and setting is present, use it, always
     std::string rec;
     if (streamCfg && streamCfg.getMember("record")) {
@@ -706,6 +707,7 @@ namespace Mist {
       }
       recBpos = 0;
     }
+    */
     /*LTS-END*/
     configLock.post();
     configLock.close();

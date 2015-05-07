@@ -259,18 +259,34 @@ namespace Mist {
 
     //Keep track of registering the page on the track's index page
     bool inserted = false;
+    int lowest = 0;
     for (int i = 0; i < 1024; i++) {
       int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
       int keyNum = ntohl(tmpOffset[0]);
+      if (!keyNum) continue;
+      if (!lowest || keyNum < lowest){
+        lowest = keyNum;
+      }
       int keyAmount = ntohl(tmpOffset[1]);
-      if (keyNum == curPageNum[tid]){
+      if (!inserted && keyNum == curPageNum[tid]){
         if (keyAmount == 1000){
           tmpOffset[1] = htonl(pagesByTrack[tid][curPageNum[tid]].keyNum);
         }
         inserted = true;
-        break;
       }
     }
+
+#if defined(__CYGWIN__) || defined(_WIN32)
+    static int wipedAlready = 0;
+    if (lowest && lowest > wipedAlready + 1){
+      for (int curr = wipedAlready + 1; curr < lowest; ++curr){
+        char pageId[NAME_BUFFER_SIZE];
+        snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), mapTid, curr);
+        IPC::releasePage(std::string(pageId));
+      }
+    }
+#endif
+
     //Print a message about registering the page or not.
     if (!inserted) {
       INFO_MSG("Can't register page %lu on the metaPage of track %lu~>%lu, No empty spots left within 'should be' amount of slots", curPageNum[tid], tid, mapTid);

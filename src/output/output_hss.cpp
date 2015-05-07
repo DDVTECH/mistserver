@@ -7,8 +7,10 @@
 #include <mist/base64.h>
 #include <mist/http_parser.h>
 #include <mist/stream.h>
+#include <mist/bitfields.h>
 #include <mist/checksum.h>
 #include <unistd.h>
+#include <mist/nal.h>/*LTS*/
 
 ///\todo Maybe move to util?
 long long unsigned int binToInt(std::string & binary) {
@@ -58,11 +60,9 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.ms-ss";
     capa["methods"][0u]["priority"] = 9ll;
-    capa["methods"][0u]["nolive"] = 1;
     capa["methods"][1u]["handler"] = "http";
     capa["methods"][1u]["type"] = "silverlight";
     capa["methods"][1u]["priority"] = 1ll;
-    capa["methods"][1u]["nolive"] = 1;
   }
 
   void OutHSS::sendNext() {
@@ -203,11 +203,11 @@ namespace Mist {
 
     //Wrap everything in mp4 boxes
     MP4::MFHD mfhd_box;
-    mfhd_box.setSequenceNumber(((keyObj.getNumber() - 1) * 2) + tid);///\todo Urgent: Check this for multitrack... :P wtf... :P
+    mfhd_box.setSequenceNumber(((keyObj.getNumber() - 1) * 2) + (myMeta.tracks[tid].type == "video" ? 1 : 2));
 
     MP4::TFHD tfhd_box;
     tfhd_box.setFlags(MP4::tfhdSampleFlag);
-    tfhd_box.setTrackID(tid);
+    tfhd_box.setTrackID((myMeta.tracks[tid].type == "video" ? 1 : 2));
     if (myMeta.tracks[tid].type == "video") {
       tfhd_box.setDefaultSampleFlags(0x00004001);
     } else {
@@ -256,6 +256,11 @@ namespace Mist {
     //If the stream is live, we want to have a fragref box if possible
     //////HEREHEREHERE
     if (myMeta.live) {
+      MP4::UUID_TFXD tfxd_box;
+      tfxd_box.setTime(keyObj.getTime());
+      tfxd_box.setDuration(keyObj.getLength());
+      traf_box.setContent(tfxd_box, 3);
+
       MP4::UUID_TrackFragmentReference fragref_box;
       fragref_box.setVersion(1);
       fragref_box.setFragmentCount(0);
@@ -268,42 +273,47 @@ namespace Mist {
           fragref_box.setFragmentCount(++fragCount);
         }
       }
-      traf_box.setContent(fragref_box, 3);
+      traf_box.setContent(fragref_box, 4);
     }
 
     MP4::MOOF moof_box;
     moof_box.setContent(mfhd_box, 0);
     moof_box.setContent(traf_box, 1);
     /*LTS-START*/
-    if (myMeta.tracks[tid].keys.size() == myMeta.tracks[tid].ivecs.size()) {
-      std::string tmpVec = std::string(myMeta.tracks[tid].ivecs[keyObj.getNumber() - myMeta.tracks[tid].keys[0].getNumber()].getData(), 8);
-      unsigned long long int curVec = binToInt(tmpVec);
+    if (encrypt){
       MP4::UUID_SampleEncryption sEnc;
       sEnc.setVersion(0);
       if (myMeta.tracks[tid].type == "audio") {
         sEnc.setFlags(0);
         for (int i = 0; i < keyObj.getParts(); i++) {
           MP4::UUID_SampleEncryption_Sample newSample;
-          newSample.InitializationVector = intToBin(curVec);
-          curVec++;
+          prepareNext();
+          thisPacket.getString("ivec", newSample.InitializationVector);
           sEnc.setSample(newSample, i);
         }
       } else {
         sEnc.setFlags(2);
         std::deque<long long int> tmpParts;
         for (int i = 0; i < keyObj.getParts(); i++) {
+          //Get the correct packet
+          prepareNext();
           MP4::UUID_SampleEncryption_Sample newSample;
-          newSample.InitializationVector = intToBin(curVec);
-          curVec++;
-          MP4::UUID_SampleEncryption_Sample_Entry newEntry;
-          newEntry.BytesClear = 5;
-          newEntry.BytesEncrypted = myMeta.tracks[tid].parts[partOffset + i].getSize() - 5;
-          newSample.Entries.push_back(newEntry);
+          thisPacket.getString("ivec", newSample.InitializationVector);
+
+          std::deque<int> nalSizes = h264::parseNalSizes(thisPacket);
+          for(std::deque<int>::iterator it = nalSizes.begin(); it != nalSizes.end(); it++){
+            int encrypted = (*it - 5) & ~0xF;//Bitmask to a multiple of 16
+            MP4::UUID_SampleEncryption_Sample_Entry newEntry;
+            newEntry.BytesClear = *it - encrypted;//Size + nal_unit_type
+            newEntry.BytesEncrypted = encrypted;//Entire NAL except nal_unit_type;
+            newSample.Entries.push_back(newEntry);
+          }
           sEnc.setSample(newSample, i);
         }
       }
       traf_box.setContent(sEnc, 3);
     }
+    seek(seekTime);
     /*LTS-END*/
     //Setting the correct offsets.
     moof_box.setContent(traf_box, 1);
@@ -324,11 +334,27 @@ namespace Mist {
   }
 
   /*LTS-START*/
-  std::string OutHSS::protectionHeader(JSON::Value & encParams) {
+  void OutHSS::loadEncryption(){
+    static bool encryptionLoaded = false;
+    if (!encryptionLoaded){
+      //Load the encryption data page
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_ENCRYPT, streamName.c_str());
+      encryptionPage.init(pageName, 8 * 1024 * 1024, false, false);
+      if (encryptionPage.mapped) {
+        vmData.read(encryptionPage.mapped);
+        encrypt = true;
+      }
+      encryptionLoaded = true;
+    }
+  }
+
+  std::string OutHSS::protectionHeader() {
+    loadEncryption();
     std::string xmlGen = "<WRMHEADER xmlns=\"http://schemas.microsoft.com/DRM/2007/03/PlayReadyHeader\" version=\"4.0.0.0\"><DATA><PROTECTINFO><KEYLEN>16</KEYLEN><ALGID>AESCTR</ALGID></PROTECTINFO><KID>";
-    xmlGen += encParams["keyid"].asString();
+    xmlGen += vmData.keyid;
     xmlGen += "</KID><LA_URL>";
-    xmlGen += encParams["la_url"].asString();
+    xmlGen += vmData.laurl;
     xmlGen += "</LA_URL></DATA></WRMHEADER>";
     std::string tmp = toUTF16(xmlGen);
     tmp = tmp.substr(2);
@@ -346,13 +372,12 @@ namespace Mist {
   }
   /*LTS-END*/
 
+
   ///\brief Builds an index file for HTTP Smooth streaming.
   ///\param encParams The encryption parameters. /*LTS*/
   ///\return The index file for HTTP Smooth Streaming.
-  /*LTS
-  std::string smoothIndex(){
-  LTS*/
-  std::string OutHSS::smoothIndex(JSON::Value encParams) { /*LTS*/
+  std::string OutHSS::smoothIndex(){
+    loadEncryption();//LTS
     updateMeta();
     std::stringstream Result;
     Result << "<?xml version=\"1.0\" encoding=\"utf-16\"?>\n";
@@ -366,7 +391,6 @@ namespace Mist {
     long long int maxHeight = 0;
     long long int minWidth = 99999999;
     long long int minHeight = 99999999;
-    bool encrypted = false;/*LTS*/
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
       if (it->second.codec == "AAC") {
         audioIters.push_back(it);
@@ -410,7 +434,6 @@ namespace Mist {
              "Url=\"Q({bitrate},{CustomAttributes})/A({start time})\">\n";
       int index = 0;
       for (std::deque<std::map<unsigned int, DTSC::Track>::iterator>::iterator it = audioIters.begin(); it != audioIters.end(); it++) {
-        encrypted |= ((*it)->second.keys.size() == (*it)->second.ivecs.size()); /*LTS*/
         Result << "<QualityLevel "
                "Index=\"" << index << "\" "
                "Bitrate=\"" << (*it)->second.bps * 8 << "\" "
@@ -456,7 +479,6 @@ namespace Mist {
              "DisplayHeight=\"" << maxHeight << "\">\n";
       int index = 0;
       for (std::deque<std::map<unsigned int, DTSC::Track>::iterator>::iterator it = videoIters.begin(); it != videoIters.end(); it++) {
-        encrypted |= ((*it)->second.keys.size() == (*it)->second.ivecs.size()); /*LTS*/
         //Add video qualities
         Result << "<QualityLevel "
                "Index=\"" << index << "\" "
@@ -490,9 +512,9 @@ namespace Mist {
       Result << "</StreamIndex>\n";
     }
     /*LTS-START*/
-    if (encrypted) {
+    if (encrypt) {
       Result << "<Protection><ProtectionHeader SystemID=\"9a04f079-9840-4286-ab92-e65be0885f95\">";
-      Result << protectionHeader(encParams);
+      Result << protectionHeader();
       Result << "</ProtectionHeader></Protection>";
     }
     /*LTS-END*/
@@ -517,16 +539,14 @@ namespace Mist {
       return;
     }
     initialize();
+    loadEncryption();//LTS
     if (H.url.find("Manifest") != std::string::npos) {
       //Manifest, direct reply
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
-      /*LTS
       std::string manifest = smoothIndex();
-      LTS*/
-      std::string manifest = smoothIndex(encryption);/*LTS*/
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);
       H.Clean();
@@ -536,17 +556,4 @@ namespace Mist {
       sendHeader();
     }
   }
-
-  /*LTS-START*/
-  void OutHSS::initialize() {
-    Output::initialize();
-    JSON::Value servConf = JSON::fromFile(Util::getTmpFolder() + "streamlist");
-    encryption["keyseed"] = servConf["streams"][streamName]["keyseed"];
-    encryption["keyid"] = servConf["streams"][streamName]["keyid"];
-    encryption["contentkey"] = servConf["streams"][streamName]["contentkey"];
-    encryption["la_url"] = servConf["streams"][streamName]["la_url"];
-    servConf.null();
-  }
-  /*LTS-END*/
-
 }

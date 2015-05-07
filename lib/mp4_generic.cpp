@@ -1221,11 +1221,12 @@ namespace MP4 {
   FTYP::FTYP(bool fillDefaults){
     memcpy(data + 4, "ftyp", 4);
     if (fillDefaults){
-      setMajorBrand("mp41");
+      setMajorBrand("isom");
       setMinorVersion("Mist");
       setCompatibleBrands("isom",0);
       setCompatibleBrands("iso2",1);
       setCompatibleBrands("avc1",2);
+      setCompatibleBrands("mp41",2);
     }
   }
   

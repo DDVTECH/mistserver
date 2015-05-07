@@ -78,5 +78,7 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #define SEM_LIVE "MstLIVE%s" //%s stream name
 #define NAME_BUFFER_SIZE 200    //char buffer size for snprintf'ing shm filenames
 
+#define SHM_STREAM_ENCRYPT "MstCRYP%s" //%s stream name
+
 #define SIMUL_TRACKS 10
 

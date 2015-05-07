@@ -133,6 +133,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/nal.h
   ${SOURCE_DIR}/lib/ogg.h
   ${SOURCE_DIR}/lib/procs.h
+  ${SOURCE_DIR}/lib/rijndael.h
   ${SOURCE_DIR}/lib/rtmpchunks.h
   ${SOURCE_DIR}/lib/rtp.h
   ${SOURCE_DIR}/lib/shared_memory.h
@@ -170,6 +171,7 @@ set(libSources
   ${SOURCE_DIR}/lib/nal.cpp
   ${SOURCE_DIR}/lib/ogg.cpp
   ${SOURCE_DIR}/lib/procs.cpp
+  ${SOURCE_DIR}/lib/rijndael.cpp
   ${SOURCE_DIR}/lib/rtmpchunks.cpp
   ${SOURCE_DIR}/lib/rtp.cpp
   ${SOURCE_DIR}/lib/shared_memory.cpp
@@ -268,6 +270,7 @@ macro(makeInput inputName format)
 endmacro()
 
 makeInput(DTSC dtsc)
+makeInput(DTSCCrypt dtsccrypt)
 makeInput(MP3 mp3)
 makeInput(FLV flv)
 makeInput(OGG ogg)
@@ -489,3 +492,14 @@ add_custom_target(clean-all
   COMMAND rm -rf ${BINARY_DIR}/embed.js.h
   COMMAND rm -rf ${BINARY_DIR}/mist
 )
+
+########################################
+# Tests                                #
+########################################
+add_executable(aes_ctr128
+  ${SOURCE_DIR}/test/aes_ctr128.cpp
+)
+target_link_libraries(aes_ctr128
+  mist
+)
+add_test(AESTest COMMAND aes_ctr128)

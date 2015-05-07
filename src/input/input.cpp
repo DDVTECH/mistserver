@@ -53,6 +53,22 @@ namespace Mist {
     option["long"] = "stream";
     option["help"] = "The name of the stream that this connector will provide in player mode";
     config->addOption("streamname", option);
+
+    /*LTS-START*/
+    //Encryption
+    option["arg"] = "string";
+    option["long"] = "verimatrix-playready";
+    option["short"] = "P";
+    option["help"] = "URL of the Verimatrix PlayReady keyserver";
+    config->addOption("verimatrix-playready", option);
+    capa["optional"]["verimatrix-playready"]["name"] = "Verimatrix PlayReady Server";
+    capa["optional"]["verimatrix-playready"]["help"] = "URL of the Verimatrix PlayReady keyserver";
+    capa["optional"]["verimatrix-playready"]["option"] = "--verimatrix-playready";
+    capa["optional"]["verimatrix-playready"]["type"] = "str";
+    capa["optional"]["verimatrix-playready"]["default"] = "";
+    option.null();
+
+    /*LTS-END*/
     
     capa["optional"]["debug"]["name"] = "debug";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";

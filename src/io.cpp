@@ -1,3 +1,9 @@
+#include <mist/stream.h>
+#include <mist/json.h>
+#include <mist/auth.h>
+#include <mist/base64.h>
+#include <mist/bitfields.h>
+#include <cstdlib>
 #include "io.h"
 
 namespace Mist {
@@ -16,7 +22,41 @@ namespace Mist {
 
     //Write the metadata to the page
     myMeta.writeTo(metaPages[0].mapped);
+
   }
+
+  /*LTS-START*/
+  void InOutBase::initiateEncryption(){
+    static bool encInit = false;
+    if (encInit){
+      return;
+    }
+    encrypt = false;
+    JSON::Value cfg = Util::getStreamConfig(streamName);
+    vmData.url = cfg.isMember("verimatrix-playready")?cfg["verimatrix-playready"].asString():"";
+    vmData.name = streamName;
+    if (vmData.url != ""){
+      Encryption::fillVerimatrix(vmData);
+    }else{
+      vmData.keyid = cfg.isMember("keyid")?cfg["keyid"].asString():"";
+      vmData.keyseed = cfg.isMember("keyseed")?cfg["keyseed"].asString():"";
+      if (vmData.keyid != "" && vmData.keyseed != ""){
+        vmData.keyid = Base64::decode(vmData.keyid);
+        vmData.keyseed = Base64::decode(vmData.keyseed);
+        vmData.key = Encryption:: PR_GenerateContentKey(vmData.keyseed, vmData.keyid);
+        vmData.laurl = cfg.isMember("la_url")?cfg["la_url"].asString():"";
+      }
+    }
+    if (vmData.key != ""){
+      encrypt = true;
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_ENCRYPT, streamName.c_str());
+      encryptionPage.init(pageName, 8 * 1024 * 1024, true);
+      vmData.write(encryptionPage.mapped);
+    }
+    encInit = true;
+  }
+  /*LTS-END*/
 
   ///Starts the buffering of a new page.
   ///
@@ -27,6 +67,7 @@ namespace Mist {
   ///\param pageNumber The number of the page to start buffering
   bool InOutBase::bufferStart(unsigned long tid, unsigned long pageNumber) {
     VERYHIGH_MSG("bufferStart for stream %s, track %lu, page %lu", streamName.c_str(), tid, pageNumber);
+    initiateEncryption();
     //Initialize the stream metadata if it does not yet exist
     if (!metaPages.count(0)) {
       initiateMeta();
@@ -79,12 +120,19 @@ namespace Mist {
     //Open the correct page for the data
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), mapTid, pageNumber);
-    std::string pageName(pageId);
+    int pageSize = pagesByTrack[tid][pageNumber].dataSize;
 #ifdef __CYGWIN__
-    curPage[tid].init(pageName, 26 * 1024 * 1024, true);
-#else
-    curPage[tid].init(pageName, pagesByTrack[tid][pageNumber].dataSize, true);
+    pageSize = 26 * 1024 * 1024;
 #endif
+    /*LTS-START*/
+    INFO_MSG("Page size %d", pageSize);
+    if (encrypt){
+      pageSize = pageSize * 1.5;
+      INFO_MSG("Adjusted page size to %d", pageSize);
+    }
+    /*LTS-END*/
+    std::string pageName(pageId);
+    curPage[tid].init(pageName, pageSize, true);
     //Make sure the data page is not destroyed when we are done buffering it later on.
     curPage[tid].master = false;
     //Store the pagenumber of the currently buffer page
@@ -223,27 +271,52 @@ namespace Mist {
     }
 
     //Brain melt starts here
+    char iVec[16];
+    if (encrypt){
+      if (iVecs.find(tid) == iVecs.end()){
+        iVecs[tid] = ((long long unsigned int)rand() << 32) + rand(); 
+      }
+      Bit::htobll(iVec, iVecs[tid]);
+      iVecs[tid] ++;
+
+      Encryption::encryptPlayReady(pack, myMeta.tracks[tid].codec, iVec, vmData.key.data());
+    }
 
     //First memcpy only the payload to the destination
     //Leaves the 20 bytes inbetween empty to ensure the data is not accidentally read before it is complete
     memcpy(curPage[tid].mapped + curOffset + 20, pack.getData() + 20, pack.getDataLen() - 20);
+    if (encrypt){
+      //write ivec field + new object end at (currOffset + pack.getDataLen() - 3);
+      int ivecOffset = curOffset + pack.getDataLen() - 3;
+      memcpy(curPage[tid].mapped+ivecOffset, "\000\004ivec\002\000\000\000\010", 11);
+      memcpy(curPage[tid].mapped+ivecOffset+11, iVec, 8);
+      //finish container with 0x0000EE
+      memcpy(curPage[tid].mapped+ivecOffset+19, "\000\000\356", 3);
+    }
     //Copy the remaing values in reverse order:
     //8 byte timestamp
     memcpy(curPage[tid].mapped + curOffset + 12, pack.getData() + 12, 8);
     //The mapped track id
     ((int *)(curPage[tid].mapped + curOffset + 8))[0] = htonl(mapTid);
-    //Write the size and 'DTP2' bytes to conclude the packet and allow for reading it
-    memcpy(curPage[tid].mapped + curOffset, pack.getData(), 8);
+    int size = Bit::btohl(pack.getData() + 4);
+    if (encrypt){
+      //Alter size to reflect the addition of the ivec field ( + 19 )
+      size += 19;
+    } 
+    //Write the size
+    Bit::htobl(curPage[tid].mapped + curOffset + 4, size);
+    //write the 'DTP2' bytes to conclude the packet and allow for reading it
+    memcpy(curPage[tid].mapped + curOffset, pack.getData(), 4);
 
 
     if (myMeta.live){
       //Update the metadata
-      DTSC::Packet updatePack(curPage[tid].mapped + curOffset, pack.getDataLen(), true);
+      DTSC::Packet updatePack(curPage[tid].mapped + curOffset, size + 8, true);
       myMeta.update(updatePack);
     }
 
     //End of brain melt
-    pagesByTrack[tid][curPageNum[tid]].curOffset += pack.getDataLen();
+    pagesByTrack[tid][curPageNum[tid]].curOffset += size + 8;
   }
 
   ///Wraps up the buffering of a shared memory data page
@@ -497,8 +570,8 @@ namespace Mist {
           metaPages[tid].init(pageName, 8 * 1024 * 1024, true);
           metaPages[tid].master = false;
           DTSC::Meta tmpMeta;
-          tmpMeta.tracks[tid] = myMeta.tracks[tid];
-          tmpMeta.tracks[tid].trackID = newTid;
+          tmpMeta.tracks[newTid] = myMeta.tracks[tid];
+          tmpMeta.tracks[newTid].trackID = newTid;
           JSON::Value tmpVal = tmpMeta.toJSON();
           std::string tmpStr = tmpVal.toNetPacked();
           memcpy(metaPages[tid].mapped, tmpStr.data(), tmpStr.size());

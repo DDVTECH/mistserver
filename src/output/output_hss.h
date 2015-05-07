@@ -9,15 +9,11 @@ namespace Mist {
       static void init(Util::Config * cfg);
       void onHTTP();
       void sendNext();
-      void initialize();/*LTS*/
       void sendHeader();
     protected:
-      JSON::Value encryption;
-      std::string protectionHeader(JSON::Value & encParams);/*LTS*/
-      /*LTS
+      std::string protectionHeader();/*LTS*/
       std::string smoothIndex();
-      LTS*/
-      std::string smoothIndex(JSON::Value encParams = JSON::Value());/*LTS*/
+      void loadEncryption();/*LTS*/
       int canSeekms(unsigned int ms);
       int keysToSend;
       int myTrackStor;

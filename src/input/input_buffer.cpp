@@ -45,6 +45,7 @@ namespace Mist {
     capa["optional"]["record"]["type"] = "str";
     capa["optional"]["record"]["default"] = "";
     option.null();
+
     option["arg"] = "integer";
     option["long"] = "cut";
     option["short"] = "c";
@@ -57,6 +58,7 @@ namespace Mist {
     capa["optional"]["cut"]["type"] = "uint";
     capa["optional"]["cut"]["default"] = 0LL;
     option.null();
+
     option["arg"] = "integer";
     option["long"] = "segment-size";
     option["short"] = "S";
@@ -68,6 +70,7 @@ namespace Mist {
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 5000LL;
+    option.null();
     /*LTS-end*/
     capa["source_match"] = "push://*";
     capa["priority"] = 9ll;
@@ -746,6 +749,7 @@ namespace Mist {
       recBpos = 0;
     }
     */
+
     /*LTS-END*/
     configLock.post();
     configLock.close();

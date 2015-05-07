@@ -1,10 +1,25 @@
 #include "nal.h"
 #include "bitstream.h"
+#include "bitfields.h"
 #include "defines.h"
 #include <iostream>
 #include <iomanip>
 #include <math.h>//for log
 namespace h264 {
+  ///Returns the nal sizes + 4 for size-prepend
+  std::deque<int> parseNalSizes(DTSC::Packet & pack){
+    std::deque<int> result;
+    char * data;
+    unsigned int dataLen;
+    pack.getString("data", data, dataLen);
+    int offset = 0;
+    while (offset < dataLen){
+      int nalSize = Bit::btohl(data + offset);
+      result.push_back(nalSize + 4);
+      offset += nalSize + 4;
+    }
+    return result;
+  }
 
   ///empty constructor of NAL
   NAL::NAL() {

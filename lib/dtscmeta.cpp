@@ -177,7 +177,7 @@ namespace DTSC {
     //bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)
     //keyframe, if true, adds 9 bytes (integer type) and 10 bytes (2+namelen)
     //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
-    unsigned int sendLen = 24 + (packOffset?17:0) + (packBytePos>=0?15:0) + (isKeyframe?19:0) + packDataSize+11;
+    unsigned int sendLen = 24 + (packOffset?17:0) + (packBytePos?15:0) + (isKeyframe?19:0) + packDataSize+11;
     resize(sendLen);
     //set internal variables
     version = DTSC_V2;
@@ -808,7 +808,7 @@ namespace DTSC {
     memcpy(data, iVec.data(), std::min(8, (int)iVec.size()));
   }
 
-  void Ivec::setIvec(char * iVec, int len) {
+  void Ivec::setIvec(const char * iVec, int len) {
     memset(data, 0, 8);
     memcpy(data, iVec, std::min(8, len));
   }
@@ -1098,7 +1098,10 @@ namespace DTSC {
 
   ///\brief Updates a track and its metadata given new packet properties.
   ///Will also insert keyframes on non-video tracks, and creates fragments
+  /*LTS
   void Track::update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size) {
+  LTS*/
+  void Track::update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size, const char * iVec) {
     if ((unsigned long long)packTime < lastms) {
       DEBUG_MSG(DLVL_WARN, "Received packets for track %u in wrong order (%lld < %llu) - ignoring!", trackID, packTime, lastms);
       return;
@@ -1130,13 +1133,13 @@ namespace DTSC {
       } else {
         newKey.setBpos(0);
       }
-      /*LTS-START
-      if (pack.isMember("ivec")) {
+      /*LTS-START*/
+      if (iVec){
         Ivec newIvec;
-        newIvec.setIvec((char *)pack["ivec"].asString().data(), 8);
+        newIvec.setIvec(iVec, 8);
         ivecs.push_back(newIvec);
       }
-      LTS-END*/
+      /*LTS-END*/
       keys.push_back(newKey);
       keySizes.push_back(0);
       firstms = keys[0].getTime();
@@ -1268,7 +1271,10 @@ namespace DTSC {
 
   ///\brief Updates a meta object given a JSON::Value
   void Meta::update(JSON::Value & pack, unsigned long segment_size) {
+    /*LTS
     update(pack["time"].asInt(), pack.isMember("offset")?pack["offset"].asInt():0, pack["trackid"].asInt(), pack["data"].asStringRef().size(), pack.isMember("bpos")?pack["bpos"].asInt():-1, pack.isMember("keyframe"), pack.packedSize(), segment_size);
+    LTS*/
+    update(pack["time"].asInt(), pack.isMember("offset")?pack["offset"].asInt():0, pack["trackid"].asInt(), pack["data"].asStringRef().size(), pack.isMember("bpos")?pack["bpos"].asInt():-1, pack.isMember("keyframe"), pack.packedSize(), segment_size, pack.isMember("ivec")?pack["ivec"].asStringRef().data():0);
   }
 
   ///\brief Updates a meta object given a DTSC::Packet
@@ -1276,7 +1282,13 @@ namespace DTSC {
     char * data;
     unsigned int dataLen;
     pack.getString("data", data, dataLen);
+    char * ivec;
+    unsigned int ivecLen;
+    pack.getString("ivec", ivec, ivecLen);
+    /*LTS
     update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, pack.hasMember("bpos")?pack.getInt("bpos"):-1, pack.hasMember("keyframe"), pack.getDataLen(), segment_size);
+    LTS*/
+    update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, pack.hasMember("bpos")?pack.getInt("bpos"):-1, pack.hasMember("keyframe"), pack.getDataLen(), segment_size, ivecLen?ivec:0);
   }
 
   ///\brief Updates a meta object given a DTSC::Packet with byte position override.
@@ -1284,10 +1296,16 @@ namespace DTSC {
     char * data;
     unsigned int dataLen;
     pack.getString("data", data, dataLen);
+    /*LTS
     update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, bpos, pack.hasMember("keyframe"), pack.getDataLen());
+    LTS*/
+    char * ivec;
+    unsigned int ivecLen;
+    pack.getString("ivec", ivec, ivecLen);
+    update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, bpos, pack.hasMember("keyframe"), pack.getDataLen(), 5000, ivecLen?ivec:0);
   }
 
-  void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size){
+  void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size, const char * ivec){
     if (!packSendSize){
       //time and trackID are part of the 20-byte header.
       //the container object adds 4 bytes (plus 2+namelen for each content, see below)
@@ -1300,7 +1318,7 @@ namespace DTSC {
     vod = (packBytePos >= 0);
     live = !vod;
     if (packTrack > 0 && tracks.count(packTrack)){
-      tracks[packTrack].update(packTime, packOffset, packDataSize, packBytePos, isKeyframe, packSendSize, segment_size);
+      tracks[packTrack].update(packTime, packOffset, packDataSize, packBytePos, isKeyframe, packSendSize, segment_size, ivec);
     }
   }
 

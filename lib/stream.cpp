@@ -73,6 +73,30 @@ void Util::sanitizeName(std::string & streamname) {
   }
 }
 
+JSON::Value Util::getStreamConfig(std::string streamname){
+  JSON::Value result;
+  if (streamname.size() > 100){
+    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
+    return result;
+  }
+  IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
+  IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  configLock.wait();
+  DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
+
+  sanitizeName(streamname);
+  std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
+  //check if smp (everything before + or space) exists
+  DTSC::Scan stream_cfg = config.getMember("streams").getMember(smp);
+  if (!stream_cfg){
+    DEBUG_MSG(DLVL_MEDIUM, "Stream %s not configured", streamname.c_str());
+  }else{
+    result = stream_cfg.asJSON();
+  }
+  configLock.post();//unlock the config semaphore
+  return result;
+}
+
 /// Checks if the given streamname has an active input serving it. Returns true if this is the case.
 /// Assumes the streamname has already been through sanitizeName()!
 bool Util::streamAlive(std::string & streamname){

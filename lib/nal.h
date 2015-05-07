@@ -1,7 +1,10 @@
 #include <string>
 #include <cstdio>
+#include <deque>
+#include "dtsc.h"
 
 namespace h264 {
+  std::deque<int> parseNalSizes(DTSC::Packet & pack);
 
   ///Struct containing pre-calculated metadata of an SPS nal unit. Width and height in pixels, fps in Hz
   struct SPSMeta {

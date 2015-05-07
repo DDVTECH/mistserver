@@ -6,6 +6,7 @@
 #include <mist/defines.h>
 #include <mist/dtsc.h>
 
+#include <mist/encryption.h>//LTS
 namespace Mist {
   enum negotiationState {
     FILL_NEW,///< New track, just sent negotiation request
@@ -40,6 +41,7 @@ namespace Mist {
     protected:
       bool standAlone;
       static Util::Config * config;
+      void initiateEncryption();//LTS
 
       void continueNegotiate(unsigned long tid);
 
@@ -64,5 +66,10 @@ namespace Mist {
       std::map<unsigned long, unsigned long> curPageNum;///< For each track, holds the number page that is currently being written.
       std::map<unsigned long, IPC::sharedPage> curPage;///< For each track, holds the page that is currently being written.
       std::map<unsigned long, std::deque<DTSC::Packet> > trackBuffer; ///< Buffer to be used during active track negotiation
+
+      bool encrypt;
+      Encryption::verimatrixData vmData;
+      std::map<int,unsigned long long int> iVecs;
+      IPC::sharedPage encryptionPage;
   };
 }

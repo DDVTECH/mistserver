@@ -189,7 +189,7 @@ namespace DTSC {
       Ivec(long long int iVec);
       void setIvec(long long int iVec);
       void setIvec(std::string iVec);
-      void setIvec(char * iVec, int len);
+      void setIvec(const char * iVec, int len);
       long long int asInt();
       char * getData();
     private:
@@ -281,7 +281,10 @@ namespace DTSC {
       inline operator bool() const {
         return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
       }
+      /*
       void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
+      */
+      void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000, const char * iVec = 0);
       int getSendLen();
       void send(Socket::Connection & conn);
       void writeTo(char *& p);
@@ -332,7 +335,10 @@ namespace DTSC {
       void update(DTSC::Packet & pack, unsigned long segment_size = 5000);
       void updatePosOverride(DTSC::Packet & pack, unsigned long bpos);
       void update(JSON::Value & pack, unsigned long segment_size = 5000);
+      /*LTS
       void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
+      LTS*/
+      void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000, const char * iVec = 0);
       unsigned int getSendLen();
       void send(Socket::Connection & conn);
       void writeTo(char * p);

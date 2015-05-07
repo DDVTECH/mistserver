@@ -328,7 +328,9 @@ namespace Mist {
         metaPages[value].master = true;
         metaPages.erase(value);
 
-        int finalMap = (trackMeta.tracks.find(value)->second.type == "video" ? 1 : 2);
+        int finalMap = 3;
+        if (trackMeta.tracks.find(value)->second.type == "video"){finalMap = 1;}
+        if (trackMeta.tracks.find(value)->second.type == "audio"){finalMap = 2;}
         //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared")
         //or if the firstms of the replacement track is later than the lastms on the existing track
         if (!myMeta.tracks.count(finalMap) || trackMeta.tracks.find(value)->second.keys.size() > 1 || trackMeta.tracks.find(value)->second.firstms >= myMeta.tracks[finalMap].lastms) {

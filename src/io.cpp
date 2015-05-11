@@ -259,18 +259,34 @@ namespace Mist {
 
     //Keep track of registering the page on the track's index page
     bool inserted = false;
+    int lowest = 0;
     for (int i = 0; i < 1024; i++) {
       int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
       int keyNum = ntohl(tmpOffset[0]);
+      if (!keyNum) continue;
+      if (!lowest || keyNum < lowest){
+        lowest = keyNum;
+      }
       int keyAmount = ntohl(tmpOffset[1]);
-      if (keyNum == curPageNum[tid]){
+      if (!inserted && keyNum == curPageNum[tid]){
         if (keyAmount == 1000){
           tmpOffset[1] = htonl(pagesByTrack[tid][curPageNum[tid]].keyNum);
         }
         inserted = true;
-        break;
       }
     }
+
+#if defined(__CYGWIN__) || defined(_WIN32)
+    static int wipedAlready = 0;
+    if (lowest && lowest > wipedAlready + 1){
+      for (int curr = wipedAlready + 1; curr < lowest; ++curr){
+        char pageId[NAME_BUFFER_SIZE];
+        snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), mapTid, curr);
+        IPC::releasePage(std::string(pageId));
+      }
+    }
+#endif
+
     //Print a message about registering the page or not.
     if (!inserted) {
       INFO_MSG("Can't register page %lu on the metaPage of track %lu~>%lu, No empty spots left within 'should be' amount of slots", curPageNum[tid], tid, mapTid);
@@ -450,6 +466,9 @@ namespace Mist {
       trackState[tid] = FILL_NEW;
       return;
     }
+    #if defined(__CYGWIN__) || defined(_WIN32)
+    static std::map<unsigned long, std::string> preservedTempMetas;
+    #endif
     switch (trackState[tid]) {
       case FILL_NEW: {
           unsigned long newTid = ((long)(tmp[offset]) << 24) | ((long)(tmp[offset + 1]) << 16) | ((long)(tmp[offset + 2]) << 8) | tmp[offset + 3];
@@ -472,6 +491,10 @@ namespace Mist {
           memcpy(metaPages[tid].mapped, tmpStr.data(), tmpStr.size());
           INFO_MSG("Temporary metadata written for incoming track %lu, handling as track %lu", tid, newTid);
           //Not actually removing the page, because we set master to false
+          #if defined(__CYGWIN__) || defined(_WIN32)
+          IPC::preservePage(pageName);
+          preservedTempMetas[tid] = pageName;
+          #endif
           metaPages.erase(tid);
           trackState[tid] = FILL_NEG;
           trackMap[tid] = newTid;
@@ -484,6 +507,10 @@ namespace Mist {
             INFO_MSG("Negotiating, but firstPage not yet set, waiting for buffer");
             break;
           }
+          #if defined(__CYGWIN__) || defined(_WIN32)
+          IPC::releasePage(preservedTempMetas[tid]);
+          preservedTempMetas.erase(tid);
+          #endif
           if (finalTid == 0xFFFFFFFF) {
             WARN_MSG("Buffer has declined incoming track %lu", tid);
             memset(tmp + offset, 0, 6);

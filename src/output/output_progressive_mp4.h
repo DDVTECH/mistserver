@@ -13,7 +13,7 @@ namespace Mist {
             return true;
           }
           if (trackID == rhs.trackID){
-            return endTime < rhs.endTime;
+            return index < rhs.index;
           }
         }
         return false;

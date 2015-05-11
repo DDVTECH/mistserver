@@ -13,6 +13,10 @@ namespace Mist {
           if (time == rhs.time){
             if (trackID < rhs.trackID){
               return true;
+            }else{
+              if (trackID == rhs.trackID && bpos < rhs.bpos){
+                return true;
+              }
             }
           }
         }
@@ -34,6 +38,10 @@ namespace Mist {
         if (time == rhs.time){
           if (trackID < rhs.trackID){
             return true;
+          }else{
+            if (trackID == rhs.trackID && bpos < rhs.bpos){
+              return true;
+            }
           }
         }
       }

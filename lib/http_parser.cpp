@@ -32,6 +32,15 @@ void HTTP::Parser::CleanPreserveHeaders() {
   vars.clear();
 }
 
+/// Sets the neccesary headers to allow Cross Origin Resource Sharing with all domains.
+void HTTP::Parser::setCORSHeaders(){
+  SetHeader("Access-Control-Allow-Origin", "*");
+  SetHeader("Access-Control-Allow-Methods", "GET, POST");
+  SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+  SetHeader("Access-Control-Allow-Credentials", "true");
+}
+
+
 /// Returns a string containing a valid HTTP 1.0 or 1.1 request, ready for sending.
 /// The request is build from internal variables set before this call is made.
 /// To be precise, method, url, protocol, headers and body are used.

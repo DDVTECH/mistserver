@@ -558,10 +558,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       }
       H.Clean();
       H.SetHeader("Content-Type", "text/javascript");
-      H.SetHeader("Access-Control-Allow-Origin", "*");
-      H.SetHeader("Access-Control-Allow-Methods", "GET, POST");
-      H.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
-      H.SetHeader("Access-Control-Allow-Credentials", "true");
+      H.setCORSHeaders();
       if (jsonp == ""){
         H.SetBody(Response.toString() + "\n\n");
       }else{

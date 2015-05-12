@@ -21,6 +21,7 @@ namespace HTTP {
       std::string getUrl();
       void SetHeader(std::string i, std::string v);
       void SetHeader(std::string i, long long v);
+      void setCORSHeaders();
       void SetVar(std::string i, std::string v);
       void SetBody(std::string s);
       void SetBody(char * buffer, int len);

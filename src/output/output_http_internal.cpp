@@ -156,6 +156,7 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.setCORSHeaders();
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       H.SendResponse("200", "OK", myConn);
       return;
@@ -165,6 +166,7 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.setCORSHeaders();
       H.SetBody("<?xml version=\"1.0\" encoding=\"utf-8\"?><access-policy><cross-domain-access><policy><allow-from http-methods=\"*\" http-request-headers=\"*\"><domain uri=\"*\"/></allow-from><grant-to><resource path=\"/\" include-subpaths=\"true\"/></grant-to></policy></cross-domain-access></access-policy>");
       H.SendResponse("200", "OK", myConn);
       return;
@@ -191,11 +193,12 @@ namespace Mist {
       return;
     }
     
-    // send logo icon
+    // send generic HTML page
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
       H.Clean();
       H.SetHeader("Content-Type", "text/html");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.setCORSHeaders();
       H.SetBody("<!DOCTYPE html><html><head><title>Stream "+streamName+"</title><style>BODY{color:white;background:black;}</style></head><body><script src=\"embed_"+streamName+".js\"></script></body></html>");
       H.SendResponse("200", "OK", myConn);
       return;
@@ -247,6 +250,7 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Content-Type", "application/smil");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+      H.setCORSHeaders();
       H.SetBody("<smil>\n  <head>\n    <meta base='rtmp://" + host + ":" + port + url_rel + "' />\n  </head>\n  <body>\n    <switch>\n"+trackSources+"    </switch>\n  </body>\n</smil>");
       H.SendResponse("200", "OK", myConn);
       return;
@@ -261,6 +265,7 @@ namespace Mist {
       }
       H.Clean();
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.setCORSHeaders();
       if (rURL.substr(0, 6) != "/json_"){
         H.SetHeader("Content-Type", "application/javascript");
       }else{

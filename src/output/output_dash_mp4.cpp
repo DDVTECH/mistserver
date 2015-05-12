@@ -604,12 +604,7 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Content-Type", "application/octet-stream");
       H.SetHeader("Cache-Control", "no-cache");
-      H.SetHeader("MistMultiplex", "No");
-      
-      H.SetHeader("Access-Control-Allow-Origin", "*");
-      H.SetHeader("Access-Control-Allow-Methods", "GET, POST");
-      H.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
-      H.SetHeader("Access-Control-Allow-Credentials", "true");
+      H.setCORSHeaders();
       H.SetBody("");
       H.SendResponse("200", "OK", myConn);
       H.Clean();
@@ -619,13 +614,7 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Content-Type", "application/xml");
       H.SetHeader("Cache-Control", "no-cache");
-      H.SetHeader("MistMultiplex", "No");
-      
-      H.SetHeader("Access-Control-Allow-Origin", "*");
-      H.SetHeader("Access-Control-Allow-Methods", "GET, POST");
-      H.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
-      H.SetHeader("Access-Control-Allow-Credentials", "true");
-
+      H.setCORSHeaders();
       H.SetBody(buildManifest());
       H.SendResponse("200", "OK", myConn);
       DEVEL_MSG("Manifest sent");
@@ -638,12 +627,7 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Content-Type", "video/mp4");
       H.SetHeader("Cache-Control", "no-cache");
-      H.SetHeader("MistMultiplex", "No");
-      
-      H.SetHeader("Access-Control-Allow-Origin", "*");
-      H.SetHeader("Access-Control-Allow-Methods", "GET, POST");
-      H.SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
-      H.SetHeader("Access-Control-Allow-Credentials", "true");
+      H.setCORSHeaders();
       H.StartResponse(H, myConn);
 
       if (url.find("init.m4s") != std::string::npos){

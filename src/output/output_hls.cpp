@@ -144,6 +144,7 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+      H.setCORSHeaders();
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       H.SendResponse("200", "OK", myConn);
       H.Clean(); //clean for any possible next requests
@@ -216,6 +217,7 @@ namespace Mist {
       lastVid = from * 90;
       
       H.SetHeader("Content-Type", "video/mp2t");
+      H.setCORSHeaders();
       H.StartResponse(H, myConn, VLCworkaround);
 
       unsigned int fragCounter = myMeta.tracks[vidTrack].missedFrags;
@@ -242,6 +244,7 @@ namespace Mist {
         H.SetHeader("Content-Type", "audio/mpegurl");
       }
       H.SetHeader("Cache-Control", "no-cache");
+      H.setCORSHeaders();
       std::string manifest;
       if (request.find("/") == std::string::npos){
         manifest = liveIndex();

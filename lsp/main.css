@@ -512,6 +512,24 @@ th.sorting-desc:after {
   margin-left: 1em;
   flex-grow: 1;
 }
+.input_container .field_container .field.checkcontainer {
+  font-size: 0.8em;
+  border: 1px solid #bbb;
+}
+.input_container .field_container .field .controls {
+  border-bottom: 1px dashed #bbb;
+}
+.input_container .field_container .field .checklist {
+  -webkit-column-width: 10em;
+  -moz-column-width: 10em;
+  column-width: 10em;
+  min-height: 0;
+  max-height: 10em;
+  overflow-y: auto;
+}
+.input_container .field_container .field .checklist label {
+  display: block;
+}
 input[type=radio] {
   height: 1.1em;
   width: 1.1em;

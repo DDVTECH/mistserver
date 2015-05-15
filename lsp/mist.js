@@ -173,6 +173,9 @@ var UI = {
       Limits: {
         LTSonly: true
       },
+      'Triggers': {
+        LTSonly: false
+      },
       Logs: {},
       Statistics: {},
       'Server Stats': {}
@@ -490,6 +493,34 @@ var UI = {
                 }
               }
             }
+          }
+          break;
+        case 'checklist':
+          $field = $('<div>').addClass('checkcontainer');
+          $controls = $('<div>').addClass('controls');
+          $checklist = $('<div>').addClass('checklist');
+          $field.append($controls).append($checklist);
+          $controls.append(
+            $('<label>').text('All').prepend(
+                $('<input>').attr('type','checkbox').click(function(){
+                  if ($(this).is(':checked')) {
+                    $(this).closest('.checkcontainer').find('input[type=checkbox]').prop('checked',true);
+                  }
+                  else {
+                    $(this).closest('.checkcontainer').find('input[type=checkbox]').prop('checked',false);
+                  }
+                })
+              )
+          );
+          for (var i in e.checklist) {
+            if (typeof e.checklist[i] == 'string') {
+              e.checklist[i] = [e.checklist[i], e.checklist[i]];
+            }
+            $checklist.append(
+              $('<label>').text(e.checklist[i][1]).prepend(
+                $('<input>').attr('type','checkbox').attr('name',e.checklist[i][0])
+              )
+            );
           }
           break;
         default:
@@ -2830,8 +2861,8 @@ var UI = {
         $main.append($trackinfo);
         function buildTrackinfo() {
           var meta;
-          if (other in mist.data.streams) {
-            meta = mist.data.streams[other].meta;
+          if (other in mistvideo) {
+            meta = mistvideo[other].meta;
           }
           if (!meta) { 
             $tracktable.html('No meta information available.');
@@ -2916,13 +2947,6 @@ var UI = {
             }).append($audio).append($video)
           );
           $tracktable.html(UI.buildUI(build));
-        }
-        buildTrackinfo();
-        if ((other in mist.data.streams) && (!('meta' in mist.data.streams[other]))) {
-          //try to refresh the meta information
-          mist.send(function(){
-            buildTrackinfo();
-          });
         }
         
         //embedded video
@@ -3090,6 +3114,9 @@ var UI = {
             $protocolurls.html(
               UI.buildUI(buildurls)
             );
+            
+            //meta information
+            buildTrackinfo();
           };
           $video.html('')[0].appendChild(script);
         }
@@ -3339,6 +3366,194 @@ var UI = {
           $UI.find('.limit_value').closest('label')
         );
         $UI.find('.limit_type').trigger('change');
+        
+        break;
+      case 'Triggers':
+        if (!('triggers' in mist.data.config)) {
+          mist.data.config.triggers = {};
+        }
+        
+        var $tbody = $('<tbody>');
+        var $table = $('<table>').html(
+          $('<thead>').html(
+            $('<tr>').html(
+              $('<th>').text('Trigger on').attr('data-sort-type','string').addClass('sorting-asc')
+            ).append(
+              $('<th>').text('Applies to').attr('data-sort-type','string')
+            ).append(
+              $('<th>').text('Execute URL').attr('data-sort-type','string')
+            ).append(
+              $('<th>')
+            )
+          )
+        ).append($tbody);
+        
+        $main.append(
+          UI.buildUI([{
+            type: 'help',
+            help: 'Balder verzin iets leuks'
+          }])
+        ).append(
+          $('<button>').text('New trigger').click(function(){
+            UI.navto('Edit Trigger');
+          })
+        ).append($table);
+        $table.stupidtable();
+        
+        var triggers = mist.data.config.triggers
+        for (var i in triggers) {
+          for (var j in triggers[i]) {
+            $tbody.append(
+              $('<tr>').attr('data-index',i+','+j).append(
+                $('<td>').text(i)
+              ).append(
+                $('<td>').text(triggers[i][j][2].join(', '))
+              ).append(
+                $('<td>').text(triggers[i][j][0])
+              ).append(
+                $('<td>').html(
+                  $('<button>').text('Edit').click(function(){
+                    UI.navto('Edit Trigger',$(this).closest('tr').attr('data-index'));
+                  })
+                )
+              )
+            );
+          }
+        }
+        
+        break;
+      case 'Edit Trigger':
+        if (!('triggers' in mist.data.config)) {
+          mist.data.config.triggers = {};
+        }
+        if (!other) {
+          //new
+          $main.html(
+            $('<h2>').text('New Trigger')
+          );
+          var saveas = {};
+        }
+        else {
+          //editing
+          other = other.split(',');
+          var source = mist.data.config.triggers[other[0]][other[1]];
+          var saveas = {
+            triggeron: other[0],
+            appliesto: source[2],
+            url: source[0],
+            async: source[1],
+            'default': source[3]
+          };
+        }
+        
+        $main.append(UI.buildUI([{
+          type: 'help',
+          help: 'Balder verzin iets leuks'
+        },{
+          label: 'Trigger on',
+          pointer: {
+            main: saveas,
+            index: 'triggeron'
+          },
+          help: 'Balder verzin iets leuks',
+          type: 'select',
+          select: [
+            ['SYSTEM_START', 'server boot'],
+            ['SYSTEM_STOP', 'server exit'],
+            ['SYSTEM_CONFIG', 'config changed'],
+            ['SYSTEM_LOG', 'log line logged'],
+            ['OUTPUT_ADD', 'new output configured'],
+            ['OUTPUT_CONFIG', 'output config changed'],
+            ['OUTPUT_REMOVE', 'deleted output in config'],
+            ['STREAM_ADD', 'new stream configured'],
+            ['STREAM_CONFIG', 'stream config changed'],
+            ['STREAM_REMOVE', 'stream config deleted'],
+            ['STREAM_LOAD', 'stream input loaded in memory'],
+            ['STREAM_UNLOAD', 'stream input unloaded from memory'],
+            ['STREAM_TRACK_ADD', 'added track to stream; ie: push/multi'],
+            ['STREAM_TRACK_REMOVE', 'removed track from stream'],
+            ['CONN_OPEN', 'new connection'],
+            ['CONN_CLOSE', 'connection closed'],
+            ['CONN_PLAY', 'before play start, includes limits status'],
+            ['CONN_STOP', 'play end, but no disconnect yet']
+          ],
+          LTSonly: true
+        },{
+          label: 'Applies to',
+          pointer: {
+            main: saveas,
+            index: 'appliesto'
+          },
+          help: 'Balder verzin iets leuks (none checked = all are checked)',
+          type: 'checklist',
+          checklist: Object.keys(mist.data.streams),
+          LTSonly: true
+        },$('<br>'),{
+          label: 'Excecute URL',
+          help: 'Balder verzin iets leuks',
+          pointer: {
+            main: saveas,
+            index: 'url'
+          },
+          validate: ['required'],
+          type: 'str',
+          LTSonly: true
+        },{
+          label: 'Asynchronous',
+          type: 'checkbox',
+          help: 'Balder verzin iets leuks',
+          pointer: {
+            main: saveas,
+            index: 'async'
+          },
+          LTSonly: true
+        },{
+          label: 'Default return on error',
+          type: 'str',
+          help: 'Balder verzin iets leuks  (synchronous only)',
+          pointer: {
+            main: saveas,
+            index: 'default'
+          },
+          LTSonly: true
+        },{
+          type: 'buttons',
+          buttons: [
+            {
+              type: 'cancel',
+              label: 'Cancel',
+              'function': function(){
+                UI.navto('Triggers');
+              }
+            },{
+              type: 'save',
+              label: 'Save',
+              'function': function(){
+                if (other) {
+                  //remove the old setting
+                  mist.data.config.triggers[other[0]].splice(other[1],1);
+                }
+                
+                var newtrigger = [
+                  saveas.url,
+                  (saveas.async ? true : false),
+                  (typeof saveas.appliesto != 'undefined' ? saveas.appliesto : [])
+                ];
+                if (typeof saveas['default'] != 'undefined') {
+                  newtrigger.push(saveas['default']);
+                }
+                if (!(saveas.triggeron in mist.data.config.triggers)) {
+                  mist.data.config.triggers[saveas.triggeron] = [];
+                }
+                mist.data.config.triggers[saveas.triggeron].push(newtrigger);
+                
+                mist.send(function(){
+                  UI.navto('Triggers');
+                },{config: mist.data.config});
+              }
+            }
+          ]
+        }]));
         
         break;
       case 'Logs':
@@ -4204,6 +4419,15 @@ $.fn.getval = function(){
           val = '';
         }
         break;
+      case 'checklist':
+        val = [];
+        $(this).find('.checklist input[type=checkbox]:checked').each(function(){
+          val.push($(this).attr('name'));
+        });
+        if (val.length == opts.checklist.length) {
+          val = [];
+        }
+        break;
     }
   }
   return val;
@@ -4240,6 +4464,12 @@ $.fn.setval = function(val){
         var $l = $(this).find('label > input[type=radio][value="'+val[0]+'"]').prop('checked',true).parent();
         if (val.length > 1) {
           $l.children('select').val(val[1]);
+        }
+        break;
+      case 'checklist':
+        var $inputs = $(this).find('.checklist input[type=checkbox]');
+        for (i in val) {
+          $inputs.filter('[name="'+val[i]+'"]').prop('checked',true);
         }
         break;
     }

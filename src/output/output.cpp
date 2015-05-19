@@ -618,19 +618,7 @@ namespace Mist {
         return;
       }
     }
-    if (trackMap.size()){
-      for (std::map<unsigned long, unsigned long>::iterator it = trackMap.begin(); it != trackMap.end() && tNum < SIMUL_TRACKS; it++){
-        unsigned int tId = it->second;
-        char * thisData = userClient.getData() + (6 * tNum);
-        thisData[0] = ((tId >> 24) & 0xFF);
-        thisData[1] = ((tId >> 16) & 0xFF);
-        thisData[2] = ((tId >> 8) & 0xFF);
-        thisData[3] = ((tId) & 0xFF);
-        thisData[4] = 0xFF;
-        thisData[5] = 0xFF;
-        tNum ++;
-      }
-    }else{
+    if (!trackMap.size()){
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < SIMUL_TRACKS; it++){
         unsigned int tId = *it;
         char * thisData = userClient.getData() + (6 * tNum);

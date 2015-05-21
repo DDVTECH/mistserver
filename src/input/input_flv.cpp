@@ -67,11 +67,12 @@ namespace Mist {
     //Create header file from FLV data
     fseek(inFile, 13, SEEK_SET);
     FLV::Tag tmpTag;
+    AMF::Object amf_storage;
     long long int lastBytePos = 13;
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
         lastPack.null();
-        lastPack = tmpTag.toJSON(myMeta);
+        lastPack = tmpTag.toJSON(myMeta, amf_storage);
         lastPack["bpos"] = lastBytePos;
         myMeta.update(lastPack);
         lastBytePos = ftell(inFile);
@@ -89,12 +90,13 @@ namespace Mist {
   
   void inputFLV::getNext(bool smart) {
     static JSON::Value thisPack;
+    static AMF::Object amf_storage;
     thisPack.null();
     long long int lastBytePos = ftell(inFile);
     FLV::Tag tmpTag;
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
-        thisPack = tmpTag.toJSON(myMeta);
+        thisPack = tmpTag.toJSON(myMeta, amf_storage);
         thisPack["bpos"] = lastBytePos;
         if ( !selectedTracks.count(thisPack["trackid"].asInt())){
           getNext();

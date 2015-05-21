@@ -792,60 +792,28 @@ namespace Mist {
         case 8: //audio data
         case 9: //video data
         case 18: {//meta data
-          pushData & p = pushes[next.cs_id];
+          static std::map<unsigned int, AMF::Object> pushMeta;
           if (!isInitialized) {
             DEBUG_MSG(DLVL_MEDIUM, "Received useless media data\n");
             myConn.close();
             break;
           }
           F.ChunkLoader(next);
-          JSON::Value pack_out = F.toJSON(p.meta);
+          AMF::Object * amf_storage = 0;
+          if (F.data[0] == 0x12 || pushMeta.count(next.cs_id) || !pushMeta.size()){
+            amf_storage = &(pushMeta[next.cs_id]);
+          }else{
+            amf_storage = &(pushMeta.begin()->second);
+          }
+          JSON::Value pack_out = F.toJSON(myMeta, *amf_storage, next.cs_id*3 + (F.data[0] == 0x09 ? 0 : (F.data[0] == 0x08 ? 1 : 2) ));
           if ( !pack_out.isNull()){
-            //Check for backwards timestamps
-            if (pack_out["time"].asInt() < p.meta.tracks[pack_out["trackid"].asInt()].lastms){
-              ///Reset all internals
-              p.sending = false;
-              p.counter = 0;
-              p.preBuf.clear();
-              p.meta = DTSC::Meta();
-              pack_out = F.toJSON(p.meta);//Reinitialize the metadata with this packet.
-              ///Reset negotiation with buffer
-              userClient.finish();
-              userClient = IPC::sharedClient(streamName + "_users", PLAY_EX_SIZE, true);
+            if (!userClient.getData()){
+              char userPageName[NAME_BUFFER_SIZE];
+              snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+              userClient = IPC::sharedClient(userPageName, 30, true);
             }
-            pack_out["trackid"] = pack_out["trackid"].asInt() + next.cs_id * 3;
-            if ( !p.sending){
-              p.counter++;
-              if (p.counter > 8){
-                p.sending = true;
-                if (myMeta.tracks.count(1)){
-                  myMeta = DTSC::Meta();
-                }
-                for (unsigned int i = 1; i < 4; ++i){
-                  if (p.meta.tracks.count(i)){
-                    myMeta.tracks[next.cs_id*3+i] = p.meta.tracks[i];
-                  }
-                }
-                if (!userClient.getData()){
-                  char userPageName[NAME_BUFFER_SIZE];
-                  snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-                  userClient = IPC::sharedClient(userPageName, 30, true);
-                }
-                for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-                  DEBUG_MSG(DLVL_MEDIUM, "Starting negotiation for track %d", it->first);
-                  continueNegotiate(it->first);
-                }
-                for (std::deque<JSON::Value>::iterator it = p.preBuf.begin(); it != p.preBuf.end(); it++){
-                  bufferLivePacket((*it));
-                }
-                p.preBuf.clear(); //clear buffer
-                bufferLivePacket(pack_out);
-              }else{
-                p.preBuf.push_back(pack_out);
-              }
-            }else{
-              bufferLivePacket(pack_out);
-            }
+            continueNegotiate(pack_out["trackid"].asInt());
+            bufferLivePacket(pack_out);
           }
           break;
         }

@@ -271,11 +271,17 @@ namespace Mist {
     metaPages.erase(tid);
   }
 
-  void inputBuffer::finish(){
+  void inputBuffer::finish() {
     Input::finish();
     updateMeta();
-    for (std::map<unsigned long, std::map<unsigned long, DTSCPageData> >::iterator it = bufferLocations.begin(); it != bufferLocations.end(); it++){
-      eraseTrackDataPages(it->first);
+    if (bufferLocations.size()){
+      std::set<unsigned long> toErase;
+      for (std::map<unsigned long, std::map<unsigned long, DTSCPageData> >::iterator it = bufferLocations.begin(); it != bufferLocations.end(); it++){
+        toErase.insert(it->first);
+      }
+      for (std::set<unsigned long>::iterator it = toErase.begin(); it != toErase.end(); ++it){
+        eraseTrackDataPages(*it);
+      }
     }
   }
 
@@ -430,7 +436,7 @@ namespace Mist {
           metaPages[value].init(tempMetaName, 8388608, false, false);
         }
         //If this tracks metdata page is not initialize, skip the entire element for now. It will be instantiated later
-        if (!metaPages[value].mapped){
+        if (!metaPages[value].mapped) {
           //remove the negotiation if it has timed out
           if (++negotiationTimeout[value] >= 1000){
             negotiatingTracks.erase(value);
@@ -452,7 +458,7 @@ namespace Mist {
         //Construct a metadata object for the current track
         DTSC::Meta trackMeta(tempJSONForMeta);
         //If the track metadata does not contain the negotiated track, assume the metadata is currently being written, and skip the element for now. It will be instantiated in the next call.
-        if (!trackMeta.tracks.count(value)){
+        if (!trackMeta.tracks.count(value)) {
           //remove the negotiation if it has timed out
           if (++negotiationTimeout[value] >= 1000){
             negotiatingTracks.erase(value);
@@ -501,8 +507,8 @@ namespace Mist {
         /*LTS-END*/
         //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared")
         //or if the firstms of the replacement track is later than the lastms on the existing track
-        if (!myMeta.tracks.count(finalMap) || trackMeta.tracks.find(value)->second.keys.size() > 1 || trackMeta.tracks.find(value)->second.firstms >= myMeta.tracks[finalMap].lastms){
-          if (myMeta.tracks.count(finalMap) && myMeta.tracks[finalMap].lastms > 0){
+        if (!myMeta.tracks.count(finalMap) || trackMeta.tracks.find(value)->second.keys.size() > 1 || trackMeta.tracks.find(value)->second.firstms >= myMeta.tracks[finalMap].lastms) {
+          if (myMeta.tracks.count(finalMap) && myMeta.tracks[finalMap].lastms > 0) {
             INFO_MSG("Resume of track %lu detected, coming from temporary track %lu of user %u", finalMap, value, id);
           } else {
             INFO_MSG("New track detected, assigned track id %lu, coming from temporary track %lu of user %u", finalMap, value, id);
@@ -602,7 +608,7 @@ namespace Mist {
     //Otherwise open and parse the page
 
     //Open the page if it is not yet open
-    if (!curPageNum.count(tNum) || curPageNum[tNum] != pageNum){
+    if (!curPageNum.count(tNum) || curPageNum[tNum] != pageNum || !curPage[tNum].mapped){
       //DO NOT ERASE THE PAGE HERE, master is not set to true
       curPageNum.erase(tNum);
       char nextPageName[NAME_BUFFER_SIZE];
@@ -618,6 +624,10 @@ namespace Mist {
 
 
     DTSC::Packet tmpPack;
+    if (!curPage[tNum].mapped[pageData.curOffset]){
+      VERYHIGH_MSG("No packet on page %lu for track %lu, waiting...", pageNum, tNum);
+      return;
+    }
     tmpPack.reInit(curPage[tNum].mapped + pageData.curOffset, 0);
     //No new data has been written on the page since last update
     if (!tmpPack){
@@ -626,7 +636,6 @@ namespace Mist {
     lastUpdated[tNum] = Util::bootSecs();
     while (tmpPack){
       //Update the metadata with this packet
-      ///\todo Why is there an LTS tag here?
       myMeta.update(tmpPack, segmentSize);/*LTS*/
       //Set the first time when appropriate
       if (pageData.firstTime == 0){

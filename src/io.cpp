@@ -531,6 +531,9 @@ namespace Mist {
 
           INFO_MSG("Buffer has indicated that incoming track %lu should start writing on track %lu, page %lu", tid, finalTid, firstPage);
           trackMap[tid] = finalTid;
+          if (myMeta.tracks.count(finalTid) && myMeta.tracks[finalTid].lastms){
+            myMeta.tracks[finalTid].lastms = 0;
+          }
           trackState[tid] = FILL_ACC;
           char pageName[NAME_BUFFER_SIZE];
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), finalTid);

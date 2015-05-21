@@ -5,6 +5,7 @@
 #include "socket.h"
 #include "dtsc.h"
 #include "json.h"
+#include "amf.h"
 #include <string>
 
 
@@ -52,7 +53,7 @@ namespace FLV {
       bool DTSCAudioInit(DTSC::Track & audio);
       bool DTSCMetaInit(DTSC::Meta & M, std::set<long unsigned int> & selTracks);
       bool DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Track & audioRef);
-      JSON::Value toJSON(DTSC::Meta & metadata);
+      JSON::Value toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, unsigned int reTrack = 0);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool FileLoader(FILE * f);
     protected:

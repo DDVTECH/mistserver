@@ -1,7 +1,6 @@
 /// \file flv_tag.cpp
 /// Holds all code for the FLV namespace.
 
-#include "amf.h"
 #include "rtmpchunks.h"
 #include "flv_tag.h"
 #include "timing.h"
@@ -1033,8 +1032,17 @@ bool FLV::Tag::FileLoader(FILE * f) {
   return false;
 } //FLV_GetPacket
 
-JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata) {
+JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, unsigned int reTrack) {
   JSON::Value pack_out; // Storage for outgoing metadata.
+
+  if (!reTrack){
+    switch (data[0]){
+      case 0x09: reTrack = 1; break;//video
+      case 0x08: reTrack = 2; break;//audio
+      case 0x12: reTrack = 3; break;//meta
+    }
+  }
+  pack_out["trackid"] = reTrack;
 
   if (data[0] == 0x12) {
     AMF::Object meta_in = AMF::parse((unsigned char *)data + 11, len - 15);
@@ -1047,126 +1055,97 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata) {
       }
     }
     if (tmp) {
-      if (tmp->getContentP("width")) {
-        metadata.tracks[1].width = (long long int)tmp->getContentP("width")->NumValue();
-      } else {
-        metadata.tracks[1].width = 0;
-      }
-      if (tmp->getContentP("height")) {
-        metadata.tracks[1].height = (long long int)tmp->getContentP("height")->NumValue();
-      } else {
-        metadata.tracks[1].height = 0;
-      }
-      if (tmp->getContentP("videoframerate")) {
-        if (tmp->getContentP("videoframerate")->NumValue()){
-          metadata.tracks[1].fpks = (long long int)(tmp->getContentP("videoframerate")->NumValue() * 1000.0);
-        }else{
-          metadata.tracks[1].fpks = JSON::Value(tmp->getContentP("videoframerate")->StrValue()).asInt() * 1000.0;
-        }
-      } else {
-        metadata.tracks[1].fpks = 0;
-      }
-      if (tmp->getContentP("videodatarate")) {
-        metadata.tracks[1].bps = (long long int)(tmp->getContentP("videodatarate")->NumValue() * 1024) / 8;
-      } else {
-        metadata.tracks[1].bps = 0;
-      }
-      if (tmp->getContentP("audiodatarate")) {
-        metadata.tracks[2].bps = (long long int)(tmp->getContentP("audiodatarate")->NumValue() * 1024) / 8;
-      } else {
-        metadata.tracks[2].bps = 0;
-      }
-      if (tmp->getContentP("audiosamplerate")) {
-        metadata.tracks[2].rate = (long long int)tmp->getContentP("audiosamplerate")->NumValue();
-      } else {
-        metadata.tracks[2].rate = 0;
-      }
-      if (tmp->getContentP("audiosamplesize")) {
-        metadata.tracks[2].size = (long long int)tmp->getContentP("audiosamplesize")->NumValue();
-      } else {
-        metadata.tracks[2].size = 0;
-      }
-      if (tmp->getContentP("stereo")) {
-        if (tmp->getContentP("stereo")->NumValue() == 1) {
-          metadata.tracks[2].channels = 2;
-        } else {
-          metadata.tracks[2].channels = 1;
-        }
-      } else {
-        metadata.tracks[2].channels = 1;
-      }
+      amf_storage = *tmp;
+      bool empty = true;
       for (int i = 0; i < tmp->hasContent(); ++i) {
         if (tmp->getContentP(i)->Indice() == "videocodecid" || tmp->getContentP(i)->Indice() == "audiocodecid" || tmp->getContentP(i)->Indice() == "width" || tmp->getContentP(i)->Indice() == "height" || tmp->getContentP(i)->Indice() == "videodatarate" || tmp->getContentP(i)->Indice() == "videoframerate" || tmp->getContentP(i)->Indice() == "audiodatarate" || tmp->getContentP(i)->Indice() == "audiosamplerate" || tmp->getContentP(i)->Indice() == "audiosamplesize" || tmp->getContentP(i)->Indice() == "audiochannels") {
           continue;
         }
         if (tmp->getContentP(i)->NumValue()) {
           pack_out["data"][tmp->getContentP(i)->Indice()] = (long long)tmp->getContentP(i)->NumValue();
+          empty = false;
         } else {
           if (tmp->getContentP(i)->StrValue() != "") {
             pack_out["data"][tmp->getContentP(i)->Indice()] = tmp->getContentP(i)->StrValue();
+            empty = false;
           }
         }
       }
-      if (pack_out) {
+      if (!empty) {
         pack_out["datatype"] = "meta";
         pack_out["time"] = tagTime();
+      }else{
+        pack_out.null();
       }
     }
     return pack_out; //empty
   }
   if (data[0] == 0x08) {
     char audiodata = data[11];
-    metadata.tracks[2].trackID = 2;
-    metadata.tracks[2].type = "audio";
-    if (metadata.tracks[2].codec == "") {
-      metadata.tracks[2].codec = getAudioCodec();
+    metadata.tracks[reTrack].trackID = reTrack;
+    metadata.tracks[reTrack].type = "audio";
+    if (metadata.tracks[reTrack].codec == "") {
+      metadata.tracks[reTrack].codec = getAudioCodec();
     }
-    if (!metadata.tracks[2].rate) {
+    if (!metadata.tracks[reTrack].rate) {
       switch (audiodata & 0x0C) {
         case 0x0:
-          metadata.tracks[2].rate = 5512;
+          metadata.tracks[reTrack].rate = 5512;
           break;
         case 0x4:
-          metadata.tracks[2].rate = 11025;
+          metadata.tracks[reTrack].rate = 11025;
           break;
         case 0x8:
-          metadata.tracks[2].rate = 22050;
+          metadata.tracks[reTrack].rate = 22050;
           break;
         case 0xC:
-          metadata.tracks[2].rate = 44100;
+          metadata.tracks[reTrack].rate = 44100;
           break;
       }
+      if (amf_storage.getContentP("audiosamplerate")) {
+        metadata.tracks[reTrack].rate = (long long int)amf_storage.getContentP("audiosamplerate")->NumValue();
+      }
     }
-    if (!metadata.tracks[2].size) {
+    if (!metadata.tracks[reTrack].size) {
       switch (audiodata & 0x02) {
         case 0x0:
-          metadata.tracks[2].size = 8;
+          metadata.tracks[reTrack].size = 8;
           break;
         case 0x2:
-          metadata.tracks[2].size = 16;
+          metadata.tracks[reTrack].size = 16;
           break;
       }
+      if (amf_storage.getContentP("audiosamplesize")) {
+        metadata.tracks[reTrack].size = (long long int)amf_storage.getContentP("audiosamplesize")->NumValue();
+      }
     }
-    if (!metadata.tracks[2].channels) {
+    if (!metadata.tracks[reTrack].channels) {
       switch (audiodata & 0x01) {
         case 0x0:
-          metadata.tracks[2].channels = 1;
+          metadata.tracks[reTrack].channels = 1;
           break;
         case 0x1:
-          metadata.tracks[2].channels = 2;
+          metadata.tracks[reTrack].channels = 2;
           break;
+      }
+      if (amf_storage.getContentP("stereo")) {
+        if (amf_storage.getContentP("stereo")->NumValue() == 1) {
+          metadata.tracks[reTrack].channels = 2;
+        } else {
+          metadata.tracks[reTrack].channels = 1;
+        }
       }
     }
     if (needsInitData() && isInitData()) {
       if ((audiodata & 0xF0) == 0xA0) {
-        metadata.tracks[2].init = std::string((char *)data + 13, (size_t)len - 17);
+        metadata.tracks[reTrack].init = std::string((char *)data + 13, (size_t)len - 17);
       } else {
-        metadata.tracks[2].init = std::string((char *)data + 12, (size_t)len - 16);
+        metadata.tracks[reTrack].init = std::string((char *)data + 12, (size_t)len - 16);
       }
+      pack_out.null();
       return pack_out; //skip rest of parsing, get next tag.
     }
     pack_out["time"] = tagTime();
-    pack_out["trackid"] = 2;
     if ((audiodata & 0xF0) == 0xA0) {
       if (len < 18) {
         return JSON::Value();
@@ -1182,36 +1161,43 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata) {
   }
   if (data[0] == 0x09) {
     char videodata = data[11];
-    if (metadata.tracks[1].codec == "") {
-      metadata.tracks[1].codec = getVideoCodec();
+    if (metadata.tracks[reTrack].codec == "") {
+      metadata.tracks[reTrack].codec = getVideoCodec();
     }
-    metadata.tracks[1].type = "video";
-    metadata.tracks[1].trackID = 1;
+    metadata.tracks[reTrack].type = "video";
+    metadata.tracks[reTrack].trackID = reTrack;
+    if (!metadata.tracks[reTrack].width || !metadata.tracks[reTrack].height){
+      if (amf_storage.getContentP("width")) {
+        metadata.tracks[reTrack].width = (long long int)amf_storage.getContentP("width")->NumValue();
+      }
+      if (amf_storage.getContentP("height")) {
+        metadata.tracks[reTrack].height = (long long int)amf_storage.getContentP("height")->NumValue();
+      }
+    }
+    if (!metadata.tracks[reTrack].fpks && amf_storage.getContentP("videoframerate")) {
+      if (amf_storage.getContentP("videoframerate")->NumValue()){
+        metadata.tracks[reTrack].fpks = (long long int)(amf_storage.getContentP("videoframerate")->NumValue() * 1000.0);
+      }else{
+        metadata.tracks[reTrack].fpks = JSON::Value(amf_storage.getContentP("videoframerate")->StrValue()).asInt() * 1000.0;
+      }
+    }
     if (needsInitData() && isInitData()) {
       if ((videodata & 0x0F) == 7) {
         if (len < 21) {
           return JSON::Value();
         }
-        metadata.tracks[1].init = std::string((char *)data + 16, (size_t)len - 20);
+        metadata.tracks[reTrack].init = std::string((char *)data + 16, (size_t)len - 20);
       } else {
         if (len < 17) {
           return JSON::Value();
         }
-        metadata.tracks[1].init = std::string((char *)data + 12, (size_t)len - 16);
+        metadata.tracks[reTrack].init = std::string((char *)data + 12, (size_t)len - 16);
       }
+      pack_out.null();
       return pack_out; //skip rest of parsing, get next tag.
     }
-    pack_out["trackid"] = 1;
     switch (videodata & 0xF0) {
       case 0x10:
-        pack_out["keyframe"] = 1;
-        break;
-      case 0x20:
-        pack_out["interframe"] = 1;
-        break;
-      case 0x30:
-        pack_out["disposableframe"] = 1;
-        break;
       case 0x40:
         pack_out["keyframe"] = 1;
         break;

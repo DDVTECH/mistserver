@@ -6,19 +6,6 @@
 
 namespace Mist {
 
-  class pushData {
-    public:
-      DTSC::Meta meta;
-      bool sending;
-      int counter;
-      std::deque<JSON::Value> preBuf;
-      pushData(){
-        sending = false;
-        counter = 0;
-      }
-  };
-
-
  class OutRTMP : public Output {
     public:
       OutRTMP(Socket::Connection & conn);
@@ -33,7 +20,6 @@ namespace Mist {
       void parseChunk(Socket::Buffer & inputBuffer);
       void parseAMFCommand(AMF::Object & amfData, int messageType, int streamId);
       void sendCommand(AMF::Object & amfReply, int messageType, int streamId);
-      std::map<unsigned int, pushData> pushes;
   };
 }
 

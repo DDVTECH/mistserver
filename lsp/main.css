@@ -323,6 +323,10 @@ select option[disabled] {
 .input_container label.active .ih_balloon,
 .input_container > .help_container .ih_balloon {
   display: block;
+  z-index: 1;
+}
+.input_container label.active .err_balloon {
+  z-index: 1;
 }
 .err_balloon ~ .ih_balloon {
   display: none !important;
@@ -695,6 +699,26 @@ body:not(.helpme) .input_container .ih_balloon {
 }
 .qr_container .qrcode {
   flex-grow: 1;
+}
+
+.preview_icons {
+  display: flex;
+  flex-flow: row wrap;
+}
+.preview_icons > * {
+  margin: 0.1em;
+  flex-grow: 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: center;
+}
+.preview_icons > * > * {
+  min-width: 0;
+  width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 @font-face {

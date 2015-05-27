@@ -844,6 +844,16 @@ var UI = {
                       classes: ['red']
                     };
                   }
+                  //check for duplicate stream names
+                  if (val in mist.data.streams) {
+                    //check that we're not simply editing the stream
+                    if ($(me).data('pointer').main.name != val) {
+                      return {
+                        msg: 'This streamname already exists.<br>If you want to edit an existing stream, please click edit on the the streams tab.',
+                        classes: ['red']
+                      };
+                    }
+                  }
                 };
                 break;
               default:
@@ -2367,24 +2377,31 @@ var UI = {
               );
             }
             
-            var streamnamelabel = $('<span>').text(streamname);
+            var $streamnamelabel = $('<span>').text(streamname);
             if (stream.ischild) {
-              streamnamelabel.css('padding-left','1em');
+              $streamnamelabel.css('padding-left','1em');
+            }
+            var $online = UI.format.status(stream);
+            var $preview = $('<button>').text('Preview').click(function(){
+              UI.navto('Preview',$(this).closest('tr').data('index'));
+            });
+            if (stream.filesfound) {
+              $online.html('');
+              $preview = '';
+              $viewers.html('');
             }
             $tbody.append(
               $('<tr>').data('index',streamname).html(
-                $('<td>').html(streamnamelabel).attr('title',streamname).addClass('overflow_ellipsis')
+                $('<td>').html($streamnamelabel).attr('title',streamname).addClass('overflow_ellipsis')
               ).append(
                 $('<td>').text(stream.source).attr('title',stream.source).addClass('description').addClass('overflow_ellipsis').css('max-width','20em')
               ).append(
-                $('<td>').data('sort-value',stream.online).html(UI.format.status(stream))
+                $('<td>').data('sort-value',stream.online).html($online)
               ).append(
                 $viewers
               ).append(
                 $('<td>').html(
-                  $('<button>').text('Preview').click(function(){
-                    UI.navto('Preview',$(this).closest('tr').data('index'));
-                  })
+                  $preview
                 )
               ).append(
                 $buttons
@@ -2404,6 +2421,7 @@ var UI = {
             });
           }
           mist.send(function(){
+            $.extend(true,allstreams,mist.data.streams);
             buildStreamTable();
           },{
             totals: totals,
@@ -2442,6 +2460,12 @@ var UI = {
                       allstreams[streamname].source = mist.data.streams[s].source+d.browse.files[i];
                     }
                   }
+                }
+                if (d.browse.files.length) {
+                  allstreams[s].filesfound = true;
+                }
+                else {
+                  mist.data.streams[s].filesfound = false;
                 }
                 browsecomplete++;
                 if (browserequests == browsecomplete) {
@@ -2529,7 +2553,7 @@ var UI = {
               main: saveas,
               index: 'source'
             },
-            help: 'Set the stream source.<br>VoD: You can browse to the file or folder as a source or simply enter the path to the file.<br>Live: You???ll need to enter "push://IP" with the IP of the machine pushing towards MistServer. You can use "push://" to accept any source.<br>Pro only: use "push://(IP)@password" to set a password protection for pushes.<br>If you\'re unsure how to set the source properly please view our Live pushing guide at the tools section.',
+            help: 'Set the stream source.<table><tr><td>VoD:</td><td>You can browse to the file or folder as a source or simply enter the path to the file.</td></tr><tr><td>Live:</td><td>You\'ll need to enter "push://IP" with the IP of the machine pushing towards MistServer.<br>You can use "push://" to accept any source.</td></tr><tr><td>(Pro only)</td><td>Use "push://(IP)@password" to set a password protection for pushes.</td></tr></table>If you\'re unsure how to set the source properly, please view our Live pushing guide at the tools section.',
             'function': function(){
               var source = $(this).val();
               var type = null;
@@ -2542,9 +2566,9 @@ var UI = {
               }
               if (type === null) {
                 $inputoptions.html(
-                  $('<h3>').text('Unrecognized input')
+                  $('<h3>').text('Unrecognized input').addClass('red')
                 ).append(
-                  $('<span>').text('Please edit the stream source.')
+                  $('<span>').text('Please edit the stream source.').addClass('red')
                 );
                 return;
               }
@@ -2630,8 +2654,11 @@ var UI = {
                     send.streams = mist.data.streams;
                   }
                   mist.send(function(){
+                    delete mist.data.streams[saveas.name].online;
+                    delete mist.data.streams[saveas.name].error;
                     UI.navto('Streams');
-                  },send)
+                  },send);
+                  
                 }
               }
             ]
@@ -2682,7 +2709,32 @@ var UI = {
               $('<a>').addClass('button').addClass('active').text('Choose stream').click(function(){
                 UI.navto('Preview');
               })
-            )
+            );
+            
+            var $shortcuts = $('<div>').addClass('preview_icons');
+            $main.append(
+              $('<span>').addClass('description').text('Or, click a stream from the list below.')
+            ).append($shortcuts);
+            for (var i in select) {
+              var streamname = select[i];
+              var source = '';
+              if (streamname.indexOf('+') > -1) {
+                var streambits = streamname.split('+');
+                source = mist.data.streams[streambits[0]].source+streambits[1];
+              }
+              else {
+                source = mist.data.streams[streamname].source;
+              }
+              $shortcuts.append(
+                $('<button>').append(
+                  $('<span>').text(streamname)
+                ).append(
+                  $('<span>').addClass('description').text(source)
+                ).attr('title',streamname).attr('data-stream',streamname).click(function(){
+                  UI.navto('Preview',$(this).attr('data-stream'));
+                })
+              );
+            }
           }
           
           if (mist.data.LTS) {

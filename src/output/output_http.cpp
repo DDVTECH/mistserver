@@ -57,6 +57,8 @@ namespace Mist {
         streamname = url.substr(found, found_suf - found);
         return true;
       }
+    }else{
+      return (url.substr(0, m.size()) == m);
     }
     return false;
   }

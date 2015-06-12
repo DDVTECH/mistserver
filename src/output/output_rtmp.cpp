@@ -401,6 +401,16 @@ namespace Mist {
       myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       return;
     } //createStream
+    if (amfData.getContentP(0)->StrValue() == "ping") {
+      //send a _result reply
+      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+      amfReply.addContent(AMF::Object("", "_result")); //result success
+      amfReply.addContent(amfData.getContent(1)); //same transaction ID
+      amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+      amfReply.addContent(AMF::Object("", "Pong!")); //stream ID - we use 1
+      sendCommand(amfReply, messageType, streamId);
+      return;
+    } //createStream
     if ((amfData.getContentP(0)->StrValue() == "closeStream") || (amfData.getContentP(0)->StrValue() == "deleteStream")) {
       stop();
       return;
@@ -409,15 +419,28 @@ namespace Mist {
       // ignored
       return;
     }
+    if ((amfData.getContentP(0)->StrValue() == "FCSubscribe")) {
+      //send a FCPublish reply
+      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+      amfReply.addContent(AMF::Object("", "onFCSubscribe")); //status reply
+      amfReply.addContent(amfData.getContent(1)); //same transaction ID
+      amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+      amfReply.addContent(AMF::Object("")); //info
+      amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Start"));
+      amfReply.getContentP(3)->addContent(AMF::Object("level", "status"));
+      amfReply.getContentP(3)->addContent(AMF::Object("description", "Please follow up with play or publish command, as we ignore this command."));
+      sendCommand(amfReply, messageType, streamId);
+      return;
+    } //FCPublish
     if ((amfData.getContentP(0)->StrValue() == "FCPublish")) {
-      //send a FCPublic reply
+      //send a FCPublish reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
       amfReply.addContent(AMF::Object("", "onFCPublish")); //status reply
-      amfReply.addContent(AMF::Object("", 0, AMF::AMF0_NUMBER)); //same transaction ID
+      amfReply.addContent(amfData.getContent(1)); //same transaction ID
       amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
       amfReply.addContent(AMF::Object("")); //info
       amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Start"));
-      amfReply.getContentP(3)->addContent(AMF::Object("description", "Please followup with publish command..."));
+      amfReply.getContentP(3)->addContent(AMF::Object("description", "Please follow up with publish command, as we ignore this command."));
       sendCommand(amfReply, messageType, streamId);
       return;
     } //FCPublish
@@ -696,6 +719,13 @@ namespace Mist {
 #if DEBUG >= 2
     fprintf(stderr, "AMF0 command not processed!\n%s\n", amfData.Print().c_str());
 #endif
+    //send a _result reply
+    AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+    amfReply.addContent(AMF::Object("", "_error")); //result success
+    amfReply.addContent(amfData.getContent(1)); //same transaction ID
+    amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+    amfReply.addContent(AMF::Object("Command not implemented or recognized", "")); //stream ID?
+    sendCommand(amfReply, messageType, streamId);
   } //parseAMFCommand
 
   ///\brief Gets and parses one RTMP chunk at a time.

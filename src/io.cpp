@@ -91,19 +91,22 @@ namespace Mist {
     //Initialize the bookkeeping entry, and set the current offset to 0, to allow for using it in bufferNext()
     pagesByTrack[tid][pageNumber].curOffset = 0;
 
-    //Register this page on the meta page
-    bool inserted = false;
-    for (int i = 0; i < 1024; i++) {
-      int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
-      if ((tmpOffset[0] == 0 && tmpOffset[1] == 0)) {
-        tmpOffset[0] = htonl(curPageNum[tid]);
-        if (pagesByTrack[tid][pageNumber].dataSize == (25 * 1024 * 1024)){
-          tmpOffset[1] = htonl(1000);
-        } else {
-          tmpOffset[1] = htonl(pagesByTrack[tid][pageNumber].keyNum);
+    if (myMeta.live){
+      //Register this page on the meta page
+      //NOTE: It is important that this only happens if the stream is live....
+      bool inserted = false;
+      for (int i = 0; i < 1024; i++) {
+        int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
+        if ((tmpOffset[0] == 0 && tmpOffset[1] == 0)) {
+          tmpOffset[0] = htonl(curPageNum[tid]);
+          if (pagesByTrack[tid][pageNumber].dataSize == (25 * 1024 * 1024)){
+            tmpOffset[1] = htonl(1000);
+          } else {
+            tmpOffset[1] = htonl(pagesByTrack[tid][pageNumber].keyNum);
+          }
+          inserted = true;
+          break;
         }
-        inserted = true;
-        break;
       }
     }
 
@@ -263,16 +266,26 @@ namespace Mist {
     for (int i = 0; i < 1024; i++) {
       int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
       int keyNum = ntohl(tmpOffset[0]);
+      int keyAmount = ntohl(tmpOffset[1]);
+      if (!inserted){
+        if (myMeta.live){
+          if(keyNum == curPageNum[tid] && keyAmount == 1000){
+            tmpOffset[1] = htonl(pagesByTrack[tid][curPageNum[tid]].keyNum);
+            inserted = true;
+          }
+        }else{
+          //in case of vod, insert at the first "empty" spot
+          if(keyNum == 0){
+            tmpOffset[0] = htonl(curPageNum[tid]);
+            tmpOffset[1] = htonl(pagesByTrack[tid][curPageNum[tid]].keyNum);
+            inserted = true;
+          }
+        }
+      }
+      keyNum = ntohl(tmpOffset[0]);
       if (!keyNum) continue;
       if (!lowest || keyNum < lowest){
         lowest = keyNum;
-      }
-      int keyAmount = ntohl(tmpOffset[1]);
-      if (!inserted && keyNum == curPageNum[tid]){
-        if (keyAmount == 1000){
-          tmpOffset[1] = htonl(pagesByTrack[tid][curPageNum[tid]].keyNum);
-        }
-        inserted = true;
       }
     }
 

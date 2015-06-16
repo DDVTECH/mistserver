@@ -31,7 +31,7 @@ int main(int argc, char ** argv){
   
   IPC::sharedClient ** clients = (IPC::sharedClient **)malloc(sizeof(IPC::sharedClient *)*clientCount);
   for (long long i = 0; i < clientCount; i++){
-    clients[i] = new IPC::sharedClient("statistics", STAT_EX_SIZE, true);
+    clients[i] = new IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
   }
   
   unsigned long long int counter = 0;

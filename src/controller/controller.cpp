@@ -307,13 +307,13 @@ int main(int argc, char ** argv){
   //close stderr to make the stderr reading thread exit
   close(STDERR_FILENO);
   //write config
+  tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
+  Controller::Storage.removeMember("log");
+  for (JSON::ObjIter it = Controller::Storage["streams"].ObjBegin(); it != Controller::Storage["streams"].ObjEnd(); it++){
+    it->second.removeMember("meta");
+  }
   if ( !Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
     std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;
-    tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
-    Controller::Storage.removeMember("log");
-    for (JSON::ObjIter it = Controller::Storage["streams"].ObjBegin(); it != Controller::Storage["streams"].ObjEnd(); it++){
-      it->second.removeMember("meta");
-    }
     std::cerr << "**Config**" << std::endl;
     std::cerr << Controller::Storage.toString() << std::endl;
     std::cerr << "**End config**" << std::endl;
@@ -330,3 +330,4 @@ int main(int argc, char ** argv){
   /*LTS-END*/
   return 0;
 }
+

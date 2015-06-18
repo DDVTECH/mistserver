@@ -302,10 +302,6 @@ int main(int argc, char ** argv){
   statsThread.join();
   monitorThread.join();
   uplinkThread.join();/*LTS*/
-  //give everything some time to print messages
-  Util::wait(100);
-  //close stderr to make the stderr reading thread exit
-  close(STDERR_FILENO);
   //write config
   tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
   Controller::Storage.removeMember("log");
@@ -320,6 +316,10 @@ int main(int argc, char ** argv){
   }
   //stop all child processes
   Util::Procs::StopAll();
+  //give everything some time to print messages
+  Util::wait(100);
+  //close stderr to make the stderr reading thread exit
+  close(STDERR_FILENO);
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
   /*LTS-START*/
   if (Controller::restarting){

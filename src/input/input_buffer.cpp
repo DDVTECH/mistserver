@@ -74,7 +74,7 @@ namespace Mist {
     if (!metaPages.count(0) || !metaPages[0].mapped) {
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-      metaPages[0].init(pageName, 8 * 1024 * 1024, true);
+      metaPages[0].init(pageName, DEFAULT_META_PAGE_SIZE,  true);
       metaPages[0].master = false;
     }
     myMeta.writeTo(metaPages[0].mapped);

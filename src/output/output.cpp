@@ -560,8 +560,8 @@ namespace Mist {
     }
     nxt.offset += thisPacket.getDataLen();
     if (realTime){
-      while (nxt.time > (Util::getMS() - firstTime + maxSkipAhead)*1000/realTime) {
-        Util::sleep(nxt.time - (Util::getMS() - firstTime + minSkipAhead)*1000/realTime);
+      while (nxt.time > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime) {
+        Util::sleep(nxt.time - (((Util::getMS() - firstTime)*1000)+minSkipAhead)/realTime);
       }
     }
     if (curPage[nxt.tid]){

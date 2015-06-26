@@ -320,8 +320,10 @@ namespace Mist {
   
   
   bool Input::bufferFrame(unsigned int track, unsigned int keyNum){
-    if (keyNum >= myMeta.tracks[track].keys.size()){
+    VERYHIGH_MSG("bufferFrame for stream %s, track %u, key %u", streamName.c_str(), track, keyNum);
+    if (keyNum > myMeta.tracks[track].keys.size()){
       //End of movie here, returning true to avoid various error messages
+      VERYHIGH_MSG("Key number is higher than total key count. Cancelling bufferFrame"); 
       return true;
     }
     if (keyNum < 1){keyNum = 1;}
@@ -336,15 +338,18 @@ namespace Mist {
         }
       }
       pageCounter[track][pageNumber] = 15;
+      VERYHIGH_MSG("Key %u is already buffered in page %n. Cancelling bufferFrame", keyNum, pageNumber); 
       return true;
     }
     if (!pagesByTrack.count(track)){
+      WARN_MSG("No pages for track %u found! Cancelling bufferFrame", track); 
       return false;
     }
     //Update keynum to point to the corresponding page
     INFO_MSG("Updating keynum %u to %lu", keyNum, (--(pagesByTrack[track].upper_bound(keyNum)))->first);
     keyNum = (--(pagesByTrack[track].upper_bound(keyNum)))->first;
     if (!bufferStart(track, keyNum)){
+      WARN_MSG("bufferStart failed! Cancelling bufferFrame", track); 
       return false;
     }
 

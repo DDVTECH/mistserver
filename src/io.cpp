@@ -6,6 +6,7 @@ namespace Mist {
   ///
   ///Assumes myMeta contains the metadata to write.
   void InOutBase::initiateMeta() {
+    VERYHIGH_MSG("initiateMeta for stream %s", streamName.c_str());
     //Open the page for the metadata
     char pageName[NAME_BUFFER_SIZE];
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
@@ -25,6 +26,7 @@ namespace Mist {
   ///\param tid The trackid of the page to start buffering
   ///\param pageNumber The number of the page to start buffering
   bool InOutBase::bufferStart(unsigned long tid, unsigned long pageNumber) {
+    VERYHIGH_MSG("bufferStart for stream %s, track %lu, page %lu", streamName.c_str(), tid, pageNumber);
     //Initialize the stream metadata if it does not yet exist
     if (!metaPages.count(0)) {
       initiateMeta();

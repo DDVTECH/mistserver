@@ -1,5 +1,6 @@
 /// \file timing.h
 /// Utilities for handling time and timestamps.
+#include <string>
 
 #pragma once
 
@@ -12,4 +13,5 @@ namespace Util {
   long long unsigned int getMicros(long long unsigned int previous);///<Gets the time difference in microseconds.
   long long int getNTP();
   long long int epoch(); ///< Gets the amount of seconds since 01/01/1970.
+  std::string getUTCString();
 }

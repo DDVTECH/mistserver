@@ -27,6 +27,9 @@ namespace Mist {
       void parseRange(std::string header, long long & byteStart, long long & byteEnd);
       int getKeyFromRange(unsigned int tid, long long int byteStart);
       std::map<int,std::string> moovBoxes;
+
+      std::string h264init(const std::string & initData);
+      std::string h265init(const std::string & initData);
   };
 }
 

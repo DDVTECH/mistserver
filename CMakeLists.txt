@@ -64,7 +64,7 @@ endif()
 ########################################
 # Build Variables - Shared Memory      #
 ########################################
-if (NOT DEFINED ${NOSHM} )
+if (NOT DEFINED NOSHM )
   add_definitions(-DSHM_ENABLED=1)
 endif()
 
@@ -89,8 +89,15 @@ endif()
 ########################################
 # Build Variables - Thread Names       #
 ########################################
-if (DEFINED ${WITH_THREADNAMES} )
+if (DEFINED WITH_THREADNAMES )
   add_definitions(-DWITH_THREADNAMES=1)
+endif()
+
+########################################
+# Build Variables - No Crash Check     #
+########################################
+if (DEFINED NOCRASHCHECK )
+  add_definitions(-DNOCRASHCHECK=1)
 endif()
 
 ########################################

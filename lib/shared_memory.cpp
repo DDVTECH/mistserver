@@ -772,6 +772,7 @@ namespace IPC {
                 DEBUG_MSG(DLVL_WARN, "Client %u disconnect timed out", id);
                 break;
               default:
+                #ifndef NOCRASHCHECK
                 if(*counter > 10 && *counter < 126 ){
                   if(*counter < 30){
                     if (*counter > 15){
@@ -783,6 +784,7 @@ namespace IPC {
                     Util::Procs::Murder(tmpPID); //improved kill      
                   }
                 }
+                #endif
                 break;
             }
             if (*counter == 127 || *counter == 126 || *counter == 255 || *counter == 254) {

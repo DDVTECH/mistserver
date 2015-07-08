@@ -53,7 +53,11 @@ void Util::sanitizeName(std::string & streamname) {
   if(index != std::string::npos){
     std::string preplus = streamname.substr(0,index);
     sanitizeName(preplus);
-    streamname = preplus+"+"+streamname.substr(index+1);
+    std::string postplus = streamname.substr(index+1);
+    if (postplus.find('?') != std::string::npos){
+      postplus = postplus.substr(0, (postplus.find('?')));
+    }
+    streamname = preplus+"+"+postplus;
     return;
   }
   for (std::string::iterator i = streamname.end() - 1; i >= streamname.begin(); --i) {

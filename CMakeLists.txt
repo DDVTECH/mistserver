@@ -73,16 +73,16 @@ if (NOT DEFINED FILLER_DATA OR NOT DEFINED SHARED_SECRET OR NOT DEFINED SUPER_SE
   message(WARNING "Not all LTS variables have been set and this is an LTS build - are you sure about this?")#LTS
 endif()#LTS
 add_definitions(-DFILLER_DATA="${FILLER_DATA}" -DSHARED_SECRET="${SHARED_SECRET}" -DSUPER_SECRET="${SUPER_SECRET}")#LTS
-if (DEFINED ${GEOIP} )
+if (DEFINED GEOIP )
   add_definitions(-DGEOIP=1)
 endif()
-if (NOT DEFINED ${NOUPDATE} )
+if (NOT DEFINED NOUPDATE )
   add_definitions(-DUPDATER=1)
 endif()
-if (DEFINED ${NOAUTH} )
+if (DEFINED NOAUTH )
   add_definitions(-DNOAUTH=1)
 endif()
-if (DEFINED ${KILLONEXIT} )
+if (DEFINED KILLONEXIT )
   add_definitions(-DKILLONEXIT=true)
 endif()
 

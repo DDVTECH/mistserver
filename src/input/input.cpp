@@ -338,7 +338,7 @@ namespace Mist {
         }
       }
       pageCounter[track][pageNumber] = 15;
-      VERYHIGH_MSG("Key %u is already buffered in page %n. Cancelling bufferFrame", keyNum, pageNumber); 
+      VERYHIGH_MSG("Key %u is already buffered in page %d. Cancelling bufferFrame", keyNum, pageNumber); 
       return true;
     }
     if (!pagesByTrack.count(track)){

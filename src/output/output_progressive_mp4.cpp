@@ -490,6 +490,16 @@ namespace Mist {
       maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;
       minSkipAhead = maxSkipAhead - std::min(2500u, maxSkipAhead / 2);
     }
+    //allow setting of play back rate through buffer variable.
+    //play back rate is set in MS per second, but the variable is a simple multiplier.
+    if (H.GetVar("rate") != ""){
+      long long int multiplier = JSON::Value(H.GetVar("rate")).asInt();
+      if (multiplier){
+        realTime = 1000 / multiplier;
+      }else{
+        realTime = 0;
+      }
+    }
     /*LTS-END*/
     initialize();
     parseData = true;

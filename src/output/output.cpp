@@ -286,15 +286,15 @@ namespace Mist {
       currKeyOpen.erase(trackId);
       return;
     }
-    DEBUG_MSG(DLVL_HIGH, "Loading track %lu, containing key %lld", trackId, keyNum);
+    DEBUG_MSG(DLVL_VERYHIGH, "Loading track %lu, containing key %lld", trackId, keyNum);
     unsigned int timeout = 0;
     unsigned long pageNum = pageNumForKey(trackId, keyNum);
     while (pageNum == -1){
       if (!timeout){
-        DEBUG_MSG(DLVL_VERYHIGH, "Requesting page with key %lu:%lld", trackId, keyNum);
+        DEBUG_MSG(DLVL_HIGH, "Requesting page with key %lu:%lld", trackId, keyNum);
       }
       if (timeout++ > 100){
-        DEBUG_MSG(DLVL_FAIL, "Timeout while waiting for requested page. Aborting.");
+        DEBUG_MSG(DLVL_FAIL, "Timeout while waiting for requested page %lld for track %lu. Aborting.", keyNum, trackId);
         curPage.erase(trackId);
         currKeyOpen.erase(trackId);
         return;
@@ -305,7 +305,7 @@ namespace Mist {
         nxtKeyNum[trackId] = 0;
       }
       stats();
-      Util::sleep(100);
+      Util::wait(100);
       pageNum = pageNumForKey(trackId, keyNum);
     }
     

@@ -96,14 +96,26 @@ namespace Mist {
     if (streamName.size() < 1){
       return; //abort - no stream to initialize...
     }
+    isInitialized = true;
+    reconnect();
+    selectDefaultTracks();
+    sought = false;
+  }
+ 
+  /// Connects or reconnects to the stream.
+  /// Assumes streamName class member has been set already.
+  /// Will start input if not currently active, calls onFail() if this does not succeed.
+  /// After assuring stream is online, clears metaPages, then sets metaPages[0], statsPage and userClient to (hopefully) valid handles.
+  /// Finally, calls updateMeta()
+  void Output::reconnect(){
     if (!Util::startInput(streamName)){
       DEBUG_MSG(DLVL_FAIL, "Opening stream failed - aborting initalization");
       onFail();
       return;
     }
-    isInitialized = true;
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
+    metaPages.clear();
     metaPages[0].init(pageId, DEFAULT_META_PAGE_SIZE);
     if (!metaPages[0].mapped){
       DEBUG_MSG(DLVL_FAIL, "Could not connect to server for %s\n", streamName.c_str());
@@ -113,14 +125,10 @@ namespace Mist {
     statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    if (!userClient.getData()){
-      userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-    }
+    userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
     updateMeta();
-    selectDefaultTracks();
-    sought = false;
   }
-  
+
   void Output::selectDefaultTracks(){
     if (!isInitialized){
       initialize();
@@ -282,7 +290,13 @@ namespace Mist {
       if (!timeout){
         DEBUG_MSG(DLVL_HIGH, "Requesting page with key %lu:%lld", trackId, keyNum);
       }
-      if (timeout++ > 100){
+      ++timeout;
+      //if we've been waiting for this page for 3 seconds, reconnect to the stream - something might be going wrong...
+      if (timeout == 30){
+        DEVEL_MSG("Loading is taking longer than usual, reconnecting to stream %s...", streamName.c_str());
+        reconnect();
+      }
+      if (timeout > 100){
         DEBUG_MSG(DLVL_FAIL, "Timeout while waiting for requested page %lld for track %lu. Aborting.", keyNum, trackId);
         curPage.erase(trackId);
         currKeyOpen.erase(trackId);

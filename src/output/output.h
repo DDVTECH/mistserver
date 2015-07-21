@@ -59,6 +59,7 @@ namespace Mist {
       virtual bool onFinish() {
         return false;
       }
+      void reconnect();
       virtual void initialize();
       virtual void sendHeader();
       virtual void onFail();

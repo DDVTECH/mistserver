@@ -97,7 +97,7 @@ namespace Mist {
       return; //abort - no stream to initialize...
     }
     if (!Util::startInput(streamName)){
-      DEBUG_MSG(DLVL_FAIL, "Opening stream disallowed - aborting initalization");
+      DEBUG_MSG(DLVL_FAIL, "Opening stream failed - aborting initalization");
       onFail();
       return;
     }

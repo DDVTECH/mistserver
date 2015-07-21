@@ -154,10 +154,10 @@ namespace Mist {
         }
       }
       
-      DEBUG_MSG(DLVL_DONTEVEN,"Pre-While");
+      DEBUG_MSG(DLVL_DEVEL,"Input for stream %s started", streamName.c_str());
       
       long long int activityCounter = Util::bootSecs();
-      while ((Util::bootSecs() - activityCounter) < 10){//10 second timeout
+      while ((Util::bootSecs() - activityCounter) < 10 && config->is_active){//10 second timeout
         Util::wait(1000);
         removeUnused();
         userPage.parseEach(callbackWrapper);
@@ -169,7 +169,7 @@ namespace Mist {
         }
       }
       finish();
-      DEBUG_MSG(DLVL_DEVEL,"Closing clean");
+      DEBUG_MSG(DLVL_DEVEL,"Input for stream %s closing clean", streamName.c_str());
       //end player functionality
     }
     return 0;

@@ -249,7 +249,7 @@ namespace Mist {
       
       H.Clean();
       H.SetHeader("Content-Type", "application/smil");
-      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver);
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
       H.SetBody("<smil>\n  <head>\n    <meta base='rtmp://" + host + ":" + port + url_rel + "' />\n  </head>\n  <body>\n    <switch>\n"+trackSources+"    </switch>\n  </body>\n</smil>");
       H.SendResponse("200", "OK", myConn);
@@ -264,7 +264,7 @@ namespace Mist {
         host.resize(host.find(':'));
       }
       H.Clean();
-      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
       if (rURL.substr(0, 6) != "/json_"){
         H.SetHeader("Content-Type", "application/javascript");
@@ -287,9 +287,9 @@ namespace Mist {
         configLock.post();
         //Stream metadata not found - attempt to start it
         if (Util::startInput(streamName)){
-          char streamPageName[NAME_BUFFER_SIZE];
-          snprintf(streamPageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-          streamIndex.init(streamPageName, DEFAULT_META_PAGE_SIZE);
+          char pageId[NAME_BUFFER_SIZE];
+          snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
+          streamIndex.init(pageId, DEFAULT_META_PAGE_SIZE);
           if (streamIndex.mapped){
             metaLock = true;
             metaLocker.wait();

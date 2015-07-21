@@ -9,22 +9,24 @@
 #include INPUTTYPE 
 #include <mist/config.h>
 #include <mist/defines.h>
+#include <mist/procs.h>
 
 int main(int argc, char * argv[]) {
   Util::Config conf(argv[0], PACKAGE_VERSION);
   mistIn conv(&conf);
   if (conf.parseArgs(argc, argv)) {
+    std::string streamName = conf.getString("streamname");
     IPC::semaphore playerLock;
-    if(conf.getString("streamname").size()){
-      playerLock.open(std::string("/lock_" + conf.getString("streamname")).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    if (streamName.size()){
+      playerLock.open(std::string("/lock_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!playerLock.tryWait()){
-        DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", conf.getString("streamname").c_str());
+        DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
         return 1;
       }
     }
     conf.activate();
     while (conf.is_active){
-      int pid = fork();
+      pid_t pid = fork();
       if (pid == 0){
         playerLock.close();
         return conv.run();
@@ -36,15 +38,23 @@ int main(int argc, char * argv[]) {
       }
       //wait for the process to exit
       int status;
-      while (waitpid(pid, &status, 0) != pid && errno == EINTR) continue;
+      while (waitpid(pid, &status, 0) != pid && errno == EINTR){
+        if (!conf.is_active){
+          DEBUG_MSG(DLVL_DEVEL, "Shutting down input for stream %s because of signal interrupt...", streamName.c_str());
+          Util::Procs::Stop(pid);
+        }
+        continue;
+      }
       //if the exit was clean, don't restart it
       if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
-        DEBUG_MSG(DLVL_MEDIUM, "Finished player succesfully");
+        DEBUG_MSG(DLVL_MEDIUM, "Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
       if (DEBUG >= DLVL_DEVEL){
-        DEBUG_MSG(DLVL_DEVEL, "Player exited with errors - stopping because this is a development build.");
+        DEBUG_MSG(DLVL_DEVEL, "Input for stream %s uncleanly shut down! Aborting restart; this is a development build.", streamName.c_str());
         break;
+      }else{
+        DEBUG_MSG(DLVL_DEVEL, "Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
       }
     }
     playerLock.post();
@@ -52,5 +62,4 @@ int main(int argc, char * argv[]) {
   }
   return 0;
 }
-
 

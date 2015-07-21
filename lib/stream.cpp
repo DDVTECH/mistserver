@@ -73,63 +73,86 @@ void Util::sanitizeName(std::string & streamname) {
   }
 }
 
-/// Starts a process for a VoD stream.
+/// Checks if the given streamname has an active input serving it. Returns true if this is the case.
+/// Assumes the streamname has already been through sanitizeName()!
+bool Util::streamAlive(std::string & streamname){
+  IPC::semaphore playerLock(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  if (!playerLock.tryWait()) {
+    playerLock.close();
+    return true;
+  }else{
+    playerLock.post();
+    playerLock.close();
+    return false;
+  }
+}
+
+/// Assures the input for the given stream name is active.
+/// Does stream name sanitizion first, followed by a stream name length check (<= 100 chars).
+/// Then, checks if an input is already active by running streamAlive(). If yes, aborts.
+/// If no, loads up the server configuration and attempts to start the given stream according to current config.
+/// At this point, fails and aborts if MistController isn't running.
 bool Util::startInput(std::string streamname, std::string filename, bool forkFirst) {
+  sanitizeName(streamname);
   if (streamname.size() > 100){
     FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
     return false;
   }
+  //Check if the stream is already active.
+  //If yes, don't activate again to prevent duplicate inputs.
+  //It's still possible a duplicate starts anyway, this is caught in the inputs initializer.
+  //Note: this uses the _whole_ stream name, including + (if any).
+  //This means "test+a" and "test+b" have separate locks and do not interact with each other.
+  if (streamAlive(streamname)){
+    DEBUG_MSG(DLVL_MEDIUM, "Stream %s already active; continuing", streamname.c_str());
+    return true;
+  }
+
+  //Attempt to load up configuration and find this stream
   IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
   IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  //Lock the config to prevent race conditions and corruption issues while reading
   configLock.wait();
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
-
+  //Abort if no config available
+  if (!config){
+    FAIL_MSG("Configuration not available, aborting! Is MistController running?");
+    configLock.post();//unlock the config semaphore
+    return false;
+  }
   /*LTS-START*/
   if (config.getMember("hardlimit_active")) {
     return false;
   }
   /*LTS-END*/
-  
-  sanitizeName(streamname);
+  //Find stream base name
   std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
-  //check if smp (everything before + or space) exists
+  //check if base name (everything before + or space) exists
   DTSC::Scan stream_cfg = config.getMember("streams").getMember(smp);
   if (!stream_cfg){
-    DEBUG_MSG(DLVL_MEDIUM, "Stream %s not configured", streamname.c_str());
-    configLock.post();//unlock the config semaphore
-    return false;
+    DEBUG_MSG(DLVL_HIGH, "Stream %s not configured - attempting to ignore", streamname.c_str());
   }
-
   /*LTS-START*/
-  if (stream_cfg.getMember("hardlimit_active")) {
+  if (stream_cfg && stream_cfg.getMember("hardlimit_active")) {
     return false;
   }
   /*LTS-END*/
 
   
-  //If starting without filename parameter, check if the stream is already active.
-  //If yes, don't activate again to prevent duplicate inputs.
-  //It's still possible a duplicate starts anyway, this is caught in the inputs initializer.
-  //Note: this uses the _whole_ stream name, including + (if any).
-  //This means "test+a" and "test+b" have separate locks and do not interact with each other.
+  //Only use configured source if not manually overridden. Abort if no config is available.
   if (!filename.size()){
-    IPC::semaphore playerLock(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    if (!playerLock.tryWait()) {
-      playerLock.close();
-      DEBUG_MSG(DLVL_MEDIUM, "Stream %s already active - not activating again", streamname.c_str());
+    if (!stream_cfg){
+      DEBUG_MSG(DLVL_MEDIUM, "Stream %s not configured, no source manually given, cannot start", streamname.c_str());
       configLock.post();//unlock the config semaphore
-      return true;
+      return false;
     }
-    playerLock.post();
-    playerLock.close();
     filename = stream_cfg.getMember("source").asString();
   }
   
-  
+  //check in curConf for capabilities-inputs-<naam>-priority/source_match
   std::string player_bin;
   bool selected = false;
   long long int curPrio = -1;
-  //check in curConf for capabilities-inputs-<naam>-priority/source_match
   DTSC::Scan inputs = config.getMember("capabilities").getMember("inputs");
   DTSC::Scan input;
   unsigned int input_size = inputs.getSize();

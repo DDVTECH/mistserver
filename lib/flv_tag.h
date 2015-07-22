@@ -56,6 +56,9 @@ namespace FLV {
       JSON::Value toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, unsigned int reTrack = 0);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool FileLoader(FILE * f);
+      unsigned int getTrackID();
+      char * getData();
+      unsigned int getDataLen();
     protected:
       int buf; ///< Maximum length of buffer space.
       bool done; ///< Body reading done?

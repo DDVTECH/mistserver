@@ -89,29 +89,26 @@ namespace Mist {
   }
   
   void inputFLV::getNext(bool smart) {
-    static JSON::Value thisPack;
-    static AMF::Object amf_storage;
-    thisPack.null();
     long long int lastBytePos = ftell(inFile);
     FLV::Tag tmpTag;
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
-        thisPack = tmpTag.toJSON(myMeta, amf_storage);
-        thisPack["bpos"] = lastBytePos;
-        if ( !selectedTracks.count(thisPack["trackid"].asInt())){
-          getNext();
+        if ( !selectedTracks.count(tmpTag.getTrackID())){
+          return getNext();
         }
         break;
       }
     }
-    if (FLV::Parse_Error){
-      FAIL_MSG("FLV error: %s", FLV::Error_Str.c_str());
-      thisPack.null();
+    if (feof(inFile)){
       thisPacket.null();
       return;
     }
-    std::string tmpStr = thisPack.toNetPacked();
-    thisPacket.reInit(tmpStr.data(), tmpStr.size());
+    if (FLV::Parse_Error){
+      FAIL_MSG("FLV error: %s", FLV::Error_Str.c_str());
+      thisPacket.null();
+      return;
+    }
+    thisPacket.genericFill(tmpTag.tagTime(), tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getData(), tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe); //init packet from tmpTags data
   }
 
   void inputFLV::seek(int seekTime) {

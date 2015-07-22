@@ -346,7 +346,7 @@ namespace Mist {
       return false;
     }
     //Update keynum to point to the corresponding page
-    INFO_MSG("Updating keynum %u to %lu", keyNum, (--(pagesByTrack[track].upper_bound(keyNum)))->first);
+    INFO_MSG("Loading key %u from page %lu", keyNum, (--(pagesByTrack[track].upper_bound(keyNum)))->first);
     keyNum = (--(pagesByTrack[track].upper_bound(keyNum)))->first;
     if (!bufferStart(track, keyNum)){
       WARN_MSG("bufferStart failed! Cancelling bufferFrame", track); 

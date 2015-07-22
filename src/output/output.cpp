@@ -133,7 +133,13 @@ namespace Mist {
       onFail();
       return;
     }
+    if (statsPage.getData()){
+      statsPage.finish();
+    }
     statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
+    if (userClient.getData()){
+      userClient.finish();
+    }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
     userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);

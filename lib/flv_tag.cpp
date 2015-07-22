@@ -1032,6 +1032,38 @@ bool FLV::Tag::FileLoader(FILE * f) {
   return false;
 } //FLV_GetPacket
 
+/// Returns 1 for video, 2 for audio, 3 for meta, 0 otherwise.
+unsigned int FLV::Tag::getTrackID(){
+  switch (data[0]){
+    case 0x08: return 2;//audio track
+    case 0x09: return 1;//video track
+    case 0x12: return 3;//meta track
+    default: return 0;
+  }
+}
+
+/// Returns a pointer to the raw media data for this packet.
+char * FLV::Tag::getData(){
+  if (data[0] == 0x08 && (data[11] & 0xF0) == 0xA0) {
+    return data+13;
+  }
+  if (data[0] == 0x09 && (data[11] & 0x0F) == 7) {
+    return data+16;
+  }
+  return data+12;
+}
+
+/// Returns the length of the raw media data for this packet.
+unsigned int FLV::Tag::getDataLen(){
+  if (data[0] == 0x08 && (data[11] & 0xF0) == 0xA0) {
+    return len - 17;
+  }
+  if (data[0] == 0x09 && (data[11] & 0x0F) == 7) {
+    return len - 20;
+  }
+  return len - 16;
+}
+
 JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, unsigned int reTrack) {
   JSON::Value pack_out; // Storage for outgoing metadata.
 

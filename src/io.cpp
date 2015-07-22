@@ -427,7 +427,9 @@ namespace Mist {
     if (!tid) {
       return;
     }
-    userClient.keepAlive();
+    if (userClient.getData()){
+      userClient.keepAlive();
+    }
     if (trackMap.count(tid) && !trackState.count(tid)) {
       //If the trackmap has been set manually, don't negotiate
       HIGH_MSG("TrackMap manual, not negotiating track IDs");

@@ -327,18 +327,11 @@ namespace Mist {
       return true;
     }
     if (keyNum < 1){keyNum = 1;}
-    if (isBuffered(track, keyNum)){
-      //get corresponding page number
-      int pageNumber = 0;
-      for (std::map<unsigned long, DTSCPageData>::iterator it = pagesByTrack[track].begin(); it != pagesByTrack[track].end(); it++){
-        if (it->first <= keyNum){
-          pageNumber = it->first;
-        }else{
-          break;
-        }
-      }
+    //abort in case already buffered
+    int pageNumber = bufferedOnPage(track, keyNum);
+    if (pageNumber){
       pageCounter[track][pageNumber] = 15;
-      VERYHIGH_MSG("Key %u is already buffered in page %d. Cancelling bufferFrame", keyNum, pageNumber); 
+      VERYHIGH_MSG("Track %u, key %u is already buffered in page %d. Cancelling bufferFrame", track, keyNum, pageNumber); 
       return true;
     }
     if (!pagesByTrack.count(track)){

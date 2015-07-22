@@ -127,10 +127,6 @@ namespace Mist {
       //A different process will handle this for us
       return;
     }
-    //Do nothing if the page is not buffered
-    if (!isBuffered(tid, pageNumber)) {
-      return;
-    }
     unsigned long mapTid = trackMap[tid];
     //If the given pagenumber is not a valid page on this track, do nothing
     if (!pagesByTrack[tid].count(pageNumber)){

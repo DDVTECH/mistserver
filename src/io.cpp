@@ -112,7 +112,7 @@ namespace Mist {
       }
     }
 
-    INFO_MSG("Start buffering page %lu on track %lu~>%lu successful", pageNumber, tid, mapTid);
+    HIGH_MSG("Start buffering page %lu on track %lu~>%lu successful", pageNumber, tid, mapTid);
     ///\return true if everything was successful
     return true;
   }
@@ -304,9 +304,9 @@ namespace Mist {
 
     //Print a message about registering the page or not.
     if (!inserted) {
-      INFO_MSG("Can't register page %lu on the metaPage of track %lu~>%lu, No empty spots left within 'should be' amount of slots", curPageNum[tid], tid, mapTid);
+      FAIL_MSG("Can't register page %lu on the metaPage of track %lu~>%lu, No empty spots left within 'should be' amount of slots", curPageNum[tid], tid, mapTid);
     } else {
-      INFO_MSG("Succesfully registered page %lu on the metaPage of track %lu~>%lu.", curPageNum[tid], tid, mapTid);
+      HIGH_MSG("Succesfully registered page %lu on the metaPage of track %lu~>%lu.", curPageNum[tid], tid, mapTid);
     }
     //Close our link to the page. This will NOT destroy the shared page, as we've set master to false upon construction
 #if defined(__CYGWIN__) || defined(_WIN32)
@@ -430,7 +430,7 @@ namespace Mist {
     userClient.keepAlive();
     if (trackMap.count(tid) && !trackState.count(tid)) {
       //If the trackmap has been set manually, don't negotiate
-      INFO_MSG("Manually Set TrackMap");
+      HIGH_MSG("TrackMap manual, not negotiating track IDs");
       trackState[tid] = FILL_ACC;
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), tid);

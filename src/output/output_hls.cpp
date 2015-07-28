@@ -151,6 +151,17 @@ namespace Mist {
       return;
     } //crossdomain.xml
     
+    if (H.method == "OPTIONS"){
+      H.Clean();
+      H.SetHeader("Content-Type", "application/octet-stream");
+      H.SetHeader("Cache-Control", "no-cache");
+      H.setCORSHeaders();
+      H.SetBody("");
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    
     if (H.url.find("hls") == std::string::npos){
       myConn.close();
       return;

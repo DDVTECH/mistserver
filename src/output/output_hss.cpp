@@ -313,6 +313,7 @@ namespace Mist {
 
     H.Clean();
     H.SetHeader("Content-Type", "video/mp4");
+    H.setCORSHeaders();
     H.StartResponse(H, myConn);
     H.Chunkify(moof_box.asBox(), moof_box.boxedSize(), myConn);
     int size = htonl(keySize + 8);
@@ -505,12 +506,23 @@ namespace Mist {
 
 
   void OutHSS::onHTTP() {
+    if (H.method == "OPTIONS"){
+      H.Clean();
+      H.SetHeader("Content-Type", "application/octet-stream");
+      H.SetHeader("Cache-Control", "no-cache");
+      H.setCORSHeaders();
+      H.SetBody("");
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
     initialize();
     if (H.url.find("Manifest") != std::string::npos) {
       //Manifest, direct reply
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Cache-Control", "no-cache");
+      H.setCORSHeaders();
       /*LTS
       std::string manifest = smoothIndex();
       LTS*/

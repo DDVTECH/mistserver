@@ -1180,7 +1180,7 @@ namespace DTSC {
   unsigned int Track::timeToKeynum(unsigned int timestamp){
     unsigned int result = 0;
     for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++){
-      if (it->getTime() >= timestamp){
+      if (it->getTime() > timestamp){
         break;
       }
       result = it->getNumber();

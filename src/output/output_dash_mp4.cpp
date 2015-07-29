@@ -28,10 +28,6 @@ namespace Mist {
     H.Chunkify("mp42dash", 8, myConn);
   }
 
-  void OutDashMP4::buildStyp(unsigned int tid){
-    H.Chunkify("\000\000\000\030stypmsdh\000\000\000\000msdhmsix", 24, myConn);
-  }
-  
   std::string OutDashMP4::buildMoov(unsigned int tid){
     std::string trackType = myMeta.tracks[tid].type;
     MP4::MOOV moovBox;
@@ -199,86 +195,11 @@ namespace Mist {
     return std::string(moovBox.asBox(),moovBox.boxedSize());
   }
     
-  std::string OutDashMP4::buildSidx(unsigned int tid){
-    fragmentSizes[tid].clear();
-    MP4::AVCC avccBox;
-    MP4::HVCC hvccBox;
-    if (myMeta.tracks[tid].codec == "H264"){
-      avccBox.setPayload(myMeta.tracks[tid].init);
-    }
-    if (myMeta.tracks[tid].codec == "HEVC"){
-      hvccBox.setPayload(myMeta.tracks[tid].init);
-    }
-    int curPart = 0;
-    MP4::SIDX sidxBox;
-    sidxBox.setReferenceID(1);
-    sidxBox.setTimescale(1000);
-    sidxBox.setEarliestPresentationTime(myMeta.tracks[tid].firstms);
-    sidxBox.setFirstOffset(0);
-    int j = 0;
-    for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[tid].keys.begin(); it != myMeta.tracks[tid].keys.end(); it++){
-      MP4::sidxReference refItem;
-      refItem.referenceType = false;
-      refItem.referencedSize = 0;
-      for (int i = 0; i < it->getParts(); i++){
-        refItem.referencedSize += myMeta.tracks[tid].parts[curPart++].getSize();
-      }
-      if (myMeta.tracks[tid].codec == "H264"){
-        refItem.referencedSize += 14 + avccBox.getSPSLen() + avccBox.getPPSLen();
-      }
-      if (myMeta.tracks[tid].codec == "HEVC"){
-        std::deque<MP4::HVCCArrayEntry> content = hvccBox.getArrays();
-        for (std::deque<MP4::HVCCArrayEntry>::iterator it = content.begin(); it != content.end(); it++){
-          for (std::deque<std::string>::iterator it2 = it->nalUnits.begin(); it2 != it->nalUnits.end(); it2++){
-            refItem.referencedSize += 4 + (*it2).size();
-          }
-        }
-      }
-      fragmentSizes[tid][j] = refItem.referencedSize;
-      if (it->getLength()){
-        refItem.subSegmentDuration = it->getLength();
-      }else{
-        refItem.subSegmentDuration = myMeta.tracks[tid].lastms - it->getTime();
-      }
-      refItem.sapStart = false;
-      refItem.sapType = 0;
-      refItem.sapDeltaTime = 0;
-      sidxBox.setReference(refItem, j++);
-    }
-    return std::string(sidxBox.asBox(),sidxBox.boxedSize());
-  }
-
-  std::string OutDashMP4::buildSidx(unsigned int tid, unsigned int keyNum){
-    MP4::AVCC avccBox;
-    avccBox.setPayload(myMeta.tracks[tid].init);
-    int curPart = 0;
-    MP4::SIDX sidxBox;
-    sidxBox.setReferenceID(1);
-    sidxBox.setTimescale(1000);
-    sidxBox.setEarliestPresentationTime(myMeta.tracks[tid].keys[keyNum].getTime());
-    sidxBox.setFirstOffset(0);
-    for (int i = 0; i < keyNum; i++){
-      curPart += myMeta.tracks[tid].keys[i].getParts();
-    }
-    MP4::sidxReference refItem;
-    refItem.referenceType = false;
-    if (myMeta.tracks[tid].keys[keyNum].getLength()){
-      refItem.subSegmentDuration = myMeta.tracks[tid].keys[keyNum].getLength();
-    }else{
-      refItem.subSegmentDuration = myMeta.tracks[tid].lastms - myMeta.tracks[tid].keys[keyNum].getTime();
-    }
-    refItem.sapStart = false;
-    refItem.sapType = 0;
-    refItem.sapDeltaTime = 0;
-    sidxBox.setReference(refItem, 0);
-    return std::string(sidxBox.asBox(),sidxBox.boxedSize());
-  }
-
   std::string OutDashMP4::buildMoof(unsigned int tid, unsigned int keyNum){
     MP4::MOOF moofBox;
     
     MP4::MFHD mfhdBox;
-    mfhdBox.setSequenceNumber(keyNum + 1);
+    mfhdBox.setSequenceNumber(keyNum);
     moofBox.setContent(mfhdBox, 0);
     
     MP4::TRAF trafBox;
@@ -295,12 +216,15 @@ namespace Mist {
     
     MP4::TFDT tfdtBox;
     ///\todo Determine index for live
-    tfdtBox.setBaseMediaDecodeTime(myMeta.tracks[tid].keys[keyNum].getTime());
+    tfdtBox.setBaseMediaDecodeTime(myMeta.tracks[tid].getKey(keyNum).getTime());
     trafBox.setContent(tfdtBox, 1);
     
     int i = 0;
     
-    for (int j = 0; j < keyNum; j++){
+    for (int j = 0; j < myMeta.tracks[tid].keys.size(); j++){
+      if (myMeta.tracks[tid].keys[j].getNumber() >= keyNum){
+        break;
+      }
       i += myMeta.tracks[tid].keys[j].getParts();
     }
 
@@ -308,11 +232,11 @@ namespace Mist {
     if (myMeta.tracks[tid].codec == "H264"){
       trunBox.setFlags(MP4::trundataOffset | MP4::trunsampleSize | MP4::trunsampleDuration | MP4::trunfirstSampleFlags | MP4::trunsampleOffsets);
       trunBox.setFirstSampleFlags(MP4::isKeySample);
-      trunBox.setDataOffset(88 + (12 * myMeta.tracks[tid].keys[keyNum].getParts()) + 8);
+      trunBox.setDataOffset(88 + (12 * myMeta.tracks[tid].getKey(keyNum).getParts()) + 8);
 
       MP4::AVCC avccBox;
       avccBox.setPayload(myMeta.tracks[tid].init);
-      for (int j = 0; j < myMeta.tracks[tid].keys[keyNum].getParts(); j++){
+      for (int j = 0; j < myMeta.tracks[tid].getKey(keyNum).getParts(); j++){
         MP4::trunSampleInformation trunEntry;
         if (!j){
           trunEntry.sampleSize = myMeta.tracks[tid].parts[i].getSize() + 14 + avccBox.getSPSLen() + avccBox.getPPSLen();
@@ -328,12 +252,12 @@ namespace Mist {
     if (myMeta.tracks[tid].codec == "HEVC"){
       trunBox.setFlags(MP4::trundataOffset | MP4::trunsampleSize | MP4::trunsampleDuration | MP4::trunfirstSampleFlags | MP4::trunsampleOffsets);
       trunBox.setFirstSampleFlags(MP4::isKeySample);
-      trunBox.setDataOffset(88 + (12 * myMeta.tracks[tid].keys[keyNum].getParts()) + 8);
+      trunBox.setDataOffset(88 + (12 * myMeta.tracks[tid].getKey(keyNum).getParts()) + 8);
 
       MP4::HVCC hvccBox;
       hvccBox.setPayload(myMeta.tracks[tid].init);
       std::deque<MP4::HVCCArrayEntry> content = hvccBox.getArrays();
-      for (int j = 0; j < myMeta.tracks[tid].keys[keyNum].getParts(); j++){
+      for (int j = 0; j < myMeta.tracks[tid].getKey(keyNum).getParts(); j++){
         MP4::trunSampleInformation trunEntry;
         trunEntry.sampleSize = myMeta.tracks[tid].parts[i].getSize();
         if (!j){
@@ -351,8 +275,8 @@ namespace Mist {
     }
     if (myMeta.tracks[tid].codec == "AAC" || myMeta.tracks[tid].codec == "AC3" || myMeta.tracks[tid].codec == "MP3"){
       trunBox.setFlags(MP4::trundataOffset | MP4::trunsampleSize | MP4::trunsampleDuration);
-      trunBox.setDataOffset(88 + (8 * myMeta.tracks[tid].keys[keyNum].getParts()) + 8);
-      for (int j = 0; j < myMeta.tracks[tid].keys[keyNum].getParts(); j++){
+      trunBox.setDataOffset(88 + (8 * myMeta.tracks[tid].getKey(keyNum).getParts()) + 8);
+      for (int j = 0; j < myMeta.tracks[tid].getKey(keyNum).getParts(); j++){
         MP4::trunSampleInformation trunEntry;
         trunEntry.sampleSize = myMeta.tracks[tid].parts[i].getSize();
         trunEntry.sampleDuration = myMeta.tracks[tid].parts[i].getDuration();
@@ -378,28 +302,45 @@ namespace Mist {
   }
   
   void OutDashMP4::buildMdat(unsigned int tid, unsigned int keyNum){
-    buildSidx(tid);//Nasty hack for updating fragment sizes...
-    MP4::AVCC avccBox;
-    avccBox.setPayload(myMeta.tracks[tid].init);
-    std::stringstream r;
-    int size = fragmentSizes[tid][keyNum] + 8;
-    r << (char)((size >> 24) & 0xFF);
-    r << (char)((size >> 16) & 0xFF);
-    r << (char)((size >> 8) & 0xFF);
-    r << (char)((size) & 0xFF);
-    r << "mdat";
-    H.Chunkify(r.str().data(), r.str().size(), myConn);
-    selectedTracks.clear();
-    selectedTracks.insert(tid);
-    seek(myMeta.tracks[tid].keys[keyNum].getTime());
-    std::string init;
-    char * data;
-    unsigned int dataLen;
-    int partNum = 0;
-    for (int i = 0; i < keyNum; i++){
-      partNum += myMeta.tracks[tid].keys[i].getParts();
+    unsigned int size = 8;
+    unsigned int curPart = 0;
+    for (unsigned int i = 0; i < myMeta.tracks[tid].keys.size(); ++i){
+      if (myMeta.tracks[tid].keys[i].getNumber() >= keyNum){break;}
+      curPart += myMeta.tracks[tid].keys[i].getParts();
+    }
+    for (int i = 0; i < myMeta.tracks[tid].getKey(keyNum).getParts(); i++){
+      size += myMeta.tracks[tid].parts[curPart++].getSize();
     }
     if (myMeta.tracks[tid].codec == "H264"){
+      MP4::AVCC avccBox;
+      avccBox.setPayload(myMeta.tracks[tid].init);
+      size += 14 + avccBox.getSPSLen() + avccBox.getPPSLen();
+    }
+    if (myMeta.tracks[tid].codec == "HEVC"){
+      MP4::HVCC hvccBox;
+      hvccBox.setPayload(myMeta.tracks[tid].init);
+      std::deque<MP4::HVCCArrayEntry> content = hvccBox.getArrays();
+      for (std::deque<MP4::HVCCArrayEntry>::iterator it = content.begin(); it != content.end(); it++){
+        for (std::deque<std::string>::iterator it2 = it->nalUnits.begin(); it2 != it->nalUnits.end(); it2++){
+          size += 4 + (*it2).size();
+        }
+      }
+    }
+    char mdatstr[8] = {0, 0, 0, 0, 'm', 'd', 'a', 't'};
+    mdatstr[0] = (char)((size >> 24) & 0xFF);
+    mdatstr[1] = (char)((size >> 16) & 0xFF);
+    mdatstr[2] = (char)((size >> 8) & 0xFF);
+    mdatstr[3] = (char)((size) & 0xFF);
+    H.Chunkify(mdatstr, 8, myConn);
+    selectedTracks.clear();
+    selectedTracks.insert(tid);
+    seek(myMeta.tracks[tid].getKey(keyNum).getTime());
+    std::string init;
+    char *  data;
+    unsigned int dataLen;
+    if (myMeta.tracks[tid].codec == "H264"){
+      MP4::AVCC avccBox;
+      avccBox.setPayload(myMeta.tracks[tid].init);
       init = buildNalUnit(2, "\011\340");
       H.Chunkify(init, myConn);//09E0
       init = buildNalUnit(avccBox.getSPSLen(), avccBox.getSPS());
@@ -411,7 +352,7 @@ namespace Mist {
       MP4::HVCC hvccBox;
       hvccBox.setPayload(myMeta.tracks[tid].init);
       std::deque<MP4::HVCCArrayEntry> content = hvccBox.getArrays();
-      for (int j = 0; j < myMeta.tracks[tid].keys[keyNum].getParts(); j++){
+      for (int j = 0; j < myMeta.tracks[tid].getKey(keyNum).getParts(); j++){
         for (std::deque<MP4::HVCCArrayEntry>::iterator it = content.begin(); it != content.end(); it++){
           for (std::deque<std::string>::iterator it2 = it->nalUnits.begin(); it2 != it->nalUnits.end(); it2++){
             init = buildNalUnit((*it2).size(), (*it2).c_str());
@@ -420,7 +361,7 @@ namespace Mist {
         }
       }
     }
-    for (int i = 0; i < myMeta.tracks[tid].keys[keyNum].getParts(); i++){
+    for (int i = 0; i < myMeta.tracks[tid].getKey(keyNum).getParts(); i++){
       prepareNext();
       thisPacket.getString("data", data, dataLen);
       H.Chunkify(data, dataLen, myConn);
@@ -614,7 +555,6 @@ namespace Mist {
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (!moovBoxes.count(it->first)){
         moovBoxes[it->first] = buildMoov(it->first);
-        buildSidx(it->first);
       }
     }
   }
@@ -665,10 +605,25 @@ namespace Mist {
         DEBUG_MSG(DLVL_DEVEL, "Searching for time %d", keyId);
         unsigned int keyNum = myMeta.tracks[tid].timeToKeynum(keyId);
         INFO_MSG("Detected key %d:%d for time %d", tid, keyNum, keyId);
-        buildStyp(tid);
-        std::string tmp = buildSidx(tid, keyNum);
-        H.Chunkify(tmp, myConn);
-        tmp = buildMoof(tid, keyNum);
+        H.Chunkify("\000\000\000\030stypmsdh\000\000\000\000msdhmsix", 24, myConn);
+        MP4::SIDX sidxBox;
+        sidxBox.setReferenceID(1);
+        sidxBox.setTimescale(1000);
+        sidxBox.setEarliestPresentationTime(myMeta.tracks[tid].getKey(keyNum).getTime());
+        sidxBox.setFirstOffset(0);
+        MP4::sidxReference refItem;
+        refItem.referenceType = false;
+        if (myMeta.tracks[tid].getKey(keyNum).getLength()){
+          refItem.subSegmentDuration = myMeta.tracks[tid].getKey(keyNum).getLength();
+        }else{
+          refItem.subSegmentDuration = myMeta.tracks[tid].lastms - myMeta.tracks[tid].getKey(keyNum).getTime();
+        }
+        refItem.sapStart = false;
+        refItem.sapType = 0;
+        refItem.sapDeltaTime = 0;
+        sidxBox.setReference(refItem, 0);
+        H.Chunkify(sidxBox.asBox(),sidxBox.boxedSize(), myConn);
+        std::string tmp = buildMoof(tid, keyNum);
         H.Chunkify(tmp, myConn);
         buildMdat(tid, keyNum);
       }

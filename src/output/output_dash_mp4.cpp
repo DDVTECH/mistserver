@@ -419,7 +419,7 @@ namespace Mist {
     if (myMeta.vod){
       r << "type=\"static\" mediaPresentationDuration=\"" << makeTime(std::max(lastVidTime, lastAudTime)) << "\" minBufferTime=\"PT1.5S\"";
     }else{
-      r << "type=\"dynamic\" minimumUpdatePeriod=\"PT1.0S\" availabilityStartTime=\"" << Util::getUTCString() << "\" ";
+      r << "type=\"dynamic\" minimumUpdatePeriod=\"PT1.0S\" availabilityStartTime=\"" << Util::getUTCString(Util::epoch() - std::max(lastVidTime, lastAudTime)/1000) << "\" ";
       int bufferTime = myMeta.tracks.begin()->second.lastms - myMeta.tracks.begin()->second.firstms;
       r << "timeShiftBufferDepth=\"PT" << bufferTime / 1000 << "." << bufferTime % 1000 << "S\" suggestedPresentationDelay=\"PT15.0S\" minBufferTime=\"PT6.0S\"";
     }

@@ -100,15 +100,12 @@ long long int Util::epoch() {
   return time(0);
 }
 
-std::string Util::getUTCString(){
-  time_t rawtime;
+std::string Util::getUTCString(long long int epoch){
+  if (!epoch){epoch = time(0);}
+  time_t rawtime = epoch;
   struct tm * ptm;
-
-  time ( &rawtime );
-
-  ptm = gmtime ( &rawtime );
-
+  ptm = gmtime(&rawtime);
   char result[20];
-  snprintf(result, 20, "%0.4d-%0.2d-%0.2dT%0.2d:%0.2d:%0.2d", ptm->tm_year, ptm->tm_mon, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+  snprintf(result, 20, "%0.4d-%0.2d-%0.2dT%0.2d:%0.2d:%0.2d", ptm->tm_year+1900, ptm->tm_mon+1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
   return std::string(result);
 }

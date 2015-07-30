@@ -2,6 +2,7 @@
 /// Utilities for handling time and timestamps.
 
 #pragma once
+#include <string>
 
 namespace Util {
   void wait(int ms); ///< Sleeps for the indicated amount of milliseconds or longer.
@@ -12,4 +13,5 @@ namespace Util {
   long long unsigned int getMicros(long long unsigned int previous);///<Gets the time difference in microseconds.
   long long int getNTP();
   long long int epoch(); ///< Gets the amount of seconds since 01/01/1970.
+  std::string getUTCString(long long int epoch = 0);
 }

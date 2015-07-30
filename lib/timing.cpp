@@ -4,6 +4,8 @@
 #include "timing.h"
 #include <sys/time.h>//for gettimeofday
 #include <time.h>//for time and nanosleep
+#include <cstring>
+#include <cstdio>
 
 //emulate clock_gettime() for OSX compatibility
 #if defined(__APPLE__) || defined(__MACH__)
@@ -96,4 +98,14 @@ long long unsigned int Util::getMicros(long long unsigned int previous) {
 /// Gets the amount of seconds since 01/01/1970.
 long long int Util::epoch() {
   return time(0);
+}
+
+std::string Util::getUTCString(long long int epoch){
+  if (!epoch){epoch = time(0);}
+  time_t rawtime = epoch;
+  struct tm * ptm;
+  ptm = gmtime(&rawtime);
+  char result[20];
+  snprintf(result, 20, "%0.4d-%0.2d-%0.2dT%0.2d:%0.2d:%0.2d", ptm->tm_year+1900, ptm->tm_mon+1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+  return std::string(result);
 }

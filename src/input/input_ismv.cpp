@@ -98,16 +98,14 @@ namespace Mist {
         lastPack["duration"] = trunSamples[i].sampleDuration;
         if (myMeta.tracks[tId].type == "video") {
           if (i) {
-            lastPack["interframe"] = 1LL;
             lastBytePos ++;
           } else {
             lastPack["keyframe"] = 1LL;
             lastBytePos = curBytePos;
           }
           lastPack["bpos"] = lastBytePos;
-          lastPack["nalu"] = 1LL;
           unsigned int offsetConv = trunSamples[i].sampleOffset / 10000;
-          lastPack["offset"] = *(int*)&offsetConv;
+          lastPack["offset"] = (int)offsetConv;
         } else {
           if (i == 0) {
             lastPack["keyframe"] = 1LL;
@@ -148,10 +146,7 @@ namespace Mist {
     if (myMeta.tracks[tId].type == "video") {
       if (buffered.begin()->isKeyFrame) {
         thisPack["keyframe"] = 1LL;
-      } else {
-        thisPack["interframe"] = 1LL;
       }
-      thisPack["nalu"] = 1LL;
       thisPack["offset"] = buffered.begin()->offset / 10000;
     } else {
       if (buffered.begin()->isKeyFrame) {

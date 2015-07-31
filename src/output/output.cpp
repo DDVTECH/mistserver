@@ -6,6 +6,7 @@
 #include <semaphore.h>
 #include <iterator> //std::distance
 
+#include <mist/bitfields.h>
 #include <mist/stream.h>
 #include <mist/defines.h>
 #include <mist/http_parser.h>
@@ -16,12 +17,11 @@ namespace Mist {
   JSON::Value Output::capa = JSON::Value();
 
   int getDTSCLen(char * mapped, long long int offset){
-    return ntohl(((int*)(mapped + offset))[1]);
+    return Bit::btohl(mapped + offset + 4);
   }
 
   unsigned long long getDTSCTime(char * mapped, long long int offset){
-    char * timePoint = mapped + offset + 12;
-    return ((long long int)timePoint[0] << 56) | ((long long int)timePoint[1] << 48) | ((long long int)timePoint[2] << 40) | ((long long int)timePoint[3] << 32) | ((long long int)timePoint[4] << 24) | ((long long int)timePoint[5] << 16) | ((long long int)timePoint[6] << 8) | timePoint[7];
+    return Bit::btohll(mapped + offset + 12);
   }
 
   void Output::init(Util::Config * cfg){

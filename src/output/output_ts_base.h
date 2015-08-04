@@ -26,6 +26,7 @@ namespace Mist {
       MP4::AVCC avccbox;
       bool appleCompat;
       bool sendRepeatingHeaders;
+      long long unsigned int ts_from;
       long long unsigned int until;
       long long unsigned int lastVid;
   };

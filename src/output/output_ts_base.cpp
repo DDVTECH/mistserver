@@ -104,7 +104,9 @@ namespace Mist {
       
       while (currPack <= splitCount){
         unsigned int alreadySent = 0;
-        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), (thisPacket.getTime() - ts_from) * 90, thisPacket.getInt("offset") * 90, !currPack);
+        long long unsigned int tempTime = thisPacket.getTime();
+        if (appleCompat){tempTime -= ts_from;}
+        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), tempTime * 90, thisPacket.getInt("offset") * 90, !currPack);
         fillPacket(bs.data(), bs.size());
         if (!currPack){
           if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
@@ -180,7 +182,7 @@ namespace Mist {
       if (appleCompat){
         tempTime = 0;// myMeta.tracks[thisPacket.getTrackId()].rate / 1000;
       }else{
-        tempTime = (thisPacket.getTime() - ts_from) * 90;
+        tempTime = thisPacket.getTime() * 90;
       }
       bs = TS::Packet::getPESAudioLeadIn(tempLen, tempTime);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
       fillPacket(bs.data(), bs.size());

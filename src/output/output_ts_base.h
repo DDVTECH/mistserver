@@ -30,6 +30,7 @@ namespace Mist {
       MP4::HVCC hvccbox;
       /*LTS-END*/
       bool sendRepeatingHeaders;
+      long long unsigned int ts_from;
       long long unsigned int until;
       long long unsigned int lastVid;
   };

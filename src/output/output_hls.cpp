@@ -249,6 +249,7 @@ namespace Mist {
       }
       
       seek(from);
+      ts_from = from;
       lastVid = from * 90;
       
       H.SetHeader("Content-Type", "video/mp2t");

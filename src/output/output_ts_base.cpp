@@ -5,6 +5,7 @@ namespace Mist {
     packCounter=0;
     haveAvcc = false;
     haveHvcc = false;
+    ts_from = 0;
     until=0xFFFFFFFFFFFFFFFFull;
     setBlocking(true);
     sendRepeatingHeaders = false;
@@ -103,7 +104,7 @@ namespace Mist {
       
       while (currPack <= splitCount){
         unsigned int alreadySent = 0;
-        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), thisPacket.getTime() * 90, thisPacket.getInt("offset") * 90, !currPack);
+        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), (thisPacket.getTime() - ts_from) * 90, thisPacket.getInt("offset") * 90, !currPack);
         fillPacket(bs.data(), bs.size());
         if (!currPack){
           if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
@@ -179,13 +180,8 @@ namespace Mist {
       if (appleCompat){
         tempTime = 0;// myMeta.tracks[thisPacket.getTrackId()].rate / 1000;
       }else{
-        tempTime = thisPacket.getTime() * 90;
+        tempTime = (thisPacket.getTime() - ts_from) * 90;
       }
-      ///\todo stuur 70ms aan audio per PES pakket om applecompat overbodig te maken.
-      //static unsigned long long lastSent=thisPacket.getTime() * 90;
-      //if( (thisPacket.getTime() * 90)-lastSent >= 70*90 ){
-      //   lastSent=(thisPacket.getTime() * 90);
-      //}      
       bs = TS::Packet::getPESAudioLeadIn(tempLen, tempTime);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
       fillPacket(bs.data(), bs.size());
       if (myMeta.tracks[thisPacket.getTrackId()].codec == "AAC"){        

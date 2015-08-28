@@ -287,7 +287,6 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             if (Request["addprotocol"].isObject()){
               Controller::Storage["config"]["protocols"].append(Request["addprotocol"]);
             }
-            Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
           }
           /// 
           /// \api
@@ -327,7 +326,6 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
                 }
               }
               Controller::Storage["config"]["protocols"] = newProtocols;
-              Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
             }
             if (Request["deleteprotocol"].isObject()){
               JSON::Value newProtocols;
@@ -337,7 +335,6 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
                 }
               }
               Controller::Storage["config"]["protocols"] = newProtocols;
-              Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
             }
           }
           /*LTS-END*/

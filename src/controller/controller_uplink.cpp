@@ -70,7 +70,6 @@ void Controller::uplinkConnection(void * np) {
             if (inScan.hasMember("config")) {
               curVal = inScan.getMember("config").asJSON();
               Controller::checkConfig(curVal, Controller::Storage["config"]);
-              Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
             }
             if (inScan.hasMember("streams")) {
               curVal = inScan.getMember("streams").asJSON();
@@ -79,7 +78,6 @@ void Controller::uplinkConnection(void * np) {
             if (inScan.hasMember("addstream")) {
               curVal = inScan.getMember("addstream").asJSON();
               Controller::AddStreams(curVal, Controller::Storage["streams"]);
-              Controller::CheckAllStreams(Controller::Storage["streams"]);
             }
             if (inScan.hasMember("deletestream")) {
               curVal = inScan.getMember("deletestream").asJSON();
@@ -99,7 +97,6 @@ void Controller::uplinkConnection(void * np) {
                   Controller::Storage["streams"].removeMember(it->first);
                 }
               }
-              Controller::CheckAllStreams(Controller::Storage["streams"]);
             }
           }
         }

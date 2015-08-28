@@ -187,7 +187,7 @@ namespace IPC {
 #if defined(__CYGWIN__) || defined(_WIN32)
     result = WaitForSingleObject(mySem, 0);//wait at most 1ms
     if (result == 0x80){
-      WARN_MSG("Consistency error caught on semaphore %s", myName);
+      WARN_MSG("Consistency error caught on semaphore %s", myName.c_str());
       result = 0;
     }
 #else
@@ -202,7 +202,7 @@ namespace IPC {
 #if defined(__CYGWIN__) || defined(_WIN32)
     result = WaitForSingleObject(mySem, 1000);//wait at most 1s
     if (result == 0x80){
-      WARN_MSG("Consistency error caught on semaphore %s", myName);
+      WARN_MSG("Consistency error caught on semaphore %s", myName.c_str());
       result = 0;
     }
 #else

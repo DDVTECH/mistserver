@@ -64,6 +64,7 @@ namespace IPC {
       void post();
       void wait();
       bool tryWait();
+      bool tryWaitOneSecond();
       void close();
       void unlink();
     private:

@@ -194,7 +194,6 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           //Parse config and streams from the request.
           if (Request.isMember("config")){
             Controller::checkConfig(Request["config"], Controller::Storage["config"]);
-            Controller::CheckProtocols(Controller::Storage["config"]["protocols"], capabilities);
           }
           if (Request.isMember("streams")){
             Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);

@@ -181,13 +181,35 @@ namespace IPC {
     }
   }
 
-  ///\brief Tries to wait for the semaphore, returns true if successfull, false otherwise
+  ///\brief Tries to wait for the semaphore, returns true if successful, false otherwise
   bool semaphore::tryWait() {
-    bool result;
+    int result;
 #if defined(__CYGWIN__) || defined(_WIN32)
     result = WaitForSingleObject(mySem, 0);//wait at most 1ms
+    if (result == 0x80){
+      WARN_MSG("Consistency error caught on semaphore %s", myName);
+      result = 0;
+    }
 #else
     result = sem_trywait(mySem);
+#endif
+    return (result == 0);
+  }
+  
+  ///\brief Tries to wait for the semaphore for a single second, returns true if successful, false otherwise
+  bool semaphore::tryWaitOneSecond() {
+    int result;
+#if defined(__CYGWIN__) || defined(_WIN32)
+    result = WaitForSingleObject(mySem, 1000);//wait at most 1s
+    if (result == 0x80){
+      WARN_MSG("Consistency error caught on semaphore %s", myName);
+      result = 0;
+    }
+#else
+    struct timespec wt;
+    wt.tv_sec = 1;
+    wt.tv_nsec = 0;
+    result = sem_timedwait(mySem, &wt);
 #endif
     return (result == 0);
   }

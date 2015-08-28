@@ -93,7 +93,8 @@ namespace Controller {
 
   ///\brief Checks all streams, restoring if needed.
   ///\param data The stream configuration for the server.
-  void CheckAllStreams(JSON::Value & data){
+  ///\returns True if the server status changed
+  bool CheckAllStreams(JSON::Value & data){
     long long int currTime = Util::epoch();
     for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
       checkStream(jit->first, jit->second);
@@ -117,19 +118,15 @@ namespace Controller {
         jit->second["online"] = 1;
       }
     }
+
+    //check for changes in config or streams
     static JSON::Value strlist;
-    bool changed = false;
-    if (strlist["config"] != Storage["config"]){
+    if (strlist["config"] != Storage["config"] || strlist["streams"] != Storage["streams"]){
       strlist["config"] = Storage["config"];
-      changed = true;
-    }
-    if (strlist["streams"] != Storage["streams"]){
       strlist["streams"] = Storage["streams"];
-      changed = true;
+      return true;
     }
-    if (changed){
-      writeConfig();
-    }
+    return false;
   }
   
   void AddStreams(JSON::Value & in, JSON::Value & out){

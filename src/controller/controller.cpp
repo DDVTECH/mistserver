@@ -92,9 +92,23 @@ void statusMonitor(void * np){
     //this scope prevents the configMutex from being locked constantly
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
-      Controller::CheckProtocols(Controller::Storage["config"]["protocols"], Controller::capabilities);
-      Controller::CheckAllStreams(Controller::Storage["streams"]);
-      //Controller::myConverter.updateStatus();
+      bool changed = false;
+      //checks online protocols, reports changes to status
+      changed |= Controller::CheckProtocols(Controller::Storage["config"]["protocols"], Controller::capabilities);
+      //checks stream statuses, reports changes to status
+      changed |= Controller::CheckAllStreams(Controller::Storage["streams"]);
+      
+      //check if the config semaphore is stuck, by trying to lock it for 5 attempts of 1 second...
+      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      if (!configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond()){
+        //that failed. We now unlock it, no matter what - and print a warning that it was stuck.
+        WARN_MSG("Configuration semaphore was stuck. Force-unlocking it and re-writing config.");
+        changed = true;
+      }
+      configLock.post();
+      if (changed){
+        Controller::writeConfig();
+      }
     }
     Util::wait(5000);//wait at least 5 seconds
   }

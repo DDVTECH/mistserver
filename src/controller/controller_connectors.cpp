@@ -81,7 +81,8 @@ namespace Controller {
   ///\brief Checks current protocol configuration, updates state of enabled connectors if neccessary.
   ///\param p An object containing all protocols.
   ///\param capabilities An object containing the detected capabilities.
-  void CheckProtocols(JSON::Value & p, JSON::Value & capabilities){
+  ///\returns True if any action was taken
+  bool CheckProtocols(JSON::Value & p, JSON::Value & capabilities){
     std::set<std::string> runningConns;
 
     // used for building args
@@ -145,12 +146,14 @@ namespace Controller {
       }
     }
 
+    bool action = false;
     //shut down deleted/changed connectors
     std::map<std::string, pid_t>::iterator it;
     for (it = currentConnectors.begin(); it != currentConnectors.end(); it++){
       if (!runningConns.count(it->first)){
         if (Util::Procs::isActive(it->second)){
           Log("CONF", "Stopping connector " + it->first);
+          action = true;
           Util::Procs::Stop(it->second);
         }
         currentConnectors.erase(it);
@@ -162,6 +165,7 @@ namespace Controller {
     while (runningConns.size() && conf.is_active){
       if (!currentConnectors.count(*runningConns.begin()) || !Util::Procs::isActive(currentConnectors[*runningConns.begin()])){
         Log("CONF", "Starting connector: " + *runningConns.begin());
+        action = true;
         // clear out old args
         for (i=0; i<15; i++){argarr[i] = 0;}
         // get args for this connector
@@ -171,6 +175,7 @@ namespace Controller {
       }
       runningConns.erase(runningConns.begin());
     }
+    return action;
   }
 
 }

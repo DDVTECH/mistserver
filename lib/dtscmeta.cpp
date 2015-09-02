@@ -866,49 +866,93 @@ namespace DTSC {
 
   ///\brief Returns the byteposition of a keyframe
   unsigned long long Key::getBpos() {
+#ifdef BIGMETA
     return Bit::btohll(data);
+#else
+    return (((unsigned long long)data[0] << 32) | (data[1] << 24) | (data[2] << 16) | (data[3] << 8) | data[4]);
+#endif
   }
 
   void Key::setBpos(unsigned long long newBpos) {
+#ifdef BIGMETA
     Bit::htobll(data, newBpos);
+#else
+    data[4] = newBpos & 0xFF;
+    data[3] = (newBpos >> 8) & 0xFF;
+    data[2] = (newBpos >> 16) & 0xFF;
+    data[1] = (newBpos >> 24) & 0xFF;
+    data[0] = (newBpos >> 32) & 0xFF;
+#endif
   }
 
   unsigned long Key::getLength() {
+#ifdef BIGMETA
     return Bit::btoh24(data+8);
+#else
+    return Bit::btoh24(data+5);
+#endif
   }
 
   void Key::setLength(unsigned long newLength) {
+#ifdef BIGMETA
     Bit::htob24(data+8, newLength);
+#else
+    Bit::htob24(data+5, newLength);
+#endif
   }
 
   ///\brief Returns the number of a keyframe
   unsigned long Key::getNumber() {
+#ifdef BIGMETA
     return Bit::btohl(data + 11);
+#else
+    return Bit::btohs(data + 8);
+#endif
   }
 
   ///\brief Sets the number of a keyframe
   void Key::setNumber(unsigned long newNumber) {
+#ifdef BIGMETA
     Bit::htobl(data + 11, newNumber);
+#else
+    Bit::htobs(data + 8, newNumber);
+#endif
   }
 
   ///\brief Returns the number of parts of a keyframe
   unsigned short Key::getParts() {
+#ifdef BIGMETA
     return Bit::btohs(data + 15);
+#else
+    return Bit::btohs(data + 10);
+#endif
   }
 
   ///\brief Sets the number of parts of a keyframe
   void Key::setParts(unsigned short newParts) {
+#ifdef BIGMETA
     Bit::htobs(data + 15, newParts);
+#else
+    Bit::htobs(data + 10, newParts);
+#endif
   }
 
   ///\brief Returns the timestamp of a keyframe
   unsigned long long Key::getTime() {
+#ifdef BIGMETA
     return Bit::btohll(data + 17);
+#else
+    return Bit::btohl(data + 12);
+#endif
   }
 
   ///\brief Sets the timestamp of a keyframe
   void Key::setTime(unsigned long long newTime) {
+#ifdef BIGMETA
     Bit::htobll(data + 17, newTime);
+#else
+    Bit::htobl(data + 12, newTime);
+#endif
   }
 
   ///\brief Returns the data of this keyframe struct
@@ -945,22 +989,38 @@ namespace DTSC {
 
   ///\brief Returns the number of the first keyframe in this fragment
   unsigned long Fragment::getNumber() {
+#ifdef BIGMETA
     return Bit::btohl(data + 5);
+#else
+    return Bit::btohs(data + 5);
+#endif
   }
 
   ///\brief Sets the number of the first keyframe in this fragment
   void Fragment::setNumber(unsigned long newNumber) {
+#ifdef BIGMETA
     Bit::htobl(data + 5, newNumber);
+#else
+    Bit::htobs(data + 5, newNumber);
+#endif
   }
 
   ///\brief Returns the size of a fragment
   unsigned long Fragment::getSize() {
+#ifdef BIGMETA
     return Bit::btohl(data + 9);
+#else
+    return Bit::btohl(data + 7);
+#endif
   }
 
   ///\brief Sets the size of a fragement
   void Fragment::setSize(unsigned long newSize) {
+#ifdef BIGMETA
     Bit::htobl(data + 9, newSize);
+#else
+    Bit::htobl(data + 7, newSize);
+#endif
   }
 
   ///\brief Returns thte data of this fragment structure
@@ -994,11 +1054,11 @@ namespace DTSC {
   Track::Track(JSON::Value & trackRef) {
     if (trackRef.isMember("fragments") && trackRef["fragments"].isString()) {
       Fragment * tmp = (Fragment *)trackRef["fragments"].asStringRef().data();
-      fragments = std::deque<Fragment>(tmp, tmp + (trackRef["fragments"].asStringRef().size() / 13));
+      fragments = std::deque<Fragment>(tmp, tmp + (trackRef["fragments"].asStringRef().size() / PACKED_FRAGMENT_SIZE));
     }
     if (trackRef.isMember("keys") && trackRef["keys"].isString()) {
       Key * tmp = (Key *)trackRef["keys"].asStringRef().data();
-      keys = std::deque<Key>(tmp, tmp + (trackRef["keys"].asStringRef().size() / 25));
+      keys = std::deque<Key>(tmp, tmp + (trackRef["keys"].asStringRef().size() / PACKED_KEY_SIZE));
     }
     if (trackRef.isMember("parts") && trackRef["parts"].isString()) {
       Part * tmp = (Part *)trackRef["parts"].asStringRef().data();
@@ -1042,13 +1102,13 @@ namespace DTSC {
       char * tmp = 0;
       unsigned int tmplen = 0;
       trackRef.getMember("fragments").getString(tmp, tmplen);
-      fragments = std::deque<Fragment>((Fragment *)tmp, ((Fragment *)tmp) + (tmplen / 13));
+      fragments = std::deque<Fragment>((Fragment *)tmp, ((Fragment *)tmp) + (tmplen / PACKED_FRAGMENT_SIZE));
     }
     if (trackRef.getMember("keys").getType() == DTSC_STR) {
       char * tmp = 0;
       unsigned int tmplen = 0;
       trackRef.getMember("keys").getString(tmp, tmplen);
-      keys = std::deque<Key>((Key *)tmp, ((Key *)tmp) + (tmplen / 25));
+      keys = std::deque<Key>((Key *)tmp, ((Key *)tmp) + (tmplen / PACKED_KEY_SIZE));
     }
     if (trackRef.getMember("parts").getType() == DTSC_STR) {
       char * tmp = 0;
@@ -1435,8 +1495,8 @@ namespace DTSC {
   ///\brief Determines the "packed" size of a track
   int Track::getSendLen() {
     int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
-    result += fragments.size() * 13;
-    result += keys.size() * 25;
+    result += fragments.size() * PACKED_FRAGMENT_SIZE;
+    result += keys.size() * PACKED_KEY_SIZE;
     if (keySizes.size()){
       result += 11 + (keySizes.size() * 4) + 4;
     }
@@ -1474,14 +1534,14 @@ namespace DTSC {
     writePointer(p, getWritableIdentifier());
     writePointer(p, "\340", 1);//Begin track object
     writePointer(p, "\000\011fragments\002", 12);
-    writePointer(p, convertInt(fragments.size() * 13), 4);
+    writePointer(p, convertInt(fragments.size() * PACKED_FRAGMENT_SIZE), 4);
     for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
-      writePointer(p, it->getData(), 13);
+      writePointer(p, it->getData(), PACKED_FRAGMENT_SIZE);
     }
     writePointer(p, "\000\004keys\002", 7);
-    writePointer(p, convertInt(keys.size() * 25), 4);
+    writePointer(p, convertInt(keys.size() * PACKED_KEY_SIZE), 4);
     for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
-      writePointer(p, it->getData(), 25);
+      writePointer(p, it->getData(), PACKED_KEY_SIZE);
     }
     writePointer(p, "\000\010keysizes\002,", 11);
     writePointer(p, convertInt(keySizes.size() * 4), 4);
@@ -1551,14 +1611,14 @@ namespace DTSC {
     conn.SendNow(getWritableIdentifier());
     conn.SendNow("\340", 1);//Begin track object
     conn.SendNow("\000\011fragments\002", 12);
-    conn.SendNow(convertInt(fragments.size() * 13), 4);
+    conn.SendNow(convertInt(fragments.size() * PACKED_FRAGMENT_SIZE), 4);
     for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
-      conn.SendNow(it->getData(), 13);
+      conn.SendNow(it->getData(), PACKED_FRAGMENT_SIZE);
     }
     conn.SendNow("\000\004keys\002", 7);
-    conn.SendNow(convertInt(keys.size() * 25), 4);
+    conn.SendNow(convertInt(keys.size() * PACKED_KEY_SIZE), 4);
     for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
-      conn.SendNow(it->getData(), 25);
+      conn.SendNow(it->getData(), PACKED_KEY_SIZE);
     }
     conn.SendNow("\000\010keysizes\002,", 11);
     conn.SendNow(convertInt(keySizes.size() * 4), 4);
@@ -1697,15 +1757,15 @@ namespace DTSC {
   JSON::Value Track::toJSON() {
     JSON::Value result;
     std::string tmp;
-    tmp.reserve(fragments.size() * 13);
+    tmp.reserve(fragments.size() * PACKED_FRAGMENT_SIZE);
     for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
-      tmp.append(it->getData(), 13);
+      tmp.append(it->getData(), PACKED_FRAGMENT_SIZE);
     }
     result["fragments"] = tmp;
     tmp = "";
-    tmp.reserve(keys.size() * 25);
+    tmp.reserve(keys.size() * PACKED_KEY_SIZE);
     for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
-      tmp.append(it->getData(), 25);
+      tmp.append(it->getData(), PACKED_KEY_SIZE);
     }
     result["keys"] = tmp;
     tmp = "";

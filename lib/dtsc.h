@@ -238,6 +238,8 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
+#ifdef BIGMETA
+#define PACKED_KEY_SIZE 25
       ///\brief Data storage for this Key.
       ///
       /// - 8 bytes: MSB storage of the position of the first packet of this keyframe within the file.
@@ -245,7 +247,17 @@ namespace DTSC {
       /// - 4 bytes: MSB storage of the number of this keyframe.
       /// - 2 bytes: MSB storage of the amount of parts in this keyframe.
       /// - 8 bytes: MSB storage of the timestamp associated with this keyframe's first packet.
-      char data[25];
+#else
+#define PACKED_KEY_SIZE 16
+      ///\brief Data storage for this Key.
+      ///
+      /// - 5 bytes: MSB storage of the position of the first packet of this keyframe within the file.
+      /// - 3 bytes: MSB storage of the duration of this keyframe.
+      /// - 2 bytes: MSB storage of the number of this keyframe.
+      /// - 2 bytes: MSB storage of the amount of parts in this keyframe.
+      /// - 4 bytes: MSB storage of the timestamp associated with this keyframe's first packet.
+#endif
+      char data[PACKED_KEY_SIZE];
   };
 
   ///\brief Basic class for storage of data associated with fragments.
@@ -262,13 +274,24 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
-      ///\Brief Data storage for this Fragment.
+#ifdef BIGMETA
+#define PACKED_FRAGMENT_SIZE 13
+      ///\brief Data storage for this Fragment.
       ///
       /// - 4 bytes: duration (in milliseconds)
       /// - 1 byte: length (amount of keyframes)
       /// - 4 bytes: number of first keyframe in fragment
       /// - 4 bytes: size of fragment in bytes
-      char data[13];
+#else
+#define PACKED_FRAGMENT_SIZE 11
+      ///\brief Data storage for this Fragment.
+      ///
+      /// - 4 bytes: duration (in milliseconds)
+      /// - 1 byte: length (amount of keyframes)
+      /// - 2 bytes: number of first keyframe in fragment
+      /// - 4 bytes: size of fragment in bytes
+#endif
+      char data[PACKED_FRAGMENT_SIZE];
   };
 
   ///\brief Class for storage of track data

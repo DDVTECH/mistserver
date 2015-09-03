@@ -409,6 +409,10 @@ namespace MP4 {
       case 0x75756964:
         return ((UUID *)this)->toPrettyString(indent);
         break;
+      case 0x70617370:
+        return ((PASP*)this)->toPrettyString(indent);
+        break;
+      /*LTS-START*/
       case 0x73696478:
         return ((SIDX*)this)->toPrettyString(indent);
         break;
@@ -418,7 +422,6 @@ namespace MP4 {
       case 0x696F6473:
         return ((IODS*)this)->toPrettyString(indent);
         break;
-      /*LTS-START*/
       case 0x73696E66:
         return ((SINF *)this)->toPrettyString(indent);
         break;

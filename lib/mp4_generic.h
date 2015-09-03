@@ -235,7 +235,7 @@ namespace MP4 {
 
   class DAC3: public Box {
     public:
-      DAC3();
+      DAC3(unsigned int rate, unsigned int channels);
       char getSampleRateCode();//2bits
       void setSampleRateCode(char newVal);//2bits
       char getBitStreamIdentification();//5bits
@@ -282,7 +282,7 @@ namespace MP4 {
 
   class TREX: public fullBox {
     public:
-      TREX();
+      TREX(unsigned int trackId = 0);
       void setTrackID(uint32_t newTrackID);
       uint32_t getTrackID();
       void setDefaultSampleDescriptionIndex(uint32_t newDefaultSampleDescriptionIndex);
@@ -472,6 +472,8 @@ namespace MP4 {
   class TKHD: public fullBox {
     public:
       TKHD(uint32_t trackId, uint64_t duration, uint32_t width, uint32_t height);
+      TKHD(DTSC::Track & track, bool fragmented);
+
       void setCreationTime(uint64_t newCreationTime);
       uint64_t getCreationTime();
       void setModificationTime(uint64_t newModificationTime);
@@ -497,6 +499,8 @@ namespace MP4 {
       void setHeight(uint32_t newHeight);
       uint32_t getHeight();
       std::string toPrettyString(uint32_t indent = 0);
+    protected:
+      void initialize();
   };
 
   class MDHD: public fullBox {
@@ -546,10 +550,12 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
-  struct STSCEntry {
-    uint32_t firstChunk;
-    uint32_t samplesPerChunk;
-    uint32_t sampleDescriptionIndex;
+  class STSCEntry {
+    public:
+      STSCEntry(unsigned int _first = 0, unsigned int _count = 0, unsigned int _index = 0);
+      uint32_t firstChunk;
+      uint32_t samplesPerChunk;
+      uint32_t sampleDescriptionIndex;
   };
 
   class STSC: public fullBox {
@@ -638,6 +644,8 @@ namespace MP4 {
       ///\todo set default values
     public:
       VisualSampleEntry();
+      VisualSampleEntry(DTSC::Track & track);
+      void initialize();
       void setCodec(const char * newCodec);
       void setWidth(uint16_t newWidth);
       uint16_t getWidth();
@@ -656,6 +664,7 @@ namespace MP4 {
       Box & getCLAP();
       void setCLAP(Box & clap);
       Box & getPASP();
+      void setPASP(Box & pasp);
       std::string toPrettyVisualString(uint32_t index = 0, std::string = "");
   };
 
@@ -663,6 +672,8 @@ namespace MP4 {
     public:
       ///\todo set default values
       AudioSampleEntry();
+      AudioSampleEntry(DTSC::Track & track);
+      void initialize();
       void setCodec(const char * newCodec);
       void setChannelCount(uint16_t newChannelCount);
       uint16_t getChannelCount();
@@ -768,6 +779,8 @@ namespace MP4 {
   class ELST: public fullBox {
     public:
       ELST();
+      void setCount(uint32_t newVal);
+      uint32_t getCount();
       void setSegmentDuration(uint64_t newVal);
       uint64_t getSegmentDuration();
       void setMediaTime(uint64_t newVal);

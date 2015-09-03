@@ -141,31 +141,7 @@ namespace Mist {
                   ase.setChannelCount(thisTrack.channels);
                   ase.setSampleSize(thisTrack.size);
                   if (myMeta.tracks[*it].codec == "AC3"){
-                    MP4::DAC3 dac3Box;
-                    switch (myMeta.tracks[*it].rate){
-                      case 48000:
-                        dac3Box.setSampleRateCode(0);
-                        break;
-                      case 44100:
-                        dac3Box.setSampleRateCode(1);
-                        break;
-                      case 32000:
-                        dac3Box.setSampleRateCode(2);
-                        break;
-                      default:
-                        dac3Box.setSampleRateCode(3);
-                        break;
-                    }
-                    /// \todo the next settings are set to generic values, we might want to make these flexible
-                    dac3Box.setBitStreamIdentification(8);//check the docs, this is a weird property
-                    dac3Box.setBitStreamMode(0);//set to main, mixed audio
-                    dac3Box.setAudioConfigMode(2);///\todo find out if ACMode should be different
-                    if (thisTrack.channels > 4){
-                      dac3Box.setLowFrequencyEffectsChannelOn(1);
-                    }else{
-                      dac3Box.setLowFrequencyEffectsChannelOn(0);
-                    }
-                    dac3Box.setFrameSizeCode(20);//should be OK, but test this.
+                    MP4::DAC3 dac3Box(thisTrack.rate, thisTrack.channels);
                     ase.setCodecBox(dac3Box);
                   }else{//other codecs use the ESDS box
                   MP4::ESDS esdsBox(thisTrack.init);

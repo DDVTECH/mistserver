@@ -322,6 +322,7 @@ namespace DTSC {
       unsigned int timeToFragnum(unsigned int timestamp);
       void reset();
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
+      void finalize();
       
       std::string getIdentifier();
       std::string getWritableIdentifier();

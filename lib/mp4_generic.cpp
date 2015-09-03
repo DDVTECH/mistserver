@@ -950,9 +950,10 @@ namespace MP4 {
     char * p = getData();
     char * max_p = p + getDataSize();
     r << std::string(indent+1, ' ') << "ES ID: " << (unsigned int)(((unsigned int)p[0] << 8) | (unsigned int)p[1]) << std::endl;
-    bool dep = (p[2] & 0x80);
+    bool dep = (p[2] & 0x80);//check pagina 28 ISO 1449-1 2001
     bool url = (p[2] & 0x40);
     bool ocr = (p[2] & 0x20);
+    //6 & 86
     r << std::string(indent+1, ' ') << "Priority: " << int(p[2] & 0x1f) << std::endl;
     p += 3;
     if (dep){
@@ -1093,7 +1094,7 @@ namespace MP4 {
   ESDS::ESDS(std::string init) {
     ///\todo Do this better, in a non-hardcoded way.
     memcpy(data + 4, "esds", 4);
-    reserve(payloadOffset, 0, init.size() ? init.size()+29 : 26);
+    reserve(payloadOffset, 0, init.size() ? init.size()+28 : 26);
     unsigned int i = 12;
     data[i++] = 3;//ES_DescrTag
     data[i++] = init.size() ? init.size()+23 : 21;//size
@@ -1127,7 +1128,7 @@ namespace MP4 {
     }
     data[i++] = 6;//SLConfigDescriptor
     data[i++] = 1;//size
-    data[i++] = 2;//predefined, reserverd for use in MP4 files
+    data[i++] = 2;//predefined, reserved for use in MP4 files
   }
  
   bool ESDS::isAAC(){
@@ -1153,9 +1154,35 @@ namespace MP4 {
     return r.str();
   }
 
-  DAC3::DAC3(){
+  DAC3::DAC3(unsigned int rate, unsigned int channels){
     memcpy(data + 4, "dac3", 4);
     setInt24(0,0);
+
+    setBitStreamIdentification(8);///\todo This is right now a default value. check the docs, this is a weird property
+    setBitStreamMode(0);//main, mixed audio
+    setAudioConfigMode(2);
+
+    switch (rate) {
+      case 48000:
+        setSampleRateCode(0);
+        break;
+      case 44100:
+        setSampleRateCode(1);
+        break;
+      case 32000:
+        setSampleRateCode(2);
+        break;
+      default:
+        setSampleRateCode(3);
+        break;
+    }
+
+    if (channels > 4) {
+      setLowFrequencyEffectsChannelOn(1);
+    } else {
+      setLowFrequencyEffectsChannelOn(0);
+    }
+    setFrameSizeCode(20);//should be OK, but test this.
   }
 
   char DAC3::getSampleRateCode(){
@@ -1222,11 +1249,12 @@ namespace MP4 {
     memcpy(data + 4, "ftyp", 4);
     if (fillDefaults){
       setMajorBrand("isom");
-      setMinorVersion("Mist");
+      setMinorVersion("\000\000\002\000");
       setCompatibleBrands("isom",0);
       setCompatibleBrands("iso2",1);
       setCompatibleBrands("avc1",2);
-      setCompatibleBrands("mp41",2);
+      setCompatibleBrands("mp41",3);
+      setCompatibleBrands("Mist",4);
     }
   }
   
@@ -1317,9 +1345,9 @@ namespace MP4 {
     memcpy(data + 4, "mvex", 4);
   }
 
-  TREX::TREX() {
+  TREX::TREX(unsigned int trackId){
     memcpy(data + 4, "trex", 4);
-    setTrackID(0);
+    setTrackID(trackId);
     setDefaultSampleDescriptionIndex(1);
     setDefaultSampleDuration(0);
     setDefaultSampleSize(0);
@@ -1727,7 +1755,7 @@ namespace MP4 {
     memcpy(data + 4, "mvhd", 4);
 
     //reserve an entire version 0 box
-    if (!reserve(0, 8, 108)) {
+    if (!reserve(0, 9, 108)) {
       return;//on fail, cancel all the things
     }
     memset(data + payloadOffset, 0, 100); //set all bytes (108 - 8) to zeroes
@@ -2108,26 +2136,41 @@ namespace MP4 {
     return r.str();
   }
 
+
   TKHD::TKHD(uint32_t trackId, uint64_t duration, uint32_t width, uint32_t height) {
+    initialize();
+    setTrackID(trackId);
+    setDuration(duration);
+    setWidth(width << 16);
+    setHeight(height << 16);
+  }
+
+  TKHD::TKHD(DTSC::Track & track, bool fragmented) {
+    initialize(); 
+    setTrackID(track.trackID);
+    setDuration(-1);
+    if (!fragmented) {
+      setDuration(track.lastms - track.firstms);
+    }
+    if (track.type == "video") {
+      setWidth(track.width << 16);
+      setHeight(track.height << 16);
+    }
+  }
+
+  void TKHD::initialize(){
     memcpy(data + 4, "tkhd", 4);
 
     //reserve an entire version 0 box
-    if (!reserve(0, 8, 92)) {
+    if (!reserve(0, 9, 92)) {
       return;//on fail, cancel all the things
     }
     memset(data + payloadOffset, 0, 84); //set all bytes (92 - 8) to zeroes
-
-    setFlags(15);//ENABLED | IN_MOVIE | IN_PREVIEW | IN_POSTER
-    setTrackID(trackId);
-    setDuration(duration);
-    if (width == 0 || height == 0) {
-      setVolume(0x0100);
-    }
+    setFlags(3);//ENABLED | IN_MOVIE 
     setMatrix(0x00010000, 0);
     setMatrix(0x00010000, 4);
     setMatrix(0x40000000, 8);
-    setWidth(width << 16);
-    setHeight(height << 16);
+    setVolume(0x0100);
   }
 
   void TKHD::setCreationTime(uint64_t newCreationTime) {
@@ -2325,7 +2368,7 @@ namespace MP4 {
   MDHD::MDHD(uint64_t duration) {
     memcpy(data + 4, "mdhd", 4);
     //reserve an entire version 0 box
-    if (!reserve(0, 8, 32)) {
+    if (!reserve(0, 9, 32)) {
       return;//on fail, cancel all the things
     }
     memset(data + payloadOffset, 0, 24); //set all bytes (32 - 8) to zeroes
@@ -2527,6 +2570,12 @@ namespace MP4 {
     }
     return r.str();
 
+  }
+
+  STSCEntry::STSCEntry(unsigned int _first, unsigned int _count, unsigned int _index){
+    firstChunk = _first;
+    samplesPerChunk = _count;
+    sampleDescriptionIndex = _index;
   }
 
   STSC::STSC(char v, uint32_t f) {
@@ -2853,6 +2902,8 @@ namespace MP4 {
 
   PASP::PASP() {
     memcpy(data + 4, "pasp", 4);
+    setHSpacing(1);
+    setVSpacing(1);
   }
 
   void PASP::setHSpacing(uint32_t newVal) {
@@ -2880,6 +2931,25 @@ namespace MP4 {
   }
 
   VisualSampleEntry::VisualSampleEntry() {
+    initialize();
+  }
+
+  VisualSampleEntry::VisualSampleEntry(DTSC::Track & track){
+    initialize();
+    setDataReferenceIndex(1);
+    setWidth(track.width);
+    setHeight(track.height);
+    if (track.codec == "H264") {
+      setCodec("avc1");
+      MP4::AVCC avccBox;
+      avccBox.setPayload(track.init);
+      setCLAP(avccBox);
+    }
+    MP4::PASP paspBox;
+    setPASP(paspBox);
+  }
+
+  void VisualSampleEntry::initialize(){
     memcpy(data + 4, "erro", 4);
     setHorizResolution(0x00480000);
     setVertResolution(0x00480000);
@@ -2933,7 +3003,9 @@ namespace MP4 {
   }
 
   void VisualSampleEntry::setCompressorName(std::string newCompressorName) {
-    newCompressorName.resize(32, ' ');
+    if (newCompressorName.size() > 32){
+      newCompressorName.resize(32, ' ');
+    }
     setString(newCompressorName, 42);
   }
 
@@ -2960,6 +3032,15 @@ namespace MP4 {
     }
     ret = getBox(78);
     return ret;
+  }
+
+  void VisualSampleEntry::setPASP(Box & pasp) {
+    int writePlace = 78;
+    Box tmpBox = getBox(78);
+    if (tmpBox.getType () != "erro"){
+      writePlace = 78 + getBoxLen(78);
+    }
+    setBox(pasp, writePlace);
   }
 
   Box & VisualSampleEntry::getPASP() {
@@ -2996,6 +3077,31 @@ namespace MP4 {
   }
 
   AudioSampleEntry::AudioSampleEntry() {
+    initialize();
+  }
+
+  AudioSampleEntry::AudioSampleEntry(DTSC::Track & track) {
+    initialize();
+    if (track.codec == "AAC" || track.codec == "MP3") {
+      setCodec("mp4a");
+    }
+    if (track.codec == "AC3") {
+      setCodec("ac-3");
+    }
+    setDataReferenceIndex(1);
+    setSampleRate(track.rate);
+    setChannelCount(track.channels);
+    setSampleSize(track.size);
+    if (track.codec == "AC3") {
+      MP4::DAC3 dac3Box(track.rate, track.channels);
+      setCodecBox(dac3Box);
+    } else { //other codecs use the ESDS box
+      MP4::ESDS esdsBox(track.init);
+      setCodecBox(esdsBox);
+    }
+  }
+
+  void AudioSampleEntry::initialize() {
     memcpy(data + 4, "erro", 4);
     setChannelCount(2);
     setSampleSize(16);
@@ -3282,67 +3388,75 @@ namespace MP4 {
     memcpy(data + 4, "elst", 4);
   }
 
+  void ELST::setCount(uint32_t newVal){
+      setInt32(newVal, 4);
+  }
+  
+  uint32_t ELST::getCount(){
+    return getInt32(4);
+  }
+
   void ELST::setSegmentDuration(uint64_t newVal) {
     if (getVersion() == 1) {
-      setInt64(newVal, 4);
-    } else {
-      setInt32(newVal, 4);
-    }
-  }
-
-  uint64_t ELST::getSegmentDuration() {
-    if (getVersion() == 1) {
-      return getInt64(4);
-    } else {
-      return getInt32(4);
-    }
-  }
-
-  void ELST::setMediaTime(uint64_t newVal) {
-    if (getVersion() == 1) {
-      setInt64(newVal, 12);
+      setInt64(newVal, 8);
     } else {
       setInt32(newVal, 8);
     }
   }
 
-  uint64_t ELST::getMediaTime() {
+  uint64_t ELST::getSegmentDuration() {
     if (getVersion() == 1) {
-      return getInt64(12);
+      return getInt64(8);
     } else {
       return getInt32(8);
     }
   }
 
+  void ELST::setMediaTime(uint64_t newVal) {
+    if (getVersion() == 1) {
+      setInt64(newVal, 16);
+    } else {
+      setInt32(newVal, 12);
+    }
+  }
+
+  uint64_t ELST::getMediaTime() {
+    if (getVersion() == 1) {
+      return getInt64(16);
+    } else {
+      return getInt32(12);
+    }
+  }
+
   void ELST::setMediaRateInteger(uint16_t newVal) {
     if (getVersion() == 1) {
-      setInt16(newVal, 20);
+      setInt16(newVal, 24);
     } else {
-      setInt16(newVal, 12);
+      setInt16(newVal, 16);
     }
   }
 
   uint16_t ELST::getMediaRateInteger() {
     if (getVersion() == 1) {
-      return getInt16(20);
+      return getInt16(24);
     } else {
-      return getInt16(12);
+      return getInt16(16);
     }
   }
 
   void ELST::setMediaRateFraction(uint16_t newVal) {
     if (getVersion() == 1) {
-      setInt16(newVal, 22);
+      setInt16(newVal, 26);
     } else {
-      setInt16(newVal, 14);
+      setInt16(newVal, 18);
     }
   }
 
   uint16_t ELST::getMediaRateFraction() {
     if (getVersion() == 1) {
-      return getInt16(22);
+      return getInt16(26);
     } else {
-      return getInt16(14);
+      return getInt16(18);
     }
   }
 
@@ -3350,6 +3464,7 @@ namespace MP4 {
     std::stringstream r;
     r << std::string(indent, ' ') << "[elst] Edit List Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
+    r << std::string(indent + 1, ' ') << "Count: " << getCount() << std::endl;
     r << std::string(indent + 1, ' ') << "SegmentDuration: " << getSegmentDuration() << std::endl;
     r << std::string(indent + 1, ' ') << "MediaTime: " << getMediaTime() << std::endl;
     r << std::string(indent + 1, ' ') << "MediaRateInteger: " << getMediaRateInteger() << std::endl;
@@ -3357,4 +3472,3 @@ namespace MP4 {
     return r.str();
   }
 }
-

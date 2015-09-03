@@ -115,7 +115,7 @@ namespace Analysers {
   }
 
   int analyseOGG(int argc, char ** argv){
-    Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+    Util::Config conf = Util::Config(argv[0]);
     conf.addOption("pages", JSON::fromString("{\"long\":\"pages\", \"short\":\"p\", \"long_off\":\"nopages\", \"short_off\":\"P\", \"default\":0, \"help\":\"Enable/disable printing of Ogg pages\"}"));
     conf.parseArgs(argc, argv);
 

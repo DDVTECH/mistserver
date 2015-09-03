@@ -21,12 +21,11 @@ namespace Util {
       static void signal_handler(int signum);
     public:
       //variables
-      static std::string libver; ///< Version number of the library as a string.
       static bool is_active; ///< Set to true by activate(), set to false by the signal handler.
       static unsigned int printDebugLevel;
       //functions
       Config();
-      Config(std::string cmd, std::string version);
+      Config(std::string cmd);
       void addOption(std::string optname, JSON::Value option);
       void printHelp(std::ostream & output);
       bool parseArgs(int & argc, char ** & argv);

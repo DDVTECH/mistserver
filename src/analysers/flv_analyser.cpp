@@ -17,7 +17,7 @@
 ///Debugging tool for FLV data.
 /// Expects FLV data through stdin, outputs human-readable information to stderr.
 int main(int argc, char ** argv){
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  Util::Config conf = Util::Config(argv[0]);
   conf.addOption("filter", JSON::fromString("{\"arg\":\"num\", \"short\":\"f\", \"long\":\"filter\", \"default\":0, \"help\":\"Only print info about this tag type (8 = audio, 9 = video, 0 = all)\"}"));
   conf.parseArgs(argc, argv);
   

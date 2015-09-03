@@ -209,7 +209,7 @@ namespace Analysers {
 }
 
 int main(int argc, char ** argv){
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  Util::Config conf = Util::Config(argv[0]);
   conf.addOption("detail",
       JSON::fromString(
           "{\"arg_num\":1, \"arg\":\"integer\", \"default\":0, \"help\":\"Bitmask, 1 = Reconstruct, 2 = Explicit media info, 4 = Verbose chunks\"}"));

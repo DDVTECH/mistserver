@@ -8,7 +8,7 @@ int spawnForked(Socket::Connection & S){
 }
 
 int main(int argc, char * argv[]) {
-  Util::Config conf(argv[0], PACKAGE_VERSION);
+  Util::Config conf(argv[0]);
   mistOut::init(&conf);
   if (conf.parseArgs(argc, argv)) {
     if (conf.getBool("json")) {

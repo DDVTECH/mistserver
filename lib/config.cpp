@@ -35,7 +35,6 @@
 
 bool Util::Config::is_active = false;
 unsigned int Util::Config::printDebugLevel = DEBUG;//
-std::string Util::Config::libver = PACKAGE_VERSION;
 
 Util::Config::Config() {
   //global options here
@@ -44,14 +43,10 @@ Util::Config::Config() {
   vals["debug"]["arg"] = "integer";
   vals["debug"]["help"] = "The debug level at which messages need to be printed.";
   vals["debug"]["value"].append((long long)DEBUG);
-  /*capabilities["optional"]["debug level"]["name"] = "debug";
-  capabilities["optional"]["debug level"]["help"] = "The debug level at which messages need to be printed.";
-  capabilities["optional"]["debug level"]["option"] = "--debug";
-  capabilities["optional"]["debug level"]["type"] = "integer";*/
 }
 
 /// Creates a new configuration manager.
-Util::Config::Config(std::string cmd, std::string version) {
+Util::Config::Config(std::string cmd) {
   vals.null();
   long_count = 2;
   vals["cmd"]["value"].append(cmd);
@@ -61,8 +56,6 @@ Util::Config::Config(std::string cmd, std::string version) {
   vals["help"]["long"] = "help";
   vals["help"]["short"] = "h";
   vals["help"]["help"] = "Display usage and version information, then exit.";
-  vals["version"]["value"].append((std::string)PACKAGE_VERSION);
-  vals["version"]["value"].append(version);
   vals["debug"]["long"] = "debug";
   vals["debug"]["short"] = "g";
   vals["debug"]["arg"] = "integer";
@@ -246,8 +239,17 @@ bool Util::Config::parseArgs(int & argc, char ** & argv) {
       case '?':
         printHelp(std::cout);
       case 'v':
-        std::cout << "Library version: " PACKAGE_VERSION << std::endl;
-        std::cout << "Application version: " << getString("version") << std::endl;
+        std::cout << "Version: " PACKAGE_VERSION ", release " RELEASE << std::endl;
+        #ifdef NOCRASHCHECK
+        std::cout << "- Flag: No crash check. Will not attempt to detect and kill crashed processes." << std::endl;
+        #endif
+        #ifndef SHM_ENABLED
+        std::cout << "- Flag: Shared memory disabled. Will use shared files in stead of shared memory as IPC method." << std::endl;
+        #endif
+        #ifdef WITH_THREADNAMES
+        std::cout << "- Flag: With threadnames. Debuggers will show sensible human-readable thread names." << std::endl;
+        #endif
+        std::cout << "Built on " __DATE__ ", " __TIME__ << std::endl;
         exit(1);
         break;
       default:

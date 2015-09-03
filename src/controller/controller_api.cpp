@@ -167,7 +167,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         H.Clean();
         H.SetHeader("Content-Type", "text/html");
         H.SetHeader("X-Info", "To force an API response, request the file /api");
-        H.SetHeader("Server", "mistserver/" PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE);
+        H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
         H.SetHeader("Content-Length", server_html_len);
         H.SendResponse("200", "OK", conn);
         conn.SendNow(server_html, server_html_len);
@@ -313,7 +313,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           }
           //sent current configuration, no matter if it was changed or not
           Response["config"] = Controller::Storage["config"];
-          Response["config"]["version"] = PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE;
+          Response["config"]["version"] = PACKAGE_VERSION;
           Response["streams"] = Controller::Storage["streams"];
           //add required data to the current unix time to the config, for syncing reasons
           Response["config"]["time"] = Util::epoch();

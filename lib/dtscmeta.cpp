@@ -1114,6 +1114,10 @@ namespace DTSC {
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + packDataSize);
   }
   
+  void Track::finalize(){
+    keys.rbegin()->setLength(lastms - keys.rbegin()->getTime() + parts.rbegin()->getDuration());
+  }
+  
   ///\brief Returns a key given its number, or an empty key if the number is out of bounds
   Key & Track::getKey(unsigned int keyNum) {
     static Key empty;

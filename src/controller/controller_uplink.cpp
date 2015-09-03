@@ -120,7 +120,7 @@ void Controller::uplinkConnection(void * np) {
         }
         data["config"] = Controller::Storage["config"];
         data["config"]["uniq"] = uniqId;
-        data["config"]["version"] = PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE;
+        data["config"]["version"] = PACKAGE_VERSION;
         Controller::checkCapable(capabilities);
         data["capabilities"] = capabilities;
         data["capabilities"].removeMember("connectors");

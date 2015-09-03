@@ -12,7 +12,7 @@
 #include <mist/stream.h>
 
 int main(int argc, char * argv[]) {
-  Util::Config conf(argv[0], PACKAGE_VERSION);
+  Util::Config conf(argv[0]);
   mistIn conv(&conf);
   if (conf.parseArgs(argc, argv)) {
     if (conf.getBool("json")) {

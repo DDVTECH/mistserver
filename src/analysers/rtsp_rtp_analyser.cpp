@@ -190,7 +190,7 @@ namespace RtspRtp{
 
 
 int main(int argc, char ** argv){
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  Util::Config conf = Util::Config(argv[0]);
   conf.addOption("url",JSON::fromString("{\"arg\":\"string\",\"short\":\"u\",\"long\":\"url\",\"help\":\"URL To get.\", \"default\":\"rtsp://localhost/s1k\"}"));
   conf.parseArgs(argc, argv);
   return RtspRtp::analyseRtspRtp(conf.getString("url"));

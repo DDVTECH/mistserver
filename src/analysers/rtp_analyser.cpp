@@ -203,7 +203,7 @@ namespace Analysers {
 
 
 int main(int argc, char ** argv){
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  Util::Config conf = Util::Config(argv[0]);
   conf.parseArgs(argc, argv);
   return Analysers::analyseRTP();
 }

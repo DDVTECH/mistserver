@@ -11,7 +11,7 @@
 
 /// Will emulate a given amount of clients in the statistics.
 int main(int argc, char ** argv){
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  Util::Config conf = Util::Config(argv[0]);
   conf.addOption("clients", JSON::fromString("{\"arg\":\"num\", \"short\":\"c\", \"long\":\"clients\", \"default\":1000, \"help\":\"Amount of clients to emulate.\"}"));
   conf.addOption("stream", JSON::fromString("{\"arg\":\"string\", \"short\":\"s\", \"long\":\"stream\", \"default\":\"test\", \"help\":\"Streamname to pretend to request.\"}"));
   conf.addOption("up", JSON::fromString("{\"arg\":\"string\", \"short\":\"u\", \"long\":\"up\", \"default\":131072, \"help\":\"Bytes per second upstream.\"}"));

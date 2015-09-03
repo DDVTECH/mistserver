@@ -92,7 +92,7 @@ namespace Controller {
     http.url = "/getsums.php?verinfo=1&rel=" RELEASE "&pass=" SHARED_SECRET "&uniqId=" + uniqId;
     http.method = "GET";
     http.SetHeader("Host", "releases.mistserver.org");
-    http.SetHeader("X-Version", PACKAGE_VERSION "/" + Util::Config::libver + "/" RELEASE);
+    http.SetHeader("X-Version", PACKAGE_VERSION);
     updrConn.SendNow(http.BuildRequest());
     http.Clean();
     unsigned int startTime = Util::epoch();

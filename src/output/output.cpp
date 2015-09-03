@@ -39,10 +39,12 @@ namespace Mist {
     sought = false;
     isInitialized = false;
     isBlocking = false;
+    completeKeysOnly = false;
     lastStats = 0;
     maxSkipAhead = 7500;
     minSkipAhead = 5000;
     realTime = 1000;
+    completeKeyReadyTimeOut = false;
     if (myConn){
       setBlocking(true);
     }else{
@@ -582,6 +584,47 @@ namespace Mist {
     if (realTime){
       while (nxt.time > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime) {
         Util::sleep(nxt.time - (((Util::getMS() - firstTime)*1000)+minSkipAhead)/realTime);
+      }
+    }
+    //delay the stream until its current keyframe is complete
+    if (completeKeysOnly){
+      bool completeKeyReady = false;
+      int timeoutTries = 40;//attempts to updateMeta before timeOut and moving on; default is approximately 10 seconds
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.keys.size() >1){
+          int thisTimeoutTries = ((it->second.lastms - it->second.firstms) / (it->second.keys.size()-1)) / 125;
+          if (thisTimeoutTries > timeoutTries) timeoutTries = thisTimeoutTries;
+        }
+      }
+      while(!completeKeyReady && timeoutTries>0){
+        completeKeyReady = true;
+        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+            if (!it->second.keys.size() || it->second.keys.rbegin()->getTime() + it->second.keys.rbegin()->getLength() <= nxt.time ){
+              completeKeyReady = false;
+              break;
+            }
+        }
+        if (!completeKeyReady){
+          if (completeKeyReadyTimeOut){
+            INSANE_MSG("Complete Key not ready and time-out is being skipped");
+            timeoutTries = 0;
+          }else{
+            INSANE_MSG("Timeout: %d",timeoutTries);
+            timeoutTries--;//we count down
+            stats();
+            Util::wait(250);
+            updateMeta();
+          }
+        }
+      }
+      if (timeoutTries<=0){
+        if (!completeKeyReadyTimeOut){
+          INFO_MSG("Wait for keyframe Timeout triggered! Ended to avoid endless loops");
+        }
+        completeKeyReadyTimeOut = true;
+      }else{
+        //untimeout handling
+        completeKeyReadyTimeOut = false;
       }
     }
     if (curPage[nxt.tid]){

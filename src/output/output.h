@@ -73,6 +73,7 @@ namespace Mist {
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
+      bool completeKeyReadyTimeOut;//a bool to see if there has been a keyframe TimeOut for complete keys in Live
     protected://these are to be messed with by child classes
       IPC::sharedClient statsPage;///< Shared memory used for statistics reporting.
       bool isBlocking;///< If true, indicates that myConn is blocking.
@@ -83,6 +84,7 @@ namespace Mist {
       unsigned int maxSkipAhead;///< Maximum ms that we will go ahead of the intended timestamps.
       unsigned int minSkipAhead;///< Minimum ms that we will go ahead of the intended timestamps.
       unsigned int realTime;///< Playback speed in ms of data per second. eg: 0 is infinite, 1000 real-time, 5000 is 0.2X speed, 500 = 2X speed.
+      bool completeKeysOnly;///< Bool if we send whole keys only, so the metadata is complete and the output knows in advance what will be sent.
 
       //Read/write status variables
       Socket::Connection & myConn;///< Connection to the client.

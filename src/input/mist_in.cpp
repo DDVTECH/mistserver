@@ -12,7 +12,7 @@
 #include <mist/procs.h>
 
 int main(int argc, char * argv[]) {
-  Util::Config conf(argv[0], PACKAGE_VERSION);
+  Util::Config conf(argv[0]);
   mistIn conv(&conf);
   if (conf.parseArgs(argc, argv)) {
     std::string streamName = conf.getString("streamname");

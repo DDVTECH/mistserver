@@ -150,7 +150,7 @@ int main(int argc, char ** argv){
   if ( !stored_user["default"]){
     stored_user["default"] = "root";
   }
-  Controller::conf = Util::Config(argv[0], PACKAGE_VERSION " / " RELEASE);
+  Controller::conf = Util::Config(argv[0]);
   Controller::conf.addOption("listen_port", stored_port);
   Controller::conf.addOption("listen_interface", stored_interface);
   Controller::conf.addOption("username", stored_user);

@@ -42,7 +42,7 @@ namespace Analysers {
 /// Debugging tool for MP4 data.
 /// Expects MP4 data through stdin, outputs human-readable information to stderr.
 int main(int argc, char ** argv){
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  Util::Config conf = Util::Config(argv[0]);
   conf.parseArgs(argc, argv);
   return Analysers::analyseMP4();
 }

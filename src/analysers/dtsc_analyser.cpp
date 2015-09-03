@@ -55,7 +55,7 @@ namespace Analysers {
 
 /// Reads an DTSC file and prints all readable data about it
 int main(int argc, char ** argv){
-  Util::Config conf = Util::Config(argv[0], PACKAGE_VERSION);
+  Util::Config conf = Util::Config(argv[0]);
   conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Filename of the DTSC file to analyse.\"}"));
   conf.parseArgs(argc, argv);
   return Analysers::analyseDTSC(conf);

@@ -2945,6 +2945,14 @@ namespace MP4 {
       avccBox.setPayload(track.init);
       setCLAP(avccBox);
     }
+    /*LTS-START*/
+    if (track.codec == "HEVC") {
+      setCodec("hev1");
+      MP4::HVCC hvccBox;
+      hvccBox.setPayload(track.init);
+      setCLAP(hvccBox);
+    }
+    /*LTS-END*/
     MP4::PASP paspBox;
     setPASP(paspBox);
   }

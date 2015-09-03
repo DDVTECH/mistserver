@@ -377,6 +377,9 @@ namespace MP4 {
       case 0x75756964:
         return ((UUID *)this)->toPrettyString(indent);
         break;
+      case 0x70617370:
+        return ((PASP*)this)->toPrettyString(indent);
+        break;
       default:
         break;
     }

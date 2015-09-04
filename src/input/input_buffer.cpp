@@ -313,8 +313,13 @@ namespace Mist {
         if ((time - lastUpdated[it->first]) > (bufferTime / 1000) || (compareLast && (time - lastUpdated[it->first]) > 5 && ((myMeta.tracks[it->first].firstms - compareLast) > bufferTime || (compareFirst - myMeta.tracks[it->first].lastms) > bufferTime))){
           unsigned int tid = it->first;
           //erase this track
-          INFO_MSG("Erasing track %d because of timeout", it->first);
+          if ((time - lastUpdated[it->first]) > (bufferTime / 1000)){
+            INFO_MSG("Erasing track %d because not updated for %ds (> %ds)", it->first, (time - lastUpdated[it->first]), bufferTime / 1000);
+          }else{
+            INFO_MSG("Erasing inactive track %d because it contains data (%ds - %ds), while active tracks are (%ds - %ds), which is more than %ds seconds apart.", it->second.firstms / 1000, it->second.lastms / 1000, compareFirst/1000, compareLast/1000, bufferTime / 1000);
+          }
           lastUpdated.erase(tid);
+          /// \todo Consider replacing with eraseTrackDataPages(it->first)?
           while (bufferLocations[tid].size()){
             char thisPageName[NAME_BUFFER_SIZE];
             snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), (unsigned long)tid, bufferLocations[tid].begin()->first);
@@ -530,8 +535,8 @@ namespace Mist {
 
         //Register the new track as an active track.
         activeTracks.insert(finalMap);
-        //Register the time of registration as initial value for the lastUpdated field.
-        lastUpdated[finalMap] = Util::bootSecs();
+        //Register the time of registration as initial value for the lastUpdated field, plus an extra 5 seconds just to be sure.
+        lastUpdated[finalMap] = Util::bootSecs() + 5;
         //Register the user thats is pushing this element
         pushLocation[finalMap] = data;
         //Initialize the metadata for this track if it was not in place yet.

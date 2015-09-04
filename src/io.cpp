@@ -436,14 +436,13 @@ namespace Mist {
       metaPages[tid].master = false;
       return;
     }
+    //dont try to re-negoiate existing tracks, if this is what you want, remove the tid from the trackState before calling this function
     if (trackState.count(tid) && (trackState[tid] == FILL_DEC || trackState[tid] == FILL_ACC)) {
-      HIGH_MSG("Do Not Renegotiate");
-      //dont try to re-negoiate existing tracks, if this is what you want, remove the tid from the trackState before calling this function
       return;
     }
     if (!trackOffset.count(tid)) {
       if (trackOffset.size() > SIMUL_TRACKS) {
-        INFO_MSG("Trackoffset too high");
+        WARN_MSG("Trackoffset too high");
         return;
       }
       //Find a free offset for the new track
@@ -490,7 +489,7 @@ namespace Mist {
             INSANE_MSG("Breaking because not set yet");
             break;
           }
-          INFO_MSG("Track %lu temporarily mapped to %lu", tid, newTid);
+          HIGH_MSG("Track %lu temporarily mapped to %lu", tid, newTid);
 
           char pageName[NAME_BUFFER_SIZE];
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_META, streamName.c_str(), newTid);
@@ -502,7 +501,7 @@ namespace Mist {
           JSON::Value tmpVal = tmpMeta.toJSON();
           std::string tmpStr = tmpVal.toNetPacked();
           memcpy(metaPages[tid].mapped, tmpStr.data(), tmpStr.size());
-          INFO_MSG("Temporary metadata written for incoming track %lu, handling as track %lu", tid, newTid);
+          HIGH_MSG("Temporary metadata written for incoming track %lu, handling as track %lu", tid, newTid);
           //Not actually removing the page, because we set master to false
           #if defined(__CYGWIN__) || defined(_WIN32)
           IPC::preservePage(pageName);
@@ -517,7 +516,7 @@ namespace Mist {
           unsigned long finalTid = ((long)(tmp[offset]) << 24) | ((long)(tmp[offset + 1]) << 16) | ((long)(tmp[offset + 2]) << 8) | tmp[offset + 3];
           unsigned long firstPage = firstPage = ((long)(tmp[offset + 4]) << 8) | tmp[offset + 5];
           if (firstPage == 0xFFFF) {
-            INFO_MSG("Negotiating, but firstPage not yet set, waiting for buffer");
+            HIGH_MSG("Negotiating, but firstPage not yet set, waiting for buffer");
             break;
           }
           #if defined(__CYGWIN__) || defined(_WIN32)
@@ -542,7 +541,7 @@ namespace Mist {
             break;
           }
 
-          INFO_MSG("Buffer has indicated that incoming track %lu should start writing on track %lu, page %lu", tid, finalTid, firstPage);
+          MEDIUM_MSG("Buffer has indicated that incoming track %lu should start writing on track %lu, page %lu", tid, finalTid, firstPage);
           trackMap[tid] = finalTid;
           if (myMeta.tracks.count(finalTid) && myMeta.tracks[finalTid].lastms){
             myMeta.tracks[finalTid].lastms = 0;

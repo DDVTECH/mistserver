@@ -112,19 +112,14 @@ namespace RTP {
     data[1] |= 0x80;//setting the RTP marker bit to 1
     long offsetLen = 0;
     if (codec == "AAC"){
-      INFO_MSG("send AAC codec");
       *((long *)(data + getHsize())) = htonl(((payloadlen << 3) & 0x0010fff8) | 0x00100000);
       offsetLen = 4;
     }else if (codec == "MP3"){
-      INFO_MSG("send MP3 codec");
       *((long *)(data + getHsize())) = 0;//this is MBZ and Frag_Offset, which is always 0
       offsetLen = 4;
     }else if (codec == "AC3"){
-      INFO_MSG("send AC3 codec");
       *((short *)(data + getHsize())) = htons(0x0001) ;//this is 6 bits MBZ, 2 bits FT = 0 = full frames and 8 bits saying we send 1 frame
       offsetLen = 2;
-    }else{
-      INFO_MSG("send Raw");
     }
     memcpy(data + getHsize() + offsetLen, payload, payloadlen);
     callBack(socket, data, getHsize() + offsetLen + payloadlen, channel);

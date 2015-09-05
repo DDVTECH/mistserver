@@ -1,6 +1,7 @@
 #include <mist/defines.h>
 #include <mist/auth.h>
 #include <mist/base64.h>
+#include <mist/stream.h>
 #include "output_rtsp.h"
 
 namespace Mist {
@@ -128,6 +129,7 @@ namespace Mist {
       //set the streamname and session
       size_t found = HTTP_R.url.find('/', 7);
       streamName = HTTP_R.url.substr(found + 1, HTTP_R.url.substr(found + 1).find('/'));
+      Util::sanitizeName(streamName);
       if (streamName != ""){
         HTTP_S.SetHeader("Session", Secure::md5(HTTP_S.GetHeader("User-Agent") + myConn.getHost()) + "_" + streamName);
       }
@@ -144,7 +146,7 @@ namespace Mist {
       HTTP_S.SetHeader("CSeq", HTTP_R.GetHeader("CSeq"));
       
       //handle the request
-      DEBUG_MSG(DLVL_VERYHIGH, "Received %s:\n%s", HTTP_R.method.c_str(), HTTP_R.BuildRequest().c_str());
+      VERYHIGH_MSG("Received %s:\n%s", HTTP_R.method.c_str(), HTTP_R.BuildRequest().c_str());
       bool handled = false;
       if (HTTP_R.method == "OPTIONS"){
         HTTP_S.SetHeader("Public", "SETUP, TEARDOWN, PLAY, PAUSE, DESCRIBE, GET_PARAMETER");
@@ -176,8 +178,9 @@ namespace Mist {
         stop();
         handled = true;
       }
+      /// \todo Handle ANNOUNCE for push? Send out ANNOUNCE with stream length updates?
       if (!handled){
-        DEBUG_MSG(DLVL_WARN, "Unhandled command %s:\n%s", HTTP_R.method.c_str(), HTTP_R.BuildRequest().c_str());
+        WARN_MSG("Unhandled command %s:\n%s", HTTP_R.method.c_str(), HTTP_R.BuildRequest().c_str());
       }
       HTTP_R.Clean();
     }
@@ -200,7 +203,7 @@ namespace Mist {
       }
     }
     
-    HTTP_S.SetHeader("Content-Base", HTTP_R.url);
+    HTTP_S.SetHeader("Content-Base", HTTP_R.url.substr(0, HTTP_R.url.rfind('/')) + "/" + streamName);
     HTTP_S.SetHeader("Content-Type", "application/sdp");
     std::stringstream transportString;
     transportString << "v=0\r\n"//version
@@ -220,7 +223,6 @@ namespace Mist {
     //loop over all tracks, add them to the SDP.
     /// \todo Make sure this works correctly for multibitrate streams.
     for (std::map<unsigned int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); objIt ++) {
-      INFO_MSG("Codec: %s", objIt->second.codec.c_str());
       if (objIt->second.codec == "H264") {
         MP4::AVCC avccbox;
         avccbox.setPayload(objIt->second.init);
@@ -277,7 +279,7 @@ namespace Mist {
     }else if(myMeta.tracks[trId].codec == "MP3"){
       tracks[trId].rtpPacket = RTP::Packet(14, 1, 0, SSrc);
     }else{
-      DEBUG_MSG(DLVL_FAIL,"Unsupported codec for RTSP: %s",myMeta.tracks[trId].codec.c_str());
+      WARN_MSG("Unsupported codec for RTSP on track %u (%s): %s", trId, myMeta.tracks[trId].codec.c_str(), HTTP_R.url);
     }
     
     //read client ports
@@ -351,7 +353,7 @@ namespace Mist {
     std::stringstream transportString;
     std::string range = HTTP_R.GetHeader("Range");
     if (range != ""){
-      DEBUG_MSG(DLVL_DEVEL, "Play: %s", range.c_str());
+      VERYHIGH_MSG("Play: %s", range.c_str());
       range = range.substr(range.find("npt=")+4);
       if (range.empty()) {
         seekpoint = 0;

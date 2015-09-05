@@ -80,7 +80,7 @@ namespace Mist {
     capa["codecs"][0u][2u].append("*");
     isBuffer = true;
     singleton = this;
-    bufferTime = 0;
+    bufferTime = 50000;
     cutTime = 0;
     segmentSize = 5000;
   }
@@ -685,6 +685,7 @@ namespace Mist {
         tmpNum = config->getOption("bufferTime").asInt();
       }
     }
+    if (tmpNum < 1000){tmpNum = 1000;}
     //if the new value is different, print a message and apply it
     if (bufferTime != tmpNum){
       DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, tmpNum);

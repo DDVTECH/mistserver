@@ -82,7 +82,7 @@ namespace Mist {
     singleton = this;
     bufferTime = 0;
     cutTime = 0;
-    segmentSize = 0;
+    segmentSize = 5000;
   }
 
   inputBuffer::~inputBuffer(){

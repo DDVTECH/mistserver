@@ -211,6 +211,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           /// }
           /// ~~~~~~~~~~~~~~~
           /// These requests will add new streams or update existing streams with the same names, without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
+          /// Sending `"addstream"` or `"deletestream"` as part of your request will alter the `"streams"` response. As opposed to a full list of streams, this will now include a property `"incomplete list"` set to 1 and only include successfully added streams. As deletions cannot fail, these are never mentioned.
           /// 
           if (Request.isMember("addstream")){
             Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
@@ -236,6 +237,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           /// "streamname"
           /// ~~~~~~~~~~~~~~~
           /// These requests will remove the named stream(s), without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
+          /// Sending `"addstream"` or `"deletestream"` as part of your request will alter the `"streams"` response. As opposed to a full list of streams, this will now include a property `"incomplete list"` set to 1 and only include successfully added streams. As deletions cannot fail, these are never mentioned.
           ///
           if (Request.isMember("deletestream")){
             //if array, delete all elements
@@ -484,7 +486,20 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           //sent current configuration, no matter if it was changed or not
           Response["config"] = Controller::Storage["config"];
           Response["config"]["version"] = PACKAGE_VERSION;
+          /*LTS-START*/
+          if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
+            Response["streams"]["incomplete list"] = 1ll;
+            if (Request.isMember("addstream")){
+              for (JSON::ObjIter jit = Request["addstream"].ObjBegin(); jit != Request["addstream"].ObjEnd(); jit++){
+                if (Controller::Storage["streams"].isMember(jit->first)){
+                  Response["streams"][jit->first] = Controller::Storage["streams"][jit->first];
+                }
+              }
+            }
+          }else{
+          /*LTS-END*/
           Response["streams"] = Controller::Storage["streams"];
+          }//LTS
           //add required data to the current unix time to the config, for syncing reasons
           Response["config"]["time"] = Util::epoch();
           if ( !Response["config"].isMember("serverid")){

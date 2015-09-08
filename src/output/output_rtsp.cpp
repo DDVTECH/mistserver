@@ -279,7 +279,7 @@ namespace Mist {
     }else if(myMeta.tracks[trId].codec == "MP3"){
       tracks[trId].rtpPacket = RTP::Packet(14, 1, 0, SSrc);
     }else{
-      WARN_MSG("Unsupported codec for RTSP on track %u (%s): %s", trId, myMeta.tracks[trId].codec.c_str(), HTTP_R.url);
+      WARN_MSG("Unsupported codec for RTSP on track %u (%s): %s", trId, myMeta.tracks[trId].codec.c_str(), HTTP_R.url.c_str());
     }
     
     //read client ports

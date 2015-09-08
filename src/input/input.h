@@ -36,6 +36,9 @@ namespace Mist {
       virtual void removeUnused();
       virtual void trackSelect(std::string trackSpec){};
       virtual void userCallback(char * data, size_t len, unsigned int id);
+
+      void serve();
+      void convert();
       
       void parseHeader();
       bool bufferFrame(unsigned int track, unsigned int keyNum);

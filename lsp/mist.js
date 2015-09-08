@@ -3900,14 +3900,18 @@ var mist = {
         delete mist.user.loggedin;
         switch (d.authorize.status) {
           case 'OK':
-            //communication succesfull
+            //communication succesful, copy everything we care about, if it exists
+            if (d.config){mist.data.config = d.config;}
+            if (d.capabilities){mist.data.capabilities = d.capabilities;}
+            if (d.ui_settings){mist.data.ui_settings = d.ui_settings;}
+            if (d.LTS){mist.data.LTS = d.LTS;}
+            if (d.active_streams){mist.data.active_streams = d.active_streams;}
+            if (d.browse){mist.data.browse = d.browse;}
+            if (d.log){mist.data.log = d.log;}
+            if (d.streams && !d.streams["incomplete list"]){mist.data.streams = d.streams;}
             
-            $.extend(true,mist.data,d);
-            
-            //if streams/protocols have been deleted by someone else, make sure they're gone by overwriting
-            mist.data.streams = d.streams;
-            mist.data.config.protocols = d.config.protocols;
-            mist.data.config.limits = d.config.limits
+            //does this really belong globally stored here?
+            if (d.totals){mist.data.totals = d.totals;}
             
             mist.user.loggedin = true;
             UI.elements.connection.status.text('Connected').removeClass('red').addClass('green');

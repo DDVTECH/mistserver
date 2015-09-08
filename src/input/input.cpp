@@ -132,63 +132,71 @@ namespace Mist {
     parseHeader();
     
     if (!config->getString("streamname").size()){
-      //check filename for no -
-      if (config->getString("output") != "-"){
-        std::string filename = config->getString("output");
-        if (filename.size() < 5 || filename.substr(filename.size() - 5) != ".dtsc"){
-          filename += ".dtsc";
-        }
-        //output to dtsc
-        DTSC::Meta newMeta = myMeta;
-        newMeta.reset();
-        std::ofstream file(filename.c_str());
-        long long int bpos = 0;
-        seek(0);
-        getNext();
-        while (thisPacket){
-          newMeta.updatePosOverride(thisPacket, bpos);
-          file.write(thisPacket.getData(), thisPacket.getDataLen());
-          bpos += thisPacket.getDataLen();
-          getNext();
-        }
-        //close file
-        file.close();
-        //create header
-        file.open((filename+".dtsh").c_str());
-        file << newMeta.toJSON().toNetPacked();
-        file.close();
-      }else{
-        DEBUG_MSG(DLVL_FAIL,"No filename specified, exiting");
-      }
+      convert();
     }else{
-      char userPageName[NAME_BUFFER_SIZE];
-      snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-      userPage.init(userPageName, PLAY_EX_SIZE, true);
-      if (!isBuffer){
-        for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-          bufferFrame(it->first, 1);
-        }
-      }
-      
-      DEBUG_MSG(DLVL_DEVEL,"Input for stream %s started", streamName.c_str());
-      
-      long long int activityCounter = Util::bootSecs();
-      while ((Util::bootSecs() - activityCounter) < 10 && config->is_active){//10 second timeout
-        Util::wait(1000);
-        removeUnused();
-        userPage.parseEach(callbackWrapper);
-        if (userPage.amount){
-          activityCounter = Util::bootSecs();
-          DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.amount);
-        }else{
-          DEBUG_MSG(DLVL_INSANE, "Timer running");
-        }
-      }
-      finish();
-      DEBUG_MSG(DLVL_DEVEL,"Input for stream %s closing clean", streamName.c_str());
-      //end player functionality
+      serve();
     }
     return 0;
+  }
+
+  void Input::convert(){
+    //check filename for no -
+    if (config->getString("output") != "-"){
+      std::string filename = config->getString("output");
+      if (filename.size() < 5 || filename.substr(filename.size() - 5) != ".dtsc"){
+        filename += ".dtsc";
+      }
+      //output to dtsc
+      DTSC::Meta newMeta = myMeta;
+      newMeta.reset();
+      std::ofstream file(filename.c_str());
+      long long int bpos = 0;
+      seek(0);
+      getNext();
+      while (thisPacket){
+        newMeta.updatePosOverride(thisPacket, bpos);
+        file.write(thisPacket.getData(), thisPacket.getDataLen());
+        bpos += thisPacket.getDataLen();
+        getNext();
+      }
+      //close file
+      file.close();
+      //create header
+      file.open((filename+".dtsh").c_str());
+      file << newMeta.toJSON().toNetPacked();
+      file.close();
+    }else{
+      DEBUG_MSG(DLVL_FAIL,"No filename specified, exiting");
+    }
+  }
+  
+  void Input::serve(){
+    char userPageName[NAME_BUFFER_SIZE];
+    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+    userPage.init(userPageName, PLAY_EX_SIZE, true);
+    if (!isBuffer){
+      for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        bufferFrame(it->first, 1);
+      }
+    }
+    
+    DEBUG_MSG(DLVL_DEVEL,"Input for stream %s started", streamName.c_str());
+    
+    long long int activityCounter = Util::bootSecs();
+    while ((Util::bootSecs() - activityCounter) < 10 && config->is_active){//10 second timeout
+      Util::wait(1000);
+      removeUnused();
+      userPage.parseEach(callbackWrapper);
+      if (userPage.amount){
+        activityCounter = Util::bootSecs();
+        DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.amount);
+      }else{
+        DEBUG_MSG(DLVL_INSANE, "Timer running");
+      }
+    }
+    finish();
+    DEBUG_MSG(DLVL_DEVEL,"Input for stream %s closing clean", streamName.c_str());
+    //end player functionality
   }
 
   void Input::finish(){

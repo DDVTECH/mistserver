@@ -23,6 +23,7 @@ namespace Mist {
     offsetIndex = 0;
     offsetPos = 0;
     sttsBox.clear();
+    hasCTTS = false;
     cttsBox.clear();
     stszBox.clear();
     stcoBox.clear();
@@ -75,6 +76,7 @@ namespace Mist {
                     tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
                     cttsBox.clear();
                     cttsBox.read(tmp);
+                    hasCTTS = true;
                   }else if (stblBoxType == "stsz"){
                     tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
                     stszBox.clear();
@@ -163,15 +165,17 @@ namespace Mist {
       offsetIndex = 0;
       offsetPos = 0;
     }
-    MP4::CTTSEntry tmpCTTS;
-    while (offsetIndex < cttsBox.getEntryCount()){
-      tmpCTTS = cttsBox.getCTTSEntry(offsetIndex);
-      if ((index - offsetPos) < tmpCTTS.sampleCount){
-        timeOffset = (tmpCTTS.sampleOffset*1000)/timeScale;
-        break;
+    if (hasCTTS){
+      MP4::CTTSEntry tmpCTTS;
+      while (offsetIndex < cttsBox.getEntryCount()){
+        tmpCTTS = cttsBox.getCTTSEntry(offsetIndex);
+        if ((index - offsetPos) < tmpCTTS.sampleCount){
+          timeOffset = (tmpCTTS.sampleOffset*1000)/timeScale;
+          break;
+        }
+        offsetPos += tmpCTTS.sampleCount;
+        ++offsetIndex;
       }
-      offsetPos += tmpCTTS.sampleCount;
-      ++offsetIndex;
     }
 
     //next lines are common for next-getting and seeking

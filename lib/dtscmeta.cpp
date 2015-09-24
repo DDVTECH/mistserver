@@ -1374,6 +1374,7 @@ namespace DTSC {
   }
 
   void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size, const char * ivec){
+    DONTEVEN_MSG("Updating meta with: t=%lld, o=%lld, s=%lld, t=%lld, p=%lld", packTime, packOffset, packDataSize, packTrack, packBytePos);
     if (!packSendSize){
       //time and trackID are part of the 20-byte header.
       //the container object adds 4 bytes (plus 2+namelen for each content, see below)

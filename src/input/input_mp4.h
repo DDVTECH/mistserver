@@ -63,6 +63,7 @@ namespace Mist {
       MP4::STCO stcoBox;
       MP4::STSZ stszBox;
       MP4::STTS sttsBox;
+      bool hasCTTS;
       MP4::CTTS cttsBox;
       MP4::STSC stscBox;
       long unsigned int timeScale;

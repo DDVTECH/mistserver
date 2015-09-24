@@ -323,6 +323,10 @@ select option[disabled] {
 .input_container label.active .ih_balloon,
 .input_container > .help_container .ih_balloon {
   display: block;
+  z-index: 1;
+}
+.input_container label.active .err_balloon {
+  z-index: 1;
 }
 .err_balloon ~ .ih_balloon {
   display: none !important;
@@ -512,6 +516,24 @@ th.sorting-desc:after {
   margin-left: 1em;
   flex-grow: 1;
 }
+.input_container .field_container .field.checkcontainer {
+  font-size: 0.8em;
+  border: 1px solid #bbb;
+}
+.input_container .field_container .field .controls {
+  border-bottom: 1px dashed #bbb;
+}
+.input_container .field_container .field .checklist {
+  -webkit-column-width: 10em;
+  -moz-column-width: 10em;
+  column-width: 10em;
+  min-height: 0;
+  max-height: 10em;
+  overflow-y: auto;
+}
+.input_container .field_container .field .checklist label {
+  display: block;
+}
 input[type=radio] {
   height: 1.1em;
   width: 1.1em;
@@ -677,6 +699,26 @@ body:not(.helpme) .input_container .ih_balloon {
 }
 .qr_container .qrcode {
   flex-grow: 1;
+}
+
+.preview_icons {
+  display: flex;
+  flex-flow: row wrap;
+}
+.preview_icons > * {
+  margin: 0.1em;
+  flex-grow: 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: center;
+}
+.preview_icons > * > * {
+  min-width: 0;
+  width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 @font-face {

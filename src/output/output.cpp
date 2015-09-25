@@ -569,7 +569,7 @@ namespace Mist {
     thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
     if (thisPacket){
       if (thisPacket.getTime() != nxt.time && nxt.time){
-        DEBUG_MSG(DLVL_MEDIUM, "ACTUALLY Loaded track %ld (next=%lu), %llu ms", thisPacket.getTrackId(), nxtKeyNum[nxt.tid], thisPacket.getTime());
+        WARN_MSG("Loaded track %ld@%llu instead of %ld@%llu", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time);
       }
       if ((myMeta.tracks[nxt.tid].type == "video" && thisPacket.getFlag("keyframe")) || (++nonVideoCount % 30 == 0)){
         if (myMeta.live){

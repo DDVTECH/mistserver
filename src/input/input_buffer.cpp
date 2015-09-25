@@ -627,7 +627,6 @@ namespace Mist {
       //And the last keyframe in the parsed metadata is further in the stream than this page
       if (pageData.pageNum + pageData.keyNum < myMeta.tracks[tNum].keys.rbegin()->getNumber()){
         //Assume the entire page is already parsed
-        INFO_MSG("Assuming its already done", tNum, pageNum);
         return;
       }
     }

@@ -598,11 +598,11 @@ namespace Mist {
       }
       while(!completeKeyReady && timeoutTries>0){
         completeKeyReady = true;
-        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-            if (!it->second.keys.size() || it->second.keys.rbegin()->getTime() + it->second.keys.rbegin()->getLength() <= nxt.time ){
-              completeKeyReady = false;
-              break;
-            }
+        for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+          if (!myMeta.tracks[*it].keys.size() || myMeta.tracks[*it].keys.rbegin()->getTime() + myMeta.tracks[*it].keys.rbegin()->getLength() <= nxt.time ){
+            completeKeyReady = false;
+            break;
+          }
         }
         if (!completeKeyReady){
           if (completeKeyReadyTimeOut){

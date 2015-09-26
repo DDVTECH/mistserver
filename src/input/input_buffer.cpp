@@ -575,7 +575,6 @@ namespace Mist {
       }
       //If the track is active, and this is the element responsible for pushing it
       if (activeTracks.count(value) && pushLocation[value] == data){
-        INFO_MSG("Track is live and pushin'");
         //Open the track index page if we dont have it open yet
         if (!metaPages.count(value) || !metaPages[value].mapped){
           char firstPage[NAME_BUFFER_SIZE];
@@ -591,7 +590,7 @@ namespace Mist {
   }
 
   void inputBuffer::updateTrackMeta(unsigned long tNum){
-    INFO_MSG("Updating meta for track %d", tNum);
+    VERYHIGH_MSG("Updating meta for track %d", tNum);
     //Store a reference for easier access
     std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
 
@@ -602,7 +601,7 @@ namespace Mist {
         continue;
       }
       unsigned long keyNum = ntohl(tmpOffset[0]);
-      INFO_MSG("Page %d detected, with %d keys", keyNum, ntohl(tmpOffset[1]));
+      INSANE_MSG("Page %d detected, with %d keys", keyNum, ntohl(tmpOffset[1]));
 
       //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
       if (!locations.count(keyNum)){
@@ -619,7 +618,7 @@ namespace Mist {
   }
 
   void inputBuffer::updateMetaFromPage(unsigned long tNum, unsigned long pageNum){
-    INFO_MSG("Updating meta for track %d page %d", tNum, pageNum);
+    VERYHIGH_MSG("Updating meta for track %d page %d", tNum, pageNum);
     DTSCPageData & pageData = bufferLocations[tNum][pageNum];
 
     //If the current page is over its 8mb "splitting" boundary

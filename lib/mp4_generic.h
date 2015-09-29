@@ -443,10 +443,10 @@ namespace MP4 {
       void setMatrix(int32_t newMatrix, size_t index);
       int32_t getMatrix(size_t index);
 
-      void setWidth(uint32_t newWidth);
-      uint32_t getWidth();
-      void setHeight(uint32_t newHeight);
-      uint32_t getHeight();
+      void setWidth(double newWidth);
+      double getWidth();
+      void setHeight(double newHeight);
+      double getHeight();
       std::string toPrettyString(uint32_t indent = 0);
     protected:
       void initialize();

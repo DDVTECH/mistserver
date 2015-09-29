@@ -2141,8 +2141,8 @@ namespace MP4 {
     initialize();
     setTrackID(trackId);
     setDuration(duration);
-    setWidth(width << 16);
-    setHeight(height << 16);
+    setWidth(width);
+    setHeight(height);
   }
 
   TKHD::TKHD(DTSC::Track & track, bool fragmented) {
@@ -2153,8 +2153,8 @@ namespace MP4 {
       setDuration(track.lastms - track.firstms);
     }
     if (track.type == "video") {
-      setWidth(track.width << 16);
-      setHeight(track.height << 16);
+      setWidth(track.width);
+      setHeight(track.height);
     }
   }
 
@@ -2309,35 +2309,35 @@ namespace MP4 {
     return getInt32(offset + index * 4);
   }
 
-  void TKHD::setWidth(uint32_t newWidth) {
+  void TKHD::setWidth(double newWidth) {
     if (getVersion() == 0) {
-      setInt32(newWidth, 76);
+      setInt32(newWidth * 65536.0, 76);
     } else {
-      setInt32(newWidth, 88);
+      setInt32(newWidth * 65536.0, 88);
     }
   }
 
-  uint32_t TKHD::getWidth() {
+  double TKHD::getWidth() {
     if (getVersion() == 0) {
-      return getInt32(76);
+      return getInt32(76) / 65536.0;
     } else {
-      return getInt32(88);
+      return getInt32(88) / 65536.0;
     }
   }
 
-  void TKHD::setHeight(uint32_t newHeight) {
+  void TKHD::setHeight(double newHeight) {
     if (getVersion() == 0) {
-      setInt32(newHeight, 80);
+      setInt32(newHeight * 65536.0, 80);
     } else {
-      setInt32(newHeight, 92);
+      setInt32(newHeight * 65536.0, 92);
     }
   }
 
-  uint32_t TKHD::getHeight() {
+  double TKHD::getHeight() {
     if (getVersion() == 0) {
-      return getInt32(80);
+      return getInt32(80) / 65536.0;
     } else {
-      return getInt32(92);
+      return getInt32(92) / 65536.0;
     }
   }
 
@@ -2360,8 +2360,8 @@ namespace MP4 {
       }
     }
     r << std::endl;
-    r << std::string(indent + 1, ' ') << "Width: " << (getWidth() >> 16) << "." << (getWidth() & 0xFFFF) << std::endl;
-    r << std::string(indent + 1, ' ') << "Height: " << (getHeight() >> 16) << "." << (getHeight() & 0xFFFF) << std::endl;
+    r << std::string(indent + 1, ' ') << "Width: " << getWidth() << std::endl;
+    r << std::string(indent + 1, ' ') << "Height: " << getHeight() << std::endl;
     return r.str();
   }
 
@@ -2953,8 +2953,6 @@ namespace MP4 {
       setCLAP(hvccBox);
     }
     /*LTS-END*/
-    MP4::PASP paspBox;
-    setPASP(paspBox);
   }
 
   void VisualSampleEntry::initialize(){

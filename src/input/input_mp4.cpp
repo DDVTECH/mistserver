@@ -374,8 +374,10 @@ namespace Mist {
                             if (tmpType == "avc1" || tmpType == "h264" || tmpType == "mp4v"){
                               myMeta.tracks[trackNo].type = "video";
                               myMeta.tracks[trackNo].codec = "H264";
-                              myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
-                              myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
+                              if (!myMeta.tracks[trackNo].width){
+                                myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
+                                myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
+                              }
                               MP4::Box tmpBox2 = tmpBox;
                               MP4::Box tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getCLAP();
                               if (tmpContent.getType() == "avcC"){
@@ -388,8 +390,10 @@ namespace Mist {
                             }else if (tmpType == "hev1"){
                               myMeta.tracks[trackNo].type = "video";
                               myMeta.tracks[trackNo].codec = "HEVC";
-                              myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
-                              myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
+                              if (!myMeta.tracks[trackNo].width){
+                                myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
+                                myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
+                              }
                               MP4::Box tmpBox2 = ((MP4::VisualSampleEntry&)tmpBox).getCLAP();
                               myMeta.tracks[trackNo].init = std::string(tmpBox2.payload(),tmpBox2.payloadSize());
                             }else if (tmpType == "mp4a" || tmpType == "aac " || tmpType == "ac-3"){

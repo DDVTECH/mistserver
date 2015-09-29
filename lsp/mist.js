@@ -527,6 +527,7 @@ var UI = {
           $field = $('<input>').attr('type','text');
       }
       $field.addClass('field').data('opts',e);
+      if ('pointer' in e) { $field.attr('name',e.pointer.index); }
       $fc.append($field);
       if ('classes' in e) {
         for (var j in e.classes) {
@@ -845,7 +846,7 @@ var UI = {
                     };
                   }
                   //check for duplicate stream names
-                  if (val in mist.data.streams) {
+                  if (('streams' in mist.data) && (val in mist.data.streams)) {
                     //check that we're not simply editing the stream
                     if ($(me).data('pointer').main.name != val) {
                       return {
@@ -1657,7 +1658,7 @@ var UI = {
         case -1: $s.text('Enabling'); break;
         case  0: $s.text('Unavailable').addClass('red'); break;
         case  1: $s.text('Active').addClass('green'); break;
-        case  2: $s.text('Inactive').addClass('orange'); break;
+        case  2: $s.text('Standby').addClass('orange'); break;
         default: $s.text(item.online);
       }
       if (typeof item.error != 'undefined') {
@@ -2417,7 +2418,7 @@ var UI = {
             totals.push({
               streams: [mist.data.active_streams[i]],
               fields: ['clients'],
-              start: -10
+              start: -2
             });
           }
           mist.send(function(){
@@ -2498,7 +2499,7 @@ var UI = {
           
           UI.interval.set(function(){
             updateStreams();
-          },30e3);
+          },10e3);
         }
         
         break;
@@ -2556,6 +2557,7 @@ var UI = {
             help: 'Set the stream source.<table><tr><td>VoD:</td><td>You can browse to the file or folder as a source or simply enter the path to the file.</td></tr><tr><td>Live:</td><td>You\'ll need to enter "push://IP" with the IP of the machine pushing towards MistServer.<br>You can use "push://" to accept any source.</td></tr><tr><td>(Pro only)</td><td>Use "push://(IP)@password" to set a password protection for pushes.</td></tr></table>If you\'re unsure how to set the source properly, please view our Live pushing guide at the tools section.',
             'function': function(){
               var source = $(this).val();
+              if (source == '') { return; }
               var type = null;
               for (var i in mist.data.capabilities.inputs) {
                 if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
@@ -3433,7 +3435,7 @@ var UI = {
             ).append(
               $('<th>').text('Applies to').attr('data-sort-type','string')
             ).append(
-              $('<th>').text('Execute URL').attr('data-sort-type','string')
+              $('<th>').text('Handler').attr('data-sort-type','string')
             ).append(
               $('<th>')
             )
@@ -3541,7 +3543,7 @@ var UI = {
           checklist: Object.keys(mist.data.streams),
           LTSonly: true
         },$('<br>'),{
-          label: 'Excecute URL',
+          label: 'Handler (URL or executable)',
           help: 'Balder verzin iets leuks',
           pointer: {
             main: saveas,
@@ -4476,9 +4478,9 @@ $.fn.getval = function(){
         $(this).find('.checklist input[type=checkbox]:checked').each(function(){
           val.push($(this).attr('name'));
         });
-        if (val.length == opts.checklist.length) {
+        /*if (val.length == opts.checklist.length) {
           val = [];
-        }
+        }*/
         break;
     }
   }

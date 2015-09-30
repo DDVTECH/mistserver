@@ -756,6 +756,14 @@ std::string JSON::Value::toString() const {
         return st.str();
         break;
       }
+    case BOOL: {
+        if (intVal != 0){
+          return "true";
+        }else{
+          return "false";
+        }
+        break;
+      }
     case STRING: {
         return string_escape(strVal);
         break;

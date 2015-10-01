@@ -3445,7 +3445,7 @@ var UI = {
         $main.append(
           UI.buildUI([{
             type: 'help',
-            help: 'Balder verzin iets leuks'
+            help: 'Triggers are the system you can use to react to events that occur inside MistServer. These allow you to block specific users, redirect streams, keep tabs on what is being pushed where, etcetera. For full documentation, please refer to the developer documentation section on the MistServer website.'
           }])
         ).append(
           $('<button>').text('New trigger').click(function(){
@@ -3502,34 +3502,34 @@ var UI = {
         
         $main.append(UI.buildUI([{
           type: 'help',
-          help: 'Balder verzin iets leuks'
+          help: ''
         },{
           label: 'Trigger on',
           pointer: {
             main: saveas,
             index: 'triggeron'
           },
-          help: 'Balder verzin iets leuks',
+          help: 'For what event this trigger should activate.',
           type: 'select',
           select: [
-            ['SYSTEM_START', 'server boot'],
-            ['SYSTEM_STOP', 'server exit'],
-            ['SYSTEM_CONFIG', 'config changed'],
-            ['SYSTEM_LOG', 'log line logged'],
-            ['OUTPUT_ADD', 'new output configured'],
-            ['OUTPUT_CONFIG', 'output config changed'],
-            ['OUTPUT_REMOVE', 'deleted output in config'],
-            ['STREAM_ADD', 'new stream configured'],
-            ['STREAM_CONFIG', 'stream config changed'],
-            ['STREAM_REMOVE', 'stream config deleted'],
-            ['STREAM_LOAD', 'stream input loaded in memory'],
-            ['STREAM_UNLOAD', 'stream input unloaded from memory'],
-            ['STREAM_TRACK_ADD', 'added track to stream; ie: push/multi'],
-            ['STREAM_TRACK_REMOVE', 'removed track from stream'],
-            ['CONN_OPEN', 'new connection'],
-            ['CONN_CLOSE', 'connection closed'],
-            ['CONN_PLAY', 'before play start, includes limits status'],
-            ['CONN_STOP', 'play end, but no disconnect yet']
+            ['SYSTEM_START', 'SYSTEM_START: server boot'],
+            ['SYSTEM_STOP', 'SYSTEM_STOP: server exit'],
+            ['SYSTEM_CONFIG', 'SYSTEM_CONFIG: config changed'],
+            ['OUTPUT_ADD', 'OUTPUT_ADD: new output configured'],
+            ['OUTPUT_CONFIG', 'OUTPUT_CONFIG: output config changed'],
+            ['OUTPUT_REMOVE', 'OUTPUT_REMOVE: deleted output in config'],
+            ['STREAM_ADD', 'STREAM_ADD: new stream configured'],
+            ['STREAM_CONFIG', 'STREAM_CONFIG: stream config changed'],
+            ['STREAM_REMOVE', 'STREAM_REMOVE: stream config deleted'],
+            ['STREAM_SOURCE', 'STREAM_SOURCE: right before stream source is loaded'],
+            ['STREAM_PRELOAD', 'STREAM_PRELOAD: right before stream input is loaded in memory'],
+            ['STREAM_LOAD', 'STREAM_LOAD: stream input loaded in memory'],
+            ['STREAM_UNLOAD', 'STREAM_UNLOAD: stream input unloaded from memory'],
+            ['STREAM_TRACK_ADD', 'STREAM_TRACK_ADD: added track to stream; e.g.: push received'],
+            ['STREAM_TRACK_REMOVE', 'STREAM_TRACK_REMOVE: removed track from stream; e.g.: push timeout'],
+            ['CONN_OPEN', 'CONN_OPEN: new incoming connection'],
+            ['CONN_CLOSE', 'CONN_CLOSE: connection closed'],
+            ['CONN_PLAY', 'CONN_PLAY: right before play of a new connection']
           ],
           LTSonly: true
         },{
@@ -3538,13 +3538,13 @@ var UI = {
             main: saveas,
             index: 'appliesto'
           },
-          help: 'Balder verzin iets leuks (none checked = all are checked)',
+          help: 'For triggers that can apply to specific streams, this value decides what streams they are triggered for. (none checked = always triggered)',
           type: 'checklist',
           checklist: Object.keys(mist.data.streams),
           LTSonly: true
         },$('<br>'),{
           label: 'Handler (URL or executable)',
-          help: 'Balder verzin iets leuks',
+          help: 'This can be either an HTTP URL or a full path to an executable.',
           pointer: {
             main: saveas,
             index: 'url'
@@ -3553,18 +3553,18 @@ var UI = {
           type: 'str',
           LTSonly: true
         },{
-          label: 'Asynchronous',
+          label: 'Blocking',
           type: 'checkbox',
-          help: 'Balder verzin iets leuks',
+          help: 'If checked, pauses processing and uses the response of the handler. If the response does not start with 1, true, yes or cont, further processing is aborted. If unchecked, processing is never paused and the response is not checked.',
           pointer: {
             main: saveas,
             index: 'async'
           },
           LTSonly: true
         },{
-          label: 'Default return on error',
+          label: 'Default response',
           type: 'str',
-          help: 'Balder verzin iets leuks  (synchronous only)',
+          help: 'For blocking requests, the default response in case the handler cannot be executed for any reason.',
           pointer: {
             main: saveas,
             index: 'default'

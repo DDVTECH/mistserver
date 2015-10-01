@@ -1,4 +1,5 @@
 #include "bitfields.h"
+#include <string.h>
 
 /// Takes a pointer, offset bitcount and data bitcount, returning the unsigned int read from the givens.
 /// offsetBits may be > 7, in which case offsetBits / 8 is added to the pointer automatically.
@@ -61,4 +62,19 @@ void Bit::setMSB(char * pointer, unsigned int offsetBits, unsigned int dataBits,
     dataBits -= curBits;
   }//Loop until we run out of dataBits, then return the result
 }
+
+/// Parses a string reference to a boolean.
+/// Returns true if the string, with whitespace removed and converted to lowercase, prefix-matches any of: "1", "yes", "true", "cont".
+/// Returns false otherwise.
+bool Util::stringToBool(std::string & str){
+  std::string tmp;
+  tmp.reserve(4);
+  for (unsigned int i = 0; i < str.size() && tmp.size() < 4; ++i){
+    if (!::isspace(str[i])){
+      tmp.push_back((char)tolower(str[i]));
+    }
+  }
+  return (strncmp(tmp.c_str(), "1", 1) == 0 || strncmp(tmp.c_str(), "yes", 3) == 0 || strncmp(tmp.c_str(), "true", 4) == 0 || strncmp(tmp.c_str(), "cont", 4) == 0);
+}
+
 

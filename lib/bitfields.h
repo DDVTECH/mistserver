@@ -1,5 +1,8 @@
+#include <string>
 
-
+namespace Util{
+  bool stringToBool(std::string & str); 
+}
 
 namespace Bit{
   //bitfield getters

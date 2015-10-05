@@ -1661,7 +1661,7 @@ var UI = {
         case  2: $s.text('Standby').addClass('orange'); break;
         default: $s.text(item.online);
       }
-      if (typeof item.error != 'undefined') {
+      if ('error' in item) {
         $s.text(item.error);
       }
       return $s;
@@ -2340,20 +2340,29 @@ var UI = {
           streams.sort();
           for (var s in streams) {
             var streamname = streams[s];
-            var stream = allstreams[streamname];
+            var stream;
+            if (streamname in mist.data.streams) { stream = mist.data.streams[streamname]; }
+            else { stream = allstreams[streamname]; }
             
             var $viewers = $('<td>').css('text-align','right').html($('<span>').addClass('description').text('Loading..'));
             var v = 0;
             if ((typeof mist.data.totals != 'undefined') && (typeof mist.data.totals[streamname] != 'undefined')) {
               var data = mist.data.totals[streamname].all_protocols.clients;
-              var v = (data.length ? data[data.length-1][1] : 0);
+              var v = 0;
+              //get the average value
+              if (data.length) {
+                for (var i in data) {
+                  v += data[i][1];
+                }
+                v = Math.round(v / data.length);
+              }
             }
             $viewers.html(UI.format.number(v));
             if ((v == 0) && (stream.online == 1)) {
               stream.online = 2;
             }
             var $buttons = $('<td>').css('text-align','right').css('white-space','nowrap');
-            if (!stream.ischild) {
+            if ((!('ischild' in stream)) || (!stream.ischild)) {
               $buttons.html(
                 $('<button>').text('Edit').click(function(){
                   UI.navto('Edit Stream',$(this).closest('tr').data('index'));
@@ -2476,7 +2485,7 @@ var UI = {
                   
                   UI.interval.set(function(){
                     updateStreams();
-                  },30e3);
+                  },10e3);
                 }
               },{browse:mist.data.streams[s].source},{stream: s});
               browserequests++;
@@ -4169,14 +4178,19 @@ var mist = {
         switch (d.authorize.status) {
           case 'OK':
             //communication succesful, copy everything we care about, if it exists
-            if (d.config){mist.data.config = d.config;}
-            if (d.capabilities){mist.data.capabilities = d.capabilities;}
-            if (d.ui_settings){mist.data.ui_settings = d.ui_settings;}
-            if (d.LTS){mist.data.LTS = d.LTS;}
-            if (d.active_streams){mist.data.active_streams = d.active_streams;}
-            if (d.browse){mist.data.browse = d.browse;}
-            if (d.log){mist.data.log = d.log;}
-            if (d.streams && !d.streams["incomplete list"]){mist.data.streams = d.streams;}
+            if ('config' in d)         { mist.data.config = d.config; }
+            if ('capabilities' in d)   { mist.data.capabilities = d.capabilities; }
+            if ('ui_settings' in d)    { mist.data.ui_settings = d.ui_settings; }
+            if ('LTS' in d)            { mist.data.LTS = d.LTS; }
+            if ('active_streams' in d) { mist.data.active_streams = d.active_streams; }
+            if ('browse' in d)         { mist.data.browse = d.browse; }
+            if ('log' in d)            { mist.data.log = d.log; }
+            if ('streams' in d)        {
+              if ((d.streams) && ('incomplete_list' in d.streams)) {
+                delete d.streams.incomplete_list;
+              }
+              mist.data.streams = d.streams;
+            }
             
             //does this really belong globally stored here?
             if (d.totals){mist.data.totals = d.totals;}

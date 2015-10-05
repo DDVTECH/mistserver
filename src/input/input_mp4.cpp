@@ -387,15 +387,22 @@ namespace Mist {
                               if (tmpContent.getType() == "avcC"){
                                 myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
                               }
-                            }else if (tmpType == "hev1"){
+                            }else if (tmpType == "hev1" || tmpType == "hvc1"){
                               myMeta.tracks[trackNo].type = "video";
                               myMeta.tracks[trackNo].codec = "HEVC";
                               if (!myMeta.tracks[trackNo].width){
                                 myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
                                 myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
                               }
-                              MP4::Box tmpBox2 = ((MP4::VisualSampleEntry&)tmpBox).getCLAP();
-                              myMeta.tracks[trackNo].init = std::string(tmpBox2.payload(),tmpBox2.payloadSize());
+                              MP4::Box tmpBox2 = tmpBox;
+                              MP4::Box tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getCLAP();
+                              if (tmpContent.getType() == "hvcC"){
+                                myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
+                              }
+                              tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getPASP();
+                              if (tmpContent.getType() == "hvcC"){
+                                myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
+                              }
                             }else if (tmpType == "mp4a" || tmpType == "aac " || tmpType == "ac-3"){
                               myMeta.tracks[trackNo].type = "audio";
                               myMeta.tracks[trackNo].channels = ((MP4::AudioSampleEntry&)tmpBox).getChannelCount();

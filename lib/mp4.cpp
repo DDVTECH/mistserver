@@ -369,6 +369,7 @@ namespace MP4 {
       case 0x61616320:
         return ((AAC *)this)->toPrettyString(indent);
         break;
+      case 0x68766331:
       case 0x68657631:
         return ((HEV1 *)this)->toPrettyString(indent);
         break;

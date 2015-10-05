@@ -177,6 +177,10 @@ namespace Mist {
       return;
     }
     unsigned long mapTid = trackMap[tid];
+    if (!pagesByTrack.count(tid)){
+      //The buffer does not control the datapages, indicated by no pagesByTrack entry.
+      return;
+    }
     //If the given pagenumber is not a valid page on this track, do nothing
     if (!pagesByTrack[tid].count(pageNumber)){
       INFO_MSG("Can't remove page %lu on track %lu~>%lu as it is not a valid page number.", pageNumber, tid, mapTid);
@@ -192,7 +196,7 @@ namespace Mist {
 #else
     toErase.init(pageName, pagesByTrack[tid][pageNumber].dataSize, false);
 #endif
-    //Set the master flag so that the page will be destoryed once it leaves scope
+    //Set the master flag so that the page will be destroyed once it leaves scope
 #if defined(__CYGWIN__) || defined(_WIN32)
     IPC::releasePage(pageName);
 #endif

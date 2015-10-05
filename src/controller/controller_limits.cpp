@@ -21,7 +21,7 @@ namespace Controller{
 
     Storage["streams"][streamName].removeMember("hardlimit_active");
     if (Storage["streams"][streamName]["online"].asInt() != 1){
-      for (JSON::ArrIter limitIt = Storage["streams"][streamName]["limits"].ArrBegin(); limitIt != Storage["streams"][streamName]["limits"].ArrEnd(); limitIt++){
+      jsonForEach(Storage["streams"][streamName]["limits"], limitIt){
         if ((*limitIt).isMember("triggered")){
           if ((*limitIt)["type"].asString() == "soft"){
             Log("SLIM", "Softlimit " + (*limitIt)["name"].asString() + " <= " + (*limitIt)["value"].asString() +  " for stream " + streamName + " reset - stream unavailable.");
@@ -35,7 +35,7 @@ namespace Controller{
     }
     
     //run over all limits.
-    for (JSON::ArrIter limitIt = Storage["streams"][streamName]["limits"].ArrBegin(); limitIt != Storage["streams"][streamName]["limits"].ArrEnd(); limitIt++){
+    jsonForEach(Storage["streams"][streamName]["limits"], limitIt){
       bool triggerLimit = false;
       if ((*limitIt)["name"].asString() == "users" && connectedUsers >= (*limitIt)["value"].asInt()){
         triggerLimit = true;
@@ -94,8 +94,8 @@ namespace Controller{
     
     //check stream limits
     if (Storage["streams"].size()){
-      for (JSON::ObjIter strmIt = Storage["streams"].ObjBegin(); strmIt != Storage["streams"].ObjEnd(); strmIt++){
-        checkStreamLimits(strmIt->first, strmBandw[strmIt->first], strmUsers[strmIt->first]);
+      jsonForEach(Storage["streams"], strmIt){
+        checkStreamLimits(strmIt.key(), strmBandw[strmIt.key()], strmUsers[strmIt.key()]);
       }
     }
     
@@ -107,7 +107,7 @@ namespace Controller{
       return;
     }
     
-    for (JSON::ArrIter limitIt = Storage["config"]["limits"].ArrBegin(); limitIt != Storage["config"]["limits"].ArrEnd(); limitIt++){
+    jsonForEach(Storage["config"]["limits"], limitIt){
       bool triggerLimit = false;
       if ((*limitIt)["name"].asString() == "users" && connectedUsers >= (*limitIt)["value"].asInt()){
         triggerLimit = true;
@@ -211,12 +211,11 @@ namespace Controller{
       return false;
     }
     std::string myCountryName = getCountry(host);
-    JSON::ArrIter limitIt;
     bool hasWhitelist = false;
     bool hostOnWhitelist = false;
     if (Storage["streams"].isMember(streamName)){
       if (Storage["streams"][streamName].isMember("limits") && Storage["streams"][streamName]["limits"].size()){
-        for (limitIt = Storage["streams"][streamName]["limits"].ArrBegin(); limitIt != Storage["streams"][streamName]["limits"].ArrEnd(); limitIt++){
+        jsonForEach(Storage["streams"][streamName]["limits"], limitIt){
           if ((*limitIt)["name"].asString() == "host"){
             if ((*limitIt)["value"].asString()[0] == '+'){
               if (!onList(host, (*limitIt)["value"].asString().substr(1))){
@@ -291,7 +290,7 @@ namespace Controller{
       }
     }
     if (Storage["config"]["limits"].size()){
-      for (limitIt = Storage["config"]["limits"].ArrBegin(); limitIt != Storage["config"]["limits"].ArrEnd(); limitIt++){
+      jsonForEach(Storage["config"]["limits"], limitIt){
         if ((*limitIt)["name"].asString() == "host"){
           if ((*limitIt)["value"].asString()[0] == '+'){
             if (!onList(host, (*limitIt)["value"].asString().substr(1))){

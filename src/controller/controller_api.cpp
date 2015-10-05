@@ -247,13 +247,13 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               Controller::deleteStream(Request["deletestream"].asStringRef(), Controller::Storage["streams"]); 
             }
             if (Request["deletestream"].isArray()){
-              for (JSON::ArrIter it = Request["deletestream"].ArrBegin(); it != Request["deletestream"].ArrEnd(); ++it){
+              jsonForEach(Request["deletestream"], it){
                 Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"]); 
               }
             }
             if (Request["deletestream"].isObject()){
-              for (JSON::ObjIter it = Request["deletestream"].ObjBegin(); it != Request["deletestream"].ObjEnd(); ++it){
-                Controller::deleteStream(it->first, Controller::Storage["streams"]); 
+              jsonForEach(Request["deletestream"], it){
+                Controller::deleteStream(it.key(), Controller::Storage["streams"]); 
               }
             }
           }
@@ -281,7 +281,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           ///
           if (Request.isMember("addprotocol")){
             if (Request["addprotocol"].isArray()){
-              for (JSON::ArrIter it = Request["addprotocol"].ArrBegin(); it != Request["addprotocol"].ArrEnd(); ++it){
+              jsonForEach(Request["addprotocol"], it){
                 Controller::Storage["config"]["protocols"].append(*it);
               }
             }
@@ -314,9 +314,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           if (Request.isMember("deleteprotocol")){
             if (Request["deleteprotocol"].isArray() && Request["deleteprotocol"].size()){
               JSON::Value newProtocols;
-              for (JSON::ArrIter it = Controller::Storage["config"]["protocols"].ArrBegin(); it != Controller::Storage["config"]["protocols"].ArrEnd(); ++it){
+              jsonForEach(Controller::Storage["config"]["protocols"], it){
                 bool add = true;
-                for (JSON::ArrIter pit = Request["deleteprotocol"].ArrBegin(); pit != Request["deleteprotocol"].ArrEnd(); ++pit){
+                jsonForEach(Request["deleteprotocol"], pit){
                   if (*it == *pit){
                     add = false;
                     break;
@@ -330,7 +330,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             }
             if (Request["deleteprotocol"].isObject()){
               JSON::Value newProtocols;
-              for (JSON::ArrIter it = Controller::Storage["config"]["protocols"].ArrBegin(); it != Controller::Storage["config"]["protocols"].ArrEnd(); ++it){
+              jsonForEach(Controller::Storage["config"]["protocols"], it){
                 if (*it != Request["deleteprotocol"]){
                   newProtocols.append(*it);
                 }
@@ -490,9 +490,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
             Response["streams"]["incomplete list"] = 1ll;
             if (Request.isMember("addstream")){
-              for (JSON::ObjIter jit = Request["addstream"].ObjBegin(); jit != Request["addstream"].ObjEnd(); jit++){
-                if (Controller::Storage["streams"].isMember(jit->first)){
-                  Response["streams"][jit->first] = Controller::Storage["streams"][jit->first];
+              jsonForEach(Request["addstream"], jit){
+                if (Controller::Storage["streams"].isMember(jit.key())){
+                  Response["streams"][jit.key()] = Controller::Storage["streams"][jit.key()];
                 }
               }
             }

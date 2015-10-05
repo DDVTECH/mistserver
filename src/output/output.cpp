@@ -497,12 +497,11 @@ namespace Mist {
       return false;
     }
     std::string myCountryName = getCountry(host);
-    JSON::ArrIter limitIt;
     bool hasWhitelist = false;
     bool hostOnWhitelist = false;
     if (Storage["streams"].isMember(streamName)){
       if (Storage["streams"][streamName].isMember("limits") && Storage["streams"][streamName]["limits"].size()){
-        for (limitIt = Storage["streams"][streamName]["limits"].ArrBegin(); limitIt != Storage["streams"][streamName]["limits"].ArrEnd(); limitIt++){
+        jsonForEach(Storage["streams"][streamName]["limits"], limitIt){
           if ((*limitIt)["name"].asString() == "host"){
             if ((*limitIt)["value"].asString()[0] == '+'){
               if (!onList(host, (*limitIt)["value"].asString().substr(1))){
@@ -577,7 +576,7 @@ namespace Mist {
       }
     }
     if (Storage["config"]["limits"].size()){
-      for (limitIt = Storage["config"]["limits"].ArrBegin(); limitIt != Storage["config"]["limits"].ArrEnd(); limitIt++){
+      jsonForEach(Storage["config"]["limits"], limitIt){
         if ((*limitIt)["name"].asString() == "host"){
           if ((*limitIt)["value"].asString()[0] == '+'){
             if (!onList(host, (*limitIt)["value"].asString().substr(1))){

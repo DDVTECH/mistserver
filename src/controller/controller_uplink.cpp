@@ -88,13 +88,13 @@ void Controller::uplinkConnection(void * np) {
                 Controller::Storage["streams"].removeMember(curVal.asStringRef());
               }
               if (curVal.isArray()) {
-                for (JSON::ArrIter it = curVal.ArrBegin(); it != curVal.ArrEnd(); ++it) {
+                jsonForEach(curVal, it) {
                   Controller::Storage["streams"].removeMember(it->asString());
                 }
               }
               if (curVal.isObject()) {
-                for (JSON::ObjIter it = curVal.ObjBegin(); it != curVal.ObjEnd(); ++it) {
-                  Controller::Storage["streams"].removeMember(it->first);
+                jsonForEach(curVal, it) {
+                  Controller::Storage["streams"].removeMember(it.key());
                 }
               }
             }
@@ -113,10 +113,10 @@ void Controller::uplinkConnection(void * np) {
         totalsRequest["start"] = (long long)lastSend;
         Controller::fillTotals(totalsRequest, data["totals"]);
         data["streams"] = Controller::Storage["streams"];
-        for (JSON::ObjIter it = data["streams"].ObjBegin(); it != data["streams"].ObjEnd(); it++){
-          it->second.removeMember("meta");
-          it->second.removeMember("l_meta");
-          it->second.removeMember("name");
+        jsonForEach(data["streams"], it){
+          it->removeMember("meta");
+          it->removeMember("l_meta");
+          it->removeMember("name");
         }
         data["config"] = Controller::Storage["config"];
         data["config"]["uniq"] = uniqId;

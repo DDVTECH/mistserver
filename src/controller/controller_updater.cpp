@@ -134,17 +134,17 @@ namespace Controller {
       ret["needs_update"].null();
       
       // check if everything is up to date or not
-      for (JSON::ObjIter it = updrInfo.ObjBegin(); it != updrInfo.ObjEnd(); it++){
-        if (it->first.substr(0, 4) != "Mist"){
+      jsonForEach(updrInfo, it){
+        if (it.key().substr(0, 4) != "Mist"){
           continue;
         }
-        ret[it->first] = it->second;
-        if (it->second.asString() != Secure::md5(readFile(Util::getMyPath() + it->first))){
+        ret[it.key()] = *it;
+        if (it->asString() != Secure::md5(readFile(Util::getMyPath() + it.key()))){
           ret["uptodate"] = 0;
-          if (it->first.substr(0, 14) == "MistController"){
-            ret["needs_update"].append(it->first);
+          if (it.key().substr(0, 14) == "MistController"){
+            ret["needs_update"].append(it.key());
           }else{
-            ret["needs_update"].prepend(it->first);
+            ret["needs_update"].prepend(it.key());
           }
         }
       }
@@ -184,7 +184,7 @@ namespace Controller {
     }
 
     //loop through the available components, update them
-    for (JSON::ArrIter it = updrInfo["needs_update"].ArrBegin(); it != updrInfo["needs_update"].ArrEnd(); it++){
+    jsonForEach(updrInfo["needs_update"], it){
       updateComponent(it->asStringRef(), updrInfo[it->asStringRef()].asStringRef(), updrConn);
     }
     updrConn.close();

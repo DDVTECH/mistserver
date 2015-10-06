@@ -1207,9 +1207,10 @@ namespace DTSC {
     if (meta.isMember("buffer_window")) {
       bufferWindow = meta["buffer_window"].asInt();
     }
-    for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++) {
-      if (it->second["trackid"].asInt()) {
-        tracks[it->second["trackid"].asInt()] = Track(it->second);
+    //for (JSON::ObjIter it = meta["tracks"].ObjBegin(); it != meta["tracks"].ObjEnd(); it++) {
+    jsonForEach(meta["tracks"], it) {
+      if ((*it)["trackid"].asInt()) {
+        tracks[(*it)["trackid"].asInt()] = Track((*it));
       }
     }
     if (meta.isMember("moreheader")) {

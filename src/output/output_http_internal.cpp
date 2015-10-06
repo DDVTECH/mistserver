@@ -102,15 +102,15 @@ namespace Mist {
     unsigned int most_simul = 0;
     unsigned int total_matches = 0;
     if (conncapa.isMember("codecs") && conncapa["codecs"].size() > 0){
-      for (JSON::ArrIter it = conncapa["codecs"].ArrBegin(); it != conncapa["codecs"].ArrEnd(); it++){
+      jsonForEach(conncapa["codecs"], it) {
         unsigned int simul = 0;
         if ((*it).size() > 0){
-          for (JSON::ArrIter itb = (*it).ArrBegin(); itb != (*it).ArrEnd(); itb++){
+          jsonForEach((*it), itb) {
             unsigned int matches = 0;
             if ((*itb).size() > 0){
-              for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd(); itc++){
-                for (JSON::ObjIter trit = strmMeta["tracks"].ObjBegin(); trit != strmMeta["tracks"].ObjEnd(); trit++){
-                  if (trit->second["codec"].asStringRef() == (*itc).asStringRef()){
+              jsonForEach((*itb), itc) {
+                jsonForEach(strmMeta["tracks"], trit) {
+                  if ((*trit)["codec"].asStringRef() == (*itc).asStringRef()){
                     matches++;
                     total_matches++;
                   }
@@ -135,7 +135,7 @@ namespace Mist {
       }else{
         relurl = "/";
       }
-      for (JSON::ArrIter it = conncapa["methods"].ArrBegin(); it != conncapa["methods"].ArrEnd(); it++){
+      jsonForEach(conncapa["methods"], it) {
         if (!strmMeta.isMember("live") || !it->isMember("nolive")){
           addSource(relurl, sources, host, port, *it, most_simul, total_matches);
         }
@@ -307,10 +307,10 @@ namespace Mist {
         
         // show ALL the meta datas!
         json_resp["meta"] = strm.asJSON();
-        for (JSON::ObjIter it = json_resp["meta"]["tracks"].ObjBegin(); it != json_resp["meta"]["tracks"].ObjEnd(); ++it){
-          it->second.removeMember("fragments");
-          it->second.removeMember("keys");
-          it->second.removeMember("parts");
+        jsonForEach(json_resp["meta"]["tracks"], it) {
+          it->removeMember("fragments");
+          it->removeMember("keys");
+          it->removeMember("parts");
         }
         
         //create a set for storing source information
@@ -386,5 +386,4 @@ namespace Mist {
       return;
     } //embed code generator
   }
-
 }

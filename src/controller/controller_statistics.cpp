@@ -485,7 +485,7 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   unsigned int fields = 0;
   //next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
-    for (JSON::ArrIter it = req["fields"].ArrBegin(); it != req["fields"].ArrEnd(); it++){
+    jsonForEach(req["fields"], it) {
       if ((*it).asStringRef() == "host"){fields |= STAT_CLI_HOST;}
       if ((*it).asStringRef() == "stream"){fields |= STAT_CLI_STREAM;}
       if ((*it).asStringRef() == "protocol"){fields |= STAT_CLI_PROTO;}
@@ -502,14 +502,14 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   //figure out what streams are wanted
   std::set<std::string> streams;
   if (req.isMember("streams") && req["streams"].size()){
-    for (JSON::ArrIter it = req["streams"].ArrBegin(); it != req["streams"].ArrEnd(); it++){
+    jsonForEach(req["streams"], it) {
       streams.insert((*it).asStringRef());
     }
   }
   //figure out what protocols are wanted
   std::set<std::string> protos;
   if (req.isMember("protocols") && req["protocols"].size()){
-    for (JSON::ArrIter it = req["protocols"].ArrBegin(); it != req["protocols"].ArrEnd(); it++){
+    jsonForEach(req["protocols"], it) {
       protos.insert((*it).asStringRef());
     }
   }
@@ -638,7 +638,7 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   unsigned int fields = 0;
   //next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
-    for (JSON::ArrIter it = req["fields"].ArrBegin(); it != req["fields"].ArrEnd(); it++){
+    jsonForEach(req["fields"], it) {
       if ((*it).asStringRef() == "clients"){fields |= STAT_TOT_CLIENTS;}
       if ((*it).asStringRef() == "downbps"){fields |= STAT_TOT_BPS_DOWN;}
       if ((*it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
@@ -649,14 +649,14 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   //figure out what streams are wanted
   std::set<std::string> streams;
   if (req.isMember("streams") && req["streams"].size()){
-    for (JSON::ArrIter it = req["streams"].ArrBegin(); it != req["streams"].ArrEnd(); it++){
+    jsonForEach(req["streams"], it) {
       streams.insert((*it).asStringRef());
     }
   }
   //figure out what protocols are wanted
   std::set<std::string> protos;
   if (req.isMember("protocols") && req["protocols"].size()){
-    for (JSON::ArrIter it = req["protocols"].ArrBegin(); it != req["protocols"].ArrEnd(); it++){
+    jsonForEach(req["protocols"], it) {
       protos.insert((*it).asStringRef());
     }
   }

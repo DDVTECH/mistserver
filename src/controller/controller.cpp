@@ -228,10 +228,10 @@ int main(int argc, char ** argv){
           std::getline(std::cin, in_string);
           if (yna(in_string) == 'y'){
             //create protocols
-            for (JSON::ObjIter it = Controller::capabilities["connectors"].ObjBegin(); it != Controller::capabilities["connectors"].ObjEnd(); it++){
-              if ( !it->second.isMember("required")){
+            jsonForEach(Controller::capabilities["connectors"], it) {
+              if (!it->isMember("required")){
                 JSON::Value newProtocol;
-                newProtocol["connector"] = it->first;
+                newProtocol["connector"] = it.key();
                 Controller::Storage["config"]["protocols"].append(newProtocol);
               }
             }
@@ -282,8 +282,8 @@ int main(int argc, char ** argv){
     std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;
     tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
     Controller::Storage.removeMember("log");
-    for (JSON::ObjIter it = Controller::Storage["streams"].ObjBegin(); it != Controller::Storage["streams"].ObjEnd(); it++){
-      it->second.removeMember("meta");
+    jsonForEach(Controller::Storage["streams"], it) {
+      it->removeMember("meta");
     }
     std::cerr << "**Config**" << std::endl;
     std::cerr << Controller::Storage.toString() << std::endl;

@@ -21,27 +21,24 @@ namespace JSON {
     EMPTY, BOOL, INTEGER, STRING, ARRAY, OBJECT
   };
 
-  class Value;
-  //forward declaration for below typedef
-
-  typedef std::map<std::string, Value>::iterator ObjIter;
-  typedef std::deque<Value>::iterator ArrIter;
-  typedef std::map<std::string, Value>::const_iterator ObjConstIter;
-  typedef std::deque<Value>::const_iterator ArrConstIter;
 
   /// A JSON::Value is either a string or an integer, but may also be an object, array or null.
   class Value {
+    friend class Iter;
+    friend class ConstIter;
     private:
       ValueType myType;
       long long int intVal;
       std::string strVal;
-      std::deque<Value> arrVal;
-      std::map<std::string, Value> objVal;
+      std::deque<Value*> arrVal;
+      std::map<std::string, Value*> objVal;
     public:
       //friends
       friend class DTSC::Stream; //for access to strVal
-      //constructors
+      //constructors/destructors
       Value();
+      ~Value();
+      Value(const Value & rhs);
       Value(std::istream & fromstream);
       Value(const std::string & val);
       Value(const char * val);
@@ -51,6 +48,7 @@ namespace JSON {
       bool operator==(const Value & rhs) const;
       bool operator!=(const Value & rhs) const;
       //assignment operators
+      Value & operator=(const Value & rhs);
       Value & operator=(const std::string & rhs);
       Value & operator=(const char * rhs);
       Value & operator=(const long long int & rhs);
@@ -92,14 +90,6 @@ namespace JSON {
       bool isObject() const;
       bool isArray() const;
       bool isNull() const;
-      ObjIter ObjBegin();
-      ObjIter ObjEnd();
-      ArrIter ArrBegin();
-      ArrIter ArrEnd();
-      ObjConstIter ObjBegin() const;
-      ObjConstIter ObjEnd() const;
-      ArrConstIter ArrBegin() const;
-      ArrConstIter ArrEnd() const;
       unsigned int size() const;
       void null();
   };
@@ -114,6 +104,41 @@ namespace JSON {
   void fromDTMI2(const unsigned char * data, unsigned int len, unsigned int & i, Value & ret);
   void fromDTMI(std::string & data, Value & ret);
   void fromDTMI(const unsigned char * data, unsigned int len, unsigned int & i, Value & ret);
+
+  class Iter {
+    public:
+      Iter(Value & root);///<Construct from a root Value to iterate over.
+      Value & operator*() const;///< Dereferences into a Value reference.
+      Value* operator->() const;///< Dereferences into a Value reference.
+      operator bool() const;///< True if not done iterating.
+      Iter & operator++();///<Go to next iteration.
+      const std::string & key() const;///<Return the name of the current indice.
+      unsigned int num() const;///<Return the number of the current indice.
+    private:
+      ValueType myType;
+      Value * r;
+      unsigned int i;
+      std::deque<Value*>::iterator aIt;
+      std::map<std::string, Value*>::iterator oIt;
+  };
+  class ConstIter {
+    public:
+      ConstIter(const Value & root);///<Construct from a root Value to iterate over.
+      const Value & operator*() const;///< Dereferences into a Value reference.
+      const Value* operator->() const;///< Dereferences into a Value reference.
+      operator bool() const;///< True if not done iterating.
+      ConstIter & operator++();///<Go to next iteration.
+      const std::string & key() const;///<Return the name of the current indice.
+      unsigned int num() const;///<Return the number of the current indice.
+    private:
+      ValueType myType;
+      const Value * r;
+      unsigned int i;
+      std::deque<Value*>::const_iterator aIt;
+      std::map<std::string, Value*>::const_iterator oIt;
+  };
+  #define jsonForEach(val, i) for(JSON::Iter i(val); i; ++i)
+  #define jsonForEachConst(val, i) for(JSON::ConstIter i(val); i; ++i)
 
   template <typename T>
   std::string encodeVector(T begin, T end) {

@@ -266,12 +266,13 @@ namespace Mist {
       INFO_MSG("Trying to buffer a packet on track %lu~>%lu, but no page is initialized", tid, mapTid);
       return;
     }
+    IPC::sharedPage & myPage = curPage[tid];
+    DTSCPageData & pageData = pagesByTrack[tid][curPageNum[tid]];
     //Save the current write position
-    size_t curOffset = pagesByTrack[tid][curPageNum[tid]].curOffset;
-    DONTEVEN_MSG("Buffering packet on page %lu for track %lu~>%lu: %d bytes @ %lu: %s", curPageNum[tid], tid, mapTid, pack.getDataLen(), curOffset);
+    size_t curOffset = pageData.curOffset;
     //Do nothing when there is not enough free space on the page to add the packet.
-    if (pagesByTrack[tid][curPageNum[tid]].dataSize - curOffset < pack.getDataLen()) {
-      FAIL_MSG("Trying to buffer a packet on page %lu for track %lu~>%lu, but we have a size mismatch. The packet is %d bytes long, so won't fit at offset %lu on a page of %llu bytes!", curPageNum[tid], tid, mapTid, pack.getDataLen(), curOffset, pagesByTrack[tid][curPageNum[tid]].dataSize);
+    if (pageData.dataSize - curOffset < pack.getDataLen()) {
+      FAIL_MSG("Trying to buffer a packet on page %lu for track %lu~>%lu, but we have a size mismatch. The packet is %d bytes long, so won't fit at offset %lu on a page of %llu bytes!", curPageNum[tid], tid, mapTid, pack.getDataLen(), curOffset, pageData.dataSize);
       return;
     }
 
@@ -289,18 +290,18 @@ namespace Mist {
 
     //First memcpy only the payload to the destination
     //Leaves the 20 bytes inbetween empty to ensure the data is not accidentally read before it is complete
-    memcpy(curPage[tid].mapped + curOffset + 20, pack.getData() + 20, pack.getDataLen() - 20);
+    memcpy(myPage.mapped + curOffset + 20, pack.getData() + 20, pack.getDataLen() - 20);
     if (encrypt){
       //write ivec field + new object end at (currOffset + pack.getDataLen() - 3);
       int ivecOffset = curOffset + pack.getDataLen() - 3;
-      memcpy(curPage[tid].mapped+ivecOffset, "\000\004ivec\002\000\000\000\010", 11);
-      memcpy(curPage[tid].mapped+ivecOffset+11, iVec, 8);
+      memcpy(myPage.mapped+ivecOffset, "\000\004ivec\002\000\000\000\010", 11);
+      memcpy(myPage.mapped+ivecOffset+11, iVec, 8);
       //finish container with 0x0000EE
-      memcpy(curPage[tid].mapped+ivecOffset+19, "\000\000\356", 3);
+      memcpy(myPage.mapped+ivecOffset+19, "\000\000\356", 3);
     }
     //Copy the remaing values in reverse order:
     //8 byte timestamp
-    memcpy(curPage[tid].mapped + curOffset + 12, pack.getData() + 12, 8);
+    memcpy(myPage.mapped + curOffset + 12, pack.getData() + 12, 8);
     //The mapped track id
     ((int *)(curPage[tid].mapped + curOffset + 8))[0] = htonl(mapTid);
     int size = Bit::btohl(pack.getData() + 4);
@@ -316,12 +317,12 @@ namespace Mist {
 
     if (myMeta.live){
       //Update the metadata
-      DTSC::Packet updatePack(curPage[tid].mapped + curOffset, size + 8, true);
+      DTSC::Packet updatePack(myPage.mapped + curOffset, size + 8, true);
       myMeta.update(updatePack);
     }
 
     //End of brain melt
-    pagesByTrack[tid][curPageNum[tid]].curOffset += size + 8;
+    pageData.curOffset += size + 8;
   }
 
   ///Wraps up the buffering of a shared memory data page

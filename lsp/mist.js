@@ -3510,9 +3510,6 @@ var UI = {
         }
         
         $main.append(UI.buildUI([{
-          type: 'help',
-          help: ''
-        },{
           label: 'Trigger on',
           pointer: {
             main: saveas,
@@ -3539,7 +3536,21 @@ var UI = {
             ['CONN_CLOSE', 'CONN_CLOSE: right after a connection has been closed'],
             ['CONN_PLAY', 'CONN_PLAY: right before a stream playback of a connection']
           ],
-          LTSonly: true
+          LTSonly: true,
+          'function': function(){
+            var v = $(this).getval();
+            switch (v) {
+              case 'SYSTEM_START':
+              case 'SYSTEM_STOP':
+              case 'SYSTEM_CONFIG':
+              case 'OUTPUT_START':
+              case 'OUTPUT_STOP':
+                $('[name=appliesto]').setval([]).closest('.UIelement').hide();
+                break;
+              default:
+                $('[name=appliesto]').closest('.UIelement').show();
+            }
+          }
         },{
           label: 'Applies to',
           pointer: {
@@ -3616,6 +3627,7 @@ var UI = {
             }
           ]
         }]));
+        $('[name=triggeron]').trigger('change');
         
         break;
       case 'Logs':
@@ -4534,7 +4546,7 @@ $.fn.setval = function(val){
         }
         break;
       case 'checklist':
-        var $inputs = $(this).find('.checklist input[type=checkbox]');
+        var $inputs = $(this).find('.checklist input[type=checkbox]').prop('checked',false);
         for (i in val) {
           $inputs.filter('[name="'+val[i]+'"]').prop('checked',true);
         }

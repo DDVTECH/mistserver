@@ -75,7 +75,7 @@ namespace Mist {
       //if there is a matcher, try to match
       if (capa.isMember("url_match")){
         if (capa["url_match"].isArray()){
-          for (JSON::ArrIter it = capa["url_match"].ArrBegin(); it != capa["url_match"].ArrEnd(); ++it){
+          jsonForEach(capa["url_match"], it) {
             match |= isMatch(url, it->asStringRef(), streamname);
           }
         }
@@ -86,7 +86,7 @@ namespace Mist {
       //if there is a prefix, try to match
       if (capa.isMember("url_prefix")){
         if (capa["url_prefix"].isArray()){
-          for (JSON::ArrIter it = capa["url_prefix"].ArrBegin(); it != capa["url_prefix"].ArrEnd(); ++it){
+          jsonForEach(capa["url_prefix"], it) {
             match |= isPrefix(url, it->asStringRef(), streamname);
           }
         }
@@ -228,19 +228,19 @@ namespace Mist {
   }
   
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, JSON::Value & argset){
-    for (JSON::ObjIter it = argset.ObjBegin(); it != argset.ObjEnd(); ++it){
-      if (it->second.isMember("option") && p.isMember(it->first)){
-        if (it->second.isMember("type")){
-          if (it->second["type"].asStringRef() == "str" && !p[it->first].isString()){
-            p[it->first] = p[it->first].asString();
+    jsonForEach(argset, it) {
+      if (it->isMember("option") && p.isMember(it.key())){
+        if (it->isMember("type")){
+          if ((*it)["type"].asStringRef() == "str" && !p[it.key()].isString()){
+            p[it.key()] = p[it.key()].asString();
           }
-          if ((it->second["type"].asStringRef() == "uint" || it->second["type"].asStringRef() == "int") && !p[it->first].isInt()){
-            p[it->first] = JSON::Value(p[it->first].asInt()).asString();
+          if (((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int") && !p[it.key()].isInt()){
+            p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
           }
         }
-        if (p[it->first].asStringRef().size() > 0){
-          argarr[argnum++] = (char*)(it->second["option"].c_str());
-          argarr[argnum++] = (char*)(p[it->first].c_str());
+        if (p[it.key()].asStringRef().size() > 0){
+          argarr[argnum++] = (char*)((*it)["option"].c_str());
+          argarr[argnum++] = (char*)(p[it.key()].c_str());
         }
       }
     }

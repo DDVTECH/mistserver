@@ -6,6 +6,6 @@ namespace Controller {
   void UpdateProtocol(std::string protocol);
 
   /// Checks current protocol configuration, updates state of enabled connectors if neccesary.
-  bool CheckProtocols(JSON::Value & p, JSON::Value & capabilities);
+  bool CheckProtocols(JSON::Value & p, const JSON::Value & capabilities);
 
 }

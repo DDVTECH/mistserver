@@ -13,6 +13,7 @@
 #include "stream.h"
 #include "procs.h"
 #include "bitfields.h"
+#include "timing.h"
 
 namespace IPC {
 
@@ -206,6 +207,18 @@ namespace IPC {
       WARN_MSG("Consistency error caught on semaphore %s", myName.c_str());
       result = 0;
     }
+#elif defined(__APPLE__)
+    /// \todo (roxlu) test tryWaitOneSecond, shared_memory.cpp
+    long long unsigned int now = Util::getMicros();
+    long long unsigned int timeout = now + 1e6;
+    while (now < timeout) {
+      if (0 == sem_trywait(mySem)) {
+        return true;
+      }
+      usleep(100e3);
+      now = Util::getMicros();
+    }
+    return false;
 #else
     struct timespec wt;
     wt.tv_sec = 1;

@@ -6,7 +6,6 @@
 #include <cstdio>
 #include <string>
 #include <mist/stream.h>
-#include <mist/flv_tag.h>
 #include <mist/defines.h>
 
 #include "input_flv.h"
@@ -66,7 +65,6 @@ namespace Mist {
     }
     //Create header file from FLV data
     fseek(inFile, 13, SEEK_SET);
-    FLV::Tag tmpTag;
     AMF::Object amf_storage;
     long long int lastBytePos = 13;
     while (!feof(inFile) && !FLV::Parse_Error){
@@ -90,7 +88,6 @@ namespace Mist {
   
   void inputFLV::getNext(bool smart) {
     long long int lastBytePos = ftell(inFile);
-    FLV::Tag tmpTag;
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
         if ( !selectedTracks.count(tmpTag.getTrackID())){

@@ -122,26 +122,26 @@ namespace Controller {
   ///\returns True if the server status changed
   bool CheckAllStreams(JSON::Value & data){
     long long int currTime = Util::epoch();
-    for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
-      checkStream(jit->first, jit->second);
-      if (!jit->second.isMember("name")){
-        jit->second["name"] = jit->first;
+    jsonForEach(data, jit) {
+      checkStream(jit.key(), (*jit));
+      if (!jit->isMember("name")){
+        (*jit)["name"] = jit.key();
       }
-      if (!hasViewers(jit->first)){
-        if (jit->second.isMember("source") && jit->second["source"].asString().substr(0, 1) == "/" && jit->second.isMember("error")
-            && jit->second["error"].asString().substr(0,15) != "Stream offline:"){
-          jit->second["online"] = 2;
+      if (!hasViewers(jit.key())){
+        if (jit->isMember("source") && (*jit)["source"].asString().substr(0, 1) == "/" && jit->isMember("error")
+            && (*jit)["error"].asString().substr(0,15) != "Stream offline:"){
+          (*jit)["online"] = 2;
         }else{
-          if (jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
-            jit->second.removeMember("error");
+          if (jit->isMember("error") && (*jit)["error"].asString() == "Available"){
+            jit->removeMember("error");
           }
-          jit->second["online"] = 0;
+          (*jit)["online"] = 0;
         }
         checkServerLimits(); /*LTS*/
       }else{
         // assume all is fine
-        jit->second.removeMember("error");
-        jit->second["online"] = 1;
+        jit->removeMember("error");
+        (*jit)["online"] = 1;
       }
     }
 
@@ -157,17 +157,17 @@ namespace Controller {
   
   void AddStreams(JSON::Value & in, JSON::Value & out){
     //check for new streams and updates
-    for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
-      if (out.isMember(jit->first)){
-        if ( !streamsEqual(jit->second, out[jit->first])){
-          out[jit->first] = jit->second;
-          out[jit->first]["name"] = jit->first;
-          Log("STRM", std::string("Updated stream ") + jit->first);
+    jsonForEach(in, jit) {
+      if (out.isMember(jit.key())){
+        if ( !streamsEqual((*jit), out[jit.key()])){
+          out[jit.key()] = (*jit);
+          out[jit.key()]["name"] = jit.key();
+          Log("STRM", std::string("Updated stream ") + jit.key());
         }
       }else{
-        out[jit->first] = jit->second;
-        out[jit->first]["name"] = jit->first;
-        Log("STRM", std::string("New stream ") + jit->first);
+        out[jit.key()] = (*jit);
+        out[jit.key()]["name"] = (*jit);
+        Log("STRM", std::string("New stream ") + jit.key());
       }
     }
   }
@@ -227,9 +227,10 @@ namespace Controller {
 
     //check for deleted streams
     std::set<std::string> toDelete;
-    for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
-      if ( !in.isMember(jit->first)){
-        toDelete.insert(jit->first);
+    jsonForEach(out, jit) {
+      if ( !in.isMember(jit.key())){
+        toDelete.insert(jit.key());
+        Log("STRM", std::string("Deleted stream ") + jit.key());
       }
     }
     //actually delete the streams
@@ -240,15 +241,15 @@ namespace Controller {
     }
 
     //update old-style configurations to new-style
-    for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
-      if (jit->second.isMember("channel")){
-        if ( !jit->second.isMember("source")){
-          jit->second["source"] = jit->second["channel"]["URL"];
+    jsonForEach(in, jit) {
+      if (jit->isMember("channel")){
+        if ( !jit->isMember("source")){
+          (*jit)["source"] = (*jit)["channel"]["URL"];
         }
-        jit->second.removeMember("channel");
+        jit->removeMember("channel");
       }
-      if (jit->second.isMember("preset")){
-        jit->second.removeMember("preset");
+      if (jit->isMember("preset")){
+        jit->removeMember("preset");
       }
     }
 

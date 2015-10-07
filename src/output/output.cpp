@@ -169,14 +169,14 @@ namespace Mist {
     unsigned int bestSoFar = 0;
     unsigned int bestSoFarCount = 0;
     unsigned int index = 0;
-    for (JSON::ArrIter it = capa["codecs"].ArrBegin(); it != capa["codecs"].ArrEnd(); it++){
+    jsonForEach(capa["codecs"], it) {
       unsigned int genCounter = 0;
       unsigned int selCounter = 0;
       if ((*it).size() > 0){
-        for (JSON::ArrIter itb = (*it).ArrBegin(); itb != (*it).ArrEnd(); itb++){
+        jsonForEach((*it), itb) {
           if ((*itb).size() > 0){
             bool found = false;
-            for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
+            jsonForEach(*itb, itc) {
               for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
                 if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
                   selCounter++;
@@ -212,10 +212,13 @@ namespace Mist {
     DEBUG_MSG(DLVL_MEDIUM, "Trying to fill: %s", capa["codecs"][bestSoFar].toString().c_str());
     //try to fill as many codecs simultaneously as possible
     if (capa["codecs"][bestSoFar].size() > 0){
-      for (JSON::ArrIter itb = capa["codecs"][bestSoFar].ArrBegin(); itb != capa["codecs"][bestSoFar].ArrEnd(); itb++){
+      jsonForEach(capa["codecs"][bestSoFar], itb) {
         if ((*itb).size() && myMeta.tracks.size()){
           bool found = false;
-          for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
+          jsonForEach((*itb), itc) {
+            if (found) {
+              break;
+            }
             for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
               if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
                 found = true;

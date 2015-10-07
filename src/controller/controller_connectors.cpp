@@ -32,27 +32,20 @@ namespace Controller {
     }
   }
   
-  static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, JSON::Value & argset){
-    for (JSON::ObjIter it = argset.ObjBegin(); it != argset.ObjEnd(); ++it){
-      if (it->second.isMember("option")){
-        if (p.isMember(it->first)){
-          if (it->second.isMember("type")){
-            if (it->second["type"].asStringRef() == "str" && !p[it->first].isString()){
-              p[it->first] = p[it->first].asString();
-            }
-            if ((it->second["type"].asStringRef() == "uint" || it->second["type"].asStringRef() == "int") && !p[it->first].isInt()){
-              p[it->first] = p[it->first].asString();
-            }
-          }
-          if (p[it->first].asStringRef().size() > 0){
-            argarr[argnum++] = (char*)(it->second["option"].c_str());
-            argarr[argnum++] = (char*)(p[it->first].c_str());
+  static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, const JSON::Value & argset){
+    jsonForEachConst(argset, it) {
+      if (it->isMember("option")){
+        if (p.isMember(it.key())){
+          p[it.key()] = p[it.key()].asString();
+          if (p[it.key()].asStringRef().size() > 0){
+            argarr[argnum++] = (char*)((*it)["option"].asStringRef().c_str());
+            argarr[argnum++] = (char*)(p[it.key()].asStringRef().c_str());
           }
         }else{
-          if (it->first == "debug"){
+          if (it.key() == "debug"){
             static std::string debugLvlStr;
             debugLvlStr = JSON::Value((long long)Util::Config::printDebugLevel).asString();
-            argarr[argnum++] = (char*)(it->second["option"].c_str());
+            argarr[argnum++] = (char*)((*it)["option"].asStringRef().c_str());
             argarr[argnum++] = (char*)debugLvlStr.c_str();
           }
         }
@@ -60,8 +53,7 @@ namespace Controller {
     }
   }
   
-  static inline void buildPipedArguments(const std::string & proto, char * argarr[], JSON::Value & capabilities){
-    JSON::Value p = JSON::fromString(proto);
+  static inline void buildPipedArguments(JSON::Value & p, char * argarr[], const JSON::Value & capabilities){
     int argnum = 0;
     static std::string tmparg;
     tmparg = Util::getMyPath() + std::string("MistOut") + p["connector"].asStringRef();
@@ -73,7 +65,7 @@ namespace Controller {
       return;
     }
     argarr[argnum++] = (char*)tmparg.c_str();
-    JSON::Value & pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
+    const JSON::Value & pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
     if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
     if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
   }
@@ -82,7 +74,7 @@ namespace Controller {
   ///\param p An object containing all protocols.
   ///\param capabilities An object containing the detected capabilities.
   ///\returns True if any action was taken
-  bool CheckProtocols(JSON::Value & p, JSON::Value & capabilities){
+  bool CheckProtocols(JSON::Value & p, const JSON::Value & capabilities){
     std::set<std::string> runningConns;
 
     // used for building args
@@ -93,11 +85,9 @@ namespace Controller {
     int i;
 
     std::string tmp;
-    long long counter = 0;
 
-    for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
-      counter = ait - p.ArrBegin();
-      std::string prevOnline = ( *ait)["online"].asString();
+    jsonForEach(p, ait) {
+      std::string prevOnline = (*ait)["online"].asString();
       const std::string & connName = (*ait)["connector"].asStringRef();
       //do not further parse if there's no connector name
       if ( !(*ait).isMember("connector") || connName == ""){
@@ -113,7 +103,7 @@ namespace Controller {
         continue;
       }
       //list connectors that go through HTTP as 'enabled' without actually running them.
-      JSON::Value & connCapa = capabilities["connectors"][connName];
+      const JSON::Value & connCapa = capabilities["connectors"][connName];
       if (connCapa.isMember("socket") || (connCapa.isMember("deps") && connCapa["deps"].asStringRef() == "HTTP")){
         ( *ait)["online"] = "Enabled";
         continue;
@@ -121,12 +111,12 @@ namespace Controller {
       //check required parameters, skip if anything is missing
       if (connCapa.isMember("required")){
         bool gotAll = true;
-        for (JSON::ObjIter it = connCapa["required"].ObjBegin(); it != connCapa["required"].ObjEnd(); ++it){
-          if ( !(*ait).isMember(it->first) || (*ait)[it->first].asStringRef().size() < 1){
+        jsonForEachConst(connCapa["required"], it) {
+          if ( !(*ait).isMember(it.key()) || (*ait)[it.key()].asStringRef().size() < 1){
             gotAll = false;
             ( *ait)["online"] = "Invalid configuration";
             if (( *ait)["online"].asString() != prevOnline){
-              Log("WARN", connName + " connector is missing required parameter " + it->first + "! Ignoring connector.");
+              Log("WARN", connName + " connector is missing required parameter " + it.key() + "! Ignoring connector.");
             }
             break;
           }
@@ -169,7 +159,8 @@ namespace Controller {
         // clear out old args
         for (i=0; i<15; i++){argarr[i] = 0;}
         // get args for this connector
-        buildPipedArguments(*runningConns.begin(), (char **)&argarr, capabilities);
+        JSON::Value p = JSON::fromString(*runningConns.begin());
+        buildPipedArguments(p, (char **)&argarr, capabilities);
         // start piped w/ generated args
         currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, &zero, &out, &err);
       }

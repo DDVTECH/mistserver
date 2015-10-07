@@ -1,5 +1,6 @@
 #include "input.h"
 #include <mist/dtsc.h>
+#include <mist/flv_tag.h>
 
 namespace Mist {
   class inputFLV : public Input {
@@ -12,7 +13,7 @@ namespace Mist {
       void getNext(bool smart = true);
       void seek(int seekTime);
       void trackSelect(std::string trackSpec);
-
+      FLV::Tag tmpTag;
       FILE * inFile;
   };
 }

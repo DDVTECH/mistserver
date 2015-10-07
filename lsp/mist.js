@@ -3478,6 +3478,25 @@ var UI = {
                   $('<button>').text('Edit').click(function(){
                     UI.navto('Edit Trigger',$(this).closest('tr').attr('data-index'));
                   })
+                ).append(
+                  $('<button>').text('Delete').click(function(){
+                    var index = $(this).closest('tr').attr('data-index').split(',');
+                    if (confirm('Are you sure you want to delete this '+index[0]+' trigger?')) {
+                      mist.data.config.triggers[index[0]].splice(index[1],1);
+                      if (mist.data.config.triggers[index[0]].length == 0) {
+                        delete mist.data.config.triggers[index[0]];
+                      }
+                      
+                      var send = {
+                        config: {
+                          triggers: mist.data.config.triggers
+                        }
+                      };
+                      mist.send(function(d){
+                        UI.navto('Triggers');
+                      },send);
+                    }
+                  })
                 )
               )
             );

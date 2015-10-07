@@ -4198,8 +4198,13 @@ var mist = {
             if ('browse' in d)         { mist.data.browse = d.browse; }
             if ('log' in d)            { mist.data.log = d.log; }
             if ('streams' in d)        {
-              if ((d.streams) && ('incomplete_list' in d.streams)) {
-                delete d.streams.incomplete_list;
+              if (d.streams) {
+                if ('incomplete_list' in d.streams) {
+                  delete d.streams.incomplete_list;
+                }
+              }
+              else {
+                d.streams = {};
               }
               mist.data.streams = d.streams;
             }

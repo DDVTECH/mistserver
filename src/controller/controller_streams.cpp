@@ -10,6 +10,7 @@
 #include "controller_storage.h"
 #include "controller_statistics.h"
 #include "controller_limits.h" /*LTS*/
+#include <mist/triggers.h> //LTS
 #include <sys/stat.h>
 #include <map>
 
@@ -155,16 +156,45 @@ namespace Controller {
     return false;
   }
   
+  ///
+  /// \triggers 
+  /// The `"STREAM_ADD"` trigger is stream-specific, and is ran whenever a new stream is added to the server configuration. If cancelled, the stream is not added. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// configuration in JSON format
+  /// ~~~~~~~~~~~~~~~
+  /// The `"STREAM_CONFIG"` trigger is stream-specific, and is ran whenever a stream's configuration is changed. If cancelled, the configuration is not changed. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// configuration in JSON format
+  /// ~~~~~~~~~~~~~~~
+  /// 
   void AddStreams(JSON::Value & in, JSON::Value & out){
     //check for new streams and updates
     jsonForEach(in, jit) {
       if (out.isMember(jit.key())){
         if ( !streamsEqual((*jit), out[jit.key()])){
+          /*LTS-START*/        
+          if(Triggers::shouldTrigger("STREAM_CONFIG")){
+            std::string payload = jit.key()+"\n"+jit->toString();
+            if (!Triggers::doTrigger("STREAM_CONFIG", payload, jit.key())){
+              continue;
+            }
+          }
+          /*LTS-END*/
           out[jit.key()] = (*jit);
           out[jit.key()]["name"] = jit.key();
           Log("STRM", std::string("Updated stream ") + jit.key());
         }
       }else{
+        /*LTS-START*/        
+        if(Triggers::shouldTrigger("STREAM_ADD")){
+          std::string payload = jit.key()+"\n"+jit->toString();
+          if (!Triggers::doTrigger("STREAM_ADD", payload, jit.key())){
+            continue;
+          }
+        }
+        /*LTS-END*/
         out[jit.key()] = (*jit);
         out[jit.key()]["name"] = jit.key();
         Log("STRM", std::string("New stream ") + jit.key());
@@ -255,10 +285,22 @@ namespace Controller {
 
   }
 
+  /// \triggers 
+  /// The `"STREAM_REMOVE"` trigger is stream-specific, and is ran whenever a stream is removed from the server configuration. If cancelled, the stream is not removed. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// ~~~~~~~~~~~~~~~
   void deleteStream(const std::string & name, JSON::Value & out) {
     if (!out.isMember(name)){
       return;
     }
+    /*LTS-START*/
+    if(Triggers::shouldTrigger("STREAM_REMOVE")){
+      if (!Triggers::doTrigger("STREAM_REMOVE", name, name)){
+        return;
+      }
+    }
+    /*LTS-END*/
     Log("STRM", std::string("Deleted stream ") + name);
     out.removeMember(name);
     if (inputProcesses.count(name)){

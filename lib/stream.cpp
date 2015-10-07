@@ -14,6 +14,7 @@
 #include "defines.h"
 #include "shared_memory.h"
 #include "dtsc.h"
+#include "triggers.h"//LTS
 
 std::string Util::getTmpFolder() {
   std::string dir;
@@ -116,6 +117,17 @@ bool Util::streamAlive(std::string & streamname){
 /// Then, checks if an input is already active by running streamAlive(). If yes, aborts.
 /// If no, loads up the server configuration and attempts to start the given stream according to current config.
 /// At this point, fails and aborts if MistController isn't running.
+/// \triggers 
+/// The `"STREAM_LOAD"` trigger is stream-specific, and is ran right before launching an input for an inactive stream. If cancelled, the input is not launched. Its payload is:
+/// ~~~~~~~~~~~~~~~
+/// streamname
+/// ~~~~~~~~~~~~~~~
+/// The `"STREAM_SOURCE"` trigger is stream-specific, and is ran right before launching an input for an inactive stream. It cannot be cancelled, but an invalid source can be returned; which is effectively equivalent to cancelling.
+/// This trigger is special: the response is used as source override for this stream, and not handled as normal. If used, the handler for this trigger MUST return a valid source to allow the stream input to load up at all. If used multiple times, the last defined handler overrides any and all previous handlers.
+/// Its payload is:
+/// ~~~~~~~~~~~~~~~
+/// streamname
+/// ~~~~~~~~~~~~~~~
 bool Util::startInput(std::string streamname, std::string filename, bool forkFirst) {
   sanitizeName(streamname);
   if (streamname.size() > 100){
@@ -159,6 +171,14 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   /*LTS-START*/
   if (stream_cfg && stream_cfg.getMember("hardlimit_active")) {
     return false;
+  }
+  if(Triggers::shouldTrigger("STREAM_LOAD", smp)){
+    if (!Triggers::doTrigger("STREAM_LOAD", streamname, smp)){
+      return false;
+    }
+  }
+  if(Triggers::shouldTrigger("STREAM_SOURCE", smp)){
+    Triggers::doTrigger("STREAM_SOURCE", streamname, smp, false, filename);
   }
   /*LTS-END*/
 

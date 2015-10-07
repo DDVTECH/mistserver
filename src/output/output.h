@@ -51,6 +51,7 @@ namespace Mist {
       static GeoIP * geoIP4;
       static GeoIP * geoIP6;
       #endif
+      std::string reqUrl;
       /*LTS-END*/
       //non-virtual generic functions
       int run();

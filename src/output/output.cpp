@@ -14,6 +14,7 @@
 #include "output.h"
 
 /*LTS-START*/
+#include <mist/triggers.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -102,6 +103,14 @@ namespace Mist {
     myConn.close();
   }
 
+  /// \triggers 
+  /// The `"CONN_PLAY"` trigger is stream-specific, and is ran when an active connection first opens a stream. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// connected client host
+  /// output handler name
+  /// request URL (if any)
+  /// ~~~~~~~~~~~~~~~
   void Output::initialize(){
     if (isInitialized){
       return;
@@ -121,6 +130,14 @@ namespace Mist {
     }
     selectDefaultTracks();
     sought = false;
+    /*LTS-START*/
+    if(Triggers::shouldTrigger("CONN_PLAY", streamName)){
+      std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+      if (!Triggers::doTrigger("CONN_PLAY", payload, streamName)){
+        myConn.close();
+      }
+    }
+    /*LTS-END*/
   }
  
   /// Connects or reconnects to the stream.
@@ -701,7 +718,30 @@ namespace Mist {
     }
   }
  
+  /// \triggers 
+  /// The `"CONN_OPEN"` trigger is stream-specific, and is ran when a connection is made or passed to a new handler. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// connected client host
+  /// output handler name
+  /// request URL (if any)
+  /// ~~~~~~~~~~~~~~~
+  /// The `"CONN_CLOSE"` trigger is stream-specific, and is ran when a connection closes. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// connected client host
+  /// output handler name
+  /// request URL (if any)
+  /// ~~~~~~~~~~~~~~~
   int Output::run() {
+    /*LTS-START*/
+    if(Triggers::shouldTrigger("CONN_OPEN", streamName)){
+      std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+      if (!Triggers::doTrigger("CONN_OPEN", payload, streamName)){
+        return 1;
+      }
+    }
+    /*LTS-END*/
     DEBUG_MSG(DLVL_MEDIUM, "MistOut client handler started");
     while (config->is_active && myConn.connected() && (wantRequest || parseData)){
       stats();
@@ -727,6 +767,14 @@ namespace Mist {
       }
     }
     DEBUG_MSG(DLVL_MEDIUM, "MistOut client handler shutting down: %s, %s, %s", myConn.connected() ? "conn_active" : "conn_closed", wantRequest ? "want_request" : "no_want_request", parseData ? "parsing_data" : "not_parsing_data");
+    
+    /*LTS-START*/
+    if(Triggers::shouldTrigger("CONN_CLOSE", streamName)){
+      std::string payload = streamName+"\n"+myConn.getHost()+"\n"+capa["name"].asStringRef()+"\n"+reqUrl; ///\todo generate payload
+      Triggers::doTrigger("CONN_CLOSE", payload, streamName); //no stream specified    
+    }
+    /*LTS-END*/
+  
     stats();
     userClient.finish();
     statsPage.finish();
@@ -777,6 +825,12 @@ namespace Mist {
       thisPacket.null();
       DEBUG_MSG(DLVL_DEVEL, "Buffer completely played out");
       onFinish();
+      /*LTS-START*/      
+      if(Triggers::shouldTrigger("CONN_STOP", streamName)){
+        std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n";
+        Triggers::doTrigger("CONN_STOP", payload, streamName);
+      }
+      /*LTS-END*/
       return;
     }
     sortedPageInfo nxt = *(buffer.begin());

@@ -2,6 +2,7 @@
 #include <mist/http_parser.h>
 #include <mist/defines.h>
 #include <mist/stream.h>
+#include <mist/triggers.h>
 #include <sys/stat.h>
 #include <cstring>
 #include <cstdlib>
@@ -325,6 +326,14 @@ namespace Mist {
   ///\param amfData The received request.
   ///\param messageType The type of message.
   ///\param streamId The ID of the AMF stream.
+  /// \triggers 
+  /// The `"STREAM_PUSH"` trigger is stream-specific, and is ran right before an incoming push is accepted. If cancelled, the push is denied. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// connected client host
+  /// output handler name
+  /// request URL (if any)
+  /// ~~~~~~~~~~~~~~~
   void OutRTMP::parseAMFCommand(AMF::Object & amfData, int messageType, int streamId) {
 #if DEBUG >= 5
     fprintf(stderr, "Received command: %s\n", amfData.Print().c_str());
@@ -359,6 +368,7 @@ namespace Mist {
       }
 #endif
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
+      reqUrl = app_name;//LTS
       app_name = app_name.substr(app_name.find('/', 7) + 1);
       RTMPStream::chunk_snd_max = 4096;
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
@@ -467,6 +477,7 @@ namespace Mist {
     if ((amfData.getContentP(0)->StrValue() == "publish")) {
       if (amfData.getContentP(3)) {
         streamName = amfData.getContentP(3)->StrValue();
+        reqUrl += "/"+streamName;//LTS
         
         if (streamName.find('/')){
           streamName = streamName.substr(0, streamName.find('/'));
@@ -511,6 +522,16 @@ namespace Mist {
                     IP = "deny-all.invalid";
                   }
                 }
+              }
+            }
+            if(Triggers::shouldTrigger("STREAM_PUSH", smp)){
+              std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+              if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
+                DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - STREAM_PUSH trigger denied the push", myConn.getHost().c_str(), streamName.c_str());
+                myConn.close();
+                configLock.post();
+                configLock.close();
+                return;
               }
             }
             /*LTS-END*/
@@ -567,6 +588,7 @@ namespace Mist {
       int playMessageType = messageType;
       int playStreamId = streamId;
       streamName = amfData.getContentP(3)->StrValue();
+      reqUrl += "/"+streamName;//LTS
 
       //handle variables
       if (streamName.find('?') != std::string::npos){

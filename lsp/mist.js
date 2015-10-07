@@ -3545,6 +3545,7 @@ var UI = {
             ['STREAM_LOAD', 'STREAM_LOAD: right before stream input is loaded in memory'],
             ['STREAM_READY', 'STREAM_READY: when the stream input is loaded and ready for playback'],
             ['STREAM_UNLOAD', 'STREAM_UNLOAD: right before the stream input is removed from memory'],
+            ['STREAM_PUSH', 'STREAM_PUSH: right before an incoming push is accepted'],
             ['STREAM_TRACK_ADD', 'STREAM_TRACK_ADD: right before a track will be added to a stream; e.g.: additional push received'],
             ['STREAM_TRACK_REMOVE', 'STREAM_TRACK_REMOVE: right before a track will be removed track from a stream; e.g.: push timeout'],
             ['CONN_OPEN', 'CONN_OPEN: right after a new incoming connection has been received'],

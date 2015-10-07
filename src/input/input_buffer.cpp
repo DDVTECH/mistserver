@@ -9,6 +9,7 @@
 #include <string>
 #include <mist/stream.h>
 #include <mist/defines.h>
+#include <mist/triggers.h>
 
 #include "input_buffer.h"
 
@@ -299,6 +300,12 @@ namespace Mist {
     }
   }
 
+  /// \triggers 
+  /// The `"STREAM_TRACK_REMOVE"` trigger is stream-specific, and is ran whenever a track is fully removed from a live strean buffer. It cannot be cancelled. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// trackID
+  /// ~~~~~~~~~~~~~~~
   void inputBuffer::removeUnused(){
     //first remove all tracks that have not been updated for too long
     bool changed = true;
@@ -335,6 +342,12 @@ namespace Mist {
           }else{
             INFO_MSG("Erasing inactive track %u because it was inactive for 5+ seconds and contains data (%us - %us), while active tracks are (%us - %us), which is more than %us seconds apart.", it->first, it->second.firstms / 1000, it->second.lastms / 1000, compareFirst/1000, compareLast/1000, bufferTime / 1000);
           }
+          /*LTS-START*/
+          if(Triggers::shouldTrigger("STREAM_TRACK_REMOVE")){
+            std::string payload = config->getString("streamname")+"\n"+JSON::Value((long long)it->first).asString()+"\n";
+            Triggers::doTrigger("STREAM_TRACK_REMOVE", payload, config->getString("streamname"));
+          }      
+          /*LTS-END*/
           lastUpdated.erase(tid);
           /// \todo Consider replacing with eraseTrackDataPages(it->first)?
           while (bufferLocations[tid].size()){
@@ -397,6 +410,12 @@ namespace Mist {
     updateMeta();
   }
 
+  /// \triggers 
+  /// The `"STREAM_TRACK_ADD"` trigger is stream-specific, and is ran whenever a new track is added to a live strean buffer. It cannot be cancelled. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// trackID
+  /// ~~~~~~~~~~~~~~~
   void inputBuffer::userCallback(char * data, size_t len, unsigned int id){
     /*LTS-START*/
     //Reload the configuration to make sure we stay up to date with changes through the api
@@ -532,6 +551,10 @@ namespace Mist {
           //No collision has been detected, assign a new final number
           finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
           DEBUG_MSG(DLVL_DEVEL, "No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
+          if(Triggers::shouldTrigger("STREAM_TRACK_ADD")){
+            std::string payload = config->getString("streamname")+"\n"+JSON::Value((long long)finalMap).asString()+"\n";
+            Triggers::doTrigger("STREAM_TRACK_ADD", payload, config->getString("streamname"));
+          }      
         }
         /*LTS-END*/
         //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared")

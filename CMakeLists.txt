@@ -150,6 +150,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/ts_packet.h
   ${SOURCE_DIR}/lib/ts_stream.h
   ${SOURCE_DIR}/lib/vorbis.h
+  ${SOURCE_DIR}/lib/triggers.h
 )
 
 ########################################
@@ -191,6 +192,7 @@ set(libSources
   ${SOURCE_DIR}/lib/ts_packet.cpp
   ${SOURCE_DIR}/lib/ts_stream.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
+  ${SOURCE_DIR}/lib/triggers.cpp
 )
 ########################################
 # MistLib - Build                      #

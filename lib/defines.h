@@ -75,6 +75,7 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #define SHM_TRACK_DATA "MstDATA%s@%lu_%lu" //%s stream name, %lu track ID, %lu page #
 #define SHM_STATISTICS "MstSTAT"
 #define SHM_USERS "MstUSER%s" //%s stream name
+#define SHM_TRIGGER "MstTRIG%s" //%s trigger name
 #define SEM_LIVE "MstLIVE%s" //%s stream name
 #define NAME_BUFFER_SIZE 200    //char buffer size for snprintf'ing shm filenames
 

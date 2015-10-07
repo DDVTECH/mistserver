@@ -1,4 +1,5 @@
 /// \page api API calls
+/// \brief Listing of all controller API calls.
 /// The controller listens for commands through a JSON-based API. This page describes the API in full.
 ///
 /// A default interface implementing this API as a single HTML page is included in the controller itself. This default interface will be send for invalid API requests, and is thus triggered by default when a browser attempts to access the API port directly.
@@ -20,7 +21,9 @@
 ///
 /// You may also include a `"callback"` or `"jsonp"` HTTP variable, to trigger JSONP compatibility mode. JSONP is useful for getting around the cross-domain scripting protection in most modern browsers. Developers creating non-JavaScript applications will most likely not want to use JSONP mode, though nothing is stopping you if you really want to.
 ///
-/// \brief Listing of all controller API calls.
+
+
+
 
 /// \file controller.cpp
 /// Contains all code for the controller executable.
@@ -47,6 +50,7 @@
 #include "controller_connectors.h"
 #include "controller_statistics.h"
 /*LTS-START*/
+#include <mist/triggers.h>
 #include "controller_updater.h"
 #include "controller_limits.h"
 #include "controller_uplink.h"
@@ -132,6 +136,12 @@ void statusMonitor(void * np){
 }
 
 ///\brief The main entry point for the controller.
+/// 
+/// \triggers 
+/// The `"SYSTEM_STOP"` trigger is global, and is ran when the controller shuts down. If cancelled, the controller does not shut down and will attempt to re-open the API socket. Its payload is:
+/// ~~~~~~~~~~~~~~~
+/// shutdown reason
+/// ~~~~~~~~~~~~~~~
 int main(int argc, char ** argv){
   
   Controller::Storage = JSON::fromFile("config.json");
@@ -214,6 +224,7 @@ int main(int argc, char ** argv){
   if (Controller::Storage["config"]["controller"]["username"]){
     Controller::conf.getOption("username", true)[0u] = Controller::Storage["config"]["controller"]["username"];
   }
+  Controller::writeConfig();
   Controller::checkAvailProtocols();
   createAccount(Controller::conf.getString("account"));
   
@@ -299,6 +310,7 @@ int main(int argc, char ** argv){
   tthread::thread uplinkThread(Controller::uplinkConnection, 0);/*LTS*/
   
   //start main loop
+  while (Controller::conf.is_active){/*LTS*/
   Controller::conf.serveThreadedSocket(Controller::handleAPIConnection);
   //print shutdown reason
   std::string shutdown_reason;
@@ -311,9 +323,21 @@ int main(int argc, char ** argv){
   if (Controller::restarting){
     shutdown_reason = "update (on request)";
   }
+  if(Triggers::shouldTrigger("SYSTEM_STOP")){ 
+    if (!Triggers::doTrigger("SYSTEM_STOP", shutdown_reason)){
+      Controller::conf.is_active = true;
+      Controller::restarting = false;
+      Util::sleep(1000);
+    }else{
+      Controller::conf.is_active = false;
+      Controller::Log("CONF", "Controller shutting down because of "+shutdown_reason);
+    }
+  }else{
+    Controller::conf.is_active = false;
+    Controller::Log("CONF", "Controller shutting down because of "+shutdown_reason);
+  }
+  }//indentation intentionally wrong, to minimize Pro/nonPro diffs
   /*LTS-END*/
-  Controller::Log("CONF", "Controller shutting down because of "+shutdown_reason);
-  Controller::conf.is_active = false;
   //join all joinable threads
   statsThread.join();
   monitorThread.join();

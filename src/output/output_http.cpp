@@ -159,6 +159,7 @@ namespace Mist {
       if (!myConn.Received().size()){
         if (myConn.peek() && H.Read(myConn)){
           std::string handler = getHandler();
+          reqUrl = H.getUrl();//LTS
           DEBUG_MSG(DLVL_MEDIUM, "Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
           if (!handler.size()){
             H.Clean();

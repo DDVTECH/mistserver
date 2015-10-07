@@ -13,6 +13,21 @@
 #include <mist/mp4_generic.h>
 #include "input_ts.h"
 
+/// \todo Implement this trigger equivalent...
+/*
+if(Triggers::shouldTrigger("STREAM_PUSH", smp)){
+  std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+  if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
+    DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - STREAM_PUSH trigger denied the push", myConn.getHost().c_str(), streamName.c_str());
+    myConn.close();
+    configLock.post();
+    configLock.close();
+    return;
+  }
+}
+*/
+
+
 namespace Mist {
   
   

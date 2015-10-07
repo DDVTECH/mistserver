@@ -10,6 +10,7 @@
 #include <mist/defines.h>
 #include "controller_storage.h"
 #include "controller_connectors.h"
+#include <mist/triggers.h>
 
 #include <iostream>
 #include <unistd.h>
@@ -74,6 +75,16 @@ namespace Controller {
   ///\param p An object containing all protocols.
   ///\param capabilities An object containing the detected capabilities.
   ///\returns True if any action was taken
+  /// 
+  /// \triggers 
+  /// The `"OUTPUT_START"` trigger is global, and is ran whenever a new protocol listener is started. It cannot be cancelled. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// output listener commandline
+  /// ~~~~~~~~~~~~~~~
+  /// The `"OUTPUT_STOP"` trigger is global, and is ran whenever a protocol listener is terminated. It cannot be cancelled. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// output listener commandline
+  /// ~~~~~~~~~~~~~~~
   bool CheckProtocols(JSON::Value & p, const JSON::Value & capabilities){
     std::set<std::string> runningConns;
 
@@ -146,6 +157,7 @@ namespace Controller {
             Log("CONF", "Stopping connector " + it->first);
             action = true;
             Util::Procs::Stop(it->second);
+            Triggers::doTrigger("OUTPUT_STOP",it->first); //LTS
           }
           currentConnectors.erase(it);
           if (!currentConnectors.size()){
@@ -168,6 +180,7 @@ namespace Controller {
         buildPipedArguments(p, (char **)&argarr, capabilities);
         // start piped w/ generated args
         currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, &zero, &out, &err);
+        Triggers::doTrigger("OUTPUT_START", *runningConns.begin());//LTS
       }
       runningConns.erase(runningConns.begin());
     }

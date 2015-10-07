@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 
 #include <mist/stream.h>
+#include <mist/triggers.h>
 #include <mist/defines.h>
 #include "input.h"
 #include <sstream>
@@ -185,7 +186,21 @@ namespace Mist {
     }
   }
 
-  void Input::serve() {
+  /// The main loop for inputs in stream serving mode.
+  /// 
+  /// \triggers 
+  /// The `"STREAM_READY"` trigger is stream-specific, and is ran whenever an input finished loading and started serving a stream. If cancelled, the input is immediately shut down again. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// input name
+  /// ~~~~~~~~~~~~~~~
+  /// The `"STREAM_UNLOAD"` trigger is stream-specific, and is ran right before an input shuts down and stops serving a stream. If cancelled, the shut down is delayed. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// input name
+  /// ~~~~~~~~~~~~~~~
+  // 
+  void Input::serve(){
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
 #ifdef INPUT_LIVE
@@ -219,6 +234,14 @@ namespace Mist {
     }
     userClient.finish();
 #else
+    /*LTS-START*/
+    if(Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
+      std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
+      if (!Triggers::doTrigger("STREAM_READY", payload, config->getString("streamname"))){
+        config->is_active = false;
+      }
+    }
+    /*LTS-END*/
     userPage.init(userPageName, PLAY_EX_SIZE, true);
     if (!isBuffer) {
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
@@ -239,6 +262,17 @@ namespace Mist {
       } else {
         DEBUG_MSG(DLVL_INSANE, "Timer running");
       }
+      /*LTS-START*/
+      if ((Util::bootSecs() - activityCounter) >= 10 || !config->is_active){//10 second timeout
+        if(Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
+          std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
+          if (!Triggers::doTrigger("STREAM_UNLOAD", payload, config->getString("streamname"))){
+            activityCounter = Util::bootSecs();
+            config->is_active = true;
+          }
+        }
+      }
+      /*LTS-END*/
     }
 #endif
     finish();

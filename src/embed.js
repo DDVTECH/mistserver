@@ -37,6 +37,19 @@ function mistembed(streamname) {
   function html5_video_type(type) {
     var support = false;
 
+    
+    if (type == 'mp4') {
+      if (navigator.userAgent.indexOf('Firefox') > -1) {
+        //firefox claims to support MP4 but doesn't
+        return false;
+      }
+      else if ((navigator.userAgent.indexOf('MSIE') > -1) && (parseInt(navigator.userAgent.split('MSIE')[1]) <= 9)) {
+        //IE <= 9 doesn't either
+        return false;
+      }
+    }
+    
+    
     try {
       var v = document.createElement('video');
 

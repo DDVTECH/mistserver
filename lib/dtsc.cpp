@@ -764,16 +764,13 @@ void DTSC::File::seekNext() {
     myPack.null();
     return;
   }
-  fseek(F, currentPositions.begin()->bytePos, SEEK_SET);
+  seekPos thisPos = *currentPositions.begin();
+  fseek(F, thisPos.bytePos, SEEK_SET);
   if (reachedEOF()) {
     myPack.null();
     return;
   }
   clearerr(F);
-  if (!metadata.merged) {
-    seek_time(currentPositions.begin()->seekTime + 1, currentPositions.begin()->trackID);
-    fseek(F, currentPositions.begin()->bytePos, SEEK_SET);
-  }
   currentPositions.erase(currentPositions.begin());
   lastreadpos = ftell(F);
   if (fread(buffer, 4, 1, F) != 1) {
@@ -786,7 +783,7 @@ void DTSC::File::seekNext() {
     return;
   }
   if (memcmp(buffer, DTSC::Magic_Header, 4) == 0) {
-    seek_time(myPack.getTime() + 1, myPack.getTrackId(), true);
+    seek_time(myPack.getTime(), myPack.getTrackId(), true);
     return seekNext();
   }
   long long unsigned int version = 0;
@@ -864,9 +861,12 @@ void DTSC::File::seekNext() {
       }
       currentPositions.insert(tmpPos);
     } else {
-      seek_time(myPack.getTime() + 1, myPack.getTrackId(), true);
+      seek_time(myPack.getTime(), myPack.getTrackId(), true);
     }
     seek_bpos(tempLoc);
+  }else{
+    seek_time(thisPos.seekTime, thisPos.trackID);
+    fseek(F, thisPos.bytePos, SEEK_SET);
   }
 }
 
@@ -954,7 +954,7 @@ DTSC::Packet & DTSC::File::getPacket() {
 bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek) {
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
-  if (!forceSeek && myPack && ms > myPack.getTime() && trackNo >= myPack.getTrackId()) {
+  if (!forceSeek && myPack && ms >= myPack.getTime() && trackNo >= myPack.getTrackId()) {
     tmpPos.seekTime = myPack.getTime();
     tmpPos.bytePos = getBytePos();
   } else {

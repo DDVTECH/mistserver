@@ -120,7 +120,7 @@ namespace Mist {
     metaPages.clear();
     metaPages[0].init(pageId, DEFAULT_META_PAGE_SIZE);
     if (!metaPages[0].mapped){
-      DEBUG_MSG(DLVL_FAIL, "Could not connect to server for %s\n", streamName.c_str());
+      FAIL_MSG("Could not connect to server for %s", streamName.c_str());
       onFail();
       return;
     }

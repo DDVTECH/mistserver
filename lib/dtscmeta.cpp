@@ -19,7 +19,10 @@ namespace DTSC {
 
   /// Copy constructor for packets, copies an existing packet with same noCopy flag as original.
   Packet::Packet(const Packet & rhs) {
-    Packet(rhs.data, rhs.dataLen, !rhs.master);
+    master = false;
+    bufferLen = 0;
+    data = NULL;
+    reInit(rhs.data, rhs.dataLen, !rhs.master);
   }
 
   /// Data constructor for packets, either references or copies a packet from raw data.
@@ -112,7 +115,7 @@ namespace DTSC {
   ///\param noCopy Determines whether to make a copy or not
   void Packet::reInit(const char * data_, unsigned int len, bool noCopy) {
     if (!data_) {
-      DEBUG_MSG(DLVL_DEVEL, "ReInit received a null pointer with len %d, ignoring", len);
+      HIGH_MSG("ReInit received a null pointer with len %d, ignoring", len);
       null();
       return;
     }
@@ -168,7 +171,8 @@ namespace DTSC {
   }
   
   /// Re-initializes this Packet to contain a generic DTSC packet with the given data fields.
-  void Packet::genericFill(long long packTime, long long packOffset, long long packTrack, char * packData, long long packDataSize, long long packBytePos, bool isKeyframe){
+  /// When given a NULL pointer, the data is reserved and memset to 0
+  void Packet::genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, long long packBytePos, bool isKeyframe){
     null();
     master = true;
     //time and trackID are part of the 20-byte header.
@@ -177,7 +181,7 @@ namespace DTSC {
     //bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)
     //keyframe, if true, adds 9 bytes (integer type) and 10 bytes (2+namelen)
     //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
-    unsigned int sendLen = 24 + (packOffset?17:0) + (packBytePos>=0?15:0) + (isKeyframe?19:0) + packDataSize+11;
+    unsigned int sendLen = 24 + (packOffset?17:0) + (packBytePos?15:0) + (isKeyframe?19:0) + packDataSize+11;
     resize(sendLen);
     //set internal variables
     version = DTSC_V2;
@@ -217,7 +221,11 @@ namespace DTSC {
     memcpy(data+offset, "\000\004data\002", 7);
     tmpLong = htonl(packDataSize);
     memcpy(data+offset+7, (char *)&tmpLong, 4);
-    memcpy(data+offset+11, packData, packDataSize);
+    if (packData){
+      memcpy(data+offset+11, packData, packDataSize);
+    }else{
+      memset(data+offset+11, 0, packDataSize);
+    }
     //finish container with 0x0000EE
     memcpy(data+offset+11+packDataSize, "\000\000\356", 3);
   }
@@ -1133,7 +1141,7 @@ namespace DTSC {
   unsigned int Track::timeToKeynum(unsigned int timestamp){
     unsigned int result = 0;
     for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++){
-      if (it->getTime() >= timestamp){
+      if (it->getTime() > timestamp){
         break;
       }
       result = it->getNumber();

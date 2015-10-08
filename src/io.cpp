@@ -1,3 +1,4 @@
+#include <mist/bitfields.h>
 #include "io.h"
 
 namespace Mist {
@@ -79,12 +80,12 @@ namespace Mist {
     //Open the correct page for the data
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), mapTid, pageNumber);
-    std::string pageName(pageId);
+    int pageSize = pagesByTrack[tid][pageNumber].dataSize;
 #ifdef __CYGWIN__
-    curPage[tid].init(pageName, 26 * 1024 * 1024, true);
-#else
-    curPage[tid].init(pageName, pagesByTrack[tid][pageNumber].dataSize, true);
+    pageSize = 26 * 1024 * 1024;
 #endif
+    std::string pageName(pageId);
+    curPage[tid].init(pageName, pageSize, true);
     //Make sure the data page is not destroyed when we are done buffering it later on.
     curPage[tid].master = false;
     //Store the pagenumber of the currently buffer page
@@ -128,6 +129,10 @@ namespace Mist {
       return;
     }
     unsigned long mapTid = trackMap[tid];
+    if (!pagesByTrack.count(tid)){
+      //The buffer does not control the datapages, indicated by no pagesByTrack entry.
+      return;
+    }
     //If the given pagenumber is not a valid page on this track, do nothing
     if (!pagesByTrack[tid].count(pageNumber)){
       INFO_MSG("Can't remove page %lu on track %lu~>%lu as it is not a valid page number.", pageNumber, tid, mapTid);
@@ -143,7 +148,7 @@ namespace Mist {
 #else
     toErase.init(pageName, pagesByTrack[tid][pageNumber].dataSize, false);
 #endif
-    //Set the master flag so that the page will be destoryed once it leaves scope
+    //Set the master flag so that the page will be destroyed once it leaves scope
 #if defined(__CYGWIN__) || defined(_WIN32)
     IPC::releasePage(pageName);
 #endif
@@ -324,6 +329,21 @@ namespace Mist {
   ///Initiates/continues negotiation with the buffer as well
   ///\param packet The packet to buffer
   void InOutBase::bufferLivePacket(JSON::Value & packet) {
+    DTSC::Packet realPacket;
+    realPacket.genericFill(packet["time"].asInt(), packet["offset"].asInt(), packet["trackid"].asInt(), packet["data"].asStringRef().c_str(), packet["data"].asStringRef().size(), packet["bpos"].asInt(), packet["keyframe"].asInt());
+    bufferLivePacket(realPacket);
+  }
+
+
+  ///Buffers a live packet to a page.
+  ///
+  ///Handles both buffering and creation of new pages
+  ///
+  ///Initiates/continues negotiation with the buffer as well
+  ///\param packet The packet to buffer
+  void InOutBase::bufferLivePacket(DTSC::Packet & packet){
+    myMeta.vod = false;
+    myMeta.live = true;
     //Store the trackid for easier access
     unsigned long tid = packet.getTrackId();
     //Do nothing if the trackid is invalid
@@ -467,6 +487,11 @@ namespace Mist {
     }
     //Now we either returned or the track has an offset for the user page.
     //Get the data from the userPage
+    if (!userClient.getData()){
+      char userPageName[100];
+      sprintf(userPageName, SHM_USERS, streamName.c_str());
+      userClient = IPC::sharedClient(userPageName, 30, true);
+    }
     char * tmp = userClient.getData();
     if (!tmp) {
       DEBUG_MSG(DLVL_FAIL, "Failed to negotiate for incoming track %lu, there does not seem to be a connection with the buffer", tid);

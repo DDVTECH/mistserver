@@ -200,7 +200,7 @@ namespace Mist {
       temp = H.url.find("Seg") + 3;
       temp = H.url.find("Frag") + 4;
       fragNum = atoi(H.url.substr(temp).c_str()) - 1;
-      DEBUG_MSG(DLVL_MEDIUM, "Video track %d, fragment %d\n", tid, fragNum);
+      DEBUG_MSG(DLVL_MEDIUM, "Video track %d, fragment %d", tid, fragNum);
       if (!audioTrack){getTracks();}
       unsigned int mstime = 0;
       unsigned int mslen = 0;

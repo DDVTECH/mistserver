@@ -842,7 +842,7 @@ namespace Mist {
         case 18: {//meta data
           static std::map<unsigned int, AMF::Object> pushMeta;
           if (!isInitialized) {
-            DEBUG_MSG(DLVL_MEDIUM, "Received useless media data\n");
+            MEDIUM_MSG("Received useless media data");
             myConn.close();
             break;
           }

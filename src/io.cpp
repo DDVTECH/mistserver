@@ -303,16 +303,16 @@ namespace Mist {
     //8 byte timestamp
     memcpy(myPage.mapped + curOffset + 12, pack.getData() + 12, 8);
     //The mapped track id
-    ((int *)(curPage[tid].mapped + curOffset + 8))[0] = htonl(mapTid);
+    ((int *)(myPage.mapped + curOffset + 8))[0] = htonl(mapTid);
     int size = Bit::btohl(pack.getData() + 4);
     if (encrypt){
       //Alter size to reflect the addition of the ivec field ( + 19 )
       size += 19;
     } 
     //Write the size
-    Bit::htobl(curPage[tid].mapped + curOffset + 4, size);
+    Bit::htobl(myPage.mapped + curOffset + 4, size);
     //write the 'DTP2' bytes to conclude the packet and allow for reading it
-    memcpy(curPage[tid].mapped + curOffset, pack.getData(), 4);
+    memcpy(myPage.mapped + curOffset, pack.getData(), 4);
 
 
     if (myMeta.live){
@@ -391,6 +391,12 @@ namespace Mist {
     curPageNum.erase(tid);
   }
 
+  ///Buffers a live packet to a page.
+  ///
+  ///Handles both buffering and creation of new pages
+  ///
+  ///Initiates/continues negotiation with the buffer as well
+  ///\param packet The packet to buffer
   void InOutBase::bufferLivePacket(JSON::Value & packet) {
     DTSC::Packet realPacket;
     realPacket.genericFill(packet["time"].asInt(), packet["offset"].asInt(), packet["trackid"].asInt(), packet["data"].asStringRef().c_str(), packet["data"].asStringRef().size(), packet["bpos"].asInt(), packet["keyframe"].asInt());

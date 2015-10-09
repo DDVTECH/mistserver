@@ -427,7 +427,9 @@ JSON::Value::Value(bool val) {
 
 /// Compares a JSON::Value to another for equality.
 bool JSON::Value::operator==(const JSON::Value & rhs) const {
-  if (myType != rhs.myType) return false;
+  if (myType != rhs.myType){
+    return false;
+  }
   if (myType == INTEGER || myType == BOOL) {
     return intVal == rhs.intVal;
   }
@@ -437,26 +439,22 @@ bool JSON::Value::operator==(const JSON::Value & rhs) const {
   if (myType == EMPTY) {
     return true;
   }
+  if (size() != rhs.size()){
+    return false;
+  }
   if (myType == OBJECT) {
-    if (objVal.size() != rhs.objVal.size()) return false;
-    for (std::map<std::string, Value*>::const_iterator it = objVal.begin(); it != objVal.end(); ++it) {
-      if (!rhs.isMember(it->first)) {
-        return false;
-      }
-      if (*(it->second) != rhs.objVal.find(it->first)->second) {
+    jsonForEachConst(*this, it){
+      if (!rhs.isMember(it.key()) || *it != rhs[it.key()]) {
         return false;
       }
     }
     return true;
   }
   if (myType == ARRAY) {
-    if (arrVal.size() != rhs.arrVal.size()) return false;
-    int i = 0;
-    for (std::deque<Value*>::const_iterator it = arrVal.begin(); it != arrVal.end(); ++it) {
-      if (**it != *(rhs.arrVal[i])) {
+    jsonForEachConst(*this, it){
+      if (*it != rhs[it.num()]) {
         return false;
       }
-      i++;
     }
     return true;
   }

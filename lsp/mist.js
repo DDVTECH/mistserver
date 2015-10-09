@@ -15,7 +15,7 @@ $(function(){
   
   //check if username and host have been stored in the url
   if (location.hash) {
-    var hash = location.hash.substring(1).split('@');
+    var hash = decodeURIComponent(location.hash).substring(1).split('@');
     var user = hash[0].split('&');
     mist.user.name = user[0];
     if (user[1]) { mist.user.host = user[1]; }
@@ -30,7 +30,7 @@ $(function(){
 });
 
 $(window).on('hashchange', function(e) {
-  var loc = location.hash.substring(1).split('@');
+  var loc = decodeURIComponent(location.hash).substring(1).split('@');
   if (!loc[1]) { loc[1] = ''; }
   var tab = loc[1].split('&');
   if (tab[0] == '') { tab[0] = 'Overview'; }
@@ -1699,6 +1699,7 @@ var UI = {
     var hash = prevhash.split('@');
     hash[0] = [mist.user.name,mist.user.host].join('&');
     hash[1] = [tab,other].join('&');
+    if (typeof screenlog != 'undefined') { screenlog.navto(hash[1]); } //allow logging if screenlog is active
     location.hash = hash.join('@');
     if (location.hash == prevhash) {
       //manually trigger hashchange even though hash hasn't changed

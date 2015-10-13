@@ -139,15 +139,20 @@ namespace Controller {
     bool action = false;
     //shut down deleted/changed connectors
     std::map<std::string, pid_t>::iterator it;
-    for (it = currentConnectors.begin(); it != currentConnectors.end(); it++){
-      if (!runningConns.count(it->first)){
-        if (Util::Procs::isActive(it->second)){
-          Log("CONF", "Stopping connector " + it->first);
-          action = true;
-          Util::Procs::Stop(it->second);
+    if (currentConnectors.size()){
+      for (it = currentConnectors.begin(); it != currentConnectors.end(); it++){
+        if (!runningConns.count(it->first)){
+          if (Util::Procs::isActive(it->second)){
+            Log("CONF", "Stopping connector " + it->first);
+            action = true;
+            Util::Procs::Stop(it->second);
+          }
+          currentConnectors.erase(it);
+          if (!currentConnectors.size()){
+            break;
+          }
+          it = currentConnectors.begin();
         }
-        currentConnectors.erase(it);
-        it = currentConnectors.begin();
       }
     }
 

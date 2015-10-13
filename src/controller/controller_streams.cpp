@@ -166,7 +166,7 @@ namespace Controller {
         }
       }else{
         out[jit.key()] = (*jit);
-        out[jit.key()]["name"] = (*jit);
+        out[jit.key()]["name"] = jit.key();
         Log("STRM", std::string("New stream ") + jit.key());
       }
     }

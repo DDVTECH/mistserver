@@ -4219,14 +4219,17 @@ var mist = {
             if ('log' in d)            { mist.data.log = d.log; }
             if ('streams' in d)        {
               if (d.streams) {
-                if ('incomplete_list' in d.streams) {
-                  delete d.streams.incomplete_list;
+                if ('incomplete list' in d.streams) {
+                  delete d.streams['incomplete list'];
+                  $.extend(mist.data.streams,d.streams);
+                }
+                else {
+                  mist.data.streams = d.streams;
                 }
               }
               else {
-                d.streams = {};
+                mist.data.streams = {};
               }
-              mist.data.streams = d.streams;
             }
             
             //does this really belong globally stored here?

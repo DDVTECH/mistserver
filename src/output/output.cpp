@@ -100,6 +100,11 @@ namespace Mist {
     }
     isInitialized = true;
     reconnect();
+    //if the connection failed, fail
+    if (streamName.size() < 1){
+      onFail();
+      return;
+    }
     selectDefaultTracks();
     sought = false;
   }

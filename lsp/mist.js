@@ -4209,15 +4209,10 @@ var mist = {
         delete mist.user.loggedin;
         switch (d.authorize.status) {
           case 'OK':
-            //communication succesful, copy everything we care about, if it exists
-            if ('config' in d)         { mist.data.config = d.config; }
-            if ('capabilities' in d)   { mist.data.capabilities = d.capabilities; }
-            if ('ui_settings' in d)    { mist.data.ui_settings = d.ui_settings; }
-            if ('LTS' in d)            { mist.data.LTS = d.LTS; }
-            if ('active_streams' in d) { mist.data.active_streams = d.active_streams; }
-            if ('browse' in d)         { mist.data.browse = d.browse; }
-            if ('log' in d)            { mist.data.log = d.log; }
-            if ('streams' in d)        {
+            //communication succesful
+            
+            //fix the weird ass incomplete stream shit
+            if ('streams' in d) {
               if (d.streams) {
                 if ('incomplete list' in d.streams) {
                   delete d.streams['incomplete list'];
@@ -4232,8 +4227,16 @@ var mist = {
               }
             }
             
-            //does this really belong globally stored here?
-            if (d.totals){mist.data.totals = d.totals;}
+            //remove everything we don't care about
+            var save = $.extend({},d);
+            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','streams','totals'];
+            for (var i in save) {
+              if (keep.indexOf(i) == -1) {
+                delete save[i];
+              }
+            }
+            
+            $.extend(true,mist.data,save);
             
             mist.user.loggedin = true;
             UI.elements.connection.status.text('Connected').removeClass('red').addClass('green');

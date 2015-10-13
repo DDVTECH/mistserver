@@ -3488,14 +3488,9 @@ var UI = {
                         delete mist.data.config.triggers[index[0]];
                       }
                       
-                      var send = {
-                        config: {
-                          triggers: mist.data.config.triggers
-                        }
-                      };
                       mist.send(function(d){
                         UI.navto('Triggers');
-                      },send);
+                      },{config:mist.data.config});
                     }
                   })
                 )

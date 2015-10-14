@@ -18,6 +18,8 @@
 /// This namespace holds all RTP-parsing and sending related functionality.
 namespace RTP {
 
+  extern unsigned int MAX_SEND;
+
   /// This class is used to make RTP packets. Currently, H264, and AAC are supported. RTP mechanisms, like increasing sequence numbers and setting timestamps are all taken care of in here.
   class Packet {
     private:

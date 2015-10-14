@@ -3,10 +3,10 @@
 #include "timing.h"
 #include "defines.h"
 
-#define MAX_SEND 1024*4
 
 namespace RTP {
   double Packet::startRTCP = 0;
+  unsigned int MAX_SEND = 4*1024;
 
   unsigned int Packet::getHsize() const {
     return 12 + 4 * getContribCount();

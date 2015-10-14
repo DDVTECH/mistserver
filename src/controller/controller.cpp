@@ -301,16 +301,18 @@ int main(int argc, char ** argv){
   //start main loop
   Controller::conf.serveThreadedSocket(Controller::handleAPIConnection);
   //print shutdown reason
+  std::string shutdown_reason;
+  if (!Controller::conf.is_active){
+    shutdown_reason = "user request (received shutdown signal)";
+  }else{
+    shutdown_reason = "socket problem (API port closed)";
+  }
   /*LTS-START*/
   if (Controller::restarting){
-    Controller::Log("CONF", "Controller restarting for update");
+    shutdown_reason = "update (on request)";
   }
   /*LTS-END*/
-  if (!Controller::conf.is_active){
-    Controller::Log("CONF", "Controller shutting down because of user request (received shutdown signal)");
-  }else{
-    Controller::Log("CONF", "Controller shutting down because of socket problem (API port closed)");
-  }
+  Controller::Log("CONF", "Controller shutting down because of "+shutdown_reason);
   Controller::conf.is_active = false;
   //join all joinable threads
   statsThread.join();

@@ -76,10 +76,24 @@ namespace Controller {
   
   /// Writes the current config to shared memory to be used in other processes
   void writeConfig(){
-    JSON::Value writeConf;
-    writeConf["config"] = Storage["config"];
-    writeConf["streams"] = Storage["streams"];
-    writeConf["capabilities"] = capabilities;
+    static JSON::Value writeConf;
+    bool changed = false;
+    if (writeConf["config"] != Storage["config"]){
+      writeConf["config"] = Storage["config"];
+      VERYHIGH_MSG("Saving new config because of edit in server config structure");
+      changed = true;
+    }
+    if (writeConf["streams"] != Storage["streams"]){
+      writeConf["streams"] = Storage["streams"];
+      VERYHIGH_MSG("Saving new config because of edit in streams");
+      changed = true;
+    }
+    if (writeConf["capabilities"] != capabilities){
+      writeConf["capabilities"] = capabilities;
+      VERYHIGH_MSG("Saving new config because of edit in capabilities");
+      changed = true;
+    }
+    if (!changed){return;}//cancel further processing if no changes
 
     static IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE, true);
     IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);

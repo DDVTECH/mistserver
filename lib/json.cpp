@@ -126,6 +126,7 @@ JSON::ConstIter & JSON::ConstIter::operator++(){
       ++oIt;
     }
   }
+  return *this;
 }
 
 /// Return the name of the current indice.

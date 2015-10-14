@@ -8,6 +8,7 @@
 *~
 .deps
 Makefile.in
+Makefile
 version.m4
 docs
 build

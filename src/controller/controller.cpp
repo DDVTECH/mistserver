@@ -268,23 +268,25 @@ int main(int argc, char ** argv){
   //start main loop
   Controller::conf.serveThreadedSocket(Controller::handleAPIConnection);
   //print shutdown reason
+  std::string shutdown_reason;
   if (!Controller::conf.is_active){
-    Controller::Log("CONF", "Controller shutting down because of user request (received shutdown signal)");
+    shutdown_reason = "user request (received shutdown signal)";
   }else{
-    Controller::Log("CONF", "Controller shutting down because of socket problem (API port closed)");
+    shutdown_reason = "socket problem (API port closed)";
   }
+  Controller::Log("CONF", "Controller shutting down because of "+shutdown_reason);
   Controller::conf.is_active = false;
   //join all joinable threads
   statsThread.join();
   monitorThread.join();
   //write config
+  tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
+  Controller::Storage.removeMember("log");
+  jsonForEach(Controller::Storage["streams"], it) {
+    it->removeMember("meta");
+  }
   if ( !Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
     std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;
-    tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
-    Controller::Storage.removeMember("log");
-    jsonForEach(Controller::Storage["streams"], it) {
-      it->removeMember("meta");
-    }
     std::cerr << "**Config**" << std::endl;
     std::cerr << Controller::Storage.toString() << std::endl;
     std::cerr << "**End config**" << std::endl;

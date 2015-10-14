@@ -85,6 +85,9 @@ namespace Mist {
   /// thus causing the process to exit cleanly.
   void Output::onFail(){
     isInitialized = false;
+    wantRequest = true;
+    parseData= false;
+    streamName.clear();
     myConn.close();
   }
 

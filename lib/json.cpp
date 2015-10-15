@@ -59,6 +59,7 @@ JSON::Iter & JSON::Iter::operator++(){
       ++oIt;
     }
   }
+  return *this;
 }
 
 /// Return the name of the current indice.

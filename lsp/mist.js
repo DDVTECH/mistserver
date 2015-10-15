@@ -2870,17 +2870,21 @@ var UI = {
           $('<h3>').text('Embed urls')
         ).append(UI.buildUI([
           {
-            label: 'Embed url',
+            label: 'Embedable script',
             type: 'str',
             value: embedbase+'embed_'+other+'.js',
-            readonly: true,
-            qrcode: true
+            readonly: true
           },{
-            label: 'Info url',
+            label: 'Stream info script',
             type: 'str',
             value: embedbase+'info_'+other+'.js',
-            qrcode: true,
             readonly: true
+          },{
+            label: 'Autodetect player',
+            type: 'str',
+            value: embedbase+other+'.html',
+            readonly: true,
+            qrcode: true
           },$('<h3>').text('Embed code'),{
             label: 'Embed code',
             type: 'textarea',

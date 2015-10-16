@@ -4211,7 +4211,7 @@ var mist = {
           case 'OK':
             //communication succesful
             
-            //fix the weird ass incomplete stream shit
+            //fix the weird ass incomplete list stream shit
             if ('streams' in d) {
               if (d.streams) {
                 if ('incomplete list' in d.streams) {
@@ -4229,7 +4229,7 @@ var mist = {
             
             //remove everything we don't care about
             var save = $.extend({},d);
-            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','streams','totals'];
+            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals']; //streams was already copied above
             for (var i in save) {
               if (keep.indexOf(i) == -1) {
                 delete save[i];

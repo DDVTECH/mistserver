@@ -38,7 +38,7 @@ function mistembed(streamname) {
     var support = false;
 
     
-    if (type == 'mp4') {
+    if (type == 'video/mp4') {
       if (navigator.userAgent.indexOf('Firefox') > -1) {
         //firefox claims to support MP4 but doesn't
         return false;

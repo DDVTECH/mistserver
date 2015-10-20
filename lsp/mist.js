@@ -2959,12 +2959,12 @@ var UI = {
           }
           var audio = {
             vheader: 'Audio',
-            labels: ['Codec','Duration','Average bitrate','Channels','Samplerate'],
+            labels: ['Codec','Duration','Peak bitrate','Channels','Samplerate'],
             content: []
           };
           var video = {
             vheader: 'Video',
-            labels: ['Codec','Duration','Average bitrate','Size','Framerate'],
+            labels: ['Codec','Duration','Peak bitrate','Size','Framerate'],
             content: []
           };
           var keys = Object.keys(meta.tracks);

@@ -358,20 +358,22 @@ namespace Mist {
             curPage.erase(tid);
             bufferLocations[tid].erase(bufferLocations[tid].begin());
           }
-          //Reset the userpage, to allow repushing from TS
-          IPC::userConnection userConn(pushLocation[it->first]);
-          for (int i = 0; i < SIMUL_TRACKS; i++){
-            if (userConn.getTrackId(i) == it->first) {
-              userConn.setTrackId(i, 0);
-              userConn.setKeynum(i, 0);
-              break;
+          if (pushLocation.count(it->first)){
+            //Reset the userpage, to allow repushing from TS
+            IPC::userConnection userConn(pushLocation[it->first]);
+            for (int i = 0; i < SIMUL_TRACKS; i++){
+              if (userConn.getTrackId(i) == it->first) {
+                userConn.setTrackId(i, 0);
+                userConn.setKeynum(i, 0);
+                break;
+              }
             }
+            pushLocation.erase(it->first);
           }
           curPageNum.erase(it->first);
           metaPages[it->first].master = true;
           metaPages.erase(it->first);
           activeTracks.erase(it->first);
-          pushLocation.erase(it->first);
           myMeta.tracks.erase(it->first);
           changed = true;
           break;

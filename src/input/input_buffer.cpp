@@ -217,12 +217,14 @@ namespace Mist {
             curPage.erase(tid);
             bufferLocations[tid].erase(bufferLocations[tid].begin());
           }
+          if (pushLocation.count(it->first)){
+            pushLocation.erase(it->first);
+          }
           curPageNum.erase(it->first);
           metaPages[it->first].master = true;
           metaPages.erase(it->first);
           activeTracks.erase(it->first);
-          pushLocation.erase(it->first);
-          myMeta.tracks.erase(it);
+          myMeta.tracks.erase(it->first);
           changed = true;
           break;
         }

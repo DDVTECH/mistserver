@@ -1,4 +1,18 @@
 function mistembed(streamname) {
+  
+  //find the current script
+  var me;
+  if (('currentScript' in document) && (document.currentScript)) {
+    me = document.currentScript;
+    //not supported in old browsers :(
+  }
+  else {
+    var scripts = document.getElementsByTagName('script');
+    me = scripts[scripts.length - 1];
+    //not correct if the script is inserted dynamically, but this is how it used to be
+  }
+  
+  
   // return the current flash version
   function flash_version() {
     var version = 0;
@@ -201,9 +215,7 @@ function mistembed(streamname) {
   }
   
   var video = mistvideo[streamname],
-  container = document.createElement('div'),
-  scripts = document.getElementsByTagName('script'),
-  me = scripts[scripts.length - 1];
+  container = document.createElement('div');
   
   if (me.parentNode.hasAttribute('data-forcetype')) {
     var forceType = me.parentNode.getAttribute('data-forcetype');

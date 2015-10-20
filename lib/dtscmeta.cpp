@@ -1215,8 +1215,9 @@ namespace DTSC {
         newFrag.setNumber(keys[keys.size() - 1].getNumber());
         if (fragments.size()) {
           fragments[fragments.size() - 1].setDuration(packTime - getKey(fragments[fragments.size() - 1].getNumber()).getTime());
-          if (!bps && fragments[fragments.size() - 1].getDuration() > 1000) {
-            bps = (fragments[fragments.size() - 1].getSize() * 1000) / fragments[fragments.size() - 1].getDuration();
+          unsigned int newBps = (fragments[fragments.size() - 1].getSize() * 1000) / fragments[fragments.size() - 1].getDuration();
+          if (newBps > bps){
+            bps = newBps;
           }
         }
         newFrag.setDuration(0);

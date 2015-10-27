@@ -585,13 +585,14 @@ namespace Mist {
     curPositions.erase(curPositions.begin());
     
     bool isKeyframe = false;
-    if(nextKeyframe[curPart.trackID] < myMeta.tracks[curPart.trackID].keys.size()){
+    if(nextKeyframe[curPart.trackID] < myMeta.tracks[curPart.trackID].keys.size()){//should almost always be true, simple check to make sure we are not checking outside the keyframe array table
+      ///\todo These 2 ifs are practically the same check, merge these when we are busy cleaning up the code.
       //checking if this is a keyframe
       if (myMeta.tracks[curPart.trackID].type == "video" && (long long int) curPart.time == myMeta.tracks[curPart.trackID].keys[(nextKeyframe[curPart.trackID])].getTime()){
         isKeyframe = true;
       }
       //if a keyframe has passed, we find the next keyframe
-      if (myMeta.tracks[curPart.trackID].keys[(nextKeyframe[curPart.trackID])].getTime() < (long long int)curPart.time){
+      if (myMeta.tracks[curPart.trackID].keys[(nextKeyframe[curPart.trackID])].getTime() <= (long long int)curPart.time){
         nextKeyframe[curPart.trackID] ++;
       }
     }

@@ -522,7 +522,8 @@ namespace Mist {
                         }//while over stsc
                         if (vidTrack){
                           //something wrong with the time formula, but the answer is right for some reason
-                          /// \todo Fix this. This makes no sense whatsoever.
+                          /// \todo Fix this. This makes no sense whatsoever. This isn't frame per kilosecond, but milli-STCO-entries per second.
+                          // (A single STCO entry may be more than 1 part, and 1 part may be a partial frame or multiple frames)
                           if (stcoIs64){
                             myMeta.tracks[trackNo].fpks = (((double)(((MP4::CO64*)&stcoBox)->getEntryCount()*1000))/((totaldur*1000)/timeScale))*1000;
                           }else{

@@ -70,6 +70,7 @@ void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize
       }
     }
     if (i != j) {
+      DONTEVEN_MSG("Adding a block of size %d", j-i);
       data.push_front(std::string(newdata + i, (size_t)(j - i)));
       i = j;
     } else {
@@ -77,7 +78,7 @@ void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize
     }
   }
   if (data.size() > 5000) {
-    DEBUG_MSG(DLVL_WARN, "Warning: After %d new bytes, buffer has %d parts!", newdatasize, (int)data.size());
+    DEBUG_MSG(DLVL_WARN, "Warning: After %d new bytes, buffer has %d parts containing over %u bytes!", newdatasize, (int)data.size(), bytes(9000));
   }
 }
 
@@ -95,6 +96,7 @@ void Socket::Buffer::prepend(const char * newdata, const unsigned int newdatasiz
 
 /// Returns true if at least count bytes are available in this buffer.
 bool Socket::Buffer::available(unsigned int count) {
+  size();
   unsigned int i = 0;
   for (std::deque<std::string>::iterator it = data.begin(); it != data.end(); ++it) {
     i += (*it).size();
@@ -108,6 +110,7 @@ bool Socket::Buffer::available(unsigned int count) {
 /// Removes count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
 std::string Socket::Buffer::remove(unsigned int count) {
+  size();
   if (!available(count)) {
     return "";
   }
@@ -131,6 +134,7 @@ std::string Socket::Buffer::remove(unsigned int count) {
 /// Copies count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
 std::string Socket::Buffer::copy(unsigned int count) {
+  size();
   if (!available(count)) {
     return "";
   }
@@ -151,6 +155,7 @@ std::string Socket::Buffer::copy(unsigned int count) {
 
 /// Gets a reference to the back of the internal std::deque of std::string objects.
 std::string & Socket::Buffer::get() {
+  size();
   static std::string empty;
   if (data.size() > 0) {
     return data.back();

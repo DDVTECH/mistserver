@@ -464,10 +464,10 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
       return false;
     } //can't read timestamp
     indata = buffer.copy(i + 4);
-    timestamp = indata[i++ ] * 256 * 256 * 256;
-    timestamp += indata[i++ ] * 256 * 256;
-    timestamp += indata[i++ ] * 256;
     timestamp += indata[i++ ];
+    timestamp += indata[i++ ] * 256;
+    timestamp += indata[i++ ] * 256 * 256;
+    timestamp = indata[i++ ] * 256 * 256 * 256;
     ts_delta = timestamp;
   }
 

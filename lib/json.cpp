@@ -657,12 +657,13 @@ JSON::Value & JSON::Value::operator[](const char * i) {
 /// Retrieves or sets the JSON::Value at this position in the array.
 /// Converts destructively to array if not already an array.
 JSON::Value & JSON::Value::operator[](unsigned int i) {
+  static JSON::Value empty;
   if (myType != ARRAY) {
     null();
     myType = ARRAY;
   }
   while (i >= arrVal.size()) {
-    append(new JSON::Value());
+    append(empty);
   }
   return *arrVal[i];
 }

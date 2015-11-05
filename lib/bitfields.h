@@ -26,7 +26,7 @@ namespace Bit{
   }
 
   /// Retrieves a long in network order from the pointer p.
-  inline unsigned long btohl(char * p) {
+  inline unsigned long btohl(const char * p) {
     return ((unsigned long)p[0] << 24) | ((unsigned long)p[1] << 16) | ((unsigned long)p[2] << 8) | p[3];
   }
 

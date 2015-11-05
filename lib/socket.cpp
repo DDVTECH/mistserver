@@ -1167,6 +1167,13 @@ int Socket::UDPConnection::bind(int port) {
 /// \return True if a packet was received, false otherwise.
 bool Socket::UDPConnection::Receive() {
   int r = recvfrom(sock, data, data_size, MSG_PEEK | MSG_TRUNC, 0, 0);
+  if (r == -1){
+    if (errno != EAGAIN){
+      INFO_MSG("Found an error: %d (%s)", errno, strerror(errno));
+    }
+    data_len = 0;
+    return false;
+  }
   if (data_size < (unsigned int)r) {
     data = (char *)realloc(data, r);
     if (data) {

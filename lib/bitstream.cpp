@@ -26,14 +26,14 @@ namespace Utils {
     }
   }
 
-  void bitstream::append(char * input, size_t bytes) {
+  void bitstream::append(const char * input, size_t bytes) {
     if (checkBufferSize(dataSize + bytes)) {
       memcpy(data + dataSize, input, bytes);
       dataSize += bytes;
     }
   }
 
-  void bitstream::append(std::string input) {
+  void bitstream::append(const std::string & input) {
     append((char *)input.c_str(), input.size());
   }
 

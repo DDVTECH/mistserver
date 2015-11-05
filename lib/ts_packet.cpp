@@ -35,12 +35,12 @@ namespace TS {
 /// \param Data The data to be read into the packet.
 /// \return true if it was possible to read in a full packet, false otherwise.
   bool Packet::FromFile(FILE * data) {    
-    long long int pos = ftell(data);
+    long long int bPos = ftell(data);
     if (!fread((void *)strBuf, 188, 1, data)) {
       return false;
     }
     if (strBuf[0] != 0x47){
-      INFO_MSG("Failed to read a good packet on pos %lld", pos);
+      HIGH_MSG("Failed to read a good packet on pos %lld", bPos);
       return false;
     }
     pos=188;
@@ -290,7 +290,7 @@ namespace TS {
         if (!(i % 32)){
           output << std::endl << std::string(indent + 4, ' ');
         }
-        output << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)(strBuf+pos)[i] << " ";
+        output << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)(strBuf+188-size)[i] << " ";
         if ((i % 4) == 3){
           output << " ";
         }
@@ -300,10 +300,6 @@ namespace TS {
     
     return output.str();
   }
-  /*
-  char * Packet::dataPointer(){
-    return (char*)strBuf+pos;//.data() + 188 - dataSize();
-  }*/
   
   unsigned int Packet::getDataSize() const{
     return 184 - ((getAdaptationField() > 1) ? getAdaptationFieldLen() + 1 : 0);

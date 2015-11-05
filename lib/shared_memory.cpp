@@ -809,15 +809,17 @@ namespace IPC {
                 break;
               default:
                 #ifndef NOCRASHCHECK
-                if(*counter > 10 && *counter < 126 ){
-                  if(*counter < 30){
-                    if (*counter > 15){
-                      WARN_MSG("Process %d is unresponsive",tmpPID);
+                if (tmpPID){
+                  if(*counter > 10 && *counter < 126 ){
+                    if(*counter < 30){
+                      if (*counter > 15){
+                        WARN_MSG("Process %d is unresponsive",tmpPID);
+                      }
+                      Util::Procs::Stop(tmpPID); //soft kill  
+                    } else {      
+                      ERROR_MSG("Killing unresponsive process %d", tmpPID);
+                      Util::Procs::Murder(tmpPID); //improved kill      
                     }
-                    Util::Procs::Stop(tmpPID); //soft kill  
-                  } else {      
-                    ERROR_MSG("Killing unresponsive process %d", tmpPID);
-                    Util::Procs::Murder(tmpPID); //improved kill      
                   }
                 }
                 #endif

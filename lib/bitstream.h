@@ -1,3 +1,4 @@
+#pragma once
 #include<string>
 
 namespace Utils {
@@ -13,7 +14,7 @@ namespace Utils {
         return *this;
       };
       void append(const char * input, size_t bytes);
-      void append(std::string input);
+      void append(const std::string & input);
       long long unsigned int size();
       void skip(size_t count);
       long long unsigned int get(size_t count);

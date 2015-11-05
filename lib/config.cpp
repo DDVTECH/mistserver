@@ -448,7 +448,7 @@ void Util::Config::activate() {
   }
   struct sigaction new_action;
   struct sigaction cur_action;
-  new_action.sa_handler = signal_handler;
+  new_action.sa_sigaction = signal_handler;
   sigemptyset(&new_action.sa_mask);
   new_action.sa_flags = 0;
   sigaction(SIGINT, &new_action, NULL);
@@ -466,7 +466,8 @@ void Util::Config::activate() {
 /// Basic signal handler. Sets is_active to false if it receives
 /// a SIGINT, SIGHUP or SIGTERM signal, reaps children for the SIGCHLD
 /// signal, and ignores all other signals.
-void Util::Config::signal_handler(int signum) {
+void Util::Config::signal_handler(int signum, siginfo_t * sigInfo, void * ignore) {
+  HIGH_MSG("Received signal %d from process %d", signum, sigInfo->si_pid);
   switch (signum) {
     case SIGINT: //these three signals will set is_active to false.
     case SIGHUP:

@@ -33,7 +33,7 @@ namespace Utils {
     }
   }
 
-  void bitstream::append(std::string input) {
+  void bitstream::append(const std::string & input) {
     append((char *)input.c_str(), input.size());
   }
 

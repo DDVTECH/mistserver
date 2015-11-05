@@ -9,6 +9,7 @@
 
 #include <string>
 #include "json.h"
+#include <signal.h>
 
 /// Contains utility code, not directly related to streaming media
 namespace Util {
@@ -18,7 +19,7 @@ namespace Util {
     private:
       JSON::Value vals; ///< Holds all current config values
       int long_count;
-      static void signal_handler(int signum);
+      static void signal_handler(int signum, siginfo_t * sigInfo, void * ignore);
     public:
       //variables
       static bool is_active; ///< Set to true by activate(), set to false by the signal handler.

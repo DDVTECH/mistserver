@@ -126,6 +126,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/encryption.h
   ${SOURCE_DIR}/lib/flv_tag.h
   ${SOURCE_DIR}/lib/h264.h
+  ${SOURCE_DIR}/lib/h265.h
   ${SOURCE_DIR}/lib/http_parser.h
   ${SOURCE_DIR}/lib/json.h
   ${SOURCE_DIR}/lib/mp4_adobe.h
@@ -169,6 +170,7 @@ set(libSources
   ${SOURCE_DIR}/lib/encryption.cpp
   ${SOURCE_DIR}/lib/flv_tag.cpp
   ${SOURCE_DIR}/lib/h264.cpp
+  ${SOURCE_DIR}/lib/h265.cpp
   ${SOURCE_DIR}/lib/http_parser.cpp
   ${SOURCE_DIR}/lib/json.cpp
   ${SOURCE_DIR}/lib/mp4_adobe.cpp

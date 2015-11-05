@@ -1,6 +1,7 @@
 #include "ts_stream.h"
 #include "defines.h"
 #include "h264.h"
+#include "h265.h"
 #include "nal.h"
 #include "mp4_generic.h"
 
@@ -22,22 +23,37 @@ namespace TS {
     int tid = newPack.getPID();
     if (tid == 0){
       associationTable = newPack;
+      pmtTracks.clear();
+      int pmtCount = associationTable.getProgramCount();
+      for (int i = 0; i < pmtCount; i++){
+        pmtTracks.insert(associationTable.getProgramPID(i));
+      }
       return;
     }
     //If we are here, the packet is not a PAT.
     //First check if it is listed in the PAT as a PMT track.
     int pmtCount = associationTable.getProgramCount();
-    for (int i = 0; i < pmtCount; i++){
-      if (tid == associationTable.getProgramPID(i)){
-        mappingTable[tid] = newPack;
-        ProgramMappingEntry entry = mappingTable[tid].getEntry(0);
-        while (entry){
-          unsigned long pid = entry.getElementaryPid();
-          pidToCodec[pid] = entry.getStreamType();
-          entry.advance();
+    if (pmtTracks.count(tid)){
+      mappingTable[tid] = newPack;
+      ProgramMappingEntry entry = mappingTable[tid].getEntry(0);
+      while (entry){
+        unsigned long pid = entry.getElementaryPid();
+        switch(entry.getStreamType()){
+          case H264:
+          case AAC:
+          case HEVC:
+          case H265:
+          case AC3:
+            if (!pidToCodec.count(pid)){
+              pidToCodec[pid] = entry.getStreamType();
+            }
+            break;
+          default:
+            break;
         }
-        return;
+        entry.advance();
       }
+      return;
     }
     //If it is not a PMT, check the list of all PMTs to see if this is a new PES track.
     bool inPMT = false;
@@ -70,6 +86,9 @@ namespace TS {
     if (!pidToCodec.size()){
       return false;
     }
+    if (outPackets.size() != pidToCodec.size()){
+      return false;
+    }
     for (std::map<unsigned long, unsigned long>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
       if (!outPackets.count(it->first) || !outPackets.at(it->first).size()){
         return false;
@@ -84,11 +103,6 @@ namespace TS {
     }
     if (outPackets.count(tid) && outPackets.at(tid).size()){
       return true;
-    }
-    for (int i = 1; i < pesStreams.find(tid)->second.size(); i++) {
-      if (pesStreams.find(tid)->second.at(i).getUnitStart()) {
-        return true;
-      }
     }
     return false;
   }
@@ -106,6 +120,7 @@ namespace TS {
 
   void Stream::parsePES(unsigned long tid){
     std::deque<Packet> & inStream = pesStreams[tid];
+    std::deque<unsigned long long> & inPositions = pesPositions[tid];
     if (inStream.size() == 1){
       return;
     }
@@ -113,17 +128,20 @@ namespace TS {
       return;
     }
 
-    unsigned long long bPos = pesPositions[tid].front();
+    unsigned long long bPos = inPositions.front();
     //Create a buffer for the current PES, and remove it from the pesStreams buffer.
     int paySize = payloadSize[tid];
     char * payload = (char*)malloc(paySize);
     int offset = 0;
-    while (inStream.size() != 1){
-      memcpy(payload + offset, inStream.front().getPayload(), inStream.front().getPayloadLength());
-      offset += inStream.front().getPayloadLength();
-      inStream.pop_front();
-      pesPositions[tid].pop_front();
+    int packNum = inStream.size() - 1;
+    std::deque<Packet>::iterator curPack = inStream.begin();
+    for (int i = 0; i < packNum; i++){
+      memcpy(payload + offset, curPack->getPayload(), curPack->getPayloadLength());
+      offset += curPack->getPayloadLength();
+      curPack++;
     }
+    inStream.erase(inStream.begin(), curPack);
+    inPositions.erase(inPositions.begin(), inPositions.begin() + packNum);
 
     //Parse the PES header
     offset = 0;
@@ -133,7 +151,7 @@ namespace TS {
 
       //Check for large enough buffer
       if ((paySize - offset) < 9 || (paySize - offset) < 9 + pesHeader[8]){
-        INFO_MSG("Not enough data on track %lu, discarding remainder of data", tid);
+        INFO_MSG("Not enough data on track %lu (%d / %d), discarding remainder of data", tid, paySize - offset, 9 + pesHeader[8]);
         break;
       }
 
@@ -150,11 +168,12 @@ namespace TS {
       if (!realPayloadSize){
         realPayloadSize = paySize;
       }
-      if (pidToCodec[tid] == AAC){
+      if (pidToCodec[tid] == AAC || pidToCodec[tid] == MP3 || pidToCodec[tid] == AC3){
         realPayloadSize -= (3 + pesHeader[8]);
       }else{
         realPayloadSize -= (9 + pesHeader[8]);
       }
+      
 
       //Read the metadata for this PES Packet
       ///\todo Determine keyframe-ness
@@ -195,28 +214,61 @@ namespace TS {
           offsetInPes += adtsPack.getHeaderSize() + adtsPack.getPayloadSize();
         }
       }
-      if (pidToCodec[tid] == H264){
+      if (pidToCodec[tid] == AC3){
+        outPackets[tid].push_back(DTSC::Packet());
+        outPackets[tid].back().genericFill(timeStamp, timeOffset, tid, pesPayload, realPayloadSize, bPos, 0);
+      }
+      if (pidToCodec[tid] == H264 || pidToCodec[tid] == HEVC || pidToCodec[tid] == H265){
         //Convert from annex b
-        char * parsedData = NULL;
+        char * parsedData = (char*)malloc(realPayloadSize * 2);
         bool isKeyFrame = false;
-        unsigned long parsedSize = h264::fromAnnexB(pesPayload, realPayloadSize, parsedData);
-        std::deque<h264::nalData> nalInfo = h264::analyseH264Packet(parsedData, parsedSize);
+        unsigned long parsedSize = nalu::fromAnnexB(pesPayload, realPayloadSize, parsedData);
+        std::deque<nalu::nalData> nalInfo;
+        if (pidToCodec[tid] == H264) {
+          nalInfo = h264::analysePackets(parsedData, parsedSize);
+        }
+        if (pidToCodec[tid] == HEVC || pidToCodec[tid] == H265){
+          nalInfo = h265::analysePackets(parsedData, parsedSize);
+        }
         int dataOffset = 0;
-        for (std::deque<h264::nalData>::iterator it = nalInfo.begin(); it != nalInfo.end(); it++){
-          switch (it->nalType){
-            case 0x05: {
-              isKeyFrame = true; 
-              break;
+        for (std::deque<nalu::nalData>::iterator it = nalInfo.begin(); it != nalInfo.end(); it++){
+          if (pidToCodec[tid] == H264){
+            switch (it->nalType){
+              case 0x05: {
+                isKeyFrame = true; 
+                break;
+              }
+              case 0x07: {
+                spsInfo[tid] = std::string(parsedData + dataOffset + 4, it->nalSize);
+                break;
+              }
+              case 0x08: {
+                ppsInfo[tid] = std::string(parsedData + dataOffset + 4, it->nalSize);
+                break;
+              }
+              default: break;
             }
-            case 0x07: {
-              spsInfo[tid] = std::string(parsedData + dataOffset + 4, it->nalSize);
-              break;
+          }
+          if (pidToCodec[tid] == HEVC || pidToCodec[tid] == H265){
+            switch (it->nalType){
+              case 2: case 3: //TSA Picture
+              case 4: case 5: //STSA Picture
+              case 6: case 7: //RADL Picture
+              case 8: case 9: //RASL Picture
+              case 16: case 17: case 18: //BLA Picture
+              case 19: case 20: //IDR Picture
+              case 21: { //CRA Picture
+                isKeyFrame = true; 
+                break;
+              }
+              case 32:
+              case 33:
+              case 34: {
+                hevcInfo[tid].addUnit(parsedData + dataOffset);
+                break;
+              }
+              default: break;
             }
-            case 0x08: {
-              ppsInfo[tid] = std::string(parsedData + dataOffset + 4, it->nalSize);
-              break;
-            }
-            default: break;
           }
           dataOffset += 4 + it->nalSize;
         }
@@ -230,7 +282,7 @@ namespace TS {
       }else{
         realPayloadSize += (9 + pesHeader[8]);
       }
-      offset += realPayloadSize;
+      offset += realPayloadSize + 6;
     }
     free(payload);
     payloadSize[tid] = inStream.front().getPayloadLength();
@@ -243,21 +295,11 @@ namespace TS {
       return;
     }
 
-    //Handle the situation where we have DTSC Packets buffered
-    if (outPackets[tid].size()){
-      pack = outPackets[tid].front();
-      outPackets[tid].pop_front();
-      if (!outPackets[tid].size()){
-        payloadSize[tid] = 0;
-        for (std::deque<Packet>::iterator it = pesStreams[tid].begin(); it != pesStreams[tid].end(); it++){
-          //Break this loop on the second TS Packet with the UnitStart flag set, not on the first.
-          if (it->getUnitStart() && it != pesStreams[tid].begin()){
-            break;
-          }
-          payloadSize[tid] += it->getPayloadLength();
-        }
-      }
-      return;
+    pack = outPackets[tid].front();
+    outPackets[tid].pop_front();
+    
+    if (!outPackets[tid].size()){
+      outPackets.erase(tid);
     }
   }
 
@@ -276,8 +318,8 @@ namespace TS {
         packTime = it->second.front().getTime();
       }
     }
-    pack = outPackets[packTrack].front();
-    outPackets[packTrack].pop_front();
+
+    getPacket(packTrack, pack);
   }
 
   void Stream::initializeMetadata(DTSC::Meta & meta) {
@@ -305,7 +347,24 @@ namespace TS {
         avccBox.setPPSNumber(1);
         avccBox.setPPS(ppsInfo[it->first]);
         meta.tracks[it->first].init = std::string(avccBox.payload(), avccBox.payloadSize());
-        INFO_MSG("Initialized metadata for track %lu, with an SPS of %lu bytes, and a PPS of %lu bytes", it->first, spsInfo[it->first].size(), ppsInfo[it->first].size());
+      }
+      if (!meta.tracks.count(it->first) && (it->second == HEVC || it->second == H265)){
+        if (!hevcInfo.count(it->first) || !hevcInfo[it->first].haveRequired()){
+          continue;
+        }
+        meta.tracks[it->first].type = "video";
+        meta.tracks[it->first].codec = "HEVC";
+        meta.tracks[it->first].trackID = it->first;
+        meta.tracks[it->first].init = hevcInfo[it->first].generateHVCC();
+      }
+      if (!meta.tracks.count(it->first) && it->second == AC3){
+        meta.tracks[it->first].type = "audio";
+        meta.tracks[it->first].codec = "AC3";
+        meta.tracks[it->first].trackID = it->first;
+        meta.tracks[it->first].size = 16;
+        ///\todo Fix these 2 values
+        meta.tracks[it->first].rate = 0;
+        meta.tracks[it->first].channels = 0;
       }
       if (!meta.tracks.count(it->first) && it->second == AAC){
         meta.tracks[it->first].type = "audio";

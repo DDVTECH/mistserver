@@ -129,7 +129,7 @@ namespace Encryption {
 
       int pos = 0;
 
-      std::deque<int> nalSizes = h264::parseNalSizes(thisPack);
+      std::deque<int> nalSizes = nalu::parseNalSizes(thisPack);
       for (std::deque<int>::iterator it = nalSizes.begin(); it != nalSizes.end(); it++) {
         int encrypted = (*it - 5) & ~0xF;//Bitmask to a multiple of 16
         int clear = *it - encrypted;

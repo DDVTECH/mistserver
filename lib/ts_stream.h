@@ -2,12 +2,16 @@
 #include "adts.h"
 #include <map>
 #include <deque>
+#include "h265.h"
 
 namespace TS {
   enum codecType {
     H264 = 0x1B,
     AAC = 0x0F,
-    AC3 = 0x81
+    AC3 = 0x81,
+    MP3 = 0x03,
+    HEVC = 0x06,
+    H265 = 0x24
   };
 
   class Stream{
@@ -31,6 +35,10 @@ namespace TS {
       std::map<unsigned long, aac::adts > adtsInfo;
       std::map<unsigned long, std::string > spsInfo;
       std::map<unsigned long, std::string > ppsInfo;
+      std::map<unsigned long, h265::initData > hevcInfo;
+
+
+      std::set<unsigned long> pmtTracks;
 
       void parsePES(unsigned long tid);
   };

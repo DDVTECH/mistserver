@@ -19,10 +19,15 @@ namespace aac {
   }
 
   adts::adts(const adts & rhs){
+    data = NULL;
+    len = 0;
     *this = rhs;
   }
 
   adts& adts::operator = (const adts & rhs){
+    if (data){
+      free(data);
+    }
     len = rhs.len;
     data = (char*)malloc(len);
     memcpy(data, rhs.data, len);

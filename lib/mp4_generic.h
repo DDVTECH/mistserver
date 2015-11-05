@@ -167,6 +167,7 @@ namespace MP4 {
       void setLengthSizeMinus1(char newLengthSizeMinus1);
       char getLengthSizeMinus1();
       ///\todo Add setter for the array entries
+      void setArrays(std::deque<HVCCArrayEntry> & arrays);
       std::deque<HVCCArrayEntry> getArrays();
       std::string asAnnexB();
       void setPayload(std::string newPayload);

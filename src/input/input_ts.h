@@ -12,6 +12,7 @@ namespace Mist {
   class inputTS : public Input {
     public:
       inputTS(Util::Config * cfg);
+      ~inputTS();
     protected:
       //Private Functions
       bool setup();
@@ -19,6 +20,7 @@ namespace Mist {
       void getNext(bool smart = true);
       void seek(int seekTime);
       void trackSelect(std::string trackSpec);
+      void readPMT();
 
       FILE * inFile;///<The input file with ts data
       TS::Stream tsStream;///<Used for parsing the incoming ts stream
@@ -26,6 +28,8 @@ namespace Mist {
       bool pushing;
       Socket::UDPConnection udpCon;
       std::string udpDataBuffer;
+
+      TS::Packet tsBuf;
   };
 }
 

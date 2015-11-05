@@ -32,10 +32,11 @@ namespace Analysers {
       if(std::cin.gcount() != 188){break;}
       bytes += 188;
       if(packet.FromPointer(packetPtr)){
+        //std::cout << packet.toPrettyString();
         tsStream.parse(packet, bytes);
-        if (tsStream.hasPacketOnEachTrack()){
+        if (tsStream.hasPacket(packet.getPID())){
           DTSC::Packet dtscPack;
-          tsStream.getEarliestPacket(dtscPack);
+          tsStream.getPacket(packet.getPID(), dtscPack);
           std::cout << dtscPack.toJSON().toPrettyString();
         }
       }

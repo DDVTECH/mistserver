@@ -204,7 +204,14 @@ namespace Mist {
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
 #ifdef INPUT_LIVE
-    Util::startInput(streamName);
+    unsigned int giveUpCounter = 0;
+    while (!Util::startInput(streamName) && config->is_active && ++giveUpCounter < 20) {
+      Util::sleep(500);
+    }
+    if (giveUpCounter >= 20){
+      FAIL_MSG("Could not start buffer for stream '%s', aborting stream input!", streamName.c_str());
+      config->is_active = false;
+    }
     userClient = IPC::sharedClient(userPageName, 30, true);
     getNext();
     while (thisPacket || config->is_active) {
@@ -253,7 +260,6 @@ namespace Mist {
 
     long long int activityCounter = Util::bootSecs();
     while ((Util::bootSecs() - activityCounter) < 10 && config->is_active) { //10 second timeout
-      Util::wait(1000);
       userPage.parseEach(callbackWrapper);
       removeUnused();
       if (userPage.amount) {
@@ -273,6 +279,7 @@ namespace Mist {
         }
       }
       /*LTS-END*/
+      Util::sleep(1000);
     }
 #endif
     finish();

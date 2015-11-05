@@ -300,7 +300,7 @@ namespace Mist {
           MP4::UUID_SampleEncryption_Sample newSample;
           thisPacket.getString("ivec", newSample.InitializationVector);
 
-          std::deque<int> nalSizes = h264::parseNalSizes(thisPacket);
+          std::deque<int> nalSizes = nalu::parseNalSizes(thisPacket);
           for(std::deque<int>::iterator it = nalSizes.begin(); it != nalSizes.end(); it++){
             int encrypted = (*it - 5) & ~0xF;//Bitmask to a multiple of 16
             MP4::UUID_SampleEncryption_Sample_Entry newEntry;

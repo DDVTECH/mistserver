@@ -1035,7 +1035,7 @@ namespace TS {
       if (myMeta.tracks[*it].codec == "H264"){
         PMT.setStreamType(0x1B,id);
       }else if (myMeta.tracks[*it].codec == "HEVC"){
-        PMT.setStreamType(0x06,id);
+        PMT.setStreamType(0x24,id);
       }else if (myMeta.tracks[*it].codec == "AAC"){
         PMT.setStreamType(0x0F,id);
       }else if (myMeta.tracks[*it].codec == "MP3"){

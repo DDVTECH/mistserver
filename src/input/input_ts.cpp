@@ -39,6 +39,7 @@ namespace Mist {
     capa["source_match"] = "/*.ts";
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
+    capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("AC3");
 
@@ -51,6 +52,13 @@ namespace Mist {
                    JSON::fromString("{\"arg\":\"integer\",\"value\":9876,\"short\":\"p\",\"long\":\"port\",\"help\":\"The udp port on which to listen for incoming UDP Packets.\"}"));
 
     pushing = false;
+    inFile = NULL;
+  }
+
+  inputTS::~inputTS() {
+    if (inFile){
+      fclose(inFile);
+    }
   }
   
   ///Setup of TS Input
@@ -113,7 +121,7 @@ namespace Mist {
     
     bool first = true;
     long long int lastBpos = 0;
-    while (packet.FromFile(inFile)){
+    while (packet.FromFile(inFile) && !feof(inFile)){
       tsStream.parse(packet, lastBpos);
       lastBpos = ftell(inFile);
       while(tsStream.hasPacketOnEachTrack()){
@@ -128,10 +136,10 @@ namespace Mist {
 
     }
 
+    fseek(inFile, 0, SEEK_SET);
     std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
     oFile << myMeta.toJSON().toNetPacked();
     oFile.close();
-    exit(1);
     return true;
   }
   
@@ -143,16 +151,15 @@ namespace Mist {
   void inputTS::getNext(bool smart){
     thisPacket.null();
     bool hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
-    
-    if (!hasPacket && (pushing || !feof(inFile))){
-      TS::Packet tsBuf;
+    while (!hasPacket && (pushing || !feof(inFile)) && config->is_active){
       if (!pushing) {
         unsigned int bPos = ftell(inFile);
         tsBuf.FromFile(inFile);
-        tsStream.parse(tsBuf, bPos);
+        if (selectedTracks.count(tsBuf.getPID())){
+          tsStream.parse(tsBuf, bPos);
+        }
       }else{
         while (udpCon.Receive()){
-          userClient.keepAlive();
           udpDataBuffer.append(udpCon.data, udpCon.data_len);
           while (udpDataBuffer.size() > 188 && (udpDataBuffer[0] != 0x47 || udpDataBuffer[188] != 0x47)){
             size_t syncPos = udpDataBuffer.find("\107", 1);
@@ -164,10 +171,23 @@ namespace Mist {
             udpDataBuffer.erase(0,188);
           }
         }
+        if (userClient.getData()){
+          userClient.keepAlive();
+        }
+        Util::sleep(500);
+      }
+      if (userClient.getData()){
+        userClient.keepAlive();
       }
       hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
     }
     if (!hasPacket){
+      if(inFile && !feof(inFile)){
+        getNext();
+      }
+      if (pushing){
+        sleep(500);
+      }
       return;
     }
     if (selectedTracks.size() == 1){
@@ -180,10 +200,35 @@ namespace Mist {
       getNext();
     }
   }
+
+  void inputTS::readPMT(){
+    //save current file position
+    int bpos = ftell(inFile);
+    if (fseek(inFile, 0, SEEK_SET)){
+      FAIL_MSG("Seek to 0 failed");
+      return;
+    }
+
+    TS::Packet tsBuffer;
+    while (!tsStream.hasPacketOnEachTrack() && tsBuffer.FromFile(inFile)){
+      tsStream.parse(tsBuffer, 0);
+    }
+    
+    //Clear leaves the PMT in place
+    tsStream.clear();
+
+
+    //Restore original file position
+    if (fseek(inFile, bpos, SEEK_SET)){
+      return;
+    }
+
+  }
   
   ///Seeks to a specific time
   void inputTS::seek(int seekTime){
     tsStream.clear();
+    readPMT();
     unsigned long seekPos = 0xFFFFFFFFull;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       unsigned long thisBPos = 0;

@@ -730,23 +730,37 @@ namespace MP4 {
     return getInt8(18) & 0x07;
   }
   
-  void setAverageFramerate(short newFramerate);
+  void HVCC::setAverageFramerate(short newFramerate) {
+    setInt16(newFramerate, 19);
+  }
   short HVCC::getAverageFramerate(){
     return getInt16(19);
   }
-  void setConstantFramerate(char newFramerate);
+
+  void HVCC::setConstantFramerate(char newFramerate) {
+    setInt8((getInt8(21) & 0x3F) | ((newFramerate & 0x03) << 6), 21);
+  }
   char HVCC::getConstantFramerate(){
     return (getInt8(21) >> 6) & 0x03;
   }
-  void setNumberOfTemporalLayers(char newNumber);
+  
+  void HVCC::setNumberOfTemporalLayers(char newNumber) {
+    setInt8((getInt8(21) & 0xC7) | ((newNumber & 0x07) << 3), 21);
+  }
   char HVCC::getNumberOfTemporalLayers(){
     return (getInt8(21) >> 3) & 0x07;
   }
-  void setTemporalIdNested(char newNested);
+  
+  void HVCC::setTemporalIdNested(char newNested){
+    setInt8((getInt8(21) & 0xFB) | ((newNested & 0x01) << 2), 21);
+  }
   char HVCC::getTemporalIdNested(){
     return (getInt8(21) >> 2) & 0x01;
   }
-  void setLengthSizeMinus1(char newLengthSizeMinus1);
+  
+  void HVCC::setLengthSizeMinus1(char newLengthSizeMinus1) {
+    setInt8( (getInt8(21) & 0xFC) | (newLengthSizeMinus1 & 0x03), 21);
+  }
   char HVCC::getLengthSizeMinus1(){
     return getInt8(21) & 0x03;
   }
@@ -774,6 +788,25 @@ namespace MP4 {
       r.push_back(entry);
     }
     return r;
+  }
+
+  void HVCC::setArrays(std::deque<HVCCArrayEntry> & arrays){
+    setInt8(arrays.size(), 22);
+    int offset = 23;
+    for (int i = 0; i < arrays.size(); i++){
+      HVCCArrayEntry & ref = arrays[i];
+      setInt8(((ref.arrayCompleteness & 0x01) << 7) | (arrays[i].nalUnitType & 0x3F), offset++);
+      setInt16(ref.nalUnits.size(), offset);
+      offset += 2;
+      for (int j = 0; j < ref.nalUnits.size(); j++){
+        std::string & nalUnit = ref.nalUnits[j];
+        setInt16(nalUnit.size(), offset);
+        offset += 2;
+        for (std::string::iterator it = nalUnit.begin(); it != nalUnit.end(); it++){
+          setInt8(*it, offset++);
+        }
+      }
+    }
   }
 
   std::string HVCC::toPrettyString(uint32_t indent) {

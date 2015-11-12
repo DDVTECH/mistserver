@@ -101,7 +101,7 @@ namespace Mist {
 
     //If this is not a valid page number on this track, stop buffering this page.
     if (!pagesByTrack[tid].count(pageNumber)){
-      INFO_MSG("Aborting page buffer start: %lu is not a valid page number on track %lu~>%lu.", pageNumber, tid, mapTid);
+      WARN_MSG("Aborting page buffer start: %lu is not a valid page number on track %lu~>%lu.", pageNumber, tid, mapTid);
       std::stringstream test;
       for (std::map<unsigned long, DTSCPageData>::iterator it = pagesByTrack[tid].begin(); it != pagesByTrack[tid].end(); it++){
         test << it->first << " ";
@@ -467,7 +467,7 @@ namespace Mist {
     }
     //Determine if we need to open the next page
     int nextPageNum = -1;
-    if (isKeyframe) {
+    if (isKeyframe || !pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
       //If there is no page, create it
       if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
         nextPageNum = 1;

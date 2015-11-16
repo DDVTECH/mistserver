@@ -106,7 +106,7 @@ namespace Mist {
       for (std::map<unsigned long, DTSCPageData>::iterator it = pagesByTrack[tid].begin(); it != pagesByTrack[tid].end(); it++){
         test << it->first << " ";
       }
-      INFO_MSG("%s are", test.str().c_str());
+      INFO_MSG("Valid page numbers: %s", test.str().c_str());
       ///\return false if the pagenumber is not valid for this track
       return false;
     }

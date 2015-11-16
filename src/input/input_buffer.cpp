@@ -240,7 +240,7 @@ namespace Mist {
         //Find page in indexpage and null it
         for (int i = 0; i < 8192; i += 8){
           unsigned int thisKeyNum = ((((long long int *)(metaPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
-          if (thisKeyNum == htonl(pagesByTrack[tid].begin()->first) && ((((long long int *)(metaPages[tid].mapped + i))[0]) != 0)){
+          if (thisKeyNum == htonl(bufferLocations[tid].begin()->first) && ((((long long int *)(metaPages[tid].mapped + i))[0]) != 0)){
             (((long long int *)(metaPages[tid].mapped + i))[0]) = 0;
           }
         }

@@ -178,7 +178,7 @@ namespace Mist {
     }
     unsigned long mapTid = trackMap[tid];
     if (!pagesByTrack.count(tid)){
-      //The buffer does not control the datapages, indicated by no pagesByTrack entry.
+      // If there is no pagesByTrack entry, the pages are managed in local code and not through io.cpp (e.g.: MistInBuffer)
       return;
     }
     //If the given pagenumber is not a valid page on this track, do nothing

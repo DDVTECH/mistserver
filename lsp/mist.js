@@ -2862,6 +2862,9 @@ var UI = {
           if ((opts.forceprotocol) && (opts.forceprotocol != '')) {
             open.push('data-forcetype="'+opts.forceprotocol+'"');
           }
+          if ((opts.urlappend) && (opts.urlappend != '')) {
+            open.push('data-urlappend="'+opts.urlappend.replace(/\"/g,'\\"')+'"');
+          }
           return '<'+open.join(' ')+'>'+inner+'</div>';
         }
         
@@ -2914,6 +2917,19 @@ var UI = {
             classes: ['embed_code_forceprotocol'],
             'function': function(){
               embedoptions.forceprotocol = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            }
+          },{
+            label: 'Video URL addition',
+            type: 'str',
+            pointer: {
+              main: embedoptions,
+              index: 'urlappend'
+            },
+            help: 'The embed script will append this string to the video url, useful for sending through params.',
+            classes: ['embed_code_forceprotocol'],
+            'function': function(){
+              embedoptions.urlappend = $(this).getval();
               $('.embed_code').setval(embedhtml(embedoptions));
             }
           },$('<h3>').text('Protocol stream urls'),$protocolurls

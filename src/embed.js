@@ -215,16 +215,23 @@ function mistembed(streamname) {
   }
   
   var video = mistvideo[streamname],
-  container = document.createElement('div');
+    container = document.createElement('div'),
+    forceType = false,
+    forceSupportCheck = false,
+    autoplay = false,
+    urlappend = false;
   
   if (me.parentNode.hasAttribute('data-forcetype')) {
-    var forceType = me.parentNode.getAttribute('data-forcetype');
+    forceType = me.parentNode.getAttribute('data-forcetype');
   }
   if (me.parentNode.hasAttribute('data-forcesupportcheck')) {
-    var forceSupportCheck = true;
+    forceSupportCheck = true;
   }
   if (me.parentNode.hasAttribute('data-autoplay')) {
-    var autoplay = true;
+    autoplay = true;
+  }
+  if (me.parentNode.hasAttribute('data-urlappend')) {
+    urlappend = me.parentNode.getAttribute('data-urlappend');
   }
   
   if (video.width == 0) { video.width = 250; }
@@ -273,7 +280,12 @@ function mistembed(streamname) {
     }
     else {
       // we support this kind of video, so build it.
-      buildPlayer(video.source[foundPlayer], container, video.width, video.height, vtype);
+      var source = video.source[foundPlayer];
+      if (urlappend) {
+        source.url += urlappend;
+        source.relurl += urlappend;
+      }
+      buildPlayer(source, container, video.width, video.height, vtype);
     }
   }
   

@@ -1136,28 +1136,27 @@ void Socket::UDPConnection::SendNow(const char * sdata, size_t len) {
 /// \return Actually bound port number, or zero on error.
 int Socket::UDPConnection::bind(int port) {
   struct sockaddr_in6 s6;
+  memset(&s6, 0, sizeof(s6));
   s6.sin6_family = AF_INET6;
   s6.sin6_addr = in6addr_any;
-  if (port) {
-    s6.sin6_port = htons(port);
-  }
+  s6.sin6_port = htons(port);
   int r = ::bind(sock, (sockaddr *)&s6, sizeof(s6));
   if (r == 0) {
     return ntohs(s6.sin6_port);
   }
+  unsigned int ipv6_errno = errno;
 
   struct sockaddr_in s4;
+  memset(&s4, 0, sizeof(s4));
   s4.sin_family = AF_INET;
   s4.sin_addr.s_addr = INADDR_ANY;
-  if (port) {
-    s4.sin_port = htons(port);
-  }
+  s4.sin_port = htons(port);
   r = ::bind(sock, (sockaddr *)&s4, sizeof(s4));
   if (r == 0) {
     return ntohs(s4.sin_port);
   }
 
-  DEBUG_MSG(DLVL_FAIL, "Could not bind UDP socket to port %d: %s", port, strerror(errno));
+  DEBUG_MSG(DLVL_FAIL, "Could not bind UDP socket to port %d: IPv6: %s, IPv4: %s", port, strerror(ipv6_errno), strerror(errno));
   return 0;
 }
 

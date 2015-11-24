@@ -1157,7 +1157,7 @@ int Socket::UDPConnection::bind(int port) {
     return ntohs(s4.sin_port);
   }
 
-  DEBUG_MSG(DLVL_FAIL, "Could not bind UDP socket to port %d", port);
+  DEBUG_MSG(DLVL_FAIL, "Could not bind UDP socket to port %d: %s", port, strerror(errno));
   return 0;
 }
 

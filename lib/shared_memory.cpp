@@ -353,7 +353,7 @@ namespace IPC {
         } while (i < 10 && !handle && autoBackoff);
       }
       if (!handle) {
-        FAIL_MSG("%s for page %s failed with error code %u", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), GetLastError());
+        MEDIUM_MSG("%s for page %s failed with error code %u", (master ? "CreateFileMapping" : "OpenFileMapping"), name.c_str(), GetLastError());
         return;
       }
       mapped = (char *)MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);

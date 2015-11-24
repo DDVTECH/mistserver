@@ -285,6 +285,13 @@ function mistembed(streamname) {
         source.url += urlappend;
         source.relurl += urlappend;
       }
+      else if (me.src.indexOf('?') != -1) {
+        var params = me.src.split('?');
+        params.shift();
+        params.join('?');
+        source.url += '?'+params;
+        source.relurl += '?'+params;
+      }
       buildPlayer(source, container, video.width, video.height, vtype);
     }
   }

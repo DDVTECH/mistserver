@@ -971,9 +971,11 @@ int Socket::Server::getSocket() {
 /// If both fail, prints an DLVL_FAIL debug message.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock) {
+  isIPv6 = true;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1) {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
+    isIPv6 = false;
   }
   if (sock == -1) {
     DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));
@@ -993,9 +995,17 @@ Socket::UDPConnection::UDPConnection(bool nonblock) {
 /// Copies a UDP socket, re-allocating local copies of any needed structures.
 /// The data/data_size/data_len variables are *not* copied over.
 Socket::UDPConnection::UDPConnection(const UDPConnection & o) {
+  isIPv6 = true;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1) {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
+    isIPv6 = false;
+  }else{
+#ifdef __CYGWIN__
+    // Under windows, turn IPv6-only mode off.
+    int on = 0;
+    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on));
+#endif
   }
   if (sock == -1) {
     DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));
@@ -1134,29 +1144,37 @@ void Socket::UDPConnection::SendNow(const char * sdata, size_t len) {
 /// If that fails too, gives up and returns zero.
 /// Prints a debug message at DLVL_FAIL level if binding failed.
 /// \return Actually bound port number, or zero on error.
-int Socket::UDPConnection::bind(int port) {
-  struct sockaddr_in6 s6;
-  memset(&s6, 0, sizeof(s6));
-  s6.sin6_family = AF_INET6;
-  s6.sin6_addr = in6addr_any;
-  s6.sin6_port = htons(port);
-  int r = ::bind(sock, (sockaddr *)&s6, sizeof(s6));
-  if (r == 0) {
-    return ntohs(s6.sin6_port);
+int Socket::UDPConnection::bind(int port, std::string iface) {
+  if (isIPv6){
+    struct sockaddr_in6 s6;
+    memset(&s6, 0, sizeof(s6));
+    s6.sin6_family = AF_INET6;
+    if (iface == "0.0.0.0" || iface.length() == 0) {
+      s6.sin6_addr = in6addr_any;
+    } else {
+      inet_pton(AF_INET6, iface.c_str(), &s6.sin6_addr);
+    }
+    s6.sin6_port = htons(port);
+    int r = ::bind(sock, (sockaddr *)&s6, sizeof(s6));
+    if (r == 0) {
+      return ntohs(s6.sin6_port);
+    }
+  }else{
+    struct sockaddr_in s4;
+    memset(&s4, 0, sizeof(s4));
+    s4.sin_family = AF_INET;
+    if (iface == "0.0.0.0" || iface.length() == 0) {
+      s4.sin_addr.s_addr = INADDR_ANY;
+    } else {
+      inet_pton(AF_INET, iface.c_str(), &s4.sin_addr);
+    }
+    s4.sin_port = htons(port);
+    int r = ::bind(sock, (sockaddr *)&s4, sizeof(s4));
+    if (r == 0) {
+      return ntohs(s4.sin_port);
+    }
   }
-  unsigned int ipv6_errno = errno;
-
-  struct sockaddr_in s4;
-  memset(&s4, 0, sizeof(s4));
-  s4.sin_family = AF_INET;
-  s4.sin_addr.s_addr = INADDR_ANY;
-  s4.sin_port = htons(port);
-  r = ::bind(sock, (sockaddr *)&s4, sizeof(s4));
-  if (r == 0) {
-    return ntohs(s4.sin_port);
-  }
-
-  DEBUG_MSG(DLVL_FAIL, "Could not bind UDP socket to port %d: IPv6: %s, IPv4: %s", port, strerror(ipv6_errno), strerror(errno));
+  DEBUG_MSG(DLVL_FAIL, "Could not bind %s UDP socket to port %d: %s", isIPv6?"IPv6":"IPv4", port, strerror(errno));
   return 0;
 }
 

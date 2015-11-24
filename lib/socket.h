@@ -129,6 +129,7 @@ namespace Socket {
       unsigned int up;///< Amount of bytes transferred up.
       unsigned int down;///< Amount of bytes transferred down.
       unsigned int data_size;///< The size in bytes of the allocated space in the data pointer.
+      bool isIPv6;//<<< True if IPv6 socket, false otherwise.
     public:
       char * data;///< Holds the last received packet.
       unsigned int data_len; ///< The size in bytes of the last received packet.
@@ -136,7 +137,7 @@ namespace Socket {
       UDPConnection(bool nonblock = false);
       ~UDPConnection();
       int getSock();
-      int bind(int port);
+      int bind(int port, std::string iface = "");
       void setBlocking(bool blocking);
       void SetDestination(std::string hostname, uint32_t port);
       void GetDestination(std::string & hostname, uint32_t & port);

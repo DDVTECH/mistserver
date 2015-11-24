@@ -3,7 +3,7 @@
     <title>Test the stream embedding</title>
     <style></style>
     <script src=plugins/jquery.js></script>
-    <script src='../src/embed.js'></script>
+    <script src='../src/embed.js?video=0'></script>
     <script>
       var embed_settings = {};
       $(function(){
@@ -14,7 +14,7 @@
           var embedtype = $('input[name=force]').val();
           
           var info = document.createElement('script');
-          info.src = 'http://'+(window.location.hostname == '' ? 'localhost' : window.location.hostname)+':8080/info_'+streamName+'.js';
+          info.src = 'http://'+(window.location.hostname == '' ? 'localhost' : window.location.hostname)+':8080/info_'+streamName+'.js?video=0';
           document.getElementById('embedcontainer').appendChild(info);
           info.onload = function(){
             if (embedtype == '') {

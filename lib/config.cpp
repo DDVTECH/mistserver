@@ -467,7 +467,7 @@ void Util::Config::activate() {
 /// a SIGINT, SIGHUP or SIGTERM signal, reaps children for the SIGCHLD
 /// signal, and ignores all other signals.
 void Util::Config::signal_handler(int signum, siginfo_t * sigInfo, void * ignore) {
-  HIGH_MSG("Received signal %d from process %d", signum, sigInfo->si_pid);
+  HIGH_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
   switch (signum) {
     case SIGINT: //these three signals will set is_active to false.
     case SIGHUP:

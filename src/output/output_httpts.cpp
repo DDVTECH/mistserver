@@ -24,13 +24,13 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp2t";
     capa["methods"][0u]["priority"] = 1ll;
+    capa["canRecord"].append("ts");
   }
   
   void OutHTTPTS::onHTTP(){
     std::string method = H.method;
     
     initialize();
-    H.Clean();
     H.SetHeader("Content-Type", "video/mp2t");
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){
@@ -41,11 +41,12 @@ namespace Mist {
     H.StartResponse(H, myConn);    
     parseData = true;
     wantRequest = false;
-    H.Clean(); //clean for any possible next requests
   }
 
   void OutHTTPTS::sendTS(const char * tsData, unsigned int len){
-    H.Chunkify(tsData, len, myConn);
+    //if (!recording()){
+      H.Chunkify(tsData, len, myConn);
+    //}
   }
   
 }

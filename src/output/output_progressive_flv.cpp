@@ -29,6 +29,7 @@ namespace Mist {
     capa["methods"][0u]["type"] = "flash/7";
     capa["methods"][0u]["priority"] = 5ll;
     capa["methods"][0u]["player_url"] = "/oldflashplayer.swf";
+    capa["canRecord"].append("flv");
   }
   
   void OutProgressiveFLV::sendNext(){
@@ -43,7 +44,7 @@ namespace Mist {
     H.SetHeader("Content-Type", "video/x-flv");
     H.protocol = "HTTP/1.0";
     H.setCORSHeaders();
-    H.SendResponse("200", "OK", myConn);
+    sendResponse("OK");
     myConn.SendNow(FLV::Header, 13);
     tag.DTSCMetaInit(myMeta, selectedTracks);
     myConn.SendNow(tag.data, tag.len);

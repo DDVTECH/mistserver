@@ -1,3 +1,62 @@
+/// Recording to file
+/// 
+/// Currently MistServer has basic support for recording for which the
+/// functionality is spread over a couple of files. The general flow in
+/// mist (this is my understanding and I'm a newb to MistServer, roxlu),
+/// is like this:
+/// 
+/// The controller creates a couple of protocol handlers, e.g. for
+/// RTMP. When a new live connection is made, an output is created through
+/// this protocol handler.  In the case of a live source, all received
+/// data is passed into a inputBuffer object (see input_buffer.cpp).
+/// 
+/// So, when the inputBuffer is created, the `setup()` function is
+/// called. In this function the `config` object is available that holds
+/// the configuration values for the specific stream. This is also where a
+/// recording gets initialized.
+/// 
+/// An recording is initialized by starting another output with a call to
+/// `startRecording()`.  `startRecording()` forks the current process and
+/// then calls `execvp()` to take over the child process with
+/// e.g. `MistOutFLV()`.  When `execvp()` starts the other process (that
+/// records the data), it passes the `--outputFilename` command line
+/// argument.
+/// 
+/// Each output checks if it's started with the `--outputFilename` flag;
+/// this is done in the constructor of `Output`. In Output, it opens the
+/// given filename and uses `dup2()` which makes sure that all `stdout`
+/// data is written into the recording file.
+/// 
+/// Though, because some or probably most outputs also write HTTP to
+/// stdout, I created the function `HTTPOutput::sendResponse()` which
+/// checks if the current output is creating a recording. When creating a
+/// recording it simply skips the HTTP output.
+/// 
+///      +-------------------------+
+///      |  inputBuffer::setup()   |
+///      +-------+-----------------+  
+///              |
+///              o---- calls Util::startRecording() (stream.cpp)
+///              |
+///              v 
+///      +------------------------+
+///      | stream::startRecording | -> Kicks off output app with --outputFilename
+///      +-------+----------------+                
+///              |
+///              v
+///      +----------------+
+///      | MistOut[XXX]   | -> Checks if started with --outputFilename, 
+///      +----------------+    in Output::Output() and starts recording. 
+/// 
+///  The following files contain updates that were made for the recording:
+/// 
+///  - stream.cpp         - startRecording()
+///  - output.cpp         - Output(),                         - added --outputFilename option
+///                         ~Output(),                        - closes the filedescriptor if opened.
+///                         openOutputFileForRecording()      - opens the output file descriptor, uses dup2().
+///                         closeOutputFileForRecording()     - closes the output file descriptor.
+///  - input_buffer.cpp   - setup()                           - executes an MistOut[XXX] app.
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -41,6 +100,13 @@ namespace Mist {
     capa["optional"]["startpos"]["option"] = "--startPos";
     capa["optional"]["startpos"]["type"] = "uint";
     cfg->addOption("startpos", JSON::fromString("{\"arg\":\"uint\",\"default\":500,\"short\":\"P\",\"long\":\"startPos\",\"help\":\"For live, where in the buffer the stream starts playback by default. 0 = beginning, 1000 = end\"}"));
+    /* begin-roxlu */
+    capa["optional"]["outputfilename"]["type"] = "string";
+    capa["optional"]["outputfilename"]["name"] = "outputfilename";
+    capa["optional"]["outputfilename"]["help"] = "Name of the file into which we write the recording.";
+    capa["optional"]["outputfilename"]["option"] = "--outputFilename";
+    cfg->addOption("outputfilename", JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\":\"O\",\"long\":\"outputFilename\",\"help\":\"The name of the file that is used to record a stream.\"}"));
+    /* end-roxlu */
   }
   
   Output::Output(Socket::Connection & conn) : myConn(conn) {
@@ -63,6 +129,16 @@ namespace Mist {
       DEBUG_MSG(DLVL_WARN, "Warning: MistOut created with closed socket!");
     }
     sentHeader = false;
+    /* begin-roxlu */
+        outputFileDescriptor = -1;
+
+    // When the stream has a output filename defined we open it so we can start recording.
+    if (config != NULL
+        && config->getString("outputfilename").size() != 0)
+      {
+        openOutputFileForRecording();
+      }
+    /* end-roxlu */
   }
   
   void Output::setBlocking(bool blocking){
@@ -70,8 +146,14 @@ namespace Mist {
     myConn.setBlocking(isBlocking);
   }
   
-  Output::~Output(){}
-
+  /*begin-roxlu*/
+  Output::~Output(){
+    if (config != NULL && config->getString("outputfilename").size() != 0){
+      closeOutputFileForRecording();
+    }
+  }
+  /*end-roxlu*/
+  
   void Output::updateMeta(){
     //read metadata from page to myMeta variable
     static char liveSemName[NAME_BUFFER_SIZE];
@@ -287,6 +369,18 @@ namespace Mist {
       DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
     }
     
+    /*begin-roxlu*/
+    // Added this check while working on the recording, because when the output cant
+    // select a track it means it won't be able to start the recording. Therefore
+    // when we don't see this explicitly it makes debugging the recording feature
+    // a bit painfull :) 
+    if (selectedTracks.size() == 0) {
+      WARN_MSG("We didn't find any tracks which that we can use. selectedTrack.size() is 0.");
+      for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+        WARN_MSG("Found track/codec: %s", trit->second.codec.c_str());
+      }
+    }
+    /*end-roxlu*/
   }
   
   /// Clears the buffer, sets parseData to false, and generally makes not very much happen at all.
@@ -889,7 +983,8 @@ namespace Mist {
           buffer.insert(nxt);
         }else{
           //after ~10 seconds, give up and drop the track.
-          DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, nxtKeyNum[nxt.tid]+1, nextPage);
+          //roxlu edited this line:
+          DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u (%s) @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage);
         }
         //keep updating the metadata at 250ms intervals while waiting for more data
         Util::sleep(250);
@@ -1062,4 +1157,109 @@ namespace Mist {
     //just set the sentHeader bool to true, by default
     sentHeader = true;
   }
+  
+  /*begin-roxlu*/
+  bool Output::openOutputFileForRecording() {
+
+    if (NULL == config) {
+      FAIL_MSG("Cannot open the output file for recording because the config member is NULL and we can't check if we actually want a recording.");
+      return false;
+    }
+
+    // We won't open the output file when the user didn't set the outputfile through the admin. 
+    if (config->getString("outputfilename").size() == 0) {
+      FAIL_MSG("Cannot open the output file for recording because the given name is empty.");
+      return false;
+    }
+    
+    if (outputFileDescriptor != -1) {
+      FAIL_MSG("Cannot open the output file for recording because it seems that it's already open. Make sure it's closed correctly.");
+      return false;
+    }
+
+    // The RECORDING_START trigger needs to be execute before we open the file because
+    // the trigger may need to create some directories where we need to save the recording.
+    if (Triggers::shouldTrigger("RECORDING_START")) {
+
+      if (0 == config->getString("streamname").size()) {
+        ERROR_MSG("Streamname is empty; the RECORDING_START trigger will not know what stream started it's recording. We do execute the trigger.");
+      }
+
+      std::string payload = config->getString("streamname");
+      Triggers::doTrigger("RECORDING_START", payload, streamName.c_str());
+    }
+
+    // Open the output file.
+    int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    int mode = O_RDWR | O_CREAT | O_TRUNC;
+    
+    outputFileDescriptor = open(config->getString("outputfilename").c_str(), mode, flags);
+    if (outputFileDescriptor < 0) {
+      ERROR_MSG("Failed to open the file that we want to use to store the recording, error: %s", strerror(errno));
+      return false;
+    }
+    
+    // Make a copy of the socket into outputFileDescriptor. Whenever we write to the socket we write to file.
+    int r = dup2(outputFileDescriptor, myConn.getSocket());
+    if (r == -1) {
+      ERROR_MSG("Failed to create an alias for the socket using dup2: %s.", strerror(errno));
+      return false;
+    }
+    
+    //make this output ready for recording to file
+    onRecord();
+    
+    INFO_MSG("Opened %s for recording.", config->getString("outputfilename").c_str());
+
+    return true;
+  }
+
+  bool Output::closeOutputFileForRecording() {
+
+    if (config == NULL) {
+      ERROR_MSG("Config member is NULL, we cannot close the output file for the recording.");
+      return false;
+    }
+
+    if (outputFileDescriptor == -1) {
+      ERROR_MSG("Requested to close the output file for the recording, but we're not making a recording.");
+      return false;
+    }
+
+    if  (config->getString("outputfilename").size() == 0) {
+      ERROR_MSG("Requested to close the output file for the recording, but the output filename is empty; not supposed to happen. We're still going to close the file descriptor though.");
+    }
+
+    if (close(outputFileDescriptor) < 0) {
+      FAIL_MSG("Error: failed to close the output file: %s. We're resetting the file descriptor anyway.", strerror(errno));
+    }
+
+    outputFileDescriptor = -1;
+
+    INFO_MSG("Close the file for the recording: %s", config->getString("outputfilename").c_str());
+
+    if (Triggers::shouldTrigger("RECORDING_STOP")) {
+      
+      if (0 == config->getString("streamname").size()) {
+        ERROR_MSG("Streamname is empty; the RECORDING_STOP trigger will not know what stream stopped it's recording. We do execute the trigger.");
+      }
+      
+      std::string payload;
+      payload = config->getString("streamname") +"\n";
+      payload += config->getString("outputfilename");
+      
+      Triggers::doTrigger("RECORDING_STOP", payload, streamName.c_str());
+    }
+    
+    return true;
+  }
+  /*end-roxlu*/
+  bool Output::recording(){
+    if (config->getString("outputfilename").size() > 0) {
+      DONTEVEN_MSG("We're not sending a HTTP response because we're currently creating a recording.");
+      return true;
+    }
+    return false;
+  }
+
 }

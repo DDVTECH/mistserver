@@ -16,6 +16,12 @@
 #include "dtsc.h"
 #include "triggers.h"//LTS
 
+/* roxlu-begin */
+static std::string strftime_now(const std::string& format);
+static void replace_str(std::string& str, const std::string& from, const std::string& to);
+static void replace_variables(std::string& str);
+/* roxlu-end */
+
 std::string Util::getTmpFolder() {
   std::string dir;
   char * tmp_char = 0;
@@ -287,3 +293,224 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
   return true;
 }
+
+/* roxlu-begin */
+int Util::startRecording(std::string streamname) {
+
+  sanitizeName(streamname);
+  if (streamname.size() > 100){
+    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
+    return -1;
+  }
+
+  // Attempt to load up configuration and find this stream
+  IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
+  IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+
+  //Lock the config to prevent race conditions and corruption issues while reading
+  configLock.wait();
+  DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
+
+  //Abort if no config available
+  if (!config){
+    FAIL_MSG("Configuration not available, aborting! Is MistController running?");
+    configLock.post();//unlock the config semaphore
+    return -2;
+  }
+
+  //Find stream base name
+  std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
+  DTSC::Scan streamCfg = config.getMember("streams").getMember(smp);
+  if (!streamCfg){
+    DEBUG_MSG(DLVL_HIGH, "Stream %s not configured - attempting to ignore", streamname.c_str());
+    configLock.post();
+    return -3;
+  }
+
+  // When we have a validate trigger, we execute that first before we continue.
+  if (Triggers::shouldTrigger("RECORDING_VALIDATE", streamname)) {
+    std::string validate_result;
+    Triggers::doTrigger("RECORDING_VALIDATE", streamname, streamname.c_str(), false, validate_result);
+    INFO_MSG("RECORDING_VALIDATE returned: %s", validate_result.c_str());    
+    if (validate_result == "0") {
+      INFO_MSG("RECORDING_VALIDATE: the hook returned 0 so we're not going to create a recording.");
+      configLock.post();
+      return 0; 
+    }
+  }
+
+  // Should we start an flv output? (We allow hooks to specify custom filenames)
+  DTSC::Scan recordFilenameConf = streamCfg.getMember("record");
+  std::string recordFilename;
+
+  if (Triggers::shouldTrigger("RECORDING_FILEPATH", streamname)) {
+    
+    std::string payload = streamname;
+    std::string filepath_response;
+    Triggers::doTrigger("RECORDING_FILEPATH", payload, streamname.c_str(), false,  filepath_response);     /* @todo do we need to handle the return of doTrigger? */
+
+    if (filepath_response.size() < 1024) {     /* @todo is there a MAX_FILEPATH somewhere? */
+      recordFilename = filepath_response;
+    }
+    else {
+      FAIL_MSG("The RECORDING_FILEPATH trigger returned a filename which is bigger then our allowed max filename size. Not using returned filepath from hook.");
+    }
+  }
+
+  // No filename set through trigger, so use the one one from the stream config.
+  if (recordFilename.size() == 0) {
+    recordFilename = recordFilenameConf.asString();
+  }
+  
+  /*if (recordFilename.size() == 0
+      || recordFilename.substr(recordFilename.find_last_of(".") + 1) != "flv")
+    {
+      configLock.post();
+      return -4;
+    }*/
+
+  // The filename can hold variables like current time etc..
+  replace_variables(recordFilename);
+
+  INFO_MSG("Filepath that we use for the recording: %s", recordFilename.c_str());
+  //to change hardcoding
+  //determine extension, first find the '.' for extension
+  size_t pointPlace = recordFilename.rfind(".");
+  if (pointPlace == std::string::npos){
+    FAIL_MSG("no extension found in output name. Aborting recording.");
+    return -1;
+  }
+  std::string fileExtension = recordFilename.substr(pointPlace+1);
+  DTSC::Scan outputs = config.getMember("capabilities").getMember("connectors");
+  DTSC::Scan output;
+  std::string output_filepath = "";
+  unsigned int outputs_size = outputs.getSize();
+  HIGH_MSG("Recording outputs %d",outputs_size);
+  for (unsigned int i = 0; i<outputs_size; ++i){
+    output = outputs.getIndice(i);
+    HIGH_MSG("Checking output: %s",output.getMember("name").asString().c_str());
+    if (output.getMember("canRecord")){
+      HIGH_MSG("Output %s can record!", output.getMember("name").asString().c_str());
+      DTSC::Scan recTypes = output.getMember("canRecord");
+      unsigned int recTypesLength = recTypes.getSize();
+      bool breakOuterLoop = false;
+      for (unsigned int o = 0; o<recTypesLength; ++o){
+        if (recTypes.getIndice(o).asString() == fileExtension){
+          HIGH_MSG("Output %s can record %s!", output.getMember("name").asString().c_str(), fileExtension.c_str());
+          output_filepath = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
+          breakOuterLoop = true;
+          break;
+        }
+      }
+      if (breakOuterLoop) break;
+    }
+  }
+  
+  if (output_filepath == ""){
+    FAIL_MSG("No output found for filetype %s.", fileExtension.c_str());
+    return -4;
+  }
+  // Start  output.
+  char* argv[] = {
+    (char*)output_filepath.c_str(),
+    (char*)"--stream", (char*)streamname.c_str(),
+    (char*)"--outputFilename", (char*)recordFilename.c_str(),
+    (char*)NULL
+  };
+
+  int pid = fork();
+  if (pid == -1) {
+    FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
+    configLock.post();
+    return -5;
+  }
+
+  // Child process gets pid == 0 
+  if (pid == 0) {
+    if (execvp(argv[0], argv) == -1) {
+      FAIL_MSG("Failed to start MistOutFLV: %s", strerror(errno));
+      configLock.post();
+      return -6;
+    }
+  }
+  
+  configLock.post();
+  
+  return pid;
+}
+
+static void replace(std::string& str, const std::string& from, const std::string& to) {
+  if(from.empty()) {
+    return;
+  }
+  size_t start_pos = 0;
+  while((start_pos = str.find(from, start_pos)) != std::string::npos) {
+    str.replace(start_pos, from.length(), to);
+    start_pos += to.length();
+  }
+}
+
+static void replace_variables(std::string& str) {
+  
+  char buffer[80] = { 0 };
+  std::map<std::string, std::string> vars;
+  std::string day = strftime_now("%d");
+  std::string month = strftime_now("%m");
+  std::string year = strftime_now("%Y");
+  std::string hour = strftime_now("%H");
+  std::string minute = strftime_now("%M");
+  std::string seconds = strftime_now("%S");
+  std::string datetime = year +"." +month +"." +day +"." +hour +"." +minute +"." +seconds;
+
+  if (0 == day.size()) {
+    WARN_MSG("Failed to retrieve the current day with strftime_now().");
+  }
+  if (0 == month.size()) {
+    WARN_MSG("Failed to retrieve the current month with strftime_now().");
+  }
+  if (0 == year.size()) {
+    WARN_MSG("Failed to retrieve the current year with strftime_now().");
+  }
+  if (0 == hour.size()) {
+    WARN_MSG("Failed to retrieve the current hour with strftime_now().");
+  }
+  if (0 == minute.size()) {
+    WARN_MSG("Failed to retrieve the current minute with strftime_now().");
+  }
+  if (0 == seconds.size()) {
+    WARN_MSG("Failed to retrieve the current seconds with strftime_now().");
+  }
+  
+  vars.insert(std::pair<std::string, std::string>("$day", day));
+  vars.insert(std::pair<std::string, std::string>("$month", month));
+  vars.insert(std::pair<std::string, std::string>("$year", year));
+  vars.insert(std::pair<std::string, std::string>("$hour", hour));
+  vars.insert(std::pair<std::string, std::string>("$minute", minute));
+  vars.insert(std::pair<std::string, std::string>("$seconds", seconds));
+  vars.insert(std::pair<std::string, std::string>("$datetime", datetime));
+
+  std::map<std::string, std::string>::iterator it = vars.begin();
+  while (it != vars.end()) {
+    replace(str, it->first, it->second);
+    ++it;
+  }
+}
+
+static std::string strftime_now(const std::string& format) {
+  
+  time_t rawtime;
+  struct tm* timeinfo = NULL;
+  char buffer [80] = { 0 };
+
+  time(&rawtime);
+  timeinfo = localtime (&rawtime);
+
+  if (0 == strftime(buffer, 80, format.c_str(), timeinfo)) {
+    FAIL_MSG("Call to stftime() failed with format: %s, maybe our buffer is not big enough (80 bytes).", format.c_str());
+    return "";
+  }
+
+  return buffer;
+}
+
+/* roxlu-end */

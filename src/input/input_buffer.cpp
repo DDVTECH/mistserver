@@ -113,6 +113,7 @@ namespace Mist {
     cutTime = 0;
     segmentSize = 5000;
     hasPush = false;
+    recordingPid = -1;
   }
 
   inputBuffer::~inputBuffer(){
@@ -880,6 +881,58 @@ namespace Mist {
       recBpos = 0;
     }
     */
+
+    /* roxlu-begin */
+    // check if we have a video track with a keyframe, otherwise the mp4 output will fail.
+    // @todo as the mp4 recording was not working perfectly I focussed on getting it
+    // to work for .flv. This seems to work perfectly but ofc. we want to make it work
+    // for .mp4 too at some point.
+    bool has_keyframes = false;
+    std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
+    while (it != myMeta.tracks.end()) {
+      
+      DTSC::Track& tr = it->second;
+      if (tr.type != "video") {
+        ++it;
+        continue;
+      }
+
+      if (tr.keys.size() > 0) {
+        has_keyframes = true;
+        break;
+      }
+      ++it;
+    }
+
+    if (streamCfg
+        && streamCfg.getMember("record")
+        && streamCfg.getMember("record").asString().size() > 0
+        && has_keyframes
+        )
+      {
+
+        // @todo check if output is already running ? 
+        if (recordingPid == -1
+            && config != NULL
+            )
+          {
+            
+            INFO_MSG("The stream %s has a value specified for the recording. "
+                 "We're goint to start an output and record into  %s",
+                 config->getString("streamname").c_str(),
+                 streamCfg.getMember("record").asString().c_str());
+
+            recordingPid = Util::startRecording(config->getString("streamname"));
+            if (recordingPid < 0) {
+              FAIL_MSG("Failed to start the recording for %s", config->getString("streamname").c_str());
+              // @todo shouldn't we do configList.post(), configLock.close() and return false?
+              // @todo discuss with Jaron. 2015.09.26, remove this comment when discussed.
+            }
+            INFO_MSG("We started an output for recording with PID: %d", recordingPid);
+          }
+      }
+    /* roxlu-end */
+
 
     /*LTS-END*/
     configLock.post();

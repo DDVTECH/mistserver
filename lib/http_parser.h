@@ -46,11 +46,13 @@ namespace HTTP {
       unsigned int length;
       bool headerOnly; ///< If true, do not parse body if the length is a known size.
       bool bufferChunks;
+      //this bool was private
+      bool sendingChunks;
+
     private:
       bool seenHeaders;
       bool seenReq;
       bool getChunks;
-      bool sendingChunks;
       unsigned int doingChunk;
       bool parse(std::string & HTTPbuffer);
       void parseVars(std::string data);

@@ -14,9 +14,16 @@ namespace Mist {
       virtual void onFail();
       virtual void onHTTP(){};
       virtual void requestHandler();
+      virtual void onRecord(){
+        Output::onRecord();
+        H.sendingChunks = false;
+      }
       static bool listenMode(){return false;}
       void reConnector(std::string & connector);
       std::string getHandler();
+      /*begin-roxlu*/
+      void sendResponse(std::string message, std::string code = "200");
+      /*end-roxlu*/
   protected:
       HTTP::Parser H;
       std::string getConnectedHost();//LTS

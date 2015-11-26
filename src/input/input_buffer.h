@@ -46,6 +46,10 @@ namespace Mist {
       long long int recBpos;/*LTS*/
        //This is used for an ugly fix to prevent metadata from dissapearing in some cases.
       std::map<unsigned long, std::string> initData;
+
+      /* begin-roxlu */
+      int recordingPid; // pid of the process that does the recording. Currently only MP4 supported. 
+      /* end-roxlu */
   };
 }
 

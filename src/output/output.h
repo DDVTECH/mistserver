@@ -63,6 +63,10 @@ namespace Mist {
       long unsigned int getMainSelectedTrack();
       void updateMeta();
       void selectDefaultTracks();
+      /*begin-roxlu*/
+      bool openOutputFileForRecording(); // Opens the output file and uses dup2() to make sure that all stdout is written into a file.
+      bool closeOutputFileForRecording(); // Closes the output file into which we're writing and resets the file descriptor. 
+      /*end-roxlu*/
       static bool listenMode(){return true;}
       //virtuals. The optional virtuals have default implementations that do as little as possible.
       virtual void sendNext() {}//REQUIRED! Others are optional.
@@ -76,6 +80,13 @@ namespace Mist {
       virtual void sendHeader();
       virtual void onFail();
       virtual void requestHandler();
+      virtual void onRecord(){
+        wantRequest = false;
+        parseData = true;
+        realTime = 1000;
+
+        seek(0);
+      }
     private://these *should* not be messed with in child classes.
       /*LTS-START*/
       void Log(std::string type, std::string message);
@@ -122,6 +133,10 @@ namespace Mist {
       bool sentHeader;///< If false, triggers sendHeader if parseData is true.
 
       std::map<int,DTSCPageData> bookKeeping;
+      /*begin-roxlu*/
+      int outputFileDescriptor; // Write output into this file.
+      /*end-roxlu*/
+      bool recording();
   };
 
 }

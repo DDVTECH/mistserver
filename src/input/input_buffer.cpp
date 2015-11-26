@@ -100,6 +100,14 @@ namespace Mist {
   inputBuffer::~inputBuffer(){
     config->is_active = false;
     if (myMeta.tracks.size()){
+      /*LTS-START*/
+      if (myMeta.bufferWindow >= bufferTime /2){
+        if(Triggers::shouldTrigger("STREAM_BUFFER")){
+          std::string payload = config->getString("streamname")+"\nEMPTY";
+          Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+        }
+      }
+      /*LTS-END*/
       DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         std::map<unsigned long, DTSCPageData> & locations = bufferLocations[it->first];
@@ -131,6 +139,12 @@ namespace Mist {
     }
   }
 
+  /// \triggers 
+  /// The `"STREAM_BUFFER"` trigger is stream-specific, and is ran whenever the buffer changes state between mostly full or mostly emptu. It cannot be cancelled. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// FULL or EMPTY (depending on current state)
+  /// ~~~~~~~~~~~~~~~
   void inputBuffer::updateMeta(){
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
@@ -142,6 +156,20 @@ namespace Mist {
         lastms = it->second.lastms;
       }
     }
+    /*LTS-START*/
+    if (myMeta.bufferWindow < bufferTime /2 && (lastms - firstms) >= bufferTime/2){
+      if(Triggers::shouldTrigger("STREAM_BUFFER")){
+        std::string payload = config->getString("streamname")+"\nFULL";
+        Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+      }
+    }
+    if (myMeta.bufferWindow >= bufferTime /2 && (lastms - firstms) < bufferTime/2){
+      if(Triggers::shouldTrigger("STREAM_BUFFER")){
+        std::string payload = config->getString("streamname")+"\nEMPTY";
+        Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+      }
+    }
+    /*LTS-END*/
     myMeta.bufferWindow = lastms - firstms;
     myMeta.vod = false;
     myMeta.live = true;

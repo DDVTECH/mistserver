@@ -334,6 +334,13 @@ namespace Mist {
   /// output handler name
   /// request URL (if any)
   /// ~~~~~~~~~~~~~~~
+  /// The `"RTMP_PUSH_REWRITE"` trigger is global and ran right before an RTMP publish request is parsed. It cannot be cancelled, but an invalid URL can be returned; which is effectively equivalent to cancelling.
+  /// This trigger is special: the response is used as RTMP URL override, and not handled as normal. If used, the handler for this trigger MUST return a valid RTMP URL to allow the push to go through. If used multiple times, the last defined handler overrides any and all previous handlers.
+  /// Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// current RTMP URL
+  /// connected client host
+  /// ~~~~~~~~~~~~~~~
   void OutRTMP::parseAMFCommand(AMF::Object & amfData, int messageType, int streamId) {
 #if DEBUG >= 5
     fprintf(stderr, "Received command: %s\n", amfData.Print().c_str());
@@ -478,6 +485,24 @@ namespace Mist {
       if (amfData.getContentP(3)) {
         streamName = amfData.getContentP(3)->StrValue();
         reqUrl += "/"+streamName;//LTS
+
+        /*LTS-START*/
+        if(Triggers::shouldTrigger("RTMP_PUSH_REWRITE")){
+          std::string payload = reqUrl+"\n" + myConn.getHost();
+          std::string newUrl = "";
+          Triggers::doTrigger("RTMP_PUSH_REWRITE", payload, "", false, newUrl);
+          if (!newUrl.size()){
+            FAIL_MSG("Push from %s to URL %s rejected - RTMP_PUSH_REWRITE trigger blanked the URL", myConn.getHost().c_str(), reqUrl.c_str());
+            myConn.close();
+            return;
+          }
+          reqUrl = newUrl;
+          size_t lSlash = newUrl.rfind('/');
+          if (lSlash != std::string::npos){
+            streamName = newUrl.substr(lSlash+1);
+          }
+        }
+        /*LTS-END*/
         
         if (streamName.find('/')){
           streamName = streamName.substr(0, streamName.find('/'));

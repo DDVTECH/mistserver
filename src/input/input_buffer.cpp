@@ -61,6 +61,23 @@ namespace Mist {
     option.null();
 
     option["arg"] = "integer";
+    option["long"] = "resume";
+    option["short"] = "R";
+    option["help"] = "Enable resuming support (1, default) or disable resuming support (0)";
+    option["value"].append(1LL);
+    config->addOption("resume", option);
+    capa["optional"]["resume"]["name"] = "Resume support";
+    capa["optional"]["resume"]["help"] = "If enabled, the buffer will linger after source disconnect to allow resuming the stream later. If disabled, the buffer will instantly close on source disconnect.";
+    capa["optional"]["resume"]["option"] = "--resume";
+    capa["optional"]["resume"]["type"] = "select";
+    capa["optional"]["resume"]["select"][0u][0u] = "1";
+    capa["optional"]["resume"]["select"][0u][1u] = "Enabled";
+    capa["optional"]["resume"]["select"][1u][0u] = "0";
+    capa["optional"]["resume"]["select"][1u][1u] = "Disabled";
+    capa["optional"]["resume"]["default"] = 1LL;
+    option.null();
+
+    option["arg"] = "integer";
     option["long"] = "segment-size";
     option["short"] = "S";
     option["help"] = "Target time duration in milliseconds for segments";
@@ -95,6 +112,7 @@ namespace Mist {
     bufferTime = 50000;
     cutTime = 0;
     segmentSize = 5000;
+    hasPush = false;
   }
 
   inputBuffer::~inputBuffer(){
@@ -438,6 +456,14 @@ namespace Mist {
       }
     }
     updateMeta();
+    static bool everHadPush = false;
+    if (hasPush){
+      hasPush = false;
+      everHadPush = true;
+    }else if(everHadPush && !resumeMode && config->is_active){
+      INFO_MSG("Shutting down buffer because resume mode is disabled and the source disconnected");
+      config->is_active = false;
+    }
   }
 
   /// \triggers 
@@ -637,6 +663,7 @@ namespace Mist {
         if (metaPages[value].mapped){
           //Update the metadata for this track
           updateTrackMeta(value);
+          hasPush = true;
         }
       }
     }
@@ -775,6 +802,23 @@ namespace Mist {
       cutTime = tmpNum;
     }
 
+    //if stream is configured and setting is present, use it, always
+    if (streamCfg && streamCfg.getMember("resume")){
+      tmpNum = streamCfg.getMember("resume").asInt();
+    } else {
+      if (streamCfg){
+        //otherwise, if stream is configured use the default
+        tmpNum = config->getOption("resume", true)[0u].asInt();
+      } else {
+        //if not, use the commandline argument
+        tmpNum = config->getOption("resume").asInt();
+      }
+    }
+    //if the new value is different, print a message and apply it
+    if (resumeMode != (bool)tmpNum){
+      DEBUG_MSG(DLVL_DEVEL, "Setting resume mode from %s to new value of %s", resumeMode?"enabled":"disabled", tmpNum?"enabled":"disabled");
+      resumeMode = tmpNum;
+    }
 
     //if stream is configured and setting is present, use it, always
     if (streamCfg && streamCfg.getMember("segmentsize")){

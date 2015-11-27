@@ -14,6 +14,8 @@ namespace Mist {
       unsigned int cutTime;
       unsigned int segmentSize; /*LTS*/
       unsigned int lastReTime; /*LTS*/
+      bool hasPush; /*LTS*/
+      bool resumeMode; /*LTS*/
     protected:
       //Private Functions
       bool setup();

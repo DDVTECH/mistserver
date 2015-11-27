@@ -60,7 +60,7 @@ namespace Mist {
       if (it->second.firstms < firstms) {
         firstms = it->second.firstms;
       }
-      if (it->second.firstms > lastms) {
+      if (it->second.lastms > lastms){
         lastms = it->second.lastms;
       }
     }

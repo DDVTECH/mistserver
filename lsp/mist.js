@@ -4477,6 +4477,7 @@ var mist = {
             case 'select':
               obj.type = 'select';
               obj.select = ele.select;
+              break;
             case 'str':
             default:
               obj.type = 'str';

@@ -1,5 +1,7 @@
 #include <cstdio>
 #include <mist/config.h>
+#include <mist/shared_memory.h>
+#include <mist/dtsc.h>
 #include "controller_statistics.h"
 #include "controller_limits.h"
 
@@ -594,16 +596,53 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
 void Controller::fillActive(JSON::Value & req, JSON::Value & rep){
   //collect the data first
   std::set<std::string> streams;
+  std::map<std::string, unsigned long> clients;
+  unsigned int t = Util::epoch() - 5;
   //check all sessions
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
       streams.insert(it->first.streamName);
+      if (it->second.hasDataFor(t)){
+        clients[it->first.streamName]++;
+      }
     }
   }
   //Good, now output what we found...
   rep.null();
   for (std::set<std::string>::iterator it = streams.begin(); it != streams.end(); it++){
-    rep.append(*it);
+    if (req.isArray()){
+      rep[*it].null();
+      jsonForEach(req, j){
+        if (j->asStringRef() == "clients"){
+          rep[*it].append((long long)clients[*it]);
+        }
+        if (j->asStringRef() == "lastms"){
+          char pageId[NAME_BUFFER_SIZE];
+          IPC::sharedPage streamIndex;
+          snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, it->c_str());
+          streamIndex.init(pageId, DEFAULT_META_PAGE_SIZE, false, false);
+          if (streamIndex.mapped){
+            IPC::semaphore metaLocker(std::string("liveMeta@" + (*it)).c_str(), O_CREAT | O_RDWR, (S_IRWXU|S_IRWXG|S_IRWXO), 1);
+            metaLocker.wait();
+            DTSC::Scan strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
+            long long lms = 0;
+            DTSC::Scan trcks = strm.getMember("tracks");
+            unsigned int trcks_ctr = trcks.getSize();
+            for (unsigned int i = 0; i < trcks_ctr; ++i){
+              if (trcks.getIndice(i).getMember("lastms").asInt() > lms){
+                lms = trcks.getIndice(i).getMember("lastms").asInt();
+              }
+            }
+            rep[*it].append(lms);
+            metaLocker.post();
+          }else{
+            rep[*it].append(-1ll);
+          }
+        }
+      }
+    }else{
+      rep.append(*it);
+    }
   }
   //all done! return is by reference, so no need to return anything here.
 }

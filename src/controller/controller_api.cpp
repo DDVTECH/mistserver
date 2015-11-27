@@ -483,27 +483,30 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           }
           #endif
           /*LTS-END*/
-          //sent current configuration, no matter if it was changed or not
-          Response["config"] = Controller::Storage["config"];
-          Response["config"]["version"] = PACKAGE_VERSION;
           /*LTS-START*/
-          if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
-            Response["streams"]["incomplete list"] = 1ll;
-            if (Request.isMember("addstream")){
-              jsonForEach(Request["addstream"], jit){
-                if (Controller::Storage["streams"].isMember(jit.key())){
-                  Response["streams"][jit.key()] = Controller::Storage["streams"][jit.key()];
+          if (!Request.isMember("minimal") || Request.isMember("streams") || Request.isMember("addstream") || Request.isMember("deletestream")){
+            if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
+              Response["streams"]["incomplete list"] = 1ll;
+              if (Request.isMember("addstream")){
+                jsonForEach(Request["addstream"], jit){
+                  if (Controller::Storage["streams"].isMember(jit.key())){
+                    Response["streams"][jit.key()] = Controller::Storage["streams"][jit.key()];
+                  }
                 }
               }
+            }else{
+              Response["streams"] = Controller::Storage["streams"];
             }
-          }else{
-          /*LTS-END*/
-          Response["streams"] = Controller::Storage["streams"];
-          }//LTS
-          //add required data to the current unix time to the config, for syncing reasons
-          Response["config"]["time"] = Util::epoch();
-          if ( !Response["config"].isMember("serverid")){
-            Response["config"]["serverid"] = "";
+          }
+          //sent current configuration, if not minimal or was changed/requested
+          if (!Request.isMember("minimal") || Response.isMember("config")){
+            Response["config"] = Controller::Storage["config"];
+            Response["config"]["version"] = PACKAGE_VERSION;
+            //add required data to the current unix time to the config, for syncing reasons
+            Response["config"]["time"] = Util::epoch();
+            if ( !Response["config"].isMember("serverid")){
+              Response["config"]["serverid"] = "";
+            }
           }
           //sent any available logs and statistics
           /// 
@@ -521,14 +524,17 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           /// ~~~~~~~~~~~~~~~
           /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
           /// 
-          {
+          if (Request.isMember("clearstatlogs") || !Request.isMember("minimal")){
             tthread::lock_guard<tthread::mutex> guard(logMutex);
-            Response["log"] = Controller::Storage["log"];
+            if (!Request.isMember("minimal")){
+              Response["log"] = Controller::Storage["log"];
+            }
             //clear log if requested
             if (Request.isMember("clearstatlogs")){
               Controller::Storage["log"].null();
             }
           }
+          /*LTS-END*/
           if (Request.isMember("clients")){
             if (Request["clients"].isArray()){
               for (unsigned int i = 0; i < Request["clients"].size(); ++i){

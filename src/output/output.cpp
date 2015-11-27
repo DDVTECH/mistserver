@@ -401,7 +401,7 @@ namespace Mist {
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
     loadPageForKey(tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
     if (!curPage.count(tid) || !curPage[tid].mapped){
-      DEBUG_MSG(DLVL_DEVEL, "Aborting seek to %llums in track %u, not available.", pos, tid);
+      INFO_MSG("Aborting seek to %llums in track %u, not available.", pos, tid);
       return false;
     }
     sortedPageInfo tmp;
@@ -424,13 +424,13 @@ namespace Mist {
       if (curPage[tid].mapped[tmp.offset] != 0){
         DEBUG_MSG(DLVL_FAIL, "Noes! Couldn't find packet on track %d because of some kind of corruption error or somesuch.", tid);
       }else{
-        DEBUG_MSG(DLVL_FAIL, "Track %d no data (key %u @ %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
+        VERYHIGH_MSG("Track %d no data (key %u @ %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         unsigned int i = 0;
         while (curPage[tid].mapped[tmp.offset] == 0 && ++i < 42){
           Util::wait(100);
         }
         if (curPage[tid].mapped[tmp.offset] == 0){
-          DEBUG_MSG(DLVL_FAIL, "Track %d no data (key %u) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
+          FAIL_MSG("Track %d no data (key %u) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
         }else{
           return seek(tid, pos, getNextKey);
         }

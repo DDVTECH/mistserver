@@ -124,7 +124,22 @@ namespace IPC {
     int timer = 0;
     while (!(*this) && timer++ < 10){
 #if defined(__CYGWIN__) || defined(_WIN32)
-      mySem = CreateSemaphore(0, value, 1 , std::string("Global\\" + std::string(name)).c_str());
+      std::string semaName = "Global\\";
+      semaName += name;
+      if (oflag & O_CREAT){
+        if (oflag & O_EXCL){
+          //attempt opening, if succes, close handle and return false;
+          HANDLE tmpSem = OpenSemaphore(0, false, semaName.c_str());
+          if (tmpSem){
+            CloseHandle(tmpSem);
+            mySem = 0;
+            break;
+          }
+        }
+        mySem = CreateSemaphore(0, value, 1 , semaName.c_str());
+      }else{
+        mySem = OpenSemaphore(0, false, semaName.c_str());
+      }
 #else
       if (oflag & O_CREAT) {
         mySem = sem_open(name, oflag, mode, value);

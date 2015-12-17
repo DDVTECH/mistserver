@@ -167,6 +167,15 @@ namespace Mist {
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      if (it->second.init.size()){
+        if (!initData.count(it->first) || initData[it->first] != it->second.init){
+          initData[it->first] = it->second.init;
+        }
+      }else{
+        if (initData.count(it->first)){
+          it->second.init = initData[it->first];
+        }
+      }
       if (it->second.firstms < firstms){
         firstms = it->second.firstms;
       }

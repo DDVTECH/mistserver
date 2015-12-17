@@ -33,6 +33,9 @@ namespace Mist {
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > bufferLocations;
       std::map<unsigned long, char *> pushLocation;
       inputBuffer * singleton;
+
+      //This is used for an ugly fix to prevent metadata from dissapearing in some cases.
+      std::map<unsigned long, std::string> initData;
   };
 }
 

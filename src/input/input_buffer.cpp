@@ -17,6 +17,11 @@
 #define TIMEOUTMULTIPLIER 2
 #endif
 
+/*LTS-START*/
+//We consider a stream playable when this many fragments are available.
+#define FRAG_BOOT 3
+/*LTS-END*/
+
 namespace Mist {
   inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg){
     capa["name"] = "Buffer";
@@ -137,7 +142,7 @@ namespace Mist {
     config->is_active = false;
     if (myMeta.tracks.size()){
       /*LTS-START*/
-      if (myMeta.bufferWindow >= bufferTime /2){
+      if (myMeta.bufferWindow){
         if(Triggers::shouldTrigger("STREAM_BUFFER")){
           std::string payload = config->getString("streamname")+"\nEMPTY";
           Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
@@ -176,14 +181,16 @@ namespace Mist {
   }
 
   /// \triggers 
-  /// The `"STREAM_BUFFER"` trigger is stream-specific, and is ran whenever the buffer changes state between mostly full or mostly emptu. It cannot be cancelled. Its payload is:
+  /// The `"STREAM_BUFFER"` trigger is stream-specific, and is ran whenever the buffer changes state between playable (FULL) or not (EMPTY). It cannot be cancelled. It is possible to receive multiple EMPTY calls without FULL calls in between, as EMPTY is always generated when a stream is unloaded from memory, even if this stream never reached playable state in the first place (e.g. a broadcast was cancelled before filling enough buffer to be playable). Its payload is:
   /// ~~~~~~~~~~~~~~~
   /// streamname
   /// FULL or EMPTY (depending on current state)
   /// ~~~~~~~~~~~~~~~
   void inputBuffer::updateMeta(){
+    static long long unsigned int lastFragCount = 0xFFFFull;
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
+    long long unsigned int fragCount = 0xFFFFull;
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.type == "meta" || !it->second.type.size()){continue;}
       if (it->second.init.size()){
@@ -195,6 +202,9 @@ namespace Mist {
           it->second.init = initData[it->first];
         }
       }
+      if (it->second.fragments.size() < fragCount){
+        fragCount = it->second.fragments.size();
+      }
       if (it->second.firstms < firstms){
         firstms = it->second.firstms;
       }
@@ -203,18 +213,19 @@ namespace Mist {
       }
     }
     /*LTS-START*/
-    if (myMeta.bufferWindow < bufferTime /2 && (lastms - firstms) >= bufferTime/2){
+    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && (lastFragCount == 0xFFFFull || lastFragCount < FRAG_BOOT)){
       if(Triggers::shouldTrigger("STREAM_BUFFER")){
         std::string payload = config->getString("streamname")+"\nFULL";
         Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
       }
     }
-    if (myMeta.bufferWindow >= bufferTime /2 && (lastms - firstms) < bufferTime/2){
+    if ((fragCount < FRAG_BOOT || fragCount == 0xFFFFull) && (lastFragCount >= FRAG_BOOT && lastFragCount != 0xFFFFull)){
       if(Triggers::shouldTrigger("STREAM_BUFFER")){
         std::string payload = config->getString("streamname")+"\nEMPTY";
         Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
       }
     }
+    lastFragCount = fragCount;
     /*LTS-END*/
     myMeta.bufferWindow = lastms - firstms;
     myMeta.vod = false;

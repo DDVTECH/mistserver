@@ -170,7 +170,7 @@ namespace Mist {
       lines.pop_back();
       /*LTS-START*/
       unsigned int skip = (( myMeta.tracks[tid].fragments.size()-1) * config->getInteger("startpos")) / 1000u;
-      while (skippedLines < skip && lines.size() >= 3){
+      while (skippedLines < skip && lines.size() > 3){
         lines.pop_front();
         skippedLines++;
       }

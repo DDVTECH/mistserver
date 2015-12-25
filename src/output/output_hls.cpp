@@ -75,13 +75,8 @@ namespace Mist {
       lines.push_back(line.str());
     }
     
-    //skip the first fragment if live and there are more than 2 fragments.
     unsigned int skippedLines = 0;
     if (myMeta.live){
-      if (lines.size() > 2){
-        lines.pop_front();
-        skippedLines++;
-      }
       //only print the last segment when VoD
       lines.pop_back();
       /*LTS-START*/
@@ -149,16 +144,15 @@ namespace Mist {
     if ( !myMeta.tracks.size()){
       return 1;
     }
-    //loop trough all the tracks
-    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      //return "too late" if one track is past this point
-      if (ms < it->second.firstms){
-        return -1;
-      }
-      //return "too early" if one track is not yet at this point
-      if (ms > it->second.lastms){
-        return 1;
-      }
+    //check main track
+    DTSC::Track & mainTrack = myMeta.tracks[*selectedTracks.begin()];
+    //return "too late" if one track is past this point
+    if (ms < mainTrack.firstms){
+      return -1;
+    }
+    //return "too early" if one track is not yet at this point
+    if (ms > mainTrack.lastms){
+      return 1;
     }
     return 0;
   }

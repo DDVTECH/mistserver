@@ -144,7 +144,7 @@ namespace Mist {
   /// Assumes streamName class member has been set already.
   /// Will start input if not currently active, calls onFail() if this does not succeed.
   /// After assuring stream is online, clears metaPages, then sets metaPages[0], statsPage and userClient to (hopefully) valid handles.
-  /// Finally, calls updateMeta()
+  /// Finally, calls updateMeta() and stats()
   void Output::reconnect(){
     if (!Util::startInput(streamName)){
       DEBUG_MSG(DLVL_FAIL, "Opening stream failed - aborting initalization");
@@ -170,6 +170,7 @@ namespace Mist {
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
     userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+    stats();
     updateMeta();
   }
 

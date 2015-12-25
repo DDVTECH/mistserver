@@ -652,13 +652,13 @@ namespace IPC {
 
   ///\brief Sets checksum field
   void statExchange::crc(unsigned int sum) {
-    htobl(data + 186, sum);
+    htobl(data + 168, sum);
   }
 
   ///\brief Gets checksum field
   unsigned int statExchange::crc() {
     unsigned int result;
-    btohl(data + 186, result);
+    btohl(data + 168, result);
     return result;
   }
 

@@ -68,8 +68,8 @@ namespace Mist {
     option["arg"] = "integer";
     option["long"] = "resume";
     option["short"] = "R";
-    option["help"] = "Enable resuming support (1, default) or disable resuming support (0)";
-    option["value"].append(1LL);
+    option["help"] = "Enable resuming support (1) or disable resuming support (0, default)";
+    option["value"].append(0LL);
     config->addOption("resume", option);
     capa["optional"]["resume"]["name"] = "Resume support";
     capa["optional"]["resume"]["help"] = "If enabled, the buffer will linger after source disconnect to allow resuming the stream later. If disabled, the buffer will instantly close on source disconnect.";

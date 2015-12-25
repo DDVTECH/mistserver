@@ -193,6 +193,14 @@ namespace Mist {
   /// output handler name
   /// request URL (if any)
   /// ~~~~~~~~~~~~~~~
+  /// The `"USER_NEW"` trigger is stream-specific, and is ran when a new user first opens a stream. Segmented protcols are unduplicated over the duration of the statistics log (~10 minutes), true streaming protocols (RTMP, RTSP) are not deduplicated as no duplication ever takes place. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// connected client host
+  /// User agent checksum (CRC32 of User-agent string)
+  /// output handler name
+  /// request URL (if any)
+  /// ~~~~~~~~~~~~~~~
   void Output::initialize(){
     if (isInitialized){
       return;
@@ -218,6 +226,33 @@ namespace Mist {
       if (!Triggers::doTrigger("CONN_PLAY", payload, streamName)){
         myConn.close();
       }
+    }
+    if(Triggers::shouldTrigger("USER_NEW", streamName)){
+      //sync byte 0 = no sync yet, wait for sync from controller...
+      IPC::statExchange tmpEx(statsPage.getData());
+      unsigned int i = 0;
+      while (!tmpEx.getSync() && i < 30){
+        Util::sleep(100);
+        stats();
+      }
+      HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
+      //1 = check requested (connection is new)
+      if (tmpEx.getSync() == 1){
+        std::string payload = streamName+"\n" + myConn.getHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+        if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
+          MEDIUM_MSG("Closing connection because denied by USER_NEW trigger");
+          myConn.close();
+          tmpEx.setSync(100);//100 = denied
+        }else{
+          tmpEx.setSync(10);//10 = accepted
+        }
+      }
+      //100 = denied
+      if (tmpEx.getSync() == 100){
+        myConn.close();
+        MEDIUM_MSG("Closing connection because denied by USER_NEW sync byte");
+      }
+      //anything else = accepted
     }
     /*LTS-END*/
   }

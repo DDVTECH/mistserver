@@ -3576,7 +3576,8 @@ var UI = {
             ['RECORDING_STOP', 'RECORDING_STOP: stopped a recording'],
             ['CONN_OPEN', 'CONN_OPEN: right after a new incoming connection has been received'],
             ['CONN_CLOSE', 'CONN_CLOSE: right after a connection has been closed'],
-            ['CONN_PLAY', 'CONN_PLAY: right before a stream playback of a connection']
+            ['CONN_PLAY', 'CONN_PLAY: right before a stream playback of a connection'],
+            ['USER_NEW', 'USER_NEW: A new user connects that hasn\'t been allowed or denied access before']
           ],
           LTSonly: true,
           'function': function(){

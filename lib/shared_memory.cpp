@@ -706,6 +706,16 @@ namespace IPC {
     return result;
   }
 
+  ///\brief Sets checksum field
+  void statExchange::setSync(char s) {
+    data[172] = s;
+  }
+
+  ///\brief Gets checksum field
+  char statExchange::getSync() {
+    return data[172];
+  }
+
   ///\brief Creates a semaphore guard, locks the semaphore on call
   semGuard::semGuard(semaphore * thisSemaphore) : mySemaphore(thisSemaphore) {
     mySemaphore->wait();

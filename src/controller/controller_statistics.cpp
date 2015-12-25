@@ -127,6 +127,14 @@ void Controller::SharedMemStats(void * config){
 
 /// Updates the given active connection with new stats data.
 void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
+  //update the sync byte: 0 = requesting fill, 1 = needs checking, > 1 = state known
+  if (!data.getSync()){
+    data.setSync(sync);
+  }else{
+    if (sync < 2){
+      sync = data.getSync();
+    }
+  }
   curConns[index].update(data);
   //store timestamp of last received data, if newer
   if (data.now() > lastSec){
@@ -171,6 +179,7 @@ void Controller::statSession::finish(unsigned long index){
 Controller::statSession::statSession(){
   firstSec = 0xFFFFFFFFFFFFFFFFull;
   lastSec = 0;
+  sync = 1;
 }
 
 /// Moves the given connection to the given session

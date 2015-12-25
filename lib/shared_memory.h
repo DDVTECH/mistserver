@@ -11,7 +11,7 @@
 #include <semaphore.h>
 #endif
 
-#define STAT_EX_SIZE 174
+#define STAT_EX_SIZE 175
 #define PLAY_EX_SIZE 2+6*SIMUL_TRACKS
 
 namespace IPC {
@@ -37,6 +37,8 @@ namespace IPC {
       void connector(std::string name);
       std::string connector();
       void crc(unsigned int sum);
+      char getSync();
+      void setSync(char s);
       unsigned int crc();
   private:
       ///\brief The payload for the stat exchange
@@ -49,6 +51,8 @@ namespace IPC {
       /// - 100 byte - streamName (name of the stream peer is viewing)
       /// - 20 byte - connector (name of the connector the peer is using)
       /// - 4 byte - CRC32 of user agent (or zero if none)
+      /// - 1 byte sync (was seen by controller yes/no)
+      /// - (implicit 2 bytes: PID)
       char * data;
   };
 

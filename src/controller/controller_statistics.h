@@ -58,6 +58,7 @@ namespace Controller {
       unsigned long long lastSec;
       std::deque<statStorage> oldConns;
       std::map<unsigned long, statStorage> curConns;
+      char sync;
     public:
       statSession();
       void wipeOld(unsigned long long);

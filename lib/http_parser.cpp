@@ -286,7 +286,7 @@ void HTTP::Parser::SetBody(std::string s) {
 /// Function that sets the body of a response or request, along with the correct Content-Length header.
 /// \param buffer The buffer data to set the body to.
 /// \param len Length of the buffer data.
-void HTTP::Parser::SetBody(char * buffer, int len) {
+void HTTP::Parser::SetBody(const char * buffer, int len) {
   body = "";
   body.append(buffer, len);
   SetHeader("Content-Length", len);

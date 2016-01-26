@@ -1,6 +1,8 @@
 #include <sys/stat.h>
 #include "output_http_internal.h"
 #include <mist/stream.h>
+#include "flashPlayer.h"
+#include "oldFlashPlayer.h"
 
 namespace Mist {
   OutHTTP::OutHTTP(Socket::Connection & conn) : HTTPOutput(conn){
@@ -49,6 +51,8 @@ namespace Mist {
     capa["url_match"].append("/info_$.js");
     capa["url_match"].append("/json_$.js");
     capa["url_match"].append("/embed_$.js");
+    capa["url_match"].append("/flashplayer.swf");
+    capa["url_match"].append("/oldflashplayer.swf");
     cfg->addConnectorOptions(8080, capa);
     /*LTS-START*/
     cfg->addOption("nostreamtext", JSON::fromString("{\"arg\":\"string\", \"default\":\"\", \"short\":\"t\",\"long\":\"nostreamtext\",\"help\":\"Text or HTML to display when streams are unavailable.\"}"));
@@ -95,18 +99,22 @@ namespace Mist {
     }
   };
   
-  void addSource(const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches){
+  void addSource(const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches, const std::string & flvPlayerPrefix){
     JSON::Value tmp;
     tmp["type"] = conncapa["type"];
     tmp["relurl"] = rel;
     tmp["priority"] = conncapa["priority"];
+    if (conncapa.isMember("player_url")){
+      tmp["player_url"] = flvPlayerPrefix + conncapa["player_url"].asStringRef();
+    }
     tmp["simul_tracks"] = most_simul;
     tmp["total_matches"] = total_matches;
     tmp["url"] = conncapa["handler"].asStringRef() + "://" + host + ":" + port + rel;
     sources.insert(tmp);
   }
   
-  void addSources(std::string & streamname, const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, JSON::Value & strmMeta){
+
+  void addSources(std::string & streamname, const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, JSON::Value & strmMeta, const std::string httpHost){
     unsigned int most_simul = 0;
     unsigned int total_matches = 0;
     if (conncapa.isMember("codecs") && conncapa["codecs"].size() > 0){
@@ -145,7 +153,7 @@ namespace Mist {
       }
       jsonForEach(conncapa["methods"], it) {
         if (!strmMeta.isMember("live") || !it->isMember("nolive")){
-          addSource(relurl, sources, host, port, *it, most_simul, total_matches);
+          addSource(relurl, sources, host, port, *it, most_simul, total_matches, "http://" + httpHost);
         }
       }
     }
@@ -172,6 +180,23 @@ namespace Mist {
       return;
     } //clientaccesspolicy.xml
     
+    if (H.url == "/flashplayer.swf"){
+      H.Clean();
+      H.SetHeader("Content-Type", "application/x-shockwave-flash");
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetBody((const char*)FlashMediaPlayback_101_swf, FlashMediaPlayback_101_swf_len);
+      H.SendResponse("200", "OK", myConn);
+      return;
+    }
+    if (H.url == "/oldflashplayer.swf"){
+      H.Clean();
+      H.SetHeader("Content-Type", "application/x-shockwave-flash");
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetBody((const char *)FlashMediaPlayback_swf, FlashMediaPlayback_swf_len);
+      H.SendResponse("200", "OK", myConn);
+      return;
+
+    }
     // send logo icon
     if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
       /*LTS-START*/
@@ -257,6 +282,7 @@ namespace Mist {
     }
     
     if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 9 && H.url.substr(0, 6) == "/json_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
+      std::string fullHost = H.GetHeader("Host");
       std::string response;
       std::string rURL = H.url;
       std::string host = H.GetHeader("Host");
@@ -357,7 +383,7 @@ namespace Mist {
             //and a URL - then list the URL
             if (capa.getMember("url_rel")){
               JSON::Value capa_json = capa.asJSON();
-              addSources(streamName, capa.getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"]);
+              addSources(streamName, capa.getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"], fullHost);
             }
             //check each enabled protocol separately to see if it depends on this connector
             DTSC::Scan capa_lst = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
@@ -366,7 +392,7 @@ namespace Mist {
               //if it depends on this connector and has a URL, list it
               if (conns.count(capa_lst.getIndiceName(j)) && (capa_lst.getIndice(j).getMember("deps").asString() == cName || capa_lst.getIndice(j).getMember("deps").asString() + ".exe" == cName) && capa_lst.getIndice(j).getMember("methods")){
                 JSON::Value capa_json = capa_lst.getIndice(j).asJSON();
-                addSources(streamName, capa_lst.getIndice(j).getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"]);
+                addSources(streamName, capa_lst.getIndice(j).getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"], fullHost);
               }
             }
           }

@@ -152,12 +152,15 @@ function mistembed(streamname) {
         var flashplayer,
         url = encodeURIComponent(src.url) + '&controlBarMode=floating&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3' + (vtype == 'live' ? "&streamType=live" : "") + (autoplay ? '&autoPlay=true' : '');
         
+        /*
         if( parseInt(maintype[1], 10) >= 10 ) {
           flashplayer = 'http://fpdownload.adobe.com/strobe/FlashMediaPlayback_101.swf';
         }
         else {
           flashplayer = 'http://fpdownload.adobe.com/strobe/FlashMediaPlayback.swf';
         }
+        */
+        flashplayer = src.player_url;
         
         container.innerHTML += '<object width="' + videowidth + '" height="' + videoheight + '">' +
                                 '<param name="movie" value="' + flashplayer + '"></param>' + 
@@ -297,4 +300,5 @@ function mistembed(streamname) {
   }
   
   return (mistvideo[streamname].embedded ? mistvideo[streamname].embedded.type : false);
+  //keep empty line at end of file
 }

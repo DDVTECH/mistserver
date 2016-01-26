@@ -28,6 +28,7 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/7";
     capa["methods"][0u]["priority"] = 5ll;
+    capa["methods"][0u]["player_url"] = "/oldflashplayer.swf";
   }
   
   void OutProgressiveFLV::sendNext(){

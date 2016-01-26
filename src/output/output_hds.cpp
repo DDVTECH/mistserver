@@ -160,6 +160,7 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/11";
     capa["methods"][0u]["priority"] = 7ll;
+    capa["methods"][0u]["player_url"] = "/flashplayer.swf";
   }
   
   void OutHDS::sendNext(){

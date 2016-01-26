@@ -24,7 +24,7 @@ namespace HTTP {
       void setCORSHeaders();
       void SetVar(std::string i, std::string v);
       void SetBody(std::string s);
-      void SetBody(char * buffer, int len);
+      void SetBody(const char * buffer, int len);
       std::string & BuildRequest();
       std::string & BuildResponse();
       std::string & BuildResponse(std::string code, std::string message);

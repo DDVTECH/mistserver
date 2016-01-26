@@ -536,26 +536,23 @@ namespace Mist {
   }
   
   void OutDashMP4::onHTTP(){
+    std::string method = H.method;
+    
     initialize();
     if (myMeta.live){
       updateMeta();
     }
     std::string url = H.url;
-    if (H.method == "OPTIONS"){
-      H.Clean();
-      H.SetHeader("Content-Type", "application/octet-stream");
-      H.SetHeader("Cache-Control", "no-cache");
-      H.setCORSHeaders();
-      H.SetBody("");
-      H.SendResponse("200", "OK", myConn);
-      H.Clean();
-      return;
-    }
     if (url.find(".mpd") != std::string::npos){
       H.Clean();
       H.SetHeader("Content-Type", "application/xml");
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SetBody(buildManifest());
       H.SendResponse("200", "OK", myConn);
       DEVEL_MSG("Manifest sent");
@@ -569,6 +566,11 @@ namespace Mist {
       H.SetHeader("Content-Type", "video/mp4");
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.StartResponse(H, myConn);
 
       if (url.find("init.m4s") != std::string::npos){

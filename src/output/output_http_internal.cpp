@@ -217,8 +217,15 @@ namespace Mist {
       if (H.GetVar("s").size() && H.GetVar("s") == SUPER_SECRET){
         H.Clean();
         H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+        H.setCORSHeaders();
+        if(method == "OPTIONS" || method == "HEAD"){
+          H.SendResponse("200", "OK", myConn);
+          H.Clean();
+          return;
+        }
         H.SetBody("Yup");
         H.SendResponse("200", "OK", myConn);
+        H.Clean();
         return;
       }
       /*LTS-END*/

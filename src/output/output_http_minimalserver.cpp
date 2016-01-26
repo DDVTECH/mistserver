@@ -27,6 +27,7 @@ namespace Mist {
   }
   
   void OutHTTPMinimalServer::onHTTP(){
+    std::string method = H.method;
     //determine actual file path for the request
     std::string path = resolved_path + H.url.substr(8);
     
@@ -45,6 +46,11 @@ namespace Mist {
       }
       H.Clean();
       H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        return;
+      }
       H.SetBody("File not found");
       H.SendResponse("404", "OK", myConn);
       return;
@@ -59,6 +65,12 @@ namespace Mist {
     H.Clean();
     H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
     H.SetHeader("Content-Length", filesize);
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
     H.SendResponse("200", "OK", myConn);
     while (inFile.good()){
       inFile.read(buffer, 4096);

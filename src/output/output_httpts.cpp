@@ -27,9 +27,17 @@ namespace Mist {
   }
   
   void OutHTTPTS::onHTTP(){
+    std::string method = H.method;
+    
     initialize();
     H.Clean();
     H.SetHeader("Content-Type", "video/mp2t");
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
     H.StartResponse(H, myConn);    
     parseData = true;
     wantRequest = false;

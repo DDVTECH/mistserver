@@ -35,9 +35,13 @@ void HTTP::Parser::CleanPreserveHeaders() {
 /// Sets the neccesary headers to allow Cross Origin Resource Sharing with all domains.
 void HTTP::Parser::setCORSHeaders(){
   SetHeader("Access-Control-Allow-Origin", "*");
-  SetHeader("Access-Control-Allow-Methods", "GET, POST");
-  SetHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
   SetHeader("Access-Control-Allow-Credentials", "true");
+  SetHeader("Access-Control-Expose-Headers", "*");
+  SetHeader("Access-Control-Max-Age", "600");
+  SetHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+  SetHeader("Access-Control-Allow-Headers", "*");
+  SetHeader("Access-Control-Request-Method", "GET");
+  SetHeader("Access-Control-Request-Headers", "*");  
 }
 
 

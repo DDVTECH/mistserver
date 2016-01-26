@@ -439,8 +439,16 @@ namespace Mist {
       return;
     }
   }
-  
   void OutProgressiveMP4::onHTTP(){
+    if(H.method == "OPTIONS" || H.method == "HEAD"){
+      H.Clean();
+      H.setCORSHeaders();
+      H.SetHeader("Content-Type", "video/MP4");
+      H.SetHeader("Accept-Ranges", "bytes, parsec");
+      H.SendResponse("200", "OK", myConn);
+      return;
+    }
+
     initialize();
     parseData = true;
     wantRequest = false;

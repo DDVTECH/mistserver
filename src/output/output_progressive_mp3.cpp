@@ -24,13 +24,32 @@ namespace Mist {
   }
 
   void OutProgressiveMP3::sendHeader(){
+    std::string method = H.method;
+    H.Clean();
     H.SetHeader("Content-Type", "audio/mpeg");
     H.protocol = "HTTP/1.0";
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SendResponse("200", "OK", myConn);
+      return;
+    }
     H.SendResponse("200", "OK", myConn);
     sentHeader = true;
   }
 
   void OutProgressiveMP3::onHTTP(){
+    std::string method = H.method;
+    
+    H.Clean();
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SetHeader("Content-Type", "audio/mpeg");
+      H.protocol = "HTTP/1.0";
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    
     parseData = true;
     wantRequest = false;
   }

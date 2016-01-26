@@ -127,6 +127,7 @@ namespace Mist {
     HTTP_S.SetHeader("Content-Type", "video/ogg");
     HTTP_S.protocol = "HTTP/1.0";
     myConn.SendNow(HTTP_S.BuildResponse("200", "OK")); //no SetBody = unknown length - this is intentional, we will stream the entire file
+    
 
     std::map<int, std::deque<std::string> > initData;
 
@@ -175,6 +176,16 @@ namespace Mist {
   void OutProgressiveOGG::onRequest(){
     if (HTTP_R.Read(myConn)){
       DEBUG_MSG(DLVL_DEVEL, "Received request %s", HTTP_R.getUrl().c_str());
+      
+      if (HTTP_R.method == "OPTIONS" || HTTP_R.method == "HEAD"){
+        HTTP_S.Clean();
+        HTTP_S.SetHeader("Content-Type", "video/ogg");
+        HTTP_S.protocol = "HTTP/1.0";
+        HTTP_S.SendResponse("200", "OK", myConn);
+        HTTP_S.Clean();
+        return;
+      }
+      
       if (HTTP_R.GetVar("audio") != ""){
         selectedTracks.insert(JSON::Value(HTTP_R.GetVar("audio")).asInt());
       }

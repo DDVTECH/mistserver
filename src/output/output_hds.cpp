@@ -192,15 +192,22 @@ namespace Mist {
   }
 
   void OutHDS::onHTTP(){
+    std::string method = H.method;
 
     if (H.url.find(".abst") != std::string::npos){
       initialize();
       std::string streamID = H.url.substr(streamName.size() + 10);
       streamID = streamID.substr(0, streamID.find(".abst"));
       H.Clean();
-      H.SetBody(dynamicBootstrap(atoll(streamID.c_str())));
       H.SetHeader("Content-Type", "binary/octet");
       H.SetHeader("Cache-Control", "no-cache");
+      H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+      H.SetBody(dynamicBootstrap(atoll(streamID.c_str())));
       H.SendResponse("200", "OK", myConn);
       H.Clean(); //clean for any possible next requests
       return;
@@ -221,6 +228,7 @@ namespace Mist {
       unsigned int mslen = 0;
       if (fragNum < (unsigned int)myMeta.tracks[tid].missedFrags){
         H.Clean();
+        H.setCORSHeaders();
         H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
         H.SendResponse("412", "Fragment out of range", myConn);
         H.Clean(); //clean for any possible next requests
@@ -252,6 +260,12 @@ namespace Mist {
       
       H.Clean();
       H.SetHeader("Content-Type", "video/mp4");
+      H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.StartResponse(H, myConn);
       //send the bootstrap
       std::string bootstrap = dynamicBootstrap(tid);
@@ -280,6 +294,12 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Cache-Control", "no-cache");
+      H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SetBody(dynamicIndex());
       H.SendResponse("200", "OK", myConn);
     }

@@ -30,8 +30,11 @@ namespace Mist {
   }
 
   void OutJSON::sendHeader(){
+    std::string method = H.method;
+    H.Clean();
     H.SetHeader("Content-Type", "text/javascript");
     H.protocol = "HTTP/1.0";
+    H.setCORSHeaders();
     H.SendResponse("200", "OK", myConn);
     sentHeader = true;
   }
@@ -46,6 +49,18 @@ namespace Mist {
   }
 
   void OutJSON::onHTTP(){
+    std::string method = H.method;
+    
+    H.Clean();
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SetHeader("Content-Type", "text/javascript");
+      H.protocol = "HTTP/1.0";
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    
     first = true;
     jsonp = "";
     if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}

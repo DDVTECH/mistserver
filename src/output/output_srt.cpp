@@ -52,6 +52,17 @@ namespace Mist {
   }
 
   void OutProgressiveSRT::onHTTP(){
+    std::string method = H.method;
+    
+    H.Clean();
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SetHeader("Content-Type", "text/plain");
+      H.protocol = "HTTP/1.0";
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
     lastNum = 0;
     webVTT = (H.url.find(".webvtt") != std::string::npos);
     if (H.GetVar("track") != ""){

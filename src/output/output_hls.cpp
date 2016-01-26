@@ -158,27 +158,24 @@ namespace Mist {
   }
 
   void OutHLS::onHTTP(){
+    std::string method = H.method;
+      
+    
     if (H.url == "/crossdomain.xml"){
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       H.SendResponse("200", "OK", myConn);
       H.Clean(); //clean for any possible next requests
       return;
     } //crossdomain.xml
-    
-    if (H.method == "OPTIONS"){
-      H.Clean();
-      H.SetHeader("Content-Type", "application/octet-stream");
-      H.SetHeader("Cache-Control", "no-cache");
-      H.setCORSHeaders();
-      H.SetBody("");
-      H.SendResponse("200", "OK", myConn);
-      H.Clean();
-      return;
-    }
     
     if (H.url.find("hls") == std::string::npos){
       myConn.close();
@@ -202,6 +199,7 @@ namespace Mist {
         if (sscanf(tmpStr.c_str(), "/%u/%llu_%llu.ts", &vidTrack, &from, &until) != 3){
           DEBUG_MSG(DLVL_MEDIUM, "Could not parse URL: %s", H.getUrl().c_str());
           H.Clean();
+          H.setCORSHeaders();
           H.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
           myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
           H.Clean(); //clean for any possible next requests
@@ -234,6 +232,7 @@ namespace Mist {
         }while (myConn && seekable > 0);
         if (seekable < 0){
           H.Clean();
+          H.setCORSHeaders();
           H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
           myConn.SendNow(H.BuildResponse("412", "Fragment out of range"));
           H.Clean(); //clean for any possible next requests
@@ -246,8 +245,14 @@ namespace Mist {
       ts_from = from;
       lastVid = from * 90;
       
+      H.Clean();
       H.SetHeader("Content-Type", "video/mp2t");
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.StartResponse(H, myConn, VLCworkaround);
 
       unsigned int fragCounter = myMeta.tracks[vidTrack].missedFrags;
@@ -275,6 +280,11 @@ namespace Mist {
       }
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       std::string manifest;
       if (request.find("/") == std::string::npos){
         manifest = liveIndex();

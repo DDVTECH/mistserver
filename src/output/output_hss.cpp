@@ -528,12 +528,11 @@ namespace Mist {
 
 
   void OutHSS::onHTTP() {
-    if (H.method == "OPTIONS"){
+    if ((H.method == "OPTIONS" || H.method == "HEAD") && H.url.find("Manifest") == std::string::npos){
       H.Clean();
       H.SetHeader("Content-Type", "application/octet-stream");
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
-      H.SetBody("");
       H.SendResponse("200", "OK", myConn);
       H.Clean();
       return;
@@ -546,6 +545,10 @@ namespace Mist {
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
+      if(H.method == "OPTIONS" || H.method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        return;
+      }
       std::string manifest = smoothIndex();
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);

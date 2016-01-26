@@ -37,9 +37,12 @@ namespace Mist {
   }
 
   void OutProgressiveFLV::sendHeader(){
+    
+    
     H.Clean();
     H.SetHeader("Content-Type", "video/x-flv");
     H.protocol = "HTTP/1.0";
+    H.setCORSHeaders();
     H.SendResponse("200", "OK", myConn);
     myConn.SendNow(FLV::Header, 13);
     tag.DTSCMetaInit(myMeta, selectedTracks);
@@ -56,6 +59,18 @@ namespace Mist {
   }
 
   void OutProgressiveFLV::onHTTP(){
+    std::string method = H.method;
+    
+    H.Clean();
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SetHeader("Content-Type", "video/x-flv");
+      H.protocol = "HTTP/1.0";
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    
     parseData = true;
     wantRequest = false;
   }

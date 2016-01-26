@@ -160,13 +160,21 @@ namespace Mist {
   }
   
   void OutHTTP::onHTTP(){
+    std::string method = H.method;
+    
     if (H.url == "/crossdomain.xml"){
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" /><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       H.SendResponse("200", "OK", myConn);
+      H.Clean();
       return;
     } //crossdomain.xml
     
@@ -175,8 +183,14 @@ namespace Mist {
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SetBody("<?xml version=\"1.0\" encoding=\"utf-8\"?><access-policy><cross-domain-access><policy><allow-from http-methods=\"*\" http-request-headers=\"*\"><domain uri=\"*\"/></allow-from><grant-to><resource path=\"/\" include-subpaths=\"true\"/></grant-to></policy></cross-domain-access></access-policy>");
       H.SendResponse("200", "OK", myConn);
+      H.Clean();
       return;
     } //clientaccesspolicy.xml
     
@@ -213,8 +227,15 @@ namespace Mist {
       H.SetHeader("Content-Type", "image/x-icon");
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.SetHeader("Content-Length", icon_len);
+      H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SendResponse("200", "OK", myConn);
       myConn.SendNow((const char*)icon_data, icon_len);
+      H.Clean();
       return;
     }
     
@@ -224,6 +245,11 @@ namespace Mist {
       H.SetHeader("Content-Type", "text/html");
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SetBody("<!DOCTYPE html><html><head><title>Stream "+streamName+"</title><style>BODY{color:white;background:black;}</style></head><body><script src=\"embed_"+streamName+".js\"></script></body></html>");
       H.SendResponse("200", "OK", myConn);
       return;
@@ -276,8 +302,14 @@ namespace Mist {
       H.SetHeader("Content-Type", "application/smil");
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SetBody("<smil>\n  <head>\n    <meta base='rtmp://" + host + ":" + port + url_rel + "' />\n  </head>\n  <body>\n    <switch>\n"+trackSources+"    </switch>\n  </body>\n</smil>");
       H.SendResponse("200", "OK", myConn);
+      H.Clean();
       return;
     }
     
@@ -296,6 +328,11 @@ namespace Mist {
         H.SetHeader("Content-Type", "application/javascript");
       }else{
         H.SetHeader("Content-Type", "application/json");
+      }
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
       }
       response = "// Generating info code for stream " + streamName + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
@@ -430,6 +467,7 @@ namespace Mist {
       }
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
+      H.Clean();
       return;
     } //embed code generator
   }

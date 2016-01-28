@@ -8,11 +8,6 @@
 #include <vector>
 #include "socket.h"
 
-//empty definition of DTSC::Stream so it can be a friend.
-namespace DTSC {
-  class Stream;
-}
-
 /// JSON-related classes and functions
 namespace JSON {
 
@@ -33,8 +28,6 @@ namespace JSON {
       std::deque<Value*> arrVal;
       std::map<std::string, Value*> objVal;
     public:
-      //friends
-      friend class DTSC::Stream; //for access to strVal
       //constructors/destructors
       Value();
       ~Value();

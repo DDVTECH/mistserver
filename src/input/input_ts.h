@@ -22,6 +22,17 @@ namespace Mist {
       void trackSelect(std::string trackSpec);
       void readPMT();
 
+#ifdef TSLIVE_INPUT
+      //Live tsinput does not have a header, so parseheader should do nothing
+      void parseHeader() { }
+      //In case of live TS Input, we override the default serve function
+      void serve();
+      void finish();
+#endif
+
+
+
+
       FILE * inFile;///<The input file with ts data
       TS::Stream tsStream;///<Used for parsing the incoming ts stream
 

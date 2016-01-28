@@ -903,12 +903,13 @@ namespace Mist {
           }
           JSON::Value pack_out = F.toJSON(myMeta, *amf_storage, next.cs_id*3 + (F.data[0] == 0x09 ? 0 : (F.data[0] == 0x08 ? 1 : 2) ));
           if ( !pack_out.isNull()){
-            if (!userClient.getData()){
+            if (!nProxy.userClient.getData()){
               char userPageName[NAME_BUFFER_SIZE];
               snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-              userClient = IPC::sharedClient(userPageName, 30, true);
+              nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
             }
             continueNegotiate(pack_out["trackid"].asInt());
+            nProxy.streamName = streamName;
             bufferLivePacket(pack_out);
           }
           break;

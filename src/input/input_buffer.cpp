@@ -89,17 +89,34 @@ namespace Mist {
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 5000LL;
     option.null();
-    option["arg"] = "integer";
+    
+    option["arg"] = "string";
     option["long"] = "udp-port";
     option["short"] = "U";
     option["help"] = "The UDP port on which to listen for TS Packets";
-    option["value"].append(0LL);
+    option["value"].append("");
     config->addOption("udpport", option);
     capa["optional"]["udpport"]["name"] = "TS/UDP port";
-    capa["optional"]["udpport"]["help"] = "The UDP port on which to listen for TS Packets, or 0 for disabling TS Input";
+    capa["optional"]["udpport"]["help"] = "The UDP port on which to listen for TS Packets, or 0 for disabling TS Input, optionally prefixed with the interface IP to listen on.";
     capa["optional"]["udpport"]["option"] = "--udp-port";
-    capa["optional"]["udpport"]["type"] = "uint";
-    capa["optional"]["udpport"]["default"] = 0LL;
+    capa["optional"]["udpport"]["type"] = "str";
+    capa["optional"]["udpport"]["default"] = "";
+    option.null();
+
+    option["arg"] = "string";
+    option["long"] = "multicast-interface";
+    option["short"] = "M";
+    option["help"] = "The interface(s)s on which to listen for UDP Multicast packets, space separated.";
+    option["value"].append("");
+    config->addOption("multicastinterface", option);
+    capa["optional"]["multicastinterface"]["name"] = "TS Multicast interface";
+    capa["optional"]["multicastinterface"]["help"] = "The interface(s) on which to listen for UDP Multicast packets, comma separated.";
+    capa["optional"]["multicastinterface"]["option"] = "--multicast-interface";
+    capa["optional"]["multicastinterface"]["type"] = "str";
+    capa["optional"]["multicastinterface"]["default"] = "";
+    option.null();
+
+
     /*LTS-end*/
     capa["source_match"] = "push://*";
     capa["priority"] = 9ll;
@@ -130,12 +147,12 @@ namespace Mist {
       DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         std::map<unsigned long, DTSCPageData> & locations = bufferLocations[it->first];
-        if (!metaPages.count(it->first) || !metaPages[it->first].mapped){
+        if (!nProxy.metaPages.count(it->first) || !nProxy.metaPages[it->first].mapped){
           continue;
         }
         //First detect all entries on metaPage
         for (int i = 0; i < 8192; i += 8){
-          int * tmpOffset = (int *)(metaPages[it->first].mapped + i);
+          int * tmpOffset = (int *)(nProxy.metaPages[it->first].mapped + i);
           if (tmpOffset[0] == 0 && tmpOffset[1] == 0){
             continue;
           }
@@ -206,14 +223,14 @@ namespace Mist {
     snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
     IPC::semaphore liveMeta(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     liveMeta.wait();
-    if (!metaPages.count(0) || !metaPages[0].mapped){
+    if (!nProxy.metaPages.count(0) || !nProxy.metaPages[0].mapped){
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-      metaPages[0].init(pageName, DEFAULT_META_PAGE_SIZE,  true);
-      metaPages[0].master = false;
+      nProxy.metaPages[0].init(pageName, DEFAULT_META_PAGE_SIZE,  true);
+      nProxy.metaPages[0].master = false;
     }
-    myMeta.writeTo(metaPages[0].mapped);
-    memset(metaPages[0].mapped + myMeta.getSendLen(), 0, (metaPages[0].len > myMeta.getSendLen() ? std::min(metaPages[0].len - myMeta.getSendLen(), 4ll) : 0));
+    myMeta.writeTo(nProxy.metaPages[0].mapped);
+    memset(nProxy.metaPages[0].mapped + myMeta.getSendLen(), 0, (nProxy.metaPages[0].len > myMeta.getSendLen() ? std::min(nProxy.metaPages[0].len - myMeta.getSendLen(), 4ll) : 0));
     liveMeta.post();
   }
 
@@ -296,15 +313,15 @@ namespace Mist {
       if (myMeta.tracks[tid].keys[0].getNumber() >= (++(bufferLocations[tid].begin()))->first || !config->is_active){
         //Find page in indexpage and null it
         for (int i = 0; i < 8192; i += 8){
-          unsigned int thisKeyNum = ((((long long int *)(metaPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
-          if (thisKeyNum == htonl(bufferLocations[tid].begin()->first) && ((((long long int *)(metaPages[tid].mapped + i))[0]) != 0)){
-            (((long long int *)(metaPages[tid].mapped + i))[0]) = 0;
+          unsigned int thisKeyNum = ((((long long int *)(nProxy.metaPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
+          if (thisKeyNum == htonl(bufferLocations[tid].begin()->first) && ((((long long int *)(nProxy.metaPages[tid].mapped + i))[0]) != 0)){
+            (((long long int *)(nProxy.metaPages[tid].mapped + i))[0]) = 0;
           }
         }
         DEBUG_MSG(DLVL_DEVEL, "Erasing track %d, keys %lu-%lu from buffer", tid, bufferLocations[tid].begin()->first, bufferLocations[tid].begin()->first + bufferLocations[tid].begin()->second.keyNum - 1);
         bufferRemove(tid, bufferLocations[tid].begin()->first);
         for (int i = 0; i < 1024; i++){
-          int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
+          int * tmpOffset = (int *)(nProxy.metaPages[tid].mapped + (i * 8));
           int tmpNum = ntohl(tmpOffset[0]);
           if (tmpNum == bufferLocations[tid].begin()->first){
             tmpOffset[0] = 0;
@@ -312,12 +329,12 @@ namespace Mist {
           }
         }
 
-        curPageNum.erase(tid);
+        nProxy.curPageNum.erase(tid);
         char thisPageName[NAME_BUFFER_SIZE];
         snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), (unsigned long)tid, bufferLocations[tid].begin()->first);
-        curPage[tid].init(thisPageName, 20971520);
-        curPage[tid].master = true;
-        curPage.erase(tid);
+        nProxy.curPage[tid].init(thisPageName, 20971520);
+        nProxy.curPage[tid].master = true;
+        nProxy.curPage.erase(tid);
 
         bufferLocations[tid].erase(bufferLocations[tid].begin());
       } else {
@@ -334,13 +351,13 @@ namespace Mist {
     for (std::map<unsigned long, DTSCPageData>::iterator it = bufferLocations[tid].begin(); it != bufferLocations[tid].end(); it++){
       char thisPageName[NAME_BUFFER_SIZE];
       snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), tid, it->first);
-      curPage[tid].init(thisPageName, 20971520, false, false);
-      curPage[tid].master = true;
-      curPage.erase(tid);
+      nProxy.curPage[tid].init(thisPageName, 20971520, false, false);
+      nProxy.curPage[tid].master = true;
+      nProxy.curPage.erase(tid);
     }
     bufferLocations.erase(tid);
-    metaPages[tid].master = true;
-    metaPages.erase(tid);
+    nProxy.metaPages[tid].master = true;
+    nProxy.metaPages.erase(tid);
   }
 
   void inputBuffer::finish() {
@@ -410,9 +427,9 @@ namespace Mist {
           while (bufferLocations[tid].size()){
             char thisPageName[NAME_BUFFER_SIZE];
             snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), (unsigned long)tid, bufferLocations[tid].begin()->first);
-            curPage[tid].init(thisPageName, 20971520);
-            curPage[tid].master = true;
-            curPage.erase(tid);
+            nProxy.curPage[tid].init(thisPageName, 20971520);
+            nProxy.curPage[tid].master = true;
+            nProxy.curPage.erase(tid);
             bufferLocations[tid].erase(bufferLocations[tid].begin());
           }
           if (pushLocation.count(it->first)){
@@ -427,9 +444,9 @@ namespace Mist {
             }
             pushLocation.erase(it->first);
           }
-          curPageNum.erase(it->first);
-          metaPages[it->first].master = true;
-          metaPages.erase(it->first);
+          nProxy.curPageNum.erase(it->first);
+          nProxy.metaPages[it->first].master = true;
+          nProxy.metaPages.erase(it->first);
           activeTracks.erase(it->first);
           myMeta.tracks.erase(it->first);
           changed = true;
@@ -522,8 +539,8 @@ namespace Mist {
             activeTracks.erase(value);
             bufferLocations.erase(value);
           }
-          metaPages[value].master = true;
-          metaPages.erase(value);
+          nProxy.metaPages[value].master = true;
+          nProxy.metaPages.erase(value);
           continue;
         }
       }
@@ -546,13 +563,13 @@ namespace Mist {
       //The track id is set to the value of a track that we are currently negotiating about
       if (negotiatingTracks.count(value)){
         //If the metadata page for this track is not yet registered, initialize it
-        if (!metaPages.count(value) || !metaPages[value].mapped){
+        if (!nProxy.metaPages.count(value) || !nProxy.metaPages[value].mapped){
           char tempMetaName[NAME_BUFFER_SIZE];
           snprintf(tempMetaName, NAME_BUFFER_SIZE, SHM_TRACK_META, config->getString("streamname").c_str(), value);
-          metaPages[value].init(tempMetaName, 8388608, false, false);
+          nProxy.metaPages[value].init(tempMetaName, 8388608, false, false);
         }
         //If this tracks metdata page is not initialize, skip the entire element for now. It will be instantiated later
-        if (!metaPages[value].mapped) {
+        if (!nProxy.metaPages[value].mapped) {
           //remove the negotiation if it has timed out
           if (++negotiationTimeout[value] >= 1000){
             negotiatingTracks.erase(value);
@@ -564,13 +581,13 @@ namespace Mist {
         //The page exist, now we try to read in the metadata of the track
 
         //Store the size of the dtsc packet to read.
-        unsigned int len = ntohl(((int *)metaPages[value].mapped)[1]);
+        unsigned int len = ntohl(((int *)nProxy.metaPages[value].mapped)[1]);
         //Temporary variable, won't be used again
         unsigned int tempForReadingMeta = 0;
         //Read in the metadata through a temporary JSON object
         ///\todo Optimize this part. Find a way to not have to store the metadata in JSON first, but read it from the page immediately
         JSON::Value tempJSONForMeta;
-        JSON::fromDTMI((const unsigned char *)metaPages[value].mapped + 8, len, tempForReadingMeta, tempJSONForMeta);
+        JSON::fromDTMI((const unsigned char *)nProxy.metaPages[value].mapped + 8, len, tempForReadingMeta, tempJSONForMeta);
         //Construct a metadata object for the current track
         DTSC::Meta trackMeta(tempJSONForMeta);
         //If the track metadata does not contain the negotiated track, assume the metadata is currently being written, and skip the element for now. It will be instantiated in the next call.
@@ -579,8 +596,8 @@ namespace Mist {
           if (++negotiationTimeout[value] >= 1000){
             negotiatingTracks.erase(value);
             //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
-            metaPages[value].master = true;
-            metaPages.erase(value);
+            nProxy.metaPages[value].master = true;
+            nProxy.metaPages.erase(value);
             negotiationTimeout.erase(value);
           }
           continue;
@@ -603,8 +620,8 @@ namespace Mist {
         //Remove the "negotiate" status in either case
         negotiatingTracks.erase(value);
         //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
-        metaPages[value].master = true;
-        metaPages.erase(value);
+        nProxy.metaPages[value].master = true;
+        nProxy.metaPages.erase(value);
 
         //Check if the track collides, and whether the track it collides with is active.
         if (collidesWith != -1 && activeTracks.count(collidesWith)){/*LTS*/
@@ -639,8 +656,8 @@ namespace Mist {
           //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
           updateMeta();
           eraseTrackDataPages(value);
-          metaPages[finalMap].master = true;
-          metaPages.erase(finalMap);
+          nProxy.metaPages[finalMap].master = true;
+          nProxy.metaPages.erase(finalMap);
           bufferLocations.erase(finalMap);
         }
 
@@ -666,12 +683,12 @@ namespace Mist {
       //If the track is active, and this is the element responsible for pushing it
       if (activeTracks.count(value) && pushLocation[value] == data){
         //Open the track index page if we dont have it open yet
-        if (!metaPages.count(value) || !metaPages[value].mapped){
+        if (!nProxy.metaPages.count(value) || !nProxy.metaPages[value].mapped){
           char firstPage[NAME_BUFFER_SIZE];
           snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), value);
-          metaPages[value].init(firstPage, 8192, false, false);
+          nProxy.metaPages[value].init(firstPage, 8192, false, false);
         }
-        if (metaPages[value].mapped){
+        if (nProxy.metaPages[value].mapped){
           //Update the metadata for this track
           updateTrackMeta(value);
           hasPush = true;
@@ -684,7 +701,7 @@ namespace Mist {
     VERYHIGH_MSG("Updating meta for track %d", tNum);
     //Store a reference for easier access
     std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
-    char * mappedPointer = metaPages[tNum].mapped;
+    char * mappedPointer = nProxy.metaPages[tNum].mapped;
 
     //First detect all entries on metaPage
     for (int i = 0; i < 8192; i += 8) {
@@ -725,27 +742,27 @@ namespace Mist {
     //Otherwise open and parse the page
 
     //Open the page if it is not yet open
-    if (!curPageNum.count(tNum) || curPageNum[tNum] != pageNum || !curPage[tNum].mapped){
+    if (!nProxy.curPageNum.count(tNum) || nProxy.curPageNum[tNum] != pageNum || !nProxy.curPage[tNum].mapped){
       //DO NOT ERASE THE PAGE HERE, master is not set to true
-      curPageNum.erase(tNum);
+      nProxy.curPageNum.erase(tNum);
       char nextPageName[NAME_BUFFER_SIZE];
       snprintf(nextPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), tNum, pageNum);
-      curPage[tNum].init(nextPageName, 20971520);
+      nProxy.curPage[tNum].init(nextPageName, 20971520);
       //If the page can not be opened, stop here
-      if (!curPage[tNum].mapped){
+      if (!nProxy.curPage[tNum].mapped){
         WARN_MSG("Could not open page: %s", nextPageName);
         return;
       }
-      curPageNum[tNum] = pageNum;
+      nProxy.curPageNum[tNum] = pageNum;
     }
 
 
     DTSC::Packet tmpPack;
-    if (!curPage[tNum].mapped[pageData.curOffset]){
+    if (!nProxy.curPage[tNum].mapped[pageData.curOffset]){
       VERYHIGH_MSG("No packet on page %lu for track %lu, waiting...", pageNum, tNum);
       return;
     }
-    tmpPack.reInit(curPage[tNum].mapped + pageData.curOffset, 0);
+    tmpPack.reInit(nProxy.curPage[tNum].mapped + pageData.curOffset, 0);
     //No new data has been written on the page since last update
     if (!tmpPack){
       return;
@@ -761,7 +778,7 @@ namespace Mist {
       //Update the offset on the page with the size of the current packet
       pageData.curOffset += tmpPack.getDataLen();
       //Attempt to read in the next packet
-      tmpPack.reInit(curPage[tNum].mapped + pageData.curOffset, 0);
+      tmpPack.reInit(nProxy.curPage[tNum].mapped + pageData.curOffset, 0);
     }
   }
 

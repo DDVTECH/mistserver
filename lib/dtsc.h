@@ -298,7 +298,7 @@ namespace DTSC {
       int getSendLen();
       void send(Socket::Connection & conn);
       void writeTo(char *& p);
-      JSON::Value toJSON();
+      JSON::Value toJSON(bool skipBinary = false);
       std::deque<Fragment> fragments;
       std::deque<Key> keys;
       std::deque<unsigned long> keySizes;

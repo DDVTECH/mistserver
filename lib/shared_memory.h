@@ -69,6 +69,8 @@ namespace IPC {
       void unlink();
     private:
 #if defined(__CYGWIN__) || defined(_WIN32)
+      ///\todo Maybe sometime implement anything else than 777
+      static SECURITY_ATTRIBUTES getSecurityAttributes();
       HANDLE mySem;
 #else
       sem_t * mySem;

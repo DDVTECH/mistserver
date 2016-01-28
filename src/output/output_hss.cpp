@@ -280,7 +280,7 @@ namespace Mist {
     moof_box.setContent(mfhd_box, 0);
     moof_box.setContent(traf_box, 1);
     /*LTS-START*/
-    if (encrypt){
+    if (nProxy.encrypt){
       MP4::UUID_SampleEncryption sEnc;
       sEnc.setVersion(0);
       if (myMeta.tracks[tid].type == "audio") {
@@ -340,10 +340,10 @@ namespace Mist {
       //Load the encryption data page
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_ENCRYPT, streamName.c_str());
-      encryptionPage.init(pageName, 8 * 1024 * 1024, false, false);
-      if (encryptionPage.mapped) {
-        vmData.read(encryptionPage.mapped);
-        encrypt = true;
+      nProxy.encryptionPage.init(pageName, 8 * 1024 * 1024, false, false);
+      if (nProxy.encryptionPage.mapped) {
+        nProxy.vmData.read(nProxy.encryptionPage.mapped);
+        nProxy.encrypt = true;
       }
       encryptionLoaded = true;
     }
@@ -352,9 +352,9 @@ namespace Mist {
   std::string OutHSS::protectionHeader() {
     loadEncryption();
     std::string xmlGen = "<WRMHEADER xmlns=\"http://schemas.microsoft.com/DRM/2007/03/PlayReadyHeader\" version=\"4.0.0.0\"><DATA><PROTECTINFO><KEYLEN>16</KEYLEN><ALGID>AESCTR</ALGID></PROTECTINFO><KID>";
-    xmlGen += vmData.keyid;
+    xmlGen += nProxy.vmData.keyid;
     xmlGen += "</KID><LA_URL>";
-    xmlGen += vmData.laurl;
+    xmlGen += nProxy.vmData.laurl;
     xmlGen += "</LA_URL></DATA></WRMHEADER>";
     std::string tmp = toUTF16(xmlGen);
     tmp = tmp.substr(2);
@@ -512,7 +512,7 @@ namespace Mist {
       Result << "</StreamIndex>\n";
     }
     /*LTS-START*/
-    if (encrypt) {
+    if (nProxy.encrypt) {
       Result << "<Protection><ProtectionHeader SystemID=\"9a04f079-9840-4286-ab92-e65be0885f95\">";
       Result << protectionHeader();
       Result << "</ProtectionHeader></Protection>";

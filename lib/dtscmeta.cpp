@@ -1772,43 +1772,46 @@ namespace DTSC {
   }
 
   ///\brief Converts a track to a JSON::Value
-  JSON::Value Track::toJSON() {
+  JSON::Value Track::toJSON(bool skipBinary) {
     JSON::Value result;
     std::string tmp;
-    tmp.reserve(fragments.size() * PACKED_FRAGMENT_SIZE);
-    for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
-      tmp.append(it->getData(), PACKED_FRAGMENT_SIZE);
+    if (!skipBinary) {
+      tmp.reserve(fragments.size() * PACKED_FRAGMENT_SIZE);
+      for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
+        tmp.append(it->getData(), PACKED_FRAGMENT_SIZE);
+      }
+      result["fragments"] = tmp;
+      tmp = "";
+      tmp.reserve(keys.size() * PACKED_KEY_SIZE);
+      for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
+        tmp.append(it->getData(), PACKED_KEY_SIZE);
+      }
+      result["keys"] = tmp;
+      tmp = "";
+      tmp.reserve(keySizes.size() * 4);
+      for (unsigned int i = 0; i < keySizes.size(); i++){
+        tmp += (char)((keySizes[i] >> 24));
+        tmp += (char)((keySizes[i] >> 16));
+        tmp += (char)((keySizes[i] >> 8));
+        tmp += (char)(keySizes[i]);
+      }
+      result["keysizes"] = tmp;
+      tmp = "";
+      tmp.reserve(parts.size() * 9);
+      for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
+        tmp.append(it->getData(), 9);
+      }
+      result["parts"] = tmp;
+      /*LTS-START*/
+      tmp = "";
+      tmp.reserve(ivecs.size() * 8);
+      for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
+        tmp.append(it->getData(), 8);
+      }
+      result["ivecs"] = tmp;
+      /*LTS-END*/
+      result["init"] = init;
     }
-    result["fragments"] = tmp;
-    tmp = "";
-    tmp.reserve(keys.size() * PACKED_KEY_SIZE);
-    for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
-      tmp.append(it->getData(), PACKED_KEY_SIZE);
-    }
-    result["keys"] = tmp;
-    tmp = "";
-    tmp.reserve(keySizes.size() * 4);
-    for (unsigned int i = 0; i < keySizes.size(); i++){
-      tmp += (char)((keySizes[i] >> 24));
-      tmp += (char)((keySizes[i] >> 16));
-      tmp += (char)((keySizes[i] >> 8));
-      tmp += (char)(keySizes[i]);
-    }
-    result["keysizes"] = tmp;
-    tmp = "";
-    tmp.reserve(parts.size() * 9);
-    for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
-      tmp.append(it->getData(), 9);
-    }
-    result["parts"] = tmp;
-    /*LTS-START*/
-    tmp = "";
-    tmp.reserve(ivecs.size() * 8);
-    for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
-      tmp.append(it->getData(), 8);
-    }
-    result["ivecs"] = tmp;
-    /*LTS-END*/
     result["trackid"] = trackID;
     result["firstms"] = (long long)firstms;
     result["lastms"] = (long long)lastms;
@@ -1818,7 +1821,6 @@ namespace DTSC {
     }
     result["codec"] = codec;
     result["type"] = type;
-    result["init"] = init;
     if (type == "audio") {
       result["rate"] = rate;
       result["size"] = size;

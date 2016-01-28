@@ -180,13 +180,11 @@ void HTTP::Parser::StartResponse(HTTP::Parser & request, Socket::Connection & co
   StartResponse("200", "OK", request, conn, bufferAllChunks);
 }
 
-/// After receiving a header with this object, this function call will:
-/// - Forward the headers to the 'to' Socket::Connection.
+/// After receiving a header with this object, and after a call with SendResponse/SendRequest with this object, this function call will:
 /// - Retrieve all the body from the 'from' Socket::Connection.
 /// - Forward those contents as-is to the 'to' Socket::Connection.
 /// It blocks until completed or either of the connections reaches an error state.
 void HTTP::Parser::Proxy(Socket::Connection & from, Socket::Connection & to) {
-  SendResponse(url, method, to);
   if (getChunks) {
     unsigned int proxyingChunk = 0;
     while (to.connected() && from.connected()) {

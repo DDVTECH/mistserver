@@ -29,11 +29,7 @@ namespace Mist {
 
   Input::Input(Util::Config * cfg) : InOutBase() {
     config = cfg;
-#ifdef INPUT_LIVE
-    standAlone = false;
-#else
     standAlone = true;
-#endif
 
     JSON::Value option;
     option["long"] = "json";
@@ -90,7 +86,7 @@ namespace Mist {
   }
 
   void Input::checkHeaderTimes(std::string streamFile) {
-    if (streamFile == "-") {
+    if (streamFile == "-" || streamFile == "push://") {
       return;
     }
     std::string headerFile = streamFile + ".dtsh";
@@ -124,6 +120,7 @@ namespace Mist {
       config->getOption("streamname") = streamName;
     }
     streamName = config->getString("streamname");
+    nProxy.streamName = streamName;
     if (config->getBool("json")) {
       std::cout << capa.toString() << std::endl;
       return 0;
@@ -132,26 +129,19 @@ namespace Mist {
       std::cerr << config->getString("cmd") << " setup failed." << std::endl;
       return 0;
     }
-//Do not read the header if this is a live stream
-#ifndef INPUT_LIVE
+
     checkHeaderTimes(config->getString("input"));
     if (!readHeader()) {
       std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
       return 0;
     }
     parseHeader();
-#endif
 
-//Live inputs only have a serve() mode
-#ifndef INPUT_LIVE
-    if (!config->getString("streamname").size()) {
+    if (!streamName.size()) {
       convert();
     } else {
-#endif
       serve();
-#ifndef INPUT_LIVE
     }
-#endif
     return 0;
   }
 
@@ -203,44 +193,6 @@ namespace Mist {
   void Input::serve(){
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-#ifdef INPUT_LIVE
-    unsigned int giveUpCounter = 0;
-    while (!Util::startInput(streamName) && config->is_active && ++giveUpCounter < 20) {
-      Util::sleep(500);
-    }
-    if (giveUpCounter >= 20){
-      FAIL_MSG("Could not start buffer for stream '%s', aborting stream input!", streamName.c_str());
-      config->is_active = false;
-    }
-    userClient = IPC::sharedClient(userPageName, 30, true);
-    getNext();
-    while (thisPacket || config->is_active) {
-      unsigned long tid = thisPacket.getTrackId();
-      //Check for eligibility of track
-      IPC::userConnection userConn(userClient.getData());
-      if (trackOffset.count(tid) && !userConn.getTrackId(trackOffset[tid])) {
-        trackOffset.erase(tid);
-        trackState.erase(tid);
-        trackMap.erase(tid);
-        trackBuffer.erase(tid);
-        pagesByTrack.erase(tid);
-        metaPages.erase(tid);
-        curPageNum.erase(tid);
-        curPage.erase(tid);
-        INFO_MSG("Erasing track %d", tid);
-        continue;
-      }
-      if (thisPacket) {
-        continueNegotiate(thisPacket.getTrackId());
-        bufferLivePacket(thisPacket);
-      } else {
-        Util::sleep(100);
-      }
-      getNext();
-      userClient.keepAlive();
-    }
-    userClient.finish();
-#else
     /*LTS-START*/
     if(Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
       std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
@@ -283,7 +235,6 @@ namespace Mist {
         Util::sleep(1000);
       }
     }
-#endif
     finish();
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s closing clean", streamName.c_str());
     //end player functionality
@@ -297,7 +248,7 @@ namespace Mist {
     }
     removeUnused();
     if (standAlone) {
-      for (std::map<unsigned long, IPC::sharedPage>::iterator it = metaPages.begin(); it != metaPages.end(); it++) {
+      for (std::map<unsigned long, IPC::sharedPage>::iterator it = nProxy.metaPages.begin(); it != nProxy.metaPages.end(); it++) {
         it->second.master = true;
       }
     }
@@ -316,9 +267,9 @@ namespace Mist {
             bufferRemove(it->first, it2->first);
             pageCounter[it->first].erase(it2->first);
             for (int i = 0; i < 8192; i += 8) {
-              unsigned int thisKeyNum = ntohl(((((long long int *)(metaPages[it->first].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
+              unsigned int thisKeyNum = ntohl(((((long long int *)(nProxy.metaPages[it->first].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
               if (thisKeyNum == it2->first) {
-                (((long long int *)(metaPages[it->first].mapped + i))[0]) = 0;
+                (((long long int *)(nProxy.metaPages[it->first].mapped + i))[0]) = 0;
               }
             }
             change = true;
@@ -359,13 +310,13 @@ namespace Mist {
         for (int i = 0; i < it->second.keys.size(); i++) {
           if (newData) {
             //i+1 because keys are 1-indexed
-            pagesByTrack[it->first][i + 1].firstTime = it->second.keys[i].getTime();
+            nProxy.pagesByTrack[it->first][i + 1].firstTime = it->second.keys[i].getTime();
             newData = false;
           }
-          pagesByTrack[it->first].rbegin()->second.keyNum++;
-          pagesByTrack[it->first].rbegin()->second.partNum += it->second.keys[i].getParts();
-          pagesByTrack[it->first].rbegin()->second.dataSize += it->second.keySizes[i];
-          if (pagesByTrack[it->first].rbegin()->second.dataSize > FLIP_DATA_PAGE_SIZE) {
+          nProxy.pagesByTrack[it->first].rbegin()->second.keyNum++;
+          nProxy.pagesByTrack[it->first].rbegin()->second.partNum += it->second.keys[i].getParts();
+          nProxy.pagesByTrack[it->first].rbegin()->second.dataSize += it->second.keySizes[i];
+          if (nProxy.pagesByTrack[it->first].rbegin()->second.dataSize > FLIP_DATA_PAGE_SIZE) {
             newData = true;
           }
         }
@@ -398,7 +349,7 @@ namespace Mist {
         }
         if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() + 1 == curData[tid].partNum) {
           if (curData[tid].dataSize > FLIP_DATA_PAGE_SIZE) {
-            pagesByTrack[tid][bookKeeping[tid].first] = curData[tid];
+            nProxy.pagesByTrack[tid][bookKeeping[tid].first] = curData[tid];
             bookKeeping[tid].first += curData[tid].keyNum;
             curData[tid].keyNum = 0;
             curData[tid].dataSize = 0;
@@ -415,17 +366,17 @@ namespace Mist {
         getNext(false);
       }
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-        if (curData.count(it->first) && !pagesByTrack[it->first].count(bookKeeping[it->first].first)) {
-          pagesByTrack[it->first][bookKeeping[it->first].first] = curData[it->first];
+        if (curData.count(it->first) && !nProxy.pagesByTrack[it->first].count(bookKeeping[it->first].first)) {
+          nProxy.pagesByTrack[it->first][bookKeeping[it->first].first] = curData[it->first];
         }
       }
     }
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (!pagesByTrack.count(it->first)) {
+      if (!nProxy.pagesByTrack.count(it->first)) {
         DEBUG_MSG(DLVL_WARN, "No pages for track %d found", it->first);
       } else {
-        DEBUG_MSG(DLVL_MEDIUM, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), pagesByTrack[it->first].size());
-        for (std::map<unsigned long, DTSCPageData>::iterator it2 = pagesByTrack[it->first].begin(); it2 != pagesByTrack[it->first].end(); it2++) {
+        DEBUG_MSG(DLVL_MEDIUM, "Track %d (%s) split into %lu pages", it->first, myMeta.tracks[it->first].codec.c_str(), nProxy.pagesByTrack[it->first].size());
+        for (std::map<unsigned long, DTSCPageData>::iterator it2 = nProxy.pagesByTrack[it->first].begin(); it2 != nProxy.pagesByTrack[it->first].end(); it2++) {
           DEBUG_MSG(DLVL_VERYHIGH, "Page %lu-%lu, (%llu bytes)", it2->first, it2->first + it2->second.keyNum - 1, it2->second.dataSize);
         }
       }
@@ -443,10 +394,10 @@ namespace Mist {
     if (keyNum < 1) {
       keyNum = 1;
     }
-    if (isBuffered(track, keyNum)) {
+    if (nProxy.isBuffered(track, keyNum)) {
       //get corresponding page number
       int pageNumber = 0;
-      for (std::map<unsigned long, DTSCPageData>::iterator it = pagesByTrack[track].begin(); it != pagesByTrack[track].end(); it++) {
+      for (std::map<unsigned long, DTSCPageData>::iterator it = nProxy.pagesByTrack[track].begin(); it != nProxy.pagesByTrack[track].end(); it++) {
         if (it->first <= keyNum) {
           pageNumber = it->first;
         } else {
@@ -457,13 +408,13 @@ namespace Mist {
       VERYHIGH_MSG("Track %u, key %u is already buffered in page %d. Cancelling bufferFrame", track, keyNum, pageNumber);
       return true;
     }
-    if (!pagesByTrack.count(track)) {
+    if (!nProxy.pagesByTrack.count(track)) {
       WARN_MSG("No pages for track %u found! Cancelling bufferFrame", track);
       return false;
     }
     //Update keynum to point to the corresponding page
-    INFO_MSG("Loading key %u from page %lu", keyNum, (--(pagesByTrack[track].upper_bound(keyNum)))->first);
-    keyNum = (--(pagesByTrack[track].upper_bound(keyNum)))->first;
+    INFO_MSG("Loading key %u from page %lu", keyNum, (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first);
+    keyNum = (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first;
     if (!bufferStart(track, keyNum)) {
       WARN_MSG("bufferStart failed! Cancelling bufferFrame");
       return false;
@@ -474,8 +425,8 @@ namespace Mist {
     trackSelect(trackSpec.str());
     seek(myMeta.tracks[track].keys[keyNum - 1].getTime());
     long long unsigned int stopTime = myMeta.tracks[track].lastms + 1;
-    if ((int)myMeta.tracks[track].keys.size() > keyNum - 1 + pagesByTrack[track][keyNum].keyNum) {
-      stopTime = myMeta.tracks[track].keys[keyNum - 1 + pagesByTrack[track][keyNum].keyNum].getTime();
+    if ((int)myMeta.tracks[track].keys.size() > keyNum - 1 + nProxy.pagesByTrack[track][keyNum].keyNum) {
+      stopTime = myMeta.tracks[track].keys[keyNum - 1 + nProxy.pagesByTrack[track][keyNum].keyNum].getTime();
     }
     DEBUG_MSG(DLVL_HIGH, "Playing from %llu to %llu", myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime);
     getNext();

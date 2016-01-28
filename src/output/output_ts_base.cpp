@@ -33,7 +33,7 @@ namespace Mist {
     
     if (packData.getBytesFree() == 184){
       packData.clear();      
-      packData.setPID(0x100 - 1 + thisPacket.getTrackId());      
+      packData.setPID(thisPacket.getTrackId());      
       packData.setContinuityCounter(++contCounters[packData.getPID()]);
       if (first[thisPacket.getTrackId()]){
         packData.setUnitStart(1);

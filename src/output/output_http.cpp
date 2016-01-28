@@ -173,7 +173,7 @@ namespace Mist {
           if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
             DEBUG_MSG(DLVL_MEDIUM, "Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(), streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
             streamName = H.GetVar("stream");
-            userClient.finish();
+            nProxy.userClient.finish();
             statsPage.finish();
             reConnector(handler);
             H.Clean();
@@ -396,8 +396,6 @@ namespace Mist {
     return trustedProxies.count(ip);
   }
   /*LTS-END*/
-  
-  
   /*begin-roxlu*/
   void HTTPOutput::sendResponse(std::string message, std::string code) {
     

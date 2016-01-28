@@ -251,7 +251,7 @@ makeAnalyser(DTSC dtsc)
 makeAnalyser(AMF amf)
 makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
-makeAnalyser(RTP rtp) #LTS
+#makeAnalyser(RTP rtp) #LTS
 makeAnalyser(RTSP rtsp_rtp) #LTS
 makeAnalyser(TS ts) #LTS
 makeAnalyser(TSStream tsstream) #LTS
@@ -278,8 +278,8 @@ macro(makeInput inputName format)
   if (";${ARGN};" MATCHES ";nolock;")#Currently only used in TSStream
     list(APPEND my_definitions "INPUT_NOLOCK")
   endif()
-  if (";${ARGN};" MATCHES ";live;")#Currently only used in TSStream
-    list(APPEND my_definitions "INPUT_LIVE")
+  if (";${ARGN};" MATCHES ";tslive;")
+    list(APPEND my_definitions "TSLIVE_INPUT")
   endif()
   list(APPEND my_definitions "INPUTTYPE=\"input_${format}.h\"")
 
@@ -305,7 +305,7 @@ makeInput(Buffer buffer)
 makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS
-makeInput(TSStream ts nolock live)#LTS
+makeInput(TSStream ts nolock tslive)#LTS
 makeInput(Folder folder folder)#LTS
 
 ########################################
@@ -313,9 +313,9 @@ makeInput(Folder folder folder)#LTS
 ########################################
 macro(makeOutput outputName format)
   #Parse all extra arguments, for http and ts flags
+  SET (tsBaseClass Output)
   if (";${ARGN};" MATCHES ";http;")
     SET(httpOutput src/output/output_http.cpp)
-    SET(tsBaseClass Output)
     if (";${ARGN};" MATCHES ";ts;")
       SET(tsBaseClass HTTPOutput)
     endif()
@@ -356,6 +356,7 @@ makeOutput(JSON json           http)
 makeOutput(TS ts                    ts)
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
+makeOutput(Push push)#LTS
 makeOutput(RTSP rtsp)#LTS
 makeOutput(TSPush ts_push           ts)#LTS
 makeOutput(DASH dash_mp4       http)#LTS

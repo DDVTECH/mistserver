@@ -690,6 +690,10 @@ namespace TS {
     return data[0];
   }
 
+  void ProgramMappingEntry::setStreamType(int newType){
+    data[0] = newType;
+  }
+
   std::string ProgramMappingEntry::getCodec() const{
     switch (getStreamType()){
       case 0x01:
@@ -740,8 +744,23 @@ namespace TS {
     return ((data[1] << 8) | data[2]) & 0x1FFF;
   }
 
+  void ProgramMappingEntry::setElementaryPid(int newElementaryPid) {
+    data[1] = newElementaryPid >> 8 & 0x1F;
+    data[2] = newElementaryPid & 0xFF;
+  }
+
   int ProgramMappingEntry::getESInfoLength() const{
     return ((data[3] << 8) | data[4]) & 0x0FFF;
+  }
+
+  const char * ProgramMappingEntry::getESInfo() const{
+    return data + 5;
+  }
+
+  void ProgramMappingEntry::setESInfo(const std::string & newInfo){
+    data[3] = (newInfo.size() >> 8) & 0x0F;
+    data[4] = newInfo.size() & 0xFF;
+    memcpy(data + 5, newInfo.data(), newInfo.size());
   }
 
   void ProgramMappingEntry::advance(){
@@ -884,14 +903,6 @@ namespace TS {
     strBuf[loc+1] = (char)newVal;
   }
 
-  short ProgramMappingTable::getProgramCount() const{
-    return (getSectionLength() - 13) / 5;
-  }
-  
-  void ProgramMappingTable::setProgramCount(short newVal) {
-    setSectionLength(newVal * 5 + 13);
-  }
-
   ProgramMappingEntry ProgramMappingTable::getEntry(int index) const{
     int dataOffset = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset();
     ProgramMappingEntry res((char*)(strBuf + dataOffset + 13 + getProgramInfoLength()), (char*)(strBuf + dataOffset + getSectionLength()) );
@@ -899,59 +910,6 @@ namespace TS {
       res.advance();
     }
     return res;
-  }
-
-  char ProgramMappingTable::getStreamType(short index) const{
-    if (index > getProgramCount()) {
-      return 0;
-    }
-    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
-    return strBuf[loc + (index * 5)];
-  }
-
-  void ProgramMappingTable::setStreamType(char newVal, short index) {
-    if (index > getProgramCount()) {
-      return;
-    }    
-    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength(); //TODO
-    updPos(loc+(index*5)+1);  
-    strBuf[loc + (index * 5)] = newVal;
-  }
-
-  short ProgramMappingTable::getElementaryPID(short index) const{
-    if (index > getProgramCount()) {
-      return 0;
-    }
-    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
-    return (((short)strBuf[loc + (index * 5) + 1] & 0x1F) << 8) | strBuf[loc + (index * 5) + 2];
-  }
-
-  void ProgramMappingTable::setElementaryPID(short newVal, short index) {
-    if (index > getProgramCount()) {
-      return;
-    }
-    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
-    updPos(loc+(index*5)+3);
-    strBuf[loc + (index * 5)+1] = ((newVal >> 8) & 0x1F )| 0xE0;
-    strBuf[loc + (index * 5)+2] = (char)newVal;
-  }
-
-  short ProgramMappingTable::getESInfoLength(short index) const{
-    if (index > getProgramCount()) {
-      return 0;
-    }
-    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
-    return (((short)strBuf[loc + (index * 5) + 3] & 0x0F) << 8) | strBuf[loc + (index * 5) + 4];
-  }
-
-  void ProgramMappingTable::setESInfoLength(short newVal, short index) {
-    if (index > getProgramCount()) {
-      return;
-    }
-    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 13 + getProgramInfoLength();
-    updPos(loc+(index*5)+5);
-    strBuf[loc + (index * 5)+3] = ((newVal >> 8) & 0x0F) | 0xF0;
-    strBuf[loc + (index * 5)+4] = (char)newVal;
   }
 
   int ProgramMappingTable::getCRC() const{
@@ -1011,7 +969,14 @@ namespace TS {
     PMT.setPID(4096);
     PMT.setTableId(2);
     //section length met 2 tracks: 0xB017
-    PMT.setSectionLength(0xB00D + (selectedTracks.size() * 5));
+    int sectionLen = 0;
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      sectionLen += 5;
+      if (myMeta.tracks[*it].codec == "ID3"){
+        sectionLen += myMeta.tracks[*it].init.size();
+      }
+    }
+    PMT.setSectionLength(0xB00D + sectionLen);
     PMT.setProgramNumber(1);
     PMT.setVersionNumber(0);
     PMT.setCurrentNextIndicator(0);
@@ -1028,24 +993,27 @@ namespace TS {
     if (vidTrack == -1){
       vidTrack = *(selectedTracks.begin());
     }
-    PMT.setPCRPID(0x100 + vidTrack - 1);
+    PMT.setPCRPID(vidTrack);
     PMT.setProgramInfoLength(0);
     short id = 0;    
+    ProgramMappingEntry entry = PMT.getEntry(0);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      entry.setElementaryPid(*it);
       if (myMeta.tracks[*it].codec == "H264"){
-        PMT.setStreamType(0x1B,id);
+        entry.setStreamType(0x1B);
       }else if (myMeta.tracks[*it].codec == "HEVC"){
-        PMT.setStreamType(0x24,id);
+        entry.setStreamType(0x24);
       }else if (myMeta.tracks[*it].codec == "AAC"){
-        PMT.setStreamType(0x0F,id);
+        entry.setStreamType(0x0F);
       }else if (myMeta.tracks[*it].codec == "MP3"){
-        PMT.setStreamType(0x03,id);
+        entry.setStreamType(0x03);
       }else if (myMeta.tracks[*it].codec == "AC3"){
-        PMT.setStreamType(0x81,id);
+        entry.setStreamType(0x81);
+      }else if (myMeta.tracks[*it].codec == "ID3"){
+        entry.setStreamType(0x15);
+        entry.setESInfo(myMeta.tracks[*it].init);
       }
-      PMT.setElementaryPID(0x100 + (*it) - 1, id);
-      PMT.setESInfoLength(0,id);
-      id++;
+      entry.advance();
     }
     PMT.calcCRC();
     return PMT.checkAndGetBuffer();

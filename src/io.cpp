@@ -16,17 +16,17 @@ namespace Mist {
     //Open the page for the metadata
     char pageName[NAME_BUFFER_SIZE];
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-    metaPages[0].init(pageName, myMeta.getSendLen(), true);
+    nProxy.metaPages[0].init(pageName, myMeta.getSendLen(), true);
     //Make sure we don't delete it on accident
-    metaPages[0].master = false;
+    nProxy.metaPages[0].master = false;
 
     //Write the metadata to the page
-    myMeta.writeTo(metaPages[0].mapped);
+    myMeta.writeTo(nProxy.metaPages[0].mapped);
 
   }
 
   /*LTS-START*/
-  void InOutBase::initiateEncryption(){
+  void negotiationProxy::initiateEncryption(){
     static bool encInit = false;
     if (encInit){
       return;
@@ -58,6 +58,24 @@ namespace Mist {
   }
   /*LTS-END*/
 
+
+  bool InOutBase::bufferStart(unsigned long tid, unsigned long pageNumber) {
+    VERYHIGH_MSG("bufferStart for stream %s, track %lu, page %lu", streamName.c_str(), tid, pageNumber);
+    //Initialize the stream metadata if it does not yet exist
+#ifndef TSLIVE_INPUT
+    if (!nProxy.metaPages.count(0)) {
+      initiateMeta();
+    }
+#endif
+    //If we are a stand-alone player skip track negotiation, as there will be nothing to negotiate with.
+    if (standAlone) {
+      if (!nProxy.trackMap.count(tid)) {
+        nProxy.trackMap[tid] = tid;
+      }
+    }
+    return nProxy.bufferStart(tid, pageNumber, myMeta);
+  }
+
   ///Starts the buffering of a new page.
   ///
   ///Does not do any actual buffering, just sets the right bits for buffering to go right.
@@ -65,23 +83,10 @@ namespace Mist {
   ///Buffering itself is done by bufferNext().
   ///\param tid The trackid of the page to start buffering
   ///\param pageNumber The number of the page to start buffering
-  bool InOutBase::bufferStart(unsigned long tid, unsigned long pageNumber) {
-    VERYHIGH_MSG("bufferStart for stream %s, track %lu, page %lu", streamName.c_str(), tid, pageNumber);
+  bool negotiationProxy::bufferStart(unsigned long tid, unsigned long pageNumber, DTSC::Meta & myMeta) {
     initiateEncryption();
-    //Initialize the stream metadata if it does not yet exist
-#ifndef INPUT_LIVE
-    if (!metaPages.count(0)) {
-      initiateMeta();
-    }
-#endif
-    //If we are a stand-alone player skip track negotiation, as there will be nothing to negotiate with.
-    if (standAlone) {
-      if (!trackMap.count(tid)) {
-        trackMap[tid] = tid;
-      }
-    }
     //Negotiate the requested track if needed.
-    continueNegotiate(tid);
+    continueNegotiate(tid, myMeta);
 
     //If the negotation state for this track is not 'Accepted', stop buffering this page, maybe try again later.
     if (trackState[tid] != FILL_ACC) {
@@ -142,6 +147,9 @@ namespace Mist {
     //Initialize the bookkeeping entry, and set the current offset to 0, to allow for using it in bufferNext()
     pagesByTrack[tid][pageNumber].curOffset = 0;
 
+    HIGH_MSG("Start buffering page %lu on track %lu~>%lu successful", pageNumber, tid, mapTid);
+
+
     if (myMeta.live){
       //Register this page on the meta page
       //NOTE: It is important that this only happens if the stream is live....
@@ -150,7 +158,7 @@ namespace Mist {
         int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
         if ((tmpOffset[0] == 0 && tmpOffset[1] == 0)) {
           tmpOffset[0] = htonl(curPageNum[tid]);
-          if (pagesByTrack[tid][pageNumber].dataSize == (25 * 1024 * 1024)){
+          if (pagesByTrack[tid][pageNumber].dataSize == DEFAULT_DATA_PAGE_SIZE){
             tmpOffset[1] = htonl(1000);
           } else {
             tmpOffset[1] = htonl(pagesByTrack[tid][pageNumber].keyNum);
@@ -160,8 +168,8 @@ namespace Mist {
         }
       }
     }
-
-    HIGH_MSG("Start buffering page %lu on track %lu~>%lu successful", pageNumber, tid, mapTid);
+    
+    
     ///\return true if everything was successful
     return true;
   }
@@ -176,13 +184,13 @@ namespace Mist {
       //A different process will handle this for us
       return;
     }
-    unsigned long mapTid = trackMap[tid];
-    if (!pagesByTrack.count(tid)){
+    unsigned long mapTid = nProxy.trackMap[tid];
+    if (!nProxy.pagesByTrack.count(tid)){
       // If there is no pagesByTrack entry, the pages are managed in local code and not through io.cpp (e.g.: MistInBuffer)
       return;
     }
     //If the given pagenumber is not a valid page on this track, do nothing
-    if (!pagesByTrack[tid].count(pageNumber)){
+    if (!nProxy.pagesByTrack[tid].count(pageNumber)){
       INFO_MSG("Can't remove page %lu on track %lu~>%lu as it is not a valid page number.", pageNumber, tid, mapTid);
       return;
     }
@@ -194,7 +202,7 @@ namespace Mist {
 #ifdef __CYGWIN__
     toErase.init(pageName, 26 * 1024 * 1024, false);
 #else
-    toErase.init(pageName, pagesByTrack[tid][pageNumber].dataSize, false);
+    toErase.init(pageName, nProxy.pagesByTrack[tid][pageNumber].dataSize, false);
 #endif
     //Set the master flag so that the page will be destroyed once it leaves scope
 #if defined(__CYGWIN__) || defined(_WIN32)
@@ -204,7 +212,7 @@ namespace Mist {
     //Remove the page from the tracks index page
     DEBUG_MSG(DLVL_HIGH, "Removing page %lu on track %lu~>%lu from the corresponding metaPage", pageNumber, tid, mapTid);
     for (int i = 0; i < 1024; i++) {
-      int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
+      int * tmpOffset = (int *)(nProxy.metaPages[tid].mapped + (i * 8));
       if (ntohl(tmpOffset[0]) == pageNumber) {
         tmpOffset[0] = 0;
         tmpOffset[1] = 0;
@@ -217,7 +225,7 @@ namespace Mist {
   ///Checks whether a key is buffered
   ///\param tid The trackid on which to locate the key
   ///\param keyNum The number of the keyframe to find
-  bool InOutBase::isBuffered(unsigned long tid, unsigned long keyNum) {
+  bool negotiationProxy::isBuffered(unsigned long tid, unsigned long keyNum) {
     ///\return The result of bufferedOnPage(tid, keyNum)
     return bufferedOnPage(tid, keyNum);
   }
@@ -225,7 +233,7 @@ namespace Mist {
   ///Returns the pagenumber where this key is buffered on
   ///\param tid The trackid on which to locate the key
   ///\param keyNum The number of the keyframe to find
-  unsigned long InOutBase::bufferedOnPage(unsigned long tid, unsigned long keyNum) {
+  unsigned long negotiationProxy::bufferedOnPage(unsigned long tid, unsigned long keyNum) {
     //Check whether the track is accepted
     if (!trackMap.count(tid) || !metaPages.count(tid) || !metaPages[tid].mapped) {
       ///\return 0 if the page has not been mapped yet
@@ -252,12 +260,16 @@ namespace Mist {
     std::string packData = pack.toNetPacked();
     DTSC::Packet newPack(packData.data(), packData.size());
     ///\note Internally calls bufferNext(DTSC::Packet & pack)
-    bufferNext(newPack);
+    nProxy.bufferNext(newPack, myMeta);
   }
 
   ///Buffers the next packet on the currently opened page
   ///\param pack The packet to buffer
   void InOutBase::bufferNext(DTSC::Packet & pack) {
+    nProxy.bufferNext(pack, myMeta);
+  }
+
+  void negotiationProxy::bufferNext(DTSC::Packet & pack, DTSC::Meta & myMeta) {
     //Save the trackid of the track for easier access
     unsigned long tid = pack.getTrackId();
     unsigned long mapTid = trackMap[tid];
@@ -330,6 +342,10 @@ namespace Mist {
   ///Registers the data page on the track index page as well
   ///\param tid The trackid of the page to finalize
   void InOutBase::bufferFinalize(unsigned long tid) {
+    nProxy.bufferFinalize(tid, myMeta);
+  }
+
+  void negotiationProxy::bufferFinalize(unsigned long tid, DTSC::Meta & myMeta){
     unsigned long mapTid = trackMap[tid];
     //If no page is open, do nothing
     if (!curPage.count(tid)) {
@@ -411,6 +427,10 @@ namespace Mist {
   ///Initiates/continues negotiation with the buffer as well
   ///\param packet The packet to buffer
   void InOutBase::bufferLivePacket(DTSC::Packet & packet){
+    nProxy.bufferLivePacket(packet, myMeta);
+  }
+
+  void negotiationProxy::bufferLivePacket(DTSC::Packet & packet, DTSC::Meta & myMeta){
     myMeta.vod = false;
     myMeta.live = true;
     //Store the trackid for easier access
@@ -422,7 +442,7 @@ namespace Mist {
     }
     //If the track is not negotiated yet, start the negotiation
     if (!trackState.count(tid)) {
-      continueNegotiate(tid);
+      continueNegotiate(tid, myMeta);
     }
     //If the track is declined, stop here
     if (trackState[tid] == FILL_DEC) {
@@ -443,7 +463,7 @@ namespace Mist {
     if (shouldBlock) {
       while (trackState[tid] != FILL_DEC && trackState[tid] != FILL_ACC) {
         INFO_MSG("Blocking on track %lu", tid);
-        continueNegotiate(tid);
+        continueNegotiate(tid, myMeta);
         Util::sleep(500);
       }
     }
@@ -504,16 +524,19 @@ namespace Mist {
     if (!curPageNum.count(tid) || nextPageNum != curPageNum[tid]) {
       if (curPageNum.count(tid)) {
         //Close the currently opened page when it exists
-        bufferFinalize(tid);
+        bufferFinalize(tid, myMeta);
       }
       //Open the new page
-      bufferStart(tid, nextPageNum);
+      bufferStart(tid, nextPageNum, myMeta);
     }
     //Buffer the packet
-    bufferNext(packet);
+    bufferNext(packet, myMeta);
   }
 
   void InOutBase::continueNegotiate(unsigned long tid) {
+    nProxy.continueNegotiate(tid, myMeta);
+  }
+  void negotiationProxy::continueNegotiate(unsigned long tid, DTSC::Meta & myMeta) {
     if (!tid) {
       return;
     }
@@ -559,7 +582,7 @@ namespace Mist {
     if (!userClient.getData()){
       char userPageName[100];
       sprintf(userPageName, SHM_USERS, streamName.c_str());
-      userClient = IPC::sharedClient(userPageName, 30, true);
+      userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
     }
     char * tmp = userClient.getData();
     if (!tmp) {

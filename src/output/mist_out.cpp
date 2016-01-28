@@ -38,6 +38,7 @@ int main(int argc, char * argv[]) {
       std::cout << mistOut::capa.toString() << std::endl;
       return -1;
     }
+    conf.activate();
     if (mistOut::listenMode()){
       conf.serveForkedSocket(spawnForked);
     }else{

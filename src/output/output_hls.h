@@ -12,6 +12,13 @@ namespace Mist {
     protected:      
       std::string liveIndex();
       std::string liveIndex(int tid);
+
+      
+      std::string pushLiveIndex();
+      std::string pushLiveIndex(int tid, unsigned long bTime, unsigned long eTime);
+
+
+      std::string generatePushList();
       int canSeekms(unsigned int ms);
       int keysToSend;      
       unsigned int vidTrack;

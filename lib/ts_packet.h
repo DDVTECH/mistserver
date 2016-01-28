@@ -107,11 +107,14 @@ namespace TS {
       operator bool() const;
 
       int getStreamType() const;
+      void setStreamType(int newType);
       std::string getCodec() const;
       std::string getStreamTypeString() const;
       int getElementaryPid() const;
+      void setElementaryPid(int newElementaryPid);
       int getESInfoLength() const;
-      char * getESInfo() const;
+      const char * getESInfo() const;
+      void setESInfo(const std::string & newInfo);
       void advance();
     private:
       char* data;
@@ -142,15 +145,7 @@ namespace TS {
       void setPCRPID(short newVal);
       short getProgramInfoLength() const;
       void setProgramInfoLength(short newVal);
-      short getProgramCount() const;
-      void setProgramCount(short newVal);
       ProgramMappingEntry getEntry(int index) const;      
-      void setStreamType(char newVal, short index);
-      char getStreamType(short index) const;
-      void setElementaryPID(short newVal, short index);
-      short getElementaryPID(short index) const;
-      void setESInfoLength(short newVal,short index);
-      short getESInfoLength(short index) const;      
       int getCRC() const;
       void calcCRC();
       std::string toPrettyString(size_t indent) const;

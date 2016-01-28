@@ -163,8 +163,8 @@ namespace Mist {
     if (lock){
       liveMeta.wait();
     }
-    if (metaPages[0].mapped){
-      DTSC::Packet tmpMeta(metaPages[0].mapped, metaPages[0].len, true);
+    if (nProxy.metaPages[0].mapped){
+      DTSC::Packet tmpMeta(nProxy.metaPages[0].mapped, nProxy.metaPages[0].len, true);
       if (tmpMeta.getVersion()){
         myMeta.reinit(tmpMeta);
       }
@@ -197,7 +197,7 @@ namespace Mist {
     if (isInitialized){
       return;
     }
-    if (metaPages[0].mapped){
+    if (nProxy.metaPages[0].mapped){
       return;
     }
     if (streamName.size() < 1){
@@ -233,8 +233,8 @@ namespace Mist {
   /// Connects or reconnects to the stream.
   /// Assumes streamName class member has been set already.
   /// Will start input if not currently active, calls onFail() if this does not succeed.
-  /// After assuring stream is online, clears metaPages, then sets metaPages[0], statsPage and userClient to (hopefully) valid handles.
-  /// Finally, calls updateMeta() and stats()
+  /// After assuring stream is online, clears nProxy.metaPages, then sets nProxy.metaPages[0], statsPage and nProxy.userClient to (hopefully) valid handles.
+  /// Finally, calls updateMeta()
   void Output::reconnect(){
     if (!Util::startInput(streamName)){
       DEBUG_MSG(DLVL_FAIL, "Opening stream failed - aborting initalization");
@@ -243,9 +243,9 @@ namespace Mist {
     }
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-    metaPages.clear();
-    metaPages[0].init(pageId, DEFAULT_META_PAGE_SIZE);
-    if (!metaPages[0].mapped){
+    nProxy.metaPages.clear();
+    nProxy.metaPages[0].init(pageId, DEFAULT_META_PAGE_SIZE);
+    if (!nProxy.metaPages[0].mapped){
       FAIL_MSG("Could not connect to server for %s", streamName.c_str());
       onFail();
       return;
@@ -254,13 +254,12 @@ namespace Mist {
       statsPage.finish();
     }
     statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
-    if (userClient.getData()){
-      userClient.finish();
+    if (nProxy.userClient.getData()){
+      nProxy.userClient.finish();
     }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-    stats();
+    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
     updateMeta();
   }
 
@@ -409,14 +408,14 @@ namespace Mist {
   }
   
   int Output::pageNumForKey(long unsigned int trackId, long long int keyNum){
-    if (!metaPages.count(trackId)){
+    if (!nProxy.metaPages.count(trackId)){
       char id[NAME_BUFFER_SIZE];
       snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), trackId);
-      metaPages[trackId].init(id, 8 * 1024);
+      nProxy.metaPages[trackId].init(id, 8 * 1024);
     }
-    int len = metaPages[trackId].len / 8;
+    int len = nProxy.metaPages[trackId].len / 8;
     for (int i = 0; i < len; i++){
-      int * tmpOffset = (int *)(metaPages[trackId].mapped + (i * 8));
+      int * tmpOffset = (int *)(nProxy.metaPages[trackId].mapped + (i * 8));
       long amountKey = ntohl(tmpOffset[1]);
       if (amountKey == 0){continue;}
       long tmpKey = ntohl(tmpOffset[0]);
@@ -429,7 +428,7 @@ namespace Mist {
   
   void Output::loadPageForKey(long unsigned int trackId, long long int keyNum){
     if (myMeta.vod && keyNum > myMeta.tracks[trackId].keys.rbegin()->getNumber()){
-      curPage.erase(trackId);
+      nProxy.curPage.erase(trackId);
       currKeyOpen.erase(trackId);
       return;
     }
@@ -448,7 +447,7 @@ namespace Mist {
       }
       if (timeout > 100){
         DEBUG_MSG(DLVL_FAIL, "Timeout while waiting for requested page %lld for track %lu. Aborting.", keyNum, trackId);
-        curPage.erase(trackId);
+        nProxy.curPage.erase(trackId);
         currKeyOpen.erase(trackId);
         return;
       }
@@ -475,9 +474,9 @@ namespace Mist {
     }
     char id[NAME_BUFFER_SIZE];
     snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
-    curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
-    if (!(curPage[trackId].mapped)){
-      DEBUG_MSG(DLVL_FAIL, "Initializing page %s failed", curPage[trackId].name.c_str());
+    nProxy.curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
+    if (!(nProxy.curPage[trackId].mapped)){
+      DEBUG_MSG(DLVL_FAIL, "Initializing page %s failed", nProxy.curPage[trackId].name.c_str());
       return;
     }
     currKeyOpen[trackId] = pageNum;
@@ -503,7 +502,7 @@ namespace Mist {
 
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
     loadPageForKey(tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
-    if (!curPage.count(tid) || !curPage[tid].mapped){
+    if (!nProxy.curPage.count(tid) || !nProxy.curPage[tid].mapped){
       INFO_MSG("Aborting seek to %llums in track %u, not available.", pos, tid);
       return false;
     }
@@ -511,9 +510,9 @@ namespace Mist {
     tmp.tid = tid;
     tmp.offset = 0;
     DTSC::Packet tmpPack;
-    tmpPack.reInit(curPage[tid].mapped + tmp.offset, 0, true);
+    tmpPack.reInit(nProxy.curPage[tid].mapped + tmp.offset, 0, true);
     tmp.time = tmpPack.getTime();
-    char * mpd = curPage[tid].mapped;
+    char * mpd = nProxy.curPage[tid].mapped;
     while ((long long)tmp.time < pos && tmpPack){
       tmp.offset += tmpPack.getDataLen();
       tmpPack.reInit(mpd + tmp.offset, 0, true);
@@ -524,15 +523,15 @@ namespace Mist {
       return true;
     }else{
       //don't print anything for empty packets - not sign of corruption, just unfinished stream.
-      if (curPage[tid].mapped[tmp.offset] != 0){
+      if (nProxy.curPage[tid].mapped[tmp.offset] != 0){
         DEBUG_MSG(DLVL_FAIL, "Noes! Couldn't find packet on track %d because of some kind of corruption error or somesuch.", tid);
       }else{
         VERYHIGH_MSG("Track %d no data (key %u @ %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         unsigned int i = 0;
-        while (curPage[tid].mapped[tmp.offset] == 0 && ++i < 42){
+        while (nProxy.curPage[tid].mapped[tmp.offset] == 0 && ++i < 42){
           Util::wait(100);
         }
-        if (curPage[tid].mapped[tmp.offset] == 0){
+        if (nProxy.curPage[tid].mapped[tmp.offset] == 0){
           FAIL_MSG("Track %d no data (key %u) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
         }else{
           return seek(tid, pos, getNextKey);
@@ -879,7 +878,7 @@ namespace Mist {
     /*LTS-END*/
   
     stats();
-    userClient.finish();
+    nProxy.userClient.finish();
     statsPage.finish();
     myConn.close();
     return 0;
@@ -941,15 +940,15 @@ namespace Mist {
 
     DEBUG_MSG(DLVL_DONTEVEN, "Loading track %u (next=%lu), %llu ms", nxt.tid, nxtKeyNum[nxt.tid], nxt.time);
     
-    if (nxt.offset >= curPage[nxt.tid].len){
+    if (nxt.offset >= nProxy.curPage[nxt.tid].len){
       nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
-      if (curPage.count(nxt.tid) && curPage[nxt.tid].mapped){
-        if (getDTSCTime(curPage[nxt.tid].mapped, nxt.offset) < nxt.time){
+      if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
+        if (getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset) < nxt.time){
           ERROR_MSG("Time going backwards in track %u - dropping track.", nxt.tid);
         }else{
-          nxt.time = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset);
+          nxt.time = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
           buffer.insert(nxt);
         }
         prepareNext();
@@ -957,7 +956,7 @@ namespace Mist {
       }
     }
     
-    if (!curPage.count(nxt.tid) || !curPage[nxt.tid].mapped){
+    if (!nProxy.curPage.count(nxt.tid) || !nProxy.curPage[nxt.tid].mapped){
       //mapping failure? Drop this track and go to next.
       //not an error - usually means end of stream.
       DEBUG_MSG(DLVL_DEVEL, "Track %u no page - dropping track.", nxt.tid);
@@ -966,7 +965,7 @@ namespace Mist {
     }
     
     //have we arrived at the end of the memory page? (4 zeroes mark the end)
-    if (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4)){
+    if (!memcmp(nProxy.curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4)){
       //if we don't currently know where we are, we're lost. We should drop the track.
       if (!nxt.time){
         DEBUG_MSG(DLVL_DEVEL, "Timeless empty packet on track %u - dropping track.", nxt.tid);
@@ -994,8 +993,8 @@ namespace Mist {
         nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
         loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
         nxt.offset = 0;
-        if (curPage.count(nxt.tid) && curPage[nxt.tid].mapped){
-          unsigned long long nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset);
+        if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
+          unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
           if (nextTime && nextTime < nxt.time){
             DEBUG_MSG(DLVL_DEVEL, "Time going backwards in track %u - dropping track.", nxt.tid);
           }else{
@@ -1012,7 +1011,7 @@ namespace Mist {
       prepareNext();
       return;
     }
-    thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+    thisPacket.reInit(nProxy.curPage[nxt.tid].mapped + nxt.offset, 0, true);
     if (thisPacket){
       if (thisPacket.getTime() != nxt.time && nxt.time){
         WARN_MSG("Loaded track %ld@%llu instead of %ld@%llu", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time);
@@ -1073,9 +1072,9 @@ namespace Mist {
         completeKeyReadyTimeOut = false;
       }
     }
-    if (curPage[nxt.tid]){
-      if (nxt.offset < curPage[nxt.tid].len){
-        unsigned long long nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset);
+    if (nProxy.curPage[nxt.tid]){
+      if (nxt.offset < nProxy.curPage[nxt.tid].len){
+        unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
         if (nextTime){
           nxt.time = nextTime;
         }else{
@@ -1123,25 +1122,25 @@ namespace Mist {
       }
     }
     int tNum = 0;
-    if (!userClient.getData()){
+    if (!nProxy.userClient.getData()){
       char userPageName[NAME_BUFFER_SIZE];
       snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-      userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-      if (!userClient.getData()){
+      nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+      if (!nProxy.userClient.getData()){
         DEBUG_MSG(DLVL_WARN, "Player connection failure - aborting output");
         myConn.close();
         return;
       }
     }
-    if (!trackMap.size()){
-      IPC::userConnection userConn(userClient.getData());
+    if (!nProxy.trackMap.size()){
+      IPC::userConnection userConn(nProxy.userClient.getData());
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < SIMUL_TRACKS; it++){
         userConn.setTrackId(tNum, *it);
         userConn.setKeynum(tNum, nxtKeyNum[*it]);
         tNum ++;
       }
     }
-    userClient.keepAlive();
+    nProxy.userClient.keepAlive();
     if (tNum > SIMUL_TRACKS){
       DEBUG_MSG(DLVL_WARN, "Too many tracks selected, using only first %d", SIMUL_TRACKS);
     }

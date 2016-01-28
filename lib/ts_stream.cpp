@@ -4,48 +4,148 @@
 #include "h265.h"
 #include "nal.h"
 #include "mp4_generic.h"
+#include <sys/stat.h>
 
 namespace TS {
+  Stream::Stream(bool _threaded){
+    threaded = _threaded;
+    if (threaded){
+      globalSem.open("MstTSInputLock", O_CREAT | O_EXCL | O_RDWR, ACCESSPERMS, 1);
+      if (!globalSem) {
+        globalSem.open("MstTSInputLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      }
+      if (!globalSem) {
+        FAIL_MSG("Creating semaphore failed: %s", strerror(errno));
+        threaded = false;
+        DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
+        return;
+      }
+    }
+  }
+
   void Stream::parse(char * newPack, unsigned long long bytePos) {
     Packet newPacket;
     newPacket.FromPointer(newPack);
     parse(newPacket, bytePos);
   }
-  
+
   void Stream::clear(){
+    if (threaded){
+      globalSem.wait();
+    }
     pesStreams.clear();
     pesPositions.clear();
-    payloadSize.clear();
     outPackets.clear();
+    if (threaded){
+      globalSem.post();
+    }
+  }
+
+  void Stream::add(char * newPack, unsigned long long bytePos) {
+    Packet newPacket;
+    newPacket.FromPointer(newPack);
+    add(newPacket, bytePos);
+  }
+
+  void Stream::add(Packet & newPack, unsigned long long bytePos) {
+    if (threaded){
+      globalSem.wait();
+    }
+
+    int tid = newPack.getPID();
+    pesStreams[tid].push_back(newPack);
+    pesPositions[tid].push_back(bytePos);
+
+    if (threaded){
+      globalSem.post();
+    }
+  }
+
+  bool Stream::isDataTrack(unsigned long tid){
+    if (tid == 0){
+      return false;
+    }
+    if (threaded){
+      globalSem.wait();
+    }
+    bool result = !pmtTracks.count(tid);
+    if (threaded){
+      globalSem.post();
+    }
+    return result;
   }
   
-  void Stream::parse(Packet & newPack, unsigned long long bytePos) {
-    int tid = newPack.getPID();
+  void Stream::parse(unsigned long tid) {
+    if (threaded){
+      globalSem.wait();
+    }
+    if (!pesStreams.count(tid) || pesStreams[tid].size() == 0){
+      if (threaded){
+        globalSem.post();
+      }
+      return;
+    }
+    std::deque<Packet> & trackPackets = pesStreams[tid];
+
+    if (threaded){
+      globalSem.post();
+    }
+    
+    //Handle PAT packets
     if (tid == 0){
-      associationTable = newPack;
-      pmtTracks.clear();
+      ///\todo Keep track of updates in PAT instead of keeping only the last PAT as a reference
+      
+      if (threaded){
+        globalSem.wait();
+      }
+      associationTable = trackPackets.back();
+      lastPAT = Util::bootSecs();
+      if (threaded){
+        globalSem.post();
+      }
+
+
       int pmtCount = associationTable.getProgramCount();
       for (int i = 0; i < pmtCount; i++){
         pmtTracks.insert(associationTable.getProgramPID(i));
       }
+
+      if (threaded){
+        globalSem.wait();
+      }
+      pesStreams.erase(0);
+      pesPositions.erase(0);
+      if (threaded){
+        globalSem.post();
+      }
       return;
     }
-    //If we are here, the packet is not a PAT.
-    //First check if it is listed in the PAT as a PMT track.
-    int pmtCount = associationTable.getProgramCount();
+
+    //Handle PMT packets
     if (pmtTracks.count(tid)){
-      mappingTable[tid] = newPack;
+      ///\todo Keep track of updates in PMT instead of keeping only the last PMT per program as a reference
+      if (threaded){
+        globalSem.wait();
+      }
+      mappingTable[tid] = trackPackets.back();
+      lastPMT[tid] = Util::bootSecs();
+      if (threaded){
+        globalSem.post();
+      }
       ProgramMappingEntry entry = mappingTable[tid].getEntry(0);
       while (entry){
         unsigned long pid = entry.getElementaryPid();
-        switch(entry.getStreamType()){
+        unsigned long sType = entry.getStreamType();
+        switch(sType){
           case H264:
           case AAC:
           case HEVC:
           case H265:
           case AC3:
-            if (!pidToCodec.count(pid)){
-              pidToCodec[pid] = entry.getStreamType();
+          case ID3:
+            pidToCodec[pid] = sType;
+            if (sType == ID3){
+              metaInit[pid] = std::string(entry.getESInfo(), entry.getESInfoLength());
             }
             break;
           default:
@@ -53,56 +153,106 @@ namespace TS {
         }
         entry.advance();
       }
+
+      if (threaded){
+        globalSem.wait();
+      }
+      pesStreams.erase(tid);
+      pesPositions.erase(tid);
+      if (threaded){
+        globalSem.post();
+      }
+      
       return;
     }
-    //If it is not a PMT, check the list of all PMTs to see if this is a new PES track.
-    bool inPMT = false;
-    for (std::map<unsigned long, ProgramMappingTable>::iterator it = mappingTable.begin(); it!= mappingTable.end(); it++){
-      ProgramMappingEntry entry = it->second.getEntry(0); 
-      while (entry){
-        if (tid == entry.getElementaryPid()){
-          inPMT = true;
-          break;
-        }
-        entry.advance();
-      }
-      if (inPMT){
-        break;
-      }
+
+    if (threaded){
+      globalSem.wait();
     }
-    if (!inPMT){
-      HIGH_MSG("Encountered a packet on track %d, but the track is not registered in any PMT", tid);
-      return;
+
+    bool parsePes = false;
+
+    int packNum = 1;
+    std::deque<Packet> & inStream = pesStreams[tid];
+    std::deque<Packet>::iterator curPack = inStream.begin();
+    curPack++;
+    while (curPack != inStream.end() && !curPack->getUnitStart()){
+      curPack++;
+      packNum++;
     }
-    pesStreams[tid].push_back(newPack);
-    pesPositions[tid].push_back(bytePos);
-    if (!newPack.getUnitStart() || pesStreams[tid].size() == 1){
-      payloadSize[tid] += newPack.getPayloadLength(); 
+    if (curPack != inStream.end()){
+      parsePes = true;
     }
-    parsePES(tid);
+
+    if (threaded){
+      globalSem.post();
+    }
+
+    if (parsePes){
+      parsePES(tid);
+    }
+  }
+
+  void Stream::parse(Packet & newPack, unsigned long long bytePos) {
+    add(newPack, bytePos);
+
+    int tid = newPack.getPID();
+    parse(tid);
   }
 
   bool Stream::hasPacketOnEachTrack() const {
-    if (!pidToCodec.size()){
-      return false;
+    if (threaded){
+      globalSem.wait();
     }
-    if (outPackets.size() != pidToCodec.size()){
+    if (!pidToCodec.size() || pidToCodec.size() != outPackets.size()){
+      if (threaded){
+        globalSem.post();
+      }
       return false;
     }
     for (std::map<unsigned long, unsigned long>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
-      if (!outPackets.count(it->first) || !outPackets.at(it->first).size()){
+      if (!hasPacket(it->first)){
+        if (threaded){
+          globalSem.post();
+        }
         return false;
       }
+    }
+    if (threaded){
+      globalSem.post();
     }
     return true;
   }
   
   bool Stream::hasPacket(unsigned long tid) const {
+    if (threaded){
+      globalSem.wait();
+    }
     if (!pesStreams.count(tid)){
+      if (threaded){
+        globalSem.post();
+      }
       return false;
     }
     if (outPackets.count(tid) && outPackets.at(tid).size()){
+      if (threaded){
+        globalSem.post();
+      }
       return true;
+    }
+    std::deque<Packet>::const_iterator curPack = pesStreams.at(tid).begin();
+    curPack++;
+    while (curPack != pesStreams.at(tid).end() && !curPack->getUnitStart()){
+      curPack++;
+    }
+    if (curPack != pesStreams.at(tid).end()){
+      if (threaded){
+        globalSem.post();
+      }
+      return true;
+    }
+    if (threaded){
+      globalSem.post();
     }
     return false;
   }
@@ -119,32 +269,63 @@ namespace TS {
   }
 
   void Stream::parsePES(unsigned long tid){
+    if (threaded){
+      globalSem.wait();
+    }
     std::deque<Packet> & inStream = pesStreams[tid];
     std::deque<unsigned long long> & inPositions = pesPositions[tid];
     if (inStream.size() == 1){
+      if (threaded){
+        globalSem.post();
+      }
       return;
     }
-    if (!inStream.back().getUnitStart()){
+    //Find number of packets before unit Start
+    int packNum = 1;
+
+    std::deque<Packet>::iterator curPack = inStream.begin();
+    curPack++;
+    while (curPack != inStream.end() && !curPack->getUnitStart()){
+      curPack++;
+      packNum++;
+    }
+    if (curPack == inStream.end()){
+      if (threaded){
+        globalSem.post();
+      }
       return;
     }
 
     unsigned long long bPos = inPositions.front();
     //Create a buffer for the current PES, and remove it from the pesStreams buffer.
-    int paySize = payloadSize[tid];
-    char * payload = (char*)malloc(paySize);
-    int offset = 0;
-    int packNum = inStream.size() - 1;
-    std::deque<Packet>::iterator curPack = inStream.begin();
+    int  paySize = 0;
+    
+    curPack = inStream.begin();
     for (int i = 0; i < packNum; i++){
-      memcpy(payload + offset, curPack->getPayload(), curPack->getPayloadLength());
-      offset += curPack->getPayloadLength();
+      paySize += curPack->getPayloadLength();
+      curPack++;
+    }
+    char * payload = (char*)malloc(paySize);
+    paySize = 0;
+    curPack = inStream.begin();
+    int lastCtr = curPack->getContinuityCounter() - 1;
+    for (int i = 0; i < packNum; i++){
+      if (curPack->getContinuityCounter() - lastCtr != 1 && curPack->getContinuityCounter()){
+        INFO_MSG("Parsing a pes on track %d, missed %d packets", tid, curPack->getContinuityCounter() - lastCtr - 1);
+      }
+      lastCtr = curPack->getContinuityCounter();
+      memcpy(payload + paySize, curPack->getPayload(), curPack->getPayloadLength());
+      paySize += curPack->getPayloadLength();
       curPack++;
     }
     inStream.erase(inStream.begin(), curPack);
     inPositions.erase(inPositions.begin(), inPositions.begin() + packNum);
+    if (threaded){
+      globalSem.post();
+    }
 
     //Parse the PES header
-    offset = 0;
+    int offset = 0;
 
     while(offset < paySize){
       const char * pesHeader = payload + offset;
@@ -203,6 +384,9 @@ namespace TS {
         //Parse all the ADTS packets
         unsigned long offsetInPes = 0;
         unsigned long samplesRead = 0;
+        if (threaded){
+          globalSem.wait();
+        }
         while (offsetInPes < realPayloadSize){
           outPackets[tid].push_back(DTSC::Packet());
           aac::adts adtsPack(pesPayload + offsetInPes, realPayloadSize - offsetInPes);
@@ -213,10 +397,19 @@ namespace TS {
           samplesRead += adtsPack.getSampleCount();
           offsetInPes += adtsPack.getHeaderSize() + adtsPack.getPayloadSize();
         }
+        if (threaded){
+          globalSem.post();
+        }
       }
-      if (pidToCodec[tid] == AC3){
+      if (pidToCodec[tid] == ID3 || pidToCodec[tid] == AC3){
+        if (threaded){
+          globalSem.wait();
+        }
         outPackets[tid].push_back(DTSC::Packet());
         outPackets[tid].back().genericFill(timeStamp, timeOffset, tid, pesPayload, realPayloadSize, bPos, 0);
+        if (threaded){
+          globalSem.post();
+        }
       }
       if (pidToCodec[tid] == H264 || pidToCodec[tid] == HEVC || pidToCodec[tid] == H265){
         //Convert from annex b
@@ -239,11 +432,23 @@ namespace TS {
                 break;
               }
               case 0x07: {
+                if (threaded){
+                  globalSem.wait();
+                }
                 spsInfo[tid] = std::string(parsedData + dataOffset + 4, it->nalSize);
+                if (threaded){
+                  globalSem.post();
+                }
                 break;
               }
               case 0x08: {
+                if (threaded){
+                  globalSem.wait();
+                }
                 ppsInfo[tid] = std::string(parsedData + dataOffset + 4, it->nalSize);
+                if (threaded){
+                  globalSem.post();
+                }
                 break;
               }
               default: break;
@@ -264,7 +469,13 @@ namespace TS {
               case 32:
               case 33:
               case 34: {
+                if (threaded){
+                  globalSem.wait();
+                }
                 hevcInfo[tid].addUnit(parsedData + dataOffset);
+                if (threaded){
+                  globalSem.post();
+                }
                 break;
               }
               default: break;
@@ -272,8 +483,14 @@ namespace TS {
           }
           dataOffset += 4 + it->nalSize;
         }
+        if (threaded){
+          globalSem.wait();
+        }
         outPackets[tid].push_back(DTSC::Packet());
         outPackets[tid].back().genericFill(timeStamp, timeOffset, tid, parsedData, parsedSize, bPos, isKeyFrame);
+        if (threaded){
+          globalSem.post();
+        }
         free(parsedData);
       }
       //We are done with the realpayload size, reverse calculation so we know the correct offset increase.
@@ -285,7 +502,6 @@ namespace TS {
       offset += realPayloadSize + 6;
     }
     free(payload);
-    payloadSize[tid] = inStream.front().getPayloadLength();
   }
 
   void Stream::getPacket(unsigned long tid, DTSC::Packet & pack) {
@@ -295,17 +511,55 @@ namespace TS {
       return;
     }
 
+    if (threaded){
+      globalSem.wait();
+    }
+    bool packetReady = outPackets.count(tid) && outPackets[tid].size();
+    if (threaded){
+      globalSem.post();
+    }
+
+    if (!packetReady){
+      parse(tid);
+    }
+    
+    if (threaded){
+      globalSem.wait();
+    }
+    packetReady = outPackets.count(tid) && outPackets[tid].size();
+    if (threaded){
+      globalSem.post();
+    }
+    
+    if (!packetReady){
+      ERROR_MSG("Obtaining a packet on track %lu failed", tid);
+      return;
+    }
+
+    if (threaded){
+      globalSem.wait();
+    }
     pack = outPackets[tid].front();
     outPackets[tid].pop_front();
     
     if (!outPackets[tid].size()){
       outPackets.erase(tid);
     }
+
+    if (threaded){
+      globalSem.post();
+    }
   }
 
   void Stream::getEarliestPacket(DTSC::Packet & pack){
+    if (threaded){
+      globalSem.wait();
+    }
     pack.null();
     if (!hasPacketOnEachTrack()){
+      if (threaded){
+        globalSem.post();
+      }
       return;
     }
 
@@ -318,12 +572,21 @@ namespace TS {
         packTime = it->second.front().getTime();
       }
     }
+    if (threaded){
+      globalSem.post();
+    }
 
     getPacket(packTrack, pack);
   }
 
-  void Stream::initializeMetadata(DTSC::Meta & meta) {
+  void Stream::initializeMetadata(DTSC::Meta & meta, unsigned long tid) {
+    if (threaded){
+      globalSem.wait();
+    }
     for (std::map<unsigned long, unsigned long>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
+      if (tid && it->first != tid){
+        continue;
+      }
       if (!meta.tracks.count(it->first) && it->second == H264){
         if (!spsInfo.count(it->first) || !ppsInfo.count(it->first)){
           continue;
@@ -357,6 +620,12 @@ namespace TS {
         meta.tracks[it->first].trackID = it->first;
         meta.tracks[it->first].init = hevcInfo[it->first].generateHVCC();
       }
+      if (!meta.tracks.count(it->first) && it->second == ID3){
+        meta.tracks[it->first].type = "meta";
+        meta.tracks[it->first].codec = "ID3";
+        meta.tracks[it->first].trackID = it->first;
+        meta.tracks[it->first].init = metaInit[it->first];
+      }
       if (!meta.tracks.count(it->first) && it->second == AC3){
         meta.tracks[it->first].type = "audio";
         meta.tracks[it->first].codec = "AC3";
@@ -378,6 +647,64 @@ namespace TS {
         audioInit[1] = ((adtsInfo[it->first].getFrequencyIndex() & 0x01) << 7) | ((adtsInfo[it->first].getChannelConfig() & 0x0F) << 3);
         meta.tracks[it->first].init = std::string(audioInit, 2);
       }
+    }
+    if (threaded){
+      globalSem.post();
+    }
+  }
+
+  std::set<unsigned long> Stream::getActiveTracks() {
+    if (threaded){
+      globalSem.wait();
+    }
+    std::set<unsigned long> result;
+    //Track 0 is always active
+    result.insert(0);
+    //IF PAT updated in the last 5 seconds, check for contents
+    if (Util::bootSecs() - lastPAT < 5){
+      int pmtCount = associationTable.getProgramCount();
+      //For each PMT
+      for (int i = 0; i < pmtCount; i++){
+        int pid = associationTable.getProgramPID(i);
+        //Add PMT track
+        result.insert(pid);
+        //IF PMT updated in last 5 seconds, check for contents
+        if (Util::bootSecs() - lastPMT[pid] < 5){
+          ProgramMappingEntry entry = mappingTable[pid].getEntry(0);
+          //Add all tracks in PMT
+          while (entry){
+            switch(entry.getStreamType()){
+              case H264:
+              case AAC:
+              case HEVC:
+              case H265:
+              case AC3:
+              case ID3:
+                result.insert(entry.getElementaryPid());
+                break;
+              default:
+                break;
+            }
+            entry.advance();
+          }
+        }
+      }
+    }
+    if (threaded){
+      globalSem.post();
+    }
+    return result;
+  }
+
+  void Stream::eraseTrack(unsigned long tid){
+    if (threaded){
+      globalSem.wait();
+    }
+    pesStreams.erase(tid);
+    pesPositions.erase(tid);
+    outPackets.erase(tid);
+    if (threaded){
+      globalSem.post();
     }
   }
 }

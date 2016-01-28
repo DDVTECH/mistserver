@@ -64,6 +64,7 @@ namespace Controller {
         std::string udpPort = data["udpport"].asString();
         //Check running
         if (!inputProcesses.count(name) || !Util::Procs::isRunning(inputProcesses[name])){
+          std::string multicast = data["multicastinterface"].asString();
           //  False: start TS input
           INFO_MSG("No TS Input running on port %s for stream %s, starting it", udpPort.c_str(), name.c_str());
           std::deque<std::string> command;
@@ -72,6 +73,8 @@ namespace Controller {
           command.push_back(name);
           command.push_back("-p");
           command.push_back(udpPort);
+          command.push_back("-M");
+          command.push_back(multicast);
           command.push_back(URL);
           int stdIn = 0;
           int stdOut = 1;

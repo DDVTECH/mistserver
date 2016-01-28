@@ -15,14 +15,21 @@
 #include "bitfields.h"
 #include "timing.h"
 
+#if defined(__CYGWIN__) || defined(_WIN32)
+#include <windows.h>
+#include <aclapi.h>
+#include <accctrl.h>
+#endif
+
+
 namespace IPC {
 
 #if defined(__CYGWIN__) || defined(_WIN32)
   static std::map<std::string, sharedPage> preservedPages;
-  void preservePage(std::string p){
+  void preservePage(std::string p) {
     preservedPages[p].init(p, 0, false, false);
   }
-  void releasePage(std::string p){
+  void releasePage(std::string p) {
     preservedPages.erase(p);
   }
 #endif
@@ -68,7 +75,7 @@ namespace IPC {
   static void btohl(char * p, unsigned int & val) {
     val = ((long)p[0] << 24) | ((long)p[1] << 16) | ((long)p[2] << 8) | p[3];
   }
-  
+
   /// Reads a long long value of p in host order to val.
   static void btohll(char * p, long long & val) {
     val = ((long long)p[0] << 56) | ((long long)p[1] << 48) | ((long long)p[2] << 40) | ((long long)p[3] << 32) | ((long long)p[4] << 24) | ((long long)p[5] << 16) | ((long long)p[6] << 8) | p[7];
@@ -108,7 +115,7 @@ namespace IPC {
 #if defined(__CYGWIN__) || defined(_WIN32)
     return mySem != 0;
 #else
-    return mySem != SEM_FAILED;
+    return mySem && mySem != SEM_FAILED;
 #endif
   }
 
@@ -122,23 +129,34 @@ namespace IPC {
   void semaphore::open(const char * name, int oflag, mode_t mode, unsigned int value) {
     close();
     int timer = 0;
-    while (!(*this) && timer++ < 10){
+    while (!(*this) && timer++ < 10) {
 #if defined(__CYGWIN__) || defined(_WIN32)
       std::string semaName = "Global\\";
       semaName += name;
-      if (oflag & O_CREAT){
-        if (oflag & O_EXCL){
+      if (oflag & O_CREAT) {
+        if (oflag & O_EXCL) {
           //attempt opening, if succes, close handle and return false;
-          HANDLE tmpSem = OpenSemaphore(0, false, semaName.c_str());
-          if (tmpSem){
+          HANDLE tmpSem = OpenMutex(SYNCHRONIZE, false, semaName.c_str());
+          if (tmpSem) {
             CloseHandle(tmpSem);
             mySem = 0;
             break;
           }
         }
-        mySem = CreateSemaphore(0, value, 1 , semaName.c_str());
-      }else{
-        mySem = OpenSemaphore(0, false, semaName.c_str());
+        SECURITY_ATTRIBUTES security = getSecurityAttributes();
+        mySem = CreateMutex(&security, true, semaName.c_str());
+        if (value){
+          ReleaseMutex(mySem);
+        }
+      } else {
+        mySem = OpenMutex(SYNCHRONIZE, false, semaName.c_str());
+      }
+      if (!(*this)) {
+        if (GetLastError() == ERROR_FILE_NOT_FOUND){//Error code 2
+          Util::wait(500);
+        } else {
+          break;
+        }
       }
 #else
       if (oflag & O_CREAT) {
@@ -146,17 +164,16 @@ namespace IPC {
       } else {
         mySem = sem_open(name, oflag);
       }
-#endif
-      if (!(*this)){
-        if (errno == ENOENT){
+      if (!(*this)) {
+        if (errno == ENOENT) {
           Util::wait(500);
-        }else{
+        } else {
           break;
         }
       }
+#endif
     }
-    if (!(*this)){
-      DEBUG_MSG(DLVL_VERYHIGH, "Attempt to open semaphore %s: %s", name, strerror(errno));
+    if (!(*this)) {
     }
     myName = (char *)name;
   }
@@ -177,7 +194,7 @@ namespace IPC {
   void semaphore::post() {
     if (*this) {
 #if defined(__CYGWIN__) || defined(_WIN32)
-      ReleaseSemaphore(mySem, 1, 0);
+      ReleaseMutex(mySem);
 #else
       sem_post(mySem);
 #endif
@@ -203,7 +220,7 @@ namespace IPC {
     int result;
 #if defined(__CYGWIN__) || defined(_WIN32)
     result = WaitForSingleObject(mySem, 0);//wait at most 1ms
-    if (result == 0x80){
+    if (result == 0x80) {
       WARN_MSG("Consistency error caught on semaphore %s", myName.c_str());
       result = 0;
     }
@@ -212,13 +229,13 @@ namespace IPC {
 #endif
     return (result == 0);
   }
-  
+
   ///\brief Tries to wait for the semaphore for a single second, returns true if successful, false otherwise
   bool semaphore::tryWaitOneSecond() {
     int result;
 #if defined(__CYGWIN__) || defined(_WIN32)
     result = WaitForSingleObject(mySem, 1000);//wait at most 1s
-    if (result == 0x80){
+    if (result == 0x80) {
       WARN_MSG("Consistency error caught on semaphore %s", myName.c_str());
       result = 0;
     }
@@ -268,12 +285,38 @@ namespace IPC {
   }
 
 
+#if defined(__CYGWIN__) || defined(_WIN32)
+  SECURITY_ATTRIBUTES semaphore::getSecurityAttributes() {
+    ///\todo We really should clean this up sometime probably
+    ///We currently have everything static, because the result basically depends on everything
+    static SECURITY_ATTRIBUTES result;
+    static bool resultValid = false;
+    static SECURITY_DESCRIPTOR securityDescriptor;
+    if (resultValid) {
+      return result;
+    }
+
+    InitializeSecurityDescriptor(&securityDescriptor, SECURITY_DESCRIPTOR_REVISION);
+    if (!SetSecurityDescriptorDacl(&securityDescriptor, TRUE, NULL, FALSE)){
+      FAIL_MSG("Failed to set pSecurityDescriptor: %u", GetLastError());
+      return result;
+    }
+
+    result.nLength = sizeof(SECURITY_ATTRIBUTES);
+    result.lpSecurityDescriptor = &securityDescriptor;
+    result.bInheritHandle = FALSE;
+
+    resultValid = true;
+    return result;
+  }
+#endif
+
   ///brief Creates a shared page
   ///\param name_ The name of the page to be created
   ///\param len_ The size to make the page
   ///\param master_ Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff){
+  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
     handle = 0;
     len = 0;
     master = false;
@@ -302,7 +345,7 @@ namespace IPC {
     if (mapped && len) {
 #if defined(__CYGWIN__) || defined(_WIN32)
       //under Cygwin, the mapped location is shifted by 4 to contain the page size.
-      UnmapViewOfFile(mapped-4);
+      UnmapViewOfFile(mapped - 4);
 #else
       munmap(mapped, len);
 #endif
@@ -315,7 +358,7 @@ namespace IPC {
   void sharedPage::close() {
     unmap();
     if (handle > 0) {
-      INSANE_MSG("Closing page %s in %s mode", name.c_str(), master?"master":"client");
+      INSANE_MSG("Closing page %s in %s mode", name.c_str(), master ? "master" : "client");
 #if defined(__CYGWIN__) || defined(_WIN32)
       CloseHandle(handle);
 #else
@@ -353,11 +396,11 @@ namespace IPC {
     master = master_;
     mapped = 0;
     if (name.size()) {
-      INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(), master?"master":"client", autoBackoff?"with":"without");
+      INSANE_MSG("Opening page %s in %s mode %s auto-backoff", name.c_str(), master ? "master" : "client", autoBackoff ? "with" : "without");
 #if defined(__CYGWIN__) || defined(_WIN32)
       if (master) {
         //Under cygwin, all pages are 4 bytes longer than claimed.
-        handle = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len+4, name.c_str());
+        handle = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, len + 4, name.c_str());
       } else {
         int i = 0;
         do {
@@ -378,10 +421,10 @@ namespace IPC {
         return;
       }
       //Under cygwin, the extra 4 bytes contain the real size of the page.
-      if (master){
-        ((unsigned int*)mapped)[0] = len_;
-      }else{
-        len = ((unsigned int*)mapped)[0];
+      if (master) {
+        ((unsigned int *)mapped)[0] = len_;
+      } else {
+        len = ((unsigned int *)mapped)[0];
       }
       //Now shift by those 4 bytes.
       mapped += 4;
@@ -401,7 +444,7 @@ namespace IPC {
         }
       }
       if (handle == -1) {
-        if (!master_ && autoBackoff){
+        if (!master_ && autoBackoff) {
           FAIL_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno));
         }
         return;
@@ -480,7 +523,7 @@ namespace IPC {
       len = 0;
     }
   }
-  
+
   /// Unmaps, closes and unlinks (if master and name is set) the shared file.
   void sharedFile::close() {
     unmap();
@@ -616,8 +659,8 @@ namespace IPC {
 
   ///\brief Sets the host of this connection
   void statExchange::host(std::string name) {
-    if (name.size() < 16){
-      memset(data+32, 0, 16);
+    if (name.size() < 16) {
+      memset(data + 32, 0, 16);
     }
     memcpy(data + 32, name.c_str(), std::min((int)name.size(), 16));
   }
@@ -630,7 +673,7 @@ namespace IPC {
   ///\brief Sets the name of the stream this user is viewing
   void statExchange::streamName(std::string name) {
     size_t splitChar = name.find_first_of("+ ");
-    if (splitChar != std::string::npos){
+    if (splitChar != std::string::npos) {
       name[splitChar] = '+';
     }
     memcpy(data + 48, name.c_str(), std::min((int)name.size(), 100));
@@ -730,7 +773,7 @@ namespace IPC {
 
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
-    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2)<< myPages.size()),  (32 * 1024 * 1024)), true);
+    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2) << myPages.size()), (32 * 1024 * 1024)), true);
     myPages.insert(tmp);
     tmp.master = false;
     DEBUG_MSG(DLVL_VERYHIGH, "Created a new page: %s", tmp.name.c_str());
@@ -784,7 +827,7 @@ namespace IPC {
     }
     semGuard tmpGuard(&mySemaphore);
     unsigned int id = 0;
-    unsigned int userCount=0;
+    unsigned int userCount = 0;
     unsigned int emptyCount = 0;
     for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
@@ -796,16 +839,16 @@ namespace IPC {
       while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
         if (hasCounter) {
           if (it->mapped[offset] != 0) {
-            char * counter = it->mapped+offset;
+            char * counter = it->mapped + offset;
             //increase the count if needed
             ++userCount;
             if (id >= amount) {
               amount = id + 1;
               DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
-            }            
-            unsigned short tmpPID = *((unsigned short *)(it->mapped+1+offset+payLen-2));            
-            if(!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)){
-              WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);    
+            }
+            unsigned short tmpPID = *((unsigned short *)(it->mapped + 1 + offset + payLen - 2));
+            if (!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)) {
+              WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);
               *counter = 126; //if process is already dead, instant timeout.
             }
             callback(it->mapped + offset + 1, payLen, id);
@@ -823,21 +866,21 @@ namespace IPC {
                 DEBUG_MSG(DLVL_WARN, "Client %u disconnect timed out", id);
                 break;
               default:
-                #ifndef NOCRASHCHECK
-                if (tmpPID){
-                  if(*counter > 10 && *counter < 126 ){
-                    if(*counter < 30){
-                      if (*counter > 15){
-                        WARN_MSG("Process %d is unresponsive",tmpPID);
+#ifndef NOCRASHCHECK
+                if (tmpPID) {
+                  if (*counter > 10 && *counter < 126) {
+                    if (*counter < 30) {
+                      if (*counter > 15) {
+                        WARN_MSG("Process %d is unresponsive", tmpPID);
                       }
-                      Util::Procs::Stop(tmpPID); //soft kill  
-                    } else {      
+                      Util::Procs::Stop(tmpPID); //soft kill
+                    } else {
                       ERROR_MSG("Killing unresponsive process %d", tmpPID);
-                      Util::Procs::Murder(tmpPID); //improved kill      
+                      Util::Procs::Murder(tmpPID); //improved kill
                     }
                   }
                 }
-                #endif
+#endif
                 break;
             }
             if (*counter == 127 || *counter == 126 || *counter == 255 || *counter == 254) {
@@ -885,20 +928,20 @@ namespace IPC {
         }
         offset += payLen + (hasCounter ? 1 : 0);
         id ++;
-      }      
-      if(userCount==0) {
+      }
+      if (userCount == 0) {
         ++emptyCount;
       } else {
-        emptyCount=0;
+        emptyCount = 0;
       }
     }
-    
-    if( emptyCount > 1){
+
+    if (emptyCount > 1) {
       deletePage();
-    } else if( !emptyCount ){
+    } else if (!emptyCount) {
       newPage();
     }
-    
+
     if (empty) {
       free(empty);
     }
@@ -910,6 +953,7 @@ namespace IPC {
     payLen = 0;
     offsetOnPage = 0;
   }
+
 
   ///\brief Copy constructor for sharedClients
   ///\param rhs The client ro copy
@@ -956,7 +1000,7 @@ namespace IPC {
   ///\param name The basename of the server to connect to
   ///\param len The size of the payload to allocate
   ///\param withCounter Whether or not this payload has a counter
-  sharedClient::sharedClient(std::string name, int len, bool withCounter) : baseName("/"+name), payLen(len), offsetOnPage(-1), hasCounter(withCounter) {
+  sharedClient::sharedClient(std::string name, int len, bool withCounter) : baseName("/" + name), payLen(len), offsetOnPage(-1), hasCounter(withCounter) {
 #ifdef __APPLE__
     //note: O_CREAT is only needed for mac, probably
     mySemaphore.open(baseName.c_str(), O_RDWR | O_CREAT, 0);
@@ -967,6 +1011,7 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore %s failed: %s", baseName.c_str(), strerror(errno));
       return;
     }
+    //Empty is used to compare for emptyness. This is not needed when the page uses a counter
     char * empty = 0;
     if (!hasCounter) {
       empty = (char *)malloc(payLen * sizeof(char));
@@ -976,12 +1021,12 @@ namespace IPC {
       }
       memset(empty, 0, payLen);
     }
-    while (offsetOnPage == -1){
+    while (offsetOnPage == -1) {
       {
         semGuard tmpGuard(&mySemaphore);
         for (char i = 'A'; i <= 'Z'; i++) {
           myPage.init(baseName.substr(1) + i, (4096 << (i - 'A')), false, false);
-          if (!myPage.mapped){
+          if (!myPage.mapped) {
             break;
           }
           int offset = 0;
@@ -990,7 +1035,7 @@ namespace IPC {
               offsetOnPage = offset;
               if (hasCounter) {
                 myPage.mapped[offset] = 1;
-                *((unsigned short *)(myPage.mapped+1+offset+len-2))=getpid();           
+                *((unsigned short *)(myPage.mapped + 1 + offset + len - 2)) = getpid();
               }
               break;
             }
@@ -1001,11 +1046,13 @@ namespace IPC {
           }
         }
       }
-      if (offsetOnPage == -1){
+      if (offsetOnPage == -1) {
         Util::wait(500);
       }
     }
-    free(empty);
+    if (empty) {
+      free(empty);
+    }
   }
 
   ///\brief The deconstructor
@@ -1058,11 +1105,11 @@ namespace IPC {
   }
 
   userConnection::userConnection(char * _data) {
-    data = _data; 
+    data = _data;
   }
 
   unsigned long userConnection::getTrackId(size_t offset) const {
-    if (offset >= SIMUL_TRACKS){
+    if (offset >= SIMUL_TRACKS) {
       WARN_MSG("Trying to get track id for entry %lu, while there are only %d entries allowed", offset, SIMUL_TRACKS);
       return 0;
     }
@@ -1070,16 +1117,16 @@ namespace IPC {
   }
 
   void userConnection::setTrackId(size_t offset, unsigned long trackId) const {
-    if (offset >= SIMUL_TRACKS){
+    if (offset >= SIMUL_TRACKS) {
       WARN_MSG("Trying to set track id for entry %lu, while there are only %d entries allowed", offset, SIMUL_TRACKS);
       return;
     }
     Bit::htobl(data + (offset * 6), trackId);
-    
+
   }
 
   unsigned long userConnection::getKeynum(size_t offset) const {
-    if (offset >= SIMUL_TRACKS){
+    if (offset >= SIMUL_TRACKS) {
       WARN_MSG("Trying to get keynum for entry %lu, while there are only %d entries allowed", offset, SIMUL_TRACKS);
       return 0;
     }
@@ -1087,12 +1134,12 @@ namespace IPC {
   }
 
   void userConnection::setKeynum(size_t offset, unsigned long keynum) {
-    if (offset >= SIMUL_TRACKS){
+    if (offset >= SIMUL_TRACKS) {
       WARN_MSG("Trying to set keynum for entry %lu, while there are only %d entries allowed", offset, SIMUL_TRACKS);
       return;
     }
     Bit::htobs(data + (offset * 6) + 4, keynum);
-    
+
   }
 }
 

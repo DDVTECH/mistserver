@@ -166,19 +166,6 @@ namespace DTSC {
     unsigned int trackID;
   };
 
-  /// A part from the DTSC::Stream ringbuffer.
-  /// Holds information about a buffer that will stay consistent
-  class Ring {
-    public:
-      Ring(livePos v);
-      livePos b;
-      //volatile unsigned int b; ///< Holds current number of buffer. May and is intended to change unexpectedly!
-      volatile bool waiting; ///< If true, this Ring is currently waiting for a buffer fill.
-      volatile bool starved; ///< If true, this Ring can no longer receive valid data.
-      volatile bool updated; ///< If true, this Ring should write a new header.
-      volatile int playCount;
-  };
-
   /*LTS-START*/
   ///\brief Basic class supporting initialization Vectors.
   ///
@@ -424,54 +411,5 @@ namespace DTSC {
   };
   //FileWriter
 
-  /// Holds temporary data for a DTSC stream and provides functions to utilize it.
-  /// Optionally also acts as a ring buffer of a certain requested size.
-  /// If ring buffering mode is enabled, it will automatically grow in size to always contain at least one keyframe.
-  class Stream {
-    public:
-      Stream();
-      virtual ~Stream();
-      Stream(unsigned int buffers, unsigned int bufferTime = 0);
-      Meta metadata;
-      JSON::Value & getPacket();
-      JSON::Value & getPacket(livePos num);
-      datatype lastType();
-      std::string & lastData();
-      bool hasVideo();
-      bool hasAudio();
-      bool parsePacket(std::string & buffer);
-      bool parsePacket(Socket::Buffer & buffer);
-      std::string & outPacket();
-      std::string & outPacket(livePos num);
-      std::string & outHeader();
-      Ring * getRing();
-      void setRecord(std::string path); /*LTS*/
-      unsigned int getTime();
-      void dropRing(Ring * ptr);
-      int canSeekms(unsigned int ms);
-      livePos msSeek(unsigned int ms, std::set<unsigned int> & allowedTracks);
-      void setBufferTime(unsigned int ms);
-      bool isNewest(DTSC::livePos & pos, std::set<unsigned int> & allowedTracks);
-      DTSC::livePos getNext(DTSC::livePos & pos, std::set<unsigned int> & allowedTracks);
-      void endStream();
-      void waitForMeta(Socket::Connection & sourceSocket, bool closeOnError = true);
-      void waitForPause(Socket::Connection & sourceSocket);
-    protected:
-      void cutOneBuffer();
-      void resetStream();
-      std::map<livePos, JSON::Value> buffers;
-      std::map<int, std::set<livePos> > keyframes;
-      virtual void addPacket(JSON::Value & newPack);
-      virtual void addMeta(JSON::Value & newMeta);
-      void recordPacket(JSON::Value & packet); /*LTS*/
-      datatype datapointertype;
-      unsigned int buffercount;
-      unsigned int buffertime;
-      std::string recordPath; /*LTS*/
-      File * recordFile; /*LTS*/
-      bool headerRecorded; /*LTS*/
-      std::map<unsigned int, std::string> trackMapping;
-      virtual void deletionCallback(livePos deleting);
-  };
 }
 

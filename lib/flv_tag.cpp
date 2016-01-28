@@ -360,14 +360,6 @@ FLV::Tag & FLV::Tag::operator=(const FLV::Tag & O) {
   return *this;
 } //assignment operator
 
-/// FLV loader function from DTSC.
-/// Takes the DTSC data and makes it into FLV.
-bool FLV::Tag::DTSCLoader(DTSC::Stream & S) {
-  std::string tmp = S.getPacket().toNetPacked();
-  DTSC::Packet tmpPack(tmp.data(), tmp.size());
-  return DTSCLoader(tmpPack, S.metadata.tracks[S.getPacket()["trackid"].asInt()]);
-}
-
 bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track) {
   std::string meta_str;
   len = 0;
@@ -677,124 +669,6 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Meta & M, std::set<long unsigned int> & selTra
   }
   if (M.vod) {
     amfdata.getContentP(1)->addContent(AMF::Object("duration", mediaLen / 1000, AMF::AMF0_NUMBER));
-  }
-  amfdata.getContentP(1)->addContent(trinfo);
-
-  std::string tmp = amfdata.Pack();
-  len = tmp.length() + 15;
-  if (len <= 0 || !checkBufferSize()) {
-    return false;
-  }
-  memcpy(data + 11, tmp.data(), len - 15);
-  setLen();
-  data[0] = 0x12;
-  data[1] = ((len - 15) >> 16) & 0xFF;
-  data[2] = ((len - 15) >> 8) & 0xFF;
-  data[3] = (len - 15) & 0xFF;
-  data[8] = 0;
-  data[9] = 0;
-  data[10] = 0;
-  tagTime(0);
-  return true;
-}
-
-/// FLV metadata loader function from DTSC.
-/// Takes the DTSC metadata and makes it into FLV.
-/// Assumes metadata is available - so check before calling!
-bool FLV::Tag::DTSCMetaInit(DTSC::Stream & S, DTSC::Track & videoRef, DTSC::Track & audioRef) {
-  //Unknown? Assume AAC.
-  if (audioRef.codec == "?") {
-    audioRef.codec = "AAC";
-  }
-  //Unknown? Assume H264.
-  if (videoRef.codec == "?") {
-    videoRef.codec = "H264";
-  }
-
-  AMF::Object amfdata("root", AMF::AMF0_DDV_CONTAINER);
-
-  amfdata.addContent(AMF::Object("", "onMetaData"));
-  amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
-  if (S.metadata.vod) {
-    amfdata.getContentP(1)->addContent(AMF::Object("duration", videoRef.lastms / 1000, AMF::AMF0_NUMBER));
-    amfdata.getContentP(1)->addContent(AMF::Object("moovPosition", 40, AMF::AMF0_NUMBER));
-    AMF::Object keys("keyframes", AMF::AMF0_OBJECT);
-    keys.addContent(AMF::Object("filepositions", AMF::AMF0_STRICT_ARRAY));
-    keys.addContent(AMF::Object("times", AMF::AMF0_STRICT_ARRAY));
-    int total_byterate = 0;
-    if (videoRef.trackID > 0) {
-      total_byterate += videoRef.bps;
-    }
-    if (audioRef.trackID > 0) {
-      total_byterate += audioRef.bps;
-    }
-    for (unsigned long long i = 0; i < videoRef.lastms / 1000; ++i) { //for each second in the file
-      keys.getContentP(0)->addContent(AMF::Object("", i * total_byterate, AMF::AMF0_NUMBER)); //multiply by byterate for fake byte positions
-      keys.getContentP(1)->addContent(AMF::Object("", i, AMF::AMF0_NUMBER)); //seconds
-    }
-    amfdata.getContentP(1)->addContent(keys);
-  }
-  if (videoRef.trackID > 0) {
-    amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
-    if (videoRef.codec == "H264") {
-      amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", (std::string)"avc1"));
-    }
-    if (videoRef.codec == "VP6") {
-      amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 4, AMF::AMF0_NUMBER));
-    }
-    if (videoRef.codec == "H263") {
-      amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 2, AMF::AMF0_NUMBER));
-    }
-    amfdata.getContentP(1)->addContent(AMF::Object("width", videoRef.width, AMF::AMF0_NUMBER));
-    amfdata.getContentP(1)->addContent(AMF::Object("height", videoRef.height, AMF::AMF0_NUMBER));
-    amfdata.getContentP(1)->addContent(AMF::Object("videoframerate", (double)videoRef.fpks / 1000.0, AMF::AMF0_NUMBER));
-    amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", (double)videoRef.bps * 128.0, AMF::AMF0_NUMBER));
-  }
-  if (audioRef.trackID > 0) {
-    amfdata.getContentP(1)->addContent(AMF::Object("hasAudio", 1, AMF::AMF0_BOOL));
-    amfdata.getContentP(1)->addContent(AMF::Object("audiodelay", 0, AMF::AMF0_NUMBER));
-    if (audioRef.codec == "AAC") {
-      amfdata.getContentP(1)->addContent(AMF::Object("audiocodecid", (std::string)"mp4a"));
-    }
-    if (audioRef.codec == "MP3") {
-      amfdata.getContentP(1)->addContent(AMF::Object("audiocodecid", (std::string)"mp3"));
-    }
-    amfdata.getContentP(1)->addContent(AMF::Object("audiochannels", audioRef.channels, AMF::AMF0_NUMBER));
-    amfdata.getContentP(1)->addContent(AMF::Object("audiosamplerate", audioRef.rate, AMF::AMF0_NUMBER));
-    amfdata.getContentP(1)->addContent(AMF::Object("audiosamplesize", audioRef.size, AMF::AMF0_NUMBER));
-    amfdata.getContentP(1)->addContent(AMF::Object("audiodatarate", (double)audioRef.bps * 128.0, AMF::AMF0_NUMBER));
-  }
-  AMF::Object trinfo = AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY);
-  int i = 0;
-  if (audioRef) {
-    trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
-    trinfo.getContentP(i)->addContent(AMF::Object("length", ((double)audioRef.lastms) * ((double)audioRef.rate), AMF::AMF0_NUMBER));
-    trinfo.getContentP(i)->addContent(AMF::Object("timescale", audioRef.rate, AMF::AMF0_NUMBER));
-    trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
-    if (audioRef.codec == "AAC") {
-      trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"mp4a"));
-    }
-    if (audioRef.codec == "MP3") {
-      trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"mp3"));
-    }
-    ++i;
-  }
-  if (videoRef) {
-    trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
-    trinfo.getContentP(i)->addContent(
-      AMF::Object("length", ((double)videoRef.lastms / 1000) * ((double)videoRef.fpks / 1000.0), AMF::AMF0_NUMBER));
-    trinfo.getContentP(i)->addContent(AMF::Object("timescale", ((double)videoRef.fpks / 1000.0), AMF::AMF0_NUMBER));
-    trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
-    if (videoRef.codec == "H264") {
-      trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"avc1"));
-    }
-    if (videoRef.codec == "VP6") {
-      trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"vp6"));
-    }
-    if (videoRef.codec == "H263") {
-      trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string)"h263"));
-    }
-    ++i;
   }
   amfdata.getContentP(1)->addContent(trinfo);
 

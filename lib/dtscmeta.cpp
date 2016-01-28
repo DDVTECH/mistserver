@@ -646,7 +646,7 @@ namespace DTSC {
     return "";
   }
 
-  /// Sets result to a pointer to the string, and strlen to the lenght of it.
+  /// Sets result to a pointer to the string, and strlen to the length of it.
   /// Sets both to zero if this isn't a DTSC string value.
   /// Attempts absolutely no conversion.
   void Scan::getString(char *& result, unsigned int & strlen) {

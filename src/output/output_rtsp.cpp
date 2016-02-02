@@ -145,7 +145,7 @@ namespace Mist {
       streamName = HTTP_R.url.substr(found + 1, HTTP_R.url.substr(found + 1).find('/'));
       Util::sanitizeName(streamName);
       if (streamName != ""){
-        HTTP_S.SetHeader("Session", Secure::md5(HTTP_S.GetHeader("User-Agent") + myConn.getHost()) + "_" + streamName);
+        HTTP_S.SetHeader("Session", Secure::md5(HTTP_S.GetHeader("User-Agent") + getConnectedHost()) + "_" + streamName);
       }
       
       //set the date
@@ -312,10 +312,10 @@ namespace Mist {
       cPort = atol(transport.substr(port_loc, transport.rfind('-') - port_loc).c_str());
       //find available ports locally;
       int sendbuff = 4*1024*1024;
-      tracks[trId].data.SetDestination(myConn.getHost(), cPort);
+      tracks[trId].data.SetDestination(getConnectedHost(), cPort);
       tracks[trId].data.bind(2000 + trId * 2);
       setsockopt(tracks[trId].data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
-      tracks[trId].rtcp.SetDestination(myConn.getHost(), cPort + 1);
+      tracks[trId].rtcp.SetDestination(getConnectedHost(), cPort + 1);
       tracks[trId].rtcp.bind(2000 + trId * 2 + 1);
       setsockopt(tracks[trId].rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
       std::string source = HTTP_R.url.substr(7);

@@ -19,5 +19,8 @@ namespace Mist {
       std::string getHandler();
   protected:
       HTTP::Parser H;
+      std::string getConnectedHost();//LTS
+      std::string getConnectedBinHost();//LTS
+      bool isTrustedProxy(const std::string & ip);//LTS
   };
 }

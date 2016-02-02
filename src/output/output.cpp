@@ -132,7 +132,7 @@ namespace Mist {
     sought = false;
     /*LTS-START*/
     if(Triggers::shouldTrigger("CONN_PLAY", streamName)){
-      std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+      std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
       if (!Triggers::doTrigger("CONN_PLAY", payload, streamName)){
         myConn.close();
       }
@@ -745,7 +745,7 @@ namespace Mist {
   int Output::run() {
     /*LTS-START*/
     if(Triggers::shouldTrigger("CONN_OPEN", streamName)){
-      std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+      std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
       if (!Triggers::doTrigger("CONN_OPEN", payload, streamName)){
         return 1;
       }
@@ -779,7 +779,7 @@ namespace Mist {
     
     /*LTS-START*/
     if(Triggers::shouldTrigger("CONN_CLOSE", streamName)){
-      std::string payload = streamName+"\n"+myConn.getHost()+"\n"+capa["name"].asStringRef()+"\n"+reqUrl; ///\todo generate payload
+      std::string payload = streamName+"\n"+getConnectedHost()+"\n"+capa["name"].asStringRef()+"\n"+reqUrl; ///\todo generate payload
       Triggers::doTrigger("CONN_CLOSE", payload, streamName); //no stream specified    
     }
     /*LTS-END*/
@@ -836,7 +836,7 @@ namespace Mist {
       onFinish();
       /*LTS-START*/      
       if(Triggers::shouldTrigger("CONN_STOP", streamName)){
-        std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n";
+        std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n";
         Triggers::doTrigger("CONN_STOP", payload, streamName);
       }
       /*LTS-END*/

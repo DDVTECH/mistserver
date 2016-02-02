@@ -2,6 +2,7 @@
 #include "output_http.h"
 #include <mist/stream.h>
 #include <mist/checksum.h>
+#include <set>
 
 namespace Mist {
   HTTPOutput::HTTPOutput(Socket::Connection & conn) : Output(conn) {
@@ -333,5 +334,66 @@ namespace Mist {
     ///start new/better process
     execv(argarr[0], argarr);
   }
+
+  /*LTS-START*/
+  std::string HTTPOutput::getConnectedHost(){
+    std::string host = Output::getConnectedHost();
+    std::string xRealIp = H.GetHeader("x-real-ip");
+
+    if (!isTrustedProxy(host) || !xRealIp.size()){
+      static bool msg = false;
+      if (xRealIp.size() && !msg){
+        WARN_MSG("Host %s is attempting to act as a proxy, but not trusted", host.c_str());
+        msg = true;
+      }
+      return host;
+    }
+    return xRealIp;
+  }
+  std::string HTTPOutput::getConnectedBinHost(){
+    //Do first check with connected host because of simplicity
+    std::string host = Output::getConnectedHost();
+    std::string xRealIp = H.GetHeader("x-real-ip");
+
+    if (!isTrustedProxy(host) || !xRealIp.size()){
+      static bool msg = false;
+      if (xRealIp.size() && !msg){
+        WARN_MSG("Host %s is attempting to act as a proxy, but not trusted", host.c_str());
+        msg = true;
+      }
+      return Output::getConnectedBinHost();
+    }
+    
+    Socket::Connection binConn;
+    binConn.setHost(xRealIp);
+    return binConn.getBinHost();
+  }
+
+  bool HTTPOutput::isTrustedProxy(const std::string & ip){
+    static std::set<std::string> trustedProxies;
+    if (!trustedProxies.size()){
+      trustedProxies.insert("::1");
+      trustedProxies.insert("127.0.0.1");
+
+      IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE, false, false); ///< Open server config
+      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      configLock.wait();
+      std::string trustedList = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("trustedproxy").asString();
+      configLock.post();
+      configLock.close();
+      size_t pos = 0;
+      size_t endPos;
+      while (pos != std::string::npos){
+        endPos = trustedList.find(" ", pos);
+        trustedProxies.insert(trustedList.substr(pos, endPos - pos));
+        pos = endPos;
+        if (pos != std::string::npos){
+          pos++;
+        }
+      }
+    }
+    return trustedProxies.count(ip);
+  }
+  /*LTS-END*/
   
 }

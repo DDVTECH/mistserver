@@ -85,6 +85,8 @@ namespace Mist {
       bool onList(std::string ip, std::string list);
       std::string getCountry(std::string ip);
       /*LTS-END*/
+
+
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
       int pageNumForKey(long unsigned int trackId, long long int keyNum);

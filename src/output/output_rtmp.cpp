@@ -489,11 +489,11 @@ namespace Mist {
 
         /*LTS-START*/
         if(Triggers::shouldTrigger("RTMP_PUSH_REWRITE")){
-          std::string payload = reqUrl+"\n" + myConn.getHost();
+          std::string payload = reqUrl+"\n" + getConnectedHost();
           std::string newUrl = "";
           Triggers::doTrigger("RTMP_PUSH_REWRITE", payload, "", false, newUrl);
           if (!newUrl.size()){
-            FAIL_MSG("Push from %s to URL %s rejected - RTMP_PUSH_REWRITE trigger blanked the URL", myConn.getHost().c_str(), reqUrl.c_str());
+            FAIL_MSG("Push from %s to URL %s rejected - RTMP_PUSH_REWRITE trigger blanked the URL", getConnectedHost().c_str(), reqUrl.c_str());
             myConn.close();
             return;
           }
@@ -551,9 +551,9 @@ namespace Mist {
               }
             }
             if(Triggers::shouldTrigger("STREAM_PUSH", smp)){
-              std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+              std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
               if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
-                DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - STREAM_PUSH trigger denied the push", myConn.getHost().c_str(), streamName.c_str());
+                DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - STREAM_PUSH trigger denied the push", getConnectedHost().c_str(), streamName.c_str());
                 myConn.close();
                 configLock.post();
                 configLock.close();

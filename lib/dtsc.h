@@ -282,6 +282,8 @@ namespace DTSC {
       int width;
       int height;
       int fpks;
+    private:
+      std::string cachedIdent;
   };
 
   ///\brief Class for storage of meta data

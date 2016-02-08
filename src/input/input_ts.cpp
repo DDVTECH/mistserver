@@ -431,6 +431,9 @@ namespace Mist {
       lock.wait();
       threadCount = threadTimer.size();
       lock.post();
+      if (threadCount){
+        Util::sleep(100);
+      }
     } while (threadCount);
   }
 #endif

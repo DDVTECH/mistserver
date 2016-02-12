@@ -39,6 +39,7 @@ namespace Mist {
   }
 
   void OutRTSP::init(Util::Config * cfg){
+    Output::init(cfg);
     capa["name"] = "RTSP";
     capa["desc"] = "Provides Real Time Streaming Protocol output, supporting both UDP and TCP transports.";
     capa["deps"] = "";

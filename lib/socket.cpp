@@ -70,7 +70,7 @@ void Socket::Buffer::append(const char * newdata, const unsigned int newdatasize
       }
     }
     if (i != j) {
-      DONTEVEN_MSG("Adding a block of size %d", j-i);
+      DONTEVEN_MSG("Adding a block of size %d", j - i);
       data.push_front(std::string(newdata + i, (size_t)(j - i)));
       i = j;
     } else {
@@ -294,7 +294,7 @@ void Socket::Connection::drop() {
 
 /// Returns internal socket number.
 int Socket::Connection::getSocket() {
-  if (sock != -1){
+  if (sock != -1) {
     return sock;
   }
   if (pipes[0] != -1) {
@@ -542,7 +542,7 @@ int Socket::Connection::iread(void * buffer, int len, int flags) {
     r = recv(sock, buffer, len, flags);
   } else {
     r = recv(pipes[1], buffer, len, flags);
-    if (r < 0 && errno == ENOTSOCK){
+    if (r < 0 && errno == ENOTSOCK) {
       r = read(pipes[1], buffer, len);
     }
   }
@@ -613,7 +613,7 @@ std::string Socket::Connection::getHost() const {
 /// Gets hostname for connection, if available.
 /// Guaranteed to be either empty or 16 bytes long.
 std::string Socket::Connection::getBinHost() {
-  if (remotehost.size()){
+  if (remotehost.size()) {
     struct addrinfo * result, *rp, hints;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
@@ -630,16 +630,16 @@ std::string Socket::Connection::getBinHost() {
     }
     char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
     for (rp = result; rp != NULL; rp = rp->ai_next) {
-      if (rp->ai_family == AF_INET){
+      if (rp->ai_family == AF_INET) {
         memcpy(tmpBuffer + 12, &((sockaddr_in *)rp->ai_addr)->sin_addr.s_addr, 4);
       }
-      if (rp->ai_family == AF_INET6){
+      if (rp->ai_family == AF_INET6) {
         memcpy(tmpBuffer, ((sockaddr_in6 *)rp->ai_addr)->sin6_addr.s6_addr, 16);
       }
     }
     freeaddrinfo(result);
     return std::string(tmpBuffer, 16);
-  }else{
+  } else {
     return "";
   }
 }
@@ -971,12 +971,18 @@ int Socket::Server::getSocket() {
 /// If both fail, prints an DLVL_FAIL debug message.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock) {
+#ifdef __CYGWIN__
+#warning UDP over IPv6 is currently disabled on windows
+  isIPv6 = false;
+  sock = socket(AF_INET, SOCK_DGRAM, 0);
+#else
   isIPv6 = true;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1) {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     isIPv6 = false;
   }
+#endif
   if (sock == -1) {
     DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));
   }
@@ -995,18 +1001,18 @@ Socket::UDPConnection::UDPConnection(bool nonblock) {
 /// Copies a UDP socket, re-allocating local copies of any needed structures.
 /// The data/data_size/data_len variables are *not* copied over.
 Socket::UDPConnection::UDPConnection(const UDPConnection & o) {
+#ifdef __CYGWIN__
+#warning UDP over IPv6 is currently disabled on windows
+  isIPv6 = false;
+  sock = socket(AF_INET, SOCK_DGRAM, 0);
+#else
   isIPv6 = true;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1) {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     isIPv6 = false;
-  }else{
-#ifdef __CYGWIN__
-    // Under windows, turn IPv6-only mode off.
-    int on = 0;
-    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on));
-#endif
   }
+#endif
   if (sock == -1) {
     DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));
   }
@@ -1144,8 +1150,9 @@ void Socket::UDPConnection::SendNow(const char * sdata, size_t len) {
 /// If that fails too, gives up and returns zero.
 /// Prints a debug message at DLVL_FAIL level if binding failed.
 /// \return Actually bound port number, or zero on error.
-int Socket::UDPConnection::bind(int port, std::string iface) {
-  if (isIPv6){
+int Socket::UDPConnection::bind(int port, std::string iface, const std::string & multicastInterfaces) {
+  int result = 0;
+  if (isIPv6) {
     struct sockaddr_in6 s6;
     memset(&s6, 0, sizeof(s6));
     s6.sin6_family = AF_INET6;
@@ -1157,25 +1164,47 @@ int Socket::UDPConnection::bind(int port, std::string iface) {
     s6.sin6_port = htons(port);
     int r = ::bind(sock, (sockaddr *)&s6, sizeof(s6));
     if (r == 0) {
-      return ntohs(s6.sin6_port);
+      result = ntohs(s6.sin6_port);
     }
-  }else{
+  } else {
     struct sockaddr_in s4;
     memset(&s4, 0, sizeof(s4));
     s4.sin_family = AF_INET;
     if (iface == "0.0.0.0" || iface.length() == 0) {
-      s4.sin_addr.s_addr = INADDR_ANY;
+      s4.sin_addr.s_addr = htonl(INADDR_ANY);
     } else {
       inet_pton(AF_INET, iface.c_str(), &s4.sin_addr);
     }
     s4.sin_port = htons(port);
     int r = ::bind(sock, (sockaddr *)&s4, sizeof(s4));
     if (r == 0) {
-      return ntohs(s4.sin_port);
+      result = ntohs(s4.sin_port);
     }
   }
-  DEBUG_MSG(DLVL_FAIL, "Could not bind %s UDP socket to port %d: %s", isIPv6?"IPv6":"IPv4", port, strerror(errno));
-  return 0;
+  if (!result){
+    DEBUG_MSG(DLVL_FAIL, "Could not bind %s UDP socket to port %d: %s", isIPv6 ? "IPv6" : "IPv4", port, strerror(errno));
+    return 0;
+  }
+  //Detect multicast
+  if (iface.length() && ((atoi(iface.c_str()) & 0xE0) == 0xE0)){
+    if (!multicastInterfaces.length()){
+      WARN_MSG("Multicast IP given without any defined interfaces");
+    }else{
+      struct ip_mreq group;
+      inet_pton(AF_INET, iface.c_str(), &group.imr_multiaddr.s_addr);
+      size_t loc = 0;
+      while (loc != std::string::npos){
+        size_t nxtPos = multicastInterfaces.find(',', loc);
+        std::string curIface = multicastInterfaces.substr(loc, (nxtPos == std::string::npos ? nxtPos : nxtPos - loc));
+        inet_pton(AF_INET, curIface.c_str(), &group.imr_interface.s_addr);
+        if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group)) < 0) {
+          WARN_MSG("Unable to register for multicast on interface %s: %s", curIface.c_str() , strerror(errno));
+        }
+        loc = (nxtPos == std::string::npos ? nxtPos : nxtPos + 1);
+      }
+    }
+  }
+  return result;
 }
 
 /// Attempt to receive a UDP packet.
@@ -1183,9 +1212,15 @@ int Socket::UDPConnection::bind(int port, std::string iface) {
 /// If a packet is received, it will be placed in the "data" member, with it's length in "data_len".
 /// \return True if a packet was received, false otherwise.
 bool Socket::UDPConnection::Receive() {
+#ifdef __CYGWIN__
+  if (data_size != SOCKETSIZE){
+    data = (char *)realloc(data, SOCKETSIZE);
+    data_size = SOCKETSIZE;
+  }
+#endif
   int r = recvfrom(sock, data, data_size, MSG_PEEK | MSG_TRUNC, 0, 0);
-  if (r == -1){
-    if (errno != EAGAIN){
+  if (r == -1) {
+    if (errno != EAGAIN) {
       INFO_MSG("Found an error: %d (%s)", errno, strerror(errno));
     }
     data_len = 0;

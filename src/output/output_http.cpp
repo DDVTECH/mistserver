@@ -308,7 +308,7 @@ namespace Mist {
     DEBUG_MSG(DLVL_HIGH, "Connector found: %s", connector.c_str());
     //build arguments for starting output process
     
-    std::string temphost=myConn.getHost();
+    std::string temphost=getConnectedHost();
     std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
     std::string tmparg = Util::getMyPath() + std::string("MistOut") + connector;
     

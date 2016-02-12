@@ -139,6 +139,14 @@ namespace Mist {
     }
     /*LTS-END*/
   }
+
+  std::string Output::getConnectedHost(){
+    return myConn.getHost();
+  }
+
+  std::string Output::getConnectedBinHost(){
+    return myConn.getBinHost();
+  }
  
   /// Connects or reconnects to the stream.
   /// Assumes streamName class member has been set already.
@@ -1002,7 +1010,7 @@ namespace Mist {
         IPC::statExchange tmpEx(statsPage.getData());
         tmpEx.now(now);
         if (setHost){
-          tmpEx.host(myConn.getBinHost());
+          tmpEx.host(getConnectedBinHost());
           setHost = false;
         }
         tmpEx.crc(crc);

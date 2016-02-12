@@ -683,10 +683,11 @@ namespace Mist {
     VERYHIGH_MSG("Updating meta for track %d", tNum);
     //Store a reference for easier access
     std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
+    char * mappedPointer = metaPages[tNum].mapped;
 
     //First detect all entries on metaPage
-    for (int i = 0; i < 8192; i += 8){
-      int * tmpOffset = (int *)(metaPages[tNum].mapped + i);
+    for (int i = 0; i < 8192; i += 8) {
+      int * tmpOffset = (int *)(mappedPointer + i);
       if (tmpOffset[0] == 0 && tmpOffset[1] == 0){
         continue;
       }

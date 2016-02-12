@@ -1502,9 +1502,11 @@ namespace DTSC {
 
   ///\brief Returns a writable identifier for a track, to prevent overwrites on readout
   std::string Track::getWritableIdentifier() {
+    if (cachedIdent.size()){return cachedIdent;}
     std::stringstream result;
     result << getIdentifier() << "_" << trackID;
-    return result.str();
+    cachedIdent = result.str();
+    return cachedIdent;
   }
 
   ///\brief Determines the "packed" size of a track
@@ -1545,8 +1547,9 @@ namespace DTSC {
 
   ///\brief Writes a track to a pointer
   void Track::writeTo(char *& p) {
-    writePointer(p, convertShort(getWritableIdentifier().size()), 2);
-    writePointer(p, getWritableIdentifier());
+    std::string trackIdent = getWritableIdentifier();
+    writePointer(p, convertShort(trackIdent.size()), 2);
+    writePointer(p, trackIdent);
     writePointer(p, "\340", 1);//Begin track object
     writePointer(p, "\000\011fragments\002", 12);
     writePointer(p, convertInt(fragments.size() * PACKED_FRAGMENT_SIZE), 4);

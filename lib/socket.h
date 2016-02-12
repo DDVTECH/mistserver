@@ -71,7 +71,7 @@ namespace Socket {
       void drop(); ///< Close connection without shutdown.
       void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
       bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
-      std::string getHost(); ///< Gets hostname for connection, if available.
+      std::string getHost() const; ///< Gets hostname for connection, if available.
       std::string getBinHost();
       void setHost(std::string host); ///< Sets hostname for connection manually.
       int getSocket(); ///< Returns internal socket number.
@@ -137,7 +137,7 @@ namespace Socket {
       UDPConnection(bool nonblock = false);
       ~UDPConnection();
       int getSock();
-      int bind(int port, std::string iface = "");
+      int bind(int port, std::string iface = "", const std::string & multicastAddress = "");
       void setBlocking(bool blocking);
       void SetDestination(std::string hostname, uint32_t port);
       void GetDestination(std::string & hostname, uint32_t & port);

@@ -70,11 +70,11 @@ namespace Mist {
     capa["optional"]["resume"]["help"] = "If enabled, the buffer will linger after source disconnect to allow resuming the stream later. If disabled, the buffer will instantly close on source disconnect.";
     capa["optional"]["resume"]["option"] = "--resume";
     capa["optional"]["resume"]["type"] = "select";
-    capa["optional"]["resume"]["select"][0u][0u] = "1";
-    capa["optional"]["resume"]["select"][0u][1u] = "Enabled";
-    capa["optional"]["resume"]["select"][1u][0u] = "0";
-    capa["optional"]["resume"]["select"][1u][1u] = "Disabled";
-    capa["optional"]["resume"]["default"] = 1LL;
+    capa["optional"]["resume"]["select"][0u][0u] = "0";
+    capa["optional"]["resume"]["select"][0u][1u] = "Disabled";
+    capa["optional"]["resume"]["select"][1u][0u] = "1";
+    capa["optional"]["resume"]["select"][1u][1u] = "Enabled";
+    capa["optional"]["resume"]["default"] = 0LL;
     option.null();
 
     option["arg"] = "integer";

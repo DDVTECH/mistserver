@@ -75,6 +75,11 @@ namespace Mist {
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
       bool completeKeyReadyTimeOut;//a bool to see if there has been a keyframe TimeOut for complete keys in Live
     protected://these are to be messed with by child classes
+      
+      virtual std::string getConnectedHost();
+      virtual std::string getConnectedBinHost();
+
+
       IPC::sharedClient statsPage;///< Shared memory used for statistics reporting.
       bool isBlocking;///< If true, indicates that myConn is blocking.
       unsigned int crc;///< Checksum, if any, for usage in the stats.

@@ -7,7 +7,7 @@
 namespace Mist {
   OutHTTP::OutHTTP(Socket::Connection & conn) : HTTPOutput(conn){
     if (myConn.getPureSocket() >= 0){
-      std::string host = myConn.getHost();
+      std::string host = getConnectedHost();
       dup2(myConn.getSocket(), STDIN_FILENO);
       dup2(myConn.getSocket(), STDOUT_FILENO);
       myConn.drop();
@@ -15,6 +15,7 @@ namespace Mist {
       myConn.setHost(host);
     }
   }
+
   OutHTTP::~OutHTTP() {}
   
   bool OutHTTP::listenMode(){

@@ -606,7 +606,7 @@ bool Socket::Connection::iwrite(std::string & buffer) {
 } //iwrite
 
 /// Gets hostname for connection, if available.
-std::string Socket::Connection::getHost() {
+std::string Socket::Connection::getHost() const {
   return remotehost;
 }
 

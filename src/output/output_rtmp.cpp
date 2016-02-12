@@ -499,13 +499,13 @@ namespace Mist {
             std::string IP = source.substr(0, source.find('@'));
             if (IP != ""){
               if (!myConn.isAddress(IP)){
-                DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - source host not whitelisted", myConn.getHost().c_str(), streamName.c_str());
+                DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());
                 myConn.close();
               }
             }
           }
         }else{
-          DEBUG_MSG(DLVL_FAIL, "Push from %s rejected - stream '%s' not configured.", myConn.getHost().c_str(), streamName.c_str());
+          DEBUG_MSG(DLVL_FAIL, "Push from %s rejected - stream '%s' not configured.", getConnectedHost().c_str(), streamName.c_str());
           myConn.close();
         }
         configLock.post();

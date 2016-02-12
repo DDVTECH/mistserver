@@ -451,11 +451,12 @@ namespace Mist {
   void inputBuffer::updateTrackMeta(unsigned long tNum) {
     //Store a reference for easier access
     std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
+    char * mappedPointer = metaPages[tNum].mapped;
 
     //First detect all entries on metaPage
     for (int i = 0; i < 8192; i += 8) {
-      int * tmpOffset = (int *)(metaPages[tNum].mapped + i);
-      if (tmpOffset[0] == 0 && tmpOffset[1] == 0) {
+      int * tmpOffset = (int *)(mappedPointer + i);
+      if (tmpOffset[0] == 0 && tmpOffset[1] == 0){
         continue;
       }
       unsigned long keyNum = ntohl(tmpOffset[0]);

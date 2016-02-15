@@ -69,6 +69,8 @@ namespace IPC {
       void unlink();
     private:
 #if defined(__CYGWIN__) || defined(_WIN32)
+      ///\todo Maybe sometime implement anything else than 777
+      static SECURITY_ATTRIBUTES getSecurityAttributes();
       HANDLE mySem;
 #else
       sem_t * mySem;
@@ -227,5 +229,16 @@ namespace IPC {
       int offsetOnPage;
       ///\brief Whether the payload has a counter, if so, it is added in front of the payload
       bool hasCounter;
+  };
+
+  class userConnection {
+    public:
+      userConnection(char * _data);
+      unsigned long getTrackId(size_t offset) const;
+      void setTrackId(size_t offset, unsigned long trackId) const;
+      unsigned long getKeynum(size_t offset) const;
+      void setKeynum(size_t offset, unsigned long keynum);
+    private:
+      char * data;
   };
 }

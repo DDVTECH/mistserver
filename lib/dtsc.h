@@ -34,6 +34,7 @@ namespace DTSC {
   extern char Magic_Header[]; ///< The magic bytes for a DTSC header
   extern char Magic_Packet[]; ///< The magic bytes for a DTSC packet
   extern char Magic_Packet2[]; ///< The magic bytes for a DTSC packet version 2
+  extern char Magic_Command[]; ///< The magic bytes for a DTCM packet
 
   ///\brief A simple structure used for ordering byte seek positions.
   struct seekPos {
@@ -61,7 +62,8 @@ namespace DTSC {
     DTSC_INVALID,
     DTSC_HEAD,
     DTSC_V1,
-    DTSC_V2
+    DTSC_V2,
+    DTCM
   };
 
   /// This class allows scanning through raw binary format DTSC data.
@@ -295,10 +297,10 @@ namespace DTSC {
       void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
       */
       void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000, const char * iVec = 0);
-      int getSendLen();
-      void send(Socket::Connection & conn);
+      int getSendLen(bool skipDynamic = false);
+      void send(Socket::Connection & conn, bool skipDynamic = false);
       void writeTo(char *& p);
-      JSON::Value toJSON(bool skipBinary = false);
+      JSON::Value toJSON(bool skipDynamic = false);
       std::deque<Fragment> fragments;
       std::deque<Key> keys;
       std::deque<unsigned long> keySizes;
@@ -352,8 +354,8 @@ namespace DTSC {
       void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
       LTS*/
       void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000, const char * iVec = 0);
-      unsigned int getSendLen();
-      void send(Socket::Connection & conn);
+      unsigned int getSendLen(bool skipDynamic = false);
+      void send(Socket::Connection & conn, bool skipDynamic = false);
       void writeTo(char * p);
       JSON::Value toJSON();
       void reset();
@@ -398,7 +400,6 @@ namespace DTSC {
       long int endPos;
       void readHeader(int pos);
       DTSC::Packet myPack;
-      JSON::Value metaStorage;
       Meta metadata;
       std::map<unsigned int, std::string> trackMapping;
       long long int currtime;

@@ -159,8 +159,12 @@ namespace DTSC {
           if (!memcmp(data, Magic_Header, 4)) {
             version = DTSC_HEAD;
           } else {
-            DEBUG_MSG(DLVL_FAIL, "ReInit received a packet with invalid header");
-            return;
+            if (!memcmp(data, Magic_Command, 4)) {
+              version = DTCM;
+            } else {
+              DEBUG_MSG(DLVL_FAIL, "ReInit received a packet with invalid header");
+              return;
+            }
           }
         }
       }
@@ -1510,15 +1514,17 @@ namespace DTSC {
   }
 
   ///\brief Determines the "packed" size of a track
-  int Track::getSendLen() {
-    int result = 146 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
-    result += fragments.size() * PACKED_FRAGMENT_SIZE;
-    result += keys.size() * PACKED_KEY_SIZE;
-    if (keySizes.size()){
-      result += 11 + (keySizes.size() * 4) + 4;
+  int Track::getSendLen(bool skipDynamic) {
+    int result = 107 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
+    if (!skipDynamic){
+      result += fragments.size() * PACKED_FRAGMENT_SIZE + 16;
+      result += keys.size() * PACKED_KEY_SIZE + 11;
+      if (keySizes.size()){
+        result += (keySizes.size() * 4) + 15;
+      }
+      result += parts.size() * 9 + 12;
+      result += (ivecs.size() * 8) + 12; /*LTS*/
     }
-    result += parts.size() * 9;
-    result += (ivecs.size() * 8) + 12; /*LTS*/
     if (type == "audio") {
       result += 49;
     } else if (type == "video") {
@@ -1624,46 +1630,48 @@ namespace DTSC {
   }
 
   ///\brief Writes a track to a socket
-  void Track::send(Socket::Connection & conn) {
+  void Track::send(Socket::Connection & conn, bool skipDynamic) {
     conn.SendNow(convertShort(getWritableIdentifier().size()), 2);
     conn.SendNow(getWritableIdentifier());
     conn.SendNow("\340", 1);//Begin track object
-    conn.SendNow("\000\011fragments\002", 12);
-    conn.SendNow(convertInt(fragments.size() * PACKED_FRAGMENT_SIZE), 4);
-    for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
-      conn.SendNow(it->getData(), PACKED_FRAGMENT_SIZE);
+    if (!skipDynamic){
+      conn.SendNow("\000\011fragments\002", 12);
+      conn.SendNow(convertInt(fragments.size() * PACKED_FRAGMENT_SIZE), 4);
+      for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
+        conn.SendNow(it->getData(), PACKED_FRAGMENT_SIZE);
+      }
+      conn.SendNow("\000\004keys\002", 7);
+      conn.SendNow(convertInt(keys.size() * PACKED_KEY_SIZE), 4);
+      for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
+        conn.SendNow(it->getData(), PACKED_KEY_SIZE);
+      }
+      conn.SendNow("\000\010keysizes\002,", 11);
+      conn.SendNow(convertInt(keySizes.size() * 4), 4);
+      std::string tmp;
+      tmp.reserve(keySizes.size() * 4);
+      for (unsigned int i = 0; i < keySizes.size(); i++){
+        tmp += (char)(keySizes[i] >> 24);
+        tmp += (char)(keySizes[i] >> 16);
+        tmp += (char)(keySizes[i] >> 8);
+        tmp += (char)(keySizes[i]);
+      }
+      conn.SendNow(tmp.data(), tmp.size());
+      conn.SendNow("\000\005parts\002", 8);
+      conn.SendNow(convertInt(parts.size() * 9), 4);
+      for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
+        conn.SendNow(it->getData(), 9);
+      }
+      /*LTS-START*/
+      conn.SendNow("\000\005ivecs\002", 8);
+      conn.SendNow(convertInt(ivecs.size() * 8), 4);
+      for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
+        conn.SendNow(it->getData(), 8);
+      }
+      /*LTS-END*/
     }
-    conn.SendNow("\000\004keys\002", 7);
-    conn.SendNow(convertInt(keys.size() * PACKED_KEY_SIZE), 4);
-    for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++) {
-      conn.SendNow(it->getData(), PACKED_KEY_SIZE);
-    }
-    conn.SendNow("\000\010keysizes\002,", 11);
-    conn.SendNow(convertInt(keySizes.size() * 4), 4);
-    std::string tmp;
-    tmp.reserve(keySizes.size() * 4);
-    for (unsigned int i = 0; i < keySizes.size(); i++){
-      tmp += (char)(keySizes[i] >> 24);
-      tmp += (char)(keySizes[i] >> 16);
-      tmp += (char)(keySizes[i] >> 8);
-      tmp += (char)(keySizes[i]);
-    }
-    conn.SendNow(tmp.data(), tmp.size());
-    conn.SendNow("\000\005parts\002", 8);
-    conn.SendNow(convertInt(parts.size() * 9), 4);
-    for (std::deque<Part>::iterator it = parts.begin(); it != parts.end(); it++) {
-      conn.SendNow(it->getData(), 9);
-    }
-    /*LTS-START*/
-    conn.SendNow("\000\005ivecs\002", 8);
-    conn.SendNow(convertInt(ivecs.size() * 8), 4);
-    for (std::deque<Ivec>::iterator it = ivecs.begin(); it != ivecs.end(); it++) {
-      conn.SendNow(it->getData(), 8);
-    }
-    /*LTS-END*/
     conn.SendNow("\000\007trackid\001", 10);
     conn.SendNow(convertLongLong(trackID), 8);
-    if (missedFrags) {
+    if (!skipDynamic && missedFrags) {
       conn.SendNow("\000\014missed_frags\001", 15);
       conn.SendNow(convertLongLong(missedFrags), 8);
     }
@@ -1701,10 +1709,10 @@ namespace DTSC {
   }
 
   ///\brief Determines the "packed" size of a meta object
-  unsigned int Meta::getSendLen() {
+  unsigned int Meta::getSendLen(bool skipDynamic) {
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      dataLen += it->second.getSendLen();
+      dataLen += it->second.getSendLen(skipDynamic);
     }
     return dataLen + 8; //add 8 bytes header
   }
@@ -1741,13 +1749,13 @@ namespace DTSC {
   }
 
   ///\brief Writes a meta object to a socket
-  void Meta::send(Socket::Connection & conn) {
-    int dataLen = getSendLen() - 8; //strip 8 bytes header
+  void Meta::send(Socket::Connection & conn, bool skipDynamic) {
+    int dataLen = getSendLen(skipDynamic) - 8; //strip 8 bytes header
     conn.SendNow(DTSC::Magic_Header, 4);
     conn.SendNow(convertInt(dataLen), 4);
     conn.SendNow("\340\000\006tracks\340", 10);
     for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      it->second.send(conn);
+      it->second.send(conn, skipDynamic);
     }
     conn.SendNow("\000\000\356", 3);//End tracks object
     if (vod) {
@@ -1772,10 +1780,10 @@ namespace DTSC {
   }
 
   ///\brief Converts a track to a JSON::Value
-  JSON::Value Track::toJSON(bool skipBinary) {
+  JSON::Value Track::toJSON(bool skipDynamic) {
     JSON::Value result;
     std::string tmp;
-    if (!skipBinary) {
+    if (!skipDynamic) {
       tmp.reserve(fragments.size() * PACKED_FRAGMENT_SIZE);
       for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
         tmp.append(it->getData(), PACKED_FRAGMENT_SIZE);
@@ -1810,8 +1818,8 @@ namespace DTSC {
       }
       result["ivecs"] = tmp;
       /*LTS-END*/
-      result["init"] = init;
     }
+    result["init"] = init;
     result["trackid"] = trackID;
     result["firstms"] = (long long)firstms;
     result["lastms"] = (long long)lastms;

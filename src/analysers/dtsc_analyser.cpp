@@ -23,7 +23,9 @@ namespace Analysers {
       std::cerr << "Not a valid DTSC file" << std::endl;
       return 1;
     }
-    F.getMeta().toPrettyString(std::cout,0, 0x03);
+    if (F.getMeta().vod || F.getMeta().live){
+      F.getMeta().toPrettyString(std::cout,0, 0x03);
+    }
 
     int bPos = 0;
     F.seek_bpos(0);
@@ -40,6 +42,10 @@ namespace Analysers {
         }
         case DTSC::DTSC_HEAD: {
           std::cout << "DTSC header: " << F.getPacket().getScan().toPrettyString() << std::endl;
+          break;
+        }
+        case DTSC::DTCM: {
+          std::cout << "DTCM command: " << F.getPacket().getScan().toPrettyString() << std::endl;
           break;
         }
         default:

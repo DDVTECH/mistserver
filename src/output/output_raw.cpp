@@ -4,11 +4,11 @@ namespace Mist {
   OutRaw::OutRaw(Socket::Connection & conn) : Output(conn) {
     streamName = config->getString("streamname");
     initialize();
-    selectedTracks.clear();
     std::string tracks = config->getString("tracks");
-    unsigned int currTrack = 0;
-    //loop over tracks, add any found track IDs to selectedTracks
-    if (tracks != ""){
+    if (tracks.size()){
+      selectedTracks.clear();
+      unsigned int currTrack = 0;
+      //loop over tracks, add any found track IDs to selectedTracks
       for (unsigned int i = 0; i < tracks.size(); ++i){
         if (tracks[i] >= '0' && tracks[i] <= '9'){
           currTrack = currTrack*10 + (tracks[i] - '0');
@@ -46,8 +46,7 @@ namespace Mist {
     capa["optional"]["seek"]["help"] = "The time in milliseconds to seek to, 0 by default.";
     capa["optional"]["seek"]["type"] = "int";
     capa["optional"]["seek"]["option"] = "--seek";
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][0u].append("*");
     cfg->addOption("streamname",
                    JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
     cfg->addOption("tracks",
@@ -68,3 +67,4 @@ namespace Mist {
   }
 
 }
+

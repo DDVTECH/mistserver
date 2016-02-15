@@ -359,6 +359,7 @@ macro(makeOutput outputName format)
 endmacro()
 
 makeOutput(RTMP rtmp)
+makeOutput(DTSC dtsc)
 makeOutput(OGG progressive_ogg http)
 makeOutput(FLV progressive_flv http)
 makeOutput(HTTPMinimalServer http_minimalserver http)

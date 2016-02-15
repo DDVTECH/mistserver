@@ -338,10 +338,12 @@ namespace Mist {
               }
               if (!found){
                 for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                  if (trit->second.codec == (*itc).asStringRef()){
+                  if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
                     genCounter++;
                     found = true;
-                    break;
+                    if ((*itc).asStringRef() != "*"){
+                      break;
+                    }
                   }
                 }
               }
@@ -368,6 +370,7 @@ namespace Mist {
         if ((*itb).size() && myMeta.tracks.size()){
           bool found = false;
           jsonForEach((*itb), itc) {
+            INFO_MSG("Filling codec: '%s'", (*itc).asStringRef().c_str());
             if (found) {
               break;
             }
@@ -379,10 +382,12 @@ namespace Mist {
             }
             if (!found){
               for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                if (trit->second.codec == (*itc).asStringRef()){
+                if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
                   selectedTracks.insert(trit->first);
                   found = true;
-                  break;
+                  if ((*itc).asStringRef() != "*"){
+                    break;
+                  }
                 }
               }
             }

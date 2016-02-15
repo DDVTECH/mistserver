@@ -240,6 +240,58 @@ namespace Mist {
     //end player functionality
   }
 
+  /// Main loop for stream-style inputs.
+  /// This loop will start the buffer without resume support, and then repeatedly call ..... followed by ....
+  void Input::stream(){
+    char userPageName[NAME_BUFFER_SIZE];
+    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+    /*LTS-START*/
+    if(Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
+      std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
+      if (!Triggers::doTrigger("STREAM_READY", payload, config->getString("streamname"))){
+        config->is_active = false;
+      }
+    }
+    /*LTS-END*/
+    userPage.init(userPageName, PLAY_EX_SIZE, true);
+    if (!isBuffer) {
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+        bufferFrame(it->first, 1);
+      }
+    }
+
+    DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
+
+    long long int activityCounter = Util::bootSecs();
+    while ((Util::bootSecs() - activityCounter) < 10 && config->is_active) { //10 second timeout
+      userPage.parseEach(callbackWrapper);
+      removeUnused();
+      if (userPage.amount) {
+        activityCounter = Util::bootSecs();
+        DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.amount);
+      } else {
+        DEBUG_MSG(DLVL_INSANE, "Timer running");
+      }
+      /*LTS-START*/
+      if ((Util::bootSecs() - activityCounter) >= 10 || !config->is_active){//10 second timeout
+        if(Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
+          std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
+          if (!Triggers::doTrigger("STREAM_UNLOAD", payload, config->getString("streamname"))){
+            activityCounter = Util::bootSecs();
+            config->is_active = true;
+          }
+        }
+      }
+      /*LTS-END*/
+      if (config->is_active){
+        Util::sleep(1000);
+      }
+    }
+    finish();
+    DEBUG_MSG(DLVL_DEVEL, "Input for stream %s closing clean", streamName.c_str());
+    //end player functionality
+  }
+
   void Input::finish() {
     for (std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = pageCounter.begin(); it != pageCounter.end(); it++) {
       for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {

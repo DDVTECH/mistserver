@@ -51,4 +51,8 @@ mist
 Doxyfile
 CMakeCache.txt
 DartConfiguration.tcl
+build.ninja
+rules.ninja
+.ninja_log
+.ninja_deps
 

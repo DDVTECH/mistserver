@@ -167,10 +167,6 @@ namespace Mist {
     //skip the first fragment if live and there are more than 2 fragments.
     unsigned int skippedLines = 0;
     if (myMeta.live) {
-      if (lines.size() > 2) {
-        lines.pop_front();
-        skippedLines++;
-      }
       //only print the last segment when VoD
       lines.pop_back();
       /*LTS-START*/

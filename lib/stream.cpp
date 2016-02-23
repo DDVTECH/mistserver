@@ -18,7 +18,7 @@
 
 /* roxlu-begin */
 static std::string strftime_now(const std::string& format);
-static void replace_str(std::string& str, const std::string& from, const std::string& to);
+static void replace(std::string& str, const std::string& from, const std::string& to);
 static void replace_variables(std::string& str);
 /* roxlu-end */
 
@@ -371,6 +371,7 @@ int Util::startRecording(std::string streamname) {
 
   // The filename can hold variables like current time etc..
   replace_variables(recordFilename);
+  replace(recordFilename, "$stream", streamname);
 
   INFO_MSG("Filepath that we use for the recording: %s", recordFilename.c_str());
   //to change hardcoding
@@ -486,7 +487,7 @@ static void replace_variables(std::string& str) {
   vars.insert(std::pair<std::string, std::string>("$year", year));
   vars.insert(std::pair<std::string, std::string>("$hour", hour));
   vars.insert(std::pair<std::string, std::string>("$minute", minute));
-  vars.insert(std::pair<std::string, std::string>("$seconds", seconds));
+  vars.insert(std::pair<std::string, std::string>("$second", seconds));
   vars.insert(std::pair<std::string, std::string>("$datetime", datetime));
 
   std::map<std::string, std::string>::iterator it = vars.begin();

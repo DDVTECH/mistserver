@@ -349,9 +349,9 @@ namespace Mist {
     std::stringstream r;
     MP4::AVCC avccBox;
     avccBox.setPayload(initData);
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)avccBox.getSPS()[0] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)avccBox.getSPS()[1] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)avccBox.getSPS()[2] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
     return r.str();
   }
 
@@ -545,7 +545,7 @@ namespace Mist {
     std::string url = H.url;
     if (url.find(".mpd") != std::string::npos){
       H.Clean();
-      H.SetHeader("Content-Type", "application/xml");
+      H.SetHeader("Content-Type", "application/dash+xml");
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
       if(method == "OPTIONS" || method == "HEAD"){

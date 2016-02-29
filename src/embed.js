@@ -53,12 +53,8 @@ function mistembed(streamname) {
 
     
     if (type == 'video/mp4') {
-      if (navigator.userAgent.indexOf('Firefox') > -1) {
-        //firefox claims to support MP4 but doesn't
-        return false;
-      }
-      else if ((navigator.userAgent.indexOf('MSIE') > -1) && (parseInt(navigator.userAgent.split('MSIE')[1]) <= 9)) {
-        //IE <= 9 doesn't either
+      if ((navigator.userAgent.indexOf('MSIE') > -1) && (parseInt(navigator.userAgent.split('MSIE')[1]) <= 9)) {
+        //IE <= 9 doesn't support MP4, Firefox seems to correctly see it now.
         return false;
       }
     }

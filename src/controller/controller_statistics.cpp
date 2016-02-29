@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <list>
 #include <mist/config.h>
 #include "controller_statistics.h"
 
@@ -93,9 +94,17 @@ void Controller::SharedMemStats(void * config){
       statServer.parseEach(parseStatistics);
       //wipe old statistics
       if (sessions.size()){
+        std::list<sessIndex> mustWipe;
         unsigned long long cutOffPoint = Util::epoch() - STAT_CUTOFF;
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           it->second.wipeOld(cutOffPoint);
+          if (!it->second.hasData()){
+            mustWipe.push_back(it->first);
+          }
+        }
+        while (mustWipe.size()){
+          sessions.erase(mustWipe.front());
+          mustWipe.pop_front();
         }
       }
     }

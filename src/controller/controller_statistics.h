@@ -86,7 +86,7 @@ namespace Controller {
   void parseStatistics(char * data, size_t len, unsigned int id);
   void killStatistics(char * data, size_t len, unsigned int id);
   void fillClients(JSON::Value & req, JSON::Value & rep);
-  void fillActive(JSON::Value & req, JSON::Value & rep);
+  void fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow = false);
   void fillTotals(JSON::Value & req, JSON::Value & rep);
   void SharedMemStats(void * config);
   bool hasViewers(std::string streamName);

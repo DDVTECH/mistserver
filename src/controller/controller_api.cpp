@@ -554,7 +554,10 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             }
           }
           if (Request.isMember("active_streams")){
-            Controller::fillActive(Request["active_streams"], Response["active_streams"]);
+            Controller::fillActive(Request["active_streams"], Response["active_streams"], true);
+          }
+          if (Request.isMember("stats_streams")){
+            Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
           }
           
           Controller::writeConfig();

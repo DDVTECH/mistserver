@@ -601,7 +601,7 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
 /// This takes a "active_streams" request, and fills in the response data.
 /// 
 /// \api
-/// `"active_streams"` requests are always empty (passed data is ignored), and are responded to as:
+/// `"active_streams"` and `"stats_streams"` requests may either be empty, in which case the response looks like this:
 /// ~~~~~~~~~~~~~~~{.js}
 /// [
 ///   //Array of stream names
@@ -610,17 +610,43 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
 ///   "streamC"
 /// ]
 /// ~~~~~~~~~~~~~~~
+/// `"stats_streams"` will list all streams that any statistics data is available for, and only those. `"active_streams"` only lists streams that are currently active, and only those.
+/// If the request is an array, which may contain any of the following elements:
+/// ~~~~~~~~~~~~~~~{.js}
+/// [
+///   //Array of requested data types
+///   "clients", //Current viewer count
+///   "lastms" //Current position in the live buffer, if live
+/// ]
+/// ~~~~~~~~~~~~~~~
+/// In which case the response is changed into this format:
+/// ~~~~~~~~~~~~~~~{.js}
+/// {
+///   //Object of stream names, containing arrays in the same order as the request, with the same data
+///   "streamA":[
+///     0,
+///     60000
+///   ]
+///   "streamB":[
+///      //....
+///   ]
+///   //...
+/// }
+/// ~~~~~~~~~~~~~~~
 /// All streams that any statistics data is available for are listed, and only those streams.
-void Controller::fillActive(JSON::Value & req, JSON::Value & rep){
+void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   //collect the data first
   std::set<std::string> streams;
   std::map<std::string, unsigned long> clients;
-  unsigned int t = Util::epoch() - 5;
+  unsigned int t = Util::epoch() - 2;
   //check all sessions
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      streams.insert(it->first.streamName);
+      if (onlyNow || it->second.hasDataFor(t)){
+        streams.insert(it->first.streamName);
+      }
       if (it->second.hasDataFor(t)){
+        streams.insert(it->first.streamName);
         clients[it->first.streamName]++;
       }
     }

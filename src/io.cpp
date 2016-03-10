@@ -490,17 +490,17 @@ namespace Mist {
       //If there is no page, create it
       if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
         nextPageNum = 1;
-        pagesByTrack[tid][1].dataSize = (25 * 1024 * 1024);//Initialize op 25mb
+        pagesByTrack[tid][1].dataSize = DEFAULT_DATA_PAGE_SIZE;//Initialize op 25mb
         pagesByTrack[tid][1].pageNum = 1;
       }
       //Take the last allocated page
       std::map<unsigned long, DTSCPageData>::reverse_iterator tmpIt = pagesByTrack[tid].rbegin();
       //Compare on 8 mb boundary
-      if (tmpIt->second.curOffset > (8 * 1024 * 1024)) { 
+      if (tmpIt->second.curOffset > FLIP_DATA_PAGE_SIZE) { 
         //Create the book keeping data for the new page
         nextPageNum = tmpIt->second.pageNum + tmpIt->second.keyNum;
         INFO_MSG("We should go to next page now, transition from %lu to %d", tmpIt->second.pageNum, nextPageNum);
-        pagesByTrack[tid][nextPageNum].dataSize = (25 * 1024 * 1024);
+        pagesByTrack[tid][nextPageNum].dataSize = DEFAULT_DATA_PAGE_SIZE;
         pagesByTrack[tid][nextPageNum].pageNum = nextPageNum;
       }
       pagesByTrack[tid].rbegin()->second.lastKeyTime = packet.getTime();

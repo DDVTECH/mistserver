@@ -59,7 +59,7 @@ namespace Mist {
       std::map<int,unsigned long long int> iVecs;
       IPC::sharedPage encryptionPage;
 
-      void continueNegotiate(unsigned long tid, DTSC::Meta & myMeta);
+      void continueNegotiate(unsigned long tid, DTSC::Meta & myMeta, bool quickNegotiate = false);
   };
 
   ///\brief Class containing all basic input and output functions.
@@ -74,7 +74,7 @@ namespace Mist {
       void bufferLivePacket(JSON::Value & packet);
       void bufferLivePacket(DTSC::Packet & packet);
     protected:
-      void continueNegotiate(unsigned long tid);
+      void continueNegotiate(unsigned long tid, bool quickNegotiate = false);
 
 
 

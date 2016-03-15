@@ -1,7 +1,7 @@
 
 - Construct input
 - Parse arguments
-- Stream wordt gelocked IFF !nolock
+- Stream wordt gelocked IFF conv.needsLock()
 - Start .run()
 - setup(): opent files/sockets/etc waar nodig
   - set "isStream" naar true

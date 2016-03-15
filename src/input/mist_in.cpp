@@ -17,32 +17,33 @@ int main(int argc, char * argv[]) {
   if (conf.parseArgs(argc, argv)) {
     std::string streamName = conf.getString("streamname");
     conv.argumentsParsed();
-#ifndef INPUT_NOLOCK
+
     IPC::semaphore playerLock;
-    if (streamName.size()){
-      char semName[NAME_BUFFER_SIZE];
-      snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamName.c_str());
-      playerLock.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      if (!playerLock.tryWait()){
-        DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
-        return 1;
+    if (conv.needsLock()){
+      if (streamName.size()){
+        char semName[NAME_BUFFER_SIZE];
+        snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamName.c_str());
+        playerLock.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+        if (!playerLock.tryWait()){
+          DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
+          return 1;
+        }
       }
     }
-#endif
     conf.activate();
     while (conf.is_active){
       pid_t pid = fork();
       if (pid == 0){
-#ifndef INPUT_NOLOCK
-        playerLock.close();
-#endif
+        if (conv.needsLock()){
+          playerLock.close();
+        }
         return conv.run();
       }
       if (pid == -1){
         DEBUG_MSG(DLVL_FAIL, "Unable to spawn player process");
-#ifndef INPUT_NOLOCK
-        playerLock.post();
-#endif
+        if (conv.needsLock()){
+          playerLock.post();
+        }
         return 2;
       }
       //wait for the process to exit
@@ -71,11 +72,11 @@ int main(int argc, char * argv[]) {
         DEBUG_MSG(DLVL_DEVEL, "Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
       }
     }
-#ifndef INPUT_NOLOCK
-    playerLock.post();
-    playerLock.unlink();
-    playerLock.close();
-#endif
+    if (conv.needsLock()){
+      playerLock.post();
+      playerLock.unlink();
+      playerLock.close();
+    }
   }
   return 0;
 }

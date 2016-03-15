@@ -264,6 +264,10 @@ bool Util::Config::parseArgs(int & argc, char ** & argv) {
   return true;
 }
 
+bool Util::Config::hasOption(const std::string & optname) {
+  return vals.isMember(optname);
+}
+
 /// Returns a reference to the current value of an option or default if none was set.
 /// If the option does not exist, this exits the application with a return code of 37.
 JSON::Value & Util::Config::getOption(std::string optname, bool asArray) {

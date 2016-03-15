@@ -204,6 +204,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   
   //check in curConf for capabilities-inputs-<naam>-priority/source_match
   std::string player_bin;
+  bool pullMode = false;
   bool selected = false;
   long long int curPrio = -1;
   DTSC::Scan inputs = config.getMember("capabilities").getMember("inputs");
@@ -223,6 +224,20 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
         player_bin = Util::getMyPath() + "MistIn" + input.getMember("name").asString();
         curPrio = input.getMember("priority").asInt();
         selected = true;
+      }
+
+      if (input.hasMember("stream_match")){
+        source = input.getMember("stream_match").asString();
+        front = source.substr(0,source.find('*'));
+        back = source.substr(source.find('*')+1);
+        DEBUG_MSG(DLVL_MEDIUM, "Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), input.getMember("name").asString().c_str(), source.c_str());
+        
+        if (filename.substr(0,front.size()) == front && filename.substr(filename.size()-back.size()) == back){
+          player_bin = Util::getMyPath() + "MistIn" + input.getMember("name").asString();
+          curPrio = input.getMember("priority").asInt();
+          pullMode = true;
+          selected = true;
+        }
       }
     }
   }
@@ -261,9 +276,16 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   //finally, unlock the config semaphore
   configLock.post();
 
-  DEBUG_MSG(DLVL_MEDIUM, "Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
+  if (pullMode){
+    DEBUG_MSG(DLVL_MEDIUM, "Starting %s -p -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
+  }else{
+    DEBUG_MSG(DLVL_MEDIUM, "Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
+  }
   char * argv[30] = {(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str()};
   int argNum = 3;
+  if (pullMode){
+    argv[++argNum] = (char*)"--pull";
+  }
   std::string debugLvl;
   if (Util::Config::printDebugLevel != DEBUG && !str_args.count("--debug")){
     debugLvl = JSON::Value((long long)Util::Config::printDebugLevel).asString();

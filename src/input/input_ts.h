@@ -13,6 +13,9 @@ namespace Mist {
     public:
       inputTS(Util::Config * cfg);
       ~inputTS();
+#ifdef TSLIVE_INPUT
+      bool needsLock();
+#endif
     protected:
       //Private Functions
       bool setup();

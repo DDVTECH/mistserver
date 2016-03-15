@@ -15,6 +15,7 @@ namespace Mist {
       bool pushing;
       void handlePush(DTSC::Scan & dScan);
       void handlePlay(DTSC::Scan & dScan);
+      unsigned long long fastAsPossibleTime;
   };
 }
 

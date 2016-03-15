@@ -109,6 +109,32 @@ namespace DTSC {
     }
   }
 
+  void Packet::reInit(Socket::Connection & src) {
+    int sleepCount = 0;
+    null();
+    int toReceive = 0;
+    while (src.connected()){
+      if (!toReceive && src.Received().available(8)){
+        if (src.Received().copy(2) != "DT"){
+          INFO_MSG("Invalid DTSC Packet header encountered (%s)", src.Received().copy(4).c_str());
+          break;
+        }
+        toReceive = Bit::btohl(src.Received().copy(8).data() + 4);
+      }
+      if (toReceive && src.Received().available(toReceive + 8)){
+        std::string dataBuf = src.Received().remove(toReceive + 8);
+        reInit(dataBuf.data(), dataBuf.size());
+        return;
+      }
+      if(!src.spool()){
+        if (sleepCount++ > 5){
+          return;
+        }
+        Util::sleep(500);
+      }
+    }
+  }
+
   ///\brief Initializes a packet with new data
   ///\param data_ The new data for the packet
   ///\param len The length of the data pointed to by data_
@@ -1530,7 +1556,7 @@ namespace DTSC {
     } else if (type == "video") {
       result += 48;
     }
-    if (missedFrags) {
+    if (!skipDynamic && missedFrags) {
       result += 23;
     }
     return result;
@@ -1709,10 +1735,12 @@ namespace DTSC {
   }
 
   ///\brief Determines the "packed" size of a meta object
-  unsigned int Meta::getSendLen(bool skipDynamic) {
+  unsigned int Meta::getSendLen(bool skipDynamic, std::set<unsigned long> selectedTracks) {
     unsigned int dataLen = 16 + (vod ? 14 : 0) + (live ? 15 : 0) + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      dataLen += it->second.getSendLen(skipDynamic);
+      if (!selectedTracks.size() || selectedTracks.count(it->first)){
+        dataLen += it->second.getSendLen(skipDynamic);
+      }
     }
     return dataLen + 8; //add 8 bytes header
   }
@@ -1749,13 +1777,15 @@ namespace DTSC {
   }
 
   ///\brief Writes a meta object to a socket
-  void Meta::send(Socket::Connection & conn, bool skipDynamic) {
-    int dataLen = getSendLen(skipDynamic) - 8; //strip 8 bytes header
+  void Meta::send(Socket::Connection & conn, bool skipDynamic, std::set<unsigned long> selectedTracks) {
+    int dataLen = getSendLen(skipDynamic, selectedTracks) - 8; //strip 8 bytes header
     conn.SendNow(DTSC::Magic_Header, 4);
     conn.SendNow(convertInt(dataLen), 4);
     conn.SendNow("\340\000\006tracks\340", 10);
     for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
-      it->second.send(conn, skipDynamic);
+      if (!selectedTracks.size() || selectedTracks.count(it->first)){
+        it->second.send(conn, skipDynamic);
+      }
     }
     conn.SendNow("\000\000\356", 3);//End tracks object
     if (vod) {

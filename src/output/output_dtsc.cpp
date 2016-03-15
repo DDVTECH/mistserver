@@ -29,6 +29,7 @@ namespace Mist {
     myConn.SendNow(sSize, 4);
     prep.sendTo(myConn);
     pushing = false;
+    fastAsPossibleTime = 0;
   }
 
   OutDTSC::~OutDTSC() {}
@@ -44,12 +45,52 @@ namespace Mist {
   }
   
   void OutDTSC::sendNext(){
+    if (!realTime && thisPacket.getTime() >= fastAsPossibleTime){
+      realTime = 1000;
+    }
+    if (thisPacket.getFlag("keyframe")){
+      std::set<unsigned long> availableTracks;
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.type == "video" || it->second.type == "audio"){
+          availableTracks.insert(it->first);
+        }
+      }
+      if (availableTracks != selectedTracks){
+        //reset, resendheader
+        JSON::Value prep;
+        prep["cmd"] = "reset";
+        /// \todo Make this securererer.
+        unsigned long sendSize = prep.packedSize();
+        myConn.SendNow("DTCM");
+        char sSize[4] = {0, 0, 0, 0};
+        Bit::htobl(sSize, prep.packedSize());
+        myConn.SendNow(sSize, 4);
+        prep.sendTo(myConn);
+      }
+    }
     myConn.SendNow(thisPacket.getData(), thisPacket.getDataLen());
   }
 
   void OutDTSC::sendHeader(){
     sentHeader = true;
-    myMeta.send(myConn, true);
+    selectedTracks.clear();
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      if (it->second.type == "video" || it->second.type == "audio"){
+        selectedTracks.insert(it->first);
+      }
+    }
+    myMeta.send(myConn, true, selectedTracks);
+    if (myMeta.live){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (!fastAsPossibleTime || it->second.lastms < fastAsPossibleTime){
+          fastAsPossibleTime = it->second.lastms;
+          realTime = 0;
+        }
+      }
+    }else{
+      fastAsPossibleTime = 50000;//50 seconds
+      realTime = 0;
+    }
   }
 
   void OutDTSC::onRequest(){
@@ -76,6 +117,8 @@ namespace Mist {
     streamName = dScan.getMember("stream").asString();
     Util::sanitizeName(streamName);
     parseData = true;
+    INFO_MSG("Handled play for stream %s", streamName.c_str());
+    setBlocking(false);
   }
 
   void OutDTSC::handlePush(DTSC::Scan & dScan){

@@ -559,10 +559,11 @@ namespace Mist {
     bufferNext(packet, myMeta);
   }
 
-  void InOutBase::continueNegotiate(unsigned long tid) {
-    nProxy.continueNegotiate(tid, myMeta);
+  void InOutBase::continueNegotiate(unsigned long tid, bool quickNegotiate) {
+    nProxy.continueNegotiate(tid, myMeta, quickNegotiate);
   }
-  void negotiationProxy::continueNegotiate(unsigned long tid, DTSC::Meta & myMeta) {
+
+  void negotiationProxy::continueNegotiate(unsigned long tid, DTSC::Meta & myMeta, bool quickNegotiate) {
     if (!tid) {
       return;
     }
@@ -618,12 +619,49 @@ namespace Mist {
     unsigned long offset = 6 * trackOffset[tid];
     //If we have a new track to negotiate
     if (!trackState.count(tid)) {
-      INFO_MSG("Starting negotiation for incoming track %lu, at offset %lu", tid, trackOffset[tid]);
       memset(tmp + offset, 0, 4);
-      tmp[offset] = 0x80;
-      tmp[offset + 4] = ((tid >> 8) & 0xFF);
-      tmp[offset + 5] = (tid & 0xFF);
-      trackState[tid] = FILL_NEW;
+      if (quickNegotiate){
+
+        unsigned long finalTid = getpid() + tid;
+        unsigned short firstPage = 1;
+        INFO_MSG("HANDLING quick negotiation for track %d ~> %d", tid, finalTid)
+        MEDIUM_MSG("Buffer has indicated that incoming track %lu should start writing on track %lu, page %lu", tid, finalTid, firstPage);
+        trackMap[tid] = finalTid;
+        if (myMeta.tracks.count(finalTid) && myMeta.tracks[finalTid].lastms){
+          myMeta.tracks[finalTid].lastms = 0;
+        }
+        trackState[tid] = FILL_ACC;
+
+
+
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_META, streamName.c_str(), finalTid);
+        metaPages[tid].init(pageName, 8 * 1024 * 1024, true);
+        metaPages[tid].master = false;
+        DTSC::Meta tmpMeta;
+        tmpMeta.tracks[finalTid] = myMeta.tracks[tid];
+        tmpMeta.tracks[finalTid].trackID = finalTid;
+        JSON::Value tmpVal = tmpMeta.toJSON();
+        std::string tmpStr = tmpVal.toNetPacked();
+        memcpy(metaPages[tid].mapped, tmpStr.data(), tmpStr.size());
+
+
+
+
+
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), finalTid);
+        metaPages[tid].init(pageName, 8 * 1024 * 1024, true);
+        metaPages[tid].master = false;
+        Bit::htobl(tmp + offset, finalTid | 0xC0000000);
+        Bit::htobs(tmp + offset + 4, firstPage);
+      }else{
+        INFO_MSG("Starting negotiation for incoming track %lu, at offset %lu", tid, trackOffset[tid]);
+        memset(tmp + offset, 0, 4);
+        tmp[offset] = 0x80;
+        tmp[offset + 4] = ((tid >> 8) & 0xFF);
+        tmp[offset + 5] = (tid & 0xFF);
+        trackState[tid] = FILL_NEW;
+      }
       return;
     }
     #if defined(__CYGWIN__) || defined(_WIN32)

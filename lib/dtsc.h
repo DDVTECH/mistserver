@@ -109,6 +109,7 @@ namespace DTSC {
       void operator = (const Packet & rhs);
       operator bool() const;
       packType getVersion() const;
+      void reInit(Socket::Connection & src);
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
       void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, long long packBytePos, bool isKeyframe);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
@@ -354,8 +355,8 @@ namespace DTSC {
       void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
       LTS*/
       void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000, const char * iVec = 0);
-      unsigned int getSendLen(bool skipDynamic = false);
-      void send(Socket::Connection & conn, bool skipDynamic = false);
+      unsigned int getSendLen(bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
+      void send(Socket::Connection & conn, bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
       void writeTo(char * p);
       JSON::Value toJSON();
       void reset();

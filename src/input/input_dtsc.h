@@ -7,6 +7,9 @@ namespace Mist {
       inputDTSC(Util::Config * cfg);
     protected:
       //Private Functions
+      bool openStreamSource();
+      void closeStreamSource();
+      void parseStreamHeader();
       bool setup();
       bool readHeader();
       void getNext(bool smart = true);
@@ -14,6 +17,8 @@ namespace Mist {
       void trackSelect(std::string trackSpec);
 
       DTSC::File inFile;
+
+      Socket::Connection srcConn;
   };
 }
 

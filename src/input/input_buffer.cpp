@@ -23,7 +23,7 @@
 /*LTS-END*/
 
 namespace Mist {
-  inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg){
+  inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "Buffer";
     JSON::Value option;
     option["arg"] = "integer";
@@ -94,7 +94,7 @@ namespace Mist {
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 5000LL;
     option.null();
-    
+
     option["arg"] = "string";
     option["long"] = "udp-port";
     option["short"] = "U";
@@ -139,39 +139,39 @@ namespace Mist {
     resumeMode = false;
   }
 
-  inputBuffer::~inputBuffer(){
+  inputBuffer::~inputBuffer() {
     config->is_active = false;
-    if (myMeta.tracks.size()){
+    if (myMeta.tracks.size()) {
       /*LTS-START*/
-      if (myMeta.bufferWindow){
-        if(Triggers::shouldTrigger("STREAM_BUFFER")){
-          std::string payload = config->getString("streamname")+"\nEMPTY";
+      if (myMeta.bufferWindow) {
+        if (Triggers::shouldTrigger("STREAM_BUFFER")) {
+          std::string payload = config->getString("streamname") + "\nEMPTY";
           Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
         }
       }
       /*LTS-END*/
       DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
         std::map<unsigned long, DTSCPageData> & locations = bufferLocations[it->first];
-        if (!nProxy.metaPages.count(it->first) || !nProxy.metaPages[it->first].mapped){
+        if (!nProxy.metaPages.count(it->first) || !nProxy.metaPages[it->first].mapped) {
           continue;
         }
         //First detect all entries on metaPage
-        for (int i = 0; i < 8192; i += 8){
+        for (int i = 0; i < 8192; i += 8) {
           int * tmpOffset = (int *)(nProxy.metaPages[it->first].mapped + i);
-          if (tmpOffset[0] == 0 && tmpOffset[1] == 0){
+          if (tmpOffset[0] == 0 && tmpOffset[1] == 0) {
             continue;
           }
           unsigned long keyNum = ntohl(tmpOffset[0]);
 
           //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
-          if (!locations.count(keyNum)){
+          if (!locations.count(keyNum)) {
             locations[keyNum].curOffset = 0;
           }
           locations[keyNum].pageNum = keyNum;
           locations[keyNum].keyNum = ntohl(tmpOffset[1]);
         }
-        for (std::map<unsigned long, DTSCPageData>::iterator it2 = locations.begin(); it2 != locations.end(); it2++){
+        for (std::map<unsigned long, DTSCPageData>::iterator it2 = locations.begin(); it2 != locations.end(); it2++) {
           char thisPageName[NAME_BUFFER_SIZE];
           snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), it->first, it2->first);
           IPC::sharedPage erasePage(thisPageName, 20971520);
@@ -244,48 +244,50 @@ namespace Mist {
     }
   }
 
-  /// \triggers 
+  /// \triggers
   /// The `"STREAM_BUFFER"` trigger is stream-specific, and is ran whenever the buffer changes state between playable (FULL) or not (EMPTY). It cannot be cancelled. It is possible to receive multiple EMPTY calls without FULL calls in between, as EMPTY is always generated when a stream is unloaded from memory, even if this stream never reached playable state in the first place (e.g. a broadcast was cancelled before filling enough buffer to be playable). Its payload is:
   /// ~~~~~~~~~~~~~~~
   /// streamname
   /// FULL or EMPTY (depending on current state)
   /// ~~~~~~~~~~~~~~~
-  void inputBuffer::updateMeta(){
+  void inputBuffer::updateMeta() {
     static long long unsigned int lastFragCount = 0xFFFFull;
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
     long long unsigned int fragCount = 0xFFFFull;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.type == "meta" || !it->second.type.size()){continue;}
-      if (it->second.init.size()){
-        if (!initData.count(it->first) || initData[it->first] != it->second.init){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+      if (it->second.type == "meta" || !it->second.type.size()) {
+        continue;
+      }
+      if (it->second.init.size()) {
+        if (!initData.count(it->first) || initData[it->first] != it->second.init) {
           initData[it->first] = it->second.init;
         }
-      }else{
-        if (initData.count(it->first)){
+      } else {
+        if (initData.count(it->first)) {
           it->second.init = initData[it->first];
         }
       }
-      if (it->second.fragments.size() < fragCount){
+      if (it->second.fragments.size() < fragCount) {
         fragCount = it->second.fragments.size();
       }
-      if (it->second.firstms < firstms){
+      if (it->second.firstms < firstms) {
         firstms = it->second.firstms;
       }
-      if (it->second.lastms > lastms){
+      if (it->second.lastms > lastms) {
         lastms = it->second.lastms;
       }
     }
     /*LTS-START*/
-    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && (lastFragCount == 0xFFFFull || lastFragCount < FRAG_BOOT)){
-      if(Triggers::shouldTrigger("STREAM_BUFFER")){
-        std::string payload = config->getString("streamname")+"\nFULL";
+    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && (lastFragCount == 0xFFFFull || lastFragCount < FRAG_BOOT)) {
+      if (Triggers::shouldTrigger("STREAM_BUFFER")) {
+        std::string payload = config->getString("streamname") + "\nFULL";
         Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
       }
     }
-    if ((fragCount < FRAG_BOOT || fragCount == 0xFFFFull) && (lastFragCount >= FRAG_BOOT && lastFragCount != 0xFFFFull)){
-      if(Triggers::shouldTrigger("STREAM_BUFFER")){
-        std::string payload = config->getString("streamname")+"\nEMPTY";
+    if ((fragCount < FRAG_BOOT || fragCount == 0xFFFFull) && (lastFragCount >= FRAG_BOOT && lastFragCount != 0xFFFFull)) {
+      if (Triggers::shouldTrigger("STREAM_BUFFER")) {
+        std::string payload = config->getString("streamname") + "\nEMPTY";
         Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
       }
     }
@@ -298,7 +300,7 @@ namespace Mist {
     snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
     IPC::semaphore liveMeta(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     liveMeta.wait();
-    if (!nProxy.metaPages.count(0) || !nProxy.metaPages[0].mapped){
+    if (!nProxy.metaPages.count(0) || !nProxy.metaPages[0].mapped) {
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
       nProxy.metaPages[0].init(pageName, DEFAULT_META_PAGE_SIZE,  true);
@@ -309,19 +311,19 @@ namespace Mist {
     liveMeta.post();
   }
 
-  bool inputBuffer::removeKey(unsigned int tid){
-    if ((myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2) && config->is_active){
+  bool inputBuffer::removeKey(unsigned int tid) {
+    if ((myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2) && config->is_active) {
       return false;
     }
-    if (!myMeta.tracks[tid].keys.size()){
+    if (!myMeta.tracks[tid].keys.size()) {
       return false;
     }
     DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%lu", tid, myMeta.tracks[tid].keys[0].getNumber());
     //remove all parts of this key
-    for (int i = 0; i < myMeta.tracks[tid].keys[0].getParts(); i++){
+    for (int i = 0; i < myMeta.tracks[tid].keys[0].getParts(); i++) {
       /*LTS-START*/
-      if (recFile.is_open()){
-        if (!recMeta.tracks.count(tid)){
+      if (recFile.is_open()) {
+        if (!recMeta.tracks.count(tid)) {
           recMeta.tracks[tid] = myMeta.tracks[tid];
           recMeta.tracks[tid].reset();
         }
@@ -335,12 +337,12 @@ namespace Mist {
     //re-calculate firstms
     myMeta.tracks[tid].firstms = myMeta.tracks[tid].keys[0].getTime();
     //delete the fragment if it's no longer fully buffered
-    if (myMeta.tracks[tid].fragments[0].getNumber() < myMeta.tracks[tid].keys[0].getNumber()){
+    if (myMeta.tracks[tid].fragments[0].getNumber() < myMeta.tracks[tid].keys[0].getNumber()) {
       myMeta.tracks[tid].fragments.pop_front();
       myMeta.tracks[tid].missedFrags ++;
     }
     //if there is more than one page buffered for this track...
-    if (bufferLocations[tid].size() > 1){
+    if (bufferLocations[tid].size() > 1) {
       //Check if the first key starts on the second page or higher
       if (myMeta.tracks[tid].keys[0].getNumber() >= (++(bufferLocations[tid].begin()))->first || !config->is_active){
         DEBUG_MSG(DLVL_DEVEL, "Erasing track %d, keys %lu-%lu from buffer", tid, bufferLocations[tid].begin()->first, bufferLocations[tid].begin()->first + bufferLocations[tid].begin()->second.keyNum - 1);
@@ -361,11 +363,11 @@ namespace Mist {
     return true;
   }
 
-  void inputBuffer::eraseTrackDataPages(unsigned long tid){
-    if (!bufferLocations.count(tid)){
+  void inputBuffer::eraseTrackDataPages(unsigned long tid) {
+    if (!bufferLocations.count(tid)) {
       return;
     }
-    for (std::map<unsigned long, DTSCPageData>::iterator it = bufferLocations[tid].begin(); it != bufferLocations[tid].end(); it++){
+    for (std::map<unsigned long, DTSCPageData>::iterator it = bufferLocations[tid].begin(); it != bufferLocations[tid].end(); it++) {
       char thisPageName[NAME_BUFFER_SIZE];
       snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), tid, it->first);
       nProxy.curPage[tid].init(thisPageName, 20971520, false, false);
@@ -380,68 +382,68 @@ namespace Mist {
   void inputBuffer::finish() {
     Input::finish();
     updateMeta();
-    if (bufferLocations.size()){
+    if (bufferLocations.size()) {
       std::set<unsigned long> toErase;
-      for (std::map<unsigned long, std::map<unsigned long, DTSCPageData> >::iterator it = bufferLocations.begin(); it != bufferLocations.end(); it++){
+      for (std::map<unsigned long, std::map<unsigned long, DTSCPageData> >::iterator it = bufferLocations.begin(); it != bufferLocations.end(); it++) {
         toErase.insert(it->first);
       }
-      for (std::set<unsigned long>::iterator it = toErase.begin(); it != toErase.end(); ++it){
+      for (std::set<unsigned long>::iterator it = toErase.begin(); it != toErase.end(); ++it) {
         eraseTrackDataPages(*it);
       }
     }
   }
 
-  /// \triggers 
+  /// \triggers
   /// The `"STREAM_TRACK_REMOVE"` trigger is stream-specific, and is ran whenever a track is fully removed from a live strean buffer. It cannot be cancelled. Its payload is:
   /// ~~~~~~~~~~~~~~~
   /// streamname
   /// trackID
   /// ~~~~~~~~~~~~~~~
-  void inputBuffer::removeUnused(){
+  void inputBuffer::removeUnused() {
     //first remove all tracks that have not been updated for too long
     bool changed = true;
-    while (changed){
+    while (changed) {
       changed = false;
       long long unsigned int time = Util::bootSecs();
       long long unsigned int compareFirst = 0xFFFFFFFFFFFFFFFFull;
       long long unsigned int compareLast = 0;
       //for tracks that were updated in the last 5 seconds, get the first and last ms edges.
-      for (std::map<unsigned int, DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++){
-        if ((time - lastUpdated[it2->first]) > 5){
+      for (std::map<unsigned int, DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++) {
+        if ((time - lastUpdated[it2->first]) > 5) {
           continue;
         }
-        if (it2->second.lastms > compareLast){
+        if (it2->second.lastms > compareLast) {
           compareLast = it2->second.lastms;
         }
-        if (it2->second.firstms < compareFirst){
+        if (it2->second.firstms < compareFirst) {
           compareFirst = it2->second.firstms;
         }
       }
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
         //if not updated for an entire buffer duration, or last updated track and this track differ by an entire buffer duration, erase the track.
         if ((long long int)(time - lastUpdated[it->first]) > (long long int)(bufferTime / 1000) ||
-          (compareLast && (long long int)(time - lastUpdated[it->first]) > 5 && (
-            (compareLast < it->second.firstms && (long long int)(it->second.firstms - compareLast) > bufferTime)
-            ||
-            (compareFirst > it->second.lastms && (long long int)(compareFirst - it->second.lastms) > bufferTime)
-          ))
-        ){
+            (compareLast && (long long int)(time - lastUpdated[it->first]) > 5 && (
+               (compareLast < it->second.firstms && (long long int)(it->second.firstms - compareLast) > bufferTime)
+               ||
+               (compareFirst > it->second.lastms && (long long int)(compareFirst - it->second.lastms) > bufferTime)
+             ))
+           ) {
           unsigned int tid = it->first;
           //erase this track
-          if ((long long int)(time - lastUpdated[it->first]) > (long long int)(bufferTime / 1000)){
+          if ((long long int)(time - lastUpdated[it->first]) > (long long int)(bufferTime / 1000)) {
             INFO_MSG("Erasing track %d because not updated for %ds (> %ds)", it->first, (long long int)(time - lastUpdated[it->first]), (long long int)(bufferTime / 1000));
-          }else{
-            INFO_MSG("Erasing inactive track %u because it was inactive for 5+ seconds and contains data (%us - %us), while active tracks are (%us - %us), which is more than %us seconds apart.", it->first, it->second.firstms / 1000, it->second.lastms / 1000, compareFirst/1000, compareLast/1000, bufferTime / 1000);
+          } else {
+            INFO_MSG("Erasing inactive track %u because it was inactive for 5+ seconds and contains data (%us - %us), while active tracks are (%us - %us), which is more than %us seconds apart.", it->first, it->second.firstms / 1000, it->second.lastms / 1000, compareFirst / 1000, compareLast / 1000, bufferTime / 1000);
           }
           /*LTS-START*/
-          if(Triggers::shouldTrigger("STREAM_TRACK_REMOVE")){
-            std::string payload = config->getString("streamname")+"\n"+JSON::Value((long long)it->first).asString()+"\n";
+          if (Triggers::shouldTrigger("STREAM_TRACK_REMOVE")) {
+            std::string payload = config->getString("streamname") + "\n" + JSON::Value((long long)it->first).asString() + "\n";
             Triggers::doTrigger("STREAM_TRACK_REMOVE", payload, config->getString("streamname"));
-          }      
+          }
           /*LTS-END*/
           lastUpdated.erase(tid);
           /// \todo Consider replacing with eraseTrackDataPages(it->first)?
-          while (bufferLocations[tid].size()){
+          while (bufferLocations[tid].size()) {
             char thisPageName[NAME_BUFFER_SIZE];
             snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), (unsigned long)tid, bufferLocations[tid].begin()->first);
             nProxy.curPage[tid].init(thisPageName, 20971520);
@@ -477,14 +479,14 @@ namespace Mist {
     }
     //find the earliest video keyframe stored
     unsigned int firstVideo = 1;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.type == "video"){
-        if (it->second.firstms < firstVideo || firstVideo == 1){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+      if (it->second.type == "video") {
+        if (it->second.firstms < firstVideo || firstVideo == 1) {
           firstVideo = it->second.firstms;
         }
       }
     }
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
       //non-video tracks need to have a second keyframe that is <= firstVideo
       //firstVideo = 1 happens when there are no tracks, in which case we don't care any more
       if (it->second.type != "video"){
@@ -493,39 +495,39 @@ namespace Mist {
         }
       }
       //Buffer cutting
-      while (it->second.keys.size() > 1 && it->second.keys[0].getTime() < cutTime){
-        if (!removeKey(it->first)){
+      while (it->second.keys.size() > 1 && it->second.keys[0].getTime() < cutTime) {
+        if (!removeKey(it->first)) {
           break;
         }
       }
       //Buffer size management
-      while (it->second.keys.size() > 1 && (it->second.lastms - it->second.keys[1].getTime()) > bufferTime){
-        if (!removeKey(it->first)){
+      while (it->second.keys.size() > 1 && (it->second.lastms - it->second.keys[1].getTime()) > bufferTime) {
+        if (!removeKey(it->first)) {
           break;
         }
       }
     }
     updateMeta();
     static bool everHadPush = false;
-    if (hasPush){
+    if (hasPush) {
       hasPush = false;
       everHadPush = true;
-    }else if(everHadPush && !resumeMode && config->is_active){
+    } else if (everHadPush && !resumeMode && config->is_active) {
       INFO_MSG("Shutting down buffer because resume mode is disabled and the source disconnected");
       config->is_active = false;
     }
   }
 
-  /// \triggers 
+  /// \triggers
   /// The `"STREAM_TRACK_ADD"` trigger is stream-specific, and is ran whenever a new track is added to a live strean buffer. It cannot be cancelled. Its payload is:
   /// ~~~~~~~~~~~~~~~
   /// streamname
   /// trackID
   /// ~~~~~~~~~~~~~~~
-  void inputBuffer::userCallback(char * data, size_t len, unsigned int id){
+  void inputBuffer::userCallback(char * data, size_t len, unsigned int id) {
     /*LTS-START*/
     //Reload the configuration to make sure we stay up to date with changes through the api
-    if (Util::epoch() - lastReTime > 4){
+    if (Util::epoch() - lastReTime > 4) {
       setup();
     }
     /*LTS-END*/
@@ -535,27 +537,27 @@ namespace Mist {
     char counter = (*(data - 1));
     //Each user can have at maximum SIMUL_TRACKS elements in their userpage.
     IPC::userConnection userConn(data);
-    for (int index = 0; index < SIMUL_TRACKS; index++){
+    for (int index = 0; index < SIMUL_TRACKS; index++) {
       //Get the track id from the current element
       unsigned long value = userConn.getTrackId(index);
       //Skip value 0xFFFFFFFF as this indicates a previously declined track
-      if (value == 0xFFFFFFFF){
+      if (value == 0xFFFFFFFF) {
         continue;
       }
       //Skip value 0 as this indicates an empty track
-      if (value == 0){
+      if (value == 0) {
         continue;
       }
 
       //If the current value indicates a valid trackid, and it is pushed from this user
-      if (pushLocation[value] == data){
+      if (pushLocation[value] == data) {
         //Check for timeouts, and erase the track if necessary
-        if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
+        if (counter == 126 || counter == 127 || counter == 254 || counter == 255) {
           pushLocation.erase(value);
-          if (negotiatingTracks.count(value)){
+          if (negotiatingTracks.count(value)) {
             negotiatingTracks.erase(value);
           }
-          if (activeTracks.count(value)){
+          if (activeTracks.count(value)) {
             updateMeta();
             eraseTrackDataPages(value);
             activeTracks.erase(value);
@@ -568,7 +570,67 @@ namespace Mist {
       }
       //Track is set to "New track request", assign new track id and create shared memory page
       //This indicates that the 'current key' part of the element is set to contain the original track id from the pushing process
-      if (value & 0x80000000){
+      if (value & 0x80000000) {
+        if (value & 0x40000000) {
+          unsigned long finalMap = value & ~0xC0000000;
+          //Register the new track as an active track.
+          activeTracks.insert(finalMap);
+          //Register the time of registration as initial value for the lastUpdated field, plus an extra 5 seconds just to be sure.
+          lastUpdated[finalMap] = Util::bootSecs() + 5;
+          //Register the user thats is pushing this element
+          pushLocation[finalMap] = data;
+          //Initialize the metadata for this track
+          if (!myMeta.tracks.count(finalMap)) {
+            DEBUG_MSG(DLVL_MEDIUM, "Inserting metadata for track number %d", finalMap);
+            
+            IPC::sharedPage tMeta;
+
+            char tempMetaName[NAME_BUFFER_SIZE];
+            snprintf(tempMetaName, NAME_BUFFER_SIZE, SHM_TRACK_META, config->getString("streamname").c_str(), finalMap);
+            tMeta.init(tempMetaName, 8388608, false);
+
+            //The page exist, now we try to read in the metadata of the track
+
+            //Store the size of the dtsc packet to read.
+            unsigned int len = ntohl(((int *)tMeta.mapped)[1]);
+            //Temporary variable, won't be used again
+            unsigned int tempForReadingMeta = 0;
+            //Read in the metadata through a temporary JSON object
+            ///\todo Optimize this part. Find a way to not have to store the metadata in JSON first, but read it from the page immediately
+            JSON::Value tempJSONForMeta;
+            JSON::fromDTMI((const unsigned char *)tMeta.mapped + 8, len, tempForReadingMeta, tempJSONForMeta);
+            
+            tMeta.master = true;
+
+            //Construct a metadata object for the current track
+            DTSC::Meta trackMeta(tempJSONForMeta);
+
+            myMeta.tracks[finalMap] = trackMeta.tracks.begin()->second;
+            myMeta.tracks[finalMap].firstms = 0;
+            myMeta.tracks[finalMap].lastms = 0;
+
+            userConn.setTrackId(index, finalMap);
+            userConn.setKeynum(index, 0x0000);
+
+
+            char firstPage[NAME_BUFFER_SIZE];
+            snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), finalMap);
+            nProxy.metaPages[finalMap].init(firstPage, 8192, false);
+            INFO_MSG("Meh %d", finalMap);
+
+            //Update the metadata for this track
+            updateTrackMeta(finalMap);
+            INFO_MSG("Setting hasPush to true, quickNegotiate");
+            hasPush = true;
+          }
+          //Write the final mapped track number and keyframe number to the user page element
+          //This is used to resume pushing as well as pushing new tracks
+          userConn.setTrackId(index, finalMap);
+          userConn.setKeynum(index, myMeta.tracks[finalMap].keys.size());
+          //Update the metadata to reflect all changes
+          updateMeta();
+          continue;
+        }
         //Set the temporary track id for this item, and increase the temporary value for use with the next track
         unsigned long long tempMapping = nextTempId++;
         //Add the temporary track id to the list of tracks that are currently being negotiated
@@ -583,9 +645,9 @@ namespace Mist {
       }
 
       //The track id is set to the value of a track that we are currently negotiating about
-      if (negotiatingTracks.count(value)){
+      if (negotiatingTracks.count(value)) {
         //If the metadata page for this track is not yet registered, initialize it
-        if (!nProxy.metaPages.count(value) || !nProxy.metaPages[value].mapped){
+        if (!nProxy.metaPages.count(value) || !nProxy.metaPages[value].mapped) {
           char tempMetaName[NAME_BUFFER_SIZE];
           snprintf(tempMetaName, NAME_BUFFER_SIZE, SHM_TRACK_META, config->getString("streamname").c_str(), value);
           nProxy.metaPages[value].init(tempMetaName, 8388608, false, false);
@@ -593,7 +655,7 @@ namespace Mist {
         //If this tracks metdata page is not initialize, skip the entire element for now. It will be instantiated later
         if (!nProxy.metaPages[value].mapped) {
           //remove the negotiation if it has timed out
-          if (++negotiationTimeout[value] >= 1000){
+          if (++negotiationTimeout[value] >= 1000) {
             negotiatingTracks.erase(value);
             negotiationTimeout.erase(value);
           }
@@ -615,7 +677,7 @@ namespace Mist {
         //If the track metadata does not contain the negotiated track, assume the metadata is currently being written, and skip the element for now. It will be instantiated in the next call.
         if (!trackMeta.tracks.count(value)) {
           //remove the negotiation if it has timed out
-          if (++negotiationTimeout[value] >= 1000){
+          if (++negotiationTimeout[value] >= 1000) {
             negotiatingTracks.erase(value);
             //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
             nProxy.metaPages[value].master = true;
@@ -630,10 +692,10 @@ namespace Mist {
         /*LTS-START*/
         //Get the identifier for the track, and attempt colission detection.
         int collidesWith = -1;
-        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
           //If the identifier of an existing track and the current track match, assume the are the same track and reject the negotiated one.
           ///\todo Maybe switch to a new form of detecting collisions, especially with regards to multiple audio languages and camera angles.
-          if (it->second.getIdentifier() == trackIdentifier){
+          if (it->second.getIdentifier() == trackIdentifier) {
             collidesWith = it->first;
             break;
           }
@@ -646,21 +708,21 @@ namespace Mist {
         nProxy.metaPages.erase(value);
 
         //Check if the track collides, and whether the track it collides with is active.
-        if (collidesWith != -1 && activeTracks.count(collidesWith)){/*LTS*/
+        if (collidesWith != -1 && activeTracks.count(collidesWith)) { /*LTS*/
           //Print a warning message and set the state of the track to rejected.
           WARN_MSG("Collision of temporary track %lu with existing track %d detected. Handling as a new valid track.", value, collidesWith);
           collidesWith = -1;
         }
         /*LTS-START*/
         unsigned long finalMap = collidesWith;
-        if (finalMap == -1){
+        if (finalMap == -1) {
           //No collision has been detected, assign a new final number
           finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
           DEBUG_MSG(DLVL_DEVEL, "No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
-          if(Triggers::shouldTrigger("STREAM_TRACK_ADD")){
-            std::string payload = config->getString("streamname")+"\n"+JSON::Value((long long)finalMap).asString()+"\n";
+          if (Triggers::shouldTrigger("STREAM_TRACK_ADD")) {
+            std::string payload = config->getString("streamname") + "\n" + JSON::Value((long long)finalMap).asString() + "\n";
             Triggers::doTrigger("STREAM_TRACK_ADD", payload, config->getString("streamname"));
-          }      
+          }
         }
         /*LTS-END*/
         //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared")
@@ -690,7 +752,7 @@ namespace Mist {
         //Register the user thats is pushing this element
         pushLocation[finalMap] = data;
         //Initialize the metadata for this track if it was not in place yet.
-        if (!myMeta.tracks.count(finalMap)){
+        if (!myMeta.tracks.count(finalMap)) {
           DEBUG_MSG(DLVL_MEDIUM, "Inserting metadata for track number %d", finalMap);
           myMeta.tracks[finalMap] = trackMeta.tracks.begin()->second;
           myMeta.tracks[finalMap].trackID = finalMap;
@@ -703,14 +765,14 @@ namespace Mist {
         updateMeta();
       }
       //If the track is active, and this is the element responsible for pushing it
-      if (activeTracks.count(value) && pushLocation[value] == data){
+      if (activeTracks.count(value) && pushLocation[value] == data) {
         //Open the track index page if we dont have it open yet
-        if (!nProxy.metaPages.count(value) || !nProxy.metaPages[value].mapped){
+        if (!nProxy.metaPages.count(value) || !nProxy.metaPages[value].mapped) {
           char firstPage[NAME_BUFFER_SIZE];
           snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), value);
           nProxy.metaPages[value].init(firstPage, 8192, false, false);
         }
-        if (nProxy.metaPages[value].mapped){
+        if (nProxy.metaPages[value].mapped) {
           //Update the metadata for this track
           updateTrackMeta(value);
           hasPush = true;
@@ -719,7 +781,7 @@ namespace Mist {
     }
   }
 
-  void inputBuffer::updateTrackMeta(unsigned long tNum){
+  void inputBuffer::updateTrackMeta(unsigned long tNum) {
     VERYHIGH_MSG("Updating meta for track %d", tNum);
     //Store a reference for easier access
     std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
@@ -728,34 +790,34 @@ namespace Mist {
     //First detect all entries on metaPage
     for (int i = 0; i < 8192; i += 8) {
       int * tmpOffset = (int *)(mappedPointer + i);
-      if (tmpOffset[0] == 0 && tmpOffset[1] == 0){
+      if (tmpOffset[0] == 0 && tmpOffset[1] == 0) {
         continue;
       }
       unsigned long keyNum = ntohl(tmpOffset[0]);
       INSANE_MSG("Page %d detected, with %d keys", keyNum, ntohl(tmpOffset[1]));
 
       //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
-      if (!locations.count(keyNum)){
+      if (!locations.count(keyNum)) {
         locations[keyNum].curOffset = 0;
       }
       locations[keyNum].pageNum = keyNum;
       locations[keyNum].keyNum = ntohl(tmpOffset[1]);
     }
     //Since the map is ordered by keynumber, this loop updates the metadata for each page from oldest to newest
-    for (std::map<unsigned long, DTSCPageData>::iterator pageIt = locations.begin(); pageIt != locations.end(); pageIt++){
+    for (std::map<unsigned long, DTSCPageData>::iterator pageIt = locations.begin(); pageIt != locations.end(); pageIt++) {
       updateMetaFromPage(tNum, pageIt->first);
     }
     updateMeta();
   }
 
-  void inputBuffer::updateMetaFromPage(unsigned long tNum, unsigned long pageNum){
+  void inputBuffer::updateMetaFromPage(unsigned long tNum, unsigned long pageNum) {
     VERYHIGH_MSG("Updating meta for track %d page %d", tNum, pageNum);
     DTSCPageData & pageData = bufferLocations[tNum][pageNum];
 
     //If the current page is over its 8mb "splitting" boundary
-    if (pageData.curOffset > (8 * 1024 * 1024)){
+    if (pageData.curOffset > (8 * 1024 * 1024)) {
       //And the last keyframe in the parsed metadata is further in the stream than this page
-      if (pageData.pageNum + pageData.keyNum < myMeta.tracks[tNum].keys.rbegin()->getNumber()){
+      if (pageData.pageNum + pageData.keyNum < myMeta.tracks[tNum].keys.rbegin()->getNumber()) {
         //Assume the entire page is already parsed
         return;
       }
@@ -764,14 +826,14 @@ namespace Mist {
     //Otherwise open and parse the page
 
     //Open the page if it is not yet open
-    if (!nProxy.curPageNum.count(tNum) || nProxy.curPageNum[tNum] != pageNum || !nProxy.curPage[tNum].mapped){
+    if (!nProxy.curPageNum.count(tNum) || nProxy.curPageNum[tNum] != pageNum || !nProxy.curPage[tNum].mapped) {
       //DO NOT ERASE THE PAGE HERE, master is not set to true
       nProxy.curPageNum.erase(tNum);
       char nextPageName[NAME_BUFFER_SIZE];
       snprintf(nextPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, config->getString("streamname").c_str(), tNum, pageNum);
       nProxy.curPage[tNum].init(nextPageName, 20971520);
       //If the page can not be opened, stop here
-      if (!nProxy.curPage[tNum].mapped){
+      if (!nProxy.curPage[tNum].mapped) {
         WARN_MSG("Could not open page: %s", nextPageName);
         return;
       }
@@ -780,21 +842,21 @@ namespace Mist {
 
 
     DTSC::Packet tmpPack;
-    if (!nProxy.curPage[tNum].mapped[pageData.curOffset]){
+    if (!nProxy.curPage[tNum].mapped[pageData.curOffset]) {
       VERYHIGH_MSG("No packet on page %lu for track %lu, waiting...", pageNum, tNum);
       return;
     }
     tmpPack.reInit(nProxy.curPage[tNum].mapped + pageData.curOffset, 0);
     //No new data has been written on the page since last update
-    if (!tmpPack){
+    if (!tmpPack) {
       return;
     }
     lastUpdated[tNum] = Util::bootSecs();
-    while (tmpPack){
+    while (tmpPack) {
       //Update the metadata with this packet
       myMeta.update(tmpPack, segmentSize);/*LTS*/
       //Set the first time when appropriate
-      if (pageData.firstTime == 0){
+      if (pageData.firstTime == 0) {
         pageData.firstTime = tmpPack.getTime();
       }
       //Update the offset on the page with the size of the current packet
@@ -804,7 +866,7 @@ namespace Mist {
     }
   }
 
-  bool inputBuffer::setup(){
+  bool inputBuffer::setup() {
     lastReTime = Util::epoch(); /*LTS*/
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
@@ -816,10 +878,10 @@ namespace Mist {
     long long tmpNum;
 
     //if stream is configured and setting is present, use it, always
-    if (streamCfg && streamCfg.getMember("DVR")){
+    if (streamCfg && streamCfg.getMember("DVR")) {
       tmpNum = streamCfg.getMember("DVR").asInt();
     } else {
-      if (streamCfg){
+      if (streamCfg) {
         //otherwise, if stream is configured use the default
         tmpNum = config->getOption("bufferTime", true)[0u].asInt();
       } else {
@@ -827,19 +889,21 @@ namespace Mist {
         tmpNum = config->getOption("bufferTime").asInt();
       }
     }
-    if (tmpNum < 1000){tmpNum = 1000;}
+    if (tmpNum < 1000) {
+      tmpNum = 1000;
+    }
     //if the new value is different, print a message and apply it
-    if (bufferTime != tmpNum){
+    if (bufferTime != tmpNum) {
       DEBUG_MSG(DLVL_DEVEL, "Setting bufferTime from %u to new value of %lli", bufferTime, tmpNum);
       bufferTime = tmpNum;
     }
 
     /*LTS-START*/
     //if stream is configured and setting is present, use it, always
-    if (streamCfg && streamCfg.getMember("cut")){
+    if (streamCfg && streamCfg.getMember("cut")) {
       tmpNum = streamCfg.getMember("cut").asInt();
     } else {
-      if (streamCfg){
+      if (streamCfg) {
         //otherwise, if stream is configured use the default
         tmpNum = config->getOption("cut", true)[0u].asInt();
       } else {
@@ -848,16 +912,16 @@ namespace Mist {
       }
     }
     //if the new value is different, print a message and apply it
-    if (cutTime != tmpNum){
+    if (cutTime != tmpNum) {
       DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, tmpNum);
       cutTime = tmpNum;
     }
 
     //if stream is configured and setting is present, use it, always
-    if (streamCfg && streamCfg.getMember("resume")){
+    if (streamCfg && streamCfg.getMember("resume")) {
       tmpNum = streamCfg.getMember("resume").asInt();
     } else {
-      if (streamCfg){
+      if (streamCfg) {
         //otherwise, if stream is configured use the default
         tmpNum = config->getOption("resume", true)[0u].asInt();
       } else {
@@ -866,16 +930,16 @@ namespace Mist {
       }
     }
     //if the new value is different, print a message and apply it
-    if (resumeMode != (bool)tmpNum){
-      DEBUG_MSG(DLVL_DEVEL, "Setting resume mode from %s to new value of %s", resumeMode?"enabled":"disabled", tmpNum?"enabled":"disabled");
+    if (resumeMode != (bool)tmpNum) {
+      DEBUG_MSG(DLVL_DEVEL, "Setting resume mode from %s to new value of %s", resumeMode ? "enabled" : "disabled", tmpNum ? "enabled" : "disabled");
       resumeMode = tmpNum;
     }
 
     //if stream is configured and setting is present, use it, always
-    if (streamCfg && streamCfg.getMember("segmentsize")){
+    if (streamCfg && streamCfg.getMember("segmentsize")) {
       tmpNum = streamCfg.getMember("segmentsize").asInt();
     } else {
-      if (streamCfg){
+      if (streamCfg) {
         //otherwise, if stream is configured use the default
         tmpNum = config->getOption("segmentsize", true)[0u].asInt();
       } else {
@@ -884,7 +948,7 @@ namespace Mist {
       }
     }
     //if the new value is different, print a message and apply it
-    if (segmentSize != tmpNum){
+    if (segmentSize != tmpNum) {
       DEBUG_MSG(DLVL_DEVEL, "Setting segmentSize from %u to new value of %lli", segmentSize, tmpNum);
       segmentSize = tmpNum;
     }
@@ -929,8 +993,8 @@ namespace Mist {
     bool has_keyframes = false;
     std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
     while (it != myMeta.tracks.end()) {
-      
-      DTSC::Track& tr = it->second;
+
+      DTSC::Track & tr = it->second;
       if (tr.type != "video") {
         ++it;
         continue;
@@ -943,33 +1007,23 @@ namespace Mist {
       ++it;
     }
 
-    if (streamCfg
-        && streamCfg.getMember("record")
-        && streamCfg.getMember("record").asString().size() > 0
-        && has_keyframes
-        )
-      {
+    if (streamCfg && streamCfg.getMember("record") && streamCfg.getMember("record").asString().size() > 0 && has_keyframes) {
 
-        // @todo check if output is already running ? 
-        if (recordingPid == -1 && config != NULL){
-          configLock.post();
-          configLock.close();
-            
-          INFO_MSG("The stream %s has a value specified for the recording. "
-               "We're going to start an output and record into  %s",
-               config->getString("streamname").c_str(),
-               streamCfg.getMember("record").asString().c_str());
+      // @todo check if output is already running ?
+      if (recordingPid == -1 && config != NULL) {
 
-          recordingPid = Util::startRecording(config->getString("streamname"));
-          if (recordingPid < 0) {
-            FAIL_MSG("Failed to start the recording for %s", config->getString("streamname").c_str());
-            // @todo shouldn't we do configList.post(), configLock.close() and return false?
-            // @todo discuss with Jaron. 2015.09.26, remove this comment when discussed.
-          }
-          INFO_MSG("We started an output for recording with PID: %d", recordingPid);
-          return true;
+        INFO_MSG("The stream %s has a value specified for the recording. We're goint to start an output and record into  %s", config->getString("streamname").c_str(), streamCfg.getMember("record").asString().c_str());
+
+        configLock.post();
+        configLock.close();
+        recordingPid = Util::startRecording(config->getString("streamname"));
+        if (recordingPid < 0) {
+          FAIL_MSG("Failed to start the recording for %s", config->getString("streamname").c_str());
         }
+        INFO_MSG("We started an output for recording with PID: %d", recordingPid);
+        return true;
       }
+    }
     /* roxlu-end */
 
 
@@ -979,15 +1033,15 @@ namespace Mist {
     return true;
   }
 
-  bool inputBuffer::readHeader(){
+  bool inputBuffer::readHeader() {
     return true;
   }
 
-  void inputBuffer::getNext(bool smart){}
+  void inputBuffer::getNext(bool smart) {}
 
-  void inputBuffer::seek(int seekTime){}
+  void inputBuffer::seek(int seekTime) {}
 
-  void inputBuffer::trackSelect(std::string trackSpec){}
+  void inputBuffer::trackSelect(std::string trackSpec) {}
 }
 
 

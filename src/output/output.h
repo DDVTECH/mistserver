@@ -108,6 +108,7 @@ namespace Mist {
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
       bool completeKeyReadyTimeOut;//a bool to see if there has been a keyframe TimeOut for complete keys in Live
     protected://these are to be messed with by child classes
+      std::string source;
       
       virtual std::string getConnectedHost();
       virtual std::string getConnectedBinHost();

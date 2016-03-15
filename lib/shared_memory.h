@@ -60,7 +60,7 @@ namespace IPC {
   class semaphore {
     public:
       semaphore();
-      semaphore(const char * name, int oflag, mode_t mode, unsigned int value);
+      semaphore(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0);
       ~semaphore();
       operator bool() const;
       void open(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0);
@@ -220,6 +220,8 @@ namespace IPC {
       void finish();
       void keepAlive();
       char * getData();
+      int getCounter();
+      bool isSingleEntry();
     private:
       ///\brief The basename of the shared pages.
       std::string baseName;

@@ -6,6 +6,27 @@ namespace Mist {
   ///\brief Builds an index file for HTTP Live streaming.
   ///\return The index file for HTTP Live Streaming.
   std::string OutHLS::liveIndex() {
+
+    static int timer = 0;
+    bool checkWait = true;
+    while (checkWait && ++timer < 10){
+      checkWait = false;
+      if (!myMeta.tracks.size()){
+        checkWait = true;
+      }
+      for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.keys.size() <= 3){
+          checkWait = true;
+          break;
+        }
+      }
+      if (checkWait){
+        Util::sleep(500);
+        INFO_MSG("SLeeping timer %d", timer);
+        updateMeta();
+      }
+    }
+    
     std::stringstream result;
     result << "#EXTM3U\r\n";
     int audioId = -1;

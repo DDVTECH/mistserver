@@ -83,6 +83,7 @@ namespace Mist {
 
     singleton = this;
     isBuffer = false;
+    streamMode = false;
   }
 
   void Input::checkHeaderTimes(std::string streamFile) {
@@ -115,16 +116,27 @@ namespace Mist {
     }
   }
 
+  bool Input::needsLock() {
+    return !(config->hasOption("pull") && config->getBool("pull"));
+  }
+
   int Input::run() {
+    if (config->getBool("json")) {
+      std::cout << capa.toString() << std::endl;
+      return 0;
+    }
+
     if (streamName != "") {
       config->getOption("streamname") = streamName;
     }
     streamName = config->getString("streamname");
     nProxy.streamName = streamName;
-    if (config->getBool("json")) {
-      std::cout << capa.toString() << std::endl;
-      return 0;
-    }
+
+
+    streamMode = config->hasOption("pull") && config->getBool("pull");
+    INFO_MSG("Stream %s in %s mode", streamName.c_str(), streamMode ? "stream" : "non-stream");
+
+    
     if (!setup()) {
       std::cerr << config->getString("cmd") << " setup failed." << std::endl;
       return 0;
@@ -139,7 +151,9 @@ namespace Mist {
 
     if (!streamName.size()) {
       convert();
-    } else {
+    } else if (streamMode) {
+      stream();
+    }else{
       serve();
     }
     return 0;
@@ -243,53 +257,92 @@ namespace Mist {
   /// Main loop for stream-style inputs.
   /// This loop will start the buffer without resume support, and then repeatedly call ..... followed by ....
   void Input::stream(){
+    IPC::semaphore pullLock;
+    pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    if (!pullLock.tryWait()){
+      DEBUG_MSG(DLVL_DEVEL, "A pull process for stream %s is already running", streamName.c_str());
+      return;
+    }
+    if (Util::streamAlive(streamName)){
+      pullLock.post();
+      pullLock.close();
+      return;
+    }
+    if (!Util::startInput(streamName, "push://")) {//manually override stream url to start the buffer
+      pullLock.post();
+      pullLock.close();
+      return;
+    }
+
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    /*LTS-START*/
-    if(Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
-      std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
-      if (!Triggers::doTrigger("STREAM_READY", payload, config->getString("streamname"))){
-        config->is_active = false;
-      }
-    }
-    /*LTS-END*/
-    userPage.init(userPageName, PLAY_EX_SIZE, true);
-    if (!isBuffer) {
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-        bufferFrame(it->first, 1);
-      }
-    }
+    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
 
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
 
-    long long int activityCounter = Util::bootSecs();
-    while ((Util::bootSecs() - activityCounter) < 10 && config->is_active) { //10 second timeout
-      userPage.parseEach(callbackWrapper);
-      removeUnused();
-      if (userPage.amount) {
-        activityCounter = Util::bootSecs();
-        DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.amount);
-      } else {
-        DEBUG_MSG(DLVL_INSANE, "Timer running");
-      }
-      /*LTS-START*/
-      if ((Util::bootSecs() - activityCounter) >= 10 || !config->is_active){//10 second timeout
-        if(Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
-          std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
-          if (!Triggers::doTrigger("STREAM_UNLOAD", payload, config->getString("streamname"))){
-            activityCounter = Util::bootSecs();
-            config->is_active = true;
+    if (!openStreamSource()){
+      FAIL_MSG("Unable to connect to source");
+      pullLock.post();
+      pullLock.close();
+      return;
+    }
+    parseStreamHeader();
+    
+    if (myMeta.tracks.size() == 0){
+      nProxy.userClient.finish();
+      finish();
+      pullLock.post();
+      pullLock.close();
+      return;
+    }
+
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      it->second.firstms = 0;
+      it->second.lastms = 0;
+    }
+
+    getNext();
+    unsigned long long lastTime = Util::getMS();
+    unsigned long long lastActive = Util::getMS();
+    while (thisPacket && config->is_active){
+      nProxy.bufferLivePacket(thisPacket, myMeta);
+      getNext();
+      nProxy.userClient.keepAlive();
+      if (Util::getMS() - lastTime >= 1000){
+        lastTime = Util::getMS();
+        if (nProxy.userClient.isSingleEntry()){
+          if (lastTime - lastActive >= 10000){//10sec timeout
+            config->is_active = false;
           }
+        }else{
+          lastActive = lastTime;
         }
       }
-      /*LTS-END*/
-      if (config->is_active){
-        Util::sleep(1000);
+    }
+    
+    closeStreamSource();
+
+    while (config->is_active){
+      Util::sleep(500);
+      nProxy.userClient.keepAlive();
+      if (Util::getMS() - lastTime >= 1000){
+        lastTime = Util::getMS();
+        if (nProxy.userClient.isSingleEntry()){
+          if (lastTime - lastActive >= 10000){//10sec timeout
+            config->is_active = false;
+          }
+        }else{
+          lastActive = lastTime;
+        }
       }
     }
+
+
+    nProxy.userClient.finish();
     finish();
-    DEBUG_MSG(DLVL_DEVEL, "Input for stream %s closing clean", streamName.c_str());
-    //end player functionality
+    pullLock.post();
+    pullLock.close();
+    return;
   }
 
   void Input::finish() {

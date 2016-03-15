@@ -30,6 +30,7 @@ namespace Util {
       void addOption(std::string optname, JSON::Value option);
       void printHelp(std::ostream & output);
       bool parseArgs(int & argc, char ** & argv);
+      bool hasOption(const std::string & optname);
       JSON::Value & getOption(std::string optname, bool asArray = false);
       std::string getString(std::string optname);
       long long int getInteger(std::string optname);

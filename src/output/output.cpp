@@ -278,6 +278,16 @@ namespace Mist {
       onFail();
       return;
     }
+    if (!source.size()){
+      std::string strName = streamName;
+      Util::sanitizeName(strName);
+      IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
+      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      configLock.wait();
+      DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
+      source = streamCfg.getMember("source").asString();
+      configLock.post();
+    }
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
     nProxy.metaPages.clear();
@@ -416,9 +426,20 @@ namespace Mist {
     // when we don't see this explicitly it makes debugging the recording feature
     // a bit painfull :) 
     if (selectedTracks.size() == 0) {
-      WARN_MSG("We didn't find any tracks which that we can use. selectedTrack.size() is 0.");
+      INSANE_MSG("We didn't find any tracks which that we can use. selectedTrack.size() is 0.");
       for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-        WARN_MSG("Found track/codec: %s", trit->second.codec.c_str());
+        INSANE_MSG("Found track/codec: %s", trit->second.codec.c_str());
+      }
+      if (!myMeta.tracks.size() && (source.find("dtsc://") == 0)){
+        //Wait 5 seconds and try again. Keep a counter, try at most 3 times
+        static int counter = 0;
+        if (counter++ < 10){
+          Util::wait(1000);
+          nProxy.userClient.keepAlive();
+          stats();
+          updateMeta();
+          selectDefaultTracks();
+        }
       }
     }
     /*end-roxlu*/
@@ -898,6 +919,25 @@ namespace Mist {
         }
         if ( !sentHeader){
           DEBUG_MSG(DLVL_DONTEVEN, "sendHeader");
+          bool waitLonger = false;
+          if (!myMeta.tracks.size()){
+            waitLonger = true;
+          }else{
+            for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+              if (!it->second.keys.size()){
+                waitLonger = true;
+                break;
+              }
+            }
+          }
+          if (waitLonger){
+            updateMeta();
+            Util::sleep(1000);
+            static unsigned int metaTries = 0;
+            if(++metaTries < 7){
+              continue;
+            }
+          }
           sendHeader();
         }
         prepareNext();

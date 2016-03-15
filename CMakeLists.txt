@@ -160,6 +160,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/tinythread.h
   ${SOURCE_DIR}/lib/ts_packet.h
   ${SOURCE_DIR}/lib/ts_stream.h
+  ${SOURCE_DIR}/lib/util.h
   ${SOURCE_DIR}/lib/vorbis.h
   ${SOURCE_DIR}/lib/triggers.h
 )
@@ -203,6 +204,7 @@ set(libSources
   ${SOURCE_DIR}/lib/tinythread.cpp
   ${SOURCE_DIR}/lib/ts_packet.cpp
   ${SOURCE_DIR}/lib/ts_stream.cpp
+  ${SOURCE_DIR}/lib/util.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
   ${SOURCE_DIR}/lib/triggers.cpp
 )
@@ -290,9 +292,6 @@ macro(makeInput inputName format)
 
   #Set compile definitions
   unset(my_definitions)
-  if (";${ARGN};" MATCHES ";nolock;")#Currently only used in TSStream
-    list(APPEND my_definitions "INPUT_NOLOCK")
-  endif()
   if (";${ARGN};" MATCHES ";tslive;")
     list(APPEND my_definitions "TSLIVE_INPUT")
   endif()
@@ -320,7 +319,7 @@ makeInput(Buffer buffer)
 makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS
-makeInput(TSStream ts nolock tslive)#LTS
+makeInput(TSStream ts tslive)#LTS
 makeInput(Folder folder folder)#LTS
 
 ########################################

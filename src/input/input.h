@@ -23,6 +23,8 @@ namespace Mist {
       virtual void onCrash(){}
       virtual void argumentsParsed(){}
       virtual ~Input() {};
+
+      virtual bool needsLock();
     protected:
       static void callbackWrapper(char * data, size_t len, unsigned int id);
       virtual bool setup() = 0;
@@ -31,6 +33,9 @@ namespace Mist {
       virtual void getNext(bool smart = true) {};
       virtual void seek(int seekTime){};
       virtual void finish();
+      virtual bool openStreamSource() { return false; };
+      virtual void closeStreamSource() {};
+      virtual void parseStreamHeader() {};
       void play(int until = 0);
       void playOnce();
       void quitPlay();
@@ -40,6 +45,9 @@ namespace Mist {
       virtual void userCallback(char * data, size_t len, unsigned int id);
       virtual void convert();
       virtual void serve();
+      virtual void stream();
+      bool streamMode;
+
       
       virtual void parseHeader();
       bool bufferFrame(unsigned int track, unsigned int keyNum);

@@ -441,6 +441,10 @@ namespace Mist {
       }
     } while (threadCount);
   }
+
+  bool inputTS::needsLock() {
+    return false;
+  }
 #endif
 
 }

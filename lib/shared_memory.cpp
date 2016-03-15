@@ -1068,6 +1068,54 @@ namespace IPC {
   ///\brief The deconstructor
   sharedClient::~sharedClient() {
     mySemaphore.close();
+
+
+  }
+
+  bool sharedClient::isSingleEntry() {
+    semaphore tmpSem(baseName.c_str(), O_RDWR);
+
+    if (!tmpSem) {
+      HIGH_MSG("Creating semaphore %s failed: %s, assuming we're alone", baseName.c_str(), strerror(errno));
+      return true;
+    }
+    //Empty is used to compare for emptyness. This is not needed when the page uses a counter
+    char * empty = 0;
+    if (!hasCounter) {
+      empty = (char *)malloc(payLen * sizeof(char));
+      if (!empty) {
+        HIGH_MSG("Failed to allocate %u bytes for empty payload, assuming we're not alone", payLen);
+        return false;
+      }
+      memset(empty, 0, payLen);
+    }
+    bool result = true;
+    {
+      semGuard tmpGuard(&tmpSem);
+      for (char i = 'A'; i <= 'Z'; i++) {
+        sharedPage tmpPage(baseName.substr(1) + i, (4096 << (i - 'A')), false, false);
+        if (!tmpPage.mapped) {
+          break;
+        }
+        int offset = 0;
+        while (offset + payLen + (hasCounter ? 1 : 0) <= tmpPage.len) {
+          //Skip our own entry
+          if (tmpPage.name == myPage.name && offset == offsetOnPage){
+            offset += payLen + (hasCounter ? 1 : 0);
+            continue;
+          }
+          if (!((hasCounter && tmpPage.mapped[offset] == 0) || (!hasCounter && !memcmp(tmpPage.mapped + offset, empty, payLen)))) {
+            result = false;
+            break;
+          }
+          offset += payLen + (hasCounter ? 1 : 0);
+        }
+      }
+    }
+    if (empty) {
+      free(empty);
+    }
+    return result;
   }
 
   ///\brief Writes data to the shared data
@@ -1112,6 +1160,16 @@ namespace IPC {
       return 0;
     }
     return (myPage.mapped + offsetOnPage + (hasCounter ? 1 : 0));
+  }
+  
+  int sharedClient::getCounter() {
+    if (!hasCounter){
+      return -1;
+    }
+    if (!myPage.mapped) {
+      return 0;
+    }
+    return *(myPage.mapped + offsetOnPage);
   }
 
   userConnection::userConnection(char * _data) {

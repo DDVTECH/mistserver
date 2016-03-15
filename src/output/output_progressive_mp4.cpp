@@ -43,6 +43,9 @@ namespace Mist {
 
   ///\todo This function does not indicate errors anywhere... maybe fix this...
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size, int fragmented) {
+    if (myMeta.live){
+      completeKeysOnly = true;
+    }
     //Make sure we have a proper being value for the size...
     size = 0;
     //Stores the result of the function
@@ -745,6 +748,28 @@ namespace Mist {
 
   void OutProgressiveMP4::setvidTrack() {
     vidTrack = 0;
+    static int timer = 0;
+    bool checkWait = true;
+    while (checkWait && ++timer < 10){
+      checkWait = false;
+      if (!myMeta.tracks.size()){
+        checkWait = true;
+      }
+      for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (!it->second.keys.size()){
+          checkWait = true;
+          break;
+        }
+      }
+      if (checkWait){
+        Util::sleep(500);
+        updateMeta();
+      }
+    }
+
+    if (!selectedTracks.size()){
+      selectDefaultTracks();
+    }
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       //Find video track
       if (myMeta.tracks[*it].type == "video") {

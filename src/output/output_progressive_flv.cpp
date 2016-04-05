@@ -44,7 +44,7 @@ namespace Mist {
     H.SetHeader("Content-Type", "video/x-flv");
     H.protocol = "HTTP/1.0";
     H.setCORSHeaders();
-    sendResponse("OK");
+    sendResponse();
     myConn.SendNow(FLV::Header, 13);
     tag.DTSCMetaInit(myMeta, selectedTracks);
     myConn.SendNow(tag.data, tag.len);

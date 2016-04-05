@@ -410,7 +410,7 @@ namespace Mist {
       WARN_MSG("Requested to send a HTTP response but the given message is empty. Trying though.");
     }
 
-    H.SendResponse(message, code, myConn);
+    H.SendResponse(code, message, myConn);
   }
   /*end-roxlu*/
 }

@@ -22,7 +22,7 @@ namespace Mist {
       void reConnector(std::string & connector);
       std::string getHandler();
       /*begin-roxlu*/
-      void sendResponse(std::string message, std::string code = "200");
+      void sendResponse(std::string message = "OK", std::string code = "200");
       /*end-roxlu*/
   protected:
       HTTP::Parser H;

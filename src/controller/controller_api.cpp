@@ -177,6 +177,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         H.SetHeader("X-Info", "To force an API response, request the file /api");
         H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
         H.SetHeader("Content-Length", server_html_len);
+        H.SetHeader("X-UA-Compatible","IE=edge;chrome=1");
         H.SendResponse("200", "OK", conn);
         conn.SendNow(server_html, server_html_len);
         H.Clean();

@@ -279,6 +279,7 @@ namespace Mist {
       return true;
     }
     trackNo = 0;
+    std::set<mp4PartBpos> BPosSet;
     //Create header file from MP4 data
     while(!feof(inFile)){
       std::string boxType = MP4::readBoxType(inFile);
@@ -513,7 +514,11 @@ namespace Mist {
                           }else{
                             BsetPart.timeOffset = 0;
                           }
-                          myMeta.update(BsetPart.time, BsetPart.timeOffset, trackNo, stszBox.getEntrySize(sampleIndex), BsetPart.bpos, BsetPart.keyframe);
+                          //set size, that's easy
+                          BsetPart.size = stszBox.getEntrySize(sampleIndex);
+                          //trackid
+                          BsetPart.trackID=trackNo;
+                          BPosSet.insert(BsetPart);
                         }//while over stsc
                         if (vidTrack){
                           //something wrong with the time formula, but the answer is right for some reason
@@ -545,6 +550,25 @@ namespace Mist {
     //for all in bpos set, find its data
     clearerr(inFile);
     
+    for (std::set<mp4PartBpos>::iterator it = BPosSet.begin(); it != BPosSet.end(); it++){
+      if (!fseeko(inFile,it->bpos,SEEK_SET)){
+        if (it->size > malSize){
+          data = (char*)realloc(data, it->size);
+          malSize = it->size;
+        }
+        int tmp = fread(data, it->size, 1, inFile);
+        if (tmp == 1){
+          //add data
+          myMeta.update(it->time, it->timeOffset, it->trackID, it->size, it->bpos, it->keyframe);
+        }else{
+          INFO_MSG("fread did not return 1, bpos: %llu size: %llu keyframe: %d error: %s", it->bpos, it->size, it->keyframe, strerror(errno));
+          return false;
+        }
+      }else{
+        INFO_MSG("fseek failed!");
+        return false;
+      }
+    }//rof bpos set
     //outputting dtsh file
     std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
     oFile << myMeta.toJSON().toNetPacked();

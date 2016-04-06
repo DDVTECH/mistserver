@@ -23,7 +23,7 @@ namespace Mist {
         return false;
       }
       long long unsigned int time;
-      long long unsigned int offset;
+      int32_t offset;
       unsigned int trackID;
       long long unsigned int bpos;
       unsigned int size;
@@ -52,7 +52,7 @@ namespace Mist {
     long long unsigned int bpos;
     long long unsigned int size;
     long long unsigned int stcoNr;
-    long unsigned int timeOffset;
+    int32_t timeOffset;
     bool keyframe;
   };
 
@@ -67,7 +67,7 @@ namespace Mist {
       MP4::CTTS cttsBox;
       MP4::STSC stscBox;
       long unsigned int timeScale;
-      void getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp, long long unsigned int & timeOffset);
+      void getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp, int32_t & timeOffset);
       long unsigned int size();
     private:
       bool initialised;

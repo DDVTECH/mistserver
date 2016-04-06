@@ -538,7 +538,7 @@ namespace MP4 {
 
   struct CTTSEntry {
     uint32_t sampleCount;
-    uint32_t sampleOffset;
+    int32_t sampleOffset;
   };
 
   class CTTS: public fullBox {

@@ -2575,7 +2575,8 @@ namespace MP4 {
       setEntryCount(no + 1);
     }
     setInt32(newCTTSEntry.sampleCount, 8 + no * 8);
-    setInt32(newCTTSEntry.sampleOffset, 8 + (no * 8) + 4);
+    setInt32(*(reinterpret_cast<uint32_t*>(&newCTTSEntry.sampleOffset)), 8 + (no * 8) + 4);
+
   }
 
   CTTSEntry CTTS::getCTTSEntry(uint32_t no) {
@@ -2585,7 +2586,8 @@ namespace MP4 {
       return inval;
     }
     retval.sampleCount = getInt32(8 + (no * 8));
-    retval.sampleOffset = getInt32(8 + (no * 8) + 4);
+    uint32_t tmp = getInt32(8 + (no * 8) + 4);
+    retval.sampleOffset = *(reinterpret_cast<int32_t*>(&tmp));
     return retval;
   }
 

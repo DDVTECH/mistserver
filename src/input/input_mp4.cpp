@@ -100,7 +100,7 @@ namespace Mist {
     }//rof trak
   }
 
-  void mp4TrackHeader::getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp, long long unsigned int & timeOffset){
+  void mp4TrackHeader::getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp, int32_t & timeOffset){
 
 
     if (index < sampleIndex){
@@ -171,7 +171,7 @@ namespace Mist {
       while (offsetIndex < cttsBox.getEntryCount()){
         tmpCTTS = cttsBox.getCTTSEntry(offsetIndex);
         if ((index - offsetPos) < tmpCTTS.sampleCount){
-          timeOffset = (tmpCTTS.sampleOffset*1000)/timeScale;
+          timeOffset = (tmpCTTS.sampleOffset*1000)/(int32_t)timeScale;
           break;
         }
         offsetPos += tmpCTTS.sampleCount;
@@ -518,7 +518,7 @@ namespace Mist {
                               cttsIndex++;
                               cttsEntryRead = 0;
                             }
-                            BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000)/timeScale;
+                            BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000)/(int32_t)timeScale;
                           }else{
                             BsetPart.timeOffset = 0;
                           }
@@ -529,9 +529,9 @@ namespace Mist {
                           /// \todo Fix this. This makes no sense whatsoever. This isn't frame per kilosecond, but milli-STCO-entries per second.
                           // (A single STCO entry may be more than 1 part, and 1 part may be a partial frame or multiple frames)
                           if (stcoIs64){
-                            myMeta.tracks[trackNo].fpks = (((double)(((MP4::CO64*)&stcoBox)->getEntryCount()*1000))/((totaldur*1000)/timeScale))*1000;
+                            myMeta.tracks[trackNo].fpks = (((double)(((MP4::CO64*)&stcoBox)->getEntryCount()*1000))/((totaldur*1000)))*1000;
                           }else{
-                            myMeta.tracks[trackNo].fpks = (((double)(stcoBox.getEntryCount()*1000))/((totaldur*1000)/timeScale))*1000;
+                            myMeta.tracks[trackNo].fpks = (((double)(stcoBox.getEntryCount()*1000))/((totaldur*1000)))*1000;
                           }
                         }
                       }//fi stbl

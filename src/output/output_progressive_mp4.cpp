@@ -7,7 +7,7 @@
 
 namespace Mist {
   OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : HTTPOutput(conn) {
-    completeKeysOnly = true;
+    completeKeysOnly = false;
   }
   OutProgressiveMP4::~OutProgressiveMP4() {}
 

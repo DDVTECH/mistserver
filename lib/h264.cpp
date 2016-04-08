@@ -81,6 +81,12 @@ namespace h264 {
 
   sequenceParameterSet::sequenceParameterSet(const char * _data, unsigned long _dataLen) : data(_data), dataLen(_dataLen) {}
 
+  //DTSC Initdata is the payload for an avcc box. init[8+] is data, init[6-7] is a network-encoded length
+  void sequenceParameterSet::fromDTSCInit(const std::string & dtscInit){
+    data = dtscInit.data() + 8;
+    dataLen = Bit::btohs(dtscInit.data() + 6);
+  }
+
   SPSMeta sequenceParameterSet::getCharacteristics()  const {
     SPSMeta result;
 

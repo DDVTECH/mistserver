@@ -50,7 +50,8 @@ namespace h264 {
 
   class sequenceParameterSet {
     public:
-      sequenceParameterSet(const char * _data, unsigned long _dataLen);
+      sequenceParameterSet(const char * _data = NULL, unsigned long _dataLen = 0);
+      void fromDTSCInit(const std::string & dtscInit);
       SPSMeta getCharacteristics() const;
     private:
       const char * data;

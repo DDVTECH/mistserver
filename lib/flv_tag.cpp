@@ -11,6 +11,9 @@
 #include <string.h> //memcpy
 #include <sstream>
 
+
+#include "h264.h" //Needed for init data parsing in case of invalid values from FLV init
+
 /// Holds the last FLV header parsed.
 /// Defaults to a audio+video header on FLV version 0x01 if no header received yet.
 char FLV::Header[13] = {'F', 'L', 'V', 0x01, 0x05, 0, 0, 0, 0x09, 0, 0, 0, 0};
@@ -1098,6 +1101,16 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
           return JSON::Value();
         }
         metadata.tracks[reTrack].init = std::string((char *)data + 12, (size_t)len - 16);
+      }
+      ///this is a hacky way around invalid FLV data (since it gets ignored nearly everywhere, but we do need correct data...
+      if (!metadata.tracks[reTrack].width || !metadata.tracks[reTrack].height || !metadata.tracks[reTrack].fpks){
+        h264::sequenceParameterSet sps;
+        sps.fromDTSCInit(metadata.tracks[reTrack].init);
+        h264::SPSMeta spsChar = sps.getCharacteristics();
+        metadata.tracks[reTrack].width = spsChar.width;
+        metadata.tracks[reTrack].height = spsChar.height;
+        metadata.tracks[reTrack].fpks = spsChar.fps * 1000;
+
       }
       pack_out.null();
       return pack_out; //skip rest of parsing, get next tag.

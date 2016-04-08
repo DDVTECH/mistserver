@@ -1110,7 +1110,6 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
         metadata.tracks[reTrack].width = spsChar.width;
         metadata.tracks[reTrack].height = spsChar.height;
         metadata.tracks[reTrack].fpks = spsChar.fps * 1000;
-
       }
       pack_out.null();
       return pack_out; //skip rest of parsing, get next tag.

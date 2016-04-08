@@ -8,6 +8,7 @@
 #include <mist/stream.h>
 #include <mist/flv_tag.h>
 #include <mist/defines.h>
+#include <mist/h264.h>
 
 #include "input_mp4.h"
 
@@ -386,6 +387,14 @@ namespace Mist {
                               tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getPASP();
                               if (tmpContent.getType() == "avcC"){
                                 myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
+                              }
+                              ///this is a hacky way around invalid FLV data (since it gets ignored nearly everywhere, but we do need correct data...
+                              if (!myMeta.tracks[trackNo].width || !myMeta.tracks[trackNo].height || !myMeta.tracks[trackNo].fpks){
+                                h264::sequenceParameterSet sps;
+                                sps.fromDTSCInit(myMeta.tracks[trackNo].init);
+                                h264::SPSMeta spsChar = sps.getCharacteristics();
+                                myMeta.tracks[trackNo].width = spsChar.width;
+                                myMeta.tracks[trackNo].height = spsChar.height;
                               }
                             }else if (tmpType == "hev1" || tmpType == "hvc1"){
                               myMeta.tracks[trackNo].type = "video";

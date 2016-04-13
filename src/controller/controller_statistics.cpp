@@ -638,7 +638,7 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   //collect the data first
   std::set<std::string> streams;
   std::map<std::string, unsigned long> clients;
-  unsigned int t = Util::epoch() - 2;
+  unsigned int t = Util::epoch() - 15;
   //check all sessions
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){

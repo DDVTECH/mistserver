@@ -669,10 +669,10 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   //check all sessions
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      if (onlyNow || it->second.isViewerOn(t)){
+      if (onlyNow || it->second.hasDataFor(t)){
         streams.insert(it->first.streamName);
       }
-      if (it->second.isViewerOn(t)){
+      if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
         streams.insert(it->first.streamName);
         clients[it->first.streamName]++;
       }

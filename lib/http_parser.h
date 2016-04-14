@@ -37,8 +37,6 @@ namespace HTTP {
       void Proxy(Socket::Connection & from, Socket::Connection & to);
       void Clean();
       void CleanPreserveHeaders();
-      static std::string urlunescape(const std::string & in);
-      static std::string urlencode(const std::string & in);
       std::string body;
       std::string method;
       std::string url;
@@ -59,8 +57,6 @@ namespace HTTP {
       std::map<std::string, std::string> headers;
       std::map<std::string, std::string> vars;
       void Trim(std::string & s);
-      static int unhex(char c);
-      static std::string hex(char dec);
   };
 //HTTP::Parser class
 

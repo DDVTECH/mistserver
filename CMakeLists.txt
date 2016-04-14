@@ -94,7 +94,7 @@ add_definitions(-g -funsigned-char -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D
 set(libHeaders
   ${SOURCE_DIR}/lib/amf.h
   ${SOURCE_DIR}/lib/auth.h
-  ${SOURCE_DIR}/lib/base64.h
+  ${SOURCE_DIR}/lib/encode.h
   ${SOURCE_DIR}/lib/bitfields.h
   ${SOURCE_DIR}/lib/bitstream.h
   ${SOURCE_DIR}/lib/checksum.h
@@ -128,7 +128,7 @@ set(libHeaders
 set(libSources 
   ${SOURCE_DIR}/lib/amf.cpp
   ${SOURCE_DIR}/lib/auth.cpp
-  ${SOURCE_DIR}/lib/base64.cpp
+  ${SOURCE_DIR}/lib/encode.cpp
   ${SOURCE_DIR}/lib/bitfields.cpp
   ${SOURCE_DIR}/lib/bitstream.cpp
   ${SOURCE_DIR}/lib/config.cpp

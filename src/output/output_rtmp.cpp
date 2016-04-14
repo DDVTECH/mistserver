@@ -2,6 +2,7 @@
 #include <mist/http_parser.h>
 #include <mist/defines.h>
 #include <mist/stream.h>
+#include <mist/encode.h>
 #include <sys/stat.h>
 #include <cstring>
 #include <cstdlib>
@@ -57,7 +58,6 @@ namespace Mist {
         varname = data.substr(pos, nextpos - pos);
         varval.clear();
       }
-      //SetVar(urlunescape(varname), urlunescape(varval));
 
       if (varname == "track"){
         long long int selTrack = JSON::Value(varval).asInt();
@@ -549,7 +549,7 @@ namespace Mist {
       int playTransaction = amfData.getContentP(1)->NumValue();
       int playMessageType = messageType;
       int playStreamId = streamId;
-      streamName = amfData.getContentP(3)->StrValue();
+      streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
 
       //handle variables
       if (streamName.find('?') != std::string::npos){

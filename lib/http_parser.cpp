@@ -2,6 +2,7 @@
 /// Holds all code for the HTTP namespace.
 
 #include "http_parser.h"
+#include "encode.h"
 #include "timing.h"
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
@@ -230,7 +231,7 @@ void HTTP::Parser::Proxy(Socket::Connection & from, Socket::Connection & to) {
           unsigned int chunkLen = 0;
           if (!tmpA.empty()) {
             for (unsigned int i = 0; i < tmpA.size(); ++i) {
-              chunkLen = (chunkLen << 4) | unhex(tmpA[i]);
+              chunkLen = (chunkLen << 4) | Encodings::Hex::ord(tmpA[i]);
             }
             if (chunkLen == 0) {
               getChunks = false;
@@ -415,7 +416,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
                 parseVars(url.substr(url.find('?') + 1)); //parse GET variables
                 url.erase(url.find('?'));
               }
-              url = urlunescape(url);
+              url = Encodings::URL::decode(url);
             } else {
               seenReq = false;
             }
@@ -431,7 +432,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
                 parseVars(url.substr(url.find('?') + 1)); //parse GET variables
                 url.erase(url.find('?'));
               }
-              url = urlunescape(url);
+              url = Encodings::URL::decode(url);
             } else {
               seenReq = false;
             }
@@ -501,7 +502,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
             unsigned int chunkLen = 0;
             if (!tmpA.empty()) {
               for (unsigned int i = 0; i < tmpA.size(); ++i) {
-                chunkLen = (chunkLen << 4) | unhex(tmpA[i]);
+                chunkLen = (chunkLen << 4) | Encodings::Hex::ord(tmpA[i]);
               }
               if (chunkLen == 0) {
                 getChunks = false;
@@ -547,7 +548,7 @@ void HTTP::Parser::parseVars(std::string data) {
       varname = data.substr(pos, nextpos - pos);
       varval.clear();
     }
-    SetVar(urlunescape(varname), urlunescape(varval));
+    SetVar(Encodings::URL::decode(varname), Encodings::URL::decode(varval));
     if (nextpos == std::string::npos) {
       // in case the string is gigantic
       break;
@@ -608,65 +609,3 @@ void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connec
   }
 }
 
-/// Unescapes URLencoded std::string data.
-std::string HTTP::Parser::urlunescape(const std::string & in) {
-  std::string out;
-  for (unsigned int i = 0; i < in.length(); ++i) {
-    if (in[i] == '%') {
-      char tmp = 0;
-      ++i;
-      if (i < in.length()) {
-        tmp = unhex(in[i]) << 4;
-      }
-      ++i;
-      if (i < in.length()) {
-        tmp += unhex(in[i]);
-      }
-      out += tmp;
-    } else {
-      if (in[i] == '+') {
-        out += ' ';
-      } else {
-        out += in[i];
-      }
-    }
-  }
-  return out;
-}
-
-/// Helper function for urlunescape.
-/// Takes a single char input and outputs its integer hex value.
-int HTTP::Parser::unhex(char c) {
-  return (c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c - 'a' + 10);
-}
-
-/// URLencodes std::string data.
-std::string HTTP::Parser::urlencode(const std::string & c) {
-  std::string escaped = "";
-  int max = c.length();
-  for (int i = 0; i < max; i++) {
-    if (('0' <= c[i] && c[i] <= '9') || ('a' <= c[i] && c[i] <= 'z') || ('A' <= c[i] && c[i] <= 'Z')
-        || (c[i] == '~' || c[i] == '!' || c[i] == '*' || c[i] == '(' || c[i] == ')' || c[i] == '\'')) {
-      escaped.append(&c[i], 1);
-    } else {
-      escaped.append("%");
-      escaped.append(hex(c[i]));
-    }
-  }
-  return escaped;
-}
-
-/// Helper function for urlescape.
-/// Encodes a character as two hex digits.
-std::string HTTP::Parser::hex(char dec) {
-  char dig1 = (dec & 0xF0) >> 4;
-  char dig2 = (dec & 0x0F);
-  if (dig1 <= 9) dig1 += 48;
-  if (10 <= dig1 && dig1 <= 15) dig1 += 97 - 10;
-  if (dig2 <= 9) dig2 += 48;
-  if (10 <= dig2 && dig2 <= 15) dig2 += 97 - 10;
-  std::string r;
-  r.append(&dig1, 1);
-  r.append(&dig2, 1);
-  return r;
-}

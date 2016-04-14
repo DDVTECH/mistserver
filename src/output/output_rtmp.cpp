@@ -3,6 +3,7 @@
 #include <mist/defines.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/encode.h>
 #include <sys/stat.h>
 #include <cstring>
 #include <cstdlib>
@@ -37,39 +38,6 @@ namespace Mist {
 
   OutRTMP::~OutRTMP() {}
 
-
-  /// Helper function for urlunescape.
-  /// Takes a single char input and outputs its integer hex value.
-  int unhex(char c) {
-    return (c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : c - 'a' + 10);
-  }
-
-  /// Unescapes URLencoded std::string data.
-  std::string urlunescape(const std::string & in) {
-    std::string out;
-    for (unsigned int i = 0; i < in.length(); ++i) {
-      if (in[i] == '%') {
-        char tmp = 0;
-        ++i;
-        if (i < in.length()) {
-          tmp = unhex(in[i]) << 4;
-        }
-        ++i;
-        if (i < in.length()) {
-          tmp += unhex(in[i]);
-        }
-        out += tmp;
-      } else {
-        if (in[i] == '+') {
-          out += ' ';
-        } else {
-          out += in[i];
-        }
-      }
-    }
-    return out;
-  }
-
   void OutRTMP::parseVars(std::string data){
     std::string varname;
     std::string varval;
@@ -91,7 +59,6 @@ namespace Mist {
         varname = data.substr(pos, nextpos - pos);
         varval.clear();
       }
-      //SetVar(urlunescape(varname), urlunescape(varval));
 
       if (varname == "track"){
         long long int selTrack = JSON::Value(varval).asInt();
@@ -646,7 +613,7 @@ namespace Mist {
       int playTransaction = amfData.getContentP(1)->NumValue();
       int playMessageType = messageType;
       int playStreamId = streamId;
-      streamName = urlunescape(amfData.getContentP(3)->StrValue());
+      streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
       reqUrl += "/"+streamName;//LTS
 
       //handle variables

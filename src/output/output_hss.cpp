@@ -4,7 +4,7 @@
 #include <mist/mp4_ms.h>
 #include <mist/mp4_generic.h>
 #include <mist/mp4_encryption.h> /*LTS*/
-#include <mist/base64.h>
+#include <mist/encode.h>
 #include <mist/http_parser.h>
 #include <mist/stream.h>
 #include <mist/bitfields.h>

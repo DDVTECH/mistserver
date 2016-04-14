@@ -67,6 +67,8 @@ namespace Controller {
       void update(unsigned long index, IPC::statExchange & data);
       unsigned long long getStart();
       unsigned long long getEnd();
+      bool isViewerOn(unsigned long long time);
+      bool isViewer();
       bool hasDataFor(unsigned long long time);
       bool hasData();
       long long getConnTime(unsigned long long time);

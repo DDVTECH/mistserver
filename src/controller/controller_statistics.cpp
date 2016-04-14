@@ -280,6 +280,33 @@ bool Controller::statSession::hasData(){
   return false;
 }
 
+/// Returns true if this session should count as a viewer on the given timestamp.
+bool Controller::statSession::isViewerOn(unsigned long long t){
+  return getUp(t) > 128 * 1024;
+}
+
+/// Returns true if this session should count as a viewer
+bool Controller::statSession::isViewer(){
+  long long upTotal = 0;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->log.size()){
+        upTotal += it->log.rbegin()->second.up;
+        if (upTotal > 128*1024){return true;}
+      }
+    }
+  }
+  if (curConns.size()){
+    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.log.size()){
+        upTotal += it->second.log.rbegin()->second.up;
+        if (upTotal > 128*1024){return true;}
+      }
+    }
+  }
+  return false;
+}
+
 /// Returns the cumulative connected time for this session at timestamp t.
 long long Controller::statSession::getConnTime(unsigned long long t){
   long long retVal = 0;
@@ -642,10 +669,10 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   //check all sessions
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      if (onlyNow || it->second.hasDataFor(t)){
+      if (onlyNow || it->second.isViewerOn(t)){
         streams.insert(it->first.streamName);
       }
-      if (it->second.hasDataFor(t)){
+      if (it->second.isViewerOn(t)){
         streams.insert(it->first.streamName);
         clients[it->first.streamName]++;
       }

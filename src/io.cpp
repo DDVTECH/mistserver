@@ -1,7 +1,7 @@
 #include <mist/stream.h>
 #include <mist/json.h>
 #include <mist/auth.h>
-#include <mist/base64.h>
+#include <mist/encode.h>
 #include <mist/bitfields.h>
 #include <cstdlib>
 #include "io.h"
@@ -41,8 +41,8 @@ namespace Mist {
       vmData.keyid = cfg.isMember("keyid")?cfg["keyid"].asString():"";
       vmData.keyseed = cfg.isMember("keyseed")?cfg["keyseed"].asString():"";
       if (vmData.keyid != "" && vmData.keyseed != ""){
-        vmData.keyid = Base64::decode(vmData.keyid);
-        vmData.keyseed = Base64::decode(vmData.keyseed);
+        vmData.keyid = Encodings::Base64::decode(vmData.keyid);
+        vmData.keyseed = Encodings::Base64::decode(vmData.keyseed);
         vmData.key = Encryption:: PR_GenerateContentKey(vmData.keyseed, vmData.keyid);
         vmData.laurl = cfg.isMember("la_url")?cfg["la_url"].asString():"";
       }

@@ -1,6 +1,6 @@
 #include <mist/defines.h>
 #include <mist/auth.h>
-#include <mist/base64.h>
+#include <mist/encode.h>
 #include <mist/stream.h>
 #include "output_rtsp.h"
 
@@ -249,9 +249,9 @@ namespace Mist {
         << std::hex << std::setw(2) << std::setfill('0') << (int)objIt->second.init.data()[1] << std::dec << "E0"
         << std::hex << std::setw(2) << std::setfill('0') << (int)objIt->second.init.data()[3] << std::dec << ";"
         "sprop-parameter-sets="
-        << Base64::encode(std::string(avccbox.getSPS(), avccbox.getSPSLen()))
+        << Encodings::Base64::encode(std::string(avccbox.getSPS(), avccbox.getSPSLen()))
         << ","
-        << Base64::encode(std::string(avccbox.getPPS(), avccbox.getPPSLen()))
+        << Encodings::Base64::encode(std::string(avccbox.getPPS(), avccbox.getPPSLen()))
         << "\r\n"
         "a=framerate:" << ((double)objIt->second.fpks)/1000.0 << "\r\n"
         "a=control:track" << objIt->second.trackID << "\r\n";

@@ -9,7 +9,7 @@
 #include "defines.h"
 #include "bitfields.h"
 #include "http_parser.h"
-#include "base64.h"
+#include "encode.h"
 #include "nal.h"/*LTS*/
 #include <sstream>
 

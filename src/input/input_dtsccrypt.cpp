@@ -5,7 +5,7 @@
 #include <cstdio>
 #include <string>
 #include <mist/stream.h>
-#include <mist/base64.h>
+#include <mist/encode.h>
 #include <mist/defines.h>
 #include <mist/encryption.h>
 #include <mist/bitfields.h>
@@ -53,14 +53,14 @@ namespace Mist {
   }
 
   bool inputDTSC::setup() {
-    key = Base64::decode(config->getString("key"));
+    key = Encodings::Base64::decode(config->getString("key"));
     if (key == ""){
       if (config->getString("keyseed") == "" || config->getString("keyid") == ""){
         std::cerr << "No key given, and no keyseed/keyid geven" << std::endl;
         return false;
       }
-      std::string tmpSeed = Base64::decode(config->getString("keyseed"));
-      std::string tmpID = Base64::decode(config->getString("keyid"));
+      std::string tmpSeed = Encodings::Base64::decode(config->getString("keyseed"));
+      std::string tmpID = Encodings::Base64::decode(config->getString("keyid"));
       std::string guid = Encryption::PR_GuidToByteArray(tmpID);
       key = Encryption::PR_GenerateContentKey(tmpSeed, guid);
     }

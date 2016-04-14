@@ -368,7 +368,7 @@ namespace Mist {
     resGen << (char)((tmp.size()) & 0xFF);
     resGen << (char)(((tmp.size()) >> 8) & 0xFF);
     resGen << tmp;
-    return Base64::encode(resGen.str());
+    return Encodings::Base64::encode(resGen.str());
   }
   /*LTS-END*/
 

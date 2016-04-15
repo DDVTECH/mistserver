@@ -458,7 +458,7 @@ void Controller::statStorage::update(IPC::statExchange & data) {
 }
   
 /// This function is called by the shared memory page that holds statistics.
-/// It updates the internally saved statistics data, moving across sessions or archiving when neccessary.
+/// It updates the internally saved statistics data, moving across sessions or archiving when necessary.
 void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   //retrieve stats data
   IPC::statExchange tmpEx(data);

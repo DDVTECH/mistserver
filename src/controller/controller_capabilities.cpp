@@ -162,6 +162,7 @@ namespace Controller {
   ///   },
   ///   "speed": 6580, //total speed in MHz of all CPUs cores summed together
   ///   "threads": 8 //total count of all threads of all CPUs summed together
+  ///   "cpu_use": 105 //Tenths of percent CPU usage - i.e. 105 = 10.5%
   /// }
   /// ~~~~~~~~~~~~~~~
   void checkCapable(JSON::Value & capa){
@@ -267,6 +268,21 @@ namespace Controller {
         capa["load"]["one"] = (long long int)(onemin * 100);
         capa["load"]["five"] = (long long int)(fivemin * 100);
         capa["load"]["fifteen"] = (long long int)(fifteenmin * 100);
+      }
+    }
+    std::ifstream cpustat("/proc/stat");
+    if (cpustat){
+      char line[300];
+      while (cpustat.getline(line, 300)){
+        static unsigned long long cl_total = 0, cl_idle = 0;
+        unsigned long long c_user, c_nice, c_syst, c_idle, c_total;
+        if (sscanf(line, "cpu %Lu %Lu %Lu %Lu", &c_user, &c_nice, &c_syst, &c_idle) == 4){
+          c_total = c_user + c_nice + c_syst + c_idle;
+          capa["cpu_use"] = (long long int)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
+          cl_total = c_total;
+          cl_idle = c_idle;
+          break;
+        }
       }
     }
 

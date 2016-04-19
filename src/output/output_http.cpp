@@ -211,7 +211,7 @@ namespace Mist {
   
   void HTTPOutput::onRequest(){
     while (H.Read(myConn)){
-      std::string ua = H.GetHeader("User-Agent");
+      std::string ua = H.GetHeader("User-Agent") + H.GetHeader("X-Playback-Session-Id");
       crc = checksum::crc32(0, ua.data(), ua.size());
       INFO_MSG("Received request %s", H.getUrl().c_str());
       selectedTracks.clear();
@@ -393,7 +393,8 @@ namespace Mist {
         }
       }
     }
-    return trustedProxies.count(ip);
+    //Make sure to also check for IPv6 addresses
+    return trustedProxies.count(ip) > 0 || trustedProxies.count("::ffff:"+ip) > 0;
   }
   /*LTS-END*/
   /*begin-roxlu*/

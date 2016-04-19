@@ -339,7 +339,7 @@ namespace Mist {
   /*LTS-START*/
   std::string HTTPOutput::getConnectedHost(){
     std::string host = Output::getConnectedHost();
-    std::string xRealIp = H.GetHeader("x-real-ip");
+    std::string xRealIp = H.GetHeader("X-Real-IP");
 
     if (!isTrustedProxy(host) || !xRealIp.size()){
       static bool msg = false;
@@ -354,7 +354,7 @@ namespace Mist {
   std::string HTTPOutput::getConnectedBinHost(){
     //Do first check with connected host because of simplicity
     std::string host = Output::getConnectedHost();
-    std::string xRealIp = H.GetHeader("x-real-ip");
+    std::string xRealIp = H.GetHeader("X-Real-IP");
 
     if (!isTrustedProxy(host) || !xRealIp.size()){
       static bool msg = false;

@@ -9,6 +9,7 @@ namespace Mist {
     public:
       inputBuffer(Util::Config * cfg);
       ~inputBuffer();
+      void onCrash();
     private:
       unsigned int bufferTime;
       unsigned int cutTime;

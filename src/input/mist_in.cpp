@@ -57,6 +57,11 @@ int main(int argc, char * argv[]) {
         DEBUG_MSG(DLVL_MEDIUM, "Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
+#if DEBUG >= DLVL_DEVEL
+      WARN_MSG("Aborting autoclean; this is a development build.");
+#else
+      conv.onCrash();
+#endif
       if (DEBUG >= DLVL_DEVEL){
         DEBUG_MSG(DLVL_DEVEL, "Input for stream %s uncleanly shut down! Aborting restart; this is a development build.", streamName.c_str());
         break;

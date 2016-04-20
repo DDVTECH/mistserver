@@ -1167,6 +1167,10 @@ namespace Mist {
         return;
       }
     }
+    if (nProxy.userClient.getData()[-1] > 127){
+      myConn.close();
+      return;
+    }
     if (!nProxy.trackMap.size()){
       IPC::userConnection userConn(nProxy.userClient.getData());
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < SIMUL_TRACKS; it++){

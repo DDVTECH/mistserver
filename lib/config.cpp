@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <fstream>
 #include <dirent.h> //for getMyExec
+#include "procs.h"
 
 bool Util::Config::is_active = false;
 unsigned int Util::Config::printDebugLevel = DEBUG;//
@@ -355,6 +356,7 @@ static void callThreadCallback(void * cDataArg) {
 }
 
 int Util::Config::threadServer(Socket::Server & server_socket, int (*callback)(Socket::Connection &)) {
+  Util::Procs::socketList.insert(server_socket.getSocket());
   while (is_active && server_socket.connected()) {
     Socket::Connection S = server_socket.accept();
     if (S.connected()) { //check if the new connection is valid
@@ -370,11 +372,13 @@ int Util::Config::threadServer(Socket::Server & server_socket, int (*callback)(S
       Util::sleep(10); //sleep 10ms
     }
   }
+  Util::Procs::socketList.erase(server_socket.getSocket());
   server_socket.close();
   return 0;
 }
 
 int Util::Config::forkServer(Socket::Server & server_socket, int (*callback)(Socket::Connection &)) {
+  Util::Procs::socketList.insert(server_socket.getSocket());
   while (is_active && server_socket.connected()) {
     Socket::Connection S = server_socket.accept();
     if (S.connected()) { //check if the new connection is valid
@@ -390,6 +394,7 @@ int Util::Config::forkServer(Socket::Server & server_socket, int (*callback)(Soc
       Util::sleep(10); //sleep 10ms
     }
   }
+  Util::Procs::socketList.erase(server_socket.getSocket());
   server_socket.close();
   return 0;
 }

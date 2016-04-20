@@ -22,6 +22,7 @@
 #include "timing.h"
 
 std::set<pid_t> Util::Procs::plist;
+std::set<int> Util::Procs::socketList;
 bool Util::Procs::handler_set = false;
 
 
@@ -283,6 +284,10 @@ pid_t Util::Procs::StartPiped(char * const * argv, int * fdin, int * fdout, int 
   }
   pid = fork();
   if (pid == 0) { //child
+    //Close all sockets in the socketList
+    for (std::set<int>::iterator it = Util::Procs::socketList.begin(); it != Util::Procs::socketList.end(); ++it){
+      close(*it);
+    }
     if (!fdin) {
       dup2(devnull, STDIN_FILENO);
     } else if (*fdin == -1) {

@@ -28,11 +28,24 @@
 #define STAT_TOT_BPS_UP 4
 #define STAT_TOT_ALL 0xFF
 
+#define COUNTABLE_BYTES 128*1024
 
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
 bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
+
+//For server-wide totals. Local to this file only.
+struct streamTotals {
+  unsigned long long upBytes;
+  unsigned long long downBytes;
+  unsigned long long clients;
+  unsigned int timeout;
+};
+static std::map<std::string, struct streamTotals> streamStats;
+static unsigned long long servUpBytes = 0;
+static unsigned long long servDownBytes = 0;
+static unsigned long long servClients = 0;
 
 Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::string dstreamName, std::string dconnector){
   host = dhost;
@@ -43,6 +56,12 @@ Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::stri
 
 Controller::sessIndex::sessIndex(){
   crc = 0;
+}
+
+std::string Controller::sessIndex::toStr(){
+  std::stringstream s;
+  s << host << " " << crc << " " << streamName << " " << connector;
+  return s.str();
 }
 
 /// Initializes a sessIndex from a statExchange object, converting binary format IP addresses into strings.
@@ -144,6 +163,8 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
       sync = data.getSync();
     }
   }
+  long long prevDown = getDown();
+  long long prevUp = getUp();
   curConns[index].update(data);
   //store timestamp of last received data, if newer
   if (data.now() > lastSec){
@@ -152,6 +173,22 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
   //store timestamp of first received data, if older
   if (firstSec > data.now()){
     firstSec = data.now();
+  }
+  long long currDown = getDown();
+  long long currUp = getUp();
+  servUpBytes += currUp - prevUp;
+  servDownBytes += currDown - prevDown;
+  if (currDown + currUp > COUNTABLE_BYTES){
+    std::string streamName = data.streamName();
+    if (prevUp + prevDown < COUNTABLE_BYTES){
+      ++servClients;
+      streamStats[streamName].clients++;
+      streamStats[streamName].upBytes += currUp;
+      streamStats[streamName].downBytes += currDown;
+    }else{
+      streamStats[streamName].upBytes += currUp - prevUp;
+      streamStats[streamName].downBytes += currDown - prevDown;
+    }
   }
 }
 
@@ -164,6 +201,10 @@ void Controller::statSession::wipeOld(unsigned long long cutOff){
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       while (it->log.size() && it->log.begin()->first < cutOff){
+        if (it->log.size() == 1){
+          wipedDown += it->log.begin()->second.down;
+          wipedUp += it->log.begin()->second.up;
+        }
         it->log.erase(it->log.begin());
       }
       if (it->log.size()){
@@ -189,6 +230,8 @@ Controller::statSession::statSession(){
   firstSec = 0xFFFFFFFFFFFFFFFFull;
   lastSec = 0;
   sync = 1;
+  wipedUp = 0;
+  wipedDown = 0;
 }
 
 /// Moves the given connection to the given session
@@ -282,25 +325,25 @@ bool Controller::statSession::hasData(){
 
 /// Returns true if this session should count as a viewer on the given timestamp.
 bool Controller::statSession::isViewerOn(unsigned long long t){
-  return getUp(t) > 128 * 1024;
+  return getUp(t) + getDown(t) > COUNTABLE_BYTES;
 }
 
 /// Returns true if this session should count as a viewer
 bool Controller::statSession::isViewer(){
-  long long upTotal = 0;
+  long long upTotal = wipedUp+wipedDown;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->log.size()){
-        upTotal += it->log.rbegin()->second.up;
-        if (upTotal > 128*1024){return true;}
+        upTotal += it->log.rbegin()->second.up + it->log.rbegin()->second.down;
+        if (upTotal > COUNTABLE_BYTES){return true;}
       }
     }
   }
   if (curConns.size()){
     for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.log.size()){
-        upTotal += it->second.log.rbegin()->second.up;
-        if (upTotal > 128*1024){return true;}
+        upTotal += it->second.log.rbegin()->second.up + it->second.log.rbegin()->second.down;
+        if (upTotal > COUNTABLE_BYTES){return true;}
       }
     }
   }
@@ -348,7 +391,7 @@ long long Controller::statSession::getLastSecond(unsigned long long t){
 
 /// Returns the cumulative downloaded bytes for this session at timestamp t.
 long long Controller::statSession::getDown(unsigned long long t){
-  long long retVal = 0;
+  long long retVal = wipedDown;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->hasDataFor(t)){
@@ -368,7 +411,7 @@ long long Controller::statSession::getDown(unsigned long long t){
 
 /// Returns the cumulative uploaded bytes for this session at timestamp t.
 long long Controller::statSession::getUp(unsigned long long t){
-  long long retVal = 0;
+  long long retVal = wipedUp;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->hasDataFor(t)){
@@ -380,6 +423,46 @@ long long Controller::statSession::getUp(unsigned long long t){
     for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.hasDataFor(t)){
         retVal += it->second.getDataFor(t).up;
+      }
+    }
+  }
+  return retVal;
+}
+
+/// Returns the cumulative downloaded bytes for this session at timestamp t.
+long long Controller::statSession::getDown(){
+  long long retVal = wipedDown;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->log.size()){
+        retVal += it->log.rbegin()->second.down;
+      }
+    }
+  }
+  if (curConns.size()){
+    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.log.size()){
+        retVal += it->second.log.rbegin()->second.down;
+      }
+    }
+  }
+  return retVal;
+}
+
+/// Returns the cumulative uploaded bytes for this session at timestamp t.
+long long Controller::statSession::getUp(){
+  long long retVal = wipedUp;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->log.size()){
+        retVal += it->log.rbegin()->second.up;
+      }
+    }
+  }
+  if (curConns.size()){
+    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.log.size()){
+        retVal += it->second.log.rbegin()->second.up;
       }
     }
   }
@@ -466,6 +549,7 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   sessIndex idx(tmpEx);
   //if the connection was already indexed and it has changed, move it
   if (connToSession.count(id) && connToSession[id] != idx){
+    INSANE_MSG("SWITCHING %s OVER TO %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
     sessions[connToSession[id]].switchOverTo(sessions[idx], id);
     if (!sessions[connToSession[id]].hasData()){
       sessions.erase(connToSession[id]);
@@ -889,3 +973,81 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   }
   //all done! return is by reference, so no need to return anything here.
 }
+
+void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, int mode){
+  switch (mode){
+    case PROMETHEUS_TEXT:
+      H.SetHeader("Content-Type", "text/plain; version=0.0.4");
+      break;
+    case PROMETHEUS_JSON:
+      H.SetHeader("Content-Type", "text/json");
+      break;
+  }
+  H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+  H.StartResponse("200", "OK", H, conn);
+  std::stringstream response;
+
+  {//Scope for shortest possible blocking of statsMutex 
+    tthread::lock_guard<tthread::mutex> guard(statsMutex);
+    response << "# HELP mist_sessions_cached Number of sessions active in the last ~10 minutes.\n";
+    response << "# TYPE mist_sessions_cached gauge\n";
+    response << "mist_sessions_cached " << sessions.size() << "\n\n";
+
+    //collect the data first
+    std::map<std::string, unsigned long> clients;
+    unsigned long totClients = 0;
+    unsigned int t = Util::epoch() - 15;
+    //check all sessions
+    if (sessions.size()){
+      for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+        if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
+          clients[it->first.streamName]++;
+          totClients++;
+        }
+      }
+    }
+
+    response << "# HELP mist_sessions_current Number of sessions active right now, server-wide.\n";
+    response << "# TYPE mist_sessions_current gauge\n";
+    response << "mist_sessions_current " << totClients << "\n\n";
+
+    response << "# HELP mist_sessions_total Count of unique sessions since server start.\n";
+    response << "# TYPE mist_sessions_total counter\n";
+    response << "mist_sessions_total " << servClients << "\n\n";
+
+    response << "# HELP mist_upload_total Count of bytes uploaded since server start.\n";
+    response << "# TYPE mist_upload_total counter\n";
+    response << "mist_upload_total " << servUpBytes << "\n\n";
+
+    response << "# HELP mist_download_total Count of bytes downloaded since server start.\n";
+    response << "# TYPE mist_download_total counter\n";
+    response << "mist_download_total " << servDownBytes << "\n\n";
+
+    response << "# HELP mist_current Number of sessions for a given stream active right now.\n";
+    response << "# TYPE mist_current gauge\n";
+    for (std::map<std::string, unsigned long>::iterator it = clients.begin(); it != clients.end(); ++it){
+      response << "mist_current{stream=\"" << it->first << "\"} " << it->second << "\n";
+    }
+
+    response << "\n# HELP mist_sessions Count of unique sessions since stream start.\n";
+    response << "# TYPE mist_sessions counter\n";
+    response << "# HELP mist_upload Count of bytes uploaded since stream start.\n";
+    response << "# TYPE mist_upload counter\n";
+    response << "# HELP mist_download Count of bytes downloaded since stream start.\n";
+    response << "# TYPE mist_download counter\n";
+    std::set<std::string> mustWipe;
+    for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+      response << "mist_sessions{stream=\"" << it->first << "\"} " << it->second.clients << "\n";
+      response << "mist_upload{stream=\"" << it->first << "\"} " << it->second.upBytes << "\n";
+      response << "mist_download{stream=\"" << it->first << "\"} " << it->second.downBytes << "\n";
+    }
+
+
+
+  }
+
+  H.Chunkify(response.str(), conn);
+  H.Chunkify("", conn);
+  H.Clean();
+}
+

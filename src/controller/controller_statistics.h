@@ -3,6 +3,8 @@
 #include <mist/defines.h>
 #include <mist/json.h>
 #include <mist/tinythread.h>
+#include <mist/http_parser.h>
+#include <mist/socket.h>
 #include <string>
 #include <map>
 
@@ -39,6 +41,7 @@ namespace Controller {
       bool operator<= (const sessIndex &o) const;
       bool operator< (const sessIndex &o) const;
       bool operator>= (const sessIndex &o) const;
+      std::string toStr();
   };
   
   
@@ -56,6 +59,8 @@ namespace Controller {
     private:
       unsigned long long firstSec;
       unsigned long long lastSec;
+      unsigned long long wipedUp;
+      unsigned long long wipedDown;
       std::deque<statStorage> oldConns;
       std::map<unsigned long, statStorage> curConns;
       char sync;
@@ -74,6 +79,8 @@ namespace Controller {
       long long getConnTime(unsigned long long time);
       long long getLastSecond(unsigned long long time);
       long long getDown(unsigned long long time);
+      long long getUp();
+      long long getDown();
       long long getUp(unsigned long long time);
       long long getBpsDown(unsigned long long time);
       long long getBpsUp(unsigned long long time);
@@ -92,5 +99,9 @@ namespace Controller {
   void fillTotals(JSON::Value & req, JSON::Value & rep);
   void SharedMemStats(void * config);
   bool hasViewers(std::string streamName);
+
+#define PROMETHEUS_TEXT 0
+#define PROMETHEUS_JSON 1
+  void handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, int mode);
 }
 

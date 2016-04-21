@@ -174,6 +174,7 @@ int main(int argc, char ** argv){
   Controller::conf.addOption("uplink", JSON::fromString("{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host and port.\", \"short\":\"U\", \"long\":\"uplink\"}")); /*LTS*/
   Controller::conf.addOption("uplink-name", JSON::fromString("{\"default\":\"" COMPILED_USERNAME "\", \"arg\":\"string\", \"help\":\"MistSteward uplink username.\", \"short\":\"N\", \"long\":\"uplink-name\"}")); /*LTS*/
   Controller::conf.addOption("uplink-pass", JSON::fromString("{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward uplink password.\", \"short\":\"P\", \"long\":\"uplink-pass\"}")); /*LTS*/
+  Controller::conf.addOption("prometheus", JSON::fromString("{\"long\":\"prometheus\", \"short\":\"S\", \"arg\":\"string\" \"default\":\"\", \"help\":\"If set, allows collecting of Prometheus-style stats on the given path over the API port.\"}"));
   Controller::conf.parseArgs(argc, argv);
   if(Controller::conf.getString("logfile")!= ""){
     //open logfile, dup stdout to logfile
@@ -224,6 +225,10 @@ int main(int argc, char ** argv){
   if (Controller::Storage["config"]["controller"]["username"]){
     Controller::conf.getOption("username", true)[0u] = Controller::Storage["config"]["controller"]["username"];
   }
+  if (Controller::Storage["config"]["controller"]["prometheus"]){
+    Controller::conf.getOption("prometheus", true)[0u] = Controller::Storage["config"]["controller"]["prometheus"];
+  }
+  Controller::Storage["config"]["controller"]["prometheus"] = Controller::conf.getString("prometheus");
   Controller::writeConfig();
   Controller::checkAvailProtocols();
   createAccount(Controller::conf.getString("account"));

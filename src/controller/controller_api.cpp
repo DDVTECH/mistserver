@@ -167,6 +167,17 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
   //while connected and not past login attempt limit
   while (conn && logins < 4){
     if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
+      //Catch prometheus requests
+      if (conf.getString("prometheus").size()){
+        if (H.url == "/"+Controller::conf.getString("prometheus")){
+          handlePrometheus(H, conn, PROMETHEUS_TEXT);
+          break;
+        }
+        if (H.url == "/"+Controller::conf.getString("prometheus")){
+          handlePrometheus(H, conn, PROMETHEUS_JSON);
+          break;
+        }
+      }
       JSON::Value Response;
       JSON::Value Request = JSON::fromString(H.GetVar("command"));
       //invalid request? send the web interface, unless requested as "/api"

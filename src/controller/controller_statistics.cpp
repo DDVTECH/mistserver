@@ -985,68 +985,104 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
   }
   H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
   H.StartResponse("200", "OK", H, conn);
-  std::stringstream response;
 
-  {//Scope for shortest possible blocking of statsMutex 
-    tthread::lock_guard<tthread::mutex> guard(statsMutex);
-    response << "# HELP mist_sessions_cached Number of sessions active in the last ~10 minutes.\n";
-    response << "# TYPE mist_sessions_cached gauge\n";
-    response << "mist_sessions_cached " << sessions.size() << "\n\n";
+  if (mode == PROMETHEUS_TEXT){ 
+    std::stringstream response;
+    {//Scope for shortest possible blocking of statsMutex
+      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      response << "# HELP mist_sessions_cached Number of sessions active in the last ~10 minutes.\n";
+      response << "# TYPE mist_sessions_cached gauge\n";
+      response << "mist_sessions_cached " << sessions.size() << "\n\n";
 
-    //collect the data first
-    std::map<std::string, unsigned long> clients;
-    unsigned long totClients = 0;
-    unsigned int t = Util::epoch() - 15;
-    //check all sessions
-    if (sessions.size()){
-      for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-        if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
-          clients[it->first.streamName]++;
-          totClients++;
+      //collect the data first
+      std::map<std::string, unsigned long> clients;
+      unsigned long totClients = 0;
+      unsigned int t = Util::epoch() - 15;
+      //check all sessions
+      if (sessions.size()){
+        for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+          if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
+            clients[it->first.streamName]++;
+            totClients++;
+          }
         }
       }
+
+      response << "# HELP mist_sessions_current Number of sessions active right now, server-wide.\n";
+      response << "# TYPE mist_sessions_current gauge\n";
+      response << "mist_sessions_current " << totClients << "\n\n";
+
+      response << "# HELP mist_sessions_total Count of unique sessions since server start.\n";
+      response << "# TYPE mist_sessions_total counter\n";
+      response << "mist_sessions_total " << servClients << "\n\n";
+
+      response << "# HELP mist_upload_total Count of bytes uploaded since server start.\n";
+      response << "# TYPE mist_upload_total counter\n";
+      response << "mist_upload_total " << servUpBytes << "\n\n";
+
+      response << "# HELP mist_download_total Count of bytes downloaded since server start.\n";
+      response << "# TYPE mist_download_total counter\n";
+      response << "mist_download_total " << servDownBytes << "\n\n";
+
+      response << "# HELP mist_current Number of sessions for a given stream active right now.\n";
+      response << "# TYPE mist_current gauge\n";
+      for (std::map<std::string, unsigned long>::iterator it = clients.begin(); it != clients.end(); ++it){
+        response << "mist_current{stream=\"" << it->first << "\"} " << it->second << "\n";
+      }
+
+      response << "\n# HELP mist_sessions Count of unique sessions since stream start.\n";
+      response << "# TYPE mist_sessions counter\n";
+      response << "# HELP mist_upload Count of bytes uploaded since stream start.\n";
+      response << "# TYPE mist_upload counter\n";
+      response << "# HELP mist_download Count of bytes downloaded since stream start.\n";
+      response << "# TYPE mist_download counter\n";
+      std::set<std::string> mustWipe;
+      for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+        response << "mist_sessions{stream=\"" << it->first << "\"} " << it->second.clients << "\n";
+        response << "mist_upload{stream=\"" << it->first << "\"} " << it->second.upBytes << "\n";
+        response << "mist_download{stream=\"" << it->first << "\"} " << it->second.downBytes << "\n";
+      }
     }
+    H.Chunkify(response.str(), conn);
+  }
+  if (mode == PROMETHEUS_JSON){
+    JSON::Value resp;
+    {//Scope for shortest possible blocking of statsMutex
+      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      //collect the data first
+      std::map<std::string, unsigned long> clients;
+      unsigned long totClients = 0;
+      unsigned int t = Util::epoch() - 15;
+      //check all sessions
+      if (sessions.size()){
+        for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+          if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
+            clients[it->first.streamName]++;
+            totClients++;
+          }
+        }
+      }
 
-    response << "# HELP mist_sessions_current Number of sessions active right now, server-wide.\n";
-    response << "# TYPE mist_sessions_current gauge\n";
-    response << "mist_sessions_current " << totClients << "\n\n";
+      resp["sess_cached"] = (long long)sessions.size();
+      resp["sess_current"] = (long long)totClients;
+      resp["sess_total"] = (long long)servClients;
+      resp["upload"] = (long long)servUpBytes;
+      resp["download"] = (long long)servDownBytes;
 
-    response << "# HELP mist_sessions_total Count of unique sessions since server start.\n";
-    response << "# TYPE mist_sessions_total counter\n";
-    response << "mist_sessions_total " << servClients << "\n\n";
+      for (std::map<std::string, unsigned long>::iterator it = clients.begin(); it != clients.end(); ++it){
+        resp["streams"][it->first]["sess_current"] = (long long)it->second;
+      }
 
-    response << "# HELP mist_upload_total Count of bytes uploaded since server start.\n";
-    response << "# TYPE mist_upload_total counter\n";
-    response << "mist_upload_total " << servUpBytes << "\n\n";
-
-    response << "# HELP mist_download_total Count of bytes downloaded since server start.\n";
-    response << "# TYPE mist_download_total counter\n";
-    response << "mist_download_total " << servDownBytes << "\n\n";
-
-    response << "# HELP mist_current Number of sessions for a given stream active right now.\n";
-    response << "# TYPE mist_current gauge\n";
-    for (std::map<std::string, unsigned long>::iterator it = clients.begin(); it != clients.end(); ++it){
-      response << "mist_current{stream=\"" << it->first << "\"} " << it->second << "\n";
+      std::set<std::string> mustWipe;
+      for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+        resp["streams"][it->first]["sess_total"] = (long long)it->second.clients;
+        resp["streams"][it->first]["upload"] = (long long)it->second.upBytes;
+        resp["streams"][it->first]["download"] = (long long)it->second.downBytes;
+      }
     }
-
-    response << "\n# HELP mist_sessions Count of unique sessions since stream start.\n";
-    response << "# TYPE mist_sessions counter\n";
-    response << "# HELP mist_upload Count of bytes uploaded since stream start.\n";
-    response << "# TYPE mist_upload counter\n";
-    response << "# HELP mist_download Count of bytes downloaded since stream start.\n";
-    response << "# TYPE mist_download counter\n";
-    std::set<std::string> mustWipe;
-    for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
-      response << "mist_sessions{stream=\"" << it->first << "\"} " << it->second.clients << "\n";
-      response << "mist_upload{stream=\"" << it->first << "\"} " << it->second.upBytes << "\n";
-      response << "mist_download{stream=\"" << it->first << "\"} " << it->second.downBytes << "\n";
-    }
-
-
-
+    H.Chunkify(resp.toString(), conn);
   }
 
-  H.Chunkify(response.str(), conn);
   H.Chunkify("", conn);
   H.Clean();
 }

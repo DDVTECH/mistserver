@@ -31,7 +31,7 @@ namespace Mist {
         if (audioId != -1) {
           result << "_" << audioId;
         }
-        result << "/index.m3u8\r\n";
+        result << "/index.m3u8?sessId=" << getpid() << "\r\n";
       }
     }
     if (!vidTracks && audioId) {
@@ -134,7 +134,7 @@ namespace Mist {
   }
 
 
-  std::string OutHLS::liveIndex(int tid) {
+  std::string OutHLS::liveIndex(int tid, std::string & sessId) {
     updateMeta();
     std::stringstream result;
     //parse single track
@@ -161,7 +161,11 @@ namespace Mist {
         duration = myMeta.tracks[tid].lastms - starttime;
       }
       char lineBuf[400];
-      snprintf(lineBuf, 400, "#EXTINF:%lld, no desc\r\n%lld_%lld,ts\r\n", ((duration + 500) / 1000), starttime, starttime + duration);
+      if (sessId.size()){
+        snprintf(lineBuf, 400, "#EXTINF:%lld, no desc\r\n%lld_%lld.ts?sessId=%s\r\n", ((duration + 500) / 1000), starttime, starttime + duration, sessId.c_str());
+      }else{
+        snprintf(lineBuf, 400, "#EXTINF:%lld, no desc\r\n%lld_%lld.ts\r\n", ((duration + 500) / 1000), starttime, starttime + duration);
+      }
       lines.push_back(lineBuf);
     }
     unsigned int skippedLines = 0;
@@ -311,6 +315,7 @@ namespace Mist {
 
   void OutHLS::onHTTP() {
     std::string method = H.method;
+    std::string sessId = H.GetVar("sessId");
 
     if (H.url == "/crossdomain.xml") {
       H.Clean();
@@ -500,7 +505,7 @@ namespace Mist {
         manifest = liveIndex();
       } else {
         int selectId = atoi(request.substr(0, request.find("/")).c_str());
-        manifest = liveIndex(selectId);
+        manifest = liveIndex(selectId, sessId);
       }
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);

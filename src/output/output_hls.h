@@ -11,7 +11,7 @@ namespace Mist {
       void onHTTP();      
     protected:      
       std::string liveIndex();
-      std::string liveIndex(int tid);
+      std::string liveIndex(int tid, std::string & sessId);
 
       
       std::string pushLiveIndex();

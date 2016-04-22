@@ -211,7 +211,7 @@ namespace Mist {
   
   void HTTPOutput::onRequest(){
     while (H.Read(myConn)){
-      std::string ua = H.GetHeader("User-Agent") + H.GetHeader("X-Playback-Session-Id");
+      std::string ua = H.GetHeader("User-Agent") + H.GetHeader("X-Playback-Session-Id") + H.GetVar("sessId");
       crc = checksum::crc32(0, ua.data(), ua.size());
       INFO_MSG("Received request %s", H.getUrl().c_str());
       selectedTracks.clear();

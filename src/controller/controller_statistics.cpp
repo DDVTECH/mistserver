@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <list>
+#include <fstream>
 #include <mist/config.h>
 #include <mist/shared_memory.h>
 #include <mist/dtsc.h>
@@ -986,8 +987,69 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
   H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
   H.StartResponse("200", "OK", H, conn);
 
+
+  //Collect core server stats
+  long long int cpu_use = 0;
+  long long int mem_total = 0, mem_free = 0, mem_bufcache = 0;
+  {
+    std::ifstream cpustat("/proc/stat");
+    if (cpustat){
+      char line[300];
+      while (cpustat.getline(line, 300)){
+        static unsigned long long cl_total = 0, cl_idle = 0;
+        unsigned long long c_user, c_nice, c_syst, c_idle, c_total;
+        if (sscanf(line, "cpu %Lu %Lu %Lu %Lu", &c_user, &c_nice, &c_syst, &c_idle) == 4){
+          c_total = c_user + c_nice + c_syst + c_idle;
+          cpu_use = (long long int)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
+          cl_total = c_total;
+          cl_idle = c_idle;
+          break;
+        }
+      }
+    }
+    std::ifstream meminfo("/proc/meminfo");
+    if (meminfo){
+      char line[300];
+      while (meminfo.good()){
+        meminfo.getline(line, 300);
+        if (meminfo.fail()){
+          //empty lines? ignore them, clear flags, continue
+          if ( !meminfo.eof()){
+            meminfo.ignore();
+            meminfo.clear();
+          }
+          continue;
+        }
+        long long int i;
+        if (sscanf(line, "MemTotal : %lli kB", &i) == 1){
+          mem_total = i;
+        }
+        if (sscanf(line, "MemFree : %lli kB", &i) == 1){
+          mem_free = i;
+        }
+        if (sscanf(line, "Buffers : %lli kB", &i) == 1){
+          mem_bufcache += i;
+        }
+        if (sscanf(line, "Cached : %lli kB", &i) == 1){
+          mem_bufcache += i;
+        }
+      }
+    }
+  }
+
+
   if (mode == PROMETHEUS_TEXT){ 
     std::stringstream response;
+    response << "# HELP mist_cpu Total CPU usage in tenths of percent.\n";
+    response << "# TYPE mist_cpu gauge\n";
+    response << "mist_cpu " << cpu_use << "\n\n";
+    response << "# HELP mist_mem_total Total memory available in KiB.\n";
+    response << "# TYPE mist_mem_total gauge\n";
+    response << "mist_mem_total " << mem_total << "\n\n";
+    response << "# HELP mist_mem_used Total memory in use in KiB.\n";
+    response << "# TYPE mist_mem_used gauge\n";
+    response << "mist_mem_used " << (mem_total - mem_free - mem_bufcache) << "\n\n";
+
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       response << "# HELP mist_sessions_cached Number of sessions active in the last ~10 minutes.\n";
@@ -1047,6 +1109,9 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
   }
   if (mode == PROMETHEUS_JSON){
     JSON::Value resp;
+    resp["cpu"] = cpu_use;
+    resp["mem_total"] = mem_total;
+    resp["mem_used"] = (mem_total - mem_free - mem_bufcache);
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first

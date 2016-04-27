@@ -104,6 +104,13 @@ if (DEFINED NOCRASHCHECK )
 endif()
 
 ########################################
+# Build Variables - Stats delay overrid#
+########################################
+if (DEFINED STATS_DELAY )
+  add_definitions(-DSTATS_DELAY=${STATS_DELAY})
+endif()
+
+########################################
 # Build Variables - Prepare for Build  #
 ########################################
 message("Builing release ${RELEASE} for version ${PACKAGE_VERSION} @ debug level ${DEBUG}")

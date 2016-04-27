@@ -264,6 +264,14 @@ bool Util::Config::parseArgs(int & argc, char ** & argv) {
         #ifdef KILLONEXIT
         std::cout << "- Flag: Kill on exit. All binaries will forcibly shut down all their children on exit. This disabled rolling restart support." << std::endl;
         #endif
+        #ifdef STATS_DELAY
+        std::cout << "- Setting: Stats delay " << STATS_DELAY << ". Statistics of viewer counts are delayed by " << STATS_DELAY << " seconds as opposed to the default of 15 seconds. ";
+        if (STATS_DELAY > 15){
+          std::cout << "This makes them more accurate." << std::endl;
+        }else{
+          std::cout << "This makes them less accurate." << std::endl;
+        }
+        #endif
         /*LTS-END*/
         std::cout << "Built on " __DATE__ ", " __TIME__ << std::endl;
         exit(1);

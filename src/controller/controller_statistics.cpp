@@ -31,6 +31,11 @@
 
 #define COUNTABLE_BYTES 128*1024
 
+#ifndef STATS_DELAY
+#define STATS_DELAY 15
+#endif
+
+
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
 bool Controller::killOnExit = KILL_ON_EXIT;
@@ -750,7 +755,7 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   //collect the data first
   std::set<std::string> streams;
   std::map<std::string, unsigned long> clients;
-  unsigned int t = Util::epoch() - 15;
+  unsigned int t = Util::epoch() - STATS_DELAY;
   //check all sessions
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
@@ -1059,7 +1064,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       //collect the data first
       std::map<std::string, unsigned long> clients;
       unsigned long totClients = 0;
-      unsigned int t = Util::epoch() - 15;
+      unsigned int t = Util::epoch() - STATS_DELAY;
       //check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
@@ -1117,7 +1122,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       //collect the data first
       std::map<std::string, unsigned long> clients;
       unsigned long totClients = 0;
-      unsigned int t = Util::epoch() - 15;
+      unsigned int t = Util::epoch() - STATS_DELAY;
       //check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){

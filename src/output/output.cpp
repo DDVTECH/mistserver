@@ -98,15 +98,15 @@ namespace Mist {
     capa["optional"]["startpos"]["name"] = "Starting position in live buffer";
     capa["optional"]["startpos"]["help"] = "For live, where in the buffer the stream starts playback by default. 0 = beginning, 1000 = end";
     capa["optional"]["startpos"]["option"] = "--startPos";
+    capa["optional"]["startpos"]["short"] = "P";
+    capa["optional"]["startpos"]["default"] = (long long)500;
     capa["optional"]["startpos"]["type"] = "uint";
-    cfg->addOption("startpos", JSON::fromString("{\"arg\":\"uint\",\"default\":500,\"short\":\"P\",\"long\":\"startPos\",\"help\":\"For live, where in the buffer the stream starts playback by default. 0 = beginning, 1000 = end\"}"));
-    /* begin-roxlu */
-    capa["optional"]["outputfilename"]["type"] = "string";
+    capa["optional"]["outputfilename"]["type"] = "str";
     capa["optional"]["outputfilename"]["name"] = "outputfilename";
     capa["optional"]["outputfilename"]["help"] = "Name of the file into which we write the recording.";
     capa["optional"]["outputfilename"]["option"] = "--outputFilename";
-    cfg->addOption("outputfilename", JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\":\"O\",\"long\":\"outputFilename\",\"help\":\"The name of the file that is used to record a stream.\"}"));
-    /* end-roxlu */
+    capa["optional"]["outputfilename"]["short"] = "O";
+    capa["optional"]["outputfilename"]["default"] = "";
   }
   
   Output::Output(Socket::Connection & conn) : myConn(conn) {

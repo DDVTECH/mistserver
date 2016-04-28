@@ -40,19 +40,18 @@ namespace Mist {
     capa["required"]["streamname"]["help"] = "What streamname to serve. For multiple streams, add this protocol multiple times using different ports.";
     capa["required"]["streamname"]["type"] = "str";
     capa["required"]["streamname"]["option"] = "--stream";
+    capa["required"]["streamname"]["short"] = "s";
     capa["optional"]["tracks"]["name"] = "Tracks";
     capa["optional"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
     capa["optional"]["tracks"]["type"] = "str";
     capa["optional"]["tracks"]["option"] = "--tracks";
+    capa["optional"]["tracks"]["short"] = "t";
+    capa["optional"]["tracks"]["default"] = "";
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
-    cfg->addOption("streamname",
-                   JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
-    cfg->addOption("tracks",
-                   JSON::fromString("{\"arg\":\"string\",\"value\":[\"\"],\"short\": \"t\",\"long\":\"tracks\",\"help\":\"The track IDs of the stream that this connector will transmit separated by spaces.\"}"));
     cfg->addConnectorOptions(8888, capa);
     config = cfg;
   }

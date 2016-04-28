@@ -53,18 +53,12 @@ namespace Mist {
     capa["methods"][0u]["type"] = "rtsp";
     capa["methods"][0u]["priority"] = 2ll;
     
-    JSON::Value maxsend_opt;
-    maxsend_opt["arg"] = "integer";
-    maxsend_opt["default"] = (long long)RTP::MAX_SEND;
-    maxsend_opt["short"] = "m";
-    maxsend_opt["long"] = "max-packet-size";
-    maxsend_opt["help"] = "Maximum size of RTP packets in bytes";
-    cfg->addOption("maxsend", maxsend_opt);
     capa["optional"]["maxsend"]["name"] = "Max RTP packet size";
     capa["optional"]["maxsend"]["help"] = "Maximum size of RTP packets in bytes";
     capa["optional"]["maxsend"]["default"] = (long long)RTP::MAX_SEND;
     capa["optional"]["maxsend"]["type"] = "uint";
     capa["optional"]["maxsend"]["option"] = "--max-packet-size";
+    capa["optional"]["maxsend"]["short"] = "m";
 
     cfg->addConnectorOptions(554, capa);
     config = cfg;

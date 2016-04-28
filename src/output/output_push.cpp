@@ -332,13 +332,13 @@ namespace Mist {
     capa["required"]["pushlist"]["name"] = "URL location of the pushing list";
     capa["required"]["pushlist"]["help"] = "This is the location that will be checked for pushable data.";
     capa["required"]["pushlist"]["option"] = "--pushlist";
+    capa["required"]["pushlist"]["short"] = "p";
     capa["required"]["pushlist"]["type"] = "str";
-    cfg->addOption("pushlist", JSON::fromString("{\"arg\":\"string\",\"short\":\"p\",\"long\":\"pushlist\",\"help\":\"This is the location that will be checked for pushable data.\"}"));
     capa["required"]["destination"]["name"] = "URL location of the destination";
     capa["required"]["destination"]["help"] = "This is the location that the date will be pushed to.";
     capa["required"]["destination"]["option"] = "--destination";
+    capa["required"]["destination"]["short"] = "D";
     capa["required"]["destination"]["type"] = "str";
-    cfg->addOption("destination", JSON::fromString("{\"arg\":\"string\",\"short\":\"D\",\"long\":\"destination\",\"help\":\"This is the location that the data will be checked for pushed to.\"}"));
     cfg->addBasicConnectorOptions(capa);
     pConf = cfg;
     config = cfg;

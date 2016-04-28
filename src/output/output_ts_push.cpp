@@ -51,32 +51,29 @@ namespace Mist {
     capa["required"]["streamname"]["help"] = "What streamname to serve. For multiple streams, add this protocol multiple times using different ports.";
     capa["required"]["streamname"]["type"] = "str";
     capa["required"]["streamname"]["option"] = "--stream";
+    capa["required"]["streamname"]["short"] = "s";
     capa["required"]["destination"]["name"] = "Destination";
     capa["required"]["destination"]["help"] = "Where to push to, in the format protocol://hostname:port. Ie: udp://127.0.0.1:9876";
     capa["required"]["destination"]["type"] = "str";
     capa["required"]["destination"]["option"] = "--destination";
+    capa["required"]["destination"]["short"] = "D";
     capa["required"]["udpsize"]["name"] = "UDP Size";
     capa["required"]["udpsize"]["help"] = "The number of TS packets to push in a single UDP datagram";
     capa["required"]["udpsize"]["type"] = "uint";
     capa["required"]["udpsize"]["default"] = 5;
     capa["required"]["udpsize"]["option"] = "--udpsize";
+    capa["required"]["udpsize"]["short"] = "u";
     capa["optional"]["tracks"]["name"] = "Tracks";
     capa["optional"]["tracks"]["help"] = "The track IDs of the stream that this connector will transmit separated by spaces";
     capa["optional"]["tracks"]["type"] = "str";
     capa["optional"]["tracks"]["option"] = "--tracks";
+    capa["optional"]["tracks"]["short"] = "t";
+    capa["optional"]["tracks"]["default"] = "";
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     cfg->addBasicConnectorOptions(capa);
-    cfg->addOption("streamname",
-                   JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
-    cfg->addOption("destination",
-                   JSON::fromString("{\"arg\":\"string\",\"short\":\"D\",\"long\":\"destination\",\"help\":\"Where to push to, in the format protocol://hostname:port. Ie: udp://127.0.0.1:9876\"}"));
-    cfg->addOption("tracks",
-                   JSON::fromString("{\"arg\":\"string\",\"value\":[\"\"],\"short\": \"t\",\"long\":\"tracks\",\"help\":\"The track IDs of the stream that this connector will transmit separated by spaces.\"}"));
-    cfg->addOption("udpsize",
-                   JSON::fromString("{\"arg\":\"integer\",\"value\":5,\"short\": \"u\",\"long\":\"udpsize\",\"help\":\"The number of TS packets to push in a single UDP datagram.\"}"));
     config = cfg;
   }
   

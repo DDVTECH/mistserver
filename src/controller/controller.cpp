@@ -163,10 +163,9 @@ int main(int argc, char ** argv){
     stored_user["default"] = "root";
   }
   Controller::conf = Util::Config(argv[0]);
-  Controller::conf.addOption("listen_port", stored_port);
-  Controller::conf.addOption("listen_interface", stored_interface);
+  Controller::conf.addOption("port", stored_port);
+  Controller::conf.addOption("interface", stored_interface);
   Controller::conf.addOption("username", stored_user);
-  Controller::conf.addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"default\":0, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Turns deamon mode on (-d) or off (-n). -d runs quietly in background, -n (default) enables verbose in foreground.\"}"));
   Controller::conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
   Controller::conf.addOption("logfile", JSON::fromString("{\"long\":\"logfile\", \"short\":\"L\", \"arg\":\"string\" \"default\":\"\",\"help\":\"Redirect all standard output to a log file, provided with an argument\"}"));
   Controller::conf.addOption("configFile", JSON::fromString("{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" \"default\":\"config.json\", \"help\":\"Specify a config file other than default.\"}"));
@@ -219,10 +218,10 @@ int main(int argc, char ** argv){
   //check for port, interface and username in arguments
   //if they are not there, take them from config file, if there
   if (Controller::Storage["config"]["controller"]["port"]){
-    Controller::conf.getOption("listen_port", true)[0u] = Controller::Storage["config"]["controller"]["port"];
+    Controller::conf.getOption("port", true)[0u] = Controller::Storage["config"]["controller"]["port"];
   }
   if (Controller::Storage["config"]["controller"]["interface"]){
-    Controller::conf.getOption("listen_interface", true)[0u] = Controller::Storage["config"]["controller"]["interface"];
+    Controller::conf.getOption("interface", true)[0u] = Controller::Storage["config"]["controller"]["interface"];
   }
   if (Controller::Storage["config"]["controller"]["username"]){
     Controller::conf.getOption("username", true)[0u] = Controller::Storage["config"]["controller"]["username"];
@@ -285,16 +284,16 @@ int main(int argc, char ** argv){
     }else{//logfile is enabled
       //check for username
       if ( !Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
-        std::cout << "No login configured. To create one, attempt to login through the web interface on port " << Controller::conf.getInteger("listen_port") << " and follow the instructions." << std::endl;
+        std::cout << "No login configured. To create one, attempt to login through the web interface on port " << Controller::conf.getInteger("port") << " and follow the instructions." << std::endl;
       }
       //check for protocols
       if ( !Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") || Controller::Storage["config"]["protocols"].size() < 1){
-        std::cout << "No protocols enabled, remember to set them up through the web interface on port " << Controller::conf.getInteger("listen_port") << " or API." << std::endl;
+        std::cout << "No protocols enabled, remember to set them up through the web interface on port " << Controller::conf.getInteger("port") << " or API." << std::endl;
       }
     }
     //check for streams - regardless of logfile setting
     if ( !Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1){
-      std::cout << "No streams configured, remember to set up streams through the web interface on port " << Controller::conf.getInteger("listen_port") << " or API." << std::endl;
+      std::cout << "No streams configured, remember to set up streams through the web interface on port " << Controller::conf.getInteger("port") << " or API." << std::endl;
     }
   }//connected to a terminal
   

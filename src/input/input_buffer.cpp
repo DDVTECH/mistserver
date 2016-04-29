@@ -136,6 +136,7 @@ namespace Mist {
     segmentSize = 5000;
     hasPush = false;
     recordingPid = -1;
+    resumeMode = false;
   }
 
   inputBuffer::~inputBuffer(){

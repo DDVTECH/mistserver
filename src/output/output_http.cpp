@@ -394,7 +394,10 @@ namespace Mist {
       }
     }
     //Make sure to also check for IPv6 addresses
-    return trustedProxies.count(ip) > 0 || trustedProxies.count("::ffff:"+ip) > 0;
+    if (ip.substr(0, 7) == "::ffff:" && trustedProxies.count(ip.substr(7))){
+      return true;
+    }
+    return trustedProxies.count(ip) > 0;
   }
   /*LTS-END*/
   /*begin-roxlu*/

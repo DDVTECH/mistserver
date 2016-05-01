@@ -514,14 +514,18 @@ namespace Mist {
             nProxy.curPage.erase(tid);
             bufferLocations[tid].erase(bufferLocations[tid].begin());
           }
-          if (pushLocation.count(it->first)){
-            //Reset the userpage, to allow repushing from TS
-            IPC::userConnection userConn(pushLocation[it->first]);
-            for (int i = 0; i < SIMUL_TRACKS; i++){
-              if (userConn.getTrackId(i) == it->first) {
-                userConn.setTrackId(i, 0);
-                userConn.setKeynum(i, 0);
-                break;
+          if (pushLocation.count(it->first)) {
+            // \todo Debugger says this is null sometimes. It shouldn't be. Figure out why!
+            // For now, this if will prevent crashes in these cases.
+            if (pushLocation[it->first]){
+              //Reset the userpage, to allow repushing from TS
+              IPC::userConnection userConn(pushLocation[it->first]);
+              for (int i = 0; i < SIMUL_TRACKS; i++) {
+                if (userConn.getTrackId(i) == it->first) {
+                  userConn.setTrackId(i, 0);
+                  userConn.setKeynum(i, 0);
+                  break;
+                }
               }
             }
             pushLocation.erase(it->first);

@@ -1116,6 +1116,9 @@ namespace IPC {
 
   userConnection::userConnection(char * _data) {
     data = _data;
+    if (!data){
+      WARN_MSG("userConnection created with null pointer!");
+    }
   }
 
   unsigned long userConnection::getTrackId(size_t offset) const {

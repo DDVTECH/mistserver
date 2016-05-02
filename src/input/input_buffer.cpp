@@ -393,23 +393,8 @@ namespace Mist {
     if (bufferLocations[tid].size() > 1){
       //Check if the first key starts on the second page or higher
       if (myMeta.tracks[tid].keys[0].getNumber() >= (++(bufferLocations[tid].begin()))->first || !config->is_active){
-        //Find page in indexpage and null it
-        for (int i = 0; i < 8192; i += 8){
-          unsigned int thisKeyNum = ((((long long int *)(nProxy.metaPages[tid].mapped + i))[0]) >> 32) & 0xFFFFFFFF;
-          if (thisKeyNum == htonl(bufferLocations[tid].begin()->first) && ((((long long int *)(nProxy.metaPages[tid].mapped + i))[0]) != 0)){
-            (((long long int *)(nProxy.metaPages[tid].mapped + i))[0]) = 0;
-          }
-        }
         DEBUG_MSG(DLVL_DEVEL, "Erasing track %d, keys %lu-%lu from buffer", tid, bufferLocations[tid].begin()->first, bufferLocations[tid].begin()->first + bufferLocations[tid].begin()->second.keyNum - 1);
         bufferRemove(tid, bufferLocations[tid].begin()->first);
-        for (int i = 0; i < 1024; i++){
-          int * tmpOffset = (int *)(nProxy.metaPages[tid].mapped + (i * 8));
-          int tmpNum = ntohl(tmpOffset[0]);
-          if (tmpNum == bufferLocations[tid].begin()->first){
-            tmpOffset[0] = 0;
-            tmpOffset[1] = 0;
-          }
-        }
 
         nProxy.curPageNum.erase(tid);
         char thisPageName[NAME_BUFFER_SIZE];
@@ -551,8 +536,9 @@ namespace Mist {
     }
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       //non-video tracks need to have a second keyframe that is <= firstVideo
+      //firstVideo = 1 happens when there are no tracks, in which case we don't care any more
       if (it->second.type != "video"){
-        if (it->second.keys.size() < 2 || it->second.keys[1].getTime() > firstVideo){
+        if (it->second.keys.size() < 2 || (it->second.keys[1].getTime() > firstVideo && firstVideo != 1)){
           continue;
         }
       }

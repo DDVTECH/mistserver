@@ -96,6 +96,19 @@ namespace Mist {
     //If the track is accepted, we will have a mapped tid
     unsigned long mapTid = trackMap[tid];
 
+    //Before we start a new page, make sure we can be heard by the buffer about this.
+    //Otherwise, it might linger forever as a nasty data leak.
+    //Nobody likes nasty data leaks.
+    {
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), mapTid);
+      IPC::sharedPage checkPage(pageName, 8 * 1024 * 1024, false, false);
+      if (!checkPage.mapped){
+        WARN_MSG("The buffer deleted our index. Aborting new page.");
+        return false;
+      }
+    }
+
     //If we are currently buffering a page, abandon it completely and print a message about this
     //This page will NEVER be deleted, unless we open it again later.
     if (curPage.count(tid)) {

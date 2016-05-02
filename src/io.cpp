@@ -158,17 +158,16 @@ namespace Mist {
         int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
         if ((tmpOffset[0] == 0 && tmpOffset[1] == 0)) {
           tmpOffset[0] = htonl(curPageNum[tid]);
-          if (pagesByTrack[tid][pageNumber].dataSize == DEFAULT_DATA_PAGE_SIZE){
-            tmpOffset[1] = htonl(1000);
-          } else {
-            tmpOffset[1] = htonl(pagesByTrack[tid][pageNumber].keyNum);
-          }
+          tmpOffset[1] = htonl(1000);
           inserted = true;
           break;
         }
       }
+      if (!inserted){
+        FAIL_MSG("Could not insert page in track index. Aborting.");
+        return false;
+      }
     }
-    
     
     ///\return true if everything was successful
     return true;

@@ -343,7 +343,7 @@ namespace Mist {
 
     if (!isTrustedProxy(host) || !xRealIp.size()){
       static bool msg = false;
-      if (xRealIp.size() && !msg){
+      if (xRealIp.size() && !msg && xRealIp != host){
         WARN_MSG("Host %s is attempting to act as a proxy, but not trusted", host.c_str());
         msg = true;
       }
@@ -358,7 +358,7 @@ namespace Mist {
 
     if (!isTrustedProxy(host) || !xRealIp.size()){
       static bool msg = false;
-      if (xRealIp.size() && !msg){
+      if (xRealIp.size() && !msg && xRealIp != host){
         WARN_MSG("Host %s is attempting to act as a proxy, but not trusted", host.c_str());
         msg = true;
       }

@@ -951,24 +951,24 @@ namespace Mist {
       {
 
         // @todo check if output is already running ? 
-        if (recordingPid == -1
-            && config != NULL
-            )
-          {
+        if (recordingPid == -1 && config != NULL){
+          configLock.post();
+          configLock.close();
             
-            INFO_MSG("The stream %s has a value specified for the recording. "
-                 "We're goint to start an output and record into  %s",
-                 config->getString("streamname").c_str(),
-                 streamCfg.getMember("record").asString().c_str());
+          INFO_MSG("The stream %s has a value specified for the recording. "
+               "We're going to start an output and record into  %s",
+               config->getString("streamname").c_str(),
+               streamCfg.getMember("record").asString().c_str());
 
-            recordingPid = Util::startRecording(config->getString("streamname"));
-            if (recordingPid < 0) {
-              FAIL_MSG("Failed to start the recording for %s", config->getString("streamname").c_str());
-              // @todo shouldn't we do configList.post(), configLock.close() and return false?
-              // @todo discuss with Jaron. 2015.09.26, remove this comment when discussed.
-            }
-            INFO_MSG("We started an output for recording with PID: %d", recordingPid);
+          recordingPid = Util::startRecording(config->getString("streamname"));
+          if (recordingPid < 0) {
+            FAIL_MSG("Failed to start the recording for %s", config->getString("streamname").c_str());
+            // @todo shouldn't we do configList.post(), configLock.close() and return false?
+            // @todo discuss with Jaron. 2015.09.26, remove this comment when discussed.
           }
+          INFO_MSG("We started an output for recording with PID: %d", recordingPid);
+          return true;
+        }
       }
     /* roxlu-end */
 

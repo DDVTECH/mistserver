@@ -16,6 +16,8 @@ namespace Controller {
   JSON::Value Storage; ///< Global storage of data.
   tthread::mutex configMutex;
   tthread::mutex logMutex;
+  bool configChanged = false;
+
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.

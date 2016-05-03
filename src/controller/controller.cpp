@@ -127,8 +127,9 @@ void statusMonitor(void * np){
         changed = true;
       }
       configLock.post();
-      if (changed){
+      if (changed || Controller::configChanged){
         Controller::writeConfig();
+        Controller::configChanged = false;
       }
     }
     Util::wait(5000);//wait at least 5 seconds

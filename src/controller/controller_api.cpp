@@ -572,7 +572,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
           }
           
-          Controller::writeConfig();
+          Controller::configChanged = true;
           
         }else{//unauthorized
           Util::sleep(1000);//sleep a second to prevent bruteforcing 

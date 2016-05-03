@@ -204,6 +204,21 @@ namespace Mist {
       return;
     }
     unsigned long mapTid = nProxy.trackMap[tid];
+
+    DEBUG_MSG(DLVL_HIGH, "Removing page %lu on track %lu~>%lu from the corresponding metaPage", pageNumber, tid, mapTid);
+    int i = 0;
+    for (; i < 1024; i++) {
+      int * tmpOffset = (int *)(nProxy.metaPages[tid].mapped + (i * 8));
+      if (ntohl(tmpOffset[0]) == pageNumber) {
+        tmpOffset[0] = 0;
+        tmpOffset[1] = 0;
+        break;
+      }
+    }
+    if (i == 1024){
+      FAIL_MSG("Could not erase page %lu for track %lu->%lu stream %s from track index!", pageNumber, tid, mapTid, streamName.c_str());
+    }
+
     if (!nProxy.pagesByTrack.count(tid)){
       // If there is no pagesByTrack entry, the pages are managed in local code and not through io.cpp (e.g.: MistInBuffer)
       return;
@@ -229,14 +244,6 @@ namespace Mist {
 #endif
     toErase.master = true;
     //Remove the page from the tracks index page
-    DEBUG_MSG(DLVL_HIGH, "Removing page %lu on track %lu~>%lu from the corresponding metaPage", pageNumber, tid, mapTid);
-    for (int i = 0; i < 1024; i++) {
-      int * tmpOffset = (int *)(nProxy.metaPages[tid].mapped + (i * 8));
-      if (ntohl(tmpOffset[0]) == pageNumber) {
-        tmpOffset[0] = 0;
-        tmpOffset[1] = 0;
-      }
-    }
     //Leaving scope here, the page will now be destroyed
   }
 

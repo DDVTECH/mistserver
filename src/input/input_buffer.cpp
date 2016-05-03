@@ -329,49 +329,6 @@ namespace Mist {
       /*LTS-END*/
       myMeta.tracks[tid].parts.pop_front();
     }
-    ///\todo Fix recording
-    /*LTS-START
-    ///\todo Maybe optimize this by keeping track of the byte positions
-    if (recFile.good()){
-      long long unsigned int firstms = myMeta.tracks[tid].keys[0].getTime();
-      long long unsigned int lastms = myMeta.tracks[tid].lastms;
-      if (myMeta.tracks[tid].keys.size() > 1){
-        lastms = myMeta.tracks[tid].keys[1].getTime();
-      }
-      DEBUG_MSG(DLVL_DEVEL, "Recording track %d from %llums to %llums", tid, firstms, lastms);
-      long long unsigned int bpos = 0;
-      DTSC::Packet recPack;
-      int pageLen = dataPages[tid][bufferLocations[tid].begin()->first].len;
-      char * pageMapped = dataPages[tid][bufferLocations[tid].begin()->first].mapped;
-      while( bpos < (unsigned long long)pageLen){
-        int tmpSize = ((int)pageMapped[bpos + 4] << 24) | ((int)pageMapped[bpos + 5] << 16) | ((int)pageMapped[bpos + 6] << 8) | (int)pageMapped[bpos + 7];
-        tmpSize += 8;
-        recPack.reInit(pageMapped + bpos, tmpSize, true);
-        if (tmpSize != recPack.getDataLen()){
-          DEBUG_MSG(DLVL_DEVEL, "Something went wrong while trying to record a packet @ %llu, %d != %d", bpos, tmpSize, recPack.getDataLen());
-          break;
-        }
-        if (recPack.getTime() >= lastms){/// \todo getTime never reaches >= lastms, so probably the recording bug has something to do with this
-          DEBUG_MSG(DLVL_HIGH, "Stopping record, %llu >= %llu", recPack.getTime(), lastms);
-          break;
-        }
-        if (recPack.getTime() >= firstms){
-          //Actually record to file here
-          JSON::Value recJSON = recPack.toJSON();
-          recJSON["bpos"] = recBpos;
-          recFile << recJSON.toNetPacked();
-          recFile.flush();
-          recBpos = recFile.tellp();
-          recMeta.update(recJSON);
-        }
-        bpos += recPack.getDataLen();
-      }
-      recFile.flush();
-      std::ofstream tmp(std::string(recName + ".dtsh").c_str());
-      tmp << recMeta.toJSON().toNetPacked();
-      tmp.close();
-    }
-    LTS-END*/
     //remove the key itself
     myMeta.tracks[tid].keys.pop_front();
     myMeta.tracks[tid].keySizes.pop_front();

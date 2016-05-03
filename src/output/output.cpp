@@ -1124,7 +1124,6 @@ namespace Mist {
   }
 
   void Output::stats(){
-    static bool setHost = true;
     if (!isInitialized){
       return;
     }
@@ -1140,9 +1139,8 @@ namespace Mist {
         lastStats = now;
         IPC::statExchange tmpEx(statsPage.getData());
         tmpEx.now(now);
-        if (setHost){
+        if (tmpEx.host() == std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16)){
           tmpEx.host(getConnectedBinHost());
-          setHost = false;
         }
         tmpEx.crc(crc);
         tmpEx.streamName(streamName);

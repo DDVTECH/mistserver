@@ -20,7 +20,9 @@ int main(int argc, char * argv[]) {
 #ifndef INPUT_NOLOCK
     IPC::semaphore playerLock;
     if (streamName.size()){
-      playerLock.open(std::string("/lock_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      char semName[NAME_BUFFER_SIZE];
+      snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamName.c_str());
+      playerLock.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!playerLock.tryWait()){
         DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
         return 1;
@@ -71,6 +73,7 @@ int main(int argc, char * argv[]) {
     }
 #ifndef INPUT_NOLOCK
     playerLock.post();
+    playerLock.unlink();
     playerLock.close();
 #endif
   }

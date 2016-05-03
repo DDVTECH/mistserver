@@ -179,12 +179,16 @@ namespace Mist {
         }
       }
     }
+    char pageName[NAME_BUFFER_SIZE];
+    snprintf(pageName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
+    IPC::semaphore liveMeta(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    liveMeta.unlink();
   }
 
 
   ///Cleans up any left-over data for the current stream
   void inputBuffer::onCrash(){
-    WARN_MSG("BUffer crashed. Cleaning.");
+    WARN_MSG("Buffer crashed. Cleaning.");
     streamName = config->getString("streamname");
     char pageName[NAME_BUFFER_SIZE];
 
@@ -194,21 +198,10 @@ namespace Mist {
     for (long unsigned i = 0; i < 15; ++i){
       unsigned int size = std::min(((8192 * 2) << i), (32 * 1024 * 1024));
       IPC::sharedPage tmp(std::string(baseName + (char)(i + (int)'A')), size, false, false);
-      tmp.master = false;
       if (tmp.mapped){
+        tmp.master = true;
         WARN_MSG("Wiping %s", std::string(baseName + (char)(i + (int)'A')).c_str());
         memset(tmp.mapped, 0xFF, size);
-      }
-    }
-    //Wait five seconds to allow everyone to disconnect gracefully.
-    Util::wait(5000);
-    //Now delete those pages
-    for (long unsigned i = 0; i < 15; ++i){
-      unsigned int size = std::min(((8192 * 2) << i), (32 * 1024 * 1024));
-      IPC::sharedPage tmp(std::string(baseName + (char)(i + (int)'A')), size, false, false);
-      tmp.master = true;
-      if (tmp.mapped){
-        WARN_MSG("Wiping %s some more", std::string(baseName + (char)(i + (int)'A')).c_str());
       }
     }
 
@@ -859,8 +852,8 @@ namespace Mist {
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
     strName = strName.substr(0, (strName.find_first_of("+ ")));
-    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
-    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
     DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
     long long tmpNum;

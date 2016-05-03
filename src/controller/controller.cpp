@@ -100,6 +100,7 @@ void statusMonitor(void * np){
   #ifdef UPDATER
   unsigned long updatechecker = Util::epoch(); /*LTS*/
   #endif
+  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   while (Controller::conf.is_active){
     /*LTS-START*/
     #ifdef UPDATER
@@ -120,7 +121,6 @@ void statusMonitor(void * np){
       changed |= Controller::CheckAllStreams(Controller::Storage["streams"]);
       
       //check if the config semaphore is stuck, by trying to lock it for 5 attempts of 1 second...
-      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond()){
         //that failed. We now unlock it, no matter what - and print a warning that it was stuck.
         WARN_MSG("Configuration semaphore was stuck. Force-unlocking it and re-writing config.");
@@ -133,6 +133,7 @@ void statusMonitor(void * np){
     }
     Util::wait(5000);//wait at least 5 seconds
   }
+  configLock.unlink();
 }
 
 ///\brief The main entry point for the controller.

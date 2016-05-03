@@ -132,7 +132,7 @@ namespace IPC {
     while (!(*this) && timer++ < 10) {
 #if defined(__CYGWIN__) || defined(_WIN32)
       std::string semaName = "Global\\";
-      semaName += name;
+      semaName += (name+1);
       if (oflag & O_CREAT) {
         if (oflag & O_EXCL) {
           //attempt opening, if succes, close handle and return false;

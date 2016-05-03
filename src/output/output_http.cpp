@@ -105,9 +105,9 @@ namespace Mist {
     }
     
     //loop over the connectors
-    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
-    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
+    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
     DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
     unsigned int capa_ctr = capa.getSize();
     for (unsigned int i = 0; i < capa_ctr; ++i){
@@ -278,9 +278,9 @@ namespace Mist {
     for (int i=0; i<20; i++){argarr[i] = 0;}
     int id = -1;
     
-    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
-    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
+    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
     DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
     unsigned int prots_ctr = prots.getSize();
     
@@ -376,8 +376,8 @@ namespace Mist {
       trustedProxies.insert("::1");
       trustedProxies.insert("127.0.0.1");
 
-      IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE, false, false); ///< Open server config
-      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Open server config
+      IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       configLock.wait();
       std::string trustedList = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("trustedproxy").asString();
       configLock.post();

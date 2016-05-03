@@ -86,8 +86,8 @@ JSON::Value Util::getStreamConfig(std::string streamname){
     FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
     return result;
   }
-  IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
-  IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
+  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   configLock.wait();
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
 
@@ -107,7 +107,10 @@ JSON::Value Util::getStreamConfig(std::string streamname){
 /// Checks if the given streamname has an active input serving it. Returns true if this is the case.
 /// Assumes the streamname has already been through sanitizeName()!
 bool Util::streamAlive(std::string & streamname){
-  IPC::semaphore playerLock(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  char semName[NAME_BUFFER_SIZE];
+  snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamname.c_str());
+  IPC::semaphore playerLock(semName, O_RDWR, ACCESSPERMS, 1);
+  if (!playerLock){return false;}
   if (!playerLock.tryWait()) {
     playerLock.close();
     return true;
@@ -151,8 +154,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
 
   //Attempt to load up configuration and find this stream
-  IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
-  IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
+  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   //Lock the config to prevent race conditions and corruption issues while reading
   configLock.wait();
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
@@ -304,8 +307,8 @@ int Util::startRecording(std::string streamname) {
   }
 
   // Attempt to load up configuration and find this stream
-  IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
-  IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
+  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
 
   //Lock the config to prevent race conditions and corruption issues while reading
   configLock.wait();

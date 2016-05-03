@@ -21,6 +21,7 @@ namespace TS {
   class Stream{
     public:
       Stream(bool _threaded = false);
+      ~Stream();
       void add(char * newPack, unsigned long long bytePos = 0);
       void add(Packet & newPack, unsigned long long bytePos = 0);
       void parse(Packet & newPack, unsigned long long bytePos);

@@ -10,16 +10,19 @@ namespace TS {
   Stream::Stream(bool _threaded){
     threaded = _threaded;
     if (threaded){
-      globalSem.open("MstTSInputLock", O_CREAT | O_EXCL | O_RDWR, ACCESSPERMS, 1);
-      if (!globalSem) {
-        globalSem.open("MstTSInputLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      }
+      globalSem.open("MstTSInputLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!globalSem) {
         FAIL_MSG("Creating semaphore failed: %s", strerror(errno));
         threaded = false;
         DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
         return;
       }
+    }
+  }
+
+  Stream::~Stream(){
+    if (threaded){
+      globalSem.unlink();
     }
   }
 

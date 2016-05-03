@@ -17,7 +17,7 @@
 #include <mist/tinythread.h>
 #include <sys/stat.h>
 
-
+#define SEM_TS_CLAIM "/MstTSIN%s"
 
 
 /// \todo Implement this trigger equivalent...
@@ -46,8 +46,9 @@ std::set<unsigned long> claimableThreads;
 
 void parseThread(void * ignored) {
 
-  std::string semName = "MstInTSStreamClaim" + globalStreamName;
-  IPC::semaphore lock(semName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  char semName[NAME_BUFFER_SIZE];
+  snprintf(semName, NAME_BUFFER_SIZE, SEM_TS_CLAIM, globalStreamName.c_str());
+  IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
 
   int tid = -1;
   lock.wait();
@@ -151,12 +152,14 @@ namespace Mist {
       fclose(inFile);
     }
 #ifdef TSLIVE_INPUT
-    std::string semName = "MstInTSStreamClaim" + globalStreamName;
-    IPC::semaphore lock(semName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    char semName[NAME_BUFFER_SIZE];
+    snprintf(semName, NAME_BUFFER_SIZE, SEM_TS_CLAIM, globalStreamName.c_str());
+    IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     lock.wait();
     threadTimer.clear();
     claimableThreads.clear();
     lock.post();
+    lock.unlink();
 #endif
   }
 
@@ -394,8 +397,9 @@ namespace Mist {
       //Check for and spawn threads here.
       if (Util::bootSecs() - threadCheckTimer > 2) {
         std::set<unsigned long> activeTracks = liveStream.getActiveTracks();
-        std::string semName = "MstInTSStreamClaim" + globalStreamName;
-        IPC::semaphore lock(semName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+        char semName[NAME_BUFFER_SIZE];
+        snprintf(semName, NAME_BUFFER_SIZE, SEM_TS_CLAIM, globalStreamName.c_str());
+        IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
         lock.wait();
         for (std::set<unsigned long>::iterator it = activeTracks.begin(); it != activeTracks.end(); it++) {
           if (threadTimer.count(*it) && ((Util::bootSecs() - threadTimer[*it]) > (2 * THREAD_TIMEOUT))) {
@@ -422,8 +426,9 @@ namespace Mist {
   }
 
   void inputTS::finish() {
-    std::string semName = "MstInTSStreamClaim" + globalStreamName;
-    IPC::semaphore lock(semName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    char semName[NAME_BUFFER_SIZE];
+    snprintf(semName, NAME_BUFFER_SIZE, SEM_TS_CLAIM, globalStreamName.c_str());
+    IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
 
 
     int threadCount = 0;

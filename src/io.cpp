@@ -104,8 +104,15 @@ namespace Mist {
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), mapTid);
       IPC::sharedPage checkPage(pageName, 8 * 1024 * 1024, false, false);
       if (!checkPage.mapped){
-        WARN_MSG("The buffer deleted our index. Aborting new page.");
-        return false;
+        WARN_MSG("The buffer deleted our index. Re-negotiating...");
+        trackState.erase(tid);
+        trackMap.erase(tid);
+        trackOffset.erase(tid);
+        pagesByTrack.erase(tid);
+        metaPages.erase(tid);
+        curPageNum.erase(tid);
+        curPage.erase(tid);
+        return bufferStart(tid, pageNumber, myMeta);
       }
     }
 

@@ -171,11 +171,11 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       if (conf.getString("prometheus").size()){
         if (H.url == "/"+Controller::conf.getString("prometheus")){
           handlePrometheus(H, conn, PROMETHEUS_TEXT);
-          break;
+          continue;
         }
         if (H.url == "/"+Controller::conf.getString("prometheus")+".json"){
           handlePrometheus(H, conn, PROMETHEUS_JSON);
-          break;
+          continue;
         }
       }
       JSON::Value Response;

@@ -267,6 +267,11 @@ makeAnalyser(TS ts) #LTS
 makeAnalyser(TSStream tsstream) #LTS
 makeAnalyser(Stats stats) #LTS
 
+
+if (DEFINED LOAD_BALANCE )
+  makeAnalyser(Load load) #LTS
+endif()
+
 ########################################
 # MistServer - Inputs                  #
 ########################################

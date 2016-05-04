@@ -62,9 +62,6 @@
 /// ~~~~~~~~~~~~~~~
 void Controller::checkConfig(JSON::Value & in, JSON::Value & out){
   out = in;
-  if (out["basepath"].asString()[out["basepath"].asString().size() - 1] == '/'){
-    out["basepath"] = out["basepath"].asString().substr(0, out["basepath"].asString().size() - 1);
-  }
   if (out.isMember("debug")){
     if (Util::Config::printDebugLevel != out["debug"].asInt()){
       Util::Config::printDebugLevel = out["debug"].asInt();

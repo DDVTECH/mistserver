@@ -170,9 +170,6 @@ var UI = {
       Protocols: {},
       Streams: {},
       Preview: {},
-      Limits: {
-        LTSonly: true
-      },
       'Triggers': {
         LTSonly: false
       },
@@ -187,19 +184,19 @@ var UI = {
     },
     {
       Guides: {
-        link: 'http://mistserver.org/wiki/Category:Guides'
+        link: 'http://mistserver.org/documentation#Userdocs'
       },
       Tools: {
         submenu: {
           'Release notes': {
-            link: 'http://mistserver.org/wiki/Mistserver_Changelog'
+            link: 'http://mistserver.org/documentation#Devdocs'
           },
           'Mist Shop': {
             link: 'http://mistserver.org/products'
           },
           'Email for Help': {},
           'Terms & Conditions': {
-            link: 'http://mistserver.org/wiki/Mistserver_license'
+            link: 'http://mistserver.org/documentation#Legal'
           }
         }
       }
@@ -522,6 +519,9 @@ var UI = {
               )
             );
           }
+          break;
+        case 'DOMfield':
+          $field = e.DOMfield;
           break;
         default:
           $field = $('<input>').attr('type','text');
@@ -946,169 +946,6 @@ var UI = {
     
     return $table;
   },
-  buildLimits: function(limits,tab,other){
-    var $c = $('<div>');
-    var $table = $('<table>');
-    $c.append($table);
-    var $thead = $('<tr>').append(
-      $('<th>').text('Kind').attr('data-sort-type','string')
-    ).append(
-      $('<th>').text('Type').attr('data-sort-type','string')
-    ).append(
-      $('<th>').text('Value')
-    ).append(
-      $('<th>')
-    );
-    if (!(limits instanceof Array)) {
-      $thead.prepend(
-        $('<th>').text('Applies to').attr('data-sort-type','string').addClass('sorting-asc').addClass('applies_to')
-      );
-    }
-    else {
-      limits = {
-        'noapply': limits
-      };
-    }
-    $table.append(
-      $('<thead>').append($thead)
-    );
-    var $tbody = $('<tbody>');
-    $table.append($tbody);
-    
-    function buildrows(limit,apply) {
-      var $tb = $('<tbody>');
-      for (var i in limit) {
-        var $tr = $('<tr>');
-        
-        $tr.data('pointer',apply.concat(i));
-        
-        var text = '';
-        switch (apply[0]) {
-          case 'server':
-            text = 'The entire server';
-            break;
-          case 'stream':
-            text = 'The stream "'+apply[1]+'"';
-            break;
-        }
-        $tr.append(
-          $('<td>').addClass('applies_to').text(text)
-        );
-        
-        var name = limit[i].name;
-        var value = limit[i].value;
-        switch (limit[i].name) {
-          case 'kbps_max':
-            name = 'Maximum bandwidth';
-            value = UI.format.bytes(value,true);
-            break;
-          case 'users':
-            name = 'Maximum connected users';
-            value = UI.format.number(value);
-            break;
-          case 'geo':
-            name = 'Geolimited';
-            var vals = value;
-            var value = '<span class=unit>['+(value.charAt(0) == '-' ? 'Blacklist' : 'Whitelist')+']</span> ';
-            vals = vals.substr(1).split(' ');
-            var cs = [];
-            for (var j in vals) {
-              var c = UI.countrylist[vals[j]];
-              cs.push(typeof c == 'undefined' ? vals[j] : c);
-            }
-            value += cs.join(', ');
-            break;
-          case 'host':
-            name = 'Hostlimited';
-            var vals = value;
-            var value = '<span class=unit>['+(value.charAt(0) == '-' ? 'Blacklist' : 'Whitelist')+']</span> ';
-            vals = vals.substr(1).split(' ');
-            value += vals.join(', ');
-            break;
-        }
-        
-        $tr.append(
-          $('<td>').text(limit[i].type).addClass('kind')
-        ).append(
-          $('<td>').text(name).addClass('type')
-        ).append(
-          $('<td>').html(value).addClass('value')
-        ).append(
-          $('<td>').css('text-align','right').html(
-            $('<button>').text('Edit').click(function(){
-              UI.navto('Edit Limit',$(this).closest('tr').data('pointer').join('^'));
-              UI.returnTab = [tab,other];
-            })
-          ).append(
-            $('<button>').text('Delete').click(function(){
-              var $tr = $(this).closest('tr');
-              var q = 'Are you sure you want to delete the '+$tr.find('.kind').text()+' '+$tr.find('.type').text()+' limit for '+$tr.find('.applies_to').text()+'?';
-              if (confirm(q)) {
-                var pointer = $tr.data('pointer');
-                var index = pointer[pointer.length-1];
-                var sendData = {};
-                switch (pointer[0]) {
-                  case 'server':
-                    mist.data.config.limits.splice(index,1);
-                    sendData = {config: mist.data.config};
-                    break;
-                  case 'stream':
-                    mist.data.streams[pointer[1]].limits.splice(index,1);
-                    if (mist.data.LTS == 1) {
-                      var addstream = {};
-                      addstream[pointer[1]] = mist.data.streams[pointer[1]];
-                      sendData = {addstream: addstream};
-                    }
-                    else {
-                      sendData = {streams: mist.data.streams};
-                    }
-                    break;
-                }
-                mist.send(function(d){
-                  UI.navto(tab,other);
-                },sendData);
-              }
-            })
-          )
-        );
-        $tb.append($tr);
-      }
-      return $tb.children();
-    }
-    
-    for (var i in limits) {
-      switch (i) {
-        case 'server':
-          $tbody.append(
-            buildrows(limits[i],['server'])
-          );
-          break;
-        case 'streams':
-          for (var j in limits[i]) {
-            $tbody.append(
-              buildrows(limits[i][j],['stream',j])
-            );
-          }
-          break;
-      }
-    }
-    
-    $c.prepend(
-      $('<button>').text('New limit').click(function(){
-        UI.navto('Edit Limit');
-        UI.returnTab = [tab,other];
-      })
-    );
-    
-    if ($tbody.children().length > 0) {
-      $table.stupidtable();
-    }
-    else {
-      $table.remove();
-      $c.append($('<span>').text('No limits set.'));
-    }
-    return $c.children();
-  },
   plot: {
     addGraph: function(saveas,$graph_c){
       var graph = {
@@ -1118,9 +955,10 @@ var UI = {
         elements: {
           cont: $('<div>').addClass('graph'),
           plot: $('<div>').addClass('plot'),
-          legend: $('<div>').addClass('legend')
+          legend: $('<div>').addClass('legend').attr('draggable','true')
         }
       }
+      UI.draggable(graph.elements.legend);
       graph.elements.cont.append(
         graph.elements.plot
       ).append(
@@ -1134,6 +972,7 @@ var UI = {
       
       //get plotdata
       //build request object
+      //changed data to show up in graphs to -15 sec to match API calls.
       var reqobj = {
         totals: [],
         clients: []
@@ -1146,9 +985,9 @@ var UI = {
             case 'upbps':
             case 'downbps':
               switch (set.origin[0]) {
-                case 'total':     reqobj['totals'].push({fields: [set.datatype]});                               break;
-                case 'stream':    reqobj['totals'].push({fields: [set.datatype], streams: [set.origin[1]]});     break;
-                case 'protocol':  reqobj['totals'].push({fields: [set.datatype], protocols: [set.origin[1]]});   break;
+                case 'total':     reqobj['totals'].push({fields: [set.datatype], end: -15});                               break;
+                case 'stream':    reqobj['totals'].push({fields: [set.datatype], streams: [set.origin[1]], end: -15});     break;
+                case 'protocol':  reqobj['totals'].push({fields: [set.datatype], protocols: [set.origin[1]], end: -15});   break;
               }
               break;
             case 'cpuload':
@@ -1202,29 +1041,87 @@ var UI = {
                     borderWidth: {top: 0, right: 0, bottom: 1, left: 1},
                     color: 'black',
                     backgroundColor: {colors: ['rgba(0,0,0,0)','rgba(0,0,0,0.025)']}
+                  },
+                  crosshair: {
+                    mode: 'x'
                   }
                 }
               );
               
               //now the legend
-              var $list = $('<div>').addClass('legend-list').addClass('checklist');
-              graph.elements.legend.html(
-                $('<h3>').text(graph.id)
-              ).append(
-                $('<button>').data('opts',graph).text('X').addClass('close').click(function(){
-                  var graph = $(this).data('opts');
-                  if (confirm('Are you sure you want to remove '+graph.id+'?')) {
-                    graph.elements.cont.remove();
-                    var $opt = $('.graph_ids option:contains('+graph.id+')');
-                    var $select = $opt.parent();
-                    $opt.remove();
-                    UI.plot.del(graph.id);
-                    delete graphs[graph.id];
-                    $select.trigger('change');
-                    UI.plot.go(graphs);
+              var $list = $('<table>').addClass('legend-list').addClass('nolay').html(
+                $('<tr>').html(
+                  $('<td>').html(
+                    $('<h3>').text(graph.id)
+                  )
+                ).append(
+                  $('<td>').css('padding-right','2em').css('text-align','right').html(
+                    $('<span>').addClass('value')
+                  ).append(
+                    $('<button>').data('opts',graph).text('X').addClass('close').click(function(){
+                      var graph = $(this).data('opts');
+                      if (confirm('Are you sure you want to remove '+graph.id+'?')) {
+                        graph.elements.cont.remove();
+                        var $opt = $('.graph_ids option:contains('+graph.id+')');
+                        var $select = $opt.parent();
+                        $opt.remove();
+                        UI.plot.del(graph.id);
+                        delete graphs[graph.id];
+                        $select.trigger('change');
+                        UI.plot.go(graphs);
+                      }
+                    })
+                  )
+                )
+              );
+              graph.elements.legend.html($list);
+              
+              function updateLegendValues(x) {
+                var $spans = graph.elements.legend.find('.value');
+                var n = 1;
+                
+                if (typeof x == 'undefined') {
+                  $spans.eq(0).html('Latest:');
+                }
+                else {
+                  var axis = graph.plot.getXAxes()[0];
+                  x = Math.min(axis.max,x);
+                  x = Math.max(axis.min,x);
+                  $spans.eq(0).html(UI.format.time(x/1e3));
+                }
+                
+                
+                for (var i in graph.datasets) {
+                  var label = '&nbsp;';
+                  if (graph.datasets[i].display) {
+                    var tickformatter = UI.plot.yaxes[graph.datasets[i].yaxistype].tickFormatter;
+                    var data = graph.datasets[i].data;
+                    if (!x) {
+                      label = tickformatter(graph.datasets[i].data[graph.datasets[i].data.length-1][1]);
+                    }
+                    else {
+                      for (var j in data) {
+                        if (data[j][0] == x) {
+                          label = tickformatter(data[j][1]);
+                          break;
+                        }
+                        if (data[j][0] > x) {
+                          if (j != 0) {
+                            var p1 = data[j];
+                            var p2 = data[j-1];
+                            var y = p1[1] + (x - p1[0]) * (p2[1] - p1[1]) / (p2[0] - p1[0]);
+                            label = tickformatter(y);
+                          }
+                          break;
+                        }
+                      }
+                    }
                   }
-                })
-              ).append($list);
+                  $spans.eq(n).html(label);
+                  n++;
+                }
+              }
+              
               var plotdata = graph.plot.getOptions();
               for (var i in graph.datasets) {
                 var $checkbox = $('<input>').attr('type','checkbox').data('index',i).data('graph',graph).click(function(){
@@ -1243,44 +1140,58 @@ var UI = {
                   $checkbox.attr('checked','checked');
                 }
                 $list.append(
-                  $('<label>').html(
-                    $checkbox
+                  $('<tr>').html(
+                    $('<td>').html(
+                      $('<label>').html(
+                        $checkbox
+                      ).append(
+                        $('<div>').addClass('series-color').css('background-color',graph.datasets[i].color)
+                      ).append(
+                        graph.datasets[i].label
+                      )
+                    )
                   ).append(
-                    $('<div>').addClass('series-color').css('background-color',graph.datasets[i].color)
-                  ).append(
-                    graph.datasets[i].label
-                  ).append(
-                    $('<button>').text('X').addClass('close').data('index',i).data('graph',graph).click(function(){
-                      var i = $(this).data('index');
-                      var graph = $(this).data('graph');
-                      if (confirm('Are you sure you want to remove '+graph.datasets[i].label+' from '+graph.id+'?')) {
-                        graph.datasets.splice(i,1);
-                        
-                        if (graph.datasets.length == 0) {
-                          graph.elements.cont.remove();
-                          var $opt = $('.graph_ids option:contains('+graph.id+')');
-                          var $select = $opt.parent();
-                          $opt.remove();
-                          $select.trigger('change');
-                          UI.plot.del(graph.id);
-                          delete graphs[graph.id];
-                          UI.plot.go(graphs);
-                        }
-                        else {
-                          UI.plot.save(graph);
+                    $('<td>').css('padding-right','2em').css('text-align','right').html(
+                      $('<span>').addClass('value')
+                    ).append(
+                      $('<button>').text('X').addClass('close').data('index',i).data('graph',graph).click(function(){
+                        var i = $(this).data('index');
+                        var graph = $(this).data('graph');
+                        if (confirm('Are you sure you want to remove '+graph.datasets[i].label+' from '+graph.id+'?')) {
+                          graph.datasets.splice(i,1);
                           
-                          var obj = {};
-                          obj[graph.id] = graph;
-                          UI.plot.go(obj);
+                          if (graph.datasets.length == 0) {
+                            graph.elements.cont.remove();
+                            var $opt = $('.graph_ids option:contains('+graph.id+')');
+                            var $select = $opt.parent();
+                            $opt.remove();
+                            $select.trigger('change');
+                            UI.plot.del(graph.id);
+                            delete graphs[graph.id];
+                            UI.plot.go(graphs);
+                          }
+                          else {
+                            UI.plot.save(graph);
+                            
+                            var obj = {};
+                            obj[graph.id] = graph;
+                            UI.plot.go(obj);
+                          }
                         }
-                      }
-                    })
+                      })
+                    )
                   )
                 );
               }
+              updateLegendValues();
               
               //and the tooltip
+              var lastval = false;
               graph.elements.plot.on('plothover',function(e,pos,item){
+                if (pos.x != lastval) {
+                  updateLegendValues(pos.x);
+                  lastval = pos.x;
+                }
                 if (item) {
                   var $t = $('<span>').append(
                     $('<h3>').text(item.series.label).prepend(
@@ -1307,6 +1218,8 @@ var UI = {
                 else {
                   UI.tooltip.hide();
                 }
+              }).on('mouseout',function(){
+                updateLegendValues();
               });
               
               break;
@@ -1396,7 +1309,7 @@ var UI = {
           }
         },
         cpuload: {
-          label: 'CPU load',
+          label: 'CPU use',
           yaxistype: 'percentage',
           basecolor: [237,194,64],
           cores: 1,
@@ -1411,7 +1324,7 @@ var UI = {
             if (removebefore !== false) {
               this.data.splice(0,Number(removebefore)+1);
             }
-            this.data.push([mist.data.config.time*1000,Math.min(100,mist.data.capabilities.load.one/this.cores)]);
+            this.data.push([mist.data.config.time*1000,mist.data.capabilities.cpu_use/10]);
             return this.data;
           }
         },
@@ -1556,6 +1469,35 @@ var UI = {
         ticks: 5
       }
     }
+  },
+  draggable: function(ele){
+    ele.attr('draggable',true);
+    ele.on('dragstart',function(e){
+      $(this).css('opacity',0.4).data('dragstart',{
+        click: {
+          x: e.originalEvent.pageX,
+          y: e.originalEvent.pageY
+        },
+        ele: {
+          x: this.offsetLeft,
+          y: this.offsetTop
+        }
+      });
+    }).on('dragend',function(e){
+      var old = $(this).data('dragstart');
+      var x = old.ele.x - old.click.x + e.originalEvent.pageX;
+      var y = old.ele.y - old.click.y + e.originalEvent.pageY;
+      $(this).css({
+        'opacity': 1,
+        'top': y,
+        'left': x,
+        'right' : 'auto',
+        'bottom' : 'auto'
+      });
+    });
+    ele.parent().on('dragleave',function(){
+      //end the drag ?
+    });
   },
   format: {
     time: function(secs,type){
@@ -1717,7 +1659,7 @@ var UI = {
       return;
     }
     
-    var $currbut = UI.elements.menu.css('visibility','visible').find('.button').filter(function(){
+    var $currbut = UI.elements.menu.css('opacity','1').find('.button').filter(function(){
       if ($(this).find('.plain').text() == tab) { return true; }
     });
     if ($currbut.length > 0) {
@@ -1738,7 +1680,7 @@ var UI = {
           UI.navto('Overview');
           return;
         }
-        UI.elements.menu.css('visibility','hidden');
+        UI.elements.menu.css('opacity','0');
         UI.elements.connection.status.text('Disconnected').removeClass('green').addClass('red');
         $main.append(UI.buildUI([
           {
@@ -2009,9 +1951,11 @@ var UI = {
             else {
               $versioncheck.addClass('red').text('Version outdated!').append(
                 $('<button>').text('Update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
-                  mist.send(function(d){
-                    UI.navto('Overview');
-                  },{autoupdate: true});
+                  if (confirm('Are you sure you want to execute a rolling update?')) {
+                    mist.send(function(d){
+                      UI.navto('Overview');
+                    },{autoupdate: true});
+                  }
                 })
               );
             }
@@ -2472,7 +2416,7 @@ var UI = {
                     }
                   }
                 }
-                if (d.browse.files.length) {
+                if (('files' in d.browse) && (d.browse.files.length)) {
                   allstreams[s].filesfound = true;
                 }
                 else {
@@ -2676,16 +2620,6 @@ var UI = {
             ]
           }
         ]));
-        
-        if (editing) {
-          var limits = {streams: {}};
-          limits.streams[streamname] = mist.data.streams[streamname].limits;
-          $main.append(
-            $('<h3>').text('Limits')
-          ).append(
-            UI.buildLimits(limits,tab,other)
-          );
-        }
         
         break;
       case 'Preview':
@@ -3234,224 +3168,6 @@ var UI = {
         }
         
         break;
-      case 'Limits':
-        $main.append(UI.buildUI([{
-          type: 'help',
-          help: 'Here you can see an overview of all the limits you currently have. Limits are an LTS only feature and you can simply add new limits by selecting new, by selecting edit you can edit the existing limit, by selecting delete you can delete the existing limit.'
-        }]));
-        var limits = {
-          'server': mist.data.config.limits,
-          'streams': {}
-        };
-        for (var i in mist.data.streams) {
-          if ('limits' in mist.data.streams[i]) {
-            limits.streams[i] = mist.data.streams[i].limits;
-          }
-        }
-        $main.append(UI.buildLimits(limits,tab,other));
-        break;
-      case 'Edit Limit':
-        var editing = false;
-        if (other != '') { editing = true; }
-        var saveas = {};
-        var build = [{
-          type: 'help',
-          help: 'Here you can set the limit specifications, soft limits only warn while hard limits restrict access. Please feel free to set up limits according to your preferences.'
-        }];
-        if (UI.returnTab[0] == 'Overview') { UI.returnTab =  ['Limits']; }
-        
-        if (!editing) {
-          $main.html(
-            $('<h2>').text('New limit')
-          );
-          
-          var thestreams = [];
-          for (var i in mist.data.streams) {
-            thestreams.push(i);
-          }
-          var select = [
-            ['server','The entire server'],
-            ['stream','The stream:',thestreams]
-          ];
-          var appliesto = {
-            label: 'Applies to',
-            type: 'radioselect',
-            radioselect: select,
-            pointer: {
-              main: saveas,
-              index: 'applies_to'
-            },
-            LTSonly: true,
-            validate: ['required']
-          };
-          if ((UI.returnTab[0] == 'Edit Stream') && (UI.returnTab[1])) {
-            appliesto.value = ['stream',UI.returnTab[1]];
-            appliesto.readonly = true;
-          }
-          build.push(appliesto);
-        }
-        else {
-          var pointer = other.split('^');
-          var text = tab;
-          switch (pointer[0]) {
-            case 'server':
-              saveas = mist.data.config.limits[pointer[1]];
-              text = 'For the entire server';
-              break;
-            case 'stream':
-              saveas = mist.data.streams[pointer[1]].limits[pointer[2]];
-              text = 'For the stream "'+pointer[1]+'"';
-              break;
-          }
-          build.push({
-            type: 'text',
-            text: text
-          });
-        }
-        
-        build = build.concat([$('<br>'),{
-          label: 'Kind',
-          type: 'select',
-          select: [
-            ['soft','Soft'],
-            ['hard','Hard']
-          ],
-          pointer: {
-            main: saveas,
-            index: 'type'
-          },
-          help: 'The server will not allow a hard limit to be passed. A soft limit can be used to set alerts.',
-          LTSonly: true,
-          validate: ['required']
-        },{
-          label: 'Value',
-          pointer: {
-            main: saveas,
-            index: 'value'
-          },
-          classes: ['limit_value'],
-          LTSonly: true
-        },{
-          label: 'Type',
-          type: 'select',
-          select: [
-            ['kbps_max','Maximum bandwidth'],
-            ['users','Maximum connected users'],
-            ['geo','Geo limited'],
-            ['host','Host limited']
-          ],
-          pointer: {
-            main: saveas,
-            index: 'name'
-          },
-          LTSonly: true,
-          validate: ['required'],
-          classes: ['limit_type'],
-          'function': function(){
-            var type = $(this).getval();
-            var $lvalue = $(this).closest('.input_container').find('.limit_value');
-            var $c = $lvalue.closest('label');
-            var opts = $lvalue.data('opts');
-            
-            var nopts = opts;
-            delete nopts.type;
-            delete nopts.min;
-            delete nopts.unit;
-            nopts.validate = ['required'];
-            
-            switch (type) {
-              case 'kbps_max':
-                nopts.type = 'int';
-                nopts.min = 1;
-                nopts.unit = 'bytes/s'
-                break;
-              case 'users':
-                nopts.type = 'int';
-                nopts.min = 1;
-                break;
-              case 'geo':
-                nopts.type = 'geolimited';
-                break;
-              case 'host':
-                nopts.type = 'hostlimited';
-                break;
-            }
-            var $nc = UI.buildUI([nopts]);
-            $c.replaceWith($nc.children());
-          }
-        },{
-          type: 'buttons',
-          buttons: [
-            {
-              type: 'cancel',
-              label: 'Cancel',
-              'function': function(){
-                UI.navto(UI.returnTab[0],UI.returnTab[1]);
-              }
-            },{
-              type: 'save',
-              label: 'Save',
-              'function': function(){
-                var send = {};
-                if (editing) {
-                  var pointer = other.split('^');
-                  switch (pointer[0]) {
-                    case 'server':
-                      send = {config: {limits: mist.data.config.limits}};
-                      break;
-                    case 'stream':
-                      if (mist.data.LTS) {
-                        send = {addstream: {}};
-                        send.addstream[pointer[1]] = mist.data.streams[pointer[1]];
-                      }
-                      else {
-                        send = {streams: mist.data.streams};
-                      }
-                      break;
-                  }
-                }
-                else {
-                  var pointer = saveas.applies_to;
-                  delete saveas.applies_to;
-                  switch (pointer[0]) {
-                    case 'server':
-                      if (!mist.data.config.limits) {
-                        mist.data.config.limits = [];
-                      }
-                      mist.data.config.limits.push(saveas);
-                      send = {config: {limits: mist.data.config.limits}};
-                      break;
-                    case 'stream':
-                      if (typeof mist.data.streams[pointer[1]].limits == 'undefined') {
-                        mist.data.streams[pointer[1]].limits = [];
-                      }
-                      mist.data.streams[pointer[1]].limits.push(saveas);
-                      if (mist.data.LTS) {
-                        send = {addstream: {}};
-                        send.addstream[pointer[1]] = mist.data.streams[pointer[1]];
-                      }
-                      else {
-                        send = {streams: mist.data.streams};
-                      }
-                      break;
-                  }
-                }
-                mist.send(function(){
-                  UI.navto(UI.returnTab[0],UI.returnTab[1]);
-                },send)
-              }
-            }
-          ]
-        }]);
-        var $UI = UI.buildUI(build);
-        $main.append($UI);
-        //draw the type input after the value input, but show the value input last
-        $UI.find('.limit_type').closest('label').after(
-          $UI.find('.limit_value').closest('label')
-        );
-        $UI.find('.limit_type').trigger('change');
-        
-        break;
       case 'Triggers':
         if (!('triggers' in mist.data.config)) {
           mist.data.config.triggers = {};
@@ -3675,6 +3391,13 @@ var UI = {
         
         break;
       case 'Logs':
+        var $refreshbutton = $('<button>').text('Refresh now').click(function(){
+          $(this).text('Loading..');
+          mist.send(function(){
+            buildLogsTable();
+            $refreshbutton.text('Refresh now');
+          });
+        }).css('padding','0.2em 0.5em').css('flex-grow',0);
         
         $main.append(UI.buildUI([{
           type: 'help',
@@ -3690,13 +3413,19 @@ var UI = {
           ],
           value: 30,
           'function': function(){
-            clearInterval(UI.interval);
+            UI.interval.clear();
             UI.interval.set(function(){
               mist.send(function(){
                 buildLogsTable();
               });
             },$(this).val()*1e3);
-          }
+          },
+          help: 'How often the table below should be updated.'
+        },{
+          label: '..or',
+          type: 'DOMfield',
+          DOMfield: $refreshbutton,
+          help: 'Instantly refresh the table below.'
         }]));
         
         $main.append(
@@ -3859,7 +3588,7 @@ var UI = {
               ['clients','Connections'],
               ['upbps','Bandwidth (up)'],
               ['downbps','Bandwidth (down)'],
-              ['cpuload','CPU load'],
+              ['cpuload','CPU use'],
               ['memload','Memory load'],
               ['coords','Client location']
             ],
@@ -4025,14 +3754,14 @@ var UI = {
           //CPU loading/total amount of cores is a percentage, over 1 means there are tasks waiting.
           var loading = {
             vheader: 'Load average',
-            labels: ['1 minute','5 minutes','15 minutes',''],
+            labels: ['CPU use','1 minute','5 minutes','15 minutes'],
             content: [{
               header: '&nbsp;',
               body: [
+                UI.format.addUnit(UI.format.number(mist.data.capabilities.cpu_use/10),'%'),
                 UI.format.number(load.one/100),
                 UI.format.number(load.five/100),
-                UI.format.number(load.fifteen/100),
-                ''
+                UI.format.number(load.fifteen/100)
               ]
             }]
           };
@@ -4143,7 +3872,7 @@ var UI = {
                 $(me).text('Sending..');
                 $.ajax({
                   type: 'POST',
-                  url: 'http://mistserver.org/contact_us?skin=plain',
+                  url: 'http://mistserver.org/contact?skin=plain',
                   data: saveas,
                   success: function(d) {
                     var $s = $('<span>').html(d);
@@ -4175,7 +3904,7 @@ var mist = {
   user: {
     name: '',
     password: '',
-    host: 'http://'+(location.hostname ? location.hostname : 'localhost')+':4242/api'
+    host: location.origin+location.pathname.replace(/\/+$/, "")+'/api'
   },
   send: function(callback,sendData,opts){
     sendData = sendData || {};
@@ -4277,9 +4006,14 @@ var mist = {
               );
             }
             if ('totals' in d) {
+              
               //reformat to something more readable
               function reformat(main) {
-                function insertZero() {
+                function insertZero(overridetime) {
+                  if (typeof overridetime == 'undefined') {
+                    overridetime = time;
+                  }
+                  
                   for (var j in main.fields) {
                     obj[main.fields[j]].push([time,0]);
                   }
@@ -4296,13 +4030,13 @@ var mist = {
                   //no data
                   time = (mist.data.config.time - 600)*1e3;
                   insertZero();
-                  time = mist.data.config.time*1e3;
+                  time = (mist.data.config.time - 15)*1e3;
                   insertZero();
                 }
                 else {
                   //leading 0?
-                  if ((main.end - main.start) < 600) {
-                    time = (main.end - 600)*1e3;
+                  if (main.start > (mist.data.config.time - 600)) {
+                    time = (mist.data.config.time - 600)*1e3;
                     insertZero();
                     time = main.start*1e3;
                     insertZero();
@@ -4324,11 +4058,13 @@ var mist = {
                         interval_n++; //go to next interval
                         
                         //insert zeros between the intervals
-                        if (interval_n < main.interval.length-1) { insert = 2; } 
+                        //+= 2 in case the interval is only 1 long
+                        if (interval_n < main.interval.length-1) { insert += 2; }
                       }
                     }
                     
-                    if (insert == 1) {
+                    if (insert % 2 == 1) {
+                      //modulus in case the interval was only 1 long; prevents diagonal lines
                       insertZero();
                       insert--;
                     }
@@ -4345,9 +4081,9 @@ var mist = {
                   }
                   
                   //trailing 0?
-                  if ((mist.data.config.time - main.end) > 5) {
+                  if ((mist.data.config.time - main.end) > 20) {
                     insertZero();
-                    time = mist.data.config.time * 1e3;
+                    time = (mist.data.config.time -15) * 1e3;
                     insertZero();
                   }
                 }

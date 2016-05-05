@@ -278,16 +278,6 @@ namespace Mist {
       onFail();
       return;
     }
-    if (!source.size()){
-      std::string strName = streamName;
-      Util::sanitizeName(strName);
-      IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
-      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      configLock.wait();
-      DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
-      source = streamCfg.getMember("source").asString();
-      configLock.post();
-    }
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
     nProxy.metaPages.clear();
@@ -429,6 +419,20 @@ namespace Mist {
       INSANE_MSG("We didn't find any tracks which that we can use. selectedTrack.size() is 0.");
       for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
         INSANE_MSG("Found track/codec: %s", trit->second.codec.c_str());
+      }
+      static std::string source;
+      if (!source.size()){
+        IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
+        IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+        configLock.wait();
+        std::string smp = streamName.substr(0, streamName.find_first_of("+ "));
+        //check if smp (everything before + or space) exists
+        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(smp);
+        if (streamCfg){
+          source = streamCfg.getMember("source").asString();
+        }
+        configLock.post();
+        configLock.close();
       }
       if (!myMeta.tracks.size() && (source.find("dtsc://") == 0)){
         //Wait 5 seconds and try again. Keep a counter, try at most 3 times

@@ -195,8 +195,14 @@ namespace Mist {
   /// ~~~~~~~~~~~~~~~
   // 
   void Input::serve(){
+    if (!isBuffer) {
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+        bufferFrame(it->first, 1);
+      }
+    }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+    userPage.init(userPageName, PLAY_EX_SIZE, true);
     /*LTS-START*/
     if(Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
       std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
@@ -205,12 +211,6 @@ namespace Mist {
       }
     }
     /*LTS-END*/
-    userPage.init(userPageName, PLAY_EX_SIZE, true);
-    if (!isBuffer) {
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-        bufferFrame(it->first, 1);
-      }
-    }
 
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
 

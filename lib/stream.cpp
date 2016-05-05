@@ -109,7 +109,7 @@ JSON::Value Util::getStreamConfig(std::string streamname){
 bool Util::streamAlive(std::string & streamname){
   char semName[NAME_BUFFER_SIZE];
   snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamname.c_str());
-  IPC::semaphore playerLock(semName, O_RDWR, ACCESSPERMS, 1);
+  IPC::semaphore playerLock(semName, O_RDWR, ACCESSPERMS, 1, true);
   if (!playerLock){return false;}
   if (!playerLock.tryWait()) {
     playerLock.close();
@@ -310,7 +310,13 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     FAIL_MSG("Starting process %s for stream %s failed: %s", argv[0], streamname.c_str(), strerror(errno));
     _exit(42);
   }
-  return true;
+
+  unsigned int waiting = 0;
+  while (!streamAlive(streamname) && ++waiting < 40){
+    Util::sleep(250);
+  }
+
+  return streamAlive(streamname);
 }
 
 /* roxlu-begin */

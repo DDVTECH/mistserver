@@ -88,8 +88,7 @@ namespace Mist {
         }
       }
     }else{
-      fastAsPossibleTime = 50000;//50 seconds
-      realTime = 0;
+      realTime = 1000;
     }
   }
 

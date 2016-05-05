@@ -278,15 +278,6 @@ namespace Mist {
       onFail();
       return;
     }
-    char pageId[NAME_BUFFER_SIZE];
-    snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-    nProxy.metaPages.clear();
-    nProxy.metaPages[0].init(pageId, DEFAULT_META_PAGE_SIZE);
-    if (!nProxy.metaPages[0].mapped){
-      FAIL_MSG("Could not connect to server for %s", streamName.c_str());
-      onFail();
-      return;
-    }
     if (statsPage.getData()){
       statsPage.finish();
     }
@@ -297,6 +288,15 @@ namespace Mist {
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
     nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+    char pageId[NAME_BUFFER_SIZE];
+    snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
+    nProxy.metaPages.clear();
+    nProxy.metaPages[0].init(pageId, DEFAULT_META_PAGE_SIZE);
+    if (!nProxy.metaPages[0].mapped){
+      FAIL_MSG("Could not connect to server for %s", streamName.c_str());
+      onFail();
+      return;
+    }
     updateMeta();
   }
 

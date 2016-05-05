@@ -348,7 +348,9 @@ namespace Mist {
         json_resp["on_error"] = config->getString("nostreamtext");
       }
       IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      IPC::semaphore metaLocker(std::string("liveMeta@" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      static char liveSemName[NAME_BUFFER_SIZE];
+      snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
+      IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       bool metaLock = false;
       configLock.wait();
       IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);

@@ -60,10 +60,10 @@ namespace IPC {
   class semaphore {
     public:
       semaphore();
-      semaphore(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0);
+      semaphore(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0, bool noWait = false);
       ~semaphore();
       operator bool() const;
-      void open(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0);
+      void open(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0, bool noWait = false);
       int getVal() const;
       void post();
       void wait();

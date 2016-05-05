@@ -783,7 +783,9 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
           snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, it->c_str());
           streamIndex.init(pageId, DEFAULT_META_PAGE_SIZE, false, false);
           if (streamIndex.mapped){
-            IPC::semaphore metaLocker(std::string("liveMeta@" + (*it)).c_str(), O_CREAT | O_RDWR, (S_IRWXU|S_IRWXG|S_IRWXO), 1);
+            static char liveSemName[NAME_BUFFER_SIZE];
+            snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, it->c_str());
+            IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, (S_IRWXU|S_IRWXG|S_IRWXO), 1);
             metaLocker.wait();
             DTSC::Scan strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
             long long lms = 0;

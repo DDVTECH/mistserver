@@ -95,13 +95,13 @@ namespace IPC {
   ///\param oflag The flags with which to open the semaphore
   ///\param mode The mode in which to create the semaphore, if O_CREAT is given in oflag, ignored otherwise
   ///\param value The initial value of the semaphore if O_CREAT is given in oflag, ignored otherwise
-  semaphore::semaphore(const char * name, int oflag, mode_t mode, unsigned int value) {
+  semaphore::semaphore(const char * name, int oflag, mode_t mode, unsigned int value, bool noWait) {
 #if defined(__CYGWIN__) || defined(_WIN32)
     mySem = 0;
 #else
     mySem = SEM_FAILED;
 #endif
-    open(name, oflag, mode, value);
+    open(name, oflag, mode, value, noWait);
   }
 
   ///\brief The deconstructor
@@ -126,7 +126,7 @@ namespace IPC {
   ///\param oflag The flags with which to open the semaphore
   ///\param mode The mode in which to create the semaphore, if O_CREAT is given in oflag, ignored otherwise
   ///\param value The initial value of the semaphore if O_CREAT is given in oflag, ignored otherwise
-  void semaphore::open(const char * name, int oflag, mode_t mode, unsigned int value) {
+  void semaphore::open(const char * name, int oflag, mode_t mode, unsigned int value, bool noWait) {
     close();
     int timer = 0;
     while (!(*this) && timer++ < 10) {
@@ -165,7 +165,7 @@ namespace IPC {
         mySem = sem_open(name, oflag);
       }
       if (!(*this)) {
-        if (errno == ENOENT) {
+        if (errno == ENOENT && !noWait) {
           Util::wait(500);
         } else {
           break;

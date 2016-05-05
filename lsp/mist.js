@@ -4165,11 +4165,21 @@ var mist = {
   },
   inputMatch: function(match,string){
     if (typeof match == 'undefined') { return false; }
-    
-    var query = match.replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
-    query = query.replace(/\\\?/g,'.').replace(/\\\*/g,'(?:.)*'); //replace ? with . and * with any amount of .
-    var regex = new RegExp('^'+query+'$','i'); //case insensitive
-    return regex.test(string);
+    if (typeof match == 'string') {
+      var query = match.replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
+      query = query.replace(/\\\?/g,'.').replace(/\\\*/g,'(?:.)*'); //replace ? with . and * with any amount of .
+      var regex = new RegExp('^'+query+'$','i'); //case insensitive
+      return regex.test(string);
+    }
+    for (var s in match){
+      var query = match[s].replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
+      query = query.replace(/\\\?/g,'.').replace(/\\\*/g,'(?:.)*'); //replace ? with . and * with any amount of .
+      var regex = new RegExp('^'+query+'$','i'); //case insensitive
+      if (regex.test(string)){
+        return true;
+      }
+    }
+    return false;
   },
   convertBuildOptions: function(input,saveas) {
     var build = [];

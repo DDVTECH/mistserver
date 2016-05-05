@@ -24,7 +24,7 @@ namespace Mist {
       virtual void argumentsParsed(){}
       virtual ~Input() {};
 
-      virtual bool needsLock();
+      virtual bool needsLock(){return true;}
     protected:
       static void callbackWrapper(char * data, size_t len, unsigned int id);
       virtual bool setup() = 0;
@@ -46,7 +46,6 @@ namespace Mist {
       virtual void convert();
       virtual void serve();
       virtual void stream();
-      bool streamMode;
 
       
       virtual void parseHeader();

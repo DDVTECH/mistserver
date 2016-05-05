@@ -17,8 +17,8 @@ namespace Mist {
     capa["name"] = "DTSC";
     capa["desc"] = "Enables DTSC Input";
     capa["priority"] = 9ll;
-    capa["source_match"] = "/*.dtsc";
-    capa["stream_match"] = "dtsc://*";
+    capa["source_match"].append("/*.dtsc");
+    capa["source_match"].append("dtsc://*");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");
@@ -26,16 +26,11 @@ namespace Mist {
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("vorbis");
-
-
-    JSON::Value option;
-    option["long"] = "pull";
-    option["short"] = "p";
-    option["help"] = "Start this input in pull mode.";
-    option["value"].append(0ll);
-    config->addOption("pull", option);
   }
 
+  bool inputDTSC::needsLock(){
+    return config->getString("input").substr(0, 7) != "dtsc://";
+  }
 
   void parseDTSCURI(const std::string & src, std::string & host, uint16_t & port, std::string & password, std::string & streamName) {
     host = "";
@@ -166,7 +161,7 @@ namespace Mist {
   }
 
   bool inputDTSC::setup() {
-    if (streamMode) {
+    if (!needsLock()) {
       return true;
     } else {
       if (config->getString("input") == "-") {
@@ -195,7 +190,7 @@ namespace Mist {
   }
 
   bool inputDTSC::readHeader() {
-    if (streamMode) {
+    if (!needsLock()) {
       return true;
     }
     if (!inFile) {
@@ -217,7 +212,7 @@ namespace Mist {
   }
 
   void inputDTSC::getNext(bool smart) {
-    if (streamMode){
+    if (!needsLock()){
       thisPacket.reInit(srcConn);
       if (thisPacket.getVersion() == DTSC::DTCM){
         std::string cmd;

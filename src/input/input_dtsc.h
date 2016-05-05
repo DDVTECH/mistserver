@@ -5,6 +5,7 @@ namespace Mist {
   class inputDTSC : public Input {
     public:
       inputDTSC(Util::Config * cfg);
+      bool needsLock();
     protected:
       //Private Functions
       bool openStreamSource();

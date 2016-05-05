@@ -83,7 +83,6 @@ namespace Mist {
 
     singleton = this;
     isBuffer = false;
-    streamMode = false;
   }
 
   void Input::checkHeaderTimes(std::string streamFile) {
@@ -116,10 +115,6 @@ namespace Mist {
     }
   }
 
-  bool Input::needsLock() {
-    return !(config->hasOption("pull") && config->getBool("pull"));
-  }
-
   int Input::run() {
     if (config->getBool("json")) {
       std::cout << capa.toString() << std::endl;
@@ -132,11 +127,6 @@ namespace Mist {
     streamName = config->getString("streamname");
     nProxy.streamName = streamName;
 
-
-    streamMode = config->hasOption("pull") && config->getBool("pull");
-    INFO_MSG("Stream %s in %s mode", streamName.c_str(), streamMode ? "stream" : "non-stream");
-
-    
     if (!setup()) {
       std::cerr << config->getString("cmd") << " setup failed." << std::endl;
       return 0;
@@ -151,7 +141,7 @@ namespace Mist {
 
     if (!streamName.size()) {
       convert();
-    } else if (streamMode) {
+    } else if (!needsLock()) {
       stream();
     }else{
       serve();

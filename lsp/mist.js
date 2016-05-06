@@ -170,6 +170,9 @@ var UI = {
       Protocols: {},
       Streams: {},
       Preview: {},
+      Push: {
+        LTSonly: true
+      },
       'Triggers': {
         LTSonly: false
       },
@@ -375,7 +378,7 @@ var UI = {
       
       //label
       $e.append(
-        $('<span>').addClass('label').html(e.label+':')
+        $('<span>').addClass('label').html(('label' in e ? e.label+':' : ''))
       );
       
       //field
@@ -761,6 +764,17 @@ var UI = {
       }
       if ('value' in e) {
         $field.setval(e.value);
+      }
+      if ('datalist' in e) {
+        var r = 'datalist_'+i+MD5($field[0].outerHTML); //magic to hopefully make sure the id is unique
+        $field.attr('list',r);
+        var $datalist = $('<datalist>').attr('id',r);
+        $fc.append($datalist);
+        for (var i in e.datalist) {
+          $datalist.append(
+            $('<option>').val(e.datalist[i])
+          );
+        }
       }
       
       //integrated help
@@ -1899,7 +1913,7 @@ var UI = {
               main: mist.data.config,
               index: 'name'
             },
-            help: 'You can name your MistServer here for personal use. You???ll still need to set host name within your network yourself.'
+            help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
           },{
             type: 'debug',
             label: 'Debug level',
@@ -1915,7 +1929,7 @@ var UI = {
               main: mist.data,
               index: 'save'
             },
-            help: 'Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don???t forget to press save after ticking the box.'
+            help: 'Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box.'
           },{
             type: 'buttons',
             buttons: [{
@@ -3168,6 +3182,342 @@ var UI = {
         }
         
         break;
+      case 'Push':
+        var $c = $('<div>').text('Loading..'); //will contain everything
+        $main.append($c);
+        
+        mist.send(function(d){
+          $c.html('');
+          
+          var push_settings = d.push_settings;
+          if (!push_settings) { push_settings = {}; }
+          
+          $c.append(
+            UI.buildUI([
+              {
+                type: 'help',
+                help: 'You can push streams to files or other servers, allowing them to broadcast your stream as well.'
+              },
+              $('<h3>').text('Settings'),
+              {
+                label: 'Delay before retry',
+                unit: 's',
+                type: 'int',
+                min: 0,
+                help: 'How long the delay should be before MistServer retries an automatic push.<br>If set to 0, it does not retry.',
+                'default': 0,
+                pointer: {
+                  main: push_settings,
+                  index: 'wait'
+                }
+              },{
+                label: 'Maximum retries',
+                unit: '/s',
+                type: 'int',
+                min: 0,
+                help: 'The maximum amount of retries per second (for all automatic pushes).<br>If set to 0, there is no limit.',
+                'default': 0,
+                pointer: {
+                  main: push_settings,
+                  index: 'maxspeed'
+                }
+              },{
+                type: 'buttons',
+                buttons: [{
+                  type: 'save',
+                  label: 'Save',
+                  'function': function(){
+                    mist.send(function(d){
+                      UI.navto('Push');
+                    },{
+                      push_settings: push_settings
+                    })
+                  }
+                }]
+              }
+            ])
+          );
+          
+          var $push = $('<table>').append(
+            $('<tr>').append(
+              $('<th>').text('Stream')
+            ).append(
+              $('<th>').text('Target')
+            ).append(
+              $('<th>')
+            )
+          );
+          var $autopush = $push.clone();
+          function buildTr(push,type) {
+            var $target = $('<span>');
+            if ((push.length >= 4) && (push[2] != push[3])) {
+              $target.append(
+                $('<span>').text(push[2])
+              ).append(
+                $('<span>').html('&#187').addClass('unit').css('margin','0 0.5em')
+              ).append(
+                $('<span>').text(push[3])
+              );
+            }
+            else {
+              $target.append(
+                $('<span>').text(push[2])
+              );
+            }
+            return $('<tr>').append(
+              $('<td>').text(push[1])
+            ).append(
+              $('<td>').append($target.children())
+            ).append(
+              $('<td>').append(
+                $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
+                  if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
+                    var $tr = $(this).closest('tr');
+                    $tr.html(
+                      $('<td colspan=99>').html(
+                        $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
+                      )
+                    );
+                    if (type == 'Automatic') {
+                      mist.send(function(){
+                        $tr.remove();
+                      },{'push_auto_remove':{
+                        stream: push[1],
+                        target: push[2]
+                      }});
+                    }
+                    else {
+                      mist.send(function(d){
+                        //check if it has been stopped untill the answer is yes
+                        function checkgone() {
+                          setTimeout(function(){
+                            mist.send(function(d){
+                              var gone = false;
+                              if (('push_list' in d) && (d.push_list) && (d.push_list.length)) {
+                                gone = true;
+                                for (var i in d.push_list) {
+                                  if (d.push_list[i][0] == push[0]) {
+                                    gone = false;
+                                    break;
+                                  }
+                                }
+                              }
+                              else {
+                                gone = true;
+                              }
+                              if (gone) {
+                                $tr.remove();
+                              }
+                              else {
+                                checkgone();
+                              }
+                            },{push_list:1});
+                          },1e3);
+                        }
+                        checkgone();
+                      },{'push_stop':[push[0]]});
+                    }
+                  }
+                })
+              )
+            );
+          }
+          
+          if ('push_list' in d) {
+            for (var i in d.push_list) {
+              $push.append(buildTr(d.push_list[i],'Manual'));
+            }
+          }
+          if ('push_auto_list' in d) {
+            for (var i in d.push_auto_list) {
+              $autopush.append(buildTr([-1,d.push_auto_list[i][0],d.push_auto_list[i][1]],'Automatic'));
+            }
+          }
+          
+          $c.append(
+            $('<h3>').text('Automatic pushes')
+          ).append(
+            $('<button>').text('Add an automatic push').click(function(){
+              UI.navto('Start Push','auto');
+            })
+          );
+          if ($autopush.find('tr').length == 1) {
+            $c.append(
+              $('<div>').text('No automatic pushes have been configured.').addClass('text').css('margin-top','0.5em')
+            );
+          }
+          else {
+            $c.append($autopush);
+          }
+          
+          $c.append(
+            $('<h3>').text('Pushes')
+          ).append(
+            $('<button>').text('Start a push').click(function(){
+              UI.navto('Start Push');
+            })
+          );
+          if ($push.find('tr').length == 1) {
+            $c.append(
+              $('<div>').text('No pushes are active.').addClass('text').css('margin-top','0.5em')
+            );
+          }
+          else {
+            $c.append($push);
+          }
+          
+        },{push_settings:1,push_list:1,push_auto_list:1});
+        
+        break;
+      case 'Start Push':
+        
+        if (!('capabilities' in mist.data)) {
+          $main.append('Loading Mist capabilities..');
+          mist.send(function(){
+            UI.navto('Start Push');
+          },{capabilities:1});
+          return;
+        }
+        
+        var allthestreams;
+        function buildTheThings() {
+          //retrieve a list of valid targets
+          var target_match = [];
+          for (var i in mist.data.capabilities.connectors) {
+            var conn = mist.data.capabilities.connectors[i];
+            if ('push_urls' in conn) {
+              target_match = target_match.concat(conn.push_urls);
+            }
+          }
+          
+          if (other == 'auto') {
+            $main.find('h2').text('Add automatic push');
+          }
+          
+          var saveas = {};
+          $main.append(
+            UI.buildUI([{
+                label: 'Stream name',
+                type: 'str',
+                help: 'This may either be a full stream name, a partial wildcard stream name, or a full wildcard stream name.<br>For example, given the stream <i>a</i> you can use:<ul><li><i>a</i>: the stream configured as <i>a</i></li><li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li><li><i>a+b</i>: only the version of stream <i>a</i> that has wildcard <i>b</i></li></ul>',
+                pointer: {
+                  main: saveas,
+                  index: 'stream'
+                },
+                validate: ['required',function(val,me){
+                  var shouldbestream = val.split('+');
+                  shouldbestream = shouldbestream[0];
+                  if (shouldbestream in mist.data.streams) {
+                    return false;
+                  }
+                  return {
+                    msg: "'"+shouldbestream+"' is not a stream name.",
+                    classes: ['red']
+                  };
+                }],
+                datalist: allthestreams
+              },{
+                label: 'Target',
+                type: 'str',
+                help: 'Where the stream will be pushed to.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul>',
+                pointer: {
+                  main: saveas,
+                  index: 'target'
+                },
+                validate: ['required',function(val,me){
+                  for (var i in target_match) {
+                    if (mist.inputMatch(target_match[i],val)) {
+                      return false;
+                    }
+                  }
+                  return {
+                    msg: 'Does not match a valid target.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul>',
+                    classes: ['red']
+                  }
+                }]
+              },{
+                type: 'buttons',
+                buttons: [
+                  {
+                    type: 'cancel',
+                    label: 'Cancel',
+                    'function': function(){
+                      UI.navto('Push');
+                    }
+                  },{
+                    type: 'save',
+                    label: 'Save',
+                    'function': function(){
+                      var obj = {};
+                      obj[(other == 'auto' ? 'push_auto_add' : 'push_start')] = saveas;
+                      mist.send(function(){
+                        UI.navto('Push');
+                      },obj);
+                    }
+                  }
+                ]
+              }
+            ])
+          );
+        }
+        
+        if (mist.data.LTS) {
+          //gather wildcard streams
+          mist.send(function(d){
+            allthestreams = d.active_streams;
+            if (!allthestreams) { allthestreams = []; }
+            
+            var wildcards = [];
+            for (var i in allthestreams) {
+              if (allthestreams[i].indexOf('+') != -1) {
+                wildcards.push(allthestreams[i].replace(/\+.*/,'')+'+');
+              }
+            }
+            allthestreams = allthestreams.concat(wildcards);
+            
+            var browserequests = 0;
+            var browsecomplete = 0;
+            for (var i in mist.data.streams) {
+              allthestreams.push(i);
+              if (mist.inputMatch(mist.data.capabilities.inputs.Folder.source_match,mist.data.streams[i].source)) {
+                //browse all the things
+                allthestreams.push(i+'+');
+                mist.send(function(d,opts){
+                  var s = opts.stream;
+                  
+                  for (var i in d.browse.files) {
+                    for (var j in mist.data.capabilities.inputs) {
+                      if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
+                      if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
+                        allthestreams.push(s+'+'+d.browse.files[i]);
+                      }
+                    }
+                  }
+                  
+                  browsecomplete++;
+                  
+                  if (browserequests == browsecomplete) {
+                    //filter to only unique and sort
+                    allthestreams = allthestreams.filter(function(e,i,arr){
+                      return arr.lastIndexOf(e) === i;
+                    }).sort();
+                    
+                    buildTheThings();
+                  }
+                },{browse:mist.data.streams[i].source},{stream: i});
+                browserequests++;
+              }
+            }
+          },{
+            active_streams:1
+          });
+        }
+        else {
+          allthestreams = Object.keys(mist.data.streams);
+          buildTheThings();
+        }
+        
+        break;
       case 'Triggers':
         if (!('triggers' in mist.data.config)) {
           mist.data.config.triggers = {};
@@ -3898,6 +4248,10 @@ var UI = {
     }
   }
 };
+
+if (!('origin' in location)) {
+  location.origin = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port : '');
+}
 
 var mist = {
   data: {},

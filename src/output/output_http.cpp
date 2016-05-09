@@ -400,21 +400,6 @@ namespace Mist {
     return trustedProxies.count(ip) > 0;
   }
   /*LTS-END*/
-  /*begin-roxlu*/
-  void HTTPOutput::sendResponse(std::string message, std::string code) {
-    
-    // Only send output when we're not creating a recording.
-    if (recording()) return;
-    
-    if (code.size() == 0) {
-      WARN_MSG("Requested to send a HTTP response but the given code is empty. Trying though.");
-    }
 
-    if (message.size() == 0) {
-      WARN_MSG("Requested to send a HTTP response but the given message is empty. Trying though.");
-    }
-
-    H.SendResponse(code, message, myConn);
-  }
-  /*end-roxlu*/
 }
+

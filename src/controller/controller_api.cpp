@@ -14,6 +14,7 @@
 /*LTS-START*/
 #include "controller_updater.h"
 #include "controller_limits.h"
+#include "controller_push.h"
 /*LTS-END*/
 
 ///\brief Check the submitted configuration and handle things accordingly.
@@ -568,7 +569,53 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           if (Request.isMember("stats_streams")){
             Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
           }
+
+
+          if (Request.isMember("push_start")){
+            std::string stream;
+            std::string target;
+            if (Request["push_start"].isArray()){
+              stream = Request["push_start"][0u].asStringRef();
+              target = Request["push_start"][1u].asStringRef();
+            }else{
+              stream = Request["push_start"]["stream"].asStringRef();
+              target = Request["push_start"]["target"].asStringRef();
+            }
+            Controller::startPush(stream, target);
+          }
+
+          if (Request.isMember("push_list")){
+            Controller::listPush(Response["push_list"]);
+          }
           
+          if (Request.isMember("push_stop")){
+            if (Request["push_stop"].isArray()){
+              jsonForEach(Request["push_stop"], it){
+                Controller::stopPush(it->asInt());
+              }
+            }else{
+              Controller::stopPush(Request["push_stop"].asInt());
+            }
+          }
+
+          if (Request.isMember("push_auto_add")){
+            Controller::addPush(Request["push_auto_add"]);
+          }
+
+          if (Request.isMember("push_auto_remove")){
+            if (Request["push_auto_remove"].isArray()){
+              jsonForEach(Request["push_auto_remove"], it){
+                Controller::removePush(*it);
+              }
+            }else{
+              Controller::removePush(Request["push_auto_remove"]);
+            }
+          }
+
+          if (Request.isMember("push_auto_list")){
+            Response["push_auto_list"] = Controller::Storage["autopushes"];
+          }
+
           Controller::configChanged = true;
           
         }else{//unauthorized

@@ -34,9 +34,18 @@ namespace Mist {
     setBlocking(false);
     maxSkipAhead = 1500;
     minSkipAhead = 500;
+    isPushing = false;
   }
 
   OutRTMP::~OutRTMP() {}
+  
+  unsigned int OutRTMP::needsPlayableKeys(){
+    if (isPushing){
+      return 0;
+    }else{
+      return 2;
+    }
+  }
 
   void OutRTMP::parseVars(std::string data){
     std::string varname;
@@ -575,6 +584,7 @@ namespace Mist {
         configLock.post();
         configLock.close();
         if (!myConn){return;}//do not initialize if rejected
+        isPushing = true;
         initialize();
       }
       //send a _result reply

@@ -219,7 +219,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
           std::string source = input.getMember("source_match").getIndice(j).asString();
           std::string front = source.substr(0,source.find('*'));
           std::string back = source.substr(source.find('*')+1);
-          DEBUG_MSG(DLVL_MEDIUM, "Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), input.getMember("name").asString().c_str(), source.c_str());
+          MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), input.getMember("name").asString().c_str(), source.c_str());
           
           if (filename.substr(0,front.size()) == front && filename.substr(filename.size()-back.size()) == back){
             player_bin = Util::getMyPath() + "MistIn" + input.getMember("name").asString();
@@ -319,150 +319,77 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   return streamAlive(streamname);
 }
 
-/* roxlu-begin */
-int Util::startRecording(std::string streamname) {
+/// Attempt to start a push for streamname to target.
+/// Both streamname and target may be changed by this function:
+/// - streamname is sanitized to a permissible streamname
+/// - target gets variables replaced and may be altered by the RECORDING_START trigger response.
+/// Attempts to match the altered target to an output that can push to it.
+pid_t Util::startPush(std::string & streamname, std::string & target) {
 
   sanitizeName(streamname);
-  if (streamname.size() > 100){
-    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
-    return -1;
+
+  if (Triggers::shouldTrigger("PUSH_OUT_START", streamname)) {
+    std::string payload = streamname+"\n"+target;
+    std::string filepath_response;
+    Triggers::doTrigger("PUSH_OUT_START", payload, streamname.c_str(), false,  filepath_response);
+    target = filepath_response;
+  }
+  if (!target.size()){
+    INFO_MSG("Aborting push of stream %s - target is empty", streamname.c_str());
+    return 0;
   }
 
-  // Attempt to load up configuration and find this stream
+  // The target can hold variables like current time etc
+  replace_variables(target);
+  replace(target, "$stream", streamname);
+
+  //Attempt to load up configuration and find this stream
   IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
   IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-
   //Lock the config to prevent race conditions and corruption issues while reading
   configLock.wait();
+
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
-
-  //Abort if no config available
-  if (!config){
-    FAIL_MSG("Configuration not available, aborting! Is MistController running?");
-    configLock.post();//unlock the config semaphore
-    return -2;
-  }
-
-  //Find stream base name
-  std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
-  DTSC::Scan streamCfg = config.getMember("streams").getMember(smp);
-  if (!streamCfg){
-    DEBUG_MSG(DLVL_HIGH, "Stream %s not configured - attempting to ignore", streamname.c_str());
-    configLock.post();
-    return -3;
-  }
-
-  // When we have a validate trigger, we execute that first before we continue.
-  if (Triggers::shouldTrigger("RECORDING_VALIDATE", streamname)) {
-    std::string validate_result;
-    Triggers::doTrigger("RECORDING_VALIDATE", streamname, streamname.c_str(), false, validate_result);
-    INFO_MSG("RECORDING_VALIDATE returned: %s", validate_result.c_str());    
-    if (validate_result == "0") {
-      INFO_MSG("RECORDING_VALIDATE: the hook returned 0 so we're not going to create a recording.");
-      configLock.post();
-      return 0; 
-    }
-  }
-
-  // Should we start an flv output? (We allow hooks to specify custom filenames)
-  DTSC::Scan recordFilenameConf = streamCfg.getMember("record");
-  std::string recordFilename;
-
-  if (Triggers::shouldTrigger("RECORDING_FILEPATH", streamname)) {
-    
-    std::string payload = streamname;
-    std::string filepath_response;
-    Triggers::doTrigger("RECORDING_FILEPATH", payload, streamname.c_str(), false,  filepath_response);     /* @todo do we need to handle the return of doTrigger? */
-
-    if (filepath_response.size() < 1024) {     /* @todo is there a MAX_FILEPATH somewhere? */
-      recordFilename = filepath_response;
-    }
-    else {
-      FAIL_MSG("The RECORDING_FILEPATH trigger returned a filename which is bigger then our allowed max filename size. Not using returned filepath from hook.");
-    }
-  }
-
-  // No filename set through trigger, so use the one one from the stream config.
-  if (recordFilename.size() == 0) {
-    recordFilename = recordFilenameConf.asString();
-  }
-  
-  /*if (recordFilename.size() == 0
-      || recordFilename.substr(recordFilename.find_last_of(".") + 1) != "flv")
-    {
-      configLock.post();
-      return -4;
-    }*/
-
-  // The filename can hold variables like current time etc..
-  replace_variables(recordFilename);
-  replace(recordFilename, "$stream", streamname);
-
-  INFO_MSG("Filepath that we use for the recording: %s", recordFilename.c_str());
-  //to change hardcoding
-  //determine extension, first find the '.' for extension
-  size_t pointPlace = recordFilename.rfind(".");
-  if (pointPlace == std::string::npos){
-    FAIL_MSG("no extension found in output name. Aborting recording.");
-    return -1;
-  }
-  std::string fileExtension = recordFilename.substr(pointPlace+1);
   DTSC::Scan outputs = config.getMember("capabilities").getMember("connectors");
-  DTSC::Scan output;
-  std::string output_filepath = "";
+  std::string output_bin = "";
   unsigned int outputs_size = outputs.getSize();
-  HIGH_MSG("Recording outputs %d",outputs_size);
-  for (unsigned int i = 0; i<outputs_size; ++i){
-    output = outputs.getIndice(i);
-    HIGH_MSG("Checking output: %s",output.getMember("name").asString().c_str());
-    if (output.getMember("canRecord")){
-      HIGH_MSG("Output %s can record!", output.getMember("name").asString().c_str());
-      DTSC::Scan recTypes = output.getMember("canRecord");
-      unsigned int recTypesLength = recTypes.getSize();
-      bool breakOuterLoop = false;
-      for (unsigned int o = 0; o<recTypesLength; ++o){
-        if (recTypes.getIndice(o).asString() == fileExtension){
-          HIGH_MSG("Output %s can record %s!", output.getMember("name").asString().c_str(), fileExtension.c_str());
-          output_filepath = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
-          breakOuterLoop = true;
+  for (unsigned int i = 0; i<outputs_size && !output_bin.size(); ++i){
+    DTSC::Scan output = outputs.getIndice(i);
+    if (output.getMember("push_urls")){
+      unsigned int push_count = output.getMember("push_urls").getSize();
+      for (unsigned int j = 0; j < push_count; ++j){
+        std::string tar_match = output.getMember("push_urls").getIndice(j).asString();
+        std::string front = tar_match.substr(0,tar_match.find('*'));
+        std::string back = tar_match.substr(tar_match.find('*')+1);
+        MEDIUM_MSG("Checking output %s: %s (%s)", outputs.getIndiceName(i).c_str(), output.getMember("name").asString().c_str(), target.c_str());
+        
+        if (target.substr(0,front.size()) == front && target.substr(target.size()-back.size()) == back){
+          output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
           break;
         }
       }
-      if (breakOuterLoop) break;
     }
   }
+  configLock.post();
   
-  if (output_filepath == ""){
-    FAIL_MSG("No output found for filetype %s.", fileExtension.c_str());
-    return -4;
+  if (output_bin == ""){
+    FAIL_MSG("No output found for target %s, aborting push.", target.c_str());
+    return 0;
   }
+  INFO_MSG("Pushing %s to %s through %s", streamname.c_str(), target.c_str(), output_bin.c_str());
   // Start  output.
   char* argv[] = {
-    (char*)output_filepath.c_str(),
+    (char*)output_bin.c_str(),
     (char*)"--stream", (char*)streamname.c_str(),
-    (char*)"--outputFilename", (char*)recordFilename.c_str(),
+    (char*)target.c_str(),
     (char*)NULL
   };
 
-  int pid = fork();
-  if (pid == -1) {
-    FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
-    configLock.post();
-    return -5;
-  }
+  int stdIn = 0;
+  int stdOut = 1;
+  int stdErr = 2;
+  return Util::Procs::StartPiped(argv, &stdIn, &stdOut, &stdErr);
 
-  // Child process gets pid == 0 
-  if (pid == 0) {
-    if (execvp(argv[0], argv) == -1) {
-      FAIL_MSG("Failed to start MistOutFLV: %s", strerror(errno));
-      configLock.post();
-      return -6;
-    }
-  }
-  
-  configLock.post();
-  
-  return pid;
 }
 
 static void replace(std::string& str, const std::string& from, const std::string& to) {

@@ -42,7 +42,6 @@ namespace Mist {
     public:
       //constructor and destructor
       Output(Socket::Connection & conn);
-      virtual ~Output();
       //static members for initialization and capabilities
       static void init(Util::Config * cfg);
       static JSON::Value capa;
@@ -63,11 +62,9 @@ namespace Mist {
       long unsigned int getMainSelectedTrack();
       void updateMeta();
       void selectDefaultTracks();
-      /*begin-roxlu*/
-      bool openOutputFileForRecording(); // Opens the output file and uses dup2() to make sure that all stdout is written into a file.
-      bool closeOutputFileForRecording(); // Closes the output file into which we're writing and resets the file descriptor. 
-      /*end-roxlu*/
+      bool connectToFile(std::string file);
       static bool listenMode(){return true;}
+      virtual unsigned int needsPlayableKeys(){return 2;}
       //virtuals. The optional virtuals have default implementations that do as little as possible.
       virtual void sendNext() {}//REQUIRED! Others are optional.
       virtual void prepareNext();
@@ -132,10 +129,7 @@ namespace Mist {
       bool sentHeader;///< If false, triggers sendHeader if parseData is true.
 
       std::map<int,DTSCPageData> bookKeeping;
-      /*begin-roxlu*/
-      int outputFileDescriptor; // Write output into this file.
-      /*end-roxlu*/
-      bool recording();
+      virtual bool isRecording(){return false;};
   };
 
 }

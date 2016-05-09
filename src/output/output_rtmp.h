@@ -14,7 +14,9 @@ namespace Mist {
       void onRequest();
       void sendNext();
       void sendHeader();
+      unsigned int needsPlayableKeys();
     protected:
+      bool isPushing;
       void parseVars(std::string data);
       std::string app_name;
       void parseChunk(Socket::Buffer & inputBuffer);

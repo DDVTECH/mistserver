@@ -6,6 +6,7 @@
 #include <mist/dtsc.h>
 #include "controller_statistics.h"
 #include "controller_limits.h"
+#include "controller_push.h"
 
 #ifndef KILL_ON_EXIT
 #define KILL_ON_EXIT false
@@ -40,6 +41,7 @@ std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; /
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
 bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
+std::map<std::string, unsigned int> Controller::activeStreams;
 
 //For server-wide totals. Local to this file only.
 struct streamTotals {
@@ -118,12 +120,26 @@ void Controller::killStatistics(char * data, size_t len, unsigned int id){
   (*(data - 1)) = 128;//Send disconnect message;
 }
 
+
+///This function is ran whenever a stream becomes active.
+void Controller::streamStarted(std::string stream){
+  INFO_MSG("Stream %s became active", stream.c_str());
+  Controller::doAutoPush(stream);
+}
+
+///This function is ran whenever a stream becomes active.
+void Controller::streamStopped(std::string stream){
+  INFO_MSG("Stream %s became inactive", stream.c_str());
+}
+
+
 /// This function runs as a thread and roughly once per second retrieves
 /// statistics from all connected clients, as well as wipes
 /// old statistics that have disconnected over 10 minutes ago.
 void Controller::SharedMemStats(void * config){
   DEBUG_MSG(DLVL_HIGH, "Starting stats thread");
   IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
+  std::set<std::string> inactiveStreams;
   while(((Util::Config*)config)->is_active){
     {
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
@@ -142,6 +158,18 @@ void Controller::SharedMemStats(void * config){
         while (mustWipe.size()){
           sessions.erase(mustWipe.front());
           mustWipe.pop_front();
+        }
+      }
+      if (activeStreams.size()){
+        for (std::map<std::string, unsigned int>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
+          if (++it->second > 1){
+            streamStopped(it->first);
+            inactiveStreams.insert(it->first);
+          }
+        }
+        while (inactiveStreams.size()){
+          activeStreams.erase(*inactiveStreams.begin());
+          inactiveStreams.erase(inactiveStreams.begin());
         }
       }
       Controller::checkServerLimits(); /*LTS*/
@@ -571,6 +599,14 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
     //the data is no longer valid - connection has gone away, store for later
     sessions[idx].finish(id);
     connToSession.erase(id);
+  }else{
+    std::string strmName = tmpEx.streamName();
+    if (strmName.size()){
+      if (!activeStreams.count(strmName)){
+        streamStarted(strmName);
+      }
+      activeStreams[strmName] = 0;
+    }
   }
   /*LTS-START*/
   //if (counter < 125 && Controller::isBlacklisted(tmpEx.host(), ID, tmpEx.time())){

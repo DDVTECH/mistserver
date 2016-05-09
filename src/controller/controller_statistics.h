@@ -1,3 +1,4 @@
+#pragma once
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
 #include <mist/defines.h>
@@ -15,6 +16,13 @@
 namespace Controller {
   
   extern bool killOnExit;
+
+  //These functions keep track of which streams are currently active.
+  extern std::map<std::string, unsigned int> activeStreams;
+  ///This function is ran whenever a stream becomes active.
+  void streamStarted(std::string stream);
+  ///This function is ran whenever a stream becomes active.
+  void streamStopped(std::string stream);
   
   struct statLog {
     long time;

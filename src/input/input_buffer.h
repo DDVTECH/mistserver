@@ -40,17 +40,8 @@ namespace Mist {
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > bufferLocations;
       std::map<unsigned long, char *> pushLocation;
       inputBuffer * singleton;
-
-      std::string recName;/*LTS*/
-      DTSC::Meta recMeta;/*LTS*/
-      std::ofstream recFile;/*LTS*/
-      long long int recBpos;/*LTS*/
-       //This is used for an ugly fix to prevent metadata from dissapearing in some cases.
+      //This is used for an ugly fix to prevent metadata from disappearing in some cases.
       std::map<unsigned long, std::string> initData;
-
-      /* begin-roxlu */
-      int recordingPid; // pid of the process that does the recording. Currently only MP4 supported. 
-      /* end-roxlu */
   };
 }
 

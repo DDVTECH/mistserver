@@ -34,5 +34,5 @@ namespace Util {
       static bool isRunning(pid_t pid);
       static std::set<int> socketList; ///< Holds sockets that should be closed before forking
   };
-
 }
+

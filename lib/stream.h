@@ -11,6 +11,7 @@ namespace Util {
   void sanitizeName(std::string & streamname);
   bool streamAlive(std::string & streamname);
   bool startInput(std::string streamname, std::string filename = "", bool forkFirst = true);
-  int startRecording(std::string streamname);
+  int startPush(std::string & streamname, std::string & target);
   JSON::Value getStreamConfig(std::string streamname);
 }
+

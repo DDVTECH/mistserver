@@ -39,19 +39,6 @@ namespace Mist {
     capa["optional"]["DVR"]["default"] = 50000LL;
     /*LTS-start*/
     option.null();
-    option["arg"] = "string";
-    option["long"] = "record";
-    option["short"] = "r";
-    option["help"] = "Record the stream to a file";
-    option["value"].append("");
-    config->addOption("record", option);
-    capa["optional"]["record"]["name"] = "Record to file";
-    capa["optional"]["record"]["help"] = "Filename to record the stream to.";
-    capa["optional"]["record"]["option"] = "--record";
-    capa["optional"]["record"]["type"] = "str";
-    capa["optional"]["record"]["default"] = "";
-    option.null();
-
     option["arg"] = "integer";
     option["long"] = "cut";
     option["short"] = "c";
@@ -135,7 +122,6 @@ namespace Mist {
     cutTime = 0;
     segmentSize = 5000;
     hasPush = false;
-    recordingPid = -1;
     resumeMode = false;
   }
 
@@ -321,14 +307,6 @@ namespace Mist {
     DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%lu", tid, myMeta.tracks[tid].keys[0].getNumber());
     //remove all parts of this key
     for (int i = 0; i < myMeta.tracks[tid].keys[0].getParts(); i++) {
-      /*LTS-START*/
-      if (recFile.is_open()) {
-        if (!recMeta.tracks.count(tid)) {
-          recMeta.tracks[tid] = myMeta.tracks[tid];
-          recMeta.tracks[tid].reset();
-        }
-      }
-      /*LTS-END*/
       myMeta.tracks[tid].parts.pop_front();
     }
     //remove the key itself
@@ -952,81 +930,6 @@ namespace Mist {
       DEBUG_MSG(DLVL_DEVEL, "Setting segmentSize from %u to new value of %lli", segmentSize, tmpNum);
       segmentSize = tmpNum;
     }
-
-    /*
-    //if stream is configured and setting is present, use it, always
-    std::string rec;
-    if (streamCfg && streamCfg.getMember("record")){
-      rec = streamCfg.getMember("record").asInt();
-    } else {
-      if (streamCfg){
-        //otherwise, if stream is configured use the default
-        rec = config->getOption("record", true)[0u].asString();
-      } else {
-        //if not, use the commandline argument
-        rec = config->getOption("record").asString();
-      }
-    }
-    //if the new value is different, print a message and apply it
-    if (recName != rec){
-      //close currently recording file, for we should open a new one
-      DEBUG_MSG(DLVL_DEVEL, "Stopping recording of %s to %s", config->getString("streamname").c_str(), recName.c_str());
-      recFile.close();
-      recMeta.tracks.clear();
-      recName = rec;
-    }
-    if (recName != "" && !recFile.is_open()){
-      DEBUG_MSG(DLVL_DEVEL, "Starting recording of %s to %s", config->getString("streamname").c_str(), recName.c_str());
-      recFile.open(recName.c_str());
-      if (recFile.fail()){
-        DEBUG_MSG(DLVL_DEVEL, "Error occured during record opening: %s", strerror(errno));
-      }
-      recBpos = 0;
-    }
-    */
-
-    /* roxlu-begin */
-    // check if we have a video track with a keyframe, otherwise the mp4 output will fail.
-    // @todo as the mp4 recording was not working perfectly I focussed on getting it
-    // to work for .flv. This seems to work perfectly but ofc. we want to make it work
-    // for .mp4 too at some point.
-    bool has_keyframes = false;
-    std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-    while (it != myMeta.tracks.end()) {
-
-      DTSC::Track & tr = it->second;
-      if (tr.type != "video") {
-        ++it;
-        continue;
-      }
-
-      if (tr.keys.size() > 0) {
-        has_keyframes = true;
-        break;
-      }
-      ++it;
-    }
-
-    if (streamCfg && streamCfg.getMember("record") && streamCfg.getMember("record").asString().size() > 0 && has_keyframes) {
-
-      // @todo check if output is already running ?
-      if (recordingPid == -1 && config != NULL) {
-
-        INFO_MSG("The stream %s has a value specified for the recording. We're goint to start an output and record into  %s", config->getString("streamname").c_str(), streamCfg.getMember("record").asString().c_str());
-
-        configLock.post();
-        configLock.close();
-        recordingPid = Util::startRecording(config->getString("streamname"));
-        if (recordingPid < 0) {
-          FAIL_MSG("Failed to start the recording for %s", config->getString("streamname").c_str());
-        }
-        INFO_MSG("We started an output for recording with PID: %d", recordingPid);
-        return true;
-      }
-    }
-    /* roxlu-end */
-
-
     /*LTS-END*/
     configLock.post();
     configLock.close();

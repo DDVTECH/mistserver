@@ -481,6 +481,7 @@ set(controllerHeaders
   ${SOURCE_DIR}/src/controller/controller_updater.h
   ${SOURCE_DIR}/src/controller/controller_capabilities.h
   ${SOURCE_DIR}/src/controller/controller_streams.h
+  ${SOURCE_DIR}/src/controller/controller_push.h
 )
 
 ########################################
@@ -497,6 +498,7 @@ set(controllerSources
   ${SOURCE_DIR}/src/controller/controller_capabilities.cpp
   ${SOURCE_DIR}/src/controller/controller_uplink.cpp
   ${SOURCE_DIR}/src/controller/controller_api.cpp
+  ${SOURCE_DIR}/src/controller/controller_push.cpp
 )
 ########################################
 # MistController - Build               #

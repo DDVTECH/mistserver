@@ -1,8 +1,28 @@
 #include "output_progressive_flv.h"
 
 namespace Mist {
-  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : HTTPOutput(conn){}
-  OutProgressiveFLV::~OutProgressiveFLV() {}
+  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : HTTPOutput(conn){
+    if (config->getString("target").size()){
+      if (!streamName.size()){
+        WARN_MSG("Recording unconnected FLV output to file! Cancelled.");
+        conn.close();
+        return;
+      }
+      if (config->getString("target") == "-"){
+        parseData = true;
+        wantRequest = false;
+        INFO_MSG("Outputting %s to stdout in FLV format", streamName.c_str());
+        return;
+      }
+      if (connectToFile(config->getString("target"))){
+        parseData = true;
+        wantRequest = false;
+        INFO_MSG("Recording %s to %s in FLV format", streamName.c_str(), config->getString("target").c_str());
+      }else{
+        conn.close();
+      }
+    }
+  }
   
   void OutProgressiveFLV::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
@@ -29,7 +49,18 @@ namespace Mist {
     capa["methods"][0u]["type"] = "flash/7";
     capa["methods"][0u]["priority"] = 5ll;
     capa["methods"][0u]["player_url"] = "/oldflashplayer.swf";
-    capa["canRecord"].append("flv");
+    capa["push_urls"].append("/*.flv");
+    
+    JSON::Value opt;
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["arg_num"] = 1ll;
+    opt["help"] = "Target filename to store FLV file as, or - for stdout.";
+    cfg->addOption("target", opt);
+  }
+
+  bool OutProgressiveFLV::isRecording(){
+    return config->getString("target").size();
   }
   
   void OutProgressiveFLV::sendNext(){
@@ -38,13 +69,14 @@ namespace Mist {
   }
 
   void OutProgressiveFLV::sendHeader(){
-    
-    
-    H.Clean();
-    H.SetHeader("Content-Type", "video/x-flv");
-    H.protocol = "HTTP/1.0";
-    H.setCORSHeaders();
-    sendResponse();
+    if (!isRecording()){
+      H.Clean();
+      H.SetHeader("Content-Type", "video/x-flv");
+      H.protocol = "HTTP/1.0";
+      H.setCORSHeaders();
+      H.SendResponse("200", "OK", myConn);
+    }
+
     myConn.SendNow(FLV::Header, 13);
     tag.DTSCMetaInit(myMeta, selectedTracks);
     myConn.SendNow(tag.data, tag.len);

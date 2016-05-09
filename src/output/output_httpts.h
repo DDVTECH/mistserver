@@ -9,13 +9,8 @@ namespace Mist {
       static void init(Util::Config * cfg);
       void onHTTP();
       void sendTS(const char * tsData, unsigned int len=188);
-    protected:      
-      int keysToSend;
-      long long int playUntil;      
-      long long unsigned int lastVid;
-      long long unsigned int until;
-      unsigned int vidTrack;
-      unsigned int audTrack;
+    private:
+      bool isRecording();
   };
 }
 

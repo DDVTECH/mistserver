@@ -5,7 +5,28 @@
 #include <unistd.h>
 
 namespace Mist {
-  OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : TSOutput(conn) {}
+  OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : TSOutput(conn){
+    if (config->getString("target").size()){
+      if (!streamName.size()){
+        WARN_MSG("Recording unconnected TS output to file! Cancelled.");
+        conn.close();
+        return;
+      }
+      if (config->getString("target") == "-"){
+        parseData = true;
+        wantRequest = false;
+        INFO_MSG("Outputting %s to stdout in TS format", streamName.c_str());
+        return;
+      }
+      if (connectToFile(config->getString("target"))){
+        parseData = true;
+        wantRequest = false;
+        INFO_MSG("Recording %s to %s in TS format", streamName.c_str(), config->getString("target").c_str());
+      }else{
+        conn.close();
+      }
+    }
+  }
   
   OutHTTPTS::~OutHTTPTS() {}
 
@@ -24,7 +45,18 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp2t";
     capa["methods"][0u]["priority"] = 1ll;
-    capa["canRecord"].append("ts");
+    capa["push_urls"].append("/*.ts");
+
+    JSON::Value opt;
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["arg_num"] = 1ll;
+    opt["help"] = "Target filename to store TS file as, or - for stdout.";
+    cfg->addOption("target", opt);
+  }
+
+  bool OutHTTPTS::isRecording(){
+    return config->getString("target").size();
   }
   
   void OutHTTPTS::onHTTP(){
@@ -44,9 +76,11 @@ namespace Mist {
   }
 
   void OutHTTPTS::sendTS(const char * tsData, unsigned int len){
-    //if (!recording()){
+    if (!isRecording()){
       H.Chunkify(tsData, len, myConn);
-    //}
+    }else{
+      myConn.SendNow(tsData, len);
+    }
   }
-  
 }
+

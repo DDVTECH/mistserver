@@ -230,6 +230,10 @@ int main(int argc, char ** argv){
     Controller::conf.getOption("prometheus", true)[0u] = Controller::Storage["config"]["controller"]["prometheus"];
   }
   Controller::Storage["config"]["controller"]["prometheus"] = Controller::conf.getString("prometheus");
+  {
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    configLock.unlink();
+  }
   Controller::writeConfig();
   Controller::checkAvailProtocols();
   createAccount(Controller::conf.getString("account"));

@@ -32,10 +32,6 @@
 
 #define COUNTABLE_BYTES 128*1024
 
-#ifndef STATS_DELAY
-#define STATS_DELAY 15
-#endif
-
 
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
@@ -595,7 +591,7 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   sessions[idx].update(id, tmpEx);
   //check validity of stats data
   char counter = (*(data - 1));
-  if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
+  if (counter == 126 || counter == 127){
     //the data is no longer valid - connection has gone away, store for later
     sessions[idx].finish(id);
     connToSession.erase(id);

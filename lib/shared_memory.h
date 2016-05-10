@@ -184,6 +184,7 @@ namespace IPC {
       operator bool() const;
       ///\brief The amount of connected clients
       unsigned int amount;
+      unsigned int connectedUsers;
     private:
       bool isInUse(unsigned int id);
       void newPage();
@@ -198,6 +199,7 @@ namespace IPC {
       semaphore mySemaphore;
       ///\brief Whether the payload has a counter, if so, it is added in front of the payload
       bool hasCounter;
+      void finishEach();
   };
 
   ///\brief The client part of a server/client model for shared memory.
@@ -219,9 +221,10 @@ namespace IPC {
       void write(char * data, int len);
       void finish();
       void keepAlive();
+      bool isAlive();
       char * getData();
       int getCounter();
-      bool isSingleEntry();
+      bool countAsViewer;
     private:
       ///\brief The basename of the shared pages.
       std::string baseName;

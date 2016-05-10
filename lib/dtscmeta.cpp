@@ -127,10 +127,10 @@ namespace DTSC {
         return;
       }
       if(!src.spool()){
-        if (sleepCount++ > 5){
+        if (sleepCount++ > 60){
           return;
         }
-        Util::sleep(500);
+        Util::sleep(100);
       }
     }
   }

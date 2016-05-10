@@ -153,12 +153,18 @@ namespace Mist {
     return !(config->getString("target").size());
   }
 
-  unsigned int OutRTMP::needsPlayableKeys(){
+  bool OutRTMP::isReadyForPlay(){
     if (isPushing){
-      return 0;
-    }else{
-      return 2;
+      return true;
     }
+    if (myMeta.tracks.size()){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.keys.size() >= 2){
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   void OutRTMP::parseVars(std::string data){

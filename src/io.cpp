@@ -621,10 +621,8 @@ namespace Mist {
     if (!trackState.count(tid)) {
       memset(tmp + offset, 0, 4);
       if (quickNegotiate){
-
-        unsigned long finalTid = getpid() + tid;
+        unsigned long finalTid = tid;
         unsigned short firstPage = 1;
-        INFO_MSG("HANDLING quick negotiation for track %d ~> %d", tid, finalTid)
         MEDIUM_MSG("Buffer has indicated that incoming track %lu should start writing on track %lu, page %lu", tid, finalTid, firstPage);
         trackMap[tid] = finalTid;
         if (myMeta.tracks.count(finalTid) && myMeta.tracks[finalTid].lastms){

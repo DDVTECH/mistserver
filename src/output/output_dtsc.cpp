@@ -29,7 +29,6 @@ namespace Mist {
     myConn.SendNow(sSize, 4);
     prep.sendTo(myConn);
     pushing = false;
-    fastAsPossibleTime = 0;
   }
 
   OutDTSC::~OutDTSC() {}
@@ -45,29 +44,6 @@ namespace Mist {
   }
   
   void OutDTSC::sendNext(){
-    if (!realTime && thisPacket.getTime() >= fastAsPossibleTime){
-      realTime = 1000;
-    }
-    if (thisPacket.getFlag("keyframe")){
-      std::set<unsigned long> availableTracks;
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.type == "video" || it->second.type == "audio"){
-          availableTracks.insert(it->first);
-        }
-      }
-      if (availableTracks != selectedTracks){
-        //reset, resendheader
-        JSON::Value prep;
-        prep["cmd"] = "reset";
-        /// \todo Make this securererer.
-        unsigned long sendSize = prep.packedSize();
-        myConn.SendNow("DTCM");
-        char sSize[4] = {0, 0, 0, 0};
-        Bit::htobl(sSize, prep.packedSize());
-        myConn.SendNow(sSize, 4);
-        prep.sendTo(myConn);
-      }
-    }
     myConn.SendNow(thisPacket.getData(), thisPacket.getDataLen());
   }
 
@@ -81,15 +57,9 @@ namespace Mist {
     }
     myMeta.send(myConn, true, selectedTracks);
     if (myMeta.live){
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (!fastAsPossibleTime || it->second.lastms < fastAsPossibleTime){
-          fastAsPossibleTime = it->second.lastms;
-          realTime = 0;
-        }
-      }
-    }else{
-      realTime = 1000;
+      realTime = 0;
     }
+    seek(0);
   }
 
   void OutDTSC::onRequest(){

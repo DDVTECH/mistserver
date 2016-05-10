@@ -530,7 +530,7 @@ namespace Mist {
       //If the current value indicates a valid trackid, and it is pushed from this user
       if (pushLocation[value] == data) {
         //Check for timeouts, and erase the track if necessary
-        if (counter == 126 || counter == 127 || counter == 254 || counter == 255) {
+        if (counter == 126 || counter == 127){
           pushLocation.erase(value);
           if (negotiatingTracks.count(value)) {
             negotiatingTracks.erase(value);
@@ -594,11 +594,9 @@ namespace Mist {
             char firstPage[NAME_BUFFER_SIZE];
             snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), finalMap);
             nProxy.metaPages[finalMap].init(firstPage, 8192, false);
-            INFO_MSG("Meh %d", finalMap);
 
             //Update the metadata for this track
             updateTrackMeta(finalMap);
-            INFO_MSG("Setting hasPush to true, quickNegotiate");
             hasPush = true;
           }
           //Write the final mapped track number and keyframe number to the user page element

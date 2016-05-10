@@ -215,17 +215,19 @@ namespace Mist {
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
 
     long long int activityCounter = Util::bootSecs();
-    while ((Util::bootSecs() - activityCounter) < 10 && config->is_active) { //10 second timeout
+    while ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT && config->is_active) { //15 second timeout
       userPage.parseEach(callbackWrapper);
       removeUnused();
-      if (userPage.amount) {
-        activityCounter = Util::bootSecs();
-        DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.amount);
+      if (userPage.connectedUsers) {
+        if (myMeta.tracks.size()){
+          activityCounter = Util::bootSecs();
+        }
+        DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.connectedUsers);
       } else {
         DEBUG_MSG(DLVL_INSANE, "Timer running");
       }
       /*LTS-START*/
-      if ((Util::bootSecs() - activityCounter) >= 10 || !config->is_active){//10 second timeout
+      if ((Util::bootSecs() - activityCounter) >= INPUT_TIMEOUT || !config->is_active){//15 second timeout
         if(Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
           std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
           if (!Triggers::doTrigger("STREAM_UNLOAD", payload, config->getString("streamname"))){
@@ -251,16 +253,19 @@ namespace Mist {
     pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     if (!pullLock.tryWait()){
       DEBUG_MSG(DLVL_DEVEL, "A pull process for stream %s is already running", streamName.c_str());
+      pullLock.close();
       return;
     }
     if (Util::streamAlive(streamName)){
       pullLock.post();
       pullLock.close();
+      pullLock.unlink();
       return;
     }
     if (!Util::startInput(streamName, "push://")) {//manually override stream url to start the buffer
       pullLock.post();
       pullLock.close();
+      pullLock.unlink();
       return;
     }
 
@@ -283,8 +288,10 @@ namespace Mist {
       finish();
       pullLock.post();
       pullLock.close();
+      pullLock.unlink();
       return;
     }
+    nProxy.userClient.countAsViewer = false;
 
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       it->second.firstms = 0;
@@ -294,44 +301,20 @@ namespace Mist {
     getNext();
     unsigned long long lastTime = Util::getMS();
     unsigned long long lastActive = Util::getMS();
-    while (thisPacket && config->is_active){
+    while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
       nProxy.bufferLivePacket(thisPacket, myMeta);
       getNext();
       nProxy.userClient.keepAlive();
-      if (Util::getMS() - lastTime >= 1000){
-        lastTime = Util::getMS();
-        if (nProxy.userClient.isSingleEntry()){
-          if (lastTime - lastActive >= 10000){//10sec timeout
-            config->is_active = false;
-          }
-        }else{
-          lastActive = lastTime;
-        }
-      }
     }
     
     closeStreamSource();
-
-    while (config->is_active){
-      Util::sleep(500);
-      nProxy.userClient.keepAlive();
-      if (Util::getMS() - lastTime >= 1000){
-        lastTime = Util::getMS();
-        if (nProxy.userClient.isSingleEntry()){
-          if (lastTime - lastActive >= 10000){//10sec timeout
-            config->is_active = false;
-          }
-        }else{
-          lastActive = lastTime;
-        }
-      }
-    }
-
 
     nProxy.userClient.finish();
     finish();
     pullLock.post();
     pullLock.close();
+    pullLock.unlink();
+    DEBUG_MSG(DLVL_DEVEL, "Pull input for stream %s closing clean", streamName.c_str());
     return;
   }
 

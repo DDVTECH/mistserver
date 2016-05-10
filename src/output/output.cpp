@@ -184,6 +184,16 @@ namespace Mist {
     return myConn.getBinHost();
   }
  
+  bool Output::isReadyForPlay() {
+    if (myMeta.tracks.size()){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.keys.size() >= 2){
+          return true;
+        }
+      }
+    }
+    return false;
+  }
   /// Connects or reconnects to the stream.
   /// Assumes streamName class member has been set already.
   /// Will start input if not currently active, calls onFail() if this does not succeed.
@@ -215,27 +225,15 @@ namespace Mist {
       return;
     }
     updateMeta();
-    if (myMeta.live && needsPlayableKeys()){
-      bool waitALittleLonger = true;
+    if (myMeta.live && !isReadyForPlay()){
       unsigned int maxWaits = 15;
-      while (waitALittleLonger){
-        waitALittleLonger = true;
-        if (myMeta.tracks.size()){
-          for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-            if (it->second.keys.size() >= needsPlayableKeys()){
-              waitALittleLonger = false;
-              break;
-            }
-          }
+      while (!isReadyForPlay()){
+        Util::sleep(1000);
+        if (--maxWaits == 0){
+          FAIL_MSG("Giving up waiting for playable tracks");
+          break;
         }
-        if (waitALittleLonger){
-          Util::sleep(1000);
-          if (--maxWaits == 0){
-            FAIL_MSG("Giving up waiting for playable tracks");
-            waitALittleLonger = false;
-          }
-          updateMeta();
-        }
+        updateMeta();
       }
     }
   }
@@ -435,6 +433,7 @@ namespace Mist {
       return;
     }
     DEBUG_MSG(DLVL_VERYHIGH, "Loading track %lu, containing key %lld", trackId, keyNum);
+    INFO_MSG("Loading track %lu, containing key %lld", trackId, keyNum);
     unsigned int timeout = 0;
     unsigned long pageNum = pageNumForKey(trackId, keyNum);
     while (pageNum == -1){
@@ -482,6 +481,7 @@ namespace Mist {
       return;
     }
     currKeyOpen[trackId] = pageNum;
+    INFO_MSG("page %s loaded", id);
   }
   
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
@@ -507,7 +507,14 @@ namespace Mist {
       INFO_MSG("Aborting seek to %llums in track %u: past end of track.", pos, tid);
       return false;
     }
-    loadPageForKey(tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
+    unsigned int keyNum = getKeyForTime(tid, pos);
+    if (myMeta.tracks[tid].getKey(keyNum).getTime() > pos){
+      if (myMeta.live){
+        INFO_MSG("Actually seeking to %d, for %d is not available anymore", myMeta.tracks[tid].getKey(keyNum).getTime(), pos);
+        pos = myMeta.tracks[tid].getKey(keyNum).getTime();
+      }
+    }
+    loadPageForKey(tid, keyNum + (getNextKey?1:0));
     if (!nProxy.curPage.count(tid) || !nProxy.curPage[tid].mapped){
       INFO_MSG("Aborting seek to %llums in track %u: not available.", pos, tid);
       return false;
@@ -524,6 +531,7 @@ namespace Mist {
       tmpPack.reInit(mpd + tmp.offset, 0, true);
       tmp.time = tmpPack.getTime();
     }
+    INFO_MSG("Found time %d", tmp.time);
     if (tmpPack){
       buffer.insert(tmp);
       return true;
@@ -1022,9 +1030,26 @@ namespace Mist {
       if (thisPacket.getTime() != nxt.time && nxt.time){
         WARN_MSG("Loaded track %ld@%llu instead of %ld@%llu", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time);
       }
-      if ((myMeta.tracks[nxt.tid].type == "video" && thisPacket.getFlag("keyframe")) || (++nonVideoCount % 30 == 0)){
+      bool isVideoTrack = (myMeta.tracks[nxt.tid].type == "video");
+      if ((isVideoTrack && thisPacket.getFlag("keyframe")) || (!isVideoTrack && (++nonVideoCount % 30 == 0))){
         if (myMeta.live){
-          updateMeta();
+          if (myMeta.tracks[nxt.tid].type == "video"){
+            //Check whether returned keyframe is correct. If not, wait for approximately 5 seconds while checking.
+            //Failure here will cause tracks to drop due to inconsistent internal state.
+            nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
+            int counter = 0;
+            while(counter < 10 && myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
+              if (counter++){
+                //Only sleep 500ms if this is not the first updatemeta try
+                Util::sleep(500);
+              }
+              updateMeta();
+              nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
+            }
+          }else{
+            //On non-video tracks, just update metadata and assume everything else is correct
+            updateMeta();
+          }
         }
         nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
         DEBUG_MSG(DLVL_VERYHIGH, "Track %u @ %llums = key %lu", nxt.tid, thisPacket.getTime(), nxtKeyNum[nxt.tid]);
@@ -1081,6 +1106,12 @@ namespace Mist {
     if (nProxy.curPage[nxt.tid]){
       if (nxt.offset < nProxy.curPage[nxt.tid].len){
         unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
+        int ctr = 0;
+        //sleep at most half a second for new data.
+        while (!nextTime && ++ctr < 5){
+          Util::sleep(1000);
+          nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
+        }
         if (nextTime){
           nxt.time = nextTime;
         }else{
@@ -1100,7 +1131,7 @@ namespace Mist {
       unsigned long long int now = Util::epoch();
       if (now != lastStats){
         /*LTS-START*/
-        if (statsPage.getData()[-1] > 127){
+        if (!statsPage.isAlive()){
           myConn.close();
           return;
         }
@@ -1136,7 +1167,7 @@ namespace Mist {
         return;
       }
     }
-    if (nProxy.userClient.getData()[-1] > 127){
+    if (!nProxy.userClient.isAlive()){
       myConn.close();
       return;
     }

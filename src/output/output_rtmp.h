@@ -14,7 +14,7 @@ namespace Mist {
       void onRequest();
       void sendNext();
       void sendHeader();
-      unsigned int needsPlayableKeys();
+      bool isReadyForPlay();
       static bool listenMode();
     protected:
       bool isPushing;

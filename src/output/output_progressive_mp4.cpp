@@ -9,6 +9,7 @@ namespace Mist {
   OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : HTTPOutput(conn) {
     completeKeysOnly = false;
   }
+  
   OutProgressiveMP4::~OutProgressiveMP4() {}
 
   void OutProgressiveMP4::init(Util::Config * cfg) {
@@ -747,25 +748,6 @@ namespace Mist {
 
   void OutProgressiveMP4::setvidTrack() {
     vidTrack = 0;
-    static int timer = 0;
-    bool checkWait = true;
-    while (checkWait && ++timer < 10){
-      checkWait = false;
-      if (!myMeta.tracks.size()){
-        checkWait = true;
-      }
-      for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (!it->second.keys.size()){
-          checkWait = true;
-          break;
-        }
-      }
-      if (checkWait){
-        Util::sleep(500);
-        updateMeta();
-      }
-    }
-
     if (!selectedTracks.size()){
       selectDefaultTracks();
     }

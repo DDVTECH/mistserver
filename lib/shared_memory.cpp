@@ -772,6 +772,7 @@ namespace IPC {
 
   ///\brief The deconstructor
   sharedServer::~sharedServer() {
+    finishEach();
     mySemaphore.close();
     mySemaphore.unlink();
   }
@@ -828,6 +829,23 @@ namespace IPC {
     return false;
   }
 
+  ///Disconnect all connected users
+  void sharedServer::finishEach(){
+    if (!hasCounter){
+      return;
+    }
+    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
+      if (!it->mapped || !it->len) {
+        break;
+      }
+      unsigned int offset = 0;
+      while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
+        it->mapped[offset] = 126;
+        offset += payLen + (hasCounter ? 1 : 0);
+      }
+    }
+  }
+
   ///\brief Parse each of the possible payload pieces, and runs a callback on it if in use.
   void sharedServer::parseEach(void (*callback)(char * data, size_t len, unsigned int id)) {
     char * empty = 0;
@@ -839,6 +857,7 @@ namespace IPC {
     unsigned int id = 0;
     unsigned int userCount = 0;
     unsigned int emptyCount = 0;
+    connectedUsers = 0;
     for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
         DEBUG_MSG(DLVL_FAIL, "Something went terribly wrong?");
@@ -852,28 +871,25 @@ namespace IPC {
             char * counter = it->mapped + offset;
             //increase the count if needed
             ++userCount;
+            if (*counter & 0x80){
+              connectedUsers++;
+            }
             if (id >= amount) {
               amount = id + 1;
-              DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+              VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
             unsigned short tmpPID = *((unsigned short *)(it->mapped + 1 + offset + payLen - 2));
-            if (!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)) {
+            if (!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127)){
               WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);
               *counter = 126; //if process is already dead, instant timeout.
             }
             callback(it->mapped + offset + 1, payLen, id);
             switch (*counter) {
               case 127:
-                DEBUG_MSG(DLVL_HIGH, "Client %u requested disconnect", id);
+                HIGH_MSG("Client %u requested disconnect", id);
                 break;
               case 126:
-                DEBUG_MSG(DLVL_WARN, "Client %u timed out", id);
-                break;
-              case 255:
-                DEBUG_MSG(DLVL_HIGH, "Client %u disconnected on request", id);
-                break;
-              case 254:
-                DEBUG_MSG(DLVL_WARN, "Client %u disconnect timed out", id);
+                HIGH_MSG("Client %u timed out", id);
                 break;
               default:
 #ifndef NOCRASHCHECK
@@ -893,7 +909,7 @@ namespace IPC {
 #endif
                 break;
             }
-            if (*counter == 127 || *counter == 126 || *counter == 255 || *counter == 254) {
+            if (*counter == 127 || *counter == 126){
               memset(it->mapped + offset + 1, 0, payLen);
               it->mapped[offset] = 0;
             } else {
@@ -905,7 +921,7 @@ namespace IPC {
               //bring the counter down if this was the last element
               if (id == amount - 1) {
                 amount = id;
-                DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+                VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point
               break;
@@ -917,7 +933,7 @@ namespace IPC {
             //increase the count if needed
             if (id >= amount) {
               amount = id + 1;
-              DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+              VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
             callback(it->mapped + offset, payLen, id);
           } else {
@@ -926,7 +942,7 @@ namespace IPC {
               //bring the counter down if this was the last element
               if (id == amount - 1) {
                 amount = id;
-                DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+                VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point
               if (empty) {
@@ -962,12 +978,14 @@ namespace IPC {
     hasCounter = 0;
     payLen = 0;
     offsetOnPage = 0;
+    countAsViewer= true;
   }
 
 
   ///\brief Copy constructor for sharedClients
   ///\param rhs The client ro copy
   sharedClient::sharedClient(const sharedClient & rhs) {
+    countAsViewer = rhs.countAsViewer;
     baseName = rhs.baseName;
     payLen = rhs.payLen;
     hasCounter = rhs.hasCounter;
@@ -988,6 +1006,7 @@ namespace IPC {
 
   ///\brief Assignment operator
   void sharedClient::operator =(const sharedClient & rhs) {
+    countAsViewer = rhs.countAsViewer;
     baseName = rhs.baseName;
     payLen = rhs.payLen;
     hasCounter = rhs.hasCounter;
@@ -1011,6 +1030,7 @@ namespace IPC {
   ///\param len The size of the payload to allocate
   ///\param withCounter Whether or not this payload has a counter
   sharedClient::sharedClient(std::string name, int len, bool withCounter) : baseName("/" + name), payLen(len), offsetOnPage(-1), hasCounter(withCounter) {
+    countAsViewer = true;
 #ifdef __APPLE__
     //note: O_CREAT is only needed for mac, probably
     mySemaphore.open(baseName.c_str(), O_RDWR | O_CREAT, 0);
@@ -1072,52 +1092,6 @@ namespace IPC {
 
   }
 
-  bool sharedClient::isSingleEntry() {
-    semaphore tmpSem(baseName.c_str(), O_RDWR);
-
-    if (!tmpSem) {
-      HIGH_MSG("Creating semaphore %s failed: %s, assuming we're alone", baseName.c_str(), strerror(errno));
-      return true;
-    }
-    //Empty is used to compare for emptyness. This is not needed when the page uses a counter
-    char * empty = 0;
-    if (!hasCounter) {
-      empty = (char *)malloc(payLen * sizeof(char));
-      if (!empty) {
-        HIGH_MSG("Failed to allocate %u bytes for empty payload, assuming we're not alone", payLen);
-        return false;
-      }
-      memset(empty, 0, payLen);
-    }
-    bool result = true;
-    {
-      semGuard tmpGuard(&tmpSem);
-      for (char i = 'A'; i <= 'Z'; i++) {
-        sharedPage tmpPage(baseName.substr(1) + i, (4096 << (i - 'A')), false, false);
-        if (!tmpPage.mapped) {
-          break;
-        }
-        int offset = 0;
-        while (offset + payLen + (hasCounter ? 1 : 0) <= tmpPage.len) {
-          //Skip our own entry
-          if (tmpPage.name == myPage.name && offset == offsetOnPage){
-            offset += payLen + (hasCounter ? 1 : 0);
-            continue;
-          }
-          if (!((hasCounter && tmpPage.mapped[offset] == 0) || (!hasCounter && !memcmp(tmpPage.mapped + offset, empty, payLen)))) {
-            result = false;
-            break;
-          }
-          offset += payLen + (hasCounter ? 1 : 0);
-        }
-      }
-    }
-    if (empty) {
-      free(empty);
-    }
-    return result;
-  }
-
   ///\brief Writes data to the shared data
   void sharedClient::write(char * data, int len) {
     if (hasCounter) {
@@ -1137,7 +1111,7 @@ namespace IPC {
     }
     if (myPage.mapped) {
       semGuard tmpGuard(&mySemaphore);
-      myPage.mapped[offsetOnPage] = 127;
+      myPage.mapped[offsetOnPage] = 126;
     }
   }
 
@@ -1147,11 +1121,18 @@ namespace IPC {
       DEBUG_MSG(DLVL_WARN, "Trying to keep-alive an element without counters");
       return;
     }
-    if (myPage.mapped[offsetOnPage] < 128) {
-      myPage.mapped[offsetOnPage] = 1;
+    if ((myPage.mapped[offsetOnPage] & 0x7F) < 126) {
+      myPage.mapped[offsetOnPage] = (countAsViewer ? 0x81 : 0x01);
     } else {
       DEBUG_MSG(DLVL_WARN, "Trying to keep-alive an element that needs to timeout, ignoring");
     }
+  }
+
+  bool sharedClient::isAlive() {
+    if (!hasCounter) {
+      return true;
+    }
+    return (myPage.mapped[offsetOnPage] & 0x7F) < 126;
   }
 
   ///\brief Get a pointer to the data of this client

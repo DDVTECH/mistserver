@@ -370,7 +370,6 @@ namespace Mist {
         if ((*itb).size() && myMeta.tracks.size()){
           bool found = false;
           jsonForEach((*itb), itc) {
-            INFO_MSG("Filling codec: '%s'", (*itc).asStringRef().c_str());
             if (found) {
               break;
             }
@@ -495,6 +494,7 @@ namespace Mist {
   
   void Output::loadPageForKey(long unsigned int trackId, long long int keyNum){
     if (myMeta.vod && keyNum > myMeta.tracks[trackId].keys.rbegin()->getNumber()){
+      INFO_MSG("Seek in track %lu to key %lld aborted, is > %lld", trackId, keyNum, myMeta.tracks[trackId].keys.rbegin()->getNumber());
       nProxy.curPage.erase(trackId);
       currKeyOpen.erase(trackId);
       return;
@@ -504,7 +504,7 @@ namespace Mist {
     unsigned long pageNum = pageNumForKey(trackId, keyNum);
     while (pageNum == -1){
       if (!timeout){
-        DEBUG_MSG(DLVL_HIGH, "Requesting page with key %lu:%lld", trackId, keyNum);
+        HIGH_MSG("Requesting page with key %lu:%lld", trackId, keyNum);
       }
       ++timeout;
       //if we've been waiting for this page for 3 seconds, reconnect to the stream - something might be going wrong...
@@ -568,9 +568,13 @@ namespace Mist {
   }
 
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
+    if (myMeta.tracks[tid].lastms < pos){
+      INFO_MSG("Aborting seek to %llums in track %u: past end of track.", pos, tid);
+      return false;
+    }
     loadPageForKey(tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
     if (!nProxy.curPage.count(tid) || !nProxy.curPage[tid].mapped){
-      INFO_MSG("Aborting seek to %llums in track %u, not available.", pos, tid);
+      INFO_MSG("Aborting seek to %llums in track %u: not available.", pos, tid);
       return false;
     }
     sortedPageInfo tmp;
@@ -591,7 +595,7 @@ namespace Mist {
     }else{
       //don't print anything for empty packets - not sign of corruption, just unfinished stream.
       if (nProxy.curPage[tid].mapped[tmp.offset] != 0){
-        DEBUG_MSG(DLVL_FAIL, "Noes! Couldn't find packet on track %d because of some kind of corruption error or somesuch.", tid);
+        FAIL_MSG("Noes! Couldn't find packet on track %d because of some kind of corruption error or somesuch.", tid);
       }else{
         VERYHIGH_MSG("Track %d no data (key %u @ %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         unsigned int i = 0;

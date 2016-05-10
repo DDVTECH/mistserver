@@ -407,7 +407,7 @@ namespace Mist {
       byteStart -= sortSet.begin()->size;
       //if that put us past the point where we wanted to be, return right now
       if (byteStart < 0) {
-        INFO_MSG("Seeked to tid: %lu t: %llu ", sortSet.begin()->trackID, sortSet.begin()->time);
+        INFO_MSG("We're starting at time %lld, skipping %lld bytes", seekPoint, byteStart+sortSet.begin()->size);
         return;
       }
       //otherwise, set currPos to where we are now and continue
@@ -692,7 +692,6 @@ namespace Mist {
       sortSet.insert(temp);
     }
     if (!myMeta.live) {
-      INFO_MSG("notlive get range %s", H.GetHeader("Range").c_str());
       if (H.GetHeader("Range") != "") {
         parseRange(H.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerData.size());
         rangeType = H.GetHeader("Range")[0];
@@ -897,6 +896,16 @@ namespace Mist {
       return;
     }
 
+    if (currPos >= byteStart) {
+      myConn.SendNow(dataPointer, std::min(leftOver, (long long)len));
+      leftOver -= len;
+    } else {
+      if (currPos + (long long)len > byteStart) {
+        myConn.SendNow(dataPointer + (byteStart - currPos), std::min(leftOver, (long long)(len - (byteStart - currPos))));
+        leftOver -= len - (byteStart - currPos);
+      }
+    }
+
     //keep track of where we are
     if (!sortSet.empty()) {
       keyPart temp;
@@ -914,17 +923,6 @@ namespace Mist {
     }
 
 
-    if (currPos >= byteStart) {
-      myConn.SendNow(dataPointer, std::min(leftOver, (long long)len));
-
-      leftOver -= len;
-    } else {
-      if (currPos + (long long)len > byteStart) {
-        myConn.SendNow(dataPointer + (byteStart - currPos), len - (byteStart - currPos));
-        leftOver -= len - (byteStart - currPos);
-        currPos = byteStart;
-      }
-    }
 
     if (leftOver < 1) {
 

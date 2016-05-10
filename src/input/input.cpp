@@ -480,10 +480,10 @@ namespace Mist {
 
 
   bool Input::bufferFrame(unsigned int track, unsigned int keyNum) {
-    VERYHIGH_MSG("bufferFrame for stream %s, track %u, key %u", streamName.c_str(), track, keyNum);
-    if (keyNum >= myMeta.tracks[track].keys.size()) {
+    VERYHIGH_MSG("Buffering stream %s, track %u, key %u", streamName.c_str(), track, keyNum);
+    if (keyNum > myMeta.tracks[track].keys.size()) {
       //End of movie here, returning true to avoid various error messages
-      VERYHIGH_MSG("Key number is higher than total key count. Cancelling bufferFrame");
+      WARN_MSG("Key %llu is higher than total (%llu). Cancelling buffering.", keyNum, myMeta.tracks[track].keys.size());
       return true;
     }
     if (keyNum < 1) {

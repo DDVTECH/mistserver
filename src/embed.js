@@ -57,6 +57,25 @@ function mistembed(streamname) {
         //IE <= 9 doesn't support MP4, Firefox seems to correctly see it now.
         return false;
       }
+      if (navigator.userAgent.indexOf('Firefox') > -1) {
+        //firefox claims to support MP4 but doesn't when:
+        //   - under win xp
+        //   - the stream is live
+        
+        if (video.type == 'live') {
+          return false;
+        }
+        //find "Windows NT X;" in user userAgent
+        //sorry, I don't like regexes.. I avoid them when I can :$
+        var s = navigator.userAgent.split('Windows NT ');
+        if (s.length > 1) {
+          s = s[1].split(';');
+          s = s[0];
+          if (Number(s) <= 5.1) {
+            return false;
+          }
+        }
+      }
     }
     
     

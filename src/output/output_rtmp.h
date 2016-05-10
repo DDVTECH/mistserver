@@ -15,6 +15,7 @@ namespace Mist {
       void sendNext();
       void sendHeader();
       unsigned int needsPlayableKeys();
+      static bool listenMode();
     protected:
       bool isPushing;
       void parseVars(std::string data);

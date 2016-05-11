@@ -6,6 +6,7 @@
 #include <mist/stream.h>
 #include "controller_storage.h"
 #include "controller_statistics.h"
+#include "controller_push.h"
 
 namespace Controller {
 
@@ -13,28 +14,84 @@ namespace Controller {
   std::map<pid_t, JSON::Value> activePushes;
 
   /// Internal list of waiting pushes
-  std::deque<JSON::Value> waitingPushes;
+  std::map<std::string, std::map<std::string, unsigned int> > waitingPushes;
 
   /// Immediately starts a push for the given stream to the given target.
   /// Simply calls Util::startPush and stores the resulting PID in the local activePushes map.
   void startPush(std::string & stream, std::string & target){
+    std::string originalTarget = target;
     pid_t ret = Util::startPush(stream, target);
     if (ret){
       JSON::Value push;
       push.append((long long)ret);
       push.append(stream);
+      push.append(originalTarget);
       push.append(target);
       activePushes[ret] = push;
     }
   }
 
+  /// Returns true if the push is currently active, false otherwise.
+  bool isPushActive(std::string & streamname, std::string & target){
+    std::set<pid_t> toWipe;
+    for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
+      if (Util::Procs::isActive(it->first)){
+        if (it->second[1u].asStringRef() == streamname && it->second[2u].asStringRef() == target){
+          return true;
+        }
+      }else{
+        toWipe.insert(it->first);
+      }
+    }
+    while (toWipe.size()){
+      activePushes.erase(*toWipe.begin());
+      toWipe.erase(toWipe.begin());
+    }
+    return false;
+  }
+
   /// Immediately stops a push with the given ID
   void stopPush(unsigned int ID){
-    Util::Procs::Stop(ID);
+    if (ID > 1 && activePushes.count(ID)){
+      Util::Procs::Stop(ID);
+    }
   }
 
   /// Loops, checking every second if any pushes need restarting.
-  void pushCheckLoop(){
+  void pushCheckLoop(void * np){
+    while (Controller::conf.is_active){
+      //this scope prevents the configMutex from being locked constantly
+      {
+        tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+        long long maxspeed = Controller::Storage["push_settings"]["maxspeed"].asInt();
+        long long waittime = Controller::Storage["push_settings"]["wait"].asInt();
+        long long curCount = 0;
+        if (waittime){
+          jsonForEach(Controller::Storage["autopushes"], it){
+            const std::string & pStr = (*it)[0u].asStringRef();
+            if (activeStreams.size()){
+              for (std::map<std::string, unsigned int>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
+                std::string streamname = jt->first;
+                std::string target = (*it)[1u];
+                if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
+                  if (!isPushActive(streamname, target)){
+                    if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)){
+                      waitingPushes[streamname].erase(target);
+                      if (!waitingPushes[streamname].size()){
+                        waitingPushes.erase(streamname);
+                      }
+                      startPush(streamname, target);
+                      curCount++;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      Util::wait(1000);//wait at least 5 seconds
+    }
   }
 
   /// Gives a list of all currently active pushes
@@ -82,7 +139,8 @@ namespace Controller {
   void removePush(const JSON::Value & request){
     JSON::Value delPush;
     if (request.isString()){
-      return removePush(request.asStringRef());
+      removeAllPush(request.asStringRef());
+      return;
     }
     if (request.isArray()){
       delPush = request;
@@ -101,7 +159,7 @@ namespace Controller {
 
   /// Removes a push from the list of auto-pushes.
   /// Does not stop currently active matching pushes.
-  void removePush(const std::string & streamname){
+  void removeAllPush(const std::string & streamname){
     JSON::Value newautopushes;
     jsonForEach(Controller::Storage["autopushes"], it){
       if ((*it)[0u] != streamname){
@@ -118,7 +176,9 @@ namespace Controller {
       if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
         std::string stream = streamname;
         std::string target = (*it)[1u];
-        startPush(stream, target);
+        if (!isPushActive(stream, target)){
+          startPush(stream, target);
+        }
       }
     }
   }

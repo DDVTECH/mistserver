@@ -12,11 +12,12 @@ namespace Controller {
   //Functions for automated pushes, add/remove
   void addPush(JSON::Value & request);
   void removePush(const JSON::Value & request);
-  void removePush(const std::string & streamname);
+  void removeAllPush(const std::string & streamname);
 
   //internal use only
   void doAutoPush(std::string & streamname);
-  void pushCheckLoop();
+  void pushCheckLoop(void * np);
+  bool isPushActive(std::string & streamname, std::string & target);
 
   //for storing/retrieving settings
   void pushSettings(const JSON::Value & request, JSON::Value & response);

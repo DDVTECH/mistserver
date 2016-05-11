@@ -581,7 +581,19 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               stream = Request["push_start"]["stream"].asStringRef();
               target = Request["push_start"]["target"].asStringRef();
             }
-            Controller::startPush(stream, target);
+            if (*stream.rbegin() != '+'){
+              Controller::startPush(stream, target);
+            }else{
+              if (activeStreams.size()){
+                for (std::map<std::string, unsigned int>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
+                  if (jt->first.substr(0, stream.size()) == stream){
+                    std::string streamname = jt->first;
+                    std::string target_tmp = target;
+                    startPush(streamname, target_tmp);
+                  }
+                }
+              }
+            }
           }
 
           if (Request.isMember("push_list")){

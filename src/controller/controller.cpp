@@ -56,6 +56,7 @@
 #include "controller_uplink.h"
 /*LTS-END*/
 #include "controller_api.h"
+#include "controller_push.h"
 
 #ifndef COMPILED_USERNAME
 #define COMPILED_USERNAME ""
@@ -318,6 +319,8 @@ int main(int argc, char ** argv){
   tthread::thread monitorThread(statusMonitor, 0);
   //start monitoring thread /*LTS*/
   tthread::thread uplinkThread(Controller::uplinkConnection, 0);/*LTS*/
+  //start push checking thread
+  tthread::thread pushThread(Controller::pushCheckLoop, 0);
   
   //start main loop
   while (Controller::conf.is_active){/*LTS*/
@@ -352,6 +355,7 @@ int main(int argc, char ** argv){
   statsThread.join();
   monitorThread.join();
   uplinkThread.join();/*LTS*/
+  pushThread.join();/*LTS*/
   //write config
   tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
   Controller::Storage.removeMember("log");

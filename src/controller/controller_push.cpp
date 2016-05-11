@@ -12,6 +12,9 @@ namespace Controller {
   /// Internal list of currently active pushes
   std::map<pid_t, JSON::Value> activePushes;
 
+  /// Internal list of waiting pushes
+  std::deque<JSON::Value> waitingPushes;
+
   /// Immediately starts a push for the given stream to the given target.
   /// Simply calls Util::startPush and stores the resulting PID in the local activePushes map.
   void startPush(std::string & stream, std::string & target){
@@ -28,6 +31,10 @@ namespace Controller {
   /// Immediately stops a push with the given ID
   void stopPush(unsigned int ID){
     Util::Procs::Stop(ID);
+  }
+
+  /// Loops, checking every second if any pushes need restarting.
+  void pushCheckLoop(){
   }
 
   /// Gives a list of all currently active pushes
@@ -114,6 +121,19 @@ namespace Controller {
         startPush(stream, target);
       }
     }
+  }
+
+  void pushSettings(const JSON::Value & request, JSON::Value & response){
+    if (request.isObject()){
+      if (request.isMember("wait")){
+        Controller::Storage["push_settings"]["wait"] = request["wait"].asInt();
+      }
+      if (request.isMember("maxspeed")){
+        Controller::Storage["push_settings"]["maxspeed"] = request["maxspeed"].asInt();
+      }
+      
+    }
+  response = Controller::Storage["push_settings"];
   }
 
 }

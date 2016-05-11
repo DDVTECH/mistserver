@@ -616,6 +616,10 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             Response["push_auto_list"] = Controller::Storage["autopushes"];
           }
 
+          if (Request.isMember("push_settings")){
+            Controller::pushSettings(Request["push_settings"], Response["push_settings"]);
+          }
+
           Controller::configChanged = true;
           
         }else{//unauthorized

@@ -14,6 +14,11 @@ namespace Controller {
   void removePush(const JSON::Value & request);
   void removePush(const std::string & streamname);
 
+  //internal use only
   void doAutoPush(std::string & streamname);
+  void pushCheckLoop();
+
+  //for storing/retrieving settings
+  void pushSettings(const JSON::Value & request, JSON::Value & response);
 }
 

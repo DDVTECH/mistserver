@@ -589,7 +589,7 @@ namespace Mist {
     } //getStreamLength
     if ((amfData.getContentP(0)->StrValue() == "publish")) {
       if (amfData.getContentP(3)) {
-        streamName = amfData.getContentP(3)->StrValue();
+        streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
         reqUrl += "/"+streamName;//LTS
 
         /*LTS-START*/

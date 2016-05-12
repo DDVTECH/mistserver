@@ -510,11 +510,8 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len) {
         return 0;
         break;
       default:
-        if (errno != EPIPE && errno != ECONNRESET) {
-          Error = true;
-          remotehost = strerror(errno);
-          DEBUG_MSG(DLVL_WARN, "Could not iwrite data! Error: %s", remotehost.c_str());
-        }
+        Error = true;
+        INSANE_MSG("Could not iwrite data! Error: %s", strerror(errno));
         close();
         return 0;
         break;
@@ -555,11 +552,8 @@ int Socket::Connection::iread(void * buffer, int len, int flags) {
         return 0;
         break;
       default:
-        if (errno != EPIPE) {
-          Error = true;
-          remotehost = strerror(errno);
-          DEBUG_MSG(DLVL_WARN, "Could not iread data! Error: %s", remotehost.c_str());
-        }
+        Error = true;
+        INSANE_MSG("Could not iread data! Error: %s", strerror(errno));
         close();
         return 0;
         break;

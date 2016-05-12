@@ -413,6 +413,7 @@ namespace Mist {
       snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), trackId);
       nProxy.metaPages[trackId].init(id, 8 * 1024);
     }
+    if (!nProxy.metaPages[trackId].mapped){return -1;}
     int len = nProxy.metaPages[trackId].len / 8;
     for (int i = 0; i < len; i++){
       int * tmpOffset = (int *)(nProxy.metaPages[trackId].mapped + (i * 8));

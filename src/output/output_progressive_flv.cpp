@@ -57,6 +57,13 @@ namespace Mist {
     opt["arg_num"] = 1ll;
     opt["help"] = "Target filename to store FLV file as, or - for stdout.";
     cfg->addOption("target", opt);
+
+
+    opt.null();
+    opt["short"] = "k";
+    opt["long"] = "keyframe";
+    opt["help"] = "Send only a single video keyframe";
+    cfg->addOption("keyframeonly", opt);
   }
 
   bool OutProgressiveFLV::isRecording(){
@@ -66,6 +73,9 @@ namespace Mist {
   void OutProgressiveFLV::sendNext(){
     tag.DTSCLoader(thisPacket, myMeta.tracks[thisPacket.getTrackId()]);
     myConn.SendNow(tag.data, tag.len); 
+    if (config->getBool("keyframeonly")){
+      config->is_active = false;
+    }
   }
 
   void OutProgressiveFLV::sendHeader(){
@@ -75,6 +85,15 @@ namespace Mist {
       H.protocol = "HTTP/1.0";
       H.setCORSHeaders();
       H.SendResponse("200", "OK", myConn);
+    }
+    if (config->getBool("keyframeonly")){
+      selectedTracks.clear();
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.type =="video"){
+          selectedTracks.insert(it->first);
+          break;
+        }
+      }
     }
 
     myConn.SendNow(FLV::Header, 13);
@@ -87,6 +106,13 @@ namespace Mist {
       if (myMeta.tracks[*it].type == "audio" && tag.DTSCAudioInit(myMeta.tracks[*it])){
         myConn.SendNow(tag.data, tag.len);
       }
+    }
+    if (config->getBool("keyframeonly")){
+      unsigned int tid = *selectedTracks.begin();
+      int keyNum = myMeta.tracks[tid].keys.rbegin()->getNumber();
+      int keyTime = myMeta.tracks[tid].getKey(keyNum).getTime();
+      INFO_MSG("Seeking for time %d on track %d key %d", keyTime, tid, keyNum);
+      seek(keyTime);
     }
     sentHeader = true;
   }

@@ -3508,6 +3508,14 @@ var UI = {
                 browserequests++;
               }
             }
+            if (browserequests == browsecomplete) {
+              //filter to only unique and sort
+              allthestreams = allthestreams.filter(function(e,i,arr){
+                return arr.lastIndexOf(e) === i;
+              }).sort();
+              
+              buildTheThings();
+            }
           },{
             active_streams:1
           });

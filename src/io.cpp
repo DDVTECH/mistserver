@@ -475,24 +475,6 @@ namespace Mist {
       INFO_MSG("Track %lu Declined", tid);
       return;
     }
-    //Check if a different track is already accepted
-    bool shouldBlock = true;
-    if (pagesByTrack.count(tid) && pagesByTrack[tid].size()) {
-      for (std::map<unsigned long, negotiationState>::iterator it = trackState.begin(); it != trackState.end(); it++) {
-        if (it->second == FILL_ACC) {
-          //If so, we do not block here
-          shouldBlock = false;
-        }
-      }
-    }
-    //Block if no tracks are accepted yet, until we have a definite state
-    if (shouldBlock) {
-      while (trackState[tid] != FILL_DEC && trackState[tid] != FILL_ACC) {
-        INFO_MSG("Blocking on track %lu", tid);
-        continueNegotiate(tid, myMeta);
-        Util::sleep(500);
-      }
-    }
     //This update needs to happen whether the track is accepted or not.
     ///\todo Figure out how to act with declined track here
     bool isKeyframe = false;

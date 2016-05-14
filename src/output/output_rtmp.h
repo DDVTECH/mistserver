@@ -23,6 +23,7 @@ namespace Mist {
       void parseChunk(Socket::Buffer & inputBuffer);
       void parseAMFCommand(AMF::Object & amfData, int messageType, int streamId);
       void sendCommand(AMF::Object & amfReply, int messageType, int streamId);
+      virtual std::string getStatsName();
   };
 }
 

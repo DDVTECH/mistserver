@@ -7,6 +7,7 @@
 #include "controller_statistics.h"
 #include "controller_limits.h"
 #include "controller_push.h"
+#include "controller_storage.h"
 
 #ifndef KILL_ON_EXIT
 #define KILL_ON_EXIT false
@@ -43,13 +44,17 @@ std::map<std::string, unsigned int> Controller::activeStreams;
 struct streamTotals {
   unsigned long long upBytes;
   unsigned long long downBytes;
-  unsigned long long clients;
+  unsigned long long inputs;
+  unsigned long long outputs;
+  unsigned long long viewers;
   unsigned int timeout;
 };
 static std::map<std::string, struct streamTotals> streamStats;
 static unsigned long long servUpBytes = 0;
 static unsigned long long servDownBytes = 0;
-static unsigned long long servClients = 0;
+static unsigned long long servInputs = 0;
+static unsigned long long servOutputs = 0;
+static unsigned long long servViewers = 0;
 
 Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::string dstreamName, std::string dconnector){
   host = dhost;
@@ -211,8 +216,19 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
   if (currDown + currUp > COUNTABLE_BYTES){
     std::string streamName = data.streamName();
     if (prevUp + prevDown < COUNTABLE_BYTES){
-      ++servClients;
-      streamStats[streamName].clients++;
+      if (data.connector() == "INPUT"){
+        ++servInputs;
+        streamStats[streamName].inputs++;
+        sessionType = SESS_INPUT;
+      }else if (data.connector() == "OUTPUT"){
+        ++servOutputs;
+        streamStats[streamName].outputs++;
+        sessionType = SESS_OUTPUT;
+      }else{
+        ++servViewers;
+        streamStats[streamName].viewers++;
+        sessionType = SESS_VIEWER;
+      }
       streamStats[streamName].upBytes += currUp;
       streamStats[streamName].downBytes += currDown;
     }else{
@@ -220,6 +236,10 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
       streamStats[streamName].downBytes += currDown - prevDown;
     }
   }
+}
+
+Controller::sessType Controller::statSession::getSessType(){
+  return sessionType;
 }
 
 /// Archives the given connection.
@@ -262,6 +282,7 @@ Controller::statSession::statSession(){
   sync = 1;
   wipedUp = 0;
   wipedDown = 0;
+  sessionType = SESS_UNSET;
 }
 
 /// Moves the given connection to the given session
@@ -1083,6 +1104,9 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
 
   if (mode == PROMETHEUS_TEXT){ 
     std::stringstream response;
+    response << "# HELP mist_logs Count of log messages since server start.\n";
+    response << "# TYPE mist_logs counter\n";
+    response << "mist_logs " << Controller::logCounter << "\n\n";
     response << "# HELP mist_cpu Total CPU usage in tenths of percent.\n";
     response << "# TYPE mist_cpu gauge\n";
     response << "mist_cpu " << cpu_use << "\n\n";
@@ -1095,57 +1119,68 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
 
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
-      response << "# HELP mist_sessions_cached Number of sessions active in the last ~10 minutes.\n";
-      response << "# TYPE mist_sessions_cached gauge\n";
-      response << "mist_sessions_cached " << sessions.size() << "\n\n";
-
       //collect the data first
-      std::map<std::string, unsigned long> clients;
-      unsigned long totClients = 0;
+      std::map<std::string, struct streamTotals> streams;
+      unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
       unsigned int t = Util::epoch() - STATS_DELAY;
       //check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
-            clients[it->first.streamName]++;
-            totClients++;
+            switch (it->second.getSessType()){
+              case SESS_UNSET:
+              case SESS_VIEWER:
+                streams[it->first.streamName].viewers++;
+                totViewers++;
+                break;
+              case SESS_INPUT:
+                streams[it->first.streamName].inputs++;
+                totInputs++;
+                break;
+              case SESS_OUTPUT:
+                streams[it->first.streamName].outputs++;
+                totOutputs++;
+                break;
+            }
+
           }
         }
       }
 
-      response << "# HELP mist_sessions_current Number of sessions active right now, server-wide.\n";
-      response << "# TYPE mist_sessions_current gauge\n";
-      response << "mist_sessions_current " << totClients << "\n\n";
+      response << "# HELP mist_sessions_total Number of sessions active right now, server-wide, by type.\n";
+      response << "# TYPE mist_sessions_total gauge\n";
+      response << "mist_sessions_total{sessType=\"viewers\"} " << totViewers << "\n";
+      response << "mist_sessions_total{sessType=\"incoming\"} " << totInputs << "\n";
+      response << "mist_sessions_total{sessType=\"outgoing\"} " << totOutputs << "\n";
+      response << "mist_sessions_total{sessType=\"cached\"} " << sessions.size() << "\n\n";
 
-      response << "# HELP mist_sessions_total Count of unique sessions since server start.\n";
-      response << "# TYPE mist_sessions_total counter\n";
-      response << "mist_sessions_total " << servClients << "\n\n";
+      response << "# HELP mist_sessions_count Counts of unique sessions by type since server start.\n";
+      response << "# TYPE mist_sessions_count counter\n";
+      response << "mist_sessions_count{sessType=\"viewers\"} " << servViewers << "\n";
+      response << "mist_sessions_count{sessType=\"incoming\"} " << servInputs << "\n";
+      response << "mist_sessions_count{sessType=\"outgoing\"} " << servOutputs << "\n\n";
 
-      response << "# HELP mist_upload_total Count of bytes uploaded since server start.\n";
-      response << "# TYPE mist_upload_total counter\n";
-      response << "mist_upload_total " << servUpBytes << "\n\n";
+      response << "# HELP mist_bw_total Count of bytes handled since server start, by direction.\n";
+      response << "# TYPE mist_bw_total counter\n";
+      response << "mist_bw_total{direction=\"up\"} " << servUpBytes << "\n";
+      response << "mist_bw_total{direction=\"down\"} " << servDownBytes << "\n\n";
 
-      response << "# HELP mist_download_total Count of bytes downloaded since server start.\n";
-      response << "# TYPE mist_download_total counter\n";
-      response << "mist_download_total " << servDownBytes << "\n\n";
-
-      response << "# HELP mist_current Number of sessions for a given stream active right now.\n";
-      response << "# TYPE mist_current gauge\n";
-      for (std::map<std::string, unsigned long>::iterator it = clients.begin(); it != clients.end(); ++it){
-        response << "mist_current{stream=\"" << it->first << "\"} " << it->second << "\n";
+      response << "# HELP mist_viewers Number of sessions by type and stream active right now.\n";
+      response << "# TYPE mist_viewers gauge\n";
+      for (std::map<std::string, struct streamTotals>::iterator it = streams.begin(); it != streams.end(); ++it){
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"viewers\"} " << it->second.viewers << "\n";
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"incoming\"} " << it->second.inputs << "\n";
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"outgoing\"} " << it->second.outputs << "\n";
       }
 
-      response << "\n# HELP mist_sessions Count of unique sessions since stream start.\n";
-      response << "# TYPE mist_sessions counter\n";
-      response << "# HELP mist_upload Count of bytes uploaded since stream start.\n";
-      response << "# TYPE mist_upload counter\n";
-      response << "# HELP mist_download Count of bytes downloaded since stream start.\n";
-      response << "# TYPE mist_download counter\n";
-      std::set<std::string> mustWipe;
+      response << "\n# HELP mist_viewcount Count of unique viewer sessions since stream start, per stream.\n";
+      response << "# TYPE mist_viewcount counter\n";
+      response << "# HELP mist_bw Count of bytes handled since stream start, by direction.\n";
+      response << "# TYPE mist_bw counter\n";
       for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
-        response << "mist_sessions{stream=\"" << it->first << "\"} " << it->second.clients << "\n";
-        response << "mist_upload{stream=\"" << it->first << "\"} " << it->second.upBytes << "\n";
-        response << "mist_download{stream=\"" << it->first << "\"} " << it->second.downBytes << "\n";
+        response << "mist_viewcount{stream=\"" << it->first << "\"} " << it->second.viewers << "\n";
+        response << "mist_bw{stream=\"" << it->first << "\",direction=\"up\"} " << it->second.upBytes << "\n";
+        response << "mist_bw{stream=\"" << it->first << "\",direction=\"down\"} " << it->second.downBytes << "\n";
       }
     }
     H.Chunkify(response.str(), conn);
@@ -1155,37 +1190,59 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     resp["cpu"] = cpu_use;
     resp["mem_total"] = mem_total;
     resp["mem_used"] = (mem_total - mem_free - mem_bufcache);
+    resp["logs"] = (long long)Controller::logCounter;
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first
-      std::map<std::string, unsigned long> clients;
-      unsigned long totClients = 0;
+      std::map<std::string, struct streamTotals> streams;
+      unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
       unsigned int t = Util::epoch() - STATS_DELAY;
       //check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
-            clients[it->first.streamName]++;
-            totClients++;
+            switch (it->second.getSessType()){
+              case SESS_UNSET:
+              case SESS_VIEWER:
+                streams[it->first.streamName].viewers++;
+                totViewers++;
+                break;
+              case SESS_INPUT:
+                streams[it->first.streamName].inputs++;
+                totInputs++;
+                break;
+              case SESS_OUTPUT:
+                streams[it->first.streamName].outputs++;
+                totOutputs++;
+                break;
+            }
+
           }
         }
       }
 
-      resp["sess_cached"] = (long long)sessions.size();
-      resp["sess_current"] = (long long)totClients;
-      resp["sess_total"] = (long long)servClients;
-      resp["upload"] = (long long)servUpBytes;
-      resp["download"] = (long long)servDownBytes;
+      resp["curr"].append((long long)totViewers);
+      resp["curr"].append((long long)totInputs);
+      resp["curr"].append((long long)totOutputs);
+      resp["curr"].append((long long)sessions.size());
+      resp["tot"].append((long long)servViewers);
+      resp["tot"].append((long long)servInputs);
+      resp["tot"].append((long long)servOutputs);
+      resp["bw"].append((long long)servUpBytes);
+      resp["bw"].append((long long)servDownBytes);
 
-      for (std::map<std::string, unsigned long>::iterator it = clients.begin(); it != clients.end(); ++it){
-        resp["streams"][it->first]["sess_current"] = (long long)it->second;
+      for (std::map<std::string, struct streamTotals>::iterator it = streams.begin(); it != streams.end(); ++it){
+        resp["streams"][it->first]["curr"].append((long long)it->second.viewers);
+        resp["streams"][it->first]["curr"].append((long long)it->second.inputs);
+        resp["streams"][it->first]["curr"].append((long long)it->second.outputs);
       }
 
-      std::set<std::string> mustWipe;
       for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
-        resp["streams"][it->first]["sess_total"] = (long long)it->second.clients;
-        resp["streams"][it->first]["upload"] = (long long)it->second.upBytes;
-        resp["streams"][it->first]["download"] = (long long)it->second.downBytes;
+        resp["streams"][it->first]["tot"].append((long long)it->second.viewers);
+        resp["streams"][it->first]["tot"].append((long long)it->second.inputs);
+        resp["streams"][it->first]["tot"].append((long long)it->second.outputs);
+        resp["streams"][it->first]["bw"].append((long long)it->second.upBytes);
+        resp["streams"][it->first]["bw"].append((long long)it->second.downBytes);
       }
     }
     H.Chunkify(resp.toString(), conn);

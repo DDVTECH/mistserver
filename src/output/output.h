@@ -107,7 +107,7 @@ namespace Mist {
     protected://these are to be messed with by child classes
       virtual std::string getConnectedHost();
       virtual std::string getConnectedBinHost();
-
+      virtual std::string getStatsName();
 
       IPC::sharedClient statsPage;///< Shared memory used for statistics reporting.
       bool isBlocking;///< If true, indicates that myConn is blocking.

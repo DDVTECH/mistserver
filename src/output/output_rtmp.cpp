@@ -167,6 +167,14 @@ namespace Mist {
     return false;
   }
 
+  std::string OutRTMP::getStatsName(){
+    if (isPushing){
+      return "INPUT";
+    }else{
+      return Output::getStatsName();
+    }
+  }
+
   void OutRTMP::parseVars(std::string data){
     std::string varname;
     std::string varval;

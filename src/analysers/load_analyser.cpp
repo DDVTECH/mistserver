@@ -44,6 +44,7 @@ class hostDetails{
       upPrev = 0;
       downPrev = 0;
       prevTime = 0;
+      total = 0;
       addBandwidth = 0;
       availBandwidth = 128 * 1024 * 1024;//assume 1G connections
     }
@@ -58,6 +59,27 @@ class hostDetails{
       tthread::lock_guard<tthread::mutex> guard(*hostMutex);
       addBandwidth += 1 * 1024 * 1024;
       addBandwidth *= 1.2;
+    }
+    ///Returns the count of viewers for a given stream s.
+    unsigned long long count(std::string & s){
+      if (!hostMutex){hostMutex = new tthread::mutex();}
+      tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+      if (streams.count(s)){
+        return streams[s].total;
+      }else{
+        return 0;
+      }
+    }
+    ///Fills out a by reference given JSON::Value with current state.
+    void fillState(JSON::Value & r){
+      if (!hostMutex){hostMutex = new tthread::mutex();}
+      tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+      r["cpu"] = (long long)(cpu/10);
+      if (ramMax){r["ram"] = (long long)((ramCurr*100) / ramMax);}
+      r["up"] = (long long)upSpeed;
+      r["down"] = (long long)downSpeed;
+      r["streams"] = (long long)streams.size();
+      r["viewers"] = (long long)total;
     }
     ///Scores a potential new connection to this server, on a scale from 0 to 3200.
     ///0 is horrible, 3200 is perfect.
@@ -74,7 +96,7 @@ class hostDetails{
       if (streams.count(s)){score += 200;}
       //Finally, account for bandwidth. We again scale from 0 to 1000 where 1000 is perfect.
       score += (1000 - (((upSpeed + addBandwidth) * 1000) / availBandwidth));
-      MEDIUM_MSG("Scores: CPU %u, RAM %u, Stream %u, BW %u (-%u) (%lluMB/s avail)", 1000-cpu, 1000-((ramCurr * 1000) / ramMax), streams.count(s)?200:0, (1000 - ((upSpeed * 1000) / availBandwidth)), (addBandwidth * 1000)/availBandwidth, availBandwidth / 1024 / 1024);
+      MEDIUM_MSG("CPU %u, RAM %u, Stream %u, BW %u (-%u) (max %llu MB/s)", 1000-cpu, 1000-((ramCurr * 1000) / ramMax), streams.count(s)?200:0, (1000 - ((upSpeed * 1000) / availBandwidth)), (addBandwidth * 1000)/availBandwidth, availBandwidth / 1024 / 1024);
       return score;
     }
     void addViewer(std::string & s){
@@ -96,8 +118,8 @@ class hostDetails{
       cpu = d["cpu"].asInt();
       ramMax = d["mem_total"].asInt();
       ramCurr = d["mem_used"].asInt();
-      total = d["sess_current"].asInt();
-      unsigned long long currUp = d["upload"].asInt(), currDown = d["download"].asInt();
+      total = d["curr"][0u].asInt();
+      unsigned long long currUp = d["bw"][0u].asInt(), currDown = d["bw"][1u].asInt();
       unsigned int timeDiff = 0;
       if (prevTime){
         timeDiff = time(0) - prevTime;
@@ -112,7 +134,7 @@ class hostDetails{
 
       if (d.isMember("streams") && d["streams"].size()){
         jsonForEach(d["streams"], it){
-          unsigned int count =(*it)["sess_current"].asInt();
+          unsigned int count = (*it)["curr"][0u].asInt() + (*it)["curr"][1u].asInt() + (*it)["curr"][2u].asInt();
           if (!count){
             if (streams.count(it.key())){
               streams.erase(it.key());
@@ -120,8 +142,8 @@ class hostDetails{
             continue;
           }
           struct streamDetails & strm = streams[it.key()];
-          strm.total = count;
-          unsigned long long currTotal = (*it)["download"].asInt() + (*it)["upload"].asInt();
+          strm.total = (*it)["curr"][0u].asInt();
+          unsigned long long currTotal = (*it)["bw"][0u].asInt() + (*it)["bw"][1u].asInt();
           if (timeDiff && count){
             strm.bandwidth = ((currTotal - strm.prevTotal) / timeDiff) / count;
           }else{
@@ -145,6 +167,32 @@ int handleRequest(Socket::Connection & conn){
   HTTP::Parser H;
   while (conn){
     if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
+      if (H.url.size() == 1){
+        std::string host = H.GetVar("host");
+        std::string stream = H.GetVar("stream");
+        H.Clean();
+        H.SetHeader("Content-Type", "text/plain");
+        JSON::Value ret;
+        if (!host.size() && !stream.size()){
+            for (std::map<std::string, hostDetails>::iterator it = hosts.begin(); it != hosts.end(); ++it){
+              it->second.fillState(ret[it->first]);
+            }
+        }else{
+          if (stream.size()){
+            unsigned long long strTot = 0;
+            for (std::map<std::string, hostDetails>::iterator it = hosts.begin(); it != hosts.end(); ++it){
+              strTot += it->second.count(stream);
+            }
+            ret = (long long)strTot;
+          }else if (hosts.count(host)){
+            hosts[host].fillState(ret);
+          }
+        }
+        H.SetBody(ret.toPrettyString());
+        H.SendResponse("200", "OK", conn);
+        H.Clean();
+        continue;
+      }
       std::string stream = H.url.substr(1);
       INFO_MSG("Balancing stream %s", stream.c_str());
       H.Clean();

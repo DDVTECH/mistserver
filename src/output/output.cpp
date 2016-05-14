@@ -1123,6 +1123,17 @@ namespace Mist {
     stats();
   }
 
+  /// Returns the name as it should be used in statistics.
+  /// Outputs used as an input should return INPUT, outputs used for automation should return OUTPUT, others should return their proper name.
+  /// The default implementation is usually good enough for all the non-INPUT types.
+  std::string Output::getStatsName(){
+    if (config->hasOption("target") && config->getString("target").size()){
+      return "OUTPUT";
+    }else{
+      return capa["name"].asStringRef();
+    }
+  }
+
   void Output::stats(){
     if (!isInitialized){
       return;
@@ -1144,7 +1155,7 @@ namespace Mist {
         }
         tmpEx.crc(crc);
         tmpEx.streamName(streamName);
-        tmpEx.connector(capa["name"].asString());
+        tmpEx.connector(getStatsName());
         tmpEx.up(myConn.dataUp());
         tmpEx.down(myConn.dataDown());
         tmpEx.time(now - myConn.connTime());

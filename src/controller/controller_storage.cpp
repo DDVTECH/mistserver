@@ -16,6 +16,7 @@ namespace Controller {
   JSON::Value Storage; ///< Global storage of data.
   tthread::mutex configMutex;
   tthread::mutex logMutex;
+  unsigned long long logCounter = 0;
   bool configChanged = false;
 
   ///\brief Store and print a log message.
@@ -36,6 +37,7 @@ namespace Controller {
     timeinfo = localtime (&rawtime);
     strftime(buffer,100,"%F %H:%M:%S",timeinfo);
     std::cout << "[" << buffer << "] " << kind << ": " << message << std::endl;
+    logCounter++;
   }
 
   ///\brief Write contents to Filename

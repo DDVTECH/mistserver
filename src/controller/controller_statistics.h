@@ -31,6 +31,13 @@ namespace Controller {
     long long up;
   };
 
+  enum sessType {
+    SESS_UNSET = 0,
+    SESS_INPUT,
+    SESS_OUTPUT,
+    SESS_VIEWER
+  };
+
   /// This is a comparison and storage class that keeps sessions apart from each other.
   /// Whenever two of these objects are not equal, it will create a new session.
   class sessIndex {
@@ -72,7 +79,9 @@ namespace Controller {
       std::deque<statStorage> oldConns;
       std::map<unsigned long, statStorage> curConns;
       char sync;
+      sessType sessionType;
     public:
+      sessType getSessType();
       statSession();
       void wipeOld(unsigned long long);
       void finish(unsigned long index);

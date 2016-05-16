@@ -167,6 +167,7 @@ int main(int argc, char ** argv){
   Controller::conf.addOption("port", stored_port);
   Controller::conf.addOption("interface", stored_interface);
   Controller::conf.addOption("username", stored_user);
+  Controller::conf.addOption("maxconnsperip", JSON::fromString("{\"long\":\"maxconnsperip\", \"short\":\"M\", \"arg\":\"integer\" \"default\":0, \"help\":\"Max simultaneous sessions per unique IP address. Only enforced if the USER_NEW trigger is in use.\"}"));
   Controller::conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
   Controller::conf.addOption("logfile", JSON::fromString("{\"long\":\"logfile\", \"short\":\"L\", \"arg\":\"string\" \"default\":\"\",\"help\":\"Redirect all standard output to a log file, provided with an argument\"}"));
   Controller::conf.addOption("configFile", JSON::fromString("{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" \"default\":\"config.json\", \"help\":\"Specify a config file other than default.\"}"));
@@ -230,6 +231,7 @@ int main(int argc, char ** argv){
   if (Controller::Storage["config"]["controller"]["prometheus"]){
     Controller::conf.getOption("prometheus", true)[0u] = Controller::Storage["config"]["controller"]["prometheus"];
   }
+  Controller::maxConnsPerIP = Controller::conf.getInteger("maxconnsperip");
   Controller::Storage["config"]["controller"]["prometheus"] = Controller::conf.getString("prometheus");
   {
     IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);

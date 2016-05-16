@@ -322,7 +322,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
 /// Attempt to start a push for streamname to target.
 /// Both streamname and target may be changed by this function:
 /// - streamname is sanitized to a permissible streamname
-/// - target gets variables replaced and may be altered by the RECORDING_START trigger response.
+/// - target gets variables replaced and may be altered by the PUSH_OUT_START trigger response.
 /// Attempts to match the altered target to an output that can push to it.
 pid_t Util::startPush(std::string & streamname, std::string & target) {
 

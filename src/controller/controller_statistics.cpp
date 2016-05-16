@@ -39,6 +39,7 @@ std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< M
 bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
 std::map<std::string, unsigned int> Controller::activeStreams;
+unsigned int Controller::maxConnsPerIP = 0;
 
 //For server-wide totals. Local to this file only.
 struct streamTotals {
@@ -190,9 +191,31 @@ void Controller::SharedMemStats(void * config){
 
 /// Updates the given active connection with new stats data.
 void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
-  //update the sync byte: 0 = requesting fill, 1 = needs checking, > 1 = state known
+  //update the sync byte: 0 = requesting fill, 1 = needs checking, > 1 = state known (100=denied, 10=accepted)
   if (!data.getSync()){
-    data.setSync(sync);
+    //if we have a maximum connection count per IP, enforce it
+    if (maxConnsPerIP){
+      unsigned int currConns = 1;
+      long long shortly = Util::epoch();
+      std::string myHost;
+      {
+        sessIndex tmpidx(data);
+        myHost = tmpidx.host;
+      }
+      for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+
+        if (&it->second != this && it->first.host == myHost && (it->second.hasDataFor(shortly-STATS_DELAY) || it->second.hasDataFor(shortly) || it->second.hasDataFor(shortly-1) || it->second.hasDataFor(shortly-2) || it->second.hasDataFor(shortly-3) || it->second.hasDataFor(shortly-4) || it->second.hasDataFor(shortly-5)) && ++currConns > maxConnsPerIP){break;}
+      }
+      if (currConns > maxConnsPerIP){
+        WARN_MSG("Disconnecting session from %s: exceeds max connection count of %u", myHost.c_str(), maxConnsPerIP);
+        data.setSync(100);
+      }else{
+        data.setSync(sync);
+      }
+    }else{
+      //no maximum, just set the sync byte to its current value
+      data.setSync(sync);
+    }
   }else{
     if (sync < 2){
       sync = data.getSync();

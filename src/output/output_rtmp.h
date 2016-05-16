@@ -16,8 +16,10 @@ namespace Mist {
       void sendHeader();
       bool isReadyForPlay();
       static bool listenMode();
+      void requestHandler();
     protected:
       bool isPushing;
+      unsigned int maxbps;
       void parseVars(std::string data);
       std::string app_name;
       void parseChunk(Socket::Buffer & inputBuffer);

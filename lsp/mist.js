@@ -3363,7 +3363,52 @@ var UI = {
             );
           }
           else {
-            $c.append($push);
+            $c.append(
+              $('<button>').text('Stop all pushes').click(function(){
+                var push_list = [];
+                for (var i in d.push_list) {
+                  push_list.push(d.push_list[i][0]);
+                }
+                if (push_list.length == 0) { return; }
+                if (confirm('Are you sure you want to stop all pushes?')) {
+                  mist.send(function(d){
+                    function checkgone() {
+                      setTimeout(function(){
+                        mist.send(function(d){
+                          var gone = false;
+                          if (('push_list' in d) && (d.push_list) && (d.push_list.length)) {
+                            gone = true;
+                            for (var i in d.push_list) {
+                              if (push_list.indexOf(d.push_list[i][0]) == -1) {
+                                gone = false;
+                                break;
+                              }
+                            }
+                          }
+                          else {
+                            gone = true;
+                          }
+                          if (gone) {
+                            UI.navto('Push');
+                          }
+                          else {
+                            checkgone();
+                          }
+                        },{push_list:1});
+                      },1e3);
+                    }
+                    checkgone();
+                  },{push_stop:push_list});
+                  $push.find('tr:not(:first-child)').html(
+                    $('<td colspan=99>').append(
+                      $('<span>').addClass('red').text('Stopping..')
+                    )
+                  );
+                  $(this).remove();
+                }
+                
+              })
+            ).append($push);
           }
           
         },{push_settings:1,push_list:1,push_auto_list:1});

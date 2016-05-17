@@ -677,6 +677,9 @@ namespace IPC {
       name[splitChar] = '+';
     }
     memcpy(data + 48, name.c_str(), std::min((int)name.size(), 100));
+    if (name.size() < 100){
+      data[48+name.size()] = 0;
+    }
   }
 
   ///\brief Gets the name of the stream this user is viewing

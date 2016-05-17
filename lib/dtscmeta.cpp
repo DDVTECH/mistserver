@@ -278,7 +278,7 @@ namespace DTSC {
     if (p[0] == DTSC_OBJ || p[0] == DTSC_CON) {
       p++;
       //object, scan contents
-      while (p[0] + p[1] != 0 && p < max) { //while not encountering 0x0000 (we assume 0x0000EE)
+      while (p < max && p[0] + p[1] != 0) { //while not encountering 0x0000 (we assume 0x0000EE)
         if (p + 2 >= max) {
           return 0;//out of packet!
         }
@@ -294,7 +294,7 @@ namespace DTSC {
     if (p[0] == DTSC_ARR) {
       p++;
       //array, scan contents
-      while (p[0] + p[1] != 0 && p < max) { //while not encountering 0x0000 (we assume 0x0000EE)
+      while (p < max && p[0] + p[1] != 0) { //while not encountering 0x0000 (we assume 0x0000EE)
         //search through contents...
         p = skipDTSC(p, max);
         if (!p) {

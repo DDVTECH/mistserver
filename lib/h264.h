@@ -12,6 +12,8 @@ namespace h264 {
     unsigned int width;
     unsigned int height;
     double fps;
+    uint8_t profile;
+    uint8_t level;
   };
 
   ///Class for analyzing generic nal units

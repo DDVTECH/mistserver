@@ -9,6 +9,7 @@
 #include <mist/json.h>
 #include <mist/config.h>
 #include <mist/defines.h>
+#include <mist/h264.h>
 
 ///\brief Holds everything unique to the analysers.  
 namespace Analysers {
@@ -23,6 +24,48 @@ namespace Analysers {
       std::cerr << "Not a valid DTSC file" << std::endl;
       return 1;
     }
+
+    if (conf.getBool("compact")){
+      JSON::Value result;
+      for (std::map<unsigned int, DTSC::Track>::iterator it = F.getMeta().tracks.begin(); it != F.getMeta().tracks.end(); it++){
+        JSON::Value track;
+        if (it->second.type=="video"){
+          std::stringstream tStream;
+          track["resolution"] = JSON::Value((long long)it->second.width).asString() + "x" + JSON::Value((long long)it->second.height).asString();
+          track["fps"] = (long long)((double)it->second.fpks / 1000);
+          track["fpks"] = it->second.fpks;
+          tStream << it->second.bps * 8 << " b/s, " << (double)it->second.bps * 8 / 1024 << " kb/s, " << (double)it->second.bps * 8 / 1024 / 1024 << " mb/s";
+          track["bitrate"] = tStream.str();
+          tStream.str("");
+          track["keyframe_duration"] = (long long)((float)(it->second.lastms - it->second.firstms) / it->second.keys.size());
+          tStream << ((double)(it->second.lastms - it->second.firstms) / it->second.keys.size()) / 1000;
+          track["keyframe_interval"] = tStream.str(); 
+
+          tStream.str("");
+          if (it->second.codec == "H264"){
+            h264::sequenceParameterSet sps;
+            sps.fromDTSCInit(it->second.init);
+            h264::SPSMeta spsData = sps.getCharacteristics();
+            track["encoding"]["width"] = spsData.width;
+            track["encoding"]["height"] = spsData.height;
+            tStream << spsData.fps;
+            track["encoding"]["fps"] = tStream.str();
+            track["encoding"]["profile"] = spsData.profile;
+            track["encoding"]["level"] = spsData.level;
+          }
+        }
+        if (it->second.type == "audio"){
+          std::stringstream tStream;
+          tStream << it->second.bps * 8 << " b/s, " << (double)it->second.bps * 8 / 1024 << " kb/s, " << (double)it->second.bps * 8 / 1024 / 1024 << " mb/s";
+          track["bitrate"] = tStream.str();
+          track["keyframe_interval"] = (long long)((float)(it->second.lastms - it->second.firstms) / it->second.keys.size());
+        }
+        result[it->second.getWritableIdentifier()] = track;
+      }
+      std::cout << result.toString();
+      return 0;
+    }
+
     if (F.getMeta().vod || F.getMeta().live){
       F.getMeta().toPrettyString(std::cout,0, 0x03);
     }
@@ -63,6 +106,7 @@ namespace Analysers {
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0]);
   conf.addOption("filename", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"Filename of the DTSC file to analyse.\"}"));
+  conf.addOption("compact", JSON::fromString("{\"short\": \"c\", \"long\": \"compact\", \"help\":\"Filename of the DTSC file to analyse.\"}"));
   conf.parseArgs(argc, argv);
   return Analysers::analyseDTSC(conf);
 } //main

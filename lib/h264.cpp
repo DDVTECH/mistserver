@@ -113,8 +113,10 @@ namespace h264 {
     }
 
     char profileIdc = bs.get(8);
+    result.profile = profileIdc;
     //Start skipping unused data
-    bs.skip(16);
+    bs.skip(8);
+    result.level = bs.get(8);
     bs.getUExpGolomb();
     if (profileIdc == 100 || profileIdc == 110 || profileIdc == 122 || profileIdc == 244 || profileIdc == 44 || profileIdc == 83 || profileIdc == 86 || profileIdc == 118 || profileIdc == 128) {
       //chroma format idc

@@ -1579,6 +1579,10 @@ namespace DTSC {
 
   ///\brief Writes a track to a pointer
   void Track::writeTo(char *& p) {
+    std::deque<Fragment>::iterator firstFrag = fragments.begin(); 
+    if (fragments.size() && (&firstFrag) == 0){
+      return;
+    }
     std::string trackIdent = getWritableIdentifier();
     writePointer(p, convertShort(trackIdent.size()), 2);
     writePointer(p, trackIdent);

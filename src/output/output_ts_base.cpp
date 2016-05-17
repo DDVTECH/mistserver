@@ -143,7 +143,7 @@ namespace Mist {
               break;
             }
             if (alreadySent + 4 > watKunnenWeIn1Ding){
-              nalLead = 4 - watKunnenWeIn1Ding-alreadySent;
+              nalLead = 4 - (watKunnenWeIn1Ding-alreadySent);
               fillPacket("\000\000\000\001",watKunnenWeIn1Ding-alreadySent);
               i += watKunnenWeIn1Ding-alreadySent;
               alreadySent += watKunnenWeIn1Ding-alreadySent;

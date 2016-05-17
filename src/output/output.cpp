@@ -150,9 +150,10 @@ namespace Mist {
       //sync byte 0 = no sync yet, wait for sync from controller...
       IPC::statExchange tmpEx(statsPage.getData());
       unsigned int i = 0;
-      while (!tmpEx.getSync() && i < 30){
-        Util::sleep(100);
+      while (!tmpEx.getSync() && i++ < 30){
+        Util::wait(100);
         stats();
+        tmpEx = IPC::statExchange(statsPage.getData());
       }
       HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
       //1 = check requested (connection is new)

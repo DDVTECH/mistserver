@@ -176,7 +176,7 @@ void Controller::SharedMemStats(void * config){
       }
       Controller::checkServerLimits(); /*LTS*/
     }
-    Util::sleep(1000);
+    Util::wait(1000);
   }
   DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
   if (Controller::killOnExit){

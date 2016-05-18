@@ -164,13 +164,14 @@ void Controller::SharedMemStats(void * config){
       }
       if (activeStreams.size()){
         for (std::map<std::string, unsigned int>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
-          if (++it->second > 1){
+          if (++it->second > STATS_DELAY){
             streamStopped(it->first);
             inactiveStreams.insert(it->first);
           }
         }
         while (inactiveStreams.size()){
           activeStreams.erase(*inactiveStreams.begin());
+          streamStats.erase(*inactiveStreams.begin());
           inactiveStreams.erase(inactiveStreams.begin());
         }
       }
@@ -835,12 +836,11 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   //check all sessions
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      if (onlyNow || it->second.hasDataFor(t)){
+      if (!onlyNow || (it->second.hasDataFor(t) && it->second.isViewerOn(t))){
         streams.insert(it->first.streamName);
-      }
-      if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
-        streams.insert(it->first.streamName);
-        clients[it->first.streamName]++;
+        if (it->second.getSessType() == SESS_VIEWER){
+          clients[it->first.streamName]++;
+        }
       }
     }
   }

@@ -150,6 +150,7 @@ namespace Mist {
       //sync byte 0 = no sync yet, wait for sync from controller...
       IPC::statExchange tmpEx(statsPage.getData());
       unsigned int i = 0;
+      tmpEx.setSync(0);
       while (!tmpEx.getSync() && i++ < 30){
         Util::wait(100);
         stats();

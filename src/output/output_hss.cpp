@@ -134,7 +134,7 @@ namespace Mist {
             myConn.close();
             break;
           }
-          Util::sleep(500);
+          Util::wait(500);
           updateMeta();
         }
       }while (myConn && seekable > 0);

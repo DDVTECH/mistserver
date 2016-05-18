@@ -218,7 +218,7 @@ void pushThread(void * nullPointer){
   while (pConf->is_active){
     pushFirstElement(myThread);
     if (!pushableSegments[myThread].size()){
-      Util::sleep(1000);
+      Util::wait(1000);
     }
   }
 

@@ -63,7 +63,7 @@ void Util::Procs::exit_handler() {
         break;
       }
       if (!listcopy.empty()) {
-        Util::sleep(20);
+        Util::wait(20);
         ++waiting;
       }
     }
@@ -91,7 +91,7 @@ void Util::Procs::exit_handler() {
         break;
       }
       if (!listcopy.empty()) {
-        Util::sleep(20);
+        Util::wait(20);
         ++waiting;
       }
     }
@@ -119,7 +119,7 @@ void Util::Procs::exit_handler() {
         break;
       }
       if (!listcopy.empty()) {
-        Util::sleep(20);
+        Util::wait(20);
         ++waiting;
       }
     }

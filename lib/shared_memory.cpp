@@ -405,7 +405,7 @@ namespace IPC {
         int i = 0;
         do {
           if (i != 0) {
-            Util::sleep(1000);
+            Util::wait(1000);
           }
           handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());
           i++;
@@ -438,7 +438,7 @@ namespace IPC {
           int i = 0;
           while (i < 10 && handle == -1 && autoBackoff) {
             i++;
-            Util::sleep(1000);
+            Util::wait(1000);
             handle = shm_open(name.c_str(), O_RDWR, ACCESSPERMS);
           }
         }
@@ -558,7 +558,7 @@ namespace IPC {
           int i = 0;
           while (i < 10 && handle == -1 && autoBackoff) {
             i++;
-            Util::sleep(1000);
+            Util::wait(1000);
             handle = open(std::string(Util::getTmpFolder() + name).c_str(), O_RDWR, (mode_t)0600);
           }
         }

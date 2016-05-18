@@ -228,10 +228,10 @@ namespace Mist {
     }
     updateMeta();
     if (myMeta.live && !isReadyForPlay()){
-      unsigned int maxWaits = 15;
+      unsigned long long waitUntil = Util::epoch() + 15;
       while (!isReadyForPlay()){
         Util::sleep(1000);
-        if (--maxWaits == 0){
+        if (Util::epoch() > waitUntil){
           FAIL_MSG("Giving up waiting for playable tracks");
           break;
         }
@@ -1002,7 +1002,7 @@ namespace Mist {
           DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u (%s) @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage);
         }
         //keep updating the metadata at 250ms intervals while waiting for more data
-        Util::sleep(250);
+        Util::wait(250);
         updateMeta();
       }else{
         //if we're not live, we've simply reached the end of the page. Load the next key.
@@ -1043,7 +1043,7 @@ namespace Mist {
             while(counter < 10 && myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
               if (counter++){
                 //Only sleep 500ms if this is not the first updatemeta try
-                Util::sleep(500);
+                Util::wait(500);
               }
               updateMeta();
               nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
@@ -1109,9 +1109,9 @@ namespace Mist {
       if (nxt.offset < nProxy.curPage[nxt.tid].len){
         unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
         int ctr = 0;
-        //sleep at most half a second for new data.
+        //sleep for at most 5 seconds for new data.
         while (!nextTime && ++ctr < 5){
-          Util::sleep(1000);
+          Util::wait(1000);
           nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
         }
         if (nextTime){

@@ -313,7 +313,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
 
   unsigned int waiting = 0;
   while (!streamAlive(streamname) && ++waiting < 40){
-    Util::sleep(250);
+    Util::wait(250);
   }
 
   return streamAlive(streamname);

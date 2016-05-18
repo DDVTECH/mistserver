@@ -238,7 +238,7 @@ namespace Mist {
       }
       /*LTS-END*/
       if (config->is_active){
-        Util::sleep(1000);
+        Util::wait(1000);
       }
     }
     finish();

@@ -243,7 +243,7 @@ namespace Mist {
           myConn.close();
           break;
         }
-        Util::sleep(500);
+        Util::wait(500);
         updateMeta();
       }
       mstime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getNumber()).getTime();

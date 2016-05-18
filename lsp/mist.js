@@ -1924,7 +1924,7 @@ var UI = {
             help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
           },{
             type: 'checkbox',
-            label: 'Force JSON file save',
+            label: 'Force configurations save',
             pointer: {
               main: mist.data,
               index: 'save'
@@ -3419,7 +3419,7 @@ var UI = {
               },{
                 label: 'Target',
                 type: 'str',
-                help: 'Where the stream will be pushed to.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul>',
+                help: 'Where the stream will be pushed to.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul> Valid text replacements:<ul><li>$stream - inserts the stream name used to push to MistServer</li><li>$day - inserts the current day number</li><li>$month - inserts the current month number</li><li>$year - inserts the current year number</li><li>$hour - inserts the hour timestamp when stream was received</li><li>$minute - inserts the minute timestamp the stream was received</li><li>$seconds - inserts the seconds timestamp when the stream was received</li><li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>',
                 pointer: {
                   main: saveas,
                   index: 'target'

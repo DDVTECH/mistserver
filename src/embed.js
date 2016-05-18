@@ -275,7 +275,7 @@ function mistembed(streamname) {
     if (video.on_error){
       container.innerHTML = video.on_error;
     }else{
-      container.innerHTML = '<strong>Error: no protocols found</strong>';
+      container.innerHTML = '<strong>Error: no active source or compatible protocols for this stream</strong>';
     }
   }
   else {

@@ -273,7 +273,7 @@ namespace Mist {
     }
     if ((fragCount < FRAG_BOOT || fragCount == 0xFFFFull) && (lastFragCount >= FRAG_BOOT && lastFragCount != 0xFFFFull)) {
       if (Triggers::shouldTrigger("STREAM_BUFFER")) {
-        std::string payload = config->getString("streamname") + "\nEMPTY";
+        std::string payload = config->getString("streamname") + "\nDRY";
         Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
       }
     }

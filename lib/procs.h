@@ -7,6 +7,7 @@
 #include <set>
 #include <vector>
 #include <deque>
+#include "tinythread.h"
 
 /// Contains utility code, not directly related to streaming media
 namespace Util {
@@ -14,13 +15,18 @@ namespace Util {
   /// Deals with spawning, monitoring and stopping child processes
   class Procs {
     private:
-      static std::set<pid_t> plist; ///< Holds active processes
+      static bool childRunning(pid_t p);
+      static tthread::mutex plistMutex;
+      static tthread::thread * reaper_thread;
+      static std::set<pid_t> plist; ///< Holds active process list.
       static bool handler_set; ///< If true, the sigchld handler has been setup.
+      static bool thread_handler;///< True while thread handler should be running.
       static void childsig_handler(int signum);
       static void exit_handler();
       static void runCmd(std::string & cmd);
       static void setHandler();
       static char* const* dequeToArgv(std::deque<std::string> & argDeq);
+      static void grim_reaper(void * n);
     public:
       static std::string getOutputOf(char * const * argv);
       static std::string getOutputOf(std::deque<std::string> & argDeq);

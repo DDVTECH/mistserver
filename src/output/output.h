@@ -112,7 +112,7 @@ namespace Mist {
 
       IPC::sharedClient statsPage;///< Shared memory used for statistics reporting.
       bool isBlocking;///< If true, indicates that myConn is blocking.
-      unsigned int crc;///< Checksum, if any, for usage in the stats.
+      uint32_t crc;///< Checksum, if any, for usage in the stats.
       unsigned int getKeyForTime(long unsigned int trackId, long long timeStamp);
       
       //stream delaying variables

@@ -226,6 +226,7 @@ namespace Mist {
       onFail();
       return;
     }
+    stats();
     updateMeta();
     if (myMeta.live && !isReadyForPlay()){
       unsigned long long waitUntil = Util::epoch() + 15;
@@ -1140,7 +1141,7 @@ namespace Mist {
     if (!isInitialized){
       return;
     }
-    EXTREME_MSG("Writing stats: %s, %s, %llu", getConnectedHost().c_str(), streamName.c_str(), crc);
+    EXTREME_MSG("Writing stats: %s, %s, %lu", getConnectedHost().c_str(), streamName.c_str(), crc);
     if (statsPage.getData()){
       unsigned long long int now = Util::epoch();
       if (now != lastStats){

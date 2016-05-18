@@ -108,6 +108,7 @@ namespace Mist {
       virtual std::string getConnectedHost();
       virtual std::string getConnectedBinHost();
       virtual std::string getStatsName();
+      virtual bool hasSessionIDs(){return false;}
 
       IPC::sharedClient statsPage;///< Shared memory used for statistics reporting.
       bool isBlocking;///< If true, indicates that myConn is blocking.

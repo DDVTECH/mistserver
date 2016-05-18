@@ -211,10 +211,14 @@ namespace Mist {
   
   void HTTPOutput::onRequest(){
     while (H.Read(myConn)){
-      //If no sessionID --> take first 2, else take session id.
-      if (H.GetVar("sessId").size()){
-        std::string ua = H.GetVar("sessId");
-        crc = checksum::crc32(0, ua.data(), ua.size());
+      if (hasSessionIDs()){
+        if (H.GetVar("sessId").size()){
+          std::string ua = H.GetVar("sessId");
+          crc = checksum::crc32(0, ua.data(), ua.size());
+        }else{
+          std::string ua = JSON::Value((long long)getpid()).asString();
+          crc = checksum::crc32(0, ua.data(), ua.size());
+        }
       }else{
         std::string ua = H.GetHeader("User-Agent") + H.GetHeader("X-Playback-Session-Id");
         crc = checksum::crc32(0, ua.data(), ua.size());

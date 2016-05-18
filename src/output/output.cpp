@@ -861,7 +861,6 @@ namespace Mist {
     /*LTS-END*/
     DEBUG_MSG(DLVL_MEDIUM, "MistOut client handler started");
     while (config->is_active && myConn.connected() && (wantRequest || parseData)){
-      stats();
       if (wantRequest){
         requestHandler();
       }

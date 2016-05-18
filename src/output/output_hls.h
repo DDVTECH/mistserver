@@ -10,7 +10,8 @@ namespace Mist {
       void sendTS(const char * tsData, unsigned int len=188);
       void onHTTP();      
       bool isReadyForPlay();
-    protected:      
+    protected:
+      bool hasSessionIDs(){return true;}
       std::string liveIndex();
       std::string liveIndex(int tid, std::string & sessId);
 

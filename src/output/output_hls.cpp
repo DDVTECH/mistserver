@@ -370,6 +370,7 @@ namespace Mist {
         VLCworkaround = true;
       }
     }
+
     initialize();
     if (H.url.substr(5 + streamName.size(), 5) == "/push"){
       std::string relPushUrl = H.url.substr(10 + streamName.size());

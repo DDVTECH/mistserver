@@ -159,7 +159,7 @@ namespace Mist {
       HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
       //1 = check requested (connection is new)
       if (tmpEx.getSync() == 1){
-        std::string payload = streamName+"\n" + myConn.getHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+        std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl;
         if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
           MEDIUM_MSG("Closing connection because denied by USER_NEW trigger");
           myConn.close();
@@ -1140,6 +1140,7 @@ namespace Mist {
     if (!isInitialized){
       return;
     }
+    EXTREME_MSG("Writing stats: %s, %s, %llu", getConnectedHost().c_str(), streamName.c_str(), crc);
     if (statsPage.getData()){
       unsigned long long int now = Util::epoch();
       if (now != lastStats){

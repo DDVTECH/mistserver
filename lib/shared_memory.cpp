@@ -881,9 +881,9 @@ namespace IPC {
               amount = id + 1;
               VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
-            unsigned short tmpPID = *((unsigned short *)(it->mapped + 1 + offset + payLen - 2));
+            uint32_t tmpPID = *((uint32_t *)(it->mapped + 1 + offset + payLen - 4));
             if (!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127)){
-              WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);
+              WARN_MSG("process disappeared, timing out. (pid %lu)", tmpPID);
               *counter = 126; //if process is already dead, instant timeout.
             }
             callback(it->mapped + offset + 1, payLen, id);
@@ -1068,7 +1068,7 @@ namespace IPC {
               offsetOnPage = offset;
               if (hasCounter) {
                 myPage.mapped[offset] = 1;
-                *((unsigned short *)(myPage.mapped + 1 + offset + len - 2)) = getpid();
+                *((uint32_t *)(myPage.mapped + 1 + offset + len - 4)) = getpid();
               }
               break;
             }

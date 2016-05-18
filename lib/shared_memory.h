@@ -11,7 +11,7 @@
 #include <semaphore.h>
 #endif
 
-#define STAT_EX_SIZE 175
+#define STAT_EX_SIZE 177
 #define PLAY_EX_SIZE 2+6*SIMUL_TRACKS
 
 namespace IPC {
@@ -52,7 +52,7 @@ namespace IPC {
       /// - 20 byte - connector (name of the connector the peer is using)
       /// - 4 byte - CRC32 of user agent (or zero if none)
       /// - 1 byte sync (was seen by controller yes/no)
-      /// - (implicit 2 bytes: PID)
+      /// - (implicit 4 bytes: PID)
       char * data;
   };
 

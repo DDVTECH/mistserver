@@ -128,7 +128,10 @@ namespace Controller {
       for (std::map<std::string, unsigned int>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
         std::string streamname = it->first;
         if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
-          startPush(streamname, target);
+
+          if (!isPushActive(streamname, target)){
+            startPush(streamname, target);
+          }
         }
       }
     }

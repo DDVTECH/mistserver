@@ -194,16 +194,16 @@ void Controller::SharedMemStats(void * config){
 void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
   //update the sync byte: 0 = requesting fill, 1 = needs checking, > 1 = state known (100=denied, 10=accepted)
   if (!data.getSync()){
-    WARN_MSG("Setting sync to %u for %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), data.crc());
+    std::string myHost;
+    {
+      sessIndex tmpidx(data);
+      myHost = tmpidx.host;
+    }
+    WARN_MSG("Setting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
     //if we have a maximum connection count per IP, enforce it
     if (maxConnsPerIP){
       unsigned int currConns = 1;
       long long shortly = Util::epoch();
-      std::string myHost;
-      {
-        sessIndex tmpidx(data);
-        myHost = tmpidx.host;
-      }
       for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
 
         if (&it->second != this && it->first.host == myHost && (it->second.hasDataFor(shortly-STATS_DELAY) || it->second.hasDataFor(shortly) || it->second.hasDataFor(shortly-1) || it->second.hasDataFor(shortly-2) || it->second.hasDataFor(shortly-3) || it->second.hasDataFor(shortly-4) || it->second.hasDataFor(shortly-5)) && ++currConns > maxConnsPerIP){break;}

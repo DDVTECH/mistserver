@@ -125,6 +125,7 @@ void Controller::killStatistics(char * data, size_t len, unsigned int id){
 
 ///This function is ran whenever a stream becomes active.
 void Controller::streamStarted(std::string stream){
+  tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
   INFO_MSG("Stream %s became active", stream.c_str());
   Controller::doAutoPush(stream);
 }

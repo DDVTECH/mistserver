@@ -495,7 +495,7 @@ namespace Mist {
     }
     //Determine if we need to open the next page
     int nextPageNum = -1;
-    if (isKeyframe) {
+    if (isKeyframe && trackState[tid] == FILL_ACC) {
       //If there is no page, create it
       if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
         nextPageNum = 1;

@@ -992,6 +992,7 @@ namespace Mist {
       }
       //if this is a live stream, we might have just reached the live point.
       //check where the next key is
+      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
       int nextPage = pageNumForKey(nxt.tid, nxtKeyNum[nxt.tid]+1);
       //are we live, and the next key hasn't shown up on another page? then we're waiting.
       if (myMeta.live && currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){

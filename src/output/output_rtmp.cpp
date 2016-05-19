@@ -260,7 +260,7 @@ namespace Mist {
     capa["optional"]["maxkbps"]["help"] = "Maximum bitrate to allow in the ingest direction, in kilobits per second.";
     capa["optional"]["maxkbps"]["option"] = "--maxkbps";
     capa["optional"]["maxkbps"]["short"] = "K";
-    capa["optional"]["maxkbps"]["default"] = (long long)20000;
+    capa["optional"]["maxkbps"]["default"] = (long long)0;
     capa["optional"]["maxkbps"]["type"] = "uint";
     cfg->addConnectorOptions(1935, capa);
     config = cfg;

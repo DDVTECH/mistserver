@@ -976,7 +976,7 @@ namespace Mist {
     if (!nProxy.curPage.count(nxt.tid) || !nProxy.curPage[nxt.tid].mapped){
       //mapping failure? Drop this track and go to next.
       //not an error - usually means end of stream.
-      DEBUG_MSG(DLVL_DEVEL, "Track %u no page - dropping track.", nxt.tid);
+      WARN_MSG("Track %u no page - dropping track.", nxt.tid);
       prepareNext();
       return;
     }
@@ -985,7 +985,7 @@ namespace Mist {
     if (!memcmp(nProxy.curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4)){
       //if we don't currently know where we are, we're lost. We should drop the track.
       if (!nxt.time){
-        DEBUG_MSG(DLVL_DEVEL, "Timeless empty packet on track %u - dropping track.", nxt.tid);
+        WARN_MSG("Timeless empty packet on track %u - dropping track.", nxt.tid);
         prepareNext();
         return;
       }
@@ -1000,7 +1000,7 @@ namespace Mist {
         }else{
           //after ~10 seconds, give up and drop the track.
           //roxlu edited this line:
-          DEBUG_MSG(DLVL_DEVEL, "Empty packet on track %u (%s) @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage);
+          WARN_MSG("Empty packet on track %u (%s) @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage);
         }
         //keep updating the metadata at 250ms intervals while waiting for more data
         Util::wait(250);
@@ -1013,16 +1013,16 @@ namespace Mist {
         if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
           unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
           if (nextTime && nextTime < nxt.time){
-            DEBUG_MSG(DLVL_DEVEL, "Time going backwards in track %u - dropping track.", nxt.tid);
+            WARN_MSG("Time going backwards in track %u - dropping track.", nxt.tid);
           }else{
             if (nextTime){
               nxt.time = nextTime;
             }
             buffer.insert(nxt);
-            DEBUG_MSG(DLVL_MEDIUM, "Next page for track %u starts at %llu.", nxt.tid, nxt.time);
+            MEDIUM_MSG("Next page for track %u starts at %llu.", nxt.tid, nxt.time);
           }
         }else{
-          DEBUG_MSG(DLVL_DEVEL, "Could not load next memory page for track %u - dropping track.", nxt.tid);
+          WARN_MSG("Could not load next memory page for track %u - dropping track.", nxt.tid);
         }
       }
       prepareNext();
@@ -1055,7 +1055,7 @@ namespace Mist {
           }
         }
         nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
-        DEBUG_MSG(DLVL_VERYHIGH, "Track %u @ %llums = key %lu", nxt.tid, thisPacket.getTime(), nxtKeyNum[nxt.tid]);
+        EXTREME_MSG("Track %u @ %llums = key %lu", nxt.tid, thisPacket.getTime(), nxtKeyNum[nxt.tid]);
       }
       emptyCount = 0;
     }
@@ -1098,7 +1098,7 @@ namespace Mist {
       }
       if (timeoutTries<=0){
         if (!completeKeyReadyTimeOut){
-          INFO_MSG("Wait for keyframe Timeout triggered! Ended to avoid endless loops");
+          WARN_MSG("Wait for keyframe Timeout triggered! Ended to avoid endless loops");
         }
         completeKeyReadyTimeOut = true;
       }else{

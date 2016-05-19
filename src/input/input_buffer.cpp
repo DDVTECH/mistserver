@@ -237,6 +237,7 @@ namespace Mist {
   /// FULL or EMPTY (depending on current state)
   /// ~~~~~~~~~~~~~~~
   void inputBuffer::updateMeta() {
+    static bool wentDry = false;
     static long long unsigned int lastFragCount = 0xFFFFull;
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
@@ -267,7 +268,12 @@ namespace Mist {
     /*LTS-START*/
     if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && (lastFragCount == 0xFFFFull || lastFragCount < FRAG_BOOT)) {
       if (Triggers::shouldTrigger("STREAM_BUFFER")) {
-        std::string payload = config->getString("streamname") + "\nFULL";
+        std::string payload;
+        if (wentDry){
+          payload = config->getString("streamname") + "\nRECOVER";
+        }else{
+          payload = config->getString("streamname") + "\nFULL";
+        }
         Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
       }
     }
@@ -275,6 +281,7 @@ namespace Mist {
       if (Triggers::shouldTrigger("STREAM_BUFFER")) {
         std::string payload = config->getString("streamname") + "\nDRY";
         Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+        wentDry = true;
       }
     }
     lastFragCount = fragCount;

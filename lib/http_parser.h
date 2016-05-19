@@ -19,6 +19,7 @@ namespace HTTP {
       std::string GetHeader(std::string i);
       std::string GetVar(std::string i);
       std::string getUrl();
+      std::string allVars();
       void SetHeader(std::string i, std::string v);
       void SetHeader(std::string i, long long v);
       void setCORSHeaders();

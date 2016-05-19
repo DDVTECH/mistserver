@@ -313,6 +313,20 @@ std::string HTTP::Parser::GetVar(std::string i) {
   return vars[i];
 }
 
+std::string HTTP::Parser::allVars(){
+  std::string ret;
+  if (!vars.size()){return ret;}
+  for (std::map<std::string, std::string>::iterator it = vars.begin(); it != vars.end(); ++it){
+    if (ret.size() > 1){
+      ret += "&";
+    }else{
+      ret += "?";
+    }
+    ret += it->first + "=" + Encodings::URL::encode(it->second);
+  }
+  return ret;
+}
+
 /// Sets header i to string value v.
 void HTTP::Parser::SetHeader(std::string i, std::string v) {
   Trim(i);

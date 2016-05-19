@@ -1002,6 +1002,41 @@ namespace Mist {
         }else{
           //after ~25 seconds, give up and drop the track.
           WARN_MSG("Empty packet on track %u (%s) @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage);
+
+
+
+
+          char tmpPageName[NAME_BUFFER_SIZE];
+//DATA
+          snprintf(tmpPageName, NAME_BUFFER_SIZE, "pid%d_stream:%s_track:%d_key:%d_DATA", getpid(), streamName.c_str(), nxt.tid, nxtKeyNum[nxt.tid]+1);
+          {
+          IPC::sharedPage tmpPage(tmpPageName, DEFAULT_META_PAGE_SIZE, true);
+          memcpy(tmpPage.mapped, nProxy.curPage[nxt.tid].mapped, DEFAULT_META_PAGE_SIZE);
+          tmpPage.master=false;
+          }
+//TRID
+          snprintf(tmpPageName, NAME_BUFFER_SIZE, "pid%d_stream:%s_track:%d_key:%d_TRID", getpid(), streamName.c_str(), nxt.tid, nxtKeyNum[nxt.tid]+1);
+          {
+          IPC::sharedPage tmpPage(tmpPageName, 8 * 1024 * 1024, true);
+          memcpy(tmpPage.mapped, nProxy.metaPages[nxt.tid].mapped, nProxy.metaPages[nxt.tid].len);
+          tmpPage.master=false;
+          }
+//META
+          snprintf(tmpPageName, NAME_BUFFER_SIZE, "pid%d_stream:%s_track:%d_key:%d_META", getpid(), streamName.c_str(), nxt.tid, nxtKeyNum[nxt.tid]+1);
+          {
+            IPC::sharedPage tmpPage(tmpPageName, DEFAULT_STRM_PAGE_SIZE, true);
+          memcpy(tmpPage.mapped, nProxy.metaPages[0].mapped, nProxy.metaPages[0].len);
+          tmpPage.master=false;
+          }
+
+
+
+
+
+
+
+
+
         }
         //keep updating the metadata at 250ms intervals while waiting for more data
         Util::wait(250);

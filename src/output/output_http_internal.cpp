@@ -362,7 +362,7 @@ namespace Mist {
         if (Util::startInput(streamName)){
           char pageId[NAME_BUFFER_SIZE];
           snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-          streamIndex.init(pageId, DEFAULT_META_PAGE_SIZE);
+          streamIndex.init(pageId, DEFAULT_STRM_PAGE_SIZE);
           if (streamIndex.mapped){
             metaLock = true;
             metaLocker.wait();

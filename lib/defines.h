@@ -74,6 +74,9 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 /// The size used for stream header pages under Windows, where they cannot be size-detected.
 #define DEFAULT_META_PAGE_SIZE 16 * 1024 * 1024
 
+/// The size used for stream header pages under Windows, where they cannot be size-detected.
+#define DEFAULT_STRM_PAGE_SIZE 4 * 1024 * 1024
+
 /// The size used for stream data pages under Windows, where they cannot be size-detected.
 #define DEFAULT_DATA_PAGE_SIZE SHM_DATASIZE * 1024 * 1024
 

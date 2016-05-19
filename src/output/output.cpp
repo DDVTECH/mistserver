@@ -220,7 +220,7 @@ namespace Mist {
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
     nProxy.metaPages.clear();
-    nProxy.metaPages[0].init(pageId, DEFAULT_META_PAGE_SIZE);
+    nProxy.metaPages[0].init(pageId, DEFAULT_STRM_PAGE_SIZE);
     if (!nProxy.metaPages[0].mapped){
       FAIL_MSG("Could not connect to server for %s", streamName.c_str());
       onFail();

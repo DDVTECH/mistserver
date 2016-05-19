@@ -872,7 +872,7 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
           char pageId[NAME_BUFFER_SIZE];
           IPC::sharedPage streamIndex;
           snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, it->c_str());
-          streamIndex.init(pageId, DEFAULT_META_PAGE_SIZE, false, false);
+          streamIndex.init(pageId, DEFAULT_STRM_PAGE_SIZE, false, false);
           if (streamIndex.mapped){
             static char liveSemName[NAME_BUFFER_SIZE];
             snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, it->c_str());

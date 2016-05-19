@@ -199,7 +199,7 @@ namespace Mist {
     }{
       //Delete the stream index metapage.
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-      IPC::sharedPage erasePage(pageName, 1024, false, false);
+      IPC::sharedPage erasePage(pageName, DEFAULT_STRM_PAGE_SIZE, false, false);
       erasePage.master = true;
     }
     //Delete most if not all temporary track metadata pages.
@@ -296,7 +296,7 @@ namespace Mist {
     if (!nProxy.metaPages.count(0) || !nProxy.metaPages[0].mapped) {
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-      nProxy.metaPages[0].init(pageName, DEFAULT_META_PAGE_SIZE,  true);
+      nProxy.metaPages[0].init(pageName, DEFAULT_STRM_PAGE_SIZE,  true);
       nProxy.metaPages[0].master = false;
     }
     myMeta.writeTo(nProxy.metaPages[0].mapped);

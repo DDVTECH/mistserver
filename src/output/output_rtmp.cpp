@@ -254,7 +254,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("G711mu");
     capa["methods"][0u]["handler"] = "rtmp";
     capa["methods"][0u]["type"] = "flash/10";
-    capa["methods"][0u]["priority"] = 6ll;
+    capa["methods"][0u]["priority"] = 7ll;
     capa["methods"][0u]["player_url"] = "/flashplayer.swf";
     capa["optional"]["maxkbps"]["name"] = "Max. kbps";
     capa["optional"]["maxkbps"]["help"] = "Maximum bitrate to allow in the ingest direction, in kilobits per second.";

@@ -495,7 +495,7 @@ namespace Mist {
     }
     //Determine if we need to open the next page
     int nextPageNum = -1;
-    if (isKeyframe || !pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
+    if (isKeyframe) {
       //If there is no page, create it
       if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
         nextPageNum = 1;
@@ -522,6 +522,10 @@ namespace Mist {
       }else{
         nextPageNum = 1;
       }
+    }
+    //If we have no pages by track, we have not received a starting keyframe yet. Drop this packet.
+    if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0){
+      return;
     }
     //At this point we can stop parsing when the track is not accepted
     if (trackState[tid] != FILL_ACC) {

@@ -995,16 +995,16 @@ namespace Mist {
       int nextPage = pageNumForKey(nxt.tid, nxtKeyNum[nxt.tid]+1);
       //are we live, and the next key hasn't shown up on another page? then we're waiting.
       if (myMeta.live && currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
-        if (myMeta && ++emptyCount < 42){
+        if (myMeta && ++emptyCount < 100){
           //we're waiting for new data. Simply retry.
           buffer.insert(nxt);
         }else{
-          //after ~10 seconds, give up and drop the track.
-          //roxlu edited this line:
+          //after ~25 seconds, give up and drop the track.
           WARN_MSG("Empty packet on track %u (%s) @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage);
         }
         //keep updating the metadata at 250ms intervals while waiting for more data
         Util::wait(250);
+        stats();
         updateMeta();
       }else{
         //if we're not live, we've simply reached the end of the page. Load the next key.
@@ -1042,13 +1042,16 @@ namespace Mist {
             //Failure here will cause tracks to drop due to inconsistent internal state.
             nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
             int counter = 0;
-            while(counter < 10 && myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
+            while(counter < 100 && myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
               if (counter++){
-                //Only sleep 500ms if this is not the first updatemeta try
-                Util::wait(500);
+                //Only sleep 250ms if this is not the first updatemeta try
+                Util::wait(250);
               }
               updateMeta();
               nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
+            }
+            if (myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
+              WARN_MSG("Keyframe value is not correct - state will now be inconsistent.");
             }
           }else{
             //On non-video tracks, just update metadata and assume everything else is correct
@@ -1142,7 +1145,7 @@ namespace Mist {
     if (!isInitialized){
       return;
     }
-    EXTREME_MSG("Writing stats: %s, %s, %lu", getConnectedHost().c_str(), streamName.c_str(), crc);
+    EXTREME_MSG("Writing stats: %s, %s, %lu", getConnectedHost().c_str(), streamName.c_str(), crc & 0xFFFFFFFFu);
     if (statsPage.getData()){
       unsigned long long int now = Util::epoch();
       if (now != lastStats){

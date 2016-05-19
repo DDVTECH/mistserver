@@ -194,6 +194,7 @@ void Controller::SharedMemStats(void * config){
 void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
   //update the sync byte: 0 = requesting fill, 1 = needs checking, > 1 = state known (100=denied, 10=accepted)
   if (!data.getSync()){
+    WARN_MSG("Setting sync to %u for %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), data.crc());
     //if we have a maximum connection count per IP, enforce it
     if (maxConnsPerIP){
       unsigned int currConns = 1;
@@ -653,12 +654,14 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
     sessions[idx].finish(id);
     connToSession.erase(id);
   }else{
-    std::string strmName = tmpEx.streamName();
-    if (strmName.size()){
-      if (!activeStreams.count(strmName)){
-        streamStarted(strmName);
+    if (sessions[idx].getSessType() != SESS_OUTPUT){
+      std::string strmName = tmpEx.streamName();
+      if (strmName.size()){
+        if (!activeStreams.count(strmName)){
+          streamStarted(strmName);
+        }
+        activeStreams[strmName] = 0;
       }
-      activeStreams[strmName] = 0;
     }
   }
   /*LTS-START*/

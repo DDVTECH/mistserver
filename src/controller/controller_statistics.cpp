@@ -291,6 +291,18 @@ void Controller::statSession::wipeOld(unsigned long long cutOff){
       oldConns.pop_front();
     }
   }
+  if (curConns.size()){
+    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      while (it->second.log.size() > 1 && it->second.log.begin()->first < cutOff){
+        it->second.log.erase(it->second.log.begin());
+      }
+      if (it->second.log.size()){
+        if (firstSec > it->second.log.begin()->first){
+          firstSec = it->second.log.begin()->first;
+        }
+      }
+    }
+  }
 }
 
 /// Archives the given connection.

@@ -203,7 +203,7 @@ namespace Mist {
   /// Finally, calls updateMeta()
   void Output::reconnect(){
     if (!Util::startInput(streamName)){
-      DEBUG_MSG(DLVL_FAIL, "Opening stream failed - aborting initalization");
+      FAIL_MSG("Opening stream %s failed - aborting initalization", streamName.c_str());
       onFail();
       return;
     }
@@ -233,9 +233,10 @@ namespace Mist {
       while (!isReadyForPlay()){
         Util::sleep(1000);
         if (Util::epoch() > waitUntil){
-          FAIL_MSG("Giving up waiting for playable tracks");
+          FAIL_MSG("Giving up waiting for playable tracks. Stream: %s, IP: %s", streamName.c_str(), getConnectedHost().c_str());
           break;
         }
+        stats();
         updateMeta();
       }
     }
@@ -295,16 +296,16 @@ namespace Mist {
           if (selCounter + genCounter > bestSoFarCount){
             bestSoFarCount = selCounter + genCounter;
             bestSoFar = index;
-            DEBUG_MSG(DLVL_HIGH, "Match (%u/%u): %s", selCounter, selCounter+genCounter, (*it).toString().c_str());
+            HIGH_MSG("Match (%u/%u): %s", selCounter, selCounter+genCounter, (*it).toString().c_str());
           }
         }else{
-          DEBUG_MSG(DLVL_VERYHIGH, "Not a match for currently selected tracks: %s", (*it).toString().c_str());
+          VERYHIGH_MSG("Not a match for currently selected tracks: %s", (*it).toString().c_str());
         }
       }
       index++;
     }
     
-    DEBUG_MSG(DLVL_MEDIUM, "Trying to fill: %s", capa["codecs"][bestSoFar].toString().c_str());
+    MEDIUM_MSG("Trying to fill: %s", capa["codecs"][bestSoFar].toString().c_str());
     //try to fill as many codecs simultaneously as possible
     if (capa["codecs"][bestSoFar].size() > 0){
       jsonForEach(capa["codecs"][bestSoFar], itb) {

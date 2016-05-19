@@ -199,7 +199,7 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
       sessIndex tmpidx(data);
       myHost = tmpidx.host;
     }
-    WARN_MSG("Setting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
+    MEDIUM_MSG("Setting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
     //if we have a maximum connection count per IP, enforce it
     if (maxConnsPerIP){
       unsigned int currConns = 1;

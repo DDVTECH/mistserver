@@ -1170,12 +1170,6 @@ namespace Mist {
     if (nProxy.curPage[nxt.tid]){
       if (nxt.offset < nProxy.curPage[nxt.tid].len){
         unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
-        int ctr = 0;
-        //sleep for at most 5 seconds for new data.
-        while (!nextTime && ++ctr < 5){
-          Util::wait(1000);
-          nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
-        }
         if (nextTime){
           nxt.time = nextTime;
         }else{

@@ -181,6 +181,7 @@ namespace IPC {
       void init(std::string name, int len, bool withCounter = false);
       ~sharedServer();
       void parseEach(void (*callback)(char * data, size_t len, unsigned int id));
+      char * getIndex(unsigned int id);
       operator bool() const;
       ///\brief The amount of connected clients
       unsigned int amount;

@@ -570,6 +570,16 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
           }
 
+          if (Request.isMember("invalidate_sessions")){
+            if (Request["totals"].isArray()){
+              for (unsigned int i = 0; i < Request["invalidate_sessions"].size(); ++i){
+                Controller::sessions_invalidate(Request["invalidate_sessions"][i].asStringRef());
+              }
+            }else{
+              Controller::sessions_invalidate(Request["invalidate_sessions"].asStringRef());
+            }
+          }
+
 
           if (Request.isMember("push_start")){
             std::string stream;

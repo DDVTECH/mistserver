@@ -846,6 +846,45 @@ namespace IPC {
     }
   }
 
+  ///Returns a pointer to the data for the given index.
+  ///Returns null on error or if index is empty.
+  char * sharedServer::getIndex(unsigned int requestId){
+    char * empty = 0;
+    if (!hasCounter) {
+      empty = (char *)malloc(payLen * sizeof(char));
+      memset(empty, 0, payLen);
+    }
+    semGuard tmpGuard(&mySemaphore);
+    unsigned int id = 0;
+    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
+      if (!it->mapped || !it->len) {
+        DEBUG_MSG(DLVL_FAIL, "Something went terribly wrong?");
+        return 0;
+      }
+      unsigned int offset = 0;
+      while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
+        if (id == requestId){
+          if (hasCounter) {
+            if (it->mapped[offset] != 0) {
+              return it->mapped + offset + 1;
+            }else{
+              return 0;
+            }
+          } else {
+            if (memcmp(empty, it->mapped + offset, payLen)) {
+              return it->mapped + offset;
+            }else{
+              return 0;
+            }
+          }
+        }
+        offset += payLen + (hasCounter ? 1 : 0);
+        id ++;
+      }
+    }
+    return 0;
+  }
+
   ///\brief Parse each of the possible payload pieces, and runs a callback on it if in use.
   void sharedServer::parseEach(void (*callback)(char * data, size_t len, unsigned int id)) {
     char * empty = 0;

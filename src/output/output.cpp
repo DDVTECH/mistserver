@@ -146,36 +146,57 @@ namespace Mist {
         myConn.close();
       }
     }
-    if(Triggers::shouldTrigger("USER_NEW", streamName)){
-      //sync byte 0 = no sync yet, wait for sync from controller...
-      IPC::statExchange tmpEx(statsPage.getData());
-      unsigned int i = 0;
-      tmpEx.setSync(0);
-      while (!tmpEx.getSync() && i++ < 30){
-        Util::wait(100);
-        stats();
-        tmpEx = IPC::statExchange(statsPage.getData());
-      }
-      HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
-      //1 = check requested (connection is new)
-      if (tmpEx.getSync() == 1){
-        std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl;
-        if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
-          MEDIUM_MSG("Closing connection because denied by USER_NEW trigger");
-          myConn.close();
-          tmpEx.setSync(100);//100 = denied
-        }else{
-          tmpEx.setSync(10);//10 = accepted
-        }
-      }
-      //100 = denied
-      if (tmpEx.getSync() == 100){
-        myConn.close();
-        MEDIUM_MSG("Closing connection because denied by USER_NEW sync byte");
-      }
-      //anything else = accepted
-    }
+    doSync(true);
     /*LTS-END*/
+  }
+
+  /// If called with force set to true and a USER_NEW trigger enabled, forces a sync immediately.
+  /// Otherwise, does nothing unless the sync byte is set to 2, in which case it forces a sync as well.
+  /// May be called recursively because it calls stats() which calls this function.
+  /// If this happens, the extra calls to the function return instantly.
+  void Output::doSync(bool force){
+    static bool recursing = false;
+    if (recursing){return;}
+    recursing = true;
+    IPC::statExchange tmpEx(statsPage.getData());
+    if (tmpEx.getSync() == 2 || force){
+      if(Triggers::shouldTrigger("USER_NEW", streamName)){
+        //sync byte 0 = no sync yet, wait for sync from controller...
+        unsigned int i = 0;
+        tmpEx.setSync(0);
+        //wait max 10 seconds for sync
+        while ((!tmpEx.getSync() || tmpEx.getSync() == 2) && i++ < 100){
+          Util::wait(100);
+          stats();
+          tmpEx = IPC::statExchange(statsPage.getData());
+        }
+        HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
+        //1 = check requested (connection is new)
+        if (tmpEx.getSync() == 1){
+          std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+          if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
+            MEDIUM_MSG("Closing connection because denied by USER_NEW trigger");
+            myConn.close();
+            tmpEx.setSync(100);//100 = denied
+          }else{
+            tmpEx.setSync(10);//10 = accepted
+          }
+        }
+        //100 = denied
+        if (tmpEx.getSync() == 100){
+          myConn.close();
+          MEDIUM_MSG("Closing connection because denied by USER_NEW sync byte");
+        }
+        if (tmpEx.getSync() == 0 || tmpEx.getSync() == 2){
+          myConn.close();
+          FAIL_MSG("Closing connection because sync byte timeout!");
+        }
+        //anything else = accepted
+      }else{
+        tmpEx.setSync(10);//auto-accept if no trigger
+      }
+    }
+    recursing = false;
   }
 
   std::string Output::getConnectedHost(){
@@ -1211,6 +1232,7 @@ namespace Mist {
         statsPage.keepAlive();
       }
     }
+    doSync();
     int tNum = 0;
     if (!nProxy.userClient.getData()){
       char userPageName[NAME_BUFFER_SIZE];

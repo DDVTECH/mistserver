@@ -93,6 +93,7 @@ namespace Mist {
       bool onList(std::string ip, std::string list);
       std::string getCountry(std::string ip);
       /*LTS-END*/
+      void doSync(bool force = false);
 
 
       std::map<unsigned long, unsigned int> currKeyOpen;

@@ -135,6 +135,36 @@ void Controller::streamStopped(std::string stream){
   INFO_MSG("Stream %s became inactive", stream.c_str());
 }
 
+/// \todo Make this prettier.
+IPC::sharedServer * statPointer = 0;
+
+///Invalidates all current sessions for the given streamname
+void Controller::sessions_invalidate(const std::string & streamname){
+  if (!statPointer){
+    FAIL_MSG("In shutdown procedure - cannot invalidate sessions.");
+    return;
+  }
+  unsigned int invalidated = 0;
+  unsigned int sessCount = 0;
+  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+    if (it->first.streamName == streamname){
+      sessCount++;
+      it->second.sync = 1;
+      if (it->second.curConns.size()){
+        for (std::map<unsigned long, statStorage>::iterator jt = it->second.curConns.begin(); jt != it->second.curConns.end(); ++jt){
+          char * data = statPointer->getIndex(jt->first);
+          if (data){
+            IPC::statExchange tmpEx(data);
+            tmpEx.setSync(2);
+            invalidated++;
+          }
+        }
+      }
+    }
+  }
+  INFO_MSG("Invalidated %u connections in %u sessions for stream %s", invalidated, sessCount, streamname.c_str());
+}
 
 /// This function runs as a thread and roughly once per second retrieves
 /// statistics from all connected clients, as well as wipes
@@ -142,6 +172,7 @@ void Controller::streamStopped(std::string stream){
 void Controller::SharedMemStats(void * config){
   DEBUG_MSG(DLVL_HIGH, "Starting stats thread");
   IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
+  statPointer = &statServer;
   std::set<std::string> inactiveStreams;
   while(((Util::Config*)config)->is_active){
     {
@@ -180,6 +211,7 @@ void Controller::SharedMemStats(void * config){
     }
     Util::wait(1000);
   }
+  statPointer = 0;
   DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
   if (Controller::killOnExit){
     DEBUG_MSG(DLVL_WARN, "Killing all connected clients to force full shutdown");
@@ -193,16 +225,12 @@ void Controller::SharedMemStats(void * config){
 
 /// Updates the given active connection with new stats data.
 void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
-  //update the sync byte: 0 = requesting fill, 1 = needs checking, > 1 = state known (100=denied, 10=accepted)
+  //update the sync byte: 0 = requesting fill, 2 = requesting refill, 1 = needs checking, > 1 = state known (100=denied, 10=accepted)
   if (!data.getSync()){
-    std::string myHost;
-    {
-      sessIndex tmpidx(data);
-      myHost = tmpidx.host;
-    }
-    MEDIUM_MSG("Setting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
+    sessIndex tmpidx(data);
+    std::string myHost = tmpidx.host;
     //if we have a maximum connection count per IP, enforce it
-    if (maxConnsPerIP){
+    if (maxConnsPerIP && !data.getSync()){
       unsigned int currConns = 1;
       long long shortly = Util::epoch();
       for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
@@ -212,15 +240,23 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
       if (currConns > maxConnsPerIP){
         WARN_MSG("Disconnecting session from %s: exceeds max connection count of %u", myHost.c_str(), maxConnsPerIP);
         data.setSync(100);
-      }else{
+      }
+    }
+    if (data.getSync() != 100){
+      //only set the sync if this is the first connection in the list
+      //we also catch the case that there are no connections, which is an error-state
+      if (!sessions[tmpidx].curConns.size() || sessions[tmpidx].curConns.begin()->first == index){
+        MEDIUM_MSG("Requesting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
         data.setSync(sync);
       }
-    }else{
-      //no maximum, just set the sync byte to its current value
-      data.setSync(sync);
+      //and, always set the sync if it is > 2
+      if (sync > 2){
+        MEDIUM_MSG("Setting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
+        data.setSync(sync);
+      }
     }
   }else{
-    if (sync < 2){
+    if (sync < 2 && data.getSync() > 2){
       sync = data.getSync();
     }
   }

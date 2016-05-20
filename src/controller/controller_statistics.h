@@ -78,10 +78,10 @@ namespace Controller {
       unsigned long long wipedUp;
       unsigned long long wipedDown;
       std::deque<statStorage> oldConns;
-      std::map<unsigned long, statStorage> curConns;
-      char sync;
       sessType sessionType;
     public:
+      char sync;
+      std::map<unsigned long, statStorage> curConns;
       sessType getSessType();
       statSession();
       void wipeOld(unsigned long long);
@@ -116,6 +116,7 @@ namespace Controller {
   void fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow = false);
   void fillTotals(JSON::Value & req, JSON::Value & rep);
   void SharedMemStats(void * config);
+  void sessions_invalidate(const std::string & streamname);
   bool hasViewers(std::string streamName);
 
 #define PROMETHEUS_TEXT 0

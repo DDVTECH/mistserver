@@ -160,7 +160,7 @@ namespace Mist {
     recursing = true;
     IPC::statExchange tmpEx(statsPage.getData());
     if (tmpEx.getSync() == 2 || force){
-      if(Triggers::shouldTrigger("USER_NEW", streamName)){
+      if (getStatsName() == capa["name"].asStringRef() && Triggers::shouldTrigger("USER_NEW", streamName)){
         //sync byte 0 = no sync yet, wait for sync from controller...
         unsigned int i = 0;
         tmpEx.setSync(0);

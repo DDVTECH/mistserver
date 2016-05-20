@@ -655,7 +655,7 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
     sessions[idx].finish(id);
     connToSession.erase(id);
   }else{
-    if (sessions[idx].getSessType() != SESS_OUTPUT){
+    if (sessions[idx].getSessType() != SESS_OUTPUT && sessions[idx].getSessType() != SESS_UNSET){
       std::string strmName = tmpEx.streamName();
       if (strmName.size()){
         if (!activeStreams.count(strmName)){

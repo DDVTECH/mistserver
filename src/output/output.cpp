@@ -75,11 +75,16 @@ namespace Mist {
     //read metadata from page to myMeta variable
     if (nProxy.metaPages[0].mapped){
       IPC::semaphore * liveSem = 0;
-      if (myMeta.live){
+      if (!myMeta.vod){
         static char liveSemName[NAME_BUFFER_SIZE];
         snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-        liveSem = new IPC::semaphore(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-        liveSem->wait();
+        liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 1);
+        if (*liveSem){
+          liveSem->wait();
+        }else{
+          delete liveSem;
+          liveSem = 0;
+        }
       }
       DTSC::Packet tmpMeta(nProxy.metaPages[0].mapped, nProxy.metaPages[0].len, true);
       if (tmpMeta.getVersion()){

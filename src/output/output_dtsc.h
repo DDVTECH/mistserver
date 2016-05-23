@@ -11,6 +11,7 @@ namespace Mist {
       void sendNext();
       void sendHeader();
     private:
+      std::string getStatsName();
       std::string salt;
       bool pushing;
       void handlePush(DTSC::Scan & dScan);

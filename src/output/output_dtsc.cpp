@@ -43,6 +43,14 @@ namespace Mist {
     config = cfg;
   }
   
+  std::string OutDTSC::getStatsName(){
+    if (pushing){
+      return "INPUT";
+    }else{
+      return "OUTPUT";
+    }
+  }
+
   void OutDTSC::sendNext(){
     myConn.SendNow(thisPacket.getData(), thisPacket.getDataLen());
   }

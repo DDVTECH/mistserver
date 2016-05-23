@@ -75,6 +75,7 @@ namespace Controller {
         printf("%s", buf);
       }
     }
+    Log("LOG", "Logger exiting");
     fclose(output);
     close((long long int)err);
   }

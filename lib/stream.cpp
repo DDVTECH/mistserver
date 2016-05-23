@@ -385,10 +385,8 @@ pid_t Util::startPush(std::string & streamname, std::string & target) {
     (char*)NULL
   };
 
-  int stdIn = 0;
-  int stdOut = 1;
   int stdErr = 2;
-  return Util::Procs::StartPiped(argv, &stdIn, &stdOut, &stdErr);
+  return Util::Procs::StartPiped(argv, 0, 0, &stdErr);
 
 }
 

@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <list>
 #include <fstream>
+#include <sys/statvfs.h>//for fstatvfs
 #include <mist/config.h>
 #include <mist/shared_memory.h>
 #include <mist/dtsc.h>
@@ -1175,6 +1176,16 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       }
     }
   }
+  long long shm_total = 0, shm_free = 0;
+  {
+    struct statvfs shmd;
+    IPC::sharedPage tmpConf(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false);
+    if (tmpConf.mapped && tmpConf.handle){
+      fstatvfs(tmpConf.handle, &shmd);
+      shm_free = (shmd.f_bfree*shmd.f_frsize)/1024;
+      shm_total = (shmd.f_blocks*shmd.f_frsize)/1024;
+    }
+  }
 
 
   if (mode == PROMETHEUS_TEXT){ 
@@ -1191,6 +1202,12 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     response << "# HELP mist_mem_used Total memory in use in KiB.\n";
     response << "# TYPE mist_mem_used gauge\n";
     response << "mist_mem_used " << (mem_total - mem_free - mem_bufcache) << "\n\n";
+    response << "# HELP mist_shm_total Total shared memory available in KiB.\n";
+    response << "# TYPE mist_shm_total gauge\n";
+    response << "mist_shm_total " << shm_total << "\n\n";
+    response << "# HELP mist_shm_used Total shared memory in use in KiB.\n";
+    response << "# TYPE mist_shm_used gauge\n";
+    response << "mist_shm_used " << (shm_total - shm_free) << "\n\n";
 
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
@@ -1265,6 +1282,8 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     resp["cpu"] = cpu_use;
     resp["mem_total"] = mem_total;
     resp["mem_used"] = (mem_total - mem_free - mem_bufcache);
+    resp["shm_total"] = shm_total;
+    resp["shm_used"] = (shm_total - shm_free);
     resp["logs"] = (long long)Controller::logCounter;
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
@@ -1320,6 +1339,9 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
         resp["streams"][it->first]["bw"].append((long long)it->second.downBytes);
       }
     }
+
+
+
     H.Chunkify(resp.toString(), conn);
   }
 

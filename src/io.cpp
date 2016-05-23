@@ -102,7 +102,7 @@ namespace Mist {
     {
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), mapTid);
-      IPC::sharedPage checkPage(pageName, 8 * 1024 * 1024, false, false);
+      IPC::sharedPage checkPage(pageName, SHM_TRACK_INDEX_SIZE, false, false);
       if (!checkPage.mapped){
         WARN_MSG("The buffer deleted our index. Re-negotiating...");
         trackState.erase(tid);
@@ -562,7 +562,7 @@ namespace Mist {
       trackState[tid] = FILL_ACC;
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), tid);
-      metaPages[tid].init(pageName, 8 * 1024 * 1024, true);
+      metaPages[tid].init(pageName, SHM_TRACK_INDEX_SIZE, true);
       metaPages[tid].master = false;
       return;
     }
@@ -634,7 +634,7 @@ namespace Mist {
 
 
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), finalTid);
-        metaPages[tid].init(pageName, 8 * 1024 * 1024, true);
+        metaPages[tid].init(pageName, SHM_TRACK_INDEX_SIZE, true);
         metaPages[tid].master = false;
         Bit::htobl(tmp + offset, finalTid | 0xC0000000);
         Bit::htobs(tmp + offset + 4, firstPage);
@@ -719,7 +719,7 @@ namespace Mist {
           trackState[tid] = FILL_ACC;
           char pageName[NAME_BUFFER_SIZE];
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), finalTid);
-          metaPages[tid].init(pageName, 8 * 1024 * 1024, true);
+          metaPages[tid].init(pageName, SHM_TRACK_INDEX_SIZE, true);
           metaPages[tid].master = false;
           break;
         }

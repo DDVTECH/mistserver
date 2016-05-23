@@ -211,7 +211,7 @@ namespace Mist {
     //Delete most if not all track indexes and data pages.
     for (long unsigned i = 1; i <= 24; ++i){
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), i);
-      IPC::sharedPage indexPage(pageName, 8192, false, false);
+      IPC::sharedPage indexPage(pageName, SHM_TRACK_INDEX_SIZE, false, false);
       indexPage.master = true;
       if (indexPage.mapped){
         char * mappedPointer = indexPage.mapped;
@@ -600,7 +600,7 @@ namespace Mist {
 
             char firstPage[NAME_BUFFER_SIZE];
             snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), finalMap);
-            nProxy.metaPages[finalMap].init(firstPage, 8192, false);
+            nProxy.metaPages[finalMap].init(firstPage, SHM_TRACK_INDEX_SIZE, false);
 
             //Update the metadata for this track
             updateTrackMeta(finalMap);
@@ -753,7 +753,7 @@ namespace Mist {
         if (!nProxy.metaPages.count(value) || !nProxy.metaPages[value].mapped) {
           char firstPage[NAME_BUFFER_SIZE];
           snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), value);
-          nProxy.metaPages[value].init(firstPage, 8192, false, false);
+          nProxy.metaPages[value].init(firstPage, SHM_TRACK_INDEX_SIZE, false, false);
         }
         if (nProxy.metaPages[value].mapped) {
           //Update the metadata for this track

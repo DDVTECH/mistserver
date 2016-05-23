@@ -89,6 +89,7 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
 #define SHM_TRACK_META "MstTRAK%s@%lu" //%s stream name, %lu track ID
 #define SHM_TRACK_INDEX "MstTRID%s@%lu" //%s stream name, %lu track ID
+#define SHM_TRACK_INDEX_SIZE 8192
 #define SHM_TRACK_DATA "MstDATA%s@%lu_%lu" //%s stream name, %lu track ID, %lu page #
 #define SHM_STATISTICS "MstSTAT"
 #define SHM_USERS "MstUSER%s" //%s stream name

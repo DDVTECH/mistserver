@@ -1197,7 +1197,13 @@ namespace DTSC {
   LTS*/
   void Track::update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size, const char * iVec) {
     if ((unsigned long long)packTime < lastms) {
-      DEBUG_MSG(DLVL_WARN, "Received packets for track %u in wrong order (%lld < %llu) - ignoring!", trackID, packTime, lastms);
+      static bool warned = false;
+      if (!warned){
+        ERROR_MSG("Received packets for track %u in wrong order (%lld < %llu) - ignoring! Further messages on HIGH level.", trackID, packTime, lastms);
+        warned = true;
+      }else{
+        HIGH_MSG("Received packets for track %u in wrong order (%lld < %llu) - ignoring! Further messages on HIGH level.", trackID, packTime, lastms);
+      }
       return;
     }
     Part newPart;

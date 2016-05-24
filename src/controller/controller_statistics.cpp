@@ -297,6 +297,15 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
     }else{
       streamStats[streamName].upBytes += currUp - prevUp;
       streamStats[streamName].downBytes += currDown - prevDown;
+      if (sessionType == SESS_UNSET){
+        if (data.connector() == "INPUT"){
+          sessionType = SESS_INPUT;
+        }else if (data.connector() == "OUTPUT"){
+          sessionType = SESS_OUTPUT;
+        }else{
+          sessionType = SESS_VIEWER;
+        }
+      }
     }
   }
 }

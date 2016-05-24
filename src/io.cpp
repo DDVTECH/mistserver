@@ -266,17 +266,17 @@ namespace Mist {
       return 0;
     }
     //Loop over the index page
-    for (int i = 0; i < 1024; i++) {
+    int len = metaPages[tid].len / 8;
+    for (int i = 0; i < len; ++i) {
       int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
-      int pageNum = ntohl(tmpOffset[0]);
-      int keyAmount = ntohl(tmpOffset[1]);
+      unsigned int keyAmount = ntohl(tmpOffset[1]);
+      if (keyAmount == 0){continue;}
       //Check whether the key is on this page
+      unsigned int pageNum = ntohl(tmpOffset[0]);
       if (pageNum <= keyNum && keyNum < pageNum + keyAmount) {
-        ///\return The pagenumber of the page the key is located on, if the page is registered on the track index page
         return pageNum;
       }
     }
-    ///\return 0 if the key was not found
     return 0;
   }
 

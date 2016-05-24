@@ -416,9 +416,9 @@ namespace Mist {
           unsigned int tid = it->first;
           //erase this track
           if ((long long int)(time - lastUpdated[it->first]) > (long long int)(bufferTime / 1000)) {
-            INFO_MSG("Erasing track %d because not updated for %ds (> %ds)", it->first, (long long int)(time - lastUpdated[it->first]), (long long int)(bufferTime / 1000));
+            WARN_MSG("Erasing %s track %d because not updated for %ds (> %ds)", streamName.c_str(), it->first, (long long int)(time - lastUpdated[it->first]), (long long int)(bufferTime / 1000));
           } else {
-            INFO_MSG("Erasing inactive track %u because it was inactive for 5+ seconds and contains data (%us - %us), while active tracks are (%us - %us), which is more than %us seconds apart.", it->first, it->second.firstms / 1000, it->second.lastms / 1000, compareFirst / 1000, compareLast / 1000, bufferTime / 1000);
+            WARN_MSG("Erasing %s inactive track %u because it was inactive for 5+ seconds and contains data (%us - %us), while active tracks are (%us - %us), which is more than %us seconds apart.", streamName.c_str(), it->first, it->second.firstms / 1000, it->second.lastms / 1000, compareFirst / 1000, compareLast / 1000, bufferTime / 1000);
           }
           /*LTS-START*/
           if (Triggers::shouldTrigger("STREAM_TRACK_REMOVE")) {

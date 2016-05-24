@@ -436,10 +436,10 @@ namespace Mist {
   }
   
   int Output::pageNumForKey(long unsigned int trackId, long long int keyNum){
-    if (!nProxy.metaPages.count(trackId)){
+    if (!nProxy.metaPages.count(trackId) || !nProxy.metaPages[trackId].mapped){
       char id[NAME_BUFFER_SIZE];
       snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), trackId);
-      nProxy.metaPages[trackId].init(id, 8 * 1024);
+      nProxy.metaPages[trackId].init(id, SHM_TRACK_INDEX_SIZE);
     }
     if (!nProxy.metaPages[trackId].mapped){return -1;}
     int len = nProxy.metaPages[trackId].len / 8;
@@ -453,6 +453,26 @@ namespace Mist {
       }
     }
     return -1;
+  }
+
+  /// Gets the highest page number available for the given trackId.
+  int Output::pageNumMax(long unsigned int trackId){
+    if (!nProxy.metaPages.count(trackId) || !nProxy.metaPages[trackId].mapped){
+      char id[NAME_BUFFER_SIZE];
+      snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), trackId);
+      nProxy.metaPages[trackId].init(id, SHM_TRACK_INDEX_SIZE);
+    }
+    if (!nProxy.metaPages[trackId].mapped){return -1;}
+    int len = nProxy.metaPages[trackId].len / 8;
+    int highest = -1;
+    for (int i = 0; i < len; i++){
+      int * tmpOffset = (int *)(nProxy.metaPages[trackId].mapped + (i * 8));
+      long amountKey = ntohl(tmpOffset[1]);
+      if (amountKey == 0){continue;}
+      long tmpKey = ntohl(tmpOffset[0]);
+      if (tmpKey > highest){highest = tmpKey;}
+    }
+    return highest;
   }
   
   void Output::loadPageForKey(long unsigned int trackId, long long int keyNum){
@@ -1023,10 +1043,14 @@ namespace Mist {
       if (myMeta.live && currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
         if (myMeta && ++emptyCount < 100){
           //we're waiting for new data. Simply retry.
+          if (emptyCount % 4 == 0){
+            //every second, reload the metaPage.
+            nProxy.metaPages.erase(nxt.tid);
+          }
           buffer.insert(nxt);
         }else{
           //after ~25 seconds, give up and drop the track.
-          WARN_MSG("Empty packet on track %u (%s) @ key %lu (next=%d) - could not reload, dropping track.", nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage);
+          WARN_MSG("Empty packet on %s track %u (%s) @ key %lu (nPage=%d, lPage=%d) - could not reload, dropping track.", streamName.c_str(), nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage, pageNumMax(nxt.tid));
         }
         //keep updating the metadata at 250ms intervals while waiting for more data
         Util::wait(250);

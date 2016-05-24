@@ -70,7 +70,7 @@ namespace Mist {
       RTMPStream::rec_cnt += 3073;
       RTMPStream::snd_cnt += 3073;
       setBlocking(false);
-      INFO_MSG("Push out handshake completed");
+      VERYHIGH_MSG("Push out handshake completed");
 
       {
         AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
@@ -117,7 +117,7 @@ namespace Mist {
         amfReply.addContent(AMF::Object("", "live")); //stream name
         sendCommand(amfReply, 20, 1);
       }
-      INFO_MSG("Publish starting");
+      HIGH_MSG("Publish starting");
       parseData = true;
     }else{
       setBlocking(true);
@@ -137,9 +137,9 @@ namespace Mist {
         }
         conn.Received().remove(1536);
         RTMPStream::rec_cnt += 1536;
-        HIGH_MSG("Handshake success!");
+        HIGH_MSG("Handshake success");
       } else {
-        MEDIUM_MSG("Handshake fail!");
+        MEDIUM_MSG("Handshake fail (this is not a problem, usually)");
       }
       setBlocking(false);
     }

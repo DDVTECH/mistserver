@@ -462,8 +462,7 @@ namespace Mist {
       currKeyOpen.erase(trackId);
       return;
     }
-    DEBUG_MSG(DLVL_VERYHIGH, "Loading track %lu, containing key %lld", trackId, keyNum);
-    INFO_MSG("Loading track %lu, containing key %lld", trackId, keyNum);
+    VERYHIGH_MSG("Loading track %lu, containing key %lld", trackId, keyNum);
     unsigned int timeout = 0;
     unsigned long pageNum = pageNumForKey(trackId, keyNum);
     while (pageNum == -1){
@@ -477,7 +476,7 @@ namespace Mist {
         reconnect();
       }
       if (timeout > 100){
-        DEBUG_MSG(DLVL_FAIL, "Timeout while waiting for requested page %lld for track %lu. Aborting.", keyNum, trackId);
+        FAIL_MSG("Timeout while waiting for requested page %lld for track %lu. Aborting.", keyNum, trackId);
         nProxy.curPage.erase(trackId);
         currKeyOpen.erase(trackId);
         return;
@@ -511,7 +510,7 @@ namespace Mist {
       return;
     }
     currKeyOpen[trackId] = pageNum;
-    INFO_MSG("page %s loaded", id);
+    VERYHIGH_MSG("Page %s loaded for %s", id, streamName.c_str());
   }
   
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
@@ -526,7 +525,7 @@ namespace Mist {
     if (myMeta.live){
       updateMeta();
     }
-    DEBUG_MSG(DLVL_MEDIUM, "Seeking to %llums", pos);
+    MEDIUM_MSG("Seeking to %llums", pos);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       seek(*it, pos);
     }
@@ -534,13 +533,13 @@ namespace Mist {
 
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
     if (myMeta.tracks[tid].lastms < pos){
-      INFO_MSG("Aborting seek to %llums in track %u: past end of track.", pos, tid);
+      INFO_MSG("Aborting seek to %llums in track %u: past end of track (= %llums).", pos, tid, myMeta.tracks[tid].lastms);
       return false;
     }
     unsigned int keyNum = getKeyForTime(tid, pos);
     if (myMeta.tracks[tid].getKey(keyNum).getTime() > pos){
       if (myMeta.live){
-        INFO_MSG("Actually seeking to %d, for %d is not available anymore", myMeta.tracks[tid].getKey(keyNum).getTime(), pos);
+        INFO_MSG("Actually seeking to %d, for %d is not available any more", myMeta.tracks[tid].getKey(keyNum).getTime(), pos);
         pos = myMeta.tracks[tid].getKey(keyNum).getTime();
       }
     }
@@ -561,8 +560,8 @@ namespace Mist {
       tmpPack.reInit(mpd + tmp.offset, 0, true);
       tmp.time = tmpPack.getTime();
     }
-    INFO_MSG("Found time %d", tmp.time);
     if (tmpPack){
+      HIGH_MSG("Sought to time %d in %s@%u", tmp.time, streamName.c_str(), tid);
       buffer.insert(tmp);
       return true;
     }else{
@@ -1059,7 +1058,13 @@ namespace Mist {
     thisPacket.reInit(nProxy.curPage[nxt.tid].mapped + nxt.offset, 0, true);
     if (thisPacket){
       if (thisPacket.getTime() != nxt.time && nxt.time){
-        WARN_MSG("Loaded track %ld@%llu instead of %ld@%llu", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time);
+        static bool warned = false;
+        if (!warned){
+          WARN_MSG("Loaded track %ld@%llu instead of %ld@%llu for %s - further warnings at HIGH level", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, streamName.c_str());
+          warned = true;
+        }else{
+          HIGH_MSG("Loaded track %ld@%llu instead of %ld@%llu for %s", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, streamName.c_str());
+        }
       }
       bool isVideoTrack = (myMeta.tracks[nxt.tid].type == "video");
       if ((isVideoTrack && thisPacket.getFlag("keyframe")) || (!isVideoTrack && (++nonVideoCount % 30 == 0))){

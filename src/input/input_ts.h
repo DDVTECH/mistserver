@@ -29,7 +29,7 @@ namespace Mist {
       //Live tsinput does not have a header, so parseheader should do nothing
       void parseHeader() { }
       //In case of live TS Input, we override the default serve function
-      void serve();
+      void stream();
       void finish();
 #endif
 

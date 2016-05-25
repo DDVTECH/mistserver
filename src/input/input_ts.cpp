@@ -86,6 +86,7 @@ void parseThread(void * ignored) {
       DTSC::Packet pack;
       liveStream.getPacket(tid, pack);
       if (pack && myMeta.tracks.count(tid)){
+        myProxy.continueNegotiate(tid, myMeta, true);
         myProxy.bufferLivePacket(pack, myMeta);
       }
 
@@ -366,7 +367,7 @@ namespace Mist {
   }
 
 #ifdef TSLIVE_INPUT
-  void inputTS::serve() {
+  void inputTS::stream() {
     cfgPointer = config;
     globalStreamName = streamName;
     unsigned long long threadCheckTimer = Util::bootSecs();

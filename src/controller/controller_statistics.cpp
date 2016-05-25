@@ -1186,6 +1186,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     }
   }
   long long shm_total = 0, shm_free = 0;
+#if !defined(__CYGWIN__) && !defined(_WIN32)
   {
     struct statvfs shmd;
     IPC::sharedPage tmpConf(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false);
@@ -1195,6 +1196,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       shm_total = (shmd.f_blocks*shmd.f_frsize)/1024;
     }
   }
+#endif
 
 
   if (mode == PROMETHEUS_TEXT){ 

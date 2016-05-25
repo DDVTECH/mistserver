@@ -445,7 +445,7 @@ namespace IPC {
       }
       if (handle == -1) {
         if (!master_ && autoBackoff) {
-          FAIL_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno));
+          HIGH_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno));
         }
         return;
       }

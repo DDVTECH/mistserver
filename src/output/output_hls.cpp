@@ -90,14 +90,13 @@ namespace Mist {
       result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (myMeta.tracks[*audioTracks.begin()].bps * 8) << "\r\n";
       result << *audioTracks.begin() << "/index.m3u8\r\n";
     }
-    DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
     return result.str();
   }
 
   std::string OutHLS::pushLiveIndex(int tid, unsigned long bTime, unsigned long eTime){
     updateMeta();
     if (!myMeta.tracks[tid].fragments.size()) {
-      DEBUG_MSG(DLVL_FAIL, "liveIndex called with track %d, which has no fragments!", tid);
+      INFO_MSG("liveIndex called with track %d, which has no fragments!", tid);
       return "";
     }
     std::stringstream result;
@@ -140,7 +139,6 @@ namespace Mist {
     if (!myMeta.live && eTime >= myMeta.tracks[tid].lastms) {
       result << "#EXT-X-ENDLIST\r\n";
     }
-    DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
     return result.str();
   }
 
@@ -151,7 +149,7 @@ namespace Mist {
     //parse single track
     int longestFragment = 0;
     if (!myMeta.tracks[tid].fragments.size()) {
-      DEBUG_MSG(DLVL_FAIL, "liveIndex called with track %d, which has no fragments!", tid);
+      INFO_MSG("liveIndex called with track %d, which has no fragments!", tid);
       return "";
     }
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); (it + 1) != myMeta.tracks[tid].fragments.end(); it++) {

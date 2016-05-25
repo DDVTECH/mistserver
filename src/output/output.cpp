@@ -257,11 +257,11 @@ namespace Mist {
     if (myMeta.live && !isReadyForPlay()){
       unsigned long long waitUntil = Util::epoch() + 15;
       while (!isReadyForPlay()){
-        Util::sleep(1000);
         if (Util::epoch() > waitUntil){
-          FAIL_MSG("Giving up waiting for playable tracks. Stream: %s, IP: %s", streamName.c_str(), getConnectedHost().c_str());
+          INFO_MSG("Giving up waiting for playable tracks. Stream: %s, IP: %s", streamName.c_str(), getConnectedHost().c_str());
           break;
         }
+        Util::wait(750);
         stats();
         updateMeta();
       }
@@ -962,6 +962,7 @@ namespace Mist {
   }
   
   void Output::prepareNext(){
+    static bool atLivePoint = false;
     static int nonVideoCount = 0;
     if (!sought){
       if (myMeta.live){
@@ -1081,15 +1082,18 @@ namespace Mist {
     }
     thisPacket.reInit(nProxy.curPage[nxt.tid].mapped + nxt.offset, 0, true);
     if (thisPacket){
-      if (thisPacket.getTime() != nxt.time && nxt.time){
-        static bool warned = false;
-        if (!warned){
-          WARN_MSG("Loaded track %ld@%llu instead of %ld@%llu for %s - further warnings at HIGH level", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, streamName.c_str());
-          warned = true;
+      if (thisPacket.getTime() != nxt.time && nxt.time && !atLivePoint){
+        static int warned = 0;
+        if (warned < 10){
+          WARN_MSG("Loaded track %ld@%llu instead of %u@%llu for %s", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, streamName.c_str());
+          if (++warned == 10){
+            WARN_MSG("Further warnings about time mismatches printed on HIGH level.");
+          }
         }else{
-          HIGH_MSG("Loaded track %ld@%llu instead of %ld@%llu for %s", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, streamName.c_str());
+          HIGH_MSG("Loaded track %ld@%llu instead of %u@%llu for %s", thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, streamName.c_str());
         }
       }
+      atLivePoint = false;
       bool isVideoTrack = (myMeta.tracks[nxt.tid].type == "video");
       if ((isVideoTrack && thisPacket.getFlag("keyframe")) || (!isVideoTrack && (++nonVideoCount % 30 == 0))){
         if (myMeta.live){
@@ -1173,6 +1177,7 @@ namespace Mist {
           nxt.time = nextTime;
         }else{
           ++nxt.time;
+          atLivePoint = true;
         }
       }
       buffer.insert(nxt);

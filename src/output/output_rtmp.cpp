@@ -118,6 +118,7 @@ namespace Mist {
         sendCommand(amfReply, 20, 1);
       }
       HIGH_MSG("Publish starting");
+      realTime = 0;
       parseData = true;
     }else{
       setBlocking(true);

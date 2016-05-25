@@ -1044,9 +1044,8 @@ namespace Mist {
       if (myMeta.live && currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
         if (myMeta && ++emptyCount < 100){
           //we're waiting for new data. Simply retry.
-          if (emptyCount % 4 == 0){
-            //every second, reload the metaPage.
-            nProxy.metaPages.erase(nxt.tid);
+          if (emptyCount % 8 == 0){
+            reconnect();//reconnect every 2 seconds
           }
           buffer.insert(nxt);
         }else{

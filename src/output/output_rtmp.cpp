@@ -83,7 +83,7 @@ namespace Mist {
         amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + "/" + app));
         sendCommand(amfReply, 20, 0);
       }
-      RTMPStream::chunk_snd_max = 4096;
+      RTMPStream::chunk_snd_max = 102400; //100KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       {
         AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);

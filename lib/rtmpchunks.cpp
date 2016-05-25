@@ -454,8 +454,8 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
   
   DEBUG_MSG(DLVL_DONTEVEN, "Parsing RTMP chunk result: len_left=%d, real_len=%d", len_left, real_len);
   
-  //read extended timestamp, if neccesary
-  if (ts_header == 0x00ffffff) {
+  //read extended timestamp, if necessary
+  if (ts_header == 0x00ffffff && headertype != 0xC0) {
     if (!buffer.available(i + 4)) {
       return false;
     } //can't read timestamp

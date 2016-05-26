@@ -547,7 +547,9 @@ namespace Mist {
     }
     MEDIUM_MSG("Seeking to %llums", pos);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      seek(*it, pos);
+      if (myMeta.tracks.count(*it)){
+        seek(*it, pos);
+      }
     }
   }
 
@@ -954,7 +956,7 @@ namespace Mist {
       return 0;
     }
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (myMeta.tracks[*it].type == "video"){
+      if (myMeta.tracks.count(*it) && myMeta.tracks[*it].type == "video"){
         return *it;
       }
     }
@@ -962,11 +964,16 @@ namespace Mist {
   }
   
   void Output::prepareNext(){
+    if (!myConn){return;}//stop if connection was closed
     static bool atLivePoint = false;
     static int nonVideoCount = 0;
     if (!sought){
       if (myMeta.live){
         long unsigned int mainTrack = getMainSelectedTrack();
+        if (!myMeta.tracks.count(mainTrack)){
+          myConn.close();
+          return;
+        }
         if (myMeta.tracks[mainTrack].keys.size() < 2){
           if (!myMeta.tracks[mainTrack].keys.size()){
             myConn.close();
@@ -1001,6 +1008,12 @@ namespace Mist {
     }
     sortedPageInfo nxt = *(buffer.begin());
     buffer.erase(buffer.begin());
+
+    if (!myMeta.tracks.count(nxt.tid)){
+      MEDIUM_MSG("Track %s@%u disappeared from stream - dropping.");
+      prepareNext();
+      return;
+    }
 
     DEBUG_MSG(DLVL_DONTEVEN, "Loading track %u (next=%lu), %llu ms", nxt.tid, nxtKeyNum[nxt.tid], nxt.time);
     

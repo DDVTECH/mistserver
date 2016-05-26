@@ -684,7 +684,11 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   sessIndex idx(tmpEx);
   //if the connection was already indexed and it has changed, move it
   if (connToSession.count(id) && connToSession[id] != idx){
-    INSANE_MSG("SWITCHING %s OVER TO %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
+    if (sessions[connToSession[id]].getSessType() != SESS_UNSET){
+      WARN_MSG("Switching connection from active session %s over to %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
+    }else{
+      INSANE_MSG("Switching connection from inactive session %s over to %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
+    }
     sessions[connToSession[id]].switchOverTo(sessions[idx], id);
     if (!sessions[connToSession[id]].hasData()){
       sessions.erase(connToSession[id]);

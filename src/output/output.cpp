@@ -1055,23 +1055,24 @@ namespace Mist {
       int nextPage = pageNumForKey(nxt.tid, nxtKeyNum[nxt.tid]+1);
       //are we live, and the next key hasn't shown up on another page? then we're waiting.
       if (myMeta.live && currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
-        if (myMeta && ++emptyCount < 100){
-          //we're waiting for new data. Simply retry.
+        if (++emptyCount < 100){
+          Util::wait(250);
+          //we're waiting for new data to show up
           if (emptyCount % 8 == 0){
             reconnect();//reconnect every 2 seconds
+          }else{
+            if (emptyCount % 4 == 0){
+              stats();
+              updateMeta();
+            }
           }
           buffer.insert(nxt);
         }else{
           //after ~25 seconds, give up and drop the track.
           WARN_MSG("Empty packet on %s track %u (%s) @ key %lu (nPage=%d, lPage=%d) - could not reload, dropping track.", streamName.c_str(), nxt.tid, myMeta.tracks[nxt.tid].type.c_str(), nxtKeyNum[nxt.tid]+1, nextPage, pageNumMax(nxt.tid));
         }
-        //keep updating the metadata at 250ms intervals while waiting for more data
-        Util::wait(250);
-        stats();
-        updateMeta();
       }else{
-        //if we're not live, we've simply reached the end of the page. Load the next key.
-        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
+        //We've simply reached the end of the page. Load the next key = next page.
         loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
         nxt.offset = 0;
         if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){

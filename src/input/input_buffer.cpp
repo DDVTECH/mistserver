@@ -392,11 +392,13 @@ namespace Mist {
       long long unsigned int time = Util::bootSecs();
       long long unsigned int compareFirst = 0xFFFFFFFFFFFFFFFFull;
       long long unsigned int compareLast = 0;
+      std::set<std::string> activeTypes;
       //for tracks that were updated in the last 5 seconds, get the first and last ms edges.
       for (std::map<unsigned int, DTSC::Track>::iterator it2 = myMeta.tracks.begin(); it2 != myMeta.tracks.end(); it2++) {
         if ((time - lastUpdated[it2->first]) > 5) {
           continue;
         }
+        activeTypes.insert(it2->second.type);
         if (it2->second.lastms > compareLast) {
           compareLast = it2->second.lastms;
         }
@@ -407,7 +409,7 @@ namespace Mist {
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
         //if not updated for an entire buffer duration, or last updated track and this track differ by an entire buffer duration, erase the track.
         if ((long long int)(time - lastUpdated[it->first]) > (long long int)(bufferTime / 1000) ||
-            (compareLast && (long long int)(time - lastUpdated[it->first]) > 5 && (
+            (compareLast && activeTypes.count(it->second.type) && (long long int)(time - lastUpdated[it->first]) > 5 && (
                (compareLast < it->second.firstms && (long long int)(it->second.firstms - compareLast) > bufferTime)
                ||
                (compareFirst > it->second.lastms && (long long int)(compareFirst - it->second.lastms) > bufferTime)
@@ -416,9 +418,9 @@ namespace Mist {
           unsigned int tid = it->first;
           //erase this track
           if ((long long int)(time - lastUpdated[it->first]) > (long long int)(bufferTime / 1000)) {
-            WARN_MSG("Erasing %s track %d because not updated for %ds (> %ds)", streamName.c_str(), it->first, (long long int)(time - lastUpdated[it->first]), (long long int)(bufferTime / 1000));
+            WARN_MSG("Erasing %s track %d (%s/%s) because not updated for %ds (> %ds)", streamName.c_str(), it->first, it->second.type.c_str(), it->second.codec.c_str(), (long long int)(time - lastUpdated[it->first]), (long long int)(bufferTime / 1000));
           } else {
-            WARN_MSG("Erasing %s inactive track %u because it was inactive for 5+ seconds and contains data (%us - %us), while active tracks are (%us - %us), which is more than %us seconds apart.", streamName.c_str(), it->first, it->second.firstms / 1000, it->second.lastms / 1000, compareFirst / 1000, compareLast / 1000, bufferTime / 1000);
+            WARN_MSG("Erasing %s inactive track %u (%s/%s) because it was inactive for 5+ seconds and contains data (%us - %us), while active tracks are (%us - %us), which is more than %us seconds apart.", streamName.c_str(), it->first, it->second.type.c_str(), it->second.codec.c_str(), it->second.firstms / 1000, it->second.lastms / 1000, compareFirst / 1000, compareLast / 1000, bufferTime / 1000);
           }
           /*LTS-START*/
           if (Triggers::shouldTrigger("STREAM_TRACK_REMOVE")) {

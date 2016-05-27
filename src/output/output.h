@@ -54,7 +54,7 @@ namespace Mist {
       /*LTS-END*/
       //non-virtual generic functions
       int run();
-      void stats();
+      void stats(bool force = false);
       void seek(unsigned long long pos);
       bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
       void stop();
@@ -67,7 +67,8 @@ namespace Mist {
       virtual bool isReadyForPlay();
       //virtuals. The optional virtuals have default implementations that do as little as possible.
       virtual void sendNext() {}//REQUIRED! Others are optional.
-      virtual void prepareNext();
+      bool prepareNext();
+      virtual void dropTrack(uint32_t trackId, std::string reason, bool probablyBad = true);
       virtual void onRequest();
       virtual bool onFinish() {
         return false;
@@ -105,7 +106,6 @@ namespace Mist {
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
-      bool completeKeyReadyTimeOut;//a bool to see if there has been a keyframe TimeOut for complete keys in Live
     protected://these are to be messed with by child classes
       virtual std::string getConnectedHost();
       virtual std::string getConnectedBinHost();

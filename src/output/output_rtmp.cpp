@@ -277,6 +277,21 @@ namespace Mist {
   }
   
   void OutRTMP::sendNext() {
+
+    //If there are now more selectable tracks, select the new track and do a seek to the current timestamp
+    //Set sentHeader to false to force it to send init data
+    if (selectedTracks.size() < 2 && myMeta.tracks.size() > 1){
+      size_t prevTrackCount = selectedTracks.size();
+      selectDefaultTracks();
+      if (selectedTracks.size() > prevTrackCount){
+        INFO_MSG("Picked up new track - selecting it and resetting state.");
+        sentHeader = false;
+        seek(thisPacket.getTime());
+      }
+      return;
+    }
+
+
     char rtmpheader[] = {0, //byte 0 = cs_id | ch_type
                          0, 0, 0, //bytes 1-3 = timestamp
                          0, 0, 0, //bytes 4-6 = length

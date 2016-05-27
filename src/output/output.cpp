@@ -1038,6 +1038,7 @@ namespace Mist {
         break;
       }
     }
+    selectedTracks.erase(trackId);
   }
  
   ///Attempts to prepare a new packet for output.

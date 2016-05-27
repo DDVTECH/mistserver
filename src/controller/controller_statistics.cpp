@@ -910,12 +910,15 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   std::map<std::string, unsigned long> clients;
   unsigned int t = Util::epoch() - STATS_DELAY;
   //check all sessions
-  if (sessions.size()){
-    for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      if (!onlyNow || (it->second.hasDataFor(t) && it->second.isViewerOn(t))){
-        streams.insert(it->first.streamName);
-        if (it->second.getSessType() == SESS_VIEWER){
-          clients[it->first.streamName]++;
+  {
+    tthread::lock_guard<tthread::mutex> guard(statsMutex);
+    if (sessions.size()){
+      for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+        if (!onlyNow || (it->second.hasDataFor(t) && it->second.isViewerOn(t))){
+          streams.insert(it->first.streamName);
+          if (it->second.getSessType() == SESS_VIEWER){
+            clients[it->first.streamName]++;
+          }
         }
       }
     }

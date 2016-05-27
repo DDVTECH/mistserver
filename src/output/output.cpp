@@ -1152,12 +1152,12 @@ namespace Mist {
     if (thisPacket.getTime() != nxt.time && nxt.time && !atLivePoint){
       static int warned = 0;
       if (warned < 5){
-        WARN_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms) for %s", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), streamName.c_str());
+        WARN_MSG("Loaded %s track %ld@%llu in stead of %u@%llu (%dms, %s)", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), myMeta.tracks[nxt.tid].codec.c_str());
         if (++warned == 5){
           WARN_MSG("Further warnings about time mismatches printed on HIGH level.");
         }
       }else{
-        HIGH_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms) for %s", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), streamName.c_str());
+        HIGH_MSG("Loaded %s track %ld@%llu in stead of %u@%llu (%dms, %s)", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), myMeta.tracks[nxt.tid].codec.c_str());
       }
     }
 

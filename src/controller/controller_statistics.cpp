@@ -126,7 +126,6 @@ void Controller::killStatistics(char * data, size_t len, unsigned int id){
 
 ///This function is ran whenever a stream becomes active.
 void Controller::streamStarted(std::string stream){
-  tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
   INFO_MSG("Stream %s became active", stream.c_str());
   Controller::doAutoPush(stream);
 }
@@ -177,7 +176,8 @@ void Controller::SharedMemStats(void * config){
   std::set<std::string> inactiveStreams;
   while(((Util::Config*)config)->is_active){
     {
-      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+      tthread::lock_guard<tthread::mutex> guard2(statsMutex);
       //parse current users
       statServer.parseEach(parseStatistics);
       //wipe old statistics

@@ -1,12 +1,16 @@
 [Unit]
 Description=MistServer
-After=networkmanager.service
+After=network.target
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/MistController -c /etc/mistserver.conf
 Restart=always
-RestartSec=5
+RestartSec=2
+TasksMax=infinity
+TimeoutStopSec=8
+ExecStopPost=/bin/bash -c "rm -f /dev/shm/*Mst*"
 
 [Install]
 WantedBy=multi-user.target
+

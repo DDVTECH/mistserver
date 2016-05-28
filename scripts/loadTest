@@ -1,0 +1,263 @@
+#!/bin/bash
+
+#starting with define of stream getter functions
+#for all funcions: $1 = stream, $2 = time to download
+function genericGetter {
+  echo filesize `curl -s -m $2 $1| wc -c` 1>&2
+}
+
+function flvGetter {
+  curl -s -m $2 $1 2> /dev/null | ../MistAnalyserFLV -m validate 2> /dev/null
+}
+
+function hlsGetter {
+  ../MistAnalyserHLS -m validate -a $2 $1 2>/dev/null
+}
+
+function oggGetter {
+  curl -s -m $2 $1 | ../MistAnalyserOGG -m validate
+}
+
+function dashGetter {
+  ../MistAnalyserDASH -m validate -a $2 $1 2>/dev/null
+}
+
+function rtmpGetter {
+  #$rtmpGetter ignores $2, because rtmpdump has no time setting
+  #rtmpdump is ended with killall in parent function
+  rtmpdump -qRr $1 -o - 2> /dev/null | ../MistAnalyserFLV -m validate 2> /dev/null
+}
+
+function serverTest {
+  rm /tmp/res*_*
+  #this functions creates a csv file with all statistics during the tests
+  #$1 = number of stream batches
+  #$2 = amount of streams per batch (amount of streams = $! * $2)
+  #$3 = current stream test
+  #$4 = ssh access to server where our log file is located
+  #$5 = duration of test in seconds
+  #$6 = location of log file on server
+  #$7 = getter used for stream testing
+  #$8 = Extra comments added to .csv file
+  #$9 = Output basename
+  echo "Test variables:" > $9.info
+  echo "Start time: `date`" >> $9.info
+  echo "Client count: `echo "$1 * $2" | bc`" >> $9.info
+  echo "Batch Size: $2" >> $9.info
+  echo "Stream URL: $3"  >> $9.info
+  echo "Duration: $5 seconds" >> $9.info
+  val="none"
+  logdir="$6"
+  if [ -n "$7" ] ; then
+    echo "Validator: $7" >> $9.info
+    val="$7"
+  fi
+  ssh $4 sudo systemctl restart capa_service
+  #sleeping, so service can properly start
+  sleep 2
+  
+  getter="${val}Getter"
+  #starting all tests
+  prefix="res"`date +%s`_
+  for x in `seq 1 1 $1`; do
+    for y in `seq 1 1 $2`; do
+      eval "$getter $3 $5" >& /tmp/$prefix`echo "$x * $2 + $y" | bc`.txt &
+    done
+    sleep 1
+  done
+  
+  start=`date +%s`
+  f=$(( `date +%s` - $start ))
+  while [ $f -lt $5 ]; do
+    sleep 2
+    f=$(( `date +%s` - $start ))
+  done
+  if [ "$val" == "rtmp" ] ; then
+    killall rtmpdump
+  fi
+  #wait 20 seconds after terminating
+  start=`date +%s`
+  f=$(( `date +%s` - $start ))
+  while [ $f -lt 20 ]; do
+    sleep 2
+    f=$(( `date +%s` - $start ))
+  done
+  cat /tmp/$prefix* > $9.times
+  ssh $4 sudo systemctl stop capa_service
+  ssh $4 "cat $logdir/log.csv" > $9.csv
+  wait
+}
+
+function rebootHost {
+  nowtime=`ssh $1 uptime -s`
+  timeOut=$(( `date +%s` + 3600 ))
+  echo "Rebooting host $1..."
+  ssh $1 sudo shutdown -r 3
+  echo "Waiting for host to come back..."
+  sleep 3
+  while [ true ]; do
+    sleep 5
+    #ping for connection
+    ping -c1 $1 > /dev/null
+    if [ `echo $?` == 0 ]; then
+      #check ssh
+      if [ "`ssh -o 'ConnectTimeout 5' $1 echo DDVtesting`" == "DDVtesting" ]; then
+        #check uptime
+        if [ "`ssh -o 'ConnectTimeout 5' $1 uptime -s`" != "$nowtime" ]; then
+          echo host succesfully rebooted
+          return 0
+        fi
+      fi
+    fi
+    if [ $timeOut -lt `date +%s` ]; then
+      echo timeout
+      return 1
+    fi
+  done
+}
+
+function checkService {
+echo "doing runcheck"
+echo "ssh $1 systemctl status $2 | grep Active\:"
+status="`ssh $1 systemctl status $2 | grep Active\:`"
+  if [ "${status:11:6}" != "active" ]; then
+    echo starting ${2}...
+    ssh $1 sudo systemctl stop wowza
+    ssh $1 sudo systemctl stop wowza4
+    ssh $1 sudo systemctl stop nginx
+    ssh $1 sudo systemctl stop mistserver
+    ssh $1 sudo systemctl stop adobe 
+    ssh $1 sudo systemctl disable wowza
+    ssh $1 sudo systemctl disable wowza4
+    ssh $1 sudo systemctl disable nginx
+    ssh $1 sudo systemctl disable mistserver
+    ssh $1 sudo systemctl disable adobe 
+    ssh $1 sudo systemctl enable $2
+    ssh $1 sudo systemctl start $2
+  else
+    echo $2 is running...
+  fi
+}
+
+#setting default values
+server="localhost"
+comment=""
+logdir="`pwd`"
+freshBoot="y"
+product="mistserver"
+declare -a timegroup
+declare -a request
+declare -a stream
+
+#parsing arguments
+red=1
+while [ $red -le $# ]; do
+  case ${!red} in
+    "-s") #defines server
+      red=$(( $red + 1 ))
+      server=${!red}
+    ;;
+    "-l") #defines directory on the server with the capabilities log
+      red=$(( $red + 1 ))
+      logdir=${!red}
+    ;;
+    "-t") #defines timelengths for tests
+      red=$(( $red + 1 ))
+      timegroup+=( ${!red} )
+    ;;
+    "-b") #defines user batches for tests (must be in format "batchamount batchsize")
+      red=$(( $red + 1 ))
+      request+=( "${!red}" )
+    ;;
+    "-c") #add a comment
+      red=$(( $red + 1 ))
+      comment=${!red}
+    ;;
+    "-m") #defines a media stream and validator
+      red=$(( $red + 1 ))
+      stream+=( "${!red}" )
+    ;;
+    "-p") #defines the product to be tested, default is mistserver
+      red=$(( $red + 1 ))
+      product=${!red}
+    ;;
+    "-fresh")
+      freshBoot="x"
+    ;;
+    *)
+      comment=`echo $comment ${!red}`
+  esac
+  red=$(( $red + 1 ))
+done
+
+#determining validators
+for (( i=0; i<${#stream[@]}; i++ )) ; do
+  if [ "${stream[$i]:0:4}" == "rtmp" ]; then
+    validator[$i]="rtmp"
+  else
+    tempFile=$(basename "${stream[$i]}")
+    tempExt="${tempFile##*.}"
+    case $tempExt in
+    "flv")
+      validator[$i]="flv"
+    ;;
+    "ogg")
+      validator[$i]="ogg"
+    ;;
+    "m3u8")
+      validator[$i]="hls"
+    ;;
+    "m3u")
+      validator[$i]="hls"
+    ;;
+    "mpd")
+      validator[$i]="dash"
+    ;;
+    *)
+      validator[$i]="generic"
+    esac
+  fi
+done
+
+if [ ${#request[@]} == 0 ]; then
+  request=( "1 1000" )
+fi
+
+if [ ${#timegroup[@]} == 0 ]; then
+  timegroup=( 60 )
+fi
+
+#checking if the right product is enabled on the server is 
+checkService $server $product
+
+#making directory for test
+temp="$product"`date +%y%m%d%H%M%S`
+mkdir $temp
+
+#starting test
+for (( i=0; i<${#stream[@]}; i++ )) ; do
+  for (( p=0; p<${#timegroup[@]}; p++ )) ; do
+    for (( o=0; o<${#request[@]}; o++ )) ; do
+      if [ $freshBoot == "x" ]; then
+        rebootHost $server
+        if [ $? -ne 0 ] ; then
+          echo lost host in reboot process, exiting...
+          exit $?;
+        fi
+        checkService $server $product
+      fi
+      tnr=` echo "$i * ${#timegroup[@]} * ${#request[@]} + $o * ${#timegroup[@]} + $p" | bc `
+      name=$temp"/run"
+      if [ $tnr -lt 100 ] ; then
+        name="${name}0"
+      fi
+      if [ $tnr -lt 10 ] ; then
+        name="${name}0"
+      fi
+      amount=`echo ${request[$o]} | sed -e 's/ /*/g' | bc`
+      name="${name}${tnr}_${amount}_${validator[$i]}_${timegroup[$p]}"
+      echo "$name ${request[$o]} ${stream[$i]} $server ${timegroup[$p]} ${validator[$i]}"
+      serverTest ${request[$o]} ${stream[$i]} $server ${timegroup[$p]} $logdir ${validator[$i]} "$comment" $name
+    done
+  done
+done

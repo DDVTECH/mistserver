@@ -1,0 +1,53 @@
+#!/bin/bash
+
+#Q3 2014 style
+#BATCHES="-b \"1 1\" -b \"1 300\" -b \"1 600\" -b \"1 1200\""
+#TIMES="-t 60 -t 600"
+#SERVCONF="-s krabs -l /home/thulinma/capa_service/ -fresh"
+
+#Q2 2014 style
+#BATCHES="-b \"1 1\" -b \"1 100\" -b \"1 1000\" -b \"1 1200\""
+#TIMES="-t 60 -t 180 -t 600"
+#SERVCONF="-s krabs -l /home/thulinma/capa_service/ -fresh"
+
+#Q1 2014 style
+#BATCHES="-b \"2 50\" -b \"4 50\" -b \"8 50\" -b \"16 50\" -b \"24 50\""
+#TIMES="-t 60 -t 300 -t 600"
+#SERVCONF="-s krabs -l /home/thulinma/capa_service/ -fresh"
+
+#single run
+BATCHES="-b \"1 42\""
+TIMES="-t 60"
+#BATCHES="-b \"1 1000\" -b \"1 5000\" -b \"1 10000\""
+#TIMES="-t 5"
+SERVCONF="-s krabs -l /home/thulinma/capa_service/"
+
+#empty the run-script
+rm scriptje.sh
+touch scriptje.sh
+
+#DASH
+#echo "./loadTest $SERVCONF -p wowza4 $BATCHES $TIMES -m http://krabs:1935/vod/_definst_/mp4:example1_low.mp4/manifest_mvtime_w1216364513.mpd" >> scriptje.sh
+#echo "./loadTest $SERVCONF -p mistserver $BATCHES $TIMES -m http://krabs:8080/dash/example1_low/index.mpd" >> scriptje.sh
+
+#HLS
+#echo "./loadTest $SERVCONF -p wowza4 $BATCHES $TIMES -m http://krabs:1935/vod/mp4:example1_low.mp4/playlist.m3u8" >> scriptje.sh
+echo "./loadTest $SERVCONF -p mistserver $BATCHES $TIMES -m http://krabs:8080/hls/example1_low/index.m3u8" >> scriptje.sh
+#echo "./loadTest $SERVCONF -p flussonic $BATCHES $TIMES -m http://krabs/vod/example1_low.mp4/tracks-1,2/index.m3u8" >> scriptje.sh
+
+#RTMP
+#echo "./loadTest $SERVCONF -p wowza4 $BATCHES $TIMES -m rtmp://krabs/vod/mp4:example1_low.mp4" >> scriptje.sh
+#echo "./loadTest $SERVCONF -p nginx $BATCHES $TIMES -m rtmp://krabs/vod2/example1_low.mp4" >> scriptje.sh
+#echo "./loadTest $SERVCONF -p adobe $BATCHES $TIMES -m rtmp://krabs/vod/mp4:tests/example1_low.flv" >> scriptje.sh
+#echo "./loadTest $SERVCONF -p mistserver $BATCHES $TIMES -m rtmp://krabs/a/example1_low" >> scriptje.sh
+#echo "./loadTest $SERVCONF -p flussonic $BATCHES $TIMES -m rtmp://krabs/vod/example1_low.mp4.mp4" >> scriptje.sh
+
+#FLV
+#echo "./loadTest $SERVCONF -p mistserver $BATCHES $TIMES -m http://krabs:8080/example1_low.flv" >> scriptje.sh
+
+
+#run it
+. scriptje.sh
+
+~/yup
+

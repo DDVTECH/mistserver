@@ -1,0 +1,6 @@
+#!/bin/bash
+
+for i in `seq -w 0 100`; do
+	R=$i ./plot_run
+done
+

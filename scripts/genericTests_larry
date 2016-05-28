@@ -1,0 +1,32 @@
+#!/bin/bash
+
+BATCHES="-b \"1 1\" -b \"1 100\" -b \"1 1000\" -b \"1 1200\""
+TIMES="-t 60 -t 180 -t 600"
+
+#BATCHES="-b \"1 500\""
+#TIMES="-t 30"
+
+#BATCHES="-b \"16 50\" -b \"24 50\""
+
+#BATCHES="-b \"10 1\""
+#TIMES="-t 10 -t 60 -t 180 -t 600"
+
+SERVCONF="-s krabs -l /home/thulinma/capa_service/ -fresh"
+#SERVCONF="-s krabs -l /home/thulinma/capa_service/"
+
+rm scriptje.sh
+touch scriptje.sh
+#echo "./loadTest $SERVCONF -p mistserver -b \"20 27\" -t 40 -m http://krabs:8080/example1_low.mp4" >> scriptje.sh
+
+#echo "./loadTest $SERVCONF -p mistserver $BATCHES $TIMES -m http://krabs:8080/example1_low.flv" >> scriptje.sh
+#echo "./loadTest $SERVCONF -p mistserver $BATCHES $TIMES -m rtmp://krabs/a/example1_low -m http://krabs:8080/example1_low.flv" >> scriptje.sh
+
+#echo "./loadTest $SERVCONF -p mistserver -b \"16 50\" -t 600 -m rtmp://krabs/a/example1_low" >> scriptje.sh
+
+echo "./loadTest $SERVCONF -p wowza4 $BATCHES $TIMES -m rtmp://krabs/vod/mp4:example1_low.mp4" >> scriptje.sh
+echo "./loadTest $SERVCONF -p nginx $BATCHES $TIMES -m rtmp://krabs/vod2/example1_low.mp4" >> scriptje.sh
+echo "./loadTest $SERVCONF -p adobe $BATCHES $TIMES -m rtmp://krabs/vod/mp4:tests/example1_low.flv" >> scriptje.sh
+echo "./loadTest $SERVCONF -p mistserver $BATCHES $TIMES -m rtmp://krabs/a/example1_low" >> scriptje.sh
+
+. scriptje.sh
+

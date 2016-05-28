@@ -1,0 +1,101 @@
+#!/bin/bash
+FOLDER=$1
+SPEED=$1
+LABEL=$1
+
+MBIT="$SPEED stream"
+T="pngcairo size 1000,600 enhanced font \"LiberationSerif,20\""
+EXT=png
+#T="pdfcairo"
+#EXT=pdf
+
+function runplot {
+  for R in `seq -w 0 100`; do
+    FLDS=( $1 )
+    NAMS=( $2 )
+
+    FN=`ls ${FLDS[0]}/run${R}_*.times 2> /dev/null`
+    if [ -z $FN ] ; then
+      return
+    fi
+    FILE=`basename $FN`
+
+    FN=`ls ${FLDS[0]}/run${R}_*.times 2> /dev/null`
+    TIMES=`basename $FN`
+    VIEWERS=`echo $FILE | cut -d '_' -f 2`
+    TECH=`echo $FILE | cut -d '_' -f 3`
+    SECS=`echo $FILE | cut -d '.' -f 1 | cut -d '_' -f 4`
+    TIME=$(( $SECS / 60 ))m
+
+    FILES=()
+    TIME_FN=()
+
+    for i in `seq $(( ${#FLDS[@]} - 1 )) -1 0`; do
+      FN=`ls ${FLDS[$i]}/run${R}_*.times 2> /dev/null`
+      if [ -z $FN ] ; then
+        return
+      fi
+      FILES[$i]="${FLDS[$i]}/`basename $FN`"
+      FN=`ls ${FLDS[$i]}/run${R}_*.times 2> /dev/null`
+      TIME_FN[$i]="${FLDS[$i]}/`basename $FN`"
+    done
+
+    if [ -n "$3" ] ; then
+      COMMON_DATA="${TIME}, ${MBIT}, ${VIEWERS} $3"
+      CFN="$3_${VIEWERS}_${TIME}"
+      COMMON_FILENAME=${CFN,,}
+    else
+      COMMON_DATA="${TIME}, ${MBIT}, ${VIEWERS} ${TECH}"
+      COMMON_FILENAME="${TECH}_${VIEWERS}_${TIME}"
+    fi
+
+    PLOT5=""
+    for i in `seq $(( ${#FLDS[@]} - 1 )) -1 0`; do
+      if [ -n "${PLOT5}" ] ; then
+        PLOT5="${PLOT5}, "
+      fi
+      sort --field-separator=',' --key=4g < "${TIME_FN[$i]}" > "${TIME_FN[$i]}_sorted"
+      VC=`cut -f 4 -d ',' < "${TIME_FN[$i]}" | awk "(int(\\\$1) >= ${SECS}000-5000) {sum++} END{print sum}"`
+      SC=`cut -f 4 -d ',' < "${TIME_FN[$i]}" | awk "(int(\\\$1) >= ${SECS}000-30000) {sum++} END{print sum}"`
+      #and buffer times. Smoothing makes no sense here. Don't.
+      PLOT5="${PLOT5}'${TIME_FN[$i]}_sorted' using (\$4-${SECS}000)/1000 with linespoints lw 1 title '${NAMS[$i]} (${VC}, ${SC})'"
+    done
+
+    gnuplot << EOF
+set terminal ${T}
+set datafile separator ","
+set key on under center
+
+#set style fill solid 0.25 border -1
+#set style boxplot outliers pointtype 7
+#set style data boxplot
+#set boxwidth  0.5
+set pointsize 0.2
+set arrow from 0,-5 to ${VIEWERS}-1,-5 nohead
+
+set title "Available buffer time, ${COMMON_DATA} clients"
+set output '${COMMON_FILENAME}_buffers.${EXT}'
+set format y "%gs"
+set ylabel "Buffer size (above line = success)"
+set xlabel "Each point represents a single connection"
+unset xtics
+plot ${PLOT5}
+
+
+EOF
+
+    for i in `seq $(( ${#FLDS[@]} - 1 )) -1 0`; do
+      rm -f "${FLDS[$i]}/${TIMES}_sorted"
+    done
+  done
+}
+
+#runplot "adobe_rtmp nginx_rtmp wowza_rtmp mist_rtmp flus_rtmp" "Adobe Nginx Wowza MistServer Flussonic"
+
+runplot "$LABEL" "$FOLDER" "$SPEED"
+
+#runplot "wowza_dash mist_dash wowza_dash_new mist_dash_new mist_dash3" "Wowza Mist WowNew MistNew MistNewer"
+#runplot "mist_dash mist_dash_new mist_dash3" "Old New Newer" "MistDash"
+#runplot "wowza_hls_new flus_hls_new mist_hls_new mist_hls5" "Wowza Flus Mist MistNew"
+#runplot "adobe_rtmp nginx_rtmp wowza_rtmp mist_rtmp flus_rtmp mist_rtmp5" "Adobe Nginx Wowza MistServer Flussonic MistNew"
+

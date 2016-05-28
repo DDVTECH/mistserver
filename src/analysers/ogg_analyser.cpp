@@ -8,9 +8,13 @@
 #include <mist/ogg.h>
 #include <mist/config.h>
 #include <mist/theora.h>
+#include <mist/defines.h>
+#include <sys/sysinfo.h>
+#include <cmath>
+
 ///\todo rewrite this analyser.
-namespace Analysers {
-  std::string Opus_prettyPacket(const char * part, int len){
+namespace Analysers{
+  std::string Opus_prettyPacket(const char * part,int len){
     if (len < 1){
       return "Invalid packet (0 byte length)";
     }
@@ -114,12 +118,8 @@ namespace Analysers {
     return r.str();
   }
 
-  int analyseOGG(int argc, char ** argv){
-    Util::Config conf = Util::Config(argv[0]);
-    conf.addOption("pages", JSON::fromString("{\"long\":\"pages\", \"short\":\"p\", \"long_off\":\"nopages\", \"short_off\":\"P\", \"default\":0, \"help\":\"Enable/disable printing of Ogg pages\"}"));
-    conf.parseArgs(argc, argv);
-
-    std::map<int, std::string> sn2Codec;
+  int analyseOGG(Util::Config & conf){
+    std::map<int,std::string> sn2Codec;
     std::string oggBuffer;
     OGG::Page oggPage;
     int kfgshift;
@@ -223,12 +223,100 @@ namespace Analysers {
       }
       std::cout << std::endl;
     }
+    
     return 0;
+  }
+  
+  
+  int validateOGG(bool analyse){
+    std::map<int,std::string> sn2Codec;
+    std::string oggBuffer;
+    OGG::Page oggPage;
+    
+    long long int lastTime =0;
+    double mspft = 0;
+    std::map<long long unsigned int,long long int> oggMap;
+    theora::header * theader = 0;
+    bool seenIDheader = false;
+    struct sysinfo sinfo;
+    sysinfo(&sinfo);
+    long long int upTime = sinfo.uptime;
+    while (std::cin.good()){
+      
+      for (unsigned int i = 0; (i < 1024) && (std::cin.good()); i++){
+        oggBuffer += std::cin.get();
+      }
+      
+      while (oggPage.read(oggBuffer)){//reading ogg to ogg::page
+        if(oggMap.find(oggPage.getBitstreamSerialNumber()) == oggMap.end()){
+          //checking header
+          //check if vorbis or theora
+          if (memcmp(oggPage.getSegment(0)+1, "vorbis", 6) == 0){
+            sn2Codec[oggPage.getBitstreamSerialNumber()] = "vorbis";
+            vorbis::header vheader((char*)oggPage.getSegment(0),oggPage.getSegmentLen(0));
+            //if (vheader){
+              oggMap[oggPage.getBitstreamSerialNumber()] = ntohl(vheader.getAudioSampleRate());
+              //oggPage.setInternalCodec(sn2Codec[oggPage.getBitstreamSerialNumber()]);
+            //}
+          }else if(memcmp(oggPage.getSegment(0)+1, "theora", 6) == 0){
+            sn2Codec[oggPage.getBitstreamSerialNumber()] = "theora";
+            if(!seenIDheader){
+              if (theader){delete theader; theader = 0;}
+              theader = new theora::header((char*)oggPage.getSegment(0),oggPage.getSegmentLen(0));
+              if(theader->getHeaderType() == 0){
+                seenIDheader = true;
+              }
+              mspft = (double)(theader->getFRD() * 1000) / theader->getFRN();
+            }
+          }
+        }
+
+
+        if (sn2Codec[oggPage.getBitstreamSerialNumber()] == "vorbis"){
+         // std::cout <<oggPage.toPrettyString() << std::endl<< "--------------------------------" << std::endl;
+          lastTime = (double)oggPage.getGranulePosition()/(double)oggMap[oggPage.getBitstreamSerialNumber()];
+        }else if(sn2Codec[oggPage.getBitstreamSerialNumber()] == "theora"){
+          //theora getKFGShift()
+          if(oggPage.getGranulePosition() != 0xffffffffffffffff){
+            lastTime = ((oggPage.getGranulePosition()>>(int)theader->getKFGShift())*mspft);
+          }
+        }
+        if(analyse){
+          std::cout << oggPage.toPrettyString() << std::endl;
+        }
+      }
+      //while OGG::page check function read     
+      //save last time
+      sysinfo(&sinfo);
+      long long int tTime = sinfo.uptime;
+      if((tTime-upTime) > 5 && (tTime-upTime)>(int)(lastTime)  ){
+        std::cerr << "data received too slowly" << std::endl;
+        return 42;
+      }
+    }
+    if (theader){delete theader; theader = 0;}
+    sysinfo(&sinfo);
+    long long int finTime = sinfo.uptime;
+    fprintf(stdout,"time since boot,time at completion,real time duration of data receival,video duration\n");
+    fprintf(stdout, "%lli000,%lli000,%lli000,%lli \n",upTime,finTime,finTime-upTime,lastTime);
+    //print last time
+    return 0; 
   }
 }
 
 int main(int argc, char ** argv){
-  return Analysers::analyseOGG(argc, argv);
+  Util::Config conf = Util::Config(argv[0]);
+  conf.addOption("pages", JSON::fromString("{\"long\":\"pages\", \"short\":\"p\", \"long_off\":\"nopages\", \"short_off\":\"P\", \"default\":0, \"help\":\"Enable/disable printing of Ogg pages\"}"));
+  conf.addOption("analyse", JSON::fromString("{\"long\":\"analyse\", \"short\":\"a\", \"default\":1, \"long_off\":\"notanalyse\", \"short_off\":\"b\", \"help\":\"Analyse a file's contents (-a), or don't (-b) returning false on error. Default is analyse.\"}"));
+  conf.addOption("validate", JSON::fromString("{\"long\":\"validate\", \"short\":\"V\", \"default\":0, \"long_off\":\"notvalidate\", \"short_off\":\"x\", \"help\":\"Validate (-V) the file contents or don't validate (-X) its integrity, returning false on error. Default is don't validate.\"}"));
+
+  conf.parseArgs(argc, argv);
+  conf.activate();
+  if (conf.getBool("validate")){
+    return Analysers::validateOGG(conf.getBool("analyse"));
+  }else if(conf.getBool("analyse")){
+    return Analysers::analyseOGG(conf);
+  }
 }
 
 

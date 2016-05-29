@@ -2,7 +2,7 @@
 # Basic Setup                          #
 ########################################
 cmake_minimum_required (VERSION 2.6)
-SET(CMAKE_INSTALL_PREFIX /usr)
+SET(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Usr install prefix")
 project (MistServer)
 
 if(COMMAND cmake_policy)

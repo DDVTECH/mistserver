@@ -9,7 +9,6 @@ namespace Mist {
  class OutRTMP : public Output {
     public:
       OutRTMP(Socket::Connection & conn);
-      ~OutRTMP();
       static void init(Util::Config * cfg);
       void onRequest();
       void sendNext();

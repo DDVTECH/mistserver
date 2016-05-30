@@ -58,7 +58,6 @@ namespace Mist {
   }
   /*LTS-END*/
 
-
   bool InOutBase::bufferStart(unsigned long tid, unsigned long pageNumber) {
     VERYHIGH_MSG("bufferStart for stream %s, track %lu, page %lu", streamName.c_str(), tid, pageNumber);
     //Initialize the stream metadata if it does not yet exist

@@ -150,8 +150,6 @@ namespace Mist {
     isPushing = false;
   }
 
-  OutRTMP::~OutRTMP() {}
-  
   bool OutRTMP::listenMode(){
     return !(config->getString("target").size());
   }

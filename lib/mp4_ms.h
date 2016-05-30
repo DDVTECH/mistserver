@@ -37,4 +37,17 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 
+  class UUID_TFXD: public UUID {
+    public:
+      UUID_TFXD();
+      void setVersion(uint32_t newVersion);
+      uint32_t getVersion();
+      void setFlags(uint32_t newFlags);
+      uint32_t getFlags();
+      void setTime(uint64_t newTime);
+      uint64_t getTime();
+      void setDuration(uint64_t newDuration);
+      uint64_t getDuration();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
 }

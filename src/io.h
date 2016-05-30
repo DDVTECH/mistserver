@@ -25,6 +25,36 @@ namespace Mist {
     unsigned long lastKeyTime;///<The last key time encountered on this track.
   };
 
+  class negotiationProxy {
+    public:
+      negotiationProxy() {}
+      bool bufferStart(unsigned long tid, unsigned long pageNumber, DTSC::Meta & myMeta);
+      void bufferNext(DTSC::Packet & pack, DTSC::Meta & myMeta);
+      void bufferFinalize(unsigned long tid, DTSC::Meta &myMeta);
+      void bufferLivePacket(DTSC::Packet & packet, DTSC::Meta & myMeta);
+      bool isBuffered(unsigned long tid, unsigned long keyNum);
+      unsigned long bufferedOnPage(unsigned long tid, unsigned long keyNum);
+
+
+
+
+      std::map<unsigned long, std::map<unsigned long, DTSCPageData> > pagesByTrack;///<Holds the data for all pages of a track. Based on unmapped tids
+
+      //Negotiation stuff (from unmapped tid's)
+      std::map<unsigned long, unsigned long> trackOffset; ///< Offset of data on user page
+      std::map<unsigned long, negotiationState> trackState; ///< State of the negotiation for tracks
+      std::map<unsigned long, unsigned long> trackMap;///<Determines which input track maps onto which "final" track
+      std::map<unsigned long, IPC::sharedPage> metaPages;///< For each track, holds the page that describes which dataPages are mapped
+      std::map<unsigned long, unsigned long> curPageNum;///< For each track, holds the number page that is currently being written.
+      std::map<unsigned long, IPC::sharedPage> curPage;///< For each track, holds the page that is currently being written.
+
+      IPC::sharedClient userClient;///< Shared memory used for connection to Mixer process.
+
+      std::string streamName;///< Name of the stream to connect to
+
+      void continueNegotiate(unsigned long tid, DTSC::Meta & myMeta, bool quickNegotiate = false);
+  };
+
   ///\brief Class containing all basic input and output functions.
   class InOutBase {
     public:
@@ -36,32 +66,23 @@ namespace Mist {
       void bufferRemove(unsigned long tid, unsigned long pageNumber);
       void bufferLivePacket(JSON::Value & packet);
       void bufferLivePacket(DTSC::Packet & packet);
-      bool isBuffered(unsigned long tid, unsigned long keyNum);
-      unsigned long bufferedOnPage(unsigned long tid, unsigned long keyNum);
     protected:
+      void continueNegotiate(unsigned long tid, bool quickNegotiate = false);
+
+
+
       bool standAlone;
       static Util::Config * config;
 
-      void continueNegotiate(unsigned long tid);
+      negotiationProxy nProxy;
 
       DTSC::Packet thisPacket;//The current packet that is being parsed
 
-      std::string streamName;///< Name of the stream to connect to
-      IPC::sharedClient userClient;///< Shared memory used for connection to Mixer process.
+      std::string streamName;
 
-      DTSC::Meta myMeta;///< Stores either the input or output metadata
 
       std::set<unsigned long> selectedTracks;///< Stores the track id's that are either selected for playback or input
 
-      std::map<unsigned long, std::map<unsigned long, DTSCPageData> > pagesByTrack;///<Holds the data for all pages of a track. Based on unmapped tids
-
-      //Negotiation stuff (from unmapped tid's)
-      std::map<unsigned long, unsigned long> trackOffset; ///< Offset of data on user page
-      std::map<unsigned long, negotiationState> trackState; ///< State of the negotiation for tracks
-      std::map<unsigned long, unsigned long> trackMap;///<Determines which input track maps onto which "final" track
-      std::map<unsigned long, IPC::sharedPage> metaPages;///< For each track, holds the page that describes which dataPages are mapped
-      std::map<unsigned long, unsigned long> curPageNum;///< For each track, holds the number page that is currently being written.
-      std::map<unsigned long, IPC::sharedPage> curPage;///< For each track, holds the page that is currently being written.
-      std::map<unsigned long, std::deque<DTSC::Packet> > trackBuffer; ///< Buffer to be used during active track negotiation
+      DTSC::Meta myMeta;///< Stores either the input or output metadata
   };
 }

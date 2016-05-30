@@ -7,9 +7,12 @@ namespace Mist {
     public:
       inputBuffer(Util::Config * cfg);
       ~inputBuffer();
+      void onCrash();
     private:
       unsigned int bufferTime;
       unsigned int cutTime;
+      bool hasPush;
+      bool resumeMode;
     protected:
       //Private Functions
       bool setup();
@@ -33,8 +36,7 @@ namespace Mist {
       std::map<unsigned long, std::map<unsigned long, DTSCPageData> > bufferLocations;
       std::map<unsigned long, char *> pushLocation;
       inputBuffer * singleton;
-
-      //This is used for an ugly fix to prevent metadata from dissapearing in some cases.
+      //This is used for an ugly fix to prevent metadata from disappearing in some cases.
       std::map<unsigned long, std::string> initData;
   };
 }

@@ -7,10 +7,6 @@
 #include "timing.h"
 #include "auth.h"
 
-#ifndef FILLER_DATA
-#define FILLER_DATA "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent commodo vulputate urna eu commodo. Cras tempor velit nec nulla placerat volutpat. Proin eleifend blandit quam sit amet suscipit. Pellentesque vitae tristique lorem. Maecenas facilisis consequat neque, vitae iaculis eros vulputate ut. Suspendisse ut arcu non eros vestibulum pulvinar id sed erat. Nam dictum tellus vel tellus rhoncus ut mollis tellus fermentum. Fusce volutpat consectetur ante, in mollis nisi euismod vulputate. Curabitur vitae facilisis ligula. Sed sed gravida dolor. Integer eu eros a dolor lobortis ullamcorper. Mauris interdum elit non neque interdum dictum. Suspendisse imperdiet eros sed sapien cursus pulvinar. Vestibulum ut dolor lectus, id commodo elit. Cras convallis varius leo eu porta. Duis luctus sapien nec dui adipiscing quis interdum nunc congue. Morbi pharetra aliquet mauris vitae tristique. Etiam feugiat sapien quis augue elementum id ultricies magna vulputate. Phasellus luctus, leo id egestas consequat, eros tortor commodo neque, vitae hendrerit nunc sem ut odio."
-#endif
-
 std::string RTMPStream::handshake_in; ///< Input for the handshake.
 std::string RTMPStream::handshake_out; ///< Output for the handshake.
 
@@ -205,7 +201,7 @@ RTMPStream::Chunk::Chunk() {
 std::string & RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id, unsigned int msg_stream_id, std::string data) {
   static RTMPStream::Chunk ch;
   ch.cs_id = cs_id;
-  ch.timestamp = Util::getMS();
+  ch.timestamp = 0;
   ch.len = data.size();
   ch.real_len = data.size();
   ch.len_left = 0;
@@ -458,16 +454,16 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
   
   DEBUG_MSG(DLVL_DONTEVEN, "Parsing RTMP chunk result: len_left=%d, real_len=%d", len_left, real_len);
   
-  //read extended timestamp, if neccesary
-  if (ts_header == 0x00ffffff) {
+  //read extended timestamp, if necessary
+  if (ts_header == 0x00ffffff && headertype != 0xC0) {
     if (!buffer.available(i + 4)) {
       return false;
     } //can't read timestamp
     indata = buffer.copy(i + 4);
-    timestamp += indata[i++ ];
+    timestamp = indata[i++ ];
     timestamp += indata[i++ ] * 256;
     timestamp += indata[i++ ] * 256 * 256;
-    timestamp = indata[i++ ] * 256 * 256 * 256;
+    timestamp += indata[i++ ] * 256 * 256 * 256;
     ts_delta = timestamp;
   }
 

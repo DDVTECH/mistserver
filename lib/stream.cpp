@@ -73,10 +73,37 @@ void Util::sanitizeName(std::string & streamname) {
   }
 }
 
+JSON::Value Util::getStreamConfig(std::string streamname){
+  JSON::Value result;
+  if (streamname.size() > 100){
+    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
+    return result;
+  }
+  IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
+  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  configLock.wait();
+  DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
+
+  sanitizeName(streamname);
+  std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
+  //check if smp (everything before + or space) exists
+  DTSC::Scan stream_cfg = config.getMember("streams").getMember(smp);
+  if (!stream_cfg){
+    DEBUG_MSG(DLVL_MEDIUM, "Stream %s not configured", streamname.c_str());
+  }else{
+    result = stream_cfg.asJSON();
+  }
+  configLock.post();//unlock the config semaphore
+  return result;
+}
+
 /// Checks if the given streamname has an active input serving it. Returns true if this is the case.
 /// Assumes the streamname has already been through sanitizeName()!
 bool Util::streamAlive(std::string & streamname){
-  IPC::semaphore playerLock(std::string("/lock_" + streamname).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  char semName[NAME_BUFFER_SIZE];
+  snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamname.c_str());
+  IPC::semaphore playerLock(semName, O_RDWR, ACCESSPERMS, 1, true);
+  if (!playerLock){return false;}
   if (!playerLock.tryWait()) {
     playerLock.close();
     return true;
@@ -109,8 +136,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
 
   //Attempt to load up configuration and find this stream
-  IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
-  IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
+  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   //Lock the config to prevent race conditions and corruption issues while reading
   configLock.wait();
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
@@ -149,7 +176,21 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     input = inputs.getIndice(i);
     
     //if match voor current stream && priority is hoger dan wat we al hebben
-    if (curPrio < input.getMember("priority").asInt()){
+    if (input.getMember("source_match") && curPrio < input.getMember("priority").asInt()){
+      if (input.getMember("source_match").getSize()){
+        for(unsigned int j = 0; j < input.getMember("source_match").getSize(); ++j){
+          std::string source = input.getMember("source_match").getIndice(j).asString();
+          std::string front = source.substr(0,source.find('*'));
+          std::string back = source.substr(source.find('*')+1);
+          MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), input.getMember("name").asString().c_str(), source.c_str());
+          
+          if (filename.substr(0,front.size()) == front && filename.substr(filename.size()-back.size()) == back){
+            player_bin = Util::getMyPath() + "MistIn" + input.getMember("name").asString();
+            curPrio = input.getMember("priority").asInt();
+            selected = true;
+          }
+        }
+      }else{
       std::string source = input.getMember("source_match").asString();
       std::string front = source.substr(0,source.find('*'));
       std::string back = source.substr(source.find('*')+1);
@@ -160,6 +201,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
         curPrio = input.getMember("priority").asInt();
         selected = true;
       }
+      }
+
     }
   }
   
@@ -230,5 +273,11 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     FAIL_MSG("Starting process %s for stream %s failed: %s", argv[0], streamname.c_str(), strerror(errno));
     _exit(42);
   }
-  return true;
+
+  unsigned int waiting = 0;
+  while (!streamAlive(streamname) && ++waiting < 40){
+    Util::wait(250);
+  }
+  return streamAlive(streamname);
 }
+

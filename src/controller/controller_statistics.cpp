@@ -2,6 +2,7 @@
 #include <list>
 #include <mist/config.h>
 #include "controller_statistics.h"
+#include "controller_storage.h"
 
 // These are used to store "clients" field requests in a bitfield for speedup.
 #define STAT_CLI_HOST 1
@@ -21,6 +22,8 @@
 #define STAT_TOT_BPS_UP 4
 #define STAT_TOT_ALL 0xFF
 
+#define COUNTABLE_BYTES 128*1024
+
 
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
@@ -35,6 +38,12 @@ Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::stri
 
 Controller::sessIndex::sessIndex(){
   crc = 0;
+}
+
+std::string Controller::sessIndex::toStr(){
+  std::stringstream s;
+  s << host << " " << crc << " " << streamName << " " << connector;
+  return s.str();
 }
 
 /// Initializes a sessIndex from a statExchange object, converting binary format IP addresses into strings.
@@ -80,6 +89,9 @@ bool Controller::sessIndex::operator>= (const Controller::sessIndex &b) const{
   return !(*this < b);
 }
 
+/// \todo Make this prettier.
+IPC::sharedServer * statPointer = 0;
+
 
 /// This function runs as a thread and roughly once per second retrieves
 /// statistics from all connected clients, as well as wipes
@@ -87,9 +99,12 @@ bool Controller::sessIndex::operator>= (const Controller::sessIndex &b) const{
 void Controller::SharedMemStats(void * config){
   DEBUG_MSG(DLVL_HIGH, "Starting stats thread");
   IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
+  statPointer = &statServer;
+  std::set<std::string> inactiveStreams;
   while(((Util::Config*)config)->is_active){
     {
-      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+      tthread::lock_guard<tthread::mutex> guard2(statsMutex);
       //parse current users
       statServer.parseEach(parseStatistics);
       //wipe old statistics
@@ -108,8 +123,9 @@ void Controller::SharedMemStats(void * config){
         }
       }
     }
-    Util::sleep(1000);
+    Util::wait(1000);
   }
+  statPointer = 0;
   DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
 }
 
@@ -145,6 +161,18 @@ void Controller::statSession::wipeOld(unsigned long long cutOff){
     }
     while (oldConns.size() && !oldConns.begin()->log.size()){
       oldConns.pop_front();
+    }
+  }
+  if (curConns.size()){
+    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      while (it->second.log.size() > 1 && it->second.log.begin()->first < cutOff){
+        it->second.log.erase(it->second.log.begin());
+      }
+      if (it->second.log.size()){
+        if (firstSec > it->second.log.begin()->first){
+          firstSec = it->second.log.begin()->first;
+        }
+      }
     }
   }
 }
@@ -361,6 +389,11 @@ long long Controller::statSession::getBpsUp(unsigned long long t){
   }
 }
 
+Controller::statStorage::statStorage(){
+  removeDown = 0;
+  removeUp = 0;
+}
+
 /// Returns true if there is data available for timestamp t.
 bool Controller::statStorage::hasDataFor(unsigned long long t) {
   if (!log.size()){return false;}
@@ -390,8 +423,13 @@ void Controller::statStorage::update(IPC::statExchange & data) {
   statLog tmp;
   tmp.time = data.time();
   tmp.lastSecond = data.lastSecond();
-  tmp.down = data.down();
-  tmp.up = data.up();
+  tmp.down = data.down() - removeDown;
+  tmp.up = data.up() - removeUp;
+  if (!log.size() && tmp.down + tmp.up > COUNTABLE_BYTES){
+    //substract the start values if they are too high - this is a resumed connection of some sort
+    removeDown = tmp.down;
+    removeUp = tmp.up;
+  }
   log[data.now()] = tmp;
   //wipe data older than approx. STAT_CUTOFF seconds
   /// \todo Remove least interesting data first.
@@ -420,7 +458,7 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   sessions[idx].update(id, tmpEx);
   //check validity of stats data
   char counter = (*(data - 1));
-  if (counter == 126 || counter == 127 || counter == 254 || counter == 255){
+  if (counter == 126 || counter == 127){
     //the data is no longer valid - connection has gone away, store for later
     sessions[idx].finish(id);
     connToSession.erase(id);
@@ -432,7 +470,7 @@ bool Controller::hasViewers(std::string streamName){
   if (sessions.size()){
     long long currTime = Util::epoch();
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      if (it->first.streamName == streamName && it->second.hasDataFor(currTime)){
+      if (it->first.streamName == streamName && (it->second.hasDataFor(currTime) || it->second.hasDataFor(currTime-1))){
         return true;
       }
     }

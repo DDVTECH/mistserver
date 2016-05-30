@@ -30,6 +30,7 @@ namespace Util {
       void addOption(std::string optname, JSON::Value option);
       void printHelp(std::ostream & output);
       bool parseArgs(int & argc, char ** & argv);
+      bool hasOption(const std::string & optname);
       JSON::Value & getOption(std::string optname, bool asArray = false);
       std::string getString(std::string optname);
       long long int getInteger(std::string optname);
@@ -40,6 +41,7 @@ namespace Util {
       int serveThreadedSocket(int (*callback)(Socket::Connection & S));
       int serveForkedSocket(int (*callback)(Socket::Connection & S));
       int servePlainSocket(int (*callback)(Socket::Connection & S));
+      void addOptionsFromCapabilities(const JSON::Value & capabilities);
       void addBasicConnectorOptions(JSON::Value & capabilities);
       void addConnectorOptions(int port, JSON::Value & capabilities);
   };
@@ -52,8 +54,5 @@ namespace Util {
 
   /// Will set the active user to the named username.
   void setUser(std::string user);
-
-  /// Will turn the current process into a daemon.
-  void Daemonize(bool notClose = false);
 
 }

@@ -1,6 +1,7 @@
 #include OUTPUTTYPE
 #include <mist/config.h>
 #include <mist/socket.h>
+#include <mist/defines.h>
 
 int spawnForked(Socket::Connection & S){
   mistOut tmp(S);
@@ -15,6 +16,7 @@ int main(int argc, char * argv[]) {
       std::cout << mistOut::capa.toString() << std::endl;
       return -1;
     }
+    conf.activate();
     if (mistOut::listenMode()){
       conf.serveForkedSocket(spawnForked);
     }else{

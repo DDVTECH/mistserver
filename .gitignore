@@ -55,4 +55,5 @@ build.ninja
 rules.ninja
 .ninja_log
 .ninja_deps
+aes_ctr128
 

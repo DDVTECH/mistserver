@@ -10,10 +10,10 @@
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
     setBlocking(true);
-    while (!conn.Received().available(1537) && conn.connected()) {
+    while (!conn.Received().available(1537) && conn.connected() && config->is_active) {
       conn.spool();
     }
-    if (!conn){
+    if (!conn || !config->is_active){
       return;
     }
     RTMPStream::handshake_in.append(conn.Received().remove(1537));
@@ -21,21 +21,41 @@ namespace Mist {
 
     if (RTMPStream::doHandshake()) {
       conn.SendNow(RTMPStream::handshake_out);
-      while (!conn.Received().available(1536) && conn.connected()) {
+      while (!conn.Received().available(1536) && conn.connected() && config->is_active) {
         conn.spool();
       }
       conn.Received().remove(1536);
       RTMPStream::rec_cnt += 1536;
-      DEBUG_MSG(DLVL_HIGH, "Handshake success!");
+      HIGH_MSG("Handshake success");
     } else {
-      DEBUG_MSG(DLVL_DEVEL, "Handshake fail!");
+      MEDIUM_MSG("Handshake fail (this is not a problem, usually)");
     }
     setBlocking(false);
     maxSkipAhead = 1500;
     minSkipAhead = 500;
   }
 
-  OutRTMP::~OutRTMP() {}
+  bool OutRTMP::isReadyForPlay(){
+    if (isPushing){
+      return true;
+    }
+    if (myMeta.tracks.size()){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.keys.size() >= 2){
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  std::string OutRTMP::getStatsName(){
+    if (isPushing){
+      return "INPUT";
+    }else{
+      return Output::getStatsName();
+    }
+  }
 
   void OutRTMP::parseVars(std::string data){
     std::string varname;
@@ -94,7 +114,7 @@ namespace Mist {
   void OutRTMP::init(Util::Config * cfg) {
     Output::init(cfg);
     capa["name"] = "RTMP";
-    capa["desc"] = "Enables the RTMP protocol which is used by Adobe Flash Player.";
+    capa["desc"] = "Enables ingest and output over Adobe's RTMP protocol.";
     capa["deps"] = "";
     capa["url_rel"] = "/play/$";
     capa["codecs"][0u][0u].append("H264");
@@ -114,13 +134,28 @@ namespace Mist {
     capa["codecs"][0u][1u].append("G711mu");
     capa["methods"][0u]["handler"] = "rtmp";
     capa["methods"][0u]["type"] = "flash/10";
-    capa["methods"][0u]["priority"] = 6ll;
+    capa["methods"][0u]["priority"] = 7ll;
     capa["methods"][0u]["player_url"] = "/flashplayer.swf";
     cfg->addConnectorOptions(1935, capa);
     config = cfg;
   }
   
   void OutRTMP::sendNext() {
+
+    //If there are now more selectable tracks, select the new track and do a seek to the current timestamp
+    //Set sentHeader to false to force it to send init data
+    if (selectedTracks.size() < 2 && myMeta.tracks.size() > 1){
+      size_t prevTrackCount = selectedTracks.size();
+      selectDefaultTracks();
+      if (selectedTracks.size() > prevTrackCount){
+        INFO_MSG("Picked up new track - selecting it and resetting state.");
+        sentHeader = false;
+        seek(thisPacket.getTime());
+      }
+      return;
+    }
+
+
     char rtmpheader[] = {0, //byte 0 = cs_id | ch_type
                          0, 0, 0, //bytes 1-3 = timestamp
                          0, 0, 0, //bytes 4-6 = length
@@ -312,9 +347,7 @@ namespace Mist {
   ///\param messageType The type of message.
   ///\param streamId The ID of the AMF stream.
   void OutRTMP::sendCommand(AMF::Object & amfReply, int messageType, int streamId) {
-#if DEBUG >= 8
-    std::cerr << amfReply.Print() << std::endl;
-#endif
+    HIGH_MSG("Sending: %s", amfReply.Print().c_str());
     if (messageType == 17) {
       myConn.SendNow(RTMPStream::SendChunk(3, messageType, streamId, (char)0 + amfReply.Pack()));
     } else {
@@ -327,38 +360,13 @@ namespace Mist {
   ///\param messageType The type of message.
   ///\param streamId The ID of the AMF stream.
   void OutRTMP::parseAMFCommand(AMF::Object & amfData, int messageType, int streamId) {
-#if DEBUG >= 5
-    fprintf(stderr, "Received command: %s\n", amfData.Print().c_str());
-#endif
-#if DEBUG >= 8
-    fprintf(stderr, "AMF0 command: %s\n", amfData.getContentP(0)->StrValue().c_str());
-#endif
+    MEDIUM_MSG("Received command: %s", amfData.Print().c_str());
+    HIGH_MSG("AMF0 command: %s", amfData.getContentP(0)->StrValue().c_str());
     if (amfData.getContentP(0)->StrValue() == "connect") {
       double objencoding = 0;
       if (amfData.getContentP(2)->getContentP("objectEncoding")) {
         objencoding = amfData.getContentP(2)->getContentP("objectEncoding")->NumValue();
       }
-#if DEBUG >= 6
-      int tmpint;
-      if (amfData.getContentP(2)->getContentP("videoCodecs")) {
-        tmpint = (int)amfData.getContentP(2)->getContentP("videoCodecs")->NumValue();
-        if (tmpint & 0x04) {
-          fprintf(stderr, "Sorensen video support detected\n");
-        }
-        if (tmpint & 0x80) {
-          fprintf(stderr, "H264 video support detected\n");
-        }
-      }
-      if (amfData.getContentP(2)->getContentP("audioCodecs")) {
-        tmpint = (int)amfData.getContentP(2)->getContentP("audioCodecs")->NumValue();
-        if (tmpint & 0x04) {
-          fprintf(stderr, "MP3 audio support detected\n");
-        }
-        if (tmpint & 0x400) {
-          fprintf(stderr, "AAC audio support detected\n");
-        }
-      }
-#endif
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
       app_name = app_name.substr(app_name.find('/', 7) + 1);
       RTMPStream::chunk_snd_max = 4096;
@@ -467,7 +475,7 @@ namespace Mist {
     } //getStreamLength
     if ((amfData.getContentP(0)->StrValue() == "publish")) {
       if (amfData.getContentP(3)) {
-        streamName = amfData.getContentP(3)->StrValue();
+        streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
         
         if (streamName.find('/')){
           streamName = streamName.substr(0, streamName.find('/'));
@@ -485,32 +493,33 @@ namespace Mist {
         
         Util::sanitizeName(streamName);
         //pull the server configuration
-        IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE); ///< Contains server configuration and capabilities
-        IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+        IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE); ///< Contains server configuration and capabilities
+        IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
         configLock.wait();
         
         DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName);
         if (streamCfg){
           if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
-            DEBUG_MSG(DLVL_FAIL, "Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), streamCfg.getMember("source").asString().c_str());
+            FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), streamCfg.getMember("source").asString().c_str());
             myConn.close();
           }else{
             std::string source = streamCfg.getMember("source").asString().substr(7);
             std::string IP = source.substr(0, source.find('@'));
             if (IP != ""){
               if (!myConn.isAddress(IP)){
-                DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());
+                FAIL_MSG("Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());
                 myConn.close();
               }
             }
           }
         }else{
-          DEBUG_MSG(DLVL_FAIL, "Push from %s rejected - stream '%s' not configured.", getConnectedHost().c_str(), streamName.c_str());
+          FAIL_MSG("Push from %s rejected - stream '%s' not configured.", getConnectedHost().c_str(), streamName.c_str());
           myConn.close();
         }
         configLock.post();
         configLock.close();
         if (!myConn){return;}//do not initialize if rejected
+        isPushing = true;
         initialize();
       }
       //send a _result reply
@@ -698,16 +707,22 @@ namespace Mist {
       }
       return;
     } //seek
+    if (amfData.getContentP(0)->StrValue() == "_error") {
+      WARN_MSG("Received error response: %s", amfData.Print().c_str());
+      return;
+    }
+    if ((amfData.getContentP(0)->StrValue() == "_result") || (amfData.getContentP(0)->StrValue() == "onFCPublish") || (amfData.getContentP(0)->StrValue() == "onStatus")) {
+      //Results are ignored. We don't really care.
+      return;
+    }
 
-#if DEBUG >= 2
-    fprintf(stderr, "AMF0 command not processed!\n%s\n", amfData.Print().c_str());
-#endif
+    WARN_MSG("AMF0 command not processed: %s", amfData.Print().c_str());
     //send a _result reply
     AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
     amfReply.addContent(AMF::Object("", "_error")); //result success
     amfReply.addContent(amfData.getContent(1)); //same transaction ID
-    amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
-    amfReply.addContent(AMF::Object("Command not implemented or recognized", "")); //stream ID?
+    amfReply.addContent(AMF::Object("", amfData.getContentP(0)->StrValue())); //null - command info
+    amfReply.addContent(AMF::Object("", "Command not implemented or recognized")); //stream ID?
     sendCommand(amfReply, messageType, streamId);
   } //parseAMFCommand
 
@@ -734,9 +749,7 @@ namespace Mist {
 
       switch (next.msg_type_id) {
         case 0: //does not exist
-#if DEBUG >= 2
-          fprintf(stderr, "UNKN: Received a zero-type message. Possible data corruption? Aborting!\n");
-#endif
+          WARN_MSG("UNKN: Received a zero-type message. Possible data corruption? Aborting!");
           while (inputBuffer.size()) {
             inputBuffer.get().clear();
           }
@@ -745,20 +758,14 @@ namespace Mist {
           break; //happens when connection breaks unexpectedly
         case 1: //set chunk size
           RTMPStream::chunk_rec_max = ntohl(*(int *)next.data.c_str());
-#if DEBUG >= 5
-          fprintf(stderr, "CTRL: Set chunk size: %i\n", RTMPStream::chunk_rec_max);
-#endif
+          MEDIUM_MSG("CTRL: Set chunk size: %i", RTMPStream::chunk_rec_max);
           break;
         case 2: //abort message - we ignore this one
-#if DEBUG >= 5
-          fprintf(stderr, "CTRL: Abort message\n");
-#endif
+          MEDIUM_MSG("CTRL: Abort message");
           //4 bytes of stream id to drop
           break;
         case 3: //ack
-#if DEBUG >= 8
-          fprintf(stderr, "CTRL: Acknowledgement\n");
-#endif
+          VERYHIGH_MSG("CTRL: Acknowledgement");
           RTMPStream::snd_window_at = ntohl(*(int *)next.data.c_str());
           RTMPStream::snd_window_at = RTMPStream::snd_cnt;
           break;
@@ -773,49 +780,43 @@ namespace Mist {
             //6 = pingrequest, 4 bytes data
             //7 = pingresponse, 4 bytes data
             //we don't need to process this
-#if DEBUG >= 5
             short int ucmtype = ntohs(*(short int *)next.data.c_str());
             switch (ucmtype) {
               case 0:
-                fprintf(stderr, "CTRL: UCM StreamBegin %i\n", ntohl(*((int *)(next.data.c_str() + 2))));
+                MEDIUM_MSG("CTRL: UCM StreamBegin %i", ntohl(*((int *)(next.data.c_str() + 2))));
                 break;
               case 1:
-                fprintf(stderr, "CTRL: UCM StreamEOF %i\n", ntohl(*((int *)(next.data.c_str() + 2))));
+                MEDIUM_MSG("CTRL: UCM StreamEOF %i", ntohl(*((int *)(next.data.c_str() + 2))));
                 break;
               case 2:
-                fprintf(stderr, "CTRL: UCM StreamDry %i\n", ntohl(*((int *)(next.data.c_str() + 2))));
+                MEDIUM_MSG("CTRL: UCM StreamDry %i", ntohl(*((int *)(next.data.c_str() + 2))));
                 break;
               case 3:
-                fprintf(stderr, "CTRL: UCM SetBufferLength %i %i\n", ntohl(*((int *)(next.data.c_str() + 2))), ntohl(*((int *)(next.data.c_str() + 6))));
+                MEDIUM_MSG("CTRL: UCM SetBufferLength %i %i", ntohl(*((int *)(next.data.c_str() + 2))), ntohl(*((int *)(next.data.c_str() + 6))));
                 break;
               case 4:
-                fprintf(stderr, "CTRL: UCM StreamIsRecorded %i\n", ntohl(*((int *)(next.data.c_str() + 2))));
+                MEDIUM_MSG("CTRL: UCM StreamIsRecorded %i", ntohl(*((int *)(next.data.c_str() + 2))));
                 break;
               case 6:
-                fprintf(stderr, "CTRL: UCM PingRequest %i\n", ntohl(*((int *)(next.data.c_str() + 2))));
+                MEDIUM_MSG("CTRL: UCM PingRequest %i", ntohl(*((int *)(next.data.c_str() + 2))));
                 break;
               case 7:
-                fprintf(stderr, "CTRL: UCM PingResponse %i\n", ntohl(*((int *)(next.data.c_str() + 2))));
+                MEDIUM_MSG("CTRL: UCM PingResponse %i", ntohl(*((int *)(next.data.c_str() + 2))));
                 break;
               default:
-                fprintf(stderr, "CTRL: UCM Unknown (%hi)\n", ucmtype);
+                MEDIUM_MSG("CTRL: UCM Unknown (%hi)", ucmtype);
                 break;
             }
-#endif
           }
           break;
         case 5: //window size of other end
-#if DEBUG >= 5
-          fprintf(stderr, "CTRL: Window size\n");
-#endif
+          MEDIUM_MSG("CTRL: Window size");
           RTMPStream::rec_window_size = ntohl(*(int *)next.data.c_str());
           RTMPStream::rec_window_at = RTMPStream::rec_cnt;
           myConn.SendNow(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); //send ack (msg 3)
           break;
         case 6:
-#if DEBUG >= 5
-          fprintf(stderr, "CTRL: Set peer bandwidth\n");
-#endif
+          MEDIUM_MSG("CTRL: Set peer bandwidth");
           //4 bytes window size, 1 byte limit type (ignored)
           RTMPStream::snd_window_size = ntohl(*(int *)next.data.c_str());
           myConn.SendNow(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
@@ -838,32 +839,31 @@ namespace Mist {
           }
           JSON::Value pack_out = F.toJSON(myMeta, *amf_storage, next.cs_id*3 + (F.data[0] == 0x09 ? 0 : (F.data[0] == 0x08 ? 1 : 2) ));
           if ( !pack_out.isNull()){
-            if (!userClient.getData()){
+            if (!nProxy.userClient.getData()){
               char userPageName[NAME_BUFFER_SIZE];
               snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-              userClient = IPC::sharedClient(userPageName, 30, true);
+              nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
             }
             continueNegotiate(pack_out["trackid"].asInt());
+            nProxy.streamName = streamName;
             bufferLivePacket(pack_out);
           }
           break;
         }
         case 15:
-          DEBUG_MSG(DLVL_MEDIUM, "Received AMF3 data message");
+          MEDIUM_MSG("Received AMF3 data message");
           break;
         case 16:
-          DEBUG_MSG(DLVL_MEDIUM, "Received AMF3 shared object");
+          MEDIUM_MSG("Received AMF3 shared object");
           break;
         case 17: {
-            DEBUG_MSG(DLVL_MEDIUM, "Received AMF3 command message");
+            MEDIUM_MSG("Received AMF3 command message");
             if (next.data[0] != 0) {
               next.data = next.data.substr(1);
               amf3data = AMF::parse3(next.data);
-#if DEBUG >= 5
-              amf3data.Print();
-#endif
+              MEDIUM_MSG("AMF3: %s", amf3data.Print().c_str());
             } else {
-              DEBUG_MSG(DLVL_MEDIUM, "Received AMF3-0 command message");
+              MEDIUM_MSG("Received AMF3-0 command message");
               next.data = next.data.substr(1);
               amfdata = AMF::parse(next.data);
               parseAMFCommand(amfdata, 17, next.msg_stream_id);
@@ -871,7 +871,7 @@ namespace Mist {
           }
           break;
         case 19:
-          DEBUG_MSG(DLVL_MEDIUM, "Received AMF0 shared object");
+          MEDIUM_MSG("Received AMF0 shared object");
           break;
         case 20: { //AMF0 command message
             amfdata = AMF::parse(next.data);
@@ -879,10 +879,10 @@ namespace Mist {
           }
           break;
         case 22:
-          DEBUG_MSG(DLVL_MEDIUM, "Received aggregate message");
+          MEDIUM_MSG("Received aggregate message");
           break;
         default:
-          DEBUG_MSG(DLVL_FAIL, "Unknown chunk received! Probably protocol corruption, stopping parsing of incoming data.");
+          FAIL_MSG("Unknown chunk received! Probably protocol corruption, stopping parsing of incoming data.");
           break;
       }
     }

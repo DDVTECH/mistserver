@@ -15,7 +15,7 @@ namespace Bit{
   //Host to binary/binary to host functions - similar to kernel ntoh/hton functions.
 
   /// Retrieves a short in network order from the pointer p.
-  inline unsigned short btohs(char * p) {
+  inline unsigned short btohs(const char * p) {
     return ((unsigned short)p[0] << 8) | p[1];
   }
 

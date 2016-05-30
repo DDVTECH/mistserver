@@ -15,6 +15,8 @@ namespace Controller {
   JSON::Value Storage; ///< Global storage of data.
   tthread::mutex configMutex;
   tthread::mutex logMutex;
+  bool configChanged = false;
+
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.
@@ -70,6 +72,7 @@ namespace Controller {
         printf("%s", buf);
       }
     }
+    Log("LOG", "Logger exiting");
     fclose(output);
     close((long long int)err);
   }
@@ -95,8 +98,8 @@ namespace Controller {
     }
     if (!changed){return;}//cancel further processing if no changes
 
-    static IPC::sharedPage mistConfOut("!mistConfig", DEFAULT_CONF_PAGE_SIZE, true);
-    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    static IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, true);
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     //lock semaphore
     configLock.wait();
     //write config

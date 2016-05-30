@@ -207,7 +207,7 @@ namespace Controller {
     //actually delete the streams
     while (toDelete.size() > 0){
       std::string deleting = *(toDelete.begin());
-      out.removeMember(deleting);
+      deleteStream(deleting, out);
       toDelete.erase(deleting);
     }
 
@@ -226,4 +226,13 @@ namespace Controller {
 
   }
 
+  void deleteStream(const std::string & name, JSON::Value & out) {
+    if (!out.isMember(name)){
+      return;
+    }
+    Log("STRM", std::string("Deleted stream ") + name);
+    out.removeMember(name);
+  }
+
 } //Controller namespace
+

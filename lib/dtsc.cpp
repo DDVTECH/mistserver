@@ -9,6 +9,7 @@
 char DTSC::Magic_Header[] = "DTSC";
 char DTSC::Magic_Packet[] = "DTPD";
 char DTSC::Magic_Packet2[] = "DTP2";
+char DTSC::Magic_Command[] = "DTCM";
 
 DTSC::File::File() {
   F = 0;
@@ -32,8 +33,7 @@ DTSC::File & DTSC::File::operator =(const File & rhs) {
   if (rhs.myPack) {
     myPack = rhs.myPack;
   }
-  metaStorage = rhs.metaStorage;
-  metadata = metaStorage;
+  metadata = rhs.metadata;
   currtime = rhs.currtime;
   lastreadpos = rhs.lastreadpos;
   headerSize = rhs.headerSize;
@@ -67,7 +67,7 @@ DTSC::File::File(std::string filename, bool create) {
   }
   created = create;
   if (!F) {
-    DEBUG_MSG(DLVL_ERROR, "Could not open file %s", filename.c_str());
+    HIGH_MSG("Could not open file %s", filename.c_str());
     return;
   }
   fseek(F, 0, SEEK_END);
@@ -83,7 +83,7 @@ DTSC::File::File(std::string filename, bool create) {
       return;
     }
     if (memcmp(buffer, DTSC::Magic_Header, 4) != 0) {
-      if (memcmp(buffer, DTSC::Magic_Packet2, 4) != 0 && memcmp(buffer, DTSC::Magic_Packet, 4) != 0) {
+      if (memcmp(buffer, DTSC::Magic_Packet2, 4) != 0 && memcmp(buffer, DTSC::Magic_Packet, 4) != 0 && memcmp(buffer, DTSC::Magic_Command, 4) != 0) {
         DEBUG_MSG(DLVL_ERROR, "%s is not a valid DTSC file", filename.c_str());
         fclose(F);
         F = 0;
@@ -113,8 +113,7 @@ DTSC::File::File(std::string filename, bool create) {
     fseek(F, 0, SEEK_SET);
     File Fhead(filename + ".dtsh");
     if (Fhead) {
-      metaStorage = Fhead.metaStorage;
-      metadata = metaStorage;
+      metadata = Fhead.metadata;
     }
   }
   currframe = 0;
@@ -346,8 +345,9 @@ void DTSC::File::seekNext() {
 }
 
 void DTSC::File::parseNext(){
+  char header_buffer[4] = {0, 0, 0, 0};
   lastreadpos = ftell(F);
-  if (fread(buffer, 4, 1, F) != 1) {
+  if (fread(header_buffer, 4, 1, F) != 1) {
     if (feof(F)) {
       DEBUG_MSG(DLVL_DEVEL, "End of file reached @ %d", (int)lastreadpos);
     } else {
@@ -356,55 +356,26 @@ void DTSC::File::parseNext(){
     myPack.null();
     return;
   }
-  if (memcmp(buffer, DTSC::Magic_Header, 4) == 0) {
-    if (lastreadpos != 0) {
-      readHeader(lastreadpos);
-      std::string tmp = metaStorage.toNetPacked();
-      myPack.reInit(tmp.data(), tmp.size());
-      DEBUG_MSG(DLVL_DEVEL, "Read another header");
-    } else {
-      if (fread(buffer, 4, 1, F) != 1) {
-        DEBUG_MSG(DLVL_ERROR, "Could not read header size @ %d", (int)lastreadpos);
-        myPack.null();
-        return;
-      }
-      long packSize = ntohl(((unsigned long *)buffer)[0]);
-      std::string strBuffer = "DTSC";
-      strBuffer.append((char *)buffer, 4);
-      strBuffer.resize(packSize + 8);
-      if (fread((void *)(strBuffer.c_str() + 8), packSize, 1, F) != 1) {
-        DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", (int)lastreadpos);
-        myPack.null();
-        return;
-      }
-      myPack.reInit(strBuffer.data(), strBuffer.size());
-    }
-    return;
-  }
   long long unsigned int version = 0;
-  if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0) {
+  if (memcmp(header_buffer, DTSC::Magic_Packet, 4) == 0 || memcmp(header_buffer, DTSC::Magic_Command, 4) == 0 || memcmp(header_buffer, DTSC::Magic_Header, 4) == 0) {
     version = 1;
   }
-  if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0) {
+  if (memcmp(header_buffer, DTSC::Magic_Packet2, 4) == 0) {
     version = 2;
   }
   if (version == 0) {
-    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, (char *)buffer, DTSC::Magic_Packet2, (int)lastreadpos);
+    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x: %.4s", (unsigned int)lastreadpos, (char *)buffer);
     myPack.null();
     return;
   }
   if (fread(buffer, 4, 1, F) != 1) {
-    DEBUG_MSG(DLVL_ERROR, "Could not read packet size @ %d", (int)lastreadpos);
+    DEBUG_MSG(DLVL_ERROR, "Could not read packet size @ %#x", (unsigned int)lastreadpos);
     myPack.null();
     return;
   }
   long packSize = ntohl(((unsigned long *)buffer)[0]);
   char * packBuffer = (char *)malloc(packSize + 8);
-  if (version == 1) {
-    memcpy(packBuffer, "DTPD", 4);
-  } else {
-    memcpy(packBuffer, "DTP2", 4);
-  }
+  memcpy(packBuffer, header_buffer, 4);
   memcpy(packBuffer + 4, buffer, 4);
   if (fread((void *)(packBuffer + 8), packSize, 1, F) != 1) {
     DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
@@ -432,6 +403,11 @@ bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek
   if (!forceSeek && myPack && ms >= myPack.getTime() && trackNo >= myPack.getTrackId()) {
     tmpPos.seekTime = myPack.getTime();
     tmpPos.bytePos = getBytePos();
+    /*
+    if (trackNo == myPack.getTrackId()){
+      tmpPos.bytePos += myPack.getDataLen();
+    }
+    */
   } else {
     tmpPos.seekTime = 0;
     tmpPos.bytePos = 0;

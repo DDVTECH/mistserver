@@ -127,6 +127,9 @@ namespace MP4 {
     if (UUID == "d4807ef2-ca39-4695-8e54-26cb9e46a79f") {
       return ((UUID_TrackFragmentReference *)this)->toPrettyString(indent);
     }
+    if (UUID == "6d1d9b05-42d5-44e6-80e2-141daff757b2") {
+      return ((UUID_TFXD *)this)->toPrettyString(indent);
+    }
     std::stringstream r;
     r << std::string(indent, ' ') << "[uuid] Extension box (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "UUID: " << UUID << std::endl;
@@ -203,6 +206,70 @@ namespace MP4 {
     for (int i = 0; i < j; ++i) {
       r << std::string(indent + 2, ' ') << "[" << i << "] Time = " << getTime(i) << ", Duration = " << getDuration(i) << std::endl;
     }
+    return r.str();
+  }
+
+  UUID_TFXD::UUID_TFXD() {
+    setUUID((std::string)"6d1d9b05-42d5-44e6-80e2-141daff757b2");
+    setVersion(0);
+    setFlags(0);
+  }
+
+  void UUID_TFXD::setVersion(uint32_t newVersion) {
+    setInt8(newVersion, 16);
+  }
+
+  uint32_t UUID_TFXD::getVersion() {
+    return getInt8(16);
+  }
+
+  void UUID_TFXD::setFlags(uint32_t newFlags) {
+    setInt24(newFlags, 17);
+  }
+
+  uint32_t UUID_TFXD::getFlags() {
+    return getInt24(17);
+  }
+
+  void UUID_TFXD::setTime(uint64_t newTime) {
+    if (getVersion() == 0) {
+      setInt32(newTime, 20);
+    } else {
+      setInt64(newTime, 20);
+    }
+  }
+
+  uint64_t UUID_TFXD::getTime() {
+    if (getVersion() == 0) {
+      return getInt32(20);
+    } else {
+      return getInt64(20);
+    }
+  }
+
+  void UUID_TFXD::setDuration(uint64_t newDuration) {
+    if (getVersion() == 0) {
+      setInt32(newDuration, 24);
+    } else {
+      setInt64(newDuration, 28);
+    }
+  }
+
+  uint64_t UUID_TFXD::getDuration() {
+    if (getVersion() == 0) {
+      return getInt32(24);
+    } else {
+      return getInt64(28);
+    }
+  }
+
+  std::string UUID_TFXD::toPrettyString(uint32_t indent) {
+    std::stringstream r;
+    setUUID((std::string)"6d1d9b05-42d5-44e6-80e2-141daff757b2");
+    r << std::string(indent, ' ') << "[6d1d9b05-42d5-44e6-80e2-141daff757b2] TFXD Box (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "Version: " << getVersion() << std::endl;
+    r << std::string(indent + 1, ' ') << "Time = " << getTime() << std::endl;
+    r << std::string(indent + 1, ' ') << "Duration = " << getDuration() << std::endl;
     return r.str();
   }
 }

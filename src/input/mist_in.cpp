@@ -16,24 +16,34 @@ int main(int argc, char * argv[]) {
   mistIn conv(&conf);
   if (conf.parseArgs(argc, argv)) {
     std::string streamName = conf.getString("streamname");
+    conv.argumentsParsed();
+
     IPC::semaphore playerLock;
-    if (streamName.size()){
-      playerLock.open(std::string("/lock_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      if (!playerLock.tryWait()){
-        DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
-        return 1;
+    if (conv.needsLock()){
+      if (streamName.size()){
+        char semName[NAME_BUFFER_SIZE];
+        snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamName.c_str());
+        playerLock.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+        if (!playerLock.tryWait()){
+          DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
+          return 1;
+        }
       }
     }
     conf.activate();
     while (conf.is_active){
       pid_t pid = fork();
       if (pid == 0){
-        playerLock.close();
+        if (conv.needsLock()){
+          playerLock.close();
+        }
         return conv.run();
       }
       if (pid == -1){
         DEBUG_MSG(DLVL_FAIL, "Unable to spawn player process");
-        playerLock.post();
+        if (conv.needsLock()){
+          playerLock.post();
+        }
         return 2;
       }
       //wait for the process to exit
@@ -50,6 +60,11 @@ int main(int argc, char * argv[]) {
         DEBUG_MSG(DLVL_MEDIUM, "Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
+#if DEBUG >= DLVL_DEVEL
+      WARN_MSG("Aborting autoclean; this is a development build.");
+#else
+      conv.onCrash();
+#endif
       if (DEBUG >= DLVL_DEVEL){
         DEBUG_MSG(DLVL_DEVEL, "Input for stream %s uncleanly shut down! Aborting restart; this is a development build.", streamName.c_str());
         break;
@@ -57,8 +72,11 @@ int main(int argc, char * argv[]) {
         DEBUG_MSG(DLVL_DEVEL, "Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
       }
     }
-    playerLock.post();
-    playerLock.close();
+    if (conv.needsLock()){
+      playerLock.post();
+      playerLock.unlink();
+      playerLock.close();
+    }
   }
   return 0;
 }

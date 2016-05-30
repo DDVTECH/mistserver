@@ -159,7 +159,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("G711mu");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/11";
-    capa["methods"][0u]["priority"] = 7ll;
+    capa["methods"][0u]["priority"] = 6ll;
     capa["methods"][0u]["player_url"] = "/flashplayer.swf";
   }
   
@@ -229,7 +229,7 @@ namespace Mist {
           myConn.close();
           break;
         }
-        Util::sleep(500);
+        Util::wait(500);
         updateMeta();
       }
       mstime = myMeta.tracks[tid].getKey(myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getNumber()).getTime();

@@ -2,7 +2,6 @@
 
 namespace Mist {
   OutProgressiveMP3::OutProgressiveMP3(Socket::Connection & conn) : HTTPOutput(conn){}
-  OutProgressiveMP3::~OutProgressiveMP3(){}
   
   void OutProgressiveMP3::init(Util::Config * cfg){
     HTTPOutput::init(cfg);

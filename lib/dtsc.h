@@ -34,6 +34,7 @@ namespace DTSC {
   extern char Magic_Header[]; ///< The magic bytes for a DTSC header
   extern char Magic_Packet[]; ///< The magic bytes for a DTSC packet
   extern char Magic_Packet2[]; ///< The magic bytes for a DTSC packet version 2
+  extern char Magic_Command[]; ///< The magic bytes for a DTCM packet
 
   ///\brief A simple structure used for ordering byte seek positions.
   struct seekPos {
@@ -61,7 +62,8 @@ namespace DTSC {
     DTSC_INVALID,
     DTSC_HEAD,
     DTSC_V1,
-    DTSC_V2
+    DTSC_V2,
+    DTCM
   };
 
   /// This class allows scanning through raw binary format DTSC data.
@@ -107,6 +109,7 @@ namespace DTSC {
       void operator = (const Packet & rhs);
       operator bool() const;
       packType getVersion() const;
+      void reInit(Socket::Connection & src);
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
       void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, long long packBytePos, bool isKeyframe);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
@@ -205,6 +208,17 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
+#ifdef BIGMETA
+#define PACKED_KEY_SIZE 25
+      ///\brief Data storage for this Key.
+      ///
+      /// - 8 bytes: MSB storage of the position of the first packet of this keyframe within the file.
+      /// - 3 bytes: MSB storage of the duration of this keyframe.
+      /// - 4 bytes: MSB storage of the number of this keyframe.
+      /// - 2 bytes: MSB storage of the amount of parts in this keyframe.
+      /// - 8 bytes: MSB storage of the timestamp associated with this keyframe's first packet.
+#else
+#define PACKED_KEY_SIZE 16
       ///\brief Data storage for this Key.
       ///
       /// - 5 bytes: MSB storage of the position of the first packet of this keyframe within the file.
@@ -212,7 +226,8 @@ namespace DTSC {
       /// - 2 bytes: MSB storage of the number of this keyframe.
       /// - 2 bytes: MSB storage of the amount of parts in this keyframe.
       /// - 4 bytes: MSB storage of the timestamp associated with this keyframe's first packet.
-      char data[16];
+#endif
+      char data[PACKED_KEY_SIZE];
   };
 
   ///\brief Basic class for storage of data associated with fragments.
@@ -229,13 +244,24 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
-      ///\Brief Data storage for this Fragment.
+#ifdef BIGMETA
+#define PACKED_FRAGMENT_SIZE 13
+      ///\brief Data storage for this Fragment.
+      ///
+      /// - 4 bytes: duration (in milliseconds)
+      /// - 1 byte: length (amount of keyframes)
+      /// - 4 bytes: number of first keyframe in fragment
+      /// - 4 bytes: size of fragment in bytes
+#else
+#define PACKED_FRAGMENT_SIZE 11
+      ///\brief Data storage for this Fragment.
       ///
       /// - 4 bytes: duration (in milliseconds)
       /// - 1 byte: length (amount of keyframes)
       /// - 2 bytes: number of first keyframe in fragment
       /// - 4 bytes: size of fragment in bytes
-      char data[11];
+#endif
+      char data[PACKED_FRAGMENT_SIZE];
   };
 
   ///\brief Class for storage of track data
@@ -249,10 +275,10 @@ namespace DTSC {
         return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
       }
       void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
-      int getSendLen();
-      void send(Socket::Connection & conn);
+      int getSendLen(bool skipDynamic = false);
+      void send(Socket::Connection & conn, bool skipDynamic = false);
       void writeTo(char *& p);
-      JSON::Value toJSON();
+      JSON::Value toJSON(bool skipDynamic = false);
       std::deque<Fragment> fragments;
       std::deque<Key> keys;
       std::deque<unsigned long> keySizes;
@@ -302,8 +328,8 @@ namespace DTSC {
       void updatePosOverride(DTSC::Packet & pack, unsigned long bpos);
       void update(JSON::Value & pack, unsigned long segment_size = 5000);
       void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
-      unsigned int getSendLen();
-      void send(Socket::Connection & conn);
+      unsigned int getSendLen(bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
+      void send(Socket::Connection & conn, bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
       void writeTo(char * p);
       JSON::Value toJSON();
       void reset();
@@ -348,7 +374,6 @@ namespace DTSC {
       long int endPos;
       void readHeader(int pos);
       DTSC::Packet myPack;
-      JSON::Value metaStorage;
       Meta metadata;
       std::map<unsigned int, std::string> trackMapping;
       long long int currtime;

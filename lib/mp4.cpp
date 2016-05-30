@@ -104,6 +104,7 @@ namespace MP4 {
         }
       } else if (size == 0) {
         fseek(newData, 0, SEEK_END);
+        return true;
       }
       DONTEVEN_MSG("skipping size 0x%.8lX", size);
       if (fseek(newData, pos + size, SEEK_SET) == 0) {
@@ -132,6 +133,10 @@ namespace MP4 {
           return false;
         }
       }
+      if (size == 0){//no else if, because the extended size MAY be 0...
+        fseek(newData, 0, SEEK_END);
+        size = ftell(newData) - pos;
+      }
       fseek(newData, pos, SEEK_SET);
       data = (char *)realloc(data, size);
       data_size = size;
@@ -159,6 +164,9 @@ namespace MP4 {
         } else {
           return false;
         }
+      }
+      if (size == 0){
+        size = newData.size();
       }
       if (newData.size() >= size) {
         data = (char *)realloc(data, size);
@@ -383,9 +391,10 @@ namespace MP4 {
       default:
         break;
     }
-    std::string retval = std::string(indent, ' ') + "Unimplemented pretty-printing for box " + std::string(data + 4, 4) + "\n";
+    std::stringstream retval;
+    retval << std::string(indent, ' ') << "Unimplemented pretty-printing for box " << std::string(data + 4, 4) << " (" << ntohl(((int*)data)[0]) << ")\n";
     /// \todo Implement hexdump for unimplemented boxes?
-    return retval;
+    return retval.str();
   }
 
   /// Sets the 8 bits integer at the given index.
@@ -807,4 +816,5 @@ namespace MP4 {
     }
     return r.str();
   }
+
 }

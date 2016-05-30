@@ -12,6 +12,8 @@ namespace h264 {
     unsigned int width;
     unsigned int height;
     double fps;
+    uint8_t profile;
+    uint8_t level;
   };
 
   ///Class for analyzing generic nal units
@@ -50,7 +52,8 @@ namespace h264 {
 
   class sequenceParameterSet {
     public:
-      sequenceParameterSet(const char * _data, unsigned long _dataLen);
+      sequenceParameterSet(const char * _data = NULL, unsigned long _dataLen = 0);
+      void fromDTSCInit(const std::string & dtscInit);
       SPSMeta getCharacteristics() const;
     private:
       const char * data;

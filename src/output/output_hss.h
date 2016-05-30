@@ -9,10 +9,8 @@ namespace Mist {
       static void init(Util::Config * cfg);
       void onHTTP();
       void sendNext();
-      void initialize();/*LTS*/
       void sendHeader();
     protected:
-      JSON::Value encryption;
       std::string smoothIndex();
       int canSeekms(unsigned int ms);
       int keysToSend;

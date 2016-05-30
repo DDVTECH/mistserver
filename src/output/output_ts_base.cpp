@@ -32,7 +32,7 @@ namespace Mist {
     
     if (packData.getBytesFree() == 184){
       packData.clear();      
-      packData.setPID(0x100 - 1 + thisPacket.getTrackId());      
+      packData.setPID(thisPacket.getTrackId());      
       packData.setContinuityCounter(++contCounters[packData.getPID()]);
       if (first[thisPacket.getTrackId()]){
         packData.setUnitStart(1);
@@ -125,7 +125,7 @@ namespace Mist {
               break;
             }
             if (alreadySent + 4 > watKunnenWeIn1Ding){
-              nalLead = 4 - watKunnenWeIn1Ding-alreadySent;
+              nalLead = 4 - (watKunnenWeIn1Ding-alreadySent);
               fillPacket("\000\000\000\001",watKunnenWeIn1Ding-alreadySent);
               i += watKunnenWeIn1Ding-alreadySent;
               alreadySent += watKunnenWeIn1Ding-alreadySent;

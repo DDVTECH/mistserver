@@ -58,9 +58,6 @@
 /// ~~~~~~~~~~~~~~~
 void Controller::checkConfig(JSON::Value & in, JSON::Value & out){
   out = in;
-  if (out["basepath"].asString()[out["basepath"].asString().size() - 1] == '/'){
-    out["basepath"] = out["basepath"].asString().substr(0, out["basepath"].asString().size() - 1);
-  }
   if (out.isMember("debug")){
     if (Util::Config::printDebugLevel != out["debug"].asInt()){
       Util::Config::printDebugLevel = out["debug"].asInt();
@@ -169,6 +166,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         H.SetHeader("X-Info", "To force an API response, request the file /api");
         H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
         H.SetHeader("Content-Length", server_html_len);
+        H.SetHeader("X-UA-Compatible","IE=edge;chrome=1");
         H.SendResponse("200", "OK", conn);
         conn.SendNow(server_html, server_html_len);
         H.Clean();
@@ -247,6 +245,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           ///   ]
           /// ]
           /// ~~~~~~~~~~~~~~~
+          /// 
           if(Request.isMember("browse")){                    
             if(Request["browse"] == ""){
               Request["browse"] = ".";

@@ -5,6 +5,7 @@
 #include <mist/mp4_generic.h>
 #include <mist/http_parser.h>
 #include <mist/stream.h>
+#include <mist/bitfields.h>
 #include <mist/checksum.h>
 #include <unistd.h>
 
@@ -56,11 +57,9 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.ms-ss";
     capa["methods"][0u]["priority"] = 9ll;
-    capa["methods"][0u]["nolive"] = 1;
     capa["methods"][1u]["handler"] = "http";
     capa["methods"][1u]["type"] = "silverlight";
     capa["methods"][1u]["priority"] = 1ll;
-    capa["methods"][1u]["nolive"] = 1;
   }
 
   void OutHSS::sendNext() {
@@ -132,7 +131,7 @@ namespace Mist {
             myConn.close();
             break;
           }
-          Util::sleep(500);
+          Util::wait(500);
           updateMeta();
         }
       }while (myConn && seekable > 0);
@@ -201,11 +200,11 @@ namespace Mist {
 
     //Wrap everything in mp4 boxes
     MP4::MFHD mfhd_box;
-    mfhd_box.setSequenceNumber(((keyObj.getNumber() - 1) * 2) + tid);///\todo Urgent: Check this for multitrack... :P wtf... :P
+    mfhd_box.setSequenceNumber(((keyObj.getNumber() - 1) * 2) + (myMeta.tracks[tid].type == "video" ? 1 : 2));
 
     MP4::TFHD tfhd_box;
     tfhd_box.setFlags(MP4::tfhdSampleFlag);
-    tfhd_box.setTrackID(tid);
+    tfhd_box.setTrackID((myMeta.tracks[tid].type == "video" ? 1 : 2));
     if (myMeta.tracks[tid].type == "video") {
       tfhd_box.setDefaultSampleFlags(0x00004001);
     } else {
@@ -254,19 +253,24 @@ namespace Mist {
     //If the stream is live, we want to have a fragref box if possible
     //////HEREHEREHERE
     if (myMeta.live) {
+      MP4::UUID_TFXD tfxd_box;
+      tfxd_box.setTime(keyObj.getTime());
+      tfxd_box.setDuration(keyObj.getLength());
+      traf_box.setContent(tfxd_box, 3);
+
       MP4::UUID_TrackFragmentReference fragref_box;
       fragref_box.setVersion(1);
       fragref_box.setFragmentCount(0);
       int fragCount = 0;
       for (unsigned int i = 0; fragCount < 2 && i < myMeta.tracks[tid].keys.size() - 1; i++) {
         if (myMeta.tracks[tid].keys[i].getTime() > seekTime) {
-          DEBUG_MSG(DLVL_HIGH, "Key %d added to fragRef box, time %ld > %lld", i, myMeta.tracks[tid].keys[i].getTime(), seekTime);
+          DEBUG_MSG(DLVL_HIGH, "Key %d added to fragRef box, time %llu > %lld", i, myMeta.tracks[tid].keys[i].getTime(), seekTime);
           fragref_box.setTime(fragCount, myMeta.tracks[tid].keys[i].getTime() * 10000);
           fragref_box.setDuration(fragCount, myMeta.tracks[tid].keys[i].getLength() * 10000);
           fragref_box.setFragmentCount(++fragCount);
         }
       }
-      traf_box.setContent(fragref_box, 3);
+      traf_box.setContent(fragref_box, 4);
     }
 
     MP4::MOOF moof_box;
@@ -467,9 +471,4 @@ namespace Mist {
       sendHeader();
     }
   }
-
-  void OutHSS::initialize() {
-    Output::initialize();
-  }
-
 }

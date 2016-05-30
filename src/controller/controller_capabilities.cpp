@@ -278,7 +278,11 @@ namespace Controller {
         unsigned long long c_user, c_nice, c_syst, c_idle, c_total;
         if (sscanf(line, "cpu %Lu %Lu %Lu %Lu", &c_user, &c_nice, &c_syst, &c_idle) == 4){
           c_total = c_user + c_nice + c_syst + c_idle;
+          if (c_total - cl_total > 0){
           capa["cpu_use"] = (long long int)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
+          }else{
+            capa["cpu_use"] = 0ll;
+          }
           cl_total = c_total;
           cl_idle = c_idle;
           break;

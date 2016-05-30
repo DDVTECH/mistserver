@@ -11,7 +11,7 @@
 #include <semaphore.h>
 #endif
 
-#define STAT_EX_SIZE 174
+#define STAT_EX_SIZE 177
 #define PLAY_EX_SIZE 2+6*SIMUL_TRACKS
 
 namespace IPC {
@@ -37,6 +37,8 @@ namespace IPC {
       void connector(std::string name);
       std::string connector();
       void crc(unsigned int sum);
+      char getSync();
+      void setSync(char s);
       unsigned int crc();
   private:
       ///\brief The payload for the stat exchange
@@ -49,6 +51,8 @@ namespace IPC {
       /// - 100 byte - streamName (name of the stream peer is viewing)
       /// - 20 byte - connector (name of the connector the peer is using)
       /// - 4 byte - CRC32 of user agent (or zero if none)
+      /// - 1 byte sync (was seen by controller yes/no)
+      /// - (implicit 4 bytes: PID)
       char * data;
   };
 
@@ -56,10 +60,10 @@ namespace IPC {
   class semaphore {
     public:
       semaphore();
-      semaphore(const char * name, int oflag, mode_t mode, unsigned int value);
+      semaphore(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0, bool noWait = false);
       ~semaphore();
       operator bool() const;
-      void open(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0);
+      void open(const char * name, int oflag, mode_t mode = 0, unsigned int value = 0, bool noWait = false);
       int getVal() const;
       void post();
       void wait();
@@ -177,9 +181,11 @@ namespace IPC {
       void init(std::string name, int len, bool withCounter = false);
       ~sharedServer();
       void parseEach(void (*callback)(char * data, size_t len, unsigned int id));
+      char * getIndex(unsigned int id);
       operator bool() const;
       ///\brief The amount of connected clients
       unsigned int amount;
+      unsigned int connectedUsers;
     private:
       bool isInUse(unsigned int id);
       void newPage();
@@ -194,6 +200,7 @@ namespace IPC {
       semaphore mySemaphore;
       ///\brief Whether the payload has a counter, if so, it is added in front of the payload
       bool hasCounter;
+      void finishEach();
   };
 
   ///\brief The client part of a server/client model for shared memory.
@@ -215,7 +222,10 @@ namespace IPC {
       void write(char * data, int len);
       void finish();
       void keepAlive();
+      bool isAlive();
       char * getData();
+      int getCounter();
+      bool countAsViewer;
     private:
       ///\brief The basename of the shared pages.
       std::string baseName;

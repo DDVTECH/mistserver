@@ -2,6 +2,7 @@
 #include "output_http.h"
 #include <mist/stream.h>
 #include <mist/checksum.h>
+#include <set>
 
 namespace Mist {
   HTTPOutput::HTTPOutput(Socket::Connection & conn) : Output(conn) {
@@ -104,9 +105,9 @@ namespace Mist {
     }
     
     //loop over the connectors
-    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
-    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
+    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
     DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
     unsigned int capa_ctr = capa.getSize();
     for (unsigned int i = 0; i < capa_ctr; ++i){
@@ -171,7 +172,7 @@ namespace Mist {
           if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
             DEBUG_MSG(DLVL_MEDIUM, "Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(), streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
             streamName = H.GetVar("stream");
-            userClient.finish();
+            nProxy.userClient.finish();
             statsPage.finish();
             reConnector(handler);
             H.Clean();
@@ -209,8 +210,19 @@ namespace Mist {
   
   void HTTPOutput::onRequest(){
     while (H.Read(myConn)){
-      std::string ua = H.GetHeader("User-Agent");
-      crc = checksum::crc32(0, ua.data(), ua.size());
+      if (hasSessionIDs()){
+        if (H.GetVar("sessId").size()){
+          std::string ua = H.GetVar("sessId");
+          crc = checksum::crc32(0, ua.data(), ua.size());
+        }else{
+          std::string ua = JSON::Value((long long)getpid()).asString();
+          crc = checksum::crc32(0, ua.data(), ua.size());
+        }
+      }else{
+        std::string ua = H.GetHeader("User-Agent") + H.GetHeader("X-Playback-Session-Id");
+        crc = checksum::crc32(0, ua.data(), ua.size());
+      }
+
       INFO_MSG("Received request %s", H.getUrl().c_str());
       selectedTracks.clear();
       if (H.GetVar("audio") != ""){
@@ -239,6 +251,7 @@ namespace Mist {
       for (std::set<unsigned long>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
         selectedTracks.erase(*it);
       }
+
       onHTTP();
       if (!H.bufferChunks){
         H.Clean();
@@ -275,9 +288,9 @@ namespace Mist {
     for (int i=0; i<20; i++){argarr[i] = 0;}
     int id = -1;
     
-    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     configLock.wait();
-    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
+    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
     DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
     unsigned int prots_ctr = prots.getSize();
     

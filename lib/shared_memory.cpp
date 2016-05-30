@@ -95,13 +95,13 @@ namespace IPC {
   ///\param oflag The flags with which to open the semaphore
   ///\param mode The mode in which to create the semaphore, if O_CREAT is given in oflag, ignored otherwise
   ///\param value The initial value of the semaphore if O_CREAT is given in oflag, ignored otherwise
-  semaphore::semaphore(const char * name, int oflag, mode_t mode, unsigned int value) {
+  semaphore::semaphore(const char * name, int oflag, mode_t mode, unsigned int value, bool noWait) {
 #if defined(__CYGWIN__) || defined(_WIN32)
     mySem = 0;
 #else
     mySem = SEM_FAILED;
 #endif
-    open(name, oflag, mode, value);
+    open(name, oflag, mode, value, noWait);
   }
 
   ///\brief The deconstructor
@@ -126,13 +126,13 @@ namespace IPC {
   ///\param oflag The flags with which to open the semaphore
   ///\param mode The mode in which to create the semaphore, if O_CREAT is given in oflag, ignored otherwise
   ///\param value The initial value of the semaphore if O_CREAT is given in oflag, ignored otherwise
-  void semaphore::open(const char * name, int oflag, mode_t mode, unsigned int value) {
+  void semaphore::open(const char * name, int oflag, mode_t mode, unsigned int value, bool noWait) {
     close();
     int timer = 0;
     while (!(*this) && timer++ < 10) {
 #if defined(__CYGWIN__) || defined(_WIN32)
       std::string semaName = "Global\\";
-      semaName += name;
+      semaName += (name+1);
       if (oflag & O_CREAT) {
         if (oflag & O_EXCL) {
           //attempt opening, if succes, close handle and return false;
@@ -165,7 +165,7 @@ namespace IPC {
         mySem = sem_open(name, oflag);
       }
       if (!(*this)) {
-        if (errno == ENOENT) {
+        if (errno == ENOENT && !noWait) {
           Util::wait(500);
         } else {
           break;
@@ -405,7 +405,7 @@ namespace IPC {
         int i = 0;
         do {
           if (i != 0) {
-            Util::sleep(1000);
+            Util::wait(1000);
           }
           handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());
           i++;
@@ -438,14 +438,14 @@ namespace IPC {
           int i = 0;
           while (i < 10 && handle == -1 && autoBackoff) {
             i++;
-            Util::sleep(1000);
+            Util::wait(1000);
             handle = shm_open(name.c_str(), O_RDWR, ACCESSPERMS);
           }
         }
       }
       if (handle == -1) {
         if (!master_ && autoBackoff) {
-          FAIL_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno));
+          HIGH_MSG("shm_open for page %s failed: %s", name.c_str(), strerror(errno));
         }
         return;
       }
@@ -558,7 +558,7 @@ namespace IPC {
           int i = 0;
           while (i < 10 && handle == -1 && autoBackoff) {
             i++;
-            Util::sleep(1000);
+            Util::wait(1000);
             handle = open(std::string(Util::getTmpFolder() + name).c_str(), O_RDWR, (mode_t)0600);
           }
         }
@@ -676,7 +676,7 @@ namespace IPC {
     if (splitChar != std::string::npos) {
       name[splitChar] = '+';
     }
-    memcpy(data + 48, name.c_str(), std::min((int)name.size(), 100));
+    snprintf(data+48, 100, "%s", name.c_str());
   }
 
   ///\brief Gets the name of the stream this user is viewing
@@ -686,7 +686,7 @@ namespace IPC {
 
   ///\brief Sets the name of the connector through which this user is viewing
   void statExchange::connector(std::string name) {
-    memcpy(data + 148, name.c_str(), std::min((int)name.size(), 20));
+    snprintf(data+148, 20, "%s", name.c_str());
   }
 
   ///\brief Gets the name of the connector through which this user is viewing
@@ -704,6 +704,16 @@ namespace IPC {
     unsigned int result;
     btohl(data + 168, result);
     return result;
+  }
+
+  ///\brief Sets checksum field
+  void statExchange::setSync(char s) {
+    data[172] = s;
+  }
+
+  ///\brief Gets checksum field
+  char statExchange::getSync() {
+    return data[172];
   }
 
   ///\brief Creates a semaphore guard, locks the semaphore on call
@@ -762,6 +772,7 @@ namespace IPC {
 
   ///\brief The deconstructor
   sharedServer::~sharedServer() {
+    finishEach();
     mySemaphore.close();
     mySemaphore.unlink();
   }
@@ -818,6 +829,62 @@ namespace IPC {
     return false;
   }
 
+  ///Disconnect all connected users
+  void sharedServer::finishEach(){
+    if (!hasCounter){
+      return;
+    }
+    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
+      if (!it->mapped || !it->len) {
+        break;
+      }
+      unsigned int offset = 0;
+      while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
+        it->mapped[offset] = 126;
+        offset += payLen + (hasCounter ? 1 : 0);
+      }
+    }
+  }
+
+  ///Returns a pointer to the data for the given index.
+  ///Returns null on error or if index is empty.
+  char * sharedServer::getIndex(unsigned int requestId){
+    char * empty = 0;
+    if (!hasCounter) {
+      empty = (char *)malloc(payLen * sizeof(char));
+      memset(empty, 0, payLen);
+    }
+    semGuard tmpGuard(&mySemaphore);
+    unsigned int id = 0;
+    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
+      if (!it->mapped || !it->len) {
+        DEBUG_MSG(DLVL_FAIL, "Something went terribly wrong?");
+        return 0;
+      }
+      unsigned int offset = 0;
+      while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
+        if (id == requestId){
+          if (hasCounter) {
+            if (it->mapped[offset] != 0) {
+              return it->mapped + offset + 1;
+            }else{
+              return 0;
+            }
+          } else {
+            if (memcmp(empty, it->mapped + offset, payLen)) {
+              return it->mapped + offset;
+            }else{
+              return 0;
+            }
+          }
+        }
+        offset += payLen + (hasCounter ? 1 : 0);
+        id ++;
+      }
+    }
+    return 0;
+  }
+
   ///\brief Parse each of the possible payload pieces, and runs a callback on it if in use.
   void sharedServer::parseEach(void (*callback)(char * data, size_t len, unsigned int id)) {
     char * empty = 0;
@@ -829,6 +896,7 @@ namespace IPC {
     unsigned int id = 0;
     unsigned int userCount = 0;
     unsigned int emptyCount = 0;
+    connectedUsers = 0;
     for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
         DEBUG_MSG(DLVL_FAIL, "Something went terribly wrong?");
@@ -842,28 +910,25 @@ namespace IPC {
             char * counter = it->mapped + offset;
             //increase the count if needed
             ++userCount;
+            if (*counter & 0x80){
+              connectedUsers++;
+            }
             if (id >= amount) {
               amount = id + 1;
-              DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+              VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
-            unsigned short tmpPID = *((unsigned short *)(it->mapped + 1 + offset + payLen - 2));
-            if (!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)) {
-              WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);
+            uint32_t tmpPID = *((uint32_t *)(it->mapped + 1 + offset + payLen - 4));
+            if (!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127)){
+              WARN_MSG("process disappeared, timing out. (pid %lu)", tmpPID);
               *counter = 126; //if process is already dead, instant timeout.
             }
             callback(it->mapped + offset + 1, payLen, id);
             switch (*counter) {
               case 127:
-                DEBUG_MSG(DLVL_HIGH, "Client %u requested disconnect", id);
+                HIGH_MSG("Client %u requested disconnect", id);
                 break;
               case 126:
-                DEBUG_MSG(DLVL_WARN, "Client %u timed out", id);
-                break;
-              case 255:
-                DEBUG_MSG(DLVL_HIGH, "Client %u disconnected on request", id);
-                break;
-              case 254:
-                DEBUG_MSG(DLVL_WARN, "Client %u disconnect timed out", id);
+                HIGH_MSG("Client %u timed out", id);
                 break;
               default:
 #ifndef NOCRASHCHECK
@@ -883,7 +948,7 @@ namespace IPC {
 #endif
                 break;
             }
-            if (*counter == 127 || *counter == 126 || *counter == 255 || *counter == 254) {
+            if (*counter == 127 || *counter == 126){
               memset(it->mapped + offset + 1, 0, payLen);
               it->mapped[offset] = 0;
             } else {
@@ -895,7 +960,7 @@ namespace IPC {
               //bring the counter down if this was the last element
               if (id == amount - 1) {
                 amount = id;
-                DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+                VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point
               break;
@@ -907,7 +972,7 @@ namespace IPC {
             //increase the count if needed
             if (id >= amount) {
               amount = id + 1;
-              DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+              VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
             callback(it->mapped + offset, payLen, id);
           } else {
@@ -916,7 +981,7 @@ namespace IPC {
               //bring the counter down if this was the last element
               if (id == amount - 1) {
                 amount = id;
-                DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
+                VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point
               if (empty) {
@@ -952,12 +1017,14 @@ namespace IPC {
     hasCounter = 0;
     payLen = 0;
     offsetOnPage = 0;
+    countAsViewer= true;
   }
 
 
   ///\brief Copy constructor for sharedClients
   ///\param rhs The client ro copy
   sharedClient::sharedClient(const sharedClient & rhs) {
+    countAsViewer = rhs.countAsViewer;
     baseName = rhs.baseName;
     payLen = rhs.payLen;
     hasCounter = rhs.hasCounter;
@@ -978,6 +1045,7 @@ namespace IPC {
 
   ///\brief Assignment operator
   void sharedClient::operator =(const sharedClient & rhs) {
+    countAsViewer = rhs.countAsViewer;
     baseName = rhs.baseName;
     payLen = rhs.payLen;
     hasCounter = rhs.hasCounter;
@@ -1001,6 +1069,7 @@ namespace IPC {
   ///\param len The size of the payload to allocate
   ///\param withCounter Whether or not this payload has a counter
   sharedClient::sharedClient(std::string name, int len, bool withCounter) : baseName("/" + name), payLen(len), offsetOnPage(-1), hasCounter(withCounter) {
+    countAsViewer = true;
 #ifdef __APPLE__
     //note: O_CREAT is only needed for mac, probably
     mySemaphore.open(baseName.c_str(), O_RDWR | O_CREAT, 0);
@@ -1035,7 +1104,7 @@ namespace IPC {
               offsetOnPage = offset;
               if (hasCounter) {
                 myPage.mapped[offset] = 1;
-                *((unsigned short *)(myPage.mapped + 1 + offset + len - 2)) = getpid();
+                *((uint32_t *)(myPage.mapped + 1 + offset + len - 4)) = getpid();
               }
               break;
             }
@@ -1058,6 +1127,8 @@ namespace IPC {
   ///\brief The deconstructor
   sharedClient::~sharedClient() {
     mySemaphore.close();
+
+
   }
 
   ///\brief Writes data to the shared data
@@ -1079,7 +1150,7 @@ namespace IPC {
     }
     if (myPage.mapped) {
       semGuard tmpGuard(&mySemaphore);
-      myPage.mapped[offsetOnPage] = 127;
+      myPage.mapped[offsetOnPage] = 126;
     }
   }
 
@@ -1089,11 +1160,18 @@ namespace IPC {
       DEBUG_MSG(DLVL_WARN, "Trying to keep-alive an element without counters");
       return;
     }
-    if (myPage.mapped[offsetOnPage] < 128) {
-      myPage.mapped[offsetOnPage] = 1;
+    if ((myPage.mapped[offsetOnPage] & 0x7F) < 126) {
+      myPage.mapped[offsetOnPage] = (countAsViewer ? 0x81 : 0x01);
     } else {
       DEBUG_MSG(DLVL_WARN, "Trying to keep-alive an element that needs to timeout, ignoring");
     }
+  }
+
+  bool sharedClient::isAlive() {
+    if (!hasCounter) {
+      return true;
+    }
+    return (myPage.mapped[offsetOnPage] & 0x7F) < 126;
   }
 
   ///\brief Get a pointer to the data of this client
@@ -1104,8 +1182,21 @@ namespace IPC {
     return (myPage.mapped + offsetOnPage + (hasCounter ? 1 : 0));
   }
 
+  int sharedClient::getCounter() {
+    if (!hasCounter){
+      return -1;
+    }
+    if (!myPage.mapped) {
+      return 0;
+    }
+    return *(myPage.mapped + offsetOnPage);
+  }
+
   userConnection::userConnection(char * _data) {
     data = _data;
+    if (!data){
+      WARN_MSG("userConnection created with null pointer!");
+    }
   }
 
   unsigned long userConnection::getTrackId(size_t offset) const {

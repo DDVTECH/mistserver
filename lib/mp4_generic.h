@@ -486,7 +486,7 @@ namespace MP4 {
 
   struct CTTSEntry {
     uint32_t sampleCount;
-    uint32_t sampleOffset;
+    int32_t sampleOffset;
   };
 
   class CTTS: public fullBox {
@@ -714,3 +714,4 @@ namespace MP4 {
       std::string toPrettyString(uint32_t indent = 0);
   };
 }
+

@@ -1,3 +1,4 @@
+#pragma once
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
 #include <mist/defines.h>
@@ -36,11 +37,16 @@ namespace Controller {
       bool operator<= (const sessIndex &o) const;
       bool operator< (const sessIndex &o) const;
       bool operator>= (const sessIndex &o) const;
+      std::string toStr();
   };
   
   
   class statStorage {
+    private:
+      long long removeUp;
+      long long removeDown;
     public:
+      statStorage();
       void update(IPC::statExchange & data);
       bool hasDataFor(unsigned long long);
       statLog & getDataFor(unsigned long long);

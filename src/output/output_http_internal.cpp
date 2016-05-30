@@ -248,9 +248,9 @@ namespace Mist {
       
       std::string port, url_rel;
       
-      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       configLock.wait();
-      IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
+      IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
       DTSC::Scan prtcls = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
       DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember("RTMP");
       unsigned int pro_cnt = prtcls.getSize();
@@ -320,11 +320,13 @@ namespace Mist {
       }
       response = "// Generating info code for stream " + streamName + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
-      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      IPC::semaphore metaLocker(std::string("liveMeta@" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      static char liveSemName[NAME_BUFFER_SIZE];
+      snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
+      IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       bool metaLock = false;
       configLock.wait();
-      IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE);
+      IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
       DTSC::Scan strm = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName).getMember("meta");
       IPC::sharedPage streamIndex;
       if (!strm){
@@ -333,7 +335,7 @@ namespace Mist {
         if (Util::startInput(streamName)){
           char pageId[NAME_BUFFER_SIZE];
           snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-          streamIndex.init(pageId, DEFAULT_META_PAGE_SIZE);
+          streamIndex.init(pageId, DEFAULT_STRM_PAGE_SIZE);
           if (streamIndex.mapped){
             metaLock = true;
             metaLocker.wait();

@@ -181,13 +181,11 @@ void HTTP::Parser::StartResponse(HTTP::Parser & request, Socket::Connection & co
   StartResponse("200", "OK", request, conn, bufferAllChunks);
 }
 
-/// After receiving a header with this object, this function call will:
-/// - Forward the headers to the 'to' Socket::Connection.
+/// After receiving a header with this object, and after a call with SendResponse/SendRequest with this object, this function call will:
 /// - Retrieve all the body from the 'from' Socket::Connection.
 /// - Forward those contents as-is to the 'to' Socket::Connection.
 /// It blocks until completed or either of the connections reaches an error state.
 void HTTP::Parser::Proxy(Socket::Connection & from, Socket::Connection & to) {
-  SendResponse(url, method, to);
   if (getChunks) {
     unsigned int proxyingChunk = 0;
     while (to.connected() && from.connected()) {
@@ -313,6 +311,20 @@ std::string HTTP::Parser::GetHeader(std::string i) {
 /// Returns POST variable i, if set.
 std::string HTTP::Parser::GetVar(std::string i) {
   return vars[i];
+}
+
+std::string HTTP::Parser::allVars(){
+  std::string ret;
+  if (!vars.size()){return ret;}
+  for (std::map<std::string, std::string>::iterator it = vars.begin(); it != vars.end(); ++it){
+    if (ret.size() > 1){
+      ret += "&";
+    }else{
+      ret += "?";
+    }
+    ret += it->first + "=" + Encodings::URL::encode(it->second);
+  }
+  return ret;
 }
 
 /// Sets header i to string value v.

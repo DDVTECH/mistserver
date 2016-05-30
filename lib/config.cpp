@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <fstream>
 #include <dirent.h> //for getMyExec
+#include "procs.h"
 
 bool Util::Config::is_active = false;
 unsigned int Util::Config::printDebugLevel = DEBUG;//
@@ -69,8 +70,6 @@ Util::Config::Config(std::string cmd) {
 /// {
 ///   "short":"o",          //The short option letter
 ///   "long":"onName",      //The long option
-///   "short_off":"n",      //The short option-off letter
-///   "long_off":"offName", //The long option-off
 ///   "arg":"integer",      //The type of argument, if required.
 ///   "value":[],           //The default value(s) for this option if it is not given on the commandline.
 ///   "arg_num":1,          //The count this value has on the commandline, after all the options have been processed.
@@ -86,9 +85,6 @@ void Util::Config::addOption(std::string optname, JSON::Value option) {
   long_count = 0;
   jsonForEach(vals, it) {
     if (it->isMember("long")) {
-      long_count++;
-    }
-    if (it->isMember("long_off")) {
       long_count++;
     }
   }
@@ -110,12 +106,6 @@ void Util::Config::printHelp(std::ostream & output) {
       longest = current;
     }
     current = 0;
-    if (it->isMember("long_off")) {
-      current += (*it)["long_off"].asString().size() + 4;
-    }
-    if (it->isMember("short_off")) {
-      current += (*it)["short_off"].asString().size() + 3;
-    }
     if (current > longest) {
       longest = current;
     }
@@ -158,26 +148,6 @@ void Util::Config::printHelp(std::ostream & output) {
         output << f << (*it)["help"].asString() << std::endl;
       }
     }
-    if (it->isMember("long_off") || it->isMember("short_off")) {
-      if (it->isMember("long_off") && it->isMember("short_off")) {
-        f = "--" + (*it)["long_off"].asString() + ", -" + (*it)["short_off"].asString();
-      } else {
-        if (it->isMember("long_off")) {
-          f = "--" + (*it)["long_off"].asString();
-        }
-        if (it->isMember("short_off")) {
-          f = "-" + (*it)["short_off"].asString();
-        }
-      }
-      while (f.size() < longest) {
-        f.append(" ");
-      }
-      if (it->isMember("arg")) {
-        output << f << "(" << (*it)["arg"].asString() << ") " << (*it)["help"].asString() << std::endl;
-      } else {
-        output << f << (*it)["help"].asString() << std::endl;
-      }
-    }
     if (it->isMember("arg_num")) {
       f = it.key();
       while (f.size() < longest) {
@@ -204,23 +174,9 @@ bool Util::Config::parseArgs(int & argc, char ** & argv) {
           shortopts += ":";
         }
       }
-      if (it->isMember("short_off")) {
-        shortopts += (*it)["short_off"].asString();
-        if (it->isMember("arg")) {
-          shortopts += ":";
-        }
-      }
       if (it->isMember("long")) {
         longOpts[long_i].name = (*it)["long"].asStringRef().c_str();
         longOpts[long_i].val = (*it)["short"].asString()[0];
-        if (it->isMember("arg")) {
-          longOpts[long_i].has_arg = 1;
-        }
-        long_i++;
-      }
-      if (it->isMember("long_off")) {
-        longOpts[long_i].name = (*it)["long_off"].asStringRef().c_str();
-        longOpts[long_i].val = (*it)["short_off"].asString()[0];
         if (it->isMember("arg")) {
           longOpts[long_i].has_arg = 1;
         }
@@ -263,9 +219,6 @@ bool Util::Config::parseArgs(int & argc, char ** & argv) {
             }
             break;
           }
-          if (it->isMember("short_off") && (*it)["short_off"].asString()[0] == opt) {
-            (*it)["value"].append((long long int)0);
-          }
         }
         break;
     }
@@ -289,6 +242,10 @@ bool Util::Config::parseArgs(int & argc, char ** & argv) {
   return true;
 }
 
+bool Util::Config::hasOption(const std::string & optname) {
+  return vals.isMember(optname);
+}
+
 /// Returns a reference to the current value of an option or default if none was set.
 /// If the option does not exist, this exits the application with a return code of 37.
 JSON::Value & Util::Config::getOption(std::string optname, bool asArray) {
@@ -298,12 +255,18 @@ JSON::Value & Util::Config::getOption(std::string optname, bool asArray) {
   }
   if (!vals[optname].isMember("value") || !vals[optname]["value"].isArray()) {
     vals[optname]["value"].append(JSON::Value());
+    vals[optname]["value"].shrink(0);
   }
   if (asArray) {
     return vals[optname]["value"];
   } else {
     int n = vals[optname]["value"].size();
-    return vals[optname]["value"][n - 1];
+    if (!n){
+      static JSON::Value empty = "";
+      return empty;
+    }else{
+      return vals[optname]["value"][n - 1];
+    }
   }
 }
 
@@ -341,6 +304,7 @@ static void callThreadCallback(void * cDataArg) {
 }
 
 int Util::Config::threadServer(Socket::Server & server_socket, int (*callback)(Socket::Connection &)) {
+  Util::Procs::socketList.insert(server_socket.getSocket());
   while (is_active && server_socket.connected()) {
     Socket::Connection S = server_socket.accept();
     if (S.connected()) { //check if the new connection is valid
@@ -356,11 +320,13 @@ int Util::Config::threadServer(Socket::Server & server_socket, int (*callback)(S
       Util::sleep(10); //sleep 10ms
     }
   }
+  Util::Procs::socketList.erase(server_socket.getSocket());
   server_socket.close();
   return 0;
 }
 
 int Util::Config::forkServer(Socket::Server & server_socket, int (*callback)(Socket::Connection &)) {
+  Util::Procs::socketList.insert(server_socket.getSocket());
   while (is_active && server_socket.connected()) {
     Socket::Connection S = server_socket.accept();
     if (S.connected()) { //check if the new connection is valid
@@ -376,6 +342,7 @@ int Util::Config::forkServer(Socket::Server & server_socket, int (*callback)(Soc
       Util::sleep(10); //sleep 10ms
     }
   }
+  Util::Procs::socketList.erase(server_socket.getSocket());
   server_socket.close();
   return 0;
 }
@@ -385,8 +352,8 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)) {
   if (vals.isMember("socket")) {
     server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
   }
-  if (vals.isMember("listen_port") && vals.isMember("listen_interface")) {
-    server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
+  if (vals.isMember("port") && vals.isMember("interface")) {
+    server_socket = Socket::Server(getInteger("port"), getString("interface"), false);
   }
   if (!server_socket.connected()) {
     DEBUG_MSG(DLVL_DEVEL, "Failure to open socket");
@@ -402,8 +369,8 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)) {
   if (vals.isMember("socket")) {
     server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
   }
-  if (vals.isMember("listen_port") && vals.isMember("listen_interface")) {
-    server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
+  if (vals.isMember("port") && vals.isMember("interface")) {
+    server_socket = Socket::Server(getInteger("port"), getString("interface"), false);
   }
   if (!server_socket.connected()) {
     DEBUG_MSG(DLVL_DEVEL, "Failure to open socket");
@@ -416,21 +383,12 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)) {
 
 /// Activated the stored config. This will:
 /// - Drop permissions to the stored "username", if any.
-/// - Daemonize the process if "daemonize" exists and is true.
 /// - Set is_active to true.
 /// - Set up a signal handler to set is_active to false for the SIGINT, SIGHUP and SIGTERM signals.
 void Util::Config::activate() {
   if (vals.isMember("username")) {
     setUser(getString("username"));
     vals.removeMember("username");
-  }
-  if (vals.isMember("daemonize") && getBool("daemonize")) {
-    if (vals.isMember("logfile") && getString("logfile") != "") {
-      Daemonize(true);
-    } else {
-      Daemonize(false);
-    }
-    vals.removeMember("daemonize");
   }
   struct sigaction new_action;
   struct sigaction cur_action;
@@ -476,33 +434,78 @@ void Util::Config::signal_handler(int signum, siginfo_t * sigInfo, void * ignore
   }
 } //signal_handler
 
+
+/// Adds the options from the given JSON capabilities structure.
+/// Recurses into optional and required, added options as needed.
+void Util::Config::addOptionsFromCapabilities(const JSON::Value & capa){
+  //First add the required options.
+  if (capa.isMember("required") && capa["required"].size()){
+    jsonForEachConst(capa["required"], it){
+      if (!it->isMember("short") || !it->isMember("option") || !it->isMember("type")){
+        FAIL_MSG("Incomplete required option: %s", it.key().c_str());
+        continue;
+      }
+      JSON::Value opt;
+      opt["short"] = (*it)["short"];
+      opt["long"] = (*it)["option"].asStringRef().substr(2);
+      if (it->isMember("type")){
+        //int, uint, debug, select, str
+        if ((*it)["type"].asStringRef() == "int" || (*it)["type"].asStringRef() == "uint"){
+          opt["arg"] = "integer";
+        }else{
+          opt["arg"] = "string";
+        }
+      }
+      if (it->isMember("default")){
+        opt["value"].append((*it)["default"]);
+      }
+      opt["help"] = (*it)["help"];
+      addOption(it.key(), opt);
+    }
+  }
+  //Then, the optionals.
+  if (capa.isMember("optional") && capa["optional"].size()){
+    jsonForEachConst(capa["optional"], it){
+      if (it.key() == "debug"){continue;}
+      if (!it->isMember("short") || !it->isMember("option") || !it->isMember("default")){
+        FAIL_MSG("Incomplete optional option: %s", it.key().c_str());
+        continue;
+      }
+      JSON::Value opt;
+      opt["short"] = (*it)["short"];
+      opt["long"] = (*it)["option"].asStringRef().substr(2);
+      if (it->isMember("type")){
+        //int, uint, debug, select, str
+        if ((*it)["type"].asStringRef() == "int" || (*it)["type"].asStringRef() == "uint"){
+          opt["arg"] = "integer";
+        }else{
+          opt["arg"] = "string";
+        }
+      }
+      if (it->isMember("default")){
+        opt["value"].append((*it)["default"]);
+      }
+      opt["help"] = (*it)["help"];
+      addOption(it.key(), opt);
+    }
+  }
+}
+
 /// Adds the default connector options. Also updates the capabilities structure with the default options.
 /// Besides the options addBasicConnectorOptions adds, this function also adds port and interface options.
 void Util::Config::addConnectorOptions(int port, JSON::Value & capabilities) {
-  JSON::Value option;
-  option.null();
-  option["long"] = "port";
-  option["short"] = "p";
-  option["arg"] = "integer";
-  option["help"] = "TCP port to listen on";
-  option["value"].append((long long)port);
-  addOption("listen_port", option);
   capabilities["optional"]["port"]["name"] = "TCP port";
-  capabilities["optional"]["port"]["help"] = "TCP port to listen on - default if unprovided is " + option["value"][0u].asString();
+  capabilities["optional"]["port"]["help"] = "TCP port to listen on";
   capabilities["optional"]["port"]["type"] = "uint";
+  capabilities["optional"]["port"]["short"] = "p";
   capabilities["optional"]["port"]["option"] = "--port";
-  capabilities["optional"]["port"]["default"] = option["value"][0u];
+  capabilities["optional"]["port"]["default"] = (long long)port;
 
-  option.null();
-  option["long"] = "interface";
-  option["short"] = "i";
-  option["arg"] = "string";
-  option["help"] = "Interface address to listen on, or 0.0.0.0 for all available interfaces.";
-  option["value"].append("0.0.0.0");
-  addOption("listen_interface", option);
   capabilities["optional"]["interface"]["name"] = "Interface";
-  capabilities["optional"]["interface"]["help"] = "Address of the interface to listen on - default if unprovided is all interfaces";
+  capabilities["optional"]["interface"]["help"] = "Address of the interface to listen on";
+  capabilities["optional"]["interface"]["default"] = "0.0.0.0";
   capabilities["optional"]["interface"]["option"] = "--interface";
+  capabilities["optional"]["interface"]["short"] = "i";
   capabilities["optional"]["interface"]["type"] = "str";
 
   addBasicConnectorOptions(capabilities);
@@ -510,38 +513,16 @@ void Util::Config::addConnectorOptions(int port, JSON::Value & capabilities) {
 
 /// Adds the default connector options. Also updates the capabilities structure with the default options.
 void Util::Config::addBasicConnectorOptions(JSON::Value & capabilities) {
-  JSON::Value option;
-  option.null();
-  option["long"] = "username";
-  option["short"] = "u";
-  option["arg"] = "string";
-  option["help"] = "Username to drop privileges to, or root to not drop provileges.";
-  option["value"].append("root");
-  addOption("username", option);
   capabilities["optional"]["username"]["name"] = "Username";
   capabilities["optional"]["username"]["help"] = "Username to drop privileges to - default if unprovided means do not drop privileges";
   capabilities["optional"]["username"]["option"] = "--username";
+  capabilities["optional"]["username"]["short"] = "u";
+  capabilities["optional"]["username"]["default"] = "root";
   capabilities["optional"]["username"]["type"] = "str";
 
+  addOptionsFromCapabilities(capabilities);
 
-  if (capabilities.isMember("socket")) {
-    option.null();
-    option["arg"] = "string";
-    option["help"] = "Socket name that can be connected to for this connector.";
-    option["value"].append(capabilities["socket"]);
-    addOption("socket", option);
-  }
-
-  option.null();
-  option["long"] = "daemon";
-  option["short"] = "d";
-  option["long_off"] = "nodaemon";
-  option["short_off"] = "n";
-  option["help"] = "Whether or not to daemonize the process after starting.";
-  option["value"].append(0ll);
-  addOption("daemonize", option);
-
-  option.null();
+  JSON::Value option;
   option["long"] = "json";
   option["short"] = "j";
   option["help"] = "Output connector info in JSON format, then exit.";
@@ -631,17 +612,3 @@ void Util::setUser(std::string username) {
   }
 }
 
-/// Will turn the current process into a daemon.
-/// Works by calling daemon(1,0):
-/// Does not change directory to root.
-/// Does redirect output to /dev/null
-void Util::Daemonize(bool notClose) {
-  DEBUG_MSG(DLVL_DEVEL, "Going into background mode...");
-  int noClose = 0;
-  if (notClose) {
-    noClose = 1;
-  }
-  if (daemon(1, noClose) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "Failed to daemonize: %s", strerror(errno));
-  }
-}

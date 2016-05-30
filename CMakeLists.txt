@@ -103,6 +103,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/defines.h
   ${SOURCE_DIR}/lib/dtsc.h
   ${SOURCE_DIR}/lib/flv_tag.h
+  ${SOURCE_DIR}/lib/h264.h
   ${SOURCE_DIR}/lib/http_parser.h
   ${SOURCE_DIR}/lib/json.h
   ${SOURCE_DIR}/lib/mp4_adobe.h
@@ -120,6 +121,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/timing.h
   ${SOURCE_DIR}/lib/tinythread.h
   ${SOURCE_DIR}/lib/ts_packet.h
+  ${SOURCE_DIR}/lib/util.h
   ${SOURCE_DIR}/lib/vorbis.h
 )
 
@@ -136,6 +138,7 @@ set(libSources
   ${SOURCE_DIR}/lib/dtsc.cpp
   ${SOURCE_DIR}/lib/dtscmeta.cpp
   ${SOURCE_DIR}/lib/flv_tag.cpp
+  ${SOURCE_DIR}/lib/h264.cpp
   ${SOURCE_DIR}/lib/http_parser.cpp
   ${SOURCE_DIR}/lib/json.cpp
   ${SOURCE_DIR}/lib/mp4_adobe.cpp
@@ -153,6 +156,7 @@ set(libSources
   ${SOURCE_DIR}/lib/timing.cpp
   ${SOURCE_DIR}/lib/tinythread.cpp
   ${SOURCE_DIR}/lib/ts_packet.cpp
+  ${SOURCE_DIR}/lib/util.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
 )
 
@@ -245,9 +249,9 @@ makeInput(Buffer buffer)
 ########################################
 macro(makeOutput outputName format)
   #Parse all extra arguments, for http and ts flags
+  SET (tsBaseClass Output)
   if (";${ARGN};" MATCHES ";http;")
     SET(httpOutput src/output/output_http.cpp)
-    SET(tsBaseClass Output)
     if (";${ARGN};" MATCHES ";ts;")
       SET(tsBaseClass HTTPOutput)
     endif()

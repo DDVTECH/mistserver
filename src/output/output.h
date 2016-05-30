@@ -37,13 +37,12 @@ namespace Mist {
     public:
       //constructor and destructor
       Output(Socket::Connection & conn);
-      virtual ~Output();
       //static members for initialization and capabilities
       static void init(Util::Config * cfg);
       static JSON::Value capa;
       //non-virtual generic functions
       int run();
-      void stats();
+      void stats(bool force = false);
       void seek(unsigned long long pos);
       bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
       void stop();
@@ -51,10 +50,13 @@ namespace Mist {
       long unsigned int getMainSelectedTrack();
       void updateMeta();
       void selectDefaultTracks();
+      bool connectToFile(std::string file);
       static bool listenMode(){return true;}
+      virtual bool isReadyForPlay();
       //virtuals. The optional virtuals have default implementations that do as little as possible.
       virtual void sendNext() {}//REQUIRED! Others are optional.
-      virtual void prepareNext();
+      bool prepareNext();
+      virtual void dropTrack(uint32_t trackId, std::string reason, bool probablyBad = true);
       virtual void onRequest();
       virtual bool onFinish() {
         return false;
@@ -68,21 +70,21 @@ namespace Mist {
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
       int pageNumForKey(long unsigned int trackId, long long int keyNum);
+      int pageNumMax(long unsigned int trackId);
       unsigned int lastStats;///<Time of last sending of stats.
       long long unsigned int firstTime;///< Time of first packet after last seek. Used for real-time sending.
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
-      bool completeKeyReadyTimeOut;//a bool to see if there has been a keyframe TimeOut for complete keys in Live
     protected://these are to be messed with by child classes
-      
       virtual std::string getConnectedHost();
       virtual std::string getConnectedBinHost();
-
+      virtual std::string getStatsName();
+      virtual bool hasSessionIDs(){return false;}
 
       IPC::sharedClient statsPage;///< Shared memory used for statistics reporting.
       bool isBlocking;///< If true, indicates that myConn is blocking.
-      unsigned int crc;///< Checksum, if any, for usage in the stats.
+      uint32_t crc;///< Checksum, if any, for usage in the stats.
       unsigned int getKeyForTime(long unsigned int trackId, long long timeStamp);
       
       //stream delaying variables
@@ -103,3 +105,4 @@ namespace Mist {
   };
 
 }
+

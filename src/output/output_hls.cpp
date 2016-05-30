@@ -3,17 +3,26 @@
 #include <unistd.h>
 
 namespace Mist {
+  bool OutHLS::isReadyForPlay() {
+    if (myMeta.tracks.size()){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.fragments.size() >= 3){
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   ///\brief Builds an index file for HTTP Live streaming.
   ///\return The index file for HTTP Live Streaming.
   std::string OutHLS::liveIndex(){
     std::stringstream result;
     result << "#EXTM3U\r\n";
     int audioId = -1;
-    std::string audioName;
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       if (it->second.codec == "AAC"){
         audioId = it->first;
-        audioName = it->second.getIdentifier();
         break;
       }
     }
@@ -33,7 +42,7 @@ namespace Mist {
         if (audioId != -1){
           result << "_" << audioId;
         }
-        result << "/index.m3u8\r\n";
+        result << "/index.m3u8?sessId=" << getpid() << "\r\n";
       }
     }
     if (!vidTracks && audioId){
@@ -44,13 +53,13 @@ namespace Mist {
     return result.str();
   }
 
-  std::string OutHLS::liveIndex(int tid){
+  std::string OutHLS::liveIndex(int tid, std::string & sessId) {
     updateMeta();
     std::stringstream result;
     //parse single track
     int longestFragment = 0;
     if (!myMeta.tracks[tid].fragments.size()){
-      DEBUG_MSG(DLVL_FAIL, "liveIndex called with track %d, which has no fragments!", tid);
+      INFO_MSG("liveIndex called with track %d, which has no fragments!", tid);
       return "";
     }
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); (it + 1) != myMeta.tracks[tid].fragments.end(); it++){
@@ -66,15 +75,18 @@ namespace Mist {
     std::deque<std::string> lines;
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++){
       long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
-      std::stringstream line;
       long long duration = it->getDuration();
       if (duration <= 0){
         duration = myMeta.tracks[tid].lastms - starttime;
       }
-      line << "#EXTINF:" << ((duration + 500) / 1000) << ", no desc\r\n" << starttime << "_" << duration + starttime << ".ts\r\n";
-      lines.push_back(line.str());
+      char lineBuf[400];
+      if (sessId.size()){
+        snprintf(lineBuf, 400, "#EXTINF:%lld, no desc\r\n%lld_%lld.ts?sessId=%s\r\n", ((duration + 500) / 1000), starttime, starttime + duration, sessId.c_str());
+      }else{
+        snprintf(lineBuf, 400, "#EXTINF:%lld, no desc\r\n%lld_%lld.ts\r\n", ((duration + 500) / 1000), starttime, starttime + duration);
+      }
+      lines.push_back(lineBuf);
     }
-    
     unsigned int skippedLines = 0;
     if (myMeta.live){
       //only print the last segment when VoD
@@ -135,7 +147,7 @@ namespace Mist {
 
   void OutHLS::onHTTP(){
     std::string method = H.method;
-      
+    std::string sessId = H.GetVar("sessId");
     
     if (H.url == "/crossdomain.xml"){
       H.Clean();
@@ -152,12 +164,24 @@ namespace Mist {
       H.Clean(); //clean for any possible next requests
       return;
     } //crossdomain.xml
+
+    if (H.method == "OPTIONS") {
+      H.Clean();
+      H.SetHeader("Content-Type", "application/octet-stream");
+      H.SetHeader("Cache-Control", "no-cache");
+      H.setCORSHeaders();
+      H.SetBody("");
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
     
     if (H.url.find("hls") == std::string::npos){
       myConn.close();
       return;
     }
     
+
     appleCompat = (H.GetHeader("User-Agent").find("iPad") != std::string::npos) || (H.GetHeader("User-Agent").find("iPod") != std::string::npos)|| (H.GetHeader("User-Agent").find("iPhone") != std::string::npos);
     bool VLCworkaround = false;
     if (H.GetHeader("User-Agent").substr(0, 3) == "VLC"){
@@ -167,6 +191,7 @@ namespace Mist {
         VLCworkaround = true;
       }
     }
+
     initialize();
     if (H.url.find(".m3u") == std::string::npos){
       std::string tmpStr = H.getUrl().substr(5+streamName.size());
@@ -189,6 +214,11 @@ namespace Mist {
         selectedTracks.insert(vidTrack);
         selectedTracks.insert(audTrack);
       }
+      for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.codec == "ID3"){
+          selectedTracks.insert(it->first);
+        }
+      }
       
       if (myMeta.live){
         unsigned int timeout = 0;
@@ -202,7 +232,7 @@ namespace Mist {
               myConn.close();
               break;
             }
-            Util::sleep(500);
+            Util::wait(500);
             updateMeta();
           }
         }while (myConn && seekable > 0);
@@ -266,7 +296,7 @@ namespace Mist {
         manifest = liveIndex();
       }else{
         int selectId = atoi(request.substr(0,request.find("/")).c_str());
-        manifest = liveIndex(selectId);
+        manifest = liveIndex(selectId, sessId);
       }
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);

@@ -19,6 +19,7 @@ namespace HTTP {
       std::string GetHeader(std::string i);
       std::string GetVar(std::string i);
       std::string getUrl();
+      std::string allVars();
       void SetHeader(std::string i, std::string v);
       void SetHeader(std::string i, long long v);
       void setCORSHeaders();
@@ -44,11 +45,13 @@ namespace HTTP {
       unsigned int length;
       bool headerOnly; ///< If true, do not parse body if the length is a known size.
       bool bufferChunks;
+      //this bool was private
+      bool sendingChunks;
+
     private:
       bool seenHeaders;
       bool seenReq;
       bool getChunks;
-      bool sendingChunks;
       unsigned int doingChunk;
       bool parse(std::string & HTTPbuffer);
       void parseVars(std::string data);

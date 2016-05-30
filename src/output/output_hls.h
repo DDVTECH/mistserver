@@ -9,9 +9,11 @@ namespace Mist {
       static void init(Util::Config * cfg);
       void sendTS(const char * tsData, unsigned int len=188);
       void onHTTP();      
+      bool isReadyForPlay();
     protected:      
+      bool hasSessionIDs(){return true;}
       std::string liveIndex();
-      std::string liveIndex(int tid);
+      std::string liveIndex(int tid, std::string & sessId);
       int canSeekms(unsigned int ms);
       int keysToSend;      
       unsigned int vidTrack;

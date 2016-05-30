@@ -57,11 +57,28 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 
 #endif
 
+
+#ifndef SHM_DATASIZE
+#define SHM_DATASIZE 25
+#endif
+
+
+#ifndef STATS_DELAY
+#define STATS_DELAY 15
+#endif
+
+#ifndef INPUT_TIMEOUT
+#define INPUT_TIMEOUT STATS_DELAY
+#endif
+
 /// The size used for stream header pages under Windows, where they cannot be size-detected.
 #define DEFAULT_META_PAGE_SIZE 16 * 1024 * 1024
 
+/// The size used for stream header pages under Windows, where they cannot be size-detected.
+#define DEFAULT_STRM_PAGE_SIZE 4 * 1024 * 1024
+
 /// The size used for stream data pages under Windows, where they cannot be size-detected.
-#define DEFAULT_DATA_PAGE_SIZE 25 * 1024 * 1024
+#define DEFAULT_DATA_PAGE_SIZE SHM_DATASIZE * 1024 * 1024
 
 /// The size used for server configuration pages.
 #define DEFAULT_CONF_PAGE_SIZE 4 * 1024 * 1024
@@ -72,10 +89,15 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
 #define SHM_TRACK_META "MstTRAK%s@%lu" //%s stream name, %lu track ID
 #define SHM_TRACK_INDEX "MstTRID%s@%lu" //%s stream name, %lu track ID
+#define SHM_TRACK_INDEX_SIZE 8192
 #define SHM_TRACK_DATA "MstDATA%s@%lu_%lu" //%s stream name, %lu track ID, %lu page #
 #define SHM_STATISTICS "MstSTAT"
 #define SHM_USERS "MstUSER%s" //%s stream name
-#define SEM_LIVE "MstLIVE%s" //%s stream name
+#define SHM_TRIGGER "MstTRIG%s" //%s trigger name
+#define SEM_LIVE "/MstLIVE%s" //%s stream name
+#define SEM_INPUT "/MstInpt%s" //%s stream name
+#define SEM_CONF "/MstConfLock"
+#define SHM_CONF "MstConf"
 #define NAME_BUFFER_SIZE 200    //char buffer size for snprintf'ing shm filenames
 
 #define SIMUL_TRACKS 10

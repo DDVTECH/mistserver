@@ -2,7 +2,6 @@
 
 namespace Mist {
   OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : HTTPOutput(conn){}
-  OutProgressiveFLV::~OutProgressiveFLV() {}
   
   void OutProgressiveFLV::init(Util::Config * cfg){
     HTTPOutput::init(cfg);

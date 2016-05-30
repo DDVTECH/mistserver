@@ -1,4 +1,5 @@
 /// \page api API calls
+/// \brief Listing of all controller API calls.
 /// The controller listens for commands through a JSON-based API. This page describes the API in full.
 ///
 /// A default interface implementing this API as a single HTML page is included in the controller itself. This default interface will be send for invalid API requests, and is thus triggered by default when a browser attempts to access the API port directly.
@@ -20,7 +21,9 @@
 ///
 /// You may also include a `"callback"` or `"jsonp"` HTTP variable, to trigger JSONP compatibility mode. JSONP is useful for getting around the cross-domain scripting protection in most modern browsers. Developers creating non-JavaScript applications will most likely not want to use JSONP mode, though nothing is stopping you if you really want to.
 ///
-/// \brief Listing of all controller API calls.
+
+
+
 
 /// \file controller.cpp
 /// Contains all code for the controller executable.
@@ -88,6 +91,7 @@ void createAccount (std::string account){
 /// Status monitoring thread.
 /// Will check outputs, inputs and converters every five seconds
 void statusMonitor(void * np){
+  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   while (Controller::conf.is_active){
     //this scope prevents the configMutex from being locked constantly
     {
@@ -99,19 +103,20 @@ void statusMonitor(void * np){
       changed |= Controller::CheckAllStreams(Controller::Storage["streams"]);
       
       //check if the config semaphore is stuck, by trying to lock it for 5 attempts of 1 second...
-      IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond()){
         //that failed. We now unlock it, no matter what - and print a warning that it was stuck.
         WARN_MSG("Configuration semaphore was stuck. Force-unlocking it and re-writing config.");
         changed = true;
       }
       configLock.post();
-      if (changed){
+      if (changed || Controller::configChanged){
         Controller::writeConfig();
+        Controller::configChanged = false;
       }
     }
     Util::wait(5000);//wait at least 5 seconds
   }
+  configLock.unlink();
 }
 
 ///\brief The main entry point for the controller.
@@ -134,10 +139,9 @@ int main(int argc, char ** argv){
     stored_user["default"] = "root";
   }
   Controller::conf = Util::Config(argv[0]);
-  Controller::conf.addOption("listen_port", stored_port);
-  Controller::conf.addOption("listen_interface", stored_interface);
+  Controller::conf.addOption("port", stored_port);
+  Controller::conf.addOption("interface", stored_interface);
   Controller::conf.addOption("username", stored_user);
-  Controller::conf.addOption("daemonize", JSON::fromString("{\"long\":\"daemon\", \"short\":\"d\", \"default\":0, \"long_off\":\"nodaemon\", \"short_off\":\"n\", \"help\":\"Turns deamon mode on (-d) or off (-n). -d runs quietly in background, -n (default) enables verbose in foreground.\"}"));
   Controller::conf.addOption("account", JSON::fromString("{\"long\":\"account\", \"short\":\"a\", \"arg\":\"string\" \"default\":\"\", \"help\":\"A username:password string to create a new account with.\"}"));
   Controller::conf.addOption("logfile", JSON::fromString("{\"long\":\"logfile\", \"short\":\"L\", \"arg\":\"string\" \"default\":\"\",\"help\":\"Redirect all standard output to a log file, provided with an argument\"}"));
   Controller::conf.addOption("configFile", JSON::fromString("{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" \"default\":\"config.json\", \"help\":\"Specify a config file other than default.\"}"));
@@ -183,14 +187,19 @@ int main(int argc, char ** argv){
   //check for port, interface and username in arguments
   //if they are not there, take them from config file, if there
   if (Controller::Storage["config"]["controller"]["port"]){
-    Controller::conf.getOption("listen_port", true)[0u] = Controller::Storage["config"]["controller"]["port"];
+    Controller::conf.getOption("port", true)[0u] = Controller::Storage["config"]["controller"]["port"];
   }
   if (Controller::Storage["config"]["controller"]["interface"]){
-    Controller::conf.getOption("listen_interface", true)[0u] = Controller::Storage["config"]["controller"]["interface"];
+    Controller::conf.getOption("interface", true)[0u] = Controller::Storage["config"]["controller"]["interface"];
   }
   if (Controller::Storage["config"]["controller"]["username"]){
     Controller::conf.getOption("username", true)[0u] = Controller::Storage["config"]["controller"]["username"];
   }
+  {
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    configLock.unlink();
+  }
+  Controller::writeConfig();
   Controller::checkAvailProtocols();
   createAccount(Controller::conf.getString("account"));
   
@@ -244,16 +253,16 @@ int main(int argc, char ** argv){
     }else{//logfile is enabled
       //check for username
       if ( !Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
-        std::cout << "No login configured. To create one, attempt to login through the web interface on port " << Controller::conf.getInteger("listen_port") << " and follow the instructions." << std::endl;
+        std::cout << "No login configured. To create one, attempt to login through the web interface on port " << Controller::conf.getInteger("port") << " and follow the instructions." << std::endl;
       }
       //check for protocols
       if ( !Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") || Controller::Storage["config"]["protocols"].size() < 1){
-        std::cout << "No protocols enabled, remember to set them up through the web interface on port " << Controller::conf.getInteger("listen_port") << " or API." << std::endl;
+        std::cout << "No protocols enabled, remember to set them up through the web interface on port " << Controller::conf.getInteger("port") << " or API." << std::endl;
       }
     }
     //check for streams - regardless of logfile setting
     if ( !Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1){
-      std::cout << "No streams configured, remember to set up streams through the web interface on port " << Controller::conf.getInteger("listen_port") << " or API." << std::endl;
+      std::cout << "No streams configured, remember to set up streams through the web interface on port " << Controller::conf.getInteger("port") << " or API." << std::endl;
     }
   }//connected to a terminal
   
@@ -274,8 +283,8 @@ int main(int argc, char ** argv){
   }else{
     shutdown_reason = "socket problem (API port closed)";
   }
-  Controller::Log("CONF", "Controller shutting down because of "+shutdown_reason);
   Controller::conf.is_active = false;
+  Controller::Log("CONF", "Controller shutting down because of "+shutdown_reason);
   //join all joinable threads
   statsThread.join();
   monitorThread.join();
@@ -300,3 +309,4 @@ int main(int argc, char ** argv){
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
   return 0;
 }
+

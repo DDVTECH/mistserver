@@ -242,8 +242,8 @@ namespace Mist {
     // send smil MBR index
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".smil"){
       std::string host = H.GetHeader("Host");
-      if (host.find(':')){
-        host.resize(host.find(':'));
+      if (host.rfind(':') != std::string::npos && *host.rbegin() != ']'){
+        host.resize(host.rfind(':'));
       }
       
       std::string port, url_rel;
@@ -302,8 +302,8 @@ namespace Mist {
       std::string response;
       std::string rURL = H.url;
       std::string host = H.GetHeader("Host");
-      if (host.find(':') != std::string::npos){
-        host.resize(host.find(':'));
+      if (host.rfind(':') != std::string::npos && *host.rbegin() != ']'){
+        host.resize(host.rfind(':'));
       }
       H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);

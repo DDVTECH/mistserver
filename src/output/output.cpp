@@ -227,6 +227,7 @@ namespace Mist {
   /// After assuring stream is online, clears nProxy.metaPages, then sets nProxy.metaPages[0], statsPage and nProxy.userClient to (hopefully) valid handles.
   /// Finally, calls updateMeta()
   void Output::reconnect(){
+    thisPacket.null();
     if (!Util::startInput(streamName)){
       FAIL_MSG("Opening stream %s failed - aborting initalization", streamName.c_str());
       onFail();

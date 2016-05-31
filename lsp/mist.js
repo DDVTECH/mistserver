@@ -3962,13 +3962,13 @@ var UI = {
             label: 'Axis type',
             type: 'select',
             select: [
-              ['time','Time line'],
-              ['coords','Geographical']
+              ['time','Time line']
             ],
             pointer: {
               main: saveas,
               index: 'xaxis'
             },
+            value: 'time',
             classes: ['graph_xaxis'],
             'function': function(){
               $s = $UI.find('.graph_datatype');

@@ -78,13 +78,6 @@ namespace Mist {
       virtual void sendHeader();
       virtual void onFail();
       virtual void requestHandler();
-      virtual void onRecord(){
-        wantRequest = false;
-        parseData = true;
-        realTime = 1000;
-
-        seek(0);
-      }
     private://these *should* not be messed with in child classes.
       /*LTS-START*/
       void Log(std::string type, std::string message);

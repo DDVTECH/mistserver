@@ -2789,23 +2789,22 @@ var UI = {
         tabs['Embed urls'] = $embedlinks;
         $main.append($embedlinks);
         function parseURL(url) {
-          var pattern = /(https?)\:\/\/([^:\/]+)\:(\d+)?/i;
-          var retobj = {protocol: '', host: '', port: ''};
-          var results = url.match(pattern);
-          if(results != null) {
-            retobj.protocol = results[1];
-            retobj.host = results[2];
-            retobj.port = results[3];
-          }
-          return retobj;
+          var a = document.createElement('a');
+          a.href = url;
+          return {
+            protocol: a.protocol+'//',
+            host: a.hostname,
+            port: (a.port ? ':'+a.port : '')
+          };
         }
-        var embedbase = 'http://'+parseURL(mist.user.host).host+http_port+'/';
-        var embedoptions = {};
+        var parsed = parseURL(mist.user.host);
+        var embedbase = parsed.protocol+parsed.host+http_port+'/';
+        var embedoptions = {autoplay: true};
         function embedhtml(opts) {
           var open = ['div'];
           var inner = "\n"+'   <script src="'+embedbase+'embed_'+other+'.js"><'+'/script>'+"\n"; //don't leave the closing script tag complete
-          if (opts.autoplay) {
-            open.push('data-autoplay');
+          if (!opts.autoplay) {
+            open.push('data-noautoplay');
           }
           if ((opts.forceprotocol) && (opts.forceprotocol != '')) {
             open.push('data-forcetype="'+opts.forceprotocol+'"');
@@ -2846,6 +2845,7 @@ var UI = {
           },$('<h4>').text('Embed code options').css('margin-top',0),{
             label: 'Autoplay',
             type: 'checkbox',
+            value: true,
             pointer: {
               main: embedoptions,
               index: 'autoplay'
@@ -2989,8 +2989,8 @@ var UI = {
         var $protocols = $('<div>').css('float','left');
         $preview.append($video).append($protocols);
         
-        if (mist.stored.get().autoplay) {
-          $video.attr('data-autoplay','');
+        if (!mist.stored.get().autoplay) {
+          $video.attr('data-noautoplay','');
         }
         
         function loadVideo() {
@@ -3209,7 +3209,8 @@ var UI = {
                 pointer: {
                   main: push_settings,
                   index: 'wait'
-                }
+                },
+                LTSonly: 1
               },{
                 label: 'Maximum retries',
                 unit: '/s',
@@ -3220,7 +3221,8 @@ var UI = {
                 pointer: {
                   main: push_settings,
                   index: 'maxspeed'
-                }
+                },
+                LTSonly: 1
               },{
                 type: 'buttons',
                 buttons: [{
@@ -3460,7 +3462,8 @@ var UI = {
                     classes: ['red']
                   };
                 }],
-                datalist: allthestreams
+                datalist: allthestreams,
+                LTSonly: 1
               },{
                 label: 'Target',
                 type: 'str',
@@ -3479,7 +3482,8 @@ var UI = {
                     msg: 'Does not match a valid target.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul>',
                     classes: ['red']
                   }
-                }]
+                }],
+                LTSonly: 1
               },{
                 type: 'buttons',
                 buttons: [

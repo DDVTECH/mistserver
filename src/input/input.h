@@ -45,6 +45,7 @@ namespace Mist {
       virtual void userCallback(char * data, size_t len, unsigned int id);
       virtual void convert();
       virtual void serve();
+      virtual void stream();
       
       
       virtual void parseHeader();

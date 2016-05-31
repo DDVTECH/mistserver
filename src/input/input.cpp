@@ -125,6 +125,8 @@ namespace Mist {
     
     if (!streamName.size()) {
       convert();
+    } else if (!needsLock()) {
+      stream();
     }else{
       serve();
     }
@@ -193,6 +195,78 @@ namespace Mist {
     finish();
     DEBUG_MSG(DLVL_DEVEL,"Input for stream %s closing clean", streamName.c_str());
     //end player functionality
+  }
+
+  /// Main loop for stream-style inputs.
+  /// This loop will start the buffer without resume support, and then repeatedly call ..... followed by ....
+  void Input::stream(){
+    IPC::semaphore pullLock;
+    pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    if (!pullLock.tryWait()){
+      DEBUG_MSG(DLVL_DEVEL, "A pull process for stream %s is already running", streamName.c_str());
+      pullLock.close();
+      return;
+    }
+    if (Util::streamAlive(streamName)){
+      pullLock.post();
+      pullLock.close();
+      pullLock.unlink();
+      return;
+    }
+    if (!Util::startInput(streamName, "push://")) {//manually override stream url to start the buffer
+      pullLock.post();
+      pullLock.close();
+      pullLock.unlink();
+      return;
+    }
+
+    char userPageName[NAME_BUFFER_SIZE];
+    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+
+    DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
+
+    if (!openStreamSource()){
+      FAIL_MSG("Unable to connect to source");
+      pullLock.post();
+      pullLock.close();
+      return;
+    }
+    parseStreamHeader();
+    
+    if (myMeta.tracks.size() == 0){
+      nProxy.userClient.finish();
+      finish();
+      pullLock.post();
+      pullLock.close();
+      pullLock.unlink();
+      return;
+    }
+    nProxy.userClient.countAsViewer = false;
+
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      it->second.firstms = 0;
+      it->second.lastms = 0;
+    }
+
+    getNext();
+    unsigned long long lastTime = Util::getMS();
+    unsigned long long lastActive = Util::getMS();
+    while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
+      nProxy.bufferLivePacket(thisPacket, myMeta);
+      getNext();
+      nProxy.userClient.keepAlive();
+    }
+    
+    closeStreamSource();
+
+    nProxy.userClient.finish();
+    finish();
+    pullLock.post();
+    pullLock.close();
+    pullLock.unlink();
+    DEBUG_MSG(DLVL_DEVEL, "Pull input for stream %s closing clean", streamName.c_str());
+    return;
   }
 
   void Input::finish(){

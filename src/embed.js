@@ -236,7 +236,7 @@ function mistembed(streamname) {
     container = document.createElement('div'),
     forceType = false,
     forceSupportCheck = false,
-    autoplay = false,
+    autoplay = true,
     urlappend = false;
   
   if (me.parentNode.hasAttribute('data-forcetype')) {
@@ -245,8 +245,8 @@ function mistembed(streamname) {
   if (me.parentNode.hasAttribute('data-forcesupportcheck')) {
     forceSupportCheck = true;
   }
-  if (me.parentNode.hasAttribute('data-autoplay')) {
-    autoplay = true;
+  if (me.parentNode.hasAttribute('data-noautoplay')) {
+    autoplay = false;
   }
   if (me.parentNode.hasAttribute('data-urlappend')) {
     urlappend = me.parentNode.getAttribute('data-urlappend');

@@ -3693,7 +3693,7 @@ var UI = {
             ['STREAM_TRACK_REMOVE', 'STREAM_TRACK_REMOVE: right before a track will be removed track from a stream; e.g.: push timeout'],
             ['STREAM_BUFFER', 'STREAM_BUFFER: when a buffer changes between mostly full or mostly empty'],
             ['RTMP_PUSH_REWRITE', 'RTMP_PUSH_REWRITE: allows rewriting of RTMP push URLs from external to internal representation before further parsing'],
-            ['PUSH_OUT_START', 'RECORDING_VALIDATE: before recording/pushing, allow target changes.'],
+            ['PUSH_OUT_START', 'PUSH_OUT_START: before recording/pushing, allow target changes.'],
             ['CONN_OPEN', 'CONN_OPEN: right after a new incoming connection has been received'],
             ['CONN_CLOSE', 'CONN_CLOSE: right after a connection has been closed'],
             ['CONN_PLAY', 'CONN_PLAY: right before a stream playback of a connection'],

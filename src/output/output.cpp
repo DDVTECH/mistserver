@@ -142,7 +142,7 @@ namespace Mist {
   void Output::reconnect(){
     thisPacket.null();
     if (!Util::startInput(streamName)){
-      FAIL_MSG("Opening stream %s failed - aborting initalization", streamName.c_str());
+      FAIL_MSG("Opening stream %s failed - aborting initialization", streamName.c_str());
       onFail();
       return;
     }

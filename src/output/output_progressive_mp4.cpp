@@ -45,6 +45,7 @@ namespace Mist {
   ///\todo This function does not indicate errors anywhere... maybe fix this...
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size, int fragmented) {
     if (myMeta.live){
+      realTime = 0;
       completeKeysOnly = true;
     }
     //Make sure we have a proper being value for the size...
@@ -503,12 +504,12 @@ namespace Mist {
     }
   }
 
-  void OutProgressiveMP4::sendFragmentHeader(int fragNum) {
+  void OutProgressiveMP4::sendFragmentHeader() {
     long unsigned int dataOffset = 0;
     uint64_t mdatSize = 8;
     MP4::MOOF moofBox;
     MP4::MFHD mfhdBox;
-    mfhdBox.setSequenceNumber(fragNum);
+    mfhdBox.setSequenceNumber(fragSeqNum);
     moofBox.setContent(mfhdBox, 0);
     unsigned int moofIndex = 1;
     std::vector<keyPart> trunOrderWithOffset;
@@ -764,19 +765,24 @@ namespace Mist {
 ///using the fragment number **FOR THIS USER, NOT ACTUAL FRAGMENT NUMBER, HAS NOTHING TO DO WITH ACTUAL FRAGMENTS EVEN**
 ///We take the corresponding keyframe and interframes of the main video track and take concurrent frames from its secondary (audio) tracks
 ///\todo See if we can use something more elegant than a member variable...
-  void OutProgressiveMP4::buildFragment(int fragNum) {
+  void OutProgressiveMP4::buildFragment() {
     currentPartSet.clear();
     DTSC::Track & mainTrack = myMeta.tracks[vidTrack];
 
-    long int keyIndex = fragNum + fragKeyNumberShift - (mainTrack.keys.begin()->getNumber() - 1); //here we set the index of the video keyframe we are going to make a fragment of
+
+    long int keyIndex = fragSeqNum + fragKeyNumberShift - (mainTrack.keys.begin()->getNumber() - 1); //here we set the index of the video keyframe we are going to make a fragment of
+
 
     if (keyIndex < 0 || keyIndex >= mainTrack.keys.size()) {//if the fragnum is not in the keys
-      FAIL_MSG("Fragment Number %d not available. KeyShift: %ld FirstKeyNumber: %lu, Calculated KeyIndex: %ld, KeysInMeta: %lu", fragNum, fragKeyNumberShift, mainTrack.keys.begin()->getNumber(), keyIndex, mainTrack.keys.size());
-      INSANE_MSG("Current Time: %llu, Current TrackID: %ld", thisPacket.getTime(), thisPacket.getTrackId());
-      INSANE_MSG("Rbegin Number: %lu, Rbegin Time %llu, rBegin Length %lu", mainTrack.keys.rbegin()->getNumber(), mainTrack.keys.rbegin()->getTime(), mainTrack.keys.rbegin()->getLength());
-    } else {
-      INSANE_MSG("Fragment Number %d OK. KeyShift: %ld FirstKeyNumber: %lu, Calculated KeyIndex: %ld, KeysInMeta: %lu", fragNum, fragKeyNumberShift, mainTrack.keys.begin()->getNumber(), keyIndex, mainTrack.keys.size());
+      if (keyIndex < 0){
+        WARN_MSG("Connection went out of buffer. Closing.");
+        myConn.close();
+      }else{
+        FAIL_MSG("Too far ahead - this should be impossible.");
+      }
+      return;
     }
+    
 
     long long int startms = mainTrack.keys[keyIndex].getTime();
     long long int endms;// = startms;
@@ -823,22 +829,18 @@ namespace Mist {
   }
 
   void OutProgressiveMP4::buildTrafPart() {
-    updateMeta();//we need to update meta
     //building set first
-    buildFragment(fragSeqNum);//map with metadata for keyframe
-    if (currentPartSet.size()) {
-      sendFragmentHeader(fragSeqNum++);
-      partListSent = 0;
-      //convert map to list here, apologies for inefficiency, but this works best
-      //partList = x1 * track y1 + x2 * track y2 * etc.
-      partListLength = 0;
-      //std::stringstream temp;
-      for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
-        partListLength += it->second.lastPart - it->second.firstPart + 1;
-      }
-    } else {
-      WARN_MSG("Warning: partMap should not be empty, but it is! Possibly source stopped streaming");
-      myConn.close();
+    buildFragment();//map with metadata for keyframe
+    if (!currentPartSet.size()){return;}//we're seeking, send nothing
+    sendFragmentHeader();
+    ++fragSeqNum;
+    partListSent = 0;
+    //convert map to list here, apologies for inefficiency, but this works best
+    //partList = x1 * track y1 + x2 * track y2 * etc.
+    partListLength = 0;
+    //std::stringstream temp;
+    for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
+      partListLength += it->second.lastPart - it->second.firstPart + 1;
     }
   }
 
@@ -855,6 +857,7 @@ namespace Mist {
       if (!partListLength || partListSent >= partListLength) {
         buildTrafPart();
       }
+      if (!partListLength){return;}//we're seeking, do not send anything./
       //generate content in mdat, meaning: send right parts
       DONTEVEN_MSG("Sending tid: %ld size: %u", thisPacket.getTrackId() , len);
       myConn.SendNow(dataPointer, len);
@@ -868,7 +871,6 @@ namespace Mist {
       if (thisPacket.getTime() > sortSet.begin()->time || (unsigned long)thisPacket.getTrackId() > sortSet.begin()->trackID) {
         if (perfect) {
           DEBUG_MSG(DLVL_WARN, "Warning: input is inconsistent. Expected %lu:%llu but got %ld:%llu - cancelling playback", sortSet.begin()->trackID, sortSet.begin()->time, thisPacket.getTrackId(), thisPacket.getTime());
-          INFO_MSG("myMeta live: %d", myMeta.live);
           perfect = false;
           myConn.close();
         }

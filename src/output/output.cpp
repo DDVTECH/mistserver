@@ -961,6 +961,7 @@ namespace Mist {
               while(!completeKeyReady && timeoutTries>0){
                 completeKeyReady = true;
                 for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+                  if (myMeta.tracks[*it].type == "audio"){continue;}
                   if (!myMeta.tracks[*it].keys.size() || myMeta.tracks[*it].keys.rbegin()->getTime() + myMeta.tracks[*it].keys.rbegin()->getLength() <= thisPacket.getTime() ){
                     completeKeyReady = false;
                     break;

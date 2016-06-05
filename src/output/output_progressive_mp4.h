@@ -43,8 +43,8 @@ namespace Mist {
       void parseRange(std::string header, long long & byteStart, long long & byteEnd, long long & seekPoint, unsigned int headerSize);
       std::string DTSCMeta2MP4Header(long long & size, int fragmented = 0);
       //int fragmented values: 0 = non fragmented stream, 1 = frag stream main header
-      void buildFragment(int fragNum);//this builds the structure of the fragment header for fragment number fragNum, and stores it in a member variable
-      void sendFragmentHeader(int fragNum);//this builds the moof box for fragmented MP4
+      void buildFragment();//this builds the structure of the fragment header and stores it in a member variable
+      void sendFragmentHeader();//this builds the moof box for fragmented MP4
       void findSeekPoint(long long byteStart, long long & seekPoint, unsigned int headerSize);
       void onHTTP();
       void sendNext();

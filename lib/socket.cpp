@@ -423,12 +423,12 @@ unsigned int Socket::Connection::connTime() {
 }
 
 /// Returns total amount of bytes sent.
-unsigned int Socket::Connection::dataUp() {
+uint64_t Socket::Connection::dataUp() {
   return up;
 }
 
 /// Returns total amount of bytes received.
-unsigned int Socket::Connection::dataDown() {
+uint64_t Socket::Connection::dataDown() {
   return down;
 }
 

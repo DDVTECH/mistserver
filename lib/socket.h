@@ -49,8 +49,8 @@ namespace Socket {
       int sock; ///< Internally saved socket number.
       int pipes[2]; ///< Internally saved file descriptors for pipe socket simulation.
       std::string remotehost; ///< Stores remote host address.
-      unsigned int up;
-      unsigned int down;
+      uint64_t up;
+      uint64_t down;
       long long int conntime;
       Buffer downbuffer; ///< Stores temporary data coming in.
       int iread(void * buffer, int len, int flags = 0); ///< Incremental read call.
@@ -88,8 +88,8 @@ namespace Socket {
       void SendNow(const char * data, size_t len); ///< Will not buffer anything but always send right away. Blocks.
       //stats related methods
       unsigned int connTime();///< Returns the time this socket has been connected.
-      unsigned int dataUp(); ///< Returns total amount of bytes sent.
-      unsigned int dataDown(); ///< Returns total amount of bytes received.
+      uint64_t dataUp(); ///< Returns total amount of bytes sent.
+      uint64_t dataDown(); ///< Returns total amount of bytes received.
       std::string getStats(std::string C); ///< Returns a std::string of stats, ended by a newline.
       friend class Server;
       bool Error; ///< Set to true if a socket error happened.

@@ -158,14 +158,7 @@ namespace Mist {
     if (isPushing){
       return true;
     }
-    if (myMeta.tracks.size()){
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.keys.size() >= 2){
-          return true;
-        }
-      }
-    }
-    return false;
+    return Output::isReadyForPlay();
   }
 
   std::string OutRTMP::getStatsName(){

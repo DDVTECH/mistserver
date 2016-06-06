@@ -112,7 +112,6 @@ namespace Mist {
       onFail();
       return;
     }
-    selectDefaultTracks();
     sought = false;
   }
 
@@ -126,11 +125,16 @@ namespace Mist {
  
   bool Output::isReadyForPlay() {
     if (myMeta.tracks.size()){
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.keys.size() >= 2){
-          return true;
-        }
+      if (!selectedTracks.size()){
+        selectDefaultTracks();
       }
+      if (myMeta.tracks[getMainSelectedTrack()].keys.size() >= 2){
+        return true;
+      }else{
+        HIGH_MSG("NOT READY YET (%lu tracks, %lu = %lu keys)", myMeta.tracks.size(), getMainSelectedTrack(), myMeta.tracks[getMainSelectedTrack()].keys.size());
+      }
+    }else{
+      HIGH_MSG("NOT READY YET (%lu tracks)", myMeta.tracks.size());
     }
     return false;
   }
@@ -167,10 +171,11 @@ namespace Mist {
     }
     stats(true);
     updateMeta();
-    if (myMeta.live && !isReadyForPlay()){
+    selectDefaultTracks();
+    if (!myMeta.vod && !isReadyForPlay()){
       unsigned long long waitUntil = Util::epoch() + 15;
-      while (!isReadyForPlay()){
-        if (Util::epoch() > waitUntil){
+      while (!myMeta.vod && !isReadyForPlay()){
+        if (Util::epoch() > waitUntil + 45 || (!selectedTracks.size() && Util::epoch() > waitUntil)){
           INFO_MSG("Giving up waiting for playable tracks. Stream: %s, IP: %s", streamName.c_str(), getConnectedHost().c_str());
           break;
         }

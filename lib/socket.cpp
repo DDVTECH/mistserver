@@ -518,6 +518,7 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len) {
     }
   }
   if (r == 0 && (sock >= 0)) {
+    DONTEVEN_MSG("Socket closed by remote");
     close();
   }
   up += r;
@@ -560,6 +561,7 @@ int Socket::Connection::iread(void * buffer, int len, int flags) {
     }
   }
   if (r == 0) {
+    DONTEVEN_MSG("Socket closed by remote");
     close();
   }
   down += r;

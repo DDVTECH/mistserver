@@ -40,7 +40,7 @@ namespace Mist {
           streamOut = streamName;
         }
       }
-
+      initialize();
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(), host.c_str(), port, app.c_str(), streamOut.c_str());
       myConn = Socket::Connection(host, port, false);
       if (!myConn){

@@ -472,10 +472,25 @@ namespace Mist {
     //If the track is declined, stop here
     if (trackState[tid] == FILL_DEC) {
       INFO_MSG("Track %lu Declined", tid);
+      preBuffer[tid].clear();
       return;
     }
+    //Not accepted yet? Buffer.
+    if (trackState[tid] != FILL_ACC) {
+      preBuffer[tid].push_back(packet);
+    }else{
+      while (preBuffer[tid].size()){
+        bufferSinglePacket(preBuffer[tid].front(), myMeta);
+        preBuffer[tid].pop_front();
+      }
+      bufferSinglePacket(packet, myMeta);
+    }
+  }
+
+  void negotiationProxy::bufferSinglePacket(DTSC::Packet & packet, DTSC::Meta & myMeta){
+    //Store the trackid for easier access
+    unsigned long tid = packet.getTrackId();
     //This update needs to happen whether the track is accepted or not.
-    ///\todo Figure out how to act with declined track here
     bool isKeyframe = false;
     if (myMeta.tracks[tid].type == "video") {
       if (packet.hasMember("keyframe") && packet.getFlag("keyframe")) {
@@ -524,10 +539,6 @@ namespace Mist {
     }
     //If we have no pages by track, we have not received a starting keyframe yet. Drop this packet.
     if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0){
-      return;
-    }
-    //At this point we can stop parsing when the track is not accepted
-    if (trackState[tid] != FILL_ACC) {
       return;
     }
 

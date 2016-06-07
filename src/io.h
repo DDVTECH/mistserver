@@ -34,6 +34,7 @@ namespace Mist {
       void bufferNext(DTSC::Packet & pack, DTSC::Meta & myMeta);
       void bufferFinalize(unsigned long tid, DTSC::Meta &myMeta);
       void bufferLivePacket(DTSC::Packet & packet, DTSC::Meta & myMeta);
+      void bufferSinglePacket(DTSC::Packet & packet, DTSC::Meta & myMeta);
       bool isBuffered(unsigned long tid, unsigned long keyNum);
       unsigned long bufferedOnPage(unsigned long tid, unsigned long keyNum);
 
@@ -49,6 +50,7 @@ namespace Mist {
       std::map<unsigned long, IPC::sharedPage> metaPages;///< For each track, holds the page that describes which dataPages are mapped
       std::map<unsigned long, unsigned long> curPageNum;///< For each track, holds the number page that is currently being written.
       std::map<unsigned long, IPC::sharedPage> curPage;///< For each track, holds the page that is currently being written.
+      std::map<unsigned long, std::deque<DTSC::Packet> > preBuffer;///< For each track, holds to-be-buffered packets.
 
       IPC::sharedClient userClient;///< Shared memory used for connection to Mixer process.
 

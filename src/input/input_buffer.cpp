@@ -305,9 +305,12 @@ namespace Mist {
   }
 
   bool inputBuffer::removeKey(unsigned int tid) {
-    if ((myMeta.tracks[tid].keys.size() < 2 || myMeta.tracks[tid].fragments.size() < 2) && config->is_active) {
+    //Make sure we have at least 3 whole fragments at all times,
+    //unless we're shutting down the whole buffer right now
+    if (myMeta.tracks[tid].fragments.size() < 5 && config->is_active) {
       return false;
     }
+    //If we're shutting down, and this track is empty, abort
     if (!myMeta.tracks[tid].keys.size()) {
       return false;
     }

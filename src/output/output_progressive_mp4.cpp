@@ -32,6 +32,46 @@ namespace Mist {
     //capa["canRecord"].append("m3u");
   }
 
+  /// Same as default implementation, except it will never play the very last keyframe
+  /// unless that is the only keyframe available.
+  void OutProgressiveMP4::initialSeek(){
+    unsigned long long seekPos = 0;
+    if (myMeta.live){
+      long unsigned int mainTrack = getMainSelectedTrack();
+      //cancel if there are no keys in the main track
+      if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){return;}
+      //seek to the newest keyframe, unless that is <5s, then seek to the oldest keyframe
+      bool first = true;
+      for (std::deque<DTSC::Key>::reverse_iterator it = myMeta.tracks[mainTrack].keys.rbegin(); it != myMeta.tracks[mainTrack].keys.rend(); ++it){
+        seekPos = it->getTime();
+        if (first){
+          first = false;
+          continue;
+        }
+        if (seekPos < 5000){continue;}//if we're near the start, skip back
+        bool good = true;
+        //check if all tracks have data for this point in time
+        for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
+          if (mainTrack == *ti){continue;}//skip self
+          if (!myMeta.tracks.count(*ti)){
+            HIGH_MSG("Skipping track %lu, not in tracks", *ti);
+            continue;
+          }//ignore missing tracks
+          if (myMeta.tracks[*ti].lastms == myMeta.tracks[*ti].firstms){
+            HIGH_MSG("Skipping track %lu, last equals first", *ti);
+            continue;
+          }//ignore point-tracks
+          if (myMeta.tracks[*ti].lastms < seekPos){good = false; break;}
+          HIGH_MSG("Track %lu is good", *ti);
+        }
+        //if yes, seek here
+        if (good){break;}
+      }
+    }
+    MEDIUM_MSG("Initial seek to %llums", seekPos);
+    seek(seekPos);
+  }
+
   long long unsigned OutProgressiveMP4::estimateFileSize() {
     long long unsigned retVal = 0;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {

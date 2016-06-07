@@ -49,6 +49,7 @@ namespace Mist {
       void onHTTP();
       void sendNext();
       void sendHeader();
+      void initialSeek();
     protected:
       long long fileSize;
       long long byteStart;

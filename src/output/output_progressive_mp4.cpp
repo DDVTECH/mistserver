@@ -509,7 +509,7 @@ namespace Mist {
     uint64_t mdatSize = 8;
     MP4::MOOF moofBox;
     MP4::MFHD mfhdBox;
-    mfhdBox.setSequenceNumber(fragSeqNum);
+    mfhdBox.setSequenceNumber(fragSeqNum++);
     moofBox.setContent(mfhdBox, 0);
     unsigned int moofIndex = 1;
     std::vector<keyPart> trunOrderWithOffset;
@@ -662,22 +662,6 @@ namespace Mist {
       fragSeqNum = 0;
       partListSent = 0;
       partListLength = 0;
-      //seek to first video keyframe here
-      setvidTrack();
-      //making sure we have a first keyframe
-      if (!vidTrack || !myMeta.tracks[vidTrack].keys.size() || !myMeta.tracks[vidTrack].keys.begin()->getLength()) {
-        WARN_MSG("Stream not ready yet");
-        myConn.close();
-        parseData = false;
-        return;
-      }
-      std::deque<DTSC::Key>::reverse_iterator fromHere = myMeta.tracks[vidTrack].keys.rbegin();
-      if (myMeta.tracks[vidTrack].keys.size() > 1) {
-        fromHere++;
-      }
-      ///\todo Note: Not necessary, but we might want to think of a method that does not use seeking
-      seekPoint = fromHere->getTime();
-      fragKeyNumberShift = fromHere->getNumber() - 1;
     }
     byteStart = 0;
     byteEnd = fileSize - 1;
@@ -747,50 +731,16 @@ namespace Mist {
     currPos += headerData.size();//we're now guaranteed to be past the header point, no matter what
   }
 
-  void OutProgressiveMP4::setvidTrack() {
-    vidTrack = 0;
-    if (!selectedTracks.size()){
-      selectDefaultTracks();
-    }
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
-      //Find video track
-      if (myMeta.tracks[*it].type == "video") {
-        vidTrack = *it;
-        break;
-      }
-    }
-  }
-
 ///Builds up a datastructure that allows for access in the fragment send header function
 ///using the fragment number **FOR THIS USER, NOT ACTUAL FRAGMENT NUMBER, HAS NOTHING TO DO WITH ACTUAL FRAGMENTS EVEN**
 ///We take the corresponding keyframe and interframes of the main video track and take concurrent frames from its secondary (audio) tracks
 ///\todo See if we can use something more elegant than a member variable...
   void OutProgressiveMP4::buildFragment() {
     currentPartSet.clear();
-    DTSC::Track & mainTrack = myMeta.tracks[vidTrack];
+    DTSC::Key & currKey = myMeta.tracks[vidTrack].getKey(getKeyForTime(vidTrack, thisPacket.getTime()));
+    long long int startms = currKey.getTime();
+    long long int endms = startms + currKey.getLength();
 
-
-    long int keyIndex = fragSeqNum + fragKeyNumberShift - (mainTrack.keys.begin()->getNumber() - 1); //here we set the index of the video keyframe we are going to make a fragment of
-
-
-    if (keyIndex < 0 || keyIndex >= mainTrack.keys.size()) {//if the fragnum is not in the keys
-      if (keyIndex < 0){
-        WARN_MSG("Connection went out of buffer. Closing.");
-        myConn.close();
-      }else{
-        FAIL_MSG("Too far ahead - this should be impossible.");
-      }
-      return;
-    }
-    
-
-    long long int startms = mainTrack.keys[keyIndex].getTime();
-    long long int endms;// = startms;
-    if (mainTrack.keys.size() > keyIndex + 1) {
-      endms = mainTrack.keys[keyIndex + 1].getTime();
-    } else {
-      endms = mainTrack.lastms;
-    }
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       DTSC::Track & thisTrack = myMeta.tracks[*it];
       fragSet thisRange;
@@ -833,7 +783,6 @@ namespace Mist {
     buildFragment();//map with metadata for keyframe
     if (!currentPartSet.size()){return;}//we're seeking, send nothing
     sendFragmentHeader();
-    ++fragSeqNum;
     partListSent = 0;
     //convert map to list here, apologies for inefficiency, but this works best
     //partList = x1 * track y1 + x2 * track y2 * etc.
@@ -917,9 +866,10 @@ namespace Mist {
   }
 
   void OutProgressiveMP4::sendHeader() {
-    seek(seekPoint);
     if (myMeta.live) {
-      setvidTrack();
+      vidTrack = getMainSelectedTrack();
+    }else{
+      seek(seekPoint);
     }
     sentHeader = true;
   }

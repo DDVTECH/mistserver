@@ -62,7 +62,6 @@ namespace Mist {
 
       //functions for fragmented MP4
       void buildTrafPart();
-      void setvidTrack();//searching for the current vid track
 
       //variables for fragmented
       int fragSeqNum;//the sequence number of the next keyframe/fragment when producing fragmented MP4's

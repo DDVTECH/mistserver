@@ -215,7 +215,8 @@ namespace Mist {
       if (!selectedTracks.size()){
         selectDefaultTracks();
       }
-      if (myMeta.tracks[getMainSelectedTrack()].keys.size() >= 2){
+      unsigned int mainTrack = getMainSelectedTrack();
+      if (mainTrack && myMeta.tracks.count(mainTrack) && myMeta.tracks[mainTrack].keys.size() >= 2){
         return true;
       }else{
         HIGH_MSG("NOT READY YET (%lu tracks, %lu = %lu keys)", myMeta.tracks.size(), getMainSelectedTrack(), myMeta.tracks[getMainSelectedTrack()].keys.size());
@@ -560,6 +561,7 @@ namespace Mist {
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
     if (myMeta.tracks[tid].lastms < pos){
       INFO_MSG("Aborting seek to %llums in track %u: past end of track (= %llums).", pos, tid, myMeta.tracks[tid].lastms);
+      selectedTracks.erase(tid);
       return false;
     }
     unsigned int keyNum = getKeyForTime(tid, pos);
@@ -572,6 +574,7 @@ namespace Mist {
     loadPageForKey(tid, keyNum + (getNextKey?1:0));
     if (!nProxy.curPage.count(tid) || !nProxy.curPage[tid].mapped){
       INFO_MSG("Aborting seek to %llums in track %u: not available.", pos, tid);
+      selectedTracks.erase(tid);
       return false;
     }
     sortedPageInfo tmp;
@@ -606,6 +609,7 @@ namespace Mist {
           return seek(tid, pos, getNextKey);
         }
       }
+      selectedTracks.erase(tid);
       return false;
     }
   }
@@ -875,6 +879,44 @@ namespace Mist {
     return code;
   }
   /*LTS-END*/
+
+  /// This function decides where in the stream initial playback starts.
+  /// The default implementation calls seek(0) for VoD.
+  /// For live, it seeks to the last sync'ed keyframe of the main track.
+  /// Unless lastms < 5000, then it seeks to the first keyframe of the main track.
+  /// Aborts if there is no main track or it has no keyframes.
+  void Output::initialSeek(){
+    unsigned long long seekPos = 0;
+    if (myMeta.live){
+      long unsigned int mainTrack = getMainSelectedTrack();
+      //cancel if there are no keys in the main track
+      if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){return;}
+      //seek to the newest keyframe, unless that is <5s, then seek to the oldest keyframe
+      for (std::deque<DTSC::Key>::reverse_iterator it = myMeta.tracks[mainTrack].keys.rbegin(); it != myMeta.tracks[mainTrack].keys.rend(); ++it){
+        seekPos = it->getTime();
+        if (seekPos < 5000){continue;}//if we're near the start, skip back
+        bool good = true;
+        //check if all tracks have data for this point in time
+        for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
+          if (mainTrack == *ti){continue;}//skip self
+          if (!myMeta.tracks.count(*ti)){
+            HIGH_MSG("Skipping track %lu, not in tracks", *ti);
+            continue;
+          }//ignore missing tracks
+          if (myMeta.tracks[*ti].lastms == myMeta.tracks[*ti].firstms){
+            HIGH_MSG("Skipping track %lu, last equals first", *ti);
+            continue;
+          }//ignore point-tracks
+          if (myMeta.tracks[*ti].lastms < seekPos){good = false; break;}
+          HIGH_MSG("Track %lu is good", *ti);
+        }
+        //if yes, seek here
+        if (good){break;}
+      }
+    }
+    MEDIUM_MSG("Initial seek to %llums", seekPos);
+    seek(seekPos);
+  }
   
   void Output::requestHandler(){
     static bool firstData = true;//only the first time, we call onRequest if there's data buffered already.
@@ -927,19 +969,7 @@ namespace Mist {
           sendHeader();
         }
         if (!sought){
-          if (myMeta.live){
-            long unsigned int mainTrack = getMainSelectedTrack();
-            //cancel if there are no keys in the main track
-            if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){break;}
-            //seek to the newest keyframe, unless that is <5s, then seek to the oldest keyframe
-            unsigned long long seekPos = myMeta.tracks[mainTrack].keys.rbegin()->getTime();
-            if (seekPos < 5000){
-              seekPos = myMeta.tracks[mainTrack].keys.begin()->getTime();
-            }
-            seek(seekPos);
-          }else{
-            seek(0);
-          }
+          initialSeek();
         }
         if (prepareNext()){
           if (thisPacket){
@@ -963,13 +993,19 @@ namespace Mist {
                   if (thisTimeoutTries > timeoutTries) timeoutTries = thisTimeoutTries;
                 }
               }
+              unsigned int mTrack = getMainSelectedTrack();
               while(!completeKeyReady && timeoutTries>0){
-                completeKeyReady = true;
-                for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-                  if (myMeta.tracks[*it].type == "audio"){continue;}
-                  if (!myMeta.tracks[*it].keys.size() || myMeta.tracks[*it].keys.rbegin()->getTime() + myMeta.tracks[*it].keys.rbegin()->getLength() <= thisPacket.getTime() ){
-                    completeKeyReady = false;
-                    break;
+                if (!myMeta.tracks[mTrack].keys.size() || myMeta.tracks[mTrack].keys.rbegin()->getTime() <= thisPacket.getTime()){
+                  completeKeyReady = false;
+                }else{
+                  DTSC::Key & mustHaveKey = myMeta.tracks[mTrack].getKey(getKeyForTime(mTrack, thisPacket.getTime()));
+                  unsigned long long mustHaveTime = mustHaveKey.getTime() + mustHaveKey.getLength(); 
+                  completeKeyReady = true;
+                  for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+                    if (myMeta.tracks[*it].lastms < mustHaveTime){
+                      completeKeyReady = false;
+                      break;
+                    }
                   }
                 }
                 if (!completeKeyReady){

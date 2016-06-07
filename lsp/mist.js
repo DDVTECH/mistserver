@@ -1967,6 +1967,7 @@ var UI = {
                 $('<button>').text('Update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
                   if (confirm('Are you sure you want to execute a rolling update?')) {
                     mist.send(function(d){
+                      mist.stored.del('update');
                       UI.navto('Overview');
                     },{autoupdate: true});
                   }
@@ -1975,7 +1976,7 @@ var UI = {
             }
           }
           
-          if ((!mist.stored.get().update) || ((new Date()).getTime()-mist.stored.get().update.lastchecked > 24*3600e3)) {
+          if ((!mist.stored.get().update) || ((new Date()).getTime()-mist.stored.get().update.lastchecked > 3600e3)) {
             var update = mist.stored.get().update || {};
             update.lastchecked = (new Date()).getTime();
             mist.send(function(d){

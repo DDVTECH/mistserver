@@ -77,7 +77,7 @@ namespace Mist {
       if (!myMeta.vod){
         static char liveSemName[NAME_BUFFER_SIZE];
         snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-        liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 1);
+        liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 1, !myMeta.live);
         if (*liveSem){
           liveSem->wait();
         }else{

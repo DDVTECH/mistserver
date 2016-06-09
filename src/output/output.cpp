@@ -1300,7 +1300,7 @@ namespace Mist {
     if (now == lastStats && !force){return;}
     lastStats = now;
 
-    EXTREME_MSG("Writing stats: %s, %s, %lu", getConnectedHost().c_str(), streamName.c_str(), crc & 0xFFFFFFFFu);
+    HIGH_MSG("Writing stats: %s, %s, %lu, %llu, %llu", getConnectedHost().c_str(), streamName.c_str(), crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
     if (statsPage.getData()){
       /*LTS-START*/
       if (!statsPage.isAlive()){

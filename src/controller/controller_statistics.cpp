@@ -274,8 +274,12 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
   }
   long long currDown = getDown();
   long long currUp = getUp();
-  servUpBytes += currUp - prevUp;
-  servDownBytes += currDown - prevDown;
+  if (currUp - prevUp < 0 || currDown-prevDown < 0){
+    ERROR_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp-prevUp, currDown-prevDown, prevUp, currUp, data.streamName().c_str(), data.connector().c_str(), index);
+  }else{
+    servUpBytes += currUp - prevUp;
+    servDownBytes += currDown - prevDown;
+  }
   if (currDown + currUp > COUNTABLE_BYTES){
     std::string streamName = data.streamName();
     if (prevUp + prevDown < COUNTABLE_BYTES){

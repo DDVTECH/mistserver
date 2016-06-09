@@ -1105,6 +1105,7 @@ namespace IPC {
               if (hasCounter) {
                 myPage.mapped[offset] = 1;
                 *((uint32_t *)(myPage.mapped + 1 + offset + len - 4)) = getpid();
+                HIGH_MSG("sharedClient received ID %d", offsetOnPage/(payLen+1));
               }
               break;
             }
@@ -1127,8 +1128,6 @@ namespace IPC {
   ///\brief The deconstructor
   sharedClient::~sharedClient() {
     mySemaphore.close();
-
-
   }
 
   ///\brief Writes data to the shared data
@@ -1151,6 +1150,7 @@ namespace IPC {
     if (myPage.mapped) {
       semGuard tmpGuard(&mySemaphore);
       myPage.mapped[offsetOnPage] = 126;
+      HIGH_MSG("sharedClient finished ID %d", offsetOnPage/(payLen+1));
     }
   }
 

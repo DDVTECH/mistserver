@@ -226,6 +226,7 @@ namespace Mist {
     }
     return false;
   }
+
   /// Connects or reconnects to the stream.
   /// Assumes streamName class member has been set already.
   /// Will start input if not currently active, calls onFail() if this does not succeed.

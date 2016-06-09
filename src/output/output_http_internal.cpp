@@ -38,6 +38,11 @@ namespace Mist {
     }
     Output::onFail();
   }
+
+  /// We assume it's ready to play if there is at least one track available
+  bool OutHTTP::isReadyForPlay() {
+    return myMeta.tracks.size();
+  }
   
   void OutHTTP::init(Util::Config * cfg){
     HTTPOutput::init(cfg);

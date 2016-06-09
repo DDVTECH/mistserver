@@ -10,6 +10,7 @@ namespace Mist {
       static bool listenMode();
       virtual void onFail();
       void onHTTP();
+      bool isReadyForPlay();
   };
 }
 

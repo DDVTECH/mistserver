@@ -90,6 +90,7 @@ namespace Socket {
       unsigned int connTime();///< Returns the time this socket has been connected.
       uint64_t dataUp(); ///< Returns total amount of bytes sent.
       uint64_t dataDown(); ///< Returns total amount of bytes received.
+      void resetCounter(); ///< Resets the up/down bytes counter to zero.
       std::string getStats(std::string C); ///< Returns a std::string of stats, ended by a newline.
       friend class Server;
       bool Error; ///< Set to true if a socket error happened.

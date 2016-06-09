@@ -209,6 +209,12 @@ Socket::Connection::Connection() {
   Blocking = false;
 } //Socket::Connection basic constructor
 
+
+void Socket::Connection::resetCounter(){
+  up = 0;
+  down = 0;
+}
+
 /// Internally used call to make an file descriptor blocking or not.
 void setFDBlocking(int FD, bool blocking) {
   int flags = fcntl(FD, F_GETFL, 0);

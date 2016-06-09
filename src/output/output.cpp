@@ -241,6 +241,7 @@ namespace Mist {
     }
     if (statsPage.getData()){
       statsPage.finish();
+      myConn.resetCounter();
     }
     statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
     if (nProxy.userClient.getData()){

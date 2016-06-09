@@ -640,11 +640,6 @@ long long Controller::statSession::getBpsUp(unsigned long long t){
   }
 }
 
-Controller::statStorage::statStorage(){
-  removeDown = 0;
-  removeUp = 0;
-}
-
 /// Returns true if there is data available for timestamp t.
 bool Controller::statStorage::hasDataFor(unsigned long long t) {
   if (!log.size()){return false;}
@@ -674,13 +669,8 @@ void Controller::statStorage::update(IPC::statExchange & data) {
   statLog tmp;
   tmp.time = data.time();
   tmp.lastSecond = data.lastSecond();
-  tmp.down = data.down() - removeDown;
-  tmp.up = data.up() - removeUp;
-  if (!log.size() && tmp.down + tmp.up > COUNTABLE_BYTES){
-    //substract the start values if they are too high - this is a resumed connection of some sort
-    removeDown = tmp.down;
-    removeUp = tmp.up;
-  }
+  tmp.down = data.down();
+  tmp.up = data.up();
   log[data.now()] = tmp;
   //wipe data older than approx. STAT_CUTOFF seconds
   /// \todo Remove least interesting data first.

@@ -62,11 +62,7 @@ namespace Controller {
   
   
   class statStorage {
-    private:
-      long long removeUp;
-      long long removeDown;
     public:
-      statStorage();
       void update(IPC::statExchange & data);
       bool hasDataFor(unsigned long long);
       statLog & getDataFor(unsigned long long);

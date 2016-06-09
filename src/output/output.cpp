@@ -560,20 +560,20 @@ namespace Mist {
 
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
     if (myMeta.tracks[tid].lastms < pos){
-      INFO_MSG("Aborting seek to %llums in track %u: past end of track (= %llums).", pos, tid, myMeta.tracks[tid].lastms);
+      WARN_MSG("Aborting seek to %llums in track %u: past end of track (= %llums).", pos, tid, myMeta.tracks[tid].lastms);
       selectedTracks.erase(tid);
       return false;
     }
     unsigned int keyNum = getKeyForTime(tid, pos);
     if (myMeta.tracks[tid].getKey(keyNum).getTime() > pos){
       if (myMeta.live){
-        INFO_MSG("Actually seeking to %d, for %d is not available any more", myMeta.tracks[tid].getKey(keyNum).getTime(), pos);
+        WARN_MSG("Actually seeking to %d, for %d is not available any more", myMeta.tracks[tid].getKey(keyNum).getTime(), pos);
         pos = myMeta.tracks[tid].getKey(keyNum).getTime();
       }
     }
     loadPageForKey(tid, keyNum + (getNextKey?1:0));
     if (!nProxy.curPage.count(tid) || !nProxy.curPage[tid].mapped){
-      INFO_MSG("Aborting seek to %llums in track %u: not available.", pos, tid);
+      WARN_MSG("Aborting seek to %llums in track %u: not available.", pos, tid);
       selectedTracks.erase(tid);
       return false;
     }
@@ -1098,6 +1098,39 @@ namespace Mist {
       INFO_MSG("Buffer completely played out");
       return true;
     }
+    //check if we have a next seek point for every track that is selected
+    if (buffer.size() != selectedTracks.size()){
+      std::set<uint32_t> dropTracks;
+      if (buffer.size() < selectedTracks.size()){
+        //prepare to drop any selectedTrack without buffe entry
+        for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+          bool found = false;
+          for (std::set<sortedPageInfo>::iterator bi = buffer.begin(); bi != buffer.end(); ++bi){
+            if (bi->tid == *it){
+              found = true;
+              break;
+            }
+          }
+          if (!found){
+            dropTracks.insert(*it);
+          }
+        }
+      }else{
+        //prepare to drop any buffer entry without selectedTrack
+        for (std::set<sortedPageInfo>::iterator bi = buffer.begin(); bi != buffer.end(); ++bi){
+          if (!selectedTracks.count(bi->tid)){
+            dropTracks.insert(bi->tid);
+          }
+        }
+      }
+      //actually drop what we found.
+      //if both of the above cases occur, the next prepareNext iteration will take care of that
+      for (std::set<uint32_t>::iterator it = dropTracks.begin(); it != dropTracks.end(); ++it){
+        dropTrack(*it, "seek/select mismatch", true);
+      }
+      return false;
+    }
+
     sortedPageInfo nxt = *(buffer.begin());
 
     if (!myMeta.tracks.count(nxt.tid)){

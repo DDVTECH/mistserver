@@ -58,6 +58,7 @@ namespace Mist {
       bool prepareNext();
       virtual void dropTrack(uint32_t trackId, std::string reason, bool probablyBad = true);
       virtual void onRequest();
+      virtual void initialSeek();
       virtual bool onFinish() {
         return false;
       }

@@ -129,7 +129,7 @@ namespace Mist {
         selectDefaultTracks();
       }
       unsigned int mainTrack = getMainSelectedTrack();
-      if (mainTrack && myMeta.tracks.count(mainTrack) && myMeta.tracks[mainTrack].keys.size() >= 2){
+      if (mainTrack && myMeta.tracks.count(mainTrack) && (myMeta.tracks[mainTrack].keys.size() >= 2 || myMeta.tracks[mainTrack].lastms - myMeta.tracks[mainTrack].firstms > 5000)){
         return true;
       }else{
         HIGH_MSG("NOT READY YET (%lu tracks, %lu = %lu keys)", myMeta.tracks.size(), getMainSelectedTrack(), myMeta.tracks[getMainSelectedTrack()].keys.size());

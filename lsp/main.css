@@ -745,6 +745,16 @@ body:not(.helpme) .input_container .ih_balloon {
   max-width: 28em;
   font-size: 0.5em;
 }
+.video_container {
+  max-width: 90%;
+  max-width: calc(100vw - 22em);
+  max-height: 90vh;
+  max-height: calc(100vh - 15em);
+  overflow: hidden;
+}
+video {
+  min-width: auto;
+}
   
 @font-face {
   font-family: FuturaICGLight;

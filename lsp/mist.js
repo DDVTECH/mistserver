@@ -2994,7 +2994,11 @@ var UI = {
         var $preview = $('<span>').hide();
         tabs['Preview'] = $preview;
         $main.append($preview);
-        var $video = $('<div>').css('float','left').css('margin-right','1em').attr('data-forcesupportcheck','');
+        var $video = $('<div>').css({
+          'float': 'left',
+          'margin-right': '1em',
+          'width': '100%'
+        }).attr('data-forcesupportcheck','');
         var $protocols = $('<div>').css('float','left');
         $preview.append($video).append($protocols);
         
@@ -3159,7 +3163,9 @@ var UI = {
             //meta information
             buildTrackinfo();
           };
-          $video.html('')[0].appendChild(script);
+          var $c = $('<div>').addClass('video_container')
+          $video.html($c);
+          $c[0].appendChild(script);
         }
         loadVideo();
         
@@ -4327,7 +4333,7 @@ var mist = {
     sendData = sendData || {};
     opts = opts || {};
     opts = $.extend(true,{
-      timeout: 30,
+      timeOut: 30e3,
       sendData: sendData
     },opts);
     var data = {

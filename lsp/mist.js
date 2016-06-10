@@ -307,7 +307,9 @@ var UI = {
         continue;
       }
       if (e.type == 'buttons') {
-        var $bc = $('<span>').addClass('button_container');
+        var $bc = $('<span>').addClass('button_container').on('keydown',function(e){
+          e.stopPropagation();
+        });
         if ('css' in e) {
           $bc.css(e.css);
         }
@@ -557,7 +559,9 @@ var UI = {
       if ('qrcode' in e) {
         $fc.append(
           $('<span>').addClass('unit').html(
-            $('<button>').text('QR').click(function(){
+            $('<button>').text('QR').on('keydown',function(e){
+            e.stopPropagation();
+          }).click(function(){
               var text = String($(this).closest('.field_container').find('.field').getval());
               var $qr = $('<div>').addClass('qrcode');
               UI.popup.show(
@@ -588,7 +592,9 @@ var UI = {
           $c.append($master);
           
           
-          var $browse_button = $('<button>').text('Browse');
+          var $browse_button = $('<button>').text('Browse').on('keydown',function(e){
+            e.stopPropagation();
+          });
           $fc.append($browse_button);
           $browse_button.click(function(){
             var $c = $(this).closest('.grouper');
@@ -597,7 +603,9 @@ var UI = {
             var $browse_button = $(this);
             
             var $path = $('<span>').addClass('field');
-            var $choose_folder = $('<button>').text('Select this folder')
+            var $choose_folder = $('<button>').text('Select this folder').on('keydown',function(e){
+              e.stopPropagation();
+            });
             var $folder_contents = $('<div>').addClass('browse_contents');
             var $folder = $('<a>').addClass('folder');
             var filetypes = $field.data('filetypes');

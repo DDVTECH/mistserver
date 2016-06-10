@@ -919,7 +919,7 @@ namespace Mist {
     MEDIUM_MSG("Initial seek to %llums", seekPos);
     seek(seekPos);
   }
-  
+
   void Output::requestHandler(){
     static bool firstData = true;//only the first time, we call onRequest if there's data buffered already.
     if ((firstData && myConn.Received().size()) || myConn.spool()){

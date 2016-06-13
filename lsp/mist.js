@@ -1974,8 +1974,9 @@ var UI = {
               $versioncheck.addClass('red').text('Version outdated!').append(
                 $('<button>').text('Update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
                   if (confirm('Are you sure you want to execute a rolling update?')) {
+                    $versioncheck.addClass('orange').removeClass('red').text('Rolling update command sent..');
+                    mist.stored.del('update');
                     mist.send(function(d){
-                      mist.stored.del('update');
                       UI.navto('Overview');
                     },{autoupdate: true});
                   }

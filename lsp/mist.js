@@ -224,6 +224,7 @@ var UI = {
       }
       else if (!('submenu' in button)) {
         $button.click(function(e){
+          if ($(this).closest('.menu').hasClass('hide')) { return; }
           UI.navto(j);
           e.stopPropagation();
         });
@@ -1681,7 +1682,7 @@ var UI = {
       return;
     }
     
-    var $currbut = UI.elements.menu.css('opacity','1').find('.button').filter(function(){
+    var $currbut = UI.elements.menu.removeClass('hide').find('.button').filter(function(){
       if ($(this).find('.plain').text() == tab) { return true; }
     });
     if ($currbut.length > 0) {
@@ -1702,7 +1703,7 @@ var UI = {
           UI.navto('Overview');
           return;
         }
-        UI.elements.menu.css('opacity','0');
+        UI.elements.menu.addClass('hide');
         UI.elements.connection.status.text('Disconnected').removeClass('green').addClass('red');
         $main.append(UI.buildUI([
           {
@@ -1748,7 +1749,7 @@ var UI = {
         ]));
         break;
       case 'Create a new account':
-        UI.elements.menu.css('visibility','hidden');
+        UI.elements.menu.addClass('hide');
         $main.append(
           $('<p>').text('No account has been created yet in the MistServer at ').append(
             $('<i>').text(mist.user.host)
@@ -1824,7 +1825,7 @@ var UI = {
           }]));
         break;
       case 'Account created':
-        UI.elements.menu.css('visibility','hidden');
+        UI.elements.menu.addClass('hide');;
         $main.append(
           $('<p>').text('Your account has been created succesfully.')
         ).append(UI.buildUI([
@@ -2999,22 +3000,25 @@ var UI = {
           'float': 'left',
           'margin-right': '1em',
           'width': '100%'
-        }).attr('data-forcesupportcheck','');
+        });
+        var $c = $('<div>').addClass('video_container').attr('data-forcesupportcheck','');
+        $video.html($c);
         var $protocols = $('<div>').css('float','left');
         $preview.append($video).append($protocols);
         
         if (!mist.stored.get().autoplay) {
-          $video.attr('data-noautoplay','');
+          $c.attr('data-noautoplay','');
         }
         
         function loadVideo() {
-          $video.text('Loading..');
+          $c.text('Loading..');
+          $video.children('.input_container').remove();
           
           // jQuery doesn't work -> use DOM magic
           var script = document.createElement('script');
           script.src = embedbase+'embed_'+other+'.js';
           script.onerror = function(){
-            $video.html('Error loading "'+script.src+'".<br>').append(
+            $c.html('Error loading "'+script.src+'".<br>').append(
               $('<button>').text('Try again').click(function(){
                 loadVideo();
               })
@@ -3022,7 +3026,7 @@ var UI = {
           };
           script.onload = function(){
             if (typeof mistvideo[other].error != 'undefined') {
-              $video.html(mistvideo[other].error+'<br>').append(
+              $c.html(mistvideo[other].error+'<br>').append(
                 $('<button>').text('Try again').click(function(){
                   loadVideo();
                 })
@@ -3139,7 +3143,7 @@ var UI = {
               $tr.html(
                 $('<td>').html(
                   $('<input>').attr('type','radio').attr('name','protocolforce').change(function(){
-                    $video.attr('data-forcetype',$(this).val()).html('Loading embed..');
+                    $c.attr('data-forcetype',$(this).val()).html('Loading embed..');
                     loadVideo();
                   }).val(source.type)
                 )
@@ -3164,9 +3168,7 @@ var UI = {
             //meta information
             buildTrackinfo();
           };
-          var $c = $('<div>').addClass('video_container')
-          $video.html($c);
-          $c[0].appendChild(script);
+          $c.html('')[0].appendChild(script);
         }
         loadVideo();
         

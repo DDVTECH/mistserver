@@ -141,8 +141,8 @@ function mistembed(streamname) {
     var ratio;
 
     // get the container's width/height
-    var containerwidth = parseInt(container.scrollWidth, 10);
-    var containerheight = parseInt(container.scrollHeight, 10);
+    var containerwidth = parseInt(container.clientWidth, 10);
+    var containerheight = parseInt(container.clientHeight, 10);
 
     if(videowidth > containerwidth && containerwidth > 0) {
       ratio = videowidth / containerwidth;

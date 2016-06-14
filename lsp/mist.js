@@ -3026,7 +3026,7 @@ var UI = {
           };
           script.onload = function(){
             if (typeof mistvideo[other].error != 'undefined') {
-              $c.html(mistvideo[other].error+'<br>').append(
+              $c.height('5em').html(mistvideo[other].error+'<br>').append(
                 $('<button>').text('Try again').click(function(){
                   loadVideo();
                 })
@@ -3049,6 +3049,7 @@ var UI = {
                 mist.stored.set('autoplay',($(this).getval() ? 1 : 0));
               }
             }]);
+            $c.height(Math.min(vid.height,$c.height())); //set height to height of video element
             $url.find('.help_container').remove();
             $video.append($url);
             

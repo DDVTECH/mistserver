@@ -754,9 +754,12 @@ body:not(.helpme) .input_container .ih_balloon {
 .video_container {
   max-width: 90%;
   max-width: calc(100vw - 22em);
-  max-height: 90vh;
-  max-height: calc(100vh - 15em);
+  height: 90vh;
+  height: calc(100vh - 15em);
   overflow: hidden;
+}
+.mistvideo {
+  height: 100%;
 }
 video {
   min-width: auto;

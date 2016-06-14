@@ -307,7 +307,9 @@ var UI = {
         continue;
       }
       if (e.type == 'buttons') {
-        var $bc = $('<span>').addClass('button_container');
+        var $bc = $('<span>').addClass('button_container').on('keydown',function(e){
+          e.stopPropagation();
+        });
         if ('css' in e) {
           $bc.css(e.css);
         }
@@ -557,7 +559,9 @@ var UI = {
       if ('qrcode' in e) {
         $fc.append(
           $('<span>').addClass('unit').html(
-            $('<button>').text('QR').click(function(){
+            $('<button>').text('QR').on('keydown',function(e){
+            e.stopPropagation();
+          }).click(function(){
               var text = String($(this).closest('.field_container').find('.field').getval());
               var $qr = $('<div>').addClass('qrcode');
               UI.popup.show(
@@ -588,7 +592,9 @@ var UI = {
           $c.append($master);
           
           
-          var $browse_button = $('<button>').text('Browse');
+          var $browse_button = $('<button>').text('Browse').on('keydown',function(e){
+            e.stopPropagation();
+          });
           $fc.append($browse_button);
           $browse_button.click(function(){
             var $c = $(this).closest('.grouper');
@@ -597,7 +603,9 @@ var UI = {
             var $browse_button = $(this);
             
             var $path = $('<span>').addClass('field');
-            var $choose_folder = $('<button>').text('Select this folder')
+            var $choose_folder = $('<button>').text('Select this folder').on('keydown',function(e){
+              e.stopPropagation();
+            });
             var $folder_contents = $('<div>').addClass('browse_contents');
             var $folder = $('<a>').addClass('folder');
             var filetypes = $field.data('filetypes');
@@ -1966,6 +1974,8 @@ var UI = {
               $versioncheck.addClass('red').text('Version outdated!').append(
                 $('<button>').text('Update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
                   if (confirm('Are you sure you want to execute a rolling update?')) {
+                    $versioncheck.addClass('orange').removeClass('red').text('Rolling update command sent..');
+                    mist.stored.del('update');
                     mist.send(function(d){
                       UI.navto('Overview');
                     },{autoupdate: true});
@@ -1975,7 +1985,7 @@ var UI = {
             }
           }
           
-          if ((!mist.stored.get().update) || ((new Date()).getTime()-mist.stored.get().update.lastchecked > 24*3600e3)) {
+          if ((!mist.stored.get().update) || ((new Date()).getTime()-mist.stored.get().update.lastchecked > 3600e3)) {
             var update = mist.stored.get().update || {};
             update.lastchecked = (new Date()).getTime();
             mist.send(function(d){
@@ -2985,7 +2995,11 @@ var UI = {
         var $preview = $('<span>').hide();
         tabs['Preview'] = $preview;
         $main.append($preview);
-        var $video = $('<div>').css('float','left').css('margin-right','1em').attr('data-forcesupportcheck','');
+        var $video = $('<div>').css({
+          'float': 'left',
+          'margin-right': '1em',
+          'width': '100%'
+        }).attr('data-forcesupportcheck','');
         var $protocols = $('<div>').css('float','left');
         $preview.append($video).append($protocols);
         
@@ -3150,7 +3164,9 @@ var UI = {
             //meta information
             buildTrackinfo();
           };
-          $video.html('')[0].appendChild(script);
+          var $c = $('<div>').addClass('video_container')
+          $video.html($c);
+          $c[0].appendChild(script);
         }
         loadVideo();
         
@@ -4318,7 +4334,7 @@ var mist = {
     sendData = sendData || {};
     opts = opts || {};
     opts = $.extend(true,{
-      timeout: 30,
+      timeOut: 30e3,
       sendData: sendData
     },opts);
     var data = {

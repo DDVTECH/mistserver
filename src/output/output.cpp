@@ -465,7 +465,8 @@ namespace Mist {
       updateMeta();
     }
     MEDIUM_MSG("Seeking to %llums", pos);
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    std::set<long unsigned int> seekTracks = selectedTracks;
+    for (std::set<long unsigned int>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
       if (myMeta.tracks.count(*it)){
         seek(*it, pos);
       }

@@ -1159,6 +1159,7 @@ namespace Mist {
           buffer.insert(nxt);
         }
       }else{
+        thisPacket.null();
         dropTrack(nxt.tid, "page load failure", true);
       }
       return false;
@@ -1211,6 +1212,7 @@ namespace Mist {
           MEDIUM_MSG("Next page for track %u starts at %llu.", nxt.tid, nxt.time);
         }
       }else{
+        thisPacket.null();
         dropTrack(nxt.tid, "page load failure");
       }
       return false;

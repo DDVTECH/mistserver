@@ -12,22 +12,16 @@ NAME=MistController
 DESC="MistServer"
 CFG_FILE=/etc/mistserver.conf
 LOG_FILE=/var/log/mistserver.log
-PID_FILE=/var/run/mistserver.pid
-
-
-# Source function library.
-. /etc/rc.d/init.d/functions
 
 #
 # Function that starts the daemon/service
 #
 do_start()
 {
-  echo -n "Starting $DESC" "$NAME"
-  MistController -d -L $LOG_FILE -c $CFG_FILE
+  echo "Starting $DESC" "$NAME"
+  MistController -L $LOG_FILE -c $CFG_FILE &
   RETVAL=$?
-  [ $RETVAL = 0 ] && touch /var/lock/subsys/$NAME && echo $!>$PID_FILE && echo_success || echo_failure
-  echo
+  [ $RETVAL = 0 ] && echo "Success" || echo "Failure"
   return $RETVAL
 }
 
@@ -36,22 +30,18 @@ do_start()
 #
 do_stop()
 {
-  echo -n "Stopping $DESC" "$NAME"
-  killall MistController >/dev/null 2>&1
+  echo "Stopping $DESC" "$NAME"
+  kill `pidof MistController` >/dev/null 2>&1
   RETVAL=$?
-  [ $RETVAL = 0 ] && rm -f /var/lock/subsys/$NAME $PID_FILE && echo_success || echo_failure
-  echo
+  [ $RETVAL = 0 ] && echo "Success" || echo "Failure"
   return $RETVAL
 }
 
 do_restart()
 {
-  echo -n "Restarting $DESC" "$NAME"
-  [[ -f /var/lock/subsys/$NAME ]] && killall MistController >/dev/null 2>&1 && rm -f /var/lock/subsys/$NAME $PID_FILE && sleep 2
-  MistController -d -L $LOG_FILE -c $CFG_FILE
-  RETVAL=$?
-  [ $RETVAL = 0 ] && touch /var/lock/subsys/$NAME && echo $!>$PID_FILE && echo_success || echo_failure
-  echo
+  do_stop
+  sleep 10
+  do_start
   return $RETVAL
 }
 
@@ -70,3 +60,4 @@ case "$1" in
     exit 3
     ;;
 esac
+

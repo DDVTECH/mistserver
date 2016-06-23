@@ -198,6 +198,35 @@ namespace Mist {
       }
       if (track.codec == "MP3"){
         dataheader[0] += 0x20;
+        if (track.rate == 8000){
+          dataheader[0] |= 0xE0;
+        }else{
+          dataheader[0] |= 0x20;
+        }
+      }
+      if (track.codec == "ADPCM") {
+        dataheader[0] |= 0x10;
+      }
+      if (track.codec == "PCM") {
+        dataheader[0] |= 0x30;
+      }
+      if (track.codec == "Nellymoser") {
+        if (track.rate == 8000){
+          dataheader[0] |= 0x50;
+        }else if(track.rate == 16000){
+          dataheader[0] |= 0x40;
+        }else{
+          dataheader[0] |= 0x60;
+        }
+      }
+      if (track.codec == "G711a") {
+        dataheader[0] |= 0x70;
+      }
+      if (track.codec == "G711mu") {
+        dataheader[0] |= 0x80;
+      }
+      if (track.codec == "Speex") {
+        dataheader[0] |= 0xB0;
       }
       if (track.rate >= 44100){
         dataheader[0] |= 0x0C;
@@ -824,6 +853,7 @@ namespace Mist {
             break;
           }
           F.ChunkLoader(next);
+          if (!F.getDataLen()){break;}//ignore empty packets
           AMF::Object * amf_storage = 0;
           if (F.data[0] == 0x12 || pushMeta.count(next.cs_id) || !pushMeta.size()){
             amf_storage = &(pushMeta[next.cs_id]);

@@ -933,11 +933,14 @@ char * FLV::Tag::getData(){
 /// Returns the length of the raw media data for this packet.
 unsigned int FLV::Tag::getDataLen(){
   if (data[0] == 0x08 && (data[11] & 0xF0) == 0xA0) {
+    if (len < 17){return 0;}
     return len - 17;
   }
   if (data[0] == 0x09 && (data[11] & 0x0F) == 7) {
+    if (len < 20){return 0;}
     return len - 20;
   }
+  if (len < 16){return 0;}
   return len - 16;
 }
 
@@ -993,10 +996,8 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
     char audiodata = data[11];
     metadata.tracks[reTrack].trackID = reTrack;
     metadata.tracks[reTrack].type = "audio";
-    if (metadata.tracks[reTrack].codec == "") {
+    if (metadata.tracks[reTrack].codec == "" || metadata.tracks[reTrack].codec != getAudioCodec()) {
       metadata.tracks[reTrack].codec = getAudioCodec();
-    }
-    if (!metadata.tracks[reTrack].rate) {
       switch (audiodata & 0x0C) {
         case 0x0:
           metadata.tracks[reTrack].rate = 5512;
@@ -1014,8 +1015,6 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
       if (amf_storage.getContentP("audiosamplerate")) {
         metadata.tracks[reTrack].rate = (long long int)amf_storage.getContentP("audiosamplerate")->NumValue();
       }
-    }
-    if (!metadata.tracks[reTrack].size) {
       switch (audiodata & 0x02) {
         case 0x0:
           metadata.tracks[reTrack].size = 8;
@@ -1027,8 +1026,6 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
       if (amf_storage.getContentP("audiosamplesize")) {
         metadata.tracks[reTrack].size = (long long int)amf_storage.getContentP("audiosamplesize")->NumValue();
       }
-    }
-    if (!metadata.tracks[reTrack].channels) {
       switch (audiodata & 0x01) {
         case 0x0:
           metadata.tracks[reTrack].channels = 1;
@@ -1124,6 +1121,11 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
         break; //the video info byte we just throw away - useless to us...
     }
     pack_out["time"] = tagTime();
+    if (!getDataLen()){
+      //empty packet
+      pack_out["data"] = "";
+      return pack_out;
+    }
     if ((videodata & 0x0F) == 7) {
       switch (data[12]) {
         case 1:

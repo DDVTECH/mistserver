@@ -105,6 +105,9 @@ namespace Mist {
       thisPacket.null();
       return;
     }
+    if (!tmpTag.getDataLen()){
+      return getNext();
+    }
     thisPacket.genericFill(tmpTag.tagTime(), tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getData(), tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe); //init packet from tmpTags data
   }
 

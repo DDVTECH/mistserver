@@ -993,12 +993,12 @@ namespace TS {
     if (vidTrack == -1){
       vidTrack = *(selectedTracks.begin());
     }
-    PMT.setPCRPID(vidTrack);
+    PMT.setPCRPID(256 + vidTrack);
     PMT.setProgramInfoLength(0);
     short id = 0;    
     ProgramMappingEntry entry = PMT.getEntry(0);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      entry.setElementaryPid(*it);
+      entry.setElementaryPid(256 + *it);
       if (myMeta.tracks[*it].codec == "H264"){
         entry.setStreamType(0x1B);
       }else if (myMeta.tracks[*it].codec == "AAC"){

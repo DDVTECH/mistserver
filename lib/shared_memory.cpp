@@ -152,7 +152,7 @@ namespace IPC {
         mySem = OpenMutex(SYNCHRONIZE, false, semaName.c_str());
       }
       if (!(*this)) {
-        if (GetLastError() == ERROR_FILE_NOT_FOUND){//Error code 2
+        if (GetLastError() == ERROR_FILE_NOT_FOUND && !noWait){//Error code 2
           Util::wait(500);
         } else {
           break;

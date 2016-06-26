@@ -134,20 +134,7 @@ namespace Mist {
     updateMeta();
     std::stringstream result;
     //parse single track
-    int longestFragment = 0;
-    if (!myMeta.tracks[tid].fragments.size()) {
-      INFO_MSG("liveIndex called with track %d, which has no fragments!", tid);
-      return "";
-    }
-    for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); (it + 1) != myMeta.tracks[tid].fragments.end(); it++) {
-      if (it->getDuration() > longestFragment) {
-        longestFragment = it->getDuration();
-      }
-    }
-    if ((myMeta.tracks[tid].lastms - myMeta.tracks[tid].firstms) / myMeta.tracks[tid].fragments.size() > longestFragment) {
-      longestFragment = (myMeta.tracks[tid].lastms - myMeta.tracks[tid].firstms) / myMeta.tracks[tid].fragments.size();
-    }
-    result << "#EXTM3U\r\n#EXT-X-TARGETDURATION:" << (longestFragment / 1000) + 1 << "\r\n";
+    result << "#EXTM3U\r\n#EXT-X-TARGETDURATION:" << (myMeta.tracks[tid].biggestFragment() / 1000) + 1 << "\r\n";
 
     std::deque<std::string> lines;
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++) {

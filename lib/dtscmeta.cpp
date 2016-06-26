@@ -1272,6 +1272,17 @@ namespace DTSC {
   void Track::finalize(){
     keys.rbegin()->setLength(lastms - keys.rbegin()->getTime() + parts.rbegin()->getDuration());
   }
+
+  /// Returns the duration in ms of the longest-duration fragment.
+  uint32_t Track::biggestFragment(){
+    uint32_t ret = 0;
+    for (unsigned int i = 0; i<fragments.size(); i++){
+      if (fragments[i].getDuration() > ret){
+        ret = fragments[i].getDuration();
+      }
+    }
+    return ret;
+  }
   
   ///\brief Returns a key given its number, or an empty key if the number is out of bounds
   Key & Track::getKey(unsigned int keyNum) {

@@ -289,6 +289,7 @@ namespace DTSC {
       void reset();
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
       void finalize();
+      uint32_t biggestFragment();
       
       std::string getIdentifier();
       std::string getWritableIdentifier();

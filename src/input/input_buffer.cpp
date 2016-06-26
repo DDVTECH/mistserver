@@ -208,14 +208,27 @@ namespace Mist {
   }
 
   bool inputBuffer::removeKey(unsigned int tid) {
+    DTSC::Track & Trk = myMeta.tracks[tid];
     //Make sure we have at least 3 whole fragments at all times,
     //unless we're shutting down the whole buffer right now
-    if (myMeta.tracks[tid].fragments.size() < 5 && config->is_active) {
+    if (Trk.fragments.size() < 5 && config->is_active) {
       return false;
     }
     //If we're shutting down, and this track is empty, abort
     if (!myMeta.tracks[tid].keys.size()) {
       return false;
+    }
+    if (config->is_active && Trk.fragments.size() > 1){
+      ///Make sure we have at least 3X the target duration.
+      //The target duration is the biggest fragment, rounded up to whole seconds.
+      uint32_t targetDuration = (Trk.biggestFragment() / 1000 + 1) * 1000;
+      //The start is the second fragment's begin
+      uint32_t fragStart = Trk.getKey((++Trk.fragments.begin())->getNumber()).getTime();
+      //The end is the last fragment's begin
+      uint32_t fragEnd = Trk.getKey(Trk.fragments.rbegin()->getNumber()).getTime();
+      if ((fragEnd - fragStart) < targetDuration * 3){
+        return false;
+      }
     }
     DEBUG_MSG(DLVL_HIGH, "Erasing key %d:%lu", tid, myMeta.tracks[tid].keys[0].getNumber());
     //remove all parts of this key

@@ -315,12 +315,12 @@ namespace Mist {
     if (!myMeta.tracks[tid].keys.size()) {
       return false;
     }
-    if (config->is_active && Trk.fragments.size() > 1){
+    if (config->is_active && Trk.fragments.size() > 2){
       ///Make sure we have at least 3X the target duration.
       //The target duration is the biggest fragment, rounded up to whole seconds.
       uint32_t targetDuration = (Trk.biggestFragment() / 1000 + 1) * 1000;
-      //The start is the second fragment's begin
-      uint32_t fragStart = Trk.getKey((++Trk.fragments.begin())->getNumber()).getTime();
+      //The start is the third fragment's begin
+      uint32_t fragStart = Trk.getKey((++(++Trk.fragments.begin()))->getNumber()).getTime();
       //The end is the last fragment's begin
       uint32_t fragEnd = Trk.getKey(Trk.fragments.rbegin()->getNumber()).getTime();
       if ((fragEnd - fragStart) < targetDuration * 3){

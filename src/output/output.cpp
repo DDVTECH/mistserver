@@ -36,12 +36,6 @@ namespace Mist {
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
     capa["optional"]["debug"]["type"] = "debug";
-    capa["optional"]["startpos"]["name"] = "Starting position in live buffer";
-    capa["optional"]["startpos"]["help"] = "For live, where in the buffer the stream starts playback by default. 0 = beginning, 1000 = end";
-    capa["optional"]["startpos"]["option"] = "--startPos";
-    capa["optional"]["startpos"]["short"] = "P";
-    capa["optional"]["startpos"]["default"] = (long long)500;
-    capa["optional"]["startpos"]["type"] = "uint";
   }
   
   Output::Output(Socket::Connection & conn) : myConn(conn) {

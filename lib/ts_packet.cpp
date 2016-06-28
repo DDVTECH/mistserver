@@ -999,6 +999,7 @@ namespace TS {
     ProgramMappingEntry entry = PMT.getEntry(0);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       entry.setElementaryPid(256 + *it);
+      entry.setESInfo("");
       if (myMeta.tracks[*it].codec == "H264"){
         entry.setStreamType(0x1B);
       }else if (myMeta.tracks[*it].codec == "HEVC"){

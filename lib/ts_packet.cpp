@@ -745,7 +745,7 @@ namespace TS {
   }
 
   void ProgramMappingEntry::setElementaryPid(int newElementaryPid) {
-    data[1] = newElementaryPid >> 8 & 0x1F;
+    data[1] = (newElementaryPid >> 8 & 0x1F) | 0xE0; //0xE0 = three reserved bits
     data[2] = newElementaryPid & 0xFF;
   }
 
@@ -758,7 +758,7 @@ namespace TS {
   }
 
   void ProgramMappingEntry::setESInfo(const std::string & newInfo){
-    data[3] = (newInfo.size() >> 8) & 0x0F;
+    data[3] = ((newInfo.size() >> 8) & 0x0F) | 0xF0; //0xF0 = four reserved bits
     data[4] = newInfo.size() & 0xFF;
     memcpy(data + 5, newInfo.data(), newInfo.size());
   }
@@ -993,12 +993,12 @@ namespace TS {
     if (vidTrack == -1){
       vidTrack = *(selectedTracks.begin());
     }
-    PMT.setPCRPID(256 + vidTrack);
+    PMT.setPCRPID(255 + vidTrack);
     PMT.setProgramInfoLength(0);
     short id = 0;    
     ProgramMappingEntry entry = PMT.getEntry(0);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      entry.setElementaryPid(256 + *it);
+      entry.setElementaryPid(255 + *it);
       entry.setESInfo("");
       if (myMeta.tracks[*it].codec == "H264"){
         entry.setStreamType(0x1B);

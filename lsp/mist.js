@@ -600,13 +600,16 @@ var UI = {
           $browse_button.click(function(){
             var $c = $(this).closest('.grouper');
             var $bc = $('<div>').addClass('browse_container');
-            var $field = $c.find('.field');
+            var $field = $c.find('.field').attr('readonly','readonly').css('opacity',0.5);
             var $browse_button = $(this);
+            var $cancel = $('<button>').text('Stop browsing').click(function(){
+                $browse_button.show();
+                $bc.remove();
+                $field.removeAttr('readonly').css('opacity',1);
+            });
             
             var $path = $('<span>').addClass('field');
-            var $choose_folder = $('<button>').text('Select this folder').on('keydown',function(e){
-              e.stopPropagation();
-            });
+            
             var $folder_contents = $('<div>').addClass('browse_contents');
             var $folder = $('<a>').addClass('folder');
             var filetypes = $field.data('filetypes');
@@ -617,25 +620,18 @@ var UI = {
                 $('<span>').addClass('label').text('Current folder:')
               ).append(
                 $('<span>').addClass('field_container').append($path).append(
-                  $choose_folder
+                  $cancel
                 )
               )
             ).append(
               $folder_contents
             );
             
-            $choose_folder.click(function(){
-              var src = $path.text()+'/';
-              
-              $field.setval(src);
-              $browse_button.show();
-              $bc.remove();
-            });
-            
             function browse(path){
               $folder_contents.text('Loading..');
               mist.send(function(d){
                 $path.text(d.browse.path[0]);
+                if (mist.data.LTS) { $field.setval(d.browse.path[0]+'/'); }
                 $folder_contents.html(
                   $folder.clone(true).text('..').attr('title','Folder up')
                 );
@@ -673,7 +669,7 @@ var UI = {
                     $file.click(function(){
                       var src = $(this).attr('title');
                       
-                      $field.setval(src);
+                      $field.setval(src).removeAttr('readonly').css('opacity',1);
                       $browse_button.show();
                       $bc.remove();
                     });
@@ -694,6 +690,21 @@ var UI = {
             });
             
             var path = $field.getval();
+            
+            var protocol = path.split('://');
+            if (protocol.length > 1) {
+              if (protocol[0] == 'file') {
+                path = protocol[1];
+              }
+              else {
+                path = '';
+              }
+            }
+            
+            if (seperator == '\\') {
+              path = '/cygdrive/C/';
+            }
+            
             path = path.split(seperator);
             path.pop();
             path = path.join(seperator);

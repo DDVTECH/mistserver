@@ -3269,6 +3269,34 @@ var UI = {
             )
           );
           var $autopush = $push.clone();
+          //check if push ids have been stopped untill the answer is yes
+          function checkgone(ids) {
+            setTimeout(function(){
+              mist.send(function(d){
+                var gone = false;
+                if (('push_list' in d) && (d.push_list) && (d.push_list.length)) {
+                  gone = true;
+                  for (var i in d.push_list) {
+                    if (ids.indexOf(d.push_list[i][0]) > -1) {
+                      gone = false;
+                      break;
+                    }
+                  }
+                }
+                else {
+                  gone = true;
+                }
+                if (gone) {
+                  for (var i in ids) {
+                    $push.find('tr[data-pushid='+ids[i]+']').remove();
+                  }
+                }
+                else {
+                  checkgone();
+                }
+              },{push_list:1});
+            },1e3);
+          }
           function buildTr(push,type) {
             var $target = $('<span>');
             if ((push.length >= 4) && (push[2] != push[3])) {
@@ -3285,62 +3313,75 @@ var UI = {
                 $('<span>').text(push[2])
               );
             }
-            return $('<tr>').append(
+            var $buttons = $('<td>').append(
+              $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
+                if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
+                  var $tr = $(this).closest('tr');
+                  $tr.html(
+                    $('<td colspan=99>').html(
+                      $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
+                    )
+                  );
+                  if (type == 'Automatic') {
+                    mist.send(function(){
+                      $tr.remove();
+                    },{'push_auto_remove':{
+                      stream: push[1],
+                      target: push[2]
+                    }});
+                  }
+                  else {
+                    mist.send(function(d){
+                      checkgone([push[0]]);
+                    },{'push_stop':[push[0]]});
+                  }
+                }
+              })
+            );
+            if (type == 'Automatic') {
+              $buttons.append(
+                $('<button>').text('Remove and stop pushes').click(function(){
+                  if (confirm("Are you sure you want to remove this automatic push, and also stop all pushes matching it?\n"+push[1]+' to '+push[2])) {
+                    var $tr = $(this).closest('tr');
+                    $tr.html(
+                      $('<td colspan=99>').html(
+                        $('<span>').addClass('red').text('Removing and stopping..')
+                      )
+                    );
+                    //also stop the matching pushes
+                    var pushIds = [];
+                    for (var i in d.push_list) {
+                      //                streamname                        target
+                      if ((push[1] == d.push_list[i][1]) && (push[2] == d.push_list[i][2])) {
+                        pushIds.push(d.push_list[i][0]);
+                        $push.find('tr[data-pushid='+d.push_list[i][0]+']').html(
+                          $('<td colspan=99>').html(
+                            $('<span>').addClass('red').text('Stopping..')
+                          )
+                        );
+                      }
+                    }
+                    
+                    mist.send(function(){
+                      $tr.remove();
+                      checkgone(pushIds);
+                    },{
+                      push_auto_remove:{
+                        stream: push[1],
+                        target: push[2]
+                      },
+                      push_stop: pushIds
+                    });
+                  }
+                })
+              );
+            }
+            return $('<tr>').attr('data-pushid',push[0]).append(
               $('<td>').text(push[1])
             ).append(
               $('<td>').append($target.children())
             ).append(
-              $('<td>').append(
-                $('<button>').text((type == 'Automatic' ? 'Remove' : 'Stop')).click(function(){
-                  if (confirm("Are you sure you want to "+$(this).text().toLowerCase()+" this push?\n"+push[1]+' to '+push[2])) {
-                    var $tr = $(this).closest('tr');
-                    $tr.html(
-                      $('<td colspan=99>').html(
-                        $('<span>').addClass('red').text((type == 'Automatic' ? 'Removing..' : 'Stopping..'))
-                      )
-                    );
-                    if (type == 'Automatic') {
-                      mist.send(function(){
-                        $tr.remove();
-                      },{'push_auto_remove':{
-                        stream: push[1],
-                        target: push[2]
-                      }});
-                    }
-                    else {
-                      mist.send(function(d){
-                        //check if it has been stopped untill the answer is yes
-                        function checkgone() {
-                          setTimeout(function(){
-                            mist.send(function(d){
-                              var gone = false;
-                              if (('push_list' in d) && (d.push_list) && (d.push_list.length)) {
-                                gone = true;
-                                for (var i in d.push_list) {
-                                  if (d.push_list[i][0] == push[0]) {
-                                    gone = false;
-                                    break;
-                                  }
-                                }
-                              }
-                              else {
-                                gone = true;
-                              }
-                              if (gone) {
-                                $tr.remove();
-                              }
-                              else {
-                                checkgone();
-                              }
-                            },{push_list:1});
-                          },1e3);
-                        }
-                        checkgone();
-                      },{'push_stop':[push[0]]});
-                    }
-                  }
-                })
-              )
+              $buttons
             );
           }
           
@@ -3384,6 +3425,35 @@ var UI = {
             );
           }
           else {
+            var streams = [];
+            var targets = [];
+            var $select_streams = $('<select>').css('margin-left','0.5em').append(
+              $('<option>').text('Any stream').val('')
+            );
+            var $select_targets = $('<select>').css('margin-left','0.5em').append(
+              $('<option>').text('Any target').val('')
+            );
+            for (var i in d.push_list) {
+              if (streams.indexOf(d.push_list[i][1]) == -1) {
+                streams.push(d.push_list[i][1]);
+              }
+              if (targets.indexOf(d.push_list[i][2]) == -1) {
+                targets.push(d.push_list[i][2]);
+              }
+            }
+            streams.sort();
+            targets.sort();
+            for (var i in streams) {
+              $select_streams.append(
+                $('<option>').text(streams[i])
+              );
+            }
+            for (var i in targets) {
+              $select_targets.append(
+                $('<option>').text(targets[i])
+              );
+            }
+            
             $c.append(
               $('<button>').text('Stop all pushes').click(function(){
                 var push_list = [];
@@ -3393,32 +3463,7 @@ var UI = {
                 if (push_list.length == 0) { return; }
                 if (confirm('Are you sure you want to stop all pushes?')) {
                   mist.send(function(d){
-                    function checkgone() {
-                      setTimeout(function(){
-                        mist.send(function(d){
-                          var gone = false;
-                          if (('push_list' in d) && (d.push_list) && (d.push_list.length)) {
-                            gone = true;
-                            for (var i in d.push_list) {
-                              if (push_list.indexOf(d.push_list[i][0]) == -1) {
-                                gone = false;
-                                break;
-                              }
-                            }
-                          }
-                          else {
-                            gone = true;
-                          }
-                          if (gone) {
-                            UI.navto('Push');
-                          }
-                          else {
-                            checkgone();
-                          }
-                        },{push_list:1});
-                      },1e3);
-                    }
-                    checkgone();
+                    checkgone(push_list);
                   },{push_stop:push_list});
                   $push.find('tr:not(:first-child)').html(
                     $('<td colspan=99>').append(
@@ -3429,6 +3474,52 @@ var UI = {
                 }
                 
               })
+            ).append(
+              $('<label>').css('margin-left','1em').append(
+                $('<span>').text('Stop all pushes that match: ').css('font-size','0.9em')
+              ).append(
+                $select_streams
+              ).append(
+                $('<span>').css('margin-left','0.5em').text('and').css('font-size','0.9em')
+              ).append(
+                $select_targets
+              ).append(
+                $('<button>').css('margin-left','0.5em').text('Apply').click(function(){
+                  var s = $select_streams.val();
+                  var t = $select_targets.val();
+                  
+                  if ((s == '') && (t == '')) { return alert('Looks like you want to stop all pushes. Maybe you should use that button?'); }
+                  var pushes = {};
+                  
+                  for (var i in d.push_list) {
+                    if  (((s == '') || (d.push_list[i][1] == s)) && ((t == '') || (d.push_list[i][2] == t))) {
+                      pushes[d.push_list[i][0]] = d.push_list[i];
+                    }
+                  }
+                  
+                  if (Object.keys(pushes).length == 0) {
+                    return alert('No matching pushes.');
+                  }
+                  
+                  var msg = 'Are you sure you want to stop these pushes?'+"\n\n";
+                  for (var i in pushes) {
+                    msg += pushes[i][1]+' to '+pushes[i][2]+"\n";
+                  }
+                  if (confirm(msg)) {
+                    pushes = Object.keys(pushes);
+                    mist.send(function(d){
+                      checkgone(pushes);
+                    },{'push_stop':pushes});
+                    for (var i in pushes) {
+                      $push.find('tr[data-pushid='+pushes[i]+']').html(
+                        $('<td colspan=99>').html(
+                          $('<span>').addClass('red').text('Stopping..')
+                        )
+                      );
+                    }
+                  }
+                })
+              )
             ).append($push);
           }
           
@@ -3440,7 +3531,7 @@ var UI = {
         if (!('capabilities' in mist.data)) {
           $main.append('Loading Mist capabilities..');
           mist.send(function(){
-            UI.navto('Start Push');
+            UI.navto('Start Push',other);
           },{capabilities:1});
           return;
         }

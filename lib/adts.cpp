@@ -18,6 +18,12 @@ namespace aac {
     memcpy(data, _data, len);
   }
 
+
+  bool adts::sameHeader(const adts & rhs) const {
+    if (len < 7 || rhs.len < 7){return false;}
+    return (memcmp(data, rhs.data, 7) == 0);
+  }
+
   adts::adts(const adts & rhs){
     data = NULL;
     len = 0;
@@ -56,7 +62,7 @@ namespace aac {
   }
 
   unsigned long adts::getFrequency(){
-    if (!data || !len){
+    if (!data || len < 3){
       return 0;
     }
     switch(getFrequencyIndex()){
@@ -99,14 +105,25 @@ namespace aac {
   }
 
   unsigned long adts::getPayloadSize(){
-    if (!data || !len){
+    if (!data || len < 6){
       return 0;
     }
-    return (((data[3] & 0x03) << 11) | (data[4] << 3) | ((data[5] >> 5) & 0x07)) - getHeaderSize();
+    unsigned long ret = (((data[3] & 0x03) << 11) | (data[4] << 3) | ((data[5] >> 5) & 0x07));
+    if (!ret){return ret;}//catch zero length
+    if (ret >= getHeaderSize()){
+      ret -= getHeaderSize();
+    }else{
+      return 0;//catch size less than header size (corrupt data)
+    }
+    if (len < ret + getHeaderSize() ){
+      ret = len - getHeaderSize();
+      //catch size less than length (corrupt data)
+    }
+    return ret;
   }
 
   unsigned long adts::getSampleCount(){
-    if (!data || !len){
+    if (!data || len < 7){
       return 0;
     }
     return ((data[6] & 0x03) + 1) * 1024;//Number of samples in this frame * 1024

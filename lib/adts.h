@@ -8,6 +8,7 @@ namespace aac {
       adts(const adts & rhs);
       ~adts();
       adts& operator = (const adts & rhs);
+      bool sameHeader(const adts & rhs) const;
       unsigned long getAACProfile();
       unsigned long getFrequencyIndex();
       unsigned long getFrequency();

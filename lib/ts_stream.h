@@ -13,7 +13,6 @@ namespace TS {
     AAC = 0x0F,
     AC3 = 0x81,
     MP3 = 0x03,
-    HEVC = 0x06,
     H265 = 0x24,
     ID3 = 0x15
   };

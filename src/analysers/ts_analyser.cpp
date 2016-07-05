@@ -11,6 +11,7 @@
 #include <sstream>
 #include <signal.h>
 #include <mist/ts_packet.h>
+#include <mist/bitfields.h>
 #include <mist/config.h>
 
 
@@ -29,10 +30,10 @@ namespace Analysers {
       known = true;
     }
     if (!known){
-      res << " [Unknown stream ID]";
+      res << " [Unknown stream ID: " << (int)d[3] << "]";
     }
     if (d[0] != 0 || d[1] != 0 || d[2] != 1){
-      res << " [!INVALID START CODE!]";
+      res << " [!!! INVALID START CODE: " << (int)d[0] << " " << (int)d[1] << " " << (int)d[2] <<  " ]";
     }
     if (known){
       if ((d[6] & 0xC0) != 0x80){
@@ -56,12 +57,20 @@ namespace Analysers {
         res << " [Copy]";
       }
       
+      int timeFlags = ((d[7] & 0xC0) >> 6);
+      if (timeFlags == 2){
+        headSize += 5;
+      }
+      if (timeFlags == 3){
+        headSize += 10;
+      }
       if (d[7] & 0x20){
         res << " [ESCR present, not decoded!]";
         headSize += 6;
       }
       if (d[7] & 0x10){
-        res << " [ESR present, not decoded!]";
+        uint32_t es_rate = (Bit::btoh24(d.data()+9+headSize) & 0x7FFFFF) >> 1;
+        res << " [ESR: " << (es_rate * 50) / 1024 << " KiB/s]";
         headSize += 3;
       }
       if (d[7] & 0x08){
@@ -79,13 +88,6 @@ namespace Analysers {
       if (d[7] & 0x01){
         res << " [Extension present, not decoded!]";
         headSize += 0; /// \todo Implement this. Complicated field, bah.
-      }
-      int timeFlags = ((d[7] & 0xC0) >> 6);
-      if (timeFlags == 2){
-        headSize += 5;
-      }
-      if (timeFlags == 3){
-        headSize += 10;
       }
       if (d[8] != headSize){
         res << " [Padding: " << ((int)d[8] - headSize) << "b]";
@@ -145,13 +147,13 @@ namespace Analysers {
             std::cout << printPES(payloads[packet.getPID()], packet.getPID(), detailLevel);
             payloads.erase(packet.getPID());
           }
-          if (detailLevel < 2){
-            std::stringstream nul;
-            nul << packet.toPrettyString(0, detailLevel);
-          }else{
+          if (detailLevel >= 3 || !packet.getPID() || packet.isPMT()){
+            if (packet.getPID() == 0){
+              ((TS::ProgramAssociationTable*)&packet)->parsePIDs();
+            }
             std::cout << packet.toPrettyString(0, detailLevel);
           }
-          if (packet.getPID() && !packet.isPMT()){
+          if (packet.getPID() && !packet.isPMT() && (payloads[packet.getPID()].size() || packet.getUnitStart())){
             payloads[packet.getPID()].append(packet.getPayload(), packet.getPayloadLength());
           }
         }

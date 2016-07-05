@@ -245,18 +245,16 @@ namespace Mist {
     TS::Packet packet;//to analyse and extract data
     fseek(inFile, 0, SEEK_SET);//seek to beginning
 
-    bool first = true;
     long long int lastBpos = 0;
     while (packet.FromFile(inFile) && !feof(inFile)) {
       tsStream.parse(packet, lastBpos);
       lastBpos = ftell(inFile);
       while (tsStream.hasPacketOnEachTrack()) {
-        if (first) {
-          tsStream.initializeMetadata(myMeta);
-          first = false;
-        }
         DTSC::Packet headerPack;
         tsStream.getEarliestPacket(headerPack);
+        if (!myMeta.tracks.count(headerPack.getTrackId()) || !myMeta.tracks[headerPack.getTrackId()].codec.size()) {
+          tsStream.initializeMetadata(myMeta, headerPack.getTrackId());
+        }
         myMeta.update(headerPack);
       }
 

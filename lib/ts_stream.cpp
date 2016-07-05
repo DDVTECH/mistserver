@@ -56,8 +56,10 @@ namespace TS {
     }
 
     int tid = newPack.getPID();
-    pesStreams[tid].push_back(newPack);
-    pesPositions[tid].push_back(bytePos);
+    if ((pidToCodec.count(tid) || tid == 0 || newPack.isPMT()) && (pesStreams[tid].size() || newPack.getUnitStart())){
+      pesStreams[tid].push_back(newPack);
+      pesPositions[tid].push_back(bytePos);
+    }
 
     if (threaded){
       globalSem.post();
@@ -102,6 +104,7 @@ namespace TS {
         globalSem.wait();
       }
       associationTable = trackPackets.back();
+      associationTable.parsePIDs();
       lastPAT = Util::bootSecs();
       if (threaded){
         globalSem.post();
@@ -124,6 +127,11 @@ namespace TS {
       return;
     }
 
+    //Ignore conditional access packets. We don't care.
+    if (tid == 1){
+      return;
+    }
+
     //Handle PMT packets
     if (pmtTracks.count(tid)){
       ///\todo Keep track of updates in PMT instead of keeping only the last PMT per program as a reference
@@ -142,7 +150,6 @@ namespace TS {
         switch(sType){
           case H264:
           case AAC:
-          case HEVC:
           case H265:
           case AC3:
           case ID3:
@@ -272,6 +279,7 @@ namespace TS {
   }
 
   void Stream::parsePES(unsigned long tid){
+    if (!pidToCodec.count(tid)){return;}//skip unknown codecs
     if (threaded){
       globalSem.wait();
     }
@@ -308,11 +316,13 @@ namespace TS {
       paySize += curPack->getPayloadLength();
       curPack++;
     }
+    VERYHIGH_MSG("Parsing PES for track %lu, length %i", tid, paySize);
     char * payload = (char*)malloc(paySize);
     paySize = 0;
     curPack = inStream.begin();
     int lastCtr = curPack->getContinuityCounter() - 1;
     for (int i = 0; i < packNum; i++){
+      if (curPack->getContinuityCounter() == lastCtr){curPack++; continue;}
       if (curPack->getContinuityCounter() - lastCtr != 1 && curPack->getContinuityCounter()){
         INFO_MSG("Parsing a pes on track %d, missed %d packets", tid, curPack->getContinuityCounter() - lastCtr - 1);
       }
@@ -375,6 +385,22 @@ namespace TS {
         }
       }
 
+      if (pesHeader[7] & 0x20){ //ESCR - ignored
+        pesOffset += 6;
+      }
+      if (pesHeader[7] & 0x10){ //ESR - ignored
+        pesOffset += 3;
+      }
+      if (pesHeader[7] & 0x08){ //trick mode - ignored
+        pesOffset += 1;
+      }
+      if (pesHeader[7] & 0x04){//additional copy - ignored
+        pesOffset += 1;
+      }
+      if (pesHeader[7] & 0x02){ //crc - ignored
+        pesOffset += 2;
+      }
+
       if (paySize - offset - pesOffset < realPayloadSize){
         INFO_MSG("Not enough data left on track %lu.", tid);
         break;
@@ -391,12 +417,14 @@ namespace TS {
           globalSem.wait();
         }
         while (offsetInPes < realPayloadSize){
-          outPackets[tid].push_back(DTSC::Packet());
           aac::adts adtsPack(pesPayload + offsetInPes, realPayloadSize - offsetInPes);
-          if (!adtsInfo.count(tid)){
-            adtsInfo[tid] = adtsPack;
+          if (adtsPack.getFrequency() && adtsPack.getPayloadSize()){
+            if (!adtsInfo.count(tid) || !adtsInfo[tid].sameHeader(adtsPack)){
+              adtsInfo[tid] = adtsPack;
+            }
+            outPackets[tid].push_back(DTSC::Packet());
+            outPackets[tid].back().genericFill(timeStamp + ((samplesRead * 1000) / adtsPack.getFrequency()), timeOffset, tid, adtsPack.getPayload(), adtsPack.getPayloadSize(), bPos, 0);
           }
-          outPackets[tid].back().genericFill(timeStamp + ((samplesRead * 1000) / adtsPack.getFrequency()), timeOffset, tid, adtsPack.getPayload(), adtsPack.getPayloadSize(), bPos, 0);
           samplesRead += adtsPack.getSampleCount();
           offsetInPes += adtsPack.getHeaderSize() + adtsPack.getPayloadSize();
         }
@@ -414,7 +442,7 @@ namespace TS {
           globalSem.post();
         }
       }
-      if (pidToCodec[tid] == H264 || pidToCodec[tid] == HEVC || pidToCodec[tid] == H265){
+      if (pidToCodec[tid] == H264 || pidToCodec[tid] == H265){
         //Convert from annex b
         char * parsedData = (char*)malloc(realPayloadSize * 2);
         bool isKeyFrame = false;
@@ -423,7 +451,7 @@ namespace TS {
         if (pidToCodec[tid] == H264) {
           nalInfo = h264::analysePackets(parsedData, parsedSize);
         }
-        if (pidToCodec[tid] == HEVC || pidToCodec[tid] == H265){
+        if (pidToCodec[tid] == H265){
           nalInfo = h265::analysePackets(parsedData, parsedSize);
         }
         int dataOffset = 0;
@@ -457,7 +485,7 @@ namespace TS {
               default: break;
             }
           }
-          if (pidToCodec[tid] == HEVC || pidToCodec[tid] == H265){
+          if (pidToCodec[tid] == H265){
             switch (it->nalType){
               case 2: case 3: //TSA Picture
               case 4: case 5: //STSA Picture
@@ -590,66 +618,77 @@ namespace TS {
       if (tid && it->first != tid){
         continue;
       }
-      if (!meta.tracks.count(it->first) && it->second == H264){
-        if (!spsInfo.count(it->first) || !ppsInfo.count(it->first)){
-          continue;
+      if (meta.tracks.count(it->first) && meta.tracks[it->first].codec.size()){continue;}
+      switch (it->second){
+        case H264: {
+          if (!spsInfo.count(it->first) || !ppsInfo.count(it->first)){
+            MEDIUM_MSG("Aborted meta fill for h264 track %lu: no SPS/PPS", it->first);
+            continue;
+          }
+          meta.tracks[it->first].type = "video";
+          meta.tracks[it->first].codec = "H264";
+          meta.tracks[it->first].trackID = it->first;
+          std::string tmpBuffer = spsInfo[it->first];
+          h264::sequenceParameterSet sps(spsInfo[it->first].data(), spsInfo[it->first].size());
+          h264::SPSMeta spsChar = sps.getCharacteristics();
+          meta.tracks[it->first].width = spsChar.width;
+          meta.tracks[it->first].height = spsChar.height;
+          meta.tracks[it->first].fpks = spsChar.fps * 1000;
+          MP4::AVCC avccBox;
+          avccBox.setVersion(1);
+          avccBox.setProfile(spsInfo[it->first][1]);
+          avccBox.setCompatibleProfiles(spsInfo[it->first][2]);
+          avccBox.setLevel(spsInfo[it->first][3]);
+          avccBox.setSPSNumber(1);
+          avccBox.setSPS(spsInfo[it->first]);
+          avccBox.setPPSNumber(1);
+          avccBox.setPPS(ppsInfo[it->first]);
+          meta.tracks[it->first].init = std::string(avccBox.payload(), avccBox.payloadSize());
         }
-        meta.tracks[it->first].type = "video";
-        meta.tracks[it->first].codec = "H264";
-        meta.tracks[it->first].trackID = it->first;
-        std::string tmpBuffer = spsInfo[it->first];
-        h264::sequenceParameterSet sps(spsInfo[it->first].data(), spsInfo[it->first].size());
-        h264::SPSMeta spsChar = sps.getCharacteristics();
-        meta.tracks[it->first].width = spsChar.width;
-        meta.tracks[it->first].height = spsChar.height;
-        meta.tracks[it->first].fpks = spsChar.fps * 1000;
-        MP4::AVCC avccBox;
-        avccBox.setVersion(1);
-        avccBox.setProfile(spsInfo[it->first][1]);
-        avccBox.setCompatibleProfiles(spsInfo[it->first][2]);
-        avccBox.setLevel(spsInfo[it->first][3]);
-        avccBox.setSPSNumber(1);
-        avccBox.setSPS(spsInfo[it->first]);
-        avccBox.setPPSNumber(1);
-        avccBox.setPPS(ppsInfo[it->first]);
-        meta.tracks[it->first].init = std::string(avccBox.payload(), avccBox.payloadSize());
-      }
-      if (!meta.tracks.count(it->first) && (it->second == HEVC || it->second == H265)){
-        if (!hevcInfo.count(it->first) || !hevcInfo[it->first].haveRequired()){
-          continue;
+        break;
+        case H265: {
+          if (!hevcInfo.count(it->first) || !hevcInfo[it->first].haveRequired()){
+            MEDIUM_MSG("Aborted meta fill for hevc track %lu: no info nal unit", it->first);
+            continue;
+          }
+          meta.tracks[it->first].type = "video";
+          meta.tracks[it->first].codec = "HEVC";
+          meta.tracks[it->first].trackID = it->first;
+          meta.tracks[it->first].init = hevcInfo[it->first].generateHVCC();
         }
-        meta.tracks[it->first].type = "video";
-        meta.tracks[it->first].codec = "HEVC";
-        meta.tracks[it->first].trackID = it->first;
-        meta.tracks[it->first].init = hevcInfo[it->first].generateHVCC();
+        break;
+        case ID3: {
+          meta.tracks[it->first].type = "meta";
+          meta.tracks[it->first].codec = "ID3";
+          meta.tracks[it->first].trackID = it->first;
+          meta.tracks[it->first].init = metaInit[it->first];
+        }
+        break;
+        case AC3: {
+          meta.tracks[it->first].type = "audio";
+          meta.tracks[it->first].codec = "AC3";
+          meta.tracks[it->first].trackID = it->first;
+          meta.tracks[it->first].size = 16;
+          ///\todo Fix these 2 values
+          meta.tracks[it->first].rate = 0;
+          meta.tracks[it->first].channels = 0;
+        }
+        break;
+        case AAC: {
+          meta.tracks[it->first].type = "audio";
+          meta.tracks[it->first].codec = "AAC";
+          meta.tracks[it->first].trackID = it->first;
+          meta.tracks[it->first].size = 16;
+          meta.tracks[it->first].rate = adtsInfo[it->first].getFrequency();
+          meta.tracks[it->first].channels = adtsInfo[it->first].getChannelCount();
+          char audioInit[2];//5 bits object type, 4 bits frequency index, 4 bits channel index
+          audioInit[0] = ((adtsInfo[it->first].getAACProfile() & 0x1F) << 3) | ((adtsInfo[it->first].getFrequencyIndex() & 0x0E) >> 1);
+          audioInit[1] = ((adtsInfo[it->first].getFrequencyIndex() & 0x01) << 7) | ((adtsInfo[it->first].getChannelConfig() & 0x0F) << 3);
+          meta.tracks[it->first].init = std::string(audioInit, 2);
+        }
+        break;
       }
-      if (!meta.tracks.count(it->first) && it->second == ID3){
-        meta.tracks[it->first].type = "meta";
-        meta.tracks[it->first].codec = "ID3";
-        meta.tracks[it->first].trackID = it->first;
-        meta.tracks[it->first].init = metaInit[it->first];
-      }
-      if (!meta.tracks.count(it->first) && it->second == AC3){
-        meta.tracks[it->first].type = "audio";
-        meta.tracks[it->first].codec = "AC3";
-        meta.tracks[it->first].trackID = it->first;
-        meta.tracks[it->first].size = 16;
-        ///\todo Fix these 2 values
-        meta.tracks[it->first].rate = 0;
-        meta.tracks[it->first].channels = 0;
-      }
-      if (!meta.tracks.count(it->first) && it->second == AAC){
-        meta.tracks[it->first].type = "audio";
-        meta.tracks[it->first].codec = "AAC";
-        meta.tracks[it->first].trackID = it->first;
-        meta.tracks[it->first].size = 16;
-        meta.tracks[it->first].rate = adtsInfo[it->first].getFrequency();
-        meta.tracks[it->first].channels = adtsInfo[it->first].getChannelCount();
-        char audioInit[2];//5 bits object type, 4 bits frequency index, 4 bits channel index
-        audioInit[0] = ((adtsInfo[it->first].getAACProfile() & 0x1F) << 3) | ((adtsInfo[it->first].getFrequencyIndex() & 0x0E) >> 1);
-        audioInit[1] = ((adtsInfo[it->first].getFrequencyIndex() & 0x01) << 7) | ((adtsInfo[it->first].getChannelConfig() & 0x0F) << 3);
-        meta.tracks[it->first].init = std::string(audioInit, 2);
-      }
+      MEDIUM_MSG("Initialized track %lu as %s %s", it->first, meta.tracks[it->first].codec.c_str(), meta.tracks[it->first].type.c_str());
     }
     if (threaded){
       globalSem.post();
@@ -679,7 +718,6 @@ namespace TS {
             switch(entry.getStreamType()){
               case H264:
               case AAC:
-              case HEVC:
               case H265:
               case AC3:
               case ID3:

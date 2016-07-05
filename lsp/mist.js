@@ -2738,11 +2738,11 @@ var UI = {
                 //this is a folder stream
                 mist.send(function(d,opts){
                   var s = opts.stream;
-                  for (var i in mist.data.browse.files) {
+                  for (var i in d.browse.files) {
                     for (var j in mist.data.capabilities.inputs) {
                       if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
-                      if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+mist.data.browse.files[i])) {
-                        select[s+'+'+mist.data.browse.files[i]] = true;
+                      if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
+                        select[s+'+'+d.browse.files[i]] = true;
                       }
                     }
                   }

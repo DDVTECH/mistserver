@@ -211,6 +211,10 @@ namespace DTSC {
     //bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)
     //keyframe, if true, adds 9 bytes (integer type) and 10 bytes (2+namelen)
     //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
+    if (packDataSize < 1){
+      FAIL_MSG("Attempted to fill a packet with %lli bytes!", packDataSize);
+      return;
+    }
     unsigned int sendLen = 24 + (packOffset?17:0) + (packBytePos?15:0) + (isKeyframe?19:0) + packDataSize+11;
     resize(sendLen);
     //set internal variables

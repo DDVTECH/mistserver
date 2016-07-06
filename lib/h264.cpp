@@ -10,7 +10,8 @@ namespace h264 {
     std::deque<nalu::nalData> res;
 
     int offset = 0;
-    while (offset < len){
+    //Make sure entire packet is within len
+    while (offset+5 < len && Bit::btohl(data + offset)+offset+4 <= len){
       nalu::nalData entry;
       entry.nalSize = Bit::btohl(data + offset);
       entry.nalType = (data + offset)[4] & 0x1F;

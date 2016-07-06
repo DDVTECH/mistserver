@@ -467,8 +467,12 @@ namespace Mist {
     while (thisPacket && thisPacket.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()){
       getNext();
     }
-    while (thisPacket && thisPacket.getTime() < stopTime){
-      bufferNext(thisPacket);
+    uint64_t lastBuffered = 0;
+    while (thisPacket && thisPacket.getTime() < stopTime) {
+      if (thisPacket.getTime() >= lastBuffered){
+        bufferNext(thisPacket);
+        lastBuffered = thisPacket.getTime();
+      }
       getNext();
     }
     bufferFinalize(track);

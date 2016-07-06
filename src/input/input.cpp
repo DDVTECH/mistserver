@@ -138,12 +138,16 @@ namespace Mist {
       return 0;
     }
     parseHeader();
+    MEDIUM_MSG("Header parsed, %lu tracks", myMeta.tracks.size());
 
     if (!streamName.size()) {
+      MEDIUM_MSG("Starting convert");
       convert();
     } else if (!needsLock()) {
+      MEDIUM_MSG("Starting stream");
       stream();
     }else{
+      MEDIUM_MSG("Starting serve");
       serve();
     }
     return 0;

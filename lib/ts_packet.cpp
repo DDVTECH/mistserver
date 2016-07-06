@@ -230,18 +230,22 @@ namespace TS {
     }
     std::stringstream output;
     output << std::string(indent, ' ') << "[PID " << getPID() << "|" << std::hex << getContinuityCounter() << std::dec << ": " << getDataSize() << "b ";
-    if (!getPID()){
-      output << "PAT";
-    }else{
-      if (pmt_pids.count(getPID())){
-        output << "PMT";
-      }else{
-        if (stream_pids.count(getPID())){
-          output << stream_pids[getPID()];
+    switch (getPID()){
+      case 0: output << "PAT"; break;
+      case 1: output << "CAT"; break;
+      case 2: output << "TSDT"; break;
+      case 0x1FFF: output << "Null"; break;
+      default:
+        if (pmt_pids.count(getPID())){
+          output << "PMT";
         }else{
-          output << "Unknown";
+          if (stream_pids.count(getPID())){
+            output << stream_pids[getPID()];
+          }else{
+            output << "Unknown";
+          }
         }
-      }
+        break;
     }
     output << "]";
     if (getUnitStart()){
@@ -649,6 +653,12 @@ namespace TS {
     return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
   }
 
+  void ProgramAssociationTable::parsePIDs(){
+    for (int i = 0; i < getProgramCount(); i++) {
+      pmt_pids.insert(getProgramPID(i));
+    }
+  }
+
 ///This function prints a program association table,
 ///prints all values in a human readable format
 ///\param indent The indentation of the string printed as wanted by the user
@@ -669,7 +679,6 @@ namespace TS {
       output << std::string(indent + 4, ' ') << "[" << i + 1 << "] ";
       output << "Program Number: " << getProgramNumber(i) << ", ";
       output << (getProgramNumber(i) == 0 ? "Network" : "Program Map") << " PID: " << getProgramPID(i);
-      pmt_pids.insert(getProgramPID(i));
       output << std::endl;
     }
     output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;
@@ -950,7 +959,11 @@ namespace TS {
     while (entry) {
       output << std::string(indent + 4, ' ');
       stream_pids[entry.getElementaryPid()] = entry.getCodec() + std::string(" ") + entry.getStreamTypeString();
-      output << "Stream " << entry.getElementaryPid() << ": " << stream_pids[entry.getElementaryPid()] << " (" << entry.getStreamType() << "), InfoLen = " << entry.getESInfoLength() << std::endl;
+      output << "Stream " << entry.getElementaryPid() << ": " << stream_pids[entry.getElementaryPid()] << " (" << entry.getStreamType() << "), Info (" << entry.getESInfoLength() << ") = ";
+      for (unsigned int i = 0; i<entry.getESInfoLength(); ++i){
+        output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)entry.getESInfo()[i] << std::dec;
+      }
+      output << std::endl;
       entry.advance();
     }
     output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;

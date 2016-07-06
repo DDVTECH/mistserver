@@ -97,6 +97,7 @@ namespace TS {
       short getProgramNumber(short index) const;
       short getProgramPID(short index) const;
       int getCRC() const;
+      void parsePIDs();
       std::string toPrettyString(size_t indent) const;
   };
 

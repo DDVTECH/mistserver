@@ -150,10 +150,11 @@ namespace Mist {
     pageSize = 26 * 1024 * 1024;
 #endif
     /*LTS-START*/
-    INFO_MSG("Page size %d", pageSize);
     if (encrypt){
       pageSize = pageSize * 1.5;
-      INFO_MSG("Adjusted page size to %d", pageSize);
+      HIGH_MSG("Page size X1.5 = %d", pageSize);
+    }else{
+      HIGH_MSG("Page size %d", pageSize);
     }
     /*LTS-END*/
     std::string pageName(pageId);

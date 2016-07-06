@@ -455,9 +455,33 @@ namespace TS {
           nalInfo = h265::analysePackets(parsedData, parsedSize);
         }
         int dataOffset = 0;
+        bool firstSlice = true;
         for (std::deque<nalu::nalData>::iterator it = nalInfo.begin(); it != nalInfo.end(); it++){
           if (pidToCodec[tid] == H264){
             switch (it->nalType){
+              case 0x01: {
+                  if (firstSlice) {
+                    firstSlice = false;
+                    if (!isKeyFrame){
+                      char * data = parsedData + dataOffset + 4;
+                      Utils::bitstream bs;
+                      for (size_t i = 1; i < 10 && i < it->nalSize; i++) {
+                        if (i + 2 < it->nalSize && (memcmp(data + i, "\000\000\003", 3) == 0)) { //Emulation prevention bytes
+                          bs.append(data + i, 2);
+                          i += 2;
+                        } else {
+                          bs.append(data + i, 1);
+                        }
+                      }
+                      bs.getExpGolomb();//Discard first_mb_in_slice
+                      uint64_t sliceType = bs.getUExpGolomb();
+                      if (sliceType == 2 || sliceType == 4 || sliceType == 7 || sliceType == 9){
+                        isKeyFrame = true;
+                      }
+                    }
+                  }
+                  break;
+                }
               case 0x05: {
                 isKeyFrame = true; 
                 break;

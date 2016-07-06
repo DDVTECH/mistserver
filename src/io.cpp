@@ -515,16 +515,18 @@ namespace Mist {
         nextPageNum = 1;
         pagesByTrack[tid][1].dataSize = DEFAULT_DATA_PAGE_SIZE;//Initialize op 25mb
         pagesByTrack[tid][1].pageNum = 1;
+        pagesByTrack[tid][1].firstTime = packet.getTime();
       }
       //Take the last allocated page
       std::map<unsigned long, DTSCPageData>::reverse_iterator tmpIt = pagesByTrack[tid].rbegin();
       //Compare on 8 mb boundary
-      if (tmpIt->second.curOffset > FLIP_DATA_PAGE_SIZE) { 
+      if (tmpIt->second.curOffset > FLIP_DATA_PAGE_SIZE || packet.getTime() - tmpIt->second.firstTime > FLIP_TARGET_DURATION) { 
         //Create the book keeping data for the new page
         nextPageNum = tmpIt->second.pageNum + tmpIt->second.keyNum;
         INFO_MSG("We should go to next page now, transition from %lu to %d", tmpIt->second.pageNum, nextPageNum);
         pagesByTrack[tid][nextPageNum].dataSize = DEFAULT_DATA_PAGE_SIZE;
         pagesByTrack[tid][nextPageNum].pageNum = nextPageNum;
+        pagesByTrack[tid][nextPageNum].firstTime = packet.getTime();
       }
       pagesByTrack[tid].rbegin()->second.lastKeyTime = packet.getTime();
       pagesByTrack[tid].rbegin()->second.keyNum++;

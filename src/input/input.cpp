@@ -395,10 +395,11 @@ namespace Mist {
             nProxy.pagesByTrack[it->first][i + 1].firstTime = it->second.keys[i].getTime();
             newData = false;
           }
-          nProxy.pagesByTrack[it->first].rbegin()->second.keyNum++;
-          nProxy.pagesByTrack[it->first].rbegin()->second.partNum += it->second.keys[i].getParts();
-          nProxy.pagesByTrack[it->first].rbegin()->second.dataSize += it->second.keySizes[i];
-          if (nProxy.pagesByTrack[it->first].rbegin()->second.dataSize > FLIP_DATA_PAGE_SIZE) {
+          DTSCPageData & dPage = nProxy.pagesByTrack[it->first].rbegin()->second;
+          dPage.keyNum++;
+          dPage.partNum += it->second.keys[i].getParts();
+          dPage.dataSize += it->second.keySizes[i];
+          if ((dPage.dataSize > FLIP_DATA_PAGE_SIZE || it->second.keys[i].getTime() - dPage.firstTime > FLIP_TARGET_DURATION) && it->second.keys[i].getTime() - dPage.firstTime > FLIP_MIN_DURATION) {
             newData = true;
           }
         }
@@ -430,7 +431,7 @@ namespace Mist {
 
         }
         if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() + 1 == curData[tid].partNum) {
-          if (curData[tid].dataSize > FLIP_DATA_PAGE_SIZE) {
+        if ((curData[tid].dataSize > FLIP_DATA_PAGE_SIZE || myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getTime() - curData[tid].firstTime > FLIP_TARGET_DURATION) && myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getTime() - curData[tid].firstTime > FLIP_MIN_DURATION) {
             nProxy.pagesByTrack[tid][bookKeeping[tid].first] = curData[tid];
             bookKeeping[tid].first += curData[tid].keyNum;
             curData[tid].keyNum = 0;
@@ -495,6 +496,7 @@ namespace Mist {
       return false;
     }
     //Update keynum to point to the corresponding page
+    uint64_t bufferTimer = Util::getMS();
     INFO_MSG("Loading key %u from page %lu", keyNum, (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first);
     keyNum = (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first;
     if (!bufferStart(track, keyNum)) {
@@ -525,7 +527,8 @@ namespace Mist {
       getNext();
     }
     bufferFinalize(track);
-    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d for track %d", keyNum, track);
+    bufferTimer = Util::getMS() - bufferTimer;
+    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d for track %d in %llums", keyNum, track, bufferTimer);
     pageCounter[track][keyNum] = 15;
     return true;
   }

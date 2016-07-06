@@ -22,7 +22,11 @@ namespace DTSC {
     master = false;
     bufferLen = 0;
     data = NULL;
-    reInit(rhs.data, rhs.dataLen, !rhs.master);
+    if (rhs.data && rhs.dataLen){
+      reInit(rhs.data, rhs.dataLen, !rhs.master);
+    }else{
+      null();
+    }
   }
 
   /// Data constructor for packets, either references or copies a packet from raw data.
@@ -46,7 +50,7 @@ namespace DTSC {
     if (master && !rhs.master) {
       null();
     }
-    if (rhs) {
+    if (rhs && rhs.data && rhs.dataLen) {
       reInit(rhs.data, rhs.dataLen, !rhs.master);
     } else {
       null();
@@ -141,7 +145,7 @@ namespace DTSC {
   ///\param noCopy Determines whether to make a copy or not
   void Packet::reInit(const char * data_, unsigned int len, bool noCopy) {
     if (!data_) {
-      HIGH_MSG("ReInit received a null pointer with len %d, ignoring", len);
+      WARN_MSG("ReInit received a null pointer with len %d, nulling", len);
       null();
       return;
     }

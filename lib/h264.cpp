@@ -88,6 +88,18 @@ namespace h264 {
     dataLen = Bit::btohs(dtscInit.data() + 6);
   }
 
+  void skipScalingList(Utils::bitstream & bs, size_t listSize){
+    size_t lastScale = 8;
+    size_t nextScale = 8;
+    for (size_t i = 0; i < listSize; i++){
+      if (nextScale){
+        uint64_t deltaScale = bs.getExpGolomb();
+        nextScale = (lastScale + deltaScale + 256) % 256;
+      }
+      lastScale = (nextScale ? nextScale : lastScale);
+    }
+  }
+
   SPSMeta sequenceParameterSet::getCharacteristics()  const {
     SPSMeta result;
 
@@ -121,14 +133,25 @@ namespace h264 {
     bs.getUExpGolomb();
     if (profileIdc == 100 || profileIdc == 110 || profileIdc == 122 || profileIdc == 244 || profileIdc == 44 || profileIdc == 83 || profileIdc == 86 || profileIdc == 118 || profileIdc == 128) {
       //chroma format idc
-      if (bs.getUExpGolomb() == 3) {
+      char chromaFormatIdc = bs.getUExpGolomb();
+      if (chromaFormatIdc == 3) {
         bs.skip(1);
       }
       bs.getUExpGolomb();
       bs.getUExpGolomb();
       bs.skip(1);
-      if (bs.get(1)) {
-        DEBUG_MSG(DLVL_DEVEL, "Scaling matrix not implemented yet");
+      if (bs.get(1)) {//Scaling matrix is present
+        char listSize = (chromaFormatIdc == 3 ? 12 : 8);
+        for (size_t i = 0; i < listSize; i++){
+          bool thisListPresent = bs.get(1);
+          if (thisListPresent){
+            if (i < 6){
+              skipScalingList(bs, 16);
+            }else{
+              skipScalingList(bs, 64);
+            }
+          }
+        }
       }
     }
     bs.getUExpGolomb();

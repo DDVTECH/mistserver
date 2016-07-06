@@ -59,7 +59,7 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 
 
 #ifndef SHM_DATASIZE
-#define SHM_DATASIZE 25
+#define SHM_DATASIZE 20
 #endif
 
 
@@ -83,8 +83,13 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 /// The size used for server configuration pages.
 #define DEFAULT_CONF_PAGE_SIZE 4 * 1024 * 1024
 
-/// The position from where on stream data pages are switched over to the next page.
+/// The data size or duration from where on stream data pages are switched over to the next page.
+/// The flip happens whenever either of these is matched.
 #define FLIP_DATA_PAGE_SIZE 8 * 1024 * 1024
+#define FLIP_TARGET_DURATION 60000
+/// The minimum duration for switching to next page. The flip will never happen before this.
+/// Does not affect live streams.
+#define FLIP_MIN_DURATION 20000
 
 #define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
 #define SHM_TRACK_META "MstTRAK%s@%lu" //%s stream name, %lu track ID

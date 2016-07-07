@@ -537,7 +537,6 @@ namespace Mist {
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   void Output::seek(unsigned long long pos){
     sought = true;
-    firstTime = Util::getMS() - pos;
     if (!isInitialized){
       initialize();
     }
@@ -553,6 +552,7 @@ namespace Mist {
         seek(*it, pos);
       }
     }
+    firstTime = Util::getMS() - buffer.begin()->time;
   }
 
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
@@ -974,7 +974,7 @@ namespace Mist {
 
             //slow down processing, if real time speed is wanted
             if (realTime){
-              while (thisPacket.getTime() > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime) {
+              while (thisPacket.getTime() > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime && config->is_active && myConn) {
                 Util::sleep(std::min(thisPacket.getTime() - (((Util::getMS() - firstTime)*1000)+minSkipAhead)/realTime, 1000llu));
                 stats();
               }

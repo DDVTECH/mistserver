@@ -35,6 +35,7 @@ namespace Analysers {
     if (d[0] != 0 || d[1] != 0 || d[2] != 1){
       res << " [!!! INVALID START CODE: " << (int)d[0] << " " << (int)d[1] << " " << (int)d[2] <<  " ]";
     }
+    unsigned int padding = 0;
     if (known){
       if ((d[6] & 0xC0) != 0x80){
         res << " [!INVALID FIRST BITS!]";
@@ -90,7 +91,8 @@ namespace Analysers {
         headSize += 0; /// \todo Implement this. Complicated field, bah.
       }
       if (d[8] != headSize){
-        res << " [Padding: " << ((int)d[8] - headSize) << "b]";
+        padding = d[8] - headSize;
+        res << " [Padding: " << padding << "b]";
       }
       if (timeFlags & 0x02){
         long long unsigned int time = (((unsigned int)d[9] & 0xE) >> 1);
@@ -116,7 +118,7 @@ namespace Analysers {
     
     if(detailLevel==1){
       unsigned int counter = 0;
-      for (unsigned int i = 9+headSize; i<d.size(); ++i){
+      for (unsigned int i = 9+headSize+padding; i<d.size(); ++i){
         if ((i < d.size() - 4) && d[i] == 0 && d[i+1] == 0 && d[i+2] == 0 && d[i+3] == 1){res << std::endl; counter = 0;}
         res << std::hex << std::setw(2) << std::setfill('0') << (int)(d[i]&0xff) << " ";
         counter++;

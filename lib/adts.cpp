@@ -20,8 +20,8 @@ namespace aac {
 
 
   bool adts::sameHeader(const adts & rhs) const {
-    if (len < 7 || rhs.len < 7){return false;}
-    return (memcmp(data, rhs.data, 7) == 0);
+    if (!rhs || !*this){return false;}
+    return (getAACProfile() == rhs.getAACProfile() && getFrequencyIndex() == rhs.getFrequencyIndex() && getChannelConfig() == rhs.getChannelConfig());
   }
 
   adts::adts(const adts & rhs){
@@ -46,14 +46,14 @@ namespace aac {
     }
   }
 
-  unsigned long adts::getAACProfile(){
+  unsigned long adts::getAACProfile() const{
     if (!data || !len){
       return 0;
     }
     return ((data[2] >> 6) & 0x03) + 1;
   }
 
-  unsigned long adts::getFrequencyIndex(){
+  unsigned long adts::getFrequencyIndex() const{
     if (!data || !len){
       return 0;
     }
@@ -61,7 +61,7 @@ namespace aac {
 
   }
 
-  unsigned long adts::getFrequency(){
+  unsigned long adts::getFrequency() const{
     if (!data || len < 3){
       return 0;
     }
@@ -83,28 +83,28 @@ namespace aac {
     }
   }
 
-  unsigned long adts::getChannelConfig(){
+  unsigned long adts::getChannelConfig() const{
     if (!data || !len){
       return 0;
     }
     return ((data[2] & 0x01) << 2) | ((data[3] >> 6) & 0x03);
   }
 
-  unsigned long adts::getChannelCount(){
+  unsigned long adts::getChannelCount() const{
     if (!data || !len){
       return 0;
     }
     return (getChannelConfig() == 7 ? 8 : getChannelConfig());
   }
 
-  unsigned long adts::getHeaderSize(){
+  unsigned long adts::getHeaderSize() const{
     if (!data || !len){
       return 0;
     }
     return (data[1] & 0x01 ? 7 : 9);
   }
 
-  unsigned long adts::getPayloadSize(){
+  unsigned long adts::getPayloadSize() const{
     if (!data || len < 6){
       return 0;
     }
@@ -122,7 +122,7 @@ namespace aac {
     return ret;
   }
 
-  unsigned long adts::getSampleCount(){
+  unsigned long adts::getSampleCount() const{
     if (!data || len < 7){
       return 0;
     }
@@ -135,11 +135,32 @@ namespace aac {
     }
     return data + getHeaderSize();
   }
-  std::string adts::toPrettyString(){
+  std::string adts::toPrettyString() const{
     std::stringstream res;
-    res << "SyncWord: " << std::hex << (((int)data[0] << 4) | ((data[1] >> 4) & 0x0F)) << std::endl;
-    res << "HeaderSize: " << std::dec << getHeaderSize() << std::endl;
-    res << "PayloadSize: " << std::dec << getPayloadSize() << std::endl;
+    res << "ADTS packet (payload size: " << getPayloadSize() << ")" << std::endl;
+    int syncWord = (((int)data[0] << 4) | ((data[1] >> 4) & 0x0F));
+    if (syncWord != 0xfff){
+      res << "  Sync word " << std::hex << syncWord << " != fff!" << std::endl;
+    }
+    if (data[1] & 0x8 == 0x8){
+      res << "  MPEG-2" << std::endl;
+    }else{
+      res << "  MPEG-4" << std::endl;
+    }
+    if (data[1] & 0x6 != 0){
+      res << "  Non-zero layer!" << std::endl;
+    }
+    if (data[1] & 0x1 == 0x0){
+      res << "  CRC present" << std::endl;
+    }
+    res << "  MPEG-4 audio object type: " << getAACProfile() << std::endl;
+    res << "  Frequency: " << getFrequency() << "Hz" << std::endl;
+    res << "  Channels: " << getChannelCount() << std::endl;
+    res << "  Samples: " << getSampleCount() << std::endl;
+
     return res.str();
+  }
+  adts::operator bool() const{
+    return (((int)data[0] << 4) | ((data[1] >> 4) & 0x0F)) == 0xfff && getFrequency();
   }
 }

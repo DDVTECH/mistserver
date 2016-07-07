@@ -418,15 +418,18 @@ namespace TS {
         }
         while (offsetInPes < realPayloadSize){
           aac::adts adtsPack(pesPayload + offsetInPes, realPayloadSize - offsetInPes);
-          if (adtsPack.getFrequency() && adtsPack.getPayloadSize()){
+          if (adtsPack){
             if (!adtsInfo.count(tid) || !adtsInfo[tid].sameHeader(adtsPack)){
+              MEDIUM_MSG("Setting new ADTS header: %s", adtsPack.toPrettyString().c_str());
               adtsInfo[tid] = adtsPack;
             }
             outPackets[tid].push_back(DTSC::Packet());
             outPackets[tid].back().genericFill(timeStamp + ((samplesRead * 1000) / adtsPack.getFrequency()), timeOffset, tid, adtsPack.getPayload(), adtsPack.getPayloadSize(), bPos, 0);
+            samplesRead += adtsPack.getSampleCount();
+            offsetInPes += adtsPack.getHeaderSize() + adtsPack.getPayloadSize();
+          }else{
+            offsetInPes++;
           }
-          samplesRead += adtsPack.getSampleCount();
-          offsetInPes += adtsPack.getHeaderSize() + adtsPack.getPayloadSize();
         }
         if (threaded){
           globalSem.post();

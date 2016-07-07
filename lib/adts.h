@@ -9,16 +9,17 @@ namespace aac {
       ~adts();
       adts& operator = (const adts & rhs);
       bool sameHeader(const adts & rhs) const;
-      unsigned long getAACProfile();
-      unsigned long getFrequencyIndex();
-      unsigned long getFrequency();
-      unsigned long getChannelConfig();
-      unsigned long getChannelCount();
-      unsigned long getHeaderSize();
-      unsigned long getPayloadSize();
-      unsigned long getSampleCount();
+      unsigned long getAACProfile() const;
+      unsigned long getFrequencyIndex() const;
+      unsigned long getFrequency() const;
+      unsigned long getChannelConfig() const;
+      unsigned long getChannelCount() const;
+      unsigned long getHeaderSize() const;
+      unsigned long getPayloadSize() const;
+      unsigned long getSampleCount() const;
       char * getPayload();
-      std::string toPrettyString();
+      std::string toPrettyString() const;
+      operator bool() const;
     private:
       char * data;
       unsigned long len;

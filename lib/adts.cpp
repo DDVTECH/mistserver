@@ -104,20 +104,20 @@ namespace aac {
     return (data[1] & 0x01 ? 7 : 9);
   }
 
-  unsigned long adts::getPayloadSize() const{
+  unsigned long adts::getCompleteSize() const{
     if (!data || len < 6){
       return 0;
     }
-    unsigned long ret = (((data[3] & 0x03) << 11) | (data[4] << 3) | ((data[5] >> 5) & 0x07));
+    return (((data[3] & 0x03) << 11) | (data[4] << 3) | ((data[5] >> 5) & 0x07));
+  }
+
+  unsigned long adts::getPayloadSize() const{
+    unsigned long ret = getCompleteSize();
     if (!ret){return ret;}//catch zero length
     if (ret >= getHeaderSize()){
       ret -= getHeaderSize();
     }else{
       return 0;//catch size less than header size (corrupt data)
-    }
-    if (len < ret + getHeaderSize() ){
-      ret = len - getHeaderSize();
-      //catch size less than length (corrupt data)
     }
     return ret;
   }
@@ -161,6 +161,9 @@ namespace aac {
     return res.str();
   }
   adts::operator bool() const{
-    return (((int)data[0] << 4) | ((data[1] >> 4) & 0x0F)) == 0xfff && getFrequency();
+    return hasSync() && len && len >= getHeaderSize() && getFrequency();
+  }
+  bool adts::hasSync() const{
+    return len && (((int)data[0] << 4) | ((data[1] >> 4) & 0x0F)) == 0xfff;
   }
 }

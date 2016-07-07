@@ -314,6 +314,10 @@ namespace Mist {
     } else {
       tsStream.getEarliestPacket(thisPacket);
     }
+    if (!thisPacket){
+      FAIL_MSG("Could not getNext TS packet!");
+      return;
+    }
     tsStream.initializeMetadata(myMeta);
     if (!myMeta.tracks.count(thisPacket.getTrackId())) {
       getNext();

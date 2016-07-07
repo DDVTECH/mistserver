@@ -16,7 +16,9 @@ namespace aac {
       unsigned long getChannelCount() const;
       unsigned long getHeaderSize() const;
       unsigned long getPayloadSize() const;
+      unsigned long getCompleteSize() const;
       unsigned long getSampleCount() const;
+      bool hasSync() const;
       char * getPayload();
       std::string toPrettyString() const;
       operator bool() const;

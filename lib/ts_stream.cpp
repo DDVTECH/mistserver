@@ -7,6 +7,46 @@
 #include <sys/stat.h>
 
 namespace TS {
+
+  class ADTSRemainder{
+    public:
+      char * data;
+      uint32_t max;
+      uint32_t now;
+      uint32_t len;
+      uint32_t bpos;
+      void setRemainder(const aac::adts & p, const void * source, const uint32_t avail, const uint32_t bPos){
+        if (max < p.getCompleteSize()){
+          void * newmainder = realloc(data, p.getCompleteSize());
+          if (newmainder){
+            max = p.getCompleteSize();
+            data = (char*)newmainder;
+          }
+        }
+        if (max >= p.getCompleteSize()){
+          len = p.getCompleteSize();
+          now = avail;
+          bpos = bPos;
+          memcpy(data, source, now);
+        }
+      }
+      ADTSRemainder(){
+        data = 0;
+        max = 0;
+        now = 0;
+        len = 0;
+        bpos = 0;
+      }
+      ~ADTSRemainder(){
+        if (data){
+          free(data);
+          data = 0;
+        }
+      }
+
+  };
+
+
   Stream::Stream(bool _threaded){
     threaded = _threaded;
     if (threaded){
@@ -412,23 +452,48 @@ namespace TS {
       if (pidToCodec[tid] == AAC){
         //Parse all the ADTS packets
         unsigned long offsetInPes = 0;
-        unsigned long samplesRead = 0;
+        uint64_t msRead = 0;
         if (threaded){
           globalSem.wait();
         }
+        static std::map<unsigned long, ADTSRemainder> remainders;
+        if (remainders.count(tid) && remainders[tid].len){
+          offsetInPes = std::min((unsigned long)(remainders[tid].len - remainders[tid].now), (unsigned long)realPayloadSize);
+          memcpy(remainders[tid].data+remainders[tid].now, pesPayload, offsetInPes);
+          remainders[tid].now += offsetInPes;
+          if (remainders[tid].now == remainders[tid].len){
+            aac::adts adtsPack(remainders[tid].data, remainders[tid].len);
+            if (adtsPack){
+              if (!adtsInfo.count(tid) || !adtsInfo[tid].sameHeader(adtsPack)){
+                MEDIUM_MSG("Setting new ADTS header: %s", adtsPack.toPrettyString().c_str());
+                adtsInfo[tid] = adtsPack;
+              }
+              outPackets[tid].push_back(DTSC::Packet());
+              outPackets[tid].back().genericFill(timeStamp-((adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency()), timeOffset, tid, adtsPack.getPayload(), adtsPack.getPayloadSize(), remainders[tid].bpos, 0);
+            }
+            remainders[tid].len = 0;
+          }
+        }
         while (offsetInPes < realPayloadSize){
           aac::adts adtsPack(pesPayload + offsetInPes, realPayloadSize - offsetInPes);
-          if (adtsPack){
+          if (adtsPack && adtsPack.getCompleteSize() + offsetInPes <= realPayloadSize){
             if (!adtsInfo.count(tid) || !adtsInfo[tid].sameHeader(adtsPack)){
               MEDIUM_MSG("Setting new ADTS header: %s", adtsPack.toPrettyString().c_str());
               adtsInfo[tid] = adtsPack;
             }
             outPackets[tid].push_back(DTSC::Packet());
-            outPackets[tid].back().genericFill(timeStamp + ((samplesRead * 1000) / adtsPack.getFrequency()), timeOffset, tid, adtsPack.getPayload(), adtsPack.getPayloadSize(), bPos, 0);
-            samplesRead += adtsPack.getSampleCount();
-            offsetInPes += adtsPack.getHeaderSize() + adtsPack.getPayloadSize();
+            outPackets[tid].back().genericFill(timeStamp + msRead, timeOffset, tid, adtsPack.getPayload(), adtsPack.getPayloadSize(), bPos, 0);
+            msRead += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
+            offsetInPes += adtsPack.getCompleteSize();
           }else{
-            offsetInPes++;
+            /// \todo What about the case that we have an invalid start, going over the PES boundary?
+            if (!adtsPack.hasSync()){
+              offsetInPes++;
+            }else{
+              //remainder, keep it, use it next time
+              remainders[tid].setRemainder(adtsPack, pesPayload + offsetInPes, realPayloadSize - offsetInPes, bPos);
+              offsetInPes = realPayloadSize;//skip to end of PES
+            }
           }
         }
         if (threaded){

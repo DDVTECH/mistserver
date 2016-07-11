@@ -442,8 +442,8 @@ namespace TS {
       }
 
       if (paySize - offset - pesOffset < realPayloadSize){
-        INFO_MSG("Not enough data left on track %lu.", tid);
-        break;
+        WARN_MSG("Packet loss detected, glitches will occur");
+        realPayloadSize = paySize - offset - pesOffset;
       }
 
       char * pesPayload = payload + offset + pesOffset;

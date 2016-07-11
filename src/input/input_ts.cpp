@@ -382,18 +382,29 @@ namespace Mist {
           ctr++;
         }
       } else {
+        std::string leftData;
         while (udpCon.Receive()) {
           int offset = 0;
           //Try to read full TS Packets
-          //Assumption here is made that one UDP Datagram consists of complete TS Packets.
-          //Assumption made because of possible packet loss issues
-          while ((udpCon.data_len - offset) >= 188) {
-            //Watch out! We push here to a global, in order for threads to be able to access it.
-            liveStream.add(udpCon.data + offset);
-            offset += 188;
-          }
-          if (offset < udpCon.data_len) {
-            WARN_MSG("%d bytes left in datagram", udpCon.data_len - offset);
+          //Watch out! We push here to a global, in order for threads to be able to access it.
+          while (offset < udpCon.data_len) {
+            if (udpCon.data[0] == 0x47){//check for sync byte
+              if (offset + 188 <= udpCon.data_len){
+                liveStream.add(udpCon.data + offset);
+              }else{
+                leftData.append(udpCon.data + offset, udpCon.data_len - offset);
+              }
+              offset += 188;
+            }else{
+              if (leftData.size()){
+                leftData.append(udpCon.data + offset, 1);
+                if (leftData.size() >= 188){
+                  liveStream.add((char*)leftData.data());
+                  leftData.erase(0, 188);
+                }
+              }
+              ++offset;
+            }
           }
         }
       }

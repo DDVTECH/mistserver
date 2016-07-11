@@ -498,7 +498,6 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "dash/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
-    capa["methods"][0u]["nolive"] = 1;
   }
   
   /// Parses a "Range: " header, setting byteStart, byteEnd and seekPoint using data from metadata and tracks to do

@@ -1088,6 +1088,9 @@ namespace DTSC {
     codec = trackRef["codec"].asStringRef();
     type = trackRef["type"].asStringRef();
     init = trackRef["init"].asStringRef();
+    if (trackRef.isMember("lang") && trackRef["lang"].asStringRef().size()){
+      lang = trackRef["lang"].asStringRef();
+    }
     if (type == "audio") {
       rate = trackRef["rate"].asInt();
       size = trackRef["size"].asInt();
@@ -1134,6 +1137,9 @@ namespace DTSC {
     codec = trackRef.getMember("codec").asString();
     type = trackRef.getMember("type").asString();
     init = trackRef.getMember("init").asString();
+    if (trackRef.getMember("lang")){
+      lang = trackRef.getMember("lang").asString();
+    }
     if (type == "audio") {
       rate = trackRef.getMember("rate").asInt();
       size = trackRef.getMember("size").asInt();
@@ -1398,6 +1404,9 @@ namespace DTSC {
       str << std::hex << std::setw(2) << std::setfill('0') << (int)init[i];
     }
     str << std::dec << std::endl;
+    if (lang.size()){
+      str << std::string(indent + 2, ' ') << "Language: " << lang << std::endl;
+    }
     if (type == "audio") {
       str << std::string(indent + 2, ' ') << "Rate: " << rate << std::endl;
       str << std::string(indent + 2, ' ') << "Size: " << size << std::endl;
@@ -1482,6 +1491,9 @@ namespace DTSC {
       result << width << "x" << height << "_";
       result << (double)fpks / 1000 << "fps";
     }
+    if (lang.size() && lang != "und"){
+      result << "_" << lang;
+    }
     return result.str();
   }
 
@@ -1504,6 +1516,9 @@ namespace DTSC {
         result += (keySizes.size() * 4) + 15;
     }
       result += parts.size() * 9 + 12;
+    }
+    if (lang.size() && lang != "und"){
+      result += 11 + lang.size();
     }
     if (type == "audio") {
       result += 49;
@@ -1588,6 +1603,11 @@ namespace DTSC {
     writePointer(p, "\000\004type\002", 7);
     writePointer(p, convertInt(type.size()), 4);
     writePointer(p, type);
+    if (lang.size() && lang != "und"){
+      writePointer(p, "\000\004lang\002", 7);
+      writePointer(p, convertInt(lang.size()), 4);
+      writePointer(p, lang);
+    }
     if (type == "audio") {
       writePointer(p, "\000\004rate\001", 7);
       writePointer(p, convertLongLong(rate), 8);
@@ -1660,6 +1680,11 @@ namespace DTSC {
     conn.SendNow("\000\004type\002", 7);
     conn.SendNow(convertInt(type.size()), 4);
     conn.SendNow(type);
+    if (lang.size() && lang != "und"){
+    conn.SendNow("\000\004lang\002", 7);
+    conn.SendNow(convertInt(lang.size()), 4);
+    conn.SendNow(lang);
+    }
     if (type == "audio") {
       conn.SendNow("\000\004rate\001", 7);
       conn.SendNow(convertLongLong(rate), 8);
@@ -1786,6 +1811,9 @@ namespace DTSC {
       result["parts"] = tmp;
     }
     result["init"] = init;
+    if (lang.size() && lang != "und"){
+      result["lang"] = lang;
+    }
     result["trackid"] = trackID;
     result["firstms"] = (long long)firstms;
     result["lastms"] = (long long)lastms;

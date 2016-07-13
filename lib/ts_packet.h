@@ -102,6 +102,16 @@ namespace TS {
       std::string toPrettyString(size_t indent) const;
   };
 
+  class ProgramDescriptors {
+    public:
+      ProgramDescriptors(const char * data, const uint32_t len);
+      std::string getLanguage() const;
+      std::string toPrettyString(size_t indent) const;
+    private:
+      const char * p_data;
+      const uint32_t p_len;
+  };
+
   class ProgramMappingEntry {
     public:
       ProgramMappingEntry(char * begin, char * end);

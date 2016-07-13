@@ -301,6 +301,7 @@ namespace DTSC {
       std::string init;
       std::string codec;
       std::string type;
+      std::string lang;///< ISO 639-2 Language of track, empty or und if unknown.
       //audio only
       int rate;
       int size;

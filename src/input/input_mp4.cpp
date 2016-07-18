@@ -9,6 +9,7 @@
 #include <mist/flv_tag.h>
 #include <mist/defines.h>
 #include <mist/h264.h>
+#include <mist/bitfields.h>
 
 #include "input_mp4.h"
 
@@ -323,9 +324,10 @@ namespace Mist {
                   std::string mdiaBoxType = mdiaLoopPeek.getType();
                   if (mdiaBoxType == "mdhd"){
                     timeScale = ((MP4::MDHD&)mdiaLoopPeek).getTimeScale();
+                    myMeta.tracks[trackNo].lang = ((MP4::MDHD&)mdiaLoopPeek).getLanguage();
                   }else if (mdiaBoxType == "hdlr"){//fi mdhd
                     std::string handlerType = ((MP4::HDLR&)mdiaLoopPeek).getHandlerType();
-                    if (handlerType != "vide" && handlerType !="soun"){
+                    if (handlerType != "vide" && handlerType !="soun" && handlerType != "sbtl"){
                       myMeta.tracks.erase(trackNo);
                       //skip meta boxes for now
                       break;
@@ -424,6 +426,9 @@ namespace Mist {
                               }
                               myMeta.tracks[trackNo].size = 16;///\todo this might be nice to calculate from mp4 file;
                               //get Visual sample entry -> esds -> startcodes
+                            }else if (tmpType == "tx3g"){//plain text subtitles
+                              myMeta.tracks[trackNo].type = "subtitle";
+                              myMeta.tracks[trackNo].codec = "TTXT";
                             }else{
                               myMeta.tracks.erase(trackNo);
                             }
@@ -595,8 +600,19 @@ namespace Mist {
       thisPacket.null();
       return;
     }
-    thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, data, curPart.size, 0/*Note: no bpos*/, isKeyframe);
-    
+
+
+    if (myMeta.tracks[curPart.trackID].codec == "TTXT"){
+      unsigned int txtLen = Bit::btohs(data);
+      if (!txtLen){
+        thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, " ", 1, 0/*Note: no bpos*/, isKeyframe);
+      }else{
+        thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, data+2, txtLen, 0/*Note: no bpos*/, isKeyframe);
+      }
+    }else{
+      thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, data, curPart.size, 0/*Note: no bpos*/, isKeyframe);
+    }
+
     //get the next part for this track
     curPart.index ++;
     if (curPart.index < headerData[curPart.trackID].size()){

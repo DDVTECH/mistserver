@@ -266,11 +266,74 @@ macro(makeAnalyser analyserName format)
   )
 endmacro()
 
-makeAnalyser(RTMP rtmp)
-makeAnalyser(FLV flv)
-makeAnalyser(DTSC dtsc)
-makeAnalyser(AMF amf)
-makeAnalyser(MP4 mp4)
+add_executable(MistAnalyserMP4 src/analysers/analyser_mp4.cpp src/analysers/analyser.cpp)
+target_link_libraries(MistAnalyserMP4 mist)
+  install(
+    TARGETS MistAnalyserMP4
+    DESTINATION bin
+  )
+  
+  add_executable(MistAnalyserFLV src/analysers/analyser_flv.cpp src/analysers/analyser.cpp)
+target_link_libraries(MistAnalyserFLV mist)
+  install(
+    TARGETS MistAnalyserFLV
+    DESTINATION bin
+  )
+  
+add_executable(MistAnalyserRTMP src/analysers/analyser_rtmp.cpp src/analysers/analyser.cpp)
+target_link_libraries(MistAnalyserRTMP mist)
+  install(
+    TARGETS MistAnalyserRTMP
+    DESTINATION bin
+  )
+
+#niet nodig?
+add_executable(MistAnalyserRTP src/analysers/analyser_rtp.cpp src/analysers/analyser.cpp)
+target_link_libraries(MistAnalyserRTP mist)
+  install(
+    TARGETS MistAnalyserRTP
+    DESTINATION bin
+  )
+
+add_executable(MistAnalyserTS src/analysers/analyser_ts.cpp src/analysers/analyser.cpp)
+target_link_libraries(MistAnalyserTS mist)
+  install(
+    TARGETS MistAnalyserTS
+    DESTINATION bin
+  )
+
+add_executable(MistAnalyserDASH src/analysers/analyser_dash.cpp src/analysers/analyser.cpp)
+target_link_libraries(MistAnalyserDASH mist)
+  install(
+    TARGETS MistAnalyserDASH
+    DESTINATION bin
+  )
+
+add_executable(MistAnalyserHLS src/analysers/analyser_hls.cpp src/analysers/analyser.cpp)
+target_link_libraries(MistAnalyserHLS mist)
+  install(
+    TARGETS MistAnalyserHLS
+    DESTINATION bin
+  )
+
+add_executable(MistAnalyserDTSC src/analysers/analyser_dtsc.cpp src/analysers/analyser.cpp)
+target_link_libraries(MistAnalyserDTSC mist)
+  install(
+    TARGETS MistAnalyserDTSC
+    DESTINATION bin
+  )
+
+makeAnalyser(AMF amf) #hoeft niet
+makeAnalyser(OGG ogg)
+#makeAnalyser(RTP rtp) #LTS
+makeAnalyser(RTSP rtsp_rtp) #LTS ...
+#makeAnalyser(DTSC dtsc)
+
+#makeAnalyser(TS ts) #LTS
+#makeAnalyser(HLS hls) #LTS #url
+#makeAnalyser(RTMP rtmp)
+#makeAnalyser(FLV flv)
+#makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
 makeAnalyser(RAX rax)
 #makeAnalyser(RTP rtp) #LTS

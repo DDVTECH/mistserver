@@ -45,6 +45,8 @@ namespace TS {
       bool getUnitStart() const;      
       void setRandomAccess(bool newVal);
       bool getRandomAccess() const;
+      void setESPriority(bool newVal);
+      bool getESPriority() const;
       
       void setDiscontinuity(bool newVal);
       bool hasDiscontinuity() const;
@@ -53,7 +55,6 @@ namespace TS {
       bool hasSplicingPoint() const;
       bool hasTransportError() const;
       bool hasPriority() const;
-      bool hasESpriority() const;
 
       //Helper functions
       operator bool() const;
@@ -99,6 +100,16 @@ namespace TS {
       int getCRC() const;
       void parsePIDs();
       std::string toPrettyString(size_t indent) const;
+  };
+
+  class ProgramDescriptors {
+    public:
+      ProgramDescriptors(const char * data, const uint32_t len);
+      std::string getLanguage() const;
+      std::string toPrettyString(size_t indent) const;
+    private:
+      const char * p_data;
+      const uint32_t p_len;
   };
 
   class ProgramMappingEntry {

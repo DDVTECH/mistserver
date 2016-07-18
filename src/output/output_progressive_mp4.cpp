@@ -159,6 +159,7 @@ namespace Mist {
       
       //Add the mandatory MDHD and HDLR boxes to the MDIA
       MP4::MDHD mdhdBox(thisTrack.lastms - thisTrack.firstms);
+      mdhdBox.setLanguage(thisTrack.lang);
       mdiaBox.setContent(mdhdBox, mdiaOffset++);
       MP4::HDLR hdlrBox(thisTrack.type, thisTrack.getIdentifier());
       mdiaBox.setContent(hdlrBox, mdiaOffset++);

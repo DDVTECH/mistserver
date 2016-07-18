@@ -258,6 +258,9 @@ namespace TS {
       if (getRandomAccess()){
         output << " [RandomXS]";
       }
+      if (getESPriority()){
+        output << " [ESPriority]";
+      }
       if (hasPCR()) {
         output << " [PCR " << (double)getPCR() / 27000000 << "s]";
       }
@@ -286,7 +289,7 @@ namespace TS {
       return output.str();
     }
     
-    if (detailLevel >= 3){
+    if (detailLevel >= 10){
       output << std::string(indent+2, ' ') << "Raw data bytes:";
       unsigned int size = getDataSize();
       
@@ -325,12 +328,6 @@ namespace TS {
     }
   }
 
-/// Gets the elementary stream priority indicator of a Packet
-/// \return  The elementary stream priority indicator of a Packet
-  bool Packet::hasESpriority() const{
-    return strBuf[5] & 0x20;
-  }
-
   bool Packet::hasDiscontinuity() const{
     return strBuf[5] & 0x80;
   }
@@ -364,6 +361,15 @@ namespace TS {
       return false;
     }
     return strBuf[5] & 0x40;
+  }
+
+/// Gets whether this Packet has the priority bit set
+/// \return Whether or not this Packet has the priority bit set
+  bool Packet::getESPriority() const{
+    if (getAdaptationField() < 2) {
+      return false;
+    }
+    return strBuf[5] & 0x20;
   }
 
 ///Gets the value of the PCR flag
@@ -402,6 +408,30 @@ namespace TS {
       strBuf[4] = 1;
       if (NewVal) {
         strBuf[5] = 0x40;
+      } else {
+        strBuf[5] = 0x00;
+      }
+    }
+  }
+
+///Gets the value of the ES priority flag
+///\return the value of the ES priority flag
+  void Packet::setESPriority(bool NewVal) {
+    updPos(6);
+    if (getAdaptationField() == 3) {
+      if (!strBuf[4]) {
+        strBuf[4] = 1;
+      }
+      if (NewVal) {
+        strBuf[5] |= 0x20;
+      } else {
+        strBuf[5] &= 0xDF;
+      }
+    } else {
+      setAdaptationField(3);
+      strBuf[4] = 1;
+      if (NewVal) {
+        strBuf[5] = 0x20;
       } else {
         strBuf[5] = 0x00;
       }
@@ -959,17 +989,85 @@ namespace TS {
     while (entry) {
       output << std::string(indent + 4, ' ');
       stream_pids[entry.getElementaryPid()] = entry.getCodec() + std::string(" ") + entry.getStreamTypeString();
-      output << "Stream " << entry.getElementaryPid() << ": " << stream_pids[entry.getElementaryPid()] << " (" << entry.getStreamType() << "), Info (" << entry.getESInfoLength() << ") = ";
-      for (unsigned int i = 0; i<entry.getESInfoLength(); ++i){
-        output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)entry.getESInfo()[i] << std::dec;
-      }
-      output << std::endl;
+      output << "Stream " << entry.getElementaryPid() << ": " << stream_pids[entry.getElementaryPid()] << " (" << entry.getStreamType() << ")" << std::endl;
+      output << ProgramDescriptors(entry.getESInfo(), entry.getESInfoLength()).toPrettyString(indent+6);
       entry.advance();
     }
     output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;
     return output.str();
   }
-  
+
+  ProgramDescriptors::ProgramDescriptors(const char * data, const uint32_t len) : p_data(data), p_len(len){
+  }
+
+  ///Returns the ISO-629 language code, or "und" if unknown.
+  std::string ProgramDescriptors::getLanguage() const{
+    for (uint32_t p = 0; p + 1 < p_len; p += p_data[p+1]+2){
+      if (p_data[p] == 0x0A){//language tag
+        //We assume the first one is the only interesting one
+        return std::string(p_data+p+2, 3);
+      }
+    }
+    //No tag found! Undetermined by default.
+    return "und";
+  }
+
+  ///Prints all descriptors we understand in a readable format, the others in raw hex.
+  std::string ProgramDescriptors::toPrettyString(size_t indent) const{
+    std::stringstream output;
+    for (uint32_t p = 0; p + 1 < p_len; p += p_data[p+1]+2){
+      switch (p_data[p]){
+        case 0x0A:{//ISO 639-2 language tag (ISO 13818-1)
+          uint32_t offset = 0;
+          while (offset < p_data[p+1]){//single language
+            output << std::string(indent, ' ') << "Language: " << std::string(p_data+p+2+offset,3);
+            switch (p_data[p+5+offset]){
+              case 1: output << ", clean effects";
+            }
+            output << std::endl;
+            offset += 4;
+          }
+        } break;
+        case 0x7C:{//AAC descriptor (EN 300 468)
+          if (p_data[p+1] < 2 || p+2+p_data[p+1] > p_len){continue;}//skip broken data
+          output << std::string(indent, ' ') << "AAC profile: ";
+          switch (p_data[p+2]){
+            case 0x50: output << "AAC, level 1"; break;
+            case 0x51: output << "AAC, level 2"; break;
+            case 0x52: output << "AAC, level 4"; break;
+            case 0x53: output << "AAC, level 5"; break;
+            case 0x58: output << "AAC-HE, level 2"; break;
+            case 0x59: output << "AAC-HE, level 3"; break;
+            case 0x5A: output << "AAC-HE, level 4"; break;
+            case 0x5B: output << "AAC-HE, level 5"; break;
+            case 0x60: output << "AAC-HEv2, level 2"; break;
+            case 0x61: output << "AAC-HEv2, level 3"; break;
+            case 0x62: output << "AAC-HEv2, level 4"; break;
+            case 0x63: output << "AAC-HEv2, level 5"; break;
+            default: output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)p_data[p+2] << std::dec;
+          }
+          if (p_data[p+3] & 0x80){
+            output << ", type: " << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)p_data[p+3] << std::dec;
+          }
+          output << std::endl;
+          if (p_data[p+1] > 2){
+            output << std::string(indent+2, ' ') << "Extra data: ";
+            for (uint32_t offset = 2; p+2+offset < p_data[p+1]; ++offset){
+              output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)p_data[p+2+offset] << std::dec;
+            }
+          }
+        } break;
+        default:{
+          output << std::string(indent, ' ') << "Undecoded descriptor: ";
+          for (uint32_t i = 0; i<p_data[p+1]+2; ++i){
+            output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)p_data[p+i] << std::dec;
+          }
+          output << std::endl;
+        }
+      }
+    }
+    return output.str();
+  }
   
   /// Construct a PMT (special 188B ts packet) from a set of selected tracks and metadata.
   /// This function is not part of the packet class, but it is in the TS namespace.
@@ -987,6 +1085,12 @@ namespace TS {
       sectionLen += 5;
       if (myMeta.tracks[*it].codec == "ID3"){
         sectionLen += myMeta.tracks[*it].init.size();
+      }
+      if (myMeta.tracks[*it].codec == "AAC"){
+        sectionLen += 4;//aac descriptor
+        if (myMeta.tracks[*it].lang.size() == 3 && myMeta.tracks[*it].lang != "und"){
+          sectionLen += 6;//language descriptor
+        }
       }
     }
     PMT.setSectionLength(0xB00D + sectionLen);
@@ -1019,6 +1123,14 @@ namespace TS {
         entry.setStreamType(0x24);
       }else if (myMeta.tracks[*it].codec == "AAC"){
         entry.setStreamType(0x0F);
+        std::string aac_info("\174\002\121\000", 4);//AAC descriptor: AAC Level 2. Hardcoded, because... what are AAC levels, anyway?
+        //language code ddescriptor
+        if (myMeta.tracks[*it].lang.size() == 3 && myMeta.tracks[*it].lang != "und"){
+          aac_info.append("\012\004", 2);
+          aac_info.append(myMeta.tracks[*it].lang);
+          aac_info.append("\000", 1);
+        }
+        entry.setESInfo(aac_info);
       }else if (myMeta.tracks[*it].codec == "MP3"){
         entry.setStreamType(0x03);
       }else if (myMeta.tracks[*it].codec == "AC3"){

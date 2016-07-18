@@ -736,6 +736,10 @@ namespace TS {
           avccBox.setPPSNumber(1);
           avccBox.setPPS(ppsInfo[it->first]);
           meta.tracks[it->first].init = std::string(avccBox.payload(), avccBox.payloadSize());
+
+
+
+
         }
         break;
         case H265: {
@@ -747,6 +751,17 @@ namespace TS {
           meta.tracks[it->first].codec = "HEVC";
           meta.tracks[it->first].trackID = it->first;
           meta.tracks[it->first].init = hevcInfo[it->first].generateHVCC();
+          int pmtCount = associationTable.getProgramCount();
+          for (int i = 0; i < pmtCount; i++){
+            int pid = associationTable.getProgramPID(i);
+            ProgramMappingEntry entry = mappingTable[pid].getEntry(0);
+            while (entry){
+              if (entry.getElementaryPid() == tid){
+                meta.tracks[it->first].lang = ProgramDescriptors(entry.getESInfo(), entry.getESInfoLength()).getLanguage();
+              }
+              entry.advance();
+            }
+          }
         }
         break;
         case ID3: {
@@ -779,6 +794,18 @@ namespace TS {
           meta.tracks[it->first].init = std::string(audioInit, 2);
         }
         break;
+      }
+
+      int pmtCount = associationTable.getProgramCount();
+      for (int i = 0; i < pmtCount; i++){
+        int pid = associationTable.getProgramPID(i);
+        ProgramMappingEntry entry = mappingTable[pid].getEntry(0);
+        while (entry){
+          if (entry.getElementaryPid() == tid){
+            meta.tracks[it->first].lang = ProgramDescriptors(entry.getESInfo(), entry.getESInfoLength()).getLanguage();
+          }
+          entry.advance();
+        }
       }
       MEDIUM_MSG("Initialized track %lu as %s %s", it->first, meta.tracks[it->first].codec.c_str(), meta.tracks[it->first].type.c_str());
     }

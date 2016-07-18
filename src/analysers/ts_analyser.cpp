@@ -116,7 +116,7 @@ namespace Analysers {
     }
     res << std::endl;
     
-    if(detailLevel==1){
+    if(detailLevel==10){
       unsigned int counter = 0;
       for (unsigned int i = 9+headSize+padding; i<d.size(); ++i){
         if ((i < d.size() - 4) && d[i] == 0 && d[i+1] == 0 && d[i+2] == 0 && d[i+3] == 1){res << std::endl; counter = 0;}
@@ -187,7 +187,7 @@ int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0]);
   conf.addOption("analyse", JSON::fromString("{\"long\":\"analyse\", \"short\":\"a\", \"default\":1, \"long_off\":\"notanalyse\", \"short_off\":\"b\", \"help\":\"Analyse a file's contents (-a), or don't (-b) returning false on error. Default is analyse.\"}"));
   conf.addOption("validate", JSON::fromString("{\"long\":\"validate\", \"short\":\"V\", \"default\":0, \"long_off\":\"notvalidate\", \"short_off\":\"X\", \"help\":\"Validate (-V) the file contents or don't validate (-X) its integrity, returning false on error. Default is don't validate.\"}"));
-  conf.addOption("detail", JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", \"default\":3, \"help\":\"Detail level of analysis.\"}"));
+  conf.addOption("detail", JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", \"default\":2, \"help\":\"Detail level of analysis. 1 = PES only, 2 = PAT/PMT (default), 3 = all TS packets, 9 = raw PES packet bytes, 10 = raw TS packet bytes\"}"));
   conf.parseArgs(argc, argv);
   return Analysers::analyseTS(conf.getBool("validate"),conf.getBool("analyse"),conf.getInteger("detail"));
 }

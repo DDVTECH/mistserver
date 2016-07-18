@@ -51,6 +51,7 @@ namespace TS {
       std::map<unsigned long, std::string > ppsInfo;
       std::map<unsigned long, h265::initData > hevcInfo;
       std::map<unsigned long, std::string> metaInit;
+      std::map<unsigned long, std::string> descriptors;
 
       mutable IPC::semaphore globalSem;
 

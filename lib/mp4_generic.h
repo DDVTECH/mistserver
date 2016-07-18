@@ -463,9 +463,10 @@ namespace MP4 {
       uint32_t getTimeScale();
       void setDuration(uint64_t newDuration);
       uint64_t getDuration();
-      ///\todo return language properly
       void setLanguage(uint16_t newLanguage);
-      uint16_t getLanguage();
+      uint16_t getLanguageInt();
+      void setLanguage(const std::string & newLanguage);
+      std::string getLanguage();
       std::string toPrettyString(uint32_t indent = 0);
   };
 

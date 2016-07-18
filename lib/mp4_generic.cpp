@@ -2241,18 +2241,41 @@ namespace MP4 {
 
   void MDHD::setLanguage(uint16_t newLanguage) {
     if (getVersion() == 0) {
-      setInt16(newLanguage & 0x7F, 20);
+      setInt16(newLanguage & 0x7FFF, 20);
     } else {
-      setInt16(newLanguage & 0x7F, 32);
+      setInt16(newLanguage & 0x7FFF, 32);
     }
   }
 
-  uint16_t MDHD::getLanguage() {
+  uint16_t MDHD::getLanguageInt() {
     if (getVersion() == 0) {
-      return getInt16(20) & 0x7F;
+      return getInt16(20) & 0x7FFF;
     } else {
-      return getInt16(32) & 0x7F;
+      return getInt16(32) & 0x7FFF;
     }
+  }
+
+  void MDHD::setLanguage(const std::string & newLanguage) {
+    if (newLanguage.size() != 3){
+      setLanguage("und");
+      return;
+    }
+    uint16_t newLang = 0;
+    newLang += (newLanguage[0] - 0x60) & 0x1F;
+    newLang <<= 5;
+    newLang += (newLanguage[1] - 0x60) & 0x1F;
+    newLang <<= 5;
+    newLang += (newLanguage[2] - 0x60) & 0x1F;
+    setLanguage(newLang);
+  }
+
+  std::string MDHD::getLanguage() {
+    uint16_t lInt = getLanguageInt();
+    std::string ret;
+    ret += (char)(((lInt & 0x7C00) >> 10) + 0x60);
+    ret += (char)(((lInt & 0x3E0) >> 5) + 0x60);
+    ret += (char)((lInt & 0x1F) + 0x60);
+    return ret;
   }
 
   std::string MDHD::toPrettyString(uint32_t indent) {
@@ -2263,7 +2286,7 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "ModificationTime: " << getModificationTime() << std::endl;
     r << std::string(indent + 1, ' ') << "TimeScale: " << getTimeScale() << std::endl;
     r << std::string(indent + 1, ' ') << "Duration: " << getDuration() << std::endl;
-    r << std::string(indent + 1, ' ') << "Language: 0x" << std::hex << getLanguage() << std::dec << std::endl;
+    r << std::string(indent + 1, ' ') << "Language: " << getLanguage() << std::endl;
     return r.str();
   }
 

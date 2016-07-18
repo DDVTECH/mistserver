@@ -70,6 +70,7 @@ namespace Mist {
           unsigned int mdiaOffset = 0;
           {
             MP4::MDHD mdhdBox(thisTrack.lastms - thisTrack.firstms);
+            mdhdBox.setLanguage(thisTrack.lang);
             mdiaBox.setContent(mdhdBox, mdiaOffset++);
           }//MDHD box
           {

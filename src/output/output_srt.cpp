@@ -17,6 +17,7 @@ namespace Mist {
     capa["url_handler"] = "http";
     capa["url_type"] = "subtitle";
     capa["codecs"][0u][0u].append("srt");
+    capa["codecs"][0u][0u].append("TTXT");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/plain";
     capa["methods"][0u]["priority"] = 8ll;
@@ -36,6 +37,9 @@ namespace Mist {
     tmp.write(tmpBuf, tmpLen);
     tmp << " --> ";
     time += thisPacket.getInt("duration");
+    if (time == thisPacket.getTime()){
+      time += len * 100 + 1000;
+    }
     tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu,%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << std::endl;

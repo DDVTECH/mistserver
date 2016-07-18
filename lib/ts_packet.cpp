@@ -258,6 +258,9 @@ namespace TS {
       if (getRandomAccess()){
         output << " [RandomXS]";
       }
+      if (getESPriority()){
+        output << " [ESPriority]";
+      }
       if (hasPCR()) {
         output << " [PCR " << (double)getPCR() / 27000000 << "s]";
       }
@@ -286,7 +289,7 @@ namespace TS {
       return output.str();
     }
     
-    if (detailLevel >= 3){
+    if (detailLevel >= 10){
       output << std::string(indent+2, ' ') << "Raw data bytes:";
       unsigned int size = getDataSize();
       
@@ -325,12 +328,6 @@ namespace TS {
     }
   }
 
-/// Gets the elementary stream priority indicator of a Packet
-/// \return  The elementary stream priority indicator of a Packet
-  bool Packet::hasESpriority() const{
-    return strBuf[5] & 0x20;
-  }
-
   bool Packet::hasDiscontinuity() const{
     return strBuf[5] & 0x80;
   }
@@ -364,6 +361,15 @@ namespace TS {
       return false;
     }
     return strBuf[5] & 0x40;
+  }
+
+/// Gets whether this Packet has the priority bit set
+/// \return Whether or not this Packet has the priority bit set
+  bool Packet::getESPriority() const{
+    if (getAdaptationField() < 2) {
+      return false;
+    }
+    return strBuf[5] & 0x20;
   }
 
 ///Gets the value of the PCR flag
@@ -402,6 +408,30 @@ namespace TS {
       strBuf[4] = 1;
       if (NewVal) {
         strBuf[5] = 0x40;
+      } else {
+        strBuf[5] = 0x00;
+      }
+    }
+  }
+
+///Gets the value of the ES priority flag
+///\return the value of the ES priority flag
+  void Packet::setESPriority(bool NewVal) {
+    updPos(6);
+    if (getAdaptationField() == 3) {
+      if (!strBuf[4]) {
+        strBuf[4] = 1;
+      }
+      if (NewVal) {
+        strBuf[5] |= 0x20;
+      } else {
+        strBuf[5] &= 0xDF;
+      }
+    } else {
+      setAdaptationField(3);
+      strBuf[4] = 1;
+      if (NewVal) {
+        strBuf[5] = 0x20;
       } else {
         strBuf[5] = 0x00;
       }

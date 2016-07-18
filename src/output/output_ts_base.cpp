@@ -39,7 +39,8 @@ namespace Mist {
         packData.setDiscontinuity(true);
         if (myMeta.tracks[thisPacket.getTrackId()].type == "video"){
           if (thisPacket.getInt("keyframe")){
-            packData.setRandomAccess(1);
+            packData.setRandomAccess(true);
+            packData.setESPriority(true);
           }      
           packData.setPCR(thisPacket.getTime() * 27000);      
         }

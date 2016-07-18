@@ -45,6 +45,8 @@ namespace TS {
       bool getUnitStart() const;      
       void setRandomAccess(bool newVal);
       bool getRandomAccess() const;
+      void setESPriority(bool newVal);
+      bool getESPriority() const;
       
       void setDiscontinuity(bool newVal);
       bool hasDiscontinuity() const;
@@ -53,7 +55,6 @@ namespace TS {
       bool hasSplicingPoint() const;
       bool hasTransportError() const;
       bool hasPriority() const;
-      bool hasESpriority() const;
 
       //Helper functions
       operator bool() const;

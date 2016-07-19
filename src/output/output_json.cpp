@@ -9,24 +9,30 @@ namespace Mist {
     HTTPOutput::init(cfg);
     capa["name"] = "JSON";
     capa["desc"] = "Enables HTTP protocol JSON streaming.";
-    capa["url_rel"] = "/$.json";
     capa["url_match"] = "/$.json";
-    capa["url_handler"] = "http";
-    capa["url_type"] = "json";
+    capa["codecs"][0u][0u].append("srt");
+    capa["codecs"][0u][0u].append("TTXT");
+    capa["methods"][0u]["handler"] = "http";
+    capa["methods"][0u]["type"] = "html5/text/javascript";
+    capa["methods"][0u]["priority"] = 0ll;
+    capa["methods"][0u]["url_rel"] = "/$.json";
   }
   
   void OutJSON::sendNext(){
-    if(!first) {
-      myConn.SendNow(", ", 2);
-    }else{
-      if (jsonp == ""){
-        myConn.SendNow("[", 1);
+    if (!jsonp.size()){
+      if(!first) {
+        myConn.SendNow(", ", 2);
       }else{
-        myConn.SendNow(jsonp + "([");
+        myConn.SendNow("[", 1);
+        first = false;
       }
-      first = false;
+    }else{
+      myConn.SendNow(jsonp + "(");
     }
     myConn.SendNow(thisPacket.toJSON().toString());
+    if (jsonp.size()){
+      myConn.SendNow(");\n", 3);
+    }
   }
 
   void OutJSON::sendHeader(){
@@ -40,11 +46,10 @@ namespace Mist {
   }
   
   bool OutJSON::onFinish(){
-    if (jsonp == ""){
-      myConn.SendNow("]\n\n", 3);
-    }else{
+    if (!jsonp.size()){
       myConn.SendNow("]);\n\n", 5);
     }
+    myConn.close();
     return false;
   }
 
@@ -54,6 +59,7 @@ namespace Mist {
     if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
     if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
     if (H.GetVar("track") != ""){
+      selectedTracks.clear();
       selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
     }
     

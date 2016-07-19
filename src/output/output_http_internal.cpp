@@ -150,6 +150,12 @@ namespace Mist {
         relurl = "/";
       }
       jsonForEach(conncapa["methods"], it) {
+        if (it->isMember("url_rel")){
+          size_t foundb = (*it)["url_rel"].asStringRef().find('$');
+          if (foundb != std::string::npos){
+            relurl = (*it)["url_rel"].asStringRef().substr(0, foundb) + streamname + (*it)["url_rel"].asStringRef().substr(foundb+1);
+          }
+        }
         if (!strmMeta.isMember("live") || !it->isMember("nolive")){
           addSource(relurl, sources, host, port, *it, most_simul, total_matches, "http://" + httpHost);
         }
@@ -381,6 +387,7 @@ namespace Mist {
         jsonForEach(json_resp["meta"]["tracks"], it) {
           it->removeMember("fragments");
           it->removeMember("keys");
+          it->removeMember("keysizes");
           it->removeMember("parts");
         }
         
@@ -405,7 +412,7 @@ namespace Mist {
               port = capa.getMember("optional").getMember("port").getMember("default").asString();
             }
             //and a URL - then list the URL
-            if (capa.getMember("url_rel")){
+            if (capa.getMember("url_rel") || capa.getMember("methods")){
               JSON::Value capa_json = capa.asJSON();
               addSources(streamName, capa.getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"], fullHost);
             }

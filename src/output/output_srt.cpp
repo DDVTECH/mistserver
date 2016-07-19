@@ -58,6 +58,7 @@ namespace Mist {
   }
 
   void OutProgressiveSRT::sendHeader(){
+    H.setCORSHeaders();
     if (webVTT){
       H.SetHeader("Content-Type", "text/vtt; charset=utf-8");
     }else{

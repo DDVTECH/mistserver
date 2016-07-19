@@ -725,6 +725,7 @@ namespace Mist {
       }
     }
     H.Clean(); //make sure no parts of old requests are left in any buffers
+    H.setCORSHeaders();
     H.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for MP4 files
     if (!myMeta.live) {
       H.SetHeader("Accept-Ranges", "bytes, parsec");

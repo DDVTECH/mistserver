@@ -57,7 +57,10 @@ namespace Mist {
 
   void OutProgressiveSRT::onHTTP(){
     std::string method = H.method;
-    
+    std::string url = H.url;
+    if (H.GetVar("track") != ""){
+      selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
+    }
     H.Clean();
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){
@@ -68,12 +71,8 @@ namespace Mist {
       return;
     }
     lastNum = 0;
-    webVTT = (H.url.find(".webvtt") != std::string::npos);
-    if (H.GetVar("track") != ""){
-      selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
-    }
     parseData = true;
     wantRequest = false;
   }
-
 }
+

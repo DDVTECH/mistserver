@@ -50,6 +50,12 @@ namespace Mist {
 
   void OutJSON::onHTTP(){
     std::string method = H.method;
+    jsonp = "";
+    if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
+    if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
+    if (H.GetVar("track") != ""){
+      selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
+    }
     
     H.Clean();
     H.setCORSHeaders();
@@ -62,18 +68,17 @@ namespace Mist {
     }
     
     first = true;
-    jsonp = "";
-    if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
-    if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
     initialize();
-    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.type == "meta" ){
-        selectedTracks.insert(it->first);
+    if (!selectedTracks.size()){
+      for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (it->second.type == "meta" ){
+          selectedTracks.insert(it->first);
+        }
       }
     }
-    seek(0);
     parseData = true;
     wantRequest = false;
   }
 
 }
+

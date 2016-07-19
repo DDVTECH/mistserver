@@ -12,7 +12,6 @@ namespace Mist {
     HTTPOutput::init(cfg);
     capa["name"] = "SRT";
     capa["desc"] = "Enables HTTP protocol subtitle streaming in subrip and WebVTT formats.";
-    capa["url_rel"] = "/$.srt";
     capa["url_match"].append("/$.srt");
     capa["url_match"].append("/$.vtt");
     capa["codecs"][0u][0u].append("srt");
@@ -20,9 +19,11 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/plain";
     capa["methods"][0u]["priority"] = 8ll;
+    capa["methods"][0u]["url_rel"] = "/$.srt";
     capa["methods"][1u]["handler"] = "http";
     capa["methods"][1u]["type"] = "html5/text/vtt";
     capa["methods"][1u]["priority"] = 9ll;
+    capa["methods"][1u]["url_rel"] = "/$.vtt";
   }
   
   void OutProgressiveSRT::sendNext(){
@@ -39,14 +40,14 @@ namespace Mist {
     }
     long long unsigned int time = thisPacket.getTime();
     char tmpBuf[50];
-    int tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu,%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
+    int tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << " --> ";
     time += thisPacket.getInt("duration");
     if (time == thisPacket.getTime()){
       time += len * 75 + 800;
     }
-    tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu,%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
+    tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << std::endl;
     myConn.SendNow(tmp.str());
@@ -74,6 +75,7 @@ namespace Mist {
     std::string method = H.method;
     webVTT = (H.url.find(".vtt") != std::string::npos);
     if (H.GetVar("track") != ""){
+      selectedTracks.clear();
       selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
     }
     H.Clean();

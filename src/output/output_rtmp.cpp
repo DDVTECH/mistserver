@@ -9,6 +9,7 @@
 
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
+    isPushing = false;
     setBlocking(true);
     while (!conn.Received().available(1537) && conn.connected() && config->is_active) {
       conn.spool();

@@ -46,6 +46,7 @@ namespace Controller {
       sessIndex(std::string host, unsigned int crc, std::string streamName, std::string connector);
       sessIndex(IPC::statExchange & data);
       sessIndex();
+      std::string ID;
       std::string host;
       unsigned int crc;
       std::string streamName;
@@ -73,21 +74,27 @@ namespace Controller {
   /// Allows for moving of connections to another session.
   class statSession {
     private:
+      uint64_t firstActive;
       unsigned long long firstSec;
       unsigned long long lastSec;
       unsigned long long wipedUp;
       unsigned long long wipedDown;
       std::deque<statStorage> oldConns;
       sessType sessionType;
+      bool tracked;
     public:
+      statSession();
+      uint32_t invalidate();
+      uint32_t kill();
       char sync;
       std::map<unsigned long, statStorage> curConns;
+      std::set<std::string> tags;
       sessType getSessType();
-      statSession();
       void wipeOld(unsigned long long);
       void finish(unsigned long index);
       void switchOverTo(statSession & newSess, unsigned long index);
       void update(unsigned long index, IPC::statExchange & data);
+      void ping(const sessIndex & index, unsigned long long disconnectPoint);
       unsigned long long getStart();
       unsigned long long getEnd();
       bool isViewerOn(unsigned long long time);
@@ -118,6 +125,9 @@ namespace Controller {
   void SharedMemStats(void * config);
   void sessions_invalidate(const std::string & streamname);
   void sessions_shutdown(JSON::Iter & i);
+  void sessId_shutdown(const std::string & sessId);
+  void tag_shutdown(const std::string & tag);
+  void sessId_tag(const std::string & sessId, const std::string & tag);
   void sessions_shutdown(const std::string & streamname, const std::string & protocol = "");
   bool hasViewers(std::string streamName);
 

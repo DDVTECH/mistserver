@@ -60,6 +60,7 @@ static unsigned long long servOutputs = 0;
 static unsigned long long servViewers = 0;
 
 Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::string dstreamName, std::string dconnector){
+  ID = "UNSET";
   host = dhost;
   crc = dcrc;
   streamName = dstreamName;
@@ -72,7 +73,7 @@ Controller::sessIndex::sessIndex(){
 
 std::string Controller::sessIndex::toStr(){
   std::stringstream s;
-  s << host << " " << crc << " " << streamName << " " << connector;
+  s << ID << "(" << host << " " << crc << " " << streamName << " " << connector << ")";
   return s.str();
 }
 
@@ -83,6 +84,7 @@ Controller::sessIndex::sessIndex(IPC::statExchange & data){
   streamName = data.streamName();
   connector = data.connector();
   crc = data.crc();
+  ID = data.getSessId();
 }
 
 
@@ -136,17 +138,7 @@ void Controller::sessions_invalidate(const std::string & streamname){
   for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
     if (it->first.streamName == streamname){
       sessCount++;
-      it->second.sync = 1;
-      if (it->second.curConns.size()){
-        for (std::map<unsigned long, statStorage>::iterator jt = it->second.curConns.begin(); jt != it->second.curConns.end(); ++jt){
-          char * data = statPointer->getIndex(jt->first);
-          if (data){
-            IPC::statExchange tmpEx(data);
-            tmpEx.setSync(2);
-            invalidated++;
-          }
-        }
-      }
+      invalidated += it->second.invalidate();
     }
   }
   INFO_MSG("Invalidated %u connections in %u sessions for stream %s", invalidated, sessCount, streamname.c_str());
@@ -168,6 +160,59 @@ void Controller::sessions_shutdown(JSON::Iter & i){
   //not handled, ignore
 }
 
+///Shuts down the given session
+void Controller::sessId_shutdown(const std::string & sessId){
+  if (!statPointer){
+    FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
+    return;
+  }
+  unsigned int murdered = 0;
+  unsigned int sessCount = 0;
+  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+    if (it->first.ID == sessId){
+      sessCount++;
+      murdered += it->second.kill();
+      break;
+    }
+  }
+  INFO_MSG("Shut down %u connections in %u session(s) for ID %s", murdered, sessCount, sessId.c_str());
+}
+
+///Tags the given session
+void Controller::sessId_tag(const std::string & sessId, const std::string & tag){
+  if (!statPointer){
+    FAIL_MSG("In controller shutdown procedure - cannot tag sessions.");
+    return;
+  }
+  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+    if (it->first.ID == sessId){
+      it->second.tags.insert(tag);
+      return;
+    }
+  }
+  WARN_MSG("Session %s not found - cannot tag with %s", sessId.c_str(), tag.c_str());
+}
+
+///Shuts down sessions with the given tag set
+void Controller::tag_shutdown(const std::string & tag){
+  if (!statPointer){
+    FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
+    return;
+  }
+  unsigned int murdered = 0;
+  unsigned int sessCount = 0;
+  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+    if (it->second.tags.count(tag)){
+      sessCount++;
+      murdered += it->second.kill();
+    }
+  }
+  INFO_MSG("Shut down %u connections in %u session(s) for tag %s", murdered, sessCount, tag.c_str());
+}
+
 ///Shuts down all current sessions for the given streamname
 void Controller::sessions_shutdown(const std::string & streamname, const std::string & protocol){
   if (!statPointer){
@@ -178,20 +223,9 @@ void Controller::sessions_shutdown(const std::string & streamname, const std::st
   unsigned int sessCount = 0;
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
   for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-    if ((!streamname.size() || it->first.streamName == streamname) && (!protocol.size() || it->first.connector == protocol) && it->second.curConns.size()){
+    if ((!streamname.size() || it->first.streamName == streamname) && (!protocol.size() || it->first.connector == protocol)){
       sessCount++;
-      for (std::map<unsigned long, statStorage>::iterator jt = it->second.curConns.begin(); jt != it->second.curConns.end(); ++jt){
-        char * data = statPointer->getIndex(jt->first);
-        if (data){
-          IPC::statExchange tmpEx(data);
-          uint32_t pid = tmpEx.getPID();
-          if (pid > 1){
-            Util::Procs::Stop(pid);
-            INFO_MSG("Killing PID %lu", pid);
-            murdered++;
-          }
-        }
-      }
+      murdered += it->second.kill();
     }
   }
   INFO_MSG("Shut down %u connections in %u sessions for stream %s/%s", murdered, sessCount, streamname.c_str(), protocol.c_str());
@@ -217,8 +251,10 @@ void Controller::SharedMemStats(void * config){
       if (sessions.size()){
         std::list<sessIndex> mustWipe;
         unsigned long long cutOffPoint = Util::epoch() - STAT_CUTOFF;
+        unsigned long long disconnectPoint = Util::epoch() - STATS_DELAY;
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           it->second.wipeOld(cutOffPoint);
+          it->second.ping(it->first, disconnectPoint);
           if (!it->second.hasData()){
             mustWipe.push_back(it->first);
           }else{
@@ -273,6 +309,45 @@ void Controller::SharedMemStats(void * config){
   }
 }
 
+/// Forces a re-sync of the session
+uint32_t Controller::statSession::invalidate(){
+  uint32_t ret = 0;
+  sync = 1;
+  if (curConns.size() && statPointer){
+    for (std::map<unsigned long, statStorage>::iterator jt = curConns.begin(); jt != curConns.end(); ++jt){
+      char * data = statPointer->getIndex(jt->first);
+      if (data){
+        IPC::statExchange tmpEx(data);
+        tmpEx.setSync(2);
+        ret++;
+      }
+    }
+  }
+  return ret;
+}
+
+/// Kills all active connections, sets the session state to denied (sync=100).
+uint32_t Controller::statSession::kill(){
+  uint32_t ret = 0;
+  sync = 100;
+  if (curConns.size() && statPointer){
+    for (std::map<unsigned long, statStorage>::iterator jt = curConns.begin(); jt != curConns.end(); ++jt){
+      char * data = statPointer->getIndex(jt->first);
+      if (data){
+        IPC::statExchange tmpEx(data);
+        tmpEx.setSync(100);
+        uint32_t pid = tmpEx.getPID();
+        if (pid > 1){
+          Util::Procs::Stop(pid);
+          INFO_MSG("Killing PID %lu", pid);
+        }
+        ret++;
+      }
+    }
+  }
+  return ret;
+}
+
 /// Updates the given active connection with new stats data.
 void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
   //update the sync byte: 0 = requesting fill, 2 = requesting refill, 1 = needs checking, > 1 = state known (100=denied, 10=accepted)
@@ -313,13 +388,17 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
   long long prevDown = getDown();
   long long prevUp = getUp();
   curConns[index].update(data);
-  //store timestamp of last received data, if newer
-  if (data.now() > lastSec){
-    lastSec = data.now();
-  }
   //store timestamp of first received data, if older
   if (firstSec > data.now()){
     firstSec = data.now();
+  }
+  //store timestamp of last received data, if newer
+  if (data.now() > lastSec){
+    lastSec = data.now();
+    if (!tracked){
+      tracked = true;
+      firstActive = firstSec;
+    }
   }
   long long currDown = getDown();
   long long currUp = getUp();
@@ -414,6 +493,56 @@ void Controller::statSession::wipeOld(unsigned long long cutOff){
   }
 }
 
+void Controller::statSession::ping(const Controller::sessIndex & index, unsigned long long disconnectPoint){
+  if (!tracked){return;}
+  if (lastSec < disconnectPoint){
+    if (Controller::accesslog.size()){
+      uint64_t duration = lastSec - firstActive;
+      if (duration < 1){duration = 1;}
+      if (Controller::accesslog == "LOG"){
+        std::stringstream accessStr;
+        accessStr << "Session <" << index.ID << "> " << index.streamName << " (" << index.connector << ") from " << index.host << " ended after " << duration << "s, avg " << getUp()/duration/1024 << "KB/s up " << getDown()/duration/1024 << "KB/s down.";
+        if (tags.size()){
+          accessStr << " Tags: ";
+          for (std::set<std::string>::iterator it = tags.begin(); it != tags.end(); ++it){
+            accessStr << "[" << *it << "]";
+          }
+        }
+        accessStr << std::endl;
+        Controller::Log("ACCS", accessStr.str());
+      }else{
+        static std::ofstream accLogFile;
+        static std::string accLogFileName;
+        if (accLogFileName != Controller::accesslog || !accLogFile.good()){
+          accLogFile.close();
+          accLogFile.open(Controller::accesslog, std::ios_base::app);
+          if (!accLogFile.good()){
+            FAIL_MSG("Could not open access log file '%s': %s", Controller::accesslog.c_str(), strerror(errno));
+          }else{
+            accLogFileName = Controller::accesslog;
+          }
+        }
+        if (accLogFile.good()){
+          time_t rawtime;
+          struct tm *timeinfo;
+          char buffer[100];
+          time(&rawtime);
+          timeinfo = localtime(&rawtime);
+          strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
+          accLogFile << buffer << ", " << index.ID << ", " << index.streamName << ", " << index.connector << ", " << index.host << ", " << duration << ", " << getUp()/duration/1024 << ", " << getDown()/duration/1024 << ", ";
+          if (tags.size()){
+            for (std::set<std::string>::iterator it = tags.begin(); it != tags.end(); ++it){
+              accLogFile << "[" << *it << "]";
+            }
+          }
+          accLogFile << std::endl;
+        }
+      }
+    }
+    tracked = false;
+  }
+}
+
 /// Archives the given connection.
 void Controller::statSession::finish(unsigned long index){
   oldConns.push_back(curConns[index]);
@@ -422,6 +551,8 @@ void Controller::statSession::finish(unsigned long index){
 
 /// Constructs an empty session
 Controller::statSession::statSession(){
+  firstActive = 0;
+  tracked = false;
   firstSec = 0xFFFFFFFFFFFFFFFFull;
   lastSec = 0;
   sync = 1;

@@ -133,22 +133,6 @@ namespace Mist{
     myConn.close();
   }
 
-  /// \triggers 
-  /// The `"CONN_PLAY"` trigger is stream-specific, and is ran when an active connection first opens a stream. Its payload is:
-  /// ~~~~~~~~~~~~~~~
-  /// streamname
-  /// connected client host
-  /// output handler name
-  /// request URL (if any)
-  /// ~~~~~~~~~~~~~~~
-  /// The `"USER_NEW"` trigger is stream-specific, and is ran when a new user first opens a stream. Segmented protcols are unduplicated over the duration of the statistics log (~10 minutes), true streaming protocols (RTMP, RTSP) are not deduplicated as no duplication ever takes place. Its payload is:
-  /// ~~~~~~~~~~~~~~~
-  /// streamname
-  /// connected client host
-  /// User agent checksum (CRC32 of User-agent string)
-  /// output handler name
-  /// request URL (if any)
-  /// ~~~~~~~~~~~~~~~
   void Output::initialize(){
     if (isInitialized){
       return;
@@ -245,7 +229,7 @@ namespace Mist{
         HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
         //1 = check requested (connection is new)
         if (tmpEx.getSync() == 1){
-          std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+          std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl+"\n"+tmpEx.getSessId();
           if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
             MEDIUM_MSG("Closing connection because denied by USER_NEW trigger");
             onFinish();

@@ -14,6 +14,7 @@
 #include "procs.h"
 #include "bitfields.h"
 #include "timing.h"
+#include "auth.h"
 
 #if defined(__CYGWIN__) || defined(_WIN32)
 #include <windows.h>
@@ -617,6 +618,11 @@ namespace IPC {
   ///\brief Sets time currently connected
   void statExchange::time(long time) {
     htobl(data + 8, time);
+  }
+
+  /// Calculates session ID from CRC, stream name, connector and host.
+  std::string statExchange::getSessId(){
+    return Secure::md5(data+32, 140);
   }
 
   ///\brief Gets time currently connected

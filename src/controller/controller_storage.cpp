@@ -13,6 +13,8 @@
 ///\brief Holds everything unique to the controller.
 namespace Controller{
   std::string instanceId; /// instanceId (previously uniqId) is first set in controller.cpp before licensing or update calls.
+  std::string prometheus;
+  std::string accesslog;
   Util::Config conf;
   JSON::Value Storage; ///< Global storage of data.
   tthread::mutex configMutex;

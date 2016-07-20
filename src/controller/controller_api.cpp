@@ -71,6 +71,12 @@ void Controller::checkConfig(JSON::Value & in, JSON::Value & out){
       INFO_MSG("Debug level set to %u", Util::Config::printDebugLevel);
     }
   }
+  if (out.isMember("controller") && out["controller"].isMember("prometheus")){
+    Controller::prometheus = out["controller"]["prometheus"].asStringRef();
+  }
+  if (out.isMember("accesslog")){
+    Controller::accesslog = out["accesslog"].asStringRef();
+  }
 }
 
 ///\brief Checks an authorization request for a given user.
@@ -168,12 +174,12 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
   while (conn && logins < 4){
     if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
       //Catch prometheus requests
-      if (conf.getString("prometheus").size()){
-        if (H.url == "/"+Controller::conf.getString("prometheus")){
+      if (Controller::prometheus.size()){
+        if (H.url == "/"+Controller::prometheus){
           handlePrometheus(H, conn, PROMETHEUS_TEXT);
           continue;
         }
-        if (H.url == "/"+Controller::conf.getString("prometheus")+".json"){
+        if (H.url == "/"+Controller::prometheus+".json"){
           handlePrometheus(H, conn, PROMETHEUS_JSON);
           continue;
         }
@@ -602,6 +608,34 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             }
           }
 
+          if (Request.isMember("stop_sessid")){
+            if (Request["stop_sessid"].isArray() || Request["stop_sessid"].isObject()){
+              jsonForEach(Request["stop_sessid"], it){
+                Controller::sessId_shutdown(it->asStringRef());
+              }
+            }else{
+              Controller::sessId_shutdown(Request["stop_sessid"].asStringRef());
+            }
+          }
+
+          if (Request.isMember("stop_tag")){
+            if (Request["stop_tag"].isArray() || Request["stop_tag"].isObject()){
+              jsonForEach(Request["stop_tag"], it){
+                Controller::tag_shutdown(it->asStringRef());
+              }
+            }else{
+              Controller::tag_shutdown(Request["stop_tag"].asStringRef());
+            }
+          }
+
+          if (Request.isMember("tag_sessid")){
+            if (Request["tag_sessid"].isObject()){
+              jsonForEach(Request["tag_sessid"], it){
+                Controller::sessId_tag(it.key(), it->asStringRef());
+              }
+            }
+          }
+
 
           if (Request.isMember("push_start")){
             std::string stream;
@@ -664,6 +698,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           if (Request.isMember("push_settings")){
             Controller::pushSettings(Request["push_settings"], Response["push_settings"]);
           }
+
 
           Controller::configChanged = true;
           

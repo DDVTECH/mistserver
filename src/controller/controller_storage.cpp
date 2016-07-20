@@ -99,6 +99,10 @@ namespace Controller {
     if (!changed){return;}//cancel further processing if no changes
 
     static IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, true);
+    if (!mistConfOut.mapped){
+      FAIL_MSG("Could not open config shared memory storage for writing! Is shared memory enabled on your system?");
+      return;
+    }
     IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
     //lock semaphore
     configLock.wait();

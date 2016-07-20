@@ -10,6 +10,7 @@
 
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
+    isPushing = false;
     maxbps = config->getInteger("maxkbps")*128;
     if (config->getString("target").size() && config->getString("target").substr(0, 7) == "rtmp://"){
       streamName = config->getString("streamname");
@@ -147,7 +148,6 @@ namespace Mist {
 
     maxSkipAhead = 1500;
     minSkipAhead = 500;
-    isPushing = false;
   }
 
   bool OutRTMP::listenMode(){

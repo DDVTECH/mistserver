@@ -152,7 +152,7 @@ namespace Mist {
       lines.push_back(lineBuf);
     }
     unsigned int skippedLines = 0;
-    if (myMeta.live) {
+    if (myMeta.live && lines.size()) {
       //only print the last segment when VoD
       lines.pop_back();
       /*LTS-START*/

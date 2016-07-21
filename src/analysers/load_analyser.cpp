@@ -81,6 +81,14 @@ class hostDetails{
       r["streams"] = (long long)streams.size();
       r["viewers"] = (long long)total;
     }
+    ///Fills out a by reference given JSON::Value with current streams.
+    void fillStreams(JSON::Value & r){
+      if (!hostMutex){hostMutex = new tthread::mutex();}
+      tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+      for (std::map<std::string, struct streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
+        r[jt->first] = r[jt->first].asInt() + jt->second.total;
+      }
+    }
     ///Scores a potential new connection to this server, on a scale from 0 to 3200.
     ///0 is horrible, 3200 is perfect.
     unsigned int rate(std::string & s){
@@ -201,28 +209,33 @@ int handleRequest(Socket::Connection & conn){
       if (H.url.size() == 1){
         std::string host = H.GetVar("host");
         std::string stream = H.GetVar("stream");
+        std::string viewers = H.GetVar("viewers");
         H.Clean();
         H.SetHeader("Content-Type", "text/plain");
         JSON::Value ret;
-        if (!host.size() && !stream.size()){
-            for (std::map<std::string, hostDetails>::iterator it = hosts.begin(); it != hosts.end(); ++it){
-              it->second.fillState(ret[it->first]);
-            }
-        }else{
-          if (stream.size()){
-            unsigned long long strTot = 0;
-            for (std::map<std::string, hostDetails>::iterator it = hosts.begin(); it != hosts.end(); ++it){
-              strTot += it->second.count(stream);
-            }
-            ret = (long long)strTot;
-          }else if (hosts.count(host)){
-            hosts[host].fillState(ret);
+        if (viewers.size()){
+          for (std::map<std::string, hostDetails>::iterator it = hosts.begin(); it != hosts.end(); ++it){
+            it->second.fillStreams(ret);
           }
+          H.SetBody(ret.toPrettyString());
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
+          continue;
+        }else{
+          if (!host.size() && !stream.size()){
+              for (std::map<std::string, hostDetails>::iterator it = hosts.begin(); it != hosts.end(); ++it){
+                it->second.fillState(ret[it->first]);
+              }
+          }else{
+            if (hosts.count(host)){
+              hosts[host].fillState(ret);
+            }
+          }
+          H.SetBody(ret.toPrettyString());
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
+          continue;
         }
-        H.SetBody(ret.toPrettyString());
-        H.SendResponse("200", "OK", conn);
-        H.Clean();
-        continue;
       }
       std::string stream = H.url.substr(1);
       INFO_MSG("Balancing stream %s", stream.c_str());

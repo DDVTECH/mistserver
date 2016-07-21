@@ -275,17 +275,19 @@ void handleServer(void * servName){
   hosts[host].availBandwidth = bandwidth.asInt();
 
   INFO_MSG("Monitoring %s on port %d.", host.c_str(), port, passphrase.c_str());
+  down = true;
 
   Socket::Connection servConn(host, port, false);
   while (cfg->is_active){
     if (!servConn){
-      INFO_MSG("Reconnecting to %s", host.c_str());
+      WARN_MSG("Reconnecting to %s", host.c_str());
       servConn = Socket::Connection(host, port, false);
     }
     if (!servConn){
-      INFO_MSG("Can't reach server %s", host.c_str());
+      FAIL_MSG("Can't reach server %s", host.c_str());
       hosts[host].badNess();
       Util::wait(5000);
+      down = true;
       continue;
     }
 
@@ -304,10 +306,15 @@ void handleServer(void * servName){
     }
     JSON::Value servData = JSON::fromString(H.body);
     if (!servData){
-      INFO_MSG("Can't retrieve server %s load information", host.c_str());
+      FAIL_MSG("Can't retrieve server %s load information", host.c_str());
+      down = true;
       hosts[host].badNess();
       servConn.close();
     }else{
+      if (down){
+        WARN_MSG("Connection established with %s", host.c_str());
+        down = false;
+      }
       hosts[host].update(servData);
     }
     H.Clean();
@@ -360,7 +367,7 @@ int main(int argc, char ** argv){
   passphrase = conf.getOption("passphrase").asStringRef();
 
   JSON::Value & nodes = conf.getOption("server", true);
-  INFO_MSG("Load balancer activating. Balancing between %llu nodes.", nodes.size());
+  WARN_MSG("Load balancer activating. Balancing between %llu nodes.", nodes.size());
   conf.activate();
 
   std::map<std::string, tthread::thread *> threads;
@@ -370,9 +377,9 @@ int main(int argc, char ** argv){
 
   conf.serveThreadedSocket(handleRequest);
   if (!conf.is_active){
-    INFO_MSG("Load balancer shutting down; received shutdown signal");
+    WARN_MSG("Load balancer shutting down; received shutdown signal");
   }else{
-    INFO_MSG("Load balancer shutting down; socket problem");
+    WARN_MSG("Load balancer shutting down; socket problem");
   }
 
   if (threads.size()){

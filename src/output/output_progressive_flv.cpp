@@ -3,6 +3,7 @@
 namespace Mist {
   OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : HTTPOutput(conn){
     if (config->getString("target").size()){
+      initialize();
       if (!streamName.size()){
         WARN_MSG("Recording unconnected FLV output to file! Cancelled.");
         conn.close();
@@ -14,13 +15,18 @@ namespace Mist {
         INFO_MSG("Outputting %s to stdout in FLV format", streamName.c_str());
         return;
       }
+      if (!myMeta.tracks.size()){
+        INFO_MSG("Stream not available - aborting");
+        conn.close();
+        return;
+      }
       if (connectToFile(config->getString("target"))){
         parseData = true;
         wantRequest = false;
         INFO_MSG("Recording %s to %s in FLV format", streamName.c_str(), config->getString("target").c_str());
-      }else{
-        conn.close();
+        return;
       }
+      conn.close();
     }
   }
   

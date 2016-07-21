@@ -189,7 +189,7 @@ function mistembed(streamname) {
       break;
 
       case 'html5':
-        container.innerHTML += '<video width="' + videowidth + '" height="' + videoheight + '" src="' + encodeURI(src.url) + '" controls="controls" '+(autoplay ? 'autoplay="autoplay"' : '')+'><strong>No HTML5 video support</strong></video>';
+        container.innerHTML += '<video width="' + videowidth + '" height="' + videoheight + '" src="' + src.url + '" controls="controls" '+(autoplay ? 'autoplay="autoplay"' : '')+'><strong>No HTML5 video support</strong></video>';
         break;
         
       case 'rtsp':
@@ -264,11 +264,19 @@ function mistembed(streamname) {
 
   if(video.error) {
     // there was an error; display it
-    container.innerHTML = ['<strong>Error: ', video.error, '</strong>'].join('');
+    if (video.on_error){
+      container.innerHTML = video.on_error;
+    }else{
+      container.innerHTML = ['<strong>Error: ', video.error, '</strong>'].join('');
+    }
   }
   else if ((typeof video.source == 'undefined') || (video.source.length < 1)) {
     // no stream sources
-    container.innerHTML = '<strong>Error: no protocols found</strong>';
+    if (video.on_error){
+      container.innerHTML = video.on_error;
+    }else{
+      container.innerHTML = '<strong>Error: no active source or compatible protocols for this stream</strong>';
+    }
   }
   else {
     // no error, and sources found. Check the video types and output the best

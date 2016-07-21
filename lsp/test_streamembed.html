@@ -14,7 +14,7 @@
           var embedtype = $('input[name=force]').val();
           
           var info = document.createElement('script');
-          info.src = 'http://'+(window.location.hostname == '' ? 'localhost' : window.location.hostname)+':8080/info_'+streamName+'.js?video=0';
+          info.src = 'http://'+(window.location.hostname == '' ? 'localhost' : window.location.hostname)+':8080/info_'+encodeURIComponent(streamName)+'.js';
           document.getElementById('embedcontainer').appendChild(info);
           info.onload = function(){
             if (embedtype == '') {

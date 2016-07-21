@@ -2824,7 +2824,7 @@ var UI = {
         var embedoptions = {autoplay: true};
         function embedhtml(opts) {
           var open = ['div'];
-          var inner = "\n"+'   <script src="'+embedbase+'embed_'+other+'.js"><'+'/script>'+"\n"; //don't leave the closing script tag complete
+          var inner = "\n"+'   <script src="'+embedbase+'embed_'+encodeURIComponent(other)+'.js"><'+'/script>'+"\n"; //don't leave the closing script tag complete
           if (!opts.autoplay) {
             open.push('data-noautoplay');
           }
@@ -2844,17 +2844,17 @@ var UI = {
           {
             label: 'Embedable script',
             type: 'str',
-            value: embedbase+'embed_'+other+'.js',
+            value: embedbase+'embed_'+encodeURIComponent(other)+'.js',
             readonly: true
           },{
             label: 'Stream info script',
             type: 'str',
-            value: embedbase+'info_'+other+'.js',
+            value: embedbase+'info_'+encodeURIComponent(other)+'.js',
             readonly: true
           },{
             label: 'Autodetect player',
             type: 'str',
-            value: embedbase+other+'.html',
+            value: embedbase+encodeURIComponent(other)+'.html',
             readonly: true,
             qrcode: true
           },$('<h3>').text('Embed code'),{
@@ -3027,7 +3027,7 @@ var UI = {
           
           // jQuery doesn't work -> use DOM magic
           var script = document.createElement('script');
-          script.src = embedbase+'embed_'+other+'.js';
+          script.src = embedbase+'embed_'+encodeURIComponent(other)+'.js';
           script.onerror = function(){
             $c.html('Error loading "'+script.src+'".<br>').append(
               $('<button>').text('Try again').click(function(){

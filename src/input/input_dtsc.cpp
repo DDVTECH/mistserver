@@ -259,6 +259,22 @@ namespace Mist {
           //Read next packet before returning
           thisPacket.reInit(srcConn);
         }
+      }else if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
+        DTSC::Meta newMeta;
+        newMeta.reinit(thisPacket);
+        std::set<unsigned int> newTracks;
+        for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin(); it != newMeta.tracks.end(); it++){
+          if (!myMeta.tracks.count(it->first)){
+            newTracks.insert(it->first);
+          }
+        }
+
+        for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
+          INFO_MSG("Adding track %d to internal metadata", *it);
+          myMeta.tracks[*it] = newMeta.tracks[*it];
+          continueNegotiate(*it, true);
+        }
+        thisPacket.reInit(srcConn);
       }
     }else{
       if (smart) {

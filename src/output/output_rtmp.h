@@ -14,6 +14,7 @@ namespace Mist {
       void sendNext();
       void sendHeader();
       bool isReadyForPlay();
+      bool onFinish();
     protected:
       bool isPushing;
       void parseVars(std::string data);

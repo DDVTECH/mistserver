@@ -657,6 +657,7 @@ namespace Mist {
     }
     stats();
     }
+    onFinish();
     MEDIUM_MSG("MistOut client handler shutting down: %s, %s, %s", myConn.connected() ? "conn_active" : "conn_closed", wantRequest ? "want_request" : "no_want_request", parseData ? "parsing_data" : "not_parsing_data");
     
     stats(true);
@@ -941,11 +942,13 @@ namespace Mist {
       nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
       if (!nProxy.userClient.getData()){
         WARN_MSG("Player connection failure - aborting output");
+        onFinish();
         myConn.close();
         return;
       }
     }
     if (!nProxy.userClient.isAlive()){
+      onFinish();
       myConn.close();
       return;
     }

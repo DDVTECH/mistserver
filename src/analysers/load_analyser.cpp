@@ -275,7 +275,7 @@ void handleServer(void * servName){
   hosts[host].availBandwidth = bandwidth.asInt();
 
   INFO_MSG("Monitoring %s on port %d.", host.c_str(), port, passphrase.c_str());
-  down = true;
+  bool down = true;
 
   Socket::Connection servConn(host, port, false);
   while (cfg->is_active){

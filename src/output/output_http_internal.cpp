@@ -1,6 +1,7 @@
 #include <sys/stat.h>
 #include "output_http_internal.h"
 #include <mist/stream.h>
+#include <mist/encode.h>
 #include "flashPlayer.h"
 #include "oldFlashPlayer.h"
 
@@ -145,7 +146,7 @@ namespace Mist {
       std::string relurl;
       size_t found = rel.find('$');
       if (found != std::string::npos){
-        relurl = rel.substr(0, found) + streamname + rel.substr(found+1);
+        relurl = rel.substr(0, found) + Encodings::URL::encode(streamname) + rel.substr(found+1);
       }else{
         relurl = "/";
       }
@@ -153,7 +154,7 @@ namespace Mist {
         if (it->isMember("url_rel")){
           size_t foundb = (*it)["url_rel"].asStringRef().find('$');
           if (foundb != std::string::npos){
-            relurl = (*it)["url_rel"].asStringRef().substr(0, foundb) + streamname + (*it)["url_rel"].asStringRef().substr(foundb+1);
+            relurl = (*it)["url_rel"].asStringRef().substr(0, foundb) + Encodings::URL::encode(streamname) + (*it)["url_rel"].asStringRef().substr(foundb+1);
           }
         }
         if (!strmMeta.isMember("live") || !it->isMember("nolive")){

@@ -16,6 +16,7 @@ namespace Mist {
       bool isReadyForPlay();
       static bool listenMode();
       void requestHandler();
+      bool onFinish();
     protected:
       bool isPushing;
       unsigned int maxbps;

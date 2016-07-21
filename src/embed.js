@@ -189,7 +189,7 @@ function mistembed(streamname) {
       break;
 
       case 'html5':
-        container.innerHTML += '<video width="' + videowidth + '" height="' + videoheight + '" src="' + encodeURI(src.url) + '" controls="controls" '+(autoplay ? 'autoplay="autoplay"' : '')+'><strong>No HTML5 video support</strong></video>';
+        container.innerHTML += '<video width="' + videowidth + '" height="' + videoheight + '" src="' + src.url + '" controls="controls" '+(autoplay ? 'autoplay="autoplay"' : '')+'><strong>No HTML5 video support</strong></video>';
         break;
         
       case 'rtsp':

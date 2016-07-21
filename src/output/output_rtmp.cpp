@@ -169,6 +169,38 @@ namespace Mist {
     }
   }
 
+  bool OutRTMP::onFinish(){
+    MEDIUM_MSG("Finishing stream %s, %s", streamName.c_str(), myConn?"while connected":"already disconnected");
+    if (myConn){
+      myConn.SendNow(RTMPStream::SendUSR(1, 1)); //send UCM StreamEOF (1), stream 1
+      AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+      amfreply.addContent(AMF::Object("", "onStatus")); //status reply
+      amfreply.addContent(AMF::Object("", (double)0)); //transaction ID
+      amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+      amfreply.addContent(AMF::Object("")); //info
+      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Stop"));
+      amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
+      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
+      amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+      sendCommand(amfreply, 20, 1);
+
+      amfreply = AMF::Object ("container", AMF::AMF0_DDV_CONTAINER);
+      amfreply.addContent(AMF::Object("", "onStatus")); //status reply
+      amfreply.addContent(AMF::Object("", (double)0)); //transaction ID
+      amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+      amfreply.addContent(AMF::Object("")); //info
+      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.UnpublishNotify"));
+      amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
+      amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+      sendCommand(amfreply, 20, 1);
+
+      myConn.close();
+    }
+    return false;
+  }
+
   void OutRTMP::parseVars(std::string data){
     std::string varname;
     std::string varval;
@@ -614,6 +646,7 @@ namespace Mist {
     } //createStream
     if ((amfData.getContentP(0)->StrValue() == "closeStream") || (amfData.getContentP(0)->StrValue() == "deleteStream")) {
       stop();
+      onFinish();
       return;
     }
     if ((amfData.getContentP(0)->StrValue() == "FCUnpublish") || (amfData.getContentP(0)->StrValue() == "releaseStream")) {
@@ -713,7 +746,7 @@ namespace Mist {
         if (streamCfg){
           if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
             FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), streamCfg.getMember("source").asString().c_str());
-            myConn.close();
+            onFinish();
           }else{
             std::string source = streamCfg.getMember("source").asString().substr(7);
             std::string IP = source.substr(0, source.find('@'));
@@ -747,13 +780,13 @@ namespace Mist {
             if (IP != ""){
               if (!myConn.isAddress(IP)){
                 FAIL_MSG("Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());
-                myConn.close();
+                onFinish();
               }
             }
           }
         }else{
           FAIL_MSG("Push from %s rejected - stream '%s' not configured.", getConnectedHost().c_str(), streamName.c_str());
-          myConn.close();
+          onFinish();
         }
         configLock.post();
         configLock.close();
@@ -994,7 +1027,7 @@ namespace Mist {
             inputBuffer.get().clear();
           }
           stop();
-          myConn.close();
+          onFinish();
           break; //happens when connection breaks unexpectedly
         case 1: //set chunk size
           RTMPStream::chunk_rec_max = ntohl(*(int *)next.data.c_str());
@@ -1067,7 +1100,7 @@ namespace Mist {
           static std::map<unsigned int, AMF::Object> pushMeta;
           if (!isInitialized) {
             MEDIUM_MSG("Received useless media data");
-            myConn.close();
+            onFinish();
             break;
           }
           F.ChunkLoader(next);

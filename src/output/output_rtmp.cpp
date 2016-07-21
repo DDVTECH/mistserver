@@ -710,7 +710,7 @@ namespace Mist {
           Triggers::doTrigger("RTMP_PUSH_REWRITE", payload, "", false, newUrl);
           if (!newUrl.size()){
             FAIL_MSG("Push from %s to URL %s rejected - RTMP_PUSH_REWRITE trigger blanked the URL", getConnectedHost().c_str(), reqUrl.c_str());
-            myConn.close();
+            onFinish();
             return;
           }
           reqUrl = newUrl;
@@ -770,7 +770,7 @@ namespace Mist {
               std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
               if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
                 FAIL_MSG("Push from %s to %s rejected - STREAM_PUSH trigger denied the push", getConnectedHost().c_str(), streamName.c_str());
-                myConn.close();
+                onFinish();
                 configLock.post();
                 configLock.close();
                 return;

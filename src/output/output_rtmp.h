@@ -16,6 +16,7 @@ namespace Mist {
       bool isReadyForPlay();
       bool onFinish();
     protected:
+      uint64_t rtmpOffset;
       bool isPushing;
       void parseVars(std::string data);
       std::string app_name;

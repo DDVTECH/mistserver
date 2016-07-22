@@ -1201,7 +1201,7 @@ namespace Mist {
       if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
         unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
         if (nextTime && nextTime < nxt.time){
-          dropTrack(nxt.tid, "time going backwards");
+          dropTrack(nxt.tid, "time going backwards ("+JSON::Value((long long)nextTime).asString()+" < "+JSON::Value((long long)nxt.time).asString()+")");
         }else{
           if (nextTime){
             nxt.time = nextTime;

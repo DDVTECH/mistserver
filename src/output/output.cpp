@@ -883,7 +883,7 @@ namespace Mist {
 
   /// This function decides where in the stream initial playback starts.
   /// The default implementation calls seek(0) for VoD.
-  /// For live, it seeks to the last sync'ed keyframe of the main track.
+  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than 2.5s from the end.
   /// Unless lastms < 5000, then it seeks to the first keyframe of the main track.
   /// Aborts if there is no main track or it has no keyframes.
   void Output::initialSeek(){
@@ -899,6 +899,7 @@ namespace Mist {
         bool good = true;
         //check if all tracks have data for this point in time
         for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
+          if (myMeta.tracks[*ti].lastms < seekPos+2500){good = false; break;}
           if (mainTrack == *ti){continue;}//skip self
           if (!myMeta.tracks.count(*ti)){
             HIGH_MSG("Skipping track %lu, not in tracks", *ti);

@@ -1181,8 +1181,8 @@ namespace Mist {
         if (++emptyCount < 100){
           Util::wait(250);
           //we're waiting for new data to show up
-          if (emptyCount % 8 == 0){
-            reconnect();//reconnect every 2 seconds
+          if (emptyCount % 64 == 0){
+            reconnect();//reconnect every 16 seconds
           }else{
             if (emptyCount % 4 == 0){
               updateMeta();
@@ -1190,7 +1190,7 @@ namespace Mist {
           }
         }else{
           //after ~25 seconds, give up and drop the track.
-          dropTrack(nxt.tid, "could not reload empty packet");
+          dropTrack(nxt.tid, "EOP: could not reload empty packet");
         }
         return false;
       }
@@ -1201,7 +1201,7 @@ namespace Mist {
       if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
         unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
         if (nextTime && nextTime < nxt.time){
-          dropTrack(nxt.tid, "time going backwards ("+JSON::Value((long long)nextTime).asString()+" < "+JSON::Value((long long)nxt.time).asString()+")");
+          dropTrack(nxt.tid, "EOP: time going backwards ("+JSON::Value((long long)nextTime).asString()+" < "+JSON::Value((long long)nxt.time).asString()+")");
         }else{
           if (nextTime){
             nxt.time = nextTime;

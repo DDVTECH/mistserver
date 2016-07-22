@@ -644,7 +644,22 @@ namespace Mist {
       sendCommand(amfReply, messageType, streamId);
       return;
     } //createStream
-    if ((amfData.getContentP(0)->StrValue() == "closeStream") || (amfData.getContentP(0)->StrValue() == "deleteStream")) {
+    if (amfData.getContentP(0)->StrValue() == "closeStream"){
+      myConn.SendNow(RTMPStream::SendUSR(1, 1)); //send UCM StreamEOF (1), stream 1
+      AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+      amfreply.addContent(AMF::Object("", "onStatus")); //status reply
+      amfreply.addContent(AMF::Object("", (double)0)); //transaction ID
+      amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+      amfreply.addContent(AMF::Object("")); //info
+      amfreply.getContentP(3)->addContent(AMF::Object("level", "status"));
+      amfreply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Stop"));
+      amfreply.getContentP(3)->addContent(AMF::Object("description", "Stream stopped"));
+      amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
+      amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+      sendCommand(amfreply, 20, 1);
+      return;
+    }
+    if (amfData.getContentP(0)->StrValue() == "deleteStream") {
       stop();
       onFinish();
       return;

@@ -465,6 +465,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
     timestamp += indata[i++ ] * 256 * 256;
     timestamp += indata[i++ ] * 256 * 256 * 256;
     ts_delta = timestamp;
+    DEBUG_MSG(DLVL_DONTEVEN, "Extended timestamp: %u", timestamp);
   }
 
   //read data if length > 0, and allocate it

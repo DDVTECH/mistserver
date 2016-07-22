@@ -18,6 +18,7 @@ namespace Mist {
       void requestHandler();
       bool onFinish();
     protected:
+      uint64_t rtmpOffset;
       bool isPushing;
       unsigned int maxbps;
       void parseVars(std::string data);

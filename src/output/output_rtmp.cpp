@@ -84,7 +84,7 @@ namespace Mist {
         amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + "/" + app));
         sendCommand(amfReply, 20, 0);
       }
-      RTMPStream::chunk_snd_max = 102400; //100KiB
+      RTMPStream::chunk_snd_max = 10240000; //10000KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       {
         AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
@@ -417,7 +417,7 @@ namespace Mist {
     }
     data_len += dheader_len;
     
-    unsigned int timestamp = thisPacket.getTime();
+    unsigned int timestamp = thisPacket.getTime() - rtmpOffset;
     
     bool allow_short = RTMPStream::lastsend.count(4);
     RTMPStream::Chunk & prev = RTMPStream::lastsend[4];
@@ -593,7 +593,7 @@ namespace Mist {
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
       reqUrl = app_name;//LTS
       app_name = app_name.substr(app_name.find('/', 7) + 1);
-      RTMPStream::chunk_snd_max = 4096;
+      RTMPStream::chunk_snd_max = 10240000;
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       myConn.SendNow(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
       myConn.SendNow(RTMPStream::SendCTL(6, RTMPStream::rec_window_size)); //send rec window acknowledgement size (msg 6)
@@ -896,8 +896,16 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
       amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+      uint64_t earliestTime = 0xffffffffffffffff;
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        if (myMeta.tracks.count(*it) && myMeta.tracks[*it].firstms < earliestTime){
+          earliestTime = myMeta.tracks[*it].firstms;
+        }
+      }
+      rtmpOffset = earliestTime;
+      amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
       sendCommand(amfreply, playMessageType, playStreamId);
-      RTMPStream::chunk_snd_max = 102400; //100KiB
+      RTMPStream::chunk_snd_max = 10240000; //10000KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       //send dunno?
       myConn.SendNow(RTMPStream::SendUSR(32, 1)); //send UCM no clue?, stream 1
@@ -953,8 +961,16 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
       amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
+      uint64_t earliestTime = 0xffffffffffffffff;
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        if (myMeta.tracks.count(*it) && myMeta.tracks[*it].firstms < earliestTime){
+          earliestTime = myMeta.tracks[*it].firstms;
+        }
+      }
+      rtmpOffset = earliestTime;
+      amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
       sendCommand(amfreply, playMessageType, playStreamId);
-      RTMPStream::chunk_snd_max = 102400; //100KiB
+      RTMPStream::chunk_snd_max = 10240000; //10000KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       //send dunno?
       myConn.SendNow(RTMPStream::SendUSR(32, 1)); //send UCM no clue?, stream 1

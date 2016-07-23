@@ -657,6 +657,7 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
       sendCommand(amfreply, 20, 1);
+      stop();
       return;
     }
     if (amfData.getContentP(0)->StrValue() == "deleteStream") {
@@ -896,13 +897,8 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
       amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
-      uint64_t earliestTime = 0xffffffffffffffff;
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-        if (myMeta.tracks.count(*it) && myMeta.tracks[*it].firstms < earliestTime){
-          earliestTime = myMeta.tracks[*it].firstms;
-        }
-      }
-      rtmpOffset = earliestTime;
+      initialSeek();
+      rtmpOffset = currentTime();
       amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
       sendCommand(amfreply, playMessageType, playStreamId);
       RTMPStream::chunk_snd_max = 10240000; //10000KiB
@@ -961,13 +957,8 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
       amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
-      uint64_t earliestTime = 0xffffffffffffffff;
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-        if (myMeta.tracks.count(*it) && myMeta.tracks[*it].firstms < earliestTime){
-          earliestTime = myMeta.tracks[*it].firstms;
-        }
-      }
-      rtmpOffset = earliestTime;
+      initialSeek();
+      rtmpOffset = currentTime();
       amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
       sendCommand(amfreply, playMessageType, playStreamId);
       RTMPStream::chunk_snd_max = 10240000; //10000KiB

@@ -298,6 +298,10 @@ namespace Mist {
   void negotiationProxy::bufferNext(DTSC::Packet & pack, DTSC::Meta & myMeta) {
     //Save the trackid of the track for easier access
     unsigned long tid = pack.getTrackId();
+    if (pack.getTime() < myMeta.tracks[tid].lastms){
+      INFO_MSG("Wrong order packet ignored: %lu < %lu", pack.getTime(), myMeta.tracks[tid].lastms);
+      return;
+    }
     unsigned long mapTid = trackMap[tid];
     //Do nothing if no page is opened for this track
     if (!curPage.count(tid)) {
@@ -524,7 +528,7 @@ namespace Mist {
       if (tmpIt->second.curOffset > FLIP_DATA_PAGE_SIZE || packet.getTime() - tmpIt->second.firstTime > FLIP_TARGET_DURATION) { 
         //Create the book keeping data for the new page
         nextPageNum = tmpIt->second.pageNum + tmpIt->second.keyNum;
-        INFO_MSG("We should go to next page now, transition from %lu to %d", tmpIt->second.pageNum, nextPageNum);
+        HIGH_MSG("We should go to next page now, transition from %lu to %d", tmpIt->second.pageNum, nextPageNum);
         pagesByTrack[tid][nextPageNum].dataSize = DEFAULT_DATA_PAGE_SIZE;
         pagesByTrack[tid][nextPageNum].pageNum = nextPageNum;
         pagesByTrack[tid][nextPageNum].firstTime = packet.getTime();

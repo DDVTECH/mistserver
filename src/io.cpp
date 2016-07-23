@@ -296,10 +296,12 @@ namespace Mist {
   }
 
   void negotiationProxy::bufferNext(DTSC::Packet & pack, DTSC::Meta & myMeta) {
+    static bool multiWrong = false;
     //Save the trackid of the track for easier access
     unsigned long tid = pack.getTrackId();
     if (pack.getTime() < myMeta.tracks[tid].lastms){
-      INFO_MSG("Wrong order packet ignored: %lu < %lu", pack.getTime(), myMeta.tracks[tid].lastms);
+      DEBUG_MSG(multiWrong?DLVL_HIGH:DLVL_WARN, "Wrong order on track %lu ignored: %lu < %lu", tid, pack.getTime(), myMeta.tracks[tid].lastms);
+      multiWrong = true;
       return;
     }
     unsigned long mapTid = trackMap[tid];
@@ -308,6 +310,7 @@ namespace Mist {
       INFO_MSG("Trying to buffer a packet on track %lu~>%lu, but no page is initialized", tid, mapTid);
       return;
     }
+    multiWrong = false;
     IPC::sharedPage & myPage = curPage[tid];
     DTSCPageData & pageData = pagesByTrack[tid][curPageNum[tid]];
     //Save the current write position

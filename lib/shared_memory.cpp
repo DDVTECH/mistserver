@@ -1162,8 +1162,6 @@ namespace IPC {
     }
     if ((myPage.mapped[offsetOnPage] & 0x7F) < 126) {
       myPage.mapped[offsetOnPage] = (countAsViewer ? 0x81 : 0x01);
-    } else {
-      DEBUG_MSG(DLVL_WARN, "Trying to keep-alive an element that needs to timeout, ignoring");
     }
   }
 

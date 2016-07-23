@@ -46,6 +46,7 @@ namespace Mist {
       void seek(unsigned long long pos);
       bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
       void stop();
+      uint64_t currentTime();
       void setBlocking(bool blocking);
       long unsigned int getMainSelectedTrack();
       void updateMeta();

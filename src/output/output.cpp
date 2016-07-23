@@ -13,6 +13,10 @@
 #include <mist/timing.h>
 #include "output.h"
 
+#ifndef MIN_DELAY
+#define MIN_DELAY 2500
+#endif
+
 namespace Mist {
   JSON::Value Output::capa = JSON::Value();
 
@@ -451,6 +455,12 @@ namespace Mist {
     currKeyOpen[trackId] = pageNum;
     VERYHIGH_MSG("Page %s loaded for %s", id, streamName.c_str());
   }
+
+  ///Return the current time of the media buffer, or 0 if no buffer available.
+  uint64_t Output::currentTime(){
+    if (!buffer.size()){return 0;}
+    return buffer.begin()->time;
+  }
   
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   void Output::seek(unsigned long long pos){
@@ -531,7 +541,7 @@ namespace Mist {
 
   /// This function decides where in the stream initial playback starts.
   /// The default implementation calls seek(0) for VoD.
-  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than 2.5s from the end.
+  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than MIN_DELAY ms from the end.
   /// Unless lastms < 5000, then it seeks to the first keyframe of the main track.
   /// Aborts if there is no main track or it has no keyframes.
   void Output::initialSeek(){
@@ -547,7 +557,7 @@ namespace Mist {
         bool good = true;
         //check if all tracks have data for this point in time
         for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
-          if (myMeta.tracks[*ti].lastms < seekPos+2500){good = false; break;}
+          if (myMeta.tracks[*ti].lastms < seekPos+MIN_DELAY){good = false; break;}
           if (mainTrack == *ti){continue;}//skip self
           if (!myMeta.tracks.count(*ti)){
             HIGH_MSG("Skipping track %lu, not in tracks", *ti);
@@ -658,8 +668,8 @@ namespace Mist {
     }
     stats();
     }
-    onFinish();
     MEDIUM_MSG("MistOut client handler shutting down: %s, %s, %s", myConn.connected() ? "conn_active" : "conn_closed", wantRequest ? "want_request" : "no_want_request", parseData ? "parsing_data" : "not_parsing_data");
+    onFinish();
     
     stats(true);
     nProxy.userClient.finish();
@@ -845,12 +855,12 @@ namespace Mist {
     if (thisPacket.getTime() != nxt.time && nxt.time && !atLivePoint){
       static int warned = 0;
       if (warned < 5){
-        WARN_MSG("Loaded %s track %ld@%llu in stead of %u@%llu (%dms, %s)", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), myMeta.tracks[nxt.tid].codec.c_str());
+        WARN_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms, %s, offset %lu)", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), myMeta.tracks[nxt.tid].codec.c_str(), nxt.offset);
         if (++warned == 5){
           WARN_MSG("Further warnings about time mismatches printed on HIGH level.");
         }
       }else{
-        HIGH_MSG("Loaded %s track %ld@%llu in stead of %u@%llu (%dms, %s)", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), myMeta.tracks[nxt.tid].codec.c_str());
+        HIGH_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms, %s, offset %lu)", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), myMeta.tracks[nxt.tid].codec.c_str(), nxt.offset);
       }
     }
 
@@ -869,7 +879,9 @@ namespace Mist {
         nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
       }
       if (myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
-        WARN_MSG("Keyframe value is not correct - state will now be inconsistent.");
+        WARN_MSG("Keyframe value is not correct (%llu != %llu) - state will now be inconsistent; resetting", myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime(), thisPacket.getTime());
+        initialSeek();
+        return false;
       }
       EXTREME_MSG("Track %u @ %llums = key %lu", nxt.tid, thisPacket.getTime(), nxtKeyNum[nxt.tid]);
     }

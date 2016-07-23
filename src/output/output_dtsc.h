@@ -10,6 +10,7 @@ namespace Mist {
       void onRequest();
       void sendNext();
       void sendHeader();
+      void initialSeek();
     private:
       std::string getStatsName();
       std::string salt;

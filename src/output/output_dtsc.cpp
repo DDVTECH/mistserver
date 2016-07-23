@@ -51,6 +51,40 @@ namespace Mist {
     }
   }
 
+  /// Seeks to the first sync'ed keyframe of the main track.
+  /// Aborts if there is no main track or it has no keyframes.
+  void OutDTSC::initialSeek(){
+    unsigned long long seekPos = 0;
+    if (myMeta.live){
+      long unsigned int mainTrack = getMainSelectedTrack();
+      //cancel if there are no keys in the main track
+      if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){return;}
+      //seek to the oldest keyframe
+      for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[mainTrack].keys.begin(); it != myMeta.tracks[mainTrack].keys.end(); ++it){
+        seekPos = it->getTime();
+        bool good = true;
+        //check if all tracks have data for this point in time
+        for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
+          if (mainTrack == *ti){continue;}//skip self
+          if (!myMeta.tracks.count(*ti)){
+            HIGH_MSG("Skipping track %lu, not in tracks", *ti);
+            continue;
+          }//ignore missing tracks
+          if (myMeta.tracks[*ti].lastms == myMeta.tracks[*ti].firstms){
+            HIGH_MSG("Skipping track %lu, last equals first", *ti);
+            continue;
+          }//ignore point-tracks
+          if (myMeta.tracks[*ti].firstms > seekPos){good = false; break;}
+          HIGH_MSG("Track %lu is good", *ti);
+        }
+        //if yes, seek here
+        if (good){break;}
+      }
+    }
+    MEDIUM_MSG("Initial seek to %llums", seekPos);
+    seek(seekPos);
+  }
+
   void OutDTSC::sendNext(){
     //If there are now more selectable tracks, select the new track and do a seek to the current timestamp
     //Set sentHeader to false to force it to send init data
@@ -65,7 +99,7 @@ namespace Mist {
           if (selectedTracks.size() > prevTrackCount){
             INFO_MSG("Picked up new track - selecting it and resetting state.");
             sentHeader = false;
-            initialSeek();
+            seek(currentTime());
             return;
           }
         }
@@ -86,7 +120,6 @@ namespace Mist {
     if (myMeta.live){
       realTime = 0;
     }
-    seek(0);
   }
 
   void OutDTSC::onRequest(){

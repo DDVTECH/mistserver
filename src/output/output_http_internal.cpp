@@ -2,6 +2,7 @@
 #include "output_http_internal.h"
 #include <mist/stream.h>
 #include <mist/encode.h>
+#include <mist/langcodes.h>
 #include "flashPlayer.h"
 #include "oldFlashPlayer.h"
 
@@ -413,6 +414,9 @@ namespace Mist {
         // show ALL the meta datas!
         json_resp["meta"] = strm.asJSON();
         jsonForEach(json_resp["meta"]["tracks"], it) {
+          if (it->isMember("lang")){
+            (*it)["language"] = Encodings::ISO639::decode((*it)["lang"].asStringRef());
+          }
           it->removeMember("fragments");
           it->removeMember("keys");
           it->removeMember("keysizes");

@@ -17,6 +17,7 @@ namespace HTTP {
       bool Read(Socket::Connection & conn);
       bool Read(std::string & strbuf);
       std::string GetHeader(std::string i);
+      void clearHeader(const std::string & i);
       std::string GetVar(std::string i);
       std::string getUrl();
       std::string allVars();

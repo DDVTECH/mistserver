@@ -1481,8 +1481,9 @@ namespace DTSC {
     if (type == "") {
       result << "metadata_" << trackID;
       return result.str();
+    }else{
+      result << type << "_";
     }
-    result << type << "_";
     result << codec << "_";
     if (type == "audio") {
       result << channels << "ch_";

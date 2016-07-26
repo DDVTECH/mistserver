@@ -61,8 +61,10 @@ namespace Mist {
   
   void OutHTTPTS::onHTTP(){
     std::string method = H.method;
-    
     initialize();
+    H.clearHeader("Range");
+    H.clearHeader("Icy-MetaData");
+    H.clearHeader("User-Agent");
     H.SetHeader("Content-Type", "video/mp2t");
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){
@@ -70,6 +72,7 @@ namespace Mist {
       H.Clean();
       return;
     }
+    H.protocol = "HTTP/1.0";//Force HTTP/1.0 because some devices just don't understand chunked replies
     H.StartResponse(H, myConn);    
     parseData = true;
     wantRequest = false;

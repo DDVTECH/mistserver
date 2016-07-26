@@ -334,6 +334,10 @@ void HTTP::Parser::SetHeader(std::string i, std::string v) {
   headers[i] = v;
 }
 
+void HTTP::Parser::clearHeader(const std::string & i){
+  headers.erase(i);
+}
+
 /// Sets header i to integer value v.
 void HTTP::Parser::SetHeader(std::string i, long long v) {
   Trim(i);

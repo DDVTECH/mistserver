@@ -16,7 +16,11 @@ namespace Mist {
     //Open the page for the metadata
     char pageName[NAME_BUFFER_SIZE];
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-    nProxy.metaPages[0].init(pageName, DEFAULT_STRM_PAGE_SIZE, true);
+    if (myMeta.live){
+      nProxy.metaPages[0].init(pageName, DEFAULT_STRM_PAGE_SIZE, true);
+    }else{
+      nProxy.metaPages[0].init(pageName, myMeta.getSendLen(), true);
+    }
     //Make sure we don't delete it on accident
     nProxy.metaPages[0].master = false;
 

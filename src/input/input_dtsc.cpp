@@ -232,7 +232,7 @@ namespace Mist {
             }
 
             for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
-              INFO_MSG("Adding track %d to internal metadata", *it);
+              INFO_MSG("Reset: adding track %d", *it);
               myMeta.tracks[*it] = newMeta.tracks[*it];
               continueNegotiate(*it, true);
             }
@@ -246,12 +246,12 @@ namespace Mist {
             }
 
             for(std::set<unsigned int>::iterator it = deletedTracks.begin(); it != deletedTracks.end(); it++){
-              INFO_MSG("Deleting track %d from internal metadata", *it);
+              INFO_MSG("Reset: deleting track %d", *it);
               myMeta.tracks.erase(*it);
             }
 
             //Read next packet before returning
-            thisPacket.reInit(srcConn);
+            return getNext(smart);
           }else{
             myMeta = DTSC::Meta();
           }
@@ -270,11 +270,11 @@ namespace Mist {
         }
 
         for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
-          INFO_MSG("Adding track %d to internal metadata", *it);
+          INFO_MSG("New header: adding track %d (%s)", *it, newMeta.tracks[*it].type.c_str());
           myMeta.tracks[*it] = newMeta.tracks[*it];
           continueNegotiate(*it, true);
         }
-        thisPacket.reInit(srcConn);
+        return getNext(smart);
       }
     }else{
       if (smart) {

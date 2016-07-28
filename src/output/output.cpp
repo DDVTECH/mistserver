@@ -68,6 +68,10 @@ namespace Mist {
     myConn.setBlocking(isBlocking);
   }
   
+  uint32_t Output::currTrackCount() const{
+    return buffer.size();
+  }
+
   void Output::updateMeta(){
     //read metadata from page to myMeta variable
     if (nProxy.metaPages[0].mapped){

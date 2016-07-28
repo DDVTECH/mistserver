@@ -277,7 +277,7 @@ namespace Mist {
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
     nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
 
-    DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
+    INFO_MSG("Input for stream %s started", streamName.c_str());
 
     if (!openStreamSource()){
       FAIL_MSG("Unable to connect to source");
@@ -310,7 +310,7 @@ namespace Mist {
       getNext();
       nProxy.userClient.keepAlive();
     }
-    
+
     closeStreamSource();
 
     nProxy.userClient.finish();
@@ -318,7 +318,7 @@ namespace Mist {
     pullLock.post();
     pullLock.close();
     pullLock.unlink();
-    DEBUG_MSG(DLVL_DEVEL, "Pull input for stream %s closing clean", streamName.c_str());
+    INFO_MSG("Stream input %s closing clean", streamName.c_str());
     return;
   }
 

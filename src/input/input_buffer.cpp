@@ -787,6 +787,7 @@ namespace Mist {
     //Store a reference for easier access
     std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
     char * mappedPointer = nProxy.metaPages[tNum].mapped;
+    if (!mappedPointer){return;}
 
     //First detect all entries on metaPage
     for (int i = 0; i < 8192; i += 8) {

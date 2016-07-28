@@ -65,6 +65,7 @@ namespace Mist {
       void selectDefaultTracks();
       bool connectToFile(std::string file);
       static bool listenMode(){return true;}
+      uint32_t currTrackCount() const;
       virtual bool isReadyForPlay();
       //virtuals. The optional virtuals have default implementations that do as little as possible.
       virtual void sendNext() {}//REQUIRED! Others are optional.

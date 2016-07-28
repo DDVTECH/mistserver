@@ -120,7 +120,7 @@ namespace DTSC {
     while (src.connected()){
       if (!toReceive && src.Received().available(8)){
         if (src.Received().copy(2) != "DT"){
-          INFO_MSG("Invalid DTSC Packet header encountered (%s)", src.Received().copy(4).c_str());
+          WARN_MSG("Invalid DTSC Packet header encountered (%s)", src.Received().copy(4).c_str());
           break;
         }
         toReceive = Bit::btohl(src.Received().copy(8).data() + 4);
@@ -131,10 +131,11 @@ namespace DTSC {
         return;
       }
       if(!src.spool()){
-        if (sleepCount++ > 60){
+        if (sleepCount++ > 50){
+          WARN_MSG("Waiting for packet on connection timed out");
           return;
         }
-        Util::sleep(100);
+        Util::wait(100);
       }
     }
   }

@@ -60,6 +60,10 @@ namespace Mist {
     isBlocking = blocking;
     myConn.setBlocking(isBlocking);
   }
+  
+  uint32_t Output::currTrackCount() const{
+    return buffer.size();
+  }
 
   void Output::updateMeta(){
     //read metadata from page to myMeta variable

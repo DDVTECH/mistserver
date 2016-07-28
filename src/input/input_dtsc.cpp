@@ -164,27 +164,27 @@ namespace Mist {
     if (!needsLock()) {
       return true;
     } else {
-    if (config->getString("input") == "-") {
-      std::cerr << "Input from stdin not yet supported" << std::endl;
-      return false;
-    }
-    if (!config->getString("streamname").size()){
-      if (config->getString("output") == "-") {
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+      if (config->getString("input") == "-") {
+        std::cerr << "Input from stdin not yet supported" << std::endl;
         return false;
       }
-    }else{
-      if (config->getString("output") != "-") {
-        std::cerr << "File output in player mode not supported" << std::endl;
+      if (!config->getString("streamname").size()) {
+        if (config->getString("output") == "-") {
+          std::cerr << "Output to stdout not yet supported" << std::endl;
+          return false;
+        }
+      } else {
+        if (config->getString("output") != "-") {
+          std::cerr << "File output in player mode not supported" << std::endl;
+          return false;
+        }
+      }
+
+      //open File
+      inFile = DTSC::File(config->getString("input"));
+      if (!inFile) {
         return false;
       }
-    }
-    
-    //open File
-    inFile = DTSC::File(config->getString("input"));
-    if (!inFile) {
-      return false;
-    }
     }
     return true;
   }
@@ -199,18 +199,18 @@ namespace Mist {
     DTSC::File tmp(config->getString("input") + ".dtsh");
     if (tmp) {
       myMeta = tmp.getMeta();
-      DEBUG_MSG(DLVL_HIGH,"Meta read in with %lu tracks", myMeta.tracks.size());
+      DEBUG_MSG(DLVL_HIGH, "Meta read in with %lu tracks", myMeta.tracks.size());
       return true;
     }
     if (inFile.getMeta().moreheader < 0 || inFile.getMeta().tracks.size() == 0) {
-      DEBUG_MSG(DLVL_FAIL,"Missing external header file");
+      DEBUG_MSG(DLVL_FAIL, "Missing external header file");
       return false;
     }
     myMeta = DTSC::Meta(inFile.getMeta());
-    DEBUG_MSG(DLVL_DEVEL,"Meta read in with %lu tracks", myMeta.tracks.size());
+    DEBUG_MSG(DLVL_DEVEL, "Meta read in with %lu tracks", myMeta.tracks.size());
     return true;
   }
-  
+
   void inputDTSC::getNext(bool smart) {
     if (!needsLock()){
       thisPacket.reInit(srcConn);
@@ -232,7 +232,7 @@ namespace Mist {
             }
 
             for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
-              INFO_MSG("Adding track %d to internal metadata", *it);
+              INFO_MSG("Reset: adding track %d", *it);
               myMeta.tracks[*it] = newMeta.tracks[*it];
               continueNegotiate(*it, true);
             }
@@ -246,12 +246,12 @@ namespace Mist {
             }
 
             for(std::set<unsigned int>::iterator it = deletedTracks.begin(); it != deletedTracks.end(); it++){
-              INFO_MSG("Deleting track %d from internal metadata", *it);
+              INFO_MSG("Reset: deleting track %d", *it);
               myMeta.tracks.erase(*it);
             }
 
             //Read next packet before returning
-            thisPacket.reInit(srcConn);
+            return getNext(smart);
           }else{
             myMeta = DTSC::Meta();
           }
@@ -259,14 +259,30 @@ namespace Mist {
           //Read next packet before returning
           thisPacket.reInit(srcConn);
         }
+      }else if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
+        DTSC::Meta newMeta;
+        newMeta.reinit(thisPacket);
+        std::set<unsigned int> newTracks;
+        for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin(); it != newMeta.tracks.end(); it++){
+          if (!myMeta.tracks.count(it->first)){
+            newTracks.insert(it->first);
+          }
+        }
+
+        for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
+          INFO_MSG("New header: adding track %d (%s)", *it, newMeta.tracks[*it].type.c_str());
+          myMeta.tracks[*it] = newMeta.tracks[*it];
+          continueNegotiate(*it, true);
+        }
+        return getNext(smart);
       }
     }else{
-    if (smart){
-      inFile.seekNext();
-    }else{
-      inFile.parseNext();
-    }
-    thisPacket = inFile.getPacket();
+      if (smart) {
+        inFile.seekNext();
+      } else {
+        inFile.parseNext();
+      }
+      thisPacket = inFile.getPacket();
     }
   }
 

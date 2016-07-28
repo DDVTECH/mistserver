@@ -766,6 +766,10 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
       return;
     }
+    if (!mySemaphore.tryWaitOneSecond()){
+      WARN_MSG("Force unlocking sharedServer semaphore to prevent deadlock");
+    }
+    mySemaphore.post();
     semGuard tmpGuard(&mySemaphore);
     newPage();
   }

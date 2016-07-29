@@ -488,6 +488,14 @@ namespace Mist {
   }
 
   bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
+    if (myMeta.live && myMeta.tracks[tid].lastms < pos){
+      unsigned int maxTime = 0;
+      while (myMeta.tracks[tid].lastms < pos && myConn && ++maxTime <= 20){
+        Util::wait(500);
+        stats();
+        updateMeta();
+      }
+    }
     if (myMeta.tracks[tid].lastms < pos){
       WARN_MSG("Aborting seek to %llums in track %u: past end of track (= %llums).", pos, tid, myMeta.tracks[tid].lastms);
       selectedTracks.erase(tid);

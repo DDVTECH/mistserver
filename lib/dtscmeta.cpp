@@ -131,7 +131,7 @@ namespace DTSC {
         return;
       }
       if(!src.spool()){
-        if (sleepCount++ > 50){
+        if (sleepCount++ > 150){
           WARN_MSG("Waiting for packet on connection timed out");
           return;
         }

@@ -106,7 +106,7 @@ namespace Controller {
         continue;
       }
       //ignore connectors that are not installed
-      if ( !capabilities["connectors"].isMember(connName)){
+      if (!capabilities.isMember("connectors") || !capabilities["connectors"].isMember(connName)){
         ( *ait)["online"] = "Not installed";
         if (( *ait)["online"].asString() != prevOnline){
           Log("WARN", connName + " connector is enabled but doesn't exist on system! Ignoring connector.");

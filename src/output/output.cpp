@@ -466,6 +466,20 @@ namespace Mist {
     return buffer.begin()->time;
   }
   
+  ///Return the end time of the VoD asset, or 0 if unknown.
+  uint64_t Output::endTime(){
+    if (myMeta.live){return 0;}
+    uint64_t end = 0;
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks.count(*it)){
+        if (end < myMeta.tracks[*it].lastms){
+          end = myMeta.tracks[*it].lastms;
+        }
+      }
+    }
+    return end;
+  }
+
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   void Output::seek(unsigned long long pos){
     sought = true;

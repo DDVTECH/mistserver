@@ -68,7 +68,9 @@ endif()
 if (NOT DEFINED NOSHM )
   add_definitions(-DSHM_ENABLED=1)
 endif()
-
+if (DEFINED BIGMETA )
+  add_definitions(-DBIGMETA=1)
+endif()
 ########################################
 # Build Variables - Thread Names       #
 ########################################

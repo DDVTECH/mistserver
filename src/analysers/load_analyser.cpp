@@ -107,8 +107,12 @@ class hostDetails{
       if (bwscore < 0){bwscore = 0;}
       long long bw_sub = ((addBandwidth * 1000) / availBandwidth);
       if (bwscore - bw_sub < 0){bw_sub = bwscore;}
-      score += (bwscore - bw_sub);
-      MEDIUM_MSG("CPU %u, RAM %u, Stream %u, BW %u (-%u) (max %llu MB/s)", 1000-cpu, 1000-((ramCurr * 1000) / ramMax), streams.count(s)?200:0, bwscore, bw_sub, availBandwidth / 1024 / 1024);
+      if (bwscore - bw_sub > 0){
+        score += (bwscore - bw_sub);
+      }else{
+        score = 0;
+      }
+      MEDIUM_MSG("CPU %u, RAM %u, Stream %u, BW %u (-%u) (max %llu MB/s) -> %u", 1000-cpu, 1000-((ramCurr * 1000) / ramMax), streams.count(s)?200:0, bwscore, bw_sub, availBandwidth / 1024 / 1024, score);
       return score;
     }
     void addViewer(std::string & s){
@@ -251,8 +255,13 @@ int handleRequest(Socket::Connection & conn){
         }
         INFO_MSG("%s scores %u", it->first.c_str(), score);
       }
-      INFO_MSG("Winner: %s scores %u", bestHost.c_str(), bestScore);
-      hosts[bestHost].addViewer(stream);
+      if (bestScore == 0){
+        bestHost = "FULL";
+        FAIL_MSG("All servers seem to be out of bandwidth!");
+      }else{
+        INFO_MSG("Winner: %s scores %u", bestHost.c_str(), bestScore);
+        hosts[bestHost].addViewer(stream);
+      }
       H.SetBody(bestHost);
       H.SendResponse("200", "OK", conn);
       H.Clean();

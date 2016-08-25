@@ -433,7 +433,9 @@ namespace Mist {
         lock.post();
         threadCheckTimer = Util::bootSecs();
       }
-      Util::sleep(100);
+      if (pushing){
+        Util::sleep(100);
+      }
     }
     finish();
     INFO_MSG("Input for stream %s closing clean", streamName.c_str());

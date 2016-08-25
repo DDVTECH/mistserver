@@ -68,7 +68,7 @@ namespace Controller {
           //  False: start TS input
           INFO_MSG("No TS Input running on port %s for stream %s, starting it", udpPort.c_str(), name.c_str());
           std::deque<std::string> command;
-          command.push_back(Util::getMyPath() + "MistInTSStream");
+          command.push_back(Util::getMyPath() + "MistInTS");
           command.push_back("-s");
           command.push_back(name);
           command.push_back("-p");

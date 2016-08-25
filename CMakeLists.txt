@@ -295,9 +295,6 @@ macro(makeInput inputName format)
 
   #Set compile definitions
   unset(my_definitions)
-  if (";${ARGN};" MATCHES ";tslive;")
-    list(APPEND my_definitions "TSLIVE_INPUT")
-  endif()
   list(APPEND my_definitions "INPUTTYPE=\"input_${format}.h\"")
 
   set_target_properties(MistIn${inputName} 
@@ -326,7 +323,6 @@ makeInput(Buffer buffer)
 makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS
-makeInput(TSStream ts tslive)#LTS
 makeInput(Folder folder folder)#LTS
 
 ########################################

@@ -13,9 +13,7 @@ namespace Mist {
     public:
       inputTS(Util::Config * cfg);
       ~inputTS();
-#ifdef TSLIVE_INPUT
       bool needsLock();
-#endif
     protected:
       //Private Functions
       bool setup();
@@ -24,25 +22,12 @@ namespace Mist {
       void seek(int seekTime);
       void trackSelect(std::string trackSpec);
       void readPMT();
-
-#ifdef TSLIVE_INPUT
-      //Live tsinput does not have a header, so parseheader should do nothing
-      void parseHeader() { }
-      //In case of live TS Input, we override the default serve function
       void stream();
       void finish();
-#endif
-
-
-
-
       FILE * inFile;///<The input file with ts data
       TS::Stream tsStream;///<Used for parsing the incoming ts stream
-
-      bool pushing;
       Socket::UDPConnection udpCon;
       std::string udpDataBuffer;
-
       TS::Packet tsBuf;
   };
 }

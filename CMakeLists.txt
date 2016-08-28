@@ -376,7 +376,6 @@ makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
 makeOutput(Push push)#LTS
 makeOutput(RTSP rtsp)#LTS
-makeOutput(TSPush ts_push           ts)#LTS
 makeOutput(DASH dash_mp4       http)#LTS
 
 if (DEFINED WITH_SANITY )

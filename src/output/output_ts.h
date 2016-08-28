@@ -6,7 +6,13 @@ namespace Mist {
       OutTS(Socket::Connection & conn);
       ~OutTS();
       static void init(Util::Config * cfg);
-      void sendTS(const char * tsData, unsigned int len=188);       
+      void sendTS(const char * tsData, unsigned int len=188);
+      static bool listenMode();
+    private:
+      unsigned int udpSize;
+      bool pushOut;
+      std::string packetBuffer;
+      Socket::UDPConnection pushSock;
   };
 }
 

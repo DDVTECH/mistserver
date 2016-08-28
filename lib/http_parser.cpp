@@ -447,7 +447,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
               tmpA.erase(0, f + 1);
               method = tmpA;
               if (url.find('?') != std::string::npos) {
-                parseVars(url.substr(url.find('?') + 1)); //parse GET variables
+                parseVars(url.substr(url.find('?') + 1), vars); //parse GET variables
                 url.erase(url.find('?'));
               }
               url = Encodings::URL::decode(url);
@@ -463,7 +463,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
               tmpA.erase(0, f + 1);
               protocol = tmpA;
               if (url.find('?') != std::string::npos) {
-                parseVars(url.substr(url.find('?') + 1)); //parse GET variables
+                parseVars(url.substr(url.find('?') + 1), vars); //parse GET variables
                 url.erase(url.find('?'));
               }
               url = Encodings::URL::decode(url);
@@ -508,7 +508,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
           HTTPbuffer.erase(0, toappend);
         }
         if (length == body.length()) {
-          parseVars(body); //parse POST variables
+          parseVars(body, vars); //parse POST variables
           return true;
         } else {
           return false;
@@ -560,12 +560,12 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
   return false; //empty input
 } //HTTPReader::parse
 
-/// Parses GET or POST-style variable data.
-/// Saves to internal variable structure using HTTP::Parser::SetVar.
-void HTTP::Parser::parseVars(std::string data) {
+///HTTP variable parser to std::map<std::string, std::string> structure.
+///Reads variables from data, decodes and stores them to storage.
+void HTTP::parseVars(const std::string & data, std::map<std::string, std::string> & storage) {
   std::string varname;
   std::string varval;
-  // position where a part start (e.g. after &)
+  // position where a part starts (e.g. after &)
   size_t pos = 0;
   while (pos < data.length()) {
     size_t nextpos = data.find('&', pos);
@@ -582,7 +582,9 @@ void HTTP::Parser::parseVars(std::string data) {
       varname = data.substr(pos, nextpos - pos);
       varval.clear();
     }
-    SetVar(Encodings::URL::decode(varname), Encodings::URL::decode(varval));
+    if (varname.size()){
+      storage[Encodings::URL::decode(varname)] = Encodings::URL::decode(varval);
+    }
     if (nextpos == std::string::npos) {
       // in case the string is gigantic
       break;

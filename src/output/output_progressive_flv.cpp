@@ -77,6 +77,32 @@ namespace Mist {
   }
   
   void OutProgressiveFLV::sendNext(){
+    //If there are now more selectable tracks, select the new track and do a seek to the current timestamp
+    if (myMeta.live && selectedTracks.size() < 2){
+      static unsigned long long lastMeta = 0;
+      if (Util::epoch() > lastMeta + 5){
+        lastMeta = Util::epoch();
+        updateMeta();
+        if (myMeta.tracks.size() > 1){
+          size_t prevTrackCount = selectedTracks.size();
+          selectDefaultTracks();
+          if (selectedTracks.size() > prevTrackCount){
+            INFO_MSG("Picked up new track - selecting it and resetting state.");
+            for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+              if (myMeta.tracks[*it].type == "video" && tag.DTSCVideoInit(myMeta.tracks[*it])){
+                myConn.SendNow(tag.data, tag.len);
+              }
+              if (myMeta.tracks[*it].type == "audio" && tag.DTSCAudioInit(myMeta.tracks[*it])){
+                myConn.SendNow(tag.data, tag.len);
+              }
+            }
+            initialSeek();
+            return;
+          }
+        }
+      }
+    }
+
     tag.DTSCLoader(thisPacket, myMeta.tracks[thisPacket.getTrackId()]);
     myConn.SendNow(tag.data, tag.len); 
     if (config->getBool("keyframeonly")){

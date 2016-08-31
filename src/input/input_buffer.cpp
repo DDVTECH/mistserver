@@ -475,6 +475,14 @@ namespace Mist {
           nProxy.metaPages.erase(it->first);
           activeTracks.erase(it->first);
           myMeta.tracks.erase(it->first);
+          /*LTS-START*/
+          if (!myMeta.tracks.size()) {
+            if (Triggers::shouldTrigger("STREAM_BUFFER")) {
+              std::string payload = config->getString("streamname") + "\nEMPTY";
+              Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+            }
+          }
+          /*LTS-END*/
           changed = true;
           break;
         }

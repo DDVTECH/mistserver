@@ -31,6 +31,7 @@ int main(int argc, char * argv[]) {
       }
     }
     conf.activate();
+    uint64_t reTimer = 0;
     while (conf.is_active){
       pid_t pid = fork();
       if (pid == 0){
@@ -70,6 +71,8 @@ int main(int argc, char * argv[]) {
         break;
       }else{
         DEBUG_MSG(DLVL_DEVEL, "Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
+        Util::wait(reTimer);
+        reTimer += 1000;
       }
     }
     if (conv.needsLock()){

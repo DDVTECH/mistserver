@@ -2569,6 +2569,17 @@ var UI = {
                 $('<h3>').text(input.name+' Input options')
               );
               var build = mist.convertBuildOptions(input,saveas);
+              if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
+                build.push({
+                  label: 'Always on',
+                  type: 'checkbox',
+                  help: 'Keep this input available at all times, even when there are no active viewers.',
+                  pointer: {
+                    main: saveas,
+                    index: 'always_on'
+                  }
+                });
+              }
               $inputoptions.append(UI.buildUI(build));
             }
           },$('<br>'),{

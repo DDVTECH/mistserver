@@ -303,6 +303,9 @@ namespace Mist {
     static bool multiWrong = false;
     //Save the trackid of the track for easier access
     unsigned long tid = pack.getTrackId();
+    if (myMeta.live && pack.getTime() > 0xFFFF0000 && !myMeta.tracks[tid].lastms){
+      return;//ignore bullshit timestamps
+    }
     if (myMeta.live && pack.getTime() < myMeta.tracks[tid].lastms){
       DEBUG_MSG(multiWrong?DLVL_HIGH:DLVL_WARN, "Wrong order on track %lu ignored: %lu < %lu", tid, pack.getTime(), myMeta.tracks[tid].lastms);
       multiWrong = true;

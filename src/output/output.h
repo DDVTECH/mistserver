@@ -54,7 +54,7 @@ namespace Mist {
       /*LTS-END*/
       //non-virtual generic functions
       int run();
-      void stats(bool force = false);
+      virtual void stats(bool force = false);
       void seek(unsigned long long pos);
       bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
       void stop();

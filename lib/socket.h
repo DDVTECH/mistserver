@@ -141,6 +141,7 @@ namespace Socket {
       void setBlocking(bool blocking);
       void SetDestination(std::string hostname, uint32_t port);
       void GetDestination(std::string & hostname, uint32_t & port);
+      uint32_t getDestPort() const;
       bool Receive();
       void SendNow(const std::string & data);
       void SendNow(const char * data);

@@ -1023,8 +1023,12 @@ Socket::UDPConnection::UDPConnection(const UDPConnection & o) {
     destAddr = 0;
     destAddr_size = 0;
   }
-  data = 0;
-  data_size = 0;
+  data = (char*)malloc(1024);
+  if (data){
+    data_size = 1024;
+  }else{
+    data_size = 0;
+  }
   data_len = 0;
 }
 
@@ -1102,6 +1106,19 @@ void Socket::UDPConnection::GetDestination(std::string & destIp, uint32_t & port
   port = 0;
   DEBUG_MSG(DLVL_FAIL, "Could not get destination for UDP socket");
 }//Socket::UDPConnection GetDestination
+
+/// Returns the port number of the receiving end of this socket.
+/// Returns 0 on error.
+uint32_t Socket::UDPConnection::getDestPort() const{
+  if (!destAddr || !destAddr_size){return 0;}
+  if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET6) {
+    return ntohs(((struct sockaddr_in6 *)destAddr)->sin6_port);
+  }
+  if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET) {
+    return ntohs(((struct sockaddr_in *)destAddr)->sin_port);
+  }
+  return 0;
+}
 
 /// Sets the socket to be blocking if the parameters is true.
 /// Sets the socket to be non-blocking otherwise.
@@ -1214,20 +1231,22 @@ bool Socket::UDPConnection::Receive() {
     data_size = SOCKETSIZE;
   }
 #endif
-  int r = recvfrom(sock, data, data_size, MSG_PEEK | MSG_TRUNC, 0, 0);
+  int r = recvfrom(sock, data, data_size, MSG_PEEK | MSG_TRUNC | MSG_DONTWAIT, 0, 0);
   if (r == -1) {
     if (errno != EAGAIN) {
-      INFO_MSG("Found an error: %d (%s)", errno, strerror(errno));
+      INFO_MSG("UDP receive: %d (%s)", errno, strerror(errno));
     }
     data_len = 0;
     return false;
   }
   if (data_size < (unsigned int)r) {
-    data = (char *)realloc(data, r);
-    if (data) {
+    char* tmp = (char*)realloc(data, r);
+    if (tmp) {
+      data = tmp;
       data_size = r;
-    } else {
-      data_size = 0;
+    }else{
+      FAIL_MSG("Could not resize socket buffer to %d bytes!", r);
+      return false;
     }
   }
   socklen_t destsize = destAddr_size;

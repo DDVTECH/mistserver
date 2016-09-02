@@ -170,13 +170,21 @@ namespace Mist {
 
     //If there are now more selectable tracks, select the new track and do a seek to the current timestamp
     //Set sentHeader to false to force it to send init data
-    if (selectedTracks.size() < 2 && myMeta.tracks.size() > 1){
-      size_t prevTrackCount = selectedTracks.size();
-      selectDefaultTracks();
-      if (selectedTracks.size() > prevTrackCount){
-        INFO_MSG("Picked up new track - selecting it and resetting state.");
-        sentHeader = false;
-        seek(thisPacket.getTime());
+    if (myMeta.live && selectedTracks.size() < 2){
+      static unsigned long long lastMeta = 0;
+      if (Util::epoch() > lastMeta + 5){
+        lastMeta = Util::epoch();
+        updateMeta();
+        if (myMeta.tracks.size() > 1){
+          size_t prevTrackCount = selectedTracks.size();
+          selectDefaultTracks();
+          if (selectedTracks.size() > prevTrackCount){
+            INFO_MSG("Picked up new track - selecting it and resetting state.");
+            sentHeader = false;
+            initialSeek();
+            return;
+          }
+        }
       }
       return;
     }
@@ -278,6 +286,7 @@ namespace Mist {
     data_len += dheader_len;
     
     unsigned int timestamp = thisPacket.getTime() - rtmpOffset;
+    if (rtmpOffset > thisPacket.getTime()){timestamp = 0;}//make sure we don't go negative
     
     bool allow_short = RTMPStream::lastsend.count(4);
     RTMPStream::Chunk & prev = RTMPStream::lastsend[4];
@@ -740,9 +749,10 @@ namespace Mist {
       amfreply.getContentP(3)->addContent(AMF::Object("description", "Playing!"));
       amfreply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
       amfreply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
-      initialSeek();
-      rtmpOffset = currentTime();
-      amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
+      if (myMeta.live){
+        rtmpOffset = currentTime();
+        amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
+      }
       sendCommand(amfreply, playMessageType, playStreamId);
       RTMPStream::chunk_snd_max = 10240000; //10000KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)

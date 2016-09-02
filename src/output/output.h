@@ -59,6 +59,7 @@ namespace Mist {
       bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
       void stop();
       uint64_t currentTime();
+      uint64_t startTime();
       uint64_t endTime();
       void setBlocking(bool blocking);
       long unsigned int getMainSelectedTrack();

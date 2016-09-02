@@ -33,6 +33,9 @@ namespace Encodings {
     }
     /// Encodes a single character as two hex digits in string form.
     static std::string chr(char dec);
+
+    /// Decodes a hex-encoded std::string to a raw binary std::string.
+    static std::string decode(const std::string & in);
   };
 
 }

@@ -16,9 +16,10 @@ namespace HTTP {
       Parser();
       bool Read(Socket::Connection & conn);
       bool Read(std::string & strbuf);
-      std::string GetHeader(std::string i);
+      const std::string & GetHeader(const std::string & i) const;
+      bool hasHeader(const std::string & i) const;
       void clearHeader(const std::string & i);
-      std::string GetVar(std::string i);
+      const std::string & GetVar(const std::string & i) const;
       std::string getUrl();
       std::string allVars();
       void SetHeader(std::string i, std::string v);

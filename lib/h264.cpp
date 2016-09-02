@@ -102,13 +102,13 @@ namespace h264 {
 
   SPSMeta sequenceParameterSet::getCharacteristics()  const {
     SPSMeta result;
+    result.sep_col_plane = false;
 
     //For calculating width
     unsigned int widthInMbs = 0;
     unsigned int cropHorizontal = 0;
 
     //For calculating height
-    bool mbsOnlyFlag = 0;
     unsigned int heightInMapUnits = 0;
     unsigned int cropVertical = 0;
 
@@ -135,11 +135,11 @@ namespace h264 {
       //chroma format idc
       char chromaFormatIdc = bs.getUExpGolomb();
       if (chromaFormatIdc == 3) {
-        bs.skip(1);
+        result.sep_col_plane = (bs.get(1) == 1);
       }
-      bs.getUExpGolomb();
-      bs.getUExpGolomb();
-      bs.skip(1);
+      bs.getUExpGolomb();//luma
+      bs.getUExpGolomb();//chroma
+      bs.skip(1);//transform bypass
       if (bs.get(1)) {//Scaling matrix is present
         char listSize = (chromaFormatIdc == 3 ? 12 : 8);
         for (size_t i = 0; i < listSize; i++){
@@ -154,23 +154,23 @@ namespace h264 {
         }
       }
     }
-    bs.getUExpGolomb();
-    unsigned int pic_order_cnt_type = bs.getUExpGolomb();
-    if (!pic_order_cnt_type) {
-      bs.getUExpGolomb();
-    } else if (pic_order_cnt_type == 1) {
+    result.log2_max_frame_num = bs.getUExpGolomb() + 4;
+    result.cnt_type = bs.getUExpGolomb();
+    if (!result.cnt_type) {
+      result.log2_max_order_cnt = bs.getUExpGolomb() + 4;
+    } else if (result.cnt_type == 1) {
       DEBUG_MSG(DLVL_DEVEL, "This part of the implementation is incomplete(2), to be continued. If this message is shown, contact developers immediately.");
     }
-    bs.getUExpGolomb();
-    bs.skip(1);
-    //Stop skipping data and start doing usefull stuff
+    result.max_ref_frames = bs.getUExpGolomb();//max_num_ref_frames
+    result.gaps = (bs.get(1) == 1);//gaps in frame num allowed
+    //Stop skipping data and start doing useful stuff
 
 
     widthInMbs = bs.getUExpGolomb() + 1;
     heightInMapUnits = bs.getUExpGolomb() + 1;
 
-    mbsOnlyFlag = bs.get(1);//Gets used in height calculation
-    if (!mbsOnlyFlag) {
+    result.mbs_only = (bs.get(1) == 1);//Gets used in height calculation
+    if (!result.mbs_only) {
       bs.skip(1);
     }
     bs.skip(1);
@@ -214,7 +214,7 @@ namespace h264 {
     }
 
     result.width = (widthInMbs * 16) - (cropHorizontal * 2);
-    result.height = ((mbsOnlyFlag ? 1 : 2) * heightInMapUnits * 16) - (cropVertical * 2);
+    result.height = ((result.mbs_only ? 1 : 2) * heightInMapUnits * 16) - (cropVertical * 2);
     return result;
   }
 

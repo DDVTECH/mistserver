@@ -552,14 +552,31 @@ namespace Mist {
     return buffer.begin()->time;
   }
   
-  ///Return the end time of the VoD asset, or 0 if unknown.
+  ///Return the start time of the selected tracks.
+  uint64_t Output::startTime(){
+    uint64_t start = 0xFFFFFFFFFFFFFFFFull;
+    if (selectedTracks.size()){
+      for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        if (myMeta.tracks.count(*it)){
+          if (start < myMeta.tracks[*it].firstms){
+            start = myMeta.tracks[*it].firstms;
+          }
+        }
+      }
+    }
+    return start;
+  }
+
+  ///Return the end time of the selected tracks, or 0 if unknown or live.
   uint64_t Output::endTime(){
     if (myMeta.live){return 0;}
     uint64_t end = 0;
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (myMeta.tracks.count(*it)){
-        if (end < myMeta.tracks[*it].lastms){
-          end = myMeta.tracks[*it].lastms;
+    if (selectedTracks.size()){
+      for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        if (myMeta.tracks.count(*it)){
+          if (end < myMeta.tracks[*it].lastms){
+            end = myMeta.tracks[*it].lastms;
+          }
         }
       }
     }

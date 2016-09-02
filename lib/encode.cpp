@@ -102,6 +102,16 @@ namespace Encodings {
     return r;
   }
 
+  /// Decodes a hex-encoded std::string to a raw binary std::string.
+  std::string Hex::decode(const std::string & in){
+    std::string ret(in.size()/2, '\000');
+    for (size_t i = 0; i < in.size(); ++i){
+      char c = in[i];
+      ret[i>>1] |= ((c&15) + (((c&64)>>6) | ((c&64)>>3))) << ((~i&1) << 2);
+    }
+    return ret;
+  }
+
   /// urlencodes std::string data, leaving only the characters A-Za-z0-9~!&()' alone.
   std::string URL::encode(const std::string & c){
     std::string escaped = "";

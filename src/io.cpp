@@ -670,7 +670,7 @@ namespace Mist {
             break;
           }
 
-          MEDIUM_MSG("Buffer has indicated that incoming track %lu should start writing on track %lu, page %lu", tid, finalTid, firstPage);
+          MEDIUM_MSG("Buffer says %s:%lu should start writing on track %lu, page %lu", streamName.c_str(), tid, finalTid, firstPage);
           trackMap[tid] = finalTid;
           if (myMeta.tracks.count(finalTid) && myMeta.tracks[finalTid].lastms){
             myMeta.tracks[finalTid].lastms = 0;

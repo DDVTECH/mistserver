@@ -397,6 +397,13 @@ namespace Mist {
           }
           DTSCPageData & dPage = nProxy.pagesByTrack[it->first].rbegin()->second;
           dPage.keyNum++;
+          if (it->second.keys.size() <= i || it->second.keySizes.size() <= i){
+            FAIL_MSG("Corrupt header - deleting for regeneration and aborting");
+            std::string headerFile = config->getString("input");
+            headerFile += ".dtsh";
+            remove(headerFile.c_str());
+            return;
+          }
           dPage.partNum += it->second.keys[i].getParts();
           dPage.dataSize += it->second.keySizes[i];
           if ((dPage.dataSize > FLIP_DATA_PAGE_SIZE || it->second.keys[i].getTime() - dPage.firstTime > FLIP_TARGET_DURATION) && it->second.keys[i].getTime() - dPage.firstTime > FLIP_MIN_DURATION) {
@@ -429,6 +436,13 @@ namespace Mist {
           curData[tid].curOffset = 0;
           curData[tid].firstTime = myMeta.tracks[tid].keys[0].getTime();
 
+        }
+        if (myMeta.tracks[tid].keys.size() <= bookKeeping[tid].curKey){
+          FAIL_MSG("Corrupt header - deleting for regeneration and aborting");
+          std::string headerFile = config->getString("input");
+          headerFile += ".dtsh";
+          remove(headerFile.c_str());
+          return;
         }
         if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() + 1 == curData[tid].partNum) {
           if ((curData[tid].dataSize > FLIP_DATA_PAGE_SIZE || myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getTime() - curData[tid].firstTime > FLIP_TARGET_DURATION) && myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getTime() - curData[tid].firstTime > FLIP_MIN_DURATION) {

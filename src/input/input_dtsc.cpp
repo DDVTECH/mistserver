@@ -100,6 +100,7 @@ namespace Mist {
           std::string toRec = srcConn.Received().copy(8);
           unsigned long rSize = Bit::btohl(toRec.c_str() + 4);
           if (!srcConn.Received().available(8 + rSize)) {
+            nProxy.userClient.keepAlive();
             Util::sleep(100);
             continue; //abort - not enough data yet
           }
@@ -121,6 +122,7 @@ namespace Mist {
         }
       }else{
         Util::sleep(100);
+        nProxy.userClient.keepAlive();
       }
     }
   }
@@ -218,6 +220,7 @@ namespace Mist {
     if (!needsLock()){
       thisPacket.reInit(srcConn);
       if (thisPacket.getVersion() == DTSC::DTCM){
+        nProxy.userClient.keepAlive();
         std::string cmd;
         thisPacket.getString("cmd", cmd);
         if (cmd == "reset"){

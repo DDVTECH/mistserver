@@ -29,9 +29,28 @@ namespace Mist {
     myConn.SendNow(sSize, 4);
     prep.sendTo(myConn);
     pushing = false;
+    lastActive = Util::epoch();
   }
 
   OutDTSC::~OutDTSC() {}
+
+
+  void OutDTSC::stats(bool force){
+    unsigned long long int now = Util::epoch();
+    if (now - lastActive > 1 && !pushing){
+      MEDIUM_MSG("Ping!");
+      JSON::Value prep;
+      prep["cmd"] = "ping";
+      unsigned long sendSize = prep.packedSize();
+      myConn.SendNow("DTCM");
+      char sSize[4] = {0, 0, 0, 0};
+      Bit::htobl(sSize, prep.packedSize());
+      myConn.SendNow(sSize, 4);
+      prep.sendTo(myConn);
+      lastActive = now;
+    }
+    Output::stats(force);
+  }
 
   void OutDTSC::init(Util::Config * cfg){
     Output::init(cfg);
@@ -109,6 +128,7 @@ namespace Mist {
       }
     }
     myConn.SendNow(thisPacket.getData(), thisPacket.getDataLen());
+    lastActive = Util::epoch();
   }
 
   void OutDTSC::sendHeader(){

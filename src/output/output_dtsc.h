@@ -11,7 +11,9 @@ namespace Mist {
       void sendNext();
       void sendHeader();
       void initialSeek();
+      void stats(bool force = false);
     private:
+      unsigned int lastActive;///<Time of last sending of data.
       std::string getStatsName();
       std::string salt;
       bool pushing;

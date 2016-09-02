@@ -91,7 +91,8 @@ namespace Mist {
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
         if ( !selectedTracks.count(tmpTag.getTrackID())){
-          return getNext();
+          lastBytePos = ftell(inFile);
+          continue;
         }
         break;
       }

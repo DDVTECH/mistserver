@@ -14,6 +14,13 @@ namespace h264 {
     double fps;
     uint8_t profile;
     uint8_t level;
+    bool sep_col_plane;
+    uint8_t cnt_type;
+    bool gaps;///< Gaps in frame num allowed flag
+    bool mbs_only;///<MBS only flag
+    uint16_t log2_max_frame_num;
+    uint16_t log2_max_order_cnt;
+    uint16_t max_ref_frames;///<Maximum number of reference frames
   };
 
   ///Class for analyzing generic nal units

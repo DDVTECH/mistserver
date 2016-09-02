@@ -6,10 +6,18 @@
 
 namespace RTP {
   double Packet::startRTCP = 0;
-  unsigned int MAX_SEND = 4*1024;
+  unsigned int MAX_SEND = 1500-28;
 
   unsigned int Packet::getHsize() const {
     return 12 + 4 * getContribCount();
+  }
+
+  unsigned int Packet::getPayloadSize() const {
+    return datalen - getHsize();
+  }
+
+  char * Packet::getPayload() const {
+    return data + getHsize();
   }
 
   unsigned int Packet::getVersion() const {
@@ -70,17 +78,17 @@ namespace RTP {
 
   void Packet::sendH264(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel) {
     /// \todo This function probably belongs in DMS somewhere.
-    if (payloadlen <= MAX_SEND) {
+    if (payloadlen+getHsize() <= MAX_SEND) {
       data[1] |= 0x80;//setting the RTP marker bit to 1
       memcpy(data + getHsize(), payload, payloadlen);
       callBack(socket, data, getHsize() + payloadlen, channel);
       sentPackets++;
-      sentBytes += payloadlen;
+      sentBytes += payloadlen+getHsize();
       increaseSequence();
     } else {
       data[1] &= 0x7F;//setting the RTP marker bit to 0
       unsigned int sent = 0;
-      unsigned int sending = MAX_SEND;//packages are of size MAX_SEND, except for the final one
+      unsigned int sending = MAX_SEND-getHsize()-2;//packages are of size MAX_SEND, except for the final one
       char initByte = (payload[0] & 0xE0) | 0x1C;
       char serByte = payload[0] & 0x1F; //ser is now 000
       data[getHsize()] = initByte;
@@ -90,17 +98,17 @@ namespace RTP {
         } else {
           serByte &= 0x7F;//set first bit to 0
         }
-        if (sent + MAX_SEND >= payloadlen) {
+        if (sent + sending >= payloadlen) {
           //last package
           serByte |= 0x40;
           sending = payloadlen - sent;
           data[1] |= 0x80;//setting the RTP marker bit to 1
         }
         data[getHsize() + 1] = serByte;
-        memcpy(data + getHsize() + 2, payload + 1 + sent, sending); //+1 because
+        memcpy(data + getHsize() + 2, payload + 1 + sent, sending);
         callBack(socket, data, getHsize() + 2 + sending, channel);
         sentPackets++;
-        sentBytes += sending;
+        sentBytes += sending+getHsize()+2;
         sent += sending;
         increaseSequence();
       }
@@ -128,19 +136,6 @@ namespace RTP {
     increaseSequence();
   }
   
-/// Stores a long long (64 bits) value of val in network order to the pointer p.
-  inline void Packet::htobll(char * p, long long val) {
-    p[0] = (val >> 56) & 0xFF;
-    p[1] = (val >> 48) & 0xFF;
-    p[2] = (val >> 40) & 0xFF;
-    p[3] = (val >> 32) & 0xFF;
-    p[4] = (val >> 24) & 0xFF;
-    p[5] = (val >> 16) & 0xFF;
-    p[6] = (val >> 8) & 0xFF;
-    p[7] = val & 0xFF;
-  }
-
-
 
   void Packet::sendRTCP(long long & connectedAt, void * socket, unsigned int tid , DTSC::Meta & metadata, void callBack(void *, char *, unsigned int, unsigned int)) {
     void * rtcpData = malloc(32);

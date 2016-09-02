@@ -28,10 +28,11 @@ namespace RTP {
       unsigned int datalen;  ///<Size of rtp packet
       int sentPackets;
       int sentBytes;//Because ugly is beautiful
-      inline void htobll(char * p, long long val);
     public:
       static double startRTCP;
       unsigned int getHsize() const;
+      unsigned int getPayloadSize() const;
+      char * getPayload() const;
       unsigned int getVersion() const;
       unsigned int getPadding() const;
       unsigned int getExtension() const;

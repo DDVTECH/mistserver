@@ -305,12 +305,28 @@ std::string HTTP::Parser::getUrl() {
 }
 
 /// Returns header i, if set.
-std::string HTTP::Parser::GetHeader(std::string i) {
-  return headers[i];
+const std::string & HTTP::Parser::GetHeader(const std::string & i) const {
+  if (headers.count(i)){
+    return headers.at(i);
+  }else{
+    static const std::string empty;
+    return empty;
+  }
 }
+
+/// Returns header i, if set.
+bool HTTP::Parser::hasHeader(const std::string & i) const {
+  return headers.count(i);
+}
+
 /// Returns POST variable i, if set.
-std::string HTTP::Parser::GetVar(std::string i) {
-  return vars[i];
+const std::string & HTTP::Parser::GetVar(const std::string & i) const {
+  if (vars.count(i)){
+    return vars.at(i);
+  }else{
+    static const std::string empty;
+    return empty;
+  }
 }
 
 std::string HTTP::Parser::allVars(){

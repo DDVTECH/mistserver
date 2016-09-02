@@ -720,7 +720,6 @@ namespace TS {
           meta.tracks[it->first].type = "video";
           meta.tracks[it->first].codec = "H264";
           meta.tracks[it->first].trackID = it->first;
-          std::string tmpBuffer = spsInfo[it->first];
           h264::sequenceParameterSet sps(spsInfo[it->first].data(), spsInfo[it->first].size());
           h264::SPSMeta spsChar = sps.getCharacteristics();
           meta.tracks[it->first].width = spsChar.width;

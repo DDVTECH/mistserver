@@ -1147,6 +1147,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
   //Collect core server stats
   long long int cpu_use = 0;
   long long int mem_total = 0, mem_free = 0, mem_bufcache = 0;
+  long long int bw_up_total = 0, bw_down_total = 0;
   {
     std::ifstream cpustat("/proc/stat");
     if (cpustat){
@@ -1193,6 +1194,19 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
         if (sscanf(line, "Cached : %lli kB", &i) == 1){
           mem_bufcache += i;
         }
+      }
+    }
+    std::ifstream netUsage("/proc/net/dev");
+    while (netUsage){
+      char line[300];
+      netUsage.getline(line, 300);
+      long long unsigned sent = 0;
+      long long unsigned recv = 0;
+      //std::cout << line;
+      if (sscanf(line, "%*s %llu %*u %*u %*u %*u %*u %*u %*u %llu", &recv, &sent) == 2){
+        //std::cout << "Net: " << recv << ", " << sent << std::endl;
+        bw_down_total += recv;
+        bw_up_total += sent;
       }
     }
   }
@@ -1276,8 +1290,10 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
 
       response << "# HELP mist_bw_total Count of bytes handled since server start, by direction.\n";
       response << "# TYPE mist_bw_total counter\n";
-      response << "mist_bw_total{direction=\"up\"} " << servUpBytes << "\n";
-      response << "mist_bw_total{direction=\"down\"} " << servDownBytes << "\n\n";
+      response << "mist_bw_total{direction=\"up\"} " << bw_up_total << "\n";
+      response << "mist_bw_total{direction=\"down\"} " << bw_down_total << "\n\n";
+      response << "stat_bw_total{direction=\"up\"} " << servUpBytes << "\n";
+      response << "stat_bw_total{direction=\"down\"} " << servDownBytes << "\n\n";
 
       response << "# HELP mist_viewers Number of sessions by type and stream active right now.\n";
       response << "# TYPE mist_viewers gauge\n";
@@ -1344,8 +1360,10 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       resp["tot"].append((long long)servViewers);
       resp["tot"].append((long long)servInputs);
       resp["tot"].append((long long)servOutputs);
-      resp["bw"].append((long long)servUpBytes);
-      resp["bw"].append((long long)servDownBytes);
+      resp["bw"].append((long long)bw_up_total);
+      resp["bw"].append((long long)bw_down_total);
+      resp["st"].append((long long)servUpBytes);
+      resp["st"].append((long long)servDownBytes);
 
       for (std::map<std::string, struct streamTotals>::iterator it = streams.begin(); it != streams.end(); ++it){
         resp["streams"][it->first]["curr"].append((long long)it->second.viewers);

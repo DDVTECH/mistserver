@@ -43,7 +43,7 @@ namespace Mist {
   }
 
   bool inputDTSC::needsLock(){
-    return config->getString("input").substr(0, 7) != "dtsc://";
+    return config->getString("input").substr(0, 7) != "dtsc://" && config->getString("input") != "-";
   }
 
   void parseDTSCURI(const std::string & src, std::string & host, uint16_t & port, std::string & password, std::string & streamName) {
@@ -106,7 +106,7 @@ namespace Mist {
   }
 
   void inputDTSC::parseStreamHeader() {
-    while (srcConn.connected()){
+    while (srcConn.connected() && config->is_active){
       srcConn.spool();
       if (srcConn.Received().available(8)){
         if (srcConn.Received().copy(4) == "DTCM" || srcConn.Received().copy(4) == "DTSC") {
@@ -143,6 +143,10 @@ namespace Mist {
 
   bool inputDTSC::openStreamSource() {
     std::string source = config->getString("input");
+    if (source == "-"){
+      srcConn = Socket::Connection(fileno(stdout),fileno(stdin));
+      return true;
+    }
     if (source.find("dtsc://") == 0) {
       source.erase(0, 7);
     }
@@ -183,10 +187,6 @@ namespace Mist {
     if (!needsLock()) {
       return true;
     } else {
-      if (config->getString("input") == "-") {
-        std::cerr << "Input from stdin not yet supported" << std::endl;
-        return false;
-      }
       if (!config->getString("streamname").size()) {
         if (config->getString("output") == "-") {
           std::cerr << "Output to stdout not yet supported" << std::endl;

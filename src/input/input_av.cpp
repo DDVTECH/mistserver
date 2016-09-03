@@ -237,11 +237,11 @@ namespace Mist {
         pkt["offset"] = (long long)((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
       }
       pkt.netPrepare();
-      lastPack.reInit(pkt.toNetPacked().data(), pkt.toNetPacked().size());
+      thisPacket.reInit(pkt.toNetPacked().data(), pkt.toNetPacked().size());
       av_free_packet(&packet);
       return;//success!
     }
-    lastPack.null();
+    thisPacket.null();
     setup();
     //failure :-(
     DEBUG_MSG(DLVL_FAIL, "getNext failed");

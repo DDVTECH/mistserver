@@ -404,8 +404,12 @@ namespace Mist {
   }
   
   void Output::loadPageForKey(long unsigned int trackId, long long int keyNum){
+    if (!myMeta.tracks.count(trackId) || !myMeta.tracks[trackId].keys.size()){
+      WARN_MSG("Load for track %lu key %lld aborted - track is empty", trackId, keyNum);
+      return;
+    }
     if (myMeta.vod && keyNum > myMeta.tracks[trackId].keys.rbegin()->getNumber()){
-      INFO_MSG("Seek in track %lu to key %lld aborted, is > %lld", trackId, keyNum, myMeta.tracks[trackId].keys.rbegin()->getNumber());
+      INFO_MSG("Load for track %lu key %lld aborted, is > %lld", trackId, keyNum, myMeta.tracks[trackId].keys.rbegin()->getNumber());
       nProxy.curPage.erase(trackId);
       currKeyOpen.erase(trackId);
       return;

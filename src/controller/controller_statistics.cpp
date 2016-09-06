@@ -118,12 +118,6 @@ bool Controller::sessIndex::operator>= (const Controller::sessIndex &b) const{
   return !(*this < b);
 }
 
-/// Forces a disconnect to all users.
-void Controller::killStatistics(char * data, size_t len, unsigned int id){
-  (*(data - 1)) = 128;//Send disconnect message;
-}
-
-
 ///This function is ran whenever a stream becomes active.
 void Controller::streamStarted(std::string stream){
   INFO_MSG("Stream %s became active", stream.c_str());
@@ -216,11 +210,7 @@ void Controller::SharedMemStats(void * config){
   DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
   if (Controller::killOnExit){
     DEBUG_MSG(DLVL_WARN, "Killing all connected clients to force full shutdown");
-    unsigned int c = 0;//to prevent eternal loops
-    do{
-      statServer.parseEach(killStatistics);
-      Util::wait(250);
-    }while(statServer.amount && c++ < 10);
+    statServer.finishEach();
   }
 }
 

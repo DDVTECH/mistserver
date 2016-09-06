@@ -22,6 +22,11 @@
 #endif
 
 
+/// Forces a disconnect to all users.
+static void killStatistics(char * data, size_t len, unsigned int id){
+  (*(data - 1)) = 126;//Send disconnect message;
+}
+
 namespace IPC {
 
 #if defined(__CYGWIN__) || defined(_WIN32)
@@ -776,7 +781,6 @@ namespace IPC {
 
   ///\brief The deconstructor
   sharedServer::~sharedServer() {
-    finishEach();
     mySemaphore.close();
     mySemaphore.unlink();
   }
@@ -833,21 +837,16 @@ namespace IPC {
     return false;
   }
 
-  ///Disconnect all connected users
+  ///Disconnect all connected users, waits at most 2.5 seconds until completed
   void sharedServer::finishEach(){
     if (!hasCounter){
       return;
     }
-    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
-      if (!it->mapped || !it->len) {
-        break;
-      }
-      unsigned int offset = 0;
-      while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
-        it->mapped[offset] = 126;
-        offset += payLen + (hasCounter ? 1 : 0);
-      }
-    }
+    unsigned int c = 0;//to prevent eternal loops
+    do{
+      parseEach(killStatistics);
+      Util::wait(250);
+    }while(amount && c++ < 10);
   }
 
   ///Returns a pointer to the data for the given index.

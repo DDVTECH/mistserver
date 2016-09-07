@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <string>
 #include "bitstream.h"
 

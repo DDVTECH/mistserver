@@ -91,12 +91,8 @@ namespace Mist {
 
   bool inputAV::readHeader() {
     //See whether a separate header file exists.
-    DTSC::File tmp(config->getString("input") + ".dtsh");
-    if (tmp){
-      myMeta = tmp.getMeta();
-      return true;
-    }
-    
+    if (readExistingHeader()){return true;}
+
     myMeta.tracks.clear();
     myMeta.live = false;
     myMeta.vod = true;
@@ -204,10 +200,7 @@ namespace Mist {
     myMeta.live = false;
     myMeta.vod = true;
     
-    //store dtsc-style header file for faster processing, later
-    std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
-    oFile << myMeta.toJSON().toNetPacked();
-    oFile.close();
+    myMeta.toFile(config->getString("input") + ".dtsh");
     
     seek(0);
     return true;

@@ -273,13 +273,10 @@ namespace Mist {
     }//when at the end of the file
     //seek file to 0;
     fseeko(inFile,0,SEEK_SET);
-    
+   
     //See whether a separate header file exists.
-    DTSC::File tmpdtsh(config->getString("input") + ".dtsh");
-    if (tmpdtsh){
-      myMeta = tmpdtsh.getMeta();
-      return true;
-    }
+    if (readExistingHeader()){return true;}
+
     trackNo = 0;
     //Create header file from MP4 data
     while(!feof(inFile)){
@@ -560,9 +557,7 @@ namespace Mist {
     clearerr(inFile);
     
     //outputting dtsh file
-    std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
-    oFile << myMeta.toJSON().toNetPacked();
-    oFile.close();
+    myMeta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
   

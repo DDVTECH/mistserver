@@ -51,11 +51,7 @@ namespace Mist {
       return false;
     }
     //See whether a separate header file exists.
-    DTSC::File tmp(config->getString("input") + ".dtsh");
-    if (tmp) {
-      myMeta = tmp.getMeta();
-      return true;
-    }
+    if (readExistingHeader()){return true;}
     //parse ismv header
     fseek(inFile, 0, SEEK_SET);
     std::string ftyp;
@@ -119,9 +115,7 @@ namespace Mist {
       }
       curBytePos = ftell(inFile);
     }
-    std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
-    oFile << myMeta.toJSON().toNetPacked();
-    oFile.close();
+    myMeta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 

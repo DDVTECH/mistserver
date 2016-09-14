@@ -265,7 +265,7 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
   long long currDown = getDown();
   long long currUp = getUp();
   if (currUp - prevUp < 0 || currDown-prevDown < 0){
-    ERROR_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp-prevUp, currDown-prevDown, prevUp, currUp, data.streamName().c_str(), data.connector().c_str(), index);
+    INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp-prevUp, currDown-prevDown, prevUp, currUp, data.streamName().c_str(), data.connector().c_str(), index);
   }else{
     servUpBytes += currUp - prevUp;
     servDownBytes += currDown - prevDown;
@@ -679,9 +679,9 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   //if the connection was already indexed and it has changed, move it
   if (connToSession.count(id) && connToSession[id] != idx){
     if (sessions[connToSession[id]].getSessType() != SESS_UNSET){
-      WARN_MSG("Switching connection from active session %s over to %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
+      INFO_MSG("Switching connection from active session %s over to %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
     }else{
-      INSANE_MSG("Switching connection from inactive session %s over to %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
+      INFO_MSG("Switching connection from inactive session %s over to %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
     }
     sessions[connToSession[id]].switchOverTo(sessions[idx], id);
     if (!sessions[connToSession[id]].hasData()){

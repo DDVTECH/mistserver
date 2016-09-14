@@ -383,6 +383,10 @@ makeOutput(RTSP rtsp)#LTS
 makeOutput(TSPush ts_push           ts)#LTS
 makeOutput(DASH dash_mp4       http)#LTS
 
+if (DEFINED WITH_SANITY )
+  makeOutput(SanityCheck sanitycheck)#LTS
+endif()
+
 add_executable(MistOutHTTP 
   src/output/mist_out.cpp
   src/output/output.cpp

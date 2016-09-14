@@ -210,7 +210,6 @@ namespace Controller{
     if (myHostName == "\n"){
       return false;
     }
-    std::string myCountryName = getCountry(host);
     bool hasWhitelist = false;
     bool hostOnWhitelist = false;
     if (Storage["streams"].isMember(streamName)){
@@ -250,37 +249,6 @@ namespace Controller{
                     return true;
                   }else{
                     Log("SLIM", "Host " + myHostName + " blacklisted for stream " + streamName);
-                  }
-                }
-              }
-            }
-          }
-          if ((*limitIt)["name"].asString() == "geo"){
-            if ((*limitIt)["value"].asString()[0] == '+'){
-              if (myCountryName == ""){
-                if ((*limitIt)["type"].asString() == "hard"){
-                  Log("HLIM", "Host " + host + " with unknown location blacklisted for stream " + streamName);
-                  return true;
-                }else{
-                  Log("SLIM", "Host " + host + " with unknown location blacklisted for stream " + streamName);
-                }
-              }
-              if (!onList(myCountryName, (*limitIt)["value"].asString().substr(1))){
-                if ((*limitIt)["type"].asString() == "hard"){
-                  Log("HLIM", "Host " + host + " with location " + myCountryName + " not whitelisted for stream " + streamName);
-                  return true;
-                }else{
-                  Log("SLIM", "Host " + host + " with location " + myCountryName + " not whitelisted for stream " + streamName);
-                }
-              }
-            }else{
-              if ((*limitIt)["val"].asString()[0] == '-'){
-                if (onList(myCountryName, (*limitIt)["value"].asString().substr(1))){
-                  if ((*limitIt)["type"].asString() == "hard"){
-                    Log("HLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
-                    return true;
-                  }else{
-                    Log("SLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
                   }
                 }
               }
@@ -330,37 +298,6 @@ namespace Controller{
             }
           }
         }
-        if ((*limitIt)["name"].asString() == "geo"){
-          if ((*limitIt)["value"].asString()[0] == '+'){
-            if (myCountryName == ""){
-              if ((*limitIt)["type"].asString() == "hard"){
-                Log("HLIM", "Host " + host + " with unknown location blacklisted for stream " + streamName);
-                return true;
-              }else{
-                Log("SLIM", "Host " + host + " with unknown location blacklisted for stream " + streamName);
-              }
-            }
-            if (!onList(myCountryName, (*limitIt)["value"].asString().substr(1))){
-              if ((*limitIt)["type"].asString() == "hard"){
-                Log("HLIM", "Host " + host + " with location " + myCountryName + " not whitelisted for stream " + streamName);
-                return true;
-              }else{
-                Log("SLIM", "Host " + host + " with location " + myCountryName + " not whitelisted for stream " + streamName);
-              }
-            }
-          }else{
-            if ((*limitIt)["value"].asString()[0] == '-'){
-              if (onList(myCountryName, (*limitIt)["val"].asString().substr(1))){
-                if ((*limitIt)["type"].asString() == "hard"){
-                  Log("HLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
-                  return true;
-                }else{
-                  Log("SLIM", "Host " + host + " with location " + myCountryName + " blacklisted for stream " + streamName);
-                }
-              }
-            }
-          }
-        }
       }
     }
     if (hasWhitelist){
@@ -373,30 +310,4 @@ namespace Controller{
     return false;
   }
 
-  std::string getCountry(std::string ip){
-    char * code = NULL;
-    #ifdef GEOIP
-    GeoIP * geoIP;
-    geoIP = GeoIP_open(GEOIPV4, GEOIP_STANDARD | GEOIP_CHECK_CACHE);
-    if (!geoIP){
-      std::cerr << "An error occured loading the IPv4 database" << std::endl;
-    }else{
-      code = (char*)GeoIP_country_code_by_addr(geoIP, ip.c_str());
-      GeoIP_delete(geoIP);
-    }
-    if (!code){
-      geoIP = GeoIP_open(GEOIPV6, GEOIP_STANDARD | GEOIP_CHECK_CACHE);
-      if (!geoIP){
-        std::cerr << "An error occured loading the IPv6 database" << std::endl;
-      }else{
-        code = (char*)GeoIP_country_code_by_addr_v6(geoIP, ip.c_str());
-        GeoIP_delete(geoIP);
-      }
-    }
-    #endif
-    if (!code){
-      return "";
-    }
-    return code;
-  }
 }

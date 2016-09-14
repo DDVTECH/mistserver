@@ -9,11 +9,6 @@
 #include <mist/dtsc.h>
 #include <mist/socket.h>
 #include <mist/shared_memory.h>
-/*LTS-START*/
-#ifdef GEOIP
-#include <GeoIP.h>
-#endif
-/*LTS-END*/
 #include "../io.h"
 
 namespace Mist {
@@ -46,10 +41,6 @@ namespace Mist {
       static void init(Util::Config * cfg);
       static JSON::Value capa;
       /*LTS-START*/
-      #ifdef GEOIP
-      static GeoIP * geoIP4;
-      static GeoIP * geoIP6;
-      #endif
       std::string reqUrl;
       /*LTS-END*/
       //non-virtual generic functions

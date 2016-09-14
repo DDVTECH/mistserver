@@ -19,6 +19,12 @@
 #define DTSC_ARR 0x0A
 #define DTSC_CON 0xFF
 
+//Increase this value every time the DTSH file format changes in an incompatible way
+//Changelog:
+//  Version 0-2: Undocumented changes
+//  Version 3: switched to bigMeta-style by default, Parts layout switched from 3/2/4 to 3/3/3 bytes
+#define DTSH_VERSION 3
+
 namespace DTSC {
 
   ///\brief This enum holds all possible datatypes for DTSC packets.
@@ -125,6 +131,7 @@ namespace DTSC {
       int getDataLen() const;
       int getPayloadLen() const;
       JSON::Value toJSON() const;
+      std::string toSummary() const;
       Scan getScan() const;
     protected:
       bool master;
@@ -173,21 +180,22 @@ namespace DTSC {
   ///\brief Basic class for storage of data associated with single DTSC packets, a.k.a. parts.
   class Part {
     public:
-      long getSize();
-      void setSize(long newSize);
-      short getDuration();
-      void setDuration(short newDuration);
-      long getOffset();
-      void setOffset(long newOffset);
+      uint32_t getSize();
+      void setSize(uint32_t newSize);
+      uint32_t getDuration();
+      void setDuration(uint32_t newDuration);
+      uint32_t getOffset();
+      void setOffset(uint32_t newOffset);
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
+#define PACKED_PART_SIZE 9
       ///\brief Data storage for this Part.
       ///
       /// - 3 bytes: MSB storage of the payload size of this packet in bytes.
-      /// - 2 bytes: MSB storage of the duration of this packet in milliseconds.
-      /// - 4 bytes: MSB storage of the presentation time offset of this packet in milliseconds.
-      char data[9];
+      /// - 3 bytes: MSB storage of the duration of this packet in milliseconds.
+      /// - 3 bytes: MSB storage of the presentation time offset of this packet in milliseconds.
+      char data[PACKED_PART_SIZE];
   };
 
   ///\brief Basic class for storage of data associated with keyframes.
@@ -208,7 +216,6 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
-#ifdef BIGMETA
 #define PACKED_KEY_SIZE 25
       ///\brief Data storage for this Key.
       ///
@@ -217,16 +224,6 @@ namespace DTSC {
       /// - 4 bytes: MSB storage of the number of this keyframe.
       /// - 2 bytes: MSB storage of the amount of parts in this keyframe.
       /// - 8 bytes: MSB storage of the timestamp associated with this keyframe's first packet.
-#else
-#define PACKED_KEY_SIZE 16
-      ///\brief Data storage for this Key.
-      ///
-      /// - 5 bytes: MSB storage of the position of the first packet of this keyframe within the file.
-      /// - 3 bytes: MSB storage of the duration of this keyframe.
-      /// - 2 bytes: MSB storage of the number of this keyframe.
-      /// - 2 bytes: MSB storage of the amount of parts in this keyframe.
-      /// - 4 bytes: MSB storage of the timestamp associated with this keyframe's first packet.
-#endif
       char data[PACKED_KEY_SIZE];
   };
 
@@ -244,7 +241,6 @@ namespace DTSC {
       char * getData();
       void toPrettyString(std::ostream & str, int indent = 0);
     private:
-#ifdef BIGMETA
 #define PACKED_FRAGMENT_SIZE 13
       ///\brief Data storage for this Fragment.
       ///
@@ -252,15 +248,6 @@ namespace DTSC {
       /// - 1 byte: length (amount of keyframes)
       /// - 4 bytes: number of first keyframe in fragment
       /// - 4 bytes: size of fragment in bytes
-#else
-#define PACKED_FRAGMENT_SIZE 11
-      ///\brief Data storage for this Fragment.
-      ///
-      /// - 4 bytes: duration (in milliseconds)
-      /// - 1 byte: length (amount of keyframes)
-      /// - 2 bytes: number of first keyframe in fragment
-      /// - 4 bytes: size of fragment in bytes
-#endif
       char data[PACKED_FRAGMENT_SIZE];
   };
 
@@ -335,12 +322,14 @@ namespace DTSC {
       void writeTo(char * p);
       JSON::Value toJSON();
       void reset();
+      bool toFile(const std::string & fileName);
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
       //members:
       std::map<unsigned int, Track> tracks;
       bool vod;
       bool live;
       bool merged;
+      uint16_t version;
       long long int moreheader;
       long long int bufferWindow;
   };

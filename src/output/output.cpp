@@ -66,6 +66,10 @@ namespace Mist {
   }
 
   void Output::updateMeta(){
+    //cancel if not alive
+    if (!nProxy.userClient.isAlive()){
+      return;
+    }
     //read metadata from page to myMeta variable
     if (nProxy.metaPages[0].mapped){
       IPC::semaphore * liveSem = 0;
@@ -913,6 +917,10 @@ namespace Mist {
 
     //when live, every keyframe, check correctness of the keyframe number
     if (myMeta.live && thisPacket.getFlag("keyframe")){
+      //cancel if not alive
+      if (!nProxy.userClient.isAlive()){
+        return false;
+      }
       //Check whether returned keyframe is correct. If not, wait for approximately 10 seconds while checking.
       //Failure here will cause tracks to drop due to inconsistent internal state.
       nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());

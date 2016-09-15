@@ -537,9 +537,14 @@ bool RTMPStream::doHandshake() {
   Secure::hmac_sha256bin(pTempBuffer, 1504, genuineFMSKey, 36, (char*)Server + serverDigestOffset);
 
   //SECOND 1536 bytes for server response
-  char pTempHash[32];
-  Secure::hmac_sha256bin((char*)Client + keyChallengeIndex, 32, genuineFMSKey, 68, pTempHash);
-  Secure::hmac_sha256bin((char*)Server + 1536, 1536 - 32, pTempHash, 32, (char*)Server + 1536 * 2 - 32);
+  if (_validationScheme == 5 && Version == 3){
+    //copy exactly from client
+    memcpy(Server+1536, Client, 1536);
+  }else{
+    char pTempHash[32];
+    Secure::hmac_sha256bin((char*)Client + keyChallengeIndex, 32, genuineFMSKey, 68, pTempHash);
+    Secure::hmac_sha256bin((char*)Server + 1536, 1536 - 32, pTempHash, 32, (char*)Server + 1536 * 2 - 32);
+  }
 
   Server[ -1] = Version;
   RTMPStream::snd_cnt += 3073;

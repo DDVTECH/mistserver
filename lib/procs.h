@@ -17,17 +17,17 @@ namespace Util {
     private:
       static bool childRunning(pid_t p);
       static tthread::mutex plistMutex;
-      static tthread::thread * reaper_thread;
       static std::set<pid_t> plist; ///< Holds active process list.
-      static bool handler_set; ///< If true, the sigchld handler has been setup.
       static bool thread_handler;///< True while thread handler should be running.
       static void childsig_handler(int signum);
       static void exit_handler();
       static void runCmd(std::string & cmd);
-      static void setHandler();
       static char* const* dequeToArgv(std::deque<std::string> & argDeq);
       static void grim_reaper(void * n);
     public:
+      static tthread::thread * reaper_thread;
+      static bool handler_set; ///< If true, the sigchld handler has been setup.
+      static void setHandler();
       static std::string getOutputOf(char * const * argv);
       static std::string getOutputOf(std::deque<std::string> & argDeq);
       static pid_t StartPiped(char * const * argv, int * fdin, int * fdout, int * fderr);

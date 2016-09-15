@@ -222,11 +222,7 @@ namespace Mist {
       getNext();
     }
 
-    std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
-    oFile << myMeta.toJSON().toNetPacked();
-    oFile.close();
-
-    //myMeta.toPrettyString(std::cout);
+    myMeta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 

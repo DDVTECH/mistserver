@@ -73,6 +73,10 @@ namespace Mist {
   }
 
   void Output::updateMeta(){
+    //cancel if not alive
+    if (!nProxy.userClient.isAlive()){
+      return;
+    }
     //read metadata from page to myMeta variable
     if (nProxy.metaPages[0].mapped){
       IPC::semaphore * liveSem = 0;
@@ -249,22 +253,30 @@ namespace Mist {
       statsPage.finish();
       myConn.resetCounter();
     }
-    statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
     if (nProxy.userClient.getData()){
       nProxy.userClient.finish();
     }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+    unsigned int attempts = 0;
+    while (!nProxy.userClient.isAlive() && ++attempts < 20 && Util::streamAlive(streamName)){
+      nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+    }
+    if (!nProxy.userClient.isAlive()){
+      FAIL_MSG("Could not register as client for %s", streamName.c_str());
+      onFail();
+      return;
+    }
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
     nProxy.metaPages.clear();
     nProxy.metaPages[0].init(pageId, DEFAULT_STRM_PAGE_SIZE);
     if (!nProxy.metaPages[0].mapped){
-      FAIL_MSG("Could not connect to server for %s", streamName.c_str());
+      FAIL_MSG("Could not connect to data for %s", streamName.c_str());
       onFail();
       return;
     }
+    statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
     stats(true);
     updateMeta();
     selectDefaultTracks();
@@ -490,8 +502,12 @@ namespace Mist {
   }
   
   void Output::loadPageForKey(long unsigned int trackId, long long int keyNum){
+    if (!myMeta.tracks.count(trackId) || !myMeta.tracks[trackId].keys.size()){
+      WARN_MSG("Load for track %lu key %lld aborted - track is empty", trackId, keyNum);
+      return;
+    }
     if (myMeta.vod && keyNum > myMeta.tracks[trackId].keys.rbegin()->getNumber()){
-      INFO_MSG("Seek in track %lu to key %lld aborted, is > %lld", trackId, keyNum, myMeta.tracks[trackId].keys.rbegin()->getNumber());
+      INFO_MSG("Load for track %lu key %lld aborted, is > %lld", trackId, keyNum, myMeta.tracks[trackId].keys.rbegin()->getNumber());
       nProxy.curPage.erase(trackId);
       currKeyOpen.erase(trackId);
       return;
@@ -1229,25 +1245,28 @@ namespace Mist {
       //check where the next key is
       nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
       int nextPage = pageNumForKey(nxt.tid, nxtKeyNum[nxt.tid]+1);
-      //are we live, and the next key hasn't shown up on another page, then we're waiting.
-      if (myMeta.live && currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
+      //if the next key hasn't shown up on another page, then we're waiting.
+      //VoD might be slow, so we check VoD case also, just in case
+      if (currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
         if (++emptyCount < 100){
           Util::wait(250);
           //we're waiting for new data to show up
           if (emptyCount % 64 == 0){
             reconnect();//reconnect every 16 seconds
           }else{
-            if (emptyCount % 4 == 0){
+            //updating meta is only useful with live streams
+            if (myMeta.live && emptyCount % 4 == 0){
               updateMeta();
             }
           }
         }else{
           //after ~25 seconds, give up and drop the track.
-          dropTrack(nxt.tid, "EOP: could not reload empty packet");
+          dropTrack(nxt.tid, "EOP: data wait timeout");
         }
         return false;
       }
 
+      //The next key showed up on another page!
       //We've simply reached the end of the page. Load the next key = next page.
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
@@ -1297,6 +1316,10 @@ namespace Mist {
 
     //when live, every keyframe, check correctness of the keyframe number
     if (myMeta.live && thisPacket.getFlag("keyframe")){
+      //cancel if not alive
+      if (!nProxy.userClient.isAlive()){
+        return false;
+      }
       //Check whether returned keyframe is correct. If not, wait for approximately 10 seconds while checking.
       //Failure here will cause tracks to drop due to inconsistent internal state.
       nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());

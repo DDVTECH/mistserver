@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iomanip>
+#include <fstream>
 
 #define AUDIO_KEY_INTERVAL 5000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
 
@@ -435,6 +436,18 @@ namespace DTSC {
       JSON::fromDTMI2((const unsigned char *)data, dataLen, i, result);
     }
     return result;
+  }
+
+  std::string Packet::toSummary() const {
+    std::stringstream out;
+    char * res = 0;
+    unsigned int len = 0;
+    getString("data", res, len);
+    out << getTrackId() << "@" << getTime() << ": " << len << " bytes";
+    if (hasMember("keyframe")){
+      out << " (keyframe)";
+    }
+    return out.str();
   }
 
   /// Create an invalid DTSC::Scan object by default.
@@ -870,33 +883,33 @@ namespace DTSC {
   /*LTS-END*/
 
   ///\brief Returns the payloadsize of a part
-  long Part::getSize() {
+  uint32_t Part::getSize() {
     return Bit::btoh24(data);
   }
 
   ///\brief Sets the payloadsize of a part
-  void Part::setSize(long newSize) {
+  void Part::setSize(uint32_t newSize) {
     Bit::htob24(data, newSize);
   }
 
-  ///\brief Retruns the duration of a part
-  short Part::getDuration() {
-    return Bit::btohs(data + 3);
+  ///\brief Returns the duration of a part
+  uint32_t Part::getDuration() {
+    return Bit::btoh24(data + 3);
   }
 
   ///\brief Sets the duration of a part
-  void Part::setDuration(short newDuration) {
-    Bit::htobs(data + 3, newDuration);
+  void Part::setDuration(uint32_t newDuration) {
+    Bit::htob24(data + 3, newDuration);
   }
 
   ///\brief returns the offset of a part
-  long Part::getOffset() {
-    return Bit::btohl(data + 5);
+  uint32_t Part::getOffset() {
+    return Bit::btoh24(data + 6);
   }
 
   ///\brief Sets the offset of a part
-  void Part::setOffset(long newOffset) {
-    Bit::htobl(data + 5, newOffset);
+  void Part::setOffset(uint32_t newOffset) {
+    Bit::htob24(data + 6, newOffset);
   }
 
   ///\brief Returns the data of a part
@@ -913,93 +926,49 @@ namespace DTSC {
 
   ///\brief Returns the byteposition of a keyframe
   unsigned long long Key::getBpos() {
-#ifdef BIGMETA
     return Bit::btohll(data);
-#else
-    return (((unsigned long long)data[0] << 32) | (data[1] << 24) | (data[2] << 16) | (data[3] << 8) | data[4]);
-#endif
   }
 
   void Key::setBpos(unsigned long long newBpos) {
-#ifdef BIGMETA
     Bit::htobll(data, newBpos);
-#else
-    data[4] = newBpos & 0xFF;
-    data[3] = (newBpos >> 8) & 0xFF;
-    data[2] = (newBpos >> 16) & 0xFF;
-    data[1] = (newBpos >> 24) & 0xFF;
-    data[0] = (newBpos >> 32) & 0xFF;
-#endif
   }
 
   unsigned long Key::getLength() {
-#ifdef BIGMETA
     return Bit::btoh24(data+8);
-#else
-    return Bit::btoh24(data+5);
-#endif
   }
 
   void Key::setLength(unsigned long newLength) {
-#ifdef BIGMETA
     Bit::htob24(data+8, newLength);
-#else
-    Bit::htob24(data+5, newLength);
-#endif
   }
 
   ///\brief Returns the number of a keyframe
   unsigned long Key::getNumber() {
-#ifdef BIGMETA
     return Bit::btohl(data + 11);
-#else
-    return Bit::btohs(data + 8);
-#endif
   }
 
   ///\brief Sets the number of a keyframe
   void Key::setNumber(unsigned long newNumber) {
-#ifdef BIGMETA
     Bit::htobl(data + 11, newNumber);
-#else
-    Bit::htobs(data + 8, newNumber);
-#endif
   }
 
   ///\brief Returns the number of parts of a keyframe
   unsigned short Key::getParts() {
-#ifdef BIGMETA
     return Bit::btohs(data + 15);
-#else
-    return Bit::btohs(data + 10);
-#endif
   }
 
   ///\brief Sets the number of parts of a keyframe
   void Key::setParts(unsigned short newParts) {
-#ifdef BIGMETA
     Bit::htobs(data + 15, newParts);
-#else
-    Bit::htobs(data + 10, newParts);
-#endif
   }
 
   ///\brief Returns the timestamp of a keyframe
   unsigned long long Key::getTime() {
-#ifdef BIGMETA
     return Bit::btohll(data + 17);
-#else
-    return Bit::btohl(data + 12);
-#endif
   }
 
   ///\brief Sets the timestamp of a keyframe
   void Key::setTime(unsigned long long newTime) {
-#ifdef BIGMETA
     Bit::htobll(data + 17, newTime);
-#else
-    Bit::htobl(data + 12, newTime);
-#endif
   }
 
   ///\brief Returns the data of this keyframe struct
@@ -1036,38 +1005,22 @@ namespace DTSC {
 
   ///\brief Returns the number of the first keyframe in this fragment
   unsigned long Fragment::getNumber() {
-#ifdef BIGMETA
     return Bit::btohl(data + 5);
-#else
-    return Bit::btohs(data + 5);
-#endif
   }
 
   ///\brief Sets the number of the first keyframe in this fragment
   void Fragment::setNumber(unsigned long newNumber) {
-#ifdef BIGMETA
     Bit::htobl(data + 5, newNumber);
-#else
-    Bit::htobs(data + 5, newNumber);
-#endif
   }
 
   ///\brief Returns the size of a fragment
   unsigned long Fragment::getSize() {
-#ifdef BIGMETA
     return Bit::btohl(data + 9);
-#else
-    return Bit::btohl(data + 7);
-#endif
   }
 
   ///\brief Sets the size of a fragement
   void Fragment::setSize(unsigned long newSize) {
-#ifdef BIGMETA
     Bit::htobl(data + 9, newSize);
-#else
-    Bit::htobl(data + 7, newSize);
-#endif
   }
 
   ///\brief Returns thte data of this fragment structure
@@ -1348,6 +1301,7 @@ namespace DTSC {
   Meta::Meta() {
     vod = false;
     live = false;
+    version = DTSH_VERSION;
     moreheader = 0;
     merged = false;
     bufferWindow = 0;
@@ -1361,6 +1315,7 @@ namespace DTSC {
     tracks.clear();
     vod = source.getFlag("vod");
     live = source.getFlag("live");
+    version = source.getInt("version");
     merged = source.getFlag("merged");
     bufferWindow = source.getInt("buffer_window");
     moreheader = source.getInt("moreheader");
@@ -1383,6 +1338,7 @@ namespace DTSC {
   Meta::Meta(JSON::Value & meta) {
     vod = meta.isMember("vod") && meta["vod"];
     live = meta.isMember("live") && meta["live"];
+    version = meta.isMember("version") ? meta["version"].asInt() : 0;
     merged = meta.isMember("merged") && meta["merged"];
     bufferWindow = 0;
     if (meta.isMember("buffer_window")) {
@@ -1798,6 +1754,7 @@ namespace DTSC {
         dataLen += it->second.getSendLen(skipDynamic);
       }
     }
+    if (version){dataLen += 17;}
     return dataLen + 8; //add 8 bytes header
   }
 
@@ -1822,6 +1779,10 @@ namespace DTSC {
     if (merged) {
       writePointer(p, "\000\006merged\001", 9);
       writePointer(p, convertLongLong(1), 8);
+    }
+    if (version) {
+      writePointer(p, "\000\006version\001", 9);
+      writePointer(p, convertLongLong(version), 8);
     }
     if (bufferWindow) {
       writePointer(p, "\000\015buffer_window\001", 16);
@@ -1855,6 +1816,10 @@ namespace DTSC {
     if (merged) {
       conn.SendNow("\000\006merged\001", 9);
       conn.SendNow(convertLongLong(1), 8);
+    }
+    if (version) {
+      conn.SendNow("\000\006version\001", 9);
+      conn.SendNow(convertLongLong(version), 8);
     }
     if (bufferWindow) {
       conn.SendNow("\000\015buffer_window\001", 16);
@@ -1948,8 +1913,18 @@ namespace DTSC {
     if (bufferWindow) {
       result["buffer_window"] = bufferWindow;
     }
+    if (version) {
+      result["version"] = (long long)version;
+    }
     result["moreheader"] = moreheader;
     return result;
+  }
+
+  ///\brief Writes metadata to a filename. Wipes existing contents, if any.
+  bool Meta::toFile(const std::string & fileName){
+    std::ofstream oFile(fileName.c_str());
+    oFile << toJSON().toNetPacked();
+    oFile.close();
   }
 
   ///\brief Converts a meta object to a human readable string

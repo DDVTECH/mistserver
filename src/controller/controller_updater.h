@@ -8,7 +8,6 @@
 #endif
 
 namespace Controller {
-  extern bool restarting;///< Signals if the controller is shutting down (false) or restarting (true).
   extern JSON::Value updates;
   extern std::string uniqId;
 

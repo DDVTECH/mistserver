@@ -586,6 +586,16 @@ namespace Mist {
   void OutRTMP::parseAMFCommand(AMF::Object & amfData, int messageType, int streamId) {
     MEDIUM_MSG("Received command: %s", amfData.Print().c_str());
     HIGH_MSG("AMF0 command: %s", amfData.getContentP(0)->StrValue().c_str());
+    if (amfData.getContentP(0)->StrValue() == "xsbwtest") {
+      //send a _result reply
+      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+      amfReply.addContent(AMF::Object("", "_error")); //result success
+      amfReply.addContent(amfData.getContent(1)); //same transaction ID
+      amfReply.addContent(AMF::Object("", amfData.getContentP(0)->StrValue())); //null - command info
+      amfReply.addContent(AMF::Object("", "Hai XSplit user!")); //stream ID?
+      sendCommand(amfReply, messageType, streamId);
+      return;
+    }
     if (amfData.getContentP(0)->StrValue() == "connect") {
       double objencoding = 0;
       if (amfData.getContentP(2)->getContentP("objectEncoding")) {

@@ -18,7 +18,6 @@
 #include "controller_updater.h"
 
 namespace Controller {
-  bool restarting = false;
   JSON::Value updates;
   std::string uniqId;
 

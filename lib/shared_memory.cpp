@@ -22,6 +22,11 @@
 #endif
 
 
+/// Forces a disconnect to all users.
+static void killStatistics(char * data, size_t len, unsigned int id){
+  (*(data - 1)) = 60 | ((*(data - 1))&0x80);//Send disconnect message;
+}
+
 namespace IPC {
 
 #if defined(__CYGWIN__) || defined(_WIN32)
@@ -776,7 +781,6 @@ namespace IPC {
 
   ///\brief The deconstructor
   sharedServer::~sharedServer() {
-    finishEach();
     mySemaphore.close();
     mySemaphore.unlink();
   }
@@ -833,21 +837,16 @@ namespace IPC {
     return false;
   }
 
-  ///Disconnect all connected users
+  ///Disconnect all connected users, waits at most 2.5 seconds until completed
   void sharedServer::finishEach(){
     if (!hasCounter){
       return;
     }
-    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
-      if (!it->mapped || !it->len) {
-        break;
-      }
-      unsigned int offset = 0;
-      while (offset + payLen + (hasCounter ? 1 : 0) <= it->len) {
-        it->mapped[offset] = 126;
-        offset += payLen + (hasCounter ? 1 : 0);
-      }
-    }
+    unsigned int c = 0;//to prevent eternal loops
+    do{
+      parseEach(killStatistics);
+      Util::wait(250);
+    }while(amount && c++ < 10);
   }
 
   ///Returns a pointer to the data for the given index.
@@ -917,17 +916,18 @@ namespace IPC {
             if (*counter & 0x80){
               connectedUsers++;
             }
+            char countNum = (*counter) & 0x7F;
             if (id >= amount) {
               amount = id + 1;
               VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
             uint32_t tmpPID = *((uint32_t *)(it->mapped + 1 + offset + payLen - 4));
-            if (!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127)){
+            if (!Util::Procs::isRunning(tmpPID) && !(countNum == 126 || countNum == 127)){
               WARN_MSG("process disappeared, timing out. (pid %lu)", tmpPID);
-              *counter = 126; //if process is already dead, instant timeout.
+              *counter = 125 | (0x80 & (*counter)); //if process is already dead, instant timeout.
             }
             callback(it->mapped + offset + 1, payLen, id);
-            switch (*counter) {
+            switch (countNum) {
               case 127:
                 HIGH_MSG("Client %u requested disconnect", id);
                 break;
@@ -937,9 +937,9 @@ namespace IPC {
               default:
 #ifndef NOCRASHCHECK
                 if (tmpPID) {
-                  if (*counter > 10 && *counter < 126) {
-                    if (*counter < 30) {
-                      if (*counter > 15) {
+                  if (countNum > 10 && countNum < 60) {
+                    if (countNum < 30) {
+                      if (countNum > 15) {
                         WARN_MSG("Process %d is unresponsive", tmpPID);
                       }
                       Util::Procs::Stop(tmpPID); //soft kill
@@ -948,11 +948,22 @@ namespace IPC {
                       Util::Procs::Murder(tmpPID); //improved kill
                     }
                   }
+                  if (countNum > 70) {
+                    if (countNum < 90) {
+                      if (countNum > 75) {
+                        WARN_MSG("Stopping process %d is unresponsive", tmpPID);
+                      }
+                      Util::Procs::Stop(tmpPID); //soft kill
+                    } else {
+                      ERROR_MSG("Killing unresponsive stopping process %d", tmpPID);
+                      Util::Procs::Murder(tmpPID); //improved kill
+                    }
+                  }
                 }
 #endif
                 break;
             }
-            if (*counter == 127 || *counter == 126){
+            if (countNum == 127 || countNum == 126){
               memset(it->mapped + offset + 1, 0, payLen);
               it->mapped[offset] = 0;
             } else {
@@ -1153,7 +1164,7 @@ namespace IPC {
     }
     if (myPage.mapped) {
       semGuard tmpGuard(&mySemaphore);
-      myPage.mapped[offsetOnPage] = 126;
+      myPage.mapped[offsetOnPage] = 126 | (countAsViewer?0x80:0);
       HIGH_MSG("sharedClient finished ID %d", offsetOnPage/(payLen+1));
     }
   }
@@ -1164,16 +1175,19 @@ namespace IPC {
       DEBUG_MSG(DLVL_WARN, "Trying to keep-alive an element without counters");
       return;
     }
-    if ((myPage.mapped[offsetOnPage] & 0x7F) < 126) {
+    if (isAlive()){
       myPage.mapped[offsetOnPage] = (countAsViewer ? 0x81 : 0x01);
     }
   }
 
   bool sharedClient::isAlive() {
     if (!hasCounter) {
-      return true;
+      return (myPage.mapped != 0);
     }
-    return (myPage.mapped[offsetOnPage] & 0x7F) < 126;
+    if (myPage.mapped){
+      return (myPage.mapped[offsetOnPage] & 0x7F) < 60;
+    }
+    return false;
   }
 
   ///\brief Get a pointer to the data of this client

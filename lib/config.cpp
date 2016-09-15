@@ -229,7 +229,7 @@ bool Util::Config::parseArgs(int & argc, char ** & argv) {
         #endif
         /*LTS-END*/
         std::cout << "Built on " __DATE__ ", " __TIME__ << std::endl;
-        exit(1);
+        exit(0);
         break;
       default:
         jsonForEach(vals, it) {

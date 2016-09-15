@@ -526,6 +526,7 @@ namespace Mist {
     } else if (everHadPush && !resumeMode && config->is_active) {
       INFO_MSG("Shutting down buffer because resume mode is disabled and the source disconnected");
       config->is_active = false;
+      userPage.finishEach();
     }
   }
 

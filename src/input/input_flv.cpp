@@ -49,23 +49,13 @@ namespace Mist {
   }
 
   bool inputFLV::readHeader() {
-    JSON::Value lastPack;
-    if (!inFile) {
-      return false;
-    }
+    if (!inFile){return false;}
     //See whether a separate header file exists.
-    DTSC::File tmp(config->getString("input") + ".dtsh");
-    if (tmp){
-      myMeta = tmp.getMeta();
-      if (myMeta){
-        return true;
-      }else{
-        myMeta = DTSC::Meta();
-      }
-    }
+    if (readExistingHeader()){return true;}
     //Create header file from FLV data
     fseek(inFile, 13, SEEK_SET);
     AMF::Object amf_storage;
+    JSON::Value lastPack;
     long long int lastBytePos = 13;
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
@@ -80,9 +70,7 @@ namespace Mist {
       std::cerr << FLV::Error_Str << std::endl;
       return false;
     }
-    std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
-    oFile << myMeta.toJSON().toNetPacked();
-    oFile.close();
+    myMeta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
   

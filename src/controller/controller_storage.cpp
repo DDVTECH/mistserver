@@ -16,6 +16,7 @@ namespace Controller {
   tthread::mutex configMutex;
   tthread::mutex logMutex;
   bool configChanged = false;
+  bool restarting = false;
 
   ///\brief Store and print a log message.
   ///\param kind The type of message.

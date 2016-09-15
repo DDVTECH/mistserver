@@ -34,6 +34,7 @@
 #include <ctime>
 #include <vector>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <mist/config.h>
 #include <mist/socket.h>
 #include <mist/http_parser.h>
@@ -88,6 +89,7 @@ void createAccount (std::string account){
   }
 }
 
+
 /// Status monitoring thread.
 /// Will check outputs, inputs and converters every five seconds
 void statusMonitor(void * np){
@@ -119,9 +121,8 @@ void statusMonitor(void * np){
   configLock.unlink();
 }
 
-///\brief The main entry point for the controller.
-int main(int argc, char ** argv){
-  
+///\brief The main loop for the controller.
+int main_loop(int argc, char ** argv){
   Controller::Storage = JSON::fromFile("config.json");
   JSON::Value stored_port = JSON::fromString("{\"long\":\"port\", \"short\":\"p\", \"arg\":\"integer\", \"help\":\"TCP port to listen on.\"}");
   stored_port["default"] = Controller::Storage["config"]["controller"]["port"];
@@ -138,7 +139,6 @@ int main(int argc, char ** argv){
   if ( !stored_user["default"]){
     stored_user["default"] = "root";
   }
-  Controller::conf = Util::Config(argv[0]);
   Controller::conf.addOption("port", stored_port);
   Controller::conf.addOption("interface", stored_interface);
   Controller::conf.addOption("username", stored_user);
@@ -172,6 +172,7 @@ int main(int argc, char ** argv){
     if (pipe(pipeErr) >= 0){
       dup2(pipeErr[1], STDERR_FILENO);//cause stderr to write to the pipe
       close(pipeErr[1]);//close the unneeded pipe file descriptor
+      Util::Procs::socketList.insert(pipeErr[0]);
       tthread::thread msghandler(Controller::handleMsg, (void*)(((char*)0) + pipeErr[0]));
       msghandler.detach();
     }
@@ -224,7 +225,7 @@ int main(int argc, char ** argv){
             }
           }else if(yna(in_string) == 'a'){
             //abort controller startup
-            return 0;
+            return 1;
           }
         }
       }
@@ -246,7 +247,7 @@ int main(int argc, char ** argv){
             }
           }else if(yna(in_string) == 'a'){
             //abort controller startup
-            return 0;
+            return 1;
           }
         }
       }
@@ -283,6 +284,9 @@ int main(int argc, char ** argv){
   }else{
     shutdown_reason = "socket problem (API port closed)";
   }
+  if (Controller::restarting){
+    shutdown_reason = "restart (on request)";
+  }
   Controller::conf.is_active = false;
   Controller::Log("CONF", "Controller shutting down because of "+shutdown_reason);
   //join all joinable threads
@@ -304,9 +308,85 @@ int main(int argc, char ** argv){
   Util::Procs::StopAll();
   //give everything some time to print messages
   Util::wait(100);
+  std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
+  if (Controller::restarting){
+    return 42;
+  }
   //close stderr to make the stderr reading thread exit
   close(STDERR_FILENO);
-  std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
+  return 0;
+}
+
+void handleUSR1(int signum, siginfo_t * sigInfo, void * ignore){
+  Controller::Log("CONF", "USR1 received - restarting controller");
+  Controller::restarting = true;
+  raise(SIGINT); //trigger restart
+}
+
+///\brief The controller angel process.
+///Starts a forked main_loop in a loop. Yes, you read that right.
+int main(int argc, char ** argv){
+  Util::Procs::setHandler();//set child handler
+  {
+    struct sigaction new_action;
+    struct sigaction cur_action;
+    new_action.sa_sigaction = handleUSR1;
+    sigemptyset(&new_action.sa_mask);
+    new_action.sa_flags = 0;
+    sigaction(SIGUSR1, &new_action, NULL);
+  }
+
+  Controller::conf = Util::Config(argv[0]);
+  Controller::conf.activate();
+  uint64_t reTimer = 0;
+  while (Controller::conf.is_active){
+    pid_t pid = fork();
+    if (pid == 0){
+      Util::Procs::handler_set = false;
+      Util::Procs::reaper_thread = 0;
+      {
+        struct sigaction new_action;
+        struct sigaction cur_action;
+        new_action.sa_sigaction = handleUSR1;
+        sigemptyset(&new_action.sa_mask);
+        new_action.sa_flags = 0;
+        sigaction(SIGUSR1, &new_action, NULL);
+      }
+      return main_loop(argc, argv);
+    }
+    if (pid == -1){
+      FAIL_MSG("Unable to spawn controller process!");
+      return 2;
+    }
+    //wait for the process to exit
+    int status;
+    while (waitpid(pid, &status, 0) != pid && errno == EINTR){
+      if (Controller::restarting){
+        Controller::conf.is_active = true;
+        Controller::restarting = false;
+        kill(pid, SIGUSR1);
+      }
+      if (!Controller::conf.is_active){
+        INFO_MSG("Shutting down controller because of signal interrupt...");
+        Util::Procs::Stop(pid);
+      }
+      continue;
+    }
+    //if the exit was clean, don't restart it
+    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
+      MEDIUM_MSG("Controller shut down cleanly");
+      break;
+    }
+    if (WIFEXITED(status) && (WEXITSTATUS(status) == 42)){
+      WARN_MSG("Refreshing angel process for update");
+      std::string myFile = Util::getMyPath() + "MistController";
+      execvp(myFile.c_str(), argv);
+      FAIL_MSG("Error restarting: %s", strerror(errno));
+    }
+    INFO_MSG("Controller uncleanly shut down! Restarting in %llu...", reTimer);
+    Util::wait(reTimer);
+    reTimer += 1000;
+  }
   return 0;
 }
 

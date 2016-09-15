@@ -849,25 +849,28 @@ namespace Mist {
       //check where the next key is
       nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
       int nextPage = pageNumForKey(nxt.tid, nxtKeyNum[nxt.tid]+1);
-      //are we live, and the next key hasn't shown up on another page, then we're waiting.
-      if (myMeta.live && currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
+      //if the next key hasn't shown up on another page, then we're waiting.
+      //VoD might be slow, so we check VoD case also, just in case
+      if (currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
         if (++emptyCount < 100){
           Util::wait(250);
           //we're waiting for new data to show up
           if (emptyCount % 8 == 0){
             reconnect();//reconnect every 2 seconds
           }else{
-            if (emptyCount % 4 == 0){
+            //updating meta is only useful with live streams
+            if (myMeta.live && emptyCount % 4 == 0){
               updateMeta();
             }
           }
         }else{
           //after ~25 seconds, give up and drop the track.
-          dropTrack(nxt.tid, "could not reload empty packet");
+          dropTrack(nxt.tid, "EOP: data wait timeout");
         }
         return false;
       }
 
+      //The next key showed up on another page!
       //We've simply reached the end of the page. Load the next key = next page.
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;

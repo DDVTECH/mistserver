@@ -33,7 +33,7 @@ namespace Mist {
     option["value"].append(50000LL);
     config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
-    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes.";
+    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes as well as the minimum duration needed for stable playback.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 50000LL;
@@ -81,35 +81,8 @@ namespace Mist {
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 5000LL;
     option.null();
-
-    option["arg"] = "string";
-    option["long"] = "udp-port";
-    option["short"] = "U";
-    option["help"] = "The UDP port on which to listen for TS Packets";
-    option["value"].append("");
-    config->addOption("udpport", option);
-    capa["optional"]["udpport"]["name"] = "TS/UDP port";
-    capa["optional"]["udpport"]["help"] = "The UDP port on which to listen for TS Packets, or 0 for disabling TS Input, optionally prefixed with the interface IP to listen on.";
-    capa["optional"]["udpport"]["option"] = "--udp-port";
-    capa["optional"]["udpport"]["type"] = "str";
-    capa["optional"]["udpport"]["default"] = "";
-    option.null();
-
-    option["arg"] = "string";
-    option["long"] = "multicast-interface";
-    option["short"] = "M";
-    option["help"] = "The interface(s)s on which to listen for UDP Multicast packets, space separated.";
-    option["value"].append("");
-    config->addOption("multicastinterface", option);
-    capa["optional"]["multicastinterface"]["name"] = "TS Multicast interface";
-    capa["optional"]["multicastinterface"]["help"] = "The interface(s) on which to listen for UDP Multicast packets, comma separated.";
-    capa["optional"]["multicastinterface"]["option"] = "--multicast-interface";
-    capa["optional"]["multicastinterface"]["type"] = "str";
-    capa["optional"]["multicastinterface"]["default"] = "";
-    option.null();
-
-
     /*LTS-end*/
+
     capa["source_match"] = "push://*";
     capa["priority"] = 9ll;
     capa["desc"] = "Provides buffered live input";

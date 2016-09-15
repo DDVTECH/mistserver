@@ -59,35 +59,38 @@ namespace Controller {
       return;
     }
     if (URL.substr(0, 1) != "/"){
-      //push-style stream
-      if (data["udpport"].asInt()){
-        std::string udpPort = data["udpport"].asString();
-        //Check running
-        if (!inputProcesses.count(name) || !Util::Procs::isRunning(inputProcesses[name])){
-          std::string multicast = data["multicastinterface"].asString();
-          //  False: start TS input
-          INFO_MSG("No TS Input running on port %s for stream %s, starting it", udpPort.c_str(), name.c_str());
-          std::deque<std::string> command;
-          command.push_back(Util::getMyPath() + "MistInTS");
-          command.push_back("-s");
-          command.push_back(name);
-          command.push_back("-p");
-          command.push_back(udpPort);
-          command.push_back("-M");
-          command.push_back(multicast);
-          command.push_back(URL);
-          int stdIn = 0;
-          int stdOut = 1;
-          int stdErr = 2;
-          pid_t program = Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
-          if (program){
-            inputProcesses[name] = program;
-          }
+      //non-file stream
+      //Old style always on
+      if (data.isMember("udpport") && data["udpport"].asStringRef().size() && (!inputProcesses.count(name) || !Util::Procs::isRunning(inputProcesses[name]))){
+        const std::string & udpPort = data["udpport"].asStringRef();
+        const std::string & multicast = data["multicastinterface"].asStringRef();
+        URL = "tsudp://"+udpPort;
+        if (multicast.size()){
+          URL.append("/"+multicast);
         }
-        //Check hasViewers
-        //  True: data["online"] = 2;
-        //  False: data["online"] =11;
+        //  False: start TS input
+        INFO_MSG("No TS input for stream %s, starting it: %s", name.c_str(), URL.c_str());
+        std::deque<std::string> command;
+        command.push_back(Util::getMyPath() + "MistInTS");
+        command.push_back("-s");
+        command.push_back(name);
+        command.push_back(URL);
+        int stdIn = 0;
+        int stdOut = 1;
+        int stdErr = 2;
+        pid_t program = Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
+        if (program){
+          inputProcesses[name] = program;
+        }
+        return;
       }
+      //new style always on
+      if (data.isMember("always_on") && !Util::streamAlive(name)){
+        INFO_MSG("Starting always-on input %s: %s", name.c_str(), URL.c_str());
+        Util::startInput(name, URL);
+        return;
+      }
+      //non-automatics simply return
       return;
     }
     if (URL.substr(0, 1) == "/"){

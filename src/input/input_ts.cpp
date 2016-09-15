@@ -101,28 +101,15 @@ namespace Mist {
     capa["decs"] = "MPEG2-TS input from static files, streamed files, or multicast/unicast UDP socket";
     capa["source_match"].append("/*.ts");
     capa["source_match"].append("stream://*.ts");
+    capa["source_match"].append("tsudp://*");
+    //These two can/may be set to always-on mode
+    capa["always_match"].append("stream://*.ts");
+    capa["always_match"].append("tsudp://*");
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("AC3");
-
-    capa["optional"]["port"]["name"] = "UDP Port";
-    capa["optional"]["port"]["help"] = "The UDP port on which to listen for incoming UDP Packets, optionally prefixed by the interface IP.";
-    capa["optional"]["port"]["type"] = "string";
-    capa["optional"]["port"]["default"] = "9876";
-    capa["optional"]["port"]["option"] = "--port";
-    cfg->addOption("port",
-                   JSON::fromString("{\"arg\":\"string\",\"value\":9876,\"short\":\"p\",\"long\":\"port\",\"help\":\"The UDP port on which to listen for incoming UDP Packets, optionally prefixed by the interface IP.\"}"));
-
-    capa["optional"]["multicastinterface"]["name"] = "TS Multicast interface";
-    capa["optional"]["multicastinterface"]["help"] = "The interface(s) on which to listen for UDP Multicast packets, comma separated.";
-    capa["optional"]["multicastinterface"]["option"] = "--multicast-interface";
-    capa["optional"]["multicastinterface"]["type"] = "str";
-    capa["optional"]["multicastinterface"]["default"] = "";
-    cfg->addOption("multicastinterface",
-                   JSON::fromString("{\"arg\":\"string\",\"value\":\"\",\"short\":\"M\",\"long\":\"multicast-interface\",\"help\":\"The interfaces on which to listen for UDP Multicast packets, space separated.\"}"));
-
     inFile = NULL;
   }
 
@@ -146,32 +133,42 @@ namespace Mist {
   ///Live Setup of TS Input
   bool inputTS::setup() {
     const std::string & inpt = config->getString("input");
-    if (inpt.size() && (inpt != "-" || inpt.substr(0,9) == "stream://")){
-      if (inpt.substr(0,9) == "stream://"){
-        inFile = fopen(inpt.c_str()+9, "r");
-        standAlone = false;
-      }else{
-        inFile = fopen(inpt.c_str(), "r");
-      }
-      if (!inFile) {
-        return false;
-      }
-    }else{
+    //streamed standard input
+    if (inpt == "-") {
       standAlone = false;
-      if (inpt == "-") {
-        inFile = stdin;
-      } else {
-        udpCon.setBlocking(false);
-        std::string ipPort = config->getString("port");
-        size_t colon = ipPort.rfind(':');
-        if (colon != std::string::npos) {
-          udpCon.bind(JSON::Value(ipPort.substr(colon + 1)).asInt(), ipPort.substr(0, colon), config->getString("multicastinterface"));
-        } else {
-          udpCon.bind(JSON::Value(ipPort).asInt(), "", config->getString("multicastinterface"));
-        }
-      }
+      inFile = stdin;
+      return true;
     }
-    return true;
+    //streamed file
+    if (inpt.substr(0,9) == "stream://"){
+      inFile = fopen(inpt.c_str()+9, "r");
+      standAlone = false;
+      return inFile;
+    }
+    //UDP input (tsudp://[host:]port[/iface[,iface[,...]]])
+    if (inpt.substr(0, 8) == "tsudp://"){
+      standAlone = false;
+      udpCon.setBlocking(false);
+      uint32_t port;
+      std::string host;
+      std::string ifaces;
+      size_t colon = inpt.find(':', 8);
+      if (colon != std::string::npos){
+        port = atoi(inpt.c_str()+colon+1);//skip to colon
+        host = inpt.substr(8, colon-8);
+      }else{
+        port = atoi(inpt.c_str()+8);//skip udpts://
+      }
+      size_t slash = inpt.find('/', 8);
+      if (slash != std::string::npos){
+        ifaces = inpt.substr(slash+1);
+      }
+      udpCon.bind(port, host, ifaces);
+      return true;
+    }
+    //plain VoD file
+    inFile = fopen(inpt.c_str(), "r");
+    return inFile;
   }
 
 
@@ -442,7 +439,7 @@ namespace Mist {
     if (!standAlone){return false;}
     //otherwise, check input param
     const std::string & inpt = config->getString("input");
-    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://"){
+    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://"){
       return true;
     }else{
       return false;

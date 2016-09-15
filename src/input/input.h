@@ -29,6 +29,7 @@ namespace Mist {
       static void callbackWrapper(char * data, size_t len, unsigned int id);
       virtual bool setup() = 0;
       virtual bool readHeader() = 0;
+      virtual bool readExistingHeader();
       virtual bool atKeyFrame();
       virtual void getNext(bool smart = true) {};
       virtual void seek(int seekTime){};

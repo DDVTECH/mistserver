@@ -47,17 +47,9 @@ namespace Mist {
   }
 
   bool inputMP3::readHeader() {
-    if (!inFile) {
-      return false;
-    }
+    if (!inFile){return false;}
     //See whether a separate header file exists.
-    DTSC::File tmp(config->getString("input") + ".dtsh");
-    if (tmp){
-      myMeta = tmp.getMeta();
-      if (myMeta){
-        return true;
-      }
-    }
+    if (readExistingHeader()){return true;}
     myMeta = DTSC::Meta();
     myMeta.tracks[1].trackID = 1;
     myMeta.tracks[1].type = "audio";
@@ -93,9 +85,7 @@ namespace Mist {
 
     fseek(inFile, 0, SEEK_SET);
     timestamp = 0;
-    std::ofstream oFile(std::string(config->getString("input") + ".dtsh").c_str());
-    oFile << myMeta.toJSON().toNetPacked();
-    oFile.close();
+    myMeta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
   

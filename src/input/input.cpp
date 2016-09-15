@@ -533,5 +533,19 @@ namespace Mist {
   void Input::quitPlay(){
     playing = 0;
   }
+
+  bool Input::readExistingHeader(){
+    DTSC::File tmpdtsh(config->getString("input") + ".dtsh");
+    if (!tmpdtsh){
+      return false;
+    }
+    if (tmpdtsh.getMeta().version != DTSH_VERSION){
+      INFO_MSG("Updating wrong version header file from version %llu to %llu", tmpdtsh.getMeta().version, DTSH_VERSION);
+      return false;
+    }
+    myMeta = tmpdtsh.getMeta();
+    return true;
+  }
+
 }
 

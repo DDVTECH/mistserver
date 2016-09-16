@@ -12,6 +12,7 @@
 #include <mist/ts_packet.h>
 #include <mist/timing.h>
 #include <mist/mp4_generic.h>
+#include <mist/http_parser.h>
 #include "input_ts.h"
 
 #include <mist/tinythread.h>
@@ -78,10 +79,10 @@ void parseThread(void * ignored) {
       threadTimer[tid] = Util::bootSecs();
       lock.post();
     }
-    if (liveStream.isDataTrack(tid)){
-      myProxy.userClient.keepAlive();
-    }
     if (!liveStream.hasPacket(tid)){
+      if (liveStream.isDataTrack(tid)){
+        myProxy.userClient.keepAlive();
+      }
       Util::sleep(100);
     }
   }
@@ -147,24 +148,11 @@ namespace Mist {
     }
     //UDP input (tsudp://[host:]port[/iface[,iface[,...]]])
     if (inpt.substr(0, 8) == "tsudp://"){
+      HTTP::URL input_url(inpt);
       standAlone = false;
       udpCon.setBlocking(false);
-      uint32_t port;
-      std::string host;
-      std::string ifaces;
-      size_t colon = inpt.find(':', 8);
-      if (colon != std::string::npos){
-        port = atoi(inpt.c_str()+colon+1);//skip to colon
-        host = inpt.substr(8, colon-8);
-      }else{
-        port = atoi(inpt.c_str()+8);//skip udpts://
-      }
-      size_t slash = inpt.find('/', 8);
-      if (slash != std::string::npos){
-        ifaces = inpt.substr(slash+1);
-      }
-      udpCon.bind(port, host, ifaces);
-      return true;
+      udpCon.bind(input_url.getPort(), input_url.host, input_url.path);
+      return udpCon.getSock() != -1;
     }
     //plain VoD file
     inFile = fopen(inpt.c_str(), "r");

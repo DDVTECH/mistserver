@@ -116,7 +116,7 @@ namespace Mist {
     nProxy.streamName = streamName;
 
     if (!setup()) {
-      std::cerr << config->getString("cmd") << " setup failed." << std::endl;
+      FAIL_MSG("Setup failed - exiting");
       return 0;
     }
 

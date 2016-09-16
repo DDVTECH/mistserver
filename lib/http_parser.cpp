@@ -4,6 +4,82 @@
 #include "http_parser.h"
 #include "encode.h"
 #include "timing.h"
+#include "defines.h"
+
+/// Helper function to check if the given c-string is numeric or not
+static bool is_numeric(const char * str){
+  while (str != 0){
+    if (str[0] < 48 || str[0] > 57){return false;}
+    ++str;
+  }
+  return true;
+}
+
+///Constructor that does the actual parsing
+HTTP::URL::URL(const std::string & url){
+  //first detect protocol at the start, if any
+  size_t proto_sep = url.find("://");
+  if (proto_sep != std::string::npos){
+    protocol = url.substr(0, proto_sep);
+    proto_sep += 3;
+  }else{
+    proto_sep = 0;
+  }
+  //proto_sep now points to the start of the host, guaranteed
+  //continue by finding the path, if any
+  size_t first_slash = url.find('/', proto_sep);
+  if (first_slash != std::string::npos){
+    path = url.substr(first_slash+1);
+  }
+  //host and port are now definitely between proto_sep and first_slash
+  //we check for [ at the start because we may have an IPv6 address as host
+  if (url[proto_sep] == '['){
+    //IPv6 address - find matching brace
+    size_t closing_brace = url.find(']', proto_sep);
+    //check if it exists at all
+    if (closing_brace == std::string::npos || closing_brace > first_slash){
+      //assume host ends at first slash if there is no closing brace before it
+      closing_brace = first_slash;
+    }
+    host = url.substr(proto_sep+1, closing_brace-(proto_sep+1));
+    //continue by finding port, if any
+    size_t colon = url.rfind(':', first_slash);
+    if (colon == std::string::npos || colon <= closing_brace){
+      //no port. Assume 80
+      port = "80";
+    }else{
+      //we have a port number, read it
+      port = url.substr(colon+1, first_slash-(colon+1));
+    }
+  }else{
+    //"normal" host - first find port, if any
+    size_t colon = url.rfind(':', first_slash);
+    if (colon == std::string::npos || colon < proto_sep){
+      //no port. Assume 80
+      port = "80";
+      host = url.substr(proto_sep, first_slash-proto_sep);
+    }else{
+      //we have a port number, read it
+      port = url.substr(colon+1, first_slash-(colon+1));
+      host = url.substr(proto_sep, colon-proto_sep);
+    }
+  }
+  //if the host is numeric, assume it is a port, instead
+  if (is_numeric(host.c_str())){
+    port = host;
+    host = "";
+  }
+  EXTREME_MSG("URL host: %s", host.c_str());
+  EXTREME_MSG("URL protocol: %s", protocol.c_str());
+  EXTREME_MSG("URL port: %s", port.c_str());
+  EXTREME_MSG("URL path: %s", path.c_str());
+}
+
+///Returns the port in numeric format
+uint32_t HTTP::URL::getPort() const{
+  if (!port.size()){return 80;}
+  return atoi(port.c_str());
+}
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().

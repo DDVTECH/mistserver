@@ -68,6 +68,16 @@ namespace HTTP {
       std::map<std::string, std::string> vars;
       void Trim(std::string & s);
   };
-//HTTP::Parser class
+  
+  ///URL parsing class. Parses full URL into its subcomponents
+  class URL {
+    public:
+      URL(const std::string & url);
+      uint32_t getPort() const;
+      std::string host;///< Hostname or IP address of URL
+      std::string protocol;///<Protocol of URL
+      std::string port;///<Port of URL
+      std::string path;///<Path after the first slash, not inclusive
+  };
 
 }//HTTP namespace

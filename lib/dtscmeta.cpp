@@ -873,8 +873,14 @@ namespace DTSC {
   }
 
   ///\brief returns the offset of a part
+  ///Assumes the offset is actually negative if bit 0x800000 is set.
   uint32_t Part::getOffset() {
-    return Bit::btoh24(data + 6);
+    uint32_t ret = Bit::btoh24(data + 6);
+    if (ret & 0x800000){
+      return ret | 0xff000000ul;
+    }else{
+      return ret;
+    }
   }
 
   ///\brief Sets the offset of a part

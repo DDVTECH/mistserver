@@ -180,7 +180,7 @@ namespace Controller {
     jsonForEach(in, jit) {
       if (out.isMember(jit.key())){
         if ( !streamsEqual((*jit), out[jit.key()])){
-          /*LTS-START*/        
+          /*LTS-START*/
           if(Triggers::shouldTrigger("STREAM_CONFIG")){
             std::string payload = jit.key()+"\n"+jit->toString();
             if (!Triggers::doTrigger("STREAM_CONFIG", payload, jit.key())){
@@ -193,7 +193,7 @@ namespace Controller {
           Log("STRM", std::string("Updated stream ") + jit.key());
         }
       }else{
-        /*LTS-START*/        
+        /*LTS-START*/
         if(Triggers::shouldTrigger("STREAM_ADD")){
           std::string payload = jit.key()+"\n"+jit->toString();
           if (!Triggers::doTrigger("STREAM_ADD", payload, jit.key())){

@@ -302,6 +302,7 @@ namespace Mist {
     IPC::sharedClient statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
     uint64_t downCounter = 0;
     uint64_t startTime = Util::epoch();
+    uint64_t noDataSince = Util::bootSecs();
     cfgPointer = config;
     globalStreamName = streamName;
     unsigned long long threadCheckTimer = Util::bootSecs();
@@ -327,6 +328,7 @@ namespace Mist {
             if (udpCon.data[0] == 0x47){//check for sync byte
               if (offset + 188 <= udpCon.data_len){
                 liveStream.add(udpCon.data + offset);
+                noDataSince = Util::bootSecs();
                 downCounter += 188;
               }else{
                 leftData.append(udpCon.data + offset, udpCon.data_len - offset);
@@ -337,6 +339,7 @@ namespace Mist {
                 leftData.append(udpCon.data + offset, 1);
                 if (leftData.size() >= 188){
                   liveStream.add((char*)leftData.data());
+                  noDataSince = Util::bootSecs();
                   downCounter += 188;
                   leftData.erase(0, 188);
                 }
@@ -395,6 +398,10 @@ namespace Mist {
       }
       if (!inFile){
         Util::sleep(100);
+        if (Util::bootSecs() - noDataSince > 20){
+          WARN_MSG("Data TS packets received for 20 seconds - disconnecting");
+          config->is_active = false;
+        }
       }
     }
     finish();

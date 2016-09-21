@@ -2582,6 +2582,14 @@ var UI = {
               }
               $inputoptions.append(UI.buildUI(build));
             }
+          },{
+            label: 'Stop sessions',
+            type: 'checkbox',
+            help: 'When saving these stream settings, kill this stream\'s current connections.',
+            pointer: {
+              main: saveas,
+              index: 'stop_sessions'
+            }
           },$('<br>'),{
             type: 'custom',
             custom: $inputoptions
@@ -2656,6 +2664,11 @@ var UI = {
                   else {
                     send.streams = mist.data.streams;
                   }
+                  if ((saveas.stop_sessions) && (other != '')) {
+                    send.stop_sessions = other;
+                    delete saveas.stop_sessions;
+                  }
+                  
                   mist.send(function(){
                     delete mist.data.streams[saveas.name].online;
                     delete mist.data.streams[saveas.name].error;

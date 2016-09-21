@@ -721,6 +721,11 @@ namespace IPC {
     return data[172];
   }
 
+  ///\brief Gets PID field
+  uint32_t statExchange::getPID() {
+    return *(uint32_t*)(data+173);
+  }
+
   ///\brief Creates a semaphore guard, locks the semaphore on call
   semGuard::semGuard(semaphore * thisSemaphore) : mySemaphore(thisSemaphore) {
     mySemaphore->wait();

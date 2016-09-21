@@ -790,10 +790,20 @@ namespace IPC {
     return myPages.size();
   }
 
+  ///Sets all currently loaded memory pages to non-master, so they are not cleaned up on destruction, but left behind.
+  ///Useful for doing rolling updates and such.
+  void sharedServer::abandon(){
+    if (!myPages.size()){return;}
+    VERYHIGH_MSG("Abandoning %llu memory pages, leaving them behind on purpose", myPages.size());
+    for (std::deque<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
+      (*it).master = false;
+    }
+  }
+
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
     sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2) << myPages.size()), (32 * 1024 * 1024)), true);
-    myPages.insert(tmp);
+    myPages.push_back(tmp);
     tmp.master = false;
     DEBUG_MSG(DLVL_VERYHIGH, "Created a new page: %s", tmp.name.c_str());
   }
@@ -804,13 +814,13 @@ namespace IPC {
       DEBUG_MSG(DLVL_WARN, "Can't remove last page for %s", baseName.c_str());
       return;
     }
-    myPages.erase((*myPages.rbegin()));
+    myPages.pop_back();
   }
 
   ///\brief Determines whether an id is currently in use or not
   bool sharedServer::isInUse(unsigned int id) {
     unsigned int i = 0;
-    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
+    for (std::deque<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       //return if we reached the end
       if (!it->mapped || !it->len) {
         return false;
@@ -859,7 +869,7 @@ namespace IPC {
     }
     semGuard tmpGuard(&mySemaphore);
     unsigned int id = 0;
-    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
+    for (std::deque<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
         DEBUG_MSG(DLVL_FAIL, "Something went terribly wrong?");
         return 0;
@@ -900,7 +910,7 @@ namespace IPC {
     unsigned int userCount = 0;
     unsigned int emptyCount = 0;
     connectedUsers = 0;
-    for (std::set<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
+    for (std::deque<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
         DEBUG_MSG(DLVL_FAIL, "Something went terribly wrong?");
         break;

@@ -148,6 +148,8 @@ class hostDetails{
       long long nRamCur = d["mem_used"].asInt();
       long long nShmMax = d["shm_total"].asInt();
       long long nShmCur = d["shm_used"].asInt();
+      if (!nRamMax){nRamMax = 1;}
+      if (!nShmMax){nShmMax = 1;}
       if (((nRamCur + nShmCur)*1000) / nRamMax > (nShmCur*1000) / nShmMax){
         ramMax = nRamMax;
         ramCurr = nRamCur + nShmCur;

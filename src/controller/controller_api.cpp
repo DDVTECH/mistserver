@@ -571,12 +571,22 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           }
 
           if (Request.isMember("invalidate_sessions")){
-            if (Request["totals"].isArray()){
+            if (Request["invalidate_sessions"].isArray()){
               for (unsigned int i = 0; i < Request["invalidate_sessions"].size(); ++i){
                 Controller::sessions_invalidate(Request["invalidate_sessions"][i].asStringRef());
               }
             }else{
               Controller::sessions_invalidate(Request["invalidate_sessions"].asStringRef());
+            }
+          }
+
+          if (Request.isMember("stop_sessions")){
+            if (Request["stop_sessions"].isArray() || Request["stop_sessions"].isObject()){
+              jsonForEach(Request["stop_sessions"], it){
+                Controller::sessions_shutdown(it);
+              }
+            }else{
+              Controller::sessions_shutdown(Request["stop_sessions"].asStringRef());
             }
           }
 

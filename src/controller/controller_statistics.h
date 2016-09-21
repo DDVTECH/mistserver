@@ -117,6 +117,8 @@ namespace Controller {
   void fillTotals(JSON::Value & req, JSON::Value & rep);
   void SharedMemStats(void * config);
   void sessions_invalidate(const std::string & streamname);
+  void sessions_shutdown(JSON::Iter & i);
+  void sessions_shutdown(const std::string & streamname, const std::string & protocol = "");
   bool hasViewers(std::string streamName);
 
 #define PROMETHEUS_TEXT 0

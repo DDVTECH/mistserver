@@ -5,6 +5,7 @@
 #include <mist/config.h>
 #include <mist/shared_memory.h>
 #include <mist/dtsc.h>
+#include <mist/procs.h>
 #include "controller_statistics.h"
 #include "controller_limits.h"
 #include "controller_push.h"
@@ -158,6 +159,51 @@ void Controller::sessions_invalidate(const std::string & streamname){
     }
   }
   INFO_MSG("Invalidated %u connections in %u sessions for stream %s", invalidated, sessCount, streamname.c_str());
+}
+
+
+///Shuts down all current sessions for the given streamname
+void Controller::sessions_shutdown(JSON::Iter & i){
+  if (i->isArray() || i->isObject()){
+    jsonForEach(*i, it){
+      sessions_shutdown(it);
+    }
+    return;
+  }
+  if (i->isString()){
+    sessions_shutdown(i.key(), i->asStringRef());
+    return;
+  }
+  //not handled, ignore
+}
+
+///Shuts down all current sessions for the given streamname
+void Controller::sessions_shutdown(const std::string & streamname, const std::string & protocol){
+  if (!statPointer){
+    FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
+    return;
+  }
+  unsigned int murdered = 0;
+  unsigned int sessCount = 0;
+  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+    if ((!streamname.size() || it->first.streamName == streamname) && (!protocol.size() || it->first.connector == protocol) && it->second.curConns.size()){
+      sessCount++;
+      for (std::map<unsigned long, statStorage>::iterator jt = it->second.curConns.begin(); jt != it->second.curConns.end(); ++jt){
+        char * data = statPointer->getIndex(jt->first);
+        if (data){
+          IPC::statExchange tmpEx(data);
+          uint32_t pid = tmpEx.getPID();
+          if (pid > 1){
+            Util::Procs::Stop(pid);
+            INFO_MSG("Killing PID %lu", pid);
+            murdered++;
+          }
+        }
+      }
+    }
+  }
+  INFO_MSG("Shut down %u connections in %u sessions for stream %s/%s", murdered, sessCount, streamname.c_str(), protocol.c_str());
 }
 
 /// This function runs as a thread and roughly once per second retrieves

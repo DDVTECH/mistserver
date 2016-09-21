@@ -169,8 +169,10 @@ namespace tthread {
     // The thread is no longer executing
     if (ti->mThread) {
       lock_guard<mutex> guard(ti->mThread->mDataMutex);
-      ti->mThread->mNotAThread = true;
-      ti->mThread->ti_copy = 0;
+      if (ti->mThread){
+        ti->mThread->mNotAThread = true;
+        ti->mThread->ti_copy = 0;
+      }
     }
 
     // The thread is responsible for freeing the startup information

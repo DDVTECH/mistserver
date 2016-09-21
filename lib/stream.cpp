@@ -173,34 +173,36 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   DTSC::Scan input;
   unsigned int input_size = inputs.getSize();
   for (unsigned int i = 0; i < input_size; ++i){
-    input = inputs.getIndice(i);
+    DTSC::Scan tmp_input = inputs.getIndice(i);
     
     //if match voor current stream && priority is hoger dan wat we al hebben
-    if (input.getMember("source_match") && curPrio < input.getMember("priority").asInt()){
-      if (input.getMember("source_match").getSize()){
-        for(unsigned int j = 0; j < input.getMember("source_match").getSize(); ++j){
-          std::string source = input.getMember("source_match").getIndice(j).asString();
+    if (tmp_input.getMember("source_match") && curPrio < tmp_input.getMember("priority").asInt()){
+      if (tmp_input.getMember("source_match").getSize()){
+        for(unsigned int j = 0; j < tmp_input.getMember("source_match").getSize(); ++j){
+          std::string source = tmp_input.getMember("source_match").getIndice(j).asString();
           std::string front = source.substr(0,source.find('*'));
           std::string back = source.substr(source.find('*')+1);
-          MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), input.getMember("name").asString().c_str(), source.c_str());
+          MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), tmp_input.getMember("name").asString().c_str(), source.c_str());
           
           if (filename.substr(0,front.size()) == front && filename.substr(filename.size()-back.size()) == back){
-            player_bin = Util::getMyPath() + "MistIn" + input.getMember("name").asString();
-            curPrio = input.getMember("priority").asInt();
+            player_bin = Util::getMyPath() + "MistIn" + tmp_input.getMember("name").asString();
+            curPrio = tmp_input.getMember("priority").asInt();
             selected = true;
+            input = tmp_input;
           }
         }
       }else{
-      std::string source = input.getMember("source_match").asString();
-      std::string front = source.substr(0,source.find('*'));
-      std::string back = source.substr(source.find('*')+1);
-      DEBUG_MSG(DLVL_MEDIUM, "Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), input.getMember("name").asString().c_str(), source.c_str());
-      
-      if (filename.substr(0,front.size()) == front && filename.substr(filename.size()-back.size()) == back){
-        player_bin = Util::getMyPath() + "MistIn" + input.getMember("name").asString();
-        curPrio = input.getMember("priority").asInt();
-        selected = true;
-      }
+        std::string source = tmp_input.getMember("source_match").asString();
+        std::string front = source.substr(0,source.find('*'));
+        std::string back = source.substr(source.find('*')+1);
+        MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), tmp_input.getMember("name").asString().c_str(), source.c_str());
+        
+        if (filename.substr(0,front.size()) == front && filename.substr(filename.size()-back.size()) == back){
+          player_bin = Util::getMyPath() + "MistIn" + tmp_input.getMember("name").asString();
+          curPrio = tmp_input.getMember("priority").asInt();
+          selected = true;
+          input = tmp_input;
+        }
       }
 
     }
@@ -212,7 +214,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     return false;
   }
 
-  //copy the neccessary arguments to separate storage so we can unlock the config semaphore safely
+  //copy the necessary arguments to separate storage so we can unlock the config semaphore safely
   std::map<std::string, std::string> str_args;
   //check required parameters
   DTSC::Scan required = input.getMember("required");
@@ -231,7 +233,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   unsigned int opt_size = optional.getSize();
   for (unsigned int i = 0; i < opt_size; ++i){
     std::string opt = optional.getIndiceName(i);
-    DEBUG_MSG(DLVL_VERYHIGH, "Checking optional %u: %s", i, opt.c_str());
+    VERYHIGH_MSG("Checking optional %u: %s", i, opt.c_str());
     if (stream_cfg.getMember(opt)){
       str_args[optional.getIndice(i).getMember("option").asString()] = stream_cfg.getMember(opt).asString();
     }
@@ -240,7 +242,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   //finally, unlock the config semaphore
   configLock.post();
 
-  DEBUG_MSG(DLVL_MEDIUM, "Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
+  INFO_MSG("Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
   char * argv[30] = {(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str()};
   int argNum = 3;
   std::string debugLvl;
@@ -252,6 +254,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   for (std::map<std::string, std::string>::iterator it = str_args.begin(); it != str_args.end(); ++it){
     argv[++argNum] = (char *)it->first.c_str();
     argv[++argNum] = (char *)it->second.c_str();
+    INFO_MSG("  Option %s = %s", it->first.c_str(), it->second.c_str());
   }
   argv[++argNum] = (char *)0;
   

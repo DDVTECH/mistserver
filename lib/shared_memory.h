@@ -187,6 +187,7 @@ namespace IPC {
       unsigned int amount;
       unsigned int connectedUsers;
       void finishEach();
+      void abandon();
     private:
       bool isInUse(unsigned int id);
       void newPage();
@@ -196,7 +197,7 @@ namespace IPC {
       ///\brief The length of each consecutive piece of payload
       unsigned int payLen;
       ///\brief The set of sharedPage structures to manage the actual memory
-      std::set<sharedPage> myPages;
+      std::deque<sharedPage> myPages;
       ///\brief A semaphore that is locked upon creation and deletion of the page, to ensure no new data is allocated during this step.
       semaphore mySemaphore;
       ///\brief Whether the payload has a counter, if so, it is added in front of the payload

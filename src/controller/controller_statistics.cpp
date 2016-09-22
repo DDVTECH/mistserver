@@ -207,10 +207,15 @@ void Controller::SharedMemStats(void * config){
     Util::wait(1000);
   }
   statPointer = 0;
-  DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
-  if (Controller::killOnExit){
-    DEBUG_MSG(DLVL_WARN, "Killing all connected clients to force full shutdown");
-    statServer.finishEach();
+  HIGH_MSG("Stopping stats thread");
+  if (Controller::restarting){
+    statServer.abandon();
+  }else{/*LTS-START*/
+    if (Controller::killOnExit){
+      DEBUG_MSG(DLVL_WARN, "Killing all connected clients to force full shutdown");
+      statServer.finishEach();
+    }
+    /*LTS-END*/
   }
 }
 

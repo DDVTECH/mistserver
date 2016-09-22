@@ -371,10 +371,6 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock) {
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_ADDRCONFIG;
-  hints.ai_protocol = 0;
-  hints.ai_canonname = NULL;
-  hints.ai_addr = NULL;
-  hints.ai_next = NULL;
   int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0) {
     DEBUG_MSG(DLVL_FAIL, "Could not connect to %s:%i! Error: %s", host.c_str(), port, gai_strerror(s));
@@ -969,14 +965,14 @@ int Socket::Server::getSocket() {
 Socket::UDPConnection::UDPConnection(bool nonblock) {
 #ifdef __CYGWIN__
 #warning UDP over IPv6 is currently disabled on windows
-  isIPv6 = false;
+  family = AF_INET;
   sock = socket(AF_INET, SOCK_DGRAM, 0);
 #else
-  isIPv6 = true;
+  family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1) {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
-    isIPv6 = false;
+    family = AF_INET;
   }
 #endif
   if (sock == -1) {
@@ -999,14 +995,14 @@ Socket::UDPConnection::UDPConnection(bool nonblock) {
 Socket::UDPConnection::UDPConnection(const UDPConnection & o) {
 #ifdef __CYGWIN__
 #warning UDP over IPv6 is currently disabled on windows
-  isIPv6 = false;
+  family = AF_INET;
   sock = socket(AF_INET, SOCK_DGRAM, 0);
 #else
-  isIPv6 = true;
+  family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1) {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
-    isIPv6 = false;
+    family = AF_INET;
   }
 #endif
   if (sock == -1) {
@@ -1032,14 +1028,19 @@ Socket::UDPConnection::UDPConnection(const UDPConnection & o) {
   data_len = 0;
 }
 
-/// Closes the UDP socket, cleans up any memory allocated by the socket.
-Socket::UDPConnection::~UDPConnection() {
+/// Close the UDP socket
+void Socket::UDPConnection::close(){
   if (sock != -1) {
     errno = EINTR;
     while (::close(sock) != 0 && errno == EINTR) {
     }
     sock = -1;
   }
+}
+
+/// Closes the UDP socket, cleans up any memory allocated by the socket.
+Socket::UDPConnection::~UDPConnection() {
+  close();
   if (destAddr) {
     free(destAddr);
     destAddr = 0;
@@ -1058,21 +1059,38 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port) {
     destAddr = 0;
   }
   destAddr = malloc(sizeof(struct sockaddr_in6));
-  if (destAddr) {
-    destAddr_size = sizeof(struct sockaddr_in6);
-    memset(destAddr, 0, destAddr_size);
-    ((struct sockaddr_in6 *)destAddr)->sin6_family = AF_INET6;
-    ((struct sockaddr_in6 *)destAddr)->sin6_port = htons(port);
-    if (inet_pton(AF_INET6, destIp.c_str(), &(((struct sockaddr_in6 *)destAddr)->sin6_addr)) == 1) {
-      return;
-    }
-    memset(destAddr, 0, destAddr_size);
-    ((struct sockaddr_in *)destAddr)->sin_family = AF_INET;
-    ((struct sockaddr_in *)destAddr)->sin_port = htons(port);
-    if (inet_pton(AF_INET, destIp.c_str(), &(((struct sockaddr_in *)destAddr)->sin_addr)) == 1) {
-      return;
-    }
+  if (!destAddr) {
+    return;
   }
+  destAddr_size = sizeof(struct sockaddr_in6);
+  memset(destAddr, 0, destAddr_size);
+
+  struct addrinfo * result, *rp, hints;
+  std::stringstream ss;
+  ss << port;
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = family;
+  hints.ai_socktype = SOCK_DGRAM;
+  hints.ai_flags = AI_ADDRCONFIG;
+  hints.ai_protocol = 0;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+  int s = getaddrinfo(destIp.c_str(), ss.str().c_str(), &hints, &result);
+  if (s != 0) {
+    DEBUG_MSG(DLVL_FAIL, "Could not connect UDP socket to %s:%i! Error: %s", destIp.c_str(), port, gai_strerror(s));
+    return;
+  }
+
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    //assume success
+    memcpy(destAddr, rp->ai_addr, rp->ai_addrlen);
+    freeaddrinfo(result);
+    return;
+    //\todo Possibly detect and handle failure
+  }
+  freeaddrinfo(result);
   free(destAddr);
   destAddr = 0;
   DEBUG_MSG(DLVL_FAIL, "Could not set destination for UDP socket: %s:%d", destIp.c_str(), port);
@@ -1158,64 +1176,163 @@ void Socket::UDPConnection::SendNow(const char * sdata, size_t len) {
 }
 
 /// Bind to a port number, returning the bound port.
-/// Attempts to bind over IPv6 first.
-/// If it fails, attempts to bind over IPv4.
-/// If that fails too, gives up and returns zero.
-/// Prints a debug message at DLVL_FAIL level if binding failed.
+/// If that fails, returns zero.
+/// \arg port Port to bind to, required.
+/// \arg iface Interface address to listen for packets on (may be multicast address)
+/// \arg multicastInterfaces Comma-separated list of interfaces to listen on for multicast packets. Optional, left out means automatically chosen by kernel.
 /// \return Actually bound port number, or zero on error.
 int Socket::UDPConnection::bind(int port, std::string iface, const std::string & multicastInterfaces) {
+  close();//we open a new socket for each attempt
   int result = 0;
-  if (isIPv6) {
-    struct sockaddr_in6 s6;
-    memset(&s6, 0, sizeof(s6));
-    s6.sin6_family = AF_INET6;
-    if (iface == "0.0.0.0" || iface.length() == 0) {
-      s6.sin6_addr = in6addr_any;
-    } else {
-      inet_pton(AF_INET6, iface.c_str(), &s6.sin6_addr);
+  int addr_ret;
+  bool multicast = false;
+  struct addrinfo hints, *addr_result, *rp;
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG | AI_PASSIVE;
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_DGRAM;
+  hints.ai_protocol = IPPROTO_UDP;
+
+  std::stringstream ss;
+  ss << port;
+
+  if (iface == "0.0.0.0" || iface.length() == 0) {
+    if ((addr_ret = getaddrinfo(0, ss.str().c_str(), &hints, &addr_result)) != 0){
+      FAIL_MSG("Could not resolve %s for UDP: %s", iface.c_str(), gai_strerror(addr_ret));
+      return 0;
     }
-    s6.sin6_port = htons(port);
-    int r = ::bind(sock, (sockaddr *)&s6, sizeof(s6));
-    if (r == 0) {
-      result = ntohs(s6.sin6_port);
-    }
-  } else {
-    struct sockaddr_in s4;
-    memset(&s4, 0, sizeof(s4));
-    s4.sin_family = AF_INET;
-    if (iface == "0.0.0.0" || iface.length() == 0) {
-      s4.sin_addr.s_addr = htonl(INADDR_ANY);
-    } else {
-      inet_pton(AF_INET, iface.c_str(), &s4.sin_addr);
-    }
-    s4.sin_port = htons(port);
-    int r = ::bind(sock, (sockaddr *)&s4, sizeof(s4));
-    if (r == 0) {
-      result = ntohs(s4.sin_port);
+  }else{
+    if ((addr_ret = getaddrinfo(iface.c_str(), ss.str().c_str(), &hints, &addr_result)) != 0){
+      FAIL_MSG("Could not resolve %s for UDP: %s", iface.c_str(), gai_strerror(addr_ret));
+      return 0;
     }
   }
-  if (!result){
-    DEBUG_MSG(DLVL_FAIL, "Could not bind %s UDP socket to port %d: %s", isIPv6 ? "IPv6" : "IPv4", port, strerror(errno));
+
+  std::string err_str;
+  for (rp = addr_result; rp != NULL; rp = rp->ai_next) {
+    sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (sock == -1) {
+      continue;
+    }
+    char human_addr[INET6_ADDRSTRLEN];
+    getnameinfo(rp->ai_addr, rp->ai_addrlen, human_addr, INET6_ADDRSTRLEN, 0, 0, NI_NUMERICHOST);
+    MEDIUM_MSG("Attempting bind to %s (%s)", human_addr, rp->ai_family == AF_INET6 ? "IPv6" : "IPv4");
+    if (::bind(sock, rp->ai_addr, rp->ai_addrlen) == 0) {
+      family = rp->ai_family;
+      hints.ai_family = family;
+      break;
+    }
+    if (err_str.size()){err_str += ", ";}
+    err_str += human_addr;
+    err_str += ":";
+    err_str += strerror(errno);
+    close();//we open a new socket for each attempt
+  }
+  if (sock == -1){
+    FAIL_MSG("Could not open %s for UDP: %s", iface.c_str(), err_str.c_str());
+    freeaddrinfo(addr_result);
     return 0;
   }
-  //Detect multicast
-  if (iface.length() && ((atoi(iface.c_str()) & 0xE0) == 0xE0)){
-    if (!multicastInterfaces.length()){
-      WARN_MSG("Multicast IP given without any defined interfaces");
+  //socket is bound! Let's collect some more data...
+  if (family == AF_INET6){
+    sockaddr_in6 * addr6 = (sockaddr_in6*)(rp->ai_addr);
+    result = ntohs(addr6->sin6_port);
+    if (memcmp((char*)&(addr6->sin6_addr), "\000\000\000\000\000\000\000\000\000\000\377\377", 12) == 0){
+      //IPv6-mapped IPv4 address - 13th byte ([12]) holds the first IPv4 byte
+      multicast = (((char*)&(addr6->sin6_addr))[12] & 0xF0) == 0xE0;
     }else{
-      struct ip_mreq group;
-      inet_pton(AF_INET, iface.c_str(), &group.imr_multiaddr.s_addr);
-      size_t loc = 0;
-      while (loc != std::string::npos){
-        size_t nxtPos = multicastInterfaces.find(',', loc);
-        std::string curIface = multicastInterfaces.substr(loc, (nxtPos == std::string::npos ? nxtPos : nxtPos - loc));
-        inet_pton(AF_INET, curIface.c_str(), &group.imr_interface.s_addr);
-        if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group)) < 0) {
-          WARN_MSG("Unable to register for multicast on interface %s: %s", curIface.c_str() , strerror(errno));
-        }
-        loc = (nxtPos == std::string::npos ? nxtPos : nxtPos + 1);
-      }
+      //"normal" IPv6 address - prefix ff00::/8
+      multicast = (((char*)&(addr6->sin6_addr))[0] == 0xFF);
     }
+  }else{
+    sockaddr_in * addr4 = (sockaddr_in*)(rp->ai_addr);
+    result = ntohs(addr4->sin_port);
+    //multicast has a "1110" bit prefix
+    multicast = (((char*)&(addr4->sin_addr))[0] & 0xF0) == 0xE0;
+  }
+  freeaddrinfo(addr_result);
+
+  //handle multicast membership(s)
+  if (multicast){
+    struct ipv6_mreq mreq6;
+    struct ip_mreq mreq4;
+    memset(&mreq4, 0, sizeof(mreq4));
+    memset(&mreq6, 0, sizeof(mreq6));
+    struct addrinfo *reslocal, *resmulti;
+    if ((addr_ret = getaddrinfo(iface.c_str(), 0, &hints, &resmulti)) != 0){
+      WARN_MSG("Unable to parse multicast address: %s", gai_strerror(addr_ret));
+      close();
+      result = -1;
+      return result;
+    }
+
+    if (!multicastInterfaces.length()){
+      if (family == AF_INET6){
+        memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6*)resmulti->ai_addr)->sin6_addr, sizeof(mreq6.ipv6mr_multiaddr));
+        if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, (char *)&mreq6, sizeof(mreq6)) != 0) {
+          FAIL_MSG("Unable to register for IPv6 multicast on all interfaces: %s", strerror(errno));
+          close();
+          result = -1;
+        }
+      }else{
+        mreq4.imr_multiaddr = ((sockaddr_in*)resmulti->ai_addr)->sin_addr;
+        mreq4.imr_interface.s_addr = INADDR_ANY;
+        if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq4, sizeof(mreq4)) != 0) {
+          FAIL_MSG("Unable to register for IPv4 multicast on all interfaces: %s", strerror(errno));
+          close();
+          result = -1;
+        }
+      }
+    }else{
+        size_t nxtPos = std::string::npos;
+        bool atLeastOne = false;
+        for (size_t loc = 0; loc != std::string::npos; loc = (nxtPos == std::string::npos ? nxtPos : nxtPos + 1)){
+          nxtPos = multicastInterfaces.find(',', loc);
+          std::string curIface = multicastInterfaces.substr(loc, (nxtPos == std::string::npos ? nxtPos : nxtPos - loc));
+          //do a bit of filtering for IPv6, removing the []-braces, if any
+          if (curIface[0] == '['){
+            if (curIface[curIface.size() - 1] == ']'){
+              curIface = curIface.substr(1, curIface.size()-2);
+            }else{
+              curIface = curIface.substr(1, curIface.size()-1);
+            }
+          }
+          if (family == AF_INET6){
+            INFO_MSG("Registering for IPv6 multicast on interface %s", curIface.c_str());
+            if ((addr_ret = getaddrinfo(curIface.c_str(), 0, &hints, &reslocal)) != 0){
+              WARN_MSG("Unable to resolve IPv6 interface address %s: %s", curIface.c_str(), gai_strerror(addr_ret));
+              continue;
+            }
+            memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6*)resmulti->ai_addr)->sin6_addr, sizeof(mreq6.ipv6mr_multiaddr));
+            mreq6.ipv6mr_interface = ((sockaddr_in6*)reslocal->ai_addr)->sin6_scope_id;
+            if (setsockopt(sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq6, sizeof(mreq6)) != 0) {
+              FAIL_MSG("Unable to register for IPv6 multicast on interface %s (%u): %s", curIface.c_str(), ((sockaddr_in6*)reslocal->ai_addr)->sin6_scope_id, strerror(errno));
+            }else{
+              atLeastOne = true;
+            }
+          }else{
+            INFO_MSG("Registering for IPv4 multicast on interface %s", curIface.c_str());
+            if ((addr_ret = getaddrinfo(curIface.c_str(), 0, &hints, &reslocal)) != 0){
+              WARN_MSG("Unable to resolve IPv4 interface address %s: %s", curIface.c_str(), gai_strerror(addr_ret));
+              continue;
+            }
+            mreq4.imr_multiaddr = ((sockaddr_in*)resmulti->ai_addr)->sin_addr;
+            mreq4.imr_interface = ((sockaddr_in*)reslocal->ai_addr)->sin_addr;
+            if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq4, sizeof(mreq4)) != 0) {
+              FAIL_MSG("Unable to register for IPv4 multicast on interface %s: %s", curIface.c_str() , strerror(errno));
+            }else{
+              atLeastOne = true;
+            }
+          }
+          if (!atLeastOne){
+            close();
+            result = -1;
+          }
+          freeaddrinfo(reslocal);//free resolved interface addr
+        }//loop over all interfaces
+    }
+    freeaddrinfo(resmulti);//free resolved multicast addr
+     
   }
   return result;
 }

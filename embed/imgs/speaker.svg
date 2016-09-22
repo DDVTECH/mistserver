@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="25"
+   height="25"
+   id="svg4659"
+   version="1.1"
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="speaker.svg">
+  <defs
+     id="defs4661" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#de43da"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="19.289873"
+     inkscape:cx="7.9448655"
+     inkscape:cy="14.079113"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1181"
+     inkscape:window-height="865"
+     inkscape:window-x="64"
+     inkscape:window-y="102"
+     inkscape:window-maximized="0">
+    <sodipodi:guide
+       position="0,0"
+       orientation="0,25"
+       id="guide4151" />
+    <sodipodi:guide
+       position="25,0"
+       orientation="-25,0"
+       id="guide4153" />
+    <sodipodi:guide
+       position="25,25"
+       orientation="0,-25"
+       id="guide4155" />
+    <sodipodi:guide
+       position="0,25"
+       orientation="25,0"
+       id="guide4157" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata4664">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(0,-1027.3622)">
+    <path
+       style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 0 0 L 0 25 L 25 25 L 25 0 L 0 0 z M 17.789062 0.74609375 C 18.295139 0.76779043 18.796936 0.91543438 19.25 1.1855469 L 19.25 23.8125 C 18.041512 24.5346 16.481832 24.377494 15.445312 23.308594 L 10.341797 18.046875 L 8.0878906 18.046875 C 6.7997976 18.046875 5.75 16.963266 5.75 15.634766 L 5.75 9.3632812 C 5.75 8.0348812 6.7997976 6.9511719 8.0878906 6.9511719 L 10.341797 6.9511719 L 15.445312 1.6894531 C 16.092759 1.0217031 16.945602 0.70993262 17.789062 0.74609375 z "
+       transform="translate(0,1027.3622)"
+       id="rect4159" />
+    <path
+       style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="m 19.25,1028.5473 c -1.20817,-0.7203 -2.769599,-0.564 -3.805513,0.5044 l -5.102362,5.2622 -2.2535418,0 c -1.288093,0 -2.3385832,1.0834 -2.3385832,2.4118 l 0,6.2709 c 0,1.3285 1.0504902,2.4119 2.3385832,2.4119 l 2.2535418,0 5.102362,5.2623 c 1.03652,1.0689 2.597025,1.2263 3.805513,0.5042 l 0,-22.6277 z"
+       id="rect4574"
+       inkscape:connector-curvature="0" />
+  </g>
+</svg>

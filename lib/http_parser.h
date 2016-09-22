@@ -10,6 +10,12 @@
 
 /// Holds all HTTP processing related code.
 namespace HTTP {
+
+  ///HTTP variable parser to std::map<std::string, std::string> structure.
+  ///Reads variables from data, decodes and stores them to storage.
+  void parseVars(const std::string & data, std::map<std::string, std::string> & storage);
+
+
   /// Simple class for reading and writing HTTP 1.0 and 1.1.
   class Parser {
     public:
@@ -56,13 +62,22 @@ namespace HTTP {
       bool getChunks;
       unsigned int doingChunk;
       bool parse(std::string & HTTPbuffer);
-      void parseVars(std::string data);
       std::string builder;
       std::string read_buffer;
       std::map<std::string, std::string> headers;
       std::map<std::string, std::string> vars;
       void Trim(std::string & s);
   };
-//HTTP::Parser class
+  
+  ///URL parsing class. Parses full URL into its subcomponents
+  class URL {
+    public:
+      URL(const std::string & url);
+      uint32_t getPort() const;
+      std::string host;///< Hostname or IP address of URL
+      std::string protocol;///<Protocol of URL
+      std::string port;///<Port of URL
+      std::string path;///<Path after the first slash, not inclusive
+  };
 
 }//HTTP namespace

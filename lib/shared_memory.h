@@ -40,6 +40,7 @@ namespace IPC {
       char getSync();
       void setSync(char s);
       unsigned int crc();
+      uint32_t getPID();
   private:
       ///\brief The payload for the stat exchange
       /// - 8 byte - now (timestamp of last statistics)

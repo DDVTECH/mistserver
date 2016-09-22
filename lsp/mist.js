@@ -2569,7 +2569,26 @@ var UI = {
                 $('<h3>').text(input.name+' Input options')
               );
               var build = mist.convertBuildOptions(input,saveas);
+              if (('always_match' in mist.data.capabilities.inputs[i]) && (mist.inputMatch(mist.data.capabilities.inputs[i].always_match,source))) {
+                build.push({
+                  label: 'Always on',
+                  type: 'checkbox',
+                  help: 'Keep this input available at all times, even when there are no active viewers.',
+                  pointer: {
+                    main: saveas,
+                    index: 'always_on'
+                  }
+                });
+              }
               $inputoptions.append(UI.buildUI(build));
+            }
+          },{
+            label: 'Stop sessions',
+            type: 'checkbox',
+            help: 'When saving these stream settings, kill this stream\'s current connections.',
+            pointer: {
+              main: saveas,
+              index: 'stop_sessions'
             }
           },$('<br>'),{
             type: 'custom',
@@ -2645,6 +2664,11 @@ var UI = {
                   else {
                     send.streams = mist.data.streams;
                   }
+                  if ((saveas.stop_sessions) && (other != '')) {
+                    send.stop_sessions = other;
+                    delete saveas.stop_sessions;
+                  }
+                  
                   mist.send(function(){
                     delete mist.data.streams[saveas.name].online;
                     delete mist.data.streams[saveas.name].error;

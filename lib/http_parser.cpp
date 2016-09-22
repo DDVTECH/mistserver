@@ -4,6 +4,82 @@
 #include "http_parser.h"
 #include "encode.h"
 #include "timing.h"
+#include "defines.h"
+
+/// Helper function to check if the given c-string is numeric or not
+static bool is_numeric(const char * str){
+  while (str != 0){
+    if (str[0] < 48 || str[0] > 57){return false;}
+    ++str;
+  }
+  return true;
+}
+
+///Constructor that does the actual parsing
+HTTP::URL::URL(const std::string & url){
+  //first detect protocol at the start, if any
+  size_t proto_sep = url.find("://");
+  if (proto_sep != std::string::npos){
+    protocol = url.substr(0, proto_sep);
+    proto_sep += 3;
+  }else{
+    proto_sep = 0;
+  }
+  //proto_sep now points to the start of the host, guaranteed
+  //continue by finding the path, if any
+  size_t first_slash = url.find('/', proto_sep);
+  if (first_slash != std::string::npos){
+    path = url.substr(first_slash+1);
+  }
+  //host and port are now definitely between proto_sep and first_slash
+  //we check for [ at the start because we may have an IPv6 address as host
+  if (url[proto_sep] == '['){
+    //IPv6 address - find matching brace
+    size_t closing_brace = url.find(']', proto_sep);
+    //check if it exists at all
+    if (closing_brace == std::string::npos || closing_brace > first_slash){
+      //assume host ends at first slash if there is no closing brace before it
+      closing_brace = first_slash;
+    }
+    host = url.substr(proto_sep+1, closing_brace-(proto_sep+1));
+    //continue by finding port, if any
+    size_t colon = url.rfind(':', first_slash);
+    if (colon == std::string::npos || colon <= closing_brace){
+      //no port. Assume 80
+      port = "80";
+    }else{
+      //we have a port number, read it
+      port = url.substr(colon+1, first_slash-(colon+1));
+    }
+  }else{
+    //"normal" host - first find port, if any
+    size_t colon = url.rfind(':', first_slash);
+    if (colon == std::string::npos || colon < proto_sep){
+      //no port. Assume 80
+      port = "80";
+      host = url.substr(proto_sep, first_slash-proto_sep);
+    }else{
+      //we have a port number, read it
+      port = url.substr(colon+1, first_slash-(colon+1));
+      host = url.substr(proto_sep, colon-proto_sep);
+    }
+  }
+  //if the host is numeric, assume it is a port, instead
+  if (is_numeric(host.c_str())){
+    port = host;
+    host = "";
+  }
+  EXTREME_MSG("URL host: %s", host.c_str());
+  EXTREME_MSG("URL protocol: %s", protocol.c_str());
+  EXTREME_MSG("URL port: %s", port.c_str());
+  EXTREME_MSG("URL path: %s", path.c_str());
+}
+
+///Returns the port in numeric format
+uint32_t HTTP::URL::getPort() const{
+  if (!port.size()){return 80;}
+  return atoi(port.c_str());
+}
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().
@@ -447,7 +523,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
               tmpA.erase(0, f + 1);
               method = tmpA;
               if (url.find('?') != std::string::npos) {
-                parseVars(url.substr(url.find('?') + 1)); //parse GET variables
+                parseVars(url.substr(url.find('?') + 1), vars); //parse GET variables
                 url.erase(url.find('?'));
               }
               url = Encodings::URL::decode(url);
@@ -463,7 +539,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
               tmpA.erase(0, f + 1);
               protocol = tmpA;
               if (url.find('?') != std::string::npos) {
-                parseVars(url.substr(url.find('?') + 1)); //parse GET variables
+                parseVars(url.substr(url.find('?') + 1), vars); //parse GET variables
                 url.erase(url.find('?'));
               }
               url = Encodings::URL::decode(url);
@@ -508,7 +584,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
           HTTPbuffer.erase(0, toappend);
         }
         if (length == body.length()) {
-          parseVars(body); //parse POST variables
+          parseVars(body, vars); //parse POST variables
           return true;
         } else {
           return false;
@@ -560,12 +636,12 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer) {
   return false; //empty input
 } //HTTPReader::parse
 
-/// Parses GET or POST-style variable data.
-/// Saves to internal variable structure using HTTP::Parser::SetVar.
-void HTTP::Parser::parseVars(std::string data) {
+///HTTP variable parser to std::map<std::string, std::string> structure.
+///Reads variables from data, decodes and stores them to storage.
+void HTTP::parseVars(const std::string & data, std::map<std::string, std::string> & storage) {
   std::string varname;
   std::string varval;
-  // position where a part start (e.g. after &)
+  // position where a part starts (e.g. after &)
   size_t pos = 0;
   while (pos < data.length()) {
     size_t nextpos = data.find('&', pos);
@@ -582,7 +658,9 @@ void HTTP::Parser::parseVars(std::string data) {
       varname = data.substr(pos, nextpos - pos);
       varval.clear();
     }
-    SetVar(Encodings::URL::decode(varname), Encodings::URL::decode(varval));
+    if (varname.size()){
+      storage[Encodings::URL::decode(varname)] = Encodings::URL::decode(varval);
+    }
     if (nextpos == std::string::npos) {
       // in case the string is gigantic
       break;

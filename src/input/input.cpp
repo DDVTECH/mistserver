@@ -86,30 +86,18 @@ namespace Mist {
   }
 
   void Input::checkHeaderTimes(std::string streamFile) {
-    if (streamFile == "-" || streamFile == "push://") {
+    struct stat bufStream;
+    struct stat bufHeader;
+    if (stat(streamFile.c_str(), &bufStream) != 0) {
+      INSANE_MSG("Source is not a file - ignoring header check");
       return;
     }
     std::string headerFile = streamFile + ".dtsh";
-    FILE * tmp = fopen(headerFile.c_str(), "r");
-    if (tmp == NULL) {
-      DEBUG_MSG(DLVL_HIGH, "Can't open header: %s. Assuming all is fine.", headerFile.c_str());
+    if (stat(headerFile.c_str(), &bufHeader) != 0) {
+      INSANE_MSG("No header exists to compare - ignoring header check");
       return;
     }
-    struct stat bufStream;
-    struct stat bufHeader;
-    //fstat(fileno(streamFile), &bufStream);
-    //fstat(fileno(tmp), &bufHeader);
-    if (stat(streamFile.c_str(), &bufStream) != 0 || stat(headerFile.c_str(), &bufHeader) != 0) {
-      DEBUG_MSG(DLVL_HIGH, "Could not compare stream and header timestamps - assuming all is fine.");
-      fclose(tmp);
-      return;
-    }
-
-    int timeStream = bufStream.st_mtime;
-    int timeHeader = bufHeader.st_mtime;
-    fclose(tmp);
-    if (timeHeader < timeStream) {
-      //delete filename
+    if (bufHeader.st_mtime < bufStream.st_mtime) {
       INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
       remove(headerFile.c_str());
     }

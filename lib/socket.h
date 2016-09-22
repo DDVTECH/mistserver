@@ -130,13 +130,14 @@ namespace Socket {
       unsigned int up;///< Amount of bytes transferred up.
       unsigned int down;///< Amount of bytes transferred down.
       unsigned int data_size;///< The size in bytes of the allocated space in the data pointer.
-      bool isIPv6;//<<< True if IPv6 socket, false otherwise.
+      int family;///<Current socket address family
     public:
       char * data;///< Holds the last received packet.
       unsigned int data_len; ///< The size in bytes of the last received packet.
       UDPConnection(const UDPConnection & o);
       UDPConnection(bool nonblock = false);
       ~UDPConnection();
+      void close();
       int getSock();
       int bind(int port, std::string iface = "", const std::string & multicastAddress = "");
       void setBlocking(bool blocking);

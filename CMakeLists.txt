@@ -353,8 +353,18 @@ endif()
 # Embed Code                           #
 ########################################
 add_custom_target(embedcode
-  ./sourcery ${SOURCE_DIR}/src/embed.js embed_js ${BINARY_DIR}/embed.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/src/embed.js 
+  COMMAND ./sourcery ${SOURCE_DIR}/src/embed.js embed_js ${BINARY_DIR}/embed.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/html5.js html5_js ${BINARY_DIR}/html5.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/flash_strobe.js flash_strobe_js ${BINARY_DIR}/flash_strobe.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/silverlight.js silverlight_js ${BINARY_DIR}/silverlight.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/theoplayer.js theoplayer_js ${BINARY_DIR}/theoplayer.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/jwplayer.js jwplayer_js ${BINARY_DIR}/jwplayer.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/polytrope.js polytrope_js ${BINARY_DIR}/polytrope.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/dashjs.js dash_js ${BINARY_DIR}/dashjs.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js playerdash_js ${BINARY_DIR}/playerdash.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/core.js core_js ${BINARY_DIR}/core.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/mist.css mist_css ${BINARY_DIR}/mist.css.h
+  DEPENDS sourcery ${SOURCE_DIR}/src/embed.js ${SOURCE_DIR}/embed/wrappers/html5.js ${SOURCE_DIR}/embed/wrappers/flash_strobe.js ${SOURCE_DIR}/embed/wrappers/silverlight.js ${SOURCE_DIR}/embed/wrappers/theoplayer.js ${SOURCE_DIR}/embed/wrappers/jwplayer.js ${SOURCE_DIR}/embed/wrappers/polytrope.js ${SOURCE_DIR}/embed/wrappers/dashjs.js ${SOURCE_DIR}/embed/players/dash.js ${SOURCE_DIR}/embed/core.js ${SOURCE_DIR}/embed/mist.css
   VERBATIM
 )
 

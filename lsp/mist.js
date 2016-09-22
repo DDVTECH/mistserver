@@ -2,8 +2,8 @@
 $(function(){
   UI.elements = {
     menu: $('nav > .menu'),
-    secondary_menu: $('nav.secondary_menu'),
     main: $('main'),
+    header: $('header'),
     connection: {
       status: $('#connection'),
       user_and_host: $('#user_and_host'),
@@ -12,6 +12,17 @@ $(function(){
   };
   UI.buildMenu();
   UI.stored.getOpts();
+  
+  //get stored login data
+  try {
+    if ('mistLogin' in sessionStorage) {
+      var stored = JSON.parse(sessionStorage['mistLogin']);
+      mist.user.name = stored.name;
+      mist.user.password = stored.password;
+      mist.user.host = stored.host;
+    }
+  }
+  catch (e) {}
   
   //check if username and host have been stored in the url
   if (location.hash) {
@@ -27,6 +38,14 @@ $(function(){
     $(window).trigger('hashchange');
   },{},{timeout: 5, hide: true});
   
+  var lastpos = 0;
+  $('body > div.filler').on('scroll',function(){
+    var pos = $(this).scrollLeft();
+    if (pos !=  lastpos) {
+      UI.elements.header.css('margin-right',-1*pos+'px');
+    }
+    lastpos = pos;
+  });
 });
 
 $(window).on('hashchange', function(e) {
@@ -37,6 +56,7 @@ $(window).on('hashchange', function(e) {
   UI.showTab(tab[0],tab[1]);
 });
 
+var otherhost = false;
 var UI = {
   debug: false,
   elements: {},
@@ -150,6 +170,48 @@ var UI = {
     },
     element: $('<div>').attr('id','tooltip')
   },
+  humanMime: function (type) {
+    var human = false;
+    switch (type) {
+      case 'html5/application/vnd.apple.mpegurl':
+        human = 'HLS';
+        break;
+      case 'html5/video/mp4':
+        human = 'MP4';
+        break;
+      case 'dash/video/mp4':
+        human = 'DASH';
+        break;
+      case 'flash/11':
+        human = 'HDS';
+        break;
+      case 'flash/10':
+        human = 'RTMP';
+        break;
+      case 'flash/7':
+        human = 'Progressive';
+        break;
+      case 'html5/audio/mp3':
+        human = 'MP3';
+        break;
+      case 'html5/video/mp2t':
+        human = 'TS';
+        break;
+      case 'html5/application/vnd.ms-ss':
+        human = 'Smooth';
+        break;
+      case 'html5/text/vtt':
+        human = 'VTT Subtitles';
+        break;
+      case 'html5/text/plain':
+        human = 'SRT Subtitles';
+        break;
+      case 'html5/text/javascript':
+        human = 'JSON Subtitles';
+        break;
+    }
+    return human;
+  },
   popup: {
     element: null,
     show: function(content) {
@@ -168,8 +230,13 @@ var UI = {
     {
       Overview: {},
       Protocols: {},
-      Streams: {},
-      Preview: {},
+      Streams: {
+        hiddenmenu: {
+          Edit: {},
+          Preview: {},
+          Embed: {}
+        }
+      },
       Push: {
         LTSonly: true
       },
@@ -198,7 +265,7 @@ var UI = {
             link: 'http://mistserver.org/products'
           },
           'Email for Help': {},
-          'Terms & Conditions': {
+          'ToS': {
             link: 'http://mistserver.org/documentation#Legal'
           }
         }
@@ -246,6 +313,13 @@ var UI = {
           $button.addClass('arrowdown').append($sub);
           for (var k in button.submenu) {
             $sub.append(createButton(k,button.submenu[k]));
+          }
+        }
+        else if ('hiddenmenu' in button) {
+          var $sub = $('<span>').addClass('hiddenmenu');
+          $button.append($sub);
+          for (var k in button.hiddenmenu) {
+            $sub.append(createButton(k,button.hiddenmenu[k]));
           }
         }
       }
@@ -320,6 +394,11 @@ var UI = {
           var $b = $('<button>').text(button.label).data('opts',button);
           if ('css' in button) {
             $b.css(button.css);
+          }
+          if ('classes' in button) {
+            for (var k in button.classes) {
+              $b.addClass(button.classes[k]);
+            }
           }
           $bc.append($b);
           switch (button.type) {
@@ -578,6 +657,40 @@ var UI = {
           )
         );
       }
+      if (('clipboard' in e) && (document.queryCommandSupported('copy'))) {
+        $fc.append(
+          $('<span>').addClass('unit').html(
+            $('<button>').text('Copy').on('keydown',function(e){
+            e.stopPropagation();
+          }).click(function(){
+              var text = String($(this).closest('.field_container').find('.field').getval());
+              
+              var textArea = document.createElement("textarea");
+              textArea.value = text;
+              document.body.appendChild(textArea);
+              textArea.select();
+              var yay = false;
+              try {
+                yay = document.execCommand('copy');
+              } catch (err) {
+                
+              }
+              if (yay) {
+                $(this).text('Copied to clipboard!');
+                document.body.removeChild(textArea);
+                var me = $(this);
+                setTimeout(function(){
+                  me.text('Copy');
+                },5e3);
+              }
+              else {
+                document.body.removeChild(textArea);
+                alert("Failed to copy:\n"+text);
+              }
+            })
+          )
+        );
+      }
       if ('rows' in e) {
         $field.attr('rows',e.rows);
       }
@@ -701,9 +814,6 @@ var UI = {
               }
             }
             
-            if (seperator == '\\') {
-              path = '/cygdrive/C/';
-            }
             
             path = path.split(seperator);
             path.pop();
@@ -934,11 +1044,11 @@ var UI = {
       switch (e.which) {
         case 13:
           //enter
-          $(this).find('button.save').trigger('click');
+          $(this).find('button.save').first().trigger('click');
           break;
         case 27:
           //escape
-          $(this).find('button.cancel').trigger('click');
+          $(this).find('button.cancel').first().trigger('click');
           break;
       }
     });
@@ -1693,16 +1803,13 @@ var UI = {
       return;
     }
     
-    var $currbut = UI.elements.menu.removeClass('hide').find('.button').filter(function(){
-      if ($(this).find('.plain').text() == tab) { return true; }
-    });
+    var $currbut = UI.elements.menu.removeClass('hide').find('.plain:contains("'+tab+'")').closest('.button');
     if ($currbut.length > 0) {
       //only remove previous button highlight if the current tab is found in the menu
       UI.elements.menu.find('.button.active').removeClass('active');
       $currbut.addClass('active');
     }
     
-    UI.elements.secondary_menu.html('');
     UI.interval.clear();
     $main.html(
       $('<h2>').text(tab)
@@ -1743,7 +1850,7 @@ var UI = {
             validate: ['required'],
             pointer: {
               main: mist.user,
-              index: 'password'
+              index: 'rawpassword'
             }
           },{
             type: 'buttons',
@@ -1751,6 +1858,8 @@ var UI = {
               label: 'Login',
               type: 'save',
               'function': function(){
+                mist.user.password = MD5(mist.user.rawpassword);
+                delete mist.user.rawpassword;
                 mist.send(function(){
                   UI.navto('Overview');
                 });
@@ -2270,203 +2379,406 @@ var UI = {
           return;
         }
         
-        var $tbody = $('<tbody>').append($('<tr>').append('<td>').attr('colspan',6).text('Loading..'));
-        var $table = $('<table>').html(
-          $('<thead>').html(
-            $('<tr>').html(
-              $('<th>').text('Stream name').attr('data-sort-type','string').addClass('sorting-asc')
-            ).append(
-              $('<th>').text('Source').attr('data-sort-type','string')
-            ).append(
-              $('<th>').text('Status').attr('data-sort-type','int')
-            ).append(
-              $('<th>').css('text-align','right').text('Connections').attr('data-sort-type','int')
-            ).append(
-              $('<th>')
-            ).append(
-              $('<th>')
-            )
-          )
-        ).append($tbody);
+        var $switchmode = $('<button>');
+        var $loading = $('<span>').text('Loading..');
         $main.append(
           UI.buildUI([{
             type: 'help',
-            help: 'Here you can create, edit or delete new and existing streams. Immidiately go to the stream preview or view the information available about the stream with the info button.'
-          }])
-        ).append(
-          $('<button>').text('New stream').click(function(){
-            UI.navto('Edit Stream');
-          })
-        ).append($table);
-        $table.stupidtable();
-        
-        function buildStreamTable() {
-          var i = 0;
-          $tbody.html('');
-          
-          if (mist.data.LTS) {
-            //insert active wildcard streams (should overwrite active folder wildcard streams)
-            for (var i in mist.data.active_streams) {
-              var streamsplit = mist.data.active_streams[i].split('+');
-              if (streamsplit.length < 2) { continue; }
-              if (streamsplit[0] in mist.data.streams) {
-                var wcstream = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[streamsplit[0]]);
-                wcstream.online = 1; //it's in active_streams, so it's active. Go figure.
-                allstreams[mist.data.active_streams[i]] = wcstream;
-              }
-            }
+            help: 'Here you can create, edit or delete new and existing streams. Go to stream preview or embed a video player on your website.'
+          },
+            $('<div>').css({
+              width: '45.25em',
+              display: 'flex',
+              'justify-content':'flex-end'
+            }).append(
+              $switchmode
+            ).append(
+              $('<button>').text('Create a new stream').click(function(){
+                UI.navto('Edit');
+              })
+            )
+          ])
+        ).append($loading);
+        if (other == '') {
+          var s = mist.stored.get();
+          if ('viewmode' in s) {
+            other = s.viewmode;
           }
-          
-          var streams = Object.keys(allstreams);
-          streams.sort();
-          for (var s in streams) {
-            var streamname = streams[s];
-            var stream;
-            if (streamname in mist.data.streams) { stream = mist.data.streams[streamname]; }
-            else { stream = allstreams[streamname]; }
-            
-            var $viewers = $('<td>').css('text-align','right').html($('<span>').addClass('description').text('Loading..'));
-            var v = 0;
-            if ((typeof mist.data.totals != 'undefined') && (typeof mist.data.totals[streamname] != 'undefined')) {
-              var data = mist.data.totals[streamname].all_protocols.clients;
-              var v = 0;
-              //get the average value
-              if (data.length) {
-                for (var i in data) {
-                  v += data[i][1];
-                }
-                v = Math.round(v / data.length);
-              }
-            }
-            $viewers.html(UI.format.number(v));
-            if ((v == 0) && (stream.online == 1)) {
-              stream.online = 2;
-            }
-            var $buttons = $('<td>').css('text-align','right').css('white-space','nowrap');
-            if ((!('ischild' in stream)) || (!stream.ischild)) {
-              $buttons.html(
-                $('<button>').text('Edit').click(function(){
-                  UI.navto('Edit Stream',$(this).closest('tr').data('index'));
-                })
-              ).append(
-                $('<button>').text('Delete').click(function(){
-                  var index = $(this).closest('tr').data('index');
-                  if (confirm('Are you sure you want to delete the stream "'+index+'"?')) {
-                    delete mist.data.streams[index];
-                    var send = {};
-                    if (mist.data.LTS) {
-                      send.deletestream = [index];
+        }
+        $switchmode.text('Switch to '+(other == 'thumbnails' ? 'list' : 'thumbnail')+' view').click(function(){
+          mist.stored.set('viewmode',(other == 'thumbnails' ? 'list' : 'thumbnails'));
+          UI.navto('Streams',(other == 'thumbnails' ? 'list' : 'thumbnails'));
+        });
+        
+        
+        function createPage(type,streams,folders) {
+          $loading.remove();
+          switch (type) {
+            case 'thumbnails':
+              
+              var $shortcuts = $('<div>').addClass('preview_icons');
+              function selectastream(select,folders) {
+                folders = folders || [];
+                var saveas = {};
+                select.sort();
+                select.unshift('');
+                $loading.remove();
+                $main.append(
+                  $('<h2>').text(tab)
+                ).append(UI.buildUI([
+                  {
+                    label: 'Filter the streams',
+                    type: 'datalist',
+                    datalist: select,
+                    pointer: {
+                      main: saveas,
+                      index: 'stream'
+                    },
+                    help: 'If you type something here, the box below will only show streams with names that contain your text.',
+                    'function': function(){
+                      var val = $(this).val();
+                      $shortcuts.children().each(function(){
+                        $(this).hide();
+                        if ($(this).attr('data-stream').indexOf(val) > -1) {
+                          $(this).show();
+                        }
+                      });
                     }
-                    else {
-                      send.streams = mist.data.streams;
-                    }
-                    mist.send(function(d){
-                      UI.navto('Streams');
-                    },send);
                   }
-                })
-              );
-            }
-            
-            var $streamnamelabel = $('<span>').text(streamname);
-            if (stream.ischild) {
-              $streamnamelabel.css('padding-left','1em');
-            }
-            var $online = UI.format.status(stream);
-            var $preview = $('<button>').text('Preview').click(function(){
-              UI.navto('Preview',$(this).closest('tr').data('index'));
-            });
-            if (stream.filesfound) {
-              $online.html('');
-              $preview = '';
-              $viewers.html('');
-            }
-            $tbody.append(
-              $('<tr>').data('index',streamname).html(
-                $('<td>').html($streamnamelabel).attr('title',streamname).addClass('overflow_ellipsis')
-              ).append(
-                $('<td>').text(stream.source).attr('title',stream.source).addClass('description').addClass('overflow_ellipsis').css('max-width','20em')
-              ).append(
-                $('<td>').data('sort-value',stream.online).html($online)
-              ).append(
-                $viewers
-              ).append(
-                $('<td>').html(
-                  $preview
+                ]));
+                select.shift();
+                
+                
+                $main.append(
+                  $('<span>').addClass('description').text('Choose a stream below.')
+                ).append($shortcuts);
+                for (var i in select) {
+                  var streamname = select[i];
+                  var source = '';
+                  var $delete = $('<button>').text('Delete').click(function(){
+                    var streamname = $(this).closest('div').attr('data-stream');
+                    if (confirm('Are you sure you want to delete the stream "'+streamname+'"?')) {
+                      delete mist.data.streams[streamname];
+                      var send = {};
+                      if (mist.data.LTS) {
+                        send.deletestream = [streamname];
+                      }
+                      else {
+                        send.streams = mist.data.streams;
+                      }
+                      mist.send(function(d){
+                        UI.navto('Streams');
+                      },send);
+                    }
+                  });
+                  var $edit = $('<button>').text('Settings').click(function(){
+                    UI.navto('Edit',$(this).closest('div').attr('data-stream'));
+                  });
+                  var $preview = $('<button>').text('Preview').click(function(){
+                    UI.navto('Preview',$(this).closest('div').attr('data-stream'));
+                  });
+                  var $embed = $('<button>').text('Embed').click(function(){
+                    UI.navto('Embed',$(this).closest('div').attr('data-stream'));
+                  });
+                  var $image = $('<span>').addClass('image');
+                  if (streamname.indexOf('+') > -1) {
+                    var streambits = streamname.split('+');
+                    source = mist.data.streams[streambits[0]].source+streambits[1];
+                    $delete = '';
+                    $edit = '';
+                    $image.addClass('wildcard');
+                  }
+                  else {
+                    source = mist.data.streams[streamname].source;
+                    if (folders.indexOf(streamname) > -1) {
+                      $preview = '';
+                      $embed = '';
+                      $image.addClass('folder');
+                    }
+                  }
+                  $shortcuts.append(
+                    $('<div>').append(
+                      $('<span>').addClass('streamname').text(streamname)
+                    ).append(
+                      $image
+                    ).append(
+                      $('<span>').addClass('description').text(source)
+                    ).append(
+                      $('<span>').addClass('button_container').append(
+                        $edit
+                      ).append(
+                        $delete
+                      ).append(
+                        $preview
+                      ).append(
+                        $embed
+                      )
+                    ).attr('title',streamname).attr('data-stream',streamname)
+                  );
+                }
+              }
+              
+              selectastream(streams,folders);
+              break;
+            case 'list':
+            default:
+              var $tbody = $('<tbody>').append($('<tr>').append('<td>').attr('colspan',6).text('Loading..'));
+              var $table = $('<table>').html(
+                $('<thead>').html(
+                  $('<tr>').html(
+                    $('<th>').text('Stream name').attr('data-sort-type','string').addClass('sorting-asc')
+                  ).append(
+                    $('<th>').text('Source').attr('data-sort-type','string')
+                  ).append(
+                    $('<th>').text('Status').attr('data-sort-type','int')
+                  ).append(
+                    $('<th>').css('text-align','right').text('Connections').attr('data-sort-type','int')
+                  ).append(
+                    $('<th>')
+                  ).append(
+                    $('<th>')
+                  )
                 )
-              ).append(
-                $buttons
-              )
-            );
-            i++;
-          }
-        }
-        
-        function updateStreams() {
-          var totals = [];
-          for (var i in mist.data.active_streams) {
-            totals.push({
-              streams: [mist.data.active_streams[i]],
-              fields: ['clients'],
-              start: -2
-            });
-          }
-          mist.send(function(){
-            $.extend(true,allstreams,mist.data.streams);
-            buildStreamTable();
-          },{
-            totals: totals,
-            active_streams: true
-          });
-        }
-        
-        var allstreams = $.extend(true,{},mist.data.streams);
-        function createWcStreamObject(streamname,parent) {
-          var wcstream = $.extend({},parent);
-          delete wcstream.meta;
-          delete wcstream.error;
-          wcstream.online = 2; //should either be available (2) or active (1)
-          wcstream.name = streamname;
-          wcstream.ischild = true;
-          return wcstream;
-        }
-        
-        if (mist.data.LTS) {
-          //insert folder streams
-          var browserequests = 0;
-          var browsecomplete = 0;
-          for (var s in mist.data.streams) {
-            var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
-            if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
-              //this is a folder stream
-              allstreams[s].source += '*';
-              mist.send(function(d,opts){
-                var s = opts.stream;
-                for (var i in d.browse.files) {
-                  for (var j in mist.data.capabilities.inputs) {
-                    if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
-                    if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
-                      var streamname = s+'+'+d.browse.files[i];
-                      allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
-                      allstreams[streamname].source = mist.data.streams[s].source+d.browse.files[i];
+              ).append($tbody);
+              $main.append($table);
+              $table.stupidtable();
+              
+              function buildStreamTable() {
+                var i = 0;
+                $tbody.html('');
+                
+                /*if (mist.data.LTS) {
+                  //insert active wildcard streams (should overwrite active folder wildcard streams)
+                  for (var i in mist.data.active_streams) {
+                    var streamsplit = mist.data.active_streams[i].split('+');
+                    if (streamsplit.length < 2) { continue; }
+                    if (streamsplit[0] in mist.data.streams) {
+                      var wcstream = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[streamsplit[0]]);
+                      wcstream.online = 1; //it's in active_streams, so it's active. Go figure.
+                      allstreams[mist.data.active_streams[i]] = wcstream;
                     }
                   }
                 }
-                if (('files' in d.browse) && (d.browse.files.length)) {
-                  allstreams[s].filesfound = true;
+                
+                var streams = Object.keys(allstreams);*/
+                streams.sort();
+                for (var s in streams) {
+                  var streamname = streams[s];
+                  var stream;
+                  if (streamname in mist.data.streams) { stream = mist.data.streams[streamname]; }
+                  else { stream = allstreams[streamname]; }
+                  
+                  var $viewers = $('<td>').css('text-align','right').html($('<span>').addClass('description').text('Loading..'));
+                  var v = 0;
+                  if ((typeof mist.data.totals != 'undefined') && (typeof mist.data.totals[streamname] != 'undefined')) {
+                    var data = mist.data.totals[streamname].all_protocols.clients;
+                    var v = 0;
+                    //get the average value
+                    if (data.length) {
+                      for (var i in data) {
+                        v += data[i][1];
+                      }
+                      v = Math.round(v / data.length);
+                    }
+                  }
+                  $viewers.html(UI.format.number(v));
+                  if ((v == 0) && (stream.online == 1)) {
+                    stream.online = 2;
+                  }
+                  var $buttons = $('<td>').css('text-align','right').css('white-space','nowrap');
+                  if ((!('ischild' in stream)) || (!stream.ischild)) {
+                    $buttons.html(
+                      $('<button>').text('Settings').click(function(){
+                        UI.navto('Edit',$(this).closest('tr').data('index'));
+                      })
+                    ).append(
+                      $('<button>').text('Delete').click(function(){
+                        var index = $(this).closest('tr').data('index');
+                        if (confirm('Are you sure you want to delete the stream "'+index+'"?')) {
+                          delete mist.data.streams[index];
+                          var send = {};
+                          if (mist.data.LTS) {
+                            send.deletestream = [index];
+                          }
+                          else {
+                            send.streams = mist.data.streams;
+                          }
+                          mist.send(function(d){
+                            UI.navto('Streams');
+                          },send);
+                        }
+                      })
+                    );
+                  }
+                  
+                  var $streamnamelabel = $('<span>').text(streamname);
+                  if (stream.ischild) {
+                    $streamnamelabel.css('padding-left','1em');
+                  }
+                  var $online = UI.format.status(stream);
+                  var $preview = $('<button>').text('Preview').click(function(){
+                    UI.navto('Preview',$(this).closest('tr').data('index'));
+                  });
+                  var $embed = $('<button>').text('Embed').click(function(){
+                    UI.navto('Embed',$(this).closest('tr').data('index'));
+                  });
+                  if ('filesfound' in allstreams[streamname]) {
+                    $online.html('');
+                    $preview = '';
+                    $viewers.html('');
+                    $embed = '';
+                  }
+                  $tbody.append(
+                    $('<tr>').data('index',streamname).html(
+                      $('<td>').html($streamnamelabel).attr('title',streamname).addClass('overflow_ellipsis')
+                    ).append(
+                      $('<td>').text(stream.source).attr('title',stream.source).addClass('description').addClass('overflow_ellipsis').css('max-width','20em')
+                    ).append(
+                      $('<td>').data('sort-value',stream.online).html($online)
+                    ).append(
+                      $viewers
+                    ).append(
+                      $('<td>').css('white-space','nowrap').html(
+                        $preview
+                      ).append(
+                        $embed
+                      )
+                    ).append(
+                      $buttons
+                    )
+                  );
+                  i++;
                 }
-                else {
-                  mist.data.streams[s].filesfound = false;
+              }
+              
+              function updateStreams() {
+                var totals = [];
+                for (var i in mist.data.active_streams) {
+                  totals.push({
+                    streams: [mist.data.active_streams[i]],
+                    fields: ['clients'],
+                    start: -2
+                  });
                 }
-                browsecomplete++;
-                if (browserequests == browsecomplete) {
+                mist.send(function(){
+                  $.extend(true,allstreams,mist.data.streams);
+                  buildStreamTable();
+                },{
+                  totals: totals,
+                  active_streams: true
+                });
+              }
+              
+              var allstreams = $.extend(true,{},mist.data.streams);
+              function createWcStreamObject(streamname,parent) {
+                var wcstream = $.extend({},parent);
+                delete wcstream.meta;
+                delete wcstream.error;
+                wcstream.online = 2; //should either be available (2) or active (1)
+                wcstream.name = streamname;
+                wcstream.ischild = true;
+                return wcstream;
+              }
+              
+              if (mist.data.LTS) {
+                //insert folder streams
+                var browserequests = 0;
+                var browsecomplete = 0;
+                for (var s in mist.data.streams) {
+                  var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
+                  if (!inputs_f) { break; }
+                  if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
+                    //this is a folder stream
+                    allstreams[s].source += '*';
+                    allstreams[s].filesfound = null;
+                    mist.send(function(d,opts){
+                      var s = opts.stream;
+                      for (var i in d.browse.files) {
+                        for (var j in mist.data.capabilities.inputs) {
+                          if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
+                          if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
+                            var streamname = s+'+'+d.browse.files[i];
+                            allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
+                            allstreams[streamname].source = mist.data.streams[s].source+d.browse.files[i];
+                          }
+                        }
+                      }
+                      if (('files' in d.browse) && (d.browse.files.length)) {
+                        allstreams[s].filesfound = true;
+                      }
+                      else {
+                        mist.data.streams[s].filesfound = false;
+                      }
+                      browsecomplete++;
+                      if (browserequests == browsecomplete) {
+                        mist.send(function(){
+                          updateStreams();
+                        },{active_streams: true});
+                        
+                        UI.interval.set(function(){
+                          updateStreams();
+                        },5e3);
+                      }
+                    },{browse:mist.data.streams[s].source},{stream: s});
+                    browserequests++;
+                  }
+                }
+                if (browserequests == 0) {
                   mist.send(function(){
                     updateStreams();
                   },{active_streams: true});
                   
                   UI.interval.set(function(){
                     updateStreams();
-                  },10e3);
+                  },5e3);
+                }
+              }
+              else {
+                mist.send(function(){
+                  updateStreams();
+                },{active_streams: true});
+                
+                UI.interval.set(function(){
+                  updateStreams();
+                },5e3);
+              }
+              break;
+          }
+        }
+        if (mist.data.LTS) {
+          //browse into folder streams
+          var browserequests = 0;
+          var browsecomplete = 0;
+          var select = {};
+          var folders = [];
+          for (var s in mist.data.streams) {
+            var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
+            if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
+              //this is a folder stream
+              folders.push(s);
+              mist.send(function(d,opts){
+                var s = opts.stream;
+                for (var i in d.browse.files) {
+                  for (var j in mist.data.capabilities.inputs) {
+                    if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
+                    if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
+                      select[s+'+'+d.browse.files[i]] = true;
+                    }
+                  }
+                }
+                browsecomplete++;
+                if (browserequests == browsecomplete) {
+                  mist.send(function(){
+                    for (var i in mist.data.active_streams) {
+                      var split = mist.data.active_streams[i].split('+');
+                      if ((split.length > 1) && (split[0] in mist.data.streams)) {
+                        select[mist.data.active_streams[i]] = true;
+                      }
+                    }
+                    select = Object.keys(select);
+                    select = select.concat(Object.keys(mist.data.streams));
+                    createPage(other,select,folders);
+                  },{active_streams: true});
                 }
               },{browse:mist.data.streams[s].source},{stream: s});
               browserequests++;
@@ -2474,26 +2786,24 @@ var UI = {
           }
           if (browserequests == 0) {
             mist.send(function(){
-              updateStreams();
+              var select = [];
+              for (var i in mist.data.active_streams) {
+                var split = mist.data.active_streams[i].split('+');
+                if ((split.length > 1) && (split[0] in mist.data.streams)) {
+                  select[mist.data.active_streams[i]] = true;
+                }
+              }
+              if (mist.data.streams) { select = select.concat(Object.keys(mist.data.streams)); }
+              select.sort();
+              createPage(other,select);
             },{active_streams: true});
-            
-            UI.interval.set(function(){
-              updateStreams();
-            },30e3);
           }
         }
         else {
-          mist.send(function(){
-            updateStreams();
-          },{active_streams: true});
-          
-          UI.interval.set(function(){
-            updateStreams();
-          },10e3);
+          createPage(other,Object.keys(mist.data.streams));
         }
-        
         break;
-      case 'Edit Stream':
+      case 'Edit':
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
             UI.navto(tab,other);
@@ -2501,6 +2811,7 @@ var UI = {
           $main.append('Loading..');
           return;
         }
+        
         
         var editing = false;
         if (other != '') { editing = true; }
@@ -2525,6 +2836,44 @@ var UI = {
         }
         var $inputoptions = $('<div>');
         
+        function save(tab) {
+          
+          if (!mist.data.streams) {
+            mist.data.streams = {};
+          }
+          
+          mist.data.streams[saveas.name] = saveas;
+          if (other != saveas.name) {
+            delete mist.data.streams[other];
+          }
+          
+          var send = {};
+          if (mist.data.LTS) {
+            send.addstream = {};
+            send.addstream[saveas.name] = saveas;
+            if (other != saveas.name) {
+              send.deletestream = [other];
+            }
+          }
+          else {
+            send.streams = mist.data.streams;
+          }
+          if ((saveas.stop_sessions) && (other != '')) {
+            send.stop_sessions = other;
+            delete saveas.stop_sessions;
+          }
+          mist.send(function(){
+            delete mist.data.streams[saveas.name].online;
+            delete mist.data.streams[saveas.name].error;
+            UI.navto(tab,(tab == 'Preview' ? saveas.name : ''));
+          },send);
+          
+          
+        }
+        
+        var $style = $('<style>').text('button.saveandpreview { display: none; }');
+        
+        
         $main.append(UI.buildUI([
           {
             label: 'Stream name',
@@ -2538,15 +2887,15 @@ var UI = {
           },{
             label: 'Source',
             type: 'browse',
-            validate: ['required'],
             filetypes: filetypes,
             pointer: {
               main: saveas,
               index: 'source'
             },
-            help: 'Set the stream source.<table><tr><td>VoD:</td><td>You can browse to the file or folder as a source or simply enter the path to the file.</td></tr><tr><td>Live:</td><td>You\'ll need to enter "push://IP" with the IP of the machine pushing towards MistServer.<br>You can use "push://" to accept any source.</td></tr><tr><td>(Pro only)</td><td>Use "push://(IP)@password" to set a password protection for pushes.</td></tr></table>If you\'re unsure how to set the source properly, please view our Live pushing guide at the tools section.',
+            help: '<p>Below is the explanation of the input methods for MistServer. Anything between brackets () will go to default settings if not specified.</p><table><tr><td>Input</td><td>Syntax</td><td>Explanation</td></tr> <tr><th>File</th><td>Linux/MacOS:&nbsp;/PATH/FILE<br>Windows:&nbsp;/cygdrive/DRIVE/PATH/FILE</td><td>For file input please specify the proper path and file.<br>Supported inputs are: DTSC, FLV, MP3. MistServer Pro has TS, MP4, ISMV added as input.</td></tr><th>Folder<br>(Pro&nbsp;only)</th><td>Linux/MacOS:&nbsp;/PATH/<br>Windows:&nbsp;/cygdrive/DRIVE/PATH/</td><td>A folder stream makes all the recognised files in the selected folder available as a stream.</td></tr><tr><th>RTMP</th><td>push://(IP)(@PASSWORD)</td><td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>Password is the application under which to push to MistServer, if it doesn\'t match the stream will be rejected. Password is MistServer Pro only. <tr><th>RTSP<br>(Pro&nbsp;only)</th><td>push://(IP)(@PASSWORD)</td><td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td></tr> <tr><th>TS<br>(Pro&nbsp;only)</th><td>tsudp://(IP):PORT(/INTERFACE)</td><td>IP is the IP address used for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all IPs of the machine will be used.<br>PORT is the port you reserve for this stream on the chosen IP.<br>INTERFACE is the interface used, if left all interfaces will be used.</td></tr></table>',
             'function': function(){
               var source = $(this).val();
+              $style.remove();
               if (source == '') { return; }
               var type = null;
               for (var i in mist.data.capabilities.inputs) {
@@ -2581,11 +2930,15 @@ var UI = {
                 });
               }
               $inputoptions.append(UI.buildUI(build));
+              if (input.name == 'Folder') {
+                $main.append($style);
+              }
             }
           },{
             label: 'Stop sessions',
             type: 'checkbox',
             help: 'When saving these stream settings, kill this stream\'s current connections.',
+            LTSonly: true,
             pointer: {
               main: saveas,
               index: 'stop_sessions'
@@ -2634,48 +2987,25 @@ var UI = {
           },{
             type: 'buttons',
             buttons: [
-            {
-              type: 'cancel',
-              label: 'Cancel',
-              'function': function(){
-                UI.navto('Streams');
-              }
-            },{
+              {
+                type: 'cancel',
+                label: 'Cancel',
+                'function': function(){
+                  UI.navto('Streams');
+                }
+              },{
                 type: 'save',
                 label: 'Save',
                 'function': function(){
-                  if (!mist.data.streams) {
-                    mist.data.streams = {};
-                  }
-                  
-                  mist.data.streams[saveas.name] = saveas;
-                  if (other != saveas.name) {
-                    delete mist.data.streams[other];
-                  }
-                  
-                  var send = {};
-                  if (mist.data.LTS) {
-                    send.addstream = {};
-                    send.addstream[saveas.name] = saveas;
-                    if (other != saveas.name) {
-                      send.deletestream = [other];
-                    }
-                  }
-                  else {
-                    send.streams = mist.data.streams;
-                  }
-                  if ((saveas.stop_sessions) && (other != '')) {
-                    send.stop_sessions = other;
-                    delete saveas.stop_sessions;
-                  }
-                  
-                  mist.send(function(){
-                    delete mist.data.streams[saveas.name].online;
-                    delete mist.data.streams[saveas.name].error;
-                    UI.navto('Streams');
-                  },send);
-                  
+                  save('Streams');
                 }
+              },{
+                type: 'save',
+                label: 'Save and Preview',
+                'function': function(){
+                  save('Preview');
+                },
+                classes: ['saveandpreview']
               }
             ]
           }
@@ -2683,142 +3013,8 @@ var UI = {
         
         break;
       case 'Preview':
-        if (other == '') {
-          $main.append('Loading..');
-          function selectastream(select) {
-            var saveas = {};
-            select.sort();
-            $main.html(
-              $('<h2>').text(tab)
-            ).append(UI.buildUI([
-              {
-                label: 'Select a stream',
-                type: 'select',
-                select: select,
-                pointer: {
-                  main: saveas,
-                  index: 'stream'
-                }
-              },{
-                type: 'buttons',
-                buttons: [{
-                  type: 'save',
-                  label: 'Go',
-                  'function': function(){
-                    UI.navto(tab,saveas.stream);
-                  }
-                }]
-              }
-            ]));
-            
-            UI.elements.secondary_menu.html('').append(
-              $('<a>').addClass('button').addClass('active').text('Choose stream').click(function(){
-                UI.navto('Preview');
-              })
-            );
-            
-            var $shortcuts = $('<div>').addClass('preview_icons');
-            $main.append(
-              $('<span>').addClass('description').text('Or, click a stream from the list below.')
-            ).append($shortcuts);
-            for (var i in select) {
-              var streamname = select[i];
-              var source = '';
-              if (streamname.indexOf('+') > -1) {
-                var streambits = streamname.split('+');
-                source = mist.data.streams[streambits[0]].source+streambits[1];
-              }
-              else {
-                source = mist.data.streams[streamname].source;
-              }
-              $shortcuts.append(
-                $('<button>').append(
-                  $('<span>').text(streamname)
-                ).append(
-                  $('<span>').addClass('description').text(source)
-                ).attr('title',streamname).attr('data-stream',streamname).click(function(){
-                  UI.navto('Preview',$(this).attr('data-stream'));
-                })
-              );
-            }
-          }
-          
-          if (mist.data.LTS) {
-            if (typeof mist.data.capabilities == 'undefined') {
-              mist.send(function(d){
-                UI.navto(tab,other);
-              },{capabilities: true});
-              $main.append('Loading..');
-              return;
-            }
-            
-            //insert folder streams
-            var browserequests = 0;
-            var browsecomplete = 0;
-            var select = {};
-            for (var s in mist.data.streams) {
-              var inputs_f = mist.data.capabilities.inputs.Folder || mist.data.capabilities.inputs['Folder.exe'];
-              if (mist.inputMatch(inputs_f.source_match,mist.data.streams[s].source)) {
-                //this is a folder stream
-                mist.send(function(d,opts){
-                  var s = opts.stream;
-                  for (var i in d.browse.files) {
-                    for (var j in mist.data.capabilities.inputs) {
-                      if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
-                      if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
-                        select[s+'+'+d.browse.files[i]] = true;
-                      }
-                    }
-                  }
-                  browsecomplete++;
-                  if (browserequests == browsecomplete) {
-                    mist.send(function(){
-                      for (var i in mist.data.active_streams) {
-                        var split = mist.data.active_streams[i].split('+');
-                        if ((split.length > 1) && (split[0] in mist.data.streams)) {
-                          select[mist.data.active_streams[i]] = true;
-                        }
-                      }
-                      select = Object.keys(select);
-                      select = select.concat(Object.keys(mist.data.streams));
-                      select.sort();
-                      selectastream(select);
-                    },{active_streams: true});
-                  }
-                },{browse:mist.data.streams[s].source},{stream: s});
-                browserequests++;
-              }
-            }
-            if (browserequests == 0) {
-              mist.send(function(){
-                var select = [];
-                for (var i in mist.data.active_streams) {
-                  var split = mist.data.active_streams[i].split('+');
-                  if ((split.length > 1) && (split[0] in mist.data.streams)) {
-                    select[mist.data.active_streams[i]] = true;
-                  }
-                }
-                if (mist.data.streams) { select = select.concat(Object.keys(mist.data.streams)); }
-                if (select.length == 0) {
-                  $main.html(
-                    $('<h2>').text(tab)
-                  ).append(
-                    'Please set up a stream first.'
-                  );
-                  return;
-                }
-                select.sort();
-                selectastream(select);
-              },{active_streams: true});
-            }
-          }
-          else {
-            selectastream(Object.keys(mist.data.streams));
-          }
-          return;
-        }
         
-        $main.find('h2').append(' of "'+other+'"');
+        if (other == '') { UI.navto('Streams'); }
         
         var http_port = ':8080';
         for (var i in mist.data.config.protocols) {
@@ -2827,121 +3023,146 @@ var UI = {
             http_port = (protocol.port ? ':'+protocol.port : ':8080');
           }
         }
-        
-        //actual page
-        var tabs = {};
-        
-        var $embedlinks = $('<span>').hide();
-        tabs['Embed urls'] = $embedlinks;
-        $main.append($embedlinks);
-        function parseURL(url) {
-          var a = document.createElement('a');
-          a.href = url;
-          return {
-            protocol: a.protocol+'//',
-            host: a.hostname,
-            port: (a.port ? ':'+a.port : '')
-          };
-        }
         var parsed = parseURL(mist.user.host);
         var embedbase = parsed.protocol+parsed.host+http_port+'/';
-        var embedoptions = {autoplay: true};
-        function embedhtml(opts) {
-          var open = ['div'];
-          var inner = "\n"+'   <script src="'+embedbase+'embed_'+encodeURIComponent(other)+'.js"><'+'/script>'+"\n"; //don't leave the closing script tag complete
-          if (!opts.autoplay) {
-            open.push('data-noautoplay');
-          }
-          if ((opts.forceprotocol) && (opts.forceprotocol != '')) {
-            open.push('data-forcetype="'+opts.forceprotocol+'"');
-          }
-          if ((opts.urlappend) && (opts.urlappend != '')) {
-            open.push('data-urlappend="'+opts.urlappend.replace(/\"/g,'\\"')+'"');
-          }
-          return '<'+open.join(' ')+'>'+inner+'</div>';
+        
+        var $cont = $('<div>').css({'display':'flex','flex-flow':'row wrap'});
+        var $edit = '';
+        if (other.indexOf('+') == -1) {
+          $edit = $('<button>').text('Settings').addClass('settings').click(function(){
+            UI.navto('Edit',other);
+          });
         }
-        
-        var $protocolurls = $('<span>');
-        $embedlinks.append(
-          $('<h3>').text('Embed urls')
-        ).append(UI.buildUI([
-          {
-            label: 'Embedable script',
-            type: 'str',
-            value: embedbase+'embed_'+encodeURIComponent(other)+'.js',
-            readonly: true
-          },{
-            label: 'Stream info script',
-            type: 'str',
-            value: embedbase+'info_'+encodeURIComponent(other)+'.js',
-            readonly: true
-          },{
-            label: 'Autodetect player',
-            type: 'str',
-            value: embedbase+encodeURIComponent(other)+'.html',
-            readonly: true,
-            qrcode: true
-          },$('<h3>').text('Embed code'),{
-            label: 'Embed code',
-            type: 'textarea',
-            value: embedhtml(embedoptions),
-            rows: 4,
-            readonly: true,
-            classes: ['embed_code']
-          },$('<h4>').text('Embed code options').css('margin-top',0),{
-            label: 'Autoplay',
-            type: 'checkbox',
-            value: true,
-            pointer: {
-              main: embedoptions,
-              index: 'autoplay'
-            },
-            'function': function(){
-              embedoptions.autoplay = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            }
-          },{
-            label: 'Force protocol',
-            type: 'select',
-            select: [['','Automatic']],
-            pointer: {
-              main: embedoptions,
-              index: 'protocol'
-            },
-            classes: ['embed_code_forceprotocol'],
-            'function': function(){
-              embedoptions.forceprotocol = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            }
-          },{
-            label: 'Video URL addition',
-            type: 'str',
-            pointer: {
-              main: embedoptions,
-              index: 'urlappend'
-            },
-            help: 'The embed script will append this string to the video url, useful for sending through params.',
-            classes: ['embed_code_forceprotocol'],
-            'function': function(){
-              embedoptions.urlappend = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            }
-          },$('<h3>').text('Protocol stream urls'),$protocolurls
-        ]));
-        
-        
-        var $trackinfo = $('<span>').append(
-          $('<h3>').text('Meta information')
-        ).hide();
-        tabs['Meta information'] = $trackinfo;
-        var $tracktable = $('<span>');
-        $trackinfo.append($tracktable);
-        $main.append($trackinfo);
-        function buildTrackinfo() {
-          var meta;
-          if (other in mistvideo) {
-            meta = mistvideo[other].meta;
+        $main.html(
+          $('<div>').addClass('bigbuttons').append($edit).append(
+            $('<button>').text('Embed').addClass('embed').click(function(){
+              UI.navto('Embed',other);
+            })
+          ).append(
+            $('<button>').addClass('cancel').addClass('return').text('Return').click(function(){
+              UI.navto('Streams');
+            })
+          )
+        ).append(
+          $('<h2>').text('Preview of "'+other+'"')
+        ).append($cont);
+        var escapedstream = encodeURIComponent(other);
+        var $preview_cont = $('<div>');
+        $cont.append($preview_cont);
+        var $title = $('<div>');
+        var $s_players = $('<select>').append(
+          $('<option>').text('Automatic').val('')
+        ).change(function(){initPlayer();});
+        var $s_mimes = $('<select>').append(
+          $('<option>').text('Automatic').val('')
+        ).change(function(){initPlayer();});
+        var $switches = UI.buildUI([{
+          label: 'Use player',
+          type: 'DOMfield',
+          DOMfield: $s_players,
+          help: 'Choose a player to preview'
+        },{
+          label: 'Use source',
+          type: 'DOMfield',
+          DOMfield: $s_mimes,
+          help: 'Choose an output type to preview'
+        }]);
+        var $video = $('<div>').addClass('mistvideo').text('Loading player..');
+        $preview_cont.append($video).append($title).append($switches);
+        function initPlayer() {
+          $video.html('');
+          $log.html('');
+          var options = {
+            target: $video[0],
+            maxheight: window.innerHeight - $('header').height(),
+            maxwidth: window.innerWidth - UI.elements.menu.width() - 100,
+            loop: true
+          };
+          if ($s_players.val() != '') {
+            options.forcePlayer = $s_players.val()
           }
+          if ($s_mimes.val() != '') {
+            options.forceType = $s_mimes.val()
+          }
+          mistPlay(other,options);
+        }
+        var $log = $('<div>').addClass('player_log');
+        $preview_cont.append(
+          $('<div>').append(
+            $('<h3>').text('Player log:')
+          ).append($log)
+        );
+        $video.on('log error',function(e){
+          var scroll = false;
+          if ($log.height() + $log.scrollTop() == $log[0].scrollHeight) { scroll = true; }
+          
+          $log.append(
+            $('<div>').append(
+              $('<span>').text('['+UI.format.time((new Date()).getTime() / 1e3)+']').css('margin-right','0.5em')
+            ).append(
+              $('<span>').text(e.originalEvent.message)
+            ).addClass((e.type == 'error' ? 'red' : ''))
+          );
+          
+          if (scroll) {
+            $log.scrollTop($log[0].scrollHeight);
+          }
+        });
+        
+        //load the player js
+        function loadplayer() {
+          $title.text('');
+          var script = document.createElement('script');
+          $main.append(script);
+          script.src = embedbase+'player.js';
+          script.onerror = function(){
+            $video.html('Failed to load player.js').append(
+              $('<button>').text('Reload').css('display','block').click(function(){
+                loadplayer();
+              })
+            );
+          };
+          script.onload = function(){
+            
+            for (var i in mistplayers) {
+              $s_players.append(
+                $('<option>').text(mistplayers[i].name).val(i)
+              );
+            }
+            
+            initPlayer();
+            
+            $video.on('initialized',function(){
+              if ($s_mimes.children().length <= 1) {
+                for (var i in mistvideo[other].source) {
+                  var human = UI.humanMime(mistvideo[other].source[i].type);
+                  $s_mimes.append(
+                    $('<option>').val(mistvideo[other].source[i].type).text(
+                      (human ? human+' ('+mistvideo[other].source[i].type+')' : UI.format.capital(mistvideo[other].source[i].type))
+                    )
+                  );
+                }
+              }
+              
+              var playerdata = mistvideo[other].embedded[mistvideo[other].embedded.length-1];
+              var human = UI.humanMime(playerdata.player.options.source.type);
+              $title.html('You\'re watching '+(human ? human+' <span class=description>('+playerdata.player.options.source.type+')</span>' : UI.format.capital(playerdata.player.options.source.type))+' through '+mistplayers[playerdata.selectedPlayer].name+'.');
+            });
+            
+            $main[0].removeChild(script);
+          };
+        }
+        loadplayer();
+        
+        //load the meta information
+        var $trackinfo = $('<div>').append(
+          $('<h3>').text('Meta information')
+        );
+        var $tracktable = $('<span>').text('Loading..');
+        $trackinfo.append($tracktable);
+        $cont.append($trackinfo);
+        function buildTrackinfo(info) {
+          var meta = info.meta;
           if (!meta) { 
             $tracktable.html('No meta information available.');
             return;
@@ -2967,16 +3188,23 @@ var UI = {
               value: UI.format.addUnit(meta.buffer_window,'ms')
             });
           }
-          var audio = {
-            vheader: 'Audio',
-            labels: ['Codec','Duration','Peak bitrate','Channels','Samplerate'],
-            content: []
-          };
-          var video = {
-            vheader: 'Video',
-            labels: ['Codec','Duration','Peak bitrate','Size','Framerate'],
-            content: []
-          };
+          var tables = {
+            audio: {
+              vheader: 'Audio',
+              labels: ['Codec','Duration','Peak bitrate','Channels','Samplerate','Language'],
+              content: []
+            },
+            video: {
+              vheader: 'Video',
+              labels: ['Codec','Duration','Peak bitrate','Size','Framerate','Language'],
+              content: []
+            },
+            subtitle: {
+              vheader: 'Subtitles',
+              labels: ['Codec','Duration','Peak bitrate','Language'],
+              content: []
+            }
+          }
           var keys = Object.keys(meta.tracks);
           keys.sort(function(a,b){
             a = a.split('_').pop();
@@ -2988,253 +3216,537 @@ var UI = {
             var track = meta.tracks[i];
             switch (track.type) {
               case 'audio':
-                audio.content.push({
+                tables.audio.content.push({
                   header: 'Track '+i.split('_').pop(),
                   body: [
                     track.codec,
                     UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
                     UI.format.bytes(track.bps,1),
                     track.channels,
-                    UI.format.addUnit(UI.format.number(track.rate),'Hz')
+                    UI.format.addUnit(UI.format.number(track.rate),'Hz'),
+                    ('lang' in track ? track.lang : 'unknown')
                   ]
                 });
                 break;
               case 'video':
-                video.content.push({
+                tables.video.content.push({
                   header: 'Track '+i.split('_').pop(),
                   body: [
                     track.codec,
                     UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
                     UI.format.bytes(track.bps,1),
                     UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
-                    UI.format.addUnit(UI.format.number(track.fpks/1000),'fps')
+                    UI.format.addUnit(UI.format.number(track.fpks/1000),'fps'),
+                    ('lang' in track ? track.lang : 'unknown')
+                  ]
+                });
+                break;
+              case 'subtitle':
+                tables.subtitle.content.push({
+                  header: 'Track '+i.split('_').pop(),
+                  body: [
+                    track.codec,
+                    UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
+                    UI.format.bytes(track.bps,1),
+                    ('lang' in track ? track.lang : 'unknown')
                   ]
                 });
                 break;
             }
           }
-          var $audio = UI.buildVheaderTable(audio).css('width','auto');
-          var $video = UI.buildVheaderTable(video).css('width','auto');
+          var tracktypes = ['audio','video','subtitle'];
+          var $c = $('<div>').css({
+            'display': 'flex',
+            'flex-flow': 'row wrap',
+            /*'justify-content': 'center',*/
+            'font-size': '0.9em'
+            /*'min-width': 'max-content'*/
+          });
+          for (var i in tracktypes) {
+            if (tables[tracktypes[i]].content.length) {
+              $c.append(UI.buildVheaderTable(tables[tracktypes[i]]).css('width','auto'));
+            }
+          }
           build.push($('<span>').text('Tracks:'))
-          build.push(
-            $('<div>').css({
-              'display': 'flex',
-              'flex-flow': 'row wrap',
-              'justify-content': 'center',
-              'font-size': '0.9em'
-            }).append($audio).append($video)
-          );
+          build.push($c);
           $tracktable.html(UI.buildUI(build));
         }
         
-        //embedded video
-        var $preview = $('<span>').hide();
-        tabs['Preview'] = $preview;
-        $main.append($preview);
-        var $video = $('<div>').css({
-          'float': 'left',
-          'margin-right': '1em',
-          'width': '100%'
+        
+        $.ajax({
+          type: 'GET',
+          url: embedbase+'json_'+escapedstream+'.js',
+          success: function(d) {
+            buildTrackinfo(d);
+          },
+          error: function(){
+            $tracktable.html('Error while retrieving stream info.');
+          }
         });
-        var $c = $('<div>').addClass('video_container').attr('data-forcesupportcheck','');
-        $video.html($c);
-        var $protocols = $('<div>').css('float','left');
-        $preview.append($video).append($protocols);
         
-        if (!mist.stored.get().autoplay) {
-          $c.attr('data-noautoplay','');
-        }
+        break;
+      case 'Embed':
+        if (other == '') { UI.navTo('Streams'); }
         
-        function loadVideo() {
-          $c.text('Loading..');
-          $video.children('.input_container').remove();
-          
-          // jQuery doesn't work -> use DOM magic
-          var script = document.createElement('script');
-          script.src = embedbase+'embed_'+encodeURIComponent(other)+'.js';
-          script.onerror = function(){
-            $c.html('Error loading "'+script.src+'".<br>').append(
-              $('<button>').text('Try again').click(function(){
-                loadVideo();
-              })
-            );
-          };
-          script.onload = function(){
-            if (typeof mistvideo[other].error != 'undefined') {
-              $c.height('5em').html(mistvideo[other].error+'<br>').append(
-                $('<button>').text('Try again').click(function(){
-                  loadVideo();
-                })
-              );
-              return;
-            }
-            
-            var vid = mistvideo[other];
-            var $url = UI.buildUI([{
-              label: 'Protocol stream url',
-              type: 'str',
-              readonly: true,
-              value: (vid.embedded ? vid.embedded.url : ''),
-              qrcode: true
-            },{
-              label: 'Autoplay (from now on)',
-              type: 'checkbox',
-              value: mist.stored.get().autoplay,
-              'function': function(){
-                mist.stored.set('autoplay',($(this).getval() ? 1 : 0));
-              }
-            }]);
-            $c.height(Math.min(vid.height,$c.height())); //set height to height of video element
-            $url.find('.help_container').remove();
-            $video.append($url);
-            
-            
-            //protocol table
-            var $table = $('<table>').css('font-size','0.9em').html(
-              $('<thead>').html(
-                $('<tr>').html(
-                  $('<th>')
-                ).append(
-                  $('<th>').text('Type')
-                ).append(
-                  $('<th>').text('Priority')
-                ).append(
-                  $('<th>').text('Simul. tracks')
-                ).append(
-                  $('<th>').html('Your browser<br>support')
-                )
-              )
-            );
-            $protocols.html($table);
-            var $tbody = $('<tbody>');
-            $table.append($tbody);
-            var $protoselect = $('.embed_code_forceprotocol');
-            var buildurls = [];
-            $protoselect.find('.clear').remove();
-            for (var i in vid.source) {
-              var source = vid.source[i];
-              var type = source.type.split('/');
-              var humantype = type[0];
-              if (humantype.length < 6) {
-                humantype = humantype.toUpperCase();
-              }
-              switch (type.length) {
-                case 1:
-                  break;
-                case 2:
-                  humantype = UI.format.capital(type[0])+' v'+type[1];
-                  if (type[0] == 'flash') {
-                    switch (type[1]) {
-                      case '7':
-                        humantype = 'Progressive ('+humantype+')';
-                        break;
-                      case '10':
-                        humantype = 'RTMP ('+humantype+')';
-                        break;
-                      case '11':
-                        humantype = 'HDS ('+humantype+')';
-                        break;
-                    }
-                  }
-                  break;
-                case 3:
-                  switch (type[2]) {
-                    case 'vnd.apple.mpegurl':
-                      humantype += ' HLS';
-                      break;
-                    case 'vnd.ms-ss':
-                      humantype += ' Smooth';
-                      break;
-                    case 'mp2t':
-                      humantype += ' TS';
-                      break;
-                    default:
-                      if (type[2].length < 6) {
-                        type[2] = type[2].toUpperCase();
-                      }
-                      humantype += ' '+type[2];
-                      if (type[1] != 'video') {
-                        humantype += ' ('+type[1]+')';
-                      }
-                  }
-                  break;
-                default:
-                  humantype = source.type;
-              }
-              humantype = UI.format.capital(humantype);
-              
-              $protoselect.append(
-                $('<option>').text(humantype).val(source.type).addClass('clear')
-              );
-              buildurls.push({
-                label: humantype,
-                type: 'str',
-                value: source.url,
-                readonly: true,
-                qrcode: true
-              });
-              
-              var $tr = $('<tr>');
-              $tbody.append($tr);
-              $tr.html(
-                $('<td>').html(
-                  $('<input>').attr('type','radio').attr('name','protocolforce').change(function(){
-                    $c.attr('data-forcetype',$(this).val()).html('Loading embed..');
-                    loadVideo();
-                  }).val(source.type)
-                )
-              ).append(
-                $('<td>').text(humantype)
-              ).append(
-                $('<td>').text(source.priority)
-              ).append(
-                $('<td>').text(source.simul_tracks+'/'+source.total_matches)
-              ).append(
-                $('<td>').text((source.browser_support ? 'yes' : 'no'))
-              );
-              if ((vid.embedded) && (vid.embedded.type == source.type)) {
-                $tr.css('outline','1px solid rgba(0,0,0,0.5)');
-                $tr.find('input[type=radio]').prop('checked',true);
-              }
-            }
-            $protocolurls.html(
-              UI.buildUI(buildurls)
-            );
-            
-            //meta information
-            buildTrackinfo();
-          };
-          $c.html('')[0].appendChild(script);
-        }
-        loadVideo();
-        
-        //navbar (tabs at the top)
-        var $nav = UI.elements.secondary_menu;
-        $nav.html('').append(
-          $('<a>').addClass('button').text('Choose stream').click(function(){
-            UI.navto('Preview');
-          })
-        ).append(
-          $('<span>').addClass('separator')
-        );
-        var elements = ['Preview','Embed urls','Meta information'];
-        var current = elements[0];
-        for (var i in elements) {
-          var $button = $('<a>').addClass('button').text(elements[i]).click(function(){
-            $nav.find('.active').removeClass('active');
-            $(this).addClass('active');
-            for (i in tabs) {
-              tabs[i].hide();
-            }
-            tabs[$(this).text()].show();
+        var $edit = '';
+        if (other.indexOf('+') == -1) {
+          $edit = $('<button>').addClass('settings').text('Settings').click(function(){
+            UI.navto('Edit',other);
           });
-          $nav.append($button);
-          if (elements[i] == current) {
-            $button.addClass('active');
-            tabs[current].show();
+        }
+        $main.html(
+          $('<div>').addClass('bigbuttons').append($edit).append(
+            $('<button>').text('Preview').addClass('preview').click(function(){
+              UI.navto('Preview',other);
+            })
+          ).append(
+            $('<button>').addClass('cancel').addClass('return').text('Return').click(function(){
+              UI.navto('Streams');
+            })
+          )
+        ).append(
+          $('<h2>').text('Embed "'+other+'"')
+        );
+        
+        var $embedlinks = $('<span>');
+        $main.append($embedlinks);
+        
+        var escapedstream = encodeURIComponent(other);
+        var parsed = parseURL(mist.user.host);
+        
+        var http_port = ':8080';
+        for (var i in mist.data.config.protocols) {
+          var protocol = mist.data.config.protocols[i];
+          if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
+            http_port = (protocol.port ? ':'+protocol.port : ':8080');
           }
         }
         
+        var embedbase = parsed.protocol+parsed.host+http_port+'/';
+        var otherbase = embedbase;
+        if (otherhost) {
+          var otherparse = parseURL(otherhost);
+          otherbase = otherparse.protocol+otherparse.host+http_port+'/';
+        }
+        
+        var defaultembedoptions = {
+          forcePlayer: '',
+          forceType: '',
+          controls: true,
+          autoplay: true,
+          loop: false,
+          width: '',
+          height: '',
+          maxwidth: '',
+          maxheight: '',
+          poster: '',
+          urlappend: '',
+          setTracks: {}
+        };
+        var embedoptions = $.extend({},defaultembedoptions);
+        var stored = UI.stored.getOpts();
+        if ('embedoptions' in stored) {
+          embedoptions = $.extend(embedoptions,stored.embedoptions,true);
+          if (typeof embedoptions.setTracks != 'object') {
+            embedoptions.setTracks = {};
+          }
+        }
+        var custom = {};
+        switch (embedoptions.controls) {
+          case 'stock':
+            custom.controls = 'stock';
+            break;
+          case true:
+            custom.controls = 1;
+            break;
+          case false:
+            custom.controls = 0;
+            break;
+        }
+        
+        
+        function embedhtml() {
+          function randomstring(length){
+            var s = '';
+            function randomchar() {
+              var n= Math.floor(Math.random()*62);
+              if (n < 10) { return n; } //1-10
+              if (n < 36) { return String.fromCharCode(n+55); } //A-Z
+              return String.fromCharCode(n+61); //a-z
+            }
+            while (length--) { s += randomchar(); }
+            return s;
+          }
+          function maybequotes(val) {
+            switch (typeof val) {
+              case 'string':
+                if ($.isNumeric(val)) {
+                  return val;
+                }
+                return '"'+val+'"';
+              case 'object':
+                return JSON.stringify(val);
+              default:
+                return val;
+            }
+            if (typeof val == 'string') {
+              return 
+            }
+          }
+          UI.stored.saveOpt('embedoptions',embedoptions);
+          
+          var target = other+'_'+randomstring(12);
+          
+          var options = ['target: document.getElementById("'+target+'")'];
+          for (var i in embedoptions) {
+            if ((embedoptions[i] != defaultembedoptions[i]) && ((typeof embedoptions[i] != 'object') || (JSON.stringify(embedoptions[i]) != JSON.stringify(defaultembedoptions[i])))) {
+              options.push(i+': '+maybequotes(embedoptions[i]));
+            }
+          }
+          
+          var output = [];
+          output.push('<div class="mistvideo" id="'+target+'">');
+          output.push('  <noscript>');
+          output.push('    <a href="'+otherbase+escapedstream+'.html'+'" target="_blank">');
+          output.push('      Click here to play this video');
+          output.push('    </a>');
+          output.push('  </noscript>');
+          output.push('  <script>');
+          output.push('    var a = function(){');
+          output.push('      mistPlay("'+other+'",{');
+          output.push('        '+options.join(",\n        "));
+          output.push('      });');
+          output.push('    };');
+          output.push('    if (!window.mistplayers) {');
+          output.push('      var p = document.createElement("script");');
+          output.push('      p.src = "'+otherbase+'player.js"');
+          output.push('      document.head.appendChild(p);');
+          output.push('      p.onload = a;');
+          output.push('    }');
+          output.push('    else { a(); }');
+          output.push('  </script>');
+          output.push('</div>');
+          
+          return output.join("\n");
+        }
+        
+        var $protocolurls = $('<span>').text('Loading..');
+        var emhtml = embedhtml(embedoptions);
+        var $setTracks = $('<div>').text('Loading..').css('display','flex');
+        $embedlinks.append(
+          $('<span>').addClass('input_container').append(
+            $('<label>').addClass('UIelement').append(
+              $('<span>').addClass('label').text('Use a different host:')
+            ).append(
+              $('<span>').addClass('field_container').append(
+                $('<input>').attr('type','text').addClass('field').val((otherhost ? otherhost : parsed.protocol+parsed.host))
+              ).append(
+                $('<span>').addClass('unit').append(
+                  $('<button>').text('Apply').click(function(){
+                    otherhost = $(this).closest('label').find('input').val();
+                    UI.navto('Embed',other);
+                  })
+                )
+              )
+            )
+          )
+        ).append(UI.buildUI([
+          $('<h3>').text('Urls'),
+          {
+            label: 'Stream info json',
+            type: 'str',
+            value: otherbase+'json_'+escapedstream+'.js',
+            readonly: true,
+            clipboard: true,
+            help: 'Information about this stream as a json page.'
+          },{
+            label: 'Stream info script',
+            type: 'str',
+            value: otherbase+'info_'+escapedstream+'.js',
+            readonly: true,
+            clipboard: true,
+            help: 'This script loads information about this stream into a mistvideo javascript object.'
+          },{
+            label: 'HTML page',
+            type: 'str',
+            value: otherbase+escapedstream+'.html',
+            readonly: true,
+            qrcode: true,
+            clipboard: true,
+            help: 'A basic html containing the embedded stream.'
+          },$('<h3>').text('Embed code'),{
+            label: 'Embed code',
+            type: 'textarea',
+            value: emhtml,
+            rows: emhtml.split("\n").length+3,
+            readonly: true,
+            classes: ['embed_code'],
+            clipboard: true,
+            help: 'Include this code on your webpage to embed the stream. The options below can be used to configure how your content is displayed.'
+          },$('<h4>').text('Embed code options (optional)').css('margin-top',0),{
+            type: 'help',
+            help: 'Use these controls to customise what this embedded video will look like.<br>Not all players have all of these options.'
+          },{
+            label: 'Force player',
+            type: 'select',
+            select: [['','Automatic']],
+            pointer: {
+              main: embedoptions,
+              index: 'forcePlayer'
+            },
+            classes: ['forcePlayer'],
+            'function': function(){
+              embedoptions.forcePlayer = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Only use this particular player.'
+          },{
+            label: 'Force source',
+            type: 'select',
+            select: [['','Automatic']],
+            pointer: {
+              main: embedoptions,
+              index: 'forceType'
+            },
+            classes: ['forceType'],
+            'function': function(){
+              embedoptions.forceType = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Only use this particular source.'
+          },{
+            label: 'Controls',
+            type: 'select',
+            select: [['1','MistServer Controls'],['stock','Player controls'],['0','None']],
+            pointer: {
+              main: custom,
+              index: 'controls'
+            },
+            'function': function(){
+              embedoptions.controls = ($(this).getval() == 1 );
+              switch ($(this).getval()) {
+                case 0:
+                  embedoptions.controls = false;
+                  break;
+                case 1:
+                  embedoptions.controls = true;
+                  break;
+                case 'stock':
+                  embedoptions.controls = 'stock';
+                  break;
+              }
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'The type of controls that should be shown.'
+          },{
+            label: 'Autoplay',
+            type: 'checkbox',
+            pointer: {
+              main: embedoptions,
+              index: 'autoplay'
+            },
+            'function': function(){
+              embedoptions.autoplay = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Whether or not the video should play as the page is loaded.'
+          },{
+            label: 'Loop',
+            type: 'checkbox',
+            pointer: {
+              main: embedoptions,
+              index: 'loop'
+            },
+            'function': function(){
+              embedoptions.loop = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'If the video should restart when the end is reached.'
+          },{
+            label: 'Force width',
+            type: 'int',
+            min: 0,
+            unit: 'px',
+            pointer: {
+              main: embedoptions,
+              index: 'width'
+            },
+            'function': function(){
+              embedoptions.width = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Enforce a fixed width.'
+          },{
+            label: 'Force height',
+            type: 'int',
+            min: 0,
+            unit: 'px',
+            pointer: {
+              main: embedoptions,
+              index: 'height'
+            },
+            'function': function(){
+              embedoptions.height = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Enforce a fixed height.'
+          },{
+            label: 'Maximum width',
+            type: 'int',
+            min: 0,
+            unit: 'px',
+            pointer: {
+              main: embedoptions,
+              index: 'maxwidth'
+            },
+            'function': function(){
+              embedoptions.maxwidth = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'The maximum width this video can use.'
+          },{
+            label: 'Maximum height',
+            type: 'int',
+            min: 0,
+            unit: 'px',
+            pointer: {
+              main: embedoptions,
+              index: 'maxheight'
+            },
+            'function': function(){
+              embedoptions.maxheight = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'The maximum height this video can use.'
+          },{
+            label: 'Poster',
+            type: 'str',
+            pointer: {
+              main: embedoptions,
+              index: 'poster'
+            },
+            'function': function(){
+              embedoptions.poster = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'URL to an image that is displayed when the video is not playing.'
+          },{
+            label: 'Video URL addition',
+            type: 'str',
+            pointer: {
+              main: embedoptions,
+              index: 'urlappend'
+            },
+            help: 'The embed script will append this string to the video url, useful for sending through params.',
+            classes: ['embed_code_forceprotocol'],
+            'function': function(){
+              embedoptions.urlappend = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            }
+          },{
+            label: 'Preselect tracks',
+            type: 'DOMfield',
+            DOMfield: $setTracks,
+            help: 'Pre-select these tracks.'
+          },$('<h3>').text('Protocol stream urls'),$protocolurls
+        ]));
+        
+        $.ajax({
+          type: 'GET',
+          url: otherbase+'json_'+escapedstream+'.js',
+          success: function(d) {
+            
+            var build = [];
+            var $s_forceType = $embedlinks.find('.forceType');
+            for (var i in d.source) {
+              var source = d.source[i];
+              var human = UI.humanMime(source.type);
+              
+              build.push({
+                label: (human ? human+' <span class=description>('+source.type+')</span>' : UI.format.capital(source.type)),
+                type: 'str',
+                value: source.url,
+                readonly: true,
+                qrcode: true,
+                clipboard: true
+              });
+              var human = UI.humanMime(source.type);
+              $s_forceType.append(
+                $('<option>').text((human ? human+' ('+source.type+')' : UI.format.capital(source.type))).val(source.type)
+              );
+            }
+            var derp = 1;
+            $protocolurls.html(UI.buildUI(build));
+            
+            $setTracks.html('');
+            var tracks = {};
+            for (var i in d.meta.tracks) {
+              var t = d.meta.tracks[i];
+              if ((t.type != 'audio') && (t.type != 'video')) { continue; }
+              
+              if (!(t.type in tracks)) {
+                tracks[t.type] = [['',UI.format.capital(t.type)+' track 1']];
+              }
+              else {
+                tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+1)]);
+              }
+            }
+            if (Object.keys(tracks).length) {
+              $setTracks.closest('label').show();
+              for (var i in tracks) {
+                var $select = $('<select>').attr('data-type',i).css('flex-grow','1').change(function(){
+                  if ($(this).val() == '') {
+                    delete embedoptions.setTracks[$(this).attr('data-type')];
+                  }
+                  else {
+                    embedoptions.setTracks[$(this).attr('data-type')] = $(this).val();
+                  }
+                  $('.embed_code').setval(embedhtml(embedoptions));
+                });
+                $setTracks.append($select);
+                tracks[i].push([-1,'No '+i]);
+                for (var j in tracks[i]) {
+                  $select.append(
+                    $('<option>').val(tracks[i][j][0]).text(tracks[i][j][1])
+                  );
+                }
+                if (i in embedoptions.setTracks) {
+                  $select.val(embedoptions.setTracks[i]);
+                  if ($select.val() == null) {
+                    $select.val('');
+                    delete embedoptions.setTracks[i];
+                    $('.embed_code').setval(embedhtml(embedoptions));
+                  }
+                }
+              }
+            }
+            else {
+              $setTracks.closest('label').hide();
+            }
+          },
+          error: function(){
+            $protocolurls.html('Error while retrieving stream info.');
+            $setTracks.closest('label').hide();
+            embedoptions.setTracks = {};
+          }
+        });
+        
+        var script = document.createElement('script');
+        script.src = embedbase+'player.js';
+        document.head.appendChild(script);
+        script.onload = function(){
+          var $s_forcePlayer = $embedlinks.find('.forcePlayer');
+          for (var i in mistplayers) {
+            $s_forcePlayer.append(
+              $('<option>').text(mistplayers[i].name).val(i)
+            );
+          }
+          
+          document.head.removeChild(this);
+        };
+        script.onerror = function(){
+          document.head.removeChild(this);
+        };
         break;
       case 'Push':
         var $c = $('<div>').text('Loading..'); //will contain everything
@@ -4438,6 +4950,7 @@ var UI = {
         mist.user.password = '';
         delete mist.user.authstring;
         delete mist.user.loggedin;
+        sessionStorage.removeItem('mistLogin');
         
         UI.navto('Login');
         break;
@@ -4468,7 +4981,7 @@ var mist = {
     },opts);
     var data = {
       authorize: {
-        password: (mist.user.authstring ? MD5(MD5(mist.user.password)+mist.user.authstring) : ''),
+        password: (mist.user.authstring ? MD5(mist.user.password+mist.user.authstring) : ''),
         username: mist.user.name
       }
     };
@@ -4686,6 +5199,14 @@ var mist = {
               //log in with new authstring
               mist.user.authstring = d.authorize.challenge;
               mist.send(callback,sendData,opts);
+              
+              //save the current settings to this session (note: session is renewed when a new tab or window is opened, but not through refreshes)
+              var store = {
+                host: mist.user.host,
+                name: mist.user.name,
+                password: mist.user.password
+              };
+              sessionStorage.setItem('mistLogin',JSON.stringify(store));
             }
             break;
           case 'NOACC':
@@ -4719,15 +5240,12 @@ var mist = {
   inputMatch: function(match,string){
     if (typeof match == 'undefined') { return false; }
     if (typeof match == 'string') {
-      var query = match.replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
-      query = query.replace(/\\\?/g,'.').replace(/\\\*/g,'(?:.)*'); //replace ? with . and * with any amount of .
-      var regex = new RegExp('^'+query+'$','i'); //case insensitive
-      return regex.test(string);
+      match = [match];
     }
     for (var s in match){
       var query = match[s].replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
       query = query.replace(/\\\?/g,'.').replace(/\\\*/g,'(?:.)*'); //replace ? with . and * with any amount of .
-      var regex = new RegExp('^'+query+'$','i'); //case insensitive
+      var regex = new RegExp('^(?:[a-zA-Z]\:)?'+query+'$','i'); //case insensitive
       if (regex.test(string)){
         return true;
       }
@@ -4910,4 +5428,13 @@ $.fn.setval = function(val){
   }
   $(this).trigger('change');
   return $(this);
+}
+function parseURL(url) {
+  var a = document.createElement('a');
+  a.href = url;
+  return {
+    protocol: a.protocol+'//',
+    host: a.hostname,
+    port: (a.port ? ':'+a.port : '')
+  };
 }

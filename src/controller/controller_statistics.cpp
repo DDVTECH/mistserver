@@ -126,7 +126,10 @@ void Controller::SharedMemStats(void * config){
     Util::wait(1000);
   }
   statPointer = 0;
-  DEBUG_MSG(DLVL_HIGH, "Stopping stats thread");
+  HIGH_MSG("Stopping stats thread");
+  if (Controller::restarting){
+    statServer.abandon();
+  }
 }
 
 /// Updates the given active connection with new stats data.

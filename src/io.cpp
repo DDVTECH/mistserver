@@ -146,6 +146,7 @@ namespace Mist {
       }
       if (!inserted){
         FAIL_MSG("Could not insert page in track index. Aborting.");
+        curPage[tid].master = true;//set this page for instant-deletion when we're done with it
         return false;
       }
     }
@@ -260,6 +261,7 @@ namespace Mist {
     static bool multiWrong = false;
     //Save the trackid of the track for easier access
     unsigned long tid = pack.getTrackId();
+    //these checks were already done in bufferSinglePacket, but we check again just to be sure
     if (myMeta.live && pack.getTime() > 0xFFFF0000 && !myMeta.tracks[tid].lastms){
       return;//ignore bullshit timestamps
     }
@@ -370,14 +372,17 @@ namespace Mist {
 
     //Print a message about registering the page or not.
     if (!inserted) {
-      FAIL_MSG("Can't register page %lu on the metaPage of track %lu~>%lu, No empty spots left within 'should be' amount of slots", curPageNum[tid], tid, mapTid);
+      FAIL_MSG("Can't register %lu on the metaPage of %s track %lu~>%lu, No empty spots left. Deleting.", curPageNum[tid], streamName.c_str(), tid, mapTid);
+      //Since the buffer can't see it - we should delete it ourselves, now.
+      curPage[tid].master = true;
     } else {
-      HIGH_MSG("Succesfully registered page %lu on the metaPage of track %lu~>%lu.", curPageNum[tid], tid, mapTid);
+      HIGH_MSG("Registered %lu on the metaPage of %s track %lu~>%lu.", curPageNum[tid], streamName.c_str(), tid, mapTid);
+#if defined(__CYGWIN__) || defined(_WIN32)
+      IPC::preservePage(curPage[tid].name);
+#endif
     }
     //Close our link to the page. This will NOT destroy the shared page, as we've set master to false upon construction
-#if defined(__CYGWIN__) || defined(_WIN32)
-    IPC::preservePage(curPage[tid].name);
-#endif
+    //Note: if there was a registering failure above, this WILL destroy the shared page, to prevent a memory leak
     curPage.erase(tid);
     curPageNum.erase(tid);
   }
@@ -457,6 +462,19 @@ namespace Mist {
         }
       }
     }
+
+    //For live streams, ignore packets that make no sense
+    //This also happens in bufferNext, with the same rules
+    if (myMeta.live){
+      if (packet.getTime() > 0xFFFF0000 && !myMeta.tracks[tid].lastms){
+        return;//ignore bullshit timestamps
+      }
+      if (packet.getTime() < myMeta.tracks[tid].lastms){
+        HIGH_MSG("Wrong order on track %lu ignored: %lu < %lu", tid, packet.getTime(), myMeta.tracks[tid].lastms);
+        return;
+      }
+    }
+
     //Determine if we need to open the next page
     int nextPageNum = -1;
     if (isKeyframe && trackState[tid] == FILL_ACC) {
@@ -501,7 +519,11 @@ namespace Mist {
         bufferFinalize(tid, myMeta);
       }
       //Open the new page
-      bufferStart(tid, nextPageNum, myMeta);
+      if (!bufferStart(tid, nextPageNum, myMeta)){
+        //if this fails, return instantly without actually buffering the packet
+        WARN_MSG("Dropping packet %s:%llu@%llu", streamName.c_str(), tid, packet.getTime());
+        return;
+      }
     }
     //Buffer the packet
     bufferNext(packet, myMeta);

@@ -119,9 +119,6 @@ namespace Mist {
             INFO_MSG("Picked up new track - selecting it and resetting state.");
             sentHeader = false;
             seek(currentTime());
-            if (currTrackCount() != selectedTracks.size()){
-              initialSeek();
-            }
             return;
           }
         }

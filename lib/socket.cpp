@@ -1309,7 +1309,7 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
             }
             memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6*)resmulti->ai_addr)->sin6_addr, sizeof(mreq6.ipv6mr_multiaddr));
             mreq6.ipv6mr_interface = ((sockaddr_in6*)reslocal->ai_addr)->sin6_scope_id;
-            if (setsockopt(sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, (char *)&mreq6, sizeof(mreq6)) != 0) {
+            if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, (char *)&mreq6, sizeof(mreq6)) != 0) {
               FAIL_MSG("Unable to register for IPv6 multicast on interface %s (%u): %s", curIface.c_str(), ((sockaddr_in6*)reslocal->ai_addr)->sin6_scope_id, strerror(errno));
             }else{
               atLeastOne = true;

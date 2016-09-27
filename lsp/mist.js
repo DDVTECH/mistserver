@@ -2410,6 +2410,16 @@ var UI = {
           UI.navto('Streams',(other == 'thumbnails' ? 'list' : 'thumbnails'));
         });
         
+        var allstreams = $.extend(true,{},mist.data.streams);
+        function createWcStreamObject(streamname,parent) {
+          var wcstream = $.extend({},parent);
+          delete wcstream.meta;
+          delete wcstream.error;
+          wcstream.online = 2; //should either be available (2) or active (1)
+          wcstream.name = streamname;
+          wcstream.ischild = true;
+          return wcstream;
+        }
         
         function createPage(type,streams,folders) {
           $loading.remove();
@@ -2669,16 +2679,6 @@ var UI = {
                 });
               }
               
-              var allstreams = $.extend(true,{},mist.data.streams);
-              function createWcStreamObject(streamname,parent) {
-                var wcstream = $.extend({},parent);
-                delete wcstream.meta;
-                delete wcstream.error;
-                wcstream.online = 2; //should either be available (2) or active (1)
-                wcstream.name = streamname;
-                wcstream.ischild = true;
-                return wcstream;
-              }
               
               if (mist.data.LTS) {
                 //insert folder streams
@@ -2773,10 +2773,12 @@ var UI = {
                       var split = mist.data.active_streams[i].split('+');
                       if ((split.length > 1) && (split[0] in mist.data.streams)) {
                         select[mist.data.active_streams[i]] = true;
+                        allstreams[mist.data.active_streams[i]] = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[split[0]]);
                       }
                     }
                     select = Object.keys(select);
                     select = select.concat(Object.keys(mist.data.streams));
+                    select.sort();
                     createPage(other,select,folders);
                   },{active_streams: true});
                 }
@@ -2786,13 +2788,15 @@ var UI = {
           }
           if (browserequests == 0) {
             mist.send(function(){
-              var select = [];
+              //var select = [];
               for (var i in mist.data.active_streams) {
                 var split = mist.data.active_streams[i].split('+');
                 if ((split.length > 1) && (split[0] in mist.data.streams)) {
                   select[mist.data.active_streams[i]] = true;
+                  allstreams[mist.data.active_streams[i]] = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[split[0]]);
                 }
               }
+              select = Object.keys(select);
               if (mist.data.streams) { select = select.concat(Object.keys(mist.data.streams)); }
               select.sort();
               createPage(other,select);

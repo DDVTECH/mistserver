@@ -33,14 +33,6 @@ void Controller::uplinkConnection(void * np) {
   if (!uplink_port) {
     return;
   }
-  
-  if (uniqId == ""){
-    srand(time(NULL));
-    do{
-      char meh = 64 + rand() % 62;
-      uniqId += meh;
-    }while(uniqId.size() < 16);
-  }
 
   unsigned long long lastSend = Util::epoch() - 5;
   Socket::Connection uplink;
@@ -119,7 +111,7 @@ void Controller::uplinkConnection(void * np) {
           it->removeMember("name");
         }
         data["config"] = Controller::Storage["config"];
-        data["config"]["uniq"] = uniqId;
+        data["config"]["uniq"] = instanceId;
         data["config"]["version"] = PACKAGE_VERSION;
         Controller::checkCapable(capabilities);
         data["capabilities"] = capabilities;

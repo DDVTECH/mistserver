@@ -86,6 +86,9 @@ endif()
 if (NOT DEFINED NOUPDATE )
   add_definitions(-DUPDATER=1)
 endif()
+if (NOT DEFINED PERPETUAL )
+  add_definitions(-DLICENSING=1)
+endif()
 if (DEFINED NOAUTH )
   add_definitions(-DNOAUTH=1)
 endif()
@@ -498,6 +501,7 @@ set(controllerHeaders
   ${SOURCE_DIR}/src/controller/controller_capabilities.h
   ${SOURCE_DIR}/src/controller/controller_streams.h
   ${SOURCE_DIR}/src/controller/controller_push.h
+  ${SOURCE_DIR}/src/controller/controller_license.h
 )
 
 ########################################
@@ -515,6 +519,7 @@ set(controllerSources
   ${SOURCE_DIR}/src/controller/controller_uplink.cpp
   ${SOURCE_DIR}/src/controller/controller_api.cpp
   ${SOURCE_DIR}/src/controller/controller_push.cpp
+  ${SOURCE_DIR}/src/controller/controller_license.cpp
 )
 ########################################
 # MistController - Build               #

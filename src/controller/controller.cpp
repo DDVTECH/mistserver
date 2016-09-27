@@ -55,6 +55,7 @@
 #include "controller_updater.h"
 #include "controller_limits.h"
 #include "controller_uplink.h"
+#include "controller_license.h"
 /*LTS-END*/
 #include "controller_api.h"
 #include "controller_push.h"
@@ -307,15 +308,28 @@ int main_loop(int argc, char ** argv){
   
   Controller::Log("CONF", "Controller started");
   Controller::conf.activate();//activate early, so threads aren't killed.
-
+  //Generate instanceId once per boot.
+  if (Controller::instanceId == ""){
+    srand(time(NULL));
+    do{
+      Controller::instanceId += (char)(64 + rand() % 62);
+    }while(Controller::instanceId.size() < 16);
+  }
+  
   /*LTS-START*/
   #ifdef UPDATER
   if (Controller::conf.getBool("update")){
     Controller::CheckUpdates();
   }
   #endif
+  #ifdef LICENSING
+  Controller::initLicense();
+  Controller::checkLicense();
+  //start license checking thread
+  tthread::thread licenseThread(Controller::licenseLoop, 0);
+  #endif
   /*LTS-END*/
-
+  
   //start stats thread
   tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);
   //start monitoring thread
@@ -324,6 +338,7 @@ int main_loop(int argc, char ** argv){
   tthread::thread uplinkThread(Controller::uplinkConnection, 0);/*LTS*/
   //start push checking thread
   tthread::thread pushThread(Controller::pushCheckLoop, 0);
+
   
   //start main loop
   while (Controller::conf.is_active){/*LTS*/
@@ -339,6 +354,11 @@ int main_loop(int argc, char ** argv){
     shutdown_reason = "restart (on request)";
   }
   /*LTS-START*/
+  #ifdef LICENSING
+  if (!Controller::isLicensed()){
+    shutdown_reason = "no valid license";
+  }
+  #endif
   if(Triggers::shouldTrigger("SYSTEM_STOP")){ 
     if (!Triggers::doTrigger("SYSTEM_STOP", shutdown_reason)){
       Controller::conf.is_active = true;
@@ -359,8 +379,13 @@ int main_loop(int argc, char ** argv){
   //join all joinable threads
   statsThread.join();
   monitorThread.join();
-  uplinkThread.join();/*LTS*/
-  pushThread.join();/*LTS*/
+  /*LTS-START*/
+  uplinkThread.join();
+  pushThread.join();
+  #ifdef LICENSING
+  licenseThread.join();
+  #endif
+  /*LTS-END*/
   //write config
   tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
   Controller::Storage.removeMember("log");

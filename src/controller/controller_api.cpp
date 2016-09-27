@@ -15,6 +15,7 @@
 #include "controller_updater.h"
 #include "controller_limits.h"
 #include "controller_push.h"
+#include "controller_license.h"
 /*LTS-END*/
 
 ///\brief Check the submitted configuration and handle things accordingly.
@@ -512,6 +513,11 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           if (!Request.isMember("minimal") || Response.isMember("config")){
             Response["config"] = Controller::Storage["config"];
             Response["config"]["version"] = PACKAGE_VERSION;
+            /*LTS-START*/
+            #ifdef LICENSING
+            Response["config"]["license"] = getLicense();
+            #endif
+            /*LTS-END*/
             //add required data to the current unix time to the config, for syncing reasons
             Response["config"]["time"] = Util::epoch();
             if ( !Response["config"].isMember("serverid")){

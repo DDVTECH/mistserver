@@ -4,6 +4,7 @@
 #include <mist/tinythread.h>
 
 namespace Controller {
+  extern std::string instanceId; ///global storage of instanceId (previously uniqID) for updater
   extern Util::Config conf;///< Global storage of configuration.
   extern JSON::Value Storage; ///< Global storage of data.
   extern tthread::mutex logMutex;///< Mutex for log thread.

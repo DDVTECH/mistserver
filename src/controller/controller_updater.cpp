@@ -17,9 +17,10 @@
 #include "controller_connectors.h"
 #include "controller_updater.h"
 
+
 namespace Controller {
   JSON::Value updates;
-  std::string uniqId;
+
 
   std::string readFile(std::string filename){
     std::ifstream file(filename.c_str());
@@ -69,13 +70,6 @@ namespace Controller {
   JSON::Value CheckUpdateInfo(){
     JSON::Value ret;
     
-    if (uniqId == ""){
-      srand(time(NULL));
-      do{
-        char meh = 64 + rand() % 62;
-        uniqId += meh;
-      }while(uniqId.size() < 16);
-    }
 
     //initialize connection
     HTTP::Parser http;
@@ -88,7 +82,7 @@ namespace Controller {
     }
 
     //retrieve update information
-    http.url = "/getsums.php?verinfo=1&rel=" RELEASE "&pass=" SHARED_SECRET "&uniqId=" + uniqId;
+    http.url = "/getsums.php?verinfo=1&rel=" RELEASE "&pass=" SHARED_SECRET "&iid=" + instanceId;
     http.method = "GET";
     http.SetHeader("Host", "releases.mistserver.org");
     http.SetHeader("X-Version", PACKAGE_VERSION);

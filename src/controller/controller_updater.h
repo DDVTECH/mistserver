@@ -9,7 +9,6 @@
 
 namespace Controller {
   extern JSON::Value updates;
-  extern std::string uniqId;
 
   std::string readFile(std::string filename);
   bool writeFile(std::string filename, std::string & contents);

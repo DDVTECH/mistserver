@@ -6,14 +6,12 @@
 #include "timing.h"
 #include "defines.h"
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <poll.h>
 #include <netdb.h>
 #include <sstream>
 #include <cstdlib>
-
-#ifdef __FreeBSD__
-#include <netinet/in.h>
-#endif
 
 #define BUFFER_BLOCKSIZE 4096 //set buffer blocksize to 4KiB
 

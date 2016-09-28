@@ -27,8 +27,6 @@ namespace Analysers {
     if (conf.getBool("compact")){
       bool hasH264 = false;
       bool hasAAC = false;
-      bool unstable_keys = false;
-      bool unstable_parts = false;
       JSON::Value result;
       std::stringstream issues;
       for (std::map<unsigned int, DTSC::Track>::iterator it = F.getMeta().tracks.begin(); it != F.getMeta().tracks.end(); it++){
@@ -50,14 +48,14 @@ namespace Analysers {
           if ((k->getLength()/k->getParts()) > longest_prt){longest_prt = (k->getLength()/k->getParts());}
           if ((k->getLength()/k->getParts()) < shrtest_prt){shrtest_prt = (k->getLength()/k->getParts());}
         }
-        track["keys"]["min"] = (long long)shrtest_key;
-        track["keys"]["max"] = (long long)longest_key;
-        track["prts"]["min"] = (long long)shrtest_prt;
-        track["prts"]["max"] = (long long)longest_prt;
-        track["count"]["min"] = (long long)shrtest_cnt;
-        track["count"]["max"] = (long long)longest_cnt;
-        if (shrtest_key < longest_key / 2){issues << it->second.codec << " key duration unstable (variable key interval!) (" << shrtest_key << "-" << longest_key << ")! ";}
-        if ((shrtest_prt < longest_prt / 2) && (shrtest_cnt != longest_cnt)){issues << it->second.codec << " part duration unstable (bad connection!) (" << shrtest_prt << "-" << longest_prt << ")! ";}
+        track["keys"]["ms_min"] = (long long)shrtest_key;
+        track["keys"]["ms_max"] = (long long)longest_key;
+        track["keys"]["frame_ms_min"] = (long long)shrtest_prt;
+        track["keys"]["frame_ms_max"] = (long long)longest_prt;
+        track["keys"]["frames_min"] = (long long)shrtest_cnt;
+        track["keys"]["frames_max"] = (long long)longest_cnt;
+        if (longest_prt > 500){issues << "unstable connection (" << longest_prt << "ms " << it->second.codec << " frame)! ";}
+        if (shrtest_cnt < 6){issues << "unstable connection (" << shrtest_cnt << " " << it->second.codec << " frames in key)! ";}
         if (it->second.codec == "AAC"){hasAAC = true;}
         if (it->second.codec == "H264"){hasH264 = true;}
         if (it->second.type=="video"){
@@ -67,9 +65,9 @@ namespace Analysers {
         }
         result[it->second.getWritableIdentifier()] = track;
       }
-      if (hasAAC || hasH264){
-        if (!hasAAC){issues << "video-only! ";}
-        if (!hasH264){issues << "audio-only! ";}
+      if ((hasAAC || hasH264) && F.getMeta().tracks.size() > 1){
+        if (!hasAAC){issues << "HLS no audio!";}
+        if (!hasH264){issues << "HLS no video!";}
       }
       if (issues.str().size()){result["issues"] = issues.str();}
       std::cout << result.toString();

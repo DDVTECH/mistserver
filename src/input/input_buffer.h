@@ -11,6 +11,7 @@ namespace Mist {
       ~inputBuffer();
       void onCrash();
     private:
+      void fillBufferDetails(JSON::Value & details);
       unsigned int bufferTime;
       unsigned int cutTime;
       unsigned int segmentSize; /*LTS*/

@@ -203,11 +203,62 @@ namespace Mist {
     }
   }
 
+  /// Fills the details variable with details about the current buffer contents
+  void inputBuffer::fillBufferDetails(JSON::Value & details){
+    //clear the reference of old data, first
+    details.null();
+    bool hasH264 = false;
+    bool hasAAC = false;
+    std::stringstream issues;
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      JSON::Value & track = details[it->second.getWritableIdentifier()];
+      track["kbits"] = (long long)((double)it->second.bps * 8 / 1024);
+      track["codec"] = it->second.codec;
+      uint32_t shrtest_key = 0xFFFFFFFFul;
+      uint32_t longest_key = 0;
+      uint32_t shrtest_prt = 0xFFFFFFFFul;
+      uint32_t longest_prt = 0;
+      uint32_t shrtest_cnt = 0xFFFFFFFFul;
+      uint32_t longest_cnt = 0;
+      for (std::deque<DTSC::Key>::iterator k = it->second.keys.begin(); k != it->second.keys.end(); k++){
+        if (!k->getLength()){continue;}
+        if (k->getLength() > longest_key){longest_key = k->getLength();}
+        if (k->getLength() < shrtest_key){shrtest_key = k->getLength();}
+        if (k->getParts() > longest_cnt){longest_cnt = k->getParts();}
+        if (k->getParts() < shrtest_cnt){shrtest_cnt = k->getParts();}
+        if ((k->getLength()/k->getParts()) > longest_prt){longest_prt = (k->getLength()/k->getParts());}
+        if ((k->getLength()/k->getParts()) < shrtest_prt){shrtest_prt = (k->getLength()/k->getParts());}
+      }
+      track["keys"]["ms_min"] = (long long)shrtest_key;
+      track["keys"]["ms_max"] = (long long)longest_key;
+      track["keys"]["frame_ms_min"] = (long long)shrtest_prt;
+      track["keys"]["frame_ms_max"] = (long long)longest_prt;
+      track["keys"]["frames_min"] = (long long)shrtest_cnt;
+      track["keys"]["frames_max"] = (long long)longest_cnt;
+      if (longest_prt > 500){issues << "unstable connection (" << longest_prt << "ms " << it->second.codec << " frame)! ";}
+      if (shrtest_cnt < 6){issues << "unstable connection (" << shrtest_cnt << " " << it->second.codec << " frames in key)! ";}
+      if (it->second.codec == "AAC"){hasAAC = true;}
+      if (it->second.codec == "H264"){hasH264 = true;}
+      if (it->second.type=="video"){
+        track["width"] = (long long)it->second.width;
+        track["height"] = (long long)it->second.height;
+        track["fpks"] = it->second.fpks;
+      }
+    }
+    if ((hasAAC || hasH264) && myMeta.tracks.size() > 1){
+      if (!hasAAC){issues << "HLS no audio!";}
+      if (!hasH264){issues << "HLS no video!";}
+    }
+    if (issues.str().size()){details["issues"] = issues.str();}
+    //return is by reference
+  }
+
   /// \triggers
   /// The `"STREAM_BUFFER"` trigger is stream-specific, and is ran whenever the buffer changes state between playable (FULL) or not (EMPTY). It cannot be cancelled. It is possible to receive multiple EMPTY calls without FULL calls in between, as EMPTY is always generated when a stream is unloaded from memory, even if this stream never reached playable state in the first place (e.g. a broadcast was cancelled before filling enough buffer to be playable). Its payload is:
   /// ~~~~~~~~~~~~~~~
   /// streamname
-  /// FULL or EMPTY (depending on current state)
+  /// FULL, EMPTY, DRY or RECOVER (depending on current state)
+  /// Detected issues in string format, or empty string if no issues
   /// ~~~~~~~~~~~~~~~
   void inputBuffer::updateMeta() {
     static bool wentDry = false;
@@ -239,25 +290,26 @@ namespace Mist {
       }
     }
     /*LTS-START*/
-    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && (lastFragCount == 0xFFFFull || lastFragCount < FRAG_BOOT)) {
-      if (Triggers::shouldTrigger("STREAM_BUFFER")) {
-        std::string payload;
-        if (wentDry){
-          payload = config->getString("streamname") + "\nRECOVER";
-        }else{
-          payload = config->getString("streamname") + "\nFULL";
+    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && Triggers::shouldTrigger("STREAM_BUFFER")){
+      JSON::Value stream_details;
+      fillBufferDetails(stream_details);
+      if (lastFragCount == 0xFFFFull) {
+        std::string payload = config->getString("streamname") + "\nFULL\n" + stream_details.toString();
+        Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+      }else{
+        if (stream_details.isMember("issues") != wentDry){
+          if (stream_details.isMember("issues")){
+            std::string payload = config->getString("streamname") + "\nDRY\n" + stream_details.toString();
+            Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+          }else{
+            std::string payload = config->getString("streamname") + "\nRECOVER\n" + stream_details.toString();
+            Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+          }
         }
-        Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
       }
+      wentDry = stream_details.isMember("issues");
+      lastFragCount = fragCount;
     }
-    if ((fragCount < FRAG_BOOT || fragCount == 0xFFFFull) && (lastFragCount >= FRAG_BOOT && lastFragCount != 0xFFFFull)) {
-      if (Triggers::shouldTrigger("STREAM_BUFFER")) {
-        std::string payload = config->getString("streamname") + "\nDRY";
-        Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
-        wentDry = true;
-      }
-    }
-    lastFragCount = fragCount;
     /*LTS-END*/
     myMeta.bufferWindow = lastms - firstms;
     myMeta.vod = false;

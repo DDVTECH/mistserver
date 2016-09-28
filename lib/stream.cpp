@@ -178,16 +178,18 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     DEBUG_MSG(DLVL_HIGH, "Stream %s not configured - attempting to ignore", streamname.c_str());
   }
   /*LTS-START*/
-  if (stream_cfg && stream_cfg.getMember("hardlimit_active")) {
-    return false;
-  }
-  if(Triggers::shouldTrigger("STREAM_LOAD", smp)){
-    if (!Triggers::doTrigger("STREAM_LOAD", streamname, smp)){
+  if (!filename.size()){
+    if (stream_cfg && stream_cfg.getMember("hardlimit_active")) {
       return false;
     }
-  }
-  if(Triggers::shouldTrigger("STREAM_SOURCE", smp)){
-    Triggers::doTrigger("STREAM_SOURCE", streamname, smp, false, filename);
+    if(Triggers::shouldTrigger("STREAM_LOAD", smp)){
+      if (!Triggers::doTrigger("STREAM_LOAD", streamname, smp)){
+        return false;
+      }
+    }
+    if(Triggers::shouldTrigger("STREAM_SOURCE", smp)){
+      Triggers::doTrigger("STREAM_SOURCE", streamname, smp, false, filename);
+    }
   }
   /*LTS-END*/
 

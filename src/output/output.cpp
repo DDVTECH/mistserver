@@ -470,6 +470,7 @@ namespace Mist {
     nProxy.curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
     if (!(nProxy.curPage[trackId].mapped)){
       FAIL_MSG("Initializing page %s failed", nProxy.curPage[trackId].name.c_str());
+      currKeyOpen.erase(trackId);
       return;
     }
     currKeyOpen[trackId] = pageNum;
@@ -856,7 +857,7 @@ namespace Mist {
       }
       //if this is a live stream, we might have just reached the live point.
       //check where the next key is
-      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
+      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, nxt.time);
       int nextPage = pageNumForKey(nxt.tid, nxtKeyNum[nxt.tid]+1);
       //if the next key hasn't shown up on another page, then we're waiting.
       //VoD might be slow, so we check VoD case also, just in case

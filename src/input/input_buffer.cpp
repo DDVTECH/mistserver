@@ -624,11 +624,11 @@ namespace Mist {
   }
 
   void inputBuffer::updateTrackMeta(unsigned long tNum) {
-    VERYHIGH_MSG("Updating meta for track %d", tNum);
     //Store a reference for easier access
     std::map<unsigned long, DTSCPageData> & locations = bufferLocations[tNum];
     char * mappedPointer = nProxy.metaPages[tNum].mapped;
     if (!mappedPointer){return;}
+    VERYHIGH_MSG("Updating meta for track %lu, %lu pages", tNum, locations.size());
 
     //First detect all entries on metaPage
     for (int i = 0; i < 8192; i += 8) {
@@ -637,11 +637,11 @@ namespace Mist {
         continue;
       }
       unsigned long keyNum = ntohl(tmpOffset[0]);
-      INSANE_MSG("Page %d detected, with %d keys", keyNum, ntohl(tmpOffset[1]));
 
       //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
       if (!locations.count(keyNum)) {
         locations[keyNum].curOffset = 0;
+        VERYHIGH_MSG("Page %d detected, with %d keys", keyNum, ntohl(tmpOffset[1]));
       }
       locations[keyNum].pageNum = keyNum;
       locations[keyNum].keyNum = ntohl(tmpOffset[1]);

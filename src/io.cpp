@@ -417,16 +417,14 @@ namespace Mist {
     unsigned long tid = packet.getTrackId();
     //Do nothing if the trackid is invalid
     if (!tid) {
-      INFO_MSG("Packet without trackid");
+      WARN_MSG("Packet without trackid!");
       return;
     }
-    //If the track is not negotiated yet, start the negotiation
-    if (!trackState.count(tid)) {
-      continueNegotiate(tid, myMeta);
-    }
+    //negotiate track ID if needed
+    continueNegotiate(tid, myMeta);
     //If the track is declined, stop here
     if (trackState[tid] == FILL_DEC) {
-      INFO_MSG("Track %lu Declined", tid);
+      INFO_MSG("Track %lu declined", tid);
       preBuffer[tid].clear();
       return;
     }
@@ -434,9 +432,12 @@ namespace Mist {
     if (trackState[tid] != FILL_ACC) {
       preBuffer[tid].push_back(packet);
     }else{
-      while (preBuffer[tid].size()){
-        bufferSinglePacket(preBuffer[tid].front(), myMeta);
-        preBuffer[tid].pop_front();
+      if (preBuffer[tid].size()){
+        INFO_MSG("Track %lu accepted", tid);
+        while (preBuffer[tid].size()){
+          bufferSinglePacket(preBuffer[tid].front(), myMeta);
+          preBuffer[tid].pop_front();
+        }
       }
       bufferSinglePacket(packet, myMeta);
     }
@@ -448,9 +449,7 @@ namespace Mist {
     //This update needs to happen whether the track is accepted or not.
     bool isKeyframe = false;
     if (myMeta.tracks[tid].type == "video") {
-      if (packet.hasMember("keyframe") && packet.getFlag("keyframe")) {
-        isKeyframe = true;
-      }
+      isKeyframe = packet.getFlag("keyframe");
     } else {
       if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
         //Assume this is the first packet on the track
@@ -467,6 +466,7 @@ namespace Mist {
     //This also happens in bufferNext, with the same rules
     if (myMeta.live){
       if (packet.getTime() > 0xFFFF0000 && !myMeta.tracks[tid].lastms){
+        INFO_MSG("Ignoring packet with unexpected timestamp");
         return;//ignore bullshit timestamps
       }
       if (packet.getTime() < myMeta.tracks[tid].lastms){
@@ -509,6 +509,7 @@ namespace Mist {
     }
     //If we have no pages by track, we have not received a starting keyframe yet. Drop this packet.
     if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0){
+      INFO_MSG("Track %lu not starting with a keyframe!", tid);
       return;
     }
 

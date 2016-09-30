@@ -936,16 +936,18 @@ namespace Mist {
           }else{
             amf_storage = &(pushMeta.begin()->second);
           }
-          JSON::Value pack_out = F.toJSON(myMeta, *amf_storage, next.cs_id*3 + (F.data[0] == 0x09 ? 0 : (F.data[0] == 0x08 ? 1 : 2) ));
-          if ( !pack_out.isNull()){
+
+          unsigned int reTrack = next.cs_id*3 + (F.data[0] == 0x09 ? 1 : (F.data[0] == 0x08 ? 2 : 3));
+          F.toMeta(myMeta, *amf_storage, reTrack);
+          if (F.getDataLen() && !(F.needsInitData() && F.isInitData())){
+            thisPacket.genericFill(F.tagTime(), F.offset(), reTrack, F.getData(), F.getDataLen(), 0, F.isKeyframe);
             if (!nProxy.userClient.getData()){
               char userPageName[NAME_BUFFER_SIZE];
               snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
               nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
             }
-            continueNegotiate(pack_out["trackid"].asInt());
             nProxy.streamName = streamName;
-            bufferLivePacket(pack_out);
+            bufferLivePacket(thisPacket);
           }
           break;
         }

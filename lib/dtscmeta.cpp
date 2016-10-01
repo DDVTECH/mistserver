@@ -1179,6 +1179,8 @@ namespace DTSC {
         newFrag.setDuration(0);
         newFrag.setSize(0);
         fragments.push_back(newFrag);
+        //We set the insert time lastms-firstms in the future, to prevent unstable playback
+        fragInsertTime.push_back(Util::bootSecs() + ((lastms - firstms)/1000));
       } else {
         Fragment & lastFrag = fragments[fragments.size() - 1];
         lastFrag.setLength(lastFrag.getLength() + 1);
@@ -1187,6 +1189,41 @@ namespace DTSC {
     keys.rbegin()->setParts(keys.rbegin()->getParts() + 1);
     (*keySizes.rbegin()) += packSendSize;
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + packDataSize);
+  }
+
+  /// Removes the first buffered key, including any fragments it was part of
+  void Track::removeFirstKey(){
+    HIGH_MSG("Erasing key %d:%lu", trackID, keys[0].getNumber());
+    //remove all parts of this key
+    for (int i = 0; i < keys[0].getParts(); i++) {
+      parts.pop_front();
+    }
+    //remove the key itself
+    keys.pop_front();
+    keySizes.pop_front();
+    //update firstms
+    firstms = keys[0].getTime();
+    //delete any fragments no longer fully buffered
+    while (fragments[0].getNumber() < keys[0].getNumber()) {
+      fragments.pop_front();
+      fragInsertTime.pop_front();
+      //and update the missed fragment counter
+      ++missedFrags;
+    }
+  }
+
+  /// Returns the amount of whole seconds since the first fragment was inserted into the buffer.
+  /// This assumes playback from the start of the buffer at time of insert, meaning that
+  /// the time is offset by that difference. E.g.: if a buffer is 50s long, the newest fragment
+  /// will have a value of 0 until 50s have passed, after which it will increase at a rate of
+  /// 1 per second.
+  uint32_t Track::secsSinceFirstFragmentInsert(){
+    uint32_t bs = Util::bootSecs();
+    if (bs > fragInsertTime.front()){
+      return bs - fragInsertTime.front();
+    }else{
+      return 0;
+    }
   }
   
   void Track::finalize(){
@@ -1216,6 +1253,7 @@ namespace DTSC {
     return keys[keyNum - keys[0].getNumber()];
   }
 
+  /// Returns the number of the key containing timestamp, or last key if nowhere.
   unsigned int Track::timeToKeynum(unsigned int timestamp){
     unsigned int result = 0;
     for (std::deque<Key>::iterator it = keys.begin(); it != keys.end(); it++){
@@ -1227,13 +1265,12 @@ namespace DTSC {
     return result;
   }
 
+  /// Gets indice of the fragment containing timestamp, or last fragment if nowhere.
   unsigned int Track::timeToFragnum(unsigned int timestamp){
-    unsigned long long int totalTime = firstms;
     for (unsigned int i = 0; i<fragments.size(); i++){
-      if (timestamp <= totalTime){
+      if (timestamp <= getKey(fragments[i].getNumber()).getTime() + fragments[i].getDuration()){
         return i;
       }
-      totalTime += fragments[i].getDuration();
     }
     return fragments.size()-1;
   }
@@ -1241,6 +1278,7 @@ namespace DTSC {
   ///\brief Resets a track, clears all meta values
   void Track::reset() {
     fragments.clear();
+    fragInsertTime.clear();
     parts.clear();
     keySizes.clear();
     keys.clear();

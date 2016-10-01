@@ -207,48 +207,50 @@ namespace Mist {
     liveMeta.post();
   }
 
+  ///Checks if removing a key from this track is allowed/safe, and if so, removes it.
+  ///Returns true if a key was actually removed, false otherwise
+  ///Aborts if any of the following conditions are true (while active):
+  /// * no keys present
+  /// * not at least 4 whole fragments present
+  /// * first fragment hasn't been at least lastms-firstms ms in buffer
+  /// * less than 8 times the biggest fragment duration is buffered
+  /// If a key was deleted and the first buffered data page is no longer used, it is deleted also.
   bool inputBuffer::removeKey(unsigned int tid) {
     DTSC::Track & Trk = myMeta.tracks[tid];
-    //Make sure we have at least 3 whole fragments at all times,
-    //unless we're shutting down the whole buffer right now
-    if (Trk.fragments.size() < 5 && config->is_active) {
+    //If this track is empty, abort
+    if (!Trk.keys.size()) {
       return false;
     }
-    //If we're shutting down, and this track is empty, abort
-    if (!myMeta.tracks[tid].keys.size()) {
-      return false;
-    }
-    if (config->is_active && Trk.fragments.size() > 2){
-      ///Make sure we have at least 8X the target duration.
-      //The target duration is the biggest fragment, rounded up to whole seconds.
-      uint32_t targetDuration = (Trk.biggestFragment() / 1000 + 1) * 1000;
-      //The start is the third fragment's begin
-      uint32_t fragStart = Trk.getKey((++(++Trk.fragments.begin()))->getNumber()).getTime();
-      //The end is the last fragment's begin
-      uint32_t fragEnd = Trk.getKey(Trk.fragments.rbegin()->getNumber()).getTime();
-      if ((fragEnd - fragStart) < targetDuration * 8){
+    //the following checks only run if we're not shutting down
+    if (config->is_active){
+      //Make sure we have at least 4 whole fragments at all times,
+      if (Trk.fragments.size() < 5) {
         return false;
       }
+      //ensure we have each fragment buffered for at least the whole bufferTime
+      if (!Trk.secsSinceFirstFragmentInsert() || (Trk.lastms - Trk.firstms) < bufferTime){
+        return false;
+      }
+      if (Trk.fragments.size() > 2){
+        ///Make sure we have at least 8X the target duration.
+        //The target duration is the biggest fragment, rounded up to whole seconds.
+        uint32_t targetDuration = (Trk.biggestFragment() / 1000 + 1) * 1000;
+        //The start is the third fragment's begin
+        uint32_t fragStart = Trk.getKey((++(++Trk.fragments.begin()))->getNumber()).getTime();
+        //The end is the last fragment's begin
+        uint32_t fragEnd = Trk.getKey(Trk.fragments.rbegin()->getNumber()).getTime();
+        if ((fragEnd - fragStart) < targetDuration * 8){
+          return false;
+        }
+      }
     }
-    HIGH_MSG("Erasing key %d:%lu", tid, myMeta.tracks[tid].keys[0].getNumber());
-    //remove all parts of this key
-    for (int i = 0; i < myMeta.tracks[tid].keys[0].getParts(); i++) {
-      myMeta.tracks[tid].parts.pop_front();
-    }
-    //remove the key itself
-    myMeta.tracks[tid].keys.pop_front();
-    myMeta.tracks[tid].keySizes.pop_front();
-    //re-calculate firstms
-    myMeta.tracks[tid].firstms = myMeta.tracks[tid].keys[0].getTime();
-    //delete the fragment if it's no longer fully buffered
-    if (myMeta.tracks[tid].fragments[0].getNumber() < myMeta.tracks[tid].keys[0].getNumber()) {
-      myMeta.tracks[tid].fragments.pop_front();
-      myMeta.tracks[tid].missedFrags ++;
-    }
+    //Alright, everything looks good, let's delete the key and possibly also fragment
+    Trk.removeFirstKey();
     //if there is more than one page buffered for this track...
     if (bufferLocations[tid].size() > 1) {
       //Check if the first key starts on the second page or higher
-      if (myMeta.tracks[tid].keys[0].getNumber() >= (++(bufferLocations[tid].begin()))->first || !config->is_active){
+      if (Trk.keys[0].getNumber() >= (++(bufferLocations[tid].begin()))->first || !config->is_active){
+        //If so, we can delete the first page entirely
         HIGH_MSG("Erasing track %d, keys %lu-%lu from buffer", tid, bufferLocations[tid].begin()->first, bufferLocations[tid].begin()->first + bufferLocations[tid].begin()->second.keyNum - 1);
         bufferRemove(tid, bufferLocations[tid].begin()->first);
 
@@ -382,6 +384,7 @@ namespace Mist {
         }
       }
       //Buffer size management
+      /// \TODO Make sure data has been in the buffer for at least bufferTime after it goes in
       while (it->second.keys.size() > 1 && (it->second.lastms - it->second.keys[1].getTime()) > bufferTime) {
         if (!removeKey(it->first)) {
           break;

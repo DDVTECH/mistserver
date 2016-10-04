@@ -286,7 +286,11 @@ namespace Mist {
     data_len += dheader_len;
     
     unsigned int timestamp = thisPacket.getTime() - rtmpOffset;
-    if (rtmpOffset > thisPacket.getTime()){timestamp = 0;}//make sure we don't go negative
+    //make sure we don't go negative
+    if (rtmpOffset > thisPacket.getTime()){
+      timestamp = 0;
+      rtmpOffset = thisPacket.getTime();
+    }
     
     bool allow_short = RTMPStream::lastsend.count(4);
     RTMPStream::Chunk & prev = RTMPStream::lastsend[4];

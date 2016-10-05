@@ -473,16 +473,20 @@ namespace Mist {
       getNext();
     }
     uint64_t lastBuffered = 0;
+    uint64_t packCounter = 0;
+    uint64_t byteCounter = 0;
     while (thisPacket && thisPacket.getTime() < stopTime) {
       if (thisPacket.getTime() >= lastBuffered){
         bufferNext(thisPacket);
+        ++packCounter;
+        byteCounter += thisPacket.getDataLen();
         lastBuffered = thisPacket.getTime();
       }
       getNext();
     }
     bufferFinalize(track);
     bufferTimer = Util::getMS() - bufferTimer;
-    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d for track %d in %llums", keyNum, track, bufferTimer);
+    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes) for track %d in %llums", keyNum, packCounter, byteCounter, track, bufferTimer);
     pageCounter[track][keyNum] = 15;
     return true;
   }

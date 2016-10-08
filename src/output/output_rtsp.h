@@ -24,15 +24,17 @@ namespace Mist {
       std::string transportString;
       std::string control;
       std::string fmtp;
-      int8_t offset;
+      uint64_t fpsTime;
+      double fps;
       RTPTrack(){
         rtcpSent = 0;
         channel = -1;
         firstTime = 0;
         packCount = 0;
-        offset = 0;
         cPort = 0;
         rtpSeq = 0;
+        fpsTime = 0;
+        fps = 0;
       }
       std::string getParamString(const std::string & param) const{
         if (!fmtp.size()){return "";}
@@ -165,7 +167,8 @@ namespace Mist {
       bool handleTCP();
       void handleUDP();
       void handleIncomingRTP(const uint64_t track, const RTP::Packet & pkt);
-      void h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, const bool isKey);
+      void h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, bool isKey);
+      bool nextIsKey;
   };
 }
 

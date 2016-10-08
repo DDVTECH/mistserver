@@ -18,6 +18,7 @@ namespace Mist {
     minSkipAhead = 0;
     expectTCP = false;
     isPushing = false;
+    nextIsKey = false;
   }
   
   /// Function used to send RTP packets over UDP
@@ -142,9 +143,14 @@ namespace Mist {
 
   void OutRTSP::onRequest(){
     RTP::MAX_SEND = config->getInteger("maxsend");
-    //if needed, parse TCP packets, and return if it is not safe (yet) to read HTTP/RTSP packets
-    if (expectTCP && !handleTCP()){return;}
-    while (HTTP_R.Read(myConn)){
+    //if needed, parse TCP packets, and cancel if it is not safe (yet) to read HTTP/RTSP packets
+    while ((!expectTCP || handleTCP()) && HTTP_R.Read(myConn)){
+      //cancel broken URLs
+      if (HTTP_R.url.size() < 8){
+        WARN_MSG("Invalid data found in RTSP input around ~%llub - disconnecting!", myConn.dataDown());
+        myConn.close();
+        break;
+      }
       HTTP_S.Clean();
       HTTP_S.protocol = "RTSP/1.0";
       
@@ -251,7 +257,6 @@ namespace Mist {
               if (it->second.parseTransport(HTTP_R.GetHeader("Transport"), getConnectedHost(), source, myMeta.tracks[it->first])){
                 if (it->second.channel != -1){
                   expectTCP = true;
-                  if (expectTCP){handleTCP();}
                 }
                 HTTP_S.SetHeader("Expires", HTTP_S.GetHeader("Date"));
                 HTTP_S.SetHeader("Transport", it->second.transportString);
@@ -478,10 +483,19 @@ namespace Mist {
     }
   }
 
+  ///Helper function to determine if a H264 NAL unit is init data or not
+  static inline bool isH264Init(char * data){
+    uint8_t nalType = (data[0] & 0x1F);
+    // 7 = SPS
+    // 8 = PPS
+    return (nalType == 7 || nalType == 8);
+  }
+
   ///Helper function to determine if a H264 NAL unit is a keyframe or not
   static inline bool isH264Keyframe(char * data, unsigned long len){
-    if ((data[0] & 0x1F) == 0x05){return true;}
-    if ((data[0] & 0x1F) != 0x01){return false;}
+    uint8_t nalType = (data[0] & 0x1F);
+    if (nalType == 0x05){return true;}
+    if (nalType != 0x01){return false;}
     Utils::bitstream bs;
     for (size_t i = 1; i < 10 && i < len; ++i) {
       if (i + 2 < len && (memcmp(data + i, "\000\000\003", 3) == 0)) { //Emulation prevention bytes
@@ -493,6 +507,13 @@ namespace Mist {
     }
     bs.getExpGolomb();//Discard first_mb_in_slice
     uint64_t sliceType = bs.getUExpGolomb();
+    //Slice types:
+    //  0: P - Predictive slice (at most 1 reference)
+    //  1: B - Bi-predictive slice (at most 2 references)
+    //  2: I - Intra slice (no external references)
+    //  3: SP - Switching predictive slice (at most 1 reference)
+    //  4: SI - Switching intra slice (no external references)
+    //  5-9: 0-4, but all in picture of same type
     if (sliceType == 2 || sliceType == 4 || sliceType == 7 || sliceType == 9){
       return true;
     }
@@ -538,16 +559,38 @@ namespace Mist {
   }
 
 
-  void OutRTSP::h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, const bool isKey){
-    DTSC::Packet nextPack;
-    uint64_t frameNo = (ts / (1000.0/h264meta[track].fps))+0.5;
-    while (frameNo < tracks[track].packCount){
-      tracks[track].packCount--;
-      tracks[track].offset--;
+  void OutRTSP::h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, bool isKey){
+    //Ignore zero-length packets (e.g. only contained init data and nothing else)
+    if (!len){return;}
+    //If we know/assume the next packet is a key, mark it as such and remove assumption
+    if (nextIsKey){
+      isKey = true;
+      nextIsKey = false;
     }
-    uint32_t offset = (frameNo-tracks[track].packCount) * (1000.0/h264meta[track].fps);
-    uint64_t newTs = tracks[track].packCount * (1000.0/h264meta[track].fps);
-    VERYHIGH_MSG("Packing time %llu = frame %llu. Expected %llu -> +%llu/%llu (oz %d)", ts, frameNo, tracks[track].packCount, (frameNo-tracks[track].packCount), offset, tracks[track].offset);
+    double fps = h264meta[track].fps;
+    uint32_t offset = 0;
+    uint64_t newTs = ts;
+    if (fps > 1){
+      //Assume a steady frame rate, clip the timestamp based on frame number.
+      uint64_t frameNo = (ts / (1000.0/fps))+0.5;
+      while (frameNo < tracks[track].packCount){
+        tracks[track].packCount--;
+      }
+      //More than 32 frames behind? We probably skipped something, somewhere...
+      if ((frameNo-tracks[track].packCount) > 32){
+        tracks[track].packCount = frameNo;
+      }
+      //After some experimentation, we found that the time offset is the difference between the frame number and the packet counter, times the frame rate in ms
+      offset = (frameNo-tracks[track].packCount) * (1000.0/fps);
+      //... and the timestamp is the packet counter times the frame rate in ms.
+      newTs = tracks[track].packCount * (1000.0/fps);
+      VERYHIGH_MSG("Packing time %llu = %sframe %llu (%.2f FPS). Expected %llu -> +%llu/%lu", ts, isKey?"key":"i", frameNo, fps, tracks[track].packCount, (frameNo-tracks[track].packCount), offset);
+    }else{
+      //For non-steady frame rate, assume no offsets are used and the timestamp is already correct
+      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey?"key":"i", tracks[track].packCount);
+    }
+    //Fill the new DTSC packet, buffer it.
+    DTSC::Packet nextPack;
     nextPack.genericFill(newTs, offset, track, buffer, len, 0, isKey);
     tracks[track].packCount++;
     nProxy.streamName = streamName;
@@ -555,6 +598,8 @@ namespace Mist {
     bufferLivePacket(nextPack);
   }
 
+  /// Handles RTP packets generically, for both TCP and UDP-based connections.
+  /// In case of UDP, expects packets to be pre-sorted.
   void OutRTSP::handleIncomingRTP(const uint64_t track, const RTP::Packet & pkt){
     if (!tracks[track].firstTime){
       tracks[track].firstTime = pkt.getTimeStamp();
@@ -584,7 +629,10 @@ namespace Mist {
       return;
     }
     if (myMeta.tracks[track].codec == "H264"){
-      //assume H264 packets
+      //Handles common H264 packets types, but not all.
+      //Generalizes and converts them all to a data format ready for DTSC, then calls h264Packet for that data.
+      //Prints a WARN-level message if packet type is unsupported.
+      /// \todo Support other H264 packets types?
       char * pl = pkt.getPayload();
       if ((pl[0] & 0x1F) == 0){
         WARN_MSG("H264 packet type null ignored");
@@ -592,6 +640,10 @@ namespace Mist {
       }
       if ((pl[0] & 0x1F) < 24){
         DONTEVEN_MSG("H264 single packet, type %u", (unsigned int)(pl[0] & 0x1F));
+        if (isH264Init(pl)){
+          nextIsKey = true;
+          return;
+        }
         static char * packBuffer = 0;
         static unsigned long packBufferSize = 0;
         unsigned long len = pkt.getPayloadSize();
@@ -643,12 +695,15 @@ namespace Mist {
         bool isKey = false;
         while (pos + 1 < pkt.getPayloadSize()){
           unsigned int pLen = Bit::btohs(pl+pos);
-          Bit::htobl(packBuffer+len, pLen);//size-prepend
-          getH264FrameNum(pl+pos+2, pLen, h264meta[track]);
           isKey |= isH264Keyframe(pl+pos+2, pLen);
-          memcpy(packBuffer+len+4, pl+pos+2, pLen);
+          if (isH264Init(pl+pos+2)){
+            nextIsKey = true;
+          }else{
+            Bit::htobl(packBuffer+len, pLen);//size-prepend
+            memcpy(packBuffer+len+4, pl+pos+2, pLen);
+            len += 4+pLen;
+          }
           pos += 2+pLen;
-          len += 4+pLen;
         }
         h264Packet((pkt.getTimeStamp() - tracks[track].firstTime) / 90, track, packBuffer, len, isKey);
         return;
@@ -703,8 +758,12 @@ namespace Mist {
 
         if (pkt.getPayload()[1] & 0x40){//last packet
           INSANE_MSG("H264 FU-A packet type %u completed: %lu", (unsigned int)(fuaBuffer[4] & 0x1F), fuaCurrLen);
-          Bit::htobl(fuaBuffer, fuaCurrLen-4);//size-prepend
-          h264Packet((pkt.getTimeStamp() - tracks[track].firstTime) / 90, track, fuaBuffer, fuaCurrLen, isH264Keyframe(fuaBuffer+4, fuaCurrLen-4));
+          if (isH264Init(fuaBuffer+4)){
+            nextIsKey = true;
+          }else{
+            Bit::htobl(fuaBuffer, fuaCurrLen-4);//size-prepend
+            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime) / 90, track, fuaBuffer, fuaCurrLen, isH264Keyframe(fuaBuffer+4, fuaCurrLen-4));
+          }
           fuaCurrLen = 0;
         }
         return;

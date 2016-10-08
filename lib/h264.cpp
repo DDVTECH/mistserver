@@ -186,6 +186,7 @@ namespace h264 {
     }
 
     //vuiParameters
+    result.fps = 0;//default in case not given
     if (bs.get(1)) {
       //Skipping all the paramters we dont use
       if (bs.get(1)) {

@@ -730,9 +730,9 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   //if the connection was already indexed and it has changed, move it
   if (connToSession.count(id) && connToSession[id] != idx){
     if (sessions[connToSession[id]].getSessType() != SESS_UNSET){
-      INFO_MSG("Switching connection from active session %s over to %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
+      INFO_MSG("Switching connection %lu from active session %s over to %s", id, connToSession[id].toStr().c_str(), idx.toStr().c_str());
     }else{
-      INFO_MSG("Switching connection from inactive session %s over to %s", connToSession[id].toStr().c_str(), idx.toStr().c_str());
+      INFO_MSG("Switching connection %lu from inactive session %s over to %s", id, connToSession[id].toStr().c_str(), idx.toStr().c_str());
     }
     sessions[connToSession[id]].switchOverTo(sessions[idx], id);
     if (!sessions[connToSession[id]].hasData()){
@@ -764,11 +764,6 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
       }
     }
   }
-  /*LTS-START*/
-  //if (counter < 125 && Controller::isBlacklisted(tmpEx.host(), ID, tmpEx.time())){
-  //  (*(data - 1)) = 128;//Send disconnect message;
-  //}
-  /*LTS-END*/
 }
 
 /// Returns true if this stream has at least one connected client.

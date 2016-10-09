@@ -102,9 +102,9 @@ namespace Mist {
           extraSize += bs.size();
         }
         /*LTS-START*/
-        if (myMeta.tracks[thisPacket.getTrackId()].codec == "HEVC"){
+        if (Trk.codec == "HEVC"){
           if (!haveHvcc){
-            hvccbox.setPayload(myMeta.tracks[thisPacket.getTrackId()].init);
+            hvccbox.setPayload(Trk.init);
             haveHvcc = true;
           }
           bs = hvccbox.asAnnexB();
@@ -138,9 +138,9 @@ namespace Mist {
               alreadySent += bs.size();
             }
             /*LTS-START*/
-            if (myMeta.tracks[thisPacket.getTrackId()].codec == "HEVC"){
+            if (Trk.codec == "HEVC"){
               bs = hvccbox.asAnnexB();
-              fillPacket(bs.data(), bs.size());
+              fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
               alreadySent += bs.size();
             }
             /*LTS-END*/

@@ -172,8 +172,51 @@ namespace Mist {
     if (tmpEx.getSync() == 2 || force){
       if (getStatsName() == capa["name"].asStringRef() && Triggers::shouldTrigger("USER_NEW", streamName)){
         //sync byte 0 = no sync yet, wait for sync from controller...
+        char initialSync = 0;
+        //attempt to load sync status from session cache in shm
+        {
+          IPC::sharedPage shmSessions(SHM_SESSIONS, SHM_SESSIONS_SIZE, false, false);
+          if (shmSessions.mapped){
+            char shmEmpty[SHM_SESSIONS_ITEM];
+            memset(shmEmpty, 0, SHM_SESSIONS_ITEM);
+            std::string host = tmpEx.host();
+            if (host.substr(0, 12) == std::string("\000\000\000\000\000\000\000\000\000\000\377\377", 12)){
+              char tmpstr[16];
+              snprintf(tmpstr, 16, "%hhu.%hhu.%hhu.%hhu", host[12], host[13], host[14], host[15]);
+              host = tmpstr;
+            }else{
+              char tmpstr[40];
+              snprintf(tmpstr, 40, "%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x", host[0], host[1], host[2], host[3], host[4], host[5], host[6], host[7], host[8], host[9], host[10], host[11], host[12], host[13], host[14], host[15]);
+              host = tmpstr;
+            }
+            uint32_t shmOffset = 0;
+            const std::string & cName = capa["name"].asStringRef();
+            while (shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
+              //compare crc
+              if (*((uint32_t*)(shmSessions.mapped+shmOffset)) == tmpEx.crc()){
+                //compare stream name
+                if (strncmp(shmSessions.mapped+shmOffset+4, streamName.c_str(), 100) == 0){
+                  //compare connector
+                  if (strncmp(shmSessions.mapped+shmOffset+104, cName.c_str(), 20) == 0){
+                    //compare host
+                    if (strncmp(shmSessions.mapped+shmOffset+124, host.c_str(), 40) == 0){
+                      initialSync = shmSessions.mapped[shmOffset+164];
+                      INFO_MSG("Instant-sync from session cache to %u", (unsigned int)initialSync);
+                      break;
+                    }
+                  }
+                }
+              }
+              //stop if we reached the end
+              if (memcmp(shmSessions.mapped+shmOffset, shmEmpty, SHM_SESSIONS_ITEM) == 0){
+                break;
+              }
+              shmOffset += SHM_SESSIONS_ITEM;
+            }
+          }
+        }
         unsigned int i = 0;
-        tmpEx.setSync(0);
+        tmpEx.setSync(initialSync);
         //wait max 10 seconds for sync
         while ((!tmpEx.getSync() || tmpEx.getSync() == 2) && i++ < 100){
           Util::wait(100);

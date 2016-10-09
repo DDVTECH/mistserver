@@ -212,9 +212,11 @@ void Controller::sessions_shutdown(const std::string & streamname, const std::st
 void Controller::SharedMemStats(void * config){
   DEBUG_MSG(DLVL_HIGH, "Starting stats thread");
   IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
+  IPC::sharedPage shmSessions(SHM_SESSIONS, SHM_SESSIONS_SIZE, true);
   statPointer = &statServer;
   std::set<std::string> inactiveStreams;
   while(((Util::Config*)config)->is_active){
+    uint32_t shmOffset = 0;
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
       tthread::lock_guard<tthread::mutex> guard2(statsMutex);
@@ -228,12 +230,26 @@ void Controller::SharedMemStats(void * config){
           it->second.wipeOld(cutOffPoint);
           if (!it->second.hasData()){
             mustWipe.push_back(it->first);
+          }else{
+            //store an entry in the shmSessions page, if it fits
+            if (shmSessions.mapped && it->second.sync > 2 && shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
+              *((uint32_t*)(shmSessions.mapped+shmOffset)) = it->first.crc;
+              strncpy(shmSessions.mapped+shmOffset+4, it->first.streamName.c_str(), 100);
+              strncpy(shmSessions.mapped+shmOffset+104, it->first.connector.c_str(), 20);
+              strncpy(shmSessions.mapped+shmOffset+124, it->first.host.c_str(), 40);
+              shmSessions.mapped[shmOffset+164] = it->second.sync;
+              shmOffset += SHM_SESSIONS_ITEM;
+            }
           }
         }
         while (mustWipe.size()){
           sessions.erase(mustWipe.front());
           mustWipe.pop_front();
         }
+      }
+      if (shmSessions.mapped){
+        //set a final shmSessions entry to all zeroes
+        memset(shmSessions.mapped+shmOffset, 0, SHM_SESSIONS_ITEM);
       }
       if (activeStreams.size()){
         for (std::map<std::string, unsigned int>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
@@ -256,6 +272,7 @@ void Controller::SharedMemStats(void * config){
   HIGH_MSG("Stopping stats thread");
   if (Controller::restarting){
     statServer.abandon();
+    shmSessions.master = false;
   }else{/*LTS-START*/
     if (Controller::killOnExit){
       DEBUG_MSG(DLVL_WARN, "Killing all connected clients to force full shutdown");

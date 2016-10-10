@@ -264,7 +264,7 @@ int main_loop(int argc, char ** argv){
             }
           }else if(yna(in_string) == 'a'){
             //abort controller startup
-            return 1;
+            return 0;
           }
         }
       }
@@ -286,7 +286,7 @@ int main_loop(int argc, char ** argv){
             }
           }else if(yna(in_string) == 'a'){
             //abort controller startup
-            return 1;
+            return 0;
           }
         }
       }

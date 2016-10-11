@@ -9,24 +9,17 @@ namespace Mist {
       ~OutDashMP4();
       static void init(Util::Config * cfg);
       void onHTTP();
-      void sendNext();      
-      void sendHeader();
-      void initialize();
+      void sendNext();
+      void sendHeader(){};
     protected:
-      std::string makeTime(long long unsigned int time);
+      void addSegmentTimeline(std::stringstream & r, DTSC::Track & Trk, bool live);
+      std::string makeTime(uint64_t time);
       std::string buildManifest();
-      void buildFtyp(unsigned int trackid);
-      void buildStyp(unsigned int trackid);
-      std::string buildMoov(unsigned int trackid);
-      std::string buildSidx(unsigned int trackid);
-      std::string buildSidx(unsigned int trackid, unsigned int keynum);
-      std::string buildMoof(unsigned int trackid, unsigned int keynum);
-      void buildMdat(unsigned int trackid, unsigned int keynum);
-      std::map<unsigned int, std::map<unsigned int, long long unsigned int> > fragmentSizes;
+      void sendMoov(uint32_t trackid);
+      void sendMoof(uint32_t trackid, uint32_t fragIndice);
+      void sendMdat(uint32_t trackid, uint32_t fragIndice);
       std::string buildNalUnit(unsigned int len, const char * data);
-      void parseRange(std::string header, long long & byteStart, long long & byteEnd);
-      int getKeyFromRange(unsigned int tid, long long int byteStart);
-      std::map<int,std::string> moovBoxes;
+      uint64_t targetTime;
 
       std::string h264init(const std::string & initData);
       std::string h265init(const std::string & initData);

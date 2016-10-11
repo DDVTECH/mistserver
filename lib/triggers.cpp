@@ -199,7 +199,8 @@ bool doTrigger(const std::string type, const std::string &payload, const std::st
       while( totalLen>((unsigned int)(bytepos-startBytepos)) ){
         unsigned int stringLen=((unsigned int *)bytepos)[0];
         bytepos+=4;
-        if (strncmp(bytepos, streamName.c_str(), stringLen) == 0){
+        size_t splitter = streamName.find_first_of("+ ");
+        if ((streamName.size() == stringLen || splitter == stringLen) && strncmp(bytepos, streamName.c_str(), stringLen) == 0){
           isHandled = true;
         }
         bytepos+=stringLen;

@@ -1290,6 +1290,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first
       std::map<std::string, struct streamTotals> streams;
+      std::map<std::string, uint32_t> outputs;
       unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
       unsigned int t = Util::epoch() - STATS_DELAY;
       //check all sessions
@@ -1300,6 +1301,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
               case SESS_UNSET:
               case SESS_VIEWER:
                 streams[it->first.streamName].viewers++;
+                outputs[it->first.connector]++;
                 totViewers++;
                 break;
               case SESS_INPUT:
@@ -1322,6 +1324,13 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       response << "mist_sessions_total{sessType=\"incoming\"} " << totInputs << "\n";
       response << "mist_sessions_total{sessType=\"outgoing\"} " << totOutputs << "\n";
       response << "mist_sessions_total{sessType=\"cached\"} " << sessions.size() << "\n\n";
+
+      response << "# HELP mist_outputs Number of viewers active right now, server-wide, by output type.\n";
+      response << "# TYPE mist_outputs gauge\n";
+      for (std::map<std::string, uint32_t>::iterator it = outputs.begin(); it != outputs.end(); ++it){
+        response << "mist_outputs{output=\"" << it->first << "\"} " << it->second << "\n";
+      }
+      response << "\n";
 
       response << "# HELP mist_sessions_count Counts of unique sessions by type since server start.\n";
       response << "# TYPE mist_sessions_count counter\n";
@@ -1368,6 +1377,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first
       std::map<std::string, struct streamTotals> streams;
+      std::map<std::string, uint32_t> outputs;
       unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
       unsigned int t = Util::epoch() - STATS_DELAY;
       //check all sessions
@@ -1378,6 +1388,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
               case SESS_UNSET:
               case SESS_VIEWER:
                 streams[it->first.streamName].viewers++;
+                outputs[it->first.connector]++;
                 totViewers++;
                 break;
               case SESS_INPUT:
@@ -1406,11 +1417,6 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       resp["st"].append((long long)servUpBytes);
       resp["st"].append((long long)servDownBytes);
 
-      for (std::map<std::string, struct streamTotals>::iterator it = streams.begin(); it != streams.end(); ++it){
-        resp["streams"][it->first]["curr"].append((long long)it->second.viewers);
-        resp["streams"][it->first]["curr"].append((long long)it->second.inputs);
-        resp["streams"][it->first]["curr"].append((long long)it->second.outputs);
-      }
 
       for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
         resp["streams"][it->first]["tot"].append((long long)it->second.viewers);
@@ -1419,8 +1425,15 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
         resp["streams"][it->first]["bw"].append((long long)it->second.upBytes);
         resp["streams"][it->first]["bw"].append((long long)it->second.downBytes);
       }
+      for (std::map<std::string, struct streamTotals>::iterator it = streams.begin(); it != streams.end(); ++it){
+        resp["streams"][it->first]["curr"].append((long long)it->second.viewers);
+        resp["streams"][it->first]["curr"].append((long long)it->second.inputs);
+        resp["streams"][it->first]["curr"].append((long long)it->second.outputs);
+      }
+      for (std::map<std::string, uint32_t>::iterator it = outputs.begin(); it != outputs.end(); ++it){
+        resp["outputs"][it->first] = (long long)it->second;
+      }
     }
-
 
 
     H.Chunkify(resp.toString(), conn);

@@ -167,6 +167,18 @@ namespace Mist {
         durs.pop_front();
         ++skippedLines;
       }
+      /*LTS-START*/
+      //remove lines to reduce size towards listlimit setting - but keep at least 4X target duration available
+      if (config->getInteger("listlimit")) {
+        unsigned long listlimit = config->getInteger("listlimit");
+        while (lines.size() > listlimit && (total_dur-durs.front()) > (target_dur * 4000)) {
+          lines.pop_front();
+          total_dur -= durs.front();
+          durs.pop_front();
+          ++skippedLines;
+        }
+      }
+      /*LTS-END*/
     }
 
     result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags + skippedLines << "\r\n";

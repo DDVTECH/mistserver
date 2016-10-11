@@ -426,14 +426,16 @@ namespace Mist {
           r << "      <Representation ";
           r << "id=\"" << it->first << "\" ";
           r << "codecs=\"avc1." << h264init(it->second.init) << "\" ";
-          r << "bandwidth=\"" << it->second.bps << "\" ";
+          //bandwidth is in bits per seconds, we have bytes, so times 8
+          r << "bandwidth=\"" << (it->second.bps*8) << "\" ";
           r << "/>" << std::endl;
         }
         if (it->second.codec == "HEVC"){
           r << "      <Representation ";
           r << "id=\"" << it->first << "\" ";
           r << "codecs=\"hev1." << h265init(it->second.init) << "\" ";
-          r << "bandwidth=\"" << it->second.bps << "\" ";
+          //bandwidth is in bits per seconds, we have bytes, so times 8
+          r << "bandwidth=\"" << (it->second.bps*8) << "\" ";
           r << "/>" << std::endl;
         }
       }
@@ -470,7 +472,8 @@ namespace Mist {
             r << "codecs=\"ec-3\" ";
           }
           r << "audioSamplingRate=\"" << it->second.rate << "\" ";
-          r << "bandwidth=\"" << it->second.bps << "\">" << std::endl;
+          //bandwidth is in bits per seconds, we have bytes, so times 8
+          r << "bandwidth=\"" << (it->second.bps*8) << "\">" << std::endl;
           r << "        <AudioChannelConfiguration schemeIdUri=\"urn:mpeg:dash:23003:3:audio_channel_configuration:2011\" value=\"" << it->second.channels << "\" />" << std::endl;
           r << "      </Representation>" << std::endl;
         }

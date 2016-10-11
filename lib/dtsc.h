@@ -117,7 +117,7 @@ namespace DTSC {
       packType getVersion() const;
       void reInit(Socket::Connection & src);
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
-      void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, long long packBytePos, bool isKeyframe);
+      void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
       void getString(const char * identifier, std::string & result) const;
       void getInt(const char * identifier, int & result) const;
@@ -261,7 +261,7 @@ namespace DTSC {
       inline operator bool() const {
         return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
       }
-      void update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
+      void update(long long packTime, long long packOffset, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
       int getSendLen(bool skipDynamic = false);
       void send(Socket::Connection & conn, bool skipDynamic = false);
       void writeTo(char *& p);
@@ -273,7 +273,7 @@ namespace DTSC {
       Key & getKey(unsigned int keyNum);
       Fragment & getFrag(unsigned int fragNum);
       unsigned int timeToKeynum(unsigned int timestamp);
-      unsigned int timeToFragnum(unsigned int timestamp);
+      uint32_t timeToFragnum(uint64_t timestamp);
       void reset();
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
       void finalize();
@@ -318,9 +318,9 @@ namespace DTSC {
       }
       void reinit(const DTSC::Packet & source);
       void update(DTSC::Packet & pack, unsigned long segment_size = 5000);
-      void updatePosOverride(DTSC::Packet & pack, unsigned long bpos);
+      void updatePosOverride(DTSC::Packet & pack, uint64_t bpos);
       void update(JSON::Value & pack, unsigned long segment_size = 5000);
-      void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
+      void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
       unsigned int getSendLen(bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
       void send(Socket::Connection & conn, bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
       void writeTo(char * p);
@@ -338,6 +338,22 @@ namespace DTSC {
       uint16_t version;
       long long int moreheader;
       long long int bufferWindow;
+  };
+
+  /// An iterator helper for easily iterating over the parts in a Fragment.
+  class PartIter {
+    public:
+      PartIter(Track & Trk, Fragment & frag);
+      Part & operator*() const;///< Dereferences into a Value reference.
+      Part* operator->() const;///< Dereferences into a Value reference.
+      operator bool() const;///< True if not done iterating.
+      PartIter & operator++();///<Go to next iteration.
+    private:
+      uint32_t lastKey;
+      uint32_t currInKey;
+      Track * tRef;
+      std::deque<Part>::iterator pIt;
+      std::deque<Key>::iterator kIt;
   };
 
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.

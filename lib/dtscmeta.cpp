@@ -208,7 +208,7 @@ namespace DTSC {
   
   /// Re-initializes this Packet to contain a generic DTSC packet with the given data fields.
   /// When given a NULL pointer, the data is reserved and memset to 0
-  void Packet::genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, long long packBytePos, bool isKeyframe){
+  void Packet::genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe){
     null();
     master = true;
     //time and trackID are part of the 20-byte header.
@@ -1122,7 +1122,7 @@ namespace DTSC {
 
   ///\brief Updates a track and its metadata given new packet properties.
   ///Will also insert keyframes on non-video tracks, and creates fragments
-  void Track::update(long long packTime, long long packOffset, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size) {
+  void Track::update(long long packTime, long long packOffset, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size) {
     if ((unsigned long long)packTime < lastms) {
       static bool warned = false;
       if (!warned){
@@ -1244,7 +1244,7 @@ namespace DTSC {
   ///\brief Returns a key given its number, or an empty key if the number is out of bounds
   Key & Track::getKey(unsigned int keyNum) {
     static Key empty;
-    if (keyNum < keys[0].getNumber()) {
+    if (!keys.size() || keyNum < keys[0].getNumber()) {
       return empty;
     }
     if ((keyNum - keys[0].getNumber()) > keys.size()) {
@@ -1266,11 +1266,13 @@ namespace DTSC {
   }
 
   /// Gets indice of the fragment containing timestamp, or last fragment if nowhere.
-  unsigned int Track::timeToFragnum(unsigned int timestamp){
-    for (unsigned int i = 0; i<fragments.size(); i++){
-      if (timestamp <= getKey(fragments[i].getNumber()).getTime() + fragments[i].getDuration()){
+  uint32_t Track::timeToFragnum(uint64_t timestamp){
+    uint32_t i = 0;
+    for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); ++it){
+      if (timestamp < getKey(it->getNumber()).getTime() + it->getDuration()){
         return i;
       }
+      ++i;
     }
     return fragments.size()-1;
   }
@@ -1349,7 +1351,7 @@ namespace DTSC {
 
   ///\brief Updates a meta object given a JSON::Value
   void Meta::update(JSON::Value & pack, unsigned long segment_size) {
-    update(pack["time"].asInt(), pack.isMember("offset")?pack["offset"].asInt():0, pack["trackid"].asInt(), pack["data"].asStringRef().size(), pack.isMember("bpos")?pack["bpos"].asInt():-1, pack.isMember("keyframe"), pack.packedSize(), segment_size);
+    update(pack["time"].asInt(), pack.isMember("offset")?pack["offset"].asInt():0, pack["trackid"].asInt(), pack["data"].asStringRef().size(), pack.isMember("bpos")?pack["bpos"].asInt():0, pack.isMember("keyframe"), pack.packedSize(), segment_size);
   }
 
   ///\brief Updates a meta object given a DTSC::Packet
@@ -1357,18 +1359,18 @@ namespace DTSC {
     char * data;
     unsigned int dataLen;
     pack.getString("data", data, dataLen);
-    update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, pack.hasMember("bpos")?pack.getInt("bpos"):-1, pack.hasMember("keyframe"), pack.getDataLen(), segment_size);
+    update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, pack.hasMember("bpos")?pack.getInt("bpos"):0, pack.hasMember("keyframe"), pack.getDataLen(), segment_size);
   }
 
   ///\brief Updates a meta object given a DTSC::Packet with byte position override.
-  void Meta::updatePosOverride(DTSC::Packet & pack, unsigned long bpos) {
+  void Meta::updatePosOverride(DTSC::Packet & pack, uint64_t bpos) {
     char * data;
     unsigned int dataLen;
     pack.getString("data", data, dataLen);
     update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, bpos, pack.hasMember("keyframe"), pack.getDataLen());
   }
 
-  void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, long long packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size){
+  void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size){
     if (!packSendSize){
       //time and trackID are part of the 20-byte header.
       //the container object adds 4 bytes (plus 2+namelen for each content, see below)
@@ -1378,7 +1380,10 @@ namespace DTSC {
       //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
       packSendSize = 24 + (packOffset?17:0) + (packBytePos>=0?15:0) + (isKeyframe?19:0) + packDataSize+11;
     }
-    vod = (packBytePos >= 0);
+    if (vod != (packBytePos > 0)){
+      INFO_MSG("Changing stream from %s to %s (bPos=%lld)", vod?"VoD":"live", (packBytePos >= 0)?"Vod":"live", packBytePos);
+    }
+    vod = (packBytePos > 0);
     live = !vod;
     if (packTrack > 0 && tracks.count(packTrack)){
       tracks[packTrack].update(packTime, packOffset, packDataSize, packBytePos, isKeyframe, packSendSize, segment_size);
@@ -1929,6 +1934,63 @@ namespace DTSC {
       it->second.reset();
     }
   }
+
+
+  PartIter::PartIter(Track & Trk, Fragment & frag){
+    tRef = &Trk;
+    pIt = tRef->parts.begin();
+    kIt = tRef->keys.begin();
+    uint32_t fragNum = frag.getNumber();
+    while (kIt->getNumber() < fragNum && kIt != tRef->keys.end()){
+      uint32_t kParts = kIt->getParts();
+      for (uint32_t pCount = 0; pCount < kParts && pIt != tRef->parts.end(); ++pCount){
+        ++pIt;
+      }
+      ++kIt;
+    }
+    if (kIt == tRef->keys.end()){tRef = 0;}
+    currInKey = 0;
+    lastKey = fragNum + frag.getLength();
+  }
+
+  /// Dereferences into a Value reference.
+  /// If invalid iterator, returns an empty reference and prints a warning message.
+  Part & PartIter::operator*() const{
+    if (tRef && pIt != tRef->parts.end()){
+      return *pIt;
+    }
+    static Part error;
+    WARN_MSG("Dereferenced invalid Part iterator");
+    return error;
+  }
+
+  /// Dereferences into a Value reference.
+  /// If invalid iterator, returns an empty reference and prints a warning message.
+  Part* PartIter::operator->() const{
+    return &(operator*());
+  }
+
+  /// True if not done iterating.
+  PartIter::operator bool() const{
+    return (tRef && pIt != tRef->parts.end());
+  }
+
+  PartIter & PartIter::operator++(){
+    if (*this){
+      ++pIt;
+      if (++currInKey >= kIt->getParts()){
+        currInKey = 0;
+        //check if we're done iterating - we assume done if past the last key or arrived past the fragment
+        if (++kIt == tRef->keys.end() || kIt->getNumber() >= lastKey){
+          tRef = 0;
+        }
+      }
+    }
+    return *this;
+  }
+
+
+
 }
 
 

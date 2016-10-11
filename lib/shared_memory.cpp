@@ -905,7 +905,7 @@ namespace IPC {
   }
 
   ///\brief Parse each of the possible payload pieces, and runs a callback on it if in use.
-  void sharedServer::parseEach(void (*callback)(char * data, size_t len, unsigned int id)) {
+  void sharedServer::parseEach(void (*activeCallback)(char * data, size_t len, unsigned int id), void (*disconCallback)(char * data, size_t len, unsigned int id)) {
     char * empty = 0;
     if (!hasCounter) {
       empty = (char *)malloc(payLen * sizeof(char));
@@ -944,7 +944,7 @@ namespace IPC {
               WARN_MSG("process disappeared, timing out. (pid %lu)", tmpPID);
               *counter = 125 | (0x80 & (*counter)); //if process is already dead, instant timeout.
             }
-            callback(it->mapped + offset + 1, payLen, id);
+            activeCallback(it->mapped + offset + 1, payLen, id);
             switch (countNum) {
               case 127:
                 HIGH_MSG("Client %u requested disconnect", id);
@@ -982,6 +982,9 @@ namespace IPC {
                 break;
             }
             if (countNum == 127 || countNum == 126){
+              if (disconCallback){
+                disconCallback(it->mapped + offset + 1, payLen, id);
+              }
               memset(it->mapped + offset + 1, 0, payLen);
               it->mapped[offset] = 0;
             } else {
@@ -1008,7 +1011,7 @@ namespace IPC {
               amount = id + 1;
               VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
-            callback(it->mapped + offset, payLen, id);
+            activeCallback(it->mapped + offset, payLen, id);
           } else {
             //stop if we're past the amount counted and we're empty
             if (id >= amount) {

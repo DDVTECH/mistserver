@@ -455,14 +455,18 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
       sessions.erase(connToSession[id]);
     }
   }
+  if (!connToSession.count(id)){
+    INSANE_MSG("New connection: %lu as %s", id, idx.toStr().c_str());
+  }
   //store the index for later comparison
   connToSession[id] = idx;
   //update the session with the latest data
   sessions[idx].update(id, tmpEx);
   //check validity of stats data
-  char counter = (*(data - 1));
+  char counter = (*(data - 1)) & 0x7F;
   if (counter == 126 || counter == 127){
     //the data is no longer valid - connection has gone away, store for later
+    INSANE_MSG("Ended connection: %lu as %s", id, idx.toStr().c_str());
     sessions[idx].finish(id);
     connToSession.erase(id);
   }

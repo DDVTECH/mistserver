@@ -41,6 +41,14 @@ namespace Mist {
           streamOut = streamName;
         }
       }
+      if (streamName.find('?') != std::string::npos){
+        streamName = streamName.substr(0, streamName.find('?'));
+      }
+      if (streamOut.find('?') != std::string::npos){
+        std::string tmpVars = streamOut.substr(streamOut.find('?') + 1);
+        streamOut = streamOut.substr(0, streamOut.find('?'));
+        parseVars(tmpVars);
+      }
       initialize();
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(), host.c_str(), port, app.c_str(), streamOut.c_str());
       myConn = Socket::Connection(host, port, false);

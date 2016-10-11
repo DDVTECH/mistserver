@@ -231,7 +231,7 @@ namespace Mist {
         varval.clear();
       }
 
-      if (varname == "track"){
+      if (varname == "track" || varname == "audio" || varname == "video"){
         long long int selTrack = JSON::Value(varval).asInt();
         if (myMeta){
           if (myMeta.tracks.count(selTrack)){

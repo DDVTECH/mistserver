@@ -16,10 +16,12 @@ namespace Mist {
       virtual ~TSOutput(){};
       void sendNext();      
       virtual void sendTS(const char * tsData, unsigned int len=188){};
-      void fillPacket(const char * data, const size_t dataLen);    
+      void fillPacket(char const * data, size_t dataLen, bool & firstPack, bool video, bool keyframe, uint32_t pkgPid, int & contPkg);    
     protected:
       std::map<unsigned int, bool> first;
       std::map<unsigned int, int> contCounters;
+      int contPAT;
+      int contPMT;
       unsigned int packCounter; ///\todo update constructors?
       TS::Packet packData;
       bool haveAvcc;

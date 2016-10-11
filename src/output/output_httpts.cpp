@@ -65,7 +65,7 @@ namespace Mist {
     H.clearHeader("Range");
     H.clearHeader("Icy-MetaData");
     H.clearHeader("User-Agent");
-    H.SetHeader("Content-Type", "video/mp2t");
+    H.SetHeader("Content-Type", "video/mpeg");
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){
       H.SendResponse("200", "OK", myConn);

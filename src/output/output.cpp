@@ -671,11 +671,12 @@ namespace Mist {
       }else{
         VERYHIGH_MSG("Track %d no data (key %u @ %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         unsigned int i = 0;
-        while (nProxy.curPage[tid].mapped[tmp.offset] == 0 && ++i < 42){
-          Util::wait(100);
+        while (nProxy.curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10){
+          Util::wait(100*i);
+          stats();
         }
         if (nProxy.curPage[tid].mapped[tmp.offset] == 0){
-          FAIL_MSG("Track %d no data (key %u) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0));
+          FAIL_MSG("Track %d no data (key %u@%llu) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         }else{
           return seek(tid, pos, getNextKey);
         }

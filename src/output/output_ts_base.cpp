@@ -12,73 +12,90 @@ namespace Mist {
     appleCompat=false;
   }
 
-  void TSOutput::fillPacket(const char * data, const size_t dataLen){
-    
-    if (!packData.getBytesFree()){
-      ///\todo only resend the PAT/PMT for HLS
-      if ( (sendRepeatingHeaders && packCounter % 42 == 0) || !packCounter){
-        TS::Packet tmpPack;
-        tmpPack.FromPointer(TS::PAT);
-        tmpPack.setContinuityCounter(++contCounters[0]);
-        sendTS(tmpPack.checkAndGetBuffer());
-        sendTS(TS::createPMT(selectedTracks, myMeta, ++contCounters[4096]));
-        packCounter += 2;
-      }
-      sendTS(packData.checkAndGetBuffer());
-      packCounter ++;
-      packData.clear();
-    }
-    
-    if (!dataLen){return;}
-    
-    if (packData.getBytesFree() == 184){
-      packData.clear();      
-      packData.setPID(255 + thisPacket.getTrackId());      
-      packData.setContinuityCounter(++contCounters[packData.getPID()]);
-      if (first[thisPacket.getTrackId()]){
-        packData.setUnitStart(1);
-        packData.setDiscontinuity(true);
-        if (myMeta.tracks[thisPacket.getTrackId()].type == "video"){
-          if (thisPacket.getInt("keyframe")){
-            packData.setRandomAccess(true);
-            packData.setESPriority(true);
-          }      
-          packData.setPCR(thisPacket.getTime() * 27000);      
+  void TSOutput::fillPacket(char const * data, size_t dataLen, bool & firstPack, bool video, bool keyframe, uint32_t pkgPid, int & contPkg){
+    do {
+      if (!packData.getBytesFree()){
+        if ( (sendRepeatingHeaders && packCounter % 42 == 0) || !packCounter){
+          TS::Packet tmpPack;
+          tmpPack.FromPointer(TS::PAT);
+          tmpPack.setContinuityCounter(++contPAT);
+          sendTS(tmpPack.checkAndGetBuffer());
+          sendTS(TS::createPMT(selectedTracks, myMeta, ++contPMT));
+          packCounter += 2;
         }
-        first[thisPacket.getTrackId()] = false;
+        sendTS(packData.checkAndGetBuffer());
+        packCounter ++;
+        packData.clear();
       }
-    }
-    
-    int tmp = packData.fillFree(data, dataLen);     
-    if (tmp != dataLen){
-      return fillPacket(data+tmp, dataLen-tmp);
-    }
+      
+      if (!dataLen){return;}
+      
+      if (packData.getBytesFree() == 184){
+        packData.clear();      
+        packData.setPID(pkgPid);
+        packData.setContinuityCounter(++contPkg);
+        if (firstPack){
+          packData.setUnitStart(1);
+          packData.setDiscontinuity(true);
+          if (video){
+            if (keyframe){
+              packData.setRandomAccess(true);
+              packData.setESPriority(true);
+            }      
+            packData.setPCR(thisPacket.getTime() * 27000);      
+          }
+          firstPack = false;
+        }
+      }
+      
+      int tmp = packData.fillFree(data, dataLen);
+      data += tmp;
+      dataLen -= tmp;
+    } while(dataLen);
   }
 
   void TSOutput::sendNext(){
-    first[thisPacket.getTrackId()] = true;
+    //Get ready some data to speed up accesses
+    uint32_t trackId = thisPacket.getTrackId();
+    DTSC::Track & Trk = myMeta.tracks[trackId];
+    bool & firstPack = first[trackId];
+    uint32_t pkgPid = 255 + trackId;
+    int & contPkg = contCounters[pkgPid];
+    uint64_t packTime = thisPacket.getTime();
+    bool video = (Trk.type == "video");
+    bool keyframe = thisPacket.getInt("keyframe");
+    firstPack = true;
+
     char * dataPointer = 0;
     unsigned int dataLen = 0;
     thisPacket.getString("data", dataPointer, dataLen); //data
-    if (thisPacket.getTime() >= until){ //this if should only trigger for HLS       
+    if (packTime >= until){ //this if should only trigger for HLS       
       stop();
       wantRequest = true;
       parseData = false;
       sendTS("",0);      
       return;
     }
+    //apple compatibility timestamp correction
+    if (appleCompat){
+      packTime -= ts_from;
+      if (Trk.type == "audio"){
+        packTime = 0;
+      }
+    }
+    packTime *= 90;
     std::string bs;
     //prepare bufferstring    
-    if (myMeta.tracks[thisPacket.getTrackId()].type == "video"){      
+    if (video){
       unsigned int extraSize = 0;      
       //dataPointer[4] & 0x1f is used to check if this should be done later: fillPacket("\000\000\000\001\011\360", 6);
-      if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
+      if (Trk.codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
         extraSize += 6;
       }
-      if (thisPacket.getInt("keyframe")){
-        if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264"){
+      if (keyframe){
+        if (Trk.codec == "H264"){
           if (!haveAvcc){
-            avccbox.setPayload(myMeta.tracks[thisPacket.getTrackId()].init);
+            avccbox.setPayload(Trk.init);
             haveAvcc = true;
           }
           bs = avccbox.asAnnexB();
@@ -102,23 +119,22 @@ namespace Mist {
       unsigned int ThisNaluSize = 0;
       unsigned int i = 0;
       unsigned int nalLead = 0;
-      
+      uint64_t offset = thisPacket.getInt("offset") * 90;
+
       while (currPack <= splitCount){
         unsigned int alreadySent = 0;
-        long long unsigned int tempTime = thisPacket.getTime();
-        if (appleCompat){tempTime -= ts_from;}
-        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), tempTime * 90, thisPacket.getInt("offset") * 90, !currPack);
-        fillPacket(bs.data(), bs.size());
+        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), packTime, offset, !currPack);
+        fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
         if (!currPack){
-          if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
+          if (Trk.codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
             //End of previous nal unit, if not already present
-            fillPacket("\000\000\000\001\011\360", 6);
+            fillPacket("\000\000\000\001\011\360", 6, firstPack, video, keyframe, pkgPid, contPkg);
             alreadySent += 6;
           }
-          if (thisPacket.getInt("keyframe")){
-            if (myMeta.tracks[thisPacket.getTrackId()].codec == "H264"){
+          if (keyframe){
+            if (Trk.codec == "H264"){
               bs = avccbox.asAnnexB();
-              fillPacket(bs.data(), bs.size());
+              fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
               alreadySent += bs.size();
             }
             /*LTS-START*/
@@ -132,7 +148,7 @@ namespace Mist {
         }
         while (i + 4 < (unsigned int)dataLen){
           if (nalLead){
-            fillPacket("\000\000\000\001"+4-nalLead,nalLead);
+            fillPacket("\000\000\000\001"+4-nalLead,nalLead, firstPack, video, keyframe, pkgPid, contPkg);
             i += nalLead;
             alreadySent += nalLead;
             nalLead = 0;
@@ -145,57 +161,51 @@ namespace Mist {
             }
             if (alreadySent + 4 > watKunnenWeIn1Ding){
               nalLead = 4 - (watKunnenWeIn1Ding-alreadySent);
-              fillPacket("\000\000\000\001",watKunnenWeIn1Ding-alreadySent);
+              fillPacket("\000\000\000\001",watKunnenWeIn1Ding-alreadySent, firstPack, video, keyframe, pkgPid, contPkg);
               i += watKunnenWeIn1Ding-alreadySent;
               alreadySent += watKunnenWeIn1Ding-alreadySent;
             }else{
-              fillPacket("\000\000\000\001",4);
+              fillPacket("\000\000\000\001",4, firstPack, video, keyframe, pkgPid, contPkg);
               alreadySent += 4;
               i += 4;
             }
           }
           if (alreadySent + ThisNaluSize > watKunnenWeIn1Ding){
-            fillPacket(dataPointer+i,watKunnenWeIn1Ding-alreadySent);
+            fillPacket(dataPointer+i,watKunnenWeIn1Ding-alreadySent, firstPack, video, keyframe, pkgPid, contPkg);
             i += watKunnenWeIn1Ding-alreadySent;
             ThisNaluSize -= watKunnenWeIn1Ding-alreadySent;
             alreadySent += watKunnenWeIn1Ding-alreadySent;
           }else{
-            fillPacket(dataPointer+i,ThisNaluSize);
+            fillPacket(dataPointer+i,ThisNaluSize, firstPack, video, keyframe, pkgPid, contPkg);
             alreadySent += ThisNaluSize;
             i += ThisNaluSize;
             ThisNaluSize = 0;
           }          
           if (alreadySent == watKunnenWeIn1Ding){
             packData.addStuffing();
-            fillPacket(0, 0);
-            first[thisPacket.getTrackId()] = true;
+            fillPacket(0, 0, firstPack, video, keyframe, pkgPid, contPkg);
+            firstPack = true;
             break;
           }
         }
         currPack++;
       }
-    }else if (myMeta.tracks[thisPacket.getTrackId()].type == "audio"){
+    }else if (Trk.type == "audio"){
       long unsigned int tempLen = dataLen;
-      if ( myMeta.tracks[thisPacket.getTrackId()].codec == "AAC"){
+      if (Trk.codec == "AAC"){
         tempLen += 7;
       }
-      long long unsigned int tempTime;
-      if (appleCompat){
-        tempTime = 0;// myMeta.tracks[thisPacket.getTrackId()].rate / 1000;
-      }else{
-        tempTime = thisPacket.getTime() * 90;
+      bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
+      fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
+      if (Trk.codec == "AAC"){        
+        bs = TS::getAudioHeader(dataLen, Trk.init);      
+        fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
       }
-      bs = TS::Packet::getPESAudioLeadIn(tempLen, tempTime);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
-      fillPacket(bs.data(), bs.size());
-      if (myMeta.tracks[thisPacket.getTrackId()].codec == "AAC"){        
-        bs = TS::getAudioHeader(dataLen, myMeta.tracks[thisPacket.getTrackId()].init);      
-        fillPacket(bs.data(), bs.size());
-      }
-      fillPacket(dataPointer,dataLen);
+      fillPacket(dataPointer,dataLen, firstPack, video, keyframe, pkgPid, contPkg);
     }
     if (packData.getBytesFree() < 184){
       packData.addStuffing();
-      fillPacket(0, 0);
+      fillPacket(0, 0, firstPack, video, keyframe, pkgPid, contPkg);
     }
   }
 }

@@ -433,8 +433,8 @@ namespace Mist {
       H.StartResponse(H, myConn, VLCworkaround);
       //we assume whole fragments - but timestamps may be altered at will
       uint32_t fragIndice = Trk.timeToFragnum(from);
-      contCounters[0] = Trk.missedFrags + fragIndice;   //PAT continuity counter
-      contCounters[4096] = Trk.missedFrags + fragIndice; //PMT continuity counter
+      contPAT = Trk.missedFrags + fragIndice; //PAT continuity counter
+      contPMT = Trk.missedFrags + fragIndice; //PMT continuity counter
       packCounter = 0;
       parseData = true;
       wantRequest = false;

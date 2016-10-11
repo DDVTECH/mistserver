@@ -65,6 +65,13 @@ namespace Analysers {
           track["width"] = (long long)it->second.width;
           track["height"] = (long long)it->second.height;
           track["fpks"] = it->second.fpks;
+          if (it->second.codec == "H264"){
+            h264::sequenceParameterSet sps;
+            sps.fromDTSCInit(it->second.init);
+            h264::SPSMeta spsData = sps.getCharacteristics();
+            track["h264"]["profile"] = spsData.profile;
+            track["h264"]["level"] = spsData.level;
+          }
         }
         result[it->second.getWritableIdentifier()] = track;
       }

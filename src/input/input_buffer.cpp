@@ -27,7 +27,7 @@ namespace Mist {
     option["value"].append(50000LL);
     config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
-    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes.";
+    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes as well as the minimum duration needed for stable playback.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 50000LL;
@@ -219,14 +219,14 @@ namespace Mist {
       return false;
     }
     if (config->is_active && Trk.fragments.size() > 2){
-      ///Make sure we have at least 3X the target duration.
+      ///Make sure we have at least 8X the target duration.
       //The target duration is the biggest fragment, rounded up to whole seconds.
       uint32_t targetDuration = (Trk.biggestFragment() / 1000 + 1) * 1000;
       //The start is the third fragment's begin
       uint32_t fragStart = Trk.getKey((++(++Trk.fragments.begin()))->getNumber()).getTime();
       //The end is the last fragment's begin
       uint32_t fragEnd = Trk.getKey(Trk.fragments.rbegin()->getNumber()).getTime();
-      if ((fragEnd - fragStart) < targetDuration * 3){
+      if ((fragEnd - fragStart) < targetDuration * 8){
         return false;
       }
     }
@@ -754,7 +754,7 @@ namespace Mist {
     }
     //if the new value is different, print a message and apply it
     if (resumeMode != (bool)tmpNum) {
-      DEBUG_MSG(DLVL_DEVEL, "Setting resume mode from %s to new value of %s", resumeMode ? "enabled" : "disabled", tmpNum ? "enabled" : "disabled");
+      INFO_MSG("Setting resume mode from %s to new value of %s", resumeMode ? "enabled" : "disabled", tmpNum ? "enabled" : "disabled");
       resumeMode = tmpNum;
     }
 

@@ -1347,6 +1347,28 @@ namespace DTSC {
     }
   }
 
+  /// Returns a reference to the first video track, or the first track.
+  /// Beware: returns a reference to invalid memory if there are no tracks!
+  /// Will print a WARN-level message if this is the case.
+  Track & Meta::mainTrack(){
+    if (!tracks.size()){
+      WARN_MSG("Returning nonsense reference - crashing is likely");
+      return tracks.begin()->second;
+    }
+    for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+      if (it->second.type == "video"){
+        return it->second;
+      }
+    }
+    return tracks.begin()->second;
+  }
+
+  /// Returns 0 if there are no tracks, otherwise calls mainTrack().biggestFragment().
+  uint32_t Meta::biggestFragment(){
+    if (!tracks.size()){return 0;}
+    return mainTrack().biggestFragment();
+  }
+
   ///\brief Converts a track to a human readable string
   ///\param str The stringstream to append to
   ///\param indent the amount of indentation needed

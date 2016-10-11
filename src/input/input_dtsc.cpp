@@ -26,6 +26,20 @@ namespace Mist {
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("vorbis");
+
+
+    JSON::Value option;
+    option["arg"] = "integer";
+    option["long"] = "buffer";
+    option["short"] = "b";
+    option["help"] = "Live stream DVR buffer time in ms";
+    option["value"].append(50000LL);
+    config->addOption("bufferTime", option);
+    capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
+    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes as well as the minimum duration needed for stable playback.";
+    capa["optional"]["DVR"]["option"] = "--buffer";
+    capa["optional"]["DVR"]["type"] = "uint";
+    capa["optional"]["DVR"]["default"] = 50000LL;
   }
 
   bool inputDTSC::needsLock(){

@@ -696,7 +696,7 @@ void HTTP::Parser::Chunkify(const char * data, unsigned int size, Socket::Connec
   if (sendingChunks) {
     //prepend the chunk size and \r\n
     if (!size){
-      conn.SendNow("0\r\n\r\n\r\n", 7);
+      conn.SendNow("0\r\n\r\n", 5);
     }
     size_t offset = 8;
     unsigned int t_size = size;

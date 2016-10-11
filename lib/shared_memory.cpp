@@ -781,6 +781,7 @@ namespace IPC {
     }
     mySemaphore.post();
     semGuard tmpGuard(&mySemaphore);
+    amount = 0;
     newPage();
   }
 
@@ -811,6 +812,7 @@ namespace IPC {
     myPages.push_back(tmp);
     tmp.master = false;
     DEBUG_MSG(DLVL_VERYHIGH, "Created a new page: %s", tmp.name.c_str());
+    amount += tmp.len / (payLen + (hasCounter ? 1 : 0)) - 1;
   }
 
   ///\brief Deletes the highest allocated page
@@ -861,7 +863,7 @@ namespace IPC {
     do{
       parseEach(killStatistics);
       Util::wait(250);
-    }while(amount && c++ < 10);
+    }while(amount>1 && c++ < 10);
   }
 
   ///Returns a pointer to the data for the given index.
@@ -914,6 +916,7 @@ namespace IPC {
     unsigned int id = 0;
     unsigned int userCount = 0;
     unsigned int emptyCount = 0;
+    unsigned int lastFilled = 0;
     connectedUsers = 0;
     for (std::deque<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
@@ -932,6 +935,7 @@ namespace IPC {
               connectedUsers++;
             }
             char countNum = (*counter) & 0x7F;
+            lastFilled = id;
             if (id >= amount) {
               amount = id + 1;
               VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
@@ -986,10 +990,10 @@ namespace IPC {
             }
           } else {
             //stop if we're past the amount counted and we're empty
-            if (id >= amount - 1) {
+            if (id >= amount) {
               //bring the counter down if this was the last element
-              if (id == amount - 1) {
-                amount = id;
+              if (lastFilled+1 < amount) {
+                amount = lastFilled+1;
                 VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point
@@ -1000,6 +1004,7 @@ namespace IPC {
           if (memcmp(empty, it->mapped + offset, payLen)) {
             ++userCount;
             //increase the count if needed
+            lastFilled = id;
             if (id >= amount) {
               amount = id + 1;
               VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
@@ -1007,10 +1012,10 @@ namespace IPC {
             callback(it->mapped + offset, payLen, id);
           } else {
             //stop if we're past the amount counted and we're empty
-            if (id >= amount - 1) {
+            if (id >= amount) {
               //bring the counter down if this was the last element
-              if (id == amount - 1) {
-                amount = id;
+              if (lastFilled+1 < amount) {
+                amount = lastFilled+1;
                 VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
               //stop, we're guaranteed no more pages are full at this point

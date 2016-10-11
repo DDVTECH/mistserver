@@ -353,6 +353,8 @@ namespace DTSC {
       void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
       //members:
       std::map<unsigned int, Track> tracks;
+      Track & mainTrack();
+      uint32_t biggestFragment();
       bool vod;
       bool live;
       bool merged;

@@ -207,7 +207,7 @@ namespace Mist {
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
 
     long long int activityCounter = Util::bootSecs();
-    while ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT && config->is_active) { //15 second timeout
+    while (((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT || (myMeta.live && (Util::bootSecs() - activityCounter) < myMeta.biggestFragment()/500)) && config->is_active) { //15 second timeout
       userPage.parseEach(callbackWrapper);
       removeUnused();
       if (userPage.connectedUsers) {

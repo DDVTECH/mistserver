@@ -117,7 +117,8 @@ namespace Mist {
       "</bootstrapInfo>" << std::endl;
       Result << "  <media "
       "url=\"" << (*it) << "-\" "
-      "bitrate=\"" << myMeta.tracks[(*it)].bps * 8 << "\" "
+      //bitrate in kbit/s, we have bps so divide by 128
+      "bitrate=\"" << (myMeta.tracks[(*it)].bps / 128) << "\" "
       "bootstrapInfoId=\"boot" << (*it) << "\" "
       "width=\"" << myMeta.tracks[(*it)].width << "\" "
       "height=\"" << myMeta.tracks[(*it)].height << "\">" << std::endl;

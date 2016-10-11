@@ -757,7 +757,6 @@ namespace IPC {
   ///\param len The lenght of the payload
   ///\param withCounter Whether the content should have a counter
   void sharedServer::init(std::string name, int len, bool withCounter) {
-    amount = 0;
     if (mySemaphore) {
       mySemaphore.close();
     }

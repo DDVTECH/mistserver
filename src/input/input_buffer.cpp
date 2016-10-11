@@ -897,7 +897,7 @@ namespace Mist {
     }
     //if the new value is different, print a message and apply it
     if (cutTime != tmpNum) {
-      DEBUG_MSG(DLVL_DEVEL, "Setting cutTime from %u to new value of %lli", cutTime, tmpNum);
+      INFO_MSG("Setting cutTime from %u to new value of %lli", cutTime, tmpNum);
       cutTime = tmpNum;
     }
 
@@ -931,9 +931,12 @@ namespace Mist {
         tmpNum = config->getOption("segmentsize").asInt();
       }
     }
+    if (tmpNum < myMeta.biggestFragment()/2){
+      tmpNum = myMeta.biggestFragment()/2;
+    }
     //if the new value is different, print a message and apply it
     if (segmentSize != tmpNum) {
-      DEBUG_MSG(DLVL_DEVEL, "Setting segmentSize from %u to new value of %lli", segmentSize, tmpNum);
+      INFO_MSG("Setting segmentSize from %u to new value of %lli", segmentSize, tmpNum);
       segmentSize = tmpNum;
     }
     /*LTS-END*/

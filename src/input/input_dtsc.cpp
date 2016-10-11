@@ -40,6 +40,21 @@ namespace Mist {
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 50000LL;
+    /*LTS-START*/
+    option.null();
+    option["arg"] = "integer";
+    option["long"] = "segment-size";
+    option["short"] = "S";
+    option["help"] = "Target time duration in milliseconds for segments";
+    option["value"].append(5000LL);
+    config->addOption("segmentsize", option);
+    capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
+    capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
+    capa["optional"]["segmentsize"]["option"] = "--segment-size";
+    capa["optional"]["segmentsize"]["type"] = "uint";
+    capa["optional"]["segmentsize"]["default"] = 5000LL;
+    /*LTS-END*/
+
   }
 
   bool inputDTSC::needsLock(){

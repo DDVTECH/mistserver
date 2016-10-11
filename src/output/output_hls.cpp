@@ -5,10 +5,8 @@
 namespace Mist {
   bool OutHLS::isReadyForPlay() {
     if (myMeta.tracks.size()){
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.fragments.size() >= 3){
-          return true;
-        }
+      if (myMeta.mainTrack().fragments.size() > 4){
+        return true;
       }
     }
     return false;
@@ -134,9 +132,12 @@ namespace Mist {
     updateMeta();
     std::stringstream result;
     //parse single track
-    result << "#EXTM3U\r\n#EXT-X-TARGETDURATION:" << (myMeta.tracks[tid].biggestFragment() / 1000) + 1 << "\r\n";
+    uint32_t target_dur = (myMeta.tracks[tid].biggestFragment() / 1000) + 1;
+    result << "#EXTM3U\r\n#EXT-X-VERSION:3\r\n#EXT-X-TARGETDURATION:" << target_dur << "\r\n";
 
     std::deque<std::string> lines;
+    std::deque<uint16_t> durs;
+    uint32_t total_dur = 0;
     for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin(); it != myMeta.tracks[tid].fragments.end(); it++) {
       long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
       long long duration = it->getDuration();
@@ -145,25 +146,27 @@ namespace Mist {
       }
       char lineBuf[400];
       if (sessId.size()){
-        snprintf(lineBuf, 400, "#EXTINF:%lld, no desc\r\n%lld_%lld.ts?sessId=%s\r\n", ((duration + 500) / 1000), starttime, starttime + duration, sessId.c_str());
+        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts?sessId=%s\r\n", (double)duration/1000, starttime, starttime + duration, sessId.c_str());
       }else{
-        snprintf(lineBuf, 400, "#EXTINF:%lld, no desc\r\n%lld_%lld.ts\r\n", ((duration + 500) / 1000), starttime, starttime + duration);
+        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
       }
+      durs.push_back(duration);
+      total_dur += duration;
       lines.push_back(lineBuf);
     }
     unsigned int skippedLines = 0;
     if (myMeta.live && lines.size()) {
       //only print the last segment when VoD
       lines.pop_back();
-      /*LTS-START*/
-      if (config->getInteger("listlimit")) {
-        unsigned long listlimit = config->getInteger("listlimit");
-        while (lines.size() > listlimit) {
-          lines.pop_front();
-          skippedLines++;
-        }
+      total_dur -= durs.back();
+      durs.pop_back();
+      //skip the first two segments when live, unless that brings us under 4 target durations
+      while ((total_dur-durs.front()) > (target_dur * 4000) && skippedLines < 2) {
+        lines.pop_front();
+        total_dur -= durs.front();
+        durs.pop_front();
+        ++skippedLines;
       }
-      /*LTS-END*/
     }
 
     result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags + skippedLines << "\r\n";
@@ -172,7 +175,7 @@ namespace Mist {
       result << lines.front();
       lines.pop_front();
     }
-    if (!myMeta.live) {
+    if (!myMeta.live || total_dur == 0) {
       result << "#EXT-X-ENDLIST\r\n";
     }
     DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
@@ -271,24 +274,6 @@ namespace Mist {
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
     /*LTS-END*/
-  }
-
-  int OutHLS::canSeekms(unsigned int ms) {
-    //no tracks? Frame too new by definition.
-    if (!myMeta.tracks.size()) {
-      return 1;
-    }
-    //check main track
-    DTSC::Track & mainTrack = myMeta.tracks[*selectedTracks.begin()];
-    //return "too late" if one track is past this point
-    if (ms < mainTrack.firstms){
-      return -1;
-    }
-    //return "too early" if one track is not yet at this point
-    if (ms > mainTrack.lastms){
-      return 1;
-    }
-    return 0;
   }
 
   void OutHLS::onHTTP() {
@@ -408,37 +393,22 @@ namespace Mist {
         }
       }
 
+      //Keep a reference to the main track
+      //This is called vidTrack, even for audio-only streams
+      DTSC::Track & Trk = myMeta.tracks[vidTrack];
+
       if (myMeta.live) {
-        unsigned int timeout = 0;
-        int seekable;
-        do {
-          seekable = canSeekms(from);
-          /// \todo Detection of out-of-range parts.
-          if (seekable > 0) {
-            //time out after 21 seconds
-            if (++timeout > 42) {
-              myConn.close();
-              break;
-            }
-            Util::wait(500);
-            updateMeta();
-          }
-        } while (myConn && seekable > 0);
-        if (seekable < 0) {
+        if (from < Trk.firstms){
           H.Clean();
           H.setCORSHeaders();
           H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be served.\n");
-          myConn.SendNow(H.BuildResponse("412", "Fragment out of range"));
+          myConn.SendNow(H.BuildResponse("404", "Fragment out of range"));
           H.Clean(); //clean for any possible next requests
-          DEBUG_MSG(DLVL_WARN, "Fragment @ %llu too old", from);
+          WARN_MSG("Fragment @ %llu too old", from);
           return;
         }
       }
 
-      seek(from);
-      ts_from = from;
-      lastVid = from * 90;
-      
       H.Clean();
       H.SetHeader("Content-Type", "video/mp2t");
       H.setCORSHeaders();
@@ -447,22 +417,18 @@ namespace Mist {
         H.Clean();
         return;
       }
-      H.StartResponse(H, myConn, VLCworkaround);
 
-      unsigned int fragCounter = myMeta.tracks[vidTrack].missedFrags;
-      for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[vidTrack].fragments.begin(); it != myMeta.tracks[vidTrack].fragments.end(); it++) {
-        long long int starttime = myMeta.tracks[vidTrack].getKey(it->getNumber()).getTime();
-        if (starttime <= from && starttime + it->getDuration() > from) {
-          EXTREME_MSG("setting continuity counter for PAT/PMT to %d", fragCounter);
-          contCounters[0] = fragCounter;   //PAT continuity counter
-          contCounters[4096] = fragCounter; //PMT continuity counter
-          break;
-        }
-        ++fragCounter;
-      }
+      H.StartResponse(H, myConn, VLCworkaround);
+      //we assume whole fragments - but timestamps may be altered at will
+      uint32_t fragIndice = Trk.timeToFragnum(from);
+      contCounters[0] = Trk.missedFrags + fragIndice;   //PAT continuity counter
+      contCounters[4096] = Trk.missedFrags + fragIndice; //PMT continuity counter
       packCounter = 0;
       parseData = true;
       wantRequest = false;
+      seek(from);
+      ts_from = from;
+      lastVid = from * 90;
     } else {
       initialize();
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
@@ -474,6 +440,11 @@ namespace Mist {
       }
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
+      if (!myMeta.tracks.size()){
+        H.SendResponse("404", "Not online or found", myConn);
+        H.Clean();
+        return;
+      }
       if(method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
         H.Clean();

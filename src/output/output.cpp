@@ -782,7 +782,8 @@ namespace Mist {
 
             //slow down processing, if real time speed is wanted
             if (realTime){
-              while (thisPacket.getTime() > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime && config->is_active && myConn) {
+              uint8_t i = 6;
+              while (--i && thisPacket.getTime() > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime && config->is_active && myConn) {
                 Util::sleep(std::min(thisPacket.getTime() - (((Util::getMS() - firstTime)*1000)+minSkipAhead)/realTime, 1000llu));
                 stats();
               }
@@ -1003,6 +1004,7 @@ namespace Mist {
       //The next key showed up on another page!
       //We've simply reached the end of the page. Load the next key = next page.
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
+      thisPacket.null();
       nxt.offset = 0;
       if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
         unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
@@ -1018,7 +1020,6 @@ namespace Mist {
           MEDIUM_MSG("Next page for track %u starts at %llu.", nxt.tid, nxt.time);
         }
       }else{
-        thisPacket.null();
         dropTrack(nxt.tid, "page load failure");
       }
       return false;

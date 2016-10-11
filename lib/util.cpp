@@ -1,4 +1,8 @@
+//This line will make ftello/fseeko work with 64 bits numbers
+#define _FILE_OFFSET_BITS 64
+
 #include "util.h"
+#include <stdio.h>
 #include <iostream>
 
 namespace Util {
@@ -36,5 +40,19 @@ namespace Util {
     }
     return result.size() == positions.size();
   }
+
+  /// 64-bits version of ftell
+  uint64_t ftell(FILE * stream){
+    /// \TODO Windows implementation (e.g. _ftelli64 ?)
+    return ftello(stream);
+  }
+
+  /// 64-bits version of fseek
+  uint64_t fseek(FILE * stream, uint64_t offset, int whence){
+    /// \TODO Windows implementation (e.g. _fseeki64 ?)
+    return fseeko(stream, offset, whence);
+  }
+
+
 }
 

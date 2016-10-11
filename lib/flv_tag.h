@@ -4,7 +4,6 @@
 #pragma once
 #include "socket.h"
 #include "dtsc.h"
-#include "json.h"
 #include "amf.h"
 #include <string>
 
@@ -51,7 +50,7 @@ namespace FLV {
       bool DTSCVideoInit(DTSC::Track & video);
       bool DTSCAudioInit(DTSC::Track & audio);
       bool DTSCMetaInit(DTSC::Meta & M, std::set<long unsigned int> & selTracks);
-      JSON::Value toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, unsigned int reTrack = 0);
+      void toMeta(DTSC::Meta & metadata, AMF::Object & amf_storage, unsigned int reTrack = 0);
       bool MemLoader(char * D, unsigned int S, unsigned int & P);
       bool FileLoader(FILE * f);
       unsigned int getTrackID();
@@ -66,10 +65,6 @@ namespace FLV {
       //loader helper functions
       bool MemReadUntil(char * buffer, unsigned int count, unsigned int & sofar, char * D, unsigned int S, unsigned int & P);
       bool FileReadUntil(char * buffer, unsigned int count, unsigned int & sofar, FILE * f);
-      //JSON writer helpers
-      void Meta_Put(JSON::Value & meta, std::string cat, std::string elem, std::string val);
-      void Meta_Put(JSON::Value & meta, std::string cat, std::string elem, uint64_t val);
-      bool Meta_Has(JSON::Value & meta, std::string cat, std::string elem);
   };
 //Tag
 

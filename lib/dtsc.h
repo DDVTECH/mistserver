@@ -295,6 +295,7 @@ namespace DTSC {
       std::deque<Part> parts;
       std::deque<Ivec> ivecs; /*LTS*/
       Key & getKey(unsigned int keyNum);
+      Fragment & getFrag(unsigned int fragNum);
       unsigned int timeToKeynum(unsigned int timestamp);
       unsigned int timeToFragnum(unsigned int timestamp);
       void reset();
@@ -321,8 +322,11 @@ namespace DTSC {
       int width;
       int height;
       int fpks;
+      void removeFirstKey();
+      uint32_t secsSinceFirstFragmentInsert();
     private:
       std::string cachedIdent;
+      std::deque<uint32_t> fragInsertTime;
   };
 
   ///\brief Class for storage of meta data

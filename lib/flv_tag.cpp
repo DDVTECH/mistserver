@@ -518,7 +518,7 @@ void FLV::Tag::setLen() {
   data[ --i] = (len4) & 0xFF;
 }
 
-/// FLV Video init data loader function from JSON.
+/// FLV Video init data loader function from metadata.
 bool FLV::Tag::DTSCVideoInit(DTSC::Track & video) {
   //Unknown? Assume H264.
   len = 0;
@@ -549,7 +549,7 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Track & video) {
   return true;
 }
 
-/// FLV Audio init data loader function from JSON.
+/// FLV Audio init data loader function from metadata.
 bool FLV::Tag::DTSCAudioInit(DTSC::Track & audio) {
   len = 0;
   //Unknown? Assume AAC.
@@ -709,6 +709,7 @@ bool FLV::Tag::ChunkLoader(const RTMPStream::Chunk & O) {
   data[2] = (O.len >> 8) & 0xFF;
   data[1] = (O.len >> 16) & 0xFF;
   tagTime(O.timestamp);
+  isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
   return true;
 }
 
@@ -794,11 +795,7 @@ bool FLV::Tag::MemLoader(char * D, unsigned int S, unsigned int & P) {
     //read tag body
     if (MemReadUntil(data, len, sofar, D, S, P)) {
       //calculate keyframeness, next time read header again, return true
-      if ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1)) {
-        isKeyframe = true;
-      } else {
-        isKeyframe = false;
-      }
+      isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
       done = true;
       sofar = 0;
       return true;
@@ -892,11 +889,7 @@ bool FLV::Tag::FileLoader(FILE * f) {
     //read tag body
     if (FileReadUntil(data, len, sofar, f)) {
       //calculate keyframeness, next time read header again, return true
-      if ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1)) {
-        isKeyframe = true;
-      } else {
-        isKeyframe = false;
-      }
+      isKeyframe = ((data[0] == 0x09) && (((data[11] & 0xf0) >> 4) == 1));
       done = true;
       sofar = 0;
       fcntl(fileno(f), F_SETFL, preflags);
@@ -944,9 +937,7 @@ unsigned int FLV::Tag::getDataLen(){
   return len - 16;
 }
 
-JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, unsigned int reTrack) {
-  JSON::Value pack_out; // Storage for outgoing metadata.
-
+void FLV::Tag::toMeta(DTSC::Meta & metadata, AMF::Object & amf_storage, unsigned int reTrack){
   if (!reTrack){
     switch (data[0]){
       case 0x09: reTrack = 1; break;//video
@@ -954,7 +945,6 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
       case 0x12: reTrack = 3; break;//meta
     }
   }
-  pack_out["trackid"] = reTrack;
 
   if (data[0] == 0x12) {
     AMF::Object meta_in = AMF::parse((unsigned char *)data + 11, len - 15);
@@ -968,78 +958,56 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
     }
     if (tmp) {
       amf_storage = *tmp;
-      bool empty = true;
-      for (int i = 0; i < tmp->hasContent(); ++i) {
-        if (tmp->getContentP(i)->Indice() == "videocodecid" || tmp->getContentP(i)->Indice() == "audiocodecid" || tmp->getContentP(i)->Indice() == "width" || tmp->getContentP(i)->Indice() == "height" || tmp->getContentP(i)->Indice() == "videodatarate" || tmp->getContentP(i)->Indice() == "videoframerate" || tmp->getContentP(i)->Indice() == "audiodatarate" || tmp->getContentP(i)->Indice() == "audiosamplerate" || tmp->getContentP(i)->Indice() == "audiosamplesize" || tmp->getContentP(i)->Indice() == "audiochannels") {
-          continue;
-        }
-        if (tmp->getContentP(i)->NumValue()) {
-          pack_out["data"][tmp->getContentP(i)->Indice()] = (long long)tmp->getContentP(i)->NumValue();
-          empty = false;
-        } else {
-          if (tmp->getContentP(i)->StrValue() != "") {
-            pack_out["data"][tmp->getContentP(i)->Indice()] = tmp->getContentP(i)->StrValue();
-            empty = false;
-          }
-        }
-      }
-      if (!empty) {
-        pack_out["datatype"] = "meta";
-        pack_out["time"] = tagTime();
-      }else{
-        pack_out.null();
-      }
     }
-    return pack_out; //empty
+    return;
   }
-  if (data[0] == 0x08) {
+  if (data[0] == 0x08 && (metadata.tracks[reTrack].codec == "" || metadata.tracks[reTrack].codec != getAudioCodec() || (needsInitData() && isInitData()))) {
     char audiodata = data[11];
     metadata.tracks[reTrack].trackID = reTrack;
     metadata.tracks[reTrack].type = "audio";
-    if (metadata.tracks[reTrack].codec == "" || metadata.tracks[reTrack].codec != getAudioCodec()) {
-      metadata.tracks[reTrack].codec = getAudioCodec();
-      switch (audiodata & 0x0C) {
-        case 0x0:
-          metadata.tracks[reTrack].rate = 5512;
-          break;
-        case 0x4:
-          metadata.tracks[reTrack].rate = 11025;
-          break;
-        case 0x8:
-          metadata.tracks[reTrack].rate = 22050;
-          break;
-        case 0xC:
-          metadata.tracks[reTrack].rate = 44100;
-          break;
-      }
-      if (amf_storage.getContentP("audiosamplerate")) {
-        metadata.tracks[reTrack].rate = (long long int)amf_storage.getContentP("audiosamplerate")->NumValue();
-      }
-      switch (audiodata & 0x02) {
-        case 0x0:
-          metadata.tracks[reTrack].size = 8;
-          break;
-        case 0x2:
-          metadata.tracks[reTrack].size = 16;
-          break;
-      }
-      if (amf_storage.getContentP("audiosamplesize")) {
-        metadata.tracks[reTrack].size = (long long int)amf_storage.getContentP("audiosamplesize")->NumValue();
-      }
-      switch (audiodata & 0x01) {
-        case 0x0:
-          metadata.tracks[reTrack].channels = 1;
-          break;
-        case 0x1:
-          metadata.tracks[reTrack].channels = 2;
-          break;
-      }
-      if (amf_storage.getContentP("stereo")) {
-        if (amf_storage.getContentP("stereo")->NumValue() == 1) {
-          metadata.tracks[reTrack].channels = 2;
-        } else {
-          metadata.tracks[reTrack].channels = 1;
-        }
+    metadata.tracks[reTrack].codec = getAudioCodec();
+
+    switch (audiodata & 0x0C) {
+      case 0x0:
+        metadata.tracks[reTrack].rate = 5512;
+        break;
+      case 0x4:
+        metadata.tracks[reTrack].rate = 11025;
+        break;
+      case 0x8:
+        metadata.tracks[reTrack].rate = 22050;
+        break;
+      case 0xC:
+        metadata.tracks[reTrack].rate = 44100;
+        break;
+    }
+    if (amf_storage.getContentP("audiosamplerate")) {
+      metadata.tracks[reTrack].rate = (long long int)amf_storage.getContentP("audiosamplerate")->NumValue();
+    }
+    switch (audiodata & 0x02) {
+      case 0x0:
+        metadata.tracks[reTrack].size = 8;
+        break;
+      case 0x2:
+        metadata.tracks[reTrack].size = 16;
+        break;
+    }
+    if (amf_storage.getContentP("audiosamplesize")) {
+      metadata.tracks[reTrack].size = (long long int)amf_storage.getContentP("audiosamplesize")->NumValue();
+    }
+    switch (audiodata & 0x01) {
+      case 0x0:
+        metadata.tracks[reTrack].channels = 1;
+        break;
+      case 0x1:
+        metadata.tracks[reTrack].channels = 2;
+        break;
+    }
+    if (amf_storage.getContentP("stereo")) {
+      if (amf_storage.getContentP("stereo")->NumValue() == 1) {
+        metadata.tracks[reTrack].channels = 2;
+      } else {
+        metadata.tracks[reTrack].channels = 1;
       }
     }
     if (needsInitData() && isInitData()) {
@@ -1048,54 +1016,36 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
       } else {
         metadata.tracks[reTrack].init = std::string((char *)data + 12, (size_t)len - 16);
       }
-      pack_out.null();
-      return pack_out; //skip rest of parsing, get next tag.
     }
-    pack_out["time"] = tagTime();
-    if ((audiodata & 0xF0) == 0xA0) {
-      if (len < 18) {
-        return JSON::Value();
-      }
-      pack_out["data"] = std::string((char *)data + 13, (size_t)len - 17);
-    } else {
-      if (len < 17) {
-        return JSON::Value();
-      }
-      pack_out["data"] = std::string((char *)data + 12, (size_t)len - 16);
-    }
-    return pack_out;
   }
-  if (data[0] == 0x09) {
+
+  if (data[0] == 0x09 && ((needsInitData() && isInitData()) || !metadata.tracks[reTrack].codec.size())){
     char videodata = data[11];
-    if (metadata.tracks[reTrack].codec == "") {
-      metadata.tracks[reTrack].codec = getVideoCodec();
-    }
+    metadata.tracks[reTrack].codec = getVideoCodec();
     metadata.tracks[reTrack].type = "video";
     metadata.tracks[reTrack].trackID = reTrack;
-    if (!metadata.tracks[reTrack].width || !metadata.tracks[reTrack].height){
-      if (amf_storage.getContentP("width")) {
-        metadata.tracks[reTrack].width = (long long int)amf_storage.getContentP("width")->NumValue();
-      }
-      if (amf_storage.getContentP("height")) {
-        metadata.tracks[reTrack].height = (long long int)amf_storage.getContentP("height")->NumValue();
-      }
+    if (amf_storage.getContentP("width")) {
+      metadata.tracks[reTrack].width = (long long int)amf_storage.getContentP("width")->NumValue();
+    }
+    if (amf_storage.getContentP("height")) {
+      metadata.tracks[reTrack].height = (long long int)amf_storage.getContentP("height")->NumValue();
     }
     if (!metadata.tracks[reTrack].fpks && amf_storage.getContentP("videoframerate")) {
       if (amf_storage.getContentP("videoframerate")->NumValue()){
         metadata.tracks[reTrack].fpks = (long long int)(amf_storage.getContentP("videoframerate")->NumValue() * 1000.0);
       }else{
-        metadata.tracks[reTrack].fpks = JSON::Value(amf_storage.getContentP("videoframerate")->StrValue()).asInt() * 1000.0;
+        metadata.tracks[reTrack].fpks = atoi(amf_storage.getContentP("videoframerate")->StrValue().c_str()) * 1000.0;
       }
     }
     if (needsInitData() && isInitData()) {
       if ((videodata & 0x0F) == 7) {
         if (len < 21) {
-          return JSON::Value();
+          return;
         }
         metadata.tracks[reTrack].init = std::string((char *)data + 16, (size_t)len - 20);
       } else {
         if (len < 17) {
-          return JSON::Value();
+          return;
         }
         metadata.tracks[reTrack].init = std::string((char *)data + 12, (size_t)len - 16);
       }
@@ -1108,48 +1058,9 @@ JSON::Value FLV::Tag::toJSON(DTSC::Meta & metadata, AMF::Object & amf_storage, u
         metadata.tracks[reTrack].height = spsChar.height;
         metadata.tracks[reTrack].fpks = spsChar.fps * 1000;
       }
-      pack_out.null();
-      return pack_out; //skip rest of parsing, get next tag.
     }
-    switch (videodata & 0xF0) {
-      case 0x10:
-      case 0x40:
-        pack_out["keyframe"] = 1;
-        break;
-      case 0x50:
-        return JSON::Value();
-        break; //the video info byte we just throw away - useless to us...
-    }
-    pack_out["time"] = tagTime();
-    if (!getDataLen()){
-      //empty packet
-      pack_out["data"] = "";
-      return pack_out;
-    }
-    if ((videodata & 0x0F) == 7) {
-      switch (data[12]) {
-        case 1:
-          pack_out["nalu"] = 1;
-          break;
-        case 2:
-          pack_out["nalu_end"] = 1;
-          break;
-      }
-      pack_out["offset"] = offset();
-      if (len < 21) {
-        return JSON::Value();
-      }
-      pack_out["data"] = std::string((char *)data + 16, (size_t)len - 20);
-    } else {
-      if (len < 17) {
-        return JSON::Value();
-      }
-      pack_out["data"] = std::string((char *)data + 12, (size_t)len - 16);
-    }
-    return pack_out;
   }
-  return pack_out; //should never get here
-} //FLV::Tag::toJSON
+}
 
 /// Checks if buf is large enough to contain len.
 /// Attempts to resize data buffer if not/

@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <string>
+#include <mist/util.h>
 #include <mist/stream.h>
 #include <mist/defines.h>
 
@@ -53,33 +54,35 @@ namespace Mist {
     //See whether a separate header file exists.
     if (readExistingHeader()){return true;}
     //Create header file from FLV data
-    fseek(inFile, 13, SEEK_SET);
+    Util::fseek(inFile, 13, SEEK_SET);
     AMF::Object amf_storage;
-    JSON::Value lastPack;
     long long int lastBytePos = 13;
+    uint64_t bench = Util::getMicros();
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
-        lastPack.null();
-        lastPack = tmpTag.toJSON(myMeta, amf_storage);
-        lastPack["bpos"] = lastBytePos;
-        myMeta.update(lastPack);
-        lastBytePos = ftell(inFile);
+        tmpTag.toMeta(myMeta, amf_storage);
+        if (!tmpTag.getDataLen()){continue;}
+        if (tmpTag.needsInitData() && tmpTag.isInitData()){continue;}
+        myMeta.update(tmpTag.tagTime(), tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe);
+        lastBytePos = Util::ftell(inFile);
       }
     }
+    bench = Util::getMicros(bench);
+    INFO_MSG("Header generated in %llu ms: @%lld, %s, %s", bench/1000, lastBytePos, myMeta.vod?"VoD":"NOVoD", myMeta.live?"Live":"NOLive");
     if (FLV::Parse_Error){
-      std::cerr << FLV::Error_Str << std::endl;
-      return false;
+      FLV::Parse_Error = false;
+      ERROR_MSG("Stopping at FLV parse error @%lld: %s", lastBytePos, FLV::Error_Str.c_str());
     }
     myMeta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
   
   void inputFLV::getNext(bool smart) {
-    long long int lastBytePos = ftell(inFile);
+    long long int lastBytePos = Util::ftell(inFile);
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
         if ( !selectedTracks.count(tmpTag.getTrackID())){
-          lastBytePos = ftell(inFile);
+          lastBytePos = Util::ftell(inFile);
           continue;
         }
         break;
@@ -90,11 +93,12 @@ namespace Mist {
       return;
     }
     if (FLV::Parse_Error){
-      FAIL_MSG("FLV error: %s", FLV::Error_Str.c_str());
+      FLV::Parse_Error = false;
+      FAIL_MSG("FLV error @ %lld: %s", lastBytePos, FLV::Error_Str.c_str());
       thisPacket.null();
       return;
     }
-    if (!tmpTag.getDataLen()){
+    if (!tmpTag.getDataLen() || (tmpTag.needsInitData() && tmpTag.isInitData())){
       return getNext();
     }
     thisPacket.genericFill(tmpTag.tagTime(), tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getData(), tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe); //init packet from tmpTags data
@@ -104,14 +108,14 @@ namespace Mist {
     //We will seek to the corresponding keyframe of the video track if selected, otherwise audio keyframe.
     //Flv files are never multi-track, so track 1 is video, track 2 is audio.
     int trackSeek = (selectedTracks.count(1) ? 1 : 2);
-    size_t seekPos = myMeta.tracks[trackSeek].keys[0].getBpos();
+    uint64_t seekPos = myMeta.tracks[trackSeek].keys[0].getBpos();
     for (unsigned int i = 0; i < myMeta.tracks[trackSeek].keys.size(); i++){
       if (myMeta.tracks[trackSeek].keys[i].getTime() > seekTime){
         break;
       }
       seekPos = myMeta.tracks[trackSeek].keys[i].getBpos();
     }
-    fseek(inFile, seekPos, SEEK_SET);
+    Util::fseek(inFile, seekPos, SEEK_SET);
   }
 
   void inputFLV::trackSelect(std::string trackSpec) {

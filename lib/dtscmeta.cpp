@@ -1204,7 +1204,7 @@ namespace DTSC {
     //update firstms
     firstms = keys[0].getTime();
     //delete any fragments no longer fully buffered
-    while (fragments[0].getNumber() < keys[0].getNumber()) {
+    while (fragments.size() && keys.size() && fragments[0].getNumber() < keys[0].getNumber()) {
       fragments.pop_front();
       fragInsertTime.pop_front();
       //and update the missed fragment counter

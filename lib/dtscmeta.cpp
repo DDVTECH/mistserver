@@ -1587,8 +1587,8 @@ namespace DTSC {
     writePointer(p, "\340", 1);//Begin track object
     writePointer(p, "\000\011fragments\002", 12);
     writePointer(p, convertInt(fragments.size() * PACKED_FRAGMENT_SIZE), 4);
-    for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++) {
-      writePointer(p, it->getData(), PACKED_FRAGMENT_SIZE);
+    for (; firstFrag != fragments.end(); ++firstFrag) {
+      writePointer(p, firstFrag->getData(), PACKED_FRAGMENT_SIZE);
     }
     writePointer(p, "\000\004keys\002", 7);
     writePointer(p, convertInt(keys.size() * PACKED_KEY_SIZE), 4);

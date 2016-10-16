@@ -266,7 +266,6 @@ namespace Controller {
     jsonForEach(out, jit) {
       if ( !in.isMember(jit.key())){
         toDelete.insert(jit.key());
-        Log("STRM", std::string("Deleted stream ") + jit.key());
       }
     }
     //actually delete the streams

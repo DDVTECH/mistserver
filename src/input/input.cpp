@@ -197,7 +197,7 @@ namespace Mist {
     userPage.init(userPageName, PLAY_EX_SIZE, true);
     /*LTS-START*/
     if(Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
-      std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
+      std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef();
       if (!Triggers::doTrigger("STREAM_READY", payload, config->getString("streamname"))){
         config->is_active = false;
       }

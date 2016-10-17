@@ -163,6 +163,7 @@ namespace Mist {
       unsigned int pausepoint;///< Position to pause at, when reached
       HTTP::Parser HTTP_R, HTTP_S;
       std::string source;
+      uint64_t lastTimeSync;
       bool expectTCP;
       bool handleTCP();
       void handleUDP();

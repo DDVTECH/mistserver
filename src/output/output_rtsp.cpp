@@ -18,6 +18,7 @@ namespace Mist {
     minSkipAhead = 0;
     expectTCP = false;
     isPushing = false;
+    lastTimeSync = 0;
   }
   
   /// Function used to send RTP packets over UDP
@@ -81,14 +82,28 @@ namespace Mist {
     char * dataPointer = 0;
     unsigned int dataLen = 0;
     thisPacket.getString("data", dataPointer, dataLen);
-    unsigned int tid = thisPacket.getTrackId();
-    unsigned int timestamp = thisPacket.getTime();
+    uint32_t tid = thisPacket.getTrackId();
+    uint64_t timestamp = thisPacket.getTime();
     
     //if we're past the pausing point, seek to it, and pause immediately
     if (pausepoint && timestamp > pausepoint){
       pausepoint = 0;
       stop();
       return;
+    }
+
+
+    if (myMeta.live && lastTimeSync + 666 < timestamp){
+      lastTimeSync = timestamp;
+      updateMeta();
+      DTSC::Track & mainTrk = myMeta.tracks[getMainSelectedTrack()];
+      // The extra 1000ms here is for the metadata sync delay.
+      // It can be removed once we get rid of that.
+      if (timestamp + 1000 + needsLookAhead < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
+        INFO_MSG("Skipping forward %llums (%llu ms LA)", mainTrk.keys.rbegin()->getTime() - thisPacket.getTime(), needsLookAhead);
+        seek(mainTrk.keys.rbegin()->getTime());
+        return;
+      }
     }
     
     void * socket = 0;

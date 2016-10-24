@@ -14,7 +14,7 @@ namespace Mist {
     public:
       TSOutput(Socket::Connection & conn);
       virtual ~TSOutput(){};
-      void sendNext();      
+      virtual void sendNext();      
       virtual void sendTS(const char * tsData, unsigned int len=188){};
       void fillPacket(char const * data, size_t dataLen, bool & firstPack, bool video, bool keyframe, uint32_t pkgPid, int & contPkg);    
     protected:
@@ -29,7 +29,6 @@ namespace Mist {
       bool appleCompat;
       bool sendRepeatingHeaders;
       long long unsigned int ts_from;
-      long long unsigned int until;
       long long unsigned int lastVid;
   };
 }

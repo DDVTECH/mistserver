@@ -108,6 +108,7 @@ namespace Mist {
   
   OutHLS::OutHLS(Socket::Connection & conn) : TSOutput(conn){
     realTime = 0;
+    until=0xFFFFFFFFFFFFFFFFull;
   }
   
   OutHLS::~OutHLS() {}
@@ -270,6 +271,19 @@ namespace Mist {
     }
   }
 
+  void OutHLS::sendNext(){
+    //First check if we need to stop.
+    if (thisPacket.getTime() >= until){
+      stop();
+      wantRequest = true;
+      parseData = false;
+      //Ensure alignment of contCounters for selected tracks, to prevent discontinuities.
+      H.Chunkify("", 0, myConn);
+      return;
+    }
+    //Invoke the generic TS output sendNext handler
+    TSOutput::sendNext();
+  }
 
   void OutHLS::sendTS(const char * tsData, unsigned int len){    
     H.Chunkify(tsData, len, myConn);

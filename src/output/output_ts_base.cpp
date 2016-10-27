@@ -34,7 +34,6 @@ namespace Mist {
         packData.setContinuityCounter(++contPkg);
         if (firstPack){
           packData.setUnitStart(1);
-          packData.setDiscontinuity(true);
           if (video){
             if (keyframe){
               packData.setRandomAccess(true);

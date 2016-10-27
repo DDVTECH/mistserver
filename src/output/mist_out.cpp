@@ -18,7 +18,7 @@ int main(int argc, char * argv[]) {
     }
     conf.activate();
     if (mistOut::listenMode()){
-      conf.serveForkedSocket(spawnForked);
+      mistOut::listener(conf, spawnForked);
     }else{
       Socket::Connection S(fileno(stdout),fileno(stdin) );
       mistOut tmp(S);

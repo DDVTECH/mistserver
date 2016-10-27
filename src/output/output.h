@@ -41,7 +41,7 @@ namespace Mist {
       static void init(Util::Config * cfg);
       static JSON::Value capa;
       //non-virtual generic functions
-      int run();
+      virtual int run();
       virtual void stats(bool force = false);
       void seek(unsigned long long pos);
       bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
@@ -62,6 +62,7 @@ namespace Mist {
       bool prepareNext();
       virtual void dropTrack(uint32_t trackId, std::string reason, bool probablyBad = true);
       virtual void onRequest();
+      static void listener(Util::Config & conf, int (*callback)(Socket::Connection & S));
       virtual void initialSeek();
       virtual bool onFinish() {
         return false;

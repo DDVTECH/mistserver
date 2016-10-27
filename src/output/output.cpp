@@ -55,6 +55,10 @@ namespace Mist{
     }
     sentHeader = false;
   }
+
+  void Output::listener(Util::Config & conf, int (*callback)(Socket::Connection & S)){
+    conf.serveForkedSocket(callback);
+  }
   
   void Output::setBlocking(bool blocking){
     isBlocking = blocking;

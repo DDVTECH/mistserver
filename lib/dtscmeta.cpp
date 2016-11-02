@@ -1825,7 +1825,7 @@ namespace DTSC {
         dataLen += it->second.getSendLen(skipDynamic);
       }
     }
-    if (version){dataLen += 17;}
+    if (version){dataLen += 18;}
     return dataLen + 8; //add 8 bytes header
   }
 
@@ -1852,7 +1852,7 @@ namespace DTSC {
       writePointer(p, convertLongLong(1), 8);
     }
     if (version) {
-      writePointer(p, "\000\006version\001", 9);
+      writePointer(p, "\000\007version\001", 10);
       writePointer(p, convertLongLong(version), 8);
     }
     if (bufferWindow) {
@@ -1889,7 +1889,7 @@ namespace DTSC {
       conn.SendNow(convertLongLong(1), 8);
     }
     if (version) {
-      conn.SendNow("\000\006version\001", 9);
+      conn.SendNow("\000\007version\001", 10);
       conn.SendNow(convertLongLong(version), 8);
     }
     if (bufferWindow) {

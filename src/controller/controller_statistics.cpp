@@ -79,16 +79,7 @@ std::string Controller::sessIndex::toStr(){
 /// Initializes a sessIndex from a statExchange object, converting binary format IP addresses into strings.
 /// This extracts the host, stream name, connector and crc field, ignoring everything else.
 Controller::sessIndex::sessIndex(IPC::statExchange & data){
-  std::string tHost = data.host();
-  if (tHost.substr(0, 12) == std::string("\000\000\000\000\000\000\000\000\000\000\377\377", 12)){
-    char tmpstr[16];
-    snprintf(tmpstr, 16, "%hhu.%hhu.%hhu.%hhu", tHost[12], tHost[13], tHost[14], tHost[15]);
-    host = tmpstr;
-  }else{
-    char tmpstr[40];
-    snprintf(tmpstr, 40, "%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x", tHost[0], tHost[1], tHost[2], tHost[3], tHost[4], tHost[5], tHost[6], tHost[7], tHost[8], tHost[9], tHost[10], tHost[11], tHost[12], tHost[13], tHost[14], tHost[15]);
-    host = tmpstr;
-  }
+  Socket::hostBytesToStr(data.host().c_str(), 16, host);
   streamName = data.streamName();
   connector = data.connector();
   crc = data.crc();

@@ -1,4 +1,6 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <cstdlib>
 #include <cstring>
 #include <math.h>//for log

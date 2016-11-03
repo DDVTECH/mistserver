@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "h264.h"
 #include <cstdlib>
 #include <cstring>

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <cstdlib>
 #include <cstring>
 #include <math.h>//for log

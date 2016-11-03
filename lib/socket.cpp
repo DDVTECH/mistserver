@@ -961,18 +961,12 @@ int Socket::Server::getSocket() {
 /// If both fail, prints an DLVL_FAIL debug message.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock) {
-#ifdef __CYGWIN__
-#warning UDP over IPv6 is currently disabled on windows
-  family = AF_INET;
-  sock = socket(AF_INET, SOCK_DGRAM, 0);
-#else
   family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1) {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     family = AF_INET;
   }
-#endif
   if (sock == -1) {
     DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));
   }
@@ -991,18 +985,12 @@ Socket::UDPConnection::UDPConnection(bool nonblock) {
 /// Copies a UDP socket, re-allocating local copies of any needed structures.
 /// The data/data_size/data_len variables are *not* copied over.
 Socket::UDPConnection::UDPConnection(const UDPConnection & o) {
-#ifdef __CYGWIN__
-#warning UDP over IPv6 is currently disabled on windows
-  family = AF_INET;
-  sock = socket(AF_INET, SOCK_DGRAM, 0);
-#else
   family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1) {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     family = AF_INET;
   }
-#endif
   if (sock == -1) {
     DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));
   }
@@ -1265,9 +1253,6 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
     }
 
     if (!multicastInterfaces.length()){
-#ifdef __CYGWIN__
-      if (true){
-#else
       if (family == AF_INET6){
         memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6*)resmulti->ai_addr)->sin6_addr, sizeof(mreq6.ipv6mr_multiaddr));
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, (char *)&mreq6, sizeof(mreq6)) != 0) {
@@ -1276,7 +1261,6 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
           result = -1;
         }
       }else{
-#endif
         mreq4.imr_multiaddr = ((sockaddr_in*)resmulti->ai_addr)->sin_addr;
         mreq4.imr_interface.s_addr = INADDR_ANY;
         if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq4, sizeof(mreq4)) != 0) {
@@ -1299,9 +1283,6 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
               curIface = curIface.substr(1, curIface.size()-1);
             }
           }
-#ifdef __CYGWIN__
-          if (true){
-#else
           if (family == AF_INET6){
             INFO_MSG("Registering for IPv6 multicast on interface %s", curIface.c_str());
             if ((addr_ret = getaddrinfo(curIface.c_str(), 0, &hints, &reslocal)) != 0){
@@ -1316,7 +1297,6 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
               atLeastOne = true;
             }
           }else{
-#endif
             INFO_MSG("Registering for IPv4 multicast on interface %s", curIface.c_str());
             if ((addr_ret = getaddrinfo(curIface.c_str(), 0, &hints, &reslocal)) != 0){
               WARN_MSG("Unable to resolve IPv4 interface address %s: %s", curIface.c_str(), gai_strerror(addr_ret));

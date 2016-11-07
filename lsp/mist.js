@@ -2876,7 +2876,38 @@ var UI = {
         }
         
         var $style = $('<style>').text('button.saveandpreview { display: none; }');
-        
+        var $livestreamhint = $('<span>');
+        function updateLiveStreamHint() {
+          var streamname = $main.find('[name=name]').val();
+          var host = parseURL(mist.user.host);
+          var passw = $main.find('[name=source]').val().match(/@.*/);
+          if (passw) { passw = passw[0].substring(1); }
+          
+          var port = {
+            RTMP: mist.data.capabilities.connectors.RTMP.optional.port['default'],
+            RTSP: mist.data.capabilities.connectors.RTSP.optional.port['default']
+          };
+          var defport = {
+            RTMP: 1935,
+            RTSP: 554
+          }
+          for (var protocol in port) {
+            for (var i in mist.data.config.protocols) {
+              var p = mist.data.config.protocols[i];
+              if (p.connector == protocol) {
+                if ('port' in p) {
+                  port[protocol] = p.port;
+                }
+                break;
+              }
+            }
+            if (port[protocol] == defport[protocol]) { port[protocol] = ''; }
+            else { port[protocol] = ':'+port[protocol]; }
+          }
+          
+          $livestreamhint.find('.field.RTMP').setval('rtmp://'+host.host+port.RTMP+'/'+(passw ? passw : 'live')+'/'+(streamname == '' ? 'STREAMNAME' : streamname))
+          $livestreamhint.find('.field.RTSP').setval('rtsp://'+host.host+port.RTSP+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : ''))
+        }
         
         $main.append(UI.buildUI([
           {
@@ -2900,6 +2931,7 @@ var UI = {
             'function': function(){
               var source = $(this).val();
               $style.remove();
+              $livestreamhint.html('');
               if (source == '') { return; }
               var type = null;
               for (var i in mist.data.capabilities.inputs) {
@@ -2937,6 +2969,24 @@ var UI = {
               if (input.name == 'Folder') {
                 $main.append($style);
               }
+              if (input.name == 'Buffer') {
+                $livestreamhint.html('<br>').append(UI.buildUI([
+                  $('<span>').text('Configure your source to push to:')
+                ,{
+                  label: 'RTMP',
+                  type: 'span',
+                  clipboard: true,
+                  readonly: true,
+                  classes: ['RTMP']
+                },{
+                  label: 'RTSP',
+                  type: 'span',
+                  clipboard: true,
+                  readonly: true,
+                  classes: ['RTSP']
+                }]));
+                updateLiveStreamHint();
+              }
             }
           },{
             label: 'Stop sessions',
@@ -2947,7 +2997,7 @@ var UI = {
               main: saveas,
               index: 'stop_sessions'
             }
-          },$('<br>'),{
+          },$livestreamhint,$('<br>'),{
             type: 'custom',
             custom: $inputoptions
           },$('<br>'),$('<h3>').text('Encryption'),{
@@ -3014,6 +3064,10 @@ var UI = {
             ]
           }
         ]));
+        
+        $main.find('[name=name]').keyup(function(){
+          updateLiveStreamHint();
+        });
         
         break;
       case 'Preview':

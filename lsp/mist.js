@@ -2004,9 +2004,13 @@ var UI = {
         break;
       case 'Overview':
         var $versioncheck = $('<span>').text('Loading..');
-        var $streamsonline = $('<span>');
+        var $streamsactive = $('<span>');
+        var $errors = $('<span>').addClass('logs');
         var $viewers = $('<span>');
         var $servertime = $('<span>');
+        var $protocols_on = $('<span>');
+        var $protocols_off = $('<span>');
+        
         $main.append(UI.buildUI([
           {
             type: 'help',
@@ -2029,12 +2033,28 @@ var UI = {
             value: $servertime
           },{
             type: 'span',
-            label: 'Current streams',
-            value: $streamsonline
+            label: 'Configured streams',
+            value: (mist.data.streams ? Object.keys(mist.data.streams).length : 0)
+          },{
+            type: 'span',
+            label: 'Active streams',
+            value: $streamsactive
           },{
             type: 'span',
             label: 'Current connections',
             value: $viewers
+          },{
+            type: 'span',
+            label: 'Enabled protocols',
+            value: $protocols_on
+          },{
+            type: 'span',
+            label: 'Disabled protocols',
+            value: $protocols_off
+          },{
+            type: 'span',
+            label: 'Recent problems',
+            value: $errors
           },$('<br>'),{
             type: 'str',
             label: 'Human readable name',
@@ -2122,15 +2142,19 @@ var UI = {
           $versioncheck.text('');
         }
         function updateViewers() {
-          mist.send(function(d){
-            enterStats()
-          },{
+          var request = {
             totals:{
               fields: ['clients'],
               start: -10
             },
             active_streams: true
-          });
+          };
+          if (!('cabailities' in mist.data)) {
+            request.capabilities = true;
+          }
+          mist.send(function(d){
+            enterStats()
+          },request);
         }
         function enterStats() {
           if ('active_streams' in mist.data) {
@@ -2139,7 +2163,7 @@ var UI = {
           else {
             var active = '?';
           }
-          $streamsonline.text(active+' active, '+(mist.data.streams ? Object.keys(mist.data.streams).length : 0)+' configured');
+          $streamsactive.text(active);
           if (('totals' in mist.data) && ('all_streams' in mist.data.totals)) {
             var clients = mist.data.totals.all_streams.all_protocols.clients;
             clients = (clients.length ? UI.format.number(clients[clients.length-1][1]) : 0);
@@ -2149,6 +2173,55 @@ var UI = {
           }
           $viewers.text(clients);
           $servertime.text(UI.format.dateTime(mist.data.config.time,'long'));
+          
+          $errors.html('');
+          var n = 0;
+          for (var i in mist.data.log) {
+            var l = mist.data.log[i];
+            if (['FAIL','ERROR'].indexOf(l[1]) > -1) {
+              n++;
+              var $content = $('<span>').addClass('content').addClass('red');
+              var split = l[2].split('|');
+              for (var i in split) {
+                $content.append(
+                  $('<span>').text(split[i])
+                );
+              }
+              $errors.append(
+                $('<div>').append(
+                  $('<span>').append(UI.format.time(l[0]))
+                ).append(
+                  $content
+                )
+              );
+              if (n == 5) { break; }
+            }
+          }
+          if (n == 0) {
+            $errors.html('None.');
+          }
+          
+          var protocols = {
+            on: [],
+            off: []
+          };
+          for (var i in mist.data.config.protocols) {
+            var p = mist.data.config.protocols[i];
+            if (protocols.on.indexOf(p.connector) > -1) { continue; }
+            protocols.on.push(p.connector);
+          }
+          $protocols_on.text((protocols.on.length ? protocols.on.join(', ') : 'None.'));
+          if ('capabilities' in mist.data) {
+            for (var i in mist.data.capabilities.connectors) {
+              if (protocols.on.indexOf(i) == -1) {
+                protocols.off.push(i);
+              }
+            }
+            $protocols_off.text((protocols.off.length ? protocols.off.join(', ') : 'None.'));
+          }
+          else {
+            $protocols_off.text('Loading..')
+          }
         }
         updateViewers();
         enterStats();
@@ -2882,14 +2955,21 @@ var UI = {
           var host = parseURL(mist.user.host);
           var passw = $main.find('[name=source]').val().match(/@.*/);
           if (passw) { passw = passw[0].substring(1); }
+          var ip = $main.find('[name=source]').val().replace(/(?:.+?):\/\//,'');
+          ip = ip.split('/');
+          ip = ip[0];
+          ip = ip.split(':');
+          ip = ip[0];
           
           var port = {
             RTMP: mist.data.capabilities.connectors.RTMP.optional.port['default'],
-            RTSP: mist.data.capabilities.connectors.RTSP.optional.port['default']
+            RTSP: mist.data.capabilities.connectors.RTSP.optional.port['default'],
+            TS: mist.data.capabilities.connectors.TS.optional.port['default']
           };
           var defport = {
             RTMP: 1935,
-            RTSP: 554
+            RTSP: 554,
+            TS: -1
           }
           for (var protocol in port) {
             for (var i in mist.data.config.protocols) {
@@ -2907,6 +2987,7 @@ var UI = {
           
           $livestreamhint.find('.field.RTMP').setval('rtmp://'+host.host+port.RTMP+'/'+(passw ? passw : 'live')+'/'+(streamname == '' ? 'STREAMNAME' : streamname))
           $livestreamhint.find('.field.RTSP').setval('rtsp://'+host.host+port.RTSP+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : ''))
+          $livestreamhint.find('.field.TS').setval('udp://'+(ip == '' ? host.host : ip)+port.TS+'/')
         }
         
         $main.append(UI.buildUI([
@@ -2969,22 +3050,36 @@ var UI = {
               if (input.name == 'Folder') {
                 $main.append($style);
               }
-              if (input.name == 'Buffer') {
-                $livestreamhint.html('<br>').append(UI.buildUI([
-                  $('<span>').text('Configure your source to push to:')
-                ,{
-                  label: 'RTMP',
-                  type: 'span',
-                  clipboard: true,
-                  readonly: true,
-                  classes: ['RTMP']
-                },{
-                  label: 'RTSP',
-                  type: 'span',
-                  clipboard: true,
-                  readonly: true,
-                  classes: ['RTSP']
-                }]));
+              else if (['Buffer','TS'].indexOf(input.name) > -1) {
+                var fields = [$('<span>').text('Configure your source to push to:')];
+                switch (input.name) {
+                  case 'Buffer':
+                    fields.push({
+                      label: 'RTMP',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMP']
+                    });
+                    fields.push({
+                      label: 'RTSP',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTSP']
+                    });
+                    break;
+                  case 'TS':
+                    fields.push({
+                      label: 'TS',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['TS']
+                    });
+                    break;
+                }
+                $livestreamhint.html('<br>').append(UI.buildUI(fields));
                 updateLiveStreamHint();
               }
             }
@@ -4557,7 +4652,7 @@ var UI = {
         );
         var $tbody = $('<tbody>').css('font-size','0.9em');
         $main.append(
-          $('<table>').append($tbody)
+          $('<table>').addClass('logs').append($tbody)
         );
         
         function color(string){
@@ -4583,13 +4678,21 @@ var UI = {
           
           $tbody.html('');
           for (var index in logs) {
+            var $content = $('<span>').addClass('content');
+            var split = logs[index][2].split('|');
+            for (var i in split) {
+              $content.append(
+                $('<span>').text(split[i])
+              );
+            }
+            
             $tbody.append(
               $('<tr>').html(
                 $('<td>').text(UI.format.dateTime(logs[index][0],'long')).css('white-space','nowrap')
               ).append(
                 $('<td>').html(color(logs[index][1])).css('text-align','center')
               ).append(
-                $('<td>').text(logs[index][2]).css('text-align','left')
+                $('<td>').html($content).css('text-align','left')
               )
             );
           }

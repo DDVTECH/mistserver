@@ -1909,7 +1909,7 @@ var UI = {
             help: 'Enter your desired password. In the future, you will need this to access the Management Interface.',
             pointer: {
               main: mist.user,
-              index: 'password'
+              index: 'rawpassword'
             },
             classes: ['match_password']
           },{
@@ -1937,9 +1937,11 @@ var UI = {
                 },{
                   authorize: {
                     new_username: mist.user.name,
-                    new_password: mist.user.password
+                    new_password: mist.user.rawpassword
                   }
                 });
+                mist.user.password = MD5(mist.user.rawpassword);
+                delete mist.user.rawpassword;
               }
             }]
           }]));

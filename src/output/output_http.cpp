@@ -323,8 +323,6 @@ namespace Mist {
     DEBUG_MSG(DLVL_HIGH, "Connector found: %s", connector.c_str());
     //build arguments for starting output process
     
-    std::string temphost=getConnectedHost();
-    std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
     std::string tmparg = Util::getMyPath() + std::string("MistOut") + connector;
     
     int argnum = 0;
@@ -333,6 +331,8 @@ namespace Mist {
     JSON::Value pipedCapa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(connector).asJSON();
     configLock.post();
     configLock.close();
+    std::string temphost=getConnectedHost();
+    std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
     argarr[argnum++] = (char*)"--ip";
     argarr[argnum++] = (char*)(temphost.c_str());
     argarr[argnum++] = (char*)"--stream";
@@ -354,7 +354,7 @@ namespace Mist {
     std::string host = Output::getConnectedHost();
     std::string xRealIp = H.GetHeader("X-Real-IP");
 
-    if (!isTrustedProxy(host) || !xRealIp.size()){
+    if (!xRealIp.size() || !isTrustedProxy(host)){
       static bool msg = false;
       if (xRealIp.size() && !msg && xRealIp != host){
         WARN_MSG("Host %s is attempting to act as a proxy, but not trusted", host.c_str());
@@ -369,7 +369,7 @@ namespace Mist {
     std::string host = Output::getConnectedHost();
     std::string xRealIp = H.GetHeader("X-Real-IP");
 
-    if (!isTrustedProxy(host) || !xRealIp.size()){
+    if (!xRealIp.size() || !isTrustedProxy(host)){
       static bool msg = false;
       if (xRealIp.size() && !msg && xRealIp != host){
         WARN_MSG("Host %s is attempting to act as a proxy, but not trusted", host.c_str());

@@ -323,7 +323,7 @@ namespace Mist {
         INSANE_MSG("Found track/codec: %s", trit->second.codec.c_str());
       }
       static std::string source;
-      if (!source.size()){
+      if (!myMeta.tracks.size() && !source.size()){
         IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
         IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
         configLock.wait();

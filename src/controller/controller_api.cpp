@@ -125,7 +125,7 @@ bool Controller::authorize(JSON::Value & Request, JSON::Value & Response, Socket
         return true;
       }
     }
-    if (Request["authorize"]["password"].asString() != "" && Secure::md5(Storage["account"][UserID]["password"].asString()) != Request["authorize"]["password"].asString()){
+    if (Request["authorize"]["password"].asString() != ""){
       Log("AUTH", "Failed login attempt " + UserID + " from " + conn.getHost());
     }
   }

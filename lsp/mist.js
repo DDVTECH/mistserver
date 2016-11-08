@@ -3002,6 +3002,7 @@ var UI = {
         var $livestreamhint = $('<span>');
         function updateLiveStreamHint() {
           var streamname = $main.find('[name=name]').val();
+          if (!streamname) { return; }
           var host = parseURL(mist.user.host);
           var passw = $main.find('[name=source]').val().match(/@.*/);
           if (passw) { passw = passw[0].substring(1); }
@@ -3011,11 +3012,13 @@ var UI = {
           ip = ip.split(':');
           ip = ip[0];
           
-          var port = {
-            RTMP: mist.data.capabilities.connectors.RTMP.optional.port['default'],
-            RTSP: mist.data.capabilities.connectors.RTSP.optional.port['default'],
-            TS: mist.data.capabilities.connectors.TS.optional.port['default']
-          };
+          var port = {};
+          var trythese = ['RTMP','RTSP','TS'];
+          for (var i in trythese) {
+            if (trythese[i] in mist.data.capabilities.connectors) {
+              port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
+            }
+          }
           var defport = {
             RTMP: 1935,
             RTSP: 554,
@@ -3035,9 +3038,22 @@ var UI = {
             else { port[protocol] = ':'+port[protocol]; }
           }
           
-          $livestreamhint.find('.field.RTMP').setval('rtmp://'+host.host+port.RTMP+'/'+(passw ? passw : 'live')+'/'+(streamname == '' ? 'STREAMNAME' : streamname))
-          $livestreamhint.find('.field.RTSP').setval('rtsp://'+host.host+port.RTSP+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : ''))
-          $livestreamhint.find('.field.TS').setval('udp://'+(ip == '' ? host.host : ip)+port.TS+'/')
+          $livestreamhint.find('.field').closest('label').hide();
+          for (var i in port) {
+            var str;
+            switch(i) {
+              case 'RTMP':
+                str = 'rtmp://'+host.host+port.RTMP+'/'+(passw ? passw : 'live')+'/'+(streamname == '' ? 'STREAMNAME' : streamname);
+                break;
+              case 'RTSP':
+                str = 'rtsp://'+host.host+port.RTSP+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
+                break;
+              case 'TS':
+                str = 'udp://'+(ip == '' ? host.host : ip)+port.TS+'/';
+                break;
+            }
+            $livestreamhint.find('.field.'+i).setval(str).closest('label').show();
+          }
         }
         
         $main.append(UI.buildUI([
@@ -3213,6 +3229,7 @@ var UI = {
         $main.find('[name=name]').keyup(function(){
           updateLiveStreamHint();
         });
+        updateLiveStreamHint();
         
         break;
       case 'Preview':

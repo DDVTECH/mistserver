@@ -2244,9 +2244,57 @@ var UI = {
             help: 'You can find an overview of all the protocols and their relevant information here. You can add, edit or delete protocols.'
           }])
         ).append(
+          $('<button>').text('Delete all protocols').click(function(){
+            if (confirm('Are you sure you want to delete all currently configured protocols?')) {
+              mist.data.config.protocols = [];
+              mist.send(function(d){
+                UI.navto('Protocols');
+              },{config: mist.data.config});
+            }
+          })
+        ).append(
+          $('<button>').text('Enable default protocols').click(function(){
+            var toenable = Object.keys(mist.data.capabilities.connectors);
+            for (var i in mist.data.config.protocols) {
+              var p = mist.data.config.protocols[i];
+              var index = toenable.indexOf(p.connector)
+              if (index > -1) {
+                toenable.splice(index,1);
+              }
+            }
+            var dontskip = [];
+            for (var i in toenable) {
+              if ((!('required' in mist.data.capabilities.connectors[toenable[i]])) || (Object.keys(mist.data.capabilities.connectors[toenable[i]].required).length == 0)) {
+                dontskip.push(toenable[i]);
+              }
+            }
+            var msg = 'Click OK to enable disabled protocols with their default settings:'+"\n  ";
+            if (dontskip.length) {
+              msg += dontskip.join(', ');
+            }
+            else {
+              msg += 'None.';
+            }
+            if (dontskip.length != toenable.length) {
+              var skip = toenable.filter(function(ele){
+                return dontskip.indexOf(ele) < 0;
+              });
+              msg += "\n\n"+'The following protocols can only be set manually:'+"\n  "+skip.join(', ');
+            }
+            
+            if (confirm(msg) && dontskip.length) {
+              for (var i in dontskip) {
+                mist.data.config.protocols.push({connector: dontskip[i]});
+              }
+              mist.send(function(d){
+                UI.navto('Protocols');
+              },{config: mist.data.config});
+            }
+          })
+        ).append('<br>').append(
           $('<button>').text('New protocol').click(function(){
             UI.navto('Edit Protocol');
-          })
+          }).css('clear','both')
         ).append(
           $('<table>').html(
             $('<thead>').html(

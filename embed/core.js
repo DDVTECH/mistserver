@@ -733,6 +733,7 @@ function mistPlay(streamName,options) {
         };
         for (var i in streaminfo.meta.tracks) {
           var t = streaminfo.meta.tracks[i];
+          var skip = false;
           switch (t.type) {
             case 'video':
               t.desc = ['['+t.codec+']',t.width+'x'+t.height,Math.round(t.bps/1024)+'kbps',t.fpks/1e3+'fps',t.lang];
@@ -743,7 +744,11 @@ function mistPlay(streamName,options) {
             case 'subtitle':
               t.desc = ['['+t.codec+']',t.lang];
               break;
+            default:
+              skip = true;
+              break;
           }
+          if (skip) { continue; }
           t.desc = t.desc.join(', ');
           tracks[t.type].push(t);
         }

@@ -15,7 +15,7 @@
     <script>
       // global options can be set here
       var mistoptions = {
-        host: 'https://cat.mistserver.org:4433'
+        host: 'http://cattop:8080'
       };
     </script>
     
@@ -75,10 +75,10 @@
           c.className = 'mistvideo';
           c.title = tryplayers[i];
           document.body.appendChild(c);
-          //mistPlay('live',{
+          mistPlay('live',{
           //mistPlay('vids+mist.mp4',{
           //mistPlay('lama',{
-          mistPlay('bunny',{
+          //mistPlay('bunny',{
             target: c,
             forcePlayer: tryplayers[i],
             loop: true

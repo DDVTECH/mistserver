@@ -56,7 +56,10 @@ $(window).on('hashchange', function(e) {
   UI.showTab(tab[0],tab[1]);
 });
 
-var otherhost = false;
+var otherhost = {
+  host: false,
+  https: false
+};
 var UI = {
   debug: false,
   elements: {},
@@ -3355,10 +3358,11 @@ var UI = {
             $video.on('initialized',function(){
               if ($s_mimes.children().length <= 1) {
                 for (var i in mistvideo[other].source) {
-                  var human = UI.humanMime(mistvideo[other].source[i].type);
+                  var s = mistvideo[other].source[i];
+                  var human = UI.humanMime(s.type);
                   $s_mimes.append(
-                    $('<option>').val(mistvideo[other].source[i].type).text(
-                      (human ? human+' ('+mistvideo[other].source[i].type+')' : UI.format.capital(mistvideo[other].source[i].type))
+                    $('<option>').val(s.type).text(
+                      (human ? human+' @ '+s.url.substring(s.url.length - s.relurl.length,0) : UI.format.capital(s.type)+' @ '+s.url.substring(s.url.length - s.relurl.length,0))
                     )
                   );
                 }
@@ -3534,19 +3538,26 @@ var UI = {
         var escapedstream = encodeURIComponent(other);
         var parsed = parseURL(mist.user.host);
         
-        var http_port = ':8080';
+        var http = {
+          '': {
+            port: ':8080'
+          }
+        };
         for (var i in mist.data.config.protocols) {
           var protocol = mist.data.config.protocols[i];
           if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            http_port = (protocol.port ? ':'+protocol.port : ':8080');
+            http[''].port = (protocol.port ? ':'+protocol.port : ':8080');
+          }
+          if ((protocol.connector == 'HTTPS') || (protocol.connector == 'HTTPS.exe')) {
+            http.s = {};
+            http.s.port = (protocol.port ? ':'+protocol.port : ':4433');
           }
         }
         
-        var embedbase = parsed.protocol+parsed.host+http_port+'/';
+        var embedbase = 'http://'+parsed.host+http[''].port+'/';
         var otherbase = embedbase;
-        if (otherhost) {
-          var otherparse = parseURL(otherhost);
-          otherbase = otherparse.protocol+otherparse.host+http_port+'/';
+        if ((otherhost.host) || (otherhost.https)) {
+          otherbase = (otherhost.https && ('s' in http) ? 'https://' : 'http://')+(otherhost.host ? otherhost.host : parsed.host)+(otherhost.https && ('s' in http) ? http.s.port : http[''].port)+'/';
         }
         
         var defaultembedoptions = {
@@ -3653,23 +3664,40 @@ var UI = {
         var $protocolurls = $('<span>').text('Loading..');
         var emhtml = embedhtml(embedoptions);
         var $setTracks = $('<div>').text('Loading..').css('display','flex');
+        
+        
+        var $usehttps = '';
+        if ('s' in http) {
+          $usehttps = UI.buildUI([{
+            label: 'Use HTTPS',
+            type: 'checkbox',
+            'function': function(){
+              if ($(this).getval() != otherhost.https) {
+                otherhost.https = $(this).getval();
+                UI.navto('Embed',other);
+              }
+            },
+            value: otherhost.https
+          }]).find('label');
+          
+        }
         $embedlinks.append(
           $('<span>').addClass('input_container').append(
             $('<label>').addClass('UIelement').append(
               $('<span>').addClass('label').text('Use a different host:')
             ).append(
               $('<span>').addClass('field_container').append(
-                $('<input>').attr('type','text').addClass('field').val((otherhost ? otherhost : parsed.protocol+parsed.host))
+                $('<input>').attr('type','text').addClass('field').val((otherhost.host ? otherhost.host : parsed.host))
               ).append(
                 $('<span>').addClass('unit').append(
                   $('<button>').text('Apply').click(function(){
-                    otherhost = $(this).closest('label').find('input').val();
+                    otherhost.host = $(this).closest('label').find('input').val();
                     UI.navto('Embed',other);
                   })
                 )
               )
             )
-          )
+          ).append($usehttps)
         ).append(UI.buildUI([
           $('<h3>').text('Urls'),
           {
@@ -5186,6 +5214,23 @@ var UI = {
         $main.append($('<p>').text('This tab does not exist.'));
         break;
     }
+    
+    //focus on first empty field
+    $main.find('.field').filter(function(){
+      return $(this).getval() == '';
+    }).each(function(){
+      var a = [];
+      if ($(this).is('input, select, textarea')) {
+        a.push($(this));
+      }
+      else {
+        a = $(this).find('input, select, textarea');
+      }
+      if (a.length) {
+        $(a[0]).focus();
+        return false;
+      }
+    })
   }
 };
 

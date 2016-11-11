@@ -379,6 +379,8 @@ makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
 makeOutput(Push push)#LTS
 makeOutput(RTSP rtsp)#LTS
+makeOutput(HTTPS https)#LTS
+target_link_libraries(MistOutHTTPS mbedtls mbedcrypto mbedx509)
 makeOutput(DASH dash_mp4       http)#LTS
 
 if (DEFINED WITH_SANITY )

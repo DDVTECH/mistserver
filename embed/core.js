@@ -776,6 +776,7 @@ function mistPlay(streamName,options) {
       //build the player
       player.options = playerOpts;
       var element = player.build(playerOpts);
+      options.target.innerHTML = '';
       options.target.appendChild(element);
       element.setAttribute('data-player',mistPlayer);
       element.setAttribute('data-mime',source.type);

@@ -135,8 +135,9 @@ p.prototype.build = function (options,callback) {
       ele.addEventListener('progress',nolongerdced);
     }
     
-    //ele.addEventListener('stalled',dced,true);
+    ele.addEventListener('stalled',dced,true);
     ele.addEventListener('ended',dced,true);
+    ele.addEventListener('pause',dced,true);
   }
   
   this.addlog('Built html');

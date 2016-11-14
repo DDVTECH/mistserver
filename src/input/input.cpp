@@ -227,11 +227,37 @@ namespace Mist {
     //end player functionality
   }
 
+  /// This function checks if an input in serve mode should keep running or not.
+  /// The default implementation checks for interruption by signals and otherwise waits until a
+  /// save amount of time has passed before shutting down.
+  /// For live streams, this is twice the biggest fragment duration.
+  /// For non-live streams this is INPUT_TIMEOUT seconds.
+  /// The default Pro implementation also allows cancelling the shutdown through the STREAM_UNLOAD trigger.
+  /// 
+  /// \triggers 
+  /// The `"STREAM_UNLOAD"` trigger is stream-specific, and is ran right before an input shuts down and stops serving a stream. If cancelled, the shut down is delayed. Its payload is:
+  /// ~~~~~~~~~~~~~~~
+  /// streamname
+  /// input name
+  /// ~~~~~~~~~~~~~~~
+  // 
   bool Input::keepRunning(){
     //We keep running in serve mode if the config is still active AND either
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,
     bool ret = (config->is_active && ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT || (myMeta.live && (Util::bootSecs() - activityCounter) < myMeta.biggestFragment()/500)));
+    /*LTS-START*/
+    if (!ret){
+      if(Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
+        std::string payload = config->getString("streamname")+"\n" +capa["name"].asStringRef()+"\n";
+        if (!Triggers::doTrigger("STREAM_UNLOAD", payload, config->getString("streamname"))){
+          activityCounter = Util::bootSecs();
+          config->is_active = true;
+          ret = true;
+        }
+      }
+    }
+    /*LTS-END*/
     return ret;
   }
 

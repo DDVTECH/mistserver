@@ -34,6 +34,7 @@ namespace Mist {
       virtual void getNext(bool smart = true) {};
       virtual void seek(int seekTime){};
       virtual void finish();
+      virtual bool keepRunning();
       virtual bool openStreamSource() { return false; };
       virtual void closeStreamSource() {};
       virtual void parseStreamHeader() {};
@@ -60,6 +61,7 @@ namespace Mist {
       unsigned int benchMark;
 
       bool isBuffer;
+      uint64_t activityCounter;
 
       JSON::Value capa;
       

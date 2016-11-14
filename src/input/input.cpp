@@ -81,7 +81,8 @@ namespace Mist {
       INSANE_MSG("No header exists to compare - ignoring header check");
       return;
     }
-    if (bufHeader.st_mtime < bufStream.st_mtime) {
+    //the same second is not enough - add a 15 second window where we consider it too old
+    if (bufHeader.st_mtime < bufStream.st_mtime + 15) {
       INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
       remove(headerFile.c_str());
     }
@@ -166,13 +167,17 @@ namespace Mist {
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
     userPage.init(userPageName, PLAY_EX_SIZE, true);
-    
-    DEBUG_MSG(DLVL_DEVEL,"Input for stream %s started", streamName.c_str());
-    
-    long long int activityCounter = Util::bootSecs();
-    while (((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT || (myMeta.live && (Util::bootSecs() - activityCounter) < myMeta.biggestFragment()/500)) && config->is_active) { //15 second timeout
+
+    DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
+    activityCounter = Util::bootSecs();
+    //main serve loop
+    while (keepRunning()) {
+      //load pages for connected clients on request
+      //through the callbackWrapper function
       userPage.parseEach(callbackWrapper);
+      //unload pages that haven't been used for a while
       removeUnused();
+      //If users are connected and tracks exist, reset the activity counter
       if (userPage.connectedUsers) {
         if (myMeta.tracks.size()){
         activityCounter = Util::bootSecs();
@@ -181,6 +186,7 @@ namespace Mist {
       }else{
         DEBUG_MSG(DLVL_INSANE, "Timer running");
       }
+      //if not shutting down, wait 1 second before looping
       if (config->is_active){
         Util::wait(1000);
       }
@@ -188,6 +194,14 @@ namespace Mist {
     finish();
     DEBUG_MSG(DLVL_DEVEL,"Input for stream %s closing clean", streamName.c_str());
     //end player functionality
+  }
+
+  bool Input::keepRunning(){
+    //We keep running in serve mode if the config is still active AND either
+    // - INPUT_TIMEOUT seconds haven't passed yet,
+    // - this is a live stream and at least two of the biggest fragment haven't passed yet,
+    bool ret = (config->is_active && ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT || (myMeta.live && (Util::bootSecs() - activityCounter) < myMeta.biggestFragment()/500)));
+    return ret;
   }
 
   /// Main loop for stream-style inputs.

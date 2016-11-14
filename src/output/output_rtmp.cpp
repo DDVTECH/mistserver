@@ -1144,6 +1144,7 @@ namespace Mist {
         case 9: //video data
         case 18: {//meta data
           static std::map<unsigned int, AMF::Object> pushMeta;
+          static uint64_t lastTagTime = 0;
           if (!isInitialized) {
             MEDIUM_MSG("Received useless media data");
             onFinish();
@@ -1161,7 +1162,23 @@ namespace Mist {
           unsigned int reTrack = next.cs_id*3 + (F.data[0] == 0x09 ? 1 : (F.data[0] == 0x08 ? 2 : 3));
           F.toMeta(myMeta, *amf_storage, reTrack);
           if (F.getDataLen() && !(F.needsInitData() && F.isInitData())){
-            thisPacket.genericFill(F.tagTime(), F.offset(), reTrack, F.getData(), F.getDataLen(), 0, F.isKeyframe);
+            uint64_t tagTime = next.timestamp;
+            //Check for decreasing timestamps - this is a connection error.
+            //We allow wrapping around the 32 bits maximum value if the most significant 8 bits are set.
+            /// \TODO Provide time continuity for wrap-around.
+            if (lastTagTime && tagTime < lastTagTime && lastTagTime < 0xFF000000ull){
+              FAIL_MSG("Timestamps went from %llu to %llu (decreased): disconnecting!", lastTagTime, tagTime);
+              onFinish();
+              break;
+            }
+            //Check if we went more than 10 minutes into the future
+            if (lastTagTime && tagTime > lastTagTime + 600000){
+              FAIL_MSG("Timestamps went from %llu to %llu (> 10m in future): disconnecting!", lastTagTime, tagTime);
+              onFinish();
+              break;
+            }
+            thisPacket.genericFill(tagTime, F.offset(), reTrack, F.getData(), F.getDataLen(), 0, F.isKeyframe);
+            lastTagTime = tagTime;
             if (!nProxy.userClient.getData()){
               char userPageName[NAME_BUFFER_SIZE];
               snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());

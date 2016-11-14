@@ -5,6 +5,9 @@
 #include <cstdlib>
 #include <cstdio>
 #include <string>
+#include <sys/types.h>//for stat
+#include <sys/stat.h>//for stat
+#include <unistd.h>//for stat
 #include <mist/util.h>
 #include <mist/stream.h>
 #include <mist/defines.h>
@@ -46,7 +49,28 @@ namespace Mist {
     if (!inFile) {
       return false;
     }
+    struct stat statData;
+    lastModTime = 0;
+    if (stat(config->getString("input").c_str(), &statData) != -1){
+      lastModTime = statData.st_mtime;
+    }
     return true;
+  }
+
+  /// Overrides the default keepRunning function to shut down
+  /// if the file disappears or changes, by polling the file's mtime.
+  /// If neither applies, calls the original function.
+  bool inputFLV::keepRunning(){
+    struct stat statData;
+    if (stat(config->getString("input").c_str(), &statData) == -1){
+      INFO_MSG("Shutting down because input file disappeared");
+      return false;
+    }
+    if (lastModTime != statData.st_mtime){
+      INFO_MSG("Shutting down because input file changed");
+      return false;
+    }
+    return Input::keepRunning();
   }
 
   bool inputFLV::readHeader() {

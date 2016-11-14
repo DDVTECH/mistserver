@@ -13,7 +13,9 @@ namespace Mist {
       void getNext(bool smart = true);
       void seek(int seekTime);
       void trackSelect(std::string trackSpec);
+      bool keepRunning();
       FLV::Tag tmpTag;
+      uint64_t lastModTime;
       FILE * inFile;
   };
 }

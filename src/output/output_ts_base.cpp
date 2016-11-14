@@ -6,7 +6,6 @@ namespace Mist {
     haveAvcc = false;
     haveHvcc = false;
     ts_from = 0;
-    until=0xFFFFFFFFFFFFFFFFull;
     setBlocking(true);
     sendRepeatingHeaders = false;
     appleCompat=false;
@@ -31,12 +30,11 @@ namespace Mist {
       if (!dataLen){return;}
       
       if (packData.getBytesFree() == 184){
-        packData.clear();      
+        packData.clear();
         packData.setPID(pkgPid);
         packData.setContinuityCounter(++contPkg);
         if (firstPack){
           packData.setUnitStart(1);
-          packData.setDiscontinuity(true);
           if (video){
             if (keyframe){
               packData.setRandomAccess(true);
@@ -69,13 +67,6 @@ namespace Mist {
     char * dataPointer = 0;
     unsigned int dataLen = 0;
     thisPacket.getString("data", dataPointer, dataLen); //data
-    if (packTime >= until){ //this if should only trigger for HLS       
-      stop();
-      wantRequest = true;
-      parseData = false;
-      sendTS("",0);      
-      return;
-    }
     //apple compatibility timestamp correction
     if (appleCompat){
       packTime -= ts_from;

@@ -8,6 +8,7 @@ namespace Mist {
       ~OutHLS();
       static void init(Util::Config * cfg);
       void sendTS(const char * tsData, unsigned int len=188);
+      void sendNext();
       void onHTTP();      
       bool isReadyForPlay();
     protected:
@@ -25,6 +26,7 @@ namespace Mist {
       int keysToSend;      
       unsigned int vidTrack;
       unsigned int audTrack;
+      long long unsigned int until;
   };
 }
 

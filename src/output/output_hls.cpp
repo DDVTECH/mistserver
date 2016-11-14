@@ -259,6 +259,7 @@ namespace Mist {
 
   OutHLS::OutHLS(Socket::Connection & conn) : TSOutput(conn) {
     realTime = 0;
+    until=0xFFFFFFFFFFFFFFFFull;
   }
 
   OutHLS::~OutHLS() {}
@@ -474,6 +475,37 @@ namespace Mist {
     }
   }
 
+  void OutHLS::sendNext(){
+    //First check if we need to stop.
+    if (thisPacket.getTime() >= until){
+      stop();
+      wantRequest = true;
+      parseData = false;
+
+      //Ensure alignment of contCounters for selected tracks, to prevent discontinuities.
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+        DTSC::Track & Trk = myMeta.tracks[*it];
+        uint32_t pkgPid = 255 + *it;
+        int & contPkg = contCounters[pkgPid];
+        if (contPkg % 16 != 0){
+          packData.clear();
+          packData.setPID(pkgPid);
+          packData.addStuffing();
+          while (contPkg % 16 != 0){
+            packData.setContinuityCounter(++contPkg);
+            sendTS(packData.checkAndGetBuffer());
+          }
+          packData.clear();
+        }
+      }
+
+      //Signal end of data
+      H.Chunkify("", 0, myConn);
+      return;
+    }
+    //Invoke the generic TS output sendNext handler
+    TSOutput::sendNext();
+  }
 
   void OutHLS::sendTS(const char * tsData, unsigned int len) {
     H.Chunkify(tsData, len, myConn);

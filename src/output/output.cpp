@@ -24,7 +24,7 @@
 #define MIN_DELAY 2500
 #endif
 
-namespace Mist {
+namespace Mist{
   JSON::Value Output::capa = JSON::Value();
 
   int getDTSCLen(char * mapped, long long int offset){
@@ -42,7 +42,7 @@ namespace Mist {
     capa["optional"]["debug"]["type"] = "debug";
   }
   
-  Output::Output(Socket::Connection & conn) : myConn(conn) {
+  Output::Output(Socket::Connection & conn) : myConn(conn){
     firstTime = 0;
     crc = getpid();
     parseData = false;
@@ -263,7 +263,7 @@ namespace Mist {
     return myConn.getBinHost();
   }
  
-  bool Output::isReadyForPlay() {
+  bool Output::isReadyForPlay(){
     if (myMeta.tracks.size()){
       if (!selectedTracks.size()){
         selectDefaultTracks();
@@ -358,14 +358,14 @@ namespace Mist {
     unsigned int bestSoFar = 0;
     unsigned int bestSoFarCount = 0;
     unsigned int index = 0;
-    jsonForEach(capa["codecs"], it) {
+    jsonForEach(capa["codecs"], it){
       unsigned int genCounter = 0;
       unsigned int selCounter = 0;
       if ((*it).size() > 0){
-        jsonForEach((*it), itb) {
+        jsonForEach((*it), itb){
           if ((*itb).size() > 0){
             bool found = false;
-            jsonForEach(*itb, itc) {
+            jsonForEach(*itb, itc){
               for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
                 if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
                   selCounter++;
@@ -403,11 +403,11 @@ namespace Mist {
     MEDIUM_MSG("Trying to fill: %s", capa["codecs"][bestSoFar].toString().c_str());
     //try to fill as many codecs simultaneously as possible
     if (capa["codecs"][bestSoFar].size() > 0){
-      jsonForEach(capa["codecs"][bestSoFar], itb) {
+      jsonForEach(capa["codecs"][bestSoFar], itb){
         if ((*itb).size() && myMeta.tracks.size()){
           bool found = false;
-          jsonForEach((*itb), itc) {
-            if (found) {
+          jsonForEach((*itb), itc){
+            if (found){
               break;
             }
             for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
@@ -446,13 +446,13 @@ namespace Mist {
       DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
     }
     
-    if (selectedTracks.size() == 0) {
+    if (selectedTracks.size() == 0){
       INSANE_MSG("We didn't find any tracks which that we can use. selectedTrack.size() is 0.");
       for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
         INSANE_MSG("Found track/codec: %s", trit->second.codec.c_str());
       }
       static std::string source;
-      if (!source.size()){
+      if (!myMeta.tracks.size() && !source.size()){
         IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
         IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
         configLock.wait();
@@ -796,7 +796,7 @@ namespace Mist {
   /// output handler name
   /// request URL (if any)
   /// ~~~~~~~~~~~~~~~
-  int Output::run() {
+  int Output::run(){
     /*LTS-START*/
     if(Triggers::shouldTrigger("CONN_OPEN", streamName)){
       std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
@@ -828,7 +828,7 @@ namespace Mist {
             //slow down processing, if real time speed is wanted
             if (realTime){
               uint8_t i = 6;
-              while (--i && thisPacket.getTime() > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime && config->is_active && myConn) {
+              while (--i && thisPacket.getTime() > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime && config->is_active && myConn){
                 Util::sleep(std::min(thisPacket.getTime() - (((Util::getMS() - firstTime)*1000)+minSkipAhead)/realTime, 1000llu));
                 stats();
               }
@@ -1082,16 +1082,26 @@ namespace Mist {
 
     //if there's a timestamp mismatch, print this.
     //except for live, where we never know the time in advance
-    if (thisPacket.getTime() != nxt.time && nxt.time && !atLivePoint){
-      static int warned = 0;
-      if (warned < 5){
-        WARN_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms, %s, offset %lu)", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), myMeta.tracks[nxt.tid].codec.c_str(), nxt.offset);
-        if (++warned == 5){
-          WARN_MSG("Further warnings about time mismatches printed on HIGH level.");
+    if (thisPacket.getTime() != nxt.time && nxt.time){
+      if (!atLivePoint){
+        static int warned = 0;
+        if (warned < 5){
+          WARN_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms, %s, offset %lu)", streamName.c_str(), thisPacket.getTrackId(),
+                   thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time),
+                   myMeta.tracks[nxt.tid].codec.c_str(), nxt.offset);
+          if (++warned == 5){WARN_MSG("Further warnings about time mismatches printed on HIGH level.");}
+        }else{
+          HIGH_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms, %s, offset %lu)", streamName.c_str(), thisPacket.getTrackId(),
+                   thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time),
+                   myMeta.tracks[nxt.tid].codec.c_str(), nxt.offset);
         }
-      }else{
-        HIGH_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms, %s, offset %lu)", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid, nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time), myMeta.tracks[nxt.tid].codec.c_str(), nxt.offset);
       }
+      nxt.time = thisPacket.getTime();
+      //swap out the next object in the buffer with a new one
+      buffer.erase(buffer.begin());
+      buffer.insert(nxt);
+      VERYHIGH_MSG("JIT reordering %u@%llu.", nxt.tid, nxt.time);
+      return false;
     }
 
     //when live, every keyframe, check correctness of the keyframe number
@@ -1232,17 +1242,17 @@ namespace Mist {
     sentHeader = true;
   }
   
-  bool Output::connectToFile(std::string file) {
+  bool Output::connectToFile(std::string file){
     int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
     int mode = O_RDWR | O_CREAT | O_TRUNC;
     int outFile = open(file.c_str(), mode, flags);
-    if (outFile < 0) {
+    if (outFile < 0){
       ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));
       return false;
     }
     
     int r = dup2(outFile, myConn.getSocket());
-    if (r == -1) {
+    if (r == -1){
       ERROR_MSG("Failed to create an alias for the socket using dup2: %s.", strerror(errno));
       return false;
     }

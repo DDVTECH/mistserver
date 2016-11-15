@@ -195,8 +195,6 @@ namespace Mist {
       }
       if (HTTP_R.method == "DESCRIBE"){
         initialize();
-        uint64_t firstms = startTime();
-        uint64_t lastms = endTime();
         selectedTracks.clear();
         std::stringstream transportString;
         transportString << "v=0\r\n"
@@ -210,9 +208,9 @@ namespace Mist {
         "a=type:broadcast\r\n"
         "a=control:*\r\n";
         if (myMeta.live){
-          transportString << "a=range:npt=" << ((double)firstms) / 1000.0 << "-\r\n";
+          transportString << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-\r\n";
         }else{
-          transportString << "a=range:npt=" << ((double)firstms) / 1000.0 << "-" << ((double)lastms) / 1000.0 << "\r\n";
+          transportString << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-" << ((double)endTime()) / 1000.0 << "\r\n";
         }
         
         for (std::map<unsigned int, DTSC::Track>::iterator objIt = myMeta.tracks.begin(); objIt != myMeta.tracks.end(); ++objIt) {

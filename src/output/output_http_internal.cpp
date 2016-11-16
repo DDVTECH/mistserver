@@ -58,6 +58,8 @@ namespace Mist {
     capa.removeMember("deps");
     capa["name"] = "HTTP";
     capa["desc"] = "Generic HTTP handler, required for all other HTTP-based outputs.";
+    capa["provides"] = "HTTP";
+    capa["protocol"] = "http://";
     capa["url_match"].append("/crossdomain.xml");
     capa["url_match"].append("/clientaccesspolicy.xml");
     capa["url_match"].append("/$.html");
@@ -129,22 +131,21 @@ namespace Mist {
     }
   };
   
-  void addSource(const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches, const std::string & flvPlayerPrefix){
+  void addSource(const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches, const std::string & protocol){
     JSON::Value tmp;
     tmp["type"] = conncapa["type"];
     tmp["relurl"] = rel;
     tmp["priority"] = conncapa["priority"];
-    if (conncapa.isMember("player_url")){
-      tmp["player_url"] = flvPlayerPrefix + conncapa["player_url"].asStringRef();
-    }
+    if (conncapa.isMember("player_url")){tmp["player_url"] = conncapa["player_url"].asStringRef();}
     tmp["simul_tracks"] = most_simul;
     tmp["total_matches"] = total_matches;
-    tmp["url"] = conncapa["handler"].asStringRef() + "://" + host + ":" + port + rel;
+    tmp["url"] = protocol + host + ":" + port + rel;
     sources.insert(tmp);
   }
   
 
-  void addSources(std::string & streamname, const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, JSON::Value & strmMeta, const std::string httpHost){
+  void addSources(std::string & streamname, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, JSON::Value & strmMeta, const std::string httpHost, JSON::Value * mainconn_capa = 0){
+    const std::string & rel = conncapa["url_rel"].asStringRef();
     unsigned int most_simul = 0;
     unsigned int total_matches = 0;
     if (conncapa.isMember("codecs") && conncapa["codecs"].size() > 0){
@@ -181,6 +182,10 @@ namespace Mist {
       }else{
         relurl = "/";
       }
+      std::string protocol;
+      if (mainconn_capa && mainconn_capa->isMember("protocol")){
+        protocol = (*mainconn_capa)["protocol"].asStringRef();
+      }
       jsonForEach(conncapa["methods"], it) {
         if (it->isMember("url_rel")){
           size_t foundb = (*it)["url_rel"].asStringRef().find('$');
@@ -189,7 +194,10 @@ namespace Mist {
           }
         }
         if (!strmMeta.isMember("live") || !it->isMember("nolive")){
-          addSource(relurl, sources, host, port, *it, most_simul, total_matches, "http://" + httpHost);
+          if (!protocol.size() && it->isMember("handler")){
+            protocol = (*it)["handler"].asStringRef() + "://";
+          }
+          addSource(relurl, sources, host, port, *it, most_simul, total_matches, protocol);
         }
       }
     }
@@ -283,23 +291,6 @@ namespace Mist {
     }
     
     // send generic HTML page
-    /* old embed
-    if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
-      H.Clean();
-      H.SetHeader("Content-Type", "text/html");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
-      H.setCORSHeaders();
-      if(method == "OPTIONS" || method == "HEAD"){
-        H.SendResponse("200", "OK", myConn);
-        H.Clean();
-        return;
-      }
-      H.SetBody("<!DOCTYPE html><html><head><title>Stream "+streamName+"</title><style>BODY{color:white;background:black;}</style></head><body><script src=\"embed_"+streamName+".js\"></script></body></html>");
-      H.SendResponse("200", "OK", myConn);
-      return;
-    }
-    */
-    /* new embed */
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
       std::string fullHost = H.GetHeader("Host");
       std::string uAgent = H.GetHeader("User-Agent");
@@ -495,18 +486,23 @@ namespace Mist {
               port = capa.getMember("optional").getMember("port").getMember("default").asString();
             }
             //and a URL - then list the URL
+            JSON::Value capa_json = capa.asJSON();
             if (capa.getMember("url_rel") || capa.getMember("methods")){
-              JSON::Value capa_json = capa.asJSON();
-              addSources(streamName, capa.getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"], fullHost);
+              addSources(streamName, sources, host, port, capa_json, json_resp["meta"], fullHost);
             }
-            //check each enabled protocol separately to see if it depends on this connector
-            DTSC::Scan capa_lst = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
-            unsigned int capa_lst_ctr = capa_lst.getSize();
-            for (unsigned int j = 0; j < capa_lst_ctr; ++j){
-              //if it depends on this connector and has a URL, list it
-              if (conns.count(capa_lst.getIndiceName(j)) && (capa_lst.getIndice(j).getMember("deps").asString() == cName || capa_lst.getIndice(j).getMember("deps").asString() + ".exe" == cName) && capa_lst.getIndice(j).getMember("methods")){
-                JSON::Value capa_json = capa_lst.getIndice(j).asJSON();
-                addSources(streamName, capa_lst.getIndice(j).getMember("url_rel").asString(), sources, host, port, capa_json, json_resp["meta"], fullHost);
+            //Make note if this connector can be depended upon by other connectors
+            if (capa.getMember("provides")){
+              std::string cProv = capa.getMember("provides").asString();
+              //if this connector can be depended upon by other connectors, loop over the rest
+              //check each enabled protocol separately to see if it depends on this connector
+              DTSC::Scan capa_lst = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
+              unsigned int capa_lst_ctr = capa_lst.getSize();
+              for (unsigned int j = 0; j < capa_lst_ctr; ++j){
+                //if it depends on this connector and has a URL, list it
+                if (conns.count(capa_lst.getIndiceName(j)) && capa_lst.getIndice(j).getMember("deps").asString() == cProv && capa_lst.getIndice(j).getMember("methods")){
+                  JSON::Value subcapa_json = capa_lst.getIndice(j).asJSON();
+                  addSources(streamName, sources, host, port, subcapa_json, json_resp["meta"], fullHost, &capa_json);
+                }
               }
             }
           }

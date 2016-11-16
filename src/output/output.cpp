@@ -613,31 +613,41 @@ namespace Mist{
   }
   
   ///Return the start time of the selected tracks.
+  ///Returns the start time of earliest track if nothing is selected.
+  ///Returns zero if no tracks exist.
   uint64_t Output::startTime(){
+    if (!myMeta.tracks.size()){return 0;}
     uint64_t start = 0xFFFFFFFFFFFFFFFFull;
     if (selectedTracks.size()){
       for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
         if (myMeta.tracks.count(*it)){
-          if (start < myMeta.tracks[*it].firstms){
-            start = myMeta.tracks[*it].firstms;
-          }
+          if (start > myMeta.tracks[*it].firstms){start = myMeta.tracks[*it].firstms;}
         }
+      }
+    }else{
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (start > it->second.firstms){start = it->second.firstms;}
       }
     }
     return start;
   }
 
   ///Return the end time of the selected tracks, or 0 if unknown or live.
+  ///Returns the end time of latest track if nothing is selected.
+  ///Returns zero if no tracks exist.
   uint64_t Output::endTime(){
     if (myMeta.live){return 0;}
+    if (!myMeta.tracks.size()){return 0;}
     uint64_t end = 0;
     if (selectedTracks.size()){
       for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
         if (myMeta.tracks.count(*it)){
-          if (end < myMeta.tracks[*it].lastms){
-            end = myMeta.tracks[*it].lastms;
-          }
+          if (end < myMeta.tracks[*it].lastms){end = myMeta.tracks[*it].lastms;}
         }
+      }
+    }else{
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (end < it->second.lastms){end = it->second.lastms;}
       }
     }
     return end;

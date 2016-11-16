@@ -28,6 +28,8 @@
     <script src=wrappers/silverlight.js></script>
     <script src=wrappers/polytrope.js></script>
     
+    <script src=http://ajax.googleapis.com/ajax/libs/swfobject/2.2/swfobject.js>
+    
     <script src=players/dash.js></script>
 
     <link rel=stylesheet href=mist.css id=mist_player_css>
@@ -65,26 +67,28 @@
         
         //tryplayers = Object.keys(mistplayers);
         tryplayers = [];
-        tryplayers.push('html5');
+        //tryplayers.push('html5');
         //tryplayers.push('dashjs');
-        //tryplayers.push('flash_strobe');
+        tryplayers.push('flash_strobe');
         //tryplayers.push('silverlight');
+        streams = ['live'];
         
-        for (var i in tryplayers) {
-          var c = document.createElement('div');
-          c.className = 'mistvideo';
-          c.title = tryplayers[i];
-          document.body.appendChild(c);
-          mistPlay('live',{
-          //mistPlay('vids+mist.mp4',{
-          //mistPlay('lama',{
-          //mistPlay('bunny',{
-            target: c,
-            forcePlayer: tryplayers[i],
-            loop: true
-          });
+        for (var j in streams) {
+          for (var i in tryplayers) {
+            var c = document.createElement('div');
+            c.className = 'mistvideo';
+            c.title = tryplayers[i];
+            document.body.appendChild(c);
+            mistPlay(streams[j],{
+            //mistPlay('vids+mist.mp4',{
+            //mistPlay('lama',{
+            //mistPlay('bunny',{
+              target: c,
+              forcePlayer: tryplayers[i],
+              loop: true
+            });
+          }
         }
-        
         
       };
       

@@ -2472,7 +2472,7 @@ var UI = {
             $('<h2>').text('New Protocol')
           );
           var saveas = {};
-          var select = [];
+          var select = [['','']];
           for (var i in mist.data.capabilities.connectors) {
             select.push([i,i]);
           }
@@ -2482,6 +2482,7 @@ var UI = {
             type: 'select',
             select: select,
             'function': function(){
+              if ($(this).getval() == '') { return; }
               $cont.html(buildProtocolSettings($(this).getval()));
             }
           }])).append(
@@ -2821,7 +2822,7 @@ var UI = {
                       var s = opts.stream;
                       for (var i in d.browse.files) {
                         for (var j in mist.data.capabilities.inputs) {
-                          if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
+                          if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
                           if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
                             var streamname = s+'+'+d.browse.files[i];
                             allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
@@ -3119,10 +3120,11 @@ var UI = {
               if (input.name == 'Folder') {
                 $main.append($style);
               }
-              else if (['Buffer','TS'].indexOf(input.name) > -1) {
+              else if (['Buffer','Buffer.exe','TS','TS.exe'].indexOf(input.name) > -1) {
                 var fields = [$('<span>').text('Configure your source to push to:')];
                 switch (input.name) {
                   case 'Buffer':
+                  case 'Buffer.exe':
                     fields.push({
                       label: 'RTMP',
                       type: 'span',
@@ -3139,6 +3141,7 @@ var UI = {
                     });
                     break;
                   case 'TS':
+                  case 'TS.exe':
                     fields.push({
                       label: 'TS',
                       type: 'span',
@@ -3293,7 +3296,7 @@ var UI = {
         var $video = $('<div>').addClass('mistvideo').text('Loading player..');
         $preview_cont.append($video).append($title).append($switches);
         function initPlayer() {
-          $video.html('');
+          //$video.html('');
           $log.html('');
           var options = {
             target: $video[0],
@@ -4135,14 +4138,10 @@ var UI = {
             );
             if (type == 'Automatic') {
               $buttons.append(
-                $('<button>').text('Remove and stop pushes').click(function(){
-                  if (confirm("Are you sure you want to remove this automatic push, and also stop all pushes matching it?\n"+push[1]+' to '+push[2])) {
-                    var $tr = $(this).closest('tr');
-                    $tr.html(
-                      $('<td colspan=99>').html(
-                        $('<span>').addClass('red').text('Removing and stopping..')
-                      )
-                    );
+                $('<button>').text('Stop pushes').click(function(){
+                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push[1]+' to '+push[2]+"\"?"+(push_settings.wait != 0 ? "\n\nRetrying is enabled. You'll probably want to set that to 0." : ''))) {
+                    var $button = $(this);
+                    $button.text('Stopping pushes..');
                     //also stop the matching pushes
                     var pushIds = [];
                     for (var i in d.push_list) {
@@ -4158,14 +4157,11 @@ var UI = {
                     }
                     
                     mist.send(function(){
-                      $tr.remove();
+                      $button.text('Stop pushes');
                       checkgone(pushIds);
                     },{
-                      push_auto_remove:{
-                        stream: push[1],
-                        target: push[2]
-                      },
-                      push_stop: pushIds
+                      push_stop: pushIds,
+                      push_settings: {wait: 0}
                     });
                   }
                 })
@@ -4799,7 +4795,9 @@ var UI = {
         var $UI = $('<span>').text('Loading..');
         $main.append($UI);
         
-        var saveas = {};
+        var saveas = {
+          graph: 'new'
+        };
         var graphs = (mist.stored.get().graphs ? $.extend(true,{},mist.stored.get().graphs) : {});
         
         var thestreams = {};
@@ -4864,7 +4862,7 @@ var UI = {
             classes: ['graph_id'],
             validate: [function(val,me){
               if (val in graphs) {
-                return { 
+                return {
                   msg:'This graph id has already been used. Please enter something else.',
                   classes: ['red']
                 }
@@ -4952,6 +4950,7 @@ var UI = {
                 if (saveas.graph == 'new') {
                   graph = UI.plot.addGraph(saveas,$graph_c);
                   graphs[graph.id] = graph;
+                  $UI.find('input.graph_id').val('');
                   $UI.find('select.graph_ids').append(
                     $('<option>').text(graph.id)
                   ).val(graph.id).trigger('change');
@@ -5549,7 +5548,7 @@ var mist = {
             },
             validate: []
           };
-          if ((type[j] == 'required') && (!('default' in ele))) {
+          if ((type[j] == 'required') && (!('default' in ele)) || (ele.default == '')) {
             obj.validate.push('required');
           }
           if ('default' in ele) {

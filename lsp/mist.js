@@ -3016,8 +3016,9 @@ var UI = {
           ip = ip.split(':');
           ip = ip[0];
           
+          
           var port = {};
-          var trythese = ['RTMP','RTSP','TS'];
+          var trythese = ['RTMP','RTSP','TS','RTMP.exe','RTSP.exe','TS.exe'];
           for (var i in trythese) {
             if (trythese[i] in mist.data.capabilities.connectors) {
               port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
@@ -3025,9 +3026,12 @@ var UI = {
           }
           var defport = {
             RTMP: 1935,
+            'RTMP.exe': 1935,
             RTSP: 554,
-            TS: -1
-          }
+            'RTSP.exe': 554,
+            TS: -1,
+            'TS.exe': -1
+          };
           for (var protocol in port) {
             for (var i in mist.data.config.protocols) {
               var p = mist.data.config.protocols[i];
@@ -3047,16 +3051,22 @@ var UI = {
             var str;
             switch(i) {
               case 'RTMP':
-                str = 'rtmp://'+host.host+port.RTMP+'/'+(passw ? passw : 'live')+'/'+(streamname == '' ? 'STREAMNAME' : streamname);
+              case 'RTMP.exe':
+                str = 'rtmp://'+host.host+port[i]+'/'+(passw ? passw : 'live')+'/';
+                $livestreamhint.find('.field.RTMPurl').setval(str).closest('label').show();
+                $livestreamhint.find('.field.RTMPkey').setval((streamname == '' ? 'STREAMNAME' : streamname)).closest('label').show();
+                str += (streamname == '' ? 'STREAMNAME' : streamname);
                 break;
               case 'RTSP':
-                str = 'rtsp://'+host.host+port.RTSP+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
+              case 'RTSP.exe':
+                str = 'rtsp://'+host.host+port[i]+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
                 break;
               case 'TS':
-                str = 'udp://'+(ip == '' ? host.host : ip)+port.TS+'/';
+              case 'TS.exe':
+                str = 'udp://'+(ip == '' ? host.host : ip)+port[i]+'/';
                 break;
             }
-            $livestreamhint.find('.field.'+i).setval(str).closest('label').show();
+            $livestreamhint.find('.field.'+i.replace('.exe','')).setval(str).closest('label').show();
           }
         }
         
@@ -3126,11 +3136,28 @@ var UI = {
                   case 'Buffer':
                   case 'Buffer.exe':
                     fields.push({
-                      label: 'RTMP',
+                      label: 'RTMP full url',
                       type: 'span',
                       clipboard: true,
                       readonly: true,
-                      classes: ['RTMP']
+                      classes: ['RTMP'],
+                      help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
+                    });
+                    fields.push({
+                      label: 'RTMP url',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMPurl'],
+                      help: 'Use this RTMP url if your client also asks for a stream key'
+                    });
+                    fields.push({
+                      label: 'RTMP stream key',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMPkey'],
+                      help: 'Use this key if your client asks for a stream key'
                     });
                     fields.push({
                       label: 'RTSP',
@@ -5548,7 +5575,7 @@ var mist = {
             },
             validate: []
           };
-          if ((type[j] == 'required') && (!('default' in ele)) || (ele.default == '')) {
+          if ((type[j] == 'required') && (!('default' in ele)) || (ele['default'] == '')) {
             obj.validate.push('required');
           }
           if ('default' in ele) {

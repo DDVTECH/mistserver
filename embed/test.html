@@ -15,7 +15,8 @@
     <script>
       // global options can be set here
       var mistoptions = {
-        host: 'http://cattop:8080'
+        //host: 'http://cat.mistserver.org:8080'
+        host: 'https://cat.mistserver.org:4433'
       };
     </script>
     
@@ -27,8 +28,6 @@
     <script src=wrappers/flash_strobe.js></script>
     <script src=wrappers/silverlight.js></script>
     <script src=wrappers/polytrope.js></script>
-    
-    <script src=http://ajax.googleapis.com/ajax/libs/swfobject/2.2/swfobject.js>
     
     <script src=players/dash.js></script>
 
@@ -67,11 +66,15 @@
         
         //tryplayers = Object.keys(mistplayers);
         tryplayers = [];
-        //tryplayers.push('html5');
-        //tryplayers.push('dashjs');
-        tryplayers.push('flash_strobe');
+        tryplayers.push('html5');
+        tryplayers.push('dashjs');
+        //tryplayers.push('flash_strobe');
         //tryplayers.push('silverlight');
-        streams = ['live'];
+        streams = [];
+        //streams.push('live');
+        //streams.push('vids+mist.mp4');
+        //streams.push('lama');
+        streams.push('bunny');
         
         for (var j in streams) {
           for (var i in tryplayers) {
@@ -80,9 +83,6 @@
             c.title = tryplayers[i];
             document.body.appendChild(c);
             mistPlay(streams[j],{
-            //mistPlay('vids+mist.mp4',{
-            //mistPlay('lama',{
-            //mistPlay('bunny',{
               target: c,
               forcePlayer: tryplayers[i],
               loop: true

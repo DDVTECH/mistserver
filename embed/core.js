@@ -572,6 +572,14 @@ function mistPlay(streamName,options) {
     //embedLog('Stream info contents: '+JSON.stringify(streaminfo));
     streaminfo.initTime = new Date();
     
+    //sort the sources by priority, but prefer HTTPS
+    streaminfo.source.sort(function(a,b){
+      function g(s) {
+        return s.priority + (s.url.indexOf('https://') > -1 ? 0.1 : 0)
+      }
+      return g(b) - g(a);
+    })
+    
     var mistPlayer = false;
     var source;
     var forceType = false;
@@ -615,12 +623,10 @@ function mistPlay(streamName,options) {
       return false;
     }
     function checkMime(p_shortname,mime) {
-      embedLog('Checking if Mist broadcasts '+mime+'..');
       for (var s in streaminfo.source) {
         if (streaminfo.source[s].type == mime) {
-          embedLog('Yup! Checking browser support..');
           if (mistplayers[p_shortname].isBrowserSupported(mime)) {
-            embedLog('Yup! This is a working player/source combo.');
+            embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+mime+' @ '+streaminfo.source[s].url);
             streaminfo.working[p_shortname].push(mime);
             if (!source) {
               mistPlayer = p_shortname;
@@ -632,6 +638,8 @@ function mistPlay(streamName,options) {
           }
         }
       }
+      embedLog('Mist doesn\'t broadcast '+mime+' or there is no browser support.');
+      
       return false;
     }
     
@@ -652,8 +660,6 @@ function mistPlay(streamName,options) {
     }
     
     if (mistPlayer) {
-      embedLog('Preparing to build '+mistplayers[mistPlayer].name);
-      
       //create the options to send to the player
       var playerOpts = {
         src: source.url+(('urlappend' in options) && (options.urlappend) ? options.urlappend : '' ),

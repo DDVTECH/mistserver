@@ -58,6 +58,8 @@ namespace Mist {
       uint32_t currTrackCount() const;
       virtual bool isReadyForPlay();
       //virtuals. The optional virtuals have default implementations that do as little as possible.
+      /// This function is called whenever a packet is ready for sending.
+      /// Inside it, thisPacket is guaranteed to contain a valid packet.
       virtual void sendNext() {}//REQUIRED! Others are optional.
       bool prepareNext();
       virtual void dropTrack(uint32_t trackId, std::string reason, bool probablyBad = true);

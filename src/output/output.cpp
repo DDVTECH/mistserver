@@ -418,7 +418,10 @@ namespace Mist{
     }
     return highest;
   }
-  
+ 
+  /// Loads the page for the given trackId and keyNum into memory.
+  /// Overwrites any existing page for the same trackId.
+  /// Automatically calls thisPacket.null() if necessary.
   void Output::loadPageForKey(long unsigned int trackId, long long int keyNum){
     if (!myMeta.tracks.count(trackId) || !myMeta.tracks[trackId].keys.size()){
       WARN_MSG("Load for track %lu key %lld aborted - track is empty", trackId, keyNum);
@@ -468,6 +471,10 @@ namespace Mist{
     
     if (currKeyOpen.count(trackId) && currKeyOpen[trackId] == (unsigned int)pageNum){
       return;
+    }
+    //If we're loading the track thisPacket is on, null it to prevent accesses.
+    if (thisPacket && thisPacket.getTrackId() == trackId){
+      thisPacket.null();
     }
     char id[NAME_BUFFER_SIZE];
     snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
@@ -786,7 +793,7 @@ namespace Mist{
   }
  
   ///Attempts to prepare a new packet for output.
-  ///If thisPacket evaluates to false, playback has completed.
+  ///If it returns true and thisPacket evaluates to false, playback has completed.
   ///Could be called repeatedly in a loop if you really really want a new packet.
   /// \returns true if thisPacket was filled with the next packet.
   /// \returns false if we could not reliably determine the next packet yet.
@@ -844,7 +851,9 @@ namespace Mist{
     //if we're going to read past the end of the data page, load the next page
     //this only happens for VoD
     if (nxt.offset >= nProxy.curPage[nxt.tid].len){
-      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
+      if (thisPacket){
+        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
+      }
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
       if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
@@ -857,7 +866,6 @@ namespace Mist{
           buffer.insert(nxt);
         }
       }else{
-        thisPacket.null();
         dropTrack(nxt.tid, "page load failure", true);
       }
       return false;
@@ -898,7 +906,6 @@ namespace Mist{
       //The next key showed up on another page!
       //We've simply reached the end of the page. Load the next key = next page.
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
-      thisPacket.null();
       nxt.offset = 0;
       if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
         unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);

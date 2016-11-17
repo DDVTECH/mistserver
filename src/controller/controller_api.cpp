@@ -2,6 +2,7 @@
 #include <sys/stat.h> //for browse API call
 #include <mist/http_parser.h>
 #include <mist/auth.h>
+#include <mist/stream.h>
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/timing.h>
@@ -607,8 +608,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               stream = Request["push_start"]["stream"].asStringRef();
               target = Request["push_start"]["target"].asStringRef();
             }
+            Util::sanitizeName(stream);
             if (*stream.rbegin() != '+'){
-              Controller::startPush(stream, target);
+              startPush(stream, target);
             }else{
               if (activeStreams.size()){
                 for (std::map<std::string, unsigned int>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){

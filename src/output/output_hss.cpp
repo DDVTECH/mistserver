@@ -280,6 +280,7 @@ namespace Mist {
     moof_box.setContent(mfhd_box, 0);
     moof_box.setContent(traf_box, 1);
     /*LTS-START*/
+    ///\TODO This encryption-handling section does not handle thisPacket correctly!
     if (nProxy.encrypt){
       MP4::UUID_SampleEncryption sEnc;
       sEnc.setVersion(0);

@@ -444,6 +444,18 @@ int Util::Procs::Count() {
 /// Returns true if a process with this PID is currently active.
 bool Util::Procs::isActive(pid_t name) {
   tthread::lock_guard<tthread::mutex> guard(plistMutex);
-  return (plist.count(name) == 1) && (kill(name, 0) == 0);
+  return (kill(name, 0) == 0);
+}
+
+/// Forget about the given PID, keeping it running on shutdown.
+void Util::Procs::forget(pid_t pid) {
+  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  plist.erase(pid);
+}
+
+/// Remember the given PID, killing it on shutdown.
+void Util::Procs::remember(pid_t pid) {
+  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  plist.insert(pid);
 }
 

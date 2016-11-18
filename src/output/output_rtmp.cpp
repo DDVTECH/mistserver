@@ -257,7 +257,7 @@ namespace Mist {
       // erase &
       pos = nextpos + 1;
     }
-    if (trackSwitch){
+    if (trackSwitch && thisPacket){
       seek(thisPacket.getTime());
     }
   }

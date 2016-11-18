@@ -38,6 +38,8 @@ namespace Util {
       static int Count();
       static bool isActive(pid_t name);
       static bool isRunning(pid_t pid);
+      static void forget(pid_t pid);
+      static void remember(pid_t pid);
       static std::set<int> socketList; ///< Holds sockets that should be closed before forking
   };
 }

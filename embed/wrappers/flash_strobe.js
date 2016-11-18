@@ -5,7 +5,10 @@ mistplayers.flash_strobe = {
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype) {
+  isBrowserSupported: function (mimetype,source,options) {
+    //check for http / https crossovers
+    if ((options.host.substr(0,7) == 'http://') && (source.url.substr(0,8) == 'https://')) { return false; }
+    
     var version = 0;
     try {
       // check in the mimeTypes
@@ -38,7 +41,7 @@ p.prototype.build = function (options) {
   ele.setAttribute('width',options.width);
   ele.setAttribute('height',options.height);
   
-  ele.appendChild(createParam('movie',options.source.player_url));
+  ele.appendChild(createParam('movie',options.host+options.source.player_url));
   var flashvars = 'src='+encodeURIComponent(options.src)+'&controlBarMode='+(options.controls ? 'floating' : 'none')+'&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3'+(options.live ? '&streamType=live' : '')+(options.autoplay ? '&autoPlay=true' : '' );
   ele.appendChild(createParam('flashvars',flashvars));
   ele.appendChild(createParam('allowFullScreen','true'));

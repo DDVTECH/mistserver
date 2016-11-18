@@ -5575,7 +5575,7 @@ var mist = {
             },
             validate: []
           };
-          if ((type[j] == 'required') && (!('default' in ele)) || (ele['default'] == '')) {
+          if ((type[j] == 'required') && ((!('default' in ele)) || (ele['default'] == ''))) {
             obj.validate.push('required');
           }
           if ('default' in ele) {

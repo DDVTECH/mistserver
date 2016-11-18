@@ -572,13 +572,10 @@ function mistPlay(streamName,options) {
     //embedLog('Stream info contents: '+JSON.stringify(streaminfo));
     streaminfo.initTime = new Date();
     
-    //sort the sources by priority, but prefer HTTPS
+    //sort the sources by priority and mime, but prefer HTTPS
     streaminfo.source.sort(function(a,b){
-      function g(s) {
-        return s.priority + (s.url.indexOf('https://') > -1 ? 0.1 : 0)
-      }
-      return g(b) - g(a);
-    })
+      return (b.priority - a.priority) || a.type.localeCompare(b.type) || b.url.localeCompare(a.url);
+    });
     
     var mistPlayer = false;
     var source;
@@ -625,7 +622,7 @@ function mistPlay(streamName,options) {
     function checkMime(p_shortname,mime) {
       for (var s in streaminfo.source) {
         if (streaminfo.source[s].type == mime) {
-          if (mistplayers[p_shortname].isBrowserSupported(mime)) {
+          if (mistplayers[p_shortname].isBrowserSupported(mime,streaminfo.source[s],options)) {
             embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+mime+' @ '+streaminfo.source[s].url);
             streaminfo.working[p_shortname].push(mime);
             if (!source) {
@@ -666,7 +663,8 @@ function mistPlay(streamName,options) {
         live: (streaminfo.type == 'live' ? true : false),
         initTime: streaminfo.initTime,
         meta: streaminfo.meta,
-        source: source
+        source: source,
+        host: options.host
       };
       //pass player options and handle defaults
       playerOpts.autoplay = options.autoplay;

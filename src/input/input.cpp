@@ -126,7 +126,18 @@ namespace Mist {
     return 0;
   }
 
-  void Input::convert(){
+  /// Default crash handler, cleans up Pull semaphore on crashes
+  void Input::onCrash(){
+    if (streamName.size() && !needsLock()) {
+      //we have a Pull semaphore to clean up, do it
+      IPC::semaphore pullLock;
+      pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      pullLock.close();
+      pullLock.unlink();
+    }
+  }
+
+  void Input::convert() {
     //check filename for no -
     if (config->getString("output") != "-"){
       std::string filename = config->getString("output");
@@ -205,12 +216,18 @@ namespace Mist {
   }
 
   /// Main loop for stream-style inputs.
-  /// This loop will start the buffer without resume support, and then repeatedly call ..... followed by ....
+  /// This loop will do the following, in order:
+  /// - exit if another stream() input is already open for this streamname
+  /// - start a buffer in push mode
+  /// - connect to it
+  /// - run parseStreamHeader
+  /// - if there are tracks, register as a non-viewer on the user page of the buffer
+  /// - call getNext() in a loop, buffering packets
   void Input::stream(){
     IPC::semaphore pullLock;
     pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     if (!pullLock.tryWait()){
-      DEBUG_MSG(DLVL_DEVEL, "A pull process for stream %s is already running", streamName.c_str());
+      WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
       pullLock.close();
       return;
     }

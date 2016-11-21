@@ -15,7 +15,7 @@ namespace Controller{
   std::map<pid_t, JSON::Value> activePushes;
 
   /// Internal list of waiting pushes
-  std::map<std::string, std::map<std::string, unsigned int>> waitingPushes;
+  std::map<std::string, std::map<std::string, unsigned int> > waitingPushes;
 
   static bool mustWritePushList = false;
   static bool pushListRead = false;

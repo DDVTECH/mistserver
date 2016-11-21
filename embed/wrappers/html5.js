@@ -144,7 +144,46 @@ p.prototype.build = function (options,callback) {
   
   //forward events
   ele.addEventListener('error',function(e){
-    me.adderror(e.message);
+    var msg;
+    if ('message' in e) {
+      msg = e.message;
+    }
+    else {
+      msg = 'readyState: ';
+      switch (me.element.readyState) {
+        case 0:
+          msg += 'HAVE_NOTHING';
+          break;
+        case 1:
+          msg += 'HAVE_METADATA';
+          break;
+        case 2:
+          msg += 'HAVE_CURRENT_DATA';
+          break;
+        case 3:
+          msg += 'HAVE_FUTURE_DATA';
+          break;
+        case 4:
+          msg += 'HAVE_ENOUGH_DATA';
+          break;
+      }
+      msg += ' networkState: ';
+      switch (me.element.networkState) {
+        case 0:
+          msg += 'NETWORK_EMPTY';
+          break;
+        case 1:
+          msg += 'NETWORK_IDLE';
+          break;
+        case 2:
+          msg += 'NETWORK_LOADING';
+          break;
+        case 3:
+          msg += 'NETWORK_NO_SOURCE';
+          break;
+      }
+    }
+    me.adderror(msg);
   },true);
   var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting'];
   for (var i in events) {

@@ -584,6 +584,12 @@ function mistPlay(streamName,options) {
       embedLog('Forcing '+options.forceType);
       forceType = options.forceType;
     }
+    var forceSource = false;
+    if (('forceSource' in options) && (options.forceSource)) {
+      forceSource = options.forceSource;
+      forceType = streaminfo.source[forceSource].type;
+      embedLog('Forcing source '+options.forceSource+': '+forceType+' @ '+streaminfo.source[forceSource].url);
+    }
     var forceSupportCheck = false;
     if (('forceSupportCheck' in options) && (options.forceSupportCheck)) {
       embedLog('Forcing a full support check');
@@ -620,14 +626,21 @@ function mistPlay(streamName,options) {
       return false;
     }
     function checkMime(p_shortname,mime) {
-      for (var s in streaminfo.source) {
-        if (streaminfo.source[s].type == mime) {
-          if (mistplayers[p_shortname].isBrowserSupported(mime,streaminfo.source[s],options)) {
-            embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+mime+' @ '+streaminfo.source[s].url);
+      var loop;
+      if (forceSource) {
+        loop = [streaminfo.source[forceSource]];
+      }
+      else {
+        loop = streaminfo.source;
+      }
+      for (var s in loop) {
+        if (loop[s].type == mime) {
+          if (mistplayers[p_shortname].isBrowserSupported(mime,loop[s],options)) {
+            embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+mime+' @ '+loop[s].url);
             streaminfo.working[p_shortname].push(mime);
             if (!source) {
               mistPlayer = p_shortname;
-              source = streaminfo.source[s];
+              source = loop[s];
             }
             if (!forceSupportCheck) {
               return source;
@@ -656,6 +669,7 @@ function mistPlay(streamName,options) {
       }
     }
     
+    options.target.innerHTML = '';
     if (mistPlayer) {
       //create the options to send to the player
       var playerOpts = {
@@ -785,7 +799,6 @@ function mistPlay(streamName,options) {
       //build the player
       player.options = playerOpts;
       var element = player.build(playerOpts);
-      options.target.innerHTML = '';
       options.target.appendChild(element);
       element.setAttribute('data-player',mistPlayer);
       element.setAttribute('data-mime',source.type);

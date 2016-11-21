@@ -3335,7 +3335,7 @@ var UI = {
             options.forcePlayer = $s_players.val()
           }
           if ($s_mimes.val() != '') {
-            options.forceType = $s_mimes.val()
+            options.forceSource = $s_mimes.val()
           }
           mistPlay(other,options);
         }
@@ -3391,7 +3391,7 @@ var UI = {
                   var s = mistvideo[other].source[i];
                   var human = UI.humanMime(s.type);
                   $s_mimes.append(
-                    $('<option>').val(s.type).text(
+                    $('<option>').val(i).text(
                       (human ? human+' @ '+s.url.substring(s.url.length - s.relurl.length,0) : UI.format.capital(s.type)+' @ '+s.url.substring(s.url.length - s.relurl.length,0))
                     )
                   );

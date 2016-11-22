@@ -848,6 +848,19 @@ button.return:before {
   color: rgba(0,0,0,0.8);
   margin-bottom: 1em;
 }
+.logs {
+  text-indent: 0;
+}
+.logs > div {
+  display: flex;
+  flex-flow: row nowrap;
+}
+.logs > div > * {
+  margin-right: 1em;
+}
+.logs .content > * {
+  margin-right: 0.5em;
+}
   
 @font-face {
   font-family: FuturaICGLight;

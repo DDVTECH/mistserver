@@ -5,7 +5,8 @@ mistplayers.dashjs = {
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype) {
+  isBrowserSupported: function (mimetype,source,options) {
+    if ((options.host.substr(0,7) == 'http://') && (source.url.substr(0,8) == 'https://')) { return false; }
     return (('dashjs' in window) && ('MediaSource' in window) && (location.protocol != 'file:'));
   },
   player: function(){}

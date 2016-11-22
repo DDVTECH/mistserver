@@ -15,13 +15,14 @@
     <script>
       // global options can be set here
       var mistoptions = {
-        host: 'http://cattop:8080'
+        host: 'http://cat.mistserver.org:8080'
+        //host: 'https://cat.mistserver.org:4433'
       };
     </script>
     
     <script src=core.js></script>
-    <script src=wrappers/theoplayer.js></script>
-    <script src=wrappers/jwplayer.js></script>
+    <!--<script src=wrappers/theoplayer.js></script>-->
+    <!--<script src=wrappers/jwplayer.js></script>-->
     <script src=wrappers/html5.js></script>
     <script src=wrappers/dashjs.js></script>
     <script src=wrappers/flash_strobe.js></script>
@@ -65,26 +66,31 @@
         
         //tryplayers = Object.keys(mistplayers);
         tryplayers = [];
-        tryplayers.push('html5');
-        //tryplayers.push('dashjs');
+        //tryplayers.push('html5');
+        tryplayers.push('dashjs');
         //tryplayers.push('flash_strobe');
         //tryplayers.push('silverlight');
+        streams = [];
+        //streams.push('live');
+        //streams.push('vids+mist.mp4');
+        //streams.push('lama');
+        streams.push('bunny');
         
-        for (var i in tryplayers) {
-          var c = document.createElement('div');
-          c.className = 'mistvideo';
-          c.title = tryplayers[i];
-          document.body.appendChild(c);
-          //mistPlay('live',{
-          //mistPlay('vids+mist.mp4',{
-          //mistPlay('lama',{
-          mistPlay('bunny',{
-            target: c,
-            forcePlayer: tryplayers[i],
-            loop: true
-          });
+        for (var j in streams) {
+          for (var i in tryplayers) {
+            var c = document.createElement('div');
+            c.className = 'mistvideo';
+            c.title = tryplayers[i];
+            document.body.appendChild(c);
+            mistPlay(streams[j],{
+              target: c,
+              forcePlayer: tryplayers[i],
+              //forceType: 'flash/7',
+              //forceSource: 5,
+              loop: true
+            });
+          }
         }
-        
         
       };
       

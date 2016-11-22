@@ -572,12 +572,23 @@ function mistPlay(streamName,options) {
     //embedLog('Stream info contents: '+JSON.stringify(streaminfo));
     streaminfo.initTime = new Date();
     
+    //sort the sources by priority and mime, but prefer HTTPS
+    streaminfo.source.sort(function(a,b){
+      return (b.priority - a.priority) || a.type.localeCompare(b.type) || b.url.localeCompare(a.url);
+    });
+    
     var mistPlayer = false;
     var source;
     var forceType = false;
     if (('forceType' in options) && (options.forceType)) {
       embedLog('Forcing '+options.forceType);
       forceType = options.forceType;
+    }
+    var forceSource = false;
+    if (('forceSource' in options) && (options.forceSource)) {
+      forceSource = options.forceSource;
+      forceType = streaminfo.source[forceSource].type;
+      embedLog('Forcing source '+options.forceSource+': '+forceType+' @ '+streaminfo.source[forceSource].url);
     }
     var forceSupportCheck = false;
     if (('forceSupportCheck' in options) && (options.forceSupportCheck)) {
@@ -615,16 +626,21 @@ function mistPlay(streamName,options) {
       return false;
     }
     function checkMime(p_shortname,mime) {
-      embedLog('Checking if Mist broadcasts '+mime+'..');
-      for (var s in streaminfo.source) {
-        if (streaminfo.source[s].type == mime) {
-          embedLog('Yup! Checking browser support..');
-          if (mistplayers[p_shortname].isBrowserSupported(mime)) {
-            embedLog('Yup! This is a working player/source combo.');
+      var loop;
+      if (forceSource) {
+        loop = [streaminfo.source[forceSource]];
+      }
+      else {
+        loop = streaminfo.source;
+      }
+      for (var s in loop) {
+        if (loop[s].type == mime) {
+          if (mistplayers[p_shortname].isBrowserSupported(mime,loop[s],options)) {
+            embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+mime+' @ '+loop[s].url);
             streaminfo.working[p_shortname].push(mime);
             if (!source) {
               mistPlayer = p_shortname;
-              source = streaminfo.source[s];
+              source = loop[s];
             }
             if (!forceSupportCheck) {
               return source;
@@ -632,6 +648,8 @@ function mistPlay(streamName,options) {
           }
         }
       }
+      embedLog('Mist doesn\'t broadcast '+mime+' or there is no browser support.');
+      
       return false;
     }
     
@@ -651,16 +669,16 @@ function mistPlay(streamName,options) {
       }
     }
     
+    options.target.innerHTML = '';
     if (mistPlayer) {
-      embedLog('Preparing to build '+mistplayers[mistPlayer].name);
-      
       //create the options to send to the player
       var playerOpts = {
         src: source.url+(('urlappend' in options) && (options.urlappend) ? options.urlappend : '' ),
         live: (streaminfo.type == 'live' ? true : false),
         initTime: streaminfo.initTime,
         meta: streaminfo.meta,
-        source: source
+        source: source,
+        host: options.host
       };
       //pass player options and handle defaults
       playerOpts.autoplay = options.autoplay;
@@ -733,6 +751,7 @@ function mistPlay(streamName,options) {
         };
         for (var i in streaminfo.meta.tracks) {
           var t = streaminfo.meta.tracks[i];
+          var skip = false;
           switch (t.type) {
             case 'video':
               t.desc = ['['+t.codec+']',t.width+'x'+t.height,Math.round(t.bps/1024)+'kbps',t.fpks/1e3+'fps',t.lang];
@@ -743,7 +762,11 @@ function mistPlay(streamName,options) {
             case 'subtitle':
               t.desc = ['['+t.codec+']',t.lang];
               break;
+            default:
+              skip = true;
+              break;
           }
+          if (skip) { continue; }
           t.desc = t.desc.join(', ');
           tracks[t.type].push(t);
         }

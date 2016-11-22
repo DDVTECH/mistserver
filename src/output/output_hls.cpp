@@ -422,7 +422,6 @@ namespace Mist {
         }
       }
 
-      H.Clean();
       H.SetHeader("Content-Type", "video/mp2t");
       H.setCORSHeaders();
       if(method == "OPTIONS" || method == "HEAD"){

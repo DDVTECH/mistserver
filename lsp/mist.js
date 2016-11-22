@@ -56,7 +56,10 @@ $(window).on('hashchange', function(e) {
   UI.showTab(tab[0],tab[1]);
 });
 
-var otherhost = false;
+var otherhost = {
+  host: false,
+  https: false
+};
 var UI = {
   debug: false,
   elements: {},
@@ -1909,7 +1912,7 @@ var UI = {
             help: 'Enter your desired password. In the future, you will need this to access the Management Interface.',
             pointer: {
               main: mist.user,
-              index: 'password'
+              index: 'rawpassword'
             },
             classes: ['match_password']
           },{
@@ -1937,9 +1940,11 @@ var UI = {
                 },{
                   authorize: {
                     new_username: mist.user.name,
-                    new_password: mist.user.password
+                    new_password: mist.user.rawpassword
                   }
                 });
+                mist.user.password = MD5(mist.user.rawpassword);
+                delete mist.user.rawpassword;
               }
             }]
           }]));
@@ -2004,9 +2009,13 @@ var UI = {
         break;
       case 'Overview':
         var $versioncheck = $('<span>').text('Loading..');
-        var $streamsonline = $('<span>');
+        var $streamsactive = $('<span>');
+        var $errors = $('<span>').addClass('logs');
         var $viewers = $('<span>');
         var $servertime = $('<span>');
+        var $protocols_on = $('<span>');
+        var $protocols_off = $('<span>');
+        
         $main.append(UI.buildUI([
           {
             type: 'help',
@@ -2029,12 +2038,28 @@ var UI = {
             value: $servertime
           },{
             type: 'span',
-            label: 'Current streams',
-            value: $streamsonline
+            label: 'Configured streams',
+            value: (mist.data.streams ? Object.keys(mist.data.streams).length : 0)
+          },{
+            type: 'span',
+            label: 'Active streams',
+            value: $streamsactive
           },{
             type: 'span',
             label: 'Current connections',
             value: $viewers
+          },{
+            type: 'span',
+            label: 'Enabled protocols',
+            value: $protocols_on
+          },{
+            type: 'span',
+            label: 'Disabled protocols',
+            value: $protocols_off
+          },{
+            type: 'span',
+            label: 'Recent problems',
+            value: $errors
           },$('<br>'),{
             type: 'str',
             label: 'Human readable name',
@@ -2122,15 +2147,19 @@ var UI = {
           $versioncheck.text('');
         }
         function updateViewers() {
-          mist.send(function(d){
-            enterStats()
-          },{
+          var request = {
             totals:{
               fields: ['clients'],
               start: -10
             },
             active_streams: true
-          });
+          };
+          if (!('cabailities' in mist.data)) {
+            request.capabilities = true;
+          }
+          mist.send(function(d){
+            enterStats()
+          },request);
         }
         function enterStats() {
           if ('active_streams' in mist.data) {
@@ -2139,7 +2168,7 @@ var UI = {
           else {
             var active = '?';
           }
-          $streamsonline.text(active+' active, '+(mist.data.streams ? Object.keys(mist.data.streams).length : 0)+' configured');
+          $streamsactive.text(active);
           if (('totals' in mist.data) && ('all_streams' in mist.data.totals)) {
             var clients = mist.data.totals.all_streams.all_protocols.clients;
             clients = (clients.length ? UI.format.number(clients[clients.length-1][1]) : 0);
@@ -2149,6 +2178,55 @@ var UI = {
           }
           $viewers.text(clients);
           $servertime.text(UI.format.dateTime(mist.data.config.time,'long'));
+          
+          $errors.html('');
+          var n = 0;
+          for (var i in mist.data.log) {
+            var l = mist.data.log[i];
+            if (['FAIL','ERROR'].indexOf(l[1]) > -1) {
+              n++;
+              var $content = $('<span>').addClass('content').addClass('red');
+              var split = l[2].split('|');
+              for (var i in split) {
+                $content.append(
+                  $('<span>').text(split[i])
+                );
+              }
+              $errors.append(
+                $('<div>').append(
+                  $('<span>').append(UI.format.time(l[0]))
+                ).append(
+                  $content
+                )
+              );
+              if (n == 5) { break; }
+            }
+          }
+          if (n == 0) {
+            $errors.html('None.');
+          }
+          
+          var protocols = {
+            on: [],
+            off: []
+          };
+          for (var i in mist.data.config.protocols) {
+            var p = mist.data.config.protocols[i];
+            if (protocols.on.indexOf(p.connector) > -1) { continue; }
+            protocols.on.push(p.connector);
+          }
+          $protocols_on.text((protocols.on.length ? protocols.on.join(', ') : 'None.'));
+          if ('capabilities' in mist.data) {
+            for (var i in mist.data.capabilities.connectors) {
+              if (protocols.on.indexOf(i) == -1) {
+                protocols.off.push(i);
+              }
+            }
+            $protocols_off.text((protocols.off.length ? protocols.off.join(', ') : 'None.'));
+          }
+          else {
+            $protocols_off.text('Loading..')
+          }
         }
         updateViewers();
         enterStats();
@@ -2171,9 +2249,57 @@ var UI = {
             help: 'You can find an overview of all the protocols and their relevant information here. You can add, edit or delete protocols.'
           }])
         ).append(
+          $('<button>').text('Delete all protocols').click(function(){
+            if (confirm('Are you sure you want to delete all currently configured protocols?')) {
+              mist.data.config.protocols = [];
+              mist.send(function(d){
+                UI.navto('Protocols');
+              },{config: mist.data.config});
+            }
+          })
+        ).append(
+          $('<button>').text('Enable default protocols').click(function(){
+            var toenable = Object.keys(mist.data.capabilities.connectors);
+            for (var i in mist.data.config.protocols) {
+              var p = mist.data.config.protocols[i];
+              var index = toenable.indexOf(p.connector)
+              if (index > -1) {
+                toenable.splice(index,1);
+              }
+            }
+            var dontskip = [];
+            for (var i in toenable) {
+              if ((!('required' in mist.data.capabilities.connectors[toenable[i]])) || (Object.keys(mist.data.capabilities.connectors[toenable[i]].required).length == 0)) {
+                dontskip.push(toenable[i]);
+              }
+            }
+            var msg = 'Click OK to enable disabled protocols with their default settings:'+"\n  ";
+            if (dontskip.length) {
+              msg += dontskip.join(', ');
+            }
+            else {
+              msg += 'None.';
+            }
+            if (dontskip.length != toenable.length) {
+              var skip = toenable.filter(function(ele){
+                return dontskip.indexOf(ele) < 0;
+              });
+              msg += "\n\n"+'The following protocols can only be set manually:'+"\n  "+skip.join(', ');
+            }
+            
+            if (confirm(msg) && dontskip.length) {
+              for (var i in dontskip) {
+                mist.data.config.protocols.push({connector: dontskip[i]});
+              }
+              mist.send(function(d){
+                UI.navto('Protocols');
+              },{config: mist.data.config});
+            }
+          })
+        ).append('<br>').append(
           $('<button>').text('New protocol').click(function(){
             UI.navto('Edit Protocol');
-          })
+          }).css('clear','both')
         ).append(
           $('<table>').html(
             $('<thead>').html(
@@ -2346,7 +2472,7 @@ var UI = {
             $('<h2>').text('New Protocol')
           );
           var saveas = {};
-          var select = [];
+          var select = [['','']];
           for (var i in mist.data.capabilities.connectors) {
             select.push([i,i]);
           }
@@ -2356,6 +2482,7 @@ var UI = {
             type: 'select',
             select: select,
             'function': function(){
+              if ($(this).getval() == '') { return; }
               $cont.html(buildProtocolSettings($(this).getval()));
             }
           }])).append(
@@ -2695,7 +2822,7 @@ var UI = {
                       var s = opts.stream;
                       for (var i in d.browse.files) {
                         for (var j in mist.data.capabilities.inputs) {
-                          if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
+                          if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
                           if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
                             var streamname = s+'+'+d.browse.files[i];
                             allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
@@ -2876,7 +3003,72 @@ var UI = {
         }
         
         var $style = $('<style>').text('button.saveandpreview { display: none; }');
-        
+        var $livestreamhint = $('<span>');
+        function updateLiveStreamHint() {
+          var streamname = $main.find('[name=name]').val();
+          if (!streamname) { return; }
+          var host = parseURL(mist.user.host);
+          var passw = $main.find('[name=source]').val().match(/@.*/);
+          if (passw) { passw = passw[0].substring(1); }
+          var ip = $main.find('[name=source]').val().replace(/(?:.+?):\/\//,'');
+          ip = ip.split('/');
+          ip = ip[0];
+          ip = ip.split(':');
+          ip = ip[0];
+          
+          
+          var port = {};
+          var trythese = ['RTMP','RTSP','TS','RTMP.exe','RTSP.exe','TS.exe'];
+          for (var i in trythese) {
+            if (trythese[i] in mist.data.capabilities.connectors) {
+              port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
+            }
+          }
+          var defport = {
+            RTMP: 1935,
+            'RTMP.exe': 1935,
+            RTSP: 554,
+            'RTSP.exe': 554,
+            TS: -1,
+            'TS.exe': -1
+          };
+          for (var protocol in port) {
+            for (var i in mist.data.config.protocols) {
+              var p = mist.data.config.protocols[i];
+              if (p.connector == protocol) {
+                if ('port' in p) {
+                  port[protocol] = p.port;
+                }
+                break;
+              }
+            }
+            if (port[protocol] == defport[protocol]) { port[protocol] = ''; }
+            else { port[protocol] = ':'+port[protocol]; }
+          }
+          
+          $livestreamhint.find('.field').closest('label').hide();
+          for (var i in port) {
+            var str;
+            switch(i) {
+              case 'RTMP':
+              case 'RTMP.exe':
+                str = 'rtmp://'+host.host+port[i]+'/'+(passw ? passw : 'live')+'/';
+                $livestreamhint.find('.field.RTMPurl').setval(str).closest('label').show();
+                $livestreamhint.find('.field.RTMPkey').setval((streamname == '' ? 'STREAMNAME' : streamname)).closest('label').show();
+                str += (streamname == '' ? 'STREAMNAME' : streamname);
+                break;
+              case 'RTSP':
+              case 'RTSP.exe':
+                str = 'rtsp://'+host.host+port[i]+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
+                break;
+              case 'TS':
+              case 'TS.exe':
+                str = 'udp://'+(ip == '' ? host.host : ip)+port[i]+'/';
+                break;
+            }
+            $livestreamhint.find('.field.'+i.replace('.exe','')).setval(str).closest('label').show();
+          }
+        }
         
         $main.append(UI.buildUI([
           {
@@ -2900,6 +3092,7 @@ var UI = {
             'function': function(){
               var source = $(this).val();
               $style.remove();
+              $livestreamhint.html('');
               if (source == '') { return; }
               var type = null;
               for (var i in mist.data.capabilities.inputs) {
@@ -2937,6 +3130,57 @@ var UI = {
               if (input.name == 'Folder') {
                 $main.append($style);
               }
+              else if (['Buffer','Buffer.exe','TS','TS.exe'].indexOf(input.name) > -1) {
+                var fields = [$('<span>').text('Configure your source to push to:')];
+                switch (input.name) {
+                  case 'Buffer':
+                  case 'Buffer.exe':
+                    fields.push({
+                      label: 'RTMP full url',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMP'],
+                      help: 'Use this RTMP url if your client doesn\'t ask for a stream key'
+                    });
+                    fields.push({
+                      label: 'RTMP url',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMPurl'],
+                      help: 'Use this RTMP url if your client also asks for a stream key'
+                    });
+                    fields.push({
+                      label: 'RTMP stream key',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTMPkey'],
+                      help: 'Use this key if your client asks for a stream key'
+                    });
+                    fields.push({
+                      label: 'RTSP',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['RTSP']
+                    });
+                    break;
+                  case 'TS':
+                  case 'TS.exe':
+                    fields.push({
+                      label: 'TS',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['TS']
+                    });
+                    break;
+                }
+                $livestreamhint.html('<br>').append(UI.buildUI(fields));
+                updateLiveStreamHint();
+              }
             }
           },{
             label: 'Stop sessions',
@@ -2947,7 +3191,7 @@ var UI = {
               main: saveas,
               index: 'stop_sessions'
             }
-          },$('<br>'),{
+          },$livestreamhint,$('<br>'),{
             type: 'custom',
             custom: $inputoptions
           },$('<br>'),$('<h3>').text('Encryption'),{
@@ -3015,6 +3259,11 @@ var UI = {
           }
         ]));
         
+        $main.find('[name=name]').keyup(function(){
+          updateLiveStreamHint();
+        });
+        updateLiveStreamHint();
+        
         break;
       case 'Preview':
         
@@ -3074,7 +3323,7 @@ var UI = {
         var $video = $('<div>').addClass('mistvideo').text('Loading player..');
         $preview_cont.append($video).append($title).append($switches);
         function initPlayer() {
-          $video.html('');
+          //$video.html('');
           $log.html('');
           var options = {
             target: $video[0],
@@ -3086,7 +3335,7 @@ var UI = {
             options.forcePlayer = $s_players.val()
           }
           if ($s_mimes.val() != '') {
-            options.forceType = $s_mimes.val()
+            options.forceSource = $s_mimes.val()
           }
           mistPlay(other,options);
         }
@@ -3139,10 +3388,11 @@ var UI = {
             $video.on('initialized',function(){
               if ($s_mimes.children().length <= 1) {
                 for (var i in mistvideo[other].source) {
-                  var human = UI.humanMime(mistvideo[other].source[i].type);
+                  var s = mistvideo[other].source[i];
+                  var human = UI.humanMime(s.type);
                   $s_mimes.append(
-                    $('<option>').val(mistvideo[other].source[i].type).text(
-                      (human ? human+' ('+mistvideo[other].source[i].type+')' : UI.format.capital(mistvideo[other].source[i].type))
+                    $('<option>').val(i).text(
+                      (human ? human+' @ '+s.url.substring(s.url.length - s.relurl.length,0) : UI.format.capital(s.type)+' @ '+s.url.substring(s.url.length - s.relurl.length,0))
                     )
                   );
                 }
@@ -3318,19 +3568,26 @@ var UI = {
         var escapedstream = encodeURIComponent(other);
         var parsed = parseURL(mist.user.host);
         
-        var http_port = ':8080';
+        var http = {
+          '': {
+            port: ':8080'
+          }
+        };
         for (var i in mist.data.config.protocols) {
           var protocol = mist.data.config.protocols[i];
           if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            http_port = (protocol.port ? ':'+protocol.port : ':8080');
+            http[''].port = (protocol.port ? ':'+protocol.port : ':8080');
+          }
+          if ((protocol.connector == 'HTTPS') || (protocol.connector == 'HTTPS.exe')) {
+            http.s = {};
+            http.s.port = (protocol.port ? ':'+protocol.port : ':4433');
           }
         }
         
-        var embedbase = parsed.protocol+parsed.host+http_port+'/';
+        var embedbase = 'http://'+parsed.host+http[''].port+'/';
         var otherbase = embedbase;
-        if (otherhost) {
-          var otherparse = parseURL(otherhost);
-          otherbase = otherparse.protocol+otherparse.host+http_port+'/';
+        if ((otherhost.host) || (otherhost.https)) {
+          otherbase = (otherhost.https && ('s' in http) ? 'https://' : 'http://')+(otherhost.host ? otherhost.host : parsed.host)+(otherhost.https && ('s' in http) ? http.s.port : http[''].port)+'/';
         }
         
         var defaultembedoptions = {
@@ -3437,23 +3694,40 @@ var UI = {
         var $protocolurls = $('<span>').text('Loading..');
         var emhtml = embedhtml(embedoptions);
         var $setTracks = $('<div>').text('Loading..').css('display','flex');
+        
+        
+        var $usehttps = '';
+        if ('s' in http) {
+          $usehttps = UI.buildUI([{
+            label: 'Use HTTPS',
+            type: 'checkbox',
+            'function': function(){
+              if ($(this).getval() != otherhost.https) {
+                otherhost.https = $(this).getval();
+                UI.navto('Embed',other);
+              }
+            },
+            value: otherhost.https
+          }]).find('label');
+          
+        }
         $embedlinks.append(
           $('<span>').addClass('input_container').append(
             $('<label>').addClass('UIelement').append(
               $('<span>').addClass('label').text('Use a different host:')
             ).append(
               $('<span>').addClass('field_container').append(
-                $('<input>').attr('type','text').addClass('field').val((otherhost ? otherhost : parsed.protocol+parsed.host))
+                $('<input>').attr('type','text').addClass('field').val((otherhost.host ? otherhost.host : parsed.host))
               ).append(
                 $('<span>').addClass('unit').append(
                   $('<button>').text('Apply').click(function(){
-                    otherhost = $(this).closest('label').find('input').val();
+                    otherhost.host = $(this).closest('label').find('input').val();
                     UI.navto('Embed',other);
                   })
                 )
               )
             )
-          )
+          ).append($usehttps)
         ).append(UI.buildUI([
           $('<h3>').text('Urls'),
           {
@@ -3891,14 +4165,10 @@ var UI = {
             );
             if (type == 'Automatic') {
               $buttons.append(
-                $('<button>').text('Remove and stop pushes').click(function(){
-                  if (confirm("Are you sure you want to remove this automatic push, and also stop all pushes matching it?\n"+push[1]+' to '+push[2])) {
-                    var $tr = $(this).closest('tr');
-                    $tr.html(
-                      $('<td colspan=99>').html(
-                        $('<span>').addClass('red').text('Removing and stopping..')
-                      )
-                    );
+                $('<button>').text('Stop pushes').click(function(){
+                  if (confirm("Are you sure you want to stop all pushes matching \n\""+push[1]+' to '+push[2]+"\"?"+(push_settings.wait != 0 ? "\n\nRetrying is enabled. You'll probably want to set that to 0." : ''))) {
+                    var $button = $(this);
+                    $button.text('Stopping pushes..');
                     //also stop the matching pushes
                     var pushIds = [];
                     for (var i in d.push_list) {
@@ -3914,14 +4184,11 @@ var UI = {
                     }
                     
                     mist.send(function(){
-                      $tr.remove();
+                      $button.text('Stop pushes');
                       checkgone(pushIds);
                     },{
-                      push_auto_remove:{
-                        stream: push[1],
-                        target: push[2]
-                      },
-                      push_stop: pushIds
+                      push_stop: pushIds,
+                      push_settings: {wait: 0}
                     });
                   }
                 })
@@ -4503,7 +4770,7 @@ var UI = {
         );
         var $tbody = $('<tbody>').css('font-size','0.9em');
         $main.append(
-          $('<table>').append($tbody)
+          $('<table>').addClass('logs').append($tbody)
         );
         
         function color(string){
@@ -4529,13 +4796,21 @@ var UI = {
           
           $tbody.html('');
           for (var index in logs) {
+            var $content = $('<span>').addClass('content');
+            var split = logs[index][2].split('|');
+            for (var i in split) {
+              $content.append(
+                $('<span>').text(split[i])
+              );
+            }
+            
             $tbody.append(
               $('<tr>').html(
                 $('<td>').text(UI.format.dateTime(logs[index][0],'long')).css('white-space','nowrap')
               ).append(
                 $('<td>').html(color(logs[index][1])).css('text-align','center')
               ).append(
-                $('<td>').text(logs[index][2]).css('text-align','left')
+                $('<td>').html($content).css('text-align','left')
               )
             );
           }
@@ -4547,7 +4822,9 @@ var UI = {
         var $UI = $('<span>').text('Loading..');
         $main.append($UI);
         
-        var saveas = {};
+        var saveas = {
+          graph: 'new'
+        };
         var graphs = (mist.stored.get().graphs ? $.extend(true,{},mist.stored.get().graphs) : {});
         
         var thestreams = {};
@@ -4612,7 +4889,7 @@ var UI = {
             classes: ['graph_id'],
             validate: [function(val,me){
               if (val in graphs) {
-                return { 
+                return {
                   msg:'This graph id has already been used. Please enter something else.',
                   classes: ['red']
                 }
@@ -4700,6 +4977,7 @@ var UI = {
                 if (saveas.graph == 'new') {
                   graph = UI.plot.addGraph(saveas,$graph_c);
                   graphs[graph.id] = graph;
+                  $UI.find('input.graph_id').val('');
                   $UI.find('select.graph_ids').append(
                     $('<option>').text(graph.id)
                   ).val(graph.id).trigger('change');
@@ -4962,6 +5240,23 @@ var UI = {
         $main.append($('<p>').text('This tab does not exist.'));
         break;
     }
+    
+    //focus on first empty field
+    $main.find('.field').filter(function(){
+      return $(this).getval() == '';
+    }).each(function(){
+      var a = [];
+      if ($(this).is('input, select, textarea')) {
+        a.push($(this));
+      }
+      else {
+        a = $(this).find('input, select, textarea');
+      }
+      if (a.length) {
+        $(a[0]).focus();
+        return false;
+      }
+    })
   }
 };
 
@@ -5280,7 +5575,7 @@ var mist = {
             },
             validate: []
           };
-          if ((type[j] == 'required') && (!('default' in ele))) {
+          if ((type[j] == 'required') && ((!('default' in ele)) || (ele['default'] == ''))) {
             obj.validate.push('required');
           }
           if ('default' in ele) {

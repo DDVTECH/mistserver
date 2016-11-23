@@ -36,6 +36,9 @@ namespace Mist {
   
   ///\todo This function does not indicate errors anywhere... maybe fix this...
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size){
+    //Make sure we have a proper being value for the size...
+    size = 0;
+    //Stores the result of the function
     std::stringstream header;
     //Determines whether the outputfile is larger than 4GB, in which case we need to use 64-bit boxes for offsets
     bool useLargeBoxes = (estimateFileSize() > 0xFFFFFFFFull);

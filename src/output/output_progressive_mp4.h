@@ -12,6 +12,9 @@ namespace Mist {
           if (trackID < rhs.trackID){
             return true;
           }
+          if (trackID == rhs.trackID){
+            return index < rhs.index;
+          }
         }
         return false;
       }
@@ -40,8 +43,10 @@ namespace Mist {
       long long leftOver;
       long long currPos;
       long long seekPoint;
-      std::set <keyPart> sortSet;//filling sortset for interleaving parts
       
+      //variables for standard MP4
+      std::set <keyPart> sortSet;//needed for unfragmented MP4, remembers the order of keyparts
+
       long long unsigned estimateFileSize();
   };
 }

@@ -883,6 +883,9 @@ function mistPlay(streamName,options) {
         });
       }
       
+      //monitor for errors
+      //TODO
+      
       if (player.resize) {
         //monitor for resizes and fire if needed 
         window.addEventListener('resize',function(){

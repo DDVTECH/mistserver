@@ -24,7 +24,7 @@ mistplayers.html5 = {
 };
 var p = mistplayers.html5.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options,callback) {
+p.prototype.build = function (options) {
   var cont = document.createElement('div');
   cont.className = 'mistplayer';
   var me = this; //to allow nested functions to access the player class itself
@@ -35,7 +35,7 @@ p.prototype.build = function (options,callback) {
   var ele = this.element((shortmime[0] == 'audio' ? 'audio' : 'video'));
   ele.className = '';
   cont.appendChild(ele);
-  ele.crossOrigin = 'anonymous';
+  //ele.crossOrigin = 'anonymous';
   if (shortmime[0] == 'audio') {
     this.setTracks = false;
     this.fullscreen = false;
@@ -66,7 +66,6 @@ p.prototype.build = function (options,callback) {
   ele.height = options.height;
   ele.style.width = options.width+'px';
   ele.style.height = options.height+'px';
-  ele.startTime = 0;
   
   if (options.autoplay) {
     ele.setAttribute('autoplay','');
@@ -220,60 +219,10 @@ if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.m
     }
   };
 }
-p.prototype.setTracks = function(usetracks){
-  function urlAddParam(url,params) {
-    var spliturl = url.split('?');
-    var ret = [spliturl.shift()];
-    var splitparams = [];
-    if (spliturl.length) {
-      splitparams = spliturl[0].split('&');
-    }
-    for (var i in params) {
-      splitparams.push(i+'='+params[i]);
-    }
-    if (splitparams.length) { ret.push(splitparams.join('&')); }
-    return ret.join('?');
-  }
-  
-  if ('subtitle' in usetracks) {
-    //remove previous subtitles
-    var ts = this.element.getElementsByTagName('track');
-    for (var i = ts.length - 1; i >= 0; i--) {
-      this.element.removeChild(ts[i]);
-    }
-    var tracks = this.tracks.subtitle;
-    for (var i in tracks) {
-      if (tracks[i].trackid == usetracks.subtitle) {
-        var t = document.createElement('track');
-        this.element.appendChild(t);
-        t.kind = 'subtitles';
-        t.label = tracks[i].desc;
-        t.srclang = tracks[i].lang;
-        t.src = this.subtitle+'?track='+tracks[i].trackid;
-        t.setAttribute('default','');
-        break;
-      }
-    }
-    delete usetracks.subtitle;
-    if (Object.keys(usetracks).length == 0) { return true; }
-  }
-  
-  var time = this.element.currentTime;
-  this.source.setAttribute('src',urlAddParam(this.options.src,usetracks));
-  if (this.element.readyState) {
-    this.element.load();
-  }
-  
-  this.element.currentTime = time;
-  
-  if ('trackselects' in this) {
-    for (var i in usetracks) {
-      if (i in this.trackselects) { this.trackselects[i].value = usetracks[i]; }
-    }
-  }
-  
+p.prototype.updateSrc = function(src){
+  this.source.setAttribute('src',src);
   return true;
-}
+};
 p.prototype.resize = function(size){
   this.element.width = size.width;
   this.element.height = size.height;

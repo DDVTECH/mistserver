@@ -46,12 +46,74 @@ MistPlayer.prototype.element = function(tag){
   this.element = ele;
   return ele;
 };
+MistPlayer.prototype.onreadylist = [];
+MistPlayer.prototype.onready = function(dothis){
+  this.onreadylist.push(dothis);
+};
 MistPlayer.prototype.play = false;
 MistPlayer.prototype.pause = false;
 MistPlayer.prototype.volume = false;
 MistPlayer.prototype.loop = false;
 MistPlayer.prototype.fullscreen = false;
-MistPlayer.prototype.setTracks = false;
+MistPlayer.prototype.setTracks = function(usetracks){
+  if (usetracks == false) {
+    if (!('updateSrc' in this)) { return false; }
+    return true;
+  }
+  
+  function urlAddParam(url,params) {
+    var spliturl = url.split('?');
+    var ret = [spliturl.shift()];
+    var splitparams = [];
+    if (spliturl.length) {
+      splitparams = spliturl[0].split('&');
+    }
+    for (var i in params) {
+      splitparams.push(i+'='+params[i]);
+    }
+    if (splitparams.length) { ret.push(splitparams.join('&')); }
+    return ret.join('?');
+  }
+  
+  if ('subtitle' in usetracks) {
+    //remove previous subtitles
+    var ts = this.element.getElementsByTagName('track');
+    for (var i = ts.length - 1; i >= 0; i--) {
+      this.element.removeChild(ts[i]);
+    }
+    var tracks = this.tracks.subtitle;
+    for (var i in tracks) {
+      if (tracks[i].trackid == usetracks.subtitle) {
+        var t = document.createElement('track');
+        this.element.appendChild(t);
+        t.kind = 'subtitles';
+        t.label = tracks[i].desc;
+        t.srclang = tracks[i].lang;
+        t.src = this.subtitle+'?track='+tracks[i].trackid;
+        t.setAttribute('default','');
+        break;
+      }
+    }
+    delete usetracks.subtitle;
+    if (Object.keys(usetracks).length == 0) { return true; }
+  }
+  
+  var time = this.element.currentTime;
+  this.updateSrc(urlAddParam(this.options.src,usetracks));
+  if (this.element.readyState) {
+    this.element.load();
+  }
+  
+  this.element.currentTime = time;
+  
+  if ('trackselects' in this) {
+    for (var i in usetracks) {
+      if (i in this.trackselects) { this.trackselects[i].value = usetracks[i]; }
+    }
+  }
+  
+  return true;
+};
 MistPlayer.prototype.resize = false;
 MistPlayer.prototype.buildMistControls = function(){
   if (!('flex' in document.head.style) || (['iPad','iPod','iPhone'].indexOf(navigator.platform) != -1)) {
@@ -136,14 +198,20 @@ MistPlayer.prototype.buildMistControls = function(){
   var progressCont = document.createElement('div');
   controls.appendChild(progressCont);
   progressCont.className = 'progress_container';
+  ele.startTime = 0;
   if (!options.live) {
     var progress = document.createElement('div');
     progressCont.appendChild(progress);
     progress.className = 'button progress';
     progress.getPos = function(e){
       if (!isFinite(ele.duration)) { return 0; }
-      var style = e.target.currentStyle || window.getComputedStyle(e.target, null);
-      return Math.max(0,e.clientX - progress.getBoundingClientRect().left - parseInt(style.borderLeftWidth,10)) / progress.offsetWidth * ele.duration;
+      var style = progress.currentStyle || window.getComputedStyle(progress, null);
+      var zoom = Number(controls.style.zoom == '' ? 1 : controls.style.zoom);
+      
+      var pos0 = progress.getBoundingClientRect().left - parseInt(style.borderLeftWidth,10);
+      var perc = (e.clientX - pos0 * zoom) / progress.offsetWidth / zoom;
+      var secs = Math.max(0,perc) * ele.duration;
+      return secs;
     }
     progress.onmousemove = function(e) {
       if (ele.duration) {
@@ -260,7 +328,7 @@ MistPlayer.prototype.buildMistControls = function(){
   buttons.className = 'column';
   controls.appendChild(buttons);
   
-  if ((this.setTracks) && ((this.tracks.audio.length) || (this.tracks.video.length) || (this.tracks.subtitle.length)) && (this.source.type != 'application/vnd.apple.mpegurl')) {
+  if ((this.setTracks(false)) && ((this.tracks.audio.length) || (this.tracks.video.length) || (this.tracks.subtitle.length)) && ((this.options.source.type != 'html5/application/vnd.apple.mpegurl') && (this.options.source.type != 'html5/video/ogg'))) {
     
     /*
       - the player supports setting tracks;
@@ -596,9 +664,14 @@ function mistPlay(streamName,options) {
       forceSupportCheck = true;
     }
     var forcePlayer = false;
-    if (('forcePlayer' in options) && (options.forcePlayer) && (options.forcePlayer in mistplayers)) {
-      embedLog('Forcing '+mistplayers[options.forcePlayer].name);
-      forcePlayer = options.forcePlayer;
+    if (('forcePlayer' in options) && (options.forcePlayer)) {
+      if (options.forcePlayer in mistplayers) {
+        embedLog('Forcing '+mistplayers[options.forcePlayer].name);
+        forcePlayer = options.forcePlayer;
+      }
+      else {
+        embedLog('The forced player ('+options.forcePlayer+') isn\'t known, ignoring. Possible values are: '+Object.keys(mistplayers).join(', '));
+      }
     }
     
     embedLog('Checking available players..');
@@ -741,7 +814,7 @@ function mistPlay(streamName,options) {
         playerOptions: playerOpts
       });
       
-      if (player.setTracks) {
+      if (player.setTracks(false)) {
         //gather track info
         //tracks
         var tracks = {
@@ -803,9 +876,11 @@ function mistPlay(streamName,options) {
       element.setAttribute('data-player',mistPlayer);
       element.setAttribute('data-mime',source.type);
       
-      if (player.setTracks) {
-        player.setTracks(usetracks);
-        if ('setTracks' in options) { player.setTracks(options.setTracks); }
+      if (player.setTracks(false)) {
+        player.onready(function(){
+          //player.setTracks(usetracks);
+          if ('setTracks' in options) { player.setTracks(options.setTracks); }
+        });
       }
       
       if (player.resize) {
@@ -813,6 +888,10 @@ function mistPlay(streamName,options) {
         window.addEventListener('resize',function(){
           player.resize(calcSize());
         });
+      }
+      
+      for (var i in player.onreadylist) {
+        player.onreadylist[i]();
       }
       
       protoplay.sendEvent('initialized','',options.target);

@@ -361,10 +361,12 @@ add_custom_target(embedcode
   COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/jwplayer.js jwplayer_js ${BINARY_DIR}/jwplayer.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/polytrope.js polytrope_js ${BINARY_DIR}/polytrope.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/dashjs.js dash_js ${BINARY_DIR}/dashjs.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/videojs.js video_js ${BINARY_DIR}/videojs.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js playerdash_js ${BINARY_DIR}/playerdash.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/videojs.js playervideo_js ${BINARY_DIR}/playervideo.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/core.js core_js ${BINARY_DIR}/core.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/mist.css mist_css ${BINARY_DIR}/mist.css.h
-  DEPENDS sourcery ${SOURCE_DIR}/src/embed.js ${SOURCE_DIR}/embed/wrappers/html5.js ${SOURCE_DIR}/embed/wrappers/flash_strobe.js ${SOURCE_DIR}/embed/wrappers/silverlight.js ${SOURCE_DIR}/embed/wrappers/theoplayer.js ${SOURCE_DIR}/embed/wrappers/jwplayer.js ${SOURCE_DIR}/embed/wrappers/polytrope.js ${SOURCE_DIR}/embed/wrappers/dashjs.js ${SOURCE_DIR}/embed/players/dash.js ${SOURCE_DIR}/embed/core.js ${SOURCE_DIR}/embed/mist.css
+  DEPENDS sourcery ${SOURCE_DIR}/src/embed.js ${SOURCE_DIR}/embed/wrappers/html5.js ${SOURCE_DIR}/embed/wrappers/flash_strobe.js ${SOURCE_DIR}/embed/wrappers/silverlight.js ${SOURCE_DIR}/embed/wrappers/theoplayer.js ${SOURCE_DIR}/embed/wrappers/jwplayer.js ${SOURCE_DIR}/embed/wrappers/polytrope.js ${SOURCE_DIR}/embed/wrappers/dashjs.js ${SOURCE_DIR}/embed/wrappers/videojs.js ${SOURCE_DIR}/embed/players/dash.js ${SOURCE_DIR}/embed/players/videojs.js ${SOURCE_DIR}/embed/core.js ${SOURCE_DIR}/embed/mist.css
   VERBATIM
 )
 

@@ -79,6 +79,7 @@ namespace Mist {
     /*capa["optional"]["wrappers"]["allowed"].append("theoplayer");
     capa["optional"]["wrappers"]["allowed"].append("jwplayer");*/
     capa["optional"]["wrappers"]["allowed"].append("html5");
+    capa["optional"]["wrappers"]["allowed"].append("videojs");
     capa["optional"]["wrappers"]["allowed"].append("dashjs");
     //capa["optional"]["wrappers"]["allowed"].append("polytrope"); //currently borked
     capa["optional"]["wrappers"]["allowed"].append("flash_strobe");
@@ -575,6 +576,13 @@ namespace Mist {
           response.append((char*)playerdash_js, (size_t)playerdash_js_len);
           #include "dashjs.js.h"
           response.append((char*)dash_js, (size_t)dash_js_len);
+          used = true;
+        }
+        if (it->asStringRef() == "videojs"){
+          #include "playervideo.js.h"
+          response.append((char*)playervideo_js, (size_t)playervideo_js_len);
+          #include "videojs.js.h"
+          response.append((char*)video_js, (size_t)video_js_len);
           used = true;
         }
         if (!used) {

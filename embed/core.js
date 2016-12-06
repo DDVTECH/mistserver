@@ -863,6 +863,7 @@ function mistPlay(streamName,options) {
     embedLog('Checking available players..');
     
     var source = false;
+    var mistPlayer = false;
     
     function checkPlayer(p_shortname) {
       if ((startCombo) && (!startCombo.started.player)) {
@@ -950,6 +951,7 @@ function mistPlay(streamName,options) {
       }
     }
     
+    options.target.innerHTML = '';
     if (mistPlayer) {
       
       //create the options to send to the player
@@ -1026,6 +1028,7 @@ function mistPlay(streamName,options) {
       
       if (player.setTracks(false)) {
         //gather track info
+        //tracks
         var tracks = {
           video: [],
           audio: [],
@@ -1112,6 +1115,7 @@ function mistPlay(streamName,options) {
       
       if (player.setTracks(false)) {
         player.onready(function(){
+          //player.setTracks(usetracks);
           if ('setTracks' in options) { player.setTracks(options.setTracks); }
         });
       }

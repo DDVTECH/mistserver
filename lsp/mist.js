@@ -339,6 +339,23 @@ var UI = {
       $('<div>').addClass('separator')
     );
   },
+  findInput: function(name) {
+    return this.findInOutput('inputs',name);
+  },
+  findOutput: function(name) {
+    return this.findInOutput('connectors',name);
+  },
+  findInOutput: function(where,name) {
+    if ('capabilities' in mist.data) {
+      var loc = mist.data.capabilities[where];
+      if (name in loc) { return loc[name]; }
+      if (name+'.exe' in loc) { return loc[name+'.exe']; }
+      return false;
+    }
+    else {
+      throw 'Request capabilities first';
+    }
+  },
   buildUI: function(elements){
     /*elements should be an array of objects, the objects containing the UI element options 
      * (or a jQuery object that will be inserted isntead).
@@ -4456,7 +4473,7 @@ var UI = {
             var browsecomplete = 0;
             for (var i in mist.data.streams) {
               allthestreams.push(i);
-              if (mist.inputMatch(mist.data.capabilities.inputs.Folder.source_match,mist.data.streams[i].source)) {
+              if (mist.inputMatch(UI.findInput('Folder').source_match,mist.data.streams[i].source)) {
                 //browse all the things
                 allthestreams.push(i+'+');
                 mist.send(function(d,opts){
@@ -4464,7 +4481,7 @@ var UI = {
                   
                   for (var i in d.browse.files) {
                     for (var j in mist.data.capabilities.inputs) {
-                      if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
+                      if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
                       if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
                         allthestreams.push(s+'+'+d.browse.files[i]);
                       }

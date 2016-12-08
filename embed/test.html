@@ -15,9 +15,9 @@
     <script>
       // global options can be set here
       var mistoptions = {
-        //host: 'http://cat.mistserver.org:8080'
+        host: 'http://cat.mistserver.org:8080'
         //host: 'https://cat.mistserver.org:4433'
-        host: 'http://localhost:8080'
+        //host: 'http://localhost:8080'
       };
     </script>
     
@@ -76,9 +76,10 @@
         
         //tryplayers = Object.keys(mistplayers);
         tryplayers = [];
+        tryplayers.push('derp');
         //tryplayers.push('html5');
         //tryplayers.push('dashjs');
-        tryplayers.push('videojs');
+        //tryplayers.push('videojs');
         //tryplayers.push('flash_strobe');
         //tryplayers.push('silverlight');
         streams = [];
@@ -86,8 +87,9 @@
         //streams.push('subtel');
         //streams.push('ogg');
         //streams.push('vids+mist.mp4');
+        streams.push('vids+hahalol.mp3');
         //streams.push('lama');
-        streams.push('bunny');
+        //streams.push('bunny');
         
         for (var j in streams) {
           for (var i in tryplayers) {
@@ -100,7 +102,7 @@
               maxwidth: 800,
               forcePlayer: tryplayers[i],
               //forceType: 'html5/video/mp4',
-              forceType: 'html5/application/vnd.apple.mpegurl',
+              //forceType: 'html5/application/vnd.apple.mpegurl',
               //forceType: 'dash/video/mp4',
               //forceSource: 5,
               loop: true,

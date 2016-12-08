@@ -25,6 +25,7 @@ p.prototype.build = function (options) {
   var ele = this.element('video');
   cont.appendChild(ele);
   ele.className = '';
+  ele.crossOrigin = 'anonymous'; //required for subtitles
   
   var shortmime = options.source.type.split('/');
   shortmime.shift();

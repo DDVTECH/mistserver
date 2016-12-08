@@ -5,11 +5,18 @@ mistplayers.html5 = {
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype) {
+  isBrowserSupported: function (mimetype,source,options,streaminfo) {
     if ((['iPad','iPhone','iPod','MacIntel'].indexOf(navigator.platform) != -1) && (mimetype == 'html5/video/mp4')) { return false; }
+    
     var support = false;
     var shortmime = mimetype.split('/');
     shortmime.shift();
+    
+    if ((shortmime[0] == 'audio') && (streaminfo.height)) {
+      //claim you don't support audio only playback if there is video data
+      return false;
+    }
+    
     try {
       var v = document.createElement((shortmime[0] == 'audio' ? 'audio' : 'video'));
       shortmime = shortmime.join('/')
@@ -35,9 +42,9 @@ p.prototype.build = function (options) {
   var ele = this.element((shortmime[0] == 'audio' ? 'audio' : 'video'));
   ele.className = '';
   cont.appendChild(ele);
-  //ele.crossOrigin = 'anonymous';
+  ele.crossOrigin = 'anonymous'; //required for subtitles
   if (shortmime[0] == 'audio') {
-    this.setTracks = false;
+    this.setTracks = function() { return false; }
     this.fullscreen = false;
     cont.className += ' audio';
   }
@@ -92,51 +99,10 @@ p.prototype.build = function (options) {
     ele.addEventListener('error',function(e){
       if ((ele.error) && (ele.error.code == 3)) {
         ele.load();
+        me.cancelAskNextCombo();
         me.addlog('Decoding error: reloading..');
       }
     },true);
-    
-    var errorstate = false;
-    function dced(e) {
-      if (errorstate) { return; }
-      
-      errorstate = true;
-      me.adderror('Connection lost..');
-      
-      var err = document.createElement('div');
-      var msgnode = document.createTextNode('Connection lost..');
-      err.appendChild(msgnode);
-      err.className = 'error';
-      var button = document.createElement('button');
-      var t = document.createTextNode('Reload');
-      button.appendChild(t);
-      err.appendChild(button);
-      button.onclick = function(){
-        errorstate = false;
-        ele.parentNode.removeChild(err);
-        ele.load();
-        ele.style.opacity = '';
-      }
-      err.style.position = 'absolute';
-      err.style.top = 0;
-      err.style.width = '100%';
-      err.style['margin-left'] = 0;
-      
-      ele.parentNode.appendChild(err);
-      ele.style.opacity = '0.2';
-      
-      function nolongerdced(){
-        ele.removeEventListener('progress',nolongerdced);
-        errorstate = false;
-        ele.parentNode.removeChild(err);
-        ele.style.opacity = '';
-      }
-      ele.addEventListener('progress',nolongerdced);
-    }
-    
-    ele.addEventListener('stalled',dced,true);
-    ele.addEventListener('ended',dced,true);
-    ele.addEventListener('pause',dced,true);
   }
   
   this.addlog('Built html');

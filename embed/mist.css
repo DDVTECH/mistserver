@@ -9,6 +9,8 @@
   color: white;
   font-family: sans-serif;
   text-align: center;
+  position: relative;
+  text-shadow: 0 0 1px black, 0 0 1px black;
 }
 .mistvideo[data-loading] {
   background-image: none;
@@ -35,10 +37,15 @@
 }
 .mistvideo .error {
   margin: 225px 20px 20px;
+  min-width: 300px;
+  z-index: 69;
 }
 .mistvideo .error button {
   margin: 5px auto;
   display: block;
+}
+.mistvideo .vjs-error-display:before {
+  content: '' !important;
 }
 .mistplayer {
   position: relative;

@@ -52,6 +52,7 @@ MistPlayer.prototype.onready = function(dothis){
 };
 MistPlayer.prototype.play = false;
 MistPlayer.prototype.pause = false;
+MistPlayer.prototype.paused = false;
 MistPlayer.prototype.volume = false;
 MistPlayer.prototype.loop = false;
 MistPlayer.prototype.fullscreen = false;
@@ -99,7 +100,27 @@ MistPlayer.prototype.setTracks = function(usetracks){
   }
   
   var time = this.element.currentTime;
-  this.updateSrc(urlAddParam(this.options.src,usetracks));
+  var newurl;
+  if (this.options.source.type == 'html5/application/vnd.apple.mpegurl') { //for HLS, use a different format for track selection
+    newurl = this.options.src.split('/');
+    var m3u8 = newurl.pop(); //take this off now, it will be added back later
+    for (var i in usetracks) {
+      //for audio or video tracks, just add the tracknumber between slashes
+      switch (i) {
+        case 'audio':
+        case 'video':
+          if (usetracks[i] == 0) { continue; }
+          newurl.push(usetracks[i]);
+          break;
+      }
+    }
+    newurl.push(m3u8); //put back index.m3u8
+    newurl = newurl.join('/');
+  }
+  else {
+    newurl = urlAddParam(this.options.src,usetracks);
+  }
+  this.updateSrc(newurl);
   if (this.element.readyState) {
     this.element.load();
   }
@@ -175,7 +196,10 @@ MistPlayer.prototype.buildMistControls = function(){
   var zoom = options.width/480;
   if (zoom < 1) {
     zoom = Math.max(zoom,0.5);
-    controls.style.zoom = zoom;
+    if ('zoom' in controls.style) { controls.style.zoom = zoom; }
+    else {
+      controls.className += ' smaller'; //if css doesn't support zoom, apply smaller class to use smaller controls
+    }
   }
   else { zoom = 1; }
   ele.style['min-width'] = zoom*400+'px';
@@ -206,7 +230,7 @@ MistPlayer.prototype.buildMistControls = function(){
     progress.getPos = function(e){
       if (!isFinite(ele.duration)) { return 0; }
       var style = progress.currentStyle || window.getComputedStyle(progress, null);
-      var zoom = Number(controls.style.zoom == '' ? 1 : controls.style.zoom);
+      var zoom = Number(!('zoom' in controls.style) || controls.style.zoom == '' ? 1 : controls.style.zoom);
       
       var pos0 = progress.getBoundingClientRect().left - parseInt(style.borderLeftWidth,10);
       var perc = (e.clientX - pos0 * zoom) / progress.offsetWidth / zoom;
@@ -268,7 +292,13 @@ MistPlayer.prototype.buildMistControls = function(){
   sound.appendChild(volume);
   sound.getPos = function(ypos){
     var style = this.currentStyle || window.getComputedStyle(this, null);
-    return 1 - Math.min(1,Math.max(0,(ypos - sound.getBoundingClientRect().top - parseInt(style.borderTopWidth,10)) / sound.offsetHeight));
+    
+    var zoom = Number(!('zoom' in controls.style) || controls.style.zoom == '' ? 1 : controls.style.zoom);
+    
+    var pos0 = sound.getBoundingClientRect().top - parseInt(style.borderTopWidth,10);
+    var perc = (ypos - pos0 * zoom) / sound.offsetHeight / zoom;
+    var secs = Math.max(0,perc) * ele.duration;
+    return 1 - Math.min(1,Math.max(0,perc));
   }
   volume.className = 'volume';
   sound.title = 'Volume';
@@ -328,14 +358,15 @@ MistPlayer.prototype.buildMistControls = function(){
   buttons.className = 'column';
   controls.appendChild(buttons);
   
-  if ((this.setTracks(false)) && ((this.tracks.audio.length) || (this.tracks.video.length) || (this.tracks.subtitle.length)) && ((this.options.source.type != 'html5/application/vnd.apple.mpegurl') && (this.options.source.type != 'html5/video/ogg'))) {
+  if ((this.setTracks(false)) && ((this.tracks.audio.length) || (this.tracks.video.length) || (this.tracks.subtitle.length)) && (this.options.source.type != 'html5/video/ogg')) {
     
     /*
       - the player supports setting tracks;
       - there is something to choose
-      - it's not HLS, which would have to use a different way of switching tracks than this script currently uses
+      - it's not OGG, which doesn't have track selection yet
     */
     
+    //prepare the html stuff
     var tracks = this.tracks;
     var tracksc = document.createElement('div');
     tracksc.innerHTML = 'Tracks';
@@ -347,7 +378,7 @@ MistPlayer.prototype.buildMistControls = function(){
     settings.className = 'settings';
     
     me.trackselects = {};
-    for (var i in tracks) {
+    for (var i in tracks) { //for each track type (video, audio, subtitle..)
       if (tracks[i].length) {
         var l = document.createElement('label');
         settings.appendChild(l);
@@ -359,10 +390,12 @@ MistPlayer.prototype.buildMistControls = function(){
         l.appendChild(s);
         me.trackselects[i] = s;
         s.setAttribute('data-type',i);
-        for (var j in tracks[i]) {
+        for (var j in tracks[i]) { //for each track
           var o = document.createElement('option');
           s.appendChild(o);
           o.value = tracks[i][j].trackid;
+          
+          //make up something logical for the track name
           var name;
           if ('name' in tracks[i][j]) {
             name = tracks[i][j].name;
@@ -789,7 +822,7 @@ function mistPlay(streamName,options) {
             continue;
           }
           
-          if (mistplayers[p_shortname].isBrowserSupported(mime,loop[s],options,streaminfo)) {
+          if (mistplayers[p_shortname].isBrowserSupported(mime,loop[s],options,streaminfo,embedLog)) {
             embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+mime+' @ '+loop[s].url);
             streaminfo.working[p_shortname].push(mime);
             if (!source) {
@@ -903,7 +936,6 @@ function mistPlay(streamName,options) {
       
       if (player.setTracks(false)) {
         //gather track info
-        //tracks
         var tracks = {
           video: [],
           audio: [],
@@ -982,34 +1014,61 @@ function mistPlay(streamName,options) {
       
       if (player.setTracks(false)) {
         player.onready(function(){
-          //player.setTracks(usetracks);
           if ('setTracks' in options) { player.setTracks(options.setTracks); }
         });
       }
       
       //monitor for errors
-      player.checkPlayingTimeout = false;
+      player.checkStalledTimeout = false;
+      player.checkProgressTimeout = false;
       element.addEventListener('error',function(e){
         player.askNextCombo();
       },true);
       var stalled = function(e){
-        if (player.checkPlayingTimeout) { return; }
-        player.checkPlayingTimeout = setTimeout(function(){
-          if (player.element.readyState >= 2) { return; }
+        if (player.checkStalledTimeout) { return; }
+        player.checkStalledTimeout = setTimeout(function(){
+          if (player.paused) { return; }
           player.askNextCombo();
         },5e3);
       };
       element.addEventListener('stalled',stalled,true);
       element.addEventListener('waiting',stalled,true);
       var progress = function(e){
-        if (player.checkPlayingTimeout) {
-          clearTimeout(player.checkPlayingTimeout);
-          player.checkPlayingTimeout = false;
+        if (player.checkStalledTimeout) {
+          clearTimeout(player.checkStalledTimeout);
+          player.checkStalledTimeout = false;
           player.cancelAskNextCombo();
         }
       };
       element.addEventListener('progress',progress,true);
       element.addEventListener('playing',progress,true);
+      element.addEventListener('play',function(){
+        player.paused = false;
+        if ((!player.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
+          //check if the progress made is equal to the time spent
+          var lasttime = player.element.currentTime;
+          player.checkProgressTimeout = setInterval(function(){
+            var newtime = player.element.currentTime;
+            var progress = newtime - lasttime;
+            lasttime = newtime;
+            if (progress == 0) {
+              player.addlog('There should be playback but nothing was played');
+              player.askNextCombo();
+              return;
+            }
+            if (progress < 4.9) {
+              player.addlog('It seems playback is \lagging ('+Math.round(100 - progress/0.5)/10+'%)');
+            }
+          },5e3);
+        }
+      },true);
+      element.addEventListener('pause',function(){
+        player.paused = true;
+        if (player.checkProgressTimeout) {
+          clearInterval(player.checkStalledTimeout);
+          player.checkStalledTimeout = false;
+        }
+      },true);
       
       if (player.resize) {
         //monitor for resizes and fire if needed 

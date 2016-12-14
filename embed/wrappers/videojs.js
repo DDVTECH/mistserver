@@ -5,10 +5,16 @@ mistplayers.videojs = {
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,options) {
-    if ((options.host.substr(0,7) == 'http://') && (source.url.substr(0,8) == 'https://')) { return false; }
+  isBrowserSupported: function (mimetype,source,options,streaminfo,logfunc) {
+    if ((options.host.substr(0,7) == 'http://') && (source.url.substr(0,8) == 'https://')) {
+      if (logfunc) { logfunc('HTTP/HTTPS mismatch for this source'); }
+      return false;
+    }
     var support = true;
-    if ((location.protocol == 'file:') && (mimetype == 'html5/application/vnd.apple.mpegurl')) { return false; }
+    if ((location.protocol == 'file:') && (mimetype == 'html5/application/vnd.apple.mpegurl')) {
+      if (logfunc) { logfunc('This source ('+mimetype+') won\'t work if the page is run via file://'); }
+      return false;
+    }
     return ('MediaSource' in window);
   },
   player: function(){},

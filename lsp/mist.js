@@ -4684,6 +4684,7 @@ var UI = {
             ['STREAM_BUFFER', 'STREAM_BUFFER: when a buffer changes between mostly full or mostly empty'],
             ['RTMP_PUSH_REWRITE', 'RTMP_PUSH_REWRITE: allows rewriting of RTMP push URLs from external to internal representation before further parsing'],
             ['PUSH_OUT_START', 'PUSH_OUT_START: before recording/pushing, allow target changes.'],
+            ['RECORDING_END', 'RECORDING_END: after a recording finishes.'],
             ['CONN_OPEN', 'CONN_OPEN: right after a new incoming connection has been received'],
             ['CONN_CLOSE', 'CONN_CLOSE: right after a connection has been closed'],
             ['CONN_PLAY', 'CONN_PLAY: right before a stream playback of a connection'],

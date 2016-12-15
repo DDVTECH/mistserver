@@ -93,6 +93,7 @@ namespace Mist {
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
       int pageNumForKey(long unsigned int trackId, long long int keyNum);
       int pageNumMax(long unsigned int trackId);
+      bool isRecordingToFile;
       unsigned int lastStats;///<Time of last sending of stats.
       long long unsigned int firstTime;///< Time of first packet after last seek. Used for real-time sending.
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.

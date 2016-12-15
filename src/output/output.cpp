@@ -61,6 +61,7 @@ namespace Mist{
       DEBUG_MSG(DLVL_WARN, "Warning: MistOut created with closed socket!");
     }
     sentHeader = false;
+    isRecordingToFile = false;
   }
 
   void Output::listener(Util::Config & conf, int (*callback)(Socket::Connection & S)){
@@ -912,8 +913,17 @@ namespace Mist{
     
     /*LTS-START*/
     if(Triggers::shouldTrigger("CONN_CLOSE", streamName)){
-      std::string payload = streamName+"\n"+getConnectedHost()+"\n"+capa["name"].asStringRef()+"\n"+reqUrl; ///\todo generate payload
-      Triggers::doTrigger("CONN_CLOSE", payload, streamName); //no stream specified    
+      std::string payload = streamName+"\n"+getConnectedHost()+"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+      Triggers::doTrigger("CONN_CLOSE", payload, streamName);
+    }
+    if (isRecordingToFile && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
+      std::stringstream payl;
+      payl << streamName << '\n';
+      payl << config->getString("target") << '\n';
+      payl << capa["name"].asStringRef() << '\n';
+      payl << myConn.dataUp() << '\n';
+      payl << (Util::epoch() - myConn.connTime()) << '\n';
+      Triggers::doTrigger("RECORDING_END", payl.str(), streamName);
     }
     /*LTS-END*/
   
@@ -1276,6 +1286,7 @@ namespace Mist{
       return false;
     }
     close(outFile);
+    isRecordingToFile = true;
     return true;
   }
 

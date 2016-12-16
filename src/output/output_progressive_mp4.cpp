@@ -588,7 +588,20 @@ namespace Mist {
 
 
     bool firstSample = true;
+    //Fun fact! Firefox cares about the ordering here.
+    //It doesn't care about the order or track IDs in the header.
+    //But - the first TRAF must be a video TRAF, if video is present.
+    std::deque<std::map<long unsigned int, fragSet>::iterator> sortedTracks;
     for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
+      if (myMeta.tracks[it->first].type == "video"){
+        sortedTracks.push_front(it);
+      }else{
+        sortedTracks.push_back(it);
+      }
+    }
+
+    for (std::deque<std::map<long unsigned int, fragSet>::iterator>::iterator ti = sortedTracks.begin(); ti != sortedTracks.end(); ++ti) {
+      std::map<long unsigned int, fragSet>::iterator & it = *ti;
       unsigned int tid = it->first;
       DTSC::Track & thisTrack = myMeta.tracks[tid];
       MP4::TRAF trafBox;

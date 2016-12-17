@@ -30,7 +30,7 @@ namespace Util {
       static void setHandler();
       static std::string getOutputOf(char * const * argv);
       static std::string getOutputOf(std::deque<std::string> & argDeq);
-      static pid_t StartPiped(char * const * argv, int * fdin, int * fdout, int * fderr);
+      static pid_t StartPiped(const char * const * argv, int * fdin, int * fdout, int * fderr);
       static pid_t StartPiped(std::deque<std::string> & argDeq, int * fdin, int * fdout, int * fderr);
       static void Stop(pid_t name);
       static void Murder(pid_t name);

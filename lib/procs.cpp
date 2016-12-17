@@ -270,7 +270,7 @@ pid_t Util::Procs::StartPiped(std::deque<std::string> & argDeq, int * fdin, int 
 /// \arg fdin Standard input file descriptor. If null, /dev/null is assumed. Otherwise, if arg contains -1, a new fd is automatically allocated and written into this arg. Then the arg will be used as fd.
 /// \arg fdout Same as fdin, but for stdout.
 /// \arg fdout Same as fdin, but for stderr.
-pid_t Util::Procs::StartPiped(char * const * argv, int * fdin, int * fdout, int * fderr) {
+pid_t Util::Procs::StartPiped(const char * const * argv, int * fdin, int * fdout, int * fderr) {
   pid_t pid;
   int pipein[2], pipeout[2], pipeerr[2];
   //DEBUG_MSG(DLVL_DEVEL, "setHandler");
@@ -364,7 +364,8 @@ pid_t Util::Procs::StartPiped(char * const * argv, int * fdin, int * fdout, int 
     if (devnull != -1) {
       close(devnull);
     }
-    execvp(argv[0], argv);
+    //Because execvp requires a char* const* and we have a const char* const*
+    execvp(argv[0], (char* const*)argv);
     DEBUG_MSG(DLVL_ERROR, "execvp failed for process %s, reason: %s", argv[0], strerror(errno));
     exit(42);
   } else if (pid == -1) {

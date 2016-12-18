@@ -432,12 +432,24 @@ void Util::Config::activate() {
 /// a SIGINT, SIGHUP or SIGTERM signal, reaps children for the SIGCHLD
 /// signal, and ignores all other signals.
 void Util::Config::signal_handler(int signum, siginfo_t * sigInfo, void * ignore) {
-  HIGH_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
   switch (signum) {
     case SIGINT: //these three signals will set is_active to false.
     case SIGHUP:
     case SIGTERM:
       is_active = false;
+    default:
+      switch (sigInfo->si_code){
+        case SI_USER:
+        case SI_QUEUE:
+        case SI_TIMER:
+        case SI_ASYNCIO:
+        case SI_MESGQ:
+          INFO_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
+          break;
+        default:
+          INFO_MSG("Received signal %s (%d)", strsignal(signum), signum);
+          break;
+      }
       break;
     case SIGCHLD: { //when a child dies, reap it.
         int status;
@@ -448,9 +460,12 @@ void Util::Config::signal_handler(int signum, siginfo_t * sigInfo, void * ignore
             break;
           }
         }
+        HIGH_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
         break;
       }
-    default: //other signals are ignored
+    case SIGPIPE:
+      //We ignore SIGPIPE to prevent messages triggering another SIGPIPE.
+      //Loops are bad, m'kay?
       break;
   }
 } //signal_handler

@@ -32,7 +32,7 @@ p.prototype.build = function (options) {
     return p;
   }
   
-  var ele = this.element('object');
+  var ele = this.getElement('object');
   ele.setAttribute('data','data:application/x-silverlight,');
   ele.setAttribute('type','application/x-silverlight');
   ele.setAttribute('width',options.width);

@@ -36,7 +36,7 @@ p.prototype.build = function (options) {
   }
   
   
-  var ele = this.element('object');
+  var ele = this.getElement('object');
   
   ele.setAttribute('width',options.width);
   ele.setAttribute('height',options.height);

@@ -16,6 +16,7 @@
       // global options can be set here
       var mistoptions = {
         host: 'http://cat.mistserver.org:8080'
+        //host: 'http://thulmk3:8080'
         //host: 'https://cat.mistserver.org:4433'
         //host: 'http://localhost:8080'
       };
@@ -65,18 +66,19 @@
           div.appendChild(msg);
           div.style.color = 'red';
           logele.appendChild(div);
-        },true);
+        });
         document.addEventListener('log',function(e){
-          console.log('[log] '+e.message)
+          console.log('[log] '+e.message);
+          return;
           var msg = document.createTextNode('['+(new Date()).toTimeString().split(' ')[0]+'] '+e.message);
           var div = document.createElement('div');
           div.appendChild(msg);
           logele.appendChild(div);
-        },true);
+        });
         
         //tryplayers = Object.keys(mistplayers);
         tryplayers = [];
-        tryplayers.push('derp');
+        tryplayers.push('automatic');
         //tryplayers.push('html5');
         //tryplayers.push('dashjs');
         //tryplayers.push('videojs');
@@ -84,6 +86,7 @@
         //tryplayers.push('silverlight');
         streams = [];
         streams.push('live');
+        //streams.push('golive+ThePaddedRoom');
         //streams.push('subtel');
         //streams.push('ogg');
         //streams.push('vids+mist.mp4');

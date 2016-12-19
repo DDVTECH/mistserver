@@ -39,7 +39,7 @@ p.prototype.build = function (options) {
   var shortmime = options.source.type.split('/');
   shortmime.shift();
   
-  var ele = this.element((shortmime[0] == 'audio' ? 'audio' : 'video'));
+  var ele = this.getElement((shortmime[0] == 'audio' ? 'audio' : 'video'));
   ele.className = '';
   cont.appendChild(ele);
   ele.crossOrigin = 'anonymous'; //required for subtitles
@@ -98,9 +98,15 @@ p.prototype.build = function (options) {
   if (options.live) {
     ele.addEventListener('error',function(e){
       if ((ele.error) && (ele.error.code == 3)) {
+        e.stopPropagation();
         ele.load();
         me.cancelAskNextCombo();
+        e.message = 'Handled decoding error';
         me.addlog('Decoding error: reloading..');
+        me.report({
+          type: 'playback',
+          warning: 'A decoding error was encountered, but handled'
+        });
       }
     },true);
   }
@@ -150,7 +156,7 @@ p.prototype.build = function (options) {
     }
     me.adderror(msg);
   },true);
-  var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting'];
+  var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting','progress'];
   for (var i in events) {
     ele.addEventListener(events[i],function(e){
       me.addlog('Player event fired: '+e.type);

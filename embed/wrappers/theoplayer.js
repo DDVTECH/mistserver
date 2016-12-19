@@ -17,7 +17,7 @@ mistplayers.theoplayer = {
 var p = mistplayers.theoplayer.player;
 p.prototype = new MistPlayer();
 p.prototype.build = function (options) {
-  var ele = this.element('video');
+  var ele = this.getElement('video');
   
   ele.src = options.src;
   ele.width = options.width;

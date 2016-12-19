@@ -28,7 +28,7 @@ p.prototype.build = function (options) {
   
   this.addlog('Building VideoJS player..');
   
-  var ele = this.element('video');
+  var ele = this.getElement('video');
   cont.appendChild(ele);
   ele.className = '';
   ele.crossOrigin = 'anonymous'; //required for subtitles
@@ -119,7 +119,7 @@ p.prototype.build = function (options) {
     }
     me.adderror(msg);
   },true);
-  var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting'];
+  var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting','progress'];
   for (var i in events) {
     ele.addEventListener(events[i],function(e){
       me.addlog('Player event fired: '+e.type);
@@ -155,6 +155,10 @@ if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.m
   };
 }
 p.prototype.updateSrc = function(src){
+  if (src == '') {
+    this.videojs.dispose();
+    return;
+  }
   this.videojs.src({
     src: src,
     type: this.source.type

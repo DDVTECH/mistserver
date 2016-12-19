@@ -18,7 +18,7 @@ p.prototype.build = function (options,callback) {
   cont.className = 'mistplayer';
   var me = this;
   
-  var ele = this.element('video');
+  var ele = this.getElement('video');
   ele.className = '';
   cont.appendChild(ele);
   ele.width = options.width;

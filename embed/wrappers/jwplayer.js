@@ -17,7 +17,7 @@ mistplayers.jwplayer = {
 var p = mistplayers.jwplayer.player;
 p.prototype = new MistPlayer();
 p.prototype.build = function (options) {
-  var ele = this.element('div');
+  var ele = this.getElement('div');
   
   this.jw = jwplayer(ele).setup({
     file: options.src,

@@ -19,6 +19,7 @@
         //host: 'http://thulmk3:8080'
         //host: 'https://cat.mistserver.org:4433'
         //host: 'http://localhost:8080'
+        //host: 'http://live.us.picarto.tv:8080'
       };
     </script>
     
@@ -85,14 +86,14 @@
         //tryplayers.push('flash_strobe');
         //tryplayers.push('silverlight');
         streams = [];
-        streams.push('live');
-        //streams.push('golive+ThePaddedRoom');
+        //streams.push('live');
+        //streams.push('golive+emitan');
         //streams.push('subtel');
         //streams.push('ogg');
         //streams.push('vids+mist.mp4');
         //streams.push('vids+hahalol.mp3');
         //streams.push('lama');
-        //streams.push('bunny');
+        streams.push('bunny');
         
         for (var j in streams) {
           for (var i in tryplayers) {
@@ -105,9 +106,11 @@
               maxwidth: 800,
               forcePlayer: tryplayers[i],
               //forceType: 'html5/video/mp4',
+              //forceType: 'html5/audio/mp3',
               //forceType: 'html5/application/vnd.apple.mpegurl',
               //forceType: 'dash/video/mp4',
-              //forceSource: 5,
+              forceType: 'html5/video/mp2t',
+              //forceSource: 3,
               loop: true,
               //controls: 'stock'
             });

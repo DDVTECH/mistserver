@@ -12,8 +12,8 @@ mistplayers.html5 = {
     var shortmime = mimetype.split('/');
     shortmime.shift();
     
-    if ((shortmime[0] == 'audio') && (streaminfo.height)) {
-      //claim you don't support audio only playback if there is video data
+    if ((shortmime[0] == 'audio') && (streaminfo.height) && (!options.forceType) && (!options.forceSource)) {
+      //claim you don't support audio-only playback if there is video data, unless this mime is being forced
       return false;
     }
     

@@ -165,6 +165,7 @@ set(libSources
   ${SOURCE_DIR}/lib/util.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
 )
+
 ########################################
 # MistLib - Build                      #
 ########################################
@@ -319,6 +320,7 @@ add_executable(MistOutHTTP
   generated/polytrope.js.h
   generated/dashjs.js.h
   generated/videojs.js.h
+  generated/img.js.h
   generated/playerdash.js.h
   generated/playervideo.js.h
   generated/core.js.h
@@ -417,6 +419,10 @@ add_custom_command(OUTPUT generated/dashjs.js.h
 add_custom_command(OUTPUT generated/videojs.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/videojs.js video_js generated/videojs.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/videojs.js
+)
+add_custom_command(OUTPUT generated/img.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/img.js img_js generated/img.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/img.js
 )
 add_custom_command(OUTPUT generated/playerdash.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js playerdash_js generated/playerdash.js.h

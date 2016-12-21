@@ -105,7 +105,7 @@ p.prototype.build = function (options) {
         me.addlog('Decoding error: reloading..');
         me.report({
           type: 'playback',
-          warning: 'A decoding error was encountered, but handled'
+          warn: 'A decoding error was encountered, but handled'
         });
       }
     },true);

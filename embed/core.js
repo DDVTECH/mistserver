@@ -105,16 +105,18 @@ MistPlayer.prototype.setTracks = function(usetracks){
   if (this.options.source.type == 'html5/application/vnd.apple.mpegurl') { //for HLS, use a different format for track selection
     newurl = this.options.src.split('/');
     var m3u8 = newurl.pop(); //take this off now, it will be added back later
+    var hlstracks = [];
     for (var i in usetracks) {
       //for audio or video tracks, just add the tracknumber between slashes
       switch (i) {
         case 'audio':
         case 'video':
           if (usetracks[i] == 0) { continue; }
-          newurl.push(usetracks[i]);
+          hlstracks.push(usetracks[i]);
           break;
       }
     }
+    if (hlstracks.length) { newurl.push(hlstracks.join('_')); }
     newurl.push(m3u8); //put back index.m3u8
     newurl = newurl.join('/');
   }
@@ -357,7 +359,11 @@ MistPlayer.prototype.buildMistControls = function(){
   buttons.className = 'column';
   controls.appendChild(buttons);
   
-  if ((this.setTracks(false)) && ((this.tracks.audio.length) || (this.tracks.video.length) || (this.tracks.subtitle.length)) && (this.options.source.type != 'html5/video/ogg')) {
+  if (
+    (this.setTracks(false))
+    && (this.tracks.video.length + this.tracks.audio.length + this.tracks.subtitle.length > 1)
+    && (this.options.source.type != 'html5/video/ogg')
+  ) {
     
     /*
       - the player supports setting tracks;
@@ -426,8 +432,23 @@ MistPlayer.prototype.buildMistControls = function(){
             for (var i in me.trackselects) {
               usetracks[me.trackselects[i].getAttribute('data-type')] = me.trackselects[i].value
             }
+            if (this.value == 0) {
+              //if we are disabling a video or audio track, dont allow us to disable another video or audio track because there will be no data
+              var optiontags = this.parentNode.parentNode.querySelectorAll('select:not([data-type="subtitle"]) option[value="0"]');
+              for (var i = 0; i < optiontags.length; i++) {
+                optiontags[i].setAttribute('disabled','');
+              }
+            }
+            else {
+              //put back the disabled track options
+              var optiontags = this.parentNode.parentNode.querySelectorAll('option[value="0"][disabled]');
+              for (var i = 0; i < optiontags.length; i++) {
+                optiontags[i].removeAttribute('disabled');
+              }
+            }
           }
           me.setTracks(usetracks);
+
         }
         if (i == 'subtitle')  {
           s.value = 0;
@@ -632,6 +653,8 @@ MistPlayer.prototype.nextCombo = function(){
 ///send information back to mistserver
 ///\param msg object containing the information to report
 MistPlayer.prototype.report = function(msg) {
+  return false; ///\todo Remove this when the backend reporting function has been coded
+  
   
   ///send a http post request
   ///\param url (string) url to send to
@@ -650,7 +673,6 @@ MistPlayer.prototype.report = function(msg) {
   
   //add some extra information
   msg.userinfo = {
-    userAgent: navigator.userAgent,
     page: location.href,
     stream: this.streamname,
     session: mistplayer_session_id
@@ -665,6 +687,7 @@ MistPlayer.prototype.report = function(msg) {
       };
     }
     msg.userinfo.resolution = this.options.width+'x'+this.options.height;
+    msg.userinfo.time = Math.round(((new Date) - this.options.initTime)/1e3); //seconds since the info js was loaded
   }
   
   try {
@@ -726,7 +749,8 @@ function mistPlay(streamName,options) {
     autoplay: true,
     controls: true,
     loop: false,
-    poster: null
+    poster: null,
+    callback: false
   };
   for (var i in global) {
     options[i] = global[i];
@@ -1095,6 +1119,13 @@ function mistPlay(streamName,options) {
       //monitor for errors
       element.checkStalledTimeout = false;
       element.checkProgressTimeout = false;
+      element.sendPingTimeout = setInterval(function(){
+        if (player.paused) { return; }
+        player.report({
+          type: 'playback',
+          info: 'ping'
+        });
+      },150e3);
       element.addEventListener('error',function(e){
         player.askNextCombo('The player has thrown an error');
         var r = {
@@ -1154,7 +1185,7 @@ function mistPlay(streamName,options) {
               var msg = 'There should be playback but nothing was played';
               var r = {
                 type: 'playback',
-                warning: msg
+                warn: msg
               };
               player.addlog(msg);
               if ('readyState' in player.element) {
@@ -1176,8 +1207,8 @@ function mistPlay(streamName,options) {
               var msg = 'It seems playback is lagging (progressed '+Math.round(progress*100)/100+'/10s)'
               player.addlog(msg);
               player.report({
-                'type': 'playback',
-                'warning': msg
+                type: 'playback',
+                warn: msg
               });
               return;
             }
@@ -1204,7 +1235,7 @@ function mistPlay(streamName,options) {
       }
       
       protoplay.sendEvent('initialized','',options.target);
-      
+      if (options.callback) { options.callback(player); }
     }
     else {
       if (streaminfo.error) {

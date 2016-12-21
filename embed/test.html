@@ -86,22 +86,24 @@
         //tryplayers.push('flash_strobe');
         //tryplayers.push('silverlight');
         streams = [];
-        //streams.push('live');
+        streams.push('live');
         //streams.push('golive+emitan');
         //streams.push('subtel');
         //streams.push('ogg');
         //streams.push('vids+mist.mp4');
         //streams.push('vids+hahalol.mp3');
         //streams.push('lama');
-        streams.push('bunny');
+        //streams.push('bunny');
         
         for (var j in streams) {
           for (var i in tryplayers) {
+            var d = document.createElement('div');
             var c = document.createElement('div');
             c.className = 'mistvideo';
             c.title = tryplayers[i];
-            contele.appendChild(c);
-            mistPlay(streams[j],{
+            d.appendChild(c);
+            contele.appendChild(d);
+            var p = mistPlay(streams[j],{
               target: c,
               maxwidth: 800,
               forcePlayer: tryplayers[i],
@@ -109,11 +111,20 @@
               //forceType: 'html5/audio/mp3',
               //forceType: 'html5/application/vnd.apple.mpegurl',
               //forceType: 'dash/video/mp4',
-              forceType: 'html5/video/mp2t',
               //forceSource: 3,
               loop: true,
               //controls: 'stock'
+              callback: function(player) {
+                var button = document.createElement('button');
+                button.innerHTML = 'askNextCombo();';
+                button.onclick = function(){
+                  player.askNextCombo('Button was clicked');
+                  d.removeChild(this);
+                };
+                d.append(button);
+              }
             });
+
           }
         }
         

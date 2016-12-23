@@ -118,7 +118,7 @@ p.prototype.build = function (options) {
       }
     }
     me.adderror(msg);
-  },true);
+  });
   var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting','progress'];
   for (var i in events) {
     ele.addEventListener(events[i],function(e){

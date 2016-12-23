@@ -966,7 +966,7 @@ function mistPlay(streamName,options) {
       //pass player options and handle defaults
       playerOpts.autoplay = options.autoplay;
       playerOpts.controls = options.controls;
-      playerOpts.loop     = options.loop;
+      playerOpts.loop     = (playerOpts.live ? false : options.loop);
       playerOpts.poster   = options.poster;
       
       function calcSize() {

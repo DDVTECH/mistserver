@@ -15,7 +15,7 @@ mistplayers.img = {
 var p = mistplayers.img.player;
 p.prototype = new MistPlayer();
 p.prototype.build = function (options) {
-  var ele = this.element('img');
+  var ele = this.getElement('img');
   ele.src = options.src;
   ele.style.display = 'block';
   return ele;

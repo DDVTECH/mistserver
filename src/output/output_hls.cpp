@@ -231,6 +231,7 @@ namespace Mist {
       uint32_t fragIndice = Trk.timeToFragnum(from);
       contPAT = Trk.missedFrags + fragIndice; //PAT continuity counter
       contPMT = Trk.missedFrags + fragIndice; //PMT continuity counter
+      contSDT = Trk.missedFrags + fragIndice; //SDT continuity counter
       packCounter = 0;
       parseData = true;
       wantRequest = false;

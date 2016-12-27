@@ -157,7 +157,60 @@ namespace TS {
       void setPCRPID(short newVal);
       short getProgramInfoLength() const;
       void setProgramInfoLength(short newVal);
-      ProgramMappingEntry getEntry(int index) const;      
+      ProgramMappingEntry getEntry(int index) const;
+      int getCRC() const;
+      void calcCRC();
+      std::string toPrettyString(size_t indent) const;
+  };
+
+  class ServiceDescriptionEntry {
+    public:
+      ServiceDescriptionEntry(char * begin, char * end);
+      operator bool() const;
+      uint16_t getServiceID() const;
+      void setServiceID(uint16_t newType);
+      bool getEITSchedule() const;
+      void setEITSchedule(bool val);
+      bool getEITPresentFollowing() const;
+      void setEITPresentFollowing(bool val);
+      uint8_t getRunningStatus() const;
+      void setRunningStatus(uint8_t val);
+      bool getFreeCAM() const;
+      void setFreeCAM(bool val);
+      int getESInfoLength() const;
+      const char * getESInfo() const;
+      void setESInfo(const std::string & newInfo);
+      void advance();
+    private:
+      char* data;
+      char* boundary;
+  };
+
+  class ServiceDescriptionTable : public Packet {
+    public:
+      ServiceDescriptionTable();
+      ServiceDescriptionTable & operator = (const Packet & rhs);
+      char getOffset() const;
+      void setOffset(char newVal);
+      
+      char getTableId() const;
+      void setTableId(char newVal);
+      short getSectionLength() const;
+      void setSectionLength(short newVal);
+
+      uint16_t getTSStreamID() const;
+      void setTSStreamID(uint16_t newVal);
+      uint8_t getVersionNumber() const;
+      void setVersionNumber(uint8_t newVal);
+      bool getCurrentNextIndicator() const;
+      void setCurrentNextIndicator(bool newVal);
+      uint8_t getSectionNumber() const;
+      void setSectionNumber(uint8_t newVal);
+      uint8_t getLastSectionNumber() const;
+      void setLastSectionNumber(uint8_t newVal);
+      uint16_t getOrigID() const;
+      void setOrigID(uint16_t newVal);
+      ServiceDescriptionEntry getEntry(int index) const;
       int getCRC() const;
       void calcCRC();
       std::string toPrettyString(size_t indent) const;
@@ -208,6 +261,7 @@ namespace TS {
                          };
 
   const char * createPMT(std::set<unsigned long>& selectedTracks, DTSC::Meta& myMeta, int contCounter=0);
+  const char * createSDT(const std::string & streamName, int contCounter=0);
 
 } //TS namespace
 

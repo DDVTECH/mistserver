@@ -22,6 +22,7 @@ namespace Mist {
       std::map<unsigned int, int> contCounters;
       int contPAT;
       int contPMT;
+      int contSDT;
       unsigned int packCounter; ///\todo update constructors?
       TS::Packet packData;
       bool haveAvcc;

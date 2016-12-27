@@ -8,6 +8,7 @@
 #include <map>
 #include "ts_packet.h"
 #include "defines.h"
+#include "bitfields.h"
 
 #ifndef FILLER_DATA
 #define FILLER_DATA "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent commodo vulputate urna eu commodo. Cras tempor velit nec nulla placerat volutpat. Proin eleifend blandit quam sit amet suscipit. Pellentesque vitae tristique lorem. Maecenas facilisis consequat neque, vitae iaculis eros vulputate ut. Suspendisse ut arcu non eros vestibulum pulvinar id sed erat. Nam dictum tellus vel tellus rhoncus ut mollis tellus fermentum. Fusce volutpat consectetur ante, in mollis nisi euismod vulputate. Curabitur vitae facilisis ligula. Sed sed gravida dolor. Integer eu eros a dolor lobortis ullamcorper. Mauris interdum elit non neque interdum dictum. Suspendisse imperdiet eros sed sapien cursus pulvinar. Vestibulum ut dolor lectus, id commodo elit. Cras convallis varius leo eu porta. Duis luctus sapien nec dui adipiscing quis interdum nunc congue. Morbi pharetra aliquet mauris vitae tristique. Etiam feugiat sapien quis augue elementum id ultricies magna vulputate. Phasellus luctus, leo id egestas consequat, eros tortor commodo neque, vitae hendrerit nunc sem ut odio."
@@ -234,6 +235,7 @@ namespace TS {
       case 0: output << "PAT"; break;
       case 1: output << "CAT"; break;
       case 2: output << "TSDT"; break;
+      case 17: output << "SDT"; break;
       case 0x1FFF: output << "Null"; break;
       default:
         if (pmt_pids.count(getPID())){
@@ -278,7 +280,7 @@ namespace TS {
       }
       return output.str();
     }
-    
+
     if (pmt_pids.count(getPID())){
       //PMT
       if (detailLevel >= 2){
@@ -289,6 +291,14 @@ namespace TS {
       return output.str();
     }
     
+    if (getPID() == 17){
+      //SDT
+      if (detailLevel >= 2){
+        output << ((ServiceDescriptionTable *)this)->toPrettyString(indent + 2);
+      }
+      return output.str();
+    }
+
     if (detailLevel >= 10){
       output << std::string(indent+2, ' ') << "Raw data bytes:";
       unsigned int size = getDataSize();
@@ -641,7 +651,7 @@ namespace TS {
   ///Retrieves the "current/next" indicator
   bool ProgramAssociationTable::getCurrentNextIndicator() const{
     unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
-    return (strBuf[loc] >> 1) & 0x01;
+    return strBuf[loc] & 0x01;
   }
 
   ///Retrieves the section number
@@ -809,7 +819,7 @@ namespace TS {
     data += 5 + getESInfoLength();
   }
   
-  ProgramMappingTable::ProgramMappingTable(){        
+  ProgramMappingTable::ProgramMappingTable(){
     strBuf[0] = 0x47;
     strBuf[1] = 0x50;
     strBuf[2] = 0x00;
@@ -876,20 +886,20 @@ namespace TS {
   void ProgramMappingTable::setVersionNumber(char newVal) {
     unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
     updPos(loc+1);
-    strBuf[loc] = ((newVal & 0x1F) << 1) | 0xC1;
+    strBuf[loc] = ((newVal & 0x1F) << 1) | (strBuf[loc] & 0xC1);
   }
 
   ///Retrieves the "current/next" indicator
   bool ProgramMappingTable::getCurrentNextIndicator() const{
     unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
-    return (strBuf[loc] >> 1) & 0x01;
+    return strBuf[loc] & 0x01;
   }
 
   ///Sets the "current/next" indicator
   void ProgramMappingTable::setCurrentNextIndicator(bool newVal) {
     unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
     updPos(loc+1);
-    strBuf[loc] = (((char)newVal) << 1) | (strBuf[loc] & 0xFD) | 0xC1;
+    strBuf[loc] = (newVal?1:0) | (strBuf[loc] & 0xFE);
   }
 
   ///Retrieves the section number
@@ -1028,6 +1038,22 @@ namespace TS {
             offset += 4;
           }
         } break;
+        case 0x48:{//DVB service descriptor
+          output << std::string(indent, ' ') << "DVB service: ";
+          uint32_t offset = p+2;
+          switch (p_data[offset]){
+            case 0x01: output << "digital TV"; break;
+            case 0x02: output << "digital radio"; break;
+            case 0x10: output << "DVB MHP"; break;
+            default: output << "NOT IMPLEMENTED"; break;
+          }
+          offset++;//move to provider len
+          uint8_t len = p_data[offset];
+          output << ", Provider: " << std::string(p_data+offset+1, len);
+          offset += 1+len;//move to service len
+          len = p_data[offset];
+          output << ", Service: " << std::string(p_data+offset+1, len) << std::endl;
+        } break;
         case 0x7C:{//AAC descriptor (EN 300 468)
           if (p_data[p+1] < 2 || p+2+p_data[p+1] > p_len){continue;}//skip broken data
           output << std::string(indent, ' ') << "AAC profile: ";
@@ -1056,6 +1082,9 @@ namespace TS {
               output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)p_data[p+2+offset] << std::dec;
             }
           }
+        } break;
+        case 0x52:{//DVB stream identifier
+          output << std::string(indent, ' ') << "Stream identifier: Tag #" << (int)p_data[p+2] << std::endl;
         } break;
         default:{
           output << std::string(indent, ' ') << "Undecoded descriptor: ";
@@ -1096,7 +1125,7 @@ namespace TS {
     PMT.setSectionLength(0xB00D + sectionLen);
     PMT.setProgramNumber(1);
     PMT.setVersionNumber(0);
-    PMT.setCurrentNextIndicator(0);
+    PMT.setCurrentNextIndicator(1);
     PMT.setSectionNumber(0);
     PMT.setLastSectionNumber(0);
     PMT.setContinuityCounter(contCounter);
@@ -1138,6 +1167,297 @@ namespace TS {
     }
     PMT.calcCRC();
     return PMT.checkAndGetBuffer();
+  }
+
+
+  ServiceDescriptionEntry::ServiceDescriptionEntry(char * begin, char * end){
+    data = begin;
+    boundary = end;
+  }
+
+  ServiceDescriptionEntry::operator bool() const {
+    return data && (data < boundary);
+  }
+
+  uint16_t ServiceDescriptionEntry::getServiceID() const{
+    return Bit::btohs(data);
+  }
+
+  void ServiceDescriptionEntry::setServiceID(uint16_t val){
+    Bit::htobs(data, val);
+  }
+
+  bool ServiceDescriptionEntry::getEITSchedule() const{
+    return data[2] & 2;
+  }
+
+  void ServiceDescriptionEntry::setEITSchedule(bool val){
+    data[2] |= 2;
+  }
+
+  bool ServiceDescriptionEntry::getEITPresentFollowing() const{
+    return data[2] & 1;
+  }
+
+  void ServiceDescriptionEntry::setEITPresentFollowing(bool val){
+    data[2] |= 1;
+  }
+
+  uint8_t ServiceDescriptionEntry::getRunningStatus() const{
+    return (data[3] & 0xE0) >> 5;
+  }
+
+  void ServiceDescriptionEntry::setRunningStatus(uint8_t val){
+    data[3] = (data[3] & 0x1F) | (val << 5);
+  }
+
+  bool ServiceDescriptionEntry::getFreeCAM() const{
+    return data[3] & 0x10;
+  }
+
+  void ServiceDescriptionEntry::setFreeCAM(bool val){
+    data[3] = (data[3] & 0xEF) | (val?0x10:0);
+  }
+
+  int ServiceDescriptionEntry::getESInfoLength() const{
+    return ((data[3] << 8) | data[4]) & 0x0FFF;
+  }
+
+  const char * ServiceDescriptionEntry::getESInfo() const{
+    return data + 5;
+  }
+
+  void ServiceDescriptionEntry::setESInfo(const std::string & newInfo){
+    data[3] = ((newInfo.size() >> 8) & 0x0F) | (data[3] & 0xF0);
+    data[4] = newInfo.size() & 0xFF;
+    memcpy(data + 5, newInfo.data(), newInfo.size());
+  }
+
+  void ServiceDescriptionEntry::advance(){
+    if (!(*this)) {
+      return;
+    }
+    data += 5 + getESInfoLength();
+  }
+
+  ServiceDescriptionTable::ServiceDescriptionTable(){
+    strBuf[0] = 0x47;
+    strBuf[1] = 0x50;
+    strBuf[2] = 0x00;
+    strBuf[3] = 0x10;
+    pos=4;
+  }
+
+  ServiceDescriptionTable & ServiceDescriptionTable::operator = (const Packet & rhs) {
+    memcpy(strBuf, rhs.checkAndGetBuffer(), 188);
+    pos = 188;
+    return *this;
+  }
+
+  char ServiceDescriptionTable::getOffset() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0);
+    return strBuf[loc];
+  }
+
+  void ServiceDescriptionTable::setOffset(char newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0);
+    strBuf[loc] = newVal;
+  }  
+
+  char ServiceDescriptionTable::getTableId() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+    return strBuf[loc];
+  }
+
+  void ServiceDescriptionTable::setTableId(char newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+    updPos(loc+1);    
+    strBuf[loc] = newVal;
+  }
+
+  short ServiceDescriptionTable::getSectionLength() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 2;
+    return (((short)strBuf[loc] & 0x0F) << 8) | strBuf[loc + 1];
+  }
+
+  void ServiceDescriptionTable::setSectionLength(short newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 2;
+    updPos(loc+2);
+    strBuf[loc] = (char)(newVal >> 8);
+    strBuf[loc+1] = (char)newVal;
+  }
+
+  uint16_t ServiceDescriptionTable::getTSStreamID() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 4;
+    return (((short)strBuf[loc]) << 8) | strBuf[loc + 1];
+  }
+
+  void ServiceDescriptionTable::setTSStreamID(uint16_t newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 4;
+    updPos(loc+2);
+    strBuf[loc] = (char)(newVal >> 8);
+    strBuf[loc+1] = (char)newVal;
+  }
+
+  uint8_t ServiceDescriptionTable::getVersionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+    return (strBuf[loc] >> 1) & 0x1F;
+  }
+
+  void ServiceDescriptionTable::setVersionNumber(uint8_t newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+    updPos(loc+1);
+    strBuf[loc] = ((newVal & 0x1F) << 1) | (strBuf[loc] & 0xC1);
+  }
+
+  ///Retrieves the "current/next" indicator
+  bool ServiceDescriptionTable::getCurrentNextIndicator() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+    return strBuf[loc] & 0x01;
+  }
+
+  ///Sets the "current/next" indicator
+  void ServiceDescriptionTable::setCurrentNextIndicator(bool newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 6;
+    updPos(loc+1);
+    strBuf[loc] = (newVal?1:0) | (strBuf[loc] & 0xFE);
+  }
+
+  ///Retrieves the section number
+  uint8_t ServiceDescriptionTable::getSectionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 7;
+    return strBuf[loc];
+  }
+
+  ///Sets the section number
+  void ServiceDescriptionTable::setSectionNumber(uint8_t newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 7;
+    updPos(loc+1);
+    strBuf[loc] = newVal;
+  }
+
+  ///Retrieves the last section number
+  uint8_t ServiceDescriptionTable::getLastSectionNumber() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 8;
+    return strBuf[loc];
+  }
+
+  ///Sets the last section number
+  void ServiceDescriptionTable::setLastSectionNumber(uint8_t newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 8;
+    updPos(loc+1);
+    strBuf[loc] = newVal;
+  }
+
+  uint16_t ServiceDescriptionTable::getOrigID() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 9;
+    return (((short)strBuf[loc] & 0x1F) << 8) | strBuf[loc + 1];
+  }
+
+  void ServiceDescriptionTable::setOrigID(uint16_t newVal) {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 9;
+    updPos(loc+2);
+    strBuf[loc] = (char)((newVal >> 8) & 0x1F) | 0xE0;//Note: here we set reserved bits on 1
+    strBuf[loc+1] = (char)newVal;
+  }
+
+  ServiceDescriptionEntry ServiceDescriptionTable::getEntry(int index) const{
+    int dataOffset = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset();
+    ServiceDescriptionEntry res((char*)(strBuf + dataOffset + 12), (char*)(strBuf + dataOffset + getSectionLength()) );
+    for (int i = 0; i < index; i++){
+      res.advance();
+    }
+    return res;
+  }
+
+  int ServiceDescriptionTable::getCRC() const{
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + getSectionLength();
+    return ((int)(strBuf[loc]) << 24) | ((int)(strBuf[loc + 1]) << 16) | ((int)(strBuf[loc + 2]) << 8) | strBuf[loc + 3];
+  }
+  
+  void ServiceDescriptionTable::calcCRC() {
+    unsigned int loc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + getSectionLength();
+    unsigned int newVal;//this will hold the CRC32 value;
+    unsigned int pidLoc = 4 + (getAdaptationField() > 1 ? getAdaptationFieldLen() + 1 : 0) + getOffset() + 1;
+    newVal = checksum::crc32(-1, strBuf + pidLoc, loc - pidLoc);//calculating checksum over all the fields from table ID to the last stream element
+    updPos(188);  
+    strBuf[loc + 3] = (newVal >> 24) & 0xFF;
+    strBuf[loc + 2] = (newVal >> 16) & 0xFF;
+    strBuf[loc + 1] = (newVal >> 8) & 0xFF;
+    strBuf[loc] = newVal & 0xFF;
+    memset((void*)(strBuf + loc + 4), 0xFF, 184 - loc);
+  }
+
+  ///Print all SDT values in a human readable format
+  ///\param indent The indentation of the string printed as wanted by the user
+  ///\return The string with human readable data from a SDT table
+  std::string ServiceDescriptionTable::toPrettyString(size_t indent) const{
+    std::stringstream output;
+    output << std::string(indent, ' ') << "[Service Description Table]" << std::endl;
+    output << std::string(indent + 2, ' ') << "Pointer Field: " << (int)getOffset() << std::endl;
+    output << std::string(indent + 2, ' ') << "Table ID: " << (int)getTableId() << std::endl;
+    output << std::string(indent + 2, ' ') << "Section Length: " << getSectionLength() << std::endl;
+    output << std::string(indent + 2, ' ') << "TS Stream ID: " << getTSStreamID() << std::endl;
+    output << std::string(indent + 2, ' ') << "Version number: " << (int)getVersionNumber() << std::endl;
+    output << std::string(indent + 2, ' ') << "Current next indicator: " << (int)getCurrentNextIndicator() << std::endl;
+    output << std::string(indent + 2, ' ') << "Section number: " << (int)getSectionNumber() << std::endl;
+    output << std::string(indent + 2, ' ') << "Last Section number: " << (int)getLastSectionNumber() << std::endl;
+    output << std::string(indent + 2, ' ') << "Original Network ID: " << getOrigID() << std::endl;
+    ServiceDescriptionEntry entry = getEntry(0);
+    while (entry) {
+      output << std::string(indent + 4, ' ');
+      output << "Service " << entry.getServiceID() << ":";
+
+      if (entry.getEITSchedule()){output << " EIT";}
+      if (entry.getEITPresentFollowing()){output << " EITPF";}
+      if (entry.getFreeCAM()){output << " Free";}
+      switch (entry.getRunningStatus()){
+        case 0: output << " Undefined"; break;
+        case 1: output << " NotRunning"; break;
+        case 2: output << " StartSoon"; break;
+        case 3: output << " Pausing"; break;
+        case 4: output << " Running"; break;
+        case 5: output << " OffAir"; break;
+        default: output << " UNIMPL?" << (int)entry.getRunningStatus(); break;
+      }
+      output << std::endl;
+      output << ProgramDescriptors(entry.getESInfo(), entry.getESInfoLength()).toPrettyString(indent+6);
+      entry.advance();
+    }
+    output << std::string(indent + 2, ' ') << "CRC32: " << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << getCRC() << std::dec << std::endl;
+    return output.str();
+  }
+
+  /// Construct a SDT from a set of selected tracks and metadata.
+  /// This function is not part of the packet class, but it is in the TS namespace.
+  /// It uses an internal static TS packet for SDT storage.
+  ///\returns character pointer to a static 188B TS packet
+  const char * createSDT(const std::string & streamName, int contCounter){
+    static ServiceDescriptionTable SDT;
+    SDT.setPID(0x11);
+    SDT.setTableId(0x42);
+    SDT.setSectionLength(0x8020 + streamName.size());
+    SDT.setTSStreamID(1);
+    SDT.setVersionNumber(0);
+    SDT.setCurrentNextIndicator(1);
+    SDT.setSectionNumber(0);
+    SDT.setLastSectionNumber(0);
+    SDT.setOrigID(1);
+    ServiceDescriptionEntry entry = SDT.getEntry(0);
+    entry.setServiceID(1);//Same as ProgramNumber in PMT
+    entry.setRunningStatus(4);//Running
+    entry.setFreeCAM(true);//Not conditional access
+    std::string sdti;
+    sdti += (char)0x48;
+    sdti += (char)(15+streamName.size());//length
+    sdti += (char)1;//digital television service
+    sdti.append("\012MistServer");
+    sdti += (char)streamName.size();
+    sdti.append(streamName);
+    entry.setESInfo(sdti);
+    SDT.setContinuityCounter(contCounter);
+    SDT.calcCRC();
+    return SDT.checkAndGetBuffer();
   }
 
 }

@@ -29,7 +29,6 @@ namespace Mist {
       }
       pushOut = true;
       udpSize = 5;
-      sendRepeatingHeaders = true;
       if (target.find('?') != std::string::npos){
         std::map<std::string, std::string> vars;
         HTTP::parseVars(target.substr(target.find('?')+1), vars);

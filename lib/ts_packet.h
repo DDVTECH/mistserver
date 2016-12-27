@@ -70,8 +70,8 @@ namespace TS {
       void updPos(unsigned int newPos);
       
       //PES helpers      
-      static std::string & getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset, bool isAligned);      
-      static std::string & getPESAudioLeadIn(unsigned int len, unsigned long long PTS);
+      static std::string & getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset, bool isAligned, uint64_t bps=0);      
+      static std::string & getPESAudioLeadIn(unsigned int len, unsigned long long PTS, uint64_t bps=0);
       
       //Printers and writers
       std::string toPrettyString(size_t indent = 0, int detailLevel = 3) const;

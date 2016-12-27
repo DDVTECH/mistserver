@@ -487,8 +487,13 @@ namespace TS {
 /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
 /// \param len The length of this frame.
 /// \param PTS The timestamp of the frame.
-  std::string & Packet::getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset, bool isAligned) {
+  std::string & Packet::getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset, bool isAligned, uint64_t bps) {
     len += (offset ? 13 : 8);
+    if (bps >= 50){
+      len += 3;
+    }else{
+      bps = 0;
+    }
     static std::string tmpStr;
     tmpStr.clear();
     tmpStr.reserve(25);
@@ -500,11 +505,16 @@ namespace TS {
     }else{
       tmpStr.append("\200", 1);
     }
-    tmpStr += (char)(offset ? 0xC0 : 0x80) ; //PTS/DTS + Flags
-    tmpStr += (char)(offset ? 0x0A : 0x05); //PESHeaderDataLength
+    tmpStr += (char)((offset ? 0xC0 : 0x80) | (bps?0x10:0)) ; //PTS/DTS + Flags
+    tmpStr += (char)((offset ? 10 : 5) + (bps?3:0)); //PESHeaderDataLength
     encodePESTimestamp(tmpStr, (offset ? 0x30 : 0x20), PTS + offset);
     if (offset){
       encodePESTimestamp(tmpStr, 0x10, PTS);
+    }
+    if (bps){
+      char rate_buf[3];
+      Bit::htob24(rate_buf, (bps/50) | 0x800001);
+      tmpStr.append(rate_buf, 3);
     }
     return tmpStr;
   }
@@ -513,16 +523,28 @@ namespace TS {
 /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
 /// \param len The length of this frame.
 /// \param PTS The timestamp of the frame.
-  std::string & Packet::getPESAudioLeadIn(unsigned int len, unsigned long long PTS) {
+  std::string & Packet::getPESAudioLeadIn(unsigned int len, unsigned long long PTS, uint64_t bps) {
+    if (bps >= 50){
+      len += 3;
+    }else{
+      bps = 0;
+    }
     static std::string tmpStr;
     tmpStr.clear();
-    tmpStr.reserve(14);
+    tmpStr.reserve(20);
     len += 8;
     tmpStr.append("\000\000\001\300", 4);
     tmpStr += (char)((len & 0xFF00) >> 8); //PES PacketLength
     tmpStr += (char)(len & 0x00FF); //PES PacketLength (Cont)
-    tmpStr.append("\204\200\005", 3);
+    tmpStr += (char)0x84;//isAligned
+    tmpStr += (char)(0x80 | (bps?0x10:0)) ; //PTS/DTS + Flags
+    tmpStr += (char)(5 + (bps?3:0)); //PESHeaderDataLength
     encodePESTimestamp(tmpStr, 0x20, PTS);
+    if (bps){
+      char rate_buf[3];
+      Bit::htob24(rate_buf, (bps/50) | 0x800001);
+      tmpStr.append(rate_buf, 3);
+    }
     return tmpStr;
   }
 //END PES FUNCTIONS

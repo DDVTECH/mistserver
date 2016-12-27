@@ -106,7 +106,7 @@ namespace Mist {
 
       while (currPack <= splitCount){
         unsigned int alreadySent = 0;
-        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), packTime, offset, !currPack);
+        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), packTime, offset, !currPack, Trk.bps);
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
         if (!currPack){
           if (Trk.codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
@@ -171,7 +171,7 @@ namespace Mist {
       if (Trk.codec == "AAC"){
         tempLen += 7;
       }
-      bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
+      bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime, Trk.bps);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
       fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
       if (Trk.codec == "AAC"){        
         bs = TS::getAudioHeader(dataLen, Trk.init);      

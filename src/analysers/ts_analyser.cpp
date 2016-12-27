@@ -11,6 +11,7 @@
 #include <sstream>
 #include <signal.h>
 #include <mist/ts_packet.h>
+#include <mist/defines.h>
 #include <mist/bitfields.h>
 #include <mist/config.h>
 
@@ -113,10 +114,12 @@ namespace Analysers {
     }
     if ((((int)d[4]) << 8 | d[5]) != (d.size() - 6)){
       res << " [Size " << (((int)d[4]) << 8 | d[5]) << " => " << (d.size() - 6) << "]";
+    }else{
+      res << " [Size " << (d.size() - 6) << "]";
     }
     res << std::endl;
     
-    if(detailLevel==10){
+    if(detailLevel&32){
       unsigned int counter = 0;
       for (unsigned int i = 9+headSize+padding; i<d.size(); ++i){
         if ((i < d.size() - 4) && d[i] == 0 && d[i+1] == 0 && d[i+2] == 0 && d[i+3] == 1){res << std::endl; counter = 0;}
@@ -132,30 +135,36 @@ namespace Analysers {
   /// Debugging tool for TS data.
   /// Expects TS data through stdin, outputs human-readable information to stderr.
   /// \return The return code of the analyser.
-  int analyseTS(bool validate, bool analyse, int detailLevel){
+  int analyseTS(bool validate, bool analyse, int detailLevel, uint32_t pidOnly){
     std::map<unsigned long long, std::string> payloads;
     TS::Packet packet;
     long long int upTime = Util::bootSecs();
     int64_t pcr = 0;
-    unsigned int bytes = 0;
+    uint64_t bytes = 0;
     char packetPtr[188];
     while (std::cin.good()){
       std::cin.read(packetPtr,188);
       if(std::cin.gcount() != 188){break;}
+      DONTEVEN_MSG("Reading from position %llu", bytes);
       bytes += 188;
       if(packet.FromPointer(packetPtr)){
         if(analyse){
-          if (packet.getUnitStart() && payloads[packet.getPID()] != ""){
-            std::cout << printPES(payloads[packet.getPID()], packet.getPID(), detailLevel);
+          if (packet.getUnitStart() && payloads.count(packet.getPID()) && payloads[packet.getPID()] != ""){
+          if ((detailLevel&1) && (!pidOnly || packet.getPID() == pidOnly)){
+              std::cout << printPES(payloads[packet.getPID()], packet.getPID(), detailLevel);
+            }
             payloads.erase(packet.getPID());
           }
-          if (detailLevel >= 3 || !packet.getPID() || packet.isPMT()){
-            if (packet.getPID() == 0){
-              ((TS::ProgramAssociationTable*)&packet)->parsePIDs();
-            }
+          if (packet.getPID() == 0){
+            ((TS::ProgramAssociationTable*)&packet)->parsePIDs();
+          }
+          if (packet.isPMT()){
+            ((TS::ProgramMappingTable*)&packet)->parseStreams();
+          }
+          if ((((detailLevel & 2) && !packet.isStream()) || ((detailLevel & 4) && packet.isStream())) && (!pidOnly || packet.getPID() == pidOnly)){
             std::cout << packet.toPrettyString(0, detailLevel);
           }
-          if (packet.getPID() && !packet.isPMT() && (payloads[packet.getPID()].size() || packet.getUnitStart())){
+          if (packet.getPID() >= 0x10 && !packet.isPMT() && packet.getPID()!=17 && (payloads[packet.getPID()].size() || packet.getUnitStart())){
             payloads[packet.getPID()].append(packet.getPayload(), packet.getPayloadLength());
           }
         }
@@ -171,8 +180,9 @@ namespace Analysers {
       }
     }
     for (std::map<unsigned long long, std::string>::iterator it = payloads.begin(); it != payloads.end(); it++){
-      if (!it->first || it->first == 4096){ continue; }      
-      std::cout << printPES(it->second, it->first, detailLevel);
+      if ((detailLevel&1) && (!pidOnly || it->first == pidOnly)){
+        std::cout << printPES(it->second, it->first, detailLevel);
+      }
     }
     long long int finTime = Util::bootSecs();
     if(validate){
@@ -187,7 +197,8 @@ int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0]);
   conf.addOption("analyse", JSON::fromString("{\"long\":\"analyse\", \"short\":\"a\", \"default\":1, \"long_off\":\"notanalyse\", \"short_off\":\"b\", \"help\":\"Analyse a file's contents (-a), or don't (-b) returning false on error. Default is analyse.\"}"));
   conf.addOption("validate", JSON::fromString("{\"long\":\"validate\", \"short\":\"V\", \"default\":0, \"long_off\":\"notvalidate\", \"short_off\":\"X\", \"help\":\"Validate (-V) the file contents or don't validate (-X) its integrity, returning false on error. Default is don't validate.\"}"));
-  conf.addOption("detail", JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", \"default\":2, \"help\":\"Detail level of analysis. 1 = PES only, 2 = PAT/PMT (default), 3 = all TS packets, 9 = raw PES packet bytes, 10 = raw TS packet bytes\"}"));
+  conf.addOption("detail", JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", \"default\":3, \"help\":\"Detail level of analysis bitmask (default=3). 1 = PES, 2 = TS non-stream pkts, 4 = TS stream pkts, 32 = raw PES packet bytes, 64 = raw TS packet bytes\"}"));
+  conf.addOption("pid", JSON::fromString("{\"long\":\"pid\", \"short\":\"P\", \"arg\":\"num\", \"default\":0, \"help\":\"Only use at given PID, ignore others\"}"));
   conf.parseArgs(argc, argv);
-  return Analysers::analyseTS(conf.getBool("validate"),conf.getBool("analyse"),conf.getInteger("detail"));
+  return Analysers::analyseTS(conf.getBool("validate"),conf.getBool("analyse"),conf.getInteger("detail"),conf.getInteger("pid"));
 }

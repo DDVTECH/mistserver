@@ -28,8 +28,8 @@ namespace Mist {
       bool haveAvcc;
       MP4::AVCC avccbox;
       bool appleCompat;
-      bool sendRepeatingHeaders;
-      long long unsigned int ts_from;
-      long long unsigned int lastVid;
+      uint64_t sendRepeatingHeaders; ///< Amount of ms between PAT/PMT. Zero means do not repeat.
+      uint64_t lastHeaderTime; ///< Timestamp last PAT/PMT were sent.
+      uint64_t ts_from; ///< Starting time to subtract from timestamps
   };
 }

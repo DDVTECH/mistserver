@@ -6,20 +6,23 @@ namespace Mist {
     haveAvcc = false;
     ts_from = 0;
     setBlocking(true);
-    sendRepeatingHeaders = false;
+    sendRepeatingHeaders = 0;
     appleCompat=false;
+    lastHeaderTime = 0;
   }
 
   void TSOutput::fillPacket(char const * data, size_t dataLen, bool & firstPack, bool video, bool keyframe, uint32_t pkgPid, int & contPkg){
     do {
       if (!packData.getBytesFree()){
-        if ( (sendRepeatingHeaders && packCounter % 42 == 0) || !packCounter){
+        if ( (sendRepeatingHeaders && thisPacket.getTime() - lastHeaderTime > sendRepeatingHeaders) || !packCounter){
+          lastHeaderTime = thisPacket.getTime();
           TS::Packet tmpPack;
           tmpPack.FromPointer(TS::PAT);
           tmpPack.setContinuityCounter(++contPAT);
           sendTS(tmpPack.checkAndGetBuffer());
           sendTS(TS::createPMT(selectedTracks, myMeta, ++contPMT));
-          packCounter += 2;
+          sendTS(TS::createSDT(streamName, ++contSDT));
+          packCounter += 3;
         }
         sendTS(packData.checkAndGetBuffer());
         packCounter ++;

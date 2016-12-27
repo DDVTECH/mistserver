@@ -237,7 +237,6 @@ namespace Mist {
       wantRequest = false;
       seek(from);
       ts_from = from;
-      lastVid = from * 90;
     } else {
       initialize();
       std::string request = H.url.substr(H.url.find("/", 5) + 1);

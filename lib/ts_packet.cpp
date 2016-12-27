@@ -225,6 +225,7 @@ namespace TS {
   }
 
 /// Prints a packet to stdout, for analyser purposes.
+/// If detail level contains bitmask 64, prints raw bytes after packet. 
   std::string Packet::toPrettyString(size_t indent, int detailLevel) const{
     if (!(*this)){
       return "[Invalid packet - no sync byte]";
@@ -238,10 +239,10 @@ namespace TS {
       case 17: output << "SDT"; break;
       case 0x1FFF: output << "Null"; break;
       default:
-        if (pmt_pids.count(getPID())){
+        if (isPMT()){
           output << "PMT";
         }else{
-          if (stream_pids.count(getPID())){
+          if (isStream()){
             output << stream_pids[getPID()];
           }else{
             output << "Unknown";
@@ -273,33 +274,23 @@ namespace TS {
     output << std::endl;
     if (!getPID()) {
       //PAT
-      if (detailLevel >= 2){
-        output << ((ProgramAssociationTable *)this)->toPrettyString(indent + 2);
-      }else{
-        ((ProgramAssociationTable *)this)->toPrettyString(indent + 2);
-      }
+      output << ((ProgramAssociationTable *)this)->toPrettyString(indent + 2);
       return output.str();
     }
 
     if (pmt_pids.count(getPID())){
       //PMT
-      if (detailLevel >= 2){
-        output << ((ProgramMappingTable *)this)->toPrettyString(indent + 2);
-      }else{
-        ((ProgramMappingTable *)this)->toPrettyString(indent + 2);
-      }
+      output << ((ProgramMappingTable *)this)->toPrettyString(indent + 2);
       return output.str();
     }
     
     if (getPID() == 17){
       //SDT
-      if (detailLevel >= 2){
-        output << ((ServiceDescriptionTable *)this)->toPrettyString(indent + 2);
-      }
+      output << ((ServiceDescriptionTable *)this)->toPrettyString(indent + 2);
       return output.str();
     }
 
-    if (detailLevel >= 10){
+    if (detailLevel & 64){
       output << std::string(indent+2, ' ') << "Raw data bytes:";
       unsigned int size = getDataSize();
       
@@ -323,9 +314,15 @@ namespace TS {
   }
 
   /// Returns true if this PID contains a PMT.
-  /// Important caveat: only works if the corresponding PAT has been pretty-printed earlier!
+  /// Important caveat: only works if the corresponding PAT has been pretty-printed or had parsePIDs() called on it!
   bool Packet::isPMT() const{
     return pmt_pids.count(getPID());
+  }
+
+  /// Returns true if this PID contains a stream known from a PMT.
+  /// Important caveat: only works if the corresponding PMT was pretty-printed or had parseStreams() called on it!
+  bool Packet::isStream() const{
+    return stream_pids.count(getPID());
   }
 
 /// Sets the start of a new unit in this Packet.
@@ -977,6 +974,15 @@ namespace TS {
     strBuf[loc + 1] = (newVal >> 8) & 0xFF;
     strBuf[loc] = newVal & 0xFF;
     memset((void*)(strBuf + loc + 4), 0xFF, 184 - loc);
+  }
+
+  /// Parses the PMT for streams, keeping track of their PIDs to make the Packet::isStream() function work
+  void ProgramMappingTable::parseStreams(){
+    ProgramMappingEntry entry = getEntry(0);
+    while (entry) {
+      stream_pids[entry.getElementaryPid()] = entry.getCodec() + std::string(" ") + entry.getStreamTypeString();
+      entry.advance();
+    }
   }
 
 ///Print all PMT values in a human readable format

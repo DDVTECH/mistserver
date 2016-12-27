@@ -59,6 +59,7 @@ namespace TS {
       //Helper functions
       operator bool() const;
       bool isPMT() const;
+      bool isStream() const;
       void clear();
       void setDefaultPAT();      
       unsigned int getDataSize() const;
@@ -157,6 +158,7 @@ namespace TS {
       void setPCRPID(short newVal);
       short getProgramInfoLength() const;
       void setProgramInfoLength(short newVal);
+      void parseStreams();
       ProgramMappingEntry getEntry(int index) const;
       int getCRC() const;
       void calcCRC();

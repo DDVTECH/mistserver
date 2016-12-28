@@ -77,7 +77,7 @@ namespace Mist {
       return;
     }
     H.protocol = "HTTP/1.0";//Force HTTP/1.0 because some devices just don't understand chunked replies
-    H.StartResponse(H, myConn);    
+    H.StartResponse(H, myConn);
     parseData = true;
     wantRequest = false;
   }

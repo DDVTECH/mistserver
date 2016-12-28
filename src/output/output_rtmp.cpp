@@ -1144,7 +1144,7 @@ namespace Mist {
         case 9: //video data
         case 18: {//meta data
           static std::map<unsigned int, AMF::Object> pushMeta;
-          static uint64_t lastTagTime = 0;
+          static std::map<uint64_t, uint64_t> lastTagTime;
           if (!isInitialized) {
             MEDIUM_MSG("Received useless media data");
             onFinish();
@@ -1163,22 +1163,23 @@ namespace Mist {
           F.toMeta(myMeta, *amf_storage, reTrack);
           if (F.getDataLen() && !(F.needsInitData() && F.isInitData())){
             uint64_t tagTime = next.timestamp;
+            uint64_t & ltt = lastTagTime[reTrack];
             //Check for decreasing timestamps - this is a connection error.
             //We allow wrapping around the 32 bits maximum value if the most significant 8 bits are set.
             /// \TODO Provide time continuity for wrap-around.
-            if (lastTagTime && tagTime < lastTagTime && lastTagTime < 0xFF000000ull){
-              FAIL_MSG("Timestamps went from %llu to %llu (decreased): disconnecting!", lastTagTime, tagTime);
+            if (ltt && tagTime < ltt && ltt < 0xFF000000ull){
+              FAIL_MSG("Timestamps went from %llu to %llu (decreased): disconnecting!", ltt, tagTime);
               onFinish();
               break;
             }
             //Check if we went more than 10 minutes into the future
-            if (lastTagTime && tagTime > lastTagTime + 600000){
-              FAIL_MSG("Timestamps went from %llu to %llu (> 10m in future): disconnecting!", lastTagTime, tagTime);
+            if (ltt && tagTime > ltt + 600000){
+              FAIL_MSG("Timestamps went from %llu to %llu (> 10m in future): disconnecting!", ltt, tagTime);
               onFinish();
               break;
             }
             thisPacket.genericFill(tagTime, F.offset(), reTrack, F.getData(), F.getDataLen(), 0, F.isKeyframe);
-            lastTagTime = tagTime;
+            ltt = tagTime;
             if (!nProxy.userClient.getData()){
               char userPageName[NAME_BUFFER_SIZE];
               snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());

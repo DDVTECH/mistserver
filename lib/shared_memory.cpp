@@ -873,7 +873,6 @@ namespace IPC {
       empty = (char *)malloc(payLen * sizeof(char));
       memset(empty, 0, payLen);
     }
-    semGuard tmpGuard(&mySemaphore);
     unsigned int id = 0;
     for (std::deque<sharedPage>::iterator it = myPages.begin(); it != myPages.end(); it++) {
       if (!it->mapped || !it->len) {
@@ -911,7 +910,6 @@ namespace IPC {
       empty = (char *)malloc(payLen * sizeof(char));
       memset(empty, 0, payLen);
     }
-    semGuard tmpGuard(&mySemaphore);
     unsigned int id = 0;
     unsigned int userCount = 0;
     unsigned int emptyCount = 0;
@@ -940,7 +938,7 @@ namespace IPC {
               VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
             uint32_t tmpPID = *((uint32_t *)(it->mapped + 1 + offset + payLen - 4));
-            if (!Util::Procs::isRunning(tmpPID) && !(countNum == 126 || countNum == 127)){
+            if (tmpPID > 1 && !Util::Procs::isRunning(tmpPID) && !(countNum == 126 || countNum == 127)){
               WARN_MSG("process disappeared, timing out. (pid %lu)", tmpPID);
               *counter = 125 | (0x80 & (*counter)); //if process is already dead, instant timeout.
             }
@@ -954,7 +952,7 @@ namespace IPC {
                 break;
               default:
 #ifndef NOCRASHCHECK
-                if (tmpPID) {
+                if (tmpPID > 1) {
                   if (countNum > 10 && countNum < 60) {
                     if (countNum < 30) {
                       if (countNum > 15) {
@@ -982,6 +980,7 @@ namespace IPC {
                 break;
             }
             if (countNum == 127 || countNum == 126){
+              semGuard tmpGuard(&mySemaphore);
               if (disconCallback){
                 disconCallback(it->mapped + offset + 1, payLen, id);
               }
@@ -1039,8 +1038,10 @@ namespace IPC {
     }
 
     if (emptyCount > 1) {
+      semGuard tmpGuard(&mySemaphore);
       deletePage();
     } else if (!emptyCount) {
+      semGuard tmpGuard(&mySemaphore);
       newPage();
     }
 
@@ -1075,7 +1076,6 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
       return;
     }
-    semGuard tmpGuard(&mySemaphore);
     myPage.init(rhs.myPage.name, rhs.myPage.len, rhs.myPage.master);
     offsetOnPage = rhs.offsetOnPage;
   }
@@ -1096,7 +1096,6 @@ namespace IPC {
       DEBUG_MSG(DLVL_FAIL, "Creating copy of semaphore %s failed: %s", baseName.c_str(), strerror(errno));
       return;
     }
-    semGuard tmpGuard(&mySemaphore);
     myPage.init(rhs.myPage.name, rhs.myPage.len, rhs.myPage.master);
     offsetOnPage = rhs.offsetOnPage;
   }
@@ -1129,7 +1128,6 @@ namespace IPC {
     }
     while (offsetOnPage == -1) {
       {
-        semGuard tmpGuard(&mySemaphore);
         for (char i = 'A'; i <= 'Z'; i++) {
           myPage.init(baseName.substr(1) + i, (4096 << (i - 'A')), false, false);
           if (!myPage.mapped) {
@@ -1138,13 +1136,16 @@ namespace IPC {
           int offset = 0;
           while (offset + payLen + (hasCounter ? 1 : 0) <= myPage.len) {
             if ((hasCounter && myPage.mapped[offset] == 0) || (!hasCounter && !memcmp(myPage.mapped + offset, empty, payLen))) {
-              offsetOnPage = offset;
-              if (hasCounter) {
-                myPage.mapped[offset] = 1;
-                *((uint32_t *)(myPage.mapped + 1 + offset + len - 4)) = getpid();
-                HIGH_MSG("sharedClient received ID %d", offsetOnPage/(payLen+1));
+              semGuard tmpGuard(&mySemaphore);
+              if ((hasCounter && myPage.mapped[offset] == 0) || (!hasCounter && !memcmp(myPage.mapped + offset, empty, payLen))) {
+                offsetOnPage = offset;
+                if (hasCounter) {
+                  myPage.mapped[offset] = 1;
+                  *((uint32_t *)(myPage.mapped + 1 + offset + len - 4)) = getpid();
+                  HIGH_MSG("sharedClient received ID %d", offsetOnPage/(payLen+1));
+                }
+                break;
               }
-              break;
             }
             offset += payLen + (hasCounter ? 1 : 0);
           }

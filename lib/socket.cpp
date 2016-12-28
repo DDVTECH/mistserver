@@ -400,7 +400,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
 /// and when the socket is closed manually.
 /// \returns True if socket is connected, false otherwise.
 bool Socket::Connection::connected() const{
-  return (sock >= 0) || ((pipes[0] >= 0) && (pipes[1] >= 0));
+  return (sock >= 0) || ((pipes[0] >= 0) || (pipes[1] >= 0));
 }
 
 /// Returns the time this socket has been connected.

@@ -1,55 +1,40 @@
-mistplayers.html5 = {
-  name: 'HTML5 video player',
-  mimes: ['html5/application/vnd.apple.mpegurl','html5/video/mp4','html5/video/ogg','html5/video/webm','html5/audio/mp3','html5/audio/webm','html5/audio/ogg','html5/audio/wav'],
+mistplayers.videojs = {
+  name: 'VideoJS player',
+  mimes: ['html5/video/mp4','html5/application/vnd.apple.mpegurl','html5/video/ogg','html5/video/webm'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,options,streaminfo) {
-    if ((['iPad','iPhone','iPod','MacIntel'].indexOf(navigator.platform) != -1) && (mimetype == 'html5/video/mp4')) { return false; }
-    
-    var support = false;
-    var shortmime = mimetype.split('/');
-    shortmime.shift();
-    
-    if ((shortmime[0] == 'audio') && (streaminfo.height) && (!options.forceType) && (!options.forceSource)) {
-      //claim you don't support audio-only playback if there is video data, unless this mime is being forced
+  isBrowserSupported: function (mimetype,source,options,streaminfo,logfunc) {
+    if ((options.host.substr(0,7) == 'http://') && (source.url.substr(0,8) == 'https://')) {
+      if (logfunc) { logfunc('HTTP/HTTPS mismatch for this source'); }
       return false;
     }
-    
-    try {
-      var v = document.createElement((shortmime[0] == 'audio' ? 'audio' : 'video'));
-      shortmime = shortmime.join('/')
-      if ((v) && (v.canPlayType(shortmime) != "")) {
-        support = v.canPlayType(shortmime);
-      }
-    } catch(e){}
-    return support;
+    var support = true;
+    if ((location.protocol == 'file:') && (mimetype == 'html5/application/vnd.apple.mpegurl')) {
+      if (logfunc) { logfunc('This source ('+mimetype+') won\'t work if the page is run via file://'); }
+      return false;
+    }
+    return ('MediaSource' in window);
   },
   player: function(){},
-  mistControls: true
 };
-var p = mistplayers.html5.player;
+var p = mistplayers.videojs.player;
 p.prototype = new MistPlayer();
 p.prototype.build = function (options) {
   var cont = document.createElement('div');
   cont.className = 'mistplayer';
   var me = this; //to allow nested functions to access the player class itself
   
+  this.addlog('Building VideoJS player..');
+  
+  var ele = this.getElement('video');
+  cont.appendChild(ele);
+  ele.className = '';
+  ele.crossOrigin = 'anonymous'; //required for subtitles
+  
   var shortmime = options.source.type.split('/');
   shortmime.shift();
-  
-  var ele = this.getElement((shortmime[0] == 'audio' ? 'audio' : 'video'));
-  ele.className = '';
-  cont.appendChild(ele);
-  ele.crossOrigin = 'anonymous'; //required for subtitles
-  if (shortmime[0] == 'audio') {
-    this.setTracks = function() { return false; }
-    this.fullscreen = false;
-    cont.className += ' audio';
-  }
-  
-  this.addlog('Building HTML5 player..');
   
   var source = document.createElement('source');
   source.setAttribute('src',options.src);
@@ -57,59 +42,37 @@ p.prototype.build = function (options) {
   ele.appendChild(source);
   source.type = shortmime.join('/');
   this.addlog('Adding '+source.type+' source @ '+options.src);
+  if (source.type == 'application/vnd.apple.mpegurl') { source.type = 'application/x-mpegURL'; }
   
-  if ((this.tracks.subtitle.length) && (this.subtitle)) {
-    for (var i in this.tracks.subtitle) {
-      var t = document.createElement('track');
-      ele.appendChild(t);
-      t.kind = 'subtitles';
-      t.label = this.tracks.subtitle[i].desc;
-      t.srclang = this.tracks.subtitle[i].lang;
-      t.src = this.subtitle+'?track='+this.tracks.subtitle[i].trackid;
-    }
-  }
-  
+  ele.className += ' video-js';
   ele.width = options.width;
   ele.height = options.height;
   ele.style.width = options.width+'px';
   ele.style.height = options.height+'px';
   
-  if (options.autoplay) {
-    ele.setAttribute('autoplay','');
+  var vjsopts = {
+    preload: 'auto'
+  };
+  
+  if (options.autoplay) { vjsopts.autoplay = true; }
+  if (options.loop) { 
+    vjsopts.loop = true;
+    ele.loop = true;
   }
-  if (options.loop) {
-    ele.setAttribute('loop','');
-  }
-  if (options.poster) {
-    ele.setAttribute('poster',options.poster);
-  }
+  if (options.poster) { vjsopts.poster = options.poster; }
   if (options.controls) {
     if ((options.controls == 'stock') || (!this.buildMistControls())) {
       //MistControls have failed to build in the if condition
-      ele.setAttribute('controls','');
+      ele.setAttribute('controls',true);
     }
   }
   
-  cont.onclick = function(){
-    if (ele.paused) { ele.play(); }
-    else { ele.pause(); }
-  };
   
-  if (options.live) {
-    ele.addEventListener('error',function(e){
-      if ((ele.error) && (ele.error.code == 3)) {
-        e.stopPropagation();
-        ele.load();
-        me.cancelAskNextCombo();
-        e.message = 'Handled decoding error';
-        me.addlog('Decoding error: reloading..');
-        me.report({
-          type: 'playback',
-          warn: 'A decoding error was encountered, but handled'
-        });
-      }
-    },true);
-  }
+  me.onready(function(){
+    me.videojs = videojs(ele,vjsopts,function(){
+      me.addlog('Videojs initialized');
+    });
+  });
   
   this.addlog('Built html');
   
@@ -192,10 +155,13 @@ if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.m
   };
 }
 p.prototype.updateSrc = function(src){
-  this.source.setAttribute('src',src);
+  if (src == '') {
+    this.videojs.dispose();
+    return;
+  }
+  this.videojs.src({
+    src: src,
+    type: this.source.type
+  });
   return true;
-};
-p.prototype.resize = function(size){
-  this.element.width = size.width;
-  this.element.height = size.height;
 };

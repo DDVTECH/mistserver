@@ -18,7 +18,7 @@ p.prototype.build = function (options,callback) {
   cont.className = 'mistplayer';
   var me = this;
   
-  var ele = this.element('video');
+  var ele = this.getElement('video');
   ele.className = '';
   cont.appendChild(ele);
   ele.width = options.width;
@@ -43,20 +43,46 @@ p.prototype.build = function (options,callback) {
   }
   
   ele.addEventListener('error',function(e){
-    var n = {
-      0: 'NETWORK_EMPTY',
-      1: 'NETWORK_IDLE',
-      2: 'NETWORK_LOADING',
-      3: 'NETWORK_NO_SOURCE'
+    var msg;
+    if ('message' in e) {
+      msg = e.message;
     }
-    var r = {
-      0: 'HAVE_NOTHING',
-      1: 'HAVE_METADATA',
-      2: 'HAVE_CURRENT_DATA',
-      3: 'HAVE_FUTURE_DATA',
-      4: 'HAVE_ENOUGH_DATA'
-    };
-    me.adderror("Player event fired: error\nnetworkState: "+n[this.networkState]+"\nreadyState: "+r[this.readyState]);
+    else {
+      msg = 'readyState: ';
+      switch (me.element.readyState) {
+        case 0:
+          msg += 'HAVE_NOTHING';
+          break;
+        case 1:
+          msg += 'HAVE_METADATA';
+          break;
+        case 2:
+          msg += 'HAVE_CURRENT_DATA';
+          break;
+        case 3:
+          msg += 'HAVE_FUTURE_DATA';
+          break;
+        case 4:
+          msg += 'HAVE_ENOUGH_DATA';
+          break;
+      }
+      msg += ' networkState: ';
+      switch (me.element.networkState) {
+        case 0:
+          msg += 'NETWORK_EMPTY';
+          break;
+        case 1:
+          msg += 'NETWORK_IDLE';
+          break;
+        case 2:
+          msg += 'NETWORK_LOADING';
+          break;
+        case 3:
+          msg += 'NETWORK_NO_SOURCE';
+          break;
+      }
+    }
+    me.adderror(msg);
   },true);
     var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting'];
   for (var i in events) {

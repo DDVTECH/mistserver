@@ -7,20 +7,23 @@ namespace Mist {
     haveHvcc = false;
     ts_from = 0;
     setBlocking(true);
-    sendRepeatingHeaders = false;
+    sendRepeatingHeaders = 0;
     appleCompat=false;
+    lastHeaderTime = 0;
   }
 
   void TSOutput::fillPacket(char const * data, size_t dataLen, bool & firstPack, bool video, bool keyframe, uint32_t pkgPid, int & contPkg){
     do {
       if (!packData.getBytesFree()){
-        if ( (sendRepeatingHeaders && packCounter % 42 == 0) || !packCounter){
+        if ( (sendRepeatingHeaders && thisPacket.getTime() - lastHeaderTime > sendRepeatingHeaders) || !packCounter){
+          lastHeaderTime = thisPacket.getTime();
           TS::Packet tmpPack;
           tmpPack.FromPointer(TS::PAT);
           tmpPack.setContinuityCounter(++contPAT);
           sendTS(tmpPack.checkAndGetBuffer());
           sendTS(TS::createPMT(selectedTracks, myMeta, ++contPMT));
-          packCounter += 2;
+          sendTS(TS::createSDT(streamName, ++contSDT));
+          packCounter += 3;
         }
         sendTS(packData.checkAndGetBuffer());
         packCounter ++;
@@ -114,7 +117,7 @@ namespace Mist {
 
       while (currPack <= splitCount){
         unsigned int alreadySent = 0;
-        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), packTime, offset, !currPack);
+        bs = TS::Packet::getPESVideoLeadIn((currPack != splitCount ? watKunnenWeIn1Ding : dataLen+extraSize - currPack*watKunnenWeIn1Ding), packTime, offset, !currPack, Trk.bps);
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
         if (!currPack){
           if (Trk.codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
@@ -186,7 +189,7 @@ namespace Mist {
       if (Trk.codec == "AAC"){
         tempLen += 7;
       }
-      bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
+      bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime, Trk.bps);// myMeta.tracks[thisPacket.getTrackId()].rate / 1000 );
       fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
       if (Trk.codec == "AAC"){        
         bs = TS::getAudioHeader(dataLen, Trk.init);      

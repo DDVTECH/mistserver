@@ -6,6 +6,7 @@
 
 namespace Mist {
   OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : TSOutput(conn){
+    sendRepeatingHeaders = 500;//PAT/PMT every 500ms (DVB spec)
     if (config->getString("target").size()){
       if (!streamName.size()){
         WARN_MSG("Recording unconnected TS output to file! Cancelled.");
@@ -43,7 +44,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
     capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/video/mp2t";
+    capa["methods"][0u]["type"] = "html5/video/mpeg";
     capa["methods"][0u]["priority"] = 1ll;
     capa["push_urls"].append("/*.ts");
 
@@ -65,6 +66,9 @@ namespace Mist {
     H.clearHeader("Range");
     H.clearHeader("Icy-MetaData");
     H.clearHeader("User-Agent");
+    H.clearHeader("Host");
+    H.clearHeader("Accept-Ranges");
+    H.clearHeader("transferMode.dlna.org");
     H.SetHeader("Content-Type", "video/mpeg");
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){

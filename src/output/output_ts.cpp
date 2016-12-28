@@ -4,6 +4,7 @@
 
 namespace Mist {
   OutTS::OutTS(Socket::Connection & conn) : TSOutput(conn){
+    sendRepeatingHeaders = 500;//PAT/PMT every 500ms (DVB spec)
     streamName = config->getString("streamname");
     parseData = true;
     wantRequest = false;

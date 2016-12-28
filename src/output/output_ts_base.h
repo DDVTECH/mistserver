@@ -22,6 +22,7 @@ namespace Mist {
       std::map<unsigned int, int> contCounters;
       int contPAT;
       int contPMT;
+      int contSDT;
       unsigned int packCounter; ///\todo update constructors?
       TS::Packet packData;
       bool haveAvcc;
@@ -31,8 +32,8 @@ namespace Mist {
       bool haveHvcc;
       MP4::HVCC hvccbox;
       /*LTS-END*/
-      bool sendRepeatingHeaders;
-      long long unsigned int ts_from;
-      long long unsigned int lastVid;
+      uint64_t sendRepeatingHeaders; ///< Amount of ms between PAT/PMT. Zero means do not repeat.
+      uint64_t lastHeaderTime; ///< Timestamp last PAT/PMT were sent.
+      uint64_t ts_from; ///< Starting time to subtract from timestamps
   };
 }

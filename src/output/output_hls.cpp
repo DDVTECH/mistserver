@@ -435,12 +435,12 @@ namespace Mist {
       uint32_t fragIndice = Trk.timeToFragnum(from);
       contPAT = Trk.missedFrags + fragIndice; //PAT continuity counter
       contPMT = Trk.missedFrags + fragIndice; //PMT continuity counter
+      contSDT = Trk.missedFrags + fragIndice; //SDT continuity counter
       packCounter = 0;
       parseData = true;
       wantRequest = false;
       seek(from);
       ts_from = from;
-      lastVid = from * 90;
     } else {
       initialize();
       std::string request = H.url.substr(H.url.find("/", 5) + 1);

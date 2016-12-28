@@ -1830,6 +1830,20 @@ var UI = {
       $currbut.addClass('active');
     }
     
+    //unload any video's that might still be playing
+    if (typeof mistvideo != 'undefined') {
+      for (var s in mistvideo) {
+        if ('embedded' in mistvideo[s]) {
+          for (var i in mistvideo[s].embedded) {
+            try {
+              mistvideo[s].embedded[i].player.unload();
+            }
+            catch (e) {}
+          }
+        }
+      }
+    }
+    
     UI.interval.clear();
     $main.html(
       $('<h2>').text(tab)
@@ -3340,8 +3354,22 @@ var UI = {
         var $video = $('<div>').addClass('mistvideo').text('Loading player..');
         $preview_cont.append($video).append($title).append($switches);
         function initPlayer() {
-          //$video.html('');
           $log.html('');
+          
+          //unload any video's that might still be playing
+          if (typeof mistvideo != 'undefined') {
+            for (var s in mistvideo) {
+              if ('embedded' in mistvideo[s]) {
+                for (var i in mistvideo[s].embedded) {
+                  try {
+                    mistvideo[s].embedded[i].player.unload();
+                  }
+                  catch (e) {}
+                }
+              }
+            }
+          }
+          
           var options = {
             target: $video[0],
             maxheight: window.innerHeight - $('header').height(),
@@ -3362,21 +3390,38 @@ var UI = {
             $('<h3>').text('Player log:')
           ).append($log)
         );
+        var lastlog = '';
         $video.on('log error',function(e){
           var scroll = false;
           if ($log.height() + $log.scrollTop() == $log[0].scrollHeight) { scroll = true; }
           
-          $log.append(
-            $('<div>').append(
-              $('<span>').text('['+UI.format.time((new Date()).getTime() / 1e3)+']').css('margin-right','0.5em')
-            ).append(
-              $('<span>').text(e.originalEvent.message)
-            ).addClass((e.type == 'error' ? 'red' : ''))
-          );
-          
-          if (scroll) {
-            $log.scrollTop($log[0].scrollHeight);
+          //if this new message is the same as the previous, merge them
+          var newlog = e.type+e.originalEvent.message;
+          var timestamp = '['+UI.format.time((new Date()).getTime() / 1e3)+']';
+          if (lastlog == newlog) {
+            var $div = $log.children().last();
+            var $span = $div.children('[data-amount]');
+            var amount = $span.attr('data-amount');
+            amount++;
+            $span.text('('+amount+'x)').attr('data-amount',amount);
+            $div.children('.timestamp').text(timestamp);
           }
+          else {
+            $log.append(
+              $('<div>').append(
+                $('<span>').addClass('timestamp').text(timestamp).css('margin-right','0.5em')
+              ).append(
+                $('<span>').text(e.originalEvent.message)
+              ).append(
+                $('<span>').attr('data-amount',1).css('margin-left','0.5em')
+              ).addClass((e.type == 'error' ? 'red' : ''))
+            );
+            
+            if (scroll) {
+              $log.scrollTop($log[0].scrollHeight);
+            }
+          }
+          lastlog = newlog;
         });
         
         //load the player js
@@ -5278,15 +5323,21 @@ var UI = {
 };
 
 if (!('origin' in location)) {
-  location.origin = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port : '');
+  location.origin = location.protocol+'//';
 }
-
+var host;
+if (location.origin == 'file://') {
+  host = 'http://localhost:4242/api';
+}
+else {
+  host = location.origin+location.pathname.replace(/\/+$/, "")+'/api';
+}
 var mist = {
   data: {},
   user: {
     name: '',
     password: '',
-    host: location.origin+location.pathname.replace(/\/+$/, "")+'/api'
+    host: host
   },
   send: function(callback,sendData,opts){
     sendData = sendData || {};

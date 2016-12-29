@@ -18,7 +18,6 @@ namespace Mist {
     minSkipAhead = 0;
     expectTCP = false;
     isPushing = false;
-    nextIsKey = false;
   }
   
   /// Function used to send RTP packets over UDP
@@ -558,15 +557,31 @@ namespace Mist {
     return -1;
   }
 
+  /// Handles a single H264 packet, checking if others are appended at the end in Annex B format.
+  /// If so, splits them up and calls h264Packet for each. If not, calls it only once for the whole payload.
+  void OutRTSP::h264MultiParse(uint64_t ts, const uint64_t track, char * buffer, const uint32_t len){
+    uint32_t lastStart = 0;
+    for (uint32_t i = 0; i < len-4; ++i){
+      //search for start code
+      if (buffer[i] == 0 && buffer[i+1] == 0 && buffer[i+2] == 0 && buffer[i+3] == 1){
+        //if found, handle a packet from the last start code up to this start code
+        Bit::htobl(buffer+lastStart, (i-lastStart-1)-4);//size-prepend
+        if (!isH264Init(buffer+lastStart+4)){
+          h264Packet(ts, track, buffer+lastStart, (i-lastStart-1), isH264Keyframe(buffer+lastStart+4, i-lastStart-5));
+        }
+        lastStart = i;
+      }
+    }
+    //Last packet (might be first, if no start codes found)
+    Bit::htobl(buffer+lastStart, (len-lastStart)-4);//size-prepend
+    if (!isH264Init(buffer+lastStart+4)){
+      h264Packet(ts, track, buffer+lastStart, (len-lastStart), isH264Keyframe(buffer+lastStart+4, len-lastStart-4));
+    }
+  }
 
   void OutRTSP::h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, bool isKey){
     //Ignore zero-length packets (e.g. only contained init data and nothing else)
     if (!len){return;}
-    //If we know/assume the next packet is a key, mark it as such and remove assumption
-    if (nextIsKey){
-      isKey = true;
-      nextIsKey = false;
-    }
     double fps = h264meta[track].fps;
     uint32_t offset = 0;
     uint64_t newTs = ts;
@@ -602,10 +617,7 @@ namespace Mist {
   /// In case of UDP, expects packets to be pre-sorted.
   void OutRTSP::handleIncomingRTP(const uint64_t track, const RTP::Packet & pkt){
     if (!tracks[track].firstTime){
-      tracks[track].firstTime = pkt.getTimeStamp();
-      if (!tracks[track].firstTime){
-        tracks[track].firstTime = 1;
-      }
+      tracks[track].firstTime = pkt.getTimeStamp() + 1;
     }
     if (myMeta.tracks[track].codec == "AAC"){
       //assume AAC packets are single AU units
@@ -619,7 +631,7 @@ namespace Mist {
       uint32_t auSize = 0;
       for (uint32_t i = 2; i < headLen; i += 2){
         auSize = Bit::btohs(pl+i) >> 3;//only the upper 13 bits
-        nextPack.genericFill((pkt.getTimeStamp() + sampleOffset - tracks[track].firstTime) / ((double)myMeta.tracks[track].rate / 1000.0), 0, track, pl+headLen+offset, std::min(auSize, pkt.getPayloadSize() - headLen - offset), 0, false);
+        nextPack.genericFill((pkt.getTimeStamp() + sampleOffset - tracks[track].firstTime + 1) / ((double)myMeta.tracks[track].rate / 1000.0), 0, track, pl+headLen+offset, std::min(auSize, pkt.getPayloadSize() - headLen - offset), 0, false);
         offset += auSize;
         sampleOffset += samples;
         nProxy.streamName = streamName;
@@ -641,7 +653,6 @@ namespace Mist {
       if ((pl[0] & 0x1F) < 24){
         DONTEVEN_MSG("H264 single packet, type %u", (unsigned int)(pl[0] & 0x1F));
         if (isH264Init(pl)){
-          nextIsKey = true;
           return;
         }
         static char * packBuffer = 0;
@@ -662,7 +673,7 @@ namespace Mist {
         }
         Bit::htobl(packBuffer, len);//size-prepend
         memcpy(packBuffer+4, pl, len);
-        h264Packet((pkt.getTimeStamp() - tracks[track].firstTime) / 90, track, packBuffer, len+4, isH264Keyframe(packBuffer+4, len));
+        h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, packBuffer, len+4, isH264Keyframe(packBuffer+4, len));
         return;
       }
       if ((pl[0] & 0x1F) == 24){
@@ -696,16 +707,14 @@ namespace Mist {
         while (pos + 1 < pkt.getPayloadSize()){
           unsigned int pLen = Bit::btohs(pl+pos);
           isKey |= isH264Keyframe(pl+pos+2, pLen);
-          if (isH264Init(pl+pos+2)){
-            nextIsKey = true;
-          }else{
+          if (!isH264Init(pl+pos+2)){
             Bit::htobl(packBuffer+len, pLen);//size-prepend
             memcpy(packBuffer+len+4, pl+pos+2, pLen);
             len += 4+pLen;
           }
           pos += 2+pLen;
         }
-        h264Packet((pkt.getTimeStamp() - tracks[track].firstTime) / 90, track, packBuffer, len, isKey);
+        h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, packBuffer, len, isKey);
         return;
       }
       if ((pl[0] & 0x1F) == 28){
@@ -722,9 +731,14 @@ namespace Mist {
         if (fuaCurrLen && ((pkt.getPayload()[1] & 0x80) || (tracks[track].rtpSeq != pkt.getSequence()))){
           WARN_MSG("Ending unfinished FU-A");
           INSANE_MSG("H264 FU-A packet incompleted: %lu", fuaCurrLen);
-          Bit::htobl(fuaBuffer, fuaCurrLen-4);//size-prepend
-          fuaBuffer[4] |= 0x80;//set error bit
-          h264Packet((pkt.getTimeStamp() - tracks[track].firstTime) / 90, track, fuaBuffer, fuaCurrLen, isH264Keyframe(fuaBuffer+4, fuaCurrLen-4));
+          if (isH264Init(fuaBuffer+4)){
+            //attempt to detect multiple H264 packets, even though specs disallow it
+            h264MultiParse((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen);
+          }else{
+            Bit::htobl(fuaBuffer, fuaCurrLen-4);//size-prepend
+            fuaBuffer[4] |= 0x80;//set error bit
+            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen, isH264Keyframe(fuaBuffer+4, fuaCurrLen-4));
+          }
           fuaCurrLen = 0;
           return;
         }
@@ -759,10 +773,11 @@ namespace Mist {
         if (pkt.getPayload()[1] & 0x40){//last packet
           INSANE_MSG("H264 FU-A packet type %u completed: %lu", (unsigned int)(fuaBuffer[4] & 0x1F), fuaCurrLen);
           if (isH264Init(fuaBuffer+4)){
-            nextIsKey = true;
+            //attempt to detect multiple H264 packets, even though specs disallow it
+            h264MultiParse((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen);
           }else{
             Bit::htobl(fuaBuffer, fuaCurrLen-4);//size-prepend
-            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime) / 90, track, fuaBuffer, fuaCurrLen, isH264Keyframe(fuaBuffer+4, fuaCurrLen-4));
+            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen, isH264Keyframe(fuaBuffer+4, fuaCurrLen-4));
           }
           fuaCurrLen = 0;
         }

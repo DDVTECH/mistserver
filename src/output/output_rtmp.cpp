@@ -186,7 +186,6 @@ namespace Mist {
           }
         }
       }
-      return;
     }
 
 

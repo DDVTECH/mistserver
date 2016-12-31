@@ -756,6 +756,8 @@ namespace Mist {
           size_t lSlash = newUrl.rfind('/');
           if (lSlash != std::string::npos){
             streamName = newUrl.substr(lSlash+1);
+          }else{
+            streamName = newUrl;
           }
         }
         /*LTS-END*/

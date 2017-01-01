@@ -183,7 +183,7 @@ namespace Controller{
           now = Util::epoch();
         }
       }
-      Util::wait(2000);//wait at least 2 seconds
+      Util::sleep(1000);//sleep a bit
     }
   }
 }

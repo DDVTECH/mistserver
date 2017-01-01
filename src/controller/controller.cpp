@@ -383,12 +383,17 @@ int main_loop(int argc, char ** argv){
   }//indentation intentionally wrong, to minimize Pro/nonPro diffs
   /*LTS-END*/
   //join all joinable threads
+  HIGH_MSG("Joining stats thread...");
   statsThread.join();
+  HIGH_MSG("Joining monitor thread...");
   monitorThread.join();
   /*LTS-START*/
+  HIGH_MSG("Joining uplink thread...");
   uplinkThread.join();
+  HIGH_MSG("Joining push thread...");
   pushThread.join();
   #ifdef LICENSING
+  HIGH_MSG("Joining license thread...");
   licenseThread.join();
   #endif
   /*LTS-END*/

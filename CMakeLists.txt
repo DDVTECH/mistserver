@@ -269,6 +269,7 @@ makeAnalyser(DTSC dtsc)
 makeAnalyser(AMF amf)
 makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
+makeAnalyser(RAX rax)
 #makeAnalyser(RTP rtp) #LTS
 makeAnalyser(RTSP rtsp_rtp) #LTS
 makeAnalyser(TS ts) #LTS

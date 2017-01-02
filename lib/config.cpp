@@ -35,6 +35,7 @@
 #include "procs.h"
 
 bool Util::Config::is_active = false;
+static Socket::Server * serv_sock_pointer = 0;
 unsigned int Util::Config::printDebugLevel = DEBUG;//
 
 Util::Config::Config() {
@@ -380,9 +381,12 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)) {
     DEBUG_MSG(DLVL_DEVEL, "Failure to open socket");
     return 1;
   }
+  serv_sock_pointer = &server_socket;
   DEBUG_MSG(DLVL_DEVEL, "Activating threaded server: %s", getString("cmd").c_str());
   activate();
-  return threadServer(server_socket, callback);
+  int r = threadServer(server_socket, callback);
+  serv_sock_pointer = 0;
+  return r;
 }
 
 int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)) {
@@ -397,9 +401,12 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)) {
     DEBUG_MSG(DLVL_DEVEL, "Failure to open socket");
     return 1;
   }
+  serv_sock_pointer = &server_socket;
   DEBUG_MSG(DLVL_DEVEL, "Activating forked server: %s", getString("cmd").c_str());
   activate();
-  return forkServer(server_socket, callback);
+  int r = forkServer(server_socket, callback);
+  serv_sock_pointer = 0;
+  return r;
 }
 
 /// Activated the stored config. This will:
@@ -436,6 +443,7 @@ void Util::Config::signal_handler(int signum, siginfo_t * sigInfo, void * ignore
     case SIGINT: //these three signals will set is_active to false.
     case SIGHUP:
     case SIGTERM:
+      if (serv_sock_pointer){serv_sock_pointer->close();}
       is_active = false;
     default:
       switch (sigInfo->si_code){

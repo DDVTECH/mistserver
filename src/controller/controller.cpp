@@ -105,6 +105,7 @@ void statusMonitor(void * np){
   unsigned long updatechecker = Util::epoch(); /*LTS*/
   #endif
   IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  Controller::loadActiveConnectors();
   while (Controller::conf.is_active){
     /*LTS-START*/
     #ifdef UPDATER
@@ -136,7 +137,12 @@ void statusMonitor(void * np){
         Controller::configChanged = false;
       }
     }
-    Util::wait(5000);//wait at least 5 seconds
+    Util::sleep(5000);//wait at least 5 seconds
+  }
+  if (Controller::restarting){
+    Controller::prepareActiveConnectorsForReload();
+  }else{
+    Controller::prepareActiveConnectorsForShutdown();
   }
   configLock.unlink();
 }

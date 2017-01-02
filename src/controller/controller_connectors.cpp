@@ -10,6 +10,8 @@
 #include <mist/defines.h>
 #include "controller_storage.h"
 #include "controller_connectors.h"
+#include <mist/shared_memory.h>
+#include <mist/util.h>
 
 #include <iostream>
 #include <unistd.h>
@@ -19,6 +21,61 @@
 namespace Controller {
 
   static std::map<std::string, pid_t> currentConnectors; ///<The currently running connectors.
+
+  /// Updates the shared memory page with active connectors
+  void saveActiveConnectors(){
+    IPC::sharedPage f("MstCnns", 4096, true, false);
+    if (!f.mapped){
+      FAIL_MSG("Could not store connector data!");
+      return;
+    }
+    memset(f.mapped, 0, 32);
+    Util::RelAccX A(f.mapped, false);
+    A.addField("cmd", RAX_128STRING);
+    A.addField("pid", RAX_64UINT);
+    A.setReady();
+    uint32_t count = 0;
+    std::map<std::string, pid_t>::iterator it;
+    for (it = currentConnectors.begin(); it != currentConnectors.end(); ++it){
+      A.setString("cmd", it->first, count);
+      A.setInt("pid", it->second, count);
+      ++count;
+    }
+    A.setRCount(count);
+    f.master = false;//Keep the shm page around, don't kill it
+  }
+
+  /// Reads active connectors from the shared memory pages
+  void loadActiveConnectors(){
+    IPC::sharedPage f("MstCnns", 4096, false, false);
+    const Util::RelAccX A(f.mapped, false);
+    if (A.isReady()){
+      for (uint32_t i = 0; i < A.getRCount(); ++i){
+        char * p = A.getPointer("cmd", i);
+        if (p != 0 && p[0] != 0){
+          currentConnectors[p] = A.getInt("pid", i);
+          Util::Procs::remember(A.getInt("pid", i));
+        }
+      }
+    }
+  }
+
+  /// Deletes the shared memory page with connector information
+  /// in preparation of shutdown.
+  void prepareActiveConnectorsForShutdown(){
+    IPC::sharedPage f("MstCnns", 4096, true, false);
+  }
+
+  /// Forgets all active connectors, preventing them from being killed,
+  /// in preparation of reload.
+  void prepareActiveConnectorsForReload(){
+    saveActiveConnectors();
+    std::map<std::string, pid_t>::iterator it;
+    for (it = currentConnectors.begin(); it != currentConnectors.end(); ++it){
+      Util::Procs::forget(it->second);
+    }
+    currentConnectors.clear();
+  }
 
   ///\brief Checks if the binary mentioned in the protocol argument is currently active, if so, restarts it.
   ///\param protocol The protocol to check.
@@ -171,6 +228,7 @@ namespace Controller {
       }
       runningConns.erase(runningConns.begin());
     }
+    if (action){saveActiveConnectors();}
     return action;
   }
 

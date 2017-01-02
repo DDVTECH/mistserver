@@ -94,6 +94,7 @@ void createAccount (std::string account){
 /// Will check outputs, inputs and converters every five seconds
 void statusMonitor(void * np){
   IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  Controller::loadActiveConnectors();
   while (Controller::conf.is_active){
     //this scope prevents the configMutex from being locked constantly
     {
@@ -116,7 +117,12 @@ void statusMonitor(void * np){
         Controller::configChanged = false;
       }
     }
-    Util::wait(5000);//wait at least 5 seconds
+    Util::sleep(5000);//wait at least 5 seconds
+  }
+  if (Controller::restarting){
+    Controller::prepareActiveConnectorsForReload();
+  }else{
+    Controller::prepareActiveConnectorsForShutdown();
   }
   configLock.unlink();
 }

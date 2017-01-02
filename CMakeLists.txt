@@ -219,6 +219,7 @@ makeAnalyser(DTSC dtsc)
 makeAnalyser(AMF amf)
 makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
+makeAnalyser(RAX rax)
 
 ########################################
 # MistServer - Inputs                  #

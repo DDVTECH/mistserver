@@ -3161,67 +3161,67 @@ namespace MP4 {
     return getInt32(4);
   }
 
-  void ELST::setSegmentDuration(uint64_t newVal) {
+  void ELST::setSegmentDuration(uint32_t cnt, uint64_t newVal) {
     if (getVersion() == 1) {
-      setInt64(newVal, 8);
+      setInt64(newVal, 28*cnt+8);
     } else {
-      setInt32(newVal, 8);
+      setInt32(newVal, 20*cnt+8);
     }
   }
 
-  uint64_t ELST::getSegmentDuration() {
+  uint64_t ELST::getSegmentDuration(uint32_t cnt) {
     if (getVersion() == 1) {
-      return getInt64(8);
+      return getInt64(28*cnt+8);
     } else {
-      return getInt32(8);
+      return getInt32(20*cnt+8);
     }
   }
 
-  void ELST::setMediaTime(uint64_t newVal) {
+  void ELST::setMediaTime(uint32_t cnt, uint64_t newVal) {
     if (getVersion() == 1) {
-      setInt64(newVal, 16);
+      setInt64(newVal, 28*cnt+16);
     } else {
-      setInt32(newVal, 12);
+      setInt32(newVal, 20*cnt+12);
     }
   }
 
-  uint64_t ELST::getMediaTime() {
+  uint64_t ELST::getMediaTime(uint32_t cnt) {
     if (getVersion() == 1) {
-      return getInt64(16);
+      return getInt64(28*cnt+16);
     } else {
-      return getInt32(12);
+      return getInt32(20*cnt+12);
     }
   }
 
-  void ELST::setMediaRateInteger(uint16_t newVal) {
+  void ELST::setMediaRateInteger(uint32_t cnt, uint16_t newVal) {
     if (getVersion() == 1) {
-      setInt16(newVal, 24);
+      setInt16(newVal, 28*cnt+24);
     } else {
-      setInt16(newVal, 16);
+      setInt16(newVal, 20*cnt+16);
     }
   }
 
-  uint16_t ELST::getMediaRateInteger() {
+  uint16_t ELST::getMediaRateInteger(uint32_t cnt) {
     if (getVersion() == 1) {
-      return getInt16(24);
+      return getInt16(28*cnt+24);
     } else {
-      return getInt16(16);
+      return getInt16(20*cnt+16);
     }
   }
 
-  void ELST::setMediaRateFraction(uint16_t newVal) {
+  void ELST::setMediaRateFraction(uint32_t cnt, uint16_t newVal) {
     if (getVersion() == 1) {
-      setInt16(newVal, 26);
+      setInt16(newVal, 28*cnt+26);
     } else {
-      setInt16(newVal, 18);
+      setInt16(newVal, 20*cnt+18);
     }
   }
 
-  uint16_t ELST::getMediaRateFraction() {
+  uint16_t ELST::getMediaRateFraction(uint32_t cnt) {
     if (getVersion() == 1) {
-      return getInt16(26);
+      return getInt16(28*cnt+26);
     } else {
-      return getInt16(18);
+      return getInt16(20*cnt+18);
     }
   }
 
@@ -3229,11 +3229,15 @@ namespace MP4 {
     std::stringstream r;
     r << std::string(indent, ' ') << "[elst] Edit List Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
-    r << std::string(indent + 1, ' ') << "Count: " << getCount() << std::endl;
-    r << std::string(indent + 1, ' ') << "SegmentDuration: " << getSegmentDuration() << std::endl;
-    r << std::string(indent + 1, ' ') << "MediaTime: " << getMediaTime() << std::endl;
-    r << std::string(indent + 1, ' ') << "MediaRateInteger: " << getMediaRateInteger() << std::endl;
-    r << std::string(indent + 1, ' ') << "MediaRateFraction: " << getMediaRateFraction() << std::endl;
+    uint32_t cnt = getCount();
+    r << std::string(indent + 1, ' ') << "Count: " << cnt << std::endl;
+    for (uint32_t i = 0; i < cnt; ++i){
+      r << std::string(indent + 1, ' ') << "[Entry " << i << "] " << std::endl;
+      r << std::string(indent + 2, ' ') << "SegmentDuration: " << getSegmentDuration(i) << std::endl;
+      r << std::string(indent + 2, ' ') << "MediaTime: " << getMediaTime(i) << std::endl;
+      r << std::string(indent + 2, ' ') << "MediaRateInteger: " << getMediaRateInteger(i) << std::endl;
+      r << std::string(indent + 2, ' ') << "MediaRateFraction: " << getMediaRateFraction(i) << std::endl;
+    }
     return r.str();
   }
 }

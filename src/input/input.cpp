@@ -281,6 +281,10 @@ namespace Mist {
       getNext();
       nProxy.userClient.keepAlive();
     }
+    std::string reason = "Unknown";
+    if (!thisPacket){reason = "Invalid packet";}
+    if (!config->is_active){reason = "received deactivate signal";}
+    if (!nProxy.userClient.isAlive()){reason = "buffer shutdown";}
 
     closeStreamSource();
 
@@ -289,7 +293,7 @@ namespace Mist {
     pullLock.post();
     pullLock.close();
     pullLock.unlink();
-    INFO_MSG("Stream input %s closing clean", streamName.c_str());
+    INFO_MSG("Stream input %s closing clean; reason: %s", streamName.c_str(), reason.c_str());
     return;
   }
 

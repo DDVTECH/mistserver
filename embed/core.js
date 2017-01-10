@@ -1163,14 +1163,9 @@ function mistPlay(streamName,options) {
           element.checkStalledTimeout = false;
           player.cancelAskNextCombo();
         }
-        if (element.checkStalledTimeout) {
-          clearTimeout(element.checkStalledTimeout);
-          element.checkStalledTimeout = false;
-          player.cancelAskNextCombo();
-        }
       };
-      element.addEventListener('progress',progress,true);
-      element.addEventListener('playing',progress,true);
+      //element.addEventListener('progress',progress,true);
+      //element.addEventListener('playing',progress,true);
       element.addEventListener('play',function(){
         player.paused = false;
         if ((!element.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
@@ -1178,10 +1173,11 @@ function mistPlay(streamName,options) {
           var lasttime = player.element.currentTime;
           element.checkProgressTimeout = setInterval(function(){
             var newtime = player.element.currentTime;
+            progress();
             if (newtime == 0) { return; }
-            var progress = newtime - lasttime;
+            var progressed = newtime - lasttime;
             lasttime = newtime;
-            if (progress == 0) {
+            if (progressed == 0) {
               var msg = 'There should be playback but nothing was played';
               var r = {
                 type: 'playback',
@@ -1203,8 +1199,8 @@ function mistPlay(streamName,options) {
               return;
             }
             player.cancelAskNextCombo();
-            if (progress < 5) {
-              var msg = 'It seems playback is lagging (progressed '+Math.round(progress*100)/100+'/10s)'
+            if (progressed < 1) {
+              var msg = 'It seems playback is lagging (progressed '+Math.round(progressed*100)/100+'/2s)'
               player.addlog(msg);
               player.report({
                 type: 'playback',
@@ -1212,7 +1208,7 @@ function mistPlay(streamName,options) {
               });
               return;
             }
-          },10e3);
+          },2e3);
         }
       },true);
       element.addEventListener('pause',function(){

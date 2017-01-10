@@ -15,11 +15,12 @@
     <script>
       // global options can be set here
       var mistoptions = {
-        host: 'http://cat.mistserver.org:8080'
-        //host: 'http://thulmk3:8080'
+        //host: 'http://cat.mistserver.org:8080'
+        host: 'http://thulmk3:8080'
         //host: 'https://cat.mistserver.org:4433'
         //host: 'http://localhost:8080'
         //host: 'http://live.us.picarto.tv:8080'
+        //host: 'balderlaptop:8080'
       };
     </script>
     
@@ -79,14 +80,14 @@
         
         //tryplayers = Object.keys(mistplayers);
         tryplayers = [];
-        tryplayers.push('automatic');
+        //tryplayers.push('automatic');
         //tryplayers.push('html5');
-        //tryplayers.push('dashjs');
+        tryplayers.push('dashjs');
         //tryplayers.push('videojs');
         //tryplayers.push('flash_strobe');
         //tryplayers.push('silverlight');
         streams = [];
-        streams.push('live');
+        //streams.push('live');
         //streams.push('golive+emitan');
         //streams.push('subtel');
         //streams.push('ogg');
@@ -94,6 +95,7 @@
         //streams.push('vids+hahalol.mp3');
         //streams.push('lama');
         //streams.push('bunny');
+        streams.push('golive+SockyChannel');
         
         for (var j in streams) {
           for (var i in tryplayers) {

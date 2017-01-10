@@ -11,6 +11,7 @@ namespace Mist {
       virtual void onFail();
       void onHTTP();
       bool isReadyForPlay();
+      void sendIcon();
   };
 }
 

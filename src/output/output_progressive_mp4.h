@@ -49,7 +49,6 @@ namespace Mist {
       void onHTTP();
       void sendNext();
       void sendHeader();
-      void initialSeek();
     protected:
       long long fileSize;
       long long byteStart;
@@ -60,9 +59,6 @@ namespace Mist {
       
       //variables for standard MP4
       std::set <keyPart> sortSet;//needed for unfragmented MP4, remembers the order of keyparts
-
-      //functions for fragmented MP4
-      void buildTrafPart();
 
       //variables for fragmented
       int fragSeqNum;//the sequence number of the next keyframe/fragment when producing fragmented MP4's
@@ -75,6 +71,7 @@ namespace Mist {
 
       
       bool sending3GP;
+      bool chromeWorkaround;
       long long unsigned estimateFileSize();
 
       //This is a dirty solution... but it prevents copying and copying and copying again

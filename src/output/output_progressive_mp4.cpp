@@ -6,10 +6,7 @@
 #include "output_progressive_mp4.h"
 
 namespace Mist {
-  OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : HTTPOutput(conn) {
-    completeKeysOnly = false;
-  }
-  
+  OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : HTTPOutput(conn) {}
   OutProgressiveMP4::~OutProgressiveMP4() {}
 
   void OutProgressiveMP4::init(Util::Config * cfg) {
@@ -32,46 +29,6 @@ namespace Mist {
     //capa["canRecord"].append("m3u");
   }
 
-  /// Same as default implementation, except it will never play the very last keyframe
-  /// unless that is the only keyframe available.
-  void OutProgressiveMP4::initialSeek(){
-    unsigned long long seekPos = 0;
-    if (myMeta.live){
-      long unsigned int mainTrack = getMainSelectedTrack();
-      //cancel if there are no keys in the main track
-      if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){return;}
-      //seek to the newest keyframe, unless that is <5s, then seek to the oldest keyframe
-      bool first = true;
-      for (std::deque<DTSC::Key>::reverse_iterator it = myMeta.tracks[mainTrack].keys.rbegin(); it != myMeta.tracks[mainTrack].keys.rend(); ++it){
-        seekPos = it->getTime();
-        if (first){
-          first = false;
-          continue;
-        }
-        if (seekPos < 5000){continue;}//if we're near the start, skip back
-        bool good = true;
-        //check if all tracks have data for this point in time
-        for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
-          if (mainTrack == *ti){continue;}//skip self
-          if (!myMeta.tracks.count(*ti)){
-            HIGH_MSG("Skipping track %lu, not in tracks", *ti);
-            continue;
-          }//ignore missing tracks
-          if (myMeta.tracks[*ti].lastms == myMeta.tracks[*ti].firstms){
-            HIGH_MSG("Skipping track %lu, last equals first", *ti);
-            continue;
-          }//ignore point-tracks
-          if (myMeta.tracks[*ti].lastms < seekPos){good = false; break;}
-          HIGH_MSG("Track %lu is good", *ti);
-        }
-        //if yes, seek here
-        if (good){break;}
-      }
-    }
-    MEDIUM_MSG("Initial seek to %llums", seekPos);
-    seek(seekPos);
-  }
-
   long long unsigned OutProgressiveMP4::estimateFileSize() {
     long long unsigned retVal = 0;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
@@ -85,8 +42,7 @@ namespace Mist {
   ///\todo This function does not indicate errors anywhere... maybe fix this...
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size, int fragmented) {
     if (myMeta.live){
-      realTime = 0;
-      completeKeysOnly = true;
+      needsLookAhead = 420;
     }
     //Make sure we have a proper being value for the size...
     size = 0;
@@ -138,6 +94,9 @@ namespace Mist {
       unsigned int trakOffset = 0;
 
       MP4::TKHD tkhdBox(thisTrack, fragmented);
+      if (fragmented){
+        tkhdBox.setDuration(-1);
+      }
       trakBox.setContent(tkhdBox, trakOffset++);
 
       //Create an EDTS box, containing an ELST box with default values;
@@ -147,10 +106,14 @@ namespace Mist {
       elstBox.setVersion(0);
       elstBox.setFlags(0);
       elstBox.setCount(1);
-      elstBox.setSegmentDuration(thisTrack.lastms - thisTrack.firstms);
-      elstBox.setMediaTime(0);
-      elstBox.setMediaRateInteger(1);
-      elstBox.setMediaRateFraction(0);
+      if (!fragmented){
+        elstBox.setSegmentDuration(0, thisTrack.lastms - thisTrack.firstms);
+      }else{
+        elstBox.setSegmentDuration(0, -1);
+      }
+      elstBox.setMediaTime(0, 0);
+      elstBox.setMediaRateInteger(0, 1);
+      elstBox.setMediaRateFraction(0, 0);
       edtsBox.setContent(elstBox, 0);
       trakBox.setContent(edtsBox, trakOffset++);
 
@@ -159,6 +122,9 @@ namespace Mist {
       
       //Add the mandatory MDHD and HDLR boxes to the MDIA
       MP4::MDHD mdhdBox(thisTrack.lastms - thisTrack.firstms);
+      if (fragmented){
+        mdhdBox.setDuration(-1);
+      }
       mdhdBox.setLanguage(thisTrack.lang);
       mdiaBox.setContent(mdhdBox, mdiaOffset++);
       MP4::HDLR hdlrBox(thisTrack.type, thisTrack.getIdentifier());
@@ -553,7 +519,7 @@ namespace Mist {
     mfhdBox.setSequenceNumber(fragSeqNum++);
     moofBox.setContent(mfhdBox, 0);
     unsigned int moofIndex = 1;
-    std::vector<keyPart> trunOrderWithOffset;
+    sortSet.clear();
 
     //sort all parts here
     std::set <keyPart> trunOrder;
@@ -582,7 +548,7 @@ namespace Mist {
       temp.byteOffset = relativeOffset;
       relativeOffset += it->size;
       DONTEVEN_MSG("Anticipating tid: %lu size: %lu", it->trackID, it->size);
-      trunOrderWithOffset.push_back(temp);
+      sortSet.insert(temp);
     }
     trunOrder.clear();//erase the trunOrder set, to keep memory usage down
 
@@ -619,7 +585,7 @@ namespace Mist {
       trafBox.setContent(tfhdBox, 0);
 
       unsigned int trafOffset = 1;
-      for (std::vector<keyPart>::iterator trunIt = trunOrderWithOffset.begin(); trunIt != trunOrderWithOffset.end(); trunIt++) {
+      for (std::set<keyPart>::iterator trunIt = sortSet.begin(); trunIt != sortSet.end(); trunIt++) {
         if (trunIt->trackID == tid) {
           MP4::TRUN trunBox;
           trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize | MP4::trunsampleDuration | (trunIt->timeOffset ? MP4::trunsampleOffsets : 0));
@@ -643,6 +609,23 @@ namespace Mist {
       moofBox.setContent(trafBox, moofIndex);
       moofIndex++;
     }
+
+    //Oh god why do we do this.
+    if (chromeWorkaround && fragSeqNum == 1){
+      MP4::TRAF trafBox;
+      MP4::TRUN trunBox;
+      trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize | MP4::trunsampleDuration);
+      trunBox.setDataOffset(0);
+      trunBox.setFirstSampleFlags(MP4::isIPicture | MP4::noKeySample);
+      MP4::trunSampleInformation sampleInfo;
+      sampleInfo.sampleSize = 0;
+      sampleInfo.sampleDuration = -1;
+      trunBox.setSampleInformation(sampleInfo, 0);
+      trafBox.setContent(trunBox, 0);
+      moofBox.setContent(trafBox, moofIndex);
+      moofIndex++;
+    }
+
 
     //Update the trun data offsets with their correct values
     MP4::TRAF loopTrafBox;
@@ -674,6 +657,8 @@ namespace Mist {
       H.SendResponse("200", "OK", myConn);
       return;
     }
+
+    chromeWorkaround = (H.GetHeader("User-Agent").find("Chrome") != std::string::npos);
 
     /*LTS-START*/
     //allow setting of max lead time through buffer variable.
@@ -711,7 +696,6 @@ namespace Mist {
 
     seekPoint = 0;
     if (myMeta.live) {
-      realTime = 0;
       //for live we use fragmented mode
       fragSeqNum = 0;
       partListSent = 0;
@@ -791,60 +775,67 @@ namespace Mist {
 ///We take the corresponding keyframe and interframes of the main video track and take concurrent frames from its secondary (audio) tracks
 ///\todo See if we can use something more elegant than a member variable...
   void OutProgressiveMP4::buildFragment() {
-    currentPartSet.clear();
     DTSC::Key & currKey = myMeta.tracks[vidTrack].getKey(getKeyForTime(vidTrack, thisPacket.getTime()));
-    long long int startms = currKey.getTime();
-    long long int endms = startms + currKey.getLength();
+    long long int startms = thisPacket.getTime();
+    if (!needsLookAhead){
+      needsLookAhead = 1000;
+      currentPartSet.clear();
+      return;
+    }
+    long long int endms = startms + needsLookAhead;
+    bool missingSome = true;
 
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
-      DTSC::Track & thisTrack = myMeta.tracks[*it];
-      fragSet thisRange;
-      thisRange.firstPart = 0;
-      thisRange.firstTime = thisTrack.keys.begin()->getTime();
-      unsigned long long int prevParts = 0;
-      for (std::deque<DTSC::Key>::iterator it2 = thisTrack.keys.begin(); it2 != thisTrack.keys.end(); it2++) {
-        if (it2->getTime() > startms) {
-          break;
+    while (missingSome){
+      missingSome = false;
+      currentPartSet.clear();
+      for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
+        DTSC::Track & thisTrack = myMeta.tracks[*it];
+        fragSet thisRange;
+        thisRange.firstPart = 0;
+        thisRange.firstTime = thisTrack.keys.begin()->getTime();
+        unsigned long long int prevParts = 0;
+        for (std::deque<DTSC::Key>::iterator it2 = thisTrack.keys.begin(); it2 != thisTrack.keys.end(); it2++) {
+          if (it2->getTime() > startms) {
+            break;
+          }
+          thisRange.firstPart += prevParts;
+          prevParts = it2->getParts();
+          thisRange.firstTime = it2->getTime();
         }
-        thisRange.firstPart += prevParts;
-        prevParts = it2->getParts();
-        thisRange.firstTime = it2->getTime();
-      }
-      thisRange.lastPart = thisRange.firstPart;
-      thisRange.lastTime = thisRange.firstTime;
-      unsigned int curMS = thisRange.firstTime;
-      unsigned int nextMS = thisRange.firstTime;
-      bool first = true;
-      for (int i = thisRange.firstPart; i < thisTrack.parts.size(); i++) {
-        if (first && curMS >= startms) {
-          thisRange.firstPart = i;
-          thisRange.firstTime = curMS;
-          first = false;
-        }
-        nextMS = curMS + thisTrack.parts[i].getDuration();
-        if (nextMS >= endms) {
+        thisRange.lastPart = thisRange.firstPart;
+        thisRange.lastTime = thisRange.firstTime;
+        unsigned int curMS = thisRange.firstTime;
+        unsigned int nextMS = thisRange.firstTime;
+        bool first = true;
+        for (int i = thisRange.firstPart; i < thisTrack.parts.size(); i++) {
+          if (first && curMS >= startms) {
+            thisRange.firstPart = i;
+            thisRange.firstTime = curMS;
+            first = false;
+          }
+          uint32_t pDur = thisTrack.parts[i].getDuration();
+          nextMS = curMS + pDur;
+          //Make sure we always look ahead at least a single frame
+          if (pDur > needsLookAhead){
+            needsLookAhead = pDur;
+            INFO_MSG("Slow frame! Increasing lookAhead to %lums", needsLookAhead);
+          }
           thisRange.lastPart = i;
           thisRange.lastTime = curMS;
+          if (nextMS >= endms){break;}
+          curMS = nextMS;
+        }
+        if (first){
+          endms = thisTrack.lastms;
+          if (needsLookAhead != endms - startms){
+            needsLookAhead = endms - startms;
+            INFO_MSG("False start! Increasing lookAhead to %lums", needsLookAhead);
+            missingSome = true;
+          }
           break;
         }
-        curMS = nextMS;
+        currentPartSet[*it] = thisRange;
       }
-      currentPartSet[*it] = thisRange;
-    }
-  }
-
-  void OutProgressiveMP4::buildTrafPart() {
-    //building set first
-    buildFragment();//map with metadata for keyframe
-    if (!currentPartSet.size()){return;}//we're seeking, send nothing
-    sendFragmentHeader();
-    partListSent = 0;
-    //convert map to list here, apologies for inefficiency, but this works best
-    //partList = x1 * track y1 + x2 * track y2 * etc.
-    partListLength = 0;
-    //std::stringstream temp;
-    for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
-      partListLength += it->second.lastPart - it->second.firstPart + 1;
     }
   }
 
@@ -856,31 +847,51 @@ namespace Mist {
     unsigned int len = 0;
     thisPacket.getString("data", dataPointer, len);
 
+
+
     if (myMeta.live) {
       //if header needed
       if (!partListLength || partListSent >= partListLength) {
-        buildTrafPart();
+        DTSC::Track & mainTrk = myMeta.tracks[vidTrack];
+        // The extra 600ms here is for the metadata sync delay.
+        // It can be removed once we get rid of that.
+        // (sync delay = ~1s, minimum lookAhead is 420ms -> ~600ms extra needed)
+        if (fragSeqNum > 10 && thisPacket.getTime() + needsLookAhead + 600 < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
+          INFO_MSG("Skipping forward %llums (%llu ms LA)", mainTrk.keys.rbegin()->getTime() - thisPacket.getTime(), needsLookAhead);
+          seek(mainTrk.keys.rbegin()->getTime());
+          return;
+        }
+        //building set first
+        buildFragment();//map with metadata for keyframe
+        sendFragmentHeader();
+        partListSent = 0;
+        partListLength = 0;
+        for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
+          partListLength += it->second.lastPart - it->second.firstPart + 1;
+        }
       }
-      if (!partListLength){return;}//we're seeking, do not send anything./
       //generate content in mdat, meaning: send right parts
       DONTEVEN_MSG("Sending tid: %ld size: %u", thisPacket.getTrackId() , len);
       myConn.SendNow(dataPointer, len);
       partListSent++;
-      return;
     }
 
-
-    //The remainder of this function handles non-live situations
-    if ((unsigned long)thisPacket.getTrackId() != sortSet.begin()->trackID || thisPacket.getTime() != sortSet.begin()->time) {
+    if ((unsigned long)thisPacket.getTrackId() != sortSet.begin()->trackID || thisPacket.getTime() != sortSet.begin()->time || len != sortSet.begin()->size) {
       if (thisPacket.getTime() > sortSet.begin()->time || (unsigned long)thisPacket.getTrackId() > sortSet.begin()->trackID) {
         if (perfect) {
-          DEBUG_MSG(DLVL_WARN, "Warning: input is inconsistent. Expected %lu:%llu but got %ld:%llu - cancelling playback", sortSet.begin()->trackID, sortSet.begin()->time, thisPacket.getTrackId(), thisPacket.getTime());
+          WARN_MSG("Warning: input is inconsistent. Expected %lu:%llu but got %ld:%llu - cancelling playback", sortSet.begin()->trackID, sortSet.begin()->time, thisPacket.getTrackId(), thisPacket.getTime());
           perfect = false;
           myConn.close();
         }
       } else {
-        DEBUG_MSG(DLVL_HIGH, "Did not receive expected %lu:%llu but got %ld:%llu - throwing it away", sortSet.begin()->trackID, sortSet.begin()->time, thisPacket.getTrackId(), thisPacket.getTime());
+        WARN_MSG("Did not receive expected %lu:%llu but got %ld:%llu - throwing it away", sortSet.begin()->trackID, sortSet.begin()->time, thisPacket.getTrackId(), thisPacket.getTime());
       }
+      return;
+    }
+
+    //The remainder of this function handles non-live situations
+    if (myMeta.live){
+      sortSet.erase(sortSet.begin());
       return;
     }
 
@@ -923,6 +934,20 @@ namespace Mist {
   void OutProgressiveMP4::sendHeader() {
     if (myMeta.live) {
       vidTrack = getMainSelectedTrack();
+      bool reSeek = false;
+      DTSC::Track & Trk = myMeta.tracks[vidTrack];
+      for (int i = 0; i < Trk.parts.size(); i++) {
+        uint32_t pDur = Trk.parts[i].getDuration();
+        //Make sure we always look ahead at least a single frame
+        if (pDur > needsLookAhead){
+          needsLookAhead = pDur;
+          reSeek = true;
+        }
+      }
+      if (reSeek){
+        INFO_MSG("Increased initial lookAhead of %lums", needsLookAhead);
+        initialSeek();
+      }
     }else{
       seek(seekPoint);
     }

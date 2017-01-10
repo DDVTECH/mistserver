@@ -12,7 +12,7 @@ endif(COMMAND cmake_policy)
 SET(SOURCE_DIR ${PROJECT_SOURCE_DIR})
 SET(BINARY_DIR ${PROJECT_BINARY_DIR})
 include_directories(${SOURCE_DIR})
-include_directories(${BINARY_DIR})
+include_directories(${BINARY_DIR} ${BINARY_DIR}/generated)
 
 ########################################
 # Testing - Enable Tests               #
@@ -68,9 +68,11 @@ endif()
 if (NOT DEFINED NOSHM )
   add_definitions(-DSHM_ENABLED=1)
 endif()
+
 if (DEFINED BIGMETA )
   add_definitions(-DBIGMETA=1)
 endif()
+
 ########################################
 # Build Variables - Thread Names       #
 ########################################
@@ -163,7 +165,6 @@ set(libSources
   ${SOURCE_DIR}/lib/util.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
 )
-
 ########################################
 # MistLib - Build                      #
 ########################################
@@ -225,15 +226,26 @@ makeAnalyser(RAX rax)
 # MistServer - Inputs                  #
 ########################################
 macro(makeInput inputName format)
+  if (";${ARGN};" MATCHES ";folder;")
+    set(mainScript src/input/mist_in_folder.cpp)
+  else()
+    set(mainScript src/input/mist_in.cpp)
+  endif()
   add_executable(MistIn${inputName} 
-    src/input/mist_in.cpp 
+    ${mainScript}
     src/input/input.cpp 
     src/input/input_${format}.cpp 
     src/io.cpp
   )
+
+  #Set compile definitions
+  unset(my_definitions)
+  list(APPEND my_definitions "INPUTTYPE=\"input_${format}.h\"")
+
   set_target_properties(MistIn${inputName} 
-    PROPERTIES COMPILE_DEFINITIONS INPUTTYPE=\"input_${format}.h\"
+    PROPERTIES COMPILE_DEFINITIONS "${my_definitions}"
   )
+
   target_link_libraries(MistIn${inputName} 
     mist 
   )
@@ -296,22 +308,31 @@ makeOutput(JSON json           http)
 makeOutput(TS ts                    ts)
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
+
 add_executable(MistOutHTTP 
   src/output/mist_out.cpp
   src/output/output.cpp
   src/output/output_http.cpp 
   src/output/output_http_internal.cpp
   src/io.cpp
+  generated/silverlight.js.h
+  generated/embed.js.h
+  generated/html5.js.h
+  generated/flash_strobe.js.h
+  generated/theoplayer.js.h
+  generated/jwplayer.js.h
+  generated/polytrope.js.h
+  generated/dashjs.js.h
+  generated/videojs.js.h
+  generated/playerdash.js.h
+  generated/playervideo.js.h
+  generated/core.js.h
+  generated/mist.css.h
 )
 set_target_properties(MistOutHTTP 
   PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_http_internal.h\""
 )
-add_dependencies(MistOutHTTP 
-  embedcode
-)
-target_link_libraries(MistOutHTTP
-  mist 
-)
+target_link_libraries(MistOutHTTP mist)
 install(
   TARGETS MistOutHTTP
   DESTINATION bin
@@ -336,39 +357,87 @@ endif(DOXYGEN_FOUND)
 ########################################
 # Sourcery                             #
 ########################################
-if (EXISTS "${SOURCE_DIR}/sourcery")
-  if (EXISTS "${BINARY_DIR}/sourcery")
-    add_custom_target(sourcery )
-  else()
-    add_custom_target(sourcery 
-      COMMAND cp ${SOURCE_DIR}/sourcery ${BINARY_DIR}/sourcery
-    )
-  endif()
+#If cross compiling, assume failure.
+if (CMAKE_CROSSCOMPILING)
+  set(RUNA "1")
 else()
+  try_run(RUNA RUNB ${BINARY_DIR}/CMakeTmp ${SOURCE_DIR}/src/sourcery.cpp)
+endif()
+
+if("${RUNA}" EQUAL "0")
+  message("Not cross compiling - building sourcery")
   add_executable(sourcery
     src/sourcery.cpp
   )
+else()
+  message("Detected cross compiling")
+  if (EXISTS "${SOURCE_DIR}/sourcery")
+    if (EXISTS "${BINARY_DIR}/sourcery")
+      add_custom_target(sourcery )
+    else()
+      add_custom_target(sourcery 
+        COMMAND cp ${SOURCE_DIR}/sourcery ${BINARY_DIR}/sourcery
+      )
+    endif()
+  else()
+    message(FATAL_ERROR "Cross compiling and no usable sourcery binary found - please supply it")
+  endif()
 endif()
 
 ########################################
 # Embed Code                           #
 ########################################
-add_custom_target(embedcode
-  COMMAND ./sourcery ${SOURCE_DIR}/src/embed.js embed_js ${BINARY_DIR}/embed.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/html5.js html5_js ${BINARY_DIR}/html5.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/flash_strobe.js flash_strobe_js ${BINARY_DIR}/flash_strobe.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/silverlight.js silverlight_js ${BINARY_DIR}/silverlight.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/theoplayer.js theoplayer_js ${BINARY_DIR}/theoplayer.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/jwplayer.js jwplayer_js ${BINARY_DIR}/jwplayer.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/polytrope.js polytrope_js ${BINARY_DIR}/polytrope.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/dashjs.js dash_js ${BINARY_DIR}/dashjs.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/videojs.js video_js ${BINARY_DIR}/videojs.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js playerdash_js ${BINARY_DIR}/playerdash.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/videojs.js playervideo_js ${BINARY_DIR}/playervideo.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/core.js core_js ${BINARY_DIR}/core.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/mist.css mist_css ${BINARY_DIR}/mist.css.h
-  DEPENDS sourcery ${SOURCE_DIR}/src/embed.js ${SOURCE_DIR}/embed/wrappers/html5.js ${SOURCE_DIR}/embed/wrappers/flash_strobe.js ${SOURCE_DIR}/embed/wrappers/silverlight.js ${SOURCE_DIR}/embed/wrappers/theoplayer.js ${SOURCE_DIR}/embed/wrappers/jwplayer.js ${SOURCE_DIR}/embed/wrappers/polytrope.js ${SOURCE_DIR}/embed/wrappers/dashjs.js ${SOURCE_DIR}/embed/wrappers/videojs.js ${SOURCE_DIR}/embed/players/dash.js ${SOURCE_DIR}/embed/players/videojs.js ${SOURCE_DIR}/embed/core.js ${SOURCE_DIR}/embed/mist.css
-  VERBATIM
+add_custom_command(OUTPUT generated/silverlight.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/silverlight.js silverlight_js generated/silverlight.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/silverlight.js
+)
+add_custom_command(OUTPUT generated/embed.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/src/embed.js embed_js generated/embed.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/src/embed.js
+)
+add_custom_command(OUTPUT generated/html5.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/html5.js html5_js generated/html5.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/html5.js
+)
+add_custom_command(OUTPUT generated/flash_strobe.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/flash_strobe.js flash_strobe_js generated/flash_strobe.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/flash_strobe.js
+)
+add_custom_command(OUTPUT generated/theoplayer.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/theoplayer.js theoplayer_js generated/theoplayer.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/theoplayer.js
+)
+add_custom_command(OUTPUT generated/jwplayer.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/jwplayer.js jwplayer_js generated/jwplayer.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/jwplayer.js
+)
+add_custom_command(OUTPUT generated/polytrope.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/polytrope.js polytrope_js generated/polytrope.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/polytrope.js
+)
+add_custom_command(OUTPUT generated/dashjs.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/dashjs.js dash_js generated/dashjs.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/dashjs.js
+)
+add_custom_command(OUTPUT generated/videojs.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/videojs.js video_js generated/videojs.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/videojs.js
+)
+add_custom_command(OUTPUT generated/playerdash.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js playerdash_js generated/playerdash.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.js
+)
+add_custom_command(OUTPUT generated/playervideo.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/videojs.js playervideo_js generated/playervideo.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/videojs.js
+)
+add_custom_command(OUTPUT generated/core.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/core.js core_js generated/core.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/core.js
+)
+add_custom_command(OUTPUT generated/mist.css.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/mist.css mist_css generated/mist.css.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/mist.css
 )
 
 ########################################
@@ -381,23 +450,14 @@ set(lspSOURCES
   ${SOURCE_DIR}/lsp/plugins/jquery.qrcode.min.js
   ${SOURCE_DIR}/lsp/minified.js
 )
-set(lspCode "")
-foreach (f ${lspSOURCES} )
-  file (READ ${f} s)
-  set (lspCode "${lspCode}${s}")
-endforeach()
-file(READ ${SOURCE_DIR}/lsp/main.css lspCSS)
-file(READ ${SOURCE_DIR}/lsp/header.html lspHeader)
-file(READ ${SOURCE_DIR}/lsp/footer.html lspFooter)
-file(WRITE ${BINARY_DIR}/server.html "${lspHeader}<script>${lspCode}</script><style>${lspCSS}</style>${lspFooter}")
-set (lspCSS "")
-set (lspHeader "")
-set (lspFooter "")
 
-add_custom_target(localSettingsPage
-  ./sourcery ${BINARY_DIR}/server.html server_html ${BINARY_DIR}/server.html.h
-  DEPENDS sourcery
-  VERBATIM
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/server.html 
+  COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR="${SOURCE_DIR}" -DlspSOURCES="${lspSOURCES}" -P ${SOURCE_DIR}/CMakeServHtml.txt
+  DEPENDS ${lspSOURCES} ${SOURCE_DIR}/CMakeServHtml.txt ${SOURCE_DIR}/lsp/main.css ${SOURCE_DIR}/lsp/header.html ${SOURCE_DIR}/lsp/footer.html
+)
+add_custom_command(OUTPUT generated/server.html.h
+  COMMAND ./sourcery generated/server.html server_html generated/server.html.h
+  DEPENDS sourcery ${BINARY_DIR}/generated/server.html
 )
 
 ########################################
@@ -424,22 +484,19 @@ set(controllerSources
   ${SOURCE_DIR}/src/controller/controller_capabilities.cpp
   ${SOURCE_DIR}/src/controller/controller_api.cpp
 )
-
 ########################################
 # MistController - Build               #
 ########################################
 add_executable(MistController
   ${controllerHeaders}
   ${controllerSources}
+  generated/server.html.h
 )
 set_target_properties(MistController
   PROPERTIES COMPILE_DEFINITIONS RELEASE=${RELEASE}
 )
 target_link_libraries(MistController
   mist
-)
-add_dependencies(MistController
-  localSettingsPage
 )
 install(
   TARGETS MistController
@@ -458,8 +515,6 @@ add_custom_target(clean-all
   COMMAND rm -rf ${BINARY_DIR}/Testing
   COMMAND rm -rf ${BINARY_DIR}/CTestTestfile.cmake
   COMMAND rm -rf ${BINARY_DIR}/DartConfiguration.tcl
-  COMMAND rm -rf ${BINARY_DIR}/server.html
-  COMMAND rm -rf ${BINARY_DIR}/server.html.h
-  COMMAND rm -rf ${BINARY_DIR}/embed.js.h
   COMMAND rm -rf ${BINARY_DIR}/mist
 )
+

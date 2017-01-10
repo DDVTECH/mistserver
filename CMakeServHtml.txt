@@ -1,0 +1,11 @@
+set(lspCode "")
+string(REPLACE " " ";" lspLIST ${lspSOURCES})
+foreach (f ${lspLIST} )
+  file (READ ${f} s)
+  set (lspCode "${lspCode}${s}")
+endforeach()
+file(READ ${SOURCE_DIR}/lsp/main.css lspCSS)
+file(READ ${SOURCE_DIR}/lsp/header.html lspHeader)
+file(READ ${SOURCE_DIR}/lsp/footer.html lspFooter)
+file(WRITE generated/server.html "${lspHeader}<script>${lspCode}</script><style>${lspCSS}</style>${lspFooter}")
+

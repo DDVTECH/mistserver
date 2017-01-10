@@ -600,8 +600,7 @@ var UI = {
         case 'checklist':
           $field = $('<div>').addClass('checkcontainer');
           $controls = $('<div>').addClass('controls');
-          $checklist = $('<div>').addClass('checklist');
-          $field.append($controls).append($checklist);
+          /* All tends to be confusing: disable it for now
           $controls.append(
             $('<label>').text('All').prepend(
                 $('<input>').attr('type','checkbox').click(function(){
@@ -614,6 +613,10 @@ var UI = {
                 })
               )
           );
+          $field.append($controls);
+          */
+          $checklist = $('<div>').addClass('checklist');
+          $field.append($checklist);
           for (var i in e.checklist) {
             if (typeof e.checklist[i] == 'string') {
               e.checklist[i] = [e.checklist[i], e.checklist[i]];

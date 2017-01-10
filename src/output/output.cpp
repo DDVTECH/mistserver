@@ -20,10 +20,6 @@
 #include <netdb.h>
 /*LTS-END*/
 
-#ifndef MIN_DELAY
-#define MIN_DELAY 2500
-#endif
-
 namespace Mist{
   JSON::Value Output::capa = JSON::Value();
 
@@ -50,7 +46,7 @@ namespace Mist{
     sought = false;
     isInitialized = false;
     isBlocking = false;
-    completeKeysOnly = false;
+    needsLookAhead = 0;
     lastStats = 0;
     maxSkipAhead = 7500;
     minSkipAhead = 5000;
@@ -751,7 +747,7 @@ namespace Mist{
 
   /// This function decides where in the stream initial playback starts.
   /// The default implementation calls seek(0) for VoD.
-  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than MIN_DELAY ms from the end.
+  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than needsLookAhead ms from the end.
   /// Unless lastms < 5000, then it seeks to the first keyframe of the main track.
   /// Aborts if there is no main track or it has no keyframes.
   void Output::initialSeek(){
@@ -767,7 +763,7 @@ namespace Mist{
         bool good = true;
         //check if all tracks have data for this point in time
         for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
-          if (myMeta.tracks[*ti].lastms < seekPos+MIN_DELAY){good = false; break;}
+          if (myMeta.tracks[*ti].lastms < seekPos+needsLookAhead){good = false; break;}
           if (mainTrack == *ti){continue;}//skip self
           if (!myMeta.tracks.count(*ti)){
             HIGH_MSG("Skipping track %lu, not in tracks", *ti);
@@ -854,41 +850,32 @@ namespace Mist{
               }
             }
 
-            //delay the stream until its current keyframe is complete, if only complete keys wanted
-            if (completeKeysOnly){
-              bool completeKeyReady = false;
-              int timeoutTries = 40;//wait default 250ms*40=10 seconds
-              for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-                if (it->second.keys.size() >1){
-                  int thisTimeoutTries = ((it->second.lastms - it->second.firstms) / (it->second.keys.size()-1)) / 125;
-                  if (thisTimeoutTries > timeoutTries) timeoutTries = thisTimeoutTries;
-                }
-              }
-              unsigned int mTrack = getMainSelectedTrack();
-              while(!completeKeyReady && timeoutTries>0){
-                if (!myMeta.tracks[mTrack].keys.size() || myMeta.tracks[mTrack].keys.rbegin()->getTime() <= thisPacket.getTime()){
-                  completeKeyReady = false;
-                }else{
-                  DTSC::Key & mustHaveKey = myMeta.tracks[mTrack].getKey(getKeyForTime(mTrack, thisPacket.getTime()));
-                  unsigned long long mustHaveTime = mustHaveKey.getTime() + mustHaveKey.getLength(); 
-                  completeKeyReady = true;
-                  for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-                    if (myMeta.tracks[*it].lastms < mustHaveTime){
-                      completeKeyReady = false;
-                      break;
+            //delay the stream until metadata has caught up, if needed
+            if (needsLookAhead){
+              //we sleep in 250ms increments, or less if the lookahead time itself is less
+              uint32_t sleepTime = std::min((uint32_t)250, needsLookAhead);
+              //wait at most double the look ahead time, plus ten seconds
+              uint32_t timeoutTries = (needsLookAhead / sleepTime) * 2 + (10000/sleepTime);
+              uint64_t needsTime = thisPacket.getTime() + needsLookAhead; 
+              while(--timeoutTries){
+                bool lookReady = true;
+                for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+                  if (myMeta.tracks[*it].lastms <= needsTime){
+                    if (timeoutTries == 1){
+                      WARN_MSG("Track %lu: %llu <= %llu", *it, myMeta.tracks[*it].lastms, needsTime);
                     }
+                    lookReady = false;
+                    break;
                   }
                 }
-                if (!completeKeyReady){
-                  timeoutTries--;//we count down
-                  stats();
-                  Util::wait(250);
-                  updateMeta();
-                }
+                if (lookReady){break;}
+                Util::wait(sleepTime);
+                stats();
+                updateMeta();
               }
-              if (timeoutTries<=0){
-                WARN_MSG("Waiting for key frame timed out");
-                completeKeysOnly = false;
+              if (!timeoutTries){
+                WARN_MSG("Waiting for lookahead timed out - resetting lookahead!");
+                needsLookAhead = 0;
               }
             }
 

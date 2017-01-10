@@ -783,14 +783,14 @@ namespace MP4 {
       ELST();
       void setCount(uint32_t newVal);
       uint32_t getCount();
-      void setSegmentDuration(uint64_t newVal);
-      uint64_t getSegmentDuration();
-      void setMediaTime(uint64_t newVal);
-      uint64_t getMediaTime();
-      void setMediaRateInteger(uint16_t newVal);
-      uint16_t getMediaRateInteger();
-      void setMediaRateFraction(uint16_t newVal);
-      uint16_t getMediaRateFraction();
+      void setSegmentDuration(uint32_t cnt, uint64_t newVal);
+      uint64_t getSegmentDuration(uint32_t cnt);
+      void setMediaTime(uint32_t cnt, uint64_t newVal);
+      uint64_t getMediaTime(uint32_t cnt);
+      void setMediaRateInteger(uint32_t cnt, uint16_t newVal);
+      uint16_t getMediaRateInteger(uint32_t cnt);
+      void setMediaRateFraction(uint32_t cnt, uint16_t newVal);
+      uint16_t getMediaRateFraction(uint32_t cnt);
       std::string toPrettyString(uint32_t indent = 0);
   };
 }

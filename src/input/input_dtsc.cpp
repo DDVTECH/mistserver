@@ -248,68 +248,79 @@ namespace Mist {
   void inputDTSC::getNext(bool smart) {
     if (!needsLock()){
       thisPacket.reInit(srcConn);
-      if (thisPacket.getVersion() == DTSC::DTCM){
-        nProxy.userClient.keepAlive();
-        std::string cmd;
-        thisPacket.getString("cmd", cmd);
-        if (cmd == "reset"){
-          //Read next packet
-          thisPacket.reInit(srcConn);
-          if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
-            DTSC::Meta newMeta;
-            newMeta.reinit(thisPacket);
-            //Detect new tracks
-            std::set<unsigned int> newTracks;
-            for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin(); it != newMeta.tracks.end(); it++){
-              if (!myMeta.tracks.count(it->first)){
-                newTracks.insert(it->first);
+      while (config->is_active){
+        if (thisPacket.getVersion() == DTSC::DTCM){
+          nProxy.userClient.keepAlive();
+          std::string cmd;
+          thisPacket.getString("cmd", cmd);
+          if (cmd == "reset"){
+            //Read next packet
+            thisPacket.reInit(srcConn);
+            if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
+              DTSC::Meta newMeta;
+              newMeta.reinit(thisPacket);
+              //Detect new tracks
+              std::set<unsigned int> newTracks;
+              for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin(); it != newMeta.tracks.end(); it++){
+                if (!myMeta.tracks.count(it->first)){
+                  newTracks.insert(it->first);
+                }
               }
-            }
 
-            for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
-              INFO_MSG("Reset: adding track %d", *it);
-              myMeta.tracks[*it] = newMeta.tracks[*it];
-              continueNegotiate(*it, true);
-            }
-
-            //Detect removed tracks
-            std::set<unsigned int> deletedTracks;
-            for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-              if (!newMeta.tracks.count(it->first)){
-                deletedTracks.insert(it->first);
+              for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
+                INFO_MSG("Reset: adding track %d", *it);
+                myMeta.tracks[*it] = newMeta.tracks[*it];
+                continueNegotiate(*it, true);
               }
-            }
 
-            for(std::set<unsigned int>::iterator it = deletedTracks.begin(); it != deletedTracks.end(); it++){
-              INFO_MSG("Reset: deleting track %d", *it);
-              myMeta.tracks.erase(*it);
-            }
+              //Detect removed tracks
+              std::set<unsigned int> deletedTracks;
+              for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+                if (!newMeta.tracks.count(it->first)){
+                  deletedTracks.insert(it->first);
+                }
+              }
 
-            //Read next packet before returning
-            return getNext(smart);
+              for(std::set<unsigned int>::iterator it = deletedTracks.begin(); it != deletedTracks.end(); it++){
+                INFO_MSG("Reset: deleting track %d", *it);
+                myMeta.tracks.erase(*it);
+              }
+              thisPacket.reInit(srcConn);//read the next packet before continuing
+            }else{
+              myMeta = DTSC::Meta();
+            }
           }else{
-            myMeta = DTSC::Meta();
+            thisPacket.reInit(srcConn);//read the next packet before continuing
           }
-        }else{
-          //Read next packet before returning
-          thisPacket.reInit(srcConn);
-        }
-      }else if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
-        DTSC::Meta newMeta;
-        newMeta.reinit(thisPacket);
-        std::set<unsigned int> newTracks;
-        for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin(); it != newMeta.tracks.end(); it++){
-          if (!myMeta.tracks.count(it->first)){
-            newTracks.insert(it->first);
+          continue;//parse the next packet before returning
+        }else if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
+          DTSC::Meta newMeta;
+          newMeta.reinit(thisPacket);
+          std::set<unsigned int> newTracks;
+          for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin(); it != newMeta.tracks.end(); it++){
+            if (!myMeta.tracks.count(it->first)){
+              newTracks.insert(it->first);
+            }
           }
-        }
 
-        for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
-          INFO_MSG("New header: adding track %d (%s)", *it, newMeta.tracks[*it].type.c_str());
-          myMeta.tracks[*it] = newMeta.tracks[*it];
-          continueNegotiate(*it, true);
+          for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
+            INFO_MSG("New header: adding track %d (%s)", *it, newMeta.tracks[*it].type.c_str());
+            myMeta.tracks[*it] = newMeta.tracks[*it];
+            continueNegotiate(*it, true);
+          }
+          thisPacket.reInit(srcConn);//read the next packet before continuing
+          continue;//parse the next packet before returning
         }
-        return getNext(smart);
+        //We now know we have either a data packet, or an error.
+        if (!thisPacket.getTrackId()){
+          if (thisPacket.getVersion() == DTSC::DTSC_V2){
+            WARN_MSG("Received bad packet for stream %s: %llu@%llu", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime());
+          }else{
+            //All types except data packets are handled above, so if it's not a V2 data packet, we assume corruption
+            WARN_MSG("Invalid packet header for stream %s", streamName.c_str());
+          }
+        }
+        return;//we have a packet
       }
     }else{
       if (smart) {

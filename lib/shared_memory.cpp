@@ -807,11 +807,15 @@ namespace IPC {
 
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
-    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2) << myPages.size()), (32 * 1024 * 1024)), true);
+    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2) << myPages.size()), (32 * 1024 * 1024)), false);
+    if (!tmp.mapped){
+      tmp.init(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2) << myPages.size()), (32 * 1024 * 1024)), true);
+      tmp.master = false;
+    }
     myPages.push_back(tmp);
-    tmp.master = false;
-    DEBUG_MSG(DLVL_VERYHIGH, "Created a new page: %s", tmp.name.c_str());
-    amount += tmp.len / (payLen + (hasCounter ? 1 : 0)) - 1;
+    myPages.back().master = true;
+    VERYHIGH_MSG("Created a new page: %s", tmp.name.c_str());
+    amount += (32 * 1024 * 1024)*myPages.size();//assume maximum load - we don't want to miss any entries
   }
 
   ///\brief Deletes the highest allocated page
@@ -982,12 +986,12 @@ namespace IPC {
             if (countNum == 127 || countNum == 126){
               semGuard tmpGuard(&mySemaphore);
               if (disconCallback){
-                disconCallback(it->mapped + offset + 1, payLen, id);
+                disconCallback(counter + 1, payLen, id);
               }
-              memset(it->mapped + offset + 1, 0, payLen);
-              it->mapped[offset] = 0;
+              memset(counter + 1, 0, payLen);
+              *counter = 0;
             } else {
-              it->mapped[offset] ++;
+              ++(*counter);
             }
           } else {
             //stop if we're past the amount counted and we're empty

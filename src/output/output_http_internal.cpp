@@ -32,6 +32,11 @@ namespace Mist {
   }
   
   void OutHTTP::onFail(){
+    // send logo icon
+    if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
+      sendIcon();
+      return;
+    }
     INFO_MSG("Failing: %s", H.url.c_str());
     if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
       if (H.url.size() >= 5 && H.url.substr(0, 5) == "/json"){
@@ -258,36 +263,7 @@ namespace Mist {
     }
     // send logo icon
     if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
-      /*LTS-START*/
-      if (H.GetVar("s").size() && H.GetVar("s") == SUPER_SECRET){
-        H.Clean();
-        H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
-        H.setCORSHeaders();
-        if(method == "OPTIONS" || method == "HEAD"){
-          H.SendResponse("200", "OK", myConn);
-          H.Clean();
-          return;
-        }
-        H.SetBody("Yup");
-        H.SendResponse("200", "OK", myConn);
-        H.Clean();
-        return;
-      }
-      /*LTS-END*/
-      H.Clean();
-      #include "../icon.h"
-      H.SetHeader("Content-Type", "image/x-icon");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
-      H.SetHeader("Content-Length", icon_len);
-      H.setCORSHeaders();
-      if(method == "OPTIONS" || method == "HEAD"){
-        H.SendResponse("200", "OK", myConn);
-        H.Clean();
-        return;
-      }
-      H.SendResponse("200", "OK", myConn);
-      myConn.SendNow((const char*)icon_data, icon_len);
-      H.Clean();
+      sendIcon();
       return;
     }
     
@@ -646,4 +622,40 @@ namespace Mist {
       return;
     }
   }
+
+  void OutHTTP::sendIcon(){
+    std::string method = H.method;
+    /*LTS-START*/
+    if (H.GetVar("s").size() && H.GetVar("s") == SUPER_SECRET){
+      H.Clean();
+      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+      H.SetBody("Yup");
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    /*LTS-END*/
+    H.Clean();
+    #include "../icon.h"
+    H.SetHeader("Content-Type", "image/x-icon");
+    H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+    H.SetHeader("Content-Length", icon_len);
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    H.SendResponse("200", "OK", myConn);
+    myConn.SendNow((const char*)icon_data, icon_len);
+    H.Clean();
+  }
+
 }
+

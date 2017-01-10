@@ -11,6 +11,8 @@
 
 Util::Config * cfg = 0;
 std::string passphrase;
+std::string fallback;
+
 unsigned int weight_cpu = 500;
 unsigned int weight_ram = 500;
 unsigned int weight_bw = 1000;
@@ -270,7 +272,7 @@ int handleRequest(Socket::Connection & conn){
         }
       }
       if (bestScore == 0){
-        bestHost = "FULL";
+        bestHost = fallback;
         FAIL_MSG("All servers seem to be out of bandwidth!");
       }else{
         INFO_MSG("Winner: %s scores %u", bestHost.c_str(), bestScore);
@@ -401,6 +403,13 @@ int main(int argc, char ** argv){
   opt["value"][0u] = "root";
   conf.addOption("username", opt);
 
+  opt["arg"] = "string";
+  opt["short"] = "F";
+  opt["long"] = "fallback";
+  opt["help"] = "Default reply if no servers are available";
+  opt["value"][0u] = "FULL";
+  conf.addOption("fallback", opt);
+
   opt["arg"] = "integer";
   opt["short"] = "R";
   opt["long"] = "ram";
@@ -436,6 +445,7 @@ int main(int argc, char ** argv){
   weight_cpu = conf.getInteger("cpu");
   weight_bw = conf.getInteger("bw");
   weight_bonus = conf.getInteger("extra");
+  fallback = conf.getString("fallback");
 
   JSON::Value & nodes = conf.getOption("server", true);
   WARN_MSG("Load balancer activating. Balancing between %llu nodes.", nodes.size());

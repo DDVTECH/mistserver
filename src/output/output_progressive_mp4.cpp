@@ -84,10 +84,10 @@ namespace Mist {
       elstBox.setVersion(0);
       elstBox.setFlags(0);
       elstBox.setCount(1);
-      elstBox.setSegmentDuration(thisTrack.lastms - thisTrack.firstms);
-      elstBox.setMediaTime(0);
-      elstBox.setMediaRateInteger(1);
-      elstBox.setMediaRateFraction(0);
+      elstBox.setSegmentDuration(0, thisTrack.lastms - thisTrack.firstms);
+      elstBox.setMediaTime(0, 0);
+      elstBox.setMediaRateInteger(0, 1);
+      elstBox.setMediaRateFraction(0, 0);
       edtsBox.setContent(elstBox, 0);
       trakBox.setContent(edtsBox, trakOffset++);
 

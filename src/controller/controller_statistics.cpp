@@ -345,11 +345,19 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
         streamStats[streamName].viewers++;
         sessionType = SESS_VIEWER;
       }
-      streamStats[streamName].upBytes += currUp;
-      streamStats[streamName].downBytes += currDown;
+      if (!streamName.size() || streamName[0] == 0){
+        if (streamStats.count(streamName)){streamStats.erase(streamName);}
+      }else{
+        streamStats[streamName].upBytes += currUp;
+        streamStats[streamName].downBytes += currDown;
+      }
     }else{
-      streamStats[streamName].upBytes += currUp - prevUp;
-      streamStats[streamName].downBytes += currDown - prevDown;
+      if (!streamName.size() || streamName[0] == 0){
+        if (streamStats.count(streamName)){streamStats.erase(streamName);}
+      }else{
+        streamStats[streamName].upBytes += currUp - prevUp;
+        streamStats[streamName].downBytes += currDown - prevDown;
+      }
       if (sessionType == SESS_UNSET){
         if (data.connector() == "INPUT"){
           sessionType = SESS_INPUT;

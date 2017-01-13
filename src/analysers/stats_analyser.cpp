@@ -8,6 +8,27 @@
 #include <mist/shared_memory.h>
 #include <mist/config.h>
 #include <mist/defines.h>
+#include <mist/socket.h>
+
+
+void printStatistics(char * data, size_t len, unsigned int id){
+  std::cout << "#" << id << ": (state: " << (unsigned int)(data[-1] & 0x7F) << ")" << std::endl;
+  IPC::statExchange tmpEx(data);
+  std::cout << "  Now:        " << tmpEx.now() << std::endl;
+  std::cout << "  Time:       " << tmpEx.time() << std::endl;
+  std::cout << "  lastSec:    " << tmpEx.lastSecond() << std::endl;
+  std::cout << "  down:       " << tmpEx.down() << std::endl;
+  std::cout << "  up:         " << tmpEx.up() << std::endl;
+  std::string h;
+  Socket::hostBytesToStr(tmpEx.host().data(), tmpEx.host().size(), h);
+  std::cout << "  host:       " << h << std::endl;
+  std::cout << "  streamName: " << tmpEx.streamName() << std::endl;
+  std::cout << "  connector:  " << tmpEx.connector() << std::endl;
+  std::cout << "  CRC32:      " << tmpEx.crc() << std::endl;
+  std::cout << "  sync:       " << (int)tmpEx.getSync() << std::endl;
+  std::cout << "  PID:        " << tmpEx.getPID() << std::endl;
+}
+
 
 /// Will emulate a given amount of clients in the statistics.
 int main(int argc, char ** argv){
@@ -18,6 +39,7 @@ int main(int argc, char ** argv){
   conf.addOption("down", JSON::fromString("{\"arg\":\"string\", \"short\":\"d\", \"long\":\"down\", \"default\":13000, \"help\":\"Bytes per second downstream.\"}"));
   conf.addOption("sine", JSON::fromString("{\"arg\":\"string\", \"short\":\"S\", \"long\":\"sine\", \"default\":0, \"help\":\"Bytes per second variance in a sine pattern.\"}"));
   conf.addOption("userscale", JSON::fromString("{\"arg\":\"string\", \"short\":\"U\", \"long\":\"userscale\", \"default\":0, \"help\":\"If != 0, scales users from 0% to 100% bandwidth.\"}"));
+  conf.addOption("read", JSON::fromString("{\"arg\":\"num\", \"short\":\"r\", \"long\":\"read\", \"default\":0, \"help\":\"If != 0, does not simulate, just reads existing data.\"}"));
   conf.parseArgs(argc, argv);
   
   std::string streamName = conf.getString("stream");
@@ -28,7 +50,16 @@ int main(int argc, char ** argv){
   long long scale = conf.getInteger("userscale");
   long long currsine = sine;
   long long goingUp = 0;
-  
+ 
+
+  if (conf.getInteger("read")){
+    IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
+    statServer.abandon();
+    statServer.parseEach(printStatistics);
+    return 0;
+  }
+
+
   IPC::sharedClient ** clients = (IPC::sharedClient **)malloc(sizeof(IPC::sharedClient *)*clientCount);
   for (long long i = 0; i < clientCount; i++){
     clients[i] = new IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);

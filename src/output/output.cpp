@@ -44,6 +44,7 @@ namespace Mist{
     maxSkipAhead = 7500;
     minSkipAhead = 5000;
     realTime = 1000;
+    lastRecv = Util::epoch();
     if (myConn){
       setBlocking(true);
     }else{
@@ -658,11 +659,17 @@ namespace Mist{
     static bool firstData = true;//only the first time, we call onRequest if there's data buffered already.
     if ((firstData && myConn.Received().size()) || myConn.spool()){
       firstData = false;
-      DEBUG_MSG(DLVL_DONTEVEN, "onRequest");
+      DONTEVEN_MSG("onRequest");
       onRequest();
+      lastRecv = Util::epoch();
     }else{
       if (!isBlocking && !parseData){
-        Util::sleep(500);
+        if (Util::epoch() - lastRecv > 300){
+          WARN_MSG("Disconnecting 5 minute idle connection");
+          myConn.close();
+        }else{
+          Util::sleep(500);
+        }
       }
     }
   }

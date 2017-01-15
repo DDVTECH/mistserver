@@ -338,6 +338,7 @@ namespace DTSC {
       uint16_t version;
       long long int moreheader;
       long long int bufferWindow;
+      std::string sourceURI;
   };
 
   /// An iterator helper for easily iterating over the parts in a Fragment.

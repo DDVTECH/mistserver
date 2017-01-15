@@ -1311,6 +1311,7 @@ namespace DTSC {
     merged = source.getFlag("merged");
     bufferWindow = source.getInt("buffer_window");
     moreheader = source.getInt("moreheader");
+    source.getString("source", sourceURI);
     Scan tmpTracks = source.getScan().getMember("tracks");
     unsigned int num = 0;
     Scan tmpTrack;
@@ -1330,6 +1331,7 @@ namespace DTSC {
   Meta::Meta(JSON::Value & meta) {
     vod = meta.isMember("vod") && meta["vod"];
     live = meta.isMember("live") && meta["live"];
+    sourceURI = meta.isMember("source") ? meta["source"].asStringRef() : "";
     version = meta.isMember("version") ? meta["version"].asInt() : 0;
     merged = meta.isMember("merged") && meta["merged"];
     bufferWindow = 0;
@@ -1741,6 +1743,7 @@ namespace DTSC {
       }
     }
     if (version){dataLen += 18;}
+    if (sourceURI.size()){dataLen += 13+sourceURI.size();}
     return dataLen + 8; //add 8 bytes header
   }
 
@@ -1769,6 +1772,11 @@ namespace DTSC {
     if (version) {
       writePointer(p, "\000\007version\001", 10);
       writePointer(p, convertLongLong(version), 8);
+    }
+    if (sourceURI.size()) {
+      writePointer(p, "\000\006source\002", 9);
+      writePointer(p, convertInt(sourceURI.size()), 4);
+      writePointer(p, sourceURI);
     }
     if (bufferWindow) {
       writePointer(p, "\000\015buffer_window\001", 16);
@@ -1806,6 +1814,11 @@ namespace DTSC {
     if (version) {
       conn.SendNow("\000\007version\001", 10);
       conn.SendNow(convertLongLong(version), 8);
+    }
+    if (sourceURI.size()) {
+      conn.SendNow("\000\006source\002", 9);
+      conn.SendNow(convertInt(sourceURI.size()), 4);
+      conn.SendNow(sourceURI);
     }
     if (bufferWindow) {
       conn.SendNow("\000\015buffer_window\001", 16);
@@ -1894,6 +1907,9 @@ namespace DTSC {
     if (version) {
       result["version"] = (long long)version;
     }
+    if (sourceURI.size()){
+      result["source"] = sourceURI;
+    }
     result["moreheader"] = moreheader;
     return result;
   }
@@ -1924,6 +1940,9 @@ namespace DTSC {
     }
     if (bufferWindow) {
       str << std::string(indent, ' ') << "Buffer Window: " << bufferWindow << std::endl;
+    }
+    if (sourceURI.size()){
+      str << std::string(indent, ' ') << "Source: " << sourceURI << std::endl;
     }
     str << std::string(indent, ' ') << "More Header: " << moreheader << std::endl;
   }

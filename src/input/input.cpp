@@ -157,10 +157,6 @@ namespace Mist {
       return 0;
     }
 
-    if (streamName != "") {
-      config->getOption("streamname") = streamName;
-    }
-    streamName = config->getString("streamname");
     nProxy.streamName = streamName;
 
     if (!setup()){
@@ -173,6 +169,7 @@ namespace Mist {
       std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
       return 0;
     }
+    myMeta.sourceURI = config->getString("input");
     parseHeader();
     MEDIUM_MSG("Header parsed, %lu tracks", myMeta.tracks.size());
 

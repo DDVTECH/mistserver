@@ -30,6 +30,11 @@ HTTP::URL::URL(const std::string & url){
   size_t first_slash = url.find('/', proto_sep);
   if (first_slash != std::string::npos){
     path = url.substr(first_slash+1);
+    size_t qmark = path.find('?');
+    if (qmark != std::string::npos){
+      args = path.substr(qmark+1);
+      path.erase(qmark);
+    }
   }
   //host and port are now definitely between proto_sep and first_slash
   //we check for [ at the start because we may have an IPv6 address as host
@@ -73,6 +78,7 @@ HTTP::URL::URL(const std::string & url){
   EXTREME_MSG("URL protocol: %s", protocol.c_str());
   EXTREME_MSG("URL port: %s", port.c_str());
   EXTREME_MSG("URL path: %s", path.c_str());
+  EXTREME_MSG("URL args: %s", args.c_str());
 }
 
 ///Returns the port in numeric format

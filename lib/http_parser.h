@@ -77,7 +77,8 @@ namespace HTTP {
       std::string host;///< Hostname or IP address of URL
       std::string protocol;///<Protocol of URL
       std::string port;///<Port of URL
-      std::string path;///<Path after the first slash, not inclusive
+      std::string path;///<Path after the first slash (not inclusive) but before any question mark
+      std::string args;///<Everything after the question mark in the path, if it was present
   };
 
 }//HTTP namespace

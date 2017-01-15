@@ -26,13 +26,18 @@ namespace Controller{
     if (Storage.isMember("license") && Storage.isMember("license_id")){
       INFO_MSG("Reading license from storage")
       readLicense(Storage["license_id"].asInt(), Storage["license"].asStringRef());
+      if (!isLicensed()){
+        updateLicense();
+      }
+    }else{
+      updateLicense();
     }
   }
+
   bool isLicensed(){
     uint64_t now = Util::epoch();
 #if DEBUG >= DLVL_DEVEL
-    INFO_MSG("Verifying license against %llu:", now);
-    std::cout << currentLicense.toPrettyString() << std::endl;
+    INFO_MSG("Verifying license against %llu: %s", now, currentLicense.toString().c_str());
 #endif
     //The loop below is timechecker loop
     if (!currentLicense.isMember("valid_from") || !currentLicense.isMember("valid_till")){
@@ -53,7 +58,6 @@ namespace Controller{
   }
   
   bool checkLicense(){
-    updateLicense();
     if (!currentLicense.isMember("interval")){
       currentLicense["interval"] = 3600ll;
     }
@@ -179,6 +183,7 @@ namespace Controller{
     unsigned long now = Util::epoch();
     while (conf.is_active){
       if (Util::epoch() - now > currentLicense["interval"].asInt()){
+        updateLicense();
         if (checkLicense()){
           now = Util::epoch();
         }

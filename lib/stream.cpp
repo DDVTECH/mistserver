@@ -286,6 +286,11 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   //finally, unlock the config semaphore
   configLock.post();
 
+  if (isProvider){
+    //Set environment variable so we can know if we have a provider when re-exec'ing.
+    setenv("MISTPROVIDER", "1", 1);
+  }
+
   INFO_MSG("Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
   char * argv[30] = {(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(), (char *)filename.c_str()};
   int argNum = 3;

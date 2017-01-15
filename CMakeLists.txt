@@ -322,7 +322,7 @@ makeInput(Buffer buffer)
 makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS
-makeInput(Folder folder folder)#LTS
+makeInput(Folder folder)#LTS
 
 ########################################
 # MistServer - Outputs                 #

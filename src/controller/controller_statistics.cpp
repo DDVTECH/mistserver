@@ -1258,11 +1258,12 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       netUsage.getline(line, 300);
       long long unsigned sent = 0;
       long long unsigned recv = 0;
-      //std::cout << line;
-      if (sscanf(line, "%*s %llu %*u %*u %*u %*u %*u %*u %*u %llu", &recv, &sent) == 2){
-        //std::cout << "Net: " << recv << ", " << sent << std::endl;
-        bw_down_total += recv;
-        bw_up_total += sent;
+      char iface[10];
+      if (sscanf(line, "%9s %llu %*u %*u %*u %*u %*u %*u %*u %llu", iface, &recv, &sent) == 3){
+        if (iface[0] != 'l' || iface[1] != 'o'){
+          bw_down_total += recv;
+          bw_up_total += sent;
+        }
       }
     }
   }

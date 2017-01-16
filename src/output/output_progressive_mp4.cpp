@@ -661,7 +661,7 @@ namespace Mist {
       return;
     }
 
-    chromeWorkaround = (H.GetHeader("User-Agent").find("Chrome") != std::string::npos && H.GetHeader("User-Agent").find("Edge") == std::string::npos);
+    chromeWorkaround = (H.GetHeader("User-Agent").find("Chrome") != std::string::npos && H.GetHeader("User-Agent").find("Edge") == std::string::npos && H.GetHeader("User-Agent").find("OPR/") == std::string::npos);
 
     /*LTS-START*/
     //allow setting of max lead time through buffer variable.

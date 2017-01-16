@@ -630,12 +630,15 @@ namespace Mist {
     //Update the trun data offsets with their correct values
     MP4::TRAF loopTrafBox;
     MP4::TRUN fixTrunBox;
-    for (unsigned int i = 0; i < moofBox.getContentCount(); i++) {
+    uint32_t moofCount = moofBox.getContentCount();
+    for (unsigned int i = 0; i < moofCount; i++) {
       if (moofBox.getContent(i).isType("traf")) {
-        loopTrafBox = ((MP4::TRAF &)moofBox.getContent(i));
-        for (unsigned int j = 0; j < loopTrafBox.getContentCount(); j++) {
-          if (loopTrafBox.getContent(j).isType("trun")) {
-            fixTrunBox = ((MP4::TRUN &)loopTrafBox.getContent(j));
+        loopTrafBox = ((MP4::TRAF &)moofBox.getContent(i, true));
+        uint32_t trafCount = loopTrafBox.getContentCount();
+        for (unsigned int j = 0; j < trafCount; j++) {
+          MP4::Box & tmpBox = loopTrafBox.getContent(j, true);
+          if (tmpBox.isType("trun")) {
+            fixTrunBox = (MP4::TRUN &)tmpBox;
             fixTrunBox.setDataOffset(fixTrunBox.getDataOffset() + moofBox.boxedSize() + 8);
           }
         }
@@ -807,7 +810,8 @@ namespace Mist {
         unsigned int curMS = thisRange.firstTime;
         unsigned int nextMS = thisRange.firstTime;
         bool first = true;
-        for (int i = thisRange.firstPart; i < thisTrack.parts.size(); i++) {
+        size_t maxParts = thisTrack.parts.size(); 
+        for (size_t i = thisRange.firstPart; i < maxParts; i++) {
           if (first && curMS >= startms) {
             thisRange.firstPart = i;
             thisRange.firstTime = curMS;

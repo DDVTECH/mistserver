@@ -580,7 +580,7 @@ namespace Mist {
         }
         if (it->asStringRef() == "img"){
           #include "img.js.h"
-          response.append((char*)img, (size_t)img_len);
+          response.append((char*)img_js, (size_t)img_js_len);
           used = true;
         }
         if (!used) {

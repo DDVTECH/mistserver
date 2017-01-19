@@ -745,12 +745,13 @@ function mistPlay(streamName,options) {
   var local = options;
   var global = (typeof mistoptions == 'undefined' ? {} : mistoptions);
   var options = {
-    host: null,
-    autoplay: true,
-    controls: true,
-    loop: false,
-    poster: null,
-    callback: false
+    host: null,         //override mistserver host (default is the host that player.js is loaded from)
+    autoplay: true,     //start playing when loaded
+    controls: true,     //show controls (MistControls when available)
+    loop: false,        //don't loop when the stream has finished
+    poster: null,       //don't show an image before the stream has started
+    callback: false,    //don't call a function when the player has finished building
+    streaminfo: false   //don't use this streaminfo but collect it from the mistserverhost
   };
   for (var i in global) {
     options[i] = global[i];
@@ -781,27 +782,11 @@ function mistPlay(streamName,options) {
     }
   }
   
-  //get info js
-  var info = document.createElement('script');
-  info.src = options.host+'/info_'+encodeURIComponent(streamName)+'.js';
-  embedLog('Retrieving stream info from '+info.src);
-  document.head.appendChild(info);
-  info.onerror = function(){
-    options.target.innerHTML = '';
-    options.target.removeAttribute('data-loading');
-    mistError('Error while loading stream info.');
-    protoplay.report({
-      type: 'init',
-      error: 'Failed to load '+info.src
-    });
-  }
-  info.onload = function(){
+  
+  function onstreaminfo() {
     options.target.innerHTML = '';
     options.target.removeAttribute('data-loading');
     embedLog('Stream info was loaded succesfully');
-    
-    //clean up info script
-    document.head.removeChild(info);
     
     //get streaminfo data
     var streaminfo = mistvideo[streamName];
@@ -1254,6 +1239,35 @@ function mistPlay(streamName,options) {
         error: str
       });
       mistError(str);
+    }
+  }
+  if ((options.streaminfo) && (typeof options.streaminfo == 'object') && ('type' in options.streaminfo)
+    && ('source' in options.streaminfo) && (options.streaminfo.source.length)
+    && ('meta' in options.streaminfo) && ('tracks' in options.streaminfo.meta)) { //catch some of the most problematic stuff
+    if (typeof mistvideo == 'undefined') { mistvideo = {}; }
+    mistvideo[streamName] = options.streaminfo;
+    onstreaminfo();
+  }
+  else {
+    //get info js
+    var info = document.createElement('script');
+    info.src = options.host+'/info_'+encodeURIComponent(streamName)+'.js';
+    embedLog('Retrieving stream info from '+info.src);
+    document.head.appendChild(info);
+    info.onerror = function(){
+      options.target.innerHTML = '';
+      options.target.removeAttribute('data-loading');
+      mistError('Error while loading stream info.');
+      protoplay.report({
+        type: 'init',
+        error: 'Failed to load '+info.src
+      });
+    }
+    info.onload = function(){
+      //clean up info script
+      document.head.removeChild(info);
+      
+      onstreaminfo();
     }
   }
 }

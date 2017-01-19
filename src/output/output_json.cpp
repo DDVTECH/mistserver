@@ -46,7 +46,7 @@ namespace Mist {
   }
   
   bool OutJSON::onFinish(){
-    if (!jsonp.size()){
+    if (!jsonp.size() && !first){
       myConn.SendNow("]);\n\n", 5);
     }
     myConn.close();

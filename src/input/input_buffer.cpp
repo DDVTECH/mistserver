@@ -253,6 +253,14 @@ namespace Mist {
     //return is by reference
   }
 
+  /*LTS-START*/
+  static bool liveBW(const char * param, const void * bwPtr){
+    if (!param || !bwPtr){return false;}
+    INFO_MSG("Comparing %s to %lu", param, *((uint32_t*)bwPtr));
+    return JSON::Value(param).asInt() <= *((uint32_t*)bwPtr);
+  }
+  /*LTS-END*/
+
   /// \triggers
   /// The `"STREAM_BUFFER"` trigger is stream-specific, and is ran whenever the buffer changes state between playable (FULL) or not (EMPTY). It cannot be cancelled. It is possible to receive multiple EMPTY calls without FULL calls in between, as EMPTY is always generated when a stream is unloaded from memory, even if this stream never reached playable state in the first place (e.g. a broadcast was cancelled before filling enough buffer to be playable). Its payload is:
   /// ~~~~~~~~~~~~~~~
@@ -263,10 +271,13 @@ namespace Mist {
   void inputBuffer::updateMeta() {
     static bool wentDry = false;
     static long long unsigned int lastFragCount = 0xFFFFull;
+    static uint32_t lastBPS = 0;/*LTS*/
+    uint32_t currBPS = 0;
     long long unsigned int firstms = 0xFFFFFFFFFFFFFFFFull;
     long long unsigned int lastms = 0;
     long long unsigned int fragCount = 0xFFFFull;
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+      currBPS += it->second.bps; /*LTS*/
       if (it->second.type == "meta" || !it->second.type.size()) {
         continue;
       }
@@ -290,20 +301,31 @@ namespace Mist {
       }
     }
     /*LTS-START*/
-    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && Triggers::shouldTrigger("STREAM_BUFFER")){
+    if (currBPS != lastBPS){
+      lastBPS = currBPS;
+      if (Triggers::shouldTrigger("LIVE_BANDWIDTH", streamName, liveBW, &lastBPS)){
+        std::string payload = streamName + "\n" + JSON::Value((long long)lastBPS).asStringRef();
+        if (!Triggers::doTrigger("LIVE_BANDWIDTH", payload, streamName)){
+          WARN_MSG("Shutting down buffer because bandwidth limit reached!");
+          config->is_active = false;
+          userPage.finishEach();
+        }
+      }
+    }
+    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && Triggers::shouldTrigger("STREAM_BUFFER", streamName)){
       JSON::Value stream_details;
       fillBufferDetails(stream_details);
       if (lastFragCount == 0xFFFFull) {
-        std::string payload = config->getString("streamname") + "\nFULL\n" + stream_details.toString();
-        Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+        std::string payload = streamName + "\nFULL\n" + stream_details.toString();
+        Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
       }else{
         if (stream_details.isMember("issues") != wentDry){
           if (stream_details.isMember("issues")){
-            std::string payload = config->getString("streamname") + "\nDRY\n" + stream_details.toString();
-            Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+            std::string payload = streamName + "\nDRY\n" + stream_details.toString();
+            Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
           }else{
-            std::string payload = config->getString("streamname") + "\nRECOVER\n" + stream_details.toString();
-            Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+            std::string payload = streamName + "\nRECOVER\n" + stream_details.toString();
+            Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
           }
         }
       }

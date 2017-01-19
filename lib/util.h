@@ -37,6 +37,8 @@ namespace Util {
   #define RAX_128STRING 0x33
   #define RAX_256STRING 0x34
   #define RAX_RAW 0x40
+  #define RAX_256RAW 0x44
+  #define RAX_512RAW 0x45
 
   /// Reliable Access class.
   /// Provides reliable access to memory data structures, using dynamic static offsets and a status field.

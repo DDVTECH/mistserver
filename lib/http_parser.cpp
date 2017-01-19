@@ -74,17 +74,26 @@ HTTP::URL::URL(const std::string & url){
     port = host;
     host = "";
   }
-  EXTREME_MSG("URL host: %s", host.c_str());
-  EXTREME_MSG("URL protocol: %s", protocol.c_str());
-  EXTREME_MSG("URL port: %s", port.c_str());
-  EXTREME_MSG("URL path: %s", path.c_str());
-  EXTREME_MSG("URL args: %s", args.c_str());
+  EXTREME_MSG("URL: %s", getUrl().c_str());
 }
 
 ///Returns the port in numeric format
 uint32_t HTTP::URL::getPort() const{
   if (!port.size()){return 80;}
   return atoi(port.c_str());
+}
+
+///Returns the full URL in string format
+std::string HTTP::URL::getUrl() const{
+  std::string ret;
+  if (protocol.size()){
+    ret = protocol + "://" + host;
+  }else{
+    ret = "//" + host;
+  }
+  if (port.size()){ret += ":" + port;}
+  if (path.size()){ret += "/" + path;}
+  return ret;
 }
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.

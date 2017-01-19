@@ -74,6 +74,7 @@ namespace HTTP {
     public:
       URL(const std::string & url);
       uint32_t getPort() const;
+      std::string getUrl() const;
       std::string host;///< Hostname or IP address of URL
       std::string protocol;///<Protocol of URL
       std::string port;///<Port of URL

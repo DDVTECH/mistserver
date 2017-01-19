@@ -142,7 +142,7 @@ namespace Socket{
     ~UDPConnection();
     void close();
     int getSock();
-    int bind(int port, std::string iface = "", const std::string &multicastAddress = "");
+    uint16_t bind(int port, std::string iface = "", const std::string &multicastAddress = "");
     void setBlocking(bool blocking);
     void SetDestination(std::string hostname, uint32_t port);
     void GetDestination(std::string &hostname, uint32_t &port);

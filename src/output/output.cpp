@@ -29,6 +29,13 @@ namespace Mist{
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
     capa["optional"]["debug"]["type"] = "debug";
+
+    JSON::Value option;
+    option["long"] = "noinput";
+    option["short"] = "N";
+    option["help"] = "Do not start input if not already started";
+    option["value"].append(0ll);
+    cfg->addOption("noinput", option);
   }
   
   Output::Output(Socket::Connection & conn) : myConn(conn){
@@ -160,10 +167,19 @@ namespace Mist{
   /// Finally, calls updateMeta()
   void Output::reconnect(){
     thisPacket.null();
-    if (!Util::startInput(streamName)){
-      FAIL_MSG("Opening stream %s failed - aborting initialization", streamName.c_str());
-      onFail();
-      return;
+    if (config->hasOption("noinput") && config->getBool("noinput")){
+      Util::sanitizeName(streamName);
+      if (!Util::streamAlive(streamName)){
+        FAIL_MSG("Stream %s not already active - aborting initialization", streamName.c_str());
+        onFail();
+        return;
+      }
+    }else{
+      if (!Util::startInput(streamName)){
+        FAIL_MSG("Opening stream %s failed - aborting initialization", streamName.c_str());
+        onFail();
+        return;
+      }
     }
     if (statsPage.getData()){
       statsPage.finish();

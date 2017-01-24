@@ -303,7 +303,7 @@ MistPlayer.prototype.buildMistControls = function(){
   }
   volume.className = 'volume';
   sound.title = 'Volume';
-  if ('mistVolume' in localStorage) {
+  if (('localStorage' in window) && (localStorage != null) && ('mistVolume' in localStorage)) {
     ele.volume = localStorage['mistVolume'];
     volume.style.height = ele.volume*100+'%';
   }
@@ -452,7 +452,7 @@ MistPlayer.prototype.buildMistControls = function(){
         }
         if (i == 'subtitle')  {
           s.value = 0;
-          if ('mistSubtitle' in localStorage) {
+          if (('localStorage' in window) && (localStorage != null) && ('mistSubtitle' in localStorage)) {
             var option = s.querySelector('[data-lang="'+localStorage['mistSubtitle']+'"]');
             if (option) {
               s.value = option.value;
@@ -1082,7 +1082,7 @@ function mistPlay(streamName,options) {
       catch (e) {
         //show the next player/reload buttons if there is an error in the player build code
         options.target.appendChild(player.element);
-        player.askNextCombo('Error while building player');
+        player.askNextCombo('Error while building player: '+e.stack);
         throw e;
         player.report({
           type: 'init',

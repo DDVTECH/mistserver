@@ -162,7 +162,6 @@ p.prototype.build = function (options) {
       me.addlog('Player event fired: '+e.type);
     },true);
   }
-  
   return cont;
 }
 p.prototype.play = function(){ return this.element.play(); };

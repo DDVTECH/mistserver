@@ -119,6 +119,28 @@
               //forceSource: 3,
               loop: true,
               //controls: 'stock'
+              streaminfo: {
+                source: [{
+                  type: 'html5/video/mp4',
+                  url: 'http://localhost:8080/bunny.mp4'
+                },{
+                  type: 'html5/application/vnd.apple.mpegurl',
+                  url: 'http://localhost:8080/hls/bunny/index.m3u8'
+                },{
+                  type: 'dash/video/mp4',
+                  url: 'http://localhost:8080/dash/bunny/index.mpd'
+                },{
+                  player_url: '/flashplayer.swf',
+                  type: 'flash/10',
+                  url: 'rtmp://localhost:1935/play/bunny'
+                }],
+                meta: {
+                  tracks: []
+                },
+                height: 404,
+                width: 720,
+                type: 'vod'
+              },
               callback: function(player) {
                 var button = document.createElement('button');
                 button.innerHTML = 'askNextCombo();';

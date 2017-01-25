@@ -350,6 +350,39 @@
     transform: rotate(360deg);
   }
 }
+
+.countdown10 {
+  height: 1em;
+  width: 1em;
+  display: inline-block;
+  vertical-align: bottom;
+  border-radius: 50%;
+  background-image: linear-gradient(to right,black 50%,#ddd 0);
+  border: 1px solid black;
+  margin: 0 0.2em;
+  opacity: 0;
+  animation: appear 10s step-start 1;
+}
+.countdown10:before {
+  content: '';
+  display: block;
+  margin-left: 50%;
+  height: 100%;
+  border-radius: 0 100% 100% 0 / 50%;
+  background-color: black;
+  transform-origin: 0 50%;
+  animation: rotate 5s linear 2, bg 10s step-end 1;
+}
+@keyframes rotate {
+  to { transform: rotate(.5turn); }
+}
+@keyframes bg {
+  50% { background: #ddd; }
+}
+@keyframes appear {
+  to { opacity: 1; }
+}
+
 .video-js .vjs-big-play-button:before, .video-js .vjs-control:before, .video-js .vjs-modal-dialog, .vjs-modal-dialog .vjs-modal-dialog-content {
   position: absolute;
   top: 0;

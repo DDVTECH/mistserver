@@ -58,9 +58,10 @@ namespace MP4 {
     setBox(newContent, tempLoc);
   }
 
-  Box & TRAF::getContent(uint32_t no) {
+  /// Gets a reference to the given box number. If unsafe, doesn't check boundaries (getContentCount check skipped).
+  Box & TRAF::getContent(uint32_t no, bool unsafe) {
     static Box ret = Box((char *)"\000\000\000\010erro", false);
-    if (no > getContentCount()) {
+    if (!unsafe && no > getContentCount()) {
       return ret;
     }
     unsigned int i = 0;

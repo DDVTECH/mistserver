@@ -17,6 +17,7 @@
 namespace MP4 {
   std::string readBoxType(FILE * newData);
   bool skipBox(FILE * newData);
+  uint64_t calcBoxSize(const char * p);
 
 
   class Box {
@@ -81,7 +82,7 @@ namespace MP4 {
       containerBox();
       uint32_t getContentCount();
       void setContent(Box & newContent, uint32_t no);
-      Box & getContent(uint32_t no);
+      Box & getContent(uint32_t no, bool unsafe = false);
       std::string toPrettyString(uint32_t indent = 0);
   };
 

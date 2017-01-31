@@ -554,6 +554,7 @@ namespace Mist {
 
 
     bool firstSample = true;
+    bool hasAudio = false;
     //Fun fact! Firefox cares about the ordering here.
     //It doesn't care about the order or track IDs in the header.
     //But - the first TRAF must be a video TRAF, if video is present.
@@ -562,6 +563,9 @@ namespace Mist {
       if (myMeta.tracks[it->first].type == "video"){
         sortedTracks.push_front(it);
       }else{
+        if (myMeta.tracks[it->first].type == "audio"){
+          hasAudio = true;
+        }
         sortedTracks.push_back(it);
       }
     }
@@ -611,7 +615,7 @@ namespace Mist {
     }
 
     //Oh god why do we do this.
-    if (chromeWorkaround && fragSeqNum == 1){
+    if (chromeWorkaround && hasAudio && fragSeqNum == 1){
       MP4::TRAF trafBox;
       MP4::TRUN trunBox;
       trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize | MP4::trunsampleDuration);

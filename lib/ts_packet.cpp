@@ -787,6 +787,7 @@ namespace TS {
       case 0x15: return "meta PES";
       case 0x16: return "meta section";
       case 0x1B: return "H264";
+      case 0x24: return "H265";
       case 0x81: return "AC3";
       default: return "unknown";
     }
@@ -798,6 +799,7 @@ namespace TS {
       case 0x02:
       case 0x09:
       case 0x10:
+      case 0x24:
       case 0x1B: return "video";
       case 0x03:
       case 0x04:

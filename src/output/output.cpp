@@ -747,7 +747,7 @@ namespace Mist{
       }else{
         VERYHIGH_MSG("Track %d no data (key %u @ %u) - waiting...", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         unsigned int i = 0;
-        while (nProxy.curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10){
+        while (!myMeta.live && nProxy.curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10){
           Util::wait(100*i);
           stats();
         }

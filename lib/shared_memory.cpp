@@ -942,7 +942,7 @@ namespace IPC {
               VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
             }
             uint32_t tmpPID = *((uint32_t *)(it->mapped + 1 + offset + payLen - 4));
-            if (tmpPID > 1 && !Util::Procs::isRunning(tmpPID) && !(countNum == 126 || countNum == 127)){
+            if (tmpPID > 1 && it->master && !Util::Procs::isRunning(tmpPID) && !(countNum == 126 || countNum == 127)){
               WARN_MSG("process disappeared, timing out. (pid %lu)", tmpPID);
               *counter = 125 | (0x80 & (*counter)); //if process is already dead, instant timeout.
             }
@@ -956,7 +956,7 @@ namespace IPC {
                 break;
               default:
 #ifndef NOCRASHCHECK
-                if (tmpPID > 1) {
+                if (tmpPID > 1 && it->master) {
                   if (countNum > 10 && countNum < 60) {
                     if (countNum < 30) {
                       if (countNum > 15) {
@@ -1038,15 +1038,22 @@ namespace IPC {
         ++emptyCount;
       } else {
         emptyCount = 0;
+        std::deque<sharedPage>::iterator tIt = it;
+        if (++tIt == myPages.end()){
+          bool unsetMaster = !(it->master);
+          semGuard tmpGuard(&mySemaphore);
+          newPage();
+          if (unsetMaster){
+            (myPages.end()-1)->master = false;
+          }
+          it = myPages.end() - 2;
+        }
       }
     }
 
     if (emptyCount > 1) {
       semGuard tmpGuard(&mySemaphore);
       deletePage();
-    } else if (!emptyCount) {
-      semGuard tmpGuard(&mySemaphore);
-      newPage();
     }
 
     if (empty) {

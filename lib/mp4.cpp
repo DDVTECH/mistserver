@@ -84,25 +84,21 @@ namespace MP4 {
     return std::string(retVal + 4, 4);
   }
 
-  ///\todo make good working calcBoxSize with size and payloadoffset calculation
-  unsigned long int calcBoxSize(char readVal[16]) {
-    return (unsigned int)ntohl(((int *)readVal)[0]);
+  /// Checks box size, offset-aware
+  uint64_t calcBoxSize(const char * p){
+    uint64_t r = ntohl(((int *)p)[0]);
+    if (r == 1){
+      return (((uint64_t)ntohl(((int *)p)[2])) << 32) | ntohl(((int *)p)[3]);
+    }
+    return r;
   }
 
   bool skipBox(FILE * newData) {
     char readVal[16];
     long long unsigned int pos = ftell(newData);
-    if (fread(readVal, 4, 1, newData)) {
+    if (fread(readVal, 16, 1, newData)) {
       uint64_t size = calcBoxSize(readVal);
-      if (size == 1) {
-        if (fread(readVal + 4, 12, 1, newData)) {
-          size = 0 + ntohl(((int *)readVal)[2]);
-          size <<= 32;
-          size += ntohl(((int *)readVal)[3]);
-        } else {
-          return false;
-        }
-      } else if (size == 0) {
+      if (size == 0) {
         fseek(newData, 0, SEEK_END);
         return true;
       }
@@ -120,9 +116,9 @@ namespace MP4 {
   bool Box::read(FILE * newData) {
     char readVal[16];
     long long unsigned int pos = ftell(newData);
-    if (fread(readVal, 4, 1, newData)) {
+    if (fread(readVal, 16, 1, newData)) {
       payloadOffset = 8;
-      uint64_t size = calcBoxSize(readVal);
+      uint64_t size = ntohl(((int *)readVal)[0]);
       if (size == 1) {
         if (fread(readVal + 4, 12, 1, newData)) {
           size = 0 + ntohl(((int *)readVal)[2]);
@@ -182,7 +178,7 @@ namespace MP4 {
   /// Returns the total boxed size of this box, including the header.
   uint64_t Box::boxedSize() {
     if (payloadOffset == 16) {
-      return ((uint64_t)ntohl(((int *)data)[2]) << 32) + ntohl(((int *)data)[3]);
+      return ((uint64_t)ntohl(((int *)data)[2]) << 32) | ntohl(((int *)data)[3]);
     }
     return ntohl(((int *)data)[0]);
   }
@@ -621,7 +617,7 @@ namespace MP4 {
     if ((index + payloadOffset + 8) > boxedSize()) {
       return 0;
     }
-    return getBox(index).boxedSize();
+    return calcBoxSize(data + index + payloadOffset);
   }
 
   /// Replaces the existing box at the given index by the new box newEntry.
@@ -732,9 +728,9 @@ namespace MP4 {
     setBox(newContent, tempLoc);
   }
 
-  Box & containerBox::getContent(uint32_t no) {
+  Box & containerBox::getContent(uint32_t no, bool unsafe) {
     static Box ret = Box((char *)"\000\000\000\010erro", false);
-    if (no > getContentCount()) {
+    if (!unsafe && no > getContentCount()) {
       return ret;
     }
     unsigned int i = 0;

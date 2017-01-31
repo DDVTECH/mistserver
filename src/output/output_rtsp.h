@@ -109,18 +109,23 @@ namespace Mist {
           channel = -1;
           size_t port_loc = transport.rfind("client_port=") + 12;
           cPort = atol(transport.substr(port_loc, transport.rfind('-') - port_loc).c_str());
-          unsigned int rand_offset = ((rand() % 4000) << 1) + 2000;
+          uint32_t portA, portB;
           //find available ports locally;
           int sendbuff = 4*1024*1024;
           data.SetDestination(host, cPort);
-          data.bind(rand_offset + trk.trackID * 2);
+          portA = data.bind(0);
           setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
           rtcp.SetDestination(host, cPort + 1);
-          rtcp.bind(rand_offset + trk.trackID * 2 + 1);
+          portB = rtcp.bind(0);
           setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
           std::stringstream tStr;
-          tStr << "RTP/AVP/UDP;unicast;client_port=" << cPort << '-' << cPort + 1 << ";source="<< source <<";server_port=" << (rand_offset + trk.trackID * 2) << "-" << (rand_offset + trk.trackID * 2 + 1) << ";ssrc=" << std::hex << SSrc << std::dec;
+          tStr << "RTP/AVP/UDP;unicast;client_port=" << cPort << '-' << cPort + 1 << ";";
+          if (source.size()){
+            tStr << "source=" << source << ";";
+          }
+          tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << SSrc << std::dec;
           transportString = tStr.str();
+          INFO_MSG("Transport string: %s", transportString.c_str());
         }
         return true;
       }

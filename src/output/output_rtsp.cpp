@@ -437,7 +437,10 @@ namespace Mist {
     for (std::map<int, RTPTrack>::iterator it = tracks.begin(); it != tracks.end(); ++it){
       Socket::UDPConnection & s = it->second.data;
       while (s.Receive()){
-        if (s.getDestPort() != it->second.cPort){continue;}//port mismatch = skip
+        if (s.getDestPort() != it->second.cPort){
+          //wrong sending port, ignore packet
+          continue;
+        }
         RTP::Packet pack(s.data, s.data_len);
         if (!it->second.rtpSeq){it->second.rtpSeq = pack.getSequence();}
         //packet is very early - assume dropped after 10 packets

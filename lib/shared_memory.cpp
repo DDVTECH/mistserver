@@ -807,7 +807,7 @@ namespace IPC {
 
   ///\brief Creates the next page with the correct size
   void sharedServer::newPage() {
-    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2) << myPages.size()), (32 * 1024 * 1024)), false);
+    sharedPage tmp(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2) << myPages.size()), (32 * 1024 * 1024)), false, false);
     if (!tmp.mapped){
       tmp.init(std::string(baseName.substr(1) + (char)(myPages.size() + (int)'A')), std::min(((8192 * 2) << myPages.size()), (32 * 1024 * 1024)), true);
       tmp.master = false;

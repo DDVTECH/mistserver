@@ -21,6 +21,17 @@
 #define SOCKETSIZE 51200ul
 #endif
 
+/// Local-scope only helper function that prints address families
+static const char* addrFam(int f){
+  switch(f){
+    case AF_UNSPEC: return "Unspecified";
+    case AF_INET: return "IPv4";
+    case AF_INET6: return "IPv6";
+    case PF_UNIX: return "Unix";
+    default: return "???";
+  }
+}
+
 /// Checks bytes (length len) containing a binary-encoded IPv4 or IPv6 IP address, and writes it in human-readable notation to target.
 /// Writes "unknown" if it cannot decode to a sensible value.
 void Socket::hostBytesToStr(const char *bytes, size_t len, std::string &target){
@@ -940,6 +951,7 @@ Socket::UDPConnection::UDPConnection(const UDPConnection &o){
   down = 0;
   if (o.destAddr && o.destAddr_size){
     destAddr = malloc(o.destAddr_size);
+    destAddr_size = o.destAddr_size;
     if (destAddr){memcpy(destAddr, o.destAddr, o.destAddr_size);}
   }else{
     destAddr = 0;
@@ -1015,6 +1027,7 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
     close();
     family = rp->ai_family;
     sock = socket(family, SOCK_DGRAM, 0);
+    HIGH_MSG("Set UDP destination: %s:%d (%s)", destIp.c_str(), port, addrFam(family));
     freeaddrinfo(result);
     return;
     //\todo Possibly detect and handle failure
@@ -1103,15 +1116,20 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
 /// \arg multicastInterfaces Comma-separated list of interfaces to listen on for multicast packets. Optional, left out means automatically chosen
 /// by kernel.
 /// \return Actually bound port number, or zero on error.
-int Socket::UDPConnection::bind(int port, std::string iface, const std::string &multicastInterfaces){
+uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::string &multicastInterfaces){
   close(); // we open a new socket for each attempt
   int result = 0;
   int addr_ret;
   bool multicast = false;
   struct addrinfo hints, *addr_result, *rp;
   memset(&hints, 0, sizeof(hints));
-  hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG | AI_PASSIVE;
-  hints.ai_family = family;
+  hints.ai_flags = AI_ADDRCONFIG | AI_PASSIVE | AI_V4MAPPED;
+  if (destAddr && destAddr_size){
+    hints.ai_family = ((struct sockaddr_in *)destAddr)->sin_family;
+  }else{
+    hints.ai_family = AF_UNSPEC;
+  }
+  
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_protocol = IPPROTO_UDP;
 
@@ -1135,11 +1153,34 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sock == -1){continue;}
     char human_addr[INET6_ADDRSTRLEN];
-    getnameinfo(rp->ai_addr, rp->ai_addrlen, human_addr, INET6_ADDRSTRLEN, 0, 0, NI_NUMERICHOST);
-    MEDIUM_MSG("Attempting bind to %s (%s)", human_addr, rp->ai_family == AF_INET6 ? "IPv6" : "IPv4");
+    char human_port[16];
+    getnameinfo(rp->ai_addr, rp->ai_addrlen, human_addr, INET6_ADDRSTRLEN, human_port, 16, NI_NUMERICHOST | NI_NUMERICSERV);
+    MEDIUM_MSG("Attempting bind to %s:%s (%s)", human_addr, human_port, addrFam(rp->ai_family));
+    family = rp->ai_family;
+    hints.ai_family = family;
+    if (family == AF_INET6){
+      sockaddr_in6 *addr6 = (sockaddr_in6 *)(rp->ai_addr);
+      result = ntohs(addr6->sin6_port);
+      if (memcmp((char *)&(addr6->sin6_addr), "\000\000\000\000\000\000\000\000\000\000\377\377", 12) == 0){
+        // IPv6-mapped IPv4 address - 13th byte ([12]) holds the first IPv4 byte
+        multicast = (((char *)&(addr6->sin6_addr))[12] & 0xF0) == 0xE0;
+      }else{
+        //"normal" IPv6 address - prefix ff00::/8
+        multicast = (((char *)&(addr6->sin6_addr))[0] == 0xFF);
+      }
+    }else{
+      sockaddr_in *addr4 = (sockaddr_in *)(rp->ai_addr);
+      result = ntohs(addr4->sin_port);
+      // multicast has a "1110" bit prefix
+      multicast = (((char *)&(addr4->sin_addr))[0] & 0xF0) == 0xE0;
+    }
+    if (multicast){
+      const int optval = 1;
+      if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+        WARN_MSG("Could not set multicast UDP socket re-use!");
+      }
+    }
     if (::bind(sock, rp->ai_addr, rp->ai_addrlen) == 0){
-      family = rp->ai_family;
-      hints.ai_family = family;
       break;
     }
     if (err_str.size()){err_str += ", ";}
@@ -1148,29 +1189,11 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
     err_str += strerror(errno);
     close(); // we open a new socket for each attempt
   }
+  freeaddrinfo(addr_result);
   if (sock == -1){
     FAIL_MSG("Could not open %s for UDP: %s", iface.c_str(), err_str.c_str());
-    freeaddrinfo(addr_result);
     return 0;
   }
-  // socket is bound! Let's collect some more data...
-  if (family == AF_INET6){
-    sockaddr_in6 *addr6 = (sockaddr_in6 *)(rp->ai_addr);
-    result = ntohs(addr6->sin6_port);
-    if (memcmp((char *)&(addr6->sin6_addr), "\000\000\000\000\000\000\000\000\000\000\377\377", 12) == 0){
-      // IPv6-mapped IPv4 address - 13th byte ([12]) holds the first IPv4 byte
-      multicast = (((char *)&(addr6->sin6_addr))[12] & 0xF0) == 0xE0;
-    }else{
-      //"normal" IPv6 address - prefix ff00::/8
-      multicast = (((char *)&(addr6->sin6_addr))[0] == 0xFF);
-    }
-  }else{
-    sockaddr_in *addr4 = (sockaddr_in *)(rp->ai_addr);
-    result = ntohs(addr4->sin_port);
-    // multicast has a "1110" bit prefix
-    multicast = (((char *)&(addr4->sin_addr))[0] & 0xF0) == 0xE0;
-  }
-  freeaddrinfo(addr_result);
 
   // handle multicast membership(s)
   if (multicast){
@@ -1182,8 +1205,7 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
     if ((addr_ret = getaddrinfo(iface.c_str(), 0, &hints, &resmulti)) != 0){
       WARN_MSG("Unable to parse multicast address: %s", gai_strerror(addr_ret));
       close();
-      result = -1;
-      return result;
+      return 0;
     }
 
     if (!multicastInterfaces.length()){
@@ -1254,7 +1276,18 @@ int Socket::UDPConnection::bind(int port, std::string iface, const std::string &
     }
     freeaddrinfo(resmulti); // free resolved multicast addr
   }
-  return result;
+  //get port number
+  struct sockaddr_storage fin_addr;
+  socklen_t alen = sizeof(fin_addr);
+  if (getsockname(sock, (struct sockaddr*)&fin_addr, &alen) == 0){
+    if (family == AF_INET6){
+      return ntohs(((struct sockaddr_in6*)&fin_addr)->sin6_port);
+    }else{
+      return ntohs(((struct sockaddr_in*)&fin_addr)->sin_port);
+    }
+  }else{
+    return 0;
+  }
 }
 
 /// Attempt to receive a UDP packet.

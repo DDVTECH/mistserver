@@ -36,6 +36,13 @@ namespace Mist{
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
     capa["optional"]["debug"]["type"] = "debug";
+
+    JSON::Value option;
+    option["long"] = "noinput";
+    option["short"] = "N";
+    option["help"] = "Do not start input if not already started";
+    option["value"].append(0ll);
+    cfg->addOption("noinput", option);
   }
   
   Output::Output(Socket::Connection & conn) : myConn(conn){
@@ -51,6 +58,7 @@ namespace Mist{
     maxSkipAhead = 7500;
     minSkipAhead = 5000;
     realTime = 1000;
+    lastRecv = Util::epoch();
     if (myConn){
       setBlocking(true);
     }else{
@@ -288,10 +296,19 @@ namespace Mist{
   /// Finally, calls updateMeta()
   void Output::reconnect(){
     thisPacket.null();
-    if (!Util::startInput(streamName)){
-      FAIL_MSG("Opening stream %s failed - aborting initialization", streamName.c_str());
-      onFail();
-      return;
+    if (config->hasOption("noinput") && config->getBool("noinput")){
+      Util::sanitizeName(streamName);
+      if (!Util::streamAlive(streamName)){
+        FAIL_MSG("Stream %s not already active - aborting initialization", streamName.c_str());
+        onFail();
+        return;
+      }
+    }else{
+      if (!Util::startInput(streamName)){
+        FAIL_MSG("Opening stream %s failed - aborting initialization", streamName.c_str());
+        onFail();
+        return;
+      }
     }
     if (statsPage.getData()){
       statsPage.finish();
@@ -788,11 +805,17 @@ namespace Mist{
     static bool firstData = true;//only the first time, we call onRequest if there's data buffered already.
     if ((firstData && myConn.Received().size()) || myConn.spool()){
       firstData = false;
-      DEBUG_MSG(DLVL_DONTEVEN, "onRequest");
+      DONTEVEN_MSG("onRequest");
       onRequest();
+      lastRecv = Util::epoch();
     }else{
       if (!isBlocking && !parseData){
-        Util::sleep(500);
+        if (Util::epoch() - lastRecv > 300){
+          WARN_MSG("Disconnecting 5 minute idle connection");
+          myConn.close();
+        }else{
+          Util::sleep(500);
+        }
       }
     }
   }

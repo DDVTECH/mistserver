@@ -99,6 +99,7 @@ namespace Mist {
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
+      uint64_t lastRecv;
     protected://these are to be messed with by child classes
       virtual std::string getConnectedHost();
       virtual std::string getConnectedBinHost();

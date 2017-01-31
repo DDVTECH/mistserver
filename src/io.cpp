@@ -115,9 +115,6 @@ namespace Mist {
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), mapTid, pageNumber);
     int pageSize = pagesByTrack[tid][pageNumber].dataSize;
-#ifdef __CYGWIN__
-    pageSize = 26 * 1024 * 1024;
-#endif
     std::string pageName(pageId);
     curPage[tid].init(pageName, pageSize, true);
     //Make sure the data page is not destroyed when we are done buffering it later on.

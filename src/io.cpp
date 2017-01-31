@@ -150,9 +150,6 @@ namespace Mist {
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), mapTid, pageNumber);
     int pageSize = pagesByTrack[tid][pageNumber].dataSize;
-#ifdef __CYGWIN__
-    pageSize = 26 * 1024 * 1024;
-#endif
     /*LTS-START*/
     if (encrypt){
       pageSize = pageSize * 1.5;

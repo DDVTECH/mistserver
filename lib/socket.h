@@ -94,6 +94,8 @@ namespace Socket{
     uint64_t dataUp();                   ///< Returns total amount of bytes sent.
     uint64_t dataDown();                 ///< Returns total amount of bytes received.
     void resetCounter();                 ///< Resets the up/down bytes counter to zero.
+    void addUp(const uint32_t i);
+    void addDown(const uint32_t i);
     std::string getStats(std::string C); ///< Returns a std::string of stats, ended by a newline.
     friend class Server;
     bool Error;    ///< Set to true if a socket error happened.

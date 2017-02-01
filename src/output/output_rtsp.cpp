@@ -10,6 +10,9 @@
 #include <sys/stat.h>
 
 namespace Mist {
+
+  Socket::Connection * mainConn = 0;
+
   OutRTSP::OutRTSP(Socket::Connection & myConn) : Output(myConn){
     connectedAt = Util::epoch() + 2208988800ll;
     pausepoint = 0;
@@ -19,6 +22,7 @@ namespace Mist {
     expectTCP = false;
     isPushing = false;
     lastTimeSync = 0;
+    mainConn = &myConn;
   }
   
   /// Function used to send RTP packets over UDP
@@ -28,6 +32,7 @@ namespace Mist {
   ///\param channel Not used here, but is kept for compatibility with sendTCP
   void sendUDP(void * socket, char * data, unsigned int len, unsigned int channel) {
     ((Socket::UDPConnection *) socket)->SendNow(data, len);
+    if (mainConn){mainConn->addUp(len);}
   }
 
 
@@ -469,6 +474,7 @@ namespace Mist {
           continue;
         }
         lastRecv = Util::epoch();//prevent disconnect of idle TCP connection when using UDP
+        myConn.addDown(s.data_len);
         RTP::Packet pack(s.data, s.data_len);
         if (!it->second.rtpSeq){it->second.rtpSeq = pack.getSequence();}
         //packet is very early - assume dropped after 10 packets

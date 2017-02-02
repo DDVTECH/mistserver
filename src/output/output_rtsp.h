@@ -170,6 +170,7 @@ namespace Mist {
       void handleIncomingRTP(const uint64_t track, const RTP::Packet & pkt);
       void h264MultiParse(uint64_t ts, const uint64_t track, char * buffer, const uint32_t len);
       void h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, bool isKey);
+      std::string getStatsName();
   };
 }
 

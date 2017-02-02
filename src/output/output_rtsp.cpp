@@ -147,6 +147,14 @@ namespace Mist {
     
   }
 
+  std::string OutRTSP::getStatsName(){
+    if (isPushing){
+      return "INPUT";
+    }else{
+      return Output::getStatsName();
+    }
+  }
+
   /// This request handler also checks for UDP packets
   void OutRTSP::requestHandler(){
     if (!expectTCP){
@@ -460,6 +468,7 @@ namespace Mist {
           //wrong sending port, ignore packet
           continue;
         }
+        lastRecv = Util::epoch();//prevent disconnect of idle TCP connection when using UDP
         RTP::Packet pack(s.data, s.data_len);
         if (!it->second.rtpSeq){it->second.rtpSeq = pack.getSequence();}
         //packet is very early - assume dropped after 10 packets

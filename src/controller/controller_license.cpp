@@ -177,7 +177,7 @@ namespace Controller{
   }
   
   void licenseLoop(void * np){
-    unsigned long now = Util::epoch();
+    unsigned long now = std::min(Util::epoch(), currentLicense["valid_from"].asInt());
     while (conf.is_active){
       if (Util::epoch() - now > currentLicense["interval"].asInt()){
         updateLicense();

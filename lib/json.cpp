@@ -162,9 +162,34 @@ static inline char hex2c(char c) {
   return '0';
 }
 
+static std::string UTF8(uint32_t c){
+  std::string r;
+  if (c <= 0x7F){
+    r.append(1, c);
+    return r;
+  }
+  if (c <= 0x7FF){
+    r.append(1, 0xC0 | (c >> 6));
+    r.append(1, 0x80 | (c & 0x3F));
+    return r;
+  }
+  if (c <= 0x7FF){
+    r.append(1, 0xC0 | (c >> 12));
+    r.append(1, 0x80 | ((c >> 6) & 0x3F));
+    r.append(1, 0x80 | (c & 0x3F));
+    return r;
+  }
+  r.append(1, 0xC0 | (c >> 18));
+  r.append(1, 0x80 | ((c >> 12) & 0x3F));
+  r.append(1, 0x80 | ((c >> 6) & 0x3F));
+  r.append(1, 0x80 | (c & 0x3F));
+  return r;
+}
+
 static std::string read_string(int separator, std::istream & fromstream) {
   std::string out;
   bool escaped = false;
+  uint32_t fullChar = 0;
   while (fromstream.good()) {
     char c;
     fromstream.get(c);
@@ -173,6 +198,10 @@ static std::string read_string(int separator, std::istream & fromstream) {
       continue;
     }
     if (escaped) {
+      if (fullChar && c != 'u'){
+        out += UTF8(fullChar >> 16);
+        fullChar = 0;
+      }
       switch (c) {
         case 'b':
           out += '\b';
@@ -189,15 +218,32 @@ static std::string read_string(int separator, std::istream & fromstream) {
         case 't':
           out += '\t';
           break;
+        case 'x':
+            char d1, d2;
+            fromstream.get(d1);
+            fromstream.get(d2);
+            out.append(1, (c2hex(d2) + (c2hex(d1) << 4)));
+          break;
         case 'u': {
             char d1, d2, d3, d4;
             fromstream.get(d1);
             fromstream.get(d2);
             fromstream.get(d3);
             fromstream.get(d4);
-            out.append(1, (c2hex(d4) + (c2hex(d3) << 4)));
-            //We ignore the upper two characters.
-            // + (c2hex(d2) << 8) + (c2hex(d1) << 16)
+            uint32_t tmpChar = (c2hex(d4) + (c2hex(d3) << 4) + (c2hex(d2) << 8) + (c2hex(d1) << 16));
+            if (fullChar && (tmpChar < 0xDC00 || tmpChar > 0xDFFF)){
+              //not a low surrogate - handle high surrogate separately!
+              out += UTF8(fullChar >> 16);
+              fullChar = 0;
+            }
+            fullChar |= tmpChar;
+            if (fullChar >= 0xD800 && fullChar <= 0xDBFF){
+              //possibly high surrogate! Read next characters before handling...
+              fullChar <<= 16;//save as high surrogate
+            }else{
+              out += UTF8(fullChar);
+              fullChar = 0;
+            }
             break;
           }
         default:
@@ -206,6 +252,10 @@ static std::string read_string(int separator, std::istream & fromstream) {
       }
       escaped = false;
     } else {
+      if (fullChar){
+        out += UTF8(fullChar >> 16);
+        fullChar = 0;
+      }
       if (c == separator) {
         return out;
       } else {
@@ -213,13 +263,32 @@ static std::string read_string(int separator, std::istream & fromstream) {
       }
     }
   }
+  if (fullChar){
+    out += UTF8(fullChar >> 16);
+    fullChar = 0;
+  }
   return out;
+}
+
+static std::string UTF16(uint32_t c){
+  if (c > 0xFFFF){
+    c -= 0x010000;
+    return UTF16(0xD800 + ((c >> 10) & 0x3FF)) + UTF16(0xDC00 + (c & 0x3FF));
+  }else{
+    std::string ret = "\\u";
+    ret += hex2c((c >> 12) & 0xf);
+    ret += hex2c((c >> 8) & 0xf);
+    ret += hex2c((c >> 4) & 0xf);
+    ret += hex2c(c & 0xf);
+    return ret;
+  }
 }
 
 static std::string string_escape(const std::string val) {
   std::string out = "\"";
   for (unsigned int i = 0; i < val.size(); ++i) {
-    switch (val.data()[i]) {
+    const char & c = val.data()[i];
+    switch (c) {
       case '"':
         out += "\\\"";
         break;
@@ -242,7 +311,35 @@ static std::string string_escape(const std::string val) {
         out += "\\t";
         break;
       default:
-        if (val.data()[i] < 32 || val.data()[i] > 126) {
+        if (c < 32 || c > 126) {
+          //we assume our data is UTF-8 encoded internally.
+          //JavaScript expects UTF-16, so if we recognize a valid UTF-8 sequence, we turn it into UTF-16 for JavaScript.
+          //Anything else is escaped as a single character UTF-16 escape.
+          if ((c & 0xC0) == 0xC0){
+            //possible UTF-8 sequence
+            //check for 2-byte sequence
+            if (((c & 0xE0) == 0XC0) && (i+1 < val.size()) && ((val.data()[i+1] & 0xC0) == 0x80)){
+              //valid 2-byte sequence
+              out += UTF16(((c & 0x1F) << 6) | (val.data()[i+1] & 0x3F));
+              i += 1;
+              break;
+            }
+            //check for 3-byte sequence
+            if (((c & 0xF0) == 0XE0) && (i+2 < val.size()) && ((val.data()[i+1] & 0xC0) == 0x80) && ((val.data()[i+2] & 0xC0) == 0x80)){
+              //valid 3-byte sequence
+              out += UTF16(((c & 0x1F) << 12) | ((val.data()[i+1] & 0x3F) << 6) | (val.data()[i+2] & 0x3F));
+              i += 2;
+              break;
+            }
+            //check for 4-byte sequence
+            if (((c & 0xF8) == 0XF0) && (i+3 < val.size()) && ((val.data()[i+1] & 0xC0) == 0x80) && ((val.data()[i+2] & 0xC0) == 0x80) && ((val.data()[i+3] & 0xC0) == 0x80)){
+              //valid 4-byte sequence
+              out += UTF16(((c & 0x1F) << 18) | ((val.data()[i+1] & 0x3F) << 12) | ((val.data()[i+2] & 0x3F) << 6) | (val.data()[i+3] & 0x3F));
+              i += 3;
+              break;
+            }
+          }
+          //Anything else, we encode as a single UTF-16 character.
           out += "\\u00";
           out += hex2c((val.data()[i] >> 4) & 0xf);
           out += hex2c(val.data()[i] & 0xf);

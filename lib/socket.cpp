@@ -237,6 +237,14 @@ void Socket::Connection::resetCounter(){
   down = 0;
 }
 
+void Socket::Connection::addUp(const uint32_t i){
+  up += i;
+}
+
+void Socket::Connection::addDown(const uint32_t i){
+  down += i;
+}
+
 /// Internally used call to make an file descriptor blocking or not.
 void setFDBlocking(int FD, bool blocking){
   int flags = fcntl(FD, F_GETFL, 0);

@@ -459,39 +459,11 @@ namespace Mist{
           selected << (*it);
         }
       }
-      DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
+      MEDIUM_MSG("Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
     }
     
-    if (selectedTracks.size() == 0){
-      INSANE_MSG("We didn't find any tracks which that we can use. selectedTrack.size() is 0.");
-      for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-        INSANE_MSG("Found track/codec: %s", trit->second.codec.c_str());
-      }
-      static std::string source;
-      if (!myMeta.tracks.size() && !source.size()){
-        IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
-        IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-        configLock.wait();
-        std::string smp = streamName.substr(0, streamName.find_first_of("+ "));
-        //check if smp (everything before + or space) exists
-        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(smp);
-        if (streamCfg){
-          source = streamCfg.getMember("source").asString();
-        }
-        configLock.post();
-        configLock.close();
-      }
-      if (!myMeta.tracks.size() && (source.find("dtsc://") == 0)){
-        //Wait 5 seconds and try again. Keep a counter, try at most 3 times
-        static int counter = 0;
-        if (counter++ < 10){
-          Util::wait(1000);
-          nProxy.userClient.keepAlive();
-          stats();
-          updateMeta();
-          selectDefaultTracks();
-        }
-      }
+    if (!selectedTracks.size() && myMeta.tracks.size()){
+      WARN_MSG("No tracks selected (%u total) for stream %s!", myMeta.tracks.size(), streamName.c_str());
     }
   }
   

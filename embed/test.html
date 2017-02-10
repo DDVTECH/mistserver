@@ -16,11 +16,11 @@
       // global options can be set here
       var mistoptions = {
         //host: 'http://cat.mistserver.org:8080'
-        host: 'http://thulmk3:8080'
+        //host: 'http://thulmk3:8080'
         //host: 'https://cat.mistserver.org:4433'
         //host: 'http://localhost:8080'
         //host: 'http://live.us.picarto.tv:8080'
-        //host: 'balderlaptop:8080'
+        host: 'http://cattop:8080'
       };
     </script>
     
@@ -47,9 +47,15 @@
         margin: 0;
         max-width: 100vw;
         max-height: 100vh;
+        background-color: #0f0f0f;
+        color: #aaa;
       }
       .mistvideo {
         margin: 1px;
+      }
+      .log {
+        max-height: 15em;
+        overflow-y: auto;
       }
       
     </style>
@@ -69,23 +75,26 @@
           div.appendChild(msg);
           div.style.color = 'red';
           logele.appendChild(div);
+          logele.scrollTop = logele.scrollHeight;
         });
         document.addEventListener('log',function(e){
+          if (e.message.indexOf('Player event fired') > -1) { return; }
+          
           console.log('[log] '+e.message);
           return;
           var msg = document.createTextNode('['+(new Date()).toTimeString().split(' ')[0]+'] '+e.message);
           var div = document.createElement('div');
           div.appendChild(msg);
           logele.appendChild(div);
+          logele.scrollTop = logele.scrollHeight;
         });
         
         //tryplayers = Object.keys(mistplayers);
         tryplayers = [];
-        //tryplayers.push('automatic');
+        tryplayers.push('automatic');
         //tryplayers.push('html5');
-        tryplayers.push('dashjs');
         //tryplayers.push('videojs');
-        tryplayers.push('img');
+        //tryplayers.push('img');
         //tryplayers.push('dashjs');
         //tryplayers.push('flash_strobe');
         //tryplayers.push('silverlight');
@@ -97,8 +106,7 @@
         //streams.push('vids+mist.mp4');
         //streams.push('vids+hahalol.mp3');
         //streams.push('lama');
-        //streams.push('bunny');
-        streams.push('golive+SockyChannel');
+        streams.push('bunny');
         
         for (var j in streams) {
           for (var i in tryplayers) {
@@ -116,10 +124,11 @@
               //forceType: 'html5/audio/mp3',
               //forceType: 'html5/application/vnd.apple.mpegurl',
               //forceType: 'dash/video/mp4',
-              //forceSource: 3,
+              //forceType: 'rtsp',
+              //forceSource: 6,
               loop: true,
               //controls: 'stock'
-              streaminfo: {
+              /*streaminfo: {
                 source: [{
                   type: 'html5/video/mp4',
                   url: 'http://localhost:8080/bunny.mp4'
@@ -140,15 +149,18 @@
                 height: 404,
                 width: 720,
                 type: 'vod'
-              },
+              },*/
               callback: function(player) {
                 var button = document.createElement('button');
                 button.innerHTML = 'askNextCombo();';
                 button.onclick = function(){
                   player.askNextCombo('Button was clicked');
-                  d.removeChild(this);
+                  //d.removeChild(this);
                 };
                 d.append(button);
+  var i = document.createElement('div');
+  i.className = 'countdown10';
+  button.appendChild(i);
               }
             });
 

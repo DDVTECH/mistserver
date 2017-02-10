@@ -213,6 +213,9 @@ MistPlayer.prototype.buildMistControls = function(){
   play.setAttribute('data-state','paused');
   play.onclick = function(){
     if (ele.paused) {
+      if (options.live) {
+        me.load();
+      }
       me.play();
     }
     else {
@@ -300,7 +303,7 @@ MistPlayer.prototype.buildMistControls = function(){
     var perc = (ypos - pos0 * zoom) / sound.offsetHeight / zoom;
     
     perc = 1 - Math.min(1,Math.max(0,perc)); //linear range between 0 and 1
-    perc = -1 * Math.pow((1-perc),2) + 1;    //transform to quadratic range between 0 and 1
+    perc = 1 - Math.pow((1-perc),1/2);       //transform to quadratic range between 0    and 1
     
     return perc;
   }
@@ -515,9 +518,8 @@ MistPlayer.prototype.buildMistControls = function(){
     play.setAttribute('data-state','paused');
   });
   ele.addEventListener('volumechange',function(){
-    //-1 * Math.pow((1-sound.getPos(e.clientY)),2) + 1;    //transform to quadratic range between 0 and 1
-    var vol = 1 - Math.pow(1-ele.volume,0.5);
-    volume.style.height = vol*100+'%'; //transform back from quadratic
+    var vol = 1 - Math.pow(1-ele.volume,2); //transform back from quadratic
+    volume.style.height = vol*100+'%';
     if (ele.volume == 0) {
       speaker.setAttribute('data-muted','');
     }
@@ -610,17 +612,32 @@ MistPlayer.prototype.askNextCombo = function(msg){
   me.errorstate = true;
   me.addlog('Showing error window');
   
+  //show the error
   var err = document.createElement('div');
   var msgnode = document.createTextNode(msg ? msg : 'Player or stream error detected');
   err.appendChild(msgnode);
   err.className = 'error';
-  var button = document.createElement('button');
-  var t = document.createTextNode('Try next source/player');
-  button.appendChild(t);
-  err.appendChild(button);
-  button.onclick = function(){
-    me.nextCombo();
+  err.style.position = 'absolute';
+  err.style.top = 0;
+  err.style.width = '100%';
+  err.style['margin-left'] = 0;
+  this.target.appendChild(err);
+  this.element.style.opacity = '0.2';
+  
+  //if there is a next source/player, show a button to activate it
+  var opts = this.mistplaySettings.options;
+  opts.startCombo = this.mistplaySettings.startCombo;
+  if (mistCheck(mistvideo[this.mistplaySettings.streamname],opts)) {
+    var button = document.createElement('button');
+    var t = document.createTextNode('Try next source/player');
+    button.appendChild(t);
+    err.appendChild(button);
+    button.onclick = function(){
+      me.nextCombo();
+    }
   }
+  
+  //show a button to reload with the current settings
   var button = document.createElement('button');
   var i = document.createElement('div'); //a css countdown clock for 10sec
   i.className = 'countdown10';
@@ -631,13 +648,6 @@ MistPlayer.prototype.askNextCombo = function(msg){
   button.onclick = function(){
     me.reload();
   }
-  err.style.position = 'absolute';
-  err.style.top = 0;
-  err.style.width = '100%';
-  err.style['margin-left'] = 0;
-  
-  this.target.appendChild(err);
-  this.element.style.opacity = '0.2';
   
   //after 10 seconds, reload the player
   err.timeOut = setTimeout(function(){
@@ -721,6 +731,90 @@ MistPlayer.prototype.unload = function(){
   this.target.innerHTML = '';
 };
 
+function mistCheck(streaminfo,options,embedLog) {
+  if (typeof embedLog != 'function') { embedLog = function(){}; }
+  
+  embedLog('Checking available players..');
+  
+  var source = false;
+  var mistPlayer = false;
+  
+  if (options.startCombo) {
+    options.startCombo.started = {
+      player: false,
+      source: false
+    };
+  }
+  
+  function checkPlayer(p_shortname) {
+    if ((options.startCombo) && (!options.startCombo.started.player)) {
+      if (p_shortname != options.startCombo.player) { return false; }
+      else {
+        options.startCombo.started.player = true;
+      }
+    }
+    
+    embedLog('Checking '+mistplayers[p_shortname].name+' (priority: '+mistplayers[p_shortname].priority+') ..');
+    
+    //loop over the available sources and check if this player can play it
+    var loop;
+    if (options.forceSource) {
+      loop = [streaminfo.source[options.forceSource]];
+    }
+    else {
+      loop = streaminfo.source;
+    }
+    for (var s in loop) {
+      if ((options.startCombo) && (!options.startCombo.started.source)) {
+        if (s == options.startCombo.source) {
+          options.startCombo.started.source = true;
+        }
+        continue;
+      }
+      if ((options.forceType) && (loop[s].type != options.forceType)) {
+        continue;
+      }
+      
+      if (mistplayers[p_shortname].isMimeSupported(loop[s].type)) {
+        //this player supports this mime
+        if (mistplayers[p_shortname].isBrowserSupported(loop[s].type,loop[s],options,streaminfo,embedLog)) {
+          //this browser is supported
+          embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+loop[s].type+' @ '+loop[s].url);
+          mistPlayer = p_shortname;
+          source = loop[s];
+          source.index = s;
+          return p_shortname;
+        }
+        else {
+          embedLog('This browser does not support '+loop[s].type);
+        }
+      }
+    }
+    
+    return false;
+  }
+  
+  if (options.forcePlayer) {
+    checkPlayer(options.forcePlayer);
+  }
+  else {
+    //sort the players
+    var sorted = Object.keys(mistplayers);
+    sorted.sort(function(a,b){
+      return mistplayers[a].priority - mistplayers[b].priority;
+    });
+    for (var n in sorted) {
+      var p_shortname = sorted[n];
+      if (checkPlayer(p_shortname)) { break; }
+    }
+  }
+  
+  return ((source && mistPlayer) ? {
+    source: source,
+    mistPlayer: mistPlayer
+  } : false);
+}
+
 /////////////////////////////////////////////////
 // SELECT AND ADD A VIDEO PLAYER TO THE TARGET //
 /////////////////////////////////////////////////
@@ -728,13 +822,13 @@ MistPlayer.prototype.unload = function(){
 function mistPlay(streamName,options) {
   
   var protoplay = new MistPlayer();
-   protoplay.streamname = streamName;
-  function embedLog(msg) {
+  protoplay.streamname = streamName;
+  var embedLog = function(msg) {
     protoplay.sendEvent('log',msg,options.target);
-  }
+  };
   function mistError(msg) {
     var info = {};
-    if ((typeof mistvideo != 'undefined') && ('streamName' in mistvideo)) { info = mistvideo[streamName]; }
+    if ((typeof mistvideo != 'undefined') && (streamName in mistvideo)) { info = mistvideo[streamName]; }
     var displaymsg = msg;
     if ('on_error' in info) { displaymsg = info.on_error; }
     
@@ -768,7 +862,11 @@ function mistPlay(streamName,options) {
     loop: false,        //don't loop when the stream has finished
     poster: null,       //don't show an image before the stream has started
     callback: false,    //don't call a function when the player has finished building
-    streaminfo: false   //don't use this streaminfo but collect it from the mistserverhost
+    streaminfo: false,   //don't use this streaminfo but collect it from the mistserverhost
+    startCombo: false,
+    forceType: false,
+    forcePlayer: false,
+    forceSource: false
   };
   for (var i in global) {
     options[i] = global[i];
@@ -799,7 +897,6 @@ function mistPlay(streamName,options) {
     }
   }
   
-  
   function onstreaminfo() {
     options.target.innerHTML = '';
     options.target.removeAttribute('data-loading');
@@ -819,139 +916,34 @@ function mistPlay(streamName,options) {
       return;
     }
     
-    //sort the sources by priority and mime, but prefer HTTPS
-    streaminfo.source.sort(function(a,b){
-      return (b.priority - a.priority) || a.type.localeCompare(b.type) || b.url.localeCompare(a.url);
-    });
-    
-    var mistPlayer = false;
-    var source;
-    var forceType = false;
     if (('forceType' in options) && (options.forceType)) {
       embedLog('Forcing '+options.forceType);
-      forceType = options.forceType;
     }
-    var forceSource = false;
     if (('forceSource' in options) && (options.forceSource)) {
-      forceSource = options.forceSource;
-      forceType = streaminfo.source[forceSource].type;
-      embedLog('Forcing source '+options.forceSource+': '+forceType+' @ '+streaminfo.source[forceSource].url);
+      options.forceType = streaminfo.source[options.forceSource].type;
+      embedLog('Forcing source '+options.forceSource+': '+options.forceType+' @ '+streaminfo.source[options.forceSource].url);
     }
-    var forceSupportCheck = false;
-    if (('forceSupportCheck' in options) && (options.forceSupportCheck)) {
-      embedLog('Forcing a full support check');
-      forceSupportCheck = true;
-    }
-    var forcePlayer = false;
     if (('forcePlayer' in options) && (options.forcePlayer)) {
       if (options.forcePlayer in mistplayers) {
         embedLog('Forcing '+mistplayers[options.forcePlayer].name);
-        forcePlayer = options.forcePlayer;
       }
       else {
         embedLog('The forced player ('+options.forcePlayer+') isn\'t known, ignoring. Possible values are: '+Object.keys(mistplayers).join(', '));
+        options.forcePlayer = false;
       }
     }
-    var startCombo = false;
-    if ('startCombo' in options) {
-      startCombo = options.startCombo;
-      startCombo.started = {
-        player: false,
-        source: false
-      };
-      embedLog('Selecting a new player/source combo, starting after '+mistplayers[startCombo.player].name+' with '+streaminfo.source[startCombo.source].type+' @ '+streaminfo.source[startCombo.source].url);
+    if (('startCombo' in options) && (options.startCombo)) {
+      embedLog('Selecting a new player/source combo, starting after '+mistplayers[options.startCombo.player].name+' with '+streaminfo.source[options.startCombo.source].type+' @ '+streaminfo.source[options.startCombo.source].url);
     }
     
-    embedLog('Checking available players..');
+    //sort the sources by simultracks, priority and mime, but prefer HTTPS
+    streaminfo.source.sort(function(a,b){
+      return (b.simul_tracks - a.simul_tracks) || (b.priority - a.priority) || a.type.localeCompare(b.type) || b.url.localeCompare(a.url);
+    });
     
-    var source = false;
-    var mistPlayer = false;
-    
-    function checkPlayer(p_shortname) {
-      if ((startCombo) && (!startCombo.started.player)) {
-        if (p_shortname != startCombo.player) { return false; }
-        else {
-          startCombo.started.player = true;
-        }
-      }
-      
-      embedLog('Checking '+mistplayers[p_shortname].name+' (priority: '+mistplayers[p_shortname].priority+') ..');
-      streaminfo.working[p_shortname] = [];
-      
-      if (forceType) {
-        if ((mistplayers[p_shortname].mimes.indexOf(forceType) > -1) && (checkMime(p_shortname,forceType))) {
-          return p_shortname;
-        }
-      }
-      else {
-        for (var m in mistplayers[p_shortname].mimes) {
-          if ((checkMime(p_shortname,mistplayers[p_shortname].mimes[m])) && (!forceSupportCheck)) {
-            return p_shortname;
-          }
-        }
-      }
-      return false;
-    }
-    function checkMime(p_shortname,mime) {
-      var loop;
-      if (forceSource) {
-        loop = [streaminfo.source[forceSource]];
-      }
-      else {
-        loop = streaminfo.source;
-      }
-      var broadcast = false;
-      for (var s in loop) {
-        if (loop[s].type == mime) {
-          broadcast = true;
-          
-          if ((startCombo) && (!startCombo.started.source)) {
-            if (s == startCombo.source) {
-              startCombo.started.source = true;
-            }
-            continue;
-          }
-          
-          if (mistplayers[p_shortname].isBrowserSupported(mime,loop[s],options,streaminfo,embedLog)) {
-            embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+mime+' @ '+loop[s].url);
-            streaminfo.working[p_shortname].push(mime);
-            if (!source) {
-              mistPlayer = p_shortname;
-              source = loop[s];
-              source.index = s;
-            }
-            if (!forceSupportCheck) {
-              return source;
-            }
-          }
-          else {
-            embedLog('This browser does not support '+mime);
-          }
-        }
-        
-      }
-      if (!broadcast) {
-        embedLog('Mist doesn\'t broadcast '+mime);
-      }
-      
-      return false;
-    }
-    
-    streaminfo.working = {};
-    if (forcePlayer) {
-      checkPlayer(forcePlayer);
-    }
-    else {
-      //sort the players
-      var sorted = Object.keys(mistplayers);
-      sorted.sort(function(a,b){
-        return mistplayers[a].priority - mistplayers[b].priority;
-      });
-      for (var n in sorted) {
-        var p_shortname = sorted[n];
-        if (checkPlayer(p_shortname)) { break; }
-      }
-    }
+    var r = mistCheck(streaminfo,options,embedLog);
+    var mistPlayer = r.mistPlayer;
+    var source = r.source;
     
     options.target.innerHTML = '';
     if (mistPlayer) {
@@ -1086,7 +1078,7 @@ function mistPlay(streamName,options) {
       //build the player
       player.mistplaySettings = {
         streamname: streamName,
-        options: local,
+        options: options,
         startCombo: {
           player: mistPlayer,
           source: source.index
@@ -1157,7 +1149,7 @@ function mistPlay(streamName,options) {
           player.askNextCombo('Playback has stalled');
           player.report({
             'type': 'playback',
-            'warn': 'Playback was stalled for > 10 sec'
+            'warn': 'Playback was stalled for > 8 sec'
           });
         },10e3);
       };
@@ -1187,6 +1179,7 @@ function mistPlay(streamName,options) {
             if (newtime == 0) { return; }
             var progress = newtime - lasttime;
             lasttime = newtime;
+            if (progress < 0) { return; }
             if (progress == 0) {
               var msg = 'There should be playback but nothing was played';
               var r = {
@@ -1249,8 +1242,8 @@ function mistPlay(streamName,options) {
       }
       else if (('source' in streaminfo) && (streaminfo.source.length)) {
         var str = 'Could not find a compatible player and protocol combination for this stream and browser. ';
-        if (forceType) { str += "\n"+'The mimetype '+forceType+' was enforced. '; }
-        if (forcePlayer) { str += "\n"+'The player '+mistplayers[forcePlayer].name+' was enforced. '; }
+        if (options.forceType) { str += "\n"+'The mimetype '+options.forceType+' was enforced. '; }
+        if (options.forcePlayer) { str += "\n"+'The player '+options.forcePlayer+' was enforced. '; }
       }
       else {
         var str = 'Stream not found.';

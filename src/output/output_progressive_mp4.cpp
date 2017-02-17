@@ -684,6 +684,14 @@ namespace Mist {
         realTime = 0;
       }
     }
+    if (H.GetHeader("X-Mist-Rate") != ""){
+      long long int multiplier = JSON::Value(H.GetHeader("X-Mist-Rate")).asInt();
+      if (multiplier){
+        realTime = 1000 / multiplier;
+      }else{
+        realTime = 0;
+      }
+    }
     /*LTS-END*/
     //Always initialize before anything else
     initialize();

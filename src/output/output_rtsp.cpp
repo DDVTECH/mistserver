@@ -462,14 +462,6 @@ namespace Mist {
     }
   }
 
-  ///Helper function to determine if a H264 NAL unit is init data or not
-  static inline bool isH264Init(char * data){
-    uint8_t nalType = (data[0] & 0x1F);
-    // 7 = SPS
-    // 8 = PPS
-    return (nalType == 7 || nalType == 8);
-  }
-
   ///Helper function to determine if a H264 NAL unit is a keyframe or not
   static inline bool isH264Keyframe(char * data, unsigned long len){
     uint8_t nalType = (data[0] & 0x1F);
@@ -546,23 +538,41 @@ namespace Mist {
       if (buffer[i] == 0 && buffer[i+1] == 0 && buffer[i+2] == 0 && buffer[i+3] == 1){
         //if found, handle a packet from the last start code up to this start code
         Bit::htobl(buffer+lastStart, (i-lastStart-1)-4);//size-prepend
-        if (!isH264Init(buffer+lastStart+4)){
-          h264Packet(ts, track, buffer+lastStart, (i-lastStart-1), isH264Keyframe(buffer+lastStart+4, i-lastStart-5));
-        }
+        h264Packet(ts, track, buffer+lastStart, (i-lastStart-1), isH264Keyframe(buffer+lastStart+4, i-lastStart-5));
         lastStart = i;
       }
     }
     //Last packet (might be first, if no start codes found)
     Bit::htobl(buffer+lastStart, (len-lastStart)-4);//size-prepend
-    if (!isH264Init(buffer+lastStart+4)){
-      h264Packet(ts, track, buffer+lastStart, (len-lastStart), isH264Keyframe(buffer+lastStart+4, len-lastStart-4));
-    }
+    h264Packet(ts, track, buffer+lastStart, (len-lastStart), isH264Keyframe(buffer+lastStart+4, len-lastStart-4));
   }
 
   void OutRTSP::h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, bool isKey){
     //Ignore zero-length packets (e.g. only contained init data and nothing else)
     if (!len){return;}
-    double fps = h264meta[track].fps;
+    
+    //Header data? Compare to init, set if needed, and throw away
+    uint8_t nalType = (buffer[4] & 0x1F);
+    switch (nalType){
+      case 7: //SPS
+        if (tracks[track].spsData.size() != len-4 || memcmp(buffer+4, tracks[track].spsData.data(), len-4) != 0){
+          INFO_MSG("Updated SPS from RTP data");
+          tracks[track].spsData.assign(buffer+4, len-4);
+          updateH264Init(track);
+        }
+        return;
+      case 8: //PPS
+        if (tracks[track].ppsData.size() != len-4 || memcmp(buffer+4, tracks[track].ppsData.data(), len-4) != 0){
+          INFO_MSG("Updated PPS from RTP data");
+          tracks[track].ppsData.assign(buffer+4, len-4);
+          updateH264Init(track);
+        }
+        return;
+      default://others, continue parsing
+        break;
+    }
+
+    double fps = tracks[track].fpsMeta;
     uint32_t offset = 0;
     uint64_t newTs = ts;
     if (fps > 1){
@@ -632,9 +642,6 @@ namespace Mist {
       }
       if ((pl[0] & 0x1F) < 24){
         DONTEVEN_MSG("H264 single packet, type %u", (unsigned int)(pl[0] & 0x1F));
-        if (isH264Init(pl)){
-          return;
-        }
         static char * packBuffer = 0;
         static unsigned long packBufferSize = 0;
         unsigned long len = pkt.getPayloadSize();
@@ -687,11 +694,9 @@ namespace Mist {
         while (pos + 1 < pkt.getPayloadSize()){
           unsigned int pLen = Bit::btohs(pl+pos);
           isKey |= isH264Keyframe(pl+pos+2, pLen);
-          if (!isH264Init(pl+pos+2)){
-            Bit::htobl(packBuffer+len, pLen);//size-prepend
-            memcpy(packBuffer+len+4, pl+pos+2, pLen);
-            len += 4+pLen;
-          }
+          Bit::htobl(packBuffer+len, pLen);//size-prepend
+          memcpy(packBuffer+len+4, pl+pos+2, pLen);
+          len += 4+pLen;
           pos += 2+pLen;
         }
         h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, packBuffer, len, isKey);
@@ -711,7 +716,8 @@ namespace Mist {
         if (fuaCurrLen && ((pkt.getPayload()[1] & 0x80) || (tracks[track].rtpSeq != pkt.getSequence()))){
           WARN_MSG("Ending unfinished FU-A");
           INSANE_MSG("H264 FU-A packet incompleted: %lu", fuaCurrLen);
-          if (isH264Init(fuaBuffer+4)){
+          uint8_t nalType = (fuaBuffer[4] & 0x1F);
+          if (nalType == 7 || nalType == 8){
             //attempt to detect multiple H264 packets, even though specs disallow it
             h264MultiParse((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen);
           }else{
@@ -752,7 +758,8 @@ namespace Mist {
 
         if (pkt.getPayload()[1] & 0x40){//last packet
           INSANE_MSG("H264 FU-A packet type %u completed: %lu", (unsigned int)(fuaBuffer[4] & 0x1F), fuaCurrLen);
-          if (isH264Init(fuaBuffer+4)){
+          uint8_t nalType = (fuaBuffer[4] & 0x1F);
+          if (nalType == 7 || nalType == 8){
             //attempt to detect multiple H264 packets, even though specs disallow it
             h264MultiParse((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen);
           }else{
@@ -766,6 +773,28 @@ namespace Mist {
       WARN_MSG("H264 packet type %u unsupported", (unsigned int)(pl[0] & 0x1F));
       return;
     }
+  }
+
+  /// Calculates H264 track metadata from sps and pps data stored in tracks[trackNo]
+  void OutRTSP::updateH264Init(uint64_t trackNo){
+    DTSC::Track & Trk = myMeta.tracks[trackNo];
+    RTPTrack & RTrk = tracks[trackNo];
+    h264::sequenceParameterSet sps(RTrk.spsData.data(), RTrk.spsData.size());
+    h264::SPSMeta hMeta = sps.getCharacteristics();
+    MP4::AVCC avccBox;
+    avccBox.setVersion(1);
+    avccBox.setProfile(RTrk.spsData[1]);
+    avccBox.setCompatibleProfiles(RTrk.spsData[2]);
+    avccBox.setLevel(RTrk.spsData[3]);
+    avccBox.setSPSNumber(1);
+    avccBox.setSPS(RTrk.spsData);
+    avccBox.setPPSNumber(1);
+    avccBox.setPPS(RTrk.ppsData);
+    RTrk.fpsMeta = hMeta.fps;
+    Trk.width = hMeta.width;
+    Trk.height = hMeta.height;
+    Trk.fpks = hMeta.fps * 1000;
+    Trk.init = std::string(avccBox.payload(), avccBox.payloadSize());
   }
 
   void OutRTSP::parseSDP(const std::string & sdp){
@@ -846,23 +875,9 @@ namespace Mist {
           //a=fmtp:96 packetization-mode=1; sprop-parameter-sets=Z0LAHtkA2D3m//AUABqxAAADAAEAAAMAMg8WLkg=,aMuDyyA=; profile-level-id=42C01E
           std::string sprop = tracks[trackNo].getParamString("sprop-parameter-sets");
           size_t comma = sprop.find(',');
-          std::string spsInfo = Encodings::Base64::decode(sprop.substr(0,comma));
-          std::string ppsInfo = Encodings::Base64::decode(sprop.substr(comma+1));
-          h264::sequenceParameterSet sps(spsInfo.data(), spsInfo.size());
-          h264meta[trackNo] = sps.getCharacteristics();
-          myMeta.tracks[trackNo].width = h264meta[trackNo].width;
-          myMeta.tracks[trackNo].height = h264meta[trackNo].height;
-          myMeta.tracks[trackNo].fpks = h264meta[trackNo].fps * 1000;
-          MP4::AVCC avccBox;
-          avccBox.setVersion(1);
-          avccBox.setProfile(spsInfo[1]);
-          avccBox.setCompatibleProfiles(spsInfo[2]);
-          avccBox.setLevel(spsInfo[3]);
-          avccBox.setSPSNumber(1);
-          avccBox.setSPS(spsInfo);
-          avccBox.setPPSNumber(1);
-          avccBox.setPPS(ppsInfo);
-          myMeta.tracks[trackNo].init = std::string(avccBox.payload(), avccBox.payloadSize());
+          tracks[trackNo].spsData = Encodings::Base64::decode(sprop.substr(0,comma));
+          tracks[trackNo].ppsData = Encodings::Base64::decode(sprop.substr(comma+1));
+          updateH264Init(trackNo);
         }
         continue;
       }

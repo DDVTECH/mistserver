@@ -24,7 +24,10 @@ namespace Mist {
       std::string transportString;
       std::string control;
       std::string fmtp;
+      std::string spsData;
+      std::string ppsData;
       uint64_t fpsTime;
+      double fpsMeta;
       double fps;
       RTPTrack(){
         rtcpSent = 0;
@@ -159,7 +162,6 @@ namespace Mist {
       void parseSDP(const std::string & sdp);
       long long connectedAt;///< The timestamp the connection was made, as reference point for RTCP packets.
       std::map<int, RTPTrack> tracks;///< List of selected tracks with RTSP-specific session data.
-      std::map<int, h264::SPSMeta> h264meta;///< Metadata from SPS of H264 tracks, for input handling.
       unsigned int pausepoint;///< Position to pause at, when reached
       HTTP::Parser HTTP_R, HTTP_S;
       std::string source;
@@ -170,6 +172,7 @@ namespace Mist {
       void handleIncomingRTP(const uint64_t track, const RTP::Packet & pkt);
       void h264MultiParse(uint64_t ts, const uint64_t track, char * buffer, const uint32_t len);
       void h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, bool isKey);
+      void updateH264Init(uint64_t trackNo);
       std::string getStatsName();
   };
 }

@@ -14,7 +14,7 @@ namespace Mist {
     capa["name"] = "MP4";
     capa["desc"] = "Enables HTTP protocol progressive streaming.";
     capa["url_rel"] = "/$.mp4";
-    capa["url_match"][0u] = "/$.mp4";
+      capa["url_match"][0u] = "/$.mp4";
     capa["url_match"][1u] = "/$.3gp";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
@@ -380,17 +380,17 @@ namespace Mist {
 
     }
     header << std::string(moovBox.asBox(), moovBox.boxedSize());
-
-
     if (!fragmented) { //if we are making a non fragmented MP4 and there are parts
       char mdatHeader[8] = {0x00,0x00,0x00,0x00,'m','d','a','t'};
-      Bit::htobl(mdatHeader, mdatSize);
+      
+      if (mdatSize < 0xFFFFFFFF){
+        Bit::htobl(mdatHeader, mdatSize);
+      }
       header.write(mdatHeader, 8);
     } else {
       //this is a dirty fix to prevent the code from adding 0xDE to the end of the header
       header << (char)(0);
     }
-
     size += header.str().size();
     if (fragmented) {
       realBaseOffset = header.str().size();

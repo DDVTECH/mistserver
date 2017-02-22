@@ -329,7 +329,9 @@ namespace Mist {
     header << std::string(moovBox.asBox(), moovBox.boxedSize());
     
     char mdatHeader[8] = {0x00,0x00,0x00,0x00,'m','d','a','t'};
-    Bit::htobl(mdatHeader, mdatSize);
+    if (mdatSize < 0xFFFFFFFF){
+      Bit::htobl(mdatHeader, mdatSize);
+    }
     header.write(mdatHeader, 8);
     
     size += header.str().size();

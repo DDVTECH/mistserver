@@ -27,10 +27,10 @@ MistPlayer.prototype.sendEvent = function(type,message,target) {
   return true;
 }
 MistPlayer.prototype.addlog = function(msg) {
-  this.sendEvent('log',msg,this.target);
+  this.sendEvent('log',msg,this.element);
 }
 MistPlayer.prototype.adderror = function(msg) {
-  this.sendEvent('error',msg,this.target);
+  this.sendEvent('error',msg,this.element);
 }
 MistPlayer.prototype.build = function () {
   this.addlog('Error in player implementation');
@@ -40,6 +40,32 @@ MistPlayer.prototype.build = function () {
   err.className = 'error';
   return err;
 }
+MistPlayer.prototype.timer = {
+  timers: {},
+  add: function(callback,delay){
+    var me = this;
+    var i = setTimeout(function(){
+      delete me.timers[i];
+      callback();
+    },delay);
+    this.timers[i] = {
+      delay: delay,
+      callback: callback
+    };
+    return i;
+  },
+  remove: function(i){
+    clearTimeout(i);
+    delete this.timers[i];
+  },
+  clear: function(){
+    for (var i in this.timers) {
+      clearTimeout(i);
+    }
+    this.timers = {};
+  }
+};
+
 //creates the player element, including custom functions
 MistPlayer.prototype.getElement = function(tag){
   var ele = document.createElement(tag);
@@ -164,14 +190,15 @@ MistPlayer.prototype.buildMistControls = function(){
     str.push(('0'+secs).slice(-2));
     return str.join(':');
   }
+  var timestampValue, bar;
   function whilePlaying() {
     timestampValue.nodeValue = formatTime(ele.currentTime);
     bar.style.width = ((ele.currentTime-ele.startTime)/ele.duration*100)+'%';
-    setTimeout(function(){
+    me.timer.add(function(){
       if (!ele.paused) {
         whilePlaying();
       }
-    },0.1e3);
+    },0.5e3);
   };
   function whileLivePlaying(track) {
     
@@ -180,11 +207,11 @@ MistPlayer.prototype.buildMistControls = function(){
     timestampValue.nodeValue = formatTime((playtime + track.lastms)/1e3);
 
     
-    setTimeout(function(){
+    me.timer.add(function(){
       if (!ele.paused) {
         whileLivePlaying(track);
       }
-    },0.1e3);
+    },0.5e3);
   };
   
 
@@ -216,7 +243,9 @@ MistPlayer.prototype.buildMistControls = function(){
       if (options.live) {
         me.load();
       }
-      me.play();
+      else {
+        me.play();
+      }
     }
     else {
       me.pause();
@@ -258,7 +287,7 @@ MistPlayer.prototype.buildMistControls = function(){
       bar.style.left = (ele.startTime/ele.duration*100)+'%';
     };
     progress.ondragstart = function() { return false; };
-    var bar = document.createElement('div');
+    bar = document.createElement('div');
     progress.appendChild(bar);
     bar.className = 'bar';
     var buffers = [];
@@ -270,6 +299,11 @@ MistPlayer.prototype.buildMistControls = function(){
     
     ele.addEventListener('seeking',function(){
       me.target.setAttribute('data-loading','');
+    });
+    ele.addEventListener('seeked',function(){
+      me.target.removeAttribute('data-loading');
+      bar.style.left = (ele.currentTime/ele.duration*100)+'%';
+      //TODO reset lasttime
     });
     ele.addEventListener('canplay',function(){
       me.target.removeAttribute('data-loading');
@@ -285,7 +319,7 @@ MistPlayer.prototype.buildMistControls = function(){
   var timestamp = document.createElement('div');
   controls.appendChild(timestamp);
   timestamp.className = 'button timestamp';
-  var timestampValue = document.createTextNode('-:--');
+  timestampValue = document.createTextNode('-:--');
   timestamp.title = 'Time';
   timestamp.appendChild(timestampValue);
 
@@ -417,6 +451,9 @@ MistPlayer.prototype.buildMistControls = function(){
             name = tracks[i][j].lang;
             o.setAttribute('data-lang',tracks[i][j].lang);
           }
+          else if ('desc' in tracks[i][j]) {
+            name = tracks[i][j].desc;
+          }
           else {
             name = 'Track '+(Number(j)+1);
           }
@@ -516,6 +553,9 @@ MistPlayer.prototype.buildMistControls = function(){
   });
   ele.addEventListener('ended',function(){
     play.setAttribute('data-state','paused');
+    if (options.live) {
+      me.load();
+    }
   });
   ele.addEventListener('volumechange',function(){
     var vol = 1 - Math.pow(1-ele.volume,2); //transform back from quadratic
@@ -610,7 +650,11 @@ MistPlayer.prototype.askNextCombo = function(msg){
   var me = this;
   if (me.errorstate) { return; }
   me.errorstate = true;
-  me.addlog('Showing error window');
+  me.report({
+    type: 'playback',
+    warn: 'Showing error window',
+    msg: msg
+  });
   
   //show the error
   var err = document.createElement('div');
@@ -618,7 +662,6 @@ MistPlayer.prototype.askNextCombo = function(msg){
   err.appendChild(msgnode);
   err.className = 'error';
   err.style.position = 'absolute';
-  err.style.top = 0;
   err.style.width = '100%';
   err.style['margin-left'] = 0;
   this.target.appendChild(err);
@@ -626,7 +669,6 @@ MistPlayer.prototype.askNextCombo = function(msg){
   
   //if there is a next source/player, show a button to activate it
   var opts = this.mistplaySettings.options;
-  opts.startCombo = this.mistplaySettings.startCombo;
   if (mistCheck(mistvideo[this.mistplaySettings.streamname],opts)) {
     var button = document.createElement('button');
     var t = document.createTextNode('Try next source/player');
@@ -640,7 +682,7 @@ MistPlayer.prototype.askNextCombo = function(msg){
   //show a button to reload with the current settings
   var button = document.createElement('button');
   var i = document.createElement('div'); //a css countdown clock for 10sec
-  i.className = 'countdown10';
+  i.className = 'countdown';
   button.appendChild(i);
   var t = document.createTextNode('Reload this player');
   button.appendChild(t);
@@ -649,10 +691,14 @@ MistPlayer.prototype.askNextCombo = function(msg){
     me.reload();
   }
   
-  //after 10 seconds, reload the player
-  err.timeOut = setTimeout(function(){
+  //after 20 seconds, reload the player
+  err.timeOut = me.timer.add(function(){
+    me.report({
+      type: 'playback',
+      warn: 'Automatically reloaded the current player after playback error'
+    });
     button.click();
-  },10e3);
+  },20e3);
   
 };
 MistPlayer.prototype.cancelAskNextCombo = function(){
@@ -663,13 +709,17 @@ MistPlayer.prototype.cancelAskNextCombo = function(){
     var err = this.target.querySelector('.error');
     if (err) {
       this.target.removeChild(err);
-      if (err.timeOut) { clearTimeout(err.timeOut); }
+      if (err.timeOut) { this.timer.remove(err.timeOut); }
     }
   }
 };
 MistPlayer.prototype.reload = function(){
   this.unload();
   mistPlay(this.mistplaySettings.streamname,this.mistplaySettings.options);
+  this.report({
+    type: 'init',
+    info: 'Reloading player'
+  });
 };
 MistPlayer.prototype.nextCombo = function(){
   this.unload();
@@ -680,8 +730,6 @@ MistPlayer.prototype.nextCombo = function(){
 ///send information back to mistserver
 ///\param msg object containing the information to report
 MistPlayer.prototype.report = function(msg) {
-  return false; ///\todo Remove this when the backend reporting function has been coded
-  
   
   ///send a http post request
   ///\param url (string) url to send to
@@ -717,6 +765,10 @@ MistPlayer.prototype.report = function(msg) {
     msg.userinfo.time = Math.round(((new Date) - this.options.initTime)/1e3); //seconds since the info js was loaded
   }
   
+  this.sendEvent('report',JSON.stringify(msg),this.element);
+  
+  return false; ///\todo Remove this when the backend reporting function has been coded
+  
   try {
     httpPost(this.options.host+'/report',{
       report: JSON.stringify(msg)
@@ -725,9 +777,10 @@ MistPlayer.prototype.report = function(msg) {
   catch (e) { }
 }
 MistPlayer.prototype.unload = function(){
+  this.addlog('Unloading..');
   if (('pause' in this) && (this.pause)) { this.pause(); }
-  if ('updateSrc' in this) { this.updateSrc(''); }
-  //delete this.element;
+  if ('updateSrc' in this) { this.updateSrc(''); this.load(); }
+  this.timer.clear();
   this.target.innerHTML = '';
 };
 
@@ -786,7 +839,7 @@ function mistCheck(streaminfo,options,embedLog) {
           return p_shortname;
         }
         else {
-          embedLog('This browser does not support '+loop[s].type);
+          embedLog('This browser does not support '+loop[s].type+' via '+loop[s].url);
         }
       }
     }
@@ -862,11 +915,11 @@ function mistPlay(streamName,options) {
     loop: false,        //don't loop when the stream has finished
     poster: null,       //don't show an image before the stream has started
     callback: false,    //don't call a function when the player has finished building
-    streaminfo: false,   //don't use this streaminfo but collect it from the mistserverhost
-    startCombo: false,
-    forceType: false,
-    forcePlayer: false,
-    forceSource: false
+    streaminfo: false,  //don't use this streaminfo but collect it from the mistserverhost
+    startCombo: false,  //start looking for a player/source match at the start
+    forceType: false,   //don't force a mimetype
+    forcePlayer: false, //don't force a player
+    forceSource: false  //don't force a source
   };
   for (var i in global) {
     options[i] = global[i];
@@ -879,8 +932,18 @@ function mistPlay(streamName,options) {
     mistError('MistServer host undefined.');
     return;
   }
+  if (!options.target) {
+    mistError('Target container undefined');
+    return;
+  }
   
   options.target.setAttribute('data-loading','');
+  
+  var classes = options.target.className.split(' ');
+  if (classes.indexOf('mistvideo') == -1) {
+    classes.push('mistvideo');
+    options.target.className = classes.join(' ');
+  }
   
   //check if the css is loaded
   if (!document.getElementById('mist_player_css')) {
@@ -1033,20 +1096,26 @@ function mistPlay(streamName,options) {
           var skip = false;
           switch (t.type) {
             case 'video':
-              t.desc = ['['+t.codec+']',t.width+'x'+t.height,Math.round(t.bps/1024)+'kbps',t.fpks/1e3+'fps',t.lang];
+              t.desc = [t.width+'x'+t.height,/*Math.round(t.bps/1024)+'kbps',*/t.fpks/1e3+'fps',t.codec];
+              if (t.lang) {
+                t.desc.unshift(t.lang);
+              }
               break;
             case 'audio':
-              t.desc = ['['+t.codec+']',t.channels+' channels',Math.round(t.bps/1024)+'kbps',t.rate+'Hz',t.lang];
+              t.desc = [(t.channels == 2 ? 'Stereo' : (t.channels == 1 ? 'Mono' : t.channels+' channels')),/*Math.round(t.bps/1024)+'kbps',*/Math.round(t.rate/1000)+'kHz',t.codec];
+              if (t.lang) {
+                t.desc.unshift(t.lang);
+              }
               break;
             case 'subtitle':
-              t.desc = ['['+t.codec+']',t.lang];
+              t.desc = [t.lang,t.codec];
               break;
             default:
               skip = true;
               break;
           }
           if (skip) { continue; }
-          t.desc = t.desc.join(', ');
+          t.desc = t.desc.join(' ');
           tracks[t.type].push(t);
         }
         player.tracks = tracks;
@@ -1115,8 +1184,6 @@ function mistPlay(streamName,options) {
       }
       
       //monitor for errors
-      element.checkStalledTimeout = false;
-      element.checkProgressTimeout = false;
       element.sendPingTimeout = setInterval(function(){
         if (player.paused) { return; }
         player.report({
@@ -1128,8 +1195,7 @@ function mistPlay(streamName,options) {
         player.askNextCombo('The player has thrown an error');
         var r = {
           type: 'playback',
-          error: 'The player has thrown an error',
-          origin: e.target.outerHTML.slice(0,e.target.outerHTML.indexOf('>')+1),
+          error: 'The player has thrown an error'
         };
         if ('readyState' in player.element) {
           r.readyState = player.element.readyState;
@@ -1137,90 +1203,90 @@ function mistPlay(streamName,options) {
         if ('networkState' in player.element) {
           r.networkState = player.element.networkState;
         }
-        if (('error' in player.element) && ('code' in player.element.error)) {
+        if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
           r.code = player.element.error.code;
         }
         player.report(r);
       });
+      element.checkStalledTimeout = false;
       var stalled = function(e){
         if (element.checkStalledTimeout) { return; }
-        element.checkStalledTimeout = setTimeout(function(){
-          if (player.paused) { return; }
+        var curpos = player.element.currentTime;
+        if (curpos == 0) { return; }
+        element.checkStalledTimeout = player.timer.add(function(){
+          if ((player.paused) || (curpos != player.element.currentTime)) { return; }
           player.askNextCombo('Playback has stalled');
           player.report({
             'type': 'playback',
-            'warn': 'Playback was stalled for > 8 sec'
+            'warn': 'Playback was stalled for > 30 sec'
           });
-        },10e3);
+        },30e3);
       };
       element.addEventListener('stalled',stalled,true);
       element.addEventListener('waiting',stalled,true);
-      var progress = function(e){
-        if (element.checkStalledTimeout) {
-          clearTimeout(element.checkStalledTimeout);
-          element.checkStalledTimeout = false;
-          player.cancelAskNextCombo();
-        }
-        if (element.checkStalledTimeout) {
-          clearTimeout(element.checkStalledTimeout);
-          element.checkStalledTimeout = false;
-          player.cancelAskNextCombo();
-        }
-      };
-      element.addEventListener('progress',progress,true);
-      element.addEventListener('playing',progress,true);
-      element.addEventListener('play',function(){
-        player.paused = false;
-        if ((!element.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
-          //check if the progress made is equal to the time spent
-          var lasttime = player.element.currentTime;
-          element.checkProgressTimeout = setInterval(function(){
-            var newtime = player.element.currentTime;
-            if (newtime == 0) { return; }
-            var progress = newtime - lasttime;
-            lasttime = newtime;
-            if (progress < 0) { return; }
-            if (progress == 0) {
-              var msg = 'There should be playback but nothing was played';
-              var r = {
-                type: 'playback',
-                warn: msg
-              };
-              player.addlog(msg);
-              if ('readyState' in player.element) {
-                r.readyState = player.element.readyState;
-              }
-              if ('networkState' in player.element) {
-                r.networkState = player.element.networkState;
-              }
-              if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
-                r.code = player.element.error.code;
-              }
-              player.report(r);
-              player.askNextCombo('No playback');
-              if ('load' in player.element) { player.element.load(); }
-              return;
-            }
+      
+      if (playerOpts.live) {
+        element.checkProgressTimeout = false;
+        var progress = function(e){
+          if (element.checkStalledTimeout) {
+            player.timer.remove(element.checkStalledTimeout);
+            element.checkStalledTimeout = false;
             player.cancelAskNextCombo();
-            if (progress < 4) {
-              var msg = 'It seems playback is lagging (progressed '+Math.round(progress*100)/100+'/8s)'
-              player.addlog(msg);
-              player.report({
-                type: 'playback',
-                warn: msg
-              });
-              return;
-            }
-          },8e3);
-        }
-      },true);
-      element.addEventListener('pause',function(){
-        player.paused = true;
-        if (element.checkProgressTimeout) {
-          clearInterval(element.checkProgressTimeout);
-          element.checkProgressTimeout = false;
-        }
-      },true);
+          }
+        };
+        //element.addEventListener('progress',progress,true); //sometimes, there is progress but no playback
+        element.addEventListener('playing',progress,true);
+        element.addEventListener('play',function(){
+          player.paused = false;
+          if ((!element.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
+            //check if the progress made is equal to the time spent
+            var lasttime = player.element.currentTime;
+            element.checkProgressTimeout = setInterval(function(){
+              var newtime = player.element.currentTime;
+              var progress = newtime - lasttime;
+              lasttime = newtime;
+              if (progress < 0) { return; } //its probably a looping VOD or we've just seeked
+              if (progress == 0) {
+                var msg = 'There should be playback but nothing was played';
+                var r = {
+                  type: 'playback',
+                  warn: msg
+                };
+                player.addlog(msg);
+                if ('readyState' in player.element) {
+                  r.readyState = player.element.readyState;
+                }
+                if ('networkState' in player.element) {
+                  r.networkState = player.element.networkState;
+                }
+                if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
+                  r.code = player.element.error.code;
+                }
+                player.report(r);
+                player.askNextCombo('No playback');
+                return;
+              }
+              player.cancelAskNextCombo();
+              if (progress < 20) {
+                var msg = 'It seems playback is lagging (progressed '+Math.round(progress*100)/100+'/30s)'
+                player.addlog(msg);
+                player.report({
+                  type: 'playback',
+                  warn: msg
+                });
+                return;
+              }
+            },30e3);
+          }
+        },true);
+        element.addEventListener('pause',function(){
+          player.paused = true;
+          if (element.checkProgressTimeout) {
+            clearInterval(element.checkProgressTimeout);
+            element.checkProgressTimeout = false;
+          }
+        },true);
+      }
       
       if (player.resize) {
         //monitor for resizes and fire if needed 

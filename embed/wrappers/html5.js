@@ -95,11 +95,15 @@ p.prototype.build = function (options) {
     else { ele.pause(); }
   };
   
-  if (options.live) {
-    ele.addEventListener('error',function(e){
+  this.addlog('Built html');
+  
+  //forward events
+  ele.addEventListener('error',function(e){
+    
+    if (options.live) {
       if ((ele.error) && (ele.error.code == 3)) {
-        e.stopPropagation();
-        ele.load();
+        e.stopPropagation(); //dont let this error continue to prevent the core from trying to handle the error
+        me.load();
         me.cancelAskNextCombo();
         e.message = 'Handled decoding error';
         me.addlog('Decoding error: reloading..');
@@ -107,17 +111,18 @@ p.prototype.build = function (options) {
           type: 'playback',
           warn: 'A decoding error was encountered, but handled'
         });
+        return;
       }
-    },true);
-  }
-  
-  this.addlog('Built html');
-  
-  //forward events
-  ele.addEventListener('error',function(e){
+    }
+    
     var msg;
     if ('message' in e) {
       msg = e.message;
+    }
+    else if ((e.target.tagName == 'SOURCE') && (e.target.getAttribute('src') == '')) {
+      e.stopPropagation();
+      //this error is triggered because the unload function was fired
+      return;
     }
     else {
       msg = 'readyState: ';
@@ -155,12 +160,12 @@ p.prototype.build = function (options) {
       }
     }
     me.adderror(msg);
-  },true);
+  });
   var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting','progress'];
   for (var i in events) {
     ele.addEventListener(events[i],function(e){
       me.addlog('Player event fired: '+e.type);
-    },true);
+    });
   }
   return cont;
 }
@@ -176,7 +181,32 @@ p.prototype.loop = function(bool){
   }
   return this.element.loop = bool;
 };
-p.prototype.load = function(){ return this.element.load(); };
+p.prototype.load = function(){
+  var load;
+  if (this.element.paused) {
+    load = this.element.load();
+  }
+  else {
+    //sometimes there is a play / pause interrupt: try again
+    //TODO figure out if this happens on paused or on playing
+    this.load();
+    return;
+  }
+  
+  //this helps to prevent the player from just showing a black screen after a reload
+  if (this.element.paused) {
+    var me = this;
+    var unpause = function(){
+      if (me.element.paused) {
+        me.element.play();
+      }
+      me.element.removeEventListener('progress',unpause);
+    }
+    this.element.addEventListener('progress',unpause);
+  }
+
+  return load;
+};
 if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.mozFullScreenEnabled || document.msFullscreenEnabled) {
   p.prototype.fullscreen = function(){
     if(this.element.requestFullscreen) {

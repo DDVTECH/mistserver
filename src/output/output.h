@@ -127,6 +127,7 @@ namespace Mist {
 
       std::map<int,DTSCPageData> bookKeeping;
       virtual bool isRecording(){return false;};
+      bool allowPush(const std::string & passwd);
   };
 
 }

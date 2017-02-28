@@ -173,10 +173,6 @@ namespace Mist {
       return 0;
     }
 
-    if (streamName != "") {
-      config->getOption("streamname") = streamName;
-    }
-    streamName = config->getString("streamname");
     nProxy.streamName = streamName;
 
     if (!setup()) {
@@ -189,6 +185,7 @@ namespace Mist {
       std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
       return 0;
     }
+    myMeta.sourceURI = config->getString("input");
     parseHeader();
     MEDIUM_MSG("Header parsed, %lu tracks", myMeta.tracks.size());
 
@@ -357,7 +354,7 @@ namespace Mist {
       pullLock.unlink();
       return;
     }
-    if (!Util::startInput(streamName, "push://")) {//manually override stream url to start the buffer
+    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"))) {//manually override stream url to start the buffer
       pullLock.post();
       pullLock.close();
       pullLock.unlink();

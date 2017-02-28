@@ -779,7 +779,7 @@ namespace Mist {
         Util::sanitizeName(streamName);
 
         isPushing = true;
-        if (!allowPush("")){
+        if (!allowPush(app_name)){
           isPushing = false;
           onFinish();
           return;

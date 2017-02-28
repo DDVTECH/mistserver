@@ -1294,6 +1294,34 @@ namespace Mist{
 
     std::string source = strmSource.substr(7);
     std::string IP = source.substr(0, source.find('@'));
+
+    /*LTS-START*/
+    std::string password;
+    if (source.find('@') != std::string::npos){
+      password = source.substr(source.find('@')+1);
+      if (password != ""){
+        if (password == passwd){
+          INFO_MSG("Password accepted - ignoring IP settings.");
+          IP = "";
+        }else{
+          INFO_MSG("Password rejected - checking IP.");
+          if (IP == ""){
+            IP = "deny-all.invalid";
+          }
+        }
+      }
+    }
+
+    std::string smp = streamName.substr(0, streamName.find_first_of("+ "));
+    if(Triggers::shouldTrigger("STREAM_PUSH", smp)){
+      std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+      if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
+        FAIL_MSG("Push from %s to %s rejected - STREAM_PUSH trigger denied the push", getConnectedHost().c_str(), streamName.c_str());
+        return false;
+      }
+    }
+    /*LTS-END*/
+
     if (IP != ""){
       if (!myConn.isAddress(IP)){
         FAIL_MSG("Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());

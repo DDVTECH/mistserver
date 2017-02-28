@@ -173,65 +173,13 @@ namespace Mist {
   void OutDTSC::handlePush(DTSC::Scan & dScan){
     streamName = dScan.getMember("stream").asString();
     std::string passString = dScan.getMember("password").asString();
-
     Util::sanitizeName(streamName);
-    //pull the server configuration
-    std::string smp = streamName.substr(0,(streamName.find_first_of("+ ")));
-    IPC::sharedPage serverCfg("!mistConfig", DEFAULT_CONF_PAGE_SIZE); ///< Contains server configuration and capabilities
-    IPC::semaphore configLock("!mistConfLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    configLock.wait();
-    
-    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(smp);
-    if (streamCfg){
-      if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
-        DEBUG_MSG(DLVL_FAIL, "Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), streamCfg.getMember("source").asString().c_str());
-        myConn.close();
-      }else{
-        std::string source = streamCfg.getMember("source").asString().substr(7);
-        std::string IP = source.substr(0, source.find('@'));
-        /*LTS-START*/
-        std::string password;
-        if (source.find('@') != std::string::npos){
-          password = source.substr(source.find('@')+1);
-          if (password != ""){
-            if (passString == Secure::md5(salt + password)){
-              DEBUG_MSG(DLVL_DEVEL, "Password accepted - ignoring IP settings.");
-              IP = "";
-            }else{
-              DEBUG_MSG(DLVL_DEVEL, "Password rejected - checking IP.");
-              if (IP == ""){
-                IP = "deny-all.invalid";
-              }
-            }
-          }
-        }
-        if(Triggers::shouldTrigger("STREAM_PUSH", smp)){
-          std::string payload = streamName+"\n" + myConn.getHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
-          if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
-            DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - STREAM_PUSH trigger denied the push", myConn.getHost().c_str(), streamName.c_str());
-            myConn.close();
-            configLock.post();
-            configLock.close();
-            return;
-          }
-        }
-        /*LTS-END*/
-        if (IP != ""){
-          if (!myConn.isAddress(IP)){
-            DEBUG_MSG(DLVL_FAIL, "Push from %s to %s rejected - source host not whitelisted", myConn.getHost().c_str(), streamName.c_str());
-            myConn.close();
-          }
-        }
-      }
-    }else{
-      DEBUG_MSG(DLVL_FAIL, "Push from %s rejected - stream '%s' not configured.", myConn.getHost().c_str(), streamName.c_str());
-      myConn.close();
-    }
-    configLock.post();
-    configLock.close();
-    if (!myConn){return;}//do not initialize if rejected
-    initialize();
     pushing = true;
+    if (!allowPush(passString)){
+      pushing = false;
+      myConn.close();
+      return;
+    }
   }
 
 

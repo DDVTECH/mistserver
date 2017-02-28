@@ -359,62 +359,12 @@ namespace Mist {
         continue;
       }
       if (HTTP_R.method == "ANNOUNCE"){
-        std::string smp = streamName.substr(0,(streamName.find_first_of("+ ")));
-        IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE); ///< Contains server configuration and capabilities
-        IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-        configLock.wait();
-        
-        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(smp);
-        if (streamCfg){
-          if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
-            FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), streamCfg.getMember("source").asString().c_str());
-            onFinish();
-          }else{
-            std::string source = streamCfg.getMember("source").asString().substr(7);
-            std::string IP = source.substr(0, source.find('@'));
-            /*LTS-START*/
-            std::string password;
-            if (source.find('@') != std::string::npos){
-              password = source.substr(source.find('@')+1);
-              if (password != ""){
-                if (password == HTTP_R.GetVar("pass")){
-                  INFO_MSG("Password accepted - ignoring IP settings.");
-                  IP = "";
-                }else{
-                  INFO_MSG("Password rejected - checking IP.");
-                  if (IP == ""){
-                    IP = "deny-all.invalid";
-                  }
-                }
-              }
-            }
-            if(Triggers::shouldTrigger("STREAM_PUSH", smp)){
-              std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
-              if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
-                FAIL_MSG("Push from %s to %s rejected - STREAM_PUSH trigger denied the push", getConnectedHost().c_str(), streamName.c_str());
-                onFinish();
-                configLock.post();
-                configLock.close();
-                return;
-              }
-            }
-            /*LTS-END*/
-            if (IP != ""){
-              if (!myConn.isAddress(IP)){
-                FAIL_MSG("Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());
-                onFinish();
-              }
-            }
-          }
-        }else{
-          FAIL_MSG("Push from %s rejected - stream '%s' not configured.", getConnectedHost().c_str(), streamName.c_str());
-          onFinish();
-        }
-        configLock.post();
-        configLock.close();
-        if (!myConn){return;}//do not initialize if rejected
         isPushing = true;
-        initialize();
+        if (!allowPush(HTTP_R.GetVar("pass"))){
+          isPushing = false;
+          onFinish();
+          return;
+        }
         INFO_MSG("Pushing to stream %s", streamName.c_str());
         parseSDP(HTTP_R.body);
         HTTP_S.SendResponse("200", "OK", myConn);

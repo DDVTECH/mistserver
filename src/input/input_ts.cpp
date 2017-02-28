@@ -295,7 +295,7 @@ namespace Mist {
   }
 
   void inputTS::stream() {
-    if (!Util::startInput(streamName, "push://")) {//manually override stream url to start the buffer
+    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"))) {//manually override stream url to start the buffer
       FAIL_MSG("Could not start buffer for %s", streamName.c_str());
       return;
     }

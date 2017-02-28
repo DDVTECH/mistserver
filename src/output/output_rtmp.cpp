@@ -586,35 +586,13 @@ namespace Mist {
         }
         
         Util::sanitizeName(streamName);
-        //pull the server configuration
-        IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE); ///< Contains server configuration and capabilities
-        IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-        configLock.wait();
-        
-        DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName);
-        if (streamCfg){
-          if (streamCfg.getMember("source").asString().substr(0, 7) != "push://"){
-            FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), streamCfg.getMember("source").asString().c_str());
-            onFinish();
-          }else{
-            std::string source = streamCfg.getMember("source").asString().substr(7);
-            std::string IP = source.substr(0, source.find('@'));
-            if (IP != ""){
-              if (!myConn.isAddress(IP)){
-                FAIL_MSG("Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());
-                onFinish();
-              }
-            }
-          }
-        }else{
-          FAIL_MSG("Push from %s rejected - stream '%s' not configured.", getConnectedHost().c_str(), streamName.c_str());
-          onFinish();
-        }
-        configLock.post();
-        configLock.close();
-        if (!myConn){return;}//do not initialize if rejected
+
         isPushing = true;
-        initialize();
+        if (!allowPush("")){
+          isPushing = false;
+          onFinish();
+          return;
+        }
       }
       //send a _result reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);

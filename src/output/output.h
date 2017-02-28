@@ -111,6 +111,7 @@ namespace Mist {
       bool sentHeader;///< If false, triggers sendHeader if parseData is true.
 
       std::map<int,DTSCPageData> bookKeeping;
+      bool allowPush(const std::string & passwd);
   };
 
 }

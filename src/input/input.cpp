@@ -297,7 +297,7 @@ namespace Mist {
       pullLock.unlink();
       return;
     }
-    if (!Util::startInput(streamName, "push://")) {//manually override stream url to start the buffer
+    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"))) {//manually override stream url to start the buffer
       pullLock.post();
       pullLock.close();
       pullLock.unlink();

@@ -1088,5 +1088,36 @@ namespace Mist{
     return true;
   }
 
+  /// Checks if the set streamName allows pushes from this connector/IP/password combination.
+  /// Runs all appropriate triggers and checks.
+  /// Returns true if the push should continue, false otherwise.
+  bool Output::allowPush(const std::string & passwd){
+    std::string strmSource;
+
+    // Initialize the stream source if needed, connect to it
+    initialize();
+    //pull the source setting from metadata
+    strmSource = myMeta.sourceURI;
+
+    if (!strmSource.size()){
+      FAIL_MSG("Push rejected - stream %s not configured", streamName.c_str());
+      return false;
+    }
+    if (strmSource.substr(0, 7) != "push://"){
+      FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), strmSource.c_str());
+      return false;
+    }
+
+    std::string source = strmSource.substr(7);
+    std::string IP = source.substr(0, source.find('@'));
+    if (IP != ""){
+      if (!myConn.isAddress(IP)){
+        FAIL_MSG("Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());
+        return false;
+      }
+    }
+    return true;
+  }
+
 }
 

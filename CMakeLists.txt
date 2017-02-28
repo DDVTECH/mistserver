@@ -273,6 +273,7 @@ makeAnalyser(RAX rax)
 #makeAnalyser(RTP rtp) #LTS
 makeAnalyser(RTSP rtsp_rtp) #LTS
 makeAnalyser(TS ts) #LTS
+makeAnalyser(H264 h264) #LTS
 makeAnalyser(TSStream tsstream) #LTS
 makeAnalyser(Stats stats) #LTS
 

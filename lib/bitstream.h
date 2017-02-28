@@ -1,5 +1,6 @@
 #pragma once
 #include<string>
+#include "defines.h"
 
 namespace Utils {
   class bitstream {
@@ -26,6 +27,17 @@ namespace Utils {
       long long unsigned int getUExpGolomb();
       long long int peekExpGolomb();
       long long unsigned int peekUExpGolomb();
+
+      static size_t bitSizeUExpGolomb(size_t value){
+        size_t i = 1;
+        size_t power = 2;
+        while (power - 2 < value){
+          i+= 2;
+          power *= 2;
+        }
+        return i;
+      }
+
     private:
       bool checkBufferSize(unsigned int size);
       long long unsigned int golombGetter();
@@ -34,6 +46,27 @@ namespace Utils {
       size_t offset;
       size_t dataSize;
       size_t bufferSize;
+  };
+
+  class bitWriter {
+    public:
+      bitWriter();
+      ~bitWriter();
+      size_t size();
+      void append(uint64_t value, size_t bitLength);
+      void appendExpGolomb(uint64_t value);
+      void appendUExpGolomb(uint64_t value);
+      static size_t UExpGolombEncodedSize(uint64_t value);
+      std::string str() { return std::string(dataBuffer, (dataSize / 8) + (dataSize % 8 ? 1 : 0)); }
+    protected:
+      void reallocate(size_t newSize);
+      void appendData(uint8_t data, size_t len);
+
+      char * dataBuffer;
+      //NOTE: ALL SIZES IN BITS!
+      size_t bufferSize;
+
+      size_t dataSize;
   };
 
   class bitstreamLSBF {

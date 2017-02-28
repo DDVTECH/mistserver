@@ -151,6 +151,91 @@ namespace Utils {
     return golombPeeker() - 1;
   }
 
+
+  bitWriter::bitWriter(){
+    dataBuffer = NULL;
+    bufferSize = 0;
+    reallocate(0);
+    dataSize = 0;
+  }
+
+  bitWriter::~bitWriter(){
+    if (dataBuffer != NULL){
+      free(dataBuffer);
+    }
+  }
+
+  void bitWriter::reallocate(size_t newSize){
+    size_t sizeBefore = bufferSize / 8;
+    char * tmp;
+    if (dataBuffer != NULL){
+      tmp = (char*)realloc(dataBuffer, (newSize / 8) + 1);
+    }else{
+      tmp = (char*)malloc((newSize / 8) + 1);
+    }
+    if (tmp){
+      dataBuffer = tmp;
+      bufferSize = ((newSize / 8) + 1) * 8;
+      memset(dataBuffer + sizeBefore, 0x00, (bufferSize / 8) - sizeBefore);
+    }else{
+      FAIL_MSG("Could not reallocate!!");
+    }
+  }
+
+  size_t bitWriter::size() {
+    return dataSize;
+  }
+
+  void bitWriter::append(uint64_t value, size_t bitLength){
+    if (dataSize + bitLength > bufferSize){
+      reallocate(dataSize + bitLength);
+    }
+
+    int64_t fullShift = (bitLength / 8) * 8;
+    uint64_t firstMask = ((0x01ull << (bitLength % 8)) - 1) << fullShift;
+
+    appendData( ((value & firstMask) >> fullShift), bitLength - fullShift);
+    while (fullShift > 0) {
+      fullShift -= 8;
+      uint64_t mask = (0xFFull) << fullShift;
+      appendData((value & mask) >> fullShift, 8);
+    }
+  }
+
+  void bitWriter::appendData(uint8_t data, size_t len){
+    size_t byteOffset = dataSize / 8;
+    size_t bitOffset = dataSize % 8;
+    if (len <= 8 - bitOffset){
+      dataBuffer[byteOffset] |= (data << (8 - bitOffset - len));
+      dataSize += len;
+    }else{
+      size_t shift = (len - (8 - bitOffset));
+      dataBuffer[byteOffset] |= (data >> shift);
+      dataSize += (len - shift);
+      appendData(data, shift);
+    }
+  }
+
+  size_t bitWriter::UExpGolombEncodedSize(uint64_t value){
+    value ++;
+    size_t res = 1;
+    size_t maxVal = 1;
+    while (value > maxVal){
+      maxVal = (maxVal << 1 | 0x01);
+      res += 1;
+    }
+    return 2 * res - 1;
+  }
+
+  void bitWriter::appendExpGolomb(uint64_t value){
+    append(value + 1, UExpGolombEncodedSize(value));
+  }
+
+  void bitWriter::appendUExpGolomb(uint64_t value){
+    append(value + 1, UExpGolombEncodedSize(value));
+  }
+
+
 //Note: other bitstream here
   bitstreamLSBF::bitstreamLSBF() {
     readBufferOffset = 0;

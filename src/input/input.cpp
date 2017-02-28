@@ -5,6 +5,8 @@
 #include <mist/stream.h>
 #include <mist/triggers.h>
 #include <mist/defines.h>
+#include <mist/procs.h>
+#include <sys/wait.h>
 #include "input.h"
 #include <sstream>
 #include <fstream>
@@ -102,6 +104,67 @@ namespace Mist {
       INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
       remove(headerFile.c_str());
     }
+  }
+
+  /// Starts checks the SEM_INPUT lock, starts an angel process and then 
+  int Input::boot(int argc, char * argv[]){
+    if (!(config->parseArgs(argc, argv))){return 1;}
+    streamName = config->getString("streamname");
+
+    IPC::semaphore playerLock;
+    if (needsLock() && streamName.size()){
+      char semName[NAME_BUFFER_SIZE];
+      snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamName.c_str());
+      playerLock.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      if (!playerLock.tryWait()){
+        DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
+        return 1;
+      }
+    }
+    config->activate();
+    uint64_t reTimer = 0;
+    while (config->is_active){
+      pid_t pid = fork();
+      if (pid == 0){
+        if (needsLock()){playerLock.close();}
+        return run();
+      }
+      if (pid == -1){
+        FAIL_MSG("Unable to spawn input process");
+        if (needsLock()){playerLock.post();}
+        return 2;
+      }
+      //wait for the process to exit
+      int status;
+      while (waitpid(pid, &status, 0) != pid && errno == EINTR){
+        if (!config->is_active){
+          INFO_MSG("Shutting down input for stream %s because of signal interrupt...", streamName.c_str());
+          Util::Procs::Stop(pid);
+        }
+        continue;
+      }
+      //if the exit was clean, don't restart it
+      if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
+        MEDIUM_MSG("Input for stream %s shut down cleanly", streamName.c_str());
+        break;
+      }
+#if DEBUG >= DLVL_DEVEL
+      WARN_MSG("Aborting autoclean; this is a development build.");
+      INFO_MSG("Input for stream %s uncleanly shut down! Aborting restart; this is a development build.", streamName.c_str());
+      break;
+#else
+      onCrash();
+      INFO_MSG("Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
+      Util::wait(reTimer);
+      reTimer += 1000;
+#endif
+    }
+    if (needsLock()){
+      playerLock.post();
+      playerLock.unlink();
+      playerLock.close();
+    }
+    return 0;
   }
 
   int Input::run() {

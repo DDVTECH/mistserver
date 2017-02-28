@@ -285,13 +285,8 @@ endif()
 # MistServer - Inputs                  #
 ########################################
 macro(makeInput inputName format)
-  if (";${ARGN};" MATCHES ";folder;")
-    set(mainScript src/input/mist_in_folder.cpp)
-  else()
-    set(mainScript src/input/mist_in.cpp)
-  endif()
   add_executable(MistIn${inputName} 
-    ${mainScript}
+    src/input/mist_in.cpp
     src/input/input.cpp 
     src/input/input_${format}.cpp 
     src/io.cpp

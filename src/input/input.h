@@ -21,7 +21,7 @@ namespace Mist {
       Input(Util::Config * cfg);
       virtual int run();
       virtual void onCrash();
-      virtual void argumentsParsed(){}
+      virtual int boot(int argc, char * argv[]);
       virtual ~Input() {};
 
       virtual bool needsLock(){return true;}

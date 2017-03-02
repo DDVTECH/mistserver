@@ -779,7 +779,10 @@ MistPlayer.prototype.report = function(msg) {
 MistPlayer.prototype.unload = function(){
   this.addlog('Unloading..');
   if (('pause' in this) && (this.pause)) { this.pause(); }
-  if ('updateSrc' in this) { this.updateSrc(''); this.load(); }
+  if ('updateSrc' in this) {
+    this.updateSrc('');
+    this.element.load(); //dont use this.load() to avoid interrupting play/pause
+  }
   this.timer.clear();
   this.target.innerHTML = '';
 };

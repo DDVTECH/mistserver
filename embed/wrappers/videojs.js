@@ -132,13 +132,19 @@ p.prototype.build = function (options) {
           break;
       }
     }
-    me.adderror(msg);
+    //prevent onerror loops
+    if (e.target == me.element) {
+      e.message = msg;
+    }
+    else {
+      me.adderror(msg);
+    }
   });
   var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting','progress'];
   for (var i in events) {
     ele.addEventListener(events[i],function(e){
       me.addlog('Player event fired: '+e.type);
-    },true);
+    });
   }
   
   return cont;

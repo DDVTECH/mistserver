@@ -3021,6 +3021,7 @@ namespace MP4 {
     setFrameCount(1);
     setCompressorName("");
     setDepth(0x0018);
+    setInt16(0xFFFF, 76);//must be -1
   }
 
   void VisualSampleEntry::setCodec(const char * newCodec) {

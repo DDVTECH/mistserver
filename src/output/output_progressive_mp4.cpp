@@ -439,8 +439,8 @@ namespace Mist {
           }
           break;
         }
-        if (byteEnd > size - 1) {
-          byteEnd = size - 1;
+        if (byteEnd > size) {
+          byteEnd = size;
         }
       }else{
         byteEnd = size;

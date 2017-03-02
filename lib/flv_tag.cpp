@@ -1,9 +1,11 @@
 /// \file flv_tag.cpp
 /// Holds all code for the FLV namespace.
 
+#include "defines.h"
 #include "rtmpchunks.h"
 #include "flv_tag.h"
 #include "timing.h"
+#include "util.h"
 #include <stdio.h> //for Tag::FileLoader
 #include <unistd.h> //for Tag::FileLoader
 #include <fcntl.h> //for Tag::FileLoader
@@ -51,6 +53,45 @@ bool FLV::is_header(char * header) {
   if (header[2] != 'V') return false;
   return true;
 } //FLV::is_header
+
+
+/// Helper function that can quickly skip through a file looking for a particular tag type
+bool FLV::seekToTagType(FILE * f, uint8_t t){
+  long long startPos = Util::ftell(f);
+  DONTEVEN_MSG("Starting seek at %lld", startPos);
+  char buf[4];
+  if (fread(buf, 4, 1, f) != 1){return false;}
+  while (!feof(f) && !ferror(f)){
+    switch (buf[0]){
+      case 0x09:
+      case 0x08:
+      case 0x12:
+        {
+          if (t == buf[0]){
+            if (fseek(f, -4, SEEK_CUR)){
+              WARN_MSG("Could not seek back in FLV stream!");
+            }
+            INSANE_MSG("Found tag of type %u at %lld", t, Util::ftell(f));
+            return true;
+          }
+          long len = (buf[1] << 16) | (buf[2] << 8) | buf[3];
+          if (fseek(f, len+11, SEEK_CUR)){
+            WARN_MSG("Could not seek forward in FLV stream!");
+          }else{
+            DONTEVEN_MSG("Seeking %ld+4 bytes forward, now at %lld", len+11, Util::ftell(f));
+          }
+          if (fread(buf, 4, 1, f) != 1){return false;}
+        }
+        break;
+      default:
+        WARN_MSG("Invalid FLV tag detected! Aborting search.");
+        if (fseek(f, -4, SEEK_CUR)){
+          WARN_MSG("Could not seek back in FLV stream!");
+        }
+        return false;
+    }
+  }
+}
 
 /// True if this media type requires init data.
 /// Will always return false if the tag type is not 0x08 or 0x09.

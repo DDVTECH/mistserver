@@ -1,5 +1,6 @@
 ///\file sourcery.cpp
 ///Utility program used for c-string dumping files.
+#include <stdint.h>
 #include <iomanip>
 #include <iostream>
 #include <fstream>

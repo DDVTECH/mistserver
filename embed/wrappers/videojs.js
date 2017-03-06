@@ -6,15 +6,30 @@ mistplayers.videojs = {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
   },
   isBrowserSupported: function (mimetype,source,options,streaminfo,logfunc) {
+    
+    //dont use https if the player is loaded over http
     if ((options.host.substr(0,7) == 'http://') && (source.url.substr(0,8) == 'https://')) {
       if (logfunc) { logfunc('HTTP/HTTPS mismatch for this source'); }
       return false;
     }
-    var support = true;
+    
+    //dont use videojs if this location is loaded over file://
     if ((location.protocol == 'file:') && (mimetype == 'html5/application/vnd.apple.mpegurl')) {
       if (logfunc) { logfunc('This source ('+mimetype+') won\'t work if the page is run via file://'); }
       return false;
     }
+    
+    //dont use HLS if there is an MP3 audio track, unless we're on apple or edge
+    if ((mimetype == 'html5/application/vnd.apple.mpegurl') && (['iPad','iPhone','iPod','MacIntel'].indexOf(navigator.platform) == -1) && (navigator.userAgent.indexOf('Edge') == -1)) {
+      for (var i in streaminfo.meta.tracks) {
+        var t = streaminfo.meta.tracks[i];
+        if (t.codec == 'MP3') {
+          return false;
+        }
+      }
+    }
+    
+    
     return ('MediaSource' in window);
   },
   player: function(){},
@@ -117,13 +132,19 @@ p.prototype.build = function (options) {
           break;
       }
     }
-    me.adderror(msg);
-  },true);
+    //prevent onerror loops
+    if (e.target == me.element) {
+      e.message = msg;
+    }
+    else {
+      me.adderror(msg);
+    }
+  });
   var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting','progress'];
   for (var i in events) {
     ele.addEventListener(events[i],function(e){
       me.addlog('Player event fired: '+e.type);
-    },true);
+    });
   }
   
   return cont;

@@ -89,6 +89,7 @@ namespace Mist {
     //capa["optional"]["wrappers"]["allowed"].append("polytrope"); //currently borked
     capa["optional"]["wrappers"]["allowed"].append("flash_strobe");
     capa["optional"]["wrappers"]["allowed"].append("silverlight");
+    capa["optional"]["wrappers"]["allowed"].append("img");
     capa["optional"]["wrappers"]["option"] = "--wrappers";
     capa["optional"]["wrappers"]["short"] = "w";
     cfg->addConnectorOptions(8080, capa);
@@ -587,6 +588,11 @@ namespace Mist {
           response.append((char*)playervideo_js, (size_t)playervideo_js_len);
           #include "videojs.js.h"
           response.append((char*)video_js, (size_t)video_js_len);
+          used = true;
+        }
+        if (it->asStringRef() == "img"){
+          #include "img.js.h"
+          response.append((char*)img_js, (size_t)img_js_len);
           used = true;
         }
         if (!used) {

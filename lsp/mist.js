@@ -600,8 +600,7 @@ var UI = {
         case 'checklist':
           $field = $('<div>').addClass('checkcontainer');
           $controls = $('<div>').addClass('controls');
-          $checklist = $('<div>').addClass('checklist');
-          $field.append($controls).append($checklist);
+          /* All tends to be confusing: disable it for now
           $controls.append(
             $('<label>').text('All').prepend(
                 $('<input>').attr('type','checkbox').click(function(){
@@ -614,6 +613,10 @@ var UI = {
                 })
               )
           );
+          $field.append($controls);
+          */
+          $checklist = $('<div>').addClass('checklist');
+          $field.append($checklist);
           for (var i in e.checklist) {
             if (typeof e.checklist[i] == 'string') {
               e.checklist[i] = [e.checklist[i], e.checklist[i]];
@@ -1388,7 +1391,6 @@ var UI = {
               
               break;
             case 'coords':
-              //TODO
               break;
           }
         }
@@ -2069,6 +2071,15 @@ var UI = {
             value: $servertime
           },{
             type: 'span',
+            label: 'Licensed to',
+            'default': 'unknown',
+            pointer: {
+              main: mist.data.config.license,
+              index: 'user'
+            },
+            LTSonly: true
+          },{
+            type: 'span',
             label: 'Configured streams',
             value: (mist.data.streams ? Object.keys(mist.data.streams).length : 0)
           },{
@@ -2133,8 +2144,7 @@ var UI = {
           }
         ]));
         if (mist.data.LTS) {
-          function update_update() {
-            var info = mist.stored.get().update || {};
+          function update_update(info) {
             if (!('uptodate' in info)) {
               $versioncheck.text('Unknown');
               return;
@@ -2163,15 +2173,17 @@ var UI = {
           }
           
           if ((!mist.stored.get().update) || ((new Date()).getTime()-mist.stored.get().update.lastchecked > 3600e3)) {
-            var update = mist.stored.get().update || {};
+            var update = {};
             update.lastchecked = (new Date()).getTime();
             mist.send(function(d){
-              mist.stored.set('update',$.extend(true,update,d.update));
-              update_update();
+              mist.stored.set('update',update);
+              update_update(d.update);
             },{checkupdate: true});
           }
           else {
-            update_update();
+            mist.send(function(d){
+              update_update(d.update);
+            },{update: true});
           }
         }
         else {
@@ -2620,6 +2632,33 @@ var UI = {
                 $main.append(
                   $('<span>').addClass('description').text('Choose a stream below.')
                 ).append($shortcuts);
+                
+                //if there is a JPG output, add actual thumnails \o/
+                var thumbnails = false;
+                ///\todo activate this code when the backend is ready
+                /*
+                if (UI.findOutput('JPG')) {
+                  var jpgport = false;
+                  //find the http port and make sure JPG is enabled
+                  for (var i in mist.data.config.protocols) {
+                    var protocol = mist.data.config.protocols[i];
+                    if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
+                      jpgport = (protocol.port ? ':'+protocol.port : ':8080');
+                    }
+                    if ((protocol.connector == 'JPG') || (protocol.connector == 'JPG.exe')) {
+                      thumbnails = true;
+                    }
+                  }
+                  if ((thumbnails) && (jpgport)) {
+                    //now we get to use it as a magical function wheee!
+                    jpgport = parseURL(mist.user.host).host+jpgport;
+                    thumbnails = function(streamname) {
+                      return 'http://'+jpgport+'/'+encodeURIComponent(streamname)+'.jpg';
+                    }
+                  }
+                }
+                */
+                
                 for (var i in select) {
                   var streamname = select[i];
                   var source = '';
@@ -2649,6 +2688,17 @@ var UI = {
                     UI.navto('Embed',$(this).closest('div').attr('data-stream'));
                   });
                   var $image = $('<span>').addClass('image');
+                  
+                  if ((thumbnails) && (folders.indexOf(streamname) == -1)) {
+                    //there is a JPG output and this isn't a folder
+                    $image.append(
+                      $('<img>').attr('src',thumbnails(streamname)).error(function(){
+                        $(this).hide();
+                      })
+                    );
+                  }
+                  
+                  //its a wildcard stream
                   if (streamname.indexOf('+') > -1) {
                     var streambits = streamname.split('+');
                     source = mist.data.streams[streambits[0]].source+streambits[1];
@@ -2658,6 +2708,7 @@ var UI = {
                   }
                   else {
                     source = mist.data.streams[streamname].source;
+                    //its a folder stream
                     if (folders.indexOf(streamname) > -1) {
                       $preview = '';
                       $embed = '';

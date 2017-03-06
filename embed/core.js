@@ -27,10 +27,10 @@ MistPlayer.prototype.sendEvent = function(type,message,target) {
   return true;
 }
 MistPlayer.prototype.addlog = function(msg) {
-  this.sendEvent('log',msg,this.target);
+  this.sendEvent('log',msg,this.element);
 }
 MistPlayer.prototype.adderror = function(msg) {
-  this.sendEvent('error',msg,this.target);
+  this.sendEvent('error',msg,this.element);
 }
 MistPlayer.prototype.build = function () {
   this.addlog('Error in player implementation');
@@ -40,6 +40,32 @@ MistPlayer.prototype.build = function () {
   err.className = 'error';
   return err;
 }
+MistPlayer.prototype.timer = {
+  timers: {},
+  add: function(callback,delay){
+    var me = this;
+    var i = setTimeout(function(){
+      delete me.timers[i];
+      callback();
+    },delay);
+    this.timers[i] = {
+      delay: delay,
+      callback: callback
+    };
+    return i;
+  },
+  remove: function(i){
+    clearTimeout(i);
+    delete this.timers[i];
+  },
+  clear: function(){
+    for (var i in this.timers) {
+      clearTimeout(i);
+    }
+    this.timers = {};
+  }
+};
+
 //creates the player element, including custom functions
 MistPlayer.prototype.getElement = function(tag){
   var ele = document.createElement(tag);
@@ -164,14 +190,15 @@ MistPlayer.prototype.buildMistControls = function(){
     str.push(('0'+secs).slice(-2));
     return str.join(':');
   }
+  var timestampValue, bar;
   function whilePlaying() {
     timestampValue.nodeValue = formatTime(ele.currentTime);
     bar.style.width = ((ele.currentTime-ele.startTime)/ele.duration*100)+'%';
-    setTimeout(function(){
+    me.timer.add(function(){
       if (!ele.paused) {
         whilePlaying();
       }
-    },0.1e3);
+    },0.5e3);
   };
   function whileLivePlaying(track) {
     
@@ -180,11 +207,11 @@ MistPlayer.prototype.buildMistControls = function(){
     timestampValue.nodeValue = formatTime((playtime + track.lastms)/1e3);
 
     
-    setTimeout(function(){
+    me.timer.add(function(){
       if (!ele.paused) {
         whileLivePlaying(track);
       }
-    },0.1e3);
+    },0.5e3);
   };
   
 
@@ -213,7 +240,12 @@ MistPlayer.prototype.buildMistControls = function(){
   play.setAttribute('data-state','paused');
   play.onclick = function(){
     if (ele.paused) {
-      me.play();
+      if (options.live) {
+        me.load();
+      }
+      else {
+        me.play();
+      }
     }
     else {
       me.pause();
@@ -255,7 +287,7 @@ MistPlayer.prototype.buildMistControls = function(){
       bar.style.left = (ele.startTime/ele.duration*100)+'%';
     };
     progress.ondragstart = function() { return false; };
-    var bar = document.createElement('div');
+    bar = document.createElement('div');
     progress.appendChild(bar);
     bar.className = 'bar';
     var buffers = [];
@@ -267,6 +299,11 @@ MistPlayer.prototype.buildMistControls = function(){
     
     ele.addEventListener('seeking',function(){
       me.target.setAttribute('data-loading','');
+    });
+    ele.addEventListener('seeked',function(){
+      me.target.removeAttribute('data-loading');
+      bar.style.left = (ele.currentTime/ele.duration*100)+'%';
+      //TODO reset lasttime
     });
     ele.addEventListener('canplay',function(){
       me.target.removeAttribute('data-loading');
@@ -282,7 +319,7 @@ MistPlayer.prototype.buildMistControls = function(){
   var timestamp = document.createElement('div');
   controls.appendChild(timestamp);
   timestamp.className = 'button timestamp';
-  var timestampValue = document.createTextNode('-:--');
+  timestampValue = document.createTextNode('-:--');
   timestamp.title = 'Time';
   timestamp.appendChild(timestampValue);
 
@@ -298,12 +335,15 @@ MistPlayer.prototype.buildMistControls = function(){
     
     var pos0 = sound.getBoundingClientRect().top - parseInt(style.borderTopWidth,10);
     var perc = (ypos - pos0 * zoom) / sound.offsetHeight / zoom;
-    var secs = Math.max(0,perc) * ele.duration;
-    return 1 - Math.min(1,Math.max(0,perc));
+    
+    perc = 1 - Math.min(1,Math.max(0,perc)); //linear range between 0 and 1
+    perc = 1 - Math.pow((1-perc),1/2);       //transform to quadratic range between 0    and 1
+    
+    return perc;
   }
   volume.className = 'volume';
   sound.title = 'Volume';
-  if ('mistVolume' in localStorage) {
+  if (('localStorage' in window) && (localStorage != null) && ('mistVolume' in localStorage)) {
     ele.volume = localStorage['mistVolume'];
     volume.style.height = ele.volume*100+'%';
   }
@@ -313,6 +353,7 @@ MistPlayer.prototype.buildMistControls = function(){
     };
     var mouseup = function(e){
       document.removeEventListener('mousemove',mousemove);
+      controls.removeEventListener('mousemove',mousemove);
       document.removeEventListener('touchmove',mousemove);
       document.removeEventListener('mouseup',mouseup);
       document.removeEventListener('touchend',mouseup);
@@ -322,6 +363,7 @@ MistPlayer.prototype.buildMistControls = function(){
       catch (e) {}
     };
     document.addEventListener('mousemove',mousemove);
+    controls.addEventListener('mousemove',mousemove); //this one is added because the controls hiding mechanism stops propagation to the document
     document.addEventListener('touchmove',mousemove);
     document.addEventListener('mouseup',mouseup);
     document.addEventListener('touchend',mouseup);
@@ -409,6 +451,9 @@ MistPlayer.prototype.buildMistControls = function(){
             name = tracks[i][j].lang;
             o.setAttribute('data-lang',tracks[i][j].lang);
           }
+          else if ('desc' in tracks[i][j]) {
+            name = tracks[i][j].desc;
+          }
           else {
             name = 'Track '+(Number(j)+1);
           }
@@ -452,7 +497,7 @@ MistPlayer.prototype.buildMistControls = function(){
         }
         if (i == 'subtitle')  {
           s.value = 0;
-          if ('mistSubtitle' in localStorage) {
+          if (('localStorage' in window) && (localStorage != null) && ('mistSubtitle' in localStorage)) {
             var option = s.querySelector('[data-lang="'+localStorage['mistSubtitle']+'"]');
             if (option) {
               s.value = option.value;
@@ -508,9 +553,13 @@ MistPlayer.prototype.buildMistControls = function(){
   });
   ele.addEventListener('ended',function(){
     play.setAttribute('data-state','paused');
+    if (options.live) {
+      me.load();
+    }
   });
   ele.addEventListener('volumechange',function(){
-    volume.style.height = ele.volume*100+'%';
+    var vol = 1 - Math.pow(1-ele.volume,2); //transform back from quadratic
+    volume.style.height = vol*100+'%';
     if (ele.volume == 0) {
       speaker.setAttribute('data-muted','');
     }
@@ -601,33 +650,56 @@ MistPlayer.prototype.askNextCombo = function(msg){
   var me = this;
   if (me.errorstate) { return; }
   me.errorstate = true;
-  me.addlog('Showing error window');
+  me.report({
+    type: 'playback',
+    warn: 'Showing error window',
+    msg: msg
+  });
   
+  //show the error
   var err = document.createElement('div');
   var msgnode = document.createTextNode(msg ? msg : 'Player or stream error detected');
   err.appendChild(msgnode);
   err.className = 'error';
-  var button = document.createElement('button');
-  var t = document.createTextNode('Try next source/player');
-  button.appendChild(t);
-  err.appendChild(button);
-  button.onclick = function(){
-    me.nextCombo();
+  err.style.position = 'absolute';
+  err.style.width = '100%';
+  err.style['margin-left'] = 0;
+  this.target.appendChild(err);
+  this.element.style.opacity = '0.2';
+  
+  //if there is a next source/player, show a button to activate it
+  var opts = this.mistplaySettings.options;
+  if (mistCheck(mistvideo[this.mistplaySettings.streamname],opts)) {
+    var button = document.createElement('button');
+    var t = document.createTextNode('Try next source/player');
+    button.appendChild(t);
+    err.appendChild(button);
+    button.onclick = function(){
+      me.nextCombo();
+    }
   }
+  
+  //show a button to reload with the current settings
   var button = document.createElement('button');
+  var i = document.createElement('div'); //a css countdown clock for 10sec
+  i.className = 'countdown';
+  button.appendChild(i);
   var t = document.createTextNode('Reload this player');
   button.appendChild(t);
   err.appendChild(button);
   button.onclick = function(){
     me.reload();
   }
-  err.style.position = 'absolute';
-  err.style.top = 0;
-  err.style.width = '100%';
-  err.style['margin-left'] = 0;
   
-  this.target.appendChild(err);
-  this.element.style.opacity = '0.2';
+  //after 20 seconds, reload the player
+  err.timeOut = me.timer.add(function(){
+    me.report({
+      type: 'playback',
+      warn: 'Automatically reloaded the current player after playback error'
+    });
+    button.click();
+  },20e3);
+  
 };
 MistPlayer.prototype.cancelAskNextCombo = function(){
   if (this.errorstate) {
@@ -637,12 +709,17 @@ MistPlayer.prototype.cancelAskNextCombo = function(){
     var err = this.target.querySelector('.error');
     if (err) {
       this.target.removeChild(err);
+      if (err.timeOut) { this.timer.remove(err.timeOut); }
     }
   }
 };
 MistPlayer.prototype.reload = function(){
   this.unload();
   mistPlay(this.mistplaySettings.streamname,this.mistplaySettings.options);
+  this.report({
+    type: 'init',
+    info: 'Reloading player'
+  });
 };
 MistPlayer.prototype.nextCombo = function(){
   this.unload();
@@ -653,8 +730,6 @@ MistPlayer.prototype.nextCombo = function(){
 ///send information back to mistserver
 ///\param msg object containing the information to report
 MistPlayer.prototype.report = function(msg) {
-  return false; ///\todo Remove this when the backend reporting function has been coded
-  
   
   ///send a http post request
   ///\param url (string) url to send to
@@ -690,6 +765,10 @@ MistPlayer.prototype.report = function(msg) {
     msg.userinfo.time = Math.round(((new Date) - this.options.initTime)/1e3); //seconds since the info js was loaded
   }
   
+  this.sendEvent('report',JSON.stringify(msg),this.element);
+  
+  return false; ///\todo Remove this when the backend reporting function has been coded
+  
   try {
     httpPost(this.options.host+'/report',{
       report: JSON.stringify(msg)
@@ -698,11 +777,99 @@ MistPlayer.prototype.report = function(msg) {
   catch (e) { }
 }
 MistPlayer.prototype.unload = function(){
+  this.addlog('Unloading..');
   if (('pause' in this) && (this.pause)) { this.pause(); }
-  if ('updateSrc' in this) { this.updateSrc(''); }
-  //delete this.element;
+  if ('updateSrc' in this) {
+    this.updateSrc('');
+    this.element.load(); //dont use this.load() to avoid interrupting play/pause
+  }
+  this.timer.clear();
   this.target.innerHTML = '';
 };
+
+function mistCheck(streaminfo,options,embedLog) {
+  if (typeof embedLog != 'function') { embedLog = function(){}; }
+  
+  embedLog('Checking available players..');
+  
+  var source = false;
+  var mistPlayer = false;
+  
+  if (options.startCombo) {
+    options.startCombo.started = {
+      player: false,
+      source: false
+    };
+  }
+  
+  function checkPlayer(p_shortname) {
+    if ((options.startCombo) && (!options.startCombo.started.player)) {
+      if (p_shortname != options.startCombo.player) { return false; }
+      else {
+        options.startCombo.started.player = true;
+      }
+    }
+    
+    embedLog('Checking '+mistplayers[p_shortname].name+' (priority: '+mistplayers[p_shortname].priority+') ..');
+    
+    //loop over the available sources and check if this player can play it
+    var loop;
+    if (options.forceSource) {
+      loop = [streaminfo.source[options.forceSource]];
+    }
+    else {
+      loop = streaminfo.source;
+    }
+    for (var s in loop) {
+      if ((options.startCombo) && (!options.startCombo.started.source)) {
+        if (s == options.startCombo.source) {
+          options.startCombo.started.source = true;
+        }
+        continue;
+      }
+      if ((options.forceType) && (loop[s].type != options.forceType)) {
+        continue;
+      }
+      
+      if (mistplayers[p_shortname].isMimeSupported(loop[s].type)) {
+        //this player supports this mime
+        if (mistplayers[p_shortname].isBrowserSupported(loop[s].type,loop[s],options,streaminfo,embedLog)) {
+          //this browser is supported
+          embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+loop[s].type+' @ '+loop[s].url);
+          mistPlayer = p_shortname;
+          source = loop[s];
+          source.index = s;
+          return p_shortname;
+        }
+        else {
+          embedLog('This browser does not support '+loop[s].type+' via '+loop[s].url);
+        }
+      }
+    }
+    
+    return false;
+  }
+  
+  if (options.forcePlayer) {
+    checkPlayer(options.forcePlayer);
+  }
+  else {
+    //sort the players
+    var sorted = Object.keys(mistplayers);
+    sorted.sort(function(a,b){
+      return mistplayers[a].priority - mistplayers[b].priority;
+    });
+    for (var n in sorted) {
+      var p_shortname = sorted[n];
+      if (checkPlayer(p_shortname)) { break; }
+    }
+  }
+  
+  return ((source && mistPlayer) ? {
+    source: source,
+    mistPlayer: mistPlayer
+  } : false);
+}
 
 /////////////////////////////////////////////////
 // SELECT AND ADD A VIDEO PLAYER TO THE TARGET //
@@ -711,13 +878,13 @@ MistPlayer.prototype.unload = function(){
 function mistPlay(streamName,options) {
   
   var protoplay = new MistPlayer();
-   protoplay.streamname = streamName;
-  function embedLog(msg) {
+  protoplay.streamname = streamName;
+  var embedLog = function(msg) {
     protoplay.sendEvent('log',msg,options.target);
-  }
+  };
   function mistError(msg) {
     var info = {};
-    if ((typeof mistvideo != 'undefined') && ('streamName' in mistvideo)) { info = mistvideo[streamName]; }
+    if ((typeof mistvideo != 'undefined') && (streamName in mistvideo)) { info = mistvideo[streamName]; }
     var displaymsg = msg;
     if ('on_error' in info) { displaymsg = info.on_error; }
     
@@ -745,12 +912,17 @@ function mistPlay(streamName,options) {
   var local = options;
   var global = (typeof mistoptions == 'undefined' ? {} : mistoptions);
   var options = {
-    host: null,
-    autoplay: true,
-    controls: true,
-    loop: false,
-    poster: null,
-    callback: false
+    host: null,         //override mistserver host (default is the host that player.js is loaded from)
+    autoplay: true,     //start playing when loaded
+    controls: true,     //show controls (MistControls when available)
+    loop: false,        //don't loop when the stream has finished
+    poster: null,       //don't show an image before the stream has started
+    callback: false,    //don't call a function when the player has finished building
+    streaminfo: false,  //don't use this streaminfo but collect it from the mistserverhost
+    startCombo: false,  //start looking for a player/source match at the start
+    forceType: false,   //don't force a mimetype
+    forcePlayer: false, //don't force a player
+    forceSource: false  //don't force a source
   };
   for (var i in global) {
     options[i] = global[i];
@@ -763,8 +935,18 @@ function mistPlay(streamName,options) {
     mistError('MistServer host undefined.');
     return;
   }
+  if (!options.target) {
+    mistError('Target container undefined');
+    return;
+  }
   
   options.target.setAttribute('data-loading','');
+  
+  var classes = options.target.className.split(' ');
+  if (classes.indexOf('mistvideo') == -1) {
+    classes.push('mistvideo');
+    options.target.className = classes.join(' ');
+  }
   
   //check if the css is loaded
   if (!document.getElementById('mist_player_css')) {
@@ -781,27 +963,10 @@ function mistPlay(streamName,options) {
     }
   }
   
-  //get info js
-  var info = document.createElement('script');
-  info.src = options.host+'/info_'+encodeURIComponent(streamName)+'.js';
-  embedLog('Retrieving stream info from '+info.src);
-  document.head.appendChild(info);
-  info.onerror = function(){
-    options.target.innerHTML = '';
-    options.target.removeAttribute('data-loading');
-    mistError('Error while loading stream info.');
-    protoplay.report({
-      type: 'init',
-      error: 'Failed to load '+info.src
-    });
-  }
-  info.onload = function(){
+  function onstreaminfo() {
     options.target.innerHTML = '';
     options.target.removeAttribute('data-loading');
     embedLog('Stream info was loaded succesfully');
-    
-    //clean up info script
-    document.head.removeChild(info);
     
     //get streaminfo data
     var streaminfo = mistvideo[streamName];
@@ -817,139 +982,36 @@ function mistPlay(streamName,options) {
       return;
     }
     
-    //sort the sources by priority and mime, but prefer HTTPS
-    streaminfo.source.sort(function(a,b){
-      return (b.priority - a.priority) || a.type.localeCompare(b.type) || b.url.localeCompare(a.url);
-    });
-    
-    var mistPlayer = false;
-    var source;
-    var forceType = false;
     if (('forceType' in options) && (options.forceType)) {
       embedLog('Forcing '+options.forceType);
-      forceType = options.forceType;
     }
-    var forceSource = false;
     if (('forceSource' in options) && (options.forceSource)) {
-      forceSource = options.forceSource;
-      forceType = streaminfo.source[forceSource].type;
-      embedLog('Forcing source '+options.forceSource+': '+forceType+' @ '+streaminfo.source[forceSource].url);
+      options.forceType = streaminfo.source[options.forceSource].type;
+      embedLog('Forcing source '+options.forceSource+': '+options.forceType+' @ '+streaminfo.source[options.forceSource].url);
     }
-    var forceSupportCheck = false;
-    if (('forceSupportCheck' in options) && (options.forceSupportCheck)) {
-      embedLog('Forcing a full support check');
-      forceSupportCheck = true;
-    }
-    var forcePlayer = false;
     if (('forcePlayer' in options) && (options.forcePlayer)) {
       if (options.forcePlayer in mistplayers) {
         embedLog('Forcing '+mistplayers[options.forcePlayer].name);
-        forcePlayer = options.forcePlayer;
       }
       else {
         embedLog('The forced player ('+options.forcePlayer+') isn\'t known, ignoring. Possible values are: '+Object.keys(mistplayers).join(', '));
+        options.forcePlayer = false;
       }
     }
-    var startCombo = false;
-    if ('startCombo' in options) {
-      startCombo = options.startCombo;
-      startCombo.started = {
-        player: false,
-        source: false
-      };
-      embedLog('Selecting a new player/source combo, starting after '+mistplayers[startCombo.player].name+' with '+streaminfo.source[startCombo.source].type+' @ '+streaminfo.source[startCombo.source].url);
+    if (('startCombo' in options) && (options.startCombo)) {
+      embedLog('Selecting a new player/source combo, starting after '+mistplayers[options.startCombo.player].name+' with '+streaminfo.source[options.startCombo.source].type+' @ '+streaminfo.source[options.startCombo.source].url);
     }
     
-    embedLog('Checking available players..');
+    //sort the sources by simultracks, priority and mime, but prefer HTTPS
+    streaminfo.source.sort(function(a,b){
+      return (b.simul_tracks - a.simul_tracks) || (b.priority - a.priority) || a.type.localeCompare(b.type) || b.url.localeCompare(a.url);
+    });
     
-    var source = false;
+    var r = mistCheck(streaminfo,options,embedLog);
+    var mistPlayer = r.mistPlayer;
+    var source = r.source;
     
-    function checkPlayer(p_shortname) {
-      if ((startCombo) && (!startCombo.started.player)) {
-        if (p_shortname != startCombo.player) { return false; }
-        else {
-          startCombo.started.player = true;
-        }
-      }
-      
-      embedLog('Checking '+mistplayers[p_shortname].name+' (priority: '+mistplayers[p_shortname].priority+') ..');
-      streaminfo.working[p_shortname] = [];
-      
-      if (forceType) {
-        if ((mistplayers[p_shortname].mimes.indexOf(forceType) > -1) && (checkMime(p_shortname,forceType))) {
-          return p_shortname;
-        }
-      }
-      else {
-        for (var m in mistplayers[p_shortname].mimes) {
-          if ((checkMime(p_shortname,mistplayers[p_shortname].mimes[m])) && (!forceSupportCheck)) {
-            return p_shortname;
-          }
-        }
-      }
-      return false;
-    }
-    function checkMime(p_shortname,mime) {
-      var loop;
-      if (forceSource) {
-        loop = [streaminfo.source[forceSource]];
-      }
-      else {
-        loop = streaminfo.source;
-      }
-      var broadcast = false;
-      for (var s in loop) {
-        if (loop[s].type == mime) {
-          broadcast = true;
-          
-          if ((startCombo) && (!startCombo.started.source)) {
-            if (s == startCombo.source) {
-              startCombo.started.source = true;
-            }
-            continue;
-          }
-          
-          if (mistplayers[p_shortname].isBrowserSupported(mime,loop[s],options,streaminfo,embedLog)) {
-            embedLog('Found a working combo: '+mistplayers[p_shortname].name+' with '+mime+' @ '+loop[s].url);
-            streaminfo.working[p_shortname].push(mime);
-            if (!source) {
-              mistPlayer = p_shortname;
-              source = loop[s];
-              source.index = s;
-            }
-            if (!forceSupportCheck) {
-              return source;
-            }
-          }
-          else {
-            embedLog('This browser does not support '+mime);
-          }
-        }
-        
-      }
-      if (!broadcast) {
-        embedLog('Mist doesn\'t broadcast '+mime);
-      }
-      
-      return false;
-    }
-    
-    streaminfo.working = {};
-    if (forcePlayer) {
-      checkPlayer(forcePlayer);
-    }
-    else {
-      //sort the players
-      var sorted = Object.keys(mistplayers);
-      sorted.sort(function(a,b){
-        return mistplayers[a].priority - mistplayers[b].priority;
-      });
-      for (var n in sorted) {
-        var p_shortname = sorted[n];
-        if (checkPlayer(p_shortname)) { break; }
-      }
-    }
-    
+    options.target.innerHTML = '';
     if (mistPlayer) {
       
       //create the options to send to the player
@@ -964,7 +1026,7 @@ function mistPlay(streamName,options) {
       //pass player options and handle defaults
       playerOpts.autoplay = options.autoplay;
       playerOpts.controls = options.controls;
-      playerOpts.loop     = options.loop;
+      playerOpts.loop     = (playerOpts.live ? false : options.loop);
       playerOpts.poster   = options.poster;
       
       function calcSize() {
@@ -1026,6 +1088,7 @@ function mistPlay(streamName,options) {
       
       if (player.setTracks(false)) {
         //gather track info
+        //tracks
         var tracks = {
           video: [],
           audio: [],
@@ -1036,20 +1099,26 @@ function mistPlay(streamName,options) {
           var skip = false;
           switch (t.type) {
             case 'video':
-              t.desc = ['['+t.codec+']',t.width+'x'+t.height,Math.round(t.bps/1024)+'kbps',t.fpks/1e3+'fps',t.lang];
+              t.desc = [t.width+'x'+t.height,/*Math.round(t.bps/1024)+'kbps',*/t.fpks/1e3+'fps',t.codec];
+              if (t.lang) {
+                t.desc.unshift(t.lang);
+              }
               break;
             case 'audio':
-              t.desc = ['['+t.codec+']',t.channels+' channels',Math.round(t.bps/1024)+'kbps',t.rate+'Hz',t.lang];
+              t.desc = [(t.channels == 2 ? 'Stereo' : (t.channels == 1 ? 'Mono' : t.channels+' channels')),/*Math.round(t.bps/1024)+'kbps',*/Math.round(t.rate/1000)+'kHz',t.codec];
+              if (t.lang) {
+                t.desc.unshift(t.lang);
+              }
               break;
             case 'subtitle':
-              t.desc = ['['+t.codec+']',t.lang];
+              t.desc = [t.lang,t.codec];
               break;
             default:
               skip = true;
               break;
           }
           if (skip) { continue; }
-          t.desc = t.desc.join(', ');
+          t.desc = t.desc.join(' ');
           tracks[t.type].push(t);
         }
         player.tracks = tracks;
@@ -1081,7 +1150,7 @@ function mistPlay(streamName,options) {
       //build the player
       player.mistplaySettings = {
         streamname: streamName,
-        options: local,
+        options: options,
         startCombo: {
           player: mistPlayer,
           source: source.index
@@ -1094,7 +1163,7 @@ function mistPlay(streamName,options) {
       catch (e) {
         //show the next player/reload buttons if there is an error in the player build code
         options.target.appendChild(player.element);
-        player.askNextCombo('Error while building player');
+        player.askNextCombo('Error while building player: '+e.stack);
         throw e;
         player.report({
           type: 'init',
@@ -1112,13 +1181,12 @@ function mistPlay(streamName,options) {
       
       if (player.setTracks(false)) {
         player.onready(function(){
+          //player.setTracks(usetracks);
           if ('setTracks' in options) { player.setTracks(options.setTracks); }
         });
       }
       
       //monitor for errors
-      element.checkStalledTimeout = false;
-      element.checkProgressTimeout = false;
       element.sendPingTimeout = setInterval(function(){
         if (player.paused) { return; }
         player.report({
@@ -1130,8 +1198,7 @@ function mistPlay(streamName,options) {
         player.askNextCombo('The player has thrown an error');
         var r = {
           type: 'playback',
-          error: 'The player has thrown an error',
-          origin: e.target.outerHTML.slice(0,e.target.outerHTML.indexOf('>')+1),
+          error: 'The player has thrown an error'
         };
         if ('readyState' in player.element) {
           r.readyState = player.element.readyState;
@@ -1139,85 +1206,90 @@ function mistPlay(streamName,options) {
         if ('networkState' in player.element) {
           r.networkState = player.element.networkState;
         }
-        if (('error' in player.element) && ('code' in player.element.error)) {
+        if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
           r.code = player.element.error.code;
         }
         player.report(r);
       });
+      element.checkStalledTimeout = false;
       var stalled = function(e){
         if (element.checkStalledTimeout) { return; }
-        element.checkStalledTimeout = setTimeout(function(){
-          if (player.paused) { return; }
+        var curpos = player.element.currentTime;
+        if (curpos == 0) { return; }
+        element.checkStalledTimeout = player.timer.add(function(){
+          if ((player.paused) || (curpos != player.element.currentTime)) { return; }
           player.askNextCombo('Playback has stalled');
           player.report({
             'type': 'playback',
-            'warn': 'Playback was stalled for > 10 sec'
+            'warn': 'Playback was stalled for > 30 sec'
           });
-        },10e3);
+        },30e3);
       };
       element.addEventListener('stalled',stalled,true);
       element.addEventListener('waiting',stalled,true);
-      var progress = function(e){
-        if (element.checkStalledTimeout) {
-          clearTimeout(element.checkStalledTimeout);
-          element.checkStalledTimeout = false;
-          player.cancelAskNextCombo();
-        }
-      };
-      //element.addEventListener('progress',progress,true);
-      //element.addEventListener('playing',progress,true);
-      element.addEventListener('play',function(){
-        player.paused = false;
-        if ((!element.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
-          //check if the progress made is equal to the time spent
-          var lasttime = player.element.currentTime;
-          element.checkProgressTimeout = setInterval(function(){
-            var newtime = player.element.currentTime;
-            progress();
-            if (newtime == 0) { return; }
-            var progressed = newtime - lasttime;
-            lasttime = newtime;
-            if (progressed == 0) {
-              var msg = 'There should be playback but nothing was played';
-              var r = {
-                type: 'playback',
-                warn: msg
-              };
-              player.addlog(msg);
-              if ('readyState' in player.element) {
-                r.readyState = player.element.readyState;
-              }
-              if ('networkState' in player.element) {
-                r.networkState = player.element.networkState;
-              }
-              if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
-                r.code = player.element.error.code;
-              }
-              player.report(r);
-              player.askNextCombo('No playback');
-              if ('load' in player.element) { player.element.load(); }
-              return;
-            }
+      
+      if (playerOpts.live) {
+        element.checkProgressTimeout = false;
+        var progress = function(e){
+          if (element.checkStalledTimeout) {
+            player.timer.remove(element.checkStalledTimeout);
+            element.checkStalledTimeout = false;
             player.cancelAskNextCombo();
-            if (progressed < 1) {
-              var msg = 'It seems playback is lagging (progressed '+Math.round(progressed*100)/100+'/2s)'
-              player.addlog(msg);
-              player.report({
-                type: 'playback',
-                warn: msg
-              });
-              return;
-            }
-          },2e3);
-        }
-      },true);
-      element.addEventListener('pause',function(){
-        player.paused = true;
-        if (element.checkProgressTimeout) {
-          clearInterval(element.checkProgressTimeout);
-          element.checkProgressTimeout = false;
-        }
-      },true);
+          }
+        };
+        //element.addEventListener('progress',progress,true); //sometimes, there is progress but no playback
+        element.addEventListener('playing',progress,true);
+        element.addEventListener('play',function(){
+          player.paused = false;
+          if ((!element.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
+            //check if the progress made is equal to the time spent
+            var lasttime = player.element.currentTime;
+            element.checkProgressTimeout = setInterval(function(){
+              var newtime = player.element.currentTime;
+              var progress = newtime - lasttime;
+              lasttime = newtime;
+              if (progress < 0) { return; } //its probably a looping VOD or we've just seeked
+              if (progress == 0) {
+                var msg = 'There should be playback but nothing was played';
+                var r = {
+                  type: 'playback',
+                  warn: msg
+                };
+                player.addlog(msg);
+                if ('readyState' in player.element) {
+                  r.readyState = player.element.readyState;
+                }
+                if ('networkState' in player.element) {
+                  r.networkState = player.element.networkState;
+                }
+                if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
+                  r.code = player.element.error.code;
+                }
+                player.report(r);
+                player.askNextCombo('No playback');
+                return;
+              }
+              player.cancelAskNextCombo();
+              if (progress < 20) {
+                var msg = 'It seems playback is lagging (progressed '+Math.round(progress*100)/100+'/30s)'
+                player.addlog(msg);
+                player.report({
+                  type: 'playback',
+                  warn: msg
+                });
+                return;
+              }
+            },30e3);
+          }
+        },true);
+        element.addEventListener('pause',function(){
+          player.paused = true;
+          if (element.checkProgressTimeout) {
+            clearInterval(element.checkProgressTimeout);
+            element.checkProgressTimeout = false;
+          }
+        },true);
+      }
       
       if (player.resize) {
         //monitor for resizes and fire if needed 
@@ -1239,8 +1311,8 @@ function mistPlay(streamName,options) {
       }
       else if (('source' in streaminfo) && (streaminfo.source.length)) {
         var str = 'Could not find a compatible player and protocol combination for this stream and browser. ';
-        if (forceType) { str += "\n"+'The mimetype '+forceType+' was enforced. '; }
-        if (forcePlayer) { str += "\n"+'The player '+mistplayers[forcePlayer].name+' was enforced. '; }
+        if (options.forceType) { str += "\n"+'The mimetype '+options.forceType+' was enforced. '; }
+        if (options.forcePlayer) { str += "\n"+'The player '+options.forcePlayer+' was enforced. '; }
       }
       else {
         var str = 'Stream not found.';
@@ -1250,6 +1322,35 @@ function mistPlay(streamName,options) {
         error: str
       });
       mistError(str);
+    }
+  }
+  if ((options.streaminfo) && (typeof options.streaminfo == 'object') && ('type' in options.streaminfo)
+    && ('source' in options.streaminfo) && (options.streaminfo.source.length)
+    && ('meta' in options.streaminfo) && ('tracks' in options.streaminfo.meta)) { //catch some of the most problematic stuff
+    if (typeof mistvideo == 'undefined') { mistvideo = {}; }
+    mistvideo[streamName] = options.streaminfo;
+    onstreaminfo();
+  }
+  else {
+    //get info js
+    var info = document.createElement('script');
+    info.src = options.host+'/info_'+encodeURIComponent(streamName)+'.js';
+    embedLog('Retrieving stream info from '+info.src);
+    document.head.appendChild(info);
+    info.onerror = function(){
+      options.target.innerHTML = '';
+      options.target.removeAttribute('data-loading');
+      mistError('Error while loading stream info.');
+      protoplay.report({
+        type: 'init',
+        error: 'Failed to load '+info.src
+      });
+    }
+    info.onload = function(){
+      //clean up info script
+      document.head.removeChild(info);
+      
+      onstreaminfo();
     }
   }
 }

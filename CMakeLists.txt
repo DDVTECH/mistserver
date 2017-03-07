@@ -245,8 +245,8 @@ add_custom_command(TARGET mist
   POST_BUILD
   COMMAND ${CMAKE_COMMAND}
   ARGS    -E make_directory ${BINARY_DIR}/mist
-  COMMAND ${CMAKE_COMMAND}
-  ARGS    -E copy_if_different ${libHeaders} ${BINARY_DIR}/mist
+  COMMAND cp
+  ARGS    -a ${libHeaders} ${BINARY_DIR}/mist
   DEPENDS ${libHeaders}
 )
 

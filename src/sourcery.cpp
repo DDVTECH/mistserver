@@ -8,7 +8,7 @@
 int main(int argc, char* argv[]){
   if (argc < 4) {
     std::cerr << "Usage: " << argv[0] << " <inputFile> <variableName> <outputFile>" << std::endl;
-    return 1;
+    return 2;
   }
   std::ofstream tmp(argv[3]);
   //begin the first line

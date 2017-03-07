@@ -243,8 +243,10 @@ install(
 ########################################
 add_custom_command(TARGET mist
   POST_BUILD
-  COMMAND mkdir -p ${BINARY_DIR}/mist
-  COMMAND cp ${libHeaders} ${BINARY_DIR}/mist
+  COMMAND ${CMAKE_COMMAND}
+  ARGS    -E make_directory ${BINARY_DIR}/mist
+  COMMAND ${CMAKE_COMMAND}
+  ARGS    -E copy_if_different ${libHeaders} ${BINARY_DIR}/mist
   DEPENDS ${libHeaders}
 )
 
@@ -438,10 +440,10 @@ endif(DOXYGEN_FOUND)
 if (CMAKE_CROSSCOMPILING)
   set(RUNA "1")
 else()
-  try_run(RUNA RUNB ${BINARY_DIR}/CMakeTmp ${SOURCE_DIR}/src/sourcery.cpp)
+  try_run(RUNA RUNB ${BINARY_DIR}/CMakeTmp ${SOURCE_DIR}/src/sourcery.cpp )
 endif()
 
-if("${RUNA}" EQUAL "0")
+if("${RUNA}" EQUAL "2")
   message("Not cross compiling - building sourcery")
   add_executable(sourcery
     src/sourcery.cpp

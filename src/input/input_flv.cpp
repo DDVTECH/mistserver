@@ -103,6 +103,12 @@ namespace Mist {
   
   void inputFLV::getNext(bool smart) {
     long long int lastBytePos = Util::ftell(inFile);
+    if (selectedTracks.size() == 1){
+      uint8_t targetTag = 0x08;
+      if (selectedTracks.count(1)){targetTag = 0x09;}
+      if (selectedTracks.count(3)){targetTag = 0x12;}
+      FLV::seekToTagType(inFile, targetTag);
+    }
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
         if ( !selectedTracks.count(tmpTag.getTrackID())){

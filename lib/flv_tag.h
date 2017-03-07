@@ -24,6 +24,9 @@ namespace FLV {
   bool check_header(char * header); ///< Checks a FLV Header for validness.
   bool is_header(char * header); ///< Checks the first 3 bytes for the string "FLV".
 
+  /// Helper function that can quickly skip through a file looking for a particular tag type
+  bool seekToTagType(FILE * f, uint8_t type);
+
   /// This class is used to hold, work with and get information about a single FLV tag.
   class Tag {
     public:

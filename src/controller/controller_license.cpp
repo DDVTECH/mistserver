@@ -40,13 +40,10 @@ namespace Controller{
     INFO_MSG("Verifying license against %llu: %s", now, currentLicense.toString().c_str());
 #endif
     //The loop below is timechecker loop
-    if (!currentLicense.isMember("valid_from") || !currentLicense.isMember("valid_till")){
-#if DEBUG >= DLVL_DEVEL
-      INFO_MSG("Accepting license despite lack of date range, because early build");
-#endif
-      return true;//temporary
-    }
-    if (now < currentLicense["valid_from"].asInt() || now > currentLicense["valid_till"].asInt()){
+    if (!currentLicense.isMember("valid_from") || !currentLicense.isMember("valid_till") || now < currentLicense["valid_from"].asInt() || now > currentLicense["valid_till"].asInt()){
+      if (currentLicense.isMember("user_msg") && currentLicense["user_msg"].asStringRef().size()){
+        FAIL_MSG("%s", currentLicense["user_msg"].asStringRef().c_str());
+      }
       return false;//license is expired
     }
     if (RELEASE != currentLicense["release"].asStringRef() || PACKAGE_VERSION != currentLicense["version"].asStringRef()){
@@ -63,7 +60,7 @@ namespace Controller{
     }
     INFO_MSG("Checking license time");
     if(!isLicensed()){
-      FAIL_MSG("License expired, shutting down");
+      FAIL_MSG("Not licensed, shutting down");
       kill(getpid(), SIGINT);
       return false;
     }

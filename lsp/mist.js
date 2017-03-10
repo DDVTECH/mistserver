@@ -958,8 +958,8 @@ var UI = {
             switch (validate) {
               case 'required':
                 f = function(val,me){
-                  if (val == '') {
-                    return { 
+                  if ((val == '') || (val == null)) {
+                    return {
                       msg:'This is a required field.',
                       classes: ['red']
                     }
@@ -4639,7 +4639,7 @@ var UI = {
         $main.append(
           UI.buildUI([{
             type: 'help',
-            help: 'Triggers are the system you can use to react to events that occur inside MistServer. These allow you to block specific users, redirect streams, keep tabs on what is being pushed where, etcetera. For full documentation, please refer to the developer documentation section on the MistServer website.'
+            help: 'Triggers are a way to react to events that occur inside MistServer. These allow you to block specific users, redirect streams, keep tabs on what is being pushed where, etcetera. For full documentation, please refer to the developer documentation section on the MistServer website.'
           }])
         ).append(
           $('<button>').text('New trigger').click(function(){
@@ -4651,13 +4651,14 @@ var UI = {
         var triggers = mist.data.config.triggers
         for (var i in triggers) {
           for (var j in triggers[i]) {
+            var t = triggerRewrite(triggers[i][j]);
             $tbody.append(
               $('<tr>').attr('data-index',i+','+j).append(
                 $('<td>').text(i)
               ).append(
-                $('<td>').text(triggers[i][j][2].join(', '))
+                $('<td>').text(('streams' in t ? t.streams.join(', ') : ''))
               ).append(
-                $('<td>').text(triggers[i][j][0])
+                $('<td>').text(t.handler)
               ).append(
                 $('<td>').html(
                   $('<button>').text('Edit').click(function(){
@@ -4698,13 +4699,14 @@ var UI = {
         else {
           //editing
           other = other.split(',');
-          var source = mist.data.config.triggers[other[0]][other[1]];
+          var source = triggerRewrite(mist.data.config.triggers[other[0]][other[1]]);
           var saveas = {
             triggeron: other[0],
-            appliesto: source[2],
-            url: source[0],
-            async: source[1],
-            'default': source[3]
+            appliesto: source.streams,
+            url: source.handler,
+            async: source.sync,
+            'default': source['default'],
+            params: source.params
           };
         }
         
@@ -4739,9 +4741,11 @@ var UI = {
             ['CONN_OPEN', 'CONN_OPEN: right after a new incoming connection has been received'],
             ['CONN_CLOSE', 'CONN_CLOSE: right after a connection has been closed'],
             ['CONN_PLAY', 'CONN_PLAY: right before a stream playback of a connection'],
-            ['USER_NEW', 'USER_NEW: A new user connects that hasn\'t been allowed or denied access before']
+            ['USER_NEW', 'USER_NEW: a new user connects that hasn\'t been allowed or denied access before'],
+            ['LIVE_BANDWIDTH','LIVE_BANDWIDTH: when the value specified as param is surpassed']
           ],
           LTSonly: true,
+          validate: ['required'],
           'function': function(){
             var v = $(this).getval();
             switch (v) {
@@ -4752,9 +4756,15 @@ var UI = {
               case 'OUTPUT_STOP':
               case 'RTMP_PUSH_REWRITE':
                 $('[name=appliesto]').setval([]).closest('.UIelement').hide();
+                $('[name=params]').setval('').closest('.UIelement').hide();
+                break;
+              case 'LIVE_BANDWIDTH':
+                $('[name=appliesto]').closest('.UIelement').show();
+                $('[name=params]').closest('.UIelement').show();
                 break;
               default:
                 $('[name=appliesto]').closest('.UIelement').show();
+                $('[name=params]').setval('').closest('.UIelement').hide();
             }
           }
         },{
@@ -4787,6 +4797,15 @@ var UI = {
           },
           LTSonly: true
         },{
+          label: 'Parameters',
+          type: 'str',
+          help: 'The extra data you want this trigger to use.',
+          pointer: {
+            main: saveas,
+            index: 'params'
+          },
+          LTSonly: true
+        },{
           label: 'Default response',
           type: 'str',
           help: 'For blocking requests, the default response in case the handler cannot be executed for any reason.',
@@ -4813,6 +4832,7 @@ var UI = {
                   mist.data.config.triggers[other[0]].splice(other[1],1);
                 }
                 
+                /*
                 var newtrigger = [
                   saveas.url,
                   (saveas.async ? true : false),
@@ -4821,6 +4841,15 @@ var UI = {
                 if (typeof saveas['default'] != 'undefined') {
                   newtrigger.push(saveas['default']);
                 }
+                */
+                
+                var newtrigger = {
+                  handler: saveas.url,
+                  sync: (saveas.async ? true : false),
+                  streams: (typeof saveas.appliesto == 'undefined' ? [] : saveas.appliesto),
+                  params: saveas.params,
+                  'default': saveas['default']
+                };
                 if (!(saveas.triggeron in mist.data.config.triggers)) {
                   mist.data.config.triggers[saveas.triggeron] = [];
                 }
@@ -5357,7 +5386,10 @@ var UI = {
     
     //focus on first empty field
     $main.find('.field').filter(function(){
-      return $(this).getval() == '';
+      var val = $(this).getval();
+      if (val == '') return true;
+      if (val == null) return true;
+      return false;
     }).each(function(){
       var a = [];
       if ($(this).is('input, select, textarea')) {
@@ -5855,5 +5887,14 @@ function parseURL(url) {
     protocol: a.protocol+'//',
     host: a.hostname,
     port: (a.port ? ':'+a.port : '')
+  };
+}
+function triggerRewrite(trigger) {
+  if ((typeof trigger == 'object') && (typeof trigger.length == 'undefined')) { return trigger; }
+  return obj = {
+    handler: trigger[0],
+    sync: trigger[1],
+    streams: trigger[2],
+    'default': trigger[3]
   };
 }

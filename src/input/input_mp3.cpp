@@ -175,6 +175,7 @@ namespace Mist {
       }
       seekPos = keys[i].getBpos();
     }
+    timestamp = seekTime;
     fseek(inFile, seekPos, SEEK_SET);
   }
 

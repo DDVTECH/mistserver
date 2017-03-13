@@ -363,7 +363,7 @@ else()
   try_run(RUNA RUNB ${BINARY_DIR}/CMakeTmp ${SOURCE_DIR}/src/sourcery.cpp )
 endif()
 
-if("${RUNA}" EQUAL "2")
+if("${RUNA}" EQUAL "42")
   message("Not cross compiling - building sourcery")
   add_executable(sourcery
     src/sourcery.cpp

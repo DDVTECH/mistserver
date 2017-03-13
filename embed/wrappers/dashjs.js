@@ -1,5 +1,6 @@
 mistplayers.dashjs = {
   name: 'Dash.js Player',
+  version: '1.1',
   mimes: ['dash/video/mp4'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
@@ -130,4 +131,12 @@ if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.m
 p.prototype.resize = function(size){
   this.element.width = size.width;
   this.element.height = size.height;
+};
+p.prototype.updateSrc = function(src){
+  if (src == '') {
+    this.dash.reset();
+    return;
+  }
+  this.dash.attachSource(src);
+  return true;
 };

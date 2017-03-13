@@ -1,5 +1,6 @@
 mistplayers.polytrope = {
   name: 'Polytrope Flash Player',
+  version: '0.1',
   mimes: ['flash/11','flash/10','flash/7'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {

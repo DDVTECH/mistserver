@@ -1,5 +1,6 @@
 mistplayers.theoplayer = {
   name: 'TheoPlayer',
+  version: '0.1',
   mimes: ['html5/application/vnd.apple.mpegurl','dash/video/mp4'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {

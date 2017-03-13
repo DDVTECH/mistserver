@@ -42,7 +42,7 @@ MistPlayer.prototype.build = function () {
 }
 MistPlayer.prototype.timer = {
   timers: {},
-  add: function(callback,delay){
+  add: function(callback,delay,isInterval){
     var me = this;
     var i = setTimeout(function(){
       delete me.timers[i];
@@ -50,19 +50,24 @@ MistPlayer.prototype.timer = {
     },delay);
     this.timers[i] = {
       delay: delay,
-      callback: callback
+      callback: callback,
+      interval: isInterval || false
     };
     return i;
   },
   remove: function(i){
-    clearTimeout(i);
+    if (this.timers[i].interval) {
+      clearInterval(i);
+    }
+    else {
+      clearTimeout(i);
+    }
     delete this.timers[i];
   },
   clear: function(){
     for (var i in this.timers) {
-      clearTimeout(i);
+      this.remove(i);
     }
-    this.timers = {};
   }
 };
 
@@ -688,6 +693,7 @@ MistPlayer.prototype.askNextCombo = function(msg){
   button.appendChild(t);
   err.appendChild(button);
   button.onclick = function(){
+    me.addlog('Reloading player because the reload button was triggered');
     me.reload();
   }
   
@@ -697,6 +703,7 @@ MistPlayer.prototype.askNextCombo = function(msg){
       type: 'playback',
       warn: 'Automatically reloaded the current player after playback error'
     });
+    me.addlog('Triggering reload button because of timeout');
     button.click();
   },20e3);
   
@@ -785,6 +792,7 @@ MistPlayer.prototype.unload = function(){
   }
   this.timer.clear();
   this.target.innerHTML = '';
+  this.element.innerHTML = '';
 };
 
 function mistCheck(streaminfo,options,embedLog) {
@@ -1244,7 +1252,7 @@ function mistPlay(streamName,options) {
           if ((!element.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
             //check if the progress made is equal to the time spent
             var lasttime = player.element.currentTime;
-            element.checkProgressTimeout = setInterval(function(){
+            element.checkProgressTimeout = player.timer.add(function(){
               var newtime = player.element.currentTime;
               var progress = newtime - lasttime;
               lasttime = newtime;
@@ -1279,13 +1287,13 @@ function mistPlay(streamName,options) {
                 });
                 return;
               }
-            },30e3);
+            },30e3,true);
           }
         },true);
         element.addEventListener('pause',function(){
           player.paused = true;
           if (element.checkProgressTimeout) {
-            clearInterval(element.checkProgressTimeout);
+            player.timer.remove(element.checkProgressTimeout);
             element.checkProgressTimeout = false;
           }
         },true);

@@ -1839,6 +1839,7 @@ var UI = {
           for (var i in mistvideo[s].embedded) {
             try {
               mistvideo[s].embedded[i].player.unload();
+              delete mistvideo[s].embedded[i];
             }
             catch (e) {}
           }

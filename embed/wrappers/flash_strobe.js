@@ -1,5 +1,6 @@
 mistplayers.flash_strobe = {
   name: 'Strobe Flash Media Playback',
+  version: '1.0',
   mimes: ['flash/10','flash/11','flash/7'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {

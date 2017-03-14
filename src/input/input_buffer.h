@@ -13,6 +13,7 @@ namespace Mist {
       unsigned int cutTime;
       bool hasPush;
       bool resumeMode;
+      IPC::semaphore * liveMeta;
     protected:
       //Private Functions
       bool setup();
